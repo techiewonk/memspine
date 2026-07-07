@@ -87,6 +87,7 @@ from memspine.services.graph.base import GraphStore
 from memspine.services.graph.sqlite_adjacency import SQLiteAdjacencyGraph
 from memspine.services.llm.base import LLMRouter, LLMService
 from memspine.services.llm.local import OpenAICompatLLM
+from memspine.services.rerank.base import Reranker, concat_background
 from memspine.services.secrets.env import EnvSecrets
 from memspine.services.storage.projector import RecordProjector
 from memspine.services.storage.sqlite.engine import SQLiteStorage
@@ -130,6 +131,32 @@ def _as_options_dict(raw: Any) -> dict[str, object] | None:
     return dict(raw) if isinstance(raw, dict) else None
 
 
+def _static_prefilter(
+    query: str, candidates: list[tuple[MemoryRecord, float]]
+) -> list[tuple[MemoryRecord, float]]:
+    """E8 optional first stage (opt-in): a cheap lexical-overlap gate over the
+    candidate set. Applied *after* the vector leg (a true pre-vector
+    static-embedding prefilter is the E4 model2vec track); when nothing
+    overlaps it keeps the original set — a precision stage must never turn a
+    working retrieval into an empty one."""
+    query_tokens = set(query.lower().split())
+    kept = [
+        (record, relevance)
+        for record, relevance in candidates
+        if query_tokens & set(record.content.lower().split())
+    ]
+    return kept or candidates
+
+
+def _minmax_normalize(scores: list[float]) -> list[float]:
+    """Cross-encoder logits → [0, 1] relevance (rank-preserving) so reranked
+    scores compose with the M1 composite exactly like cosine similarities."""
+    lo, hi = min(scores), max(scores)
+    if hi - lo <= 1e-12:
+        return [0.5] * len(scores)
+    return [(score - lo) / (hi - lo) for score in scores]
+
+
 class Engine:
     """Async-first facade; thin sync wrappers on the public verbs (D-01)."""
 
@@ -169,6 +196,9 @@ class Engine:
         self._prompts: PromptRegistry | None = None
         self._scoring: ScoringPolicy | None = None
         self._assembly: AssemblyPolicy | None = None
+        self._assembly_compression: CompressionPolicy | None = None
+        self._reranker: Reranker | None = None
+        self._rerank_unavailable = False
         self._inflate: CompressionPolicy = CompressionPolicy.bind()
         self._firewall: Firewall = Firewall()
         self._summarize: Summarize | None = None
@@ -250,6 +280,18 @@ class Engine:
         self._llm = await self._build_llm_router(config)
         self._scoring = ScoringPolicy.bind(config.read.scoring)
         self._assembly = AssemblyPolicy.bind(config.read.assembly)
+        # E5 assembly-stage compression binding (D-51): master switch defaults
+        # off inside the options, so profile="simple" behavior never changes.
+        self._assembly_compression = CompressionPolicy.bind(
+            _as_options_dict(config.read.compression)
+        )
+        # E8 rerank (D-51): validate the mode now; the model itself loads
+        # lazily on first search (a config typo must fail at start, a heavy
+        # ONNX download must not).
+        if config.read.rerank not in ("off", "fastembed", "flashrank"):
+            raise ConfigError(
+                f"unknown read.rerank {config.read.rerank!r} (valid: off, fastembed, flashrank)"
+            )
         self._working = WorkingMemory(
             append_event=self._append_and_project,
             page_size=int(
@@ -458,13 +500,16 @@ class Engine:
         namespace: str = "default",
         top_k: int = constants.SEARCH_TOP_K,
     ) -> list[tuple[MemoryRecord, float]]:
-        """Semantic retrieval (P1): embed → vector search → composite scoring.
+        """Semantic retrieval (P1 + E8 opt-in stages, D-51):
+        ``[static_prefilter?] → vector/hybrid → [rerank?] → score`` (MMR and
+        assembly follow in :meth:`assemble`).
 
         Returns ``(record, score)`` pairs sorted by the M1 composite score
         (recency/relevance/importance + utility), not raw cosine — a stale
         near-duplicate loses to a fresher, proven-useful memory. Each search
         appends one RETRIEVE event so access stats (reinforcement, M1) update
-        through the write door like every other mutation.
+        through the write door like every other mutation. Both E8 stages are
+        off by default: results are bit-identical to the plain pipeline.
         """
         storage = self._require_started()
         if self._embedder is None or self._vector is None or self._scoring is None:
@@ -474,7 +519,7 @@ class Engine:
         hits = await self._vector.query(
             ns, query_vector, embedder_id=self._embedder.embedder_id, top_k=top_k
         )
-        scored: list[tuple[MemoryRecord, float]] = []
+        candidates: list[tuple[MemoryRecord, float]] = []
         for hit in hits:
             record = await storage.get_record(hit.record_id)
             if record is None or record.status is not RecordStatus.ACTIVATED:
@@ -490,7 +535,32 @@ class Engine:
                 # One corrupt cold-tier row must not take down the whole query.
                 _log.warning("memory.inflate_failed", namespace=ns, record_id=record.record_id)
                 continue
-            scored.append((record, self._scoring.composite_score(record, relevance=hit.score)))
+            candidates.append((record, hit.score))
+        # E8 stage: static prefilter (opt-in, default off).
+        if candidates and self._config().read.static_prefilter:
+            candidates = _static_prefilter(query, candidates)
+        # E8 stage: cross-encoder rerank (opt-in, default off). The reranked
+        # relevance replaces the vector similarity; the E1 gates above already
+        # ran, so a reranker can only reorder live content, never resurface
+        # held content. Failures degrade loudly to the vector ordering.
+        reranker = self._rerank_provider()
+        if reranker is not None and candidates:
+            documents = [concat_background(record) for record, _ in candidates]
+            try:
+                raw_scores = await reranker.rerank(query, documents)
+                relevances = _minmax_normalize(raw_scores)
+                candidates = [
+                    (record, relevance)
+                    for (record, _), relevance in zip(candidates, relevances, strict=True)
+                ]
+            except Exception as exc:
+                _log.warning(
+                    "rerank.failed", namespace=ns, reranker=reranker.reranker_id, error=str(exc)
+                )
+        scored = [
+            (record, self._scoring.composite_score(record, relevance=relevance))
+            for record, relevance in candidates
+        ]
         scored.sort(key=lambda pair: pair[1], reverse=True)
         if scored:
             # Reinforcement stats via the log (M1): last_accessed_at + access_count.
@@ -545,7 +615,11 @@ class Engine:
             )
             for record, score in scored
         ]
-        return self._assembly.assemble(scored, budget_tokens=budget_tokens)
+        # E5 (D-51): the compression policy's own master switch decides whether
+        # the fit stage runs; with the default options this is a no-op.
+        return self._assembly.assemble(
+            scored, budget_tokens=budget_tokens, compression=self._assembly_compression
+        )
 
     async def set_persona(self, namespace: str, text: str) -> MemoryRecord:
         """Pin the persona block (M13.1): first token of the E2 stable prefix.
@@ -858,6 +932,34 @@ class Engine:
     def _config(self) -> MemspineConfig:
         assert self._resolved is not None
         return self._resolved.config
+
+    def _rerank_provider(self) -> Reranker | None:
+        """The E8 reranker for the configured mode (D-51), constructed lazily
+        on first use (cross-encoder weights must not load at engine start).
+        An unavailable adapter is skip-logged ONCE and the stage disables
+        itself — retrieval quality degrades, retrieval never fails."""
+        mode = self._config().read.rerank
+        if mode == "off" or self._rerank_unavailable:
+            return None if mode == "off" else self._reranker
+        if self._reranker is not None:
+            return self._reranker
+        try:
+            if mode == "fastembed":
+                from memspine.services.rerank.fastembed_rerank import FastembedReranker
+
+                self._reranker = FastembedReranker()
+            elif mode == "flashrank":
+                from memspine.services.rerank.flashrank_rerank import FlashrankReranker
+
+                self._reranker = FlashrankReranker()
+        except (ImportError, MissingServiceError) as exc:
+            self._rerank_unavailable = True
+            _log.info(
+                "rerank.unavailable",
+                provider=mode,
+                detail=f"E8 rerank stage skipped — {exc}",
+            )
+        return self._reranker
 
     async def timeline(
         self,
@@ -1590,9 +1692,12 @@ class Engine:
             from memspine.workers.dbos_runner import DBOSRunner
 
             return DBOSRunner()
+        if config.workers.runner == "taskiq":
+            from memspine.workers.taskiq_runner import TaskiqRunner
+
+            return TaskiqRunner(url=config.workers.broker_url)
         raise ConfigError(
-            f"unknown workers.runner {config.workers.runner!r} "
-            "(valid in P3: inline, dbos; taskiq lands in P7)"
+            f"unknown workers.runner {config.workers.runner!r} (valid: inline, dbos, taskiq)"
         )
 
     def _build_summarize(self) -> Summarize | None:

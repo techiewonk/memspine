@@ -108,6 +108,16 @@ SEARCH_TOP_K = 8
 ASSEMBLE_TOP_K = 16
 ASSEMBLE_BUDGET_TOKENS = 2048
 
+# Taskiq runner (D-16/D-42 §3): a pending stream entry idle longer than this is
+# presumed abandoned and eligible for XAUTOCLAIM claim-recovery.
+TASKIQ_CLAIM_MIN_IDLE_MS = 60_000
+
+# E8 rerank (D-42 §5/D-51): default fastembed ONNX cross-encoder model.
+RERANK_FASTEMBED_MODEL = "Xenova/ms-marco-MiniLM-L-6-v2"
+
+# E5 assembly-time compression (D-51): llmlingua target keep-rate per block.
+ASSEMBLY_COMPRESS_RATE = 0.5
+
 # In-process KV cache (E3): entry cap for the zero-dep default backend.
 MEMORY_KV_MAX_ENTRIES = 65536
 

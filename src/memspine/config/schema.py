@@ -112,25 +112,40 @@ class PromptsConfig(BaseModel):
 
 
 class WorkersConfig(BaseModel):
-    """Background runner selection (D-16): inline (default) / dbos [dbos];
-    taskiq joins in P7. Validated against the known set at engine start."""
+    """Background runner selection (D-16): inline (default) / dbos [dbos] /
+    taskiq [taskiq] (P7, D-42 §3). Validated against the known set at engine
+    start. ``broker_url`` is the Redis/Valkey endpoint the taskiq runner's
+    per-scope streams live on; ignored by the other runners."""
 
     model_config = ConfigDict(extra="forbid")
 
     runner: str = "inline"
+    broker_url: str = "redis://localhost:6379/0"
 
 
 class ReadConfig(BaseModel):
-    """ReadPolicy bindings (M12): options for the scoring + assembly policies.
+    """ReadPolicy bindings (M12) + the E8/E5 opt-in stages (D-51, default OFF).
 
-    Values here flow into ``ScoringPolicy.bind`` / ``AssemblyPolicy.bind``;
-    per-namespace overrides ride the D-14 policy-override channel later.
+    ``scoring``/``assembly`` flow into ``ScoringPolicy.bind`` /
+    ``AssemblyPolicy.bind``; per-namespace overrides ride the D-14
+    policy-override channel later.
+
+    - ``rerank``: ``off`` (default) | ``fastembed`` (ONNX cross-encoder) |
+      ``flashrank`` (``[rerank]`` extra) — E8 rerank stage over the candidate
+      set, fed concat_background text (D-42 §5).
+    - ``static_prefilter``: cheap lexical-overlap gate before rerank/score (E8).
+    - ``compression``: options for the E5 assembly-stage ``CompressionPolicy``
+      binding (``{"assembly": true, "assembly_stage": [...]}``); the master
+      switch defaults off so ``profile="simple"`` behavior never changes.
     """
 
     model_config = ConfigDict(extra="forbid")
 
     scoring: dict[str, Any] = Field(default_factory=dict)
     assembly: dict[str, Any] = Field(default_factory=dict)
+    rerank: str = "off"
+    static_prefilter: bool = False
+    compression: dict[str, Any] = Field(default_factory=dict)
 
 
 class MemoryTypeConfig(BaseModel):
