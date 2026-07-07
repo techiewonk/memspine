@@ -89,6 +89,108 @@ async def test_verbs_fail_loudly_when_type_disabled() -> None:
         await eng.stop()
 
 
+async def test_aged_lifecycle_end_to_end_through_the_engine(engine: Engine) -> None:
+    """The engine-wiring gap the pipeline harness can't see: aged records must
+    decay + compress through Engine.sleep(), stay retrievable (inflated) via
+    search/retrieve, and survive a real Engine.rebuild() with both projectors."""
+    from datetime import UTC, datetime, timedelta
+
+    from memspine.core.events import EventKind, MemoryEvent
+    from memspine.core.records import MemoryRecord
+
+    original = "the shinagawa office badge code was rotated in march " * 5
+    moment = datetime.now(UTC) - timedelta(days=200)
+    aged = MemoryRecord(
+        namespace="agent/a",
+        memory_type="episodic",
+        content=original,
+        valid_from=moment,
+        recorded_at=moment,
+    )
+    await engine._append_and_project(
+        MemoryEvent(
+            kind=EventKind.WRITE,
+            namespace="agent/a",
+            actor="test",
+            payload={"record": aged.model_dump(mode="json")},
+        )
+    )
+
+    stats = await engine.sleep()
+    assert stats["decay_sweep"] == {"status": "ok", "transitions": 1}
+    assert stats["compress"] == {"status": "ok", "compressed": 1}
+
+    # At rest: compressed. Through every read verb: the original text.
+    raw = await engine._require_started().get_record(aged.record_id)
+    assert raw is not None and raw.content == "" and raw.content_zstd is not None
+    [got] = await engine.retrieve(namespace="agent/a", memory_type="episodic")
+    assert got.content == original
+    scored = await engine.search("shinagawa badge code", namespace="agent/a")
+    assert scored and scored[0][0].content == original
+    [timed] = await engine.timeline(namespace="agent/a")
+    assert timed.content == original
+
+    # Real rebuild (both projectors) over a log containing DECAY_TRANSITIONs.
+    counts = await engine.rebuild()
+    assert counts["records"] >= 1 and counts["vectors"] >= 1
+    [after] = await engine.retrieve(namespace="agent/a", memory_type="episodic")
+    assert after.content == original
+    raw_after = await engine._require_started().get_record(aged.record_id)
+    assert raw_after is not None and raw_after.tier == "dormant"  # lifecycle survived replay
+
+
+async def test_reingest_after_partial_failure_skips_landed_chunks(
+    engine: Engine, tmp_path: Path
+) -> None:
+    doc = tmp_path / "guide.md"
+    doc.write_text("First part.\n\nSecond part.", encoding="utf-8")
+    first = await engine.ingest(doc, namespace="agent/a")
+    again = await engine.ingest(doc, namespace="agent/a")  # e.g. retry after crash
+    assert first and again == []  # nothing duplicated
+    stored = await engine.retrieve(namespace="agent/a", memory_type="resource")
+    assert len(stored) == len(first)
+
+
+async def test_ingest_empty_document_is_a_loud_noop(engine: Engine, tmp_path: Path) -> None:
+    doc = tmp_path / "empty.md"
+    doc.write_text("   \n\n  ", encoding="utf-8")
+    records = await engine.ingest(doc, namespace="agent/a")
+    assert records == []
+    assert await engine.retrieve(namespace="agent/a", memory_type="resource") == []
+
+
+async def test_sessions_gap_override_and_timeline_window(engine: Engine) -> None:
+    from datetime import UTC, datetime, timedelta
+
+    from memspine.core.events import EventKind, MemoryEvent
+    from memspine.core.records import MemoryRecord
+
+    now = datetime.now(UTC)
+    for minutes_ago in (30, 20, 5):
+        moment = now - timedelta(minutes=minutes_ago)
+        record = MemoryRecord(
+            namespace="agent/w",
+            memory_type="episodic",
+            content=f"e{minutes_ago}",
+            valid_from=moment,
+            recorded_at=moment,
+        )
+        await engine._append_and_project(
+            MemoryEvent(
+                kind=EventKind.WRITE,
+                namespace="agent/w",
+                actor="test",
+                payload={"record": record.model_dump(mode="json")},
+            )
+        )
+    assert len(await engine.sessions(namespace="agent/w", gap_minutes=60)) == 1
+    assert len(await engine.sessions(namespace="agent/w", gap_minutes=8)) == 3
+    windowed = await engine.timeline(
+        namespace="agent/w", start=now - timedelta(minutes=25), end=now
+    )
+    assert [record.content for record in windowed] == ["e20", "e5"]
+
+
 async def test_unknown_runner_is_config_error() -> None:
     eng = Engine(
         template="base",

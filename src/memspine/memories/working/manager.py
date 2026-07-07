@@ -45,16 +45,16 @@ class WorkingMemory(BaseMemory):
         """
         evicted = select_page_out(active, self._page_size)
         for record in evicted:
-            transitioned = record.model_copy(
-                update={"memory_type": "episodic", "version": record.version + 1}
-            )
+            # Delta, not snapshot: paging must not clobber concurrent updates
+            # to fields it does not own (see RecordProjector docstring).
             await self._append_event(
                 MemoryEvent(
                     kind=EventKind.DECAY_TRANSITION,
                     namespace=namespace,
                     actor="system",
                     payload={
-                        "record": transitioned.model_dump(mode="json"),
+                        "record_id": record.record_id,
+                        "set": {"memory_type": "episodic", "version": record.version + 1},
                         "transition": "working->episodic",
                         "reason": "page_out",
                     },

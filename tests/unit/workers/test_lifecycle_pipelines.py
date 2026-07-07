@@ -80,7 +80,7 @@ async def test_consolidate_summarizes_closed_sessions_idempotently() -> None:
     await write(harness, episode("fresh chatter", 5))
 
     stats = await consolidate(ctx)
-    assert stats == {"status": "ok", "summaries": 1}
+    assert stats == {"status": "ok", "summaries": 1, "superseded": 0}
 
     summaries = [
         record
@@ -98,7 +98,7 @@ async def test_consolidate_summarizes_closed_sessions_idempotently() -> None:
     assert len(consolidate_events[0].payload["member_record_ids"]) == 3
 
     rerun = await consolidate(ctx)
-    assert rerun == {"status": "ok", "summaries": 0}  # idempotent
+    assert rerun == {"status": "ok", "summaries": 0, "superseded": 0}  # idempotent
 
 
 async def test_consolidate_skips_small_and_open_sessions() -> None:
@@ -107,7 +107,7 @@ async def test_consolidate_skips_small_and_open_sessions() -> None:
     for minutes in (10, 8, 6):  # big enough but still open
         await write(harness, episode(f"live {minutes}", minutes))
     stats = await consolidate(ctx)
-    assert stats == {"status": "ok", "summaries": 0}
+    assert stats == {"status": "ok", "summaries": 0, "superseded": 0}
 
 
 async def test_consolidate_uses_llm_summarizer_and_survives_its_failure() -> None:
@@ -120,7 +120,8 @@ async def test_consolidate_uses_llm_summarizer_and_survives_its_failure() -> Non
 
     ctx.summarize = failing_summarize
     stats = await consolidate(ctx)
-    assert stats == {"status": "ok", "summaries": 1}  # extractive fallback (N6)
+    # extractive fallback (N6)
+    assert stats == {"status": "ok", "summaries": 1, "superseded": 0}
     events = await harness.storage.read_events()
     marker = next(e for e in events if e.kind is EventKind.CONSOLIDATE)
     assert marker.payload["summarizer"] == "llm"  # attempted; content fell back
@@ -188,6 +189,13 @@ async def test_decay_then_compress_then_rebuild_round_trips() -> None:
     rerun = await compress(ctx)
     assert rerun == {"status": "ok", "compressed": 0}  # idempotent
 
+    # A read verb on top of raw storage (the pipeline harness has no Engine):
+    # inflation must restore the original bytes exactly.
+    from memspine.core.policies.compression import CompressionPolicy
+
+    inflated = CompressionPolicy.bind().inflate(record)
+    assert inflated.content == content
+
     # Rebuild identity (D0.1): replaying the log reproduces the compressed row.
     before = record.model_dump(mode="json")
     await harness.storage.delete_all_records()
@@ -218,3 +226,167 @@ async def test_read_only_context_skips_mutating_pipelines() -> None:
     for pipeline in (consolidate, decay_sweep, compress):
         stats = await pipeline(ctx)
         assert stats["status"] == "skipped"
+
+
+# ── review regressions (P3 ECC cycle) ───────────────────────────────────────
+
+
+async def test_decay_transition_delta_preserves_concurrent_access_stats() -> None:
+    """Regression (empirically found): a full-snapshot DECAY_TRANSITION taken
+    before the append erased a concurrent RETRIEVE's access stats and demoted
+    a just-accessed record. Deltas must only touch the fields they own."""
+    _ctx, harness = await make_ctx()
+    old = episode("ancient but just accessed", minutes_ago=200 * 24 * 60)
+    await write(harness, old)
+
+    # Interleave: sweep-style stale read happens implicitly; a RETRIEVE lands
+    # between the sweep's read and its transition append.
+    await harness.append(
+        MemoryEvent(
+            kind=EventKind.RETRIEVE,
+            namespace="agent/a",
+            actor="system",
+            payload={"record_ids": [old.record_id]},
+        )
+    )
+    await harness.append(
+        MemoryEvent(
+            kind=EventKind.DECAY_TRANSITION,
+            namespace="agent/a",
+            actor="system",
+            payload={
+                "record_id": old.record_id,
+                "set": {"tier": "dormant"},  # built from the stale pre-RETRIEVE view
+                "transition": "hot->dormant",
+                "reason": "idle",
+            },
+        )
+    )
+    stored = await harness.storage.get_record(old.record_id)
+    assert stored is not None
+    assert stored.tier == "dormant"  # the transition applied
+    assert stored.scoring.access_count == 1  # the concurrent RETRIEVE survived
+    assert stored.scoring.last_accessed_at is not None
+
+
+async def test_orphaned_delta_transition_is_skipped() -> None:
+    _ctx, harness = await make_ctx()
+    await harness.append(
+        MemoryEvent(
+            kind=EventKind.DECAY_TRANSITION,
+            namespace="agent/a",
+            actor="system",
+            payload={"record_id": "ghost", "set": {"tier": "cold"}, "reason": "idle"},
+        )
+    )  # must not raise; nothing to patch
+
+
+async def test_backfill_reconsolidates_and_supersedes_stale_summary() -> None:
+    """Regression (empirically found): a backfilled record either vanished from
+    its session's summary forever or produced duplicate overlapping summaries.
+    Membership keys + overlap supersession give exactly one active summary."""
+    ctx, harness = await make_ctx()
+    for content, minutes in [
+        ("alice arrived. x", 125),
+        ("bob spoke. y", 122),
+        ("deal closed. z", 120),
+    ]:
+        await write(harness, episode(content, minutes))
+    await consolidate(ctx)
+
+    # Backfill INSIDE the consolidated window (mid-session) and BEFORE it.
+    await write(harness, episode("late-arriving note. n", 121))
+    await write(harness, episode("even earlier prologue. p", 128))
+    stats = await consolidate(ctx)
+    assert stats == {"status": "ok", "summaries": 1, "superseded": 1}
+
+    all_summaries = [
+        r
+        for r in await ctx.storage.list_records("agent/a", "semantic")
+        if r.source.channel == "consolidation"
+    ]
+    active = [r for r in all_summaries if r.status is RecordStatus.ACTIVATED]
+    archived = [r for r in all_summaries if r.status is RecordStatus.ARCHIVED]
+    assert len(active) == 1 and len(archived) == 1
+    assert "prologue" in active[0].content and "late-arriving" in active[0].content
+    assert archived[0].evolve_to == active[0].record_id  # D-42 lifecycle chain
+
+    rerun = await consolidate(ctx)  # stable again
+    assert rerun == {"status": "ok", "summaries": 0, "superseded": 0}
+
+
+async def test_consolidate_inflates_compressed_members() -> None:
+    """Regression: compressed session members used to be summarized as ''."""
+    ctx, harness = await make_ctx(
+        memories={
+            "episodic": {
+                "enabled": True,
+                "policies": {"compression": {"compress_tiers": ["cold", "dormant"]}},
+            }
+        }
+    )
+    for content, minutes in [
+        ("alice arrived. x", 125),
+        ("bob spoke. y", 122),
+        ("deal closed. z", 120),
+    ]:
+        await write(harness, episode(content, minutes + 200 * 24 * 60))  # ancient
+    await decay_sweep(ctx)
+    stats = await compress(ctx)
+    assert stats["compressed"] == 3
+
+    await consolidate(ctx)
+    summary = next(
+        r
+        for r in await ctx.storage.list_records("agent/a", "semantic")
+        if r.source.channel == "consolidation"
+    )
+    assert "alice arrived." in summary.content  # inflated, not empty
+
+
+async def test_llm_summarizer_success_path_words_the_summary() -> None:
+    ctx, harness = await make_ctx()
+    for minutes in (125, 122, 120):
+        await write(harness, episode(f"event {minutes}. detail", minutes))
+
+    async def summarize(text: str) -> str:
+        return "LLM-worded summary"
+
+    ctx.summarize = summarize
+    await consolidate(ctx)
+    summary = next(
+        r
+        for r in await ctx.storage.list_records("agent/a", "semantic")
+        if r.source.channel == "consolidation"
+    )
+    assert summary.content == "LLM-worded summary"
+
+
+async def test_write_event_carries_consolidation_provenance() -> None:
+    """A torn WRITE/CONSOLIDATE pair must still leave member ids in the log."""
+    ctx, harness = await make_ctx()
+    for minutes in (125, 122, 120):
+        await write(harness, episode(f"event {minutes}. detail", minutes))
+    await consolidate(ctx)
+    events = await harness.storage.read_events()
+    summary_write = next(
+        e for e in events if e.kind is EventKind.WRITE and "consolidation" in e.payload
+    )
+    assert len(summary_write.payload["consolidation"]["member_record_ids"]) == 3
+
+
+async def test_sweeps_cover_semantic_and_resource_types_across_namespaces() -> None:
+    ctx, harness = await make_ctx()
+    ancient = 200 * 24 * 60
+    sem = episode("old semantic fact", ancient, ns="agent/a").model_copy(
+        update={"memory_type": "semantic"}
+    )
+    res = episode("old resource chunk", ancient, ns="agent/b").model_copy(
+        update={"memory_type": "resource"}
+    )
+    await write(harness, sem)
+    await write(harness, res)
+    stats = await decay_sweep(ctx)
+    assert stats == {"status": "ok", "transitions": 2}
+    assert (await harness.storage.get_record(sem.record_id)).tier == "dormant"  # type: ignore[union-attr]
+    assert (await harness.storage.get_record(res.record_id)).tier == "dormant"  # type: ignore[union-attr]

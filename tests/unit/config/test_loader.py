@@ -95,6 +95,11 @@ def test_env_scalars_parse_types() -> None:
     assert resolved.config.event_log.mode is EventLogMode.EPHEMERAL
 
 
+def test_workers_runner_rides_env_layering() -> None:
+    resolved = load_config(env={"MEMSPINE_WORKERS__RUNNER": "dbos"})
+    assert resolved.config.workers.runner == "dbos"
+
+
 def test_unrelated_memspine_env_vars_are_ignored() -> None:
     """Regression: MEMSPINE_HOME/MEMSPINE_DEBUG from other tooling used to be
     injected into the strict schema and crash every load."""

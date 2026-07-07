@@ -32,10 +32,8 @@ class Session(BaseModel):
         return len(self.record_ids)
 
 
-def _session_key(first: MemoryRecord) -> str:
-    return fingerprint_payload(
-        {"first_record_id": first.record_id, "start": first.valid_from.isoformat()}
-    )
+def _session_key(members: list[MemoryRecord]) -> str:
+    return fingerprint_payload({"member_ids": sorted(r.record_id for r in members)})
 
 
 def detect_sessions(records: list[MemoryRecord], gap: timedelta) -> list[Session]:
@@ -56,7 +54,7 @@ def detect_sessions(records: list[MemoryRecord], gap: timedelta) -> list[Session
 
 def _build(members: list[MemoryRecord]) -> Session:
     return Session(
-        session_key=_session_key(members[0]),
+        session_key=_session_key(members),
         start=members[0].valid_from,
         end=members[-1].valid_from,
         record_ids=[record.record_id for record in members],

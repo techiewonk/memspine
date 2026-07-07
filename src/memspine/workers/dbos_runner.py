@@ -1,16 +1,13 @@
-"""DBOS durable runner (D-16, ``[dbos]``): pipelines as durable workflows.
+"""DBOS runner seam (D-16, ``[dbos]``).
 
-The anti-lock-in contract (D-17) holds: pipelines stay plain functions; this
-runner *decorates* them at registration time. DBOS gives exactly-once workflow
-semantics backed by its system database — a crashed sleep cycle resumes instead
-of silently vanishing. The import is guarded: without ``pip install
-memspine[dbos]`` construction raises :class:`MissingServiceError` naming the
-extra (D-10).
-
-Note: DBOS durability requires ``DBOS.launch()`` to have been called by the
-hosting application (DBOS owns process-level lifecycle). Until launch, runs
-execute with inline semantics — real, but not yet durable — and a warning says
-so. This keeps ``Engine.start`` free of process-global side effects.
+HONESTY NOTE (P3): this runner is the *seam*, not yet the durability. Pipelines
+execute with inline semantics plus dead-letter reporting; wrapping each run in
+a checkpointed ``@DBOS.workflow`` (so a crashed sleep cycle *resumes*) requires
+the hosting application to own ``DBOS.launch()`` and workflow registration at
+import time — that integration lands in P7 alongside the taskiq runner. Until
+then the runner warns when DBOS is not launched and never claims recovery it
+cannot deliver. The import is guarded: without ``pip install memspine[dbos]``
+construction raises :class:`MissingServiceError` naming the extra (D-10).
 """
 
 from __future__ import annotations
@@ -62,7 +59,13 @@ class DBOSRunner:
             # D-17 contract, so re-execution after recovery is safe.
             return await pipeline(ctx)
         except Exception as exc:  # dead-letter, not crash (D-18)
-            _log.warning("pipeline.dead_letter", pipeline=name, runner="dbos", error=str(exc))
+            _log.warning(
+                "pipeline.dead_letter",
+                pipeline=name,
+                runner="dbos",
+                error=str(exc),
+                exc_info=True,
+            )
             return {"status": "error", "error": str(exc)}
 
     async def close(self) -> None:

@@ -29,12 +29,15 @@ def test_detect_sessions_splits_on_silence_gaps() -> None:
     assert sessions[0].end < sessions[1].start
 
 
-def test_session_keys_are_stable_as_the_tail_grows() -> None:
+def test_session_key_is_a_membership_fingerprint() -> None:
+    """Any membership drift (tail growth, backfill, forget) must change the
+    key — consolidation treats a changed key as re-summarize + supersede.
+    Unchanged membership must yield the same key regardless of input order."""
     burst = [rec(120), rec(115), rec(110)]
-    key_before = detect_sessions(burst, GAP)[0].session_key
-    grown = [*burst, rec(105)]  # a record joins the same session's tail
-    key_after = detect_sessions(grown, GAP)[0].session_key
-    assert key_before == key_after  # consolidation idempotence depends on this
+    key = detect_sessions(burst, GAP)[0].session_key
+    assert detect_sessions(list(reversed(burst)), GAP)[0].session_key == key  # order-free
+    grown = [*burst, rec(105)]
+    assert detect_sessions(grown, GAP)[0].session_key != key  # drift is visible
 
 
 def test_detect_sessions_orders_by_event_time_not_insertion() -> None:

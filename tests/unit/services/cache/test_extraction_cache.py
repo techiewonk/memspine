@@ -45,3 +45,24 @@ async def test_different_content_misses() -> None:
     await cached.extract("alice is happy")
     await cached.extract("alice is sad")
     assert inner.calls == 2
+
+
+async def test_versionless_extractors_never_share_a_cache_bucket() -> None:
+    """Regression: two extractors without prompt_version used to collide on
+    the literal 'None' key and serve each other stale facts."""
+
+    class Versionless:
+        def __init__(self, value: str) -> None:
+            self.value = value
+            self.calls = 0
+
+        async def extract(self, content: str) -> list[ExtractedFact]:
+            self.calls += 1
+            return [ExtractedFact(entity="e", attribute="a", value=self.value)]
+
+    kv = MemoryKV()
+    first, second = Versionless("from-first"), Versionless("from-second")
+    await CachedExtractor(first, kv).extract("same content")
+    result = await CachedExtractor(second, kv).extract("same content")
+    assert second.calls == 1  # not served from first's cache
+    assert result[0].value == "from-second"

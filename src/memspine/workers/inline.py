@@ -30,7 +30,7 @@ class InlineRunner:
         try:
             return await pipeline(ctx)
         except Exception as exc:  # dead-letter, not crash (D-18)
-            _log.warning("pipeline.dead_letter", pipeline=name, error=str(exc))
+            _log.warning("pipeline.dead_letter", pipeline=name, error=str(exc), exc_info=True)
             return {"status": "error", "error": str(exc)}
 
     async def close(self) -> None:

@@ -53,7 +53,6 @@ async def test_manager_emits_decay_transitions_through_the_door() -> None:
     event = emitted[0]
     assert event.kind is EventKind.DECAY_TRANSITION
     assert event.payload["transition"] == "working->episodic"
-    transitioned = event.payload["record"]
-    assert transitioned["record_id"] == old.record_id  # identity preserved
-    assert transitioned["memory_type"] == "episodic"
-    assert transitioned["version"] == old.version + 1
+    # Delta shape (P3.1): page-out patches only the fields it owns.
+    assert event.payload["record_id"] == old.record_id  # identity preserved
+    assert event.payload["set"] == {"memory_type": "episodic", "version": old.version + 1}

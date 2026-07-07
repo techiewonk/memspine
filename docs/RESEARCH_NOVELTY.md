@@ -110,10 +110,10 @@ deepeval live in `evals/`, outside the wheel (D-35).
 
 | # | Contribution | Substrate in code today | Full mechanism |
 |---|---|---|---|
-| N1 | Memory Firewall | P0–P2 (columns, trust contract, provenance; **R1 trust gate live in the M4 ladder + rejected writes fully recoverable from audit events**) | P4 |
-| N2 | Retention-mode spectrum | **P0 complete + tested** | prune scheduling P3 |
+| N1 | Memory Firewall | P0–P2 (columns, trust contract, provenance; **R1 trust gate live in the M4 ladder + rejected writes fully recoverable from audit events**; P3: quarantined records frozen out of decay/compression; ingest chunks carry doc-path taint trail) | P4 |
+| N2 | Retention-mode spectrum | **P0 complete + tested; P3: prune scheduled in the sleep cycle** | ✔ complete |
 | N3 | Combination calculus | P0 (registry + closure + golden tests) | matrix P1–P7 |
-| N4 | Universal record | **P0 complete; M4/M5 consumers live in P2** (bi-temporal supersede chains, point-in-time `fact_at`, union-preserving merges — rebuild-identity verified empirically) | firewall consumer P4 |
+| N4 | Universal record | **P0 complete; M4/M5 consumers live in P2; M3/M6 consumers live in P3** (decay tier + cold-tier `content_zstd` on the same row — rebuild-identity holds across compression) | firewall consumer P4 |
 | N5 | Cache-aware assembly | **P1 complete + tested** (MMR, θ-abstain, exposed cache boundary) | provider `cached_tokens` metrics P3+ |
-| N6 | Deterministic consolidation | — | P6 |
-| N7 | Prompt provenance | **P2: versioned prompt pack live; extractor prompt-version stamped into record provenance** | E3 extraction-cache keys P3 |
+| N6 | Deterministic consolidation | **P3: session-boundary detection + extractive summaries are fully deterministic (same log ⇒ same summaries); LLM only rewords, never structures** | hierarchical (community) tier P6 |
+| N7 | Prompt provenance | **P2: versioned prompt pack live; P3: prompt version keys the E3 extraction cache** (upgrade ⇒ clean invalidation, tested) | ✔ complete |

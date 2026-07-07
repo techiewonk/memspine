@@ -72,6 +72,10 @@ class ConsolidationPolicy(BindablePolicy):
     def session_gap(self) -> timedelta:
         return timedelta(minutes=self._options().session_gap_minutes)
 
+    @property
+    def triggers(self) -> list[ConsolidationTrigger]:
+        return list(self._options().triggers)
+
     def should_trigger(self, trigger: ConsolidationTrigger, heat: int = 0) -> bool:
         options = self._options()
         if trigger not in options.triggers:

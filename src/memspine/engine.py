@@ -44,7 +44,7 @@ from memspine.core.records import (
 from memspine.core.registry import SERVICE_EXTRAS, dependency_closure, missing_services
 from memspine.core.replay import catch_up
 from memspine.core.replay import rebuild as replay_rebuild
-from memspine.exceptions import ConfigError, MemspineError, MissingServiceError
+from memspine.exceptions import ConfigError, MemspineError, MissingServiceError, StorageError
 from memspine.memories.episodic.sessions import Session
 from memspine.memories.episodic.store import EpisodicMemory
 from memspine.memories.resource.store import ResourceMemory
@@ -213,7 +213,7 @@ class Engine:
         if "episodic" in self._enabled:
             self._episodic = EpisodicMemory(self._storage)
         if "resource" in self._enabled:
-            self._resource = ResourceMemory(self._append_and_project)
+            self._resource = ResourceMemory(self._append_and_project, storage=self._storage)
         self._summarize = self._build_summarize()
         self._projectors = [
             RecordProjector(self._storage),
@@ -312,11 +312,7 @@ class Engine:
         """P0 read path: relational listing. Hybrid retrieval lands in Phase 1."""
         storage = self._require_started()
         ns = validate_namespace(namespace)
-        records = [
-            self._inflate.inflate(record)
-            for record in await storage.list_records(ns, memory_type)
-            if record.status is not RecordStatus.DELETED
-        ]
+        records = self._inflate_all(await storage.list_records(ns, memory_type), ns)
         _log.info(EVENT_RETRIEVE, namespace=ns, memory_type=memory_type, count=len(records))
         return records
 
@@ -347,7 +343,12 @@ class Engine:
             record = await storage.get_record(hit.record_id)
             if record is None or record.status is RecordStatus.DELETED:
                 continue  # ghost vector row; FORGET projection or rebuild reconciles
-            record = self._inflate.inflate(record)  # cold-tier content restored (M6)
+            try:
+                record = self._inflate.inflate(record)  # cold-tier content restored (M6)
+            except StorageError:
+                # One corrupt cold-tier row must not take down the whole query.
+                _log.warning("memory.inflate_failed", namespace=ns, record_id=record.record_id)
+                continue
             scored.append((record, self._scoring.composite_score(record, relevance=hit.score)))
         scored.sort(key=lambda pair: pair[1], reverse=True)
         if scored:
@@ -464,8 +465,7 @@ class Engine:
         if self._episodic is None:
             raise MemspineError("episodic memory not enabled — set memories.episodic.enabled: true")
         ns = validate_namespace(namespace)
-        records = await self._episodic.timeline(ns, start, end)
-        return [self._inflate.inflate(record) for record in records]
+        return self._inflate_all(await self._episodic.timeline(ns, start, end), ns)
 
     async def sessions(
         self, namespace: str = "default", gap_minutes: int = constants.SESSION_GAP_MINUTES
@@ -499,7 +499,31 @@ class Engine:
         compress → prune. All steps are idempotent; P3 gives them teeth."""
         self._require_started()
         assert self._runner is not None
-        return await run_sleep_cycle(self._runner, self._pipeline_ctx())
+        stats = await run_sleep_cycle(self._runner, self._pipeline_ctx())
+        degraded = {
+            name: stage
+            for name, stage in stats.items()
+            if stage.get("status") in ("error", "partial")
+        }
+        if degraded:
+            # Callers rarely inspect the stats dict — degradation must be loud.
+            _log.warning("memory.sleep_degraded", failures=degraded)
+        return stats
+
+    def _inflate_all(self, records: list[MemoryRecord], namespace: str) -> list[MemoryRecord]:
+        """Inflate cold-tier content, skipping (loudly) any corrupt row rather
+        than failing the entire read (blast-radius containment)."""
+        inflated: list[MemoryRecord] = []
+        for record in records:
+            if record.status is RecordStatus.DELETED:
+                continue
+            try:
+                inflated.append(self._inflate.inflate(record))
+            except StorageError:
+                _log.warning(
+                    "memory.inflate_failed", namespace=namespace, record_id=record.record_id
+                )
+        return inflated
 
     async def rebuild(self) -> dict[str, int]:
         """Rebuild every projector from seq 0 (D0.1). Raises off-window (D-45)."""

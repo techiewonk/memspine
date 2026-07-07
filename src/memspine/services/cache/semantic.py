@@ -100,6 +100,13 @@ class CachedExtractor:
         return f"ext:{self.prompt_version}:{xxhash.xxh64_hexdigest(content.encode())}"
 
     async def extract(self, content: str) -> list[ExtractedFact]:
+        if self.prompt_version is None:
+            # No producer identity, no cache: two versionless extractors would
+            # otherwise share one bucket and serve each other stale facts (N7).
+            self.misses += 1
+            uncached = getattr(self._inner, "extract")  # noqa: B009 - protocol member
+            uncached_facts: list[ExtractedFact] = await uncached(content)
+            return uncached_facts
         key = self._key(content)
         cached = await self._kv.get(key)
         if cached is not None:

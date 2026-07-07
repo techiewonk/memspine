@@ -10,6 +10,7 @@ decay only emits on a tier *change*, compression skips already-compressed rows.
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -22,7 +23,7 @@ from memspine.core.policies.consolidation import ConsolidationPolicy, Consolidat
 from memspine.core.policies.decay import DecayPolicy
 from memspine.core.policies.retention import RetentionPolicy
 from memspine.core.records import MemoryRecord, RecordStatus, SourceInfo
-from memspine.memories.episodic.sessions import detect_sessions
+from memspine.memories.episodic.sessions import Session, detect_sessions
 from memspine.observability.logging import get_logger
 
 __all__ = [
@@ -87,6 +88,14 @@ def _policy_options(
     return dict(raw) if isinstance(raw, dict) else None
 
 
+def _sweep_stats(counter: str, count: int, errors: list[str]) -> dict[str, object]:
+    """Partial progress is progress: report what succeeded AND what failed,
+    never collapse a half-finished sweep into a bare error (D-18)."""
+    if errors:
+        return {"status": "partial", counter: count, "errors": errors}
+    return {"status": "ok", counter: count}
+
+
 async def event_log_prune(ctx: PipelineContext) -> dict[str, object]:
     """D-45 rolling-mode retention: prune applied events past the window."""
     if ctx.config.event_log.mode is not EventLogMode.ROLLING:
@@ -96,22 +105,49 @@ async def event_log_prune(ctx: PipelineContext) -> dict[str, object]:
     return {"status": "ok", "pruned": pruned}
 
 
+def _consolidation_fires(policy: ConsolidationPolicy) -> bool:
+    """Whether this sweep may consolidate. The sweep serves both SLEEP_CYCLE
+    and SESSION_END semantics — it only ever summarizes *closed* sessions, so
+    a session_end-triggered profile consolidates the same sessions, just at
+    sweep cadence. HEAT needs a write-rate counter that lands with P4 telemetry;
+    configuring it alone must be loud, not a silent no-op."""
+    if policy.should_trigger(ConsolidationTrigger.SLEEP_CYCLE) or policy.should_trigger(
+        ConsolidationTrigger.SESSION_END
+    ):
+        return True
+    if ConsolidationTrigger.HEAT in policy.triggers:
+        _log.warning(
+            "consolidate.heat_trigger_unwired",
+            detail="triggers=[heat] alone: heat tracking lands in P4 — "
+            "consolidation will not run; add sleep_cycle or session_end",
+        )
+    return False
+
+
 async def consolidate(ctx: PipelineContext) -> dict[str, object]:
     """M2 consolidation: closed episodic sessions → one semantic summary each.
 
     Deterministic-first (N6): session boundaries and membership come from
     boundary detection alone; the LLM (when a ``summarize`` role is bound) only
-    words the summary. Idempotent via the session-key check: a summary whose
-    ``source.message_id`` matches the session key already exists ⇒ skip.
+    words the summary.
+
+    Idempotence + backfill (empirically hardened): the session key fingerprints
+    the *full membership*, so an unchanged session is skipped, while a session
+    whose membership drifted (a backfilled record joined it) gets a fresh
+    summary and the stale one is archived with an ``evolve_to`` chain — never
+    a silent exclusion, never duplicate active summaries.
     """
     if ctx.append_event is None:
         return {"status": "skipped", "reason": "read-only context (no write door)"}
     policy = ConsolidationPolicy.bind(_policy_options(ctx, "episodic", "consolidation"))
-    if not policy.should_trigger(ConsolidationTrigger.SLEEP_CYCLE):
-        return {"status": "skipped", "reason": "sleep_cycle trigger disabled"}
+    if not _consolidation_fires(policy):
+        return {"status": "skipped", "reason": "no active consolidation trigger"}
+    inflate = CompressionPolicy.bind()
     gap = policy.session_gap
     now = datetime.now(UTC)
     summaries = 0
+    superseded = 0
+    errors: list[str] = []
 
     for namespace in await ctx.storage.list_namespaces():
         episodes = [
@@ -122,61 +158,137 @@ async def consolidate(ctx: PipelineContext) -> dict[str, object]:
         if not episodes:
             continue
         by_id = {record.record_id: record for record in episodes}
-        existing_keys = {
-            record.source.message_id
+        active_summaries = [
+            record
             for record in await ctx.storage.list_records(namespace, "semantic")
-            if record.source.channel == "consolidation"
-        }
+            if record.source.channel == "consolidation" and record.status is RecordStatus.ACTIVATED
+        ]
+        existing_keys = {record.source.message_id for record in active_summaries}
         for session in detect_sessions(episodes, gap):
             if session.end >= now - gap:
                 continue  # session still open — a new record may yet join it
             if session.session_key in existing_keys:
-                continue  # already consolidated (idempotence)
-            members = [by_id[record_id] for record_id in session.record_ids]
-            if not policy.worth_summarizing(members):
-                continue
-            summary_text = policy.fallback_summary(members)
-            if ctx.summarize is not None:
-                try:
-                    summary_text = await ctx.summarize(
-                        "\n".join(record.content for record in members)
-                    )
-                except Exception as exc:  # LLM is an enhancer, never a gate (N6)
-                    _log.warning(
-                        "consolidate.summarize_fallback", namespace=namespace, error=str(exc)
-                    )
-            summary = MemoryRecord(
+                continue  # membership unchanged since last summary (idempotence)
+            try:
+                summaries, superseded = await _consolidate_session(
+                    ctx,
+                    policy,
+                    inflate,
+                    namespace,
+                    session,
+                    by_id,
+                    active_summaries,
+                    now,
+                    summaries,
+                    superseded,
+                )
+            except Exception as exc:  # one bad session must not kill the sweep
+                errors.append(f"{namespace}/{session.session_key}: {exc}")
+                _log.warning(
+                    "consolidate.session_failed",
+                    namespace=namespace,
+                    session_key=session.session_key,
+                    error=str(exc),
+                    exc_info=True,
+                )
+    stats: dict[str, object] = {"status": "ok", "summaries": summaries, "superseded": superseded}
+    if errors:
+        stats.update(status="partial", errors=errors)
+    return stats
+
+
+async def _consolidate_session(
+    ctx: PipelineContext,
+    policy: ConsolidationPolicy,
+    inflate: CompressionPolicy,
+    namespace: str,
+    session: Session,
+    by_id: dict[str, MemoryRecord],
+    active_summaries: list[MemoryRecord],
+    now: datetime,
+    summaries: int,
+    superseded: int,
+) -> tuple[int, int]:
+    # Cold-tier members must be inflated before anyone summarizes them.
+    members = [inflate.inflate(by_id[record_id]) for record_id in session.record_ids]
+    if not policy.worth_summarizing(members):
+        return summaries, superseded
+    summary_text = policy.fallback_summary(members)
+    if ctx.summarize is not None:
+        try:
+            summary_text = await ctx.summarize("\n".join(record.content for record in members))
+        except Exception as exc:  # LLM is an enhancer, never a gate (N6)
+            _log.warning("consolidate.summarize_fallback", namespace=namespace, error=str(exc))
+    # A summary of a closed session is bi-temporally a closed fact:
+    # its validity is exactly the session window (M4 semantics).
+    summary = MemoryRecord(
+        namespace=namespace,
+        memory_type="semantic",
+        content=summary_text,
+        valid_from=session.start,
+        valid_to=session.end,
+        source=SourceInfo(role="system", channel="consolidation", message_id=session.session_key),
+    )
+    # Membership drift: archive every prior summary whose window
+    # overlaps this session — the fresh summary supersedes it (D-42).
+    stale = [
+        old
+        for old in active_summaries
+        if old.valid_to is not None
+        and old.valid_from <= session.end
+        and old.valid_to >= session.start
+    ]
+    assert ctx.append_event is not None
+    # The WRITE event carries the consolidation provenance too, so even if a
+    # crash tears the WRITE/CONSOLIDATE pair, member ids survive in the log.
+    await ctx.append_event(
+        MemoryEvent(
+            kind=EventKind.WRITE,
+            namespace=namespace,
+            actor="system",
+            payload={
+                "record": summary.model_dump(mode="json"),
+                "consolidation": {
+                    "session_key": session.session_key,
+                    "member_record_ids": session.record_ids,
+                },
+            },
+        )
+    )
+    for old in stale:
+        await ctx.append_event(
+            MemoryEvent(
+                kind=EventKind.DECAY_TRANSITION,
                 namespace=namespace,
-                memory_type="semantic",
-                content=summary_text,
-                valid_from=session.start,
-                source=SourceInfo(
-                    role="system", channel="consolidation", message_id=session.session_key
-                ),
-            )
-            await ctx.append_event(
-                MemoryEvent(
-                    kind=EventKind.WRITE,
-                    namespace=namespace,
-                    actor="system",
-                    payload={"record": summary.model_dump(mode="json")},
-                )
-            )
-            await ctx.append_event(
-                MemoryEvent(
-                    kind=EventKind.CONSOLIDATE,
-                    namespace=namespace,
-                    actor="system",
-                    payload={
-                        "session_key": session.session_key,
-                        "member_record_ids": session.record_ids,
-                        "summary_record_id": summary.record_id,
-                        "summarizer": "llm" if ctx.summarize is not None else "extractive",
+                actor="system",
+                payload={
+                    "record_id": old.record_id,
+                    "set": {
+                        "status": RecordStatus.ARCHIVED.value,
+                        "superseded_at": now.isoformat(),
+                        "evolve_to": summary.record_id,
                     },
-                )
+                    "transition": "summary->superseded",
+                    "reason": "reconsolidated",
+                },
             )
-            summaries += 1
-    return {"status": "ok", "summaries": summaries}
+        )
+        superseded += 1
+    await ctx.append_event(
+        MemoryEvent(
+            kind=EventKind.CONSOLIDATE,
+            namespace=namespace,
+            actor="system",
+            payload={
+                "session_key": session.session_key,
+                "member_record_ids": session.record_ids,
+                "summary_record_id": summary.record_id,
+                "superseded_summary_ids": [old.record_id for old in stale],
+                "summarizer": "llm" if ctx.summarize is not None else "extractive",
+            },
+        )
+    )
+    return summaries + 1, superseded
 
 
 async def decay_sweep(ctx: PipelineContext) -> dict[str, object]:
@@ -185,11 +297,17 @@ async def decay_sweep(ctx: PipelineContext) -> dict[str, object]:
     Only emits on a tier change (idempotent). Reinforcement needs no code here:
     RETRIEVE events advance ``last_accessed_at``, and the next sweep computes a
     hotter tier from it. Quarantined records are frozen in place (E1).
+
+    Transitions are *delta* events ({record_id, set}) — never full snapshots.
+    A snapshot taken before the append would overwrite whatever changed in
+    between (empirically: a concurrent RETRIEVE's access stats were lost and a
+    just-accessed record got demoted); a delta touches only the tier.
     """
     if ctx.append_event is None:
         return {"status": "skipped", "reason": "read-only context (no write door)"}
     now = datetime.now(UTC)
     transitions = 0
+    errors: list[str] = []
     for namespace in await ctx.storage.list_namespaces():
         for memory_type in _SWEEP_TYPES:
             policy = DecayPolicy.bind(_policy_options(ctx, memory_type, "decay"))
@@ -199,21 +317,31 @@ async def decay_sweep(ctx: PipelineContext) -> dict[str, object]:
                 new_tier = policy.tier_for(record, now).value
                 if new_tier == record.tier:
                     continue
-                transitioned = record.model_copy(update={"tier": new_tier})
-                await ctx.append_event(
-                    MemoryEvent(
-                        kind=EventKind.DECAY_TRANSITION,
-                        namespace=namespace,
-                        actor="system",
-                        payload={
-                            "record": transitioned.model_dump(mode="json"),
-                            "transition": f"{record.tier}->{new_tier}",
-                            "reason": "idle",
-                        },
+                try:
+                    await ctx.append_event(
+                        MemoryEvent(
+                            kind=EventKind.DECAY_TRANSITION,
+                            namespace=namespace,
+                            actor="system",
+                            payload={
+                                "record_id": record.record_id,
+                                "set": {"tier": new_tier},
+                                "transition": f"{record.tier}->{new_tier}",
+                                "reason": "idle",
+                            },
+                        )
                     )
-                )
-                transitions += 1
-    return {"status": "ok", "transitions": transitions}
+                    transitions += 1
+                except Exception as exc:  # one bad record must not kill the sweep
+                    errors.append(f"{record.record_id}: {exc}")
+                    _log.warning(
+                        "decay_sweep.record_failed",
+                        namespace=namespace,
+                        record_id=record.record_id,
+                        error=str(exc),
+                        exc_info=True,
+                    )
+    return _sweep_stats("transitions", transitions, errors)
 
 
 async def compress(ctx: PipelineContext) -> dict[str, object]:
@@ -223,6 +351,7 @@ async def compress(ctx: PipelineContext) -> dict[str, object]:
     if ctx.append_event is None:
         return {"status": "skipped", "reason": "read-only context (no write door)"}
     compressed = 0
+    errors: list[str] = []
     for namespace in await ctx.storage.list_namespaces():
         for memory_type in _SWEEP_TYPES:
             policy = CompressionPolicy.bind(_policy_options(ctx, memory_type, "compression"))
@@ -235,21 +364,40 @@ async def compress(ctx: PipelineContext) -> dict[str, object]:
                 # Legal hold freezes representation too — auditors read originals.
                 if retention.on_legal_hold(record):
                     continue
-                packed = policy.compress(record)
-                await ctx.append_event(
-                    MemoryEvent(
-                        kind=EventKind.DECAY_TRANSITION,
-                        namespace=namespace,
-                        actor="system",
-                        payload={
-                            "record": packed.model_dump(mode="json"),
-                            "transition": f"{record.tier}->{record.tier}",
-                            "reason": "cold_tier_compress",
-                        },
+                try:
+                    # zstd is CPU work — keep it off the event loop.
+                    packed = (await asyncio.to_thread(policy.compress, record)).model_dump(
+                        mode="json"
                     )
-                )
-                compressed += 1
-    return {"status": "ok", "compressed": compressed}
+                    await ctx.append_event(
+                        MemoryEvent(
+                            kind=EventKind.DECAY_TRANSITION,
+                            namespace=namespace,
+                            actor="system",
+                            payload={
+                                "record_id": record.record_id,
+                                # Delta, not snapshot (see decay_sweep): only the
+                                # at-rest encoding of content changes.
+                                "set": {
+                                    "content": packed["content"],
+                                    "content_zstd": packed["content_zstd"],
+                                },
+                                "transition": f"{record.tier}->{record.tier}",
+                                "reason": "cold_tier_compress",
+                            },
+                        )
+                    )
+                    compressed += 1
+                except Exception as exc:  # one bad record must not kill the sweep
+                    errors.append(f"{record.record_id}: {exc}")
+                    _log.warning(
+                        "compress.record_failed",
+                        namespace=namespace,
+                        record_id=record.record_id,
+                        error=str(exc),
+                        exc_info=True,
+                    )
+    return _sweep_stats("compressed", compressed, errors)
 
 
 async def sleep_compute(ctx: PipelineContext) -> dict[str, object]:
