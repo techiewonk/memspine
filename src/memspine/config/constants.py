@@ -112,6 +112,11 @@ ASSEMBLE_BUDGET_TOKENS = 2048
 # presumed abandoned and eligible for XAUTOCLAIM claim-recovery.
 TASKIQ_CLAIM_MIN_IDLE_MS = 60_000
 
+# REST protocol (D-06/ADR-018): reject request bodies larger than this before
+# they are buffered — a cheap DoS guard (the REST app ships with no authn, so
+# the deployer's boundary owns the rest; this caps the trivially-abusable path).
+REST_MAX_BODY_BYTES = 1_048_576  # 1 MiB
+
 # E8 rerank (D-42 §5/D-51): default fastembed ONNX cross-encoder model.
 RERANK_FASTEMBED_MODEL = "Xenova/ms-marco-MiniLM-L-6-v2"
 

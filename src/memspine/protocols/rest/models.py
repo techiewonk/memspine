@@ -17,6 +17,7 @@ __all__ = [
     "AssembleRequest",
     "AssembleResponse",
     "GrantRequest",
+    "GrantView",
     "PlanRequest",
     "PromoteRequest",
     "ReflectRequest",
@@ -24,6 +25,7 @@ __all__ = [
     "ScoredRecord",
     "SearchRequest",
     "SkillRequest",
+    "SubscriptionRequest",
     "WatchRequest",
     "WriteRequest",
 ]
@@ -92,6 +94,21 @@ class GrantRequest(_Request):
     to_namespace: str
     memory_types: list[str] | None = None
     actor: str = "user"
+
+
+class SubscriptionRequest(_Request):
+    query: str
+    actor: str = "user"
+
+
+class GrantView(BaseModel):
+    """Wire mirror of a :class:`~memspine.memories.shared.grants.Grant` (the
+    ``GET /grants`` listing) — ``memory_types`` as a JSON array (``null`` = all)."""
+
+    grantor: str
+    grantee: str
+    memory_types: list[str] | None
+    record_id: str
 
 
 class ScoredRecord(BaseModel):

@@ -125,6 +125,15 @@ class ProspectiveMemory(BaseMemory):
         door (``reason="watch_fired"``). Idempotent — acknowledging an already
         archived watch appends nothing and returns it unchanged."""
         record = await self._require_watch(record_id, namespace)
+        # CMP-1/ADR-018: a quarantined watch is firewall-held (E1) — it can
+        # never fire (pending() excludes it), so there is nothing to acknowledge.
+        # Refuse rather than let this non-firewall path archive suspect content
+        # (matches ProceduralMemory.promote's E1 stance).
+        if record.quarantined:
+            raise ConflictError(
+                f"record {record_id} is quarantined (E1) — a held watch cannot fire, "
+                "so there is nothing to acknowledge"
+            )
         if record.status is RecordStatus.ARCHIVED:
             return record  # idempotent: already acknowledged
         now = datetime.now(UTC)

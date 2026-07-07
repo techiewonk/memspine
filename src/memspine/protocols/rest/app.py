@@ -23,6 +23,7 @@ Design notes:
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from datetime import datetime
 from typing import Annotated, Any
 
@@ -32,7 +33,7 @@ from fastapi.responses import ORJSONResponse
 from memspine.config import constants
 from memspine.core.audit import TaintReport
 from memspine.core.namespace import validate_namespace
-from memspine.core.records import MemoryRecord
+from memspine.core.records import MemoryRecord, SourceInfo
 from memspine.engine import Engine
 from memspine.exceptions import ConflictError, MemspineError, MissingServiceError
 from memspine.observability.logging import get_logger
@@ -40,6 +41,7 @@ from memspine.protocols.rest.models import (
     AssembleRequest,
     AssembleResponse,
     GrantRequest,
+    GrantView,
     PlanRequest,
     PromoteRequest,
     ReflectRequest,
@@ -47,6 +49,7 @@ from memspine.protocols.rest.models import (
     ScoredRecord,
     SearchRequest,
     SkillRequest,
+    SubscriptionRequest,
     WatchRequest,
     WriteRequest,
 )
@@ -82,15 +85,37 @@ def build_app(engine: Engine) -> FastAPI:
         default_response_class=ORJSONResponse,
     )
 
+    # ── request-body cap (SEC-M3/ADR-018): a cheap DoS guard ─────────────────
+    # The no-authn app must not buffer an unbounded body. Reject anything over
+    # the configured cap with 413 (Content-Length when present; otherwise a
+    # streaming byte count so a lying/absent header cannot bypass it).
+
+    @app.middleware("http")
+    async def _limit_body_size(
+        request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
+        cap = constants.REST_MAX_BODY_BYTES
+        declared = request.headers.get("content-length")
+        if declared is not None and declared.isdigit() and int(declared) > cap:
+            return _error_response(413, MemspineError(f"request body exceeds {cap} bytes"))
+        body = await request.body()
+        if len(body) > cap:
+            return _error_response(413, MemspineError(f"request body exceeds {cap} bytes"))
+        return await call_next(request)
+
     # ── error mapping (never leak stack traces) ──────────────────────────────
 
     async def _conflict(_request: Request, exc: Exception) -> Response:
+        # SF-6/ADR-018: typed 4xx map to a log line (M11 vocab), never the body.
+        _log.info("rest.conflict", error=type(exc).__name__, detail=str(exc))
         return _error_response(409, exc)
 
     async def _missing_service(_request: Request, exc: Exception) -> Response:
+        _log.warning("rest.missing_service", error=type(exc).__name__, detail=str(exc))
         return _error_response(501, exc)
 
     async def _memspine_error(_request: Request, exc: Exception) -> Response:
+        _log.info("rest.bad_request", error=type(exc).__name__, detail=str(exc))
         return _error_response(400, exc)
 
     async def _unknown(_request: Request, exc: Exception) -> Response:
@@ -108,11 +133,18 @@ def build_app(engine: Engine) -> FastAPI:
 
     @app.post("/write")
     async def write(body: WriteRequest, ns: Namespace) -> MemoryRecord:
+        # SEC-C1/ADR-018: REST is untrusted external input. Force the write onto
+        # the "rest" channel (in TrustPolicy._EXTERNAL_CHANNELS) so TrustPolicy
+        # caps trust at TRUST_RETRIEVED_CAP REGARDLESS of the caller-supplied
+        # role — a caller cannot claim role="operator" to escalate trust or dodge
+        # the firewall. The role is preserved for provenance only.
+        source = body.source or SourceInfo(role=body.actor)
+        source = source.model_copy(update={"channel": "rest"})
         return await engine.write(
             body.content,
             namespace=ns,
             memory_type=body.memory_type,
-            source=body.source,
+            source=source,
             pii_tier=body.pii_tier,
             actor=body.actor,
             entity=body.entity,
@@ -226,7 +258,33 @@ def build_app(engine: Engine) -> FastAPI:
         scored = await engine.shared_search(query, namespace=ns, top_k=top_k)
         return [ScoredRecord(record=record, score=score) for record, score in scored]
 
+    @app.get("/grants")
+    async def grants_from(ns: Namespace) -> list[GrantView]:
+        """Live grants ``ns`` has issued (operator listing surface, ADR-016).
+        Scoped to the caller — never another namespace's grants."""
+        grants = await engine.grants_from(namespace=ns)
+        return [
+            GrantView(
+                grantor=grant.grantor,
+                grantee=grant.grantee,
+                memory_types=sorted(grant.memory_types) if grant.memory_types is not None else None,
+                record_id=grant.record_id,
+            )
+            for grant in grants
+        ]
+
+    @app.post("/subscriptions")
+    async def subscribe(body: SubscriptionRequest, ns: Namespace) -> MemoryRecord:
+        return await engine.subscribe(body.query, namespace=ns, actor=body.actor)
+
+    @app.get("/subscriptions")
+    async def subscriptions(ns: Namespace) -> list[MemoryRecord]:
+        return await engine.subscriptions(namespace=ns)
+
     # ── maintenance + governance ─────────────────────────────────────────────
+    # ⚠️  ADR-018: /sleep, /rebuild and /audit/taint are engine-global or
+    # cross-cutting. Behind the no-authn seam they MUST sit on an internal-only
+    # network boundary — never expose them to tenant callers.
 
     @app.post("/sleep")
     async def sleep() -> dict[str, dict[str, Any]]:
@@ -237,7 +295,9 @@ def build_app(engine: Engine) -> FastAPI:
         return await engine.rebuild()
 
     @app.get("/audit/taint/{record_id}")
-    async def audit_taint(record_id: str) -> TaintReport:
-        return await engine.audit_taint(record_id)
+    async def audit_taint(record_id: str, ns: Namespace) -> TaintReport:
+        # SEC-C3/ADR-018: scope the seed to the caller's namespace so a leaked
+        # record_id cannot be used to walk another tenant's derivation trail.
+        return await engine.audit_taint(record_id, namespace=ns)
 
     return app

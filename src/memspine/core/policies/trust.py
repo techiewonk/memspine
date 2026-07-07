@@ -31,9 +31,11 @@ _ROLE_TRUST: dict[str, float] = {
 }
 
 #: Channels whose content originated OUTSIDE the trust boundary — retrieved
-#: documents, web pages, third-party messages, INGESTED FILES. Capped, never
-#: boosted: an ingested PDF is exactly the RAG poisoning surface E1 defends.
-_EXTERNAL_CHANNELS = frozenset({"retrieved", "web", "external", "email", "mcp", "ingest"})
+#: documents, web pages, third-party messages, INGESTED FILES, and REST callers
+#: (the no-authn REST protocol forces this channel so a caller-supplied role can
+#: never escalate trust — ADR-018/SEC-C1). Capped, never boosted: an ingested
+#: PDF is exactly the RAG poisoning surface E1 defends.
+_EXTERNAL_CHANNELS = frozenset({"retrieved", "web", "external", "email", "mcp", "ingest", "rest"})
 
 
 class TrustOptions(PolicyOptions):

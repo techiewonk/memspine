@@ -126,3 +126,68 @@ def test_never_empty_rule_survives_the_fit_stage() -> None:
     only = rec("single oversized block " * 100)
     fitted = policy.fit_assembly([(only, 0.9)], budget_tokens=5, estimate=estimate)
     assert len(fitted) == 1  # assembly never returns silently empty (M12)
+
+
+# ── ADR-018 review hardening ──────────────────────────────────────────────────
+
+
+def test_block_compress_survives_a_compressor_that_raises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """SF-4: one record llmlingua chokes on must not 500 /assemble — log and
+    leave that record uncompressed; the rest still compress."""
+
+    def boom_loader() -> Callable[[str], str] | None:
+        def compress(text: str) -> str:
+            if "poison" in text:
+                raise RuntimeError("llmlingua choked on this block")
+            return text[:8]
+
+        return compress
+
+    monkeypatch.setattr(compression_module, "_load_llmlingua", boom_loader)
+    policy = CompressionPolicy.bind({"assembly": True, "assembly_stage": ["llmlingua"]})
+    good = rec("ordinary long block " * 30)
+    bad = rec("poison long block " * 30)
+    fitted = policy.fit_assembly([(good, 0.9), (bad, 0.1)], budget_tokens=1, estimate=estimate)
+    by_id = {record.record_id: record for record, _ in fitted}
+    assert by_id[good.record_id].content == good.content[:8]  # compressed
+    assert by_id[bad.record_id].content == bad.content  # untouched, no crash
+    assert len(fitted) == 2  # nothing lost
+
+
+def test_all_protected_over_budget_stays_over_unmodified(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """E5: persona + instruction-flagged only, no droppable/compressible block —
+    the selection stays OVER budget, every block byte-identical (E1/E2 beat the
+    budget)."""
+
+    def fake_loader() -> Callable[[str], str] | None:
+        return lambda text: text[:4]
+
+    monkeypatch.setattr(compression_module, "_load_llmlingua", fake_loader)
+    policy = CompressionPolicy.bind(
+        {"assembly": True, "assembly_stage": ["drop_lowest_score", "llmlingua"]}
+    )
+    persona = rec("persona block " * 100, persona=True)
+    flagged = rec("flagged block " * 100, flagged=True)
+    fitted = policy.fit_assembly(
+        [(persona, 0.9), (flagged, 0.8)], budget_tokens=5, estimate=estimate
+    )
+    by_id = {record.record_id: record for record, _ in fitted}
+    assert by_id[persona.record_id].content == persona.content  # untouched
+    assert by_id[flagged.record_id].content == flagged.content  # untouched
+    assert sum(estimate(r.content) for r, _ in fitted) > 5  # stays over budget
+    assert len(fitted) == 2
+
+
+def test_budget_exactly_at_boundary_drops_nothing() -> None:
+    """E5: a selection whose total is EXACTLY the budget is a fit, not an
+    over-budget — the fit stage uses ``<=`` and drops nothing."""
+    policy = CompressionPolicy.bind({"assembly": True, "assembly_stage": ["drop_lowest_score"]})
+    a = rec("aaaa")
+    b = rec("bbbb")
+    exact = estimate(a.content) + estimate(b.content)
+    fitted = policy.fit_assembly([(a, 0.9), (b, 0.8)], budget_tokens=exact, estimate=estimate)
+    assert {r.record_id for r, _ in fitted} == {a.record_id, b.record_id}

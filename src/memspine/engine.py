@@ -50,7 +50,13 @@ from memspine.core.records import (
 from memspine.core.registry import SERVICE_EXTRAS, dependency_closure, missing_services
 from memspine.core.replay import catch_up
 from memspine.core.replay import rebuild as replay_rebuild
-from memspine.exceptions import ConfigError, MemspineError, MissingServiceError, StorageError
+from memspine.exceptions import (
+    ConfigError,
+    ConflictError,
+    MemspineError,
+    MissingServiceError,
+    StorageError,
+)
 from memspine.memories.associative.evolution import propose_links
 from memspine.memories.associative.projector import GraphProjector
 from memspine.memories.associative.store import AssociativeMemory
@@ -67,7 +73,7 @@ from memspine.memories.reflective.reflections import ReflectiveMemory
 from memspine.memories.resource.store import ResourceMemory
 from memspine.memories.semantic.entities import EntityExtractor, LLMEntityExtractor
 from memspine.memories.semantic.store import SemanticMemory
-from memspine.memories.shared.grants import SharedMemory
+from memspine.memories.shared.grants import Grant, SharedMemory
 from memspine.memories.shared.subscriptions import make_subscription_record
 from memspine.memories.working.manager import DEFAULT_PAGE_SIZE, WorkingMemory
 from memspine.memories.working.persona import make_persona_record
@@ -153,6 +159,11 @@ def _minmax_normalize(scores: list[float]) -> list[float]:
     scores compose with the M1 composite exactly like cosine similarities."""
     lo, hi = min(scores), max(scores)
     if hi - lo <= 1e-12:
+        # SF-2/ADR-018: >1 candidate collapsing to a single score is the
+        # signature of a broken/misconfigured cross-encoder. Stay neutral
+        # (behavior unchanged) but surface it once so it is not silent.
+        if len(scores) > 1:
+            _log.warning("rerank.degenerate_scores", count=len(scores), value=lo)
         return [0.5] * len(scores)
     return [(score - lo) / (hi - lo) for score in scores]
 
@@ -199,6 +210,9 @@ class Engine:
         self._assembly_compression: CompressionPolicy | None = None
         self._reranker: Reranker | None = None
         self._rerank_unavailable = False
+        # SF-1/ADR-018: latch so the "invalidation watches never fire under
+        # event_log.mode=ephemeral" warning is logged at most once per engine.
+        self._ephemeral_watch_warned = False
         self._inflate: CompressionPolicy = CompressionPolicy.bind()
         self._firewall: Firewall = Firewall()
         self._summarize: Summarize | None = None
@@ -403,6 +417,14 @@ class Engine:
         """
         storage = self._require_started()
         ns = validate_namespace(namespace)
+        # SEC-H1/ADR-018: the "shared" type is engine-internal bookkeeping
+        # (grants + subscriptions carry authorization state). A public write of
+        # it would forge a live grant — parse_grant only checks shape, so a
+        # crafted content='{"grant":...}' would bypass grant()'s scope/self-grant/
+        # supersession guards. Grants come ONLY from grant()/subscribe(), which
+        # build the record and go through _write_locked directly.
+        if memory_type == "shared":
+            raise ConflictError("memory_type 'shared' is engine-internal — use grant()/subscribe()")
         record = MemoryRecord(
             namespace=ns,
             memory_type=memory_type,
@@ -501,8 +523,14 @@ class Engine:
         top_k: int = constants.SEARCH_TOP_K,
     ) -> list[tuple[MemoryRecord, float]]:
         """Semantic retrieval (P1 + E8 opt-in stages, D-51):
-        ``[static_prefilter?] → vector/hybrid → [rerank?] → score`` (MMR and
-        assembly follow in :meth:`assemble`).
+        ``[static_prefilter?] → vector → [rerank?] → score`` (MMR and assembly
+        follow in :meth:`assemble`).
+
+        The retrieval leg is **vector-only** in v0.1: the lexical/BM25 port
+        (``services/lexical``, D-25) is not built, so there is no hybrid RRF
+        fusion yet — it is DEFERRED until that port lands (ADR-017/ADR-018).
+        ``static_prefilter`` is a cheap lexical-overlap gate applied POST-vector,
+        not a true pre-vector prefilter.
 
         Returns ``(record, score)`` pairs sorted by the M1 composite score
         (recency/relevance/importance + utility), not raw cosine — a stale
@@ -688,18 +716,36 @@ class Engine:
     async def _forget_locked(
         self, storage: SQLiteStorage, ns: str, record_id: str, hard: bool
     ) -> None:
-        if hard:
-            record = await storage.get_record(record_id)
-            if record is not None:
-                retention = RetentionPolicy.bind(
-                    _as_options_dict(
-                        self._memory_policy(self._config(), record.memory_type).get("retention")
-                    )
+        record = await storage.get_record(record_id)
+        # SEC-C2/ADR-018: forget is scoped to the caller's namespace. A grantee
+        # who learned a foreign record_id via shared_search must not be able to
+        # delete the grantor's data by passing its own namespace.
+        #
+        # - A record that EXISTS in another namespace ALWAYS raises the ADR-014
+        #   anti-oracle error (same shape as _require_watch) and is NOT touched
+        #   — this closes the IDOR for both soft and hard paths.
+        # - A record ABSENT from the read model: the SOFT path raises the SAME
+        #   anti-oracle error (missing and foreign are indistinguishable, so a
+        #   leaked id is no existence oracle). The HARD path instead proceeds as
+        #   an idempotent no-op: a hard delete removes the row during projection,
+        #   but its LOG redaction may still need a retry after a mid-operation
+        #   failure (M7 durability) — a second hard forget of the now-absent row
+        #   must complete the erasure, never raise.
+        if record is None:
+            if not hard:
+                raise ConflictError(f"no such record {record_id!r} in namespace {ns!r}")
+        elif record.namespace != ns:
+            raise ConflictError(f"no such record {record_id!r} in namespace {ns!r}")
+        if hard and record is not None:
+            retention = RetentionPolicy.bind(
+                _as_options_dict(
+                    self._memory_policy(self._config(), record.memory_type).get("retention")
                 )
-                if retention.on_legal_hold(record):
-                    raise MemspineError(
-                        f"record {record_id} is under legal hold — hard delete refused (M7)"
-                    )
+            )
+            if retention.on_legal_hold(record):
+                raise MemspineError(
+                    f"record {record_id} is under legal hold — hard delete refused (M7)"
+                )
         await self._append_and_project(
             MemoryEvent(
                 kind=EventKind.FORGET,
@@ -731,16 +777,24 @@ class Engine:
                 await memory.on_forget(ns, record_id)
         _log.info(EVENT_FORGET, namespace=ns, record_id=record_id)
 
-    async def verify_forget(self, record_id: str) -> dict[str, object]:
+    async def verify_forget(self, record_id: str, namespace: str = "default") -> dict[str, object]:
         """M7 ``forget --verify``: prove erasure across every store we own.
 
         Uses the SAME payload walker as the redactor (``payload_retains_content``
         ↔ ``redact_record``) so the proof cannot share a blind spot with the
         erasure. An unverifiable vector backend and an ephemeral (unpersisted)
         log are reported as *unproven*, never silently as clean.
+
+        SEC-C2/ADR-018: scoped to ``namespace``. A record that still exists in
+        another namespace raises the anti-oracle error — a caller must not probe
+        erasure state of a namespace it does not own. (Post-hard-delete the row
+        is absent, which is the normal verify path and proceeds.)
         """
         storage = self._require_started()
-        record_absent = await storage.get_record(record_id) is None
+        existing = await storage.get_record(record_id)
+        if existing is not None and existing.namespace != namespace:
+            raise ConflictError(f"no such record {record_id!r} in namespace {namespace!r}")
+        record_absent = existing is None
         vector_absent: bool | None = None
         exists = getattr(self._vector, "exists", None)
         if callable(exists):
@@ -767,9 +821,22 @@ class Engine:
             "clean": clean,
         }
 
-    async def audit_taint(self, record_id: str) -> TaintReport:
-        """E1 blast-radius audit: origin + every derivation, from the log."""
-        return await trace_taint(self._require_started(), record_id)
+    async def audit_taint(self, record_id: str, namespace: str = "default") -> TaintReport:
+        """E1 blast-radius audit: origin + every derivation, from the log.
+
+        SEC-C3/ADR-018: scoped to ``namespace``. The seed record must belong to
+        the caller's namespace; a foreign or unknown seed raises the ADR-014
+        anti-oracle error. The taint WALK itself is not weakened — derivation
+        edges are namespace-local post-P5/P6, so scoping the seed is sufficient.
+        """
+        storage = self._require_started()
+        ns = validate_namespace(namespace)
+        report = await trace_taint(storage, record_id)
+        record = await storage.get_record(record_id)
+        seed_ns = record.namespace if record is not None else report.origin_namespace
+        if seed_ns != ns:
+            raise ConflictError(f"no such record {record_id!r} in namespace {ns!r}")
+        return report
 
     async def _assess_write(self, record: MemoryRecord) -> FirewallVerdict:
         """Gather the firewall's namespace context: nearest-neighbour
@@ -952,7 +1019,12 @@ class Engine:
                 from memspine.services.rerank.flashrank_rerank import FlashrankReranker
 
                 self._reranker = FlashrankReranker()
-        except (ImportError, MissingServiceError) as exc:
+        except Exception as exc:
+            # COR-3/ADR-018: not just ImportError/MissingServiceError — a
+            # cross-encoder constructor can raise OSError (model download),
+            # ValueError, RuntimeError (weight load), etc. ANY construction
+            # failure self-disables the stage (matching the per-call .rerank()
+            # guard); retrieval degrades to vector order, never crashes.
             self._rerank_unavailable = True
             _log.info(
                 "rerank.unavailable",
@@ -1267,6 +1339,24 @@ class Engine:
             attribute=attribute,
             source=source or SourceInfo(role=actor),
         )
+        # SF-1/ADR-018: an invalidation (target) watch reads M4 CONFLICT events
+        # to fire; in ephemeral mode nothing is persisted to read, so it can
+        # never fire. This is documented in ADR-016 but was runtime-silent —
+        # warn once (the engine knows the mode; the pure builder does not).
+        if (
+            due_at is None
+            and entity is not None
+            and not self._ephemeral_watch_warned
+            and self._config().event_log.mode is EventLogMode.EPHEMERAL
+        ):
+            self._ephemeral_watch_warned = True
+            _log.warning(
+                "prospective.ephemeral_invalidation_never_fires",
+                namespace=ns,
+                detail="event_log.mode=ephemeral persists no CONFLICT events — "
+                "invalidation (target) watches can never fire (ADR-016); "
+                "due-time watches are unaffected",
+            )
         async with self._write_locks.setdefault(ns, asyncio.Lock()):
             return await self._write_locked(storage, ns, record, "prospective", actor)
 
@@ -1281,7 +1371,14 @@ class Engine:
         self._require_started()
         prospective = self._require_prospective()
         ns = validate_namespace(namespace)
-        fired = await prospective.pending(ns, now if now is not None else datetime.now(UTC))
+        if now is None:
+            now = datetime.now(UTC)
+        elif now.tzinfo is None:
+            # COR-1/ADR-018: watch due times are tz-aware (make_watch_record
+            # rejects naive). Comparing an aware valid_from to a naive `now`
+            # raises deep in the trigger — reject it loudly at the boundary.
+            raise ConflictError("now must be timezone-aware (naive datetimes are ambiguous)")
+        fired = await prospective.pending(ns, now)
         return self._inflate_all(fired, ns)
 
     async def acknowledge_watch(self, record_id: str, namespace: str = "default") -> MemoryRecord:
@@ -1358,35 +1455,51 @@ class Engine:
             return results
         [query_vector] = await self._embedder.embed([query])
         for grantor in sorted(grants):
-            hits = await self._vector.query(
-                grantor, query_vector, embedder_id=self._embedder.embedder_id, top_k=top_k
-            )
-            for hit in hits:
-                record = await storage.get_record(hit.record_id)
-                if (
-                    record is None
-                    or record.namespace != grantor
-                    or record.status is not RecordStatus.ACTIVATED
-                    or record.quarantined
-                ):
-                    continue  # same E1 gate as search — held content never crosses
-                # The ONE enforcement point (ADR-016): scope + bookkeeping gate.
-                if not grant_allows(ns, record.namespace, record.memory_type, grants):
-                    continue
-                try:
-                    record = self._inflate.inflate(record)
-                except StorageError:
-                    _log.warning(
-                        "memory.inflate_failed", namespace=grantor, record_id=hit.record_id
-                    )
-                    continue
-                # E1: foreign content is retrieved content — trust-capped, never
-                # its home-namespace trust.
-                record = record.model_copy(
-                    update={"trust": min(record.trust, constants.TRUST_RETRIEVED_CAP)}
+            # SF-7/ADR-018: one grantor's broken vector index must not sink the
+            # reader's own results or the other grantors' — contain per grantor.
+            try:
+                hits = await self._vector.query(
+                    grantor, query_vector, embedder_id=self._embedder.embedder_id, top_k=top_k
                 )
-                results.append((record, self._scoring.composite_score(record, relevance=hit.score)))
+                for hit in hits:
+                    record = await storage.get_record(hit.record_id)
+                    if (
+                        record is None
+                        or record.namespace != grantor
+                        or record.status is not RecordStatus.ACTIVATED
+                        or record.quarantined
+                    ):
+                        continue  # same E1 gate as search — held content never crosses
+                    # The ONE enforcement point (ADR-016): scope + bookkeeping gate.
+                    if not grant_allows(ns, record.namespace, record.memory_type, grants):
+                        continue
+                    try:
+                        record = self._inflate.inflate(record)
+                    except StorageError:
+                        _log.warning(
+                            "memory.inflate_failed", namespace=grantor, record_id=hit.record_id
+                        )
+                        continue
+                    # E1: foreign content is retrieved content — trust-capped,
+                    # never its home-namespace trust.
+                    record = record.model_copy(
+                        update={"trust": min(record.trust, constants.TRUST_RETRIEVED_CAP)}
+                    )
+                    results.append(
+                        (record, self._scoring.composite_score(record, relevance=hit.score))
+                    )
+            except Exception as exc:
+                _log.warning(
+                    "shared_search.grantor_failed",
+                    namespace=ns,
+                    grantor=grantor,
+                    error=str(exc),
+                    exc_info=True,
+                )
         results.sort(key=lambda pair: pair[1], reverse=True)
+        # COR-2/ADR-018: the per-grantor loop appended up to top_k EACH — a final
+        # truncation keeps the contract that shared_search returns at most top_k.
+        results = results[:top_k]
         _log.info(
             EVENT_RETRIEVE, namespace=ns, shared=True, grantors=sorted(grants), count=len(results)
         )
@@ -1416,6 +1529,15 @@ class Engine:
         shared = self._require_shared()
         ns = validate_namespace(namespace)
         return self._inflate_all(await shared.subscriptions(ns), ns)
+
+    async def grants_from(self, namespace: str = "default") -> list[Grant]:
+        """The live grants ``namespace`` has issued (operator listing surface,
+        R2/ADR-016). Scoped to the grantor — a caller lists only its OWN
+        grants, never another namespace's."""
+        self._require_started()
+        shared = self._require_shared()
+        grantor = validate_namespace(namespace)
+        return await shared.grants_from(grantor)
 
     def _require_prospective(self) -> ProspectiveMemory:
         if self._prospective is None:

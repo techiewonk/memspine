@@ -54,6 +54,11 @@ __all__ = [
 
 _log = get_logger(__name__)
 
+#: SF-1/ADR-018: latch so the "invalidation watches never fire under
+#: event_log.mode=ephemeral" warning from check_watches is logged at most once
+#: per process (mirrors the engine-side latch on the watch-creation path).
+_ephemeral_watch_warned = False
+
 #: Memory types the lifecycle sweeps cover. Working memory is excluded — its
 #: lifecycle is the paging window (M13.1); resource chunks decay like episodes.
 _SWEEP_TYPES = ("episodic", "semantic", "resource")
@@ -449,7 +454,9 @@ async def check_watches(ctx: PipelineContext) -> dict[str, object]:
     reads M4 CONFLICT events from the log (nothing readable in ephemeral
     mode, so only due-time watches can fire there — ADR-016).
     """
+    global _ephemeral_watch_warned
     now = datetime.now(UTC)
+    ephemeral = ctx.config.event_log.mode is EventLogMode.EPHEMERAL
     due_total = 0
     invalidated_total = 0
     fired_total = 0
@@ -462,7 +469,19 @@ async def check_watches(ctx: PipelineContext) -> dict[str, object]:
                 continue
             due = due_watches(watches, now)
             invalidated: list[MemoryRecord] = []
-            if any(watch.entity is not None for watch in watches):
+            has_target_watches = any(watch.entity is not None for watch in watches)
+            # SF-1/ADR-018: target watches fire off M4 CONFLICT events; ephemeral
+            # mode persists none, so they never fire. Surface it once at sweep
+            # time (not just at creation) so long-running deployments see it.
+            if ephemeral and has_target_watches and not _ephemeral_watch_warned:
+                _ephemeral_watch_warned = True
+                _log.warning(
+                    "prospective.ephemeral_invalidation_never_fires",
+                    namespace=namespace,
+                    detail="event_log.mode=ephemeral persists no CONFLICT events — "
+                    "invalidation (target) watches can never fire (ADR-016)",
+                )
+            if has_target_watches:
                 if conflicts_by_ns is None:
                     conflicts_by_ns = await _conflicts_by_namespace(ctx)
                 invalidated = invalidation_watches(watches, conflicts_by_ns.get(namespace, []))

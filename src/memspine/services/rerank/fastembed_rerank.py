@@ -21,7 +21,15 @@ class FastembedReranker:
         try:
             from fastembed.rerank.cross_encoder import TextCrossEncoder
         except ImportError as exc:  # fastembed too old for rerankers
-            raise MissingServiceError("services.rerank.fastembed") from exc
+            # CMP-2/ADR-018: fastembed IS a core dep, so the remedy is an
+            # UPGRADE (TextCrossEncoder ships only in recent releases), not a
+            # new extra. Name it — plus the flashrank alternative — so the skip
+            # log is actionable, not a bare "service unavailable".
+            raise MissingServiceError(
+                "fastembed cross-encoder reranker (upgrade fastembed to a version "
+                "shipping TextCrossEncoder, or set read.rerank=flashrank)",
+                extra="rerank",
+            ) from exc
         self._encoder: Any = TextCrossEncoder(model_name=model)
         self.reranker_id = f"fastembed:{model}"
 

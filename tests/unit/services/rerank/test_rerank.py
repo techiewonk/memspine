@@ -49,6 +49,21 @@ def test_flashrank_adapter_names_the_extra_when_absent() -> None:
         FlashrankReranker()
 
 
+def test_fastembed_adapter_names_the_upgrade_remedy_when_too_old() -> None:
+    """CMP-2: fastembed is a CORE dep, so the remedy is an upgrade (or flashrank),
+    not a bare 'service unavailable'. The message must say so."""
+    try:
+        from fastembed.rerank.cross_encoder import TextCrossEncoder  # noqa: F401
+    except ImportError:
+        pass
+    else:  # pragma: no cover - fastembed new enough ships the reranker
+        pytest.skip("fastembed ships TextCrossEncoder — the guard branch is unreachable")
+    from memspine.services.rerank.fastembed_rerank import FastembedReranker
+
+    with pytest.raises(MissingServiceError, match="upgrade fastembed"):
+        FastembedReranker()
+
+
 async def test_a_duck_typed_fake_satisfies_the_port() -> None:
     class Fake:
         reranker_id = "fake"

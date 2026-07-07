@@ -167,3 +167,30 @@ async def test_assembly_compression_respects_budget_and_protects_persona() -> No
 async def test_assembly_compression_off_by_default(engine: Engine) -> None:
     assert engine._assembly_compression is not None
     assert engine._assembly_compression.assembly_enabled() is False
+
+
+# ── ADR-018 review hardening ──────────────────────────────────────────────────
+
+
+async def test_reranker_construction_failure_degrades_not_crashes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """COR-3: a reranker whose CONSTRUCTION raises (model-load OSError/RuntimeError,
+    not just ImportError/MissingServiceError) must self-disable the stage — not
+    crash every search()."""
+    import memspine.services.rerank.fastembed_rerank as fastembed_module
+
+    class ExplodingReranker:
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            raise RuntimeError("model weights failed to download")
+
+    monkeypatch.setattr(fastembed_module, "FastembedReranker", ExplodingReranker)
+    eng = make_engine(rerank="fastembed")
+    await eng.start()
+    try:
+        await eng.write("still retrievable after a broken reranker")
+        results = await eng.search("retrievable")
+        assert results  # degraded to vector order, never raised
+        assert eng._rerank_unavailable is True
+    finally:
+        await eng.stop()

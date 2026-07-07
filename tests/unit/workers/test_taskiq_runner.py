@@ -22,10 +22,21 @@ from memspine.workers.taskiq_runner import (
     DEFAULT_PRIORITY,
     PIPELINE_PRIORITIES,
     TaskiqRunner,
+    _redact,
     claim_stale,
     priority_for,
     stream_key,
 )
+
+
+def test_redact_masks_broker_credentials() -> None:
+    """SEC-M1/ADR-018: userinfo in a broker URL must never reach a log line."""
+    assert (
+        _redact("connect failed: redis://user:s3cr3t@host:6379/0 refused")
+        == "connect failed: redis://***@host:6379/0 refused"
+    )
+    assert _redact("rediss://admin:pw@10.0.0.1/2") == "rediss://***@10.0.0.1/2"
+    assert _redact("no url, nothing to mask") == "no url, nothing to mask"
 
 
 async def make_ctx() -> PipelineContext:
@@ -121,6 +132,49 @@ async def test_failed_run_leaves_marker_pending_for_claim_recovery() -> None:
     assert len(claimed) == 1
     pending = await redis.xpending(key, CONSUMER_GROUP)
     assert pending["consumers"][0]["name"] == b"rescuer"
+    await runner.close()
+
+
+async def _healthy(_ctx: PipelineContext) -> dict[str, object]:
+    return {"status": "ok"}
+
+
+async def test_run_recovers_and_acks_a_stale_marker() -> None:
+    """SF-5c/ADR-018: a crashed run leaves a pending marker; the NEXT run for
+    that label reclaims + ACKs it at the start (XAUTOCLAIM is no longer dead
+    code), so the dead-letter set stays bounded."""
+    redis = fakeredis.aioredis.FakeRedis()
+
+    async def explode(_ctx: PipelineContext) -> dict[str, object]:
+        raise RuntimeError("kaboom")
+
+    failing = TaskiqRunner(redis=redis)
+    failing.register("recover_me", explode)
+    ctx = await make_ctx()
+    await failing.run("recover_me", ctx)  # dead-letters a marker
+    key = stream_key("engine", "recover_me")
+    assert (await redis.xpending(key, CONSUMER_GROUP))["pending"] == 1
+
+    # A recovery-enabled runner (idle threshold 0) re-runs the now-healthy
+    # pipeline; run()'s start-of-run recovery ACKs the stale marker AND the
+    # fresh marker is ACKed on success → nothing left pending.
+    recovered = TaskiqRunner(redis=redis, claim_min_idle_ms=0)
+    recovered.register("recover_me", _healthy)
+    stats = await recovered.run("recover_me", ctx)
+    assert stats["status"] == "ok"
+    assert (await redis.xpending(key, CONSUMER_GROUP))["pending"] == 0
+    await recovered.close()
+
+
+async def test_degraded_latch_resets_after_a_healthy_enqueue() -> None:
+    """SF-5a/ADR-018: the degraded warning is once-per-OUTAGE, not once-ever —
+    a healthy enqueue re-arms the latch so a later outage logs again."""
+    redis = fakeredis.aioredis.FakeRedis()
+    runner = make_runner(redis)
+    runner._warned_degraded = True  # simulate a prior outage having warned
+    ctx = await make_ctx()
+    await runner.run("event_log_prune", ctx)  # a healthy enqueue resets the latch
+    assert runner._warned_degraded is False
     await runner.close()
 
 

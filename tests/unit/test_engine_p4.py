@@ -254,7 +254,7 @@ async def test_audit_taint_traces_merge_descendants(engine: Engine) -> None:
     merge_event = next(e for e in events if e.kind.value == "memory.merge")
     tainted_id = merge_event.payload["dropped_record"]["record_id"]
 
-    report = await engine.audit_taint(str(tainted_id))
+    report = await engine.audit_taint(str(tainted_id), namespace="agent/a")
     assert kept.record_id in report.descendants
     assert report.descendants[kept.record_id].startswith("merged@")
     assert report.blast_radius >= 1

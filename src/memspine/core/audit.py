@@ -29,6 +29,10 @@ class TaintReport(BaseModel):
     origin_seq: int | None = None
     origin_actor: str | None = None
     origin_source: dict[str, object] | None = None
+    #: Namespace of the first log event that mentions the seed record — the
+    #: seed's home namespace, usable for ownership scoping even after the read
+    #: model row is gone (merged away, hard-deleted). ``None`` = never seen.
+    origin_namespace: str | None = None
     #: record_ids whose state the tainted record influenced, with the proof.
     descendants: dict[str, str] = Field(default_factory=dict)
     #: every event seq that mentions the record (the full evidence trail).
@@ -165,8 +169,14 @@ async def trace_taint(storage: _EventSource, record_id: str) -> TaintReport:
                         report.descendants[existing_id] = f"superseded_by_taint@{event.seq}"
                         changed = True
 
+    seed = {record_id}
     for event in events:
         assert event.seq is not None
+        # The seed's home namespace = the first (lowest-seq) event that names
+        # it. Events are namespace-tagged and read in seq order, so this holds
+        # even when the read-model row is gone (merged/hard-deleted).
+        if report.origin_namespace is None and _event_references(event.payload, seed):
+            report.origin_namespace = event.namespace
         if _event_references(event.payload, tainted):
             report.event_seqs.append(event.seq)
     return report

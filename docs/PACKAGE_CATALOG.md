@@ -47,7 +47,7 @@
 - **sentence-transformers** (14) / **sentence_transformers** (1) — SBERT embeddings + cross-encoder rerankers (torch). ⭐ optional `[st]` extra
 - **fastembed** (2) — ONNX CPU-light embeddings (no torch). ⭐ **D-08 default embedder**
 - **onnxruntime** (4) — ONNX inference runtime (fastembed's engine). ⭐ under fastembed
-- **flashrank** (1) — lightweight cross-encoder reranker (ONNX). ⭐ E8 rerank candidate
+- **flashrank** (1) — lightweight cross-encoder reranker (ONNX). ⭐ **ADOPTED as the `[rerank]` extra** (E8/D-51/ADR-017): fastembed's `TextCrossEncoder` rides the core dep when the installed version ships it; flashrank is the fallback when it does not (or upgrade fastembed).
 - **voyageai/cohere** — hosted embeddings/rerank (see A1).
 - **model2vec** — (referenced in analysis, not a pinned dep) static embeddings.
 - **igraph** (1), **graspologic** (1) — graph embedding / spectral methods.

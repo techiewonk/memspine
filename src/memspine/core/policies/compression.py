@@ -206,5 +206,20 @@ class CompressionPolicy(BindablePolicy):
             if self.protected(record):
                 out.append((record, score))
                 continue
-            out.append((record.model_copy(update={"content": compress(record.content)}), score))
+            try:
+                compressed = compress(record.content)
+            except Exception as exc:
+                # SF-4/ADR-018: one record llmlingua chokes on (odd unicode,
+                # model hiccup) must not 500 the whole /assemble. Log and leave
+                # that record uncompressed — the budget may stay over, which the
+                # next fallback / the E5 "protected stays over" rule already
+                # tolerates.
+                _log.warning(
+                    "compression.block_failed",
+                    record_id=record.record_id,
+                    error=str(exc),
+                )
+                out.append((record, score))
+                continue
+            out.append((record.model_copy(update={"content": compressed}), score))
         return out

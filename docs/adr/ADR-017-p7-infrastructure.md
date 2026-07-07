@@ -95,6 +95,36 @@ false`) — off means bit-identical results to the plain pipeline.
   lexical` (the D-25 port) is not built yet, so there is no BM25 leg to
   cache; the cache lands with that port.
 
+### 5. E8 "hybrid" is a target, not a shipped leg (honesty, amended ADR-018)
+
+The stage diagram writes `hybrid`, but v0.1 has **no lexical/BM25 leg** — the
+`services/lexical`/D-25 port is unbuilt, so the retrieval leg is **vector-only**
+and there is no RRF fusion. Hybrid RRF is therefore **DEFERRED until that port
+lands**. Two consequences are documented deviations, not bugs:
+
+- `Engine.search` is documented **"vector"**, not "vector/hybrid" (the earlier
+  wording overstated the pipeline).
+- `static_prefilter` runs **after** the vector leg (a cheap lexical-overlap
+  gate over the candidate set), not as a true pre-vector static-embedding
+  prefilter (that is the E4 model2vec track); an empty filtrate falls back to
+  the unfiltered set.
+- There is **no BM25 corpus cache** because there is no BM25 leg (above).
+
+### 6. REST deployment guidance (amended ADR-018)
+
+The no-authn posture (§1) has a blast radius the deployer must contain:
+
+- `/sleep`, `/rebuild`, and `/audit/taint` are **engine-global or
+  cross-cutting** (they run maintenance over every namespace or walk the whole
+  log). They MUST sit behind an **internal-only network boundary** — never
+  reachable by tenant callers.
+- REST ships with **NO authentication**; the deployer owns BOTH the
+  caller→namespace binding (via the `resolve_namespace` override) AND the fact
+  that role-based trust is neutralized at the REST boundary (writes are forced
+  onto the external `rest` channel — ADR-018/SEC-C1).
+- A **request-body size cap** (`REST_MAX_BODY_BYTES`, default 1 MiB → 413)
+  guards the trivially-abusable unbounded-body path (ADR-018/SEC-M3).
+
 ## Register row (D-51)
 
 See the structure-plan register. Extras touched: `rerank` (new, flashrank);

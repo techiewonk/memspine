@@ -133,7 +133,9 @@ def _run_engine_op(db: Path, op: str, **kwargs: object) -> dict[str, object]:
         await engine.start()
         try:
             if op == "taint":
-                report = await engine.audit_taint(str(kwargs["record_id"]))
+                report = await engine.audit_taint(
+                    str(kwargs["record_id"]), namespace=str(kwargs["namespace"])
+                )
                 return report.model_dump(mode="json")
             if op == "forget":
                 await engine.forget(
@@ -142,7 +144,9 @@ def _run_engine_op(db: Path, op: str, **kwargs: object) -> dict[str, object]:
                     hard=bool(kwargs["hard"]),
                 )
                 if kwargs["verify"]:
-                    return await engine.verify_forget(str(kwargs["record_id"]))
+                    return await engine.verify_forget(
+                        str(kwargs["record_id"]), namespace=str(kwargs["namespace"])
+                    )
                 return {"forgotten": kwargs["record_id"], "hard": kwargs["hard"]}
             raise ValueError(op)
         finally:
@@ -152,9 +156,17 @@ def _run_engine_op(db: Path, op: str, **kwargs: object) -> dict[str, object]:
 
 
 @audit_app.command("taint")
-def audit_taint(record_id: str, db: DbOpt = Path("./memspine.db")) -> None:
-    """E1 blast radius: origin + every derivation of one record, from the log."""
-    report = _run_engine_op(db, "taint", record_id=record_id)
+def audit_taint(
+    record_id: str,
+    db: DbOpt = Path("./memspine.db"),
+    namespace: Annotated[str, typer.Option("--namespace", "-n")] = "default",
+) -> None:
+    """E1 blast radius: origin + every derivation of one record, from the log.
+
+    Scoped to ``--namespace`` (SEC-C3/ADR-018): the seed record must belong to
+    it, else the anti-oracle error is raised.
+    """
+    report = _run_engine_op(db, "taint", record_id=record_id, namespace=namespace)
     typer.echo(yaml.safe_dump(report, sort_keys=False).strip())
 
 
