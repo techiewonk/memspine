@@ -14,6 +14,7 @@ from typing import Any
 from memspine.exceptions import ConfigError
 from memspine.prompts.base import Prompt
 from memspine.prompts.loader import load_default_pack
+from memspine.prompts.models import OUTPUT_MODELS
 
 __all__ = ["PromptRegistry"]
 
@@ -46,7 +47,13 @@ class PromptRegistry:
         if "version" not in raw:
             # Changed content must change identity (E3 cache keys, E1 provenance).
             data["version"] = base.version + 1
-        self._prompts[prompt_id] = Prompt.model_validate(data)
+        prompt = Prompt.model_validate(data)
+        if prompt.output_model is not None and prompt.output_model not in OUTPUT_MODELS:
+            raise ConfigError(
+                f"prompts.overrides.{prompt_id}: unknown output_model "
+                f"{prompt.output_model!r} (known: {sorted(OUTPUT_MODELS)})"
+            )
+        self._prompts[prompt_id] = prompt
         self._overridden.add(prompt_id)
 
     def get(self, prompt_id: str) -> Prompt:

@@ -4,6 +4,14 @@ All notable changes to memspine are documented here. Format: [Keep a Changelog](
 
 ## [Unreleased]
 
+### Added — Phase 2 "Semantic memory"
+- **Prompts subsystem (D-43):** prompts are data — 10-role YAML default pack (frontmatter + Jinja2, strict variables), `PromptRegistry` with config-layered overrides (auto version bump so E3 cache keys / E1 provenance change with content), `memspine prompts list|show|resolve`; prompt versions surface in `describe()` and extractor provenance.
+- **Conflict ladder (M4):** deterministic R-ladder over `(entity, attribute)` fact keys — identity NOOP, trust gate (E1 seam), temporal supersede with bi-temporal interval closing + `evolve_to` chaining (D-42), historical backfill with closed validity; CONFLICT audit events; point-in-time `fact_at()` queries.
+- **Two-stage dedup (M5/D-27):** datasketch MinHash-LSH stage-1 (signatures persisted on records, base64 in event payloads) + embedding-cosine stage-2 confirm; union-preserving merge (consent tags union, PII tier maxes upward, reinforcement bump) with MERGE audit events; signed-64-bit simhash.
+- **Entity extraction (D-28):** LLM extractor (extract prompt + structured output) and guarded gliner2 `[ner]` provider behind `memories.semantic.policies.entity_extraction`; alias merges logged.
+- **Structured output (D-31/E9):** format-aware parsing (YAML answers ≈ half the tokens of JSON) with the always-on json-repair net and pydantic output-model validation.
+- Storage migration 0003 (fact keys + index); `:memory:` databases now use a named shared-cache URI with an anchor connection (true pooling — concurrent asyncio writes no longer race a single static connection).
+
 ### Added — Phase 1 "Working memory + retrieval"
 - **Retrieval path:** `Engine.search()` — embed → vector search → M1 composite scoring (recency half-life, relevance, importance, utility modifier); `Engine.assemble()` — MMR selection under a token budget, θ_abstain honesty gate, **E2 cache-aware placement** (persona → skills → facts → [cache boundary] → episodic/working) with `boundary_index` exposed.
 - **Embedding (D-08):** `EmbeddingService` port; fastembed default (lazy, threaded); deterministic `hash` provider for offline tests/CI; **E3 embedding cache** (`CachedEmbedding`, content-hash × embedder-id keys) over a KV port with in-process default.

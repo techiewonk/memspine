@@ -21,6 +21,7 @@ from typing import Any
 
 from sqlalchemy import event as sa_event
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, create_async_engine
+from sqlalchemy.pool import AsyncAdaptedQueuePool
 
 from memspine.clients.base import Client
 from memspine.exceptions import StorageError
@@ -65,12 +66,17 @@ class SQLiteClient(Client):
             return
         if self.is_memory:
             # Unique per client: two ':memory:' clients must not share state.
+            # poolclass is forced explicitly — SQLAlchemy's aiosqlite dialect
+            # sees 'mode=memory' and would silently select StaticPool (one
+            # shared connection), reintroducing the exact concurrent-
+            # transaction interleaving this shared-cache URI exists to fix.
             name = f"memspine_mem_{next(_memory_db_counter)}"
             url = f"sqlite+aiosqlite:///file:{name}?mode=memory&cache=shared&uri=true"
+            engine = create_async_engine(url, echo=self._echo, poolclass=AsyncAdaptedQueuePool)
         else:
             Path(self._path).parent.mkdir(parents=True, exist_ok=True)
             url = f"sqlite+aiosqlite:///{self._path}"
-        engine = create_async_engine(url, echo=self._echo)
+            engine = create_async_engine(url, echo=self._echo)
 
         @sa_event.listens_for(engine.sync_engine, "connect")
         def _set_pragmas(dbapi_conn: Any, _record: Any) -> None:
@@ -79,10 +85,16 @@ class SQLiteClient(Client):
                 cursor.execute(pragma)
             cursor.close()
 
-        self._engine = engine
         if self.is_memory:
-            # Keep the shared in-memory database alive across pool churn.
-            self._anchor = await engine.connect()
+            # Keep the shared in-memory database alive across pool churn. The
+            # engine is only published once the anchor holds, so a failed
+            # anchor cannot leave a half-connected client that no-ops retries.
+            try:
+                self._anchor = await engine.connect()
+            except BaseException:
+                await engine.dispose()
+                raise
+        self._engine = engine
 
     async def close(self) -> None:
         if self._anchor is not None:

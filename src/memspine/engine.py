@@ -244,8 +244,15 @@ class Engine:
         source: SourceInfo | None = None,
         pii_tier: PiiTier = PiiTier.NONE,
         actor: str = "user",
+        entity: str | None = None,
+        attribute: str | None = None,
     ) -> MemoryRecord:
-        """Append a WRITE event through the single door; projection materializes it."""
+        """Append a WRITE event through the single door; projection materializes it.
+
+        ``entity``/``attribute`` key a semantic fact directly (M13.3) so the M4
+        conflict ladder engages without requiring an extractor — callers that
+        know the fact key should always pass it.
+        """
         storage = self._require_started()
         ns = validate_namespace(namespace)
         record = MemoryRecord(
@@ -254,6 +261,8 @@ class Engine:
             content=content,
             source=source or SourceInfo(role=actor),
             pii_tier=pii_tier,
+            entity=entity,
+            attribute=attribute,
         )
         # Semantic writes run the full M5/M4 pipeline (dedup → entities →
         # conflict); every other type is a plain WRITE through the door.
@@ -424,6 +433,9 @@ class Engine:
                 payload={"record_id": record_id},
             )
         )
+        if self._semantic is not None:
+            # Drop the namespace LSH cache so the ghost id stops being probed.
+            self._semantic.invalidate_index(ns)
         _log.info(EVENT_FORGET, namespace=ns, record_id=record_id)
 
     def llm(self, role: str) -> LLMService:

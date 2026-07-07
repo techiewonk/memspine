@@ -149,3 +149,105 @@ async def test_extractor_provenance_lands_in_source() -> None:
     semantic = await make_semantic(StubExtractor())
     result = await semantic.write(rec("entity=bob attribute=role value engineer"))
     assert result.record.source.prompt_version == "extract@test"  # E1 audit trail
+
+
+async def test_reasserted_fact_reaches_the_ladder_not_the_tombstone() -> None:
+    """Regression (empirically found): a re-asserted old fact used to merge
+    into its ARCHIVED tombstone, silently vanishing instead of superseding."""
+    semantic = await make_semantic(StubExtractor())
+    paris1 = await semantic.write(rec("entity=alice attribute=city lives in paris", days_ago=60))
+    await semantic.write(rec("entity=alice attribute=city lives in london", days_ago=30))
+    # Re-assert the old fact, newer than everything: must UPDATE, not merge.
+    back = await semantic.write(rec("entity=alice attribute=city lives in paris", days_ago=0))
+    assert back.action == "updated"
+    assert back.record.record_id != paris1.record.record_id  # not the tombstone
+    active = await semantic._storage.find_active_fact("agent/a", "alice", "city")
+    assert active is not None and active.record_id == back.record.record_id
+
+
+async def test_invalidate_verdict_archives_without_successor() -> None:
+    """INVALIDATE (M4): existing fact archived with no evolve_to; the negation
+    itself lands archived with a closed validity interval."""
+    from memspine.core.policies.conflict import ConflictVerdict
+
+    semantic = await make_semantic(StubExtractor())
+    current = await semantic.write(rec("entity=alice attribute=city value Berlin", days_ago=30))
+
+    class AlwaysInvalidate:
+        def resolve(self, incoming: MemoryRecord, existing: MemoryRecord) -> ConflictVerdict:
+            return ConflictVerdict.INVALIDATE
+
+    semantic._conflict = AlwaysInvalidate()  # type: ignore[assignment]
+    negation = await semantic.write(rec("entity=alice attribute=city no longer known"))
+    assert negation.action == "invalidated"
+    assert negation.record.status is RecordStatus.ARCHIVED
+    assert negation.record.valid_to == negation.record.valid_from  # asserts an end
+
+    old = await semantic._storage.get_record(current.record.record_id)
+    assert old is not None and old.status is RecordStatus.ARCHIVED
+    assert old.evolve_to is None  # no successor: the fact simply ended
+    assert await semantic._storage.find_active_fact("agent/a", "alice", "city") is None
+
+
+async def test_concurrent_same_key_writes_leave_one_active_fact() -> None:
+    """Regression: the find-active-fact -> write sequence is serialized per
+    namespace, so racing writers cannot both create active facts."""
+    import asyncio
+
+    semantic = await make_semantic(StubExtractor())
+    await asyncio.gather(
+        semantic.write(rec("entity=alice attribute=city first value one two three")),
+        semantic.write(rec("entity=alice attribute=city second value four five six")),
+        semantic.write(rec("entity=alice attribute=city third value seven eight nine")),
+    )
+    records = await semantic._storage.list_records("agent/a", "semantic")
+    active = [r for r in records if r.valid_to is None and r.status is RecordStatus.ACTIVATED]
+    assert len(active) == 1  # exactly one open-validity fact per key
+
+
+async def test_bias_oldest_never_leaves_two_active_facts() -> None:
+    """Regression (empirically found): bias='oldest' + newer incoming used to
+    leave BOTH records active, breaking the single-active-fact invariant."""
+    semantic = await make_semantic(StubExtractor())
+    semantic._conflict = ConflictPolicy.bind({"bias": "oldest"})
+    await semantic.write(rec("entity=alice attribute=city value Berlin", days_ago=30))
+    newer = await semantic.write(rec("entity=alice attribute=city value Paris", days_ago=0))
+    assert newer.action == "added"
+    assert newer.record.valid_to is not None  # recorded, never current
+
+    records = await semantic._storage.list_records("agent/a", "semantic")
+    active = [r for r in records if r.valid_to is None and r.status is RecordStatus.ACTIVATED]
+    assert len(active) == 1 and "Berlin" in active[0].content  # oldest wins
+
+
+async def test_stage2_embeds_candidates_in_one_batch() -> None:
+    """Regression: stage-2 confirm used N+1 embed calls; must be one batch."""
+    calls: list[int] = []
+
+    class CountingEmbedder(HashEmbedding):
+        async def embed(self, texts: list[str]) -> list[list[float]]:
+            calls.append(len(texts))
+            return await super().embed(texts)
+
+    semantic = await make_semantic()
+    semantic._embedder = CountingEmbedder(dim=64)
+    await semantic.write(rec("alice prefers her coffee black in the morning"))
+    calls.clear()
+    result = await semantic.write(rec("alice prefers her coffee black in the morning !!"))
+    assert result.action == "merged"
+    assert len(calls) == 1  # incoming + all candidates in ONE embed call
+
+
+async def test_audit_events_carry_full_rejected_snapshot() -> None:
+    """E1: a rejected/dropped write must be recoverable from the log alone."""
+    semantic = await make_semantic(StubExtractor())
+    await semantic.write(rec("entity=alice attribute=city value Berlin", days_ago=30, trust=0.9))
+    rejected = rec("entity=alice attribute=city value Attackerville", trust=0.1)
+    await semantic.write(rejected)
+
+    events = await semantic._storage.read_events()
+    conflict_events = [e for e in events if e.kind is EventKind.CONFLICT]
+    assert conflict_events, "conflict audit event missing"
+    snapshot = conflict_events[-1].payload["incoming_record"]
+    assert "Attackerville" in snapshot["content"]
+    assert snapshot["trust"] == 0.1  # provenance + trust recoverable (E1)

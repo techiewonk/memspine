@@ -227,6 +227,72 @@ async def test_semantic_pipeline_dedups_and_resolves_conflicts(engine: Engine) -
     assert engine.describe()["prompts"]["extract"] == "extract@1"
 
 
+async def test_fact_keyed_write_engages_conflict_ladder(engine: Engine) -> None:
+    """The M4 ladder is reachable through the public API: pass the fact key."""
+    old = await engine.write(
+        "alice lives in berlin", namespace="agent/facts", entity="alice", attribute="city"
+    )
+    new = await engine.write(
+        "alice lives in paris", namespace="agent/facts", entity="alice", attribute="city"
+    )
+    assert new.record_id != old.record_id
+    records = {r.record_id: r for r in await engine.retrieve("agent/facts")}
+    assert records[old.record_id].valid_to is not None  # superseded, closed
+    assert records[old.record_id].evolve_to == new.record_id
+    assert records[new.record_id].valid_to is None  # the active fact
+
+
+async def test_forget_then_near_duplicate_is_added_not_merged(engine: Engine) -> None:
+    """Regression guard: a forgotten record must never absorb new writes."""
+    doomed = await engine.write(
+        "alice prefers her coffee black in the morning", namespace="agent/fg"
+    )
+    await engine.forget(doomed.record_id, namespace="agent/fg")
+    fresh = await engine.write(
+        "alice prefers her coffee black in the morning", namespace="agent/fg"
+    )
+    assert fresh.record_id != doomed.record_id  # new life, not resurrection
+    remaining = await engine.retrieve("agent/fg")
+    assert [r.record_id for r in remaining] == [fresh.record_id]
+
+
+async def test_prompt_override_flows_through_engine() -> None:
+    eng = Engine(
+        template="base",
+        dotenv_path=None,
+        storage={"path": ":memory:"},
+        embedding={"provider": "hash"},
+        prompts={"overrides": {"extract": {"body": "custom {{ content }}"}}},
+    )
+    await eng.start()
+    try:
+        assert eng.describe()["prompts"]["extract"] == "extract@2"
+    finally:
+        await eng.stop()
+
+
+async def test_rebuild_reproduces_conflict_and_merge_chains(engine: Engine) -> None:
+    """Rebuild identity for multi-event semantic chains (merge + supersede)."""
+    await engine.write("alice likes green tea in the evening", namespace="agent/rc")
+    await engine.write("alice likes green tea in the evenings", namespace="agent/rc")  # merge
+    await engine.write(
+        "alice lives in berlin", namespace="agent/rc", entity="alice", attribute="city"
+    )
+    await engine.write(
+        "alice lives in paris", namespace="agent/rc", entity="alice", attribute="city"
+    )  # supersede
+    before = sorted(
+        (r.model_dump() for r in await engine.retrieve("agent/rc")),
+        key=lambda d: str(d["record_id"]),
+    )
+    await engine.rebuild()
+    after = sorted(
+        (r.model_dump() for r in await engine.retrieve("agent/rc")),
+        key=lambda d: str(d["record_id"]),
+    )
+    assert after == before
+
+
 async def test_semantic_pipeline_survives_rebuild(engine: Engine) -> None:
     await engine.write("alice prefers her coffee black", namespace="agent/p2")
     before = {r.record_id: r.model_dump() for r in await engine.retrieve("agent/p2")}

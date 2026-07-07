@@ -97,4 +97,13 @@ class GlinerEntityExtractor:
                             value=str(label),
                         )
                     )
+        else:
+            # A gliner2 version bump changing the result shape must be loud,
+            # not a permanent silent "no entities in anything".
+            _log.warning(
+                "entity.gliner_unexpected_result_shape",
+                shape=type(entities).__name__,
+                detail="gliner2 extract_entities returned an unrecognized structure; "
+                "no entities extracted — check the installed gliner2 version",
+            )
         return facts

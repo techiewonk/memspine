@@ -11,6 +11,7 @@ touches tables directly:
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import ClassVar
@@ -66,16 +67,26 @@ class SemanticMemory(BaseMemory):
         self._extractor = extractor
         # Stage-1 LSH index per namespace, built lazily from stored signatures.
         self._indexes: dict[str, MinHashLSH] = {}
+        # Per-namespace write serialization (read-modify-write on fact keys).
+        self._ns_locks: dict[str, asyncio.Lock] = {}
 
     # ── index maintenance ────────────────────────────────────────────────────
 
     async def _index_for(self, namespace: str) -> MinHashLSH:
         index = self._indexes.get(namespace)
         if index is None:
-            index = self._dedup.new_index()
-            for record in await self._storage.list_records(namespace, "semantic"):
-                if record.status is not RecordStatus.DELETED:
-                    self._dedup.index_add(index, record)
+            records = await self._storage.list_records(namespace, "semantic")
+            # Only ACTIVE facts are merge targets (see _confirm_duplicate).
+            active = [r for r in records if r.status is RecordStatus.ACTIVATED]
+
+            def _build() -> MinHashLSH:
+                # CPU-bound sketch reconstruction — off the event loop.
+                built = self._dedup.new_index()
+                for record in active:
+                    self._dedup.index_add(built, record)
+                return built
+
+            index = await asyncio.to_thread(_build)
             self._indexes[namespace] = index
         return index
 
@@ -89,7 +100,16 @@ class SemanticMemory(BaseMemory):
     # ── the write pipeline ───────────────────────────────────────────────────
 
     async def write(self, record: MemoryRecord) -> SemanticWriteResult:
-        record = self._dedup.annotate(record)  # sketches (D-27) before the door
+        # Serialize per namespace: the find-active-fact -> write sequence is a
+        # read-modify-write; two concurrent writes to the same fact key would
+        # otherwise both see the same "existing" and both create active facts.
+        lock = self._ns_locks.setdefault(record.namespace, asyncio.Lock())
+        async with lock:
+            return await self._write_locked(record)
+
+    async def _write_locked(self, record: MemoryRecord) -> SemanticWriteResult:
+        # Sketch computation (minhash over tokens) is CPU-bound — off the loop.
+        record = await asyncio.to_thread(self._dedup.annotate, record)
         index = await self._index_for(record.namespace)
 
         # M5 stage-1: LSH candidates; stage-2: cosine confirm via embeddings.
@@ -101,6 +121,14 @@ class SemanticMemory(BaseMemory):
         # produced the keying lands in provenance (D-43/E1 audit trail).
         if self._extractor is not None and record.entity is None:
             facts = await self._extractor.extract(record.content)
+            if not facts:
+                # Distinguishable in logs from "extraction not configured":
+                # this record stays unkeyed and can never enter the M4 ladder.
+                _log.info(
+                    "semantic.extraction_yielded_no_facts",
+                    namespace=record.namespace,
+                    record_id=record.record_id,
+                )
             if facts:
                 primary = facts[0]
                 updates: dict[str, object] = {
@@ -133,12 +161,31 @@ class SemanticMemory(BaseMemory):
         candidate_ids = self._dedup.candidates(index, record)
         if not candidate_ids:
             return None
-        [incoming_vec] = await self._embedder.embed([record.content])
+        # Only ACTIVE records can absorb a duplicate: merging a re-asserted
+        # fact into its ARCHIVED tombstone would silently swallow it and
+        # bypass the conflict ladder ("I moved back to Paris" must reach
+        # M4 against the current fact, not vanish into the old one).
+        live: list[MemoryRecord] = []
         for candidate_id in candidate_ids:
             candidate = await self._storage.get_record(candidate_id)
-            if candidate is None or candidate.status is RecordStatus.DELETED:
+            if candidate is None or candidate.status is not RecordStatus.ACTIVATED:
+                _log.debug(
+                    "dedup.stale_candidate_skipped",
+                    namespace=record.namespace,
+                    candidate_id=candidate_id,
+                    status=candidate.status.value if candidate else "missing",
+                )
                 continue
-            [candidate_vec] = await self._embedder.embed([candidate.content])
+            live.append(candidate)
+        if not live:
+            return None
+        # One batched embed for incoming + all candidates: a network-backed
+        # embedder pays one round-trip, not N+1 (the E3 cache dedups repeats).
+        vectors = await self._embedder.embed(
+            [record.content, *(candidate.content for candidate in live)]
+        )
+        incoming_vec, candidate_vecs = vectors[0], vectors[1:]
+        for candidate, candidate_vec in zip(live, candidate_vecs, strict=True):
             if _cosine(incoming_vec, candidate_vec) >= self._dedup.cosine_threshold:
                 return candidate
         return None
@@ -158,6 +205,8 @@ class SemanticMemory(BaseMemory):
                 ),
             }
         )
+        # State first, audit second (see _resolve_conflict ordering contract).
+        await self._write_event(merged)
         await self._append_event(
             MemoryEvent(
                 kind=EventKind.MERGE,
@@ -165,12 +214,12 @@ class SemanticMemory(BaseMemory):
                 actor="system",
                 payload={
                     "kept_record_id": kept.record_id,
-                    "dropped_fingerprint": incoming.content_fingerprint,
+                    # Full snapshot: the dropped write exists nowhere else (E1).
+                    "dropped_record": incoming.model_dump(mode="json"),
                     "reason": "two_stage_dedup",
                 },
             )
         )
-        await self._write_event(merged)
         _log.info(
             EVENT_MERGE,
             namespace=kept.namespace,
@@ -182,30 +231,20 @@ class SemanticMemory(BaseMemory):
     async def _resolve_conflict(
         self, index: MinHashLSH, incoming: MemoryRecord, existing: MemoryRecord
     ) -> SemanticWriteResult:
+        """Apply the verdict, THEN append the CONFLICT audit event.
+
+        Ordering contract: state-changing WRITEs land before their audit
+        marker, so a crash between the two can only lose audit detail — the
+        log can never claim a resolution whose state changes did not happen.
+        The audit payload carries the full incoming snapshot: a rejected write
+        never materializes in any projection, and E1 taint analysis must be
+        able to recover its content and provenance from the log alone.
+        """
         verdict = self._conflict.resolve(incoming, existing)
-        await self._append_event(
-            MemoryEvent(
-                kind=EventKind.CONFLICT,
-                namespace=incoming.namespace,
-                actor="system",
-                payload={
-                    "verdict": verdict.value,
-                    "incoming_record_id": incoming.record_id,
-                    "existing_record_id": existing.record_id,
-                    "fact_key": [incoming.entity, incoming.attribute],
-                },
-            )
-        )
-        _log.info(
-            EVENT_CONFLICT,
-            namespace=incoming.namespace,
-            verdict=verdict.value,
-            entity=incoming.entity,
-            attribute=incoming.attribute,
-        )
+        result: SemanticWriteResult
         if verdict is ConflictVerdict.NOOP:
-            return SemanticWriteResult(record=existing, action="rejected")
-        if verdict is ConflictVerdict.UPDATE:
+            result = SemanticWriteResult(record=existing, action="rejected")
+        elif verdict is ConflictVerdict.UPDATE:
             closed = existing.model_copy(
                 update={
                     "valid_to": incoming.valid_from,
@@ -216,13 +255,64 @@ class SemanticMemory(BaseMemory):
             )
             await self._write_event(closed)
             await self._write_through(index, incoming)
-            return SemanticWriteResult(record=incoming, action="updated")
-        # ADD — historical backfill closes its own validity at the current fact.
-        backfilled = incoming
-        if incoming.valid_from < existing.valid_from:
-            backfilled = incoming.model_copy(update={"valid_to": existing.valid_from})
-        await self._write_through(index, backfilled)
-        return SemanticWriteResult(record=backfilled, action="added")
+            result = SemanticWriteResult(record=incoming, action="updated")
+        elif verdict is ConflictVerdict.INVALIDATE:
+            # The incoming statement negates the fact: archive the existing
+            # record with NO successor, and store the negation itself with a
+            # closed validity interval (it asserts an end, not a new value).
+            invalidated = existing.model_copy(
+                update={
+                    "valid_to": incoming.valid_from,
+                    "superseded_at": incoming.recorded_at,
+                    "status": RecordStatus.ARCHIVED,
+                }
+            )
+            await self._write_event(invalidated)
+            negation = incoming.model_copy(
+                update={"valid_to": incoming.valid_from, "status": RecordStatus.ARCHIVED}
+            )
+            await self._write_through(index, negation)
+            result = SemanticWriteResult(record=negation, action="invalidated")
+        else:
+            # ADD on the SAME fact key never creates a second active fact: the
+            # single-active-fact invariant (find_active_fact/fact_at) depends
+            # on it. True backfill (older incoming) closes at the current
+            # fact's start; a bias-rejected newer statement (bias="oldest")
+            # is recorded with a zero-length interval — kept, never current.
+            backfilled = incoming.model_copy(
+                update={
+                    "valid_to": (
+                        existing.valid_from
+                        if incoming.valid_from < existing.valid_from
+                        else incoming.valid_from
+                    )
+                }
+            )
+            await self._write_through(index, backfilled)
+            result = SemanticWriteResult(record=backfilled, action="added")
+
+        await self._append_event(
+            MemoryEvent(
+                kind=EventKind.CONFLICT,
+                namespace=incoming.namespace,
+                actor="system",
+                payload={
+                    "verdict": verdict.value,
+                    "incoming_record": incoming.model_dump(mode="json"),
+                    "existing_record_id": existing.record_id,
+                    "fact_key": [incoming.entity, incoming.attribute],
+                    "action": result.action,
+                },
+            )
+        )
+        _log.info(
+            EVENT_CONFLICT,
+            namespace=incoming.namespace,
+            verdict=verdict.value,
+            entity=incoming.entity,
+            attribute=incoming.attribute,
+        )
+        return result
 
     # ── event emission ───────────────────────────────────────────────────────
 

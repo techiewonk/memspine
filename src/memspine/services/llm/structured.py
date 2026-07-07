@@ -14,10 +14,13 @@ import yaml
 from pydantic import BaseModel
 
 from memspine.exceptions import LLMError
+from memspine.observability.logging import get_logger
 from memspine.prompts.base import Prompt, PromptFormat
 from memspine.services.llm.base import LLMService, lenient_json
 
 __all__ = ["structured_call"]
+
+_log = get_logger(__name__)
 
 
 def _parse_payload(text: str, format_: PromptFormat) -> Any:
@@ -31,8 +34,10 @@ def _parse_payload(text: str, format_: PromptFormat) -> Any:
     if format_ in {PromptFormat.YAML, PromptFormat.COD}:
         try:
             return yaml.safe_load(cleaned)
-        except yaml.YAMLError:
-            pass  # fall through to the JSON-repair net
+        except yaml.YAMLError as exc:
+            # Keep the exact parse error visible before the repair net hides it
+            # — it pinpoints the malformed line when a format regression hits.
+            _log.debug("structured.yaml_parse_failed", error=str(exc))
     return lenient_json(cleaned)
 
 
