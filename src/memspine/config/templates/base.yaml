@@ -1,0 +1,19 @@
+# memspine base template — the "simple" working brain.
+# Every other template extends this one (D-12).
+profile: simple
+strict_services: true
+
+event_log:
+  mode: full          # append-only source of truth (D0.1); see D-45 for rolling/ephemeral
+  compress: false
+
+storage:
+  path: ./memspine.db
+
+memories:
+  working:
+    enabled: true
+  episodic:
+    enabled: true
+  semantic:
+    enabled: true

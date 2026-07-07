@@ -1,0 +1,11 @@
+# Coding-agent profile: procedural skills + semantic facts about the codebase.
+extends: base
+profile: coding
+
+memories:
+  procedural:
+    enabled: true
+  semantic:
+    enabled: true
+    policies:
+      conflict_bias: newest   # codebases change; prefer recent facts

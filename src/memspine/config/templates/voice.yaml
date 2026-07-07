@@ -1,0 +1,15 @@
+# Voice-assistant profile: high-volume transcript writes -> bounded event log
+# (D-45 rolling + zstd) and aggressive working-memory turnover.
+extends: base
+profile: voice
+
+event_log:
+  mode: rolling        # transcripts are heavy; keep a bounded audit window
+  retention_days: 14
+  compress: true
+
+memories:
+  working:
+    enabled: true
+    policies:
+      page_size: 8

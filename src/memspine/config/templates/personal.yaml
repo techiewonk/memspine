@@ -1,0 +1,9 @@
+# Personal-assistant profile: long-lived cross-session memory with reflection.
+extends: base
+profile: personal
+
+memories:
+  reflective:
+    enabled: true      # auto-enables episodic (C1b) if a user config disabled it
+  prospective:
+    enabled: true      # reminders/watches; auto-enables semantic (C1b)

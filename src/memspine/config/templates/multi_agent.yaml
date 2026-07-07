@@ -1,0 +1,9 @@
+# Multi-agent profile: shared memory with namespace grants (source authority R2).
+extends: base
+profile: multi_agent
+
+memories:
+  shared:
+    enabled: true      # needs >=1 of semantic|episodic (C1b); base enables both
+  working:
+    enabled: true

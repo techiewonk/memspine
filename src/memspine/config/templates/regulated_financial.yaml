@@ -1,0 +1,15 @@
+# Regulated profile: full audit trail is non-negotiable — event_log.mode is
+# pinned to full, PII handling strict, services hard-fail (D-10).
+extends: base
+profile: regulated_financial
+strict_services: true
+
+event_log:
+  mode: full           # never rolling/ephemeral here: audit + rebuild required
+  compress: true       # compression is fine; deletion is not
+
+memories:
+  semantic:
+    enabled: true
+    policies:
+      pii_default_tier: regulated
