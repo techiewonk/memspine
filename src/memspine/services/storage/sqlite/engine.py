@@ -268,6 +268,7 @@ class SQLiteStorage(ServiceAdapter):
             "minhash_sig": record.minhash_sig,
             "tier": record.tier,
             "content_zstd": record.content_zstd,
+            "corroborations": record.corroborations,
         }
         stmt = sqlite_insert(memory_records).values(record_id=record.record_id, **values)
         stmt = stmt.on_conflict_do_update(index_elements=["record_id"], set_=values)
@@ -302,7 +303,9 @@ class SQLiteStorage(ServiceAdapter):
         self, namespace: str, entity: str, attribute: str
     ) -> MemoryRecord | None:
         """The currently-valid record for one (entity, attribute) key (M4):
-        open validity (valid_to IS NULL), not deleted, latest recorded_at."""
+        open validity (valid_to IS NULL), not deleted, NOT quarantined (E1: a
+        quarantined claim must never act as the incumbent fact the conflict
+        ladder defends), latest recorded_at."""
         stmt = (
             select(memory_records)
             .where(
@@ -311,6 +314,7 @@ class SQLiteStorage(ServiceAdapter):
                 memory_records.c.attribute == attribute,
                 memory_records.c.valid_to.is_(None),
                 memory_records.c.status != "deleted",
+                memory_records.c.quarantined.is_(False),
             )
             .order_by(memory_records.c.recorded_at.desc())
             .limit(1)
@@ -323,6 +327,53 @@ class SQLiteStorage(ServiceAdapter):
         """Projector rebuild support: drop the read model, keep the log."""
         async with self._client.engine.begin() as conn:
             await conn.execute(delete(memory_records))
+
+    async def delete_record(self, record_id: str) -> None:
+        """M7 hard-delete: remove one row from the read model (projector-driven
+        by a FORGET(hard) event; the log side is ``redact_event_payloads``)."""
+        async with self._client.engine.begin() as conn:
+            await conn.execute(
+                delete(memory_records).where(memory_records.c.record_id == record_id)
+            )
+
+    async def redact_event_payloads(self, record_id: str) -> list[int]:
+        """M7 erasure: the ONE sanctioned mutation of the log.
+
+        Rewrites every event payload carrying a snapshot of ``record_id`` so
+        its ``content``/``content_zstd`` are emptied and a ``redacted`` marker
+        is set — the event's seq, kind, and fingerprint (of the ORIGINAL
+        payload) stay, so ordering and audit chains survive while the erased
+        content is unrecoverable (GDPR erasure in an append-only design).
+        Replay of a redacted WRITE materializes an empty-content row, which the
+        subsequent FORGET(hard) event then removes — rebuild stays clean.
+        """
+        if self._mode is EventLogMode.EPHEMERAL:
+            return []
+        redacted: list[int] = []
+        async with self._client.engine.begin() as conn:
+            rows = (await conn.execute(select(memory_events))).all()
+            for row in rows:
+                mapping = row._mapping
+                raw: bytes = mapping["payload"]
+                if mapping["compressed"]:
+                    raw = self._dctx.decompress(raw)
+                payload = orjson.loads(raw)
+                snapshot = payload.get("record")
+                if not isinstance(snapshot, dict) or snapshot.get("record_id") != record_id:
+                    continue
+                snapshot["content"] = ""
+                snapshot["content_zstd"] = None
+                payload["redacted"] = True
+                encoded = canonical_payload(payload)
+                if mapping["compressed"]:
+                    encoded = self._cctx.compress(encoded)
+                await conn.execute(
+                    memory_events.update()
+                    .where(memory_events.c.seq == mapping["seq"])
+                    .values(payload=encoded)
+                )
+                redacted.append(int(mapping["seq"]))
+        return redacted
 
     def _row_to_record(self, row: Any) -> MemoryRecord:
         return MemoryRecord.model_validate(
@@ -353,5 +404,6 @@ class SQLiteStorage(ServiceAdapter):
                 "minhash_sig": row["minhash_sig"],
                 "tier": row["tier"],
                 "content_zstd": row["content_zstd"],
+                "corroborations": row["corroborations"],
             }
         )

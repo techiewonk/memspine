@@ -36,6 +36,15 @@ DECAY_COLD_TO_DORMANT_DAYS = 90
 TRUST_DEFAULT = 0.5
 TRUST_RETRIEVED_CAP = 0.3
 QUARANTINE_PROMOTION_CORROBORATIONS = 2
+# Writes below this trust are quarantined outright (E1/M17).
+QUARANTINE_TRUST_THRESHOLD = 0.25
+# Embedding-outlier gate: cosine similarity to the namespace centroid below
+# this (with enough neighbours to trust the centroid) is anomalous.
+ANOMALY_CENTROID_MIN_SIMILARITY = 0.05
+ANOMALY_MIN_NEIGHBOURS = 8
+# MINJA bridging heuristic: a shared prefix this long with a recent record
+# marks progressive-injection shaping.
+MINJA_BRIDGE_PREFIX_CHARS = 96
 
 # Scoring (M1): recency half-life + composite weights.
 SCORING_RECENCY_HALF_LIFE_DAYS = 7.0

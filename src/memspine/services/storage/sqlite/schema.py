@@ -88,6 +88,8 @@ memory_records = Table(
     Column("trust", Float, nullable=False),
     Column("quarantined", Boolean, nullable=False),
     Column("instruction_flag", Boolean, nullable=False),
+    # E1 quarantine promotion counter (migration 0005).
+    Column("corroborations", Integer, nullable=False, server_default="0"),
     Column("simhash", Integer),
     Column("minhash_sig", LargeBinary),
     # M3 decay tier + M6/D-32 cold-tier compressed content (migration 0004).

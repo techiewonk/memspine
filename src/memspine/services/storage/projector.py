@@ -44,6 +44,8 @@ class RecordStore(Protocol):
 
     async def get_record(self, record_id: str) -> MemoryRecord | None: ...
 
+    async def delete_record(self, record_id: str) -> None: ...
+
     async def delete_all_records(self) -> None: ...
 
 
@@ -87,6 +89,12 @@ class RecordProjector(Projector):
 
     async def _apply_forget(self, event: MemoryEvent) -> None:
         record_id = str(event.payload["record_id"])
+        if event.payload.get("hard"):
+            # M7 hard-delete cascade: the row leaves the read model entirely
+            # (idempotent — deleting an absent row is a no-op). The log side
+            # (payload redaction) is the storage service's job, engine-driven.
+            await self._store.delete_record(record_id)
+            return
         record = await self._store.get_record(record_id)
         if record is None or record.status is RecordStatus.DELETED:
             return  # idempotent: already gone

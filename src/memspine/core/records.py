@@ -130,10 +130,12 @@ class MemoryRecord(BaseModel):
     # Scoring state (M1).
     scoring: ScoringState = Field(default_factory=ScoringState)
 
-    # Memory Firewall columns (E1) — present from day one.
+    # Memory Firewall columns (E1) — present from day one; ``corroborations``
+    # counts independent trusted assertions that promote a quarantined record.
     trust: float = TRUST_DEFAULT
     quarantined: bool = False
     instruction_flag: bool = False
+    corroborations: int = 0
 
     # Two-stage dedup fields (D-27): simhash for cheap distance, MinHash signature
     # bytes for LSH candidate generation; both computed at write time in M5.

@@ -89,3 +89,11 @@ class SQLiteVectorStore:
     async def delete_all(self) -> None:
         async with self._client.engine.begin() as conn:
             await conn.execute(delete(memory_embeddings))
+
+    async def exists(self, record_id: str) -> bool:
+        """M7 ``forget --verify`` support: is a row still present?"""
+        stmt = select(memory_embeddings.c.record_id).where(
+            memory_embeddings.c.record_id == record_id
+        )
+        async with self._client.engine.connect() as conn:
+            return (await conn.execute(stmt)).first() is not None

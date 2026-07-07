@@ -21,6 +21,8 @@ config_app = typer.Typer(help="Inspect and validate layered configuration (D-11/
 app.add_typer(config_app, name="config")
 prompts_app = typer.Typer(help="Inspect the prompt pack and its overrides (D-43).")
 app.add_typer(prompts_app, name="prompts")
+audit_app = typer.Typer(help="Audit the event log (E1: blast-radius taint tracing).")
+app.add_typer(audit_app, name="audit")
 
 TemplateOpt = Annotated[str | None, typer.Option("--template", "-t", help="Shipped template name")]
 FileOpt = Annotated[Path | None, typer.Option("--config", "-c", help="User config YAML path")]
@@ -113,6 +115,64 @@ def prompts_resolve(template: TemplateOpt = None, config_file: FileOpt = None) -
         raise typer.Exit(code=1) from exc
     for prompt in registry.list():
         typer.echo(f"{prompt.prompt_version}  # source: {registry.source_of(prompt.id)}")
+
+
+DbOpt = Annotated[Path, typer.Option("--db", help="Path to the memspine SQLite database")]
+
+
+def _run_engine_op(db: Path, op: str, **kwargs: object) -> dict[str, object]:
+    """Boot a throwaway engine on the database and run one verb. The hash
+    embedder keeps this deterministic and dependency-free; embedder-scoped
+    vector queries simply return nothing if the store used another model."""
+    import asyncio
+
+    from memspine import Engine
+
+    async def _inner() -> dict[str, object]:
+        engine = Engine(dotenv_path=None, storage={"path": str(db)}, embedding={"provider": "hash"})
+        await engine.start()
+        try:
+            if op == "taint":
+                report = await engine.audit_taint(str(kwargs["record_id"]))
+                return report.model_dump(mode="json")
+            if op == "forget":
+                await engine.forget(
+                    str(kwargs["record_id"]),
+                    namespace=str(kwargs["namespace"]),
+                    hard=bool(kwargs["hard"]),
+                )
+                if kwargs["verify"]:
+                    return await engine.verify_forget(str(kwargs["record_id"]))
+                return {"forgotten": kwargs["record_id"], "hard": kwargs["hard"]}
+            raise ValueError(op)
+        finally:
+            await engine.stop()
+
+    return asyncio.run(_inner())
+
+
+@audit_app.command("taint")
+def audit_taint(record_id: str, db: DbOpt = Path("./memspine.db")) -> None:
+    """E1 blast radius: origin + every derivation of one record, from the log."""
+    report = _run_engine_op(db, "taint", record_id=record_id)
+    typer.echo(yaml.safe_dump(report, sort_keys=False).strip())
+
+
+@app.command("forget")
+def forget_cmd(
+    record_id: str,
+    db: DbOpt = Path("./memspine.db"),
+    namespace: Annotated[str, typer.Option("--namespace", "-n")] = "default",
+    hard: Annotated[bool, typer.Option("--hard", help="M7 hard delete + log redaction")] = False,
+    verify: Annotated[bool, typer.Option("--verify", help="Prove erasure afterwards")] = False,
+) -> None:
+    """Forget a memory (M7). ``--hard --verify`` = provable erasure."""
+    result = _run_engine_op(
+        db, "forget", record_id=record_id, namespace=namespace, hard=hard, verify=verify
+    )
+    typer.echo(yaml.safe_dump(result, sort_keys=False).strip())
+    if verify and not result.get("clean", False):
+        raise typer.Exit(code=1)
 
 
 if __name__ == "__main__":  # pragma: no cover

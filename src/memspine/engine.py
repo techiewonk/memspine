@@ -26,13 +26,17 @@ from memspine.clients.sqlite import SQLiteClient
 from memspine.config import constants
 from memspine.config.loader import ResolvedConfig, load_config
 from memspine.config.schema import MemspineConfig
+from memspine.core.audit import TaintReport, trace_taint
 from memspine.core.events import EventKind, EventLogMode, MemoryEvent, fingerprint_payload
+from memspine.core.firewall import Firewall, FirewallVerdict
 from memspine.core.namespace import validate_namespace
 from memspine.core.policies.assembly import AssembledContext, AssemblyPolicy
 from memspine.core.policies.compression import CompressionPolicy
 from memspine.core.policies.conflict import ConflictPolicy
 from memspine.core.policies.dedup import DedupPolicy
+from memspine.core.policies.retention import RetentionPolicy
 from memspine.core.policies.scoring import ScoringPolicy
+from memspine.core.policies.trust import TrustPolicy
 from memspine.core.projector import Projector
 from memspine.core.records import (
     ArchivedVersion,
@@ -125,9 +129,11 @@ class Engine:
         self._scoring: ScoringPolicy | None = None
         self._assembly: AssemblyPolicy | None = None
         self._inflate: CompressionPolicy = CompressionPolicy.bind()
+        self._firewall: Firewall = Firewall()
         self._summarize: Summarize | None = None
         self._runner: TaskRunner | None = None
         self._started = False
+        self._write_locks: dict[str, asyncio.Lock] = {}
         self._sync_loop: asyncio.AbstractEventLoop | None = None
         self._sync_thread: threading.Thread | None = None
 
@@ -210,6 +216,11 @@ class Engine:
                 dedup=DedupPolicy.bind(_as_options_dict(semantic_policies.get("dedup"))),
                 extractor=self._build_extractor(config),
             )
+        # Memory Firewall (E1/M17): trust matrix binds from the semantic
+        # policy block (D-14 channel); the gate itself covers every type.
+        self._firewall = Firewall(
+            TrustPolicy.bind(_as_options_dict(self._memory_policy(config, "semantic").get("trust")))
+        )
         if "episodic" in self._enabled:
             self._episodic = EpisodicMemory(self._storage)
         if "resource" in self._enabled:
@@ -278,6 +289,46 @@ class Engine:
             entity=entity,
             attribute=attribute,
         )
+        # One writer per namespace: the firewall's context reads, the write,
+        # and corroboration form one unit racing writers must not interleave.
+        async with self._write_locks.setdefault(ns, asyncio.Lock()):
+            return await self._write_locked(storage, ns, record, memory_type, actor)
+
+    async def _write_locked(
+        self,
+        storage: SQLiteStorage,
+        ns: str,
+        record: MemoryRecord,
+        memory_type: str,
+        actor: str,
+    ) -> MemoryRecord:
+        # Memory Firewall gate (E1/M17): every write of every type passes the
+        # deterministic trust/anomaly/instruction assessment BEFORE the door.
+        verdict = await self._assess_write(record)
+        record = verdict.apply(record)
+        if verdict.quarantine:
+            # Quarantined content is stored inert: no dedup merging, no
+            # conflict-ladder participation, no retrieval surface — but the
+            # write IS recorded (audit + later corroboration need it).
+            await self._append_and_project(
+                MemoryEvent(
+                    kind=EventKind.WRITE,
+                    namespace=ns,
+                    actor=actor,
+                    payload={
+                        "record": record.model_dump(mode="json"),
+                        "firewall": {"reasons": verdict.reasons},
+                    },
+                )
+            )
+            _log.warning(
+                "memory.quarantined",
+                namespace=ns,
+                record_id=record.record_id,
+                reasons=verdict.reasons,
+            )
+            return record
+
         # Semantic writes run the full M5/M4 pipeline (dedup → entities →
         # conflict); every other type is a plain WRITE through the door.
         if memory_type == "semantic" and self._semantic is not None:
@@ -288,6 +339,7 @@ class Engine:
                 record_id=result.record.record_id,
                 action=result.action,
             )
+            await self._corroborate(ns, result.record)
             return result.record
 
         event = MemoryEvent(
@@ -298,6 +350,7 @@ class Engine:
         )
         await self._append_and_project(event)
         _log.info(EVENT_WRITE, namespace=ns, record_id=record.record_id)
+        await self._corroborate(ns, record)
 
         # Working memory keeps its hot window bounded (M13.1): overflow pages
         # out to episodic via DECAY_TRANSITION events through the same door.
@@ -343,6 +396,8 @@ class Engine:
             record = await storage.get_record(hit.record_id)
             if record is None or record.status is RecordStatus.DELETED:
                 continue  # ghost vector row; FORGET projection or rebuild reconciles
+            if record.quarantined:
+                continue  # E1: quarantined memories never reach a context window
             try:
                 record = self._inflate.inflate(record)  # cold-tier content restored (M6)
             except StorageError:
@@ -435,24 +490,169 @@ class Engine:
         _log.info(EVENT_WRITE, namespace=ns, record_id=record.record_id, persona=True)
         return record
 
-    async def forget(self, record_id: str, namespace: str = "default") -> None:
-        """Soft-forget one memory (M7 minimal): FORGET event → status=DELETED in
-        the read model, vector row removed. The Phase-4 cascade adds hard
-        deletion with referential retention and `forget --verify`."""
-        self._require_started()
+    async def forget(self, record_id: str, namespace: str = "default", hard: bool = False) -> None:
+        """Forget one memory (M7).
+
+        Soft (default): FORGET event → status=DELETED in the read model,
+        vector row removed; the log keeps the history.
+
+        Hard (``hard=True``, the P4 cascade): the row leaves the read model
+        entirely AND every log payload carrying its content is redacted —
+        GDPR-erasure semantics in an append-only design. Legal holds block it.
+        """
+        storage = self._require_started()
         ns = validate_namespace(namespace)
+        if hard:
+            record = await storage.get_record(record_id)
+            if record is not None:
+                retention = RetentionPolicy.bind(
+                    _as_options_dict(
+                        self._memory_policy(self._config(), record.memory_type).get("retention")
+                    )
+                )
+                if retention.on_legal_hold(record):
+                    raise MemspineError(
+                        f"record {record_id} is under legal hold — hard delete refused (M7)"
+                    )
         await self._append_and_project(
             MemoryEvent(
                 kind=EventKind.FORGET,
                 namespace=ns,
                 actor="user",
-                payload={"record_id": record_id},
+                payload={"record_id": record_id, "hard": hard},
             )
         )
+        if hard:
+            redacted = await storage.redact_event_payloads(record_id)
+            # D-18: the hard-delete cascade escalates to alert severity.
+            _log.error(
+                EVENT_FORGET, namespace=ns, record_id=record_id, hard=True, redacted=len(redacted)
+            )
         if self._semantic is not None:
             # Drop the namespace LSH cache so the ghost id stops being probed.
             self._semantic.invalidate_index(ns)
         _log.info(EVENT_FORGET, namespace=ns, record_id=record_id)
+
+    async def verify_forget(self, record_id: str) -> dict[str, object]:
+        """M7 ``forget --verify``: prove erasure across every store we own."""
+        storage = self._require_started()
+        record_absent = await storage.get_record(record_id) is None
+        vector_absent: bool | None = None
+        exists = getattr(self._vector, "exists", None)
+        if callable(exists):
+            vector_absent = not await exists(record_id)
+        log_clean = True
+        after = 0
+        while True:
+            batch = await storage.read_events(after_seq=after)
+            if not batch:
+                break
+            for event in batch:
+                snapshot = event.payload.get("record")
+                if (
+                    isinstance(snapshot, dict)
+                    and snapshot.get("record_id") == record_id
+                    and (snapshot.get("content") or snapshot.get("content_zstd"))
+                ):
+                    log_clean = False
+            assert batch[-1].seq is not None
+            after = batch[-1].seq
+        clean = record_absent and log_clean and vector_absent is not False
+        return {
+            "record_id": record_id,
+            "record_absent": record_absent,
+            "vector_absent": vector_absent,
+            "log_redacted": log_clean,
+            "clean": clean,
+        }
+
+    async def audit_taint(self, record_id: str) -> TaintReport:
+        """E1 blast-radius audit: origin + every derivation, from the log."""
+        return await trace_taint(self._require_started(), record_id)
+
+    async def _assess_write(self, record: MemoryRecord) -> FirewallVerdict:
+        """Gather the firewall's namespace context: nearest-neighbour
+        similarities (embedding outlier) + recent contents (MINJA prefixes)."""
+        neighbour_sims: list[float] | None = None
+        if self._embedder is not None and self._vector is not None:
+            [vector] = await self._embedder.embed([record.content])
+            hits = await self._vector.query(
+                record.namespace,
+                vector,
+                embedder_id=self._embedder.embedder_id,
+                top_k=constants.ANOMALY_MIN_NEIGHBOURS,
+            )
+            neighbour_sims = [hit.score for hit in hits]
+        storage = self._require_started()
+        recent = await storage.list_records(record.namespace)
+        recent.sort(key=lambda existing: existing.recorded_at)
+        recent_contents = [existing.content for existing in recent[-50:]]
+        return self._firewall.assess(
+            record, neighbour_similarities=neighbour_sims, recent_contents=recent_contents
+        )
+
+    async def _corroborate(self, namespace: str, incoming: MemoryRecord) -> None:
+        """E1 promotion path: a trusted write that independently asserts what a
+        quarantined record claims counts as corroboration; enough of them
+        activate the record (through the door, as a delta)."""
+        if incoming.trust < constants.TRUST_DEFAULT or incoming.quarantined:
+            return
+        storage = self._require_started()
+        for held in await storage.list_records(namespace):
+            if not held.quarantined or held.status is not RecordStatus.QUARANTINED:
+                continue
+            same_content = held.content_fingerprint == incoming.content_fingerprint
+            same_fact = (
+                held.entity is not None
+                and held.entity == incoming.entity
+                and held.attribute == incoming.attribute
+            )
+            if not (same_content or same_fact):
+                continue
+            count = held.corroborations + 1
+            change: dict[str, object] = {"corroborations": count}
+            promoted = self._firewall.policy.may_promote(
+                held.model_copy(update={"corroborations": count})
+            )
+            if promoted:
+                change["quarantined"] = False
+                # If the corroborators themselves established an active fact on
+                # the same key, the promoted record joins the history as its
+                # corroborated predecessor — never a second active fact (M4).
+                incumbent = None
+                if held.entity is not None and held.attribute is not None:
+                    incumbent = await storage.find_active_fact(
+                        namespace, held.entity, held.attribute
+                    )
+                if incumbent is not None and incumbent.record_id != held.record_id:
+                    change["status"] = RecordStatus.ARCHIVED.value
+                    change["evolve_to"] = incumbent.record_id
+                    change["valid_to"] = incumbent.valid_from.isoformat()
+                else:
+                    change["status"] = RecordStatus.ACTIVATED.value
+            await self._append_and_project(
+                MemoryEvent(
+                    kind=EventKind.DECAY_TRANSITION,
+                    namespace=namespace,
+                    actor="system",
+                    payload={
+                        "record_id": held.record_id,
+                        "set": change,
+                        "transition": "quarantined->activated" if promoted else "corroborated",
+                        "reason": "quarantine_promoted" if promoted else "corroborated",
+                    },
+                )
+            )
+            _log.info(
+                "memory.quarantine_promoted" if promoted else "memory.corroborated",
+                namespace=namespace,
+                record_id=held.record_id,
+                corroborations=count,
+            )
+
+    def _config(self) -> MemspineConfig:
+        assert self._resolved is not None
+        return self._resolved.config
 
     async def timeline(
         self,
@@ -562,6 +762,7 @@ class Engine:
                 {p.id: p.prompt_version for p in self._prompts.list()} if self._prompts else {}
             ),
             "semantic_pipeline": self._semantic is not None,
+            "firewall": "deterministic (trust-matrix + instruction-flag + anomaly)",
             "episodic": self._episodic is not None,
             "resource_ingest": self._resource is not None,
             "consolidation_summarizer": "llm" if self._summarize is not None else "extractive",
