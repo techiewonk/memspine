@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+
+# uv
+.uv/
+uv.lock
+
+# Test / coverage / type
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# memspine local stores (never commit data)
+*.db
+*.sqlite
+*.sqlite3
+*.lance/
+*.lmdb/
+*.mdb
+data/
+.memspine/
+
+# Docs build
+site/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Claude Code local settings (keep shared settings.json, ignore personal overrides)
+.claude/settings.local.json
+
+# Design docs — kept locally, not committed yet
+docs/
+/.claude

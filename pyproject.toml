@@ -1,0 +1,120 @@
+[project]
+name = "memspine"
+version = "0.0.1"
+description = "A cognitive memory engine for AI agents — one clean API, composable stores, real learning dynamics."
+readme = "README.md"
+requires-python = ">=3.13"
+license = { text = "Apache-2.0" }
+authors = [{ name = "techiewonk" }]
+keywords = ["memory", "agents", "llm", "rag", "knowledge-graph", "vector-search"]
+
+# Slim core (D-03): a working brain with zero heavy deps.
+dependencies = [
+    "pydantic>=2.9",
+    "pydantic-settings>=2.5",
+    "sqlalchemy>=2.0",         # storage: Core, not ORM (D-36)
+    "alembic>=1.13",           # migrations (D-36)
+    "orjson>=3.10",            # hot-path serialization (D-38)
+    "xxhash>=3.5",             # content fingerprints (D-37)
+    "fastuuid>=0.12",          # fast record ids (D-37)
+    "structlog>=24.4",         # structured logging (D-04/M11)
+    "typer>=0.12",             # CLI (D-04)
+    "fastembed>=0.4",          # default embedder, ONNX/CPU (D-08)
+    "json-repair>=0.30",       # always-on JSON safety net (D-31)
+    "datasketch>=1.6",         # MinHash-LSH dedup stage-1 (D-27)
+    "zstandard>=0.23",         # cold-tier compression (D-32)
+    "jinja2>=3.1",             # prompt templating (D-43)
+    "aiosqlite>=0.20",         # async SQLite driver for SQLAlchemy (D-44)
+    "greenlet>=3.1",           # required by SQLAlchemy async engine (D-44)
+    "pyyaml>=6.0",             # config layering / templates / prompt packs (D-11/D-12/D-43)
+]
+
+[project.optional-dependencies]
+lance      = ["lancedb>=0.13"]                      # default vector store + Tantivy FTS (D-09)
+# NOTE(D-26/P6): ladybugdb (kuzu community fork) is not on PyPI yet — the pinned-fork
+# requirement is added when the graph adapter lands in Phase 6. Until then the extra
+# exists but is empty so configs referencing [graph] stay installable.
+graph      = []                                     # default embedded graph (D-26) — fork pin lands in P6
+kuzu       = ["kuzu>=0.11"]                         # embedded-Cypher graph alt (D-26)
+lmdb       = ["lmdb>=1.5"]                           # hot cache (D-09)
+ingest     = ["markitdown>=0.1", "chonkie>=1.0"]    # multi-format ingest + chunking (D-29)
+structured = ["instructor>=1.9"]                    # schema-validated LLM output (D-31)
+ner        = ["gliner2>=1.2"]                        # local CPU entity extraction (D-28)
+community  = ["graspologic>=3.4"]                   # graph community detection (D-40)
+compress   = ["llmlingua>=0.2"]                     # assembly-time context compression (E5)
+llmlocal   = ["llama-cpp-python>=0.3"]              # in-proc open-weight inference (D-39)
+tantivy    = ["tantivy>=0.22"]                       # standalone lexical for non-Lance configs (D-25)
+dbos       = ["dbos>=0.20"]                          # durable worker runner (D-16)
+taskiq     = ["taskiq>=0.11", "taskiq-redis>=1.0"]  # brokered worker runner (D-16)
+rest       = ["fastapi>=0.115", "uvicorn>=0.32"]    # REST protocol (D-06)
+aws        = ["boto3>=1.35"]                         # Bedrock LLM/embeddings + Secrets (D-07/D-22)
+litellm    = ["litellm>=1.50"]                       # optional unified LLM gateway adapter (D-33)
+promptopt  = ["langmem>=0.0.20"]                     # RG-only prompt self-optimization hook (D-43)
+postgres   = ["psycopg[binary]>=3.2", "pgvector>=0.3", "asyncpg>=0.30"]  # prod swap-ins
+weaviate   = ["weaviate-client>=4.9"]
+neo4j      = ["neo4j>=5.26"]
+valkey     = ["valkey>=6.0"]
+
+# Convenience bundles
+local      = ["memspine[lance,graph,lmdb,dbos,ingest,ner]"]
+prod-aws   = ["memspine[aws,taskiq,rest]"]
+# NOTE: `community` (graspologic, numpy<2) conflicts with `ingest` (markitdown→magika, numpy>=2.1);
+# declared under [tool.uv] conflicts and excluded from `all` until graspologic supports numpy 2.
+all        = ["memspine[lance,graph,kuzu,lmdb,ingest,structured,ner,compress,llmlocal,tantivy,dbos,taskiq,rest,aws,litellm,postgres,weaviate,neo4j,valkey]"]
+
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "pytest-cov>=6.0",
+    "ruff>=0.7",
+    "mypy>=1.13",
+    "fakeredis>=2.26",          # mock cache/broker in tests (D-41)
+    "deepeval>=1.5",            # eval assertions, not shipped (D-35)
+    "mkdocs-material>=9.5",
+    "mkdocstrings[python]>=0.26",
+]
+
+[project.scripts]
+memspine = "memspine.cli:app"
+
+[project.urls]
+Homepage = "https://github.com/techiewonk/memspine"
+Repository = "https://github.com/techiewonk/memspine"
+Documentation = "https://github.com/techiewonk/memspine/tree/main/docs"
+
+[tool.uv]
+# graspologic (numpy<2) vs markitdown→magika (numpy>=2.1) — cannot co-install today.
+conflicts = [
+    [{ extra = "community" }, { extra = "ingest" }],
+    [{ extra = "community" }, { extra = "all" }],
+    [{ extra = "community" }, { extra = "local" }],
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/memspine"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "ASYNC", "RUF"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+files = ["src/memspine"]
+
+[[tool.mypy.overrides]]
+module = ["fastuuid", "datasketch", "datasketch.*", "fastembed", "fastembed.*", "json_repair"]
+ignore_missing_imports = true

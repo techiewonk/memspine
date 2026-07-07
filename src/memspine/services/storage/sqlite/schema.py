@@ -1,0 +1,83 @@
+"""Phase-0 DDL as SQLAlchemy Core metadata (D-36).
+
+This is the schema contract for v0.1: every column later phases need already
+exists here (E1 firewall, D-27 dedup, D-42 provenance/lifecycle), so migrations
+stay additive. The initial Alembic migration mirrors this metadata exactly.
+"""
+
+from __future__ import annotations
+
+from sqlalchemy import (
+    Boolean,
+    Column,
+    Float,
+    Index,
+    Integer,
+    LargeBinary,
+    MetaData,
+    String,
+    Table,
+)
+
+__all__ = ["memory_events", "memory_records", "metadata", "projector_offsets"]
+
+metadata = MetaData()
+
+# The append-only source of truth (D0.1). Payload is canonical orjson, optionally
+# zstd-compressed at rest (D-45); timestamps are ISO-8601 UTC strings.
+memory_events = Table(
+    "memory_events",
+    metadata,
+    Column("seq", Integer, primary_key=True, autoincrement=True),
+    Column("event_id", String, nullable=False, unique=True),
+    Column("kind", String, nullable=False),
+    Column("namespace", String, nullable=False),
+    Column("ts", String, nullable=False),
+    Column("actor", String, nullable=False),
+    Column("schema_version", Integer, nullable=False),
+    Column("payload", LargeBinary, nullable=False),
+    Column("compressed", Boolean, nullable=False, default=False),
+    Column("fingerprint", String, nullable=False),
+    Index("ix_memory_events_namespace", "namespace"),
+    Index("ix_memory_events_kind", "kind"),
+)
+
+# Durable high-water marks: one row per projector.
+projector_offsets = Table(
+    "projector_offsets",
+    metadata,
+    Column("projector_name", String, primary_key=True),
+    Column("last_seq", Integer, nullable=False),
+    Column("updated_at", String, nullable=False),
+)
+
+# Relational read model of the universal record (M1). JSON-shaped sub-objects
+# (source/history/consent_tags/scoring) are canonical orjson blobs (D-38).
+memory_records = Table(
+    "memory_records",
+    metadata,
+    Column("record_id", String, primary_key=True),
+    Column("namespace", String, nullable=False),
+    Column("memory_type", String, nullable=False),
+    Column("content", String, nullable=False),
+    Column("content_fingerprint", String, nullable=False),
+    Column("valid_from", String, nullable=False),
+    Column("valid_to", String),
+    Column("recorded_at", String, nullable=False),
+    Column("superseded_at", String),
+    Column("source", LargeBinary, nullable=False),
+    Column("status", String, nullable=False),
+    Column("version", Integer, nullable=False),
+    Column("history", LargeBinary, nullable=False),
+    Column("evolve_to", String),
+    Column("pii_tier", String, nullable=False),
+    Column("consent_tags", LargeBinary, nullable=False),
+    Column("scoring", LargeBinary, nullable=False),
+    Column("trust", Float, nullable=False),
+    Column("quarantined", Boolean, nullable=False),
+    Column("instruction_flag", Boolean, nullable=False),
+    Column("simhash", Integer),
+    Column("minhash_sig", LargeBinary),
+    Index("ix_memory_records_ns_type", "namespace", "memory_type"),
+    Index("ix_memory_records_fingerprint", "content_fingerprint"),
+)
