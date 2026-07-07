@@ -95,6 +95,9 @@ memory_records = Table(
     # M3 decay tier + M6/D-32 cold-tier compressed content (migration 0004).
     Column("tier", String, nullable=False, server_default="hot"),
     Column("content_zstd", LargeBinary),
+    # M13.4 procedural stage + M13.7 reflective depth (migration 0006).
+    Column("skill_stage", String),
+    Column("reflection_depth", Integer, nullable=False, server_default="0"),
     Index("ix_memory_records_ns_type", "namespace", "memory_type"),
     Index("ix_memory_records_fingerprint", "content_fingerprint"),
     Index("ix_memory_records_fact_key", "namespace", "entity", "attribute"),

@@ -148,6 +148,12 @@ class MemoryRecord(BaseModel):
     tier: str = "hot"
     content_zstd: bytes | None = None
 
+    # Procedural lifecycle (M13.4): a skill/plan rides a draft→staged→verified→
+    # active→deprecated ladder; None for non-procedural records.
+    skill_stage: str | None = None
+    # Reflective depth (M13.7): 0 = raw memory, 1 = reflection, 2 = meta (capped).
+    reflection_depth: int = 0
+
     def model_post_init(self, _context: Any) -> None:
         if not self.content_fingerprint:
             self.content_fingerprint = fingerprint_payload({"content": self.content})

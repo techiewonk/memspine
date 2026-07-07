@@ -270,6 +270,8 @@ class SQLiteStorage(ServiceAdapter):
             "tier": record.tier,
             "content_zstd": record.content_zstd,
             "corroborations": record.corroborations,
+            "skill_stage": record.skill_stage,
+            "reflection_depth": record.reflection_depth,
         }
         stmt = sqlite_insert(memory_records).values(record_id=record.record_id, **values)
         stmt = stmt.on_conflict_do_update(index_elements=["record_id"], set_=values)
@@ -405,5 +407,7 @@ class SQLiteStorage(ServiceAdapter):
                 "tier": row["tier"],
                 "content_zstd": row["content_zstd"],
                 "corroborations": row["corroborations"],
+                "skill_stage": row["skill_stage"],
+                "reflection_depth": row["reflection_depth"],
             }
         )

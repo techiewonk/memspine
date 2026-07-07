@@ -52,6 +52,9 @@ from memspine.core.replay import rebuild as replay_rebuild
 from memspine.exceptions import ConfigError, MemspineError, MissingServiceError, StorageError
 from memspine.memories.episodic.sessions import Session
 from memspine.memories.episodic.store import EpisodicMemory
+from memspine.memories.procedural.prompt_registry import prompt_version_records
+from memspine.memories.procedural.skills import ProceduralMemory, make_skill_record
+from memspine.memories.reflective.reflections import ReflectiveMemory
 from memspine.memories.resource.store import ResourceMemory
 from memspine.memories.semantic.entities import EntityExtractor, LLMEntityExtractor
 from memspine.memories.semantic.store import SemanticMemory
@@ -95,6 +98,13 @@ _CORE_SERVICES = frozenset({"storage", "secrets"})
 _CORROBORATION_ROLES = frozenset({"operator", "system", "user"})
 
 
+def _cosine(u: list[float], v: list[float]) -> float:
+    """Dot product over the unit-normalized vectors every embedder emits."""
+    if len(u) != len(v):
+        return 0.0
+    return sum(a * b for a, b in zip(u, v, strict=True))
+
+
 def _as_options_dict(raw: Any) -> dict[str, object] | None:
     """Policy sub-blocks arrive as plain config dicts; anything else is a typo
     the policy's own extra='forbid' validation will surface."""
@@ -130,6 +140,8 @@ class Engine:
         self._semantic: SemanticMemory | None = None
         self._episodic: EpisodicMemory | None = None
         self._resource: ResourceMemory | None = None
+        self._procedural: ProceduralMemory | None = None
+        self._reflective: ReflectiveMemory | None = None
         self._prompts: PromptRegistry | None = None
         self._scoring: ScoringPolicy | None = None
         self._assembly: AssemblyPolicy | None = None
@@ -232,6 +244,14 @@ class Engine:
             self._resource = ResourceMemory(
                 self._append_and_project,
                 storage=self._storage,
+                assess=lambda record: self._firewall.assess(record).apply(record),
+            )
+        if "procedural" in self._enabled:
+            self._procedural = ProceduralMemory(self._storage, self._append_and_project)
+        if "reflective" in self._enabled:
+            self._reflective = ReflectiveMemory(
+                self._storage,
+                self._append_and_project,
                 assess=lambda record: self._firewall.assess(record).apply(record),
             )
         self._summarize = self._build_summarize()
@@ -742,6 +762,205 @@ class Engine:
             raise MemspineError("resource memory not enabled — set memories.resource.enabled: true")
         return await self._resource.ingest(validate_namespace(namespace), path, pii_tier=pii_tier)
 
+    # ── procedural + reflective verbs (P5: M13.4 / M13.7 / E6) ───────────────
+
+    async def add_skill(
+        self,
+        content: str,
+        name: str,
+        namespace: str = "default",
+        actor: str = "user",
+        source: SourceInfo | None = None,
+    ) -> MemoryRecord:
+        """Store a skill at ``draft`` (M13.4). It must climb the ladder —
+        staged → verified → dry-run-gated active — before it is ever offered."""
+        return await self._write_procedural(
+            make_skill_record(
+                validate_namespace(namespace),
+                name,
+                content,
+                kind="skill",
+                source=source or SourceInfo(role=actor),
+            ),
+            actor,
+        )
+
+    async def record_plan(
+        self,
+        task: str,
+        content: str,
+        namespace: str = "default",
+        actor: str = "assistant",
+        source: SourceInfo | None = None,
+    ) -> MemoryRecord:
+        """E6: capture a validated multi-step plan after a task SUCCEEDED.
+
+        Plans enter at ``staged`` (success was the first validation) and are
+        held out of every retrieval surface — like E1 quarantine — until they
+        are promoted through ``verified`` and the dry-run gate into ``active``.
+        """
+        return await self._write_procedural(
+            make_skill_record(
+                validate_namespace(namespace),
+                task,
+                content,
+                kind="plan",
+                source=source or SourceInfo(role=actor),
+            ),
+            actor,
+        )
+
+    async def _write_procedural(self, record: MemoryRecord, actor: str) -> MemoryRecord:
+        storage = self._require_started()
+        if self._procedural is None:
+            raise MemspineError(
+                "procedural memory not enabled — set memories.procedural.enabled: true"
+            )
+        ns = record.namespace
+        async with self._write_locks.setdefault(ns, asyncio.Lock()):
+            return await self._write_locked(storage, ns, record, "procedural", actor)
+
+    async def promote_skill(
+        self,
+        record_id: str,
+        namespace: str = "default",
+        dry_run_passed: bool = False,
+    ) -> MemoryRecord:
+        """One legal step up draft→staged→verified→active; verified→active
+        requires ``dry_run_passed=True`` (M13.4)."""
+        self._require_started()
+        if self._procedural is None:
+            raise MemspineError(
+                "procedural memory not enabled — set memories.procedural.enabled: true"
+            )
+        ns = validate_namespace(namespace)
+        async with self._write_locks.setdefault(ns, asyncio.Lock()):
+            return await self._procedural.promote(record_id, dry_run_passed=dry_run_passed)
+
+    async def deprecate_skill(self, record_id: str, namespace: str = "default") -> MemoryRecord:
+        """Retire a skill/plan (terminal, M13.4)."""
+        self._require_started()
+        if self._procedural is None:
+            raise MemspineError(
+                "procedural memory not enabled — set memories.procedural.enabled: true"
+            )
+        ns = validate_namespace(namespace)
+        async with self._write_locks.setdefault(ns, asyncio.Lock()):
+            return await self._procedural.deprecate(record_id)
+
+    async def skills(
+        self,
+        namespace: str = "default",
+        kind: str | None = None,
+        usable_only: bool = True,
+    ) -> list[MemoryRecord]:
+        """Procedural records; by default only the usable (ACTIVE) set (M13.4)."""
+        self._require_started()
+        if self._procedural is None:
+            raise MemspineError(
+                "procedural memory not enabled — set memories.procedural.enabled: true"
+            )
+        ns = validate_namespace(namespace)
+        return self._inflate_all(
+            await self._procedural.list(ns, kind=kind, usable_only=usable_only), ns
+        )
+
+    async def recall_plan(
+        self,
+        task: str,
+        namespace: str = "default",
+        min_similarity: float = constants.PLAN_RECALL_MIN_SIMILARITY,
+    ) -> MemoryRecord | None:
+        """E6 plan cache lookup: the usable plan whose *task* embedding is most
+        similar to ``task`` — or None when nothing clears the floor.
+
+        Similarity is computed over the stored plans' task strings (their
+        ``entity``), not plan bodies: two different tasks can share plan steps
+        without being interchangeable.
+        """
+        self._require_started()
+        if self._procedural is None:
+            raise MemspineError(
+                "procedural memory not enabled — set memories.procedural.enabled: true"
+            )
+        if self._embedder is None:
+            raise MemspineError("retrieval services not constructed — engine not started?")
+        ns = validate_namespace(namespace)
+        plans = [
+            plan
+            for plan in await self._procedural.list(ns, kind="plan", usable_only=True)
+            if plan.entity is not None
+        ]
+        if not plans:
+            return None
+        vectors = await self._embedder.embed([task, *(str(plan.entity) for plan in plans)])
+        task_vec, plan_vecs = vectors[0], vectors[1:]
+        best: tuple[MemoryRecord, float] | None = None
+        for plan, plan_vec in zip(plans, plan_vecs, strict=True):
+            score = _cosine(task_vec, plan_vec)
+            if best is None or score > best[1]:
+                best = (plan, score)
+        assert best is not None
+        if best[1] < min_similarity:
+            return None
+        record = self._inflate.inflate(best[0])
+        # Reinforcement (M1): a reused plan's utility signal rides the log.
+        await self._append_and_project(
+            MemoryEvent(
+                kind=EventKind.RETRIEVE,
+                namespace=ns,
+                actor="system",
+                payload={"record_ids": [record.record_id]},
+            )
+        )
+        _log.info(EVENT_RETRIEVE, namespace=ns, plan=True, similarity=round(best[1], 4))
+        return record
+
+    async def reflect(
+        self,
+        content: str,
+        source_record_ids: list[str],
+        namespace: str = "default",
+    ) -> MemoryRecord:
+        """Write a reflection derived from existing records (M13.7).
+
+        Depth is computed from the fetched parents and hard-capped at 2;
+        quarantined/deleted parents are refused (no laundering, E1).
+        """
+        self._require_started()
+        if self._reflective is None:
+            raise MemspineError(
+                "reflective memory not enabled — set memories.reflective.enabled: true"
+            )
+        ns = validate_namespace(namespace)
+        async with self._write_locks.setdefault(ns, asyncio.Lock()):
+            return await self._reflective.reflect(ns, content, source_record_ids)
+
+    async def sync_prompt_versions(self, namespace: str = "default") -> list[MemoryRecord]:
+        """D-43 §4: record each resolved prompt version as a procedural record
+        (reference only — the definition lives in prompts/). Idempotent."""
+        self._require_started()
+        if self._procedural is None or self._prompts is None:
+            raise MemspineError(
+                "prompt-version sync needs procedural memory enabled and prompts loaded"
+            )
+        ns = validate_namespace(namespace)
+        existing = await self._procedural.list(ns, kind="prompt")
+        fresh = prompt_version_records(ns, self._prompts, existing)
+        for record in fresh:
+            # System-internal deterministic content — same door as set_persona.
+            await self._append_and_project(
+                MemoryEvent(
+                    kind=EventKind.WRITE,
+                    namespace=ns,
+                    actor="system",
+                    payload={"record": record.model_dump(mode="json")},
+                )
+            )
+        if fresh:
+            _log.info(EVENT_WRITE, namespace=ns, prompt_versions=len(fresh))
+        return fresh
+
     def llm(self, role: str) -> LLMService:
         """The provider bound to a role (D-07/D-22): extract / judge / chat."""
         if self._llm is None:
@@ -819,6 +1038,8 @@ class Engine:
             "firewall": "deterministic (trust-matrix + instruction-flag + anomaly)",
             "episodic": self._episodic is not None,
             "resource_ingest": self._resource is not None,
+            "procedural": self._procedural is not None,
+            "reflective": self._reflective is not None,
             "consolidation_summarizer": "llm" if self._summarize is not None else "extractive",
             "projectors": [projector.name for projector in self._projectors],
             "runner": config.workers.runner,

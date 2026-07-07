@@ -9,6 +9,8 @@
 <br/>
 
 [![status](https://img.shields.io/badge/status-pre--alpha-orange?style=flat-square)](#-roadmap)
+[![phase](https://img.shields.io/badge/phase-P0–P4_done_·_P5_in_progress-7c3aed?style=flat-square)](#-roadmap)
+[![tests](https://img.shields.io/badge/tests-231_passing-2ea44f?style=flat-square)](#-roadmap)
 [![python](https://img.shields.io/badge/python-3.13+-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
 [![license](https://img.shields.io/badge/license-Apache--2.0-2ea44f?style=flat-square)](./LICENSE)
 [![built with uv](https://img.shields.io/badge/built%20with-uv-DE5FE9?style=flat-square)](https://github.com/astral-sh/uv)
@@ -26,7 +28,7 @@
 ---
 
 > [!NOTE]
-> **Status: design-complete, pre-alpha.** The blueprint, decision register (D-01…D-43), and phase plan are finalized. Implementation lands phase by phase. The [`docs/`](./docs) folder is the single source of truth.
+> **Status: pre-alpha, under active construction.** Phases **P0–P4 are implemented and review-passed** — event-sourced substrate, working memory + retrieval, semantic memory, episodic + lifecycle, and the Memory Firewall — with **231 passing tests**, 13 ADRs, and `ruff` + `mypy --strict` clean. **P5 (procedural + reflective) is in progress.** The blueprint in [`docs/`](./docs) is the single source of truth. See the [roadmap](#-roadmap) for the full picture.
 
 ---
 
@@ -199,21 +201,25 @@ Building on memspine with Claude Code? [`CLAUDE.md`](./CLAUDE.md) + `.claude/` s
 
 ## 🗺️ Roadmap
 
-Each phase ships independently and keeps `profile="simple"` behavior stable.
+Each phase ships independently and keeps `profile="simple"` behavior stable. Every landed phase went through a multi-agent review pass.
 
 ```mermaid
 flowchart LR
-    P0["P0<br/>Substrate"] --> P1["P1<br/>Working +<br/>retrieval"] --> P2["P2<br/>Semantic +<br/>prompts"] --> P3["P3<br/>Episodic +<br/>lifecycle"] --> P4["P4<br/>Governance +<br/>Firewall"] --> P5["P5<br/>Procedural +<br/>reflective"] --> P6["P6<br/>Associative<br/>graph"] --> P7["P7<br/>Prospective +<br/>shared + REST"]
-    classDef p fill:#1e293b,stroke:#475569,color:#e2e8f0,rx:6,ry:6;
-    class P0,P1,P2,P3,P4,P5,P6,P7 p;
+    P0["✅ P0<br/>Substrate"] --> P1["✅ P1<br/>Working +<br/>retrieval"] --> P2["✅ P2<br/>Semantic +<br/>prompts"] --> P3["✅ P3<br/>Episodic +<br/>lifecycle"] --> P4["✅ P4<br/>Governance +<br/>Firewall"] --> P5["🔨 P5<br/>Procedural +<br/>reflective"] --> P6["P6<br/>Associative<br/>graph"] --> P7["P7<br/>Prospective +<br/>shared + REST"]
+    classDef done fill:#065f46,stroke:#10b981,color:#ecfdf5,rx:6,ry:6;
+    classDef wip fill:#7c2d12,stroke:#f97316,color:#fff7ed,rx:6,ry:6;
+    classDef todo fill:#1e293b,stroke:#475569,color:#e2e8f0,rx:6,ry:6;
+    class P0,P1,P2,P3,P4 done;
+    class P5 wip;
+    class P6,P7 todo;
 ```
 
-- [ ] **P0** substrate — event log · records · policies · SQLite *(next)*
-- [ ] **P1** working memory + retrieval
-- [ ] **P2** semantic + write pipeline + prompts
-- [ ] **P3** episodic + lifecycle dynamics
-- [ ] **P4** governance + Memory Firewall
-- [ ] **P5** procedural + reflective
+- [x] **P0** substrate — event log · records · policies · SQLite
+- [x] **P1** working memory + retrieval
+- [x] **P2** semantic + write pipeline + prompts
+- [x] **P3** episodic + lifecycle dynamics
+- [x] **P4** governance + Memory Firewall
+- [ ] **P5** procedural + reflective — *in progress* 🔨
 - [ ] **P6** associative graph
 - [ ] **P7** prospective + shared + REST
 

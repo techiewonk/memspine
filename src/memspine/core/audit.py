@@ -82,18 +82,23 @@ async def trace_taint(storage: _EventSource, record_id: str) -> TaintReport:
                         source = snapshot.get("source")
                         if isinstance(source, dict):
                             report.origin_source = source
-                # Consolidation provenance rides the WRITE payload too (P3.1).
-                consolidation = payload.get("consolidation")
-                if isinstance(consolidation, dict) and snapshot_id is not None:
-                    members = consolidation.get("member_record_ids")
-                    if (
-                        isinstance(members, list)
-                        and tainted & set(map(str, members))
-                        and snapshot_id not in tainted
-                    ):
-                        tainted.add(snapshot_id)
-                        report.descendants[snapshot_id] = f"consolidated@{event.seq}"
-                        changed = True
+                # Derivation provenance rides the WRITE payload: consolidation
+                # (P3.1) and reflection (M13.7/P5) both name their members.
+                for derivation_key, label in (
+                    ("consolidation", "consolidated"),
+                    ("reflection", "reflected"),
+                ):
+                    derivation = payload.get(derivation_key)
+                    if isinstance(derivation, dict) and snapshot_id is not None:
+                        members = derivation.get("member_record_ids")
+                        if (
+                            isinstance(members, list)
+                            and tainted & set(map(str, members))
+                            and snapshot_id not in tainted
+                        ):
+                            tainted.add(snapshot_id)
+                            report.descendants[snapshot_id] = f"{label}@{event.seq}"
+                            changed = True
             elif event.kind is EventKind.MERGE:
                 kept = str(payload.get("kept_record_id", ""))
                 dropped_snapshot = payload.get("dropped_record")

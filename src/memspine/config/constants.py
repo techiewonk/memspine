@@ -79,6 +79,10 @@ REPLAY_BATCH_SIZE = 1000
 # Working memory (M13.1): default hot-window size when a profile sets none.
 WORKING_PAGE_SIZE = 16
 
+# Plan recall (E6): a cached plan is only reused when its task's embedding
+# similarity to the incoming task clears this floor — below it, no plan.
+PLAN_RECALL_MIN_SIMILARITY = 0.6
+
 # Retrieval defaults (M12): candidates fetched and context token budget.
 SEARCH_TOP_K = 8
 ASSEMBLE_TOP_K = 16

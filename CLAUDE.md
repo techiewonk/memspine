@@ -6,11 +6,11 @@ This file is loaded into every Claude Code session. Keep it accurate and terse.
 
 `memspine` is an open-source **cognitive-memory engine** for AI agents: one clean API (`Engine`) over a real write pipeline, hybrid + graph retrieval, and background learning dynamics — with pluggable, composable stores. It is the *engine*, not a product.
 
-**Status:** design-complete, pre-alpha. The blueprint is finalized; we are implementing it phase by phase. The design docs in `docs/` are the **single source of truth** — read them before writing code.
+**Status:** pre-alpha, under active construction. **P0–P4 are implemented and review-passed** (substrate · working memory + retrieval · semantic · episodic + lifecycle · Memory Firewall) — 231 tests, `ruff` + `mypy --strict` clean, 13 ADRs. **P5 (procedural + reflective) is in progress.** The design docs in `docs/` are the **single source of truth** — read them before writing code.
 
 ## Read these first (in order)
 
-1. `docs/memspine-structure-plan.md` — **the buildable blueprint**: repo tree, extras matrix, decision register (D-01…D-43), phase plan (P0…P7), enhancement program (E1–E9). This is authoritative.
+1. `docs/memspine-structure-plan.md` — **the buildable blueprint**: repo tree, extras matrix, decision register (D-01…D-46), phase plan (P0…P7), enhancement program (E1–E9). This is authoritative.
 2. `docs/UNIMEM_V2_REWORK_PROPOSAL.md` — architecture rationale (why, and the evidence base).
 3. `docs/DEPENDENCY_ANALYSIS.md` + `docs/PACKAGE_CATALOG.md` — why each dependency was chosen; every candidate package with "does what".
 
@@ -25,7 +25,7 @@ This file is loaded into every Claude Code session. Keep it accurate and terse.
 - **Profiles stay green.** Every change keeps `profile="simple"` behavior stable and backward-compatible.
 - **Hard-fail clearly (D-10).** Missing service → `MissingServiceError` naming the extra to install, unless `strict_services: false`.
 
-## Locked defaults (decision register — see plan for D-01…D-43)
+## Locked defaults (decision register — see plan for D-01…D-46)
 
 | Area | Default | Notes |
 |------|---------|-------|
@@ -77,7 +77,7 @@ uv run ruff check . && uv run ruff format --check .
 ## How to work here
 
 1. **Find the phase.** Work follows P0→P7 (see plan §5). Confirm which phase a task belongs to; don't build P4 before P1's contracts exist.
-2. **Check the register.** Before adding a dependency or pattern, confirm it against D-01…D-43. New dep → justify like `DEPENDENCY_ANALYSIS.md` (what it does, who proves it, which extra) and record a decision.
+2. **Check the register.** Before adding a dependency or pattern, confirm it against D-01…D-46. New dep → justify like `DEPENDENCY_ANALYSIS.md` (what it does, who proves it, which extra) and record a decision.
 3. **Keep the core slim and `simple` green.** Guard both in every PR.
 4. **Update docs with the code.** If you change a contract, update the structure plan + this file in the same change.
 
