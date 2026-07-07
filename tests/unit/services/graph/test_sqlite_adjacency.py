@@ -89,6 +89,21 @@ async def test_neighbors_depth_walk_excludes_start_and_stops_at_depth(
     assert await store.neighbors("a", depth=0) == []
 
 
+async def test_neighbors_treat_tombstoned_edges_as_gone(store: SQLiteAdjacencyGraph) -> None:
+    """Every reader treats weight <= 0 as gone (ADR-015): a pruned neighbour
+    must not resurface via neighbors()/walks (M2, P6 review)."""
+    await store.upsert_edge("a", "b", "related", {"weight": 0.5})
+    await store.upsert_edge("b", "c", "related", {"weight": 0.5})
+    assert {n.node_id for n in await store.neighbors("a", depth=2)} == {"b", "c"}
+
+    await store.upsert_edge("a", "b", "related", {"weight": 0.0})  # prune tombstone
+    assert await store.neighbors("a") == []
+    assert await store.neighbors("a", depth=5) == []  # walk blocked at the tombstone
+    # ...in both directions, and c-side reach through b is untouched.
+    assert {n.node_id for n in await store.neighbors("b")} == {"c"}
+    assert {n.node_id for n in await store.neighbors("c", depth=2)} == {"b"}
+
+
 async def test_delete_node_cascades_edges_both_directions(store: SQLiteAdjacencyGraph) -> None:
     await store.upsert_edge("a", "b", "related")
     await store.upsert_edge("c", "b", "related")

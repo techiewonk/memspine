@@ -1,6 +1,6 @@
 # ADR-015 — Associative links as LINK events (P6)
 
-**Status:** accepted · **Date:** 2026-07-07 · **Register:** D-49 (candidate)
+**Status:** accepted · **Date:** 2026-07-07 · **Register:** D-49
 
 ## Context
 
@@ -35,10 +35,23 @@ links are refused with `ConflictError`; `prune_weakest` frees a slot by
 emitting a compensating LINK event with `weight: 0.0` (the `GraphStore` port
 has no single-edge delete, and a tombstone replays deterministically —
 weakest-edge selection tie-breaks on `(weight, src, dst, rel_type)`). Every
-reader (`live_links`, PPR, communities) treats `weight <= 0` as absent.
-Provenance edges (`derived_from`) and system-written community-membership
-links (`reason: "reorganize"`) are budget-exempt: they record facts, not
-associations, and a 20-member community must keep all 20 membership links.
+reader (`live_links`, PPR, communities, `neighbors()` walks) treats
+`weight <= 0` as absent. Provenance edges (`rel: "derived_from"`) and
+system-written community-membership links (`rel: "community"`) are
+budget-exempt and never prunable (`prune_weakest` cannot select them): they
+record facts, not associations, and a 20-member community must keep all 20
+membership links. Because exemption would otherwise be forgeable into
+unbounded fan-out, those rels are **reserved**: `AssociativeMemory.link()`
+(and therefore `Engine.associate()`) refuses caller-supplied `rel` values in
+the reserved set with `ConflictError` — only system writers (the projector's
+derivation edges, the reorganizer's membership links) emit them. When the
+reorganizer supersedes a stale community parent (membership drift), it also
+emits weight-0 tombstone LINK events (`reason: "reorganize_supersede"`) for
+each live member→old-parent `community` edge alongside the archive
+transition, so the archived parent loses its graph reach
+replay-deterministically instead of accumulating garbage edges. Edges are
+undirected for dedup too: re-linking `(dst, src)` re-weights the stored
+`(src, dst)` edge rather than materializing a mirror.
 
 ### 3. Links never cross namespaces; recall mirrors the search gate
 
@@ -63,6 +76,20 @@ projection ride existing machinery), min-member-trust inheritance (D-47 §5),
 membership-fingerprint idempotency, stale parents archived — plus
 member→parent LINK events (`rel: "community"`).
 
+### 5. Default graph store: `sqlite_adjacency` (D-26 amended)
+
+D-26 named LadybugDB the default embedded graph behind `[graph]`, but the
+pinned ladybugdb fork is **not published on PyPI** — an extra that cannot
+install is worse than no extra. For v0.1: the default graph provider is
+**`sqlite_adjacency`** (zero-dep, rides the existing SQLite client and the
+0007 migration), the `[graph]` extra ships **empty/reserved** until the
+pinned ladybugdb fork publishes, the `ladybug` provider is **reserved** (its
+stub raises `MissingServiceError` naming `[graph]`), and **kuzu stays the
+first-class alternative** behind `[kuzu]`. Alternative rejected: promoting
+kuzu to default — that would put a heavier native dependency in the zero-extra
+associative path, and `sqlite_adjacency` already serves the shallow graphs the
+link budget allows.
+
 ## Consequences
 
 - The M11 vocabulary gains `memory.link` (`EVENT_LINK` in
@@ -78,11 +105,11 @@ member→parent LINK events (`rel: "community"`).
   `VectorStore.search_rescore()` falls back to plain search in both shipped
   adapters until a quantized adapter exists.
 
-## Register row (D-49 candidate)
+## Register row (D-49)
 
 | # | Decision | Ruling |
 |---|---|---|
-| **D-49** | **Associative links ride the log** | `EventKind.LINK` events project into the graph store; budget (`LINK_BUDGET`) enforced at creation, pruning via weight-0 tombstone LINK events; recall = deterministic pure-Python PPR gated like search; evolution deterministic (no LLM) in v0.1; reorganizer summaries inherit min member trust (D-47 §5) and are `[community]`-gated. |
+| **D-49** | **Associative links & graph projection** | `EventKind.LINK` (`memory.link`, payload `{src, dst, rel, weight, reason}`) — links are new information and ride the log; graph = rebuildable GraphProjector over WRITE/LINK/FORGET + derivation payloads · link budget enforced at creation (`ConflictError`), prune = weight-0 tombstone LINK (replay-deterministic; provenance/reorganize links budget-exempt) · `sqlite_adjacency` default graph (ladybugdb unpublished; kuzu `[kuzu]` first-class alt) · PPR pure-Python bounded · reorganizer writes consolidation-shaped community parents (min-member trust, D-47 §5), no-op without `[community]`. (ADR-015) |
 
 ## Alternatives rejected
 

@@ -67,6 +67,13 @@ class AssociativeMemory(BaseMemory):
         ADR-014 shape). Quarantined endpoints are refused outright: held
         content must not gain graph reach while under quarantine (E1).
         """
+        if rel in link_rules.RESERVED_RELS:
+            # H1 (ADR-015 §2): reserved rels are budget-exempt, so accepting
+            # them from callers would be an unbounded fan-out bypass.
+            raise ConflictError(
+                f"rel {rel!r} is reserved for system-written links (ADR-015) — "
+                "pick a caller rel such as 'related'"
+            )
         if src_id == dst_id:
             raise ConflictError(f"cannot link record {src_id} to itself")
         if not math.isfinite(weight) or weight <= 0.0:
@@ -82,11 +89,17 @@ class AssociativeMemory(BaseMemory):
                     f"record {endpoint.record_id} is quarantined (E1) — held content "
                     "cannot enter the association graph until corroborated"
                 )
-        # Re-weighting an existing (src, dst, rel) edge is an upsert — it must
-        # not be double-counted against either endpoint's budget.
-        if not await self._edge_exists(src_id, dst_id, rel):
+        # Re-weighting an existing edge is an upsert — it must not be
+        # double-counted against either endpoint's budget. Links are
+        # undirected, so (dst, src) is the same edge as (src, dst): the event
+        # keeps the stored orientation so the projector re-weights the one row
+        # instead of materializing a mirrored duplicate.
+        existing = await self._find_live_edge(src_id, dst_id, rel)
+        if existing is None:
             await link_rules.assert_within_budget(self._graph, src_id)
             await link_rules.assert_within_budget(self._graph, dst_id)
+        else:
+            src_id, dst_id = existing.src, existing.dst
         await self._append_event(
             link_rules.link_event(namespace, src_id, dst_id, rel, weight, reason, actor=actor)
         )
@@ -103,7 +116,14 @@ class AssociativeMemory(BaseMemory):
         anything the log linked, but only live namespace truth is returned.
         Returned ids ride a RETRIEVE event (M1 reinforcement), like search.
         """
-        await self._require_record(record_id, namespace)
+        seed = await self._require_record(record_id, namespace)
+        if seed.quarantined or seed.status is RecordStatus.QUARANTINED:
+            # Same refusal as link() (E1): a quarantined seed must not gain
+            # graph reach — not even read-side — until corroborated.
+            raise ConflictError(
+                f"record {record_id} is quarantined (E1) — held content "
+                "cannot seed graph recall until corroborated"
+            )
         ranked = personalized_pagerank(await self._graph.edge_list(), {record_id})
         results: list[MemoryRecord] = []
         for candidate_id, _score in ranked:
@@ -162,8 +182,10 @@ class AssociativeMemory(BaseMemory):
             raise ConflictError(f"no such record {record_id!r} in namespace {namespace!r}")
         return record
 
-    async def _edge_exists(self, src_id: str, dst_id: str, rel: str) -> bool:
+    async def _find_live_edge(self, src_id: str, dst_id: str, rel: str) -> GraphEdge | None:
+        # Direction-insensitive: edges are undirected (ADR-015 §3), so a live
+        # (dst, src) edge is the same association as (src, dst).
         for edge in link_rules.live_links(await self._graph.edges_of(src_id)):
-            if edge.src == src_id and edge.dst == dst_id and edge.rel_type == rel:
-                return True
-        return False
+            if edge.rel_type == rel and {edge.src, edge.dst} == {src_id, dst_id}:
+                return edge
+        return None

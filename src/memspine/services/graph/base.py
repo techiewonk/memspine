@@ -18,7 +18,17 @@ from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Protocol, runtime_checkable
 
-__all__ = ["GraphEdge", "GraphNode", "GraphStore", "walk_neighbors"]
+__all__ = ["GraphEdge", "GraphNode", "GraphStore", "edge_weight", "walk_neighbors"]
+
+
+def edge_weight(properties: Mapping[str, object]) -> float:
+    """The walk weight carried by an edge-properties mapping; edges without a
+    numeric ``weight`` property default to 1.0. Shared so adapters can apply
+    the tombstone contract (weight ``<= 0`` is gone, ADR-015) to raw rows."""
+    raw = properties.get("weight")
+    if isinstance(raw, bool) or not isinstance(raw, int | float):
+        return 1.0
+    return float(raw)
 
 
 @dataclass(frozen=True)
@@ -38,10 +48,7 @@ class GraphEdge:
     @property
     def weight(self) -> float:
         """PPR walk weight; edges without a numeric ``weight`` property are 1.0."""
-        raw = self.properties.get("weight")
-        if isinstance(raw, bool) or not isinstance(raw, int | float):
-            return 1.0
-        return float(raw)
+        return edge_weight(self.properties)
 
 
 @runtime_checkable
@@ -72,7 +79,11 @@ class GraphStore(Protocol):
     async def neighbors(
         self, node_id: str, rel_type: str | None = None, depth: int = 1
     ) -> list[GraphNode]:
-        """Nodes reachable within ``depth`` undirected hops (start excluded)."""
+        """Nodes reachable within ``depth`` undirected hops (start excluded).
+
+        Tombstoned edges (weight ``<= 0``, the ADR-015 prune marker) are not
+        traversed — every reader treats them as gone.
+        """
         ...
 
     async def edges_of(self, node_id: str) -> list[GraphEdge]:

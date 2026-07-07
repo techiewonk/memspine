@@ -64,3 +64,13 @@ async def test_port_round_trip_parity(store: GraphStore) -> None:
     await store.clear()
     assert (await store.node_count(), await store.edge_count()) == (0, 0)
     await store.close()
+
+
+async def test_neighbors_tombstone_parity(store: GraphStore) -> None:
+    """Weight <= 0 is gone for every reader (ADR-015) — identically per adapter."""
+    await store.upsert_edge("a", "b", "related", {"weight": 0.7})
+    assert {n.node_id for n in await store.neighbors("a")} == {"b"}
+    await store.upsert_edge("a", "b", "related", {"weight": 0.0})
+    assert await store.neighbors("a") == []
+    assert await store.neighbors("b") == []
+    await store.close()

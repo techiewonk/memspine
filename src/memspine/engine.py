@@ -231,10 +231,17 @@ class Engine:
         # P1 services: embedding (E3-cached), vector store, LLM router, policies.
         self._embedder = CachedEmbedding(self._build_embedder(config), MemoryKV())
         self._vector = await self._build_vector_store(config)
-        # P6 graph store (D-26): only when associative memory needs it or the
-        # user asked for it explicitly — profile="simple" never constructs one.
-        if "associative" in self._enabled or "graph" in config.model_fields_set:
+        # P6 graph store (D-26): constructed only when associative memory
+        # projects it — profile="simple" never constructs one. An explicit
+        # ``graph:`` block without associative would be a dead handle (no
+        # projector ever writes it), so it is a config error, not a store.
+        if "associative" in self._enabled:
             self._graph = await self._build_graph_store(config)
+        elif "graph" in config.model_fields_set:
+            raise ConfigError(
+                "graph configured but memories.associative not enabled — "
+                "enable it or remove the graph block"
+            )
         self._llm = await self._build_llm_router(config)
         self._scoring = ScoringPolicy.bind(config.read.scoring)
         self._assembly = AssemblyPolicy.bind(config.read.assembly)
@@ -1150,6 +1157,7 @@ class Engine:
                 namespace=ns,
                 record_id=record.record_id,
                 error=str(exc),
+                error_kind=exc.__class__.__name__,
                 exc_info=True,
             )
 
@@ -1344,6 +1352,11 @@ class Engine:
             await projector.apply(appended)
             await self._storage.set_offset(projector.name, appended.seq)
 
+    def _namespace_lock(self, namespace: str) -> asyncio.Lock:
+        """The same per-namespace lock every write verb holds — handed to
+        pipelines so their read-then-write units serialize with forget (M5)."""
+        return self._write_locks.setdefault(namespace, asyncio.Lock())
+
     def _pipeline_ctx(self) -> PipelineContext:
         assert self._storage is not None and self._resolved is not None
         return PipelineContext(
@@ -1354,6 +1367,7 @@ class Engine:
             # Only when associative projects it (ADR-015): an explicit-config
             # graph store without the projector would reorganize a stale graph.
             graph=self._graph if self._associative is not None else None,
+            lock=self._namespace_lock,
         )
 
     def _build_runner(self, config: MemspineConfig) -> TaskRunner:

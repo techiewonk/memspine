@@ -129,6 +129,26 @@ async def trace_taint(storage: _EventSource, record_id: str) -> TaintReport:
                     tainted.add(summary_id)
                     report.descendants[summary_id] = f"consolidated@{event.seq}"
                     changed = True
+            elif event.kind is EventKind.LINK:
+                # An association gives the tainted record graph reach into its
+                # partner (PPR recall surfaces it): the partner is a linked
+                # descendant. A weight-0 tombstone (ADR-015 prune/supersede)
+                # removed that reach — it stays evidence via event_seqs below
+                # but must not propagate taint.
+                raw_weight = payload.get("weight", 1.0)
+                weight = (
+                    float(raw_weight)
+                    if isinstance(raw_weight, int | float) and not isinstance(raw_weight, bool)
+                    else 1.0
+                )
+                if weight > 0.0:
+                    src = str(payload.get("src", ""))
+                    dst = str(payload.get("dst", ""))
+                    for tainted_end, other in ((src, dst), (dst, src)):
+                        if tainted_end in tainted and other and other not in tainted:
+                            tainted.add(other)
+                            report.descendants[other] = f"linked@{event.seq}"
+                            changed = True
             elif event.kind is EventKind.CONFLICT:
                 # A supersession seeded by a tainted incoming record.
                 incoming = payload.get("incoming_record")
@@ -159,7 +179,15 @@ def _event_references(node: Any, ids: set[str]) -> bool:
     if isinstance(node, dict):
         for key, value in node.items():
             if (
-                key in ("record_id", "summary_record_id", "existing_record_id", "kept_record_id")
+                key
+                in (
+                    "record_id",
+                    "summary_record_id",
+                    "existing_record_id",
+                    "kept_record_id",
+                    "src",  # LINK payloads (ADR-015): tombstones stay evidence
+                    "dst",
+                )
                 and value in ids
             ):
                 return True

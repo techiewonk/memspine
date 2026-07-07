@@ -1,7 +1,8 @@
 """Engine wiring: graph construction gate + provider selection (D-26/D-10).
 
 profile="simple" must stay green: no graph store exists unless associative
-memory is enabled or the ``graph:`` config block is set explicitly.
+memory is enabled; an explicit ``graph:`` block without associative memory is
+a ConfigError (a dead store handle no projector maintains — M6, P6 review).
 """
 
 from __future__ import annotations
@@ -42,25 +43,28 @@ async def test_associative_memory_enables_the_default_graph_store() -> None:
         await eng.stop()
 
 
-async def test_explicit_graph_config_constructs_without_associative() -> None:
+async def test_explicit_graph_config_without_associative_is_a_config_error() -> None:
+    """A graph store no projector ever writes is a dead handle — refuse the
+    config loudly instead of constructing it (M6, P6 review)."""
     eng = _engine(graph={"provider": "sqlite_adjacency"})
-    await eng.start()
-    try:
-        world = eng.describe()
-        assert "associative" not in world["memories"]["enabled"]
-        assert world["graph"] == "SQLiteAdjacencyGraph"
-    finally:
-        await eng.stop()
+    with pytest.raises(ConfigError, match=r"memories\.associative not enabled"):
+        await eng.start()
 
 
 async def test_ladybug_provider_fails_actionably_naming_the_extra() -> None:
-    eng = _engine(graph={"provider": "ladybug"})
+    eng = _engine(
+        graph={"provider": "ladybug"},
+        memories={"associative": {"enabled": True}},
+    )
     with pytest.raises(MissingServiceError) as excinfo:
         await eng.start()
     assert excinfo.value.extra == "graph"
 
 
 async def test_unknown_graph_provider_is_a_config_error() -> None:
-    eng = _engine(graph={"provider": "carrier_pigeon"})
+    eng = _engine(
+        graph={"provider": "carrier_pigeon"},
+        memories={"associative": {"enabled": True}},
+    )
     with pytest.raises(ConfigError, match="carrier_pigeon"):
         await eng.start()

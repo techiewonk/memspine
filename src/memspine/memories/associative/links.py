@@ -8,9 +8,13 @@ free a slot with :func:`prune_weakest`, which emits a compensating LINK event
 with ``weight: 0.0`` (the tombstone the projector upserts inert — the port has
 no single-edge delete, and a tombstone replays deterministically).
 
-Provenance edges (``derived_from``) are exempt: they record derivation facts
-(consolidation/reflection membership), not associations, and are neither
-counted against the budget nor eligible for pruning.
+Provenance edges (``derived_from``) and reorganize community-membership edges
+(``community``) are exempt: they record facts (derivation membership, D-42
+community membership), not associations, and are neither counted against the
+budget nor eligible for pruning (ADR-015 §2). Because exemption would otherwise
+be forgeable into unbounded fan-out, those rels are *reserved*: the memory
+layer refuses caller-supplied links using them — only system writers (the
+projector's derivation edges, the reorganizer's membership links) emit them.
 """
 
 from __future__ import annotations
@@ -22,18 +26,29 @@ from memspine.core.events import EventKind, MemoryEvent
 from memspine.exceptions import ConflictError
 from memspine.services.graph.base import GraphEdge, GraphStore
 
-__all__ = ["LINK_BUDGET", "assert_within_budget", "link_event", "live_links", "prune_weakest"]
+__all__ = [
+    "LINK_BUDGET",
+    "RESERVED_RELS",
+    "assert_within_budget",
+    "link_event",
+    "live_links",
+    "prune_weakest",
+]
 
 AppendEvent = Callable[[MemoryEvent], Awaitable[None]]
 
-#: Relation types that are provenance, not association — budget-exempt.
-_PROVENANCE_RELS = frozenset({"derived_from"})
+#: Relation types reserved for system-written links (ADR-015 §2): provenance
+#: (``derived_from``) and reorganize community membership (``community``).
+#: Budget-exempt, never prunable — and therefore refused from callers, or the
+#: exemption becomes a forgeable unbounded-fan-out bypass.
+RESERVED_RELS = frozenset({"derived_from", "community"})
 
 
 def live_links(edges: list[GraphEdge]) -> list[GraphEdge]:
     """The edges that count against the budget: positive weight (a ``0.0``
-    weight is the prune tombstone) and not provenance."""
-    return [edge for edge in edges if edge.weight > 0.0 and edge.rel_type not in _PROVENANCE_RELS]
+    weight is the prune tombstone) and not a reserved system rel — so
+    ``prune_weakest`` can never select a provenance or community edge."""
+    return [edge for edge in edges if edge.weight > 0.0 and edge.rel_type not in RESERVED_RELS]
 
 
 def link_event(

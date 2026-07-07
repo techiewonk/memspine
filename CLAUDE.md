@@ -6,11 +6,11 @@ This file is loaded into every Claude Code session. Keep it accurate and terse.
 
 `memspine` is an open-source **cognitive-memory engine** for AI agents: one clean API (`Engine`) over a real write pipeline, hybrid + graph retrieval, and background learning dynamics — with pluggable, composable stores. It is the *engine*, not a product.
 
-**Status:** pre-alpha, under active construction. **P0–P5 are implemented and review-passed** (substrate · working memory + retrieval · semantic · episodic + lifecycle · Memory Firewall · procedural + reflective) — 293 tests, `ruff` + `mypy --strict` clean, 14 ADRs. **P6 (associative graph) is next.** Current snapshot lives in `STATUS.md` (auto-refreshed every 30 min). The design docs in `docs/` are the **single source of truth** — read them before writing code.
+**Status:** pre-alpha, under active construction. **P0–P6 are implemented and review-passed** (substrate · working memory + retrieval · semantic · episodic + lifecycle · Memory Firewall · procedural + reflective · associative graph) — 398 tests, `ruff` + `mypy --strict` clean, 15 ADRs. **P7 (prospective + shared + REST) is next.** Current snapshot lives in `STATUS.md` (auto-refreshed every 30 min). The design docs in `docs/` are the **single source of truth** — read them before writing code.
 
 ## Read these first (in order)
 
-1. `docs/memspine-structure-plan.md` — **the buildable blueprint**: repo tree, extras matrix, decision register (D-01…D-47), phase plan (P0…P7), enhancement program (E1–E9). This is authoritative.
+1. `docs/memspine-structure-plan.md` — **the buildable blueprint**: repo tree, extras matrix, decision register (D-01…D-49), phase plan (P0…P7), enhancement program (E1–E9). This is authoritative.
 2. `docs/UNIMEM_V2_REWORK_PROPOSAL.md` — architecture rationale (why, and the evidence base).
 3. `docs/DEPENDENCY_ANALYSIS.md` + `docs/PACKAGE_CATALOG.md` — why each dependency was chosen; every candidate package with "does what".
 
@@ -25,7 +25,7 @@ This file is loaded into every Claude Code session. Keep it accurate and terse.
 - **Profiles stay green.** Every change keeps `profile="simple"` behavior stable and backward-compatible.
 - **Hard-fail clearly (D-10).** Missing service → `MissingServiceError` naming the extra to install, unless `strict_services: false`.
 
-## Locked defaults (decision register — see plan for D-01…D-46)
+## Locked defaults (decision register — see plan for D-01…D-49)
 
 | Area | Default | Notes |
 |------|---------|-------|
@@ -34,7 +34,7 @@ This file is loaded into every Claude Code session. Keep it accurate and terse.
 | Storage | **SQLite** via **SQLAlchemy Core + Alembic**, async engine (**aiosqlite**) | not full ORM; sqlmodel rejected (D-36/D-44) |
 | Event log | `event_log.mode`: **full** (default) / **rolling** / **ephemeral** + optional zstd payload compression | storage-cost control; pruning never passes projector high-water marks (D-45) |
 | Vector | **LanceDB** (+ Tantivy FTS) | D-09 |
-| Graph | **LadybugDB** default, **kuzu** supported alt, sqlite_adjacency fallback | D-26 |
+| Graph | **sqlite_adjacency** default (D-26 amended by D-49; ladybugdb reserved, kuzu `[kuzu]` alt) | D-26/D-49 |
 | Cache/KV | **LMDB** | D-09 |
 | Lexical | **FTS5 / Tantivy** BM25, RRF fusion | D-25; **CJK dropped** (D-34) |
 | Embedder | **fastembed** (ONNX, CPU) | torch behind `[st]` only (D-08) |

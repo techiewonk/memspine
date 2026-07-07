@@ -64,3 +64,29 @@ async def test_provenance_edges_are_budget_exempt(
         await graph.upsert_edge("summary", f"member-{i}", "derived_from", {"weight": 1.0})
     assert live_links(await graph.edges_of("summary")) == []
     await assert_within_budget(graph, "summary")  # does not raise
+
+
+async def test_community_edges_are_budget_exempt(
+    graph: SQLiteAdjacencyGraph, log: EventLog
+) -> None:
+    """H1(a): reorganize membership links (rel=community) never count against
+    the budget — a 20-member community keeps all 20 links (ADR-015 §2)."""
+    for i in range(LINK_BUDGET + 5):
+        await graph.upsert_edge(f"member-{i}", "parent", "community", {"weight": 1.0})
+    assert live_links(await graph.edges_of("parent")) == []
+    await assert_within_budget(graph, "parent")  # does not raise
+
+
+async def test_prune_never_selects_a_reserved_edge(
+    graph: SQLiteAdjacencyGraph, log: EventLog
+) -> None:
+    """H1(c): community/derived_from edges are never prunable — the weakest
+    *associative* edge goes, and a node with only reserved edges prunes None."""
+    await graph.upsert_edge("hub", "parent", "community", {"weight": 0.01})
+    await graph.upsert_edge("hub", "summary", "derived_from", {"weight": 0.01})
+    await graph.upsert_edge("hub", "friend", "related", {"weight": 0.9})
+    pruned = await prune_weakest(graph, log.append, "default", "hub")
+    assert pruned is not None
+    assert (pruned.dst, pruned.rel_type) == ("friend", "related")  # never the reserved ones
+    # Only reserved edges remain: nothing is eligible.
+    assert await prune_weakest(graph, log.append, "default", "hub") is None

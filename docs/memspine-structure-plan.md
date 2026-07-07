@@ -19,7 +19,7 @@
 | D-06 | Protocols | REST only in v1; layout reserves WS/gRPC/MCP |
 | D-07 | LLM providers v1 | local (Ollama/OpenAI-compatible) + AWS Bedrock |
 | D-08 | Embedder default | fastembed (ONNX, CPU-friendly) |
-| D-09 | Stores | SQLite (relational/event-log/FTS5) · **LanceDB** (vector) · **LadybugDB** (graph, default) · **LMDB** (cache) — see **D-26** for the graph alt; storage access layer = **SQLAlchemy Core + Alembic** (D-36) |
+| D-09 | Stores | SQLite (relational/event-log/FTS5) · **LanceDB** (vector) · **LadybugDB** (graph, default) · **LMDB** (cache) — see **D-26** for the graph alt; storage access layer = **SQLAlchemy Core + Alembic** (D-36). Graph default amended by D-49/ADR-015: v0.1 ships `sqlite_adjacency`, ladybugdb reserved until published |
 | D-10 | Missing service | hard-fail; `strict_services: false` dev escape hatch |
 | D-11 | Config layering | defaults → template → user YAML → env (.env ∥ AWS Secrets Manager as peers) → runtime kwargs |
 | D-12 | Templates | overlays + `extends:` + `memspine config resolve` |
@@ -36,7 +36,7 @@
 | D-23 | Enhancement program | E1–E9 adopted (Part B): Memory Firewall (E1) is a Phase-4 headline with its 3 columns in Phase-0 DDL; cache-aware assembly (E2), embedding cache (E3), prompt micro-opts (E9) fold into Phases 1–3; E4/E5/E6/E8 are config-activated; E7 ships as a hook only |
 | D-24 | Clients layer scope | `clients/` holds connection clients for **every** external system (sqlite, lancedb, ladybug, lmdb, aws, http, + prod stubs); services never open connections — lifecycle manager injects clients, closes them centrally |
 | D-25 | Lexical search | first-class `services/lexical/` port: **LanceDB built-in Tantivy FTS default** with `[lance]`; SQLite **FTS5/BM25** core-install default; standalone Tantivy for non-Lance configs; ILIKE fallback; prod swap-ins tsvector+GIN and **VectorChord-BM25**; RRF implemented once in the port |
-| **D-26** | **Embedded graph store** | **LadybugDB default** (out-of-box supported, `[graph]`); **kuzu first-class alternative adapter** (`[kuzu]`, mature embedded Cypher — proven by graphiti + cognee); `sqlite_adjacency` zero-dep fallback |
+| **D-26** | **Embedded graph store** | **LadybugDB default** (out-of-box supported, `[graph]`); **kuzu first-class alternative adapter** (`[kuzu]`, mature embedded Cypher — proven by graphiti + cognee); `sqlite_adjacency` zero-dep fallback. **AMENDED by D-49/ADR-015: v0.1 default = `sqlite_adjacency`; `[graph]` extra empty until the pinned ladybugdb fork publishes; `ladybug` provider reserved (raises `MissingServiceError`)** |
 | **D-27** | **Dedup engine** | **datasketch MinHash-LSH** stage-1 candidate generation → embedding-cosine stage-2 confirm (M5) |
 | **D-28** | **Local entity extraction** | **gliner2** CPU zero-shot NER behind a config flag; LLM extraction default fallback (M13.3) |
 | **D-29** | **Multi-format ingest / chunking** | **markitdown** (doc→text) + **chonkie** (chunking) under a `[ingest]` extra (P1) |
@@ -165,7 +165,7 @@ memspine/
 │   │   │   └── weaviate.py         # prod swap-in stub                          [extra: weaviate]
 │   │   ├── graph/
 │   │   │   ├── base.py             # GraphStore protocol (Cypher-ish surface)
-│   │   │   ├── ladybug.py          # DEFAULT (D-09/D-26): pinned LadybugDB fork  [extra: graph]
+│   │   │   ├── ladybug.py          # RESERVED (D-26 am. D-49): raises MissingServiceError until the fork publishes [extra: graph]
 │   │   │   ├── kuzu.py             # ★NEW D-26: first-class embedded-Cypher alt  [extra: kuzu]
 │   │   │   ├── sqlite_adjacency.py # zero-dep fallback for shallow graphs
 │   │   │   └── neo4j.py            # prod swap-in stub                          [extra: neo4j]
@@ -230,7 +230,7 @@ memspine/
 |---|---|---|
 | *(core, no extra)* | pydantic, pydantic-settings, **sqlalchemy, alembic** (D-36), **orjson** (D-38), **xxhash, fastuuid** (D-37), structlog, typer, fastembed, **json-repair** | SQLite storage (SQLAlchemy Core + Alembic) + FTS5, sqlite_adjacency graph fallback, inline runner, fast serialization + hashing/IDs — a working brain, zero heavy deps |
 | `lance` | lancedb | default vector store + Tantivy FTS |
-| `graph` | **ladybugdb** (pinned fork) | associative memory at depth — **default graph (D-26)** |
+| `graph` | **ladybugdb** (pinned fork) | associative memory at depth — **empty/reserved in v0.1 (D-26 amended by D-49: default = `sqlite_adjacency`; provider reserved until the fork publishes)** |
 | `kuzu` | **kuzu** ★NEW | embedded-Cypher graph alternative (D-26) |
 | `lmdb` | lmdb | hot cache |
 | `ingest` | **markitdown, chonkie** ★NEW | multi-format doc ingest + chunking (D-29) |
@@ -281,7 +281,7 @@ resource ──(none)                consolidation pipeline ──needs──> e
 | 3 Episodic + lifecycle | memories/episodic/*, policies/consolidation+decay+compression **(★zstandard cold-tier D-32)**, workers/pipelines+dbos_runner+schedule, resource ingest **(★markitdown+chonkie `[ingest]` D-29)**, E3 extraction cache, E7 hook |
 | 4 Governance + Firewall | M7 delete hooks, cli forget --verify, memories/resource/*, E1 full Memory Firewall, example 03 |
 | 5 Procedural + reflective | memories/procedural/*, memories/reflective/*, E6 plan-skill subtype |
-| 6 Associative | memories/associative/*, services/graph/ladybug **(default D-26)** + **★services/graph/kuzu `[kuzu]` alt**, **★associative/communities.py graspologic `[community]` (D-40)** + background reorganizer (D-42), E4 two-stage retrieval |
+| 6 Associative | memories/associative/*, services/graph/sqlite_adjacency **(v0.1 default — D-26 amended by D-49; ladybug reserved)** + **★services/graph/kuzu `[kuzu]` alt**, **★associative/communities.py graspologic `[community]` (D-40)** + background reorganizer (D-42), E4 two-stage retrieval |
 | 7 Prospective + shared + REST | memories/prospective+shared, protocols/rest, workers/taskiq_runner (**★per-scope Redis-Streams queues + priority labels, D-42**), E5 compress + E8 rerank/strategy-rerank opt-in (D-42), example 04 |
 
 ## 6. Combination test matrix (C6, v0.1 scope)

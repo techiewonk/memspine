@@ -18,7 +18,7 @@ from typing import Any
 import orjson
 
 from memspine.clients.kuzu import KuzuClient
-from memspine.services.graph.base import GraphEdge, GraphNode, walk_neighbors
+from memspine.services.graph.base import GraphEdge, GraphNode, edge_weight, walk_neighbors
 
 __all__ = ["KuzuGraphStore"]
 
@@ -72,19 +72,27 @@ class KuzuGraphStore:
         self, query: str, parameters: dict[str, Any] | None = None
     ) -> list[list[Any]]:
         async with self._lock:
-            if not self._ready:
-                for statement in _DDL:
-                    await asyncio.to_thread(self._client.connection.execute, statement)
-                self._ready = True
+            return await self._execute_unlocked(query, parameters)
 
-            def _run() -> list[list[Any]]:
-                result = self._client.connection.execute(query, parameters=parameters or {})
-                rows: list[list[Any]] = []
-                while result.has_next():
-                    rows.append(list(result.get_next()))
-                return rows
+    async def _execute_unlocked(
+        self, query: str, parameters: dict[str, Any] | None = None
+    ) -> list[list[Any]]:
+        """The raw statement runner — caller MUST hold ``self._lock`` (one
+        embedded connection is not a pool). Exists so multi-statement units
+        like ``upsert_edge`` stay atomic under a single lock acquisition."""
+        if not self._ready:
+            for statement in _DDL:
+                await asyncio.to_thread(self._client.connection.execute, statement)
+            self._ready = True
 
-            return await asyncio.to_thread(_run)
+        def _run() -> list[list[Any]]:
+            result = self._client.connection.execute(query, parameters=parameters or {})
+            rows: list[list[Any]] = []
+            while result.has_next():
+                rows.append(list(result.get_next()))
+            return rows
+
+        return await asyncio.to_thread(_run)
 
     async def upsert_node(
         self,
@@ -109,18 +117,21 @@ class KuzuGraphStore:
         properties: Mapping[str, object] | None = None,
     ) -> None:
         # Endpoints are implicitly created bare (port contract): link replay
-        # must never depend on node-event ordering.
-        for endpoint in (src, dst):
-            await self._execute(_ENSURE_NODE, {"node_id": endpoint})
-        await self._execute(
-            _UPSERT_EDGE,
-            {
-                "src": src,
-                "dst": dst,
-                "rel_type": rel_type,
-                "properties": orjson.dumps(dict(properties or {})).decode(),
-            },
-        )
+        # must never depend on node-event ordering. One lock acquisition spans
+        # all three statements so a concurrent caller cannot interleave
+        # between the ensure-node and upsert-edge steps.
+        async with self._lock:
+            for endpoint in (src, dst):
+                await self._execute_unlocked(_ENSURE_NODE, {"node_id": endpoint})
+            await self._execute_unlocked(
+                _UPSERT_EDGE,
+                {
+                    "src": src,
+                    "dst": dst,
+                    "rel_type": rel_type,
+                    "properties": orjson.dumps(dict(properties or {})).decode(),
+                },
+            )
 
     async def neighbors(
         self, node_id: str, rel_type: str | None = None, depth: int = 1
@@ -131,17 +142,25 @@ class KuzuGraphStore:
         rel_pattern = "[e:MemoryLink {rel_type: $rel_type}]" if rel_type else "[e:MemoryLink]"
         rows = await self._execute(
             f"MATCH (a:MemoryNode {{node_id: $node_id}})-{rel_pattern}-(b:MemoryNode) "
-            "RETURN DISTINCT b.node_id, b.labels, b.properties",
+            "RETURN b.node_id, b.labels, b.properties, e.properties",
             {"node_id": node_id, **({"rel_type": rel_type} if rel_type else {})},
         )
-        return [
-            GraphNode(
-                node_id=str(row[0]),
-                labels=tuple(_loads(row[1]) or ()),
-                properties=dict(_loads(row[2]) or {}),
+        # Tombstoned edges (weight <= 0, ADR-015) are gone for every reader —
+        # a pruned neighbour must not resurface via a walk. Deduplicate by
+        # node id: any one live edge keeps the neighbour reachable.
+        nodes: dict[str, GraphNode] = {}
+        for row in rows:
+            if edge_weight(dict(_loads(row[3]) or {})) <= 0.0:
+                continue
+            nodes.setdefault(
+                str(row[0]),
+                GraphNode(
+                    node_id=str(row[0]),
+                    labels=tuple(_loads(row[1]) or ()),
+                    properties=dict(_loads(row[2]) or {}),
+                ),
             )
-            for row in rows
-        ]
+        return list(nodes.values())
 
     async def edges_of(self, node_id: str) -> list[GraphEdge]:
         rows = await self._execute(

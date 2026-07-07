@@ -261,6 +261,33 @@ async def test_migration_0004_backfills_existing_rows_in_place(tmp_path: Path) -
     assert row[0] == "kept" and row[1] == "hot" and row[2] is None
 
 
+async def test_migration_0007_creates_working_graph_tables(tmp_path: Path) -> None:
+    """Upgrade path: a populated 0006 database gains the P6 graph tables, and
+    the SQLite adjacency adapter round-trips against them (functional proof,
+    not just DDL presence)."""
+    from alembic import command
+
+    from memspine.services.graph.sqlite_adjacency import SQLiteAdjacencyGraph
+    from memspine.services.storage.sqlite.migrations import alembic_config
+
+    db = tmp_path / "old.db"
+    command.upgrade(alembic_config(db), "0006")
+    command.upgrade(alembic_config(db), "head")
+
+    client = SQLiteClient(db)
+    await client.connect()
+    try:
+        graph = SQLiteAdjacencyGraph(client)
+        await graph.upsert_node("m1", labels=["memory"], properties={"kind": "fact"})
+        await graph.upsert_edge("m1", "m2", "related", {"weight": 0.8})
+        assert await graph.node_count() == 2  # m2 implicitly created
+        assert {n.node_id for n in await graph.neighbors("m1")} == {"m2"}
+        [edge] = await graph.edges_of("m2")
+        assert (edge.src, edge.dst, edge.rel_type, edge.weight) == ("m1", "m2", "related", 0.8)
+    finally:
+        await client.close()
+
+
 async def test_alembic_migration_builds_same_schema(tmp_path: Path) -> None:
     db = tmp_path / "memspine.db"
     upgrade_to_head(db)

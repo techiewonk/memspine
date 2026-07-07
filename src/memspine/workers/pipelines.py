@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Awaitable, Callable
+from contextlib import AbstractAsyncContextManager, nullcontext
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Protocol
@@ -37,6 +38,7 @@ from memspine.services.graph.base import GraphStore
 
 __all__ = [
     "PIPELINES",
+    "NamespaceLock",
     "Pipeline",
     "PipelineContext",
     "PipelineStorage",
@@ -73,6 +75,16 @@ class PipelineStorage(Protocol):
 
 AppendEvent = Callable[[MemoryEvent], Awaitable[None]]
 Summarize = Callable[[str], Awaitable[str]]
+#: Per-namespace write serialization: ``lock(namespace)`` yields the same
+#: async context manager the engine's write verbs hold, so a pipeline's
+#: read-then-write unit cannot interleave with a concurrent forget cascade.
+NamespaceLock = Callable[[str], AbstractAsyncContextManager[None]]
+
+
+def _no_lock(_namespace: str) -> AbstractAsyncContextManager[None]:
+    """Default no-op lock: contexts built directly (tests, bare runs) get the
+    single-writer behaviour they already have without engine plumbing."""
+    return nullcontext()
 
 
 @dataclass
@@ -88,6 +100,10 @@ class PipelineContext:
     #: The association graph projection (D-26/P6). None => associative memory
     #: is disabled and the reorganizer reports "skipped".
     graph: GraphStore | None = None
+    #: Per-namespace write lock (the engine passes its write-verb locks so
+    #: reorganize cannot race forget's delete cascade — a forgotten node must
+    #: not be resurrected by a late LINK projection). No-op by default.
+    lock: NamespaceLock = _no_lock
 
 
 Pipeline = Callable[[PipelineContext], Awaitable[dict[str, object]]]
@@ -453,8 +469,11 @@ async def reorganize(ctx: PipelineContext) -> dict[str, object]:
             "reason": "graspologic not installed — `pip install memspine[community]` (D-40)",
         }
     inflate = CompressionPolicy.bind()
-    communities = detect_communities(
-        await ctx.graph.edge_list(), min_size=constants.REORGANIZE_MIN_COMMUNITY_SIZE
+    edges = await ctx.graph.edge_list()
+    # Leiden clustering is CPU work — keep it off the event loop (same
+    # pattern as compress()'s zstd call).
+    communities = await asyncio.to_thread(
+        detect_communities, edges, min_size=constants.REORGANIZE_MIN_COMMUNITY_SIZE
     )
     parents = 0
     superseded = 0
@@ -478,26 +497,22 @@ async def reorganize(ctx: PipelineContext) -> dict[str, object]:
     # Membership drift: a stale parent whose community dissolved or changed
     # membership is archived — never a silent second active summary (D-42).
     for namespace in await ctx.storage.list_namespaces():
-        for old in await _reorganize_summaries(ctx, namespace):
-            if old.source.message_id in fresh_keys.get(namespace, set()):
-                continue
-            await ctx.append_event(
-                MemoryEvent(
-                    kind=EventKind.DECAY_TRANSITION,
-                    namespace=namespace,
-                    actor="system",
-                    payload={
-                        "record_id": old.record_id,
-                        "set": {
-                            "status": RecordStatus.ARCHIVED.value,
-                            "superseded_at": datetime.now(UTC).isoformat(),
-                        },
-                        "transition": "community_parent->superseded",
-                        "reason": "reorganized",
-                    },
+        try:
+            # Same per-namespace unit as the engine's write verbs (M5): the
+            # read-then-archive-then-tombstone pass must not interleave with
+            # a concurrent forget cascade in this namespace.
+            async with ctx.lock(namespace):
+                superseded += await _supersede_stale_parents(
+                    ctx, namespace, fresh_keys.get(namespace, set())
                 )
+        except Exception as exc:  # one bad namespace must not kill the sweep
+            errors.append(f"{namespace}: {exc}")
+            _log.warning(
+                "reorganize.supersede_failed",
+                namespace=namespace,
+                error=str(exc),
+                exc_info=True,
             )
-            superseded += 1
     stats: dict[str, object] = {
         "status": "ok",
         "communities": len(communities),
@@ -507,6 +522,55 @@ async def reorganize(ctx: PipelineContext) -> dict[str, object]:
     if errors:
         stats.update(status="partial", errors=errors)
     return stats
+
+
+async def _supersede_stale_parents(
+    ctx: PipelineContext, namespace: str, live_keys: set[str]
+) -> int:
+    """Archive every stale community parent in ``namespace`` and tombstone its
+    member→parent ``community`` edges (ADR-015 §2). Returns how many parents
+    were superseded. Caller holds the namespace lock."""
+    assert ctx.append_event is not None and ctx.graph is not None
+    superseded = 0
+    for old in await _reorganize_summaries(ctx, namespace):
+        if old.source.message_id in live_keys:
+            continue
+        # The archived parent must also lose its graph reach: weight-0
+        # tombstone LINK events retire each live member→parent community edge
+        # replay-deterministically (same mechanism as budget pruning) — the
+        # graph would otherwise accumulate stale membership edges forever.
+        for edge in await ctx.graph.edges_of(old.record_id):
+            if edge.rel_type != "community" or edge.weight <= 0.0:
+                continue
+            await ctx.append_event(
+                link_event(
+                    namespace,
+                    edge.src,
+                    edge.dst,
+                    edge.rel_type,
+                    weight=0.0,
+                    reason="reorganize_supersede",
+                    actor="system",
+                )
+            )
+        await ctx.append_event(
+            MemoryEvent(
+                kind=EventKind.DECAY_TRANSITION,
+                namespace=namespace,
+                actor="system",
+                payload={
+                    "record_id": old.record_id,
+                    "set": {
+                        "status": RecordStatus.ARCHIVED.value,
+                        "superseded_at": datetime.now(UTC).isoformat(),
+                    },
+                    "transition": "community_parent->superseded",
+                    "reason": "reorganized",
+                },
+            )
+        )
+        superseded += 1
+    return superseded
 
 
 async def _reorganize_summaries(ctx: PipelineContext, namespace: str) -> list[MemoryRecord]:
@@ -546,55 +610,60 @@ async def _reorganize_community(
     namespace = members[0].namespace
     member_ids = sorted(member.record_id for member in members)
     key = fingerprint_payload({"community": member_ids})
-    if any(old.source.message_id == key for old in await _reorganize_summaries(ctx, namespace)):
-        return 0, key, namespace  # unchanged membership (idempotence)
-    ordered = sorted(members, key=lambda member: (member.valid_from, member.record_id))
-    summary_text = extractive_summary(
-        [member.content for member in ordered], constants.CONSOLIDATION_SUMMARY_MAX_CHARS
-    )
-    if ctx.summarize is not None:
-        try:
-            summary_text = await ctx.summarize("\n".join(member.content for member in ordered))
-        except Exception as exc:  # LLM is an enhancer, never a gate (N6)
-            _log.warning("reorganize.summarize_fallback", namespace=namespace, error=str(exc))
-    summary = MemoryRecord(
-        namespace=namespace,
-        memory_type="semantic",
-        content=summary_text,
-        source=SourceInfo(role="system", channel="reorganize", message_id=key),
-        # E1/D-47 §5: derived content is never more trusted than its
-        # least-trusted member, and echoed injection framing stays flagged.
-        trust=min(member.trust for member in members),
-        instruction_flag=instruction_shaped(summary_text),
-    )
-    # The WRITE carries consolidation-shaped provenance, so audit taint and
-    # the graph projector's derived_from edges ride existing machinery.
-    await ctx.append_event(
-        MemoryEvent(
-            kind=EventKind.WRITE,
-            namespace=namespace,
-            actor="system",
-            payload={
-                "record": summary.model_dump(mode="json"),
-                "consolidation": {"session_key": key, "member_record_ids": member_ids},
-            },
+    # Same per-namespace unit as the engine's write verbs (M5): the
+    # idempotency read, the summary WRITE and the membership LINKs must not
+    # interleave with a concurrent forget cascade in this namespace.
+    async with ctx.lock(namespace):
+        if any(old.source.message_id == key for old in await _reorganize_summaries(ctx, namespace)):
+            return 0, key, namespace  # unchanged membership (idempotence)
+        ordered = sorted(members, key=lambda member: (member.valid_from, member.record_id))
+        summary_text = extractive_summary(
+            [member.content for member in ordered], constants.CONSOLIDATION_SUMMARY_MAX_CHARS
         )
-    )
-    # Member -> parent LINK events (ADR-015). System-written membership links
-    # are budget-exempt by design: budget enforcement lives at the memory-layer
-    # creation surface, and a 20-member community keeps all 20 links.
-    for member_id in member_ids:
+        if ctx.summarize is not None:
+            try:
+                summary_text = await ctx.summarize("\n".join(member.content for member in ordered))
+            except Exception as exc:  # LLM is an enhancer, never a gate (N6)
+                _log.warning("reorganize.summarize_fallback", namespace=namespace, error=str(exc))
+        summary = MemoryRecord(
+            namespace=namespace,
+            memory_type="semantic",
+            content=summary_text,
+            source=SourceInfo(role="system", channel="reorganize", message_id=key),
+            # E1/D-47 §5: derived content is never more trusted than its
+            # least-trusted member, and echoed injection framing stays flagged.
+            trust=min(member.trust for member in members),
+            instruction_flag=instruction_shaped(summary_text),
+        )
+        # The WRITE carries consolidation-shaped provenance, so audit taint and
+        # the graph projector's derived_from edges ride existing machinery.
         await ctx.append_event(
-            link_event(
-                namespace,
-                member_id,
-                summary.record_id,
-                "community",
-                weight=1.0,
-                reason="reorganize",
+            MemoryEvent(
+                kind=EventKind.WRITE,
+                namespace=namespace,
                 actor="system",
+                payload={
+                    "record": summary.model_dump(mode="json"),
+                    "consolidation": {"session_key": key, "member_record_ids": member_ids},
+                },
             )
         )
+        # Member -> parent LINK events (ADR-015). System-written membership
+        # links are budget-exempt by design: budget enforcement lives at the
+        # memory-layer creation surface, and a 20-member community keeps all
+        # 20 links. The rel is RESERVED (H1): callers cannot forge it.
+        for member_id in member_ids:
+            await ctx.append_event(
+                link_event(
+                    namespace,
+                    member_id,
+                    summary.record_id,
+                    "community",
+                    weight=1.0,
+                    reason="reorganize",
+                    actor="system",
+                )
+            )
     return 1, key, namespace
 
 

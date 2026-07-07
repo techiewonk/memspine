@@ -123,6 +123,51 @@ async def test_reweighting_an_existing_edge_is_not_double_counted(
     assert await memory.budget_remaining(a.record_id) == LINK_BUDGET - 1
 
 
+async def test_reverse_direction_link_reweights_instead_of_duplicating(
+    memory: AssociativeMemory,
+    storage: FakeStorage,
+    graph: SQLiteAdjacencyGraph,
+    make_record: Callable[..., MemoryRecord],
+) -> None:
+    """M1: edges are undirected — link(B, A) after link(A, B) re-weights the
+    one edge (in its stored orientation) instead of materializing a mirror."""
+    a, b = storage.add(make_record("a")), storage.add(make_record("b"))
+    await memory.link("default", a.record_id, b.record_id, weight=0.4)
+    await memory.link("default", b.record_id, a.record_id, weight=0.8)
+    [edge] = await graph.edges_of(a.record_id)
+    assert (edge.src, edge.dst, edge.weight) == (a.record_id, b.record_id, 0.8)
+    assert await graph.edge_count() == 1
+    assert await memory.budget_remaining(a.record_id) == LINK_BUDGET - 1
+    assert await memory.budget_remaining(b.record_id) == LINK_BUDGET - 1
+
+
+async def test_reserved_rels_refused_from_callers(
+    memory: AssociativeMemory,
+    storage: FakeStorage,
+    graph: SQLiteAdjacencyGraph,
+    make_record: Callable[..., MemoryRecord],
+) -> None:
+    """H1(b): budget-exempt rels would be an unbounded fan-out bypass if a
+    caller could claim them — reserved for system-written links."""
+    a, b = storage.add(make_record("a")), storage.add(make_record("b"))
+    for rel in ("derived_from", "community"):
+        with pytest.raises(ConflictError, match="reserved for system-written"):
+            await memory.link("default", a.record_id, b.record_id, rel=rel)
+    assert await graph.edge_count() == 0
+
+
+async def test_related_refuses_a_quarantined_seed(
+    memory: AssociativeMemory,
+    storage: FakeStorage,
+    make_record: Callable[..., MemoryRecord],
+) -> None:
+    """M4: a quarantined record must not gain graph reach as a recall seed
+    (E1) — same refusal as link()."""
+    poison = storage.add(make_record("poison", quarantined=True, status=RecordStatus.QUARANTINED))
+    with pytest.raises(ConflictError, match="quarantined"):
+        await memory.related("default", poison.record_id)
+
+
 async def test_related_ranks_gated_namespace_truth_only(
     memory: AssociativeMemory,
     storage: FakeStorage,

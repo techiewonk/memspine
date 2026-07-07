@@ -14,7 +14,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 
 import orjson
-from sqlalchemy import Row, Select, delete, func, or_, select, union
+from sqlalchemy import Row, Select, delete, func, or_, select
 
 from memspine.clients.sqlite import SQLiteClient
 from memspine.services.graph.base import GraphEdge, GraphNode, walk_neighbors
@@ -90,16 +90,23 @@ class SQLiteAdjacencyGraph:
         return await walk_neighbors(self._one_hop, node_id, rel_type, depth)
 
     async def _one_hop(self, node_id: str, rel_type: str | None) -> list[GraphNode]:
-        out_ids = select(graph_edges.c.dst.label("node_id")).where(graph_edges.c.src == node_id)
-        in_ids = select(graph_edges.c.src.label("node_id")).where(graph_edges.c.dst == node_id)
-        if rel_type is not None:
-            out_ids = out_ids.where(graph_edges.c.rel_type == rel_type)
-            in_ids = in_ids.where(graph_edges.c.rel_type == rel_type)
-        adjacent = union(out_ids, in_ids).subquery()
-        stmt = select(graph_nodes.c.node_id, graph_nodes.c.labels, graph_nodes.c.properties).where(
-            graph_nodes.c.node_id.in_(select(adjacent.c.node_id))
+        edge_stmt = self._edge_select().where(
+            or_(graph_edges.c.src == node_id, graph_edges.c.dst == node_id)
         )
+        if rel_type is not None:
+            edge_stmt = edge_stmt.where(graph_edges.c.rel_type == rel_type)
         async with self._client.engine.connect() as conn:
+            edges = [_edge(row) for row in (await conn.execute(edge_stmt)).all()]
+            # Tombstoned edges (weight <= 0, ADR-015) are gone for every
+            # reader — a pruned neighbour must not resurface via a walk.
+            adjacent = {
+                edge.dst if edge.src == node_id else edge.src for edge in edges if edge.weight > 0.0
+            }
+            if not adjacent:
+                return []
+            stmt = select(
+                graph_nodes.c.node_id, graph_nodes.c.labels, graph_nodes.c.properties
+            ).where(graph_nodes.c.node_id.in_(adjacent))
             rows = (await conn.execute(stmt)).all()
         return [_node(row) for row in rows]
 
