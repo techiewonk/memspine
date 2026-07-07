@@ -61,7 +61,7 @@ def prompt_version_records(
                 entity=prompt.id,
                 attribute="prompt",
                 version=prompt.version,
-                skill_stage=SkillStage.ACTIVE.value,
+                skill_stage=SkillStage.ACTIVE,
                 status=RecordStatus.ACTIVATED,
                 source=SourceInfo(
                     role="system",

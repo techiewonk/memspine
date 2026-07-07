@@ -53,7 +53,11 @@ from memspine.exceptions import ConfigError, MemspineError, MissingServiceError,
 from memspine.memories.episodic.sessions import Session
 from memspine.memories.episodic.store import EpisodicMemory
 from memspine.memories.procedural.prompt_registry import prompt_version_records
-from memspine.memories.procedural.skills import ProceduralMemory, make_skill_record
+from memspine.memories.procedural.skills import (
+    ProceduralMemory,
+    make_skill_record,
+    stage_status,
+)
 from memspine.memories.reflective.reflections import ReflectiveMemory
 from memspine.memories.resource.store import ResourceMemory
 from memspine.memories.semantic.entities import EntityExtractor, LLMEntityExtractor
@@ -101,7 +105,12 @@ _CORROBORATION_ROLES = frozenset({"operator", "system", "user"})
 def _cosine(u: list[float], v: list[float]) -> float:
     """Dot product over the unit-normalized vectors every embedder emits."""
     if len(u) != len(v):
-        return 0.0
+        # A dimension mismatch means the embedder changed under us — a silent
+        # 0.0 would read as "plan cache has no coverage" forever (D-10).
+        raise MemspineError(
+            f"embedding dimension mismatch ({len(u)} vs {len(v)}) — was the "
+            "embedder model changed without a rebuild?"
+        )
     return sum(a * b for a, b in zip(u, v, strict=True))
 
 
@@ -680,7 +689,17 @@ class Engine:
         and reflections get the SAME anomaly context as Engine.write — a
         context-free assess would silently disable the embedding-outlier and
         MINJA defenses on exactly the RAG-poisoning surface."""
-        return (await self._assess_write(record)).apply(record)
+        verdict = await self._assess_write(record)
+        if verdict.quarantine:
+            # Same loud signal as _write_locked — a quarantined ingest chunk or
+            # reflection must never look like a normal write in the logs.
+            _log.warning(
+                "memory.quarantined",
+                namespace=record.namespace,
+                record_id=record.record_id,
+                reasons=verdict.reasons,
+            )
+        return verdict.apply(record)
 
     async def _corroborate(self, namespace: str, incoming: MemoryRecord) -> None:
         """E1 promotion path: a trusted write that independently asserts what a
@@ -720,8 +739,12 @@ class Engine:
             ):
                 continue
             same_content = held.content_fingerprint == incoming.content_fingerprint
+            # (entity, attribute) keys are only comparable within one memory
+            # type — a semantic fact keyed ("release", "skill") must never
+            # corroborate a quarantined *procedural* skill of the same name.
             same_fact = (
-                held.entity is not None
+                held.memory_type == incoming.memory_type
+                and held.entity is not None
                 and held.entity == incoming.entity
                 and held.attribute == incoming.attribute
             )
@@ -734,23 +757,30 @@ class Engine:
             )
             if promoted:
                 change["quarantined"] = False
-                # If the corroborators themselves established an active fact on
-                # the same key, the promoted record joins the history as its
-                # corroborated predecessor — never a second active fact (M4).
-                incumbent = None
-                if held.entity is not None and held.attribute is not None:
-                    incumbent = await storage.find_active_fact(
-                        namespace, held.entity, held.attribute
-                    )
-                if incumbent is not None and incumbent.record_id != held.record_id:
-                    change["status"] = RecordStatus.ARCHIVED.value
-                    change["evolve_to"] = incumbent.record_id
-                    # Clamp so a held record newer than the incumbent never gets
-                    # an inverted (valid_to < valid_from) interval.
-                    close_at = max(held.valid_from, incumbent.valid_from)
-                    change["valid_to"] = close_at.isoformat()
+                if held.memory_type == "procedural" and held.skill_stage is not None:
+                    # M13.4: corroboration only lifts the quarantine — it must
+                    # never skip the ladder. The record resumes the status its
+                    # stage implies (RESOLVING pre-active), and still has to be
+                    # promoted through verified + the dry-run gate to surface.
+                    change["status"] = stage_status(held.skill_stage).value
                 else:
-                    change["status"] = RecordStatus.ACTIVATED.value
+                    # If the corroborators themselves established an active fact
+                    # on the same key, the promoted record joins the history as
+                    # its corroborated predecessor — never a second active fact.
+                    incumbent = None
+                    if held.entity is not None and held.attribute is not None:
+                        incumbent = await storage.find_active_fact(
+                            namespace, held.entity, held.attribute
+                        )
+                    if incumbent is not None and incumbent.record_id != held.record_id:
+                        change["status"] = RecordStatus.ARCHIVED.value
+                        change["evolve_to"] = incumbent.record_id
+                        # Clamp so a held record newer than the incumbent never
+                        # gets an inverted (valid_to < valid_from) interval.
+                        close_at = max(held.valid_from, incumbent.valid_from)
+                        change["valid_to"] = close_at.isoformat()
+                    else:
+                        change["status"] = RecordStatus.ACTIVATED.value
             await self._append_and_project(
                 MemoryEvent(
                     kind=EventKind.DECAY_TRANSITION,
@@ -887,7 +917,9 @@ class Engine:
             )
         ns = validate_namespace(namespace)
         async with self._write_locks.setdefault(ns, asyncio.Lock()):
-            return await self._procedural.promote(record_id, dry_run_passed=dry_run_passed)
+            return await self._procedural.promote(
+                record_id, namespace=ns, dry_run_passed=dry_run_passed
+            )
 
     async def deprecate_skill(self, record_id: str, namespace: str = "default") -> MemoryRecord:
         """Retire a skill/plan (terminal, M13.4)."""
@@ -898,7 +930,7 @@ class Engine:
             )
         ns = validate_namespace(namespace)
         async with self._write_locks.setdefault(ns, asyncio.Lock()):
-            return await self._procedural.deprecate(record_id)
+            return await self._procedural.deprecate(record_id, namespace=ns)
 
     async def skills(
         self,
@@ -944,6 +976,9 @@ class Engine:
             if plan.entity is not None
         ]
         if not plans:
+            # Misses must be visible: "no plans recorded" vs "none cleared the
+            # floor" is the first question when plan reuse isn't happening.
+            _log.info(EVENT_RETRIEVE, namespace=ns, plan=True, hit=False, candidates=0)
             return None
         vectors = await self._embedder.embed([task, *(str(plan.entity) for plan in plans)])
         task_vec, plan_vecs = vectors[0], vectors[1:]
@@ -954,6 +989,14 @@ class Engine:
                 best = (plan, score)
         assert best is not None
         if best[1] < min_similarity:
+            _log.info(
+                EVENT_RETRIEVE,
+                namespace=ns,
+                plan=True,
+                hit=False,
+                candidates=len(plans),
+                best_similarity=round(best[1], 4),
+            )
             return None
         record = self._inflate.inflate(best[0])
         # Reinforcement (M1): a reused plan's utility signal rides the log.
@@ -973,11 +1016,16 @@ class Engine:
         content: str,
         source_record_ids: list[str],
         namespace: str = "default",
+        actor: str = "assistant",
+        source: SourceInfo | None = None,
     ) -> MemoryRecord:
         """Write a reflection derived from existing records (M13.7).
 
         Depth is computed from the fetched parents and hard-capped at 2;
-        quarantined/deleted parents are refused (no laundering, E1).
+        quarantined/deleted parents and parents outside ``namespace`` are
+        refused (no laundering, no tenant crossing — E1). Reflection content
+        is caller-authored, so it carries the caller's role (never a blanket
+        "system") and its trust is capped at the least-trusted parent.
         """
         self._require_started()
         if self._reflective is None:
@@ -986,7 +1034,12 @@ class Engine:
             )
         ns = validate_namespace(namespace)
         async with self._write_locks.setdefault(ns, asyncio.Lock()):
-            return await self._reflective.reflect(ns, content, source_record_ids)
+            return await self._reflective.reflect(
+                ns,
+                content,
+                source_record_ids,
+                source=source or SourceInfo(role=actor, channel="reflection"),
+            )
 
     async def sync_prompt_versions(self, namespace: str = "default") -> list[MemoryRecord]:
         """D-43 §4: record each resolved prompt version as a procedural record
@@ -997,18 +1050,23 @@ class Engine:
                 "prompt-version sync needs procedural memory enabled and prompts loaded"
             )
         ns = validate_namespace(namespace)
-        existing = await self._procedural.list(ns, kind="prompt")
-        fresh = prompt_version_records(ns, self._prompts, existing)
-        for record in fresh:
-            # System-internal deterministic content — same door as set_persona.
-            await self._append_and_project(
-                MemoryEvent(
-                    kind=EventKind.WRITE,
-                    namespace=ns,
-                    actor="system",
-                    payload={"record": record.model_dump(mode="json")},
+        # Same one-writer-per-namespace unit as every other write verb: the
+        # read-diff-append sequence below must not interleave with itself
+        # (double-sync duplicating versions) or with corroboration's
+        # read-modify-write. Firewall exemption: content is deterministic,
+        # system-generated reference strings — see ADR-014.
+        async with self._write_locks.setdefault(ns, asyncio.Lock()):
+            existing = await self._procedural.list(ns, kind="prompt")
+            fresh = prompt_version_records(ns, self._prompts, existing)
+            for record in fresh:
+                await self._append_and_project(
+                    MemoryEvent(
+                        kind=EventKind.WRITE,
+                        namespace=ns,
+                        actor="system",
+                        payload={"record": record.model_dump(mode="json")},
+                    )
                 )
-            )
         if fresh:
             _log.info(EVENT_WRITE, namespace=ns, prompt_versions=len(fresh))
         return fresh

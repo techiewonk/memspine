@@ -85,15 +85,15 @@ async def test_promotion_walks_the_ladder_as_delta_events(
     record = make_skill_record("ns", "deploy", "steps", kind="skill")
     storage.records[record.record_id] = record
 
-    promoted = await store.promote(record.record_id)
+    promoted = await store.promote(record.record_id, namespace="ns")
     assert promoted.skill_stage == SkillStage.STAGED.value
-    promoted = await store.promote(record.record_id)
+    promoted = await store.promote(record.record_id, namespace="ns")
     assert promoted.skill_stage == SkillStage.VERIFIED.value
 
     with pytest.raises(ConflictError, match="dry run"):
-        await store.promote(record.record_id)
+        await store.promote(record.record_id, namespace="ns")
 
-    promoted = await store.promote(record.record_id, dry_run_passed=True)
+    promoted = await store.promote(record.record_id, namespace="ns", dry_run_passed=True)
     assert promoted.skill_stage == SkillStage.ACTIVE.value
     assert promoted.status is RecordStatus.ACTIVATED
 
@@ -113,7 +113,7 @@ async def test_quarantined_skill_cannot_be_promoted(
     )
     storage.records[record.record_id] = record
     with pytest.raises(ConflictError, match="quarantined"):
-        await store.promote(record.record_id)
+        await store.promote(record.record_id, namespace="ns")
 
 
 async def test_deprecate_is_terminal_and_idempotent(
@@ -121,16 +121,16 @@ async def test_deprecate_is_terminal_and_idempotent(
 ) -> None:
     record = make_skill_record("ns", "old", "steps", kind="skill")
     storage.records[record.record_id] = record
-    retired = await store.deprecate(record.record_id)
+    retired = await store.deprecate(record.record_id, namespace="ns")
     assert retired.skill_stage == SkillStage.DEPRECATED.value
     assert retired.status is RecordStatus.ARCHIVED
     assert retired.valid_to is not None
     count = len(events)
-    again = await store.deprecate(record.record_id)  # idempotent, no new event
+    again = await store.deprecate(record.record_id, namespace="ns")  # idempotent, no new event
     assert again.skill_stage == SkillStage.DEPRECATED.value
     assert len(events) == count
     with pytest.raises(ConflictError, match="terminal"):
-        await store.promote(record.record_id, dry_run_passed=True)
+        await store.promote(record.record_id, namespace="ns", dry_run_passed=True)
 
 
 async def test_usable_gate_filters_stage_status_and_quarantine(
@@ -138,7 +138,7 @@ async def test_usable_gate_filters_stage_status_and_quarantine(
 ) -> None:
     draft = make_skill_record("ns", "a", "x", kind="skill")
     active = make_skill_record("ns", "b", "y", kind="skill").model_copy(
-        update={"skill_stage": SkillStage.ACTIVE.value, "status": RecordStatus.ACTIVATED}
+        update={"skill_stage": SkillStage.ACTIVE, "status": RecordStatus.ACTIVATED}
     )
     poisoned = active.model_copy(update={"record_id": "poisoned", "quarantined": True})
     for record in (draft, active, poisoned):
@@ -153,6 +153,6 @@ async def test_non_procedural_record_is_refused(
     stray = MemoryRecord(namespace="ns", memory_type="semantic", content="fact")
     storage.records[stray.record_id] = stray
     with pytest.raises(ConflictError, match="not procedural"):
-        await store.promote(stray.record_id)
+        await store.promote(stray.record_id, namespace="ns")
     with pytest.raises(ConflictError, match="no such record"):
-        await store.promote("missing")
+        await store.promote("missing", namespace="ns")

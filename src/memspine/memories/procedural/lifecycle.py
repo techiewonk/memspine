@@ -8,19 +8,10 @@ raises so a caller can never silently skip verification.
 
 from __future__ import annotations
 
-from enum import StrEnum
-
+from memspine.core.records import SkillStage
 from memspine.exceptions import ConflictError
 
 __all__ = ["SKILL_STAGES", "SkillStage", "is_usable", "next_stage", "requires_dry_run"]
-
-
-class SkillStage(StrEnum):
-    DRAFT = "draft"
-    STAGED = "staged"
-    VERIFIED = "verified"
-    ACTIVE = "active"
-    DEPRECATED = "deprecated"
 
 
 #: Linear promotion order; ``deprecated`` is reachable from any live stage and
@@ -61,6 +52,6 @@ def next_stage(current: SkillStage, *, dry_run_passed: bool = False) -> SkillSta
     return target
 
 
-def is_usable(stage: SkillStage | str | None) -> bool:
+def is_usable(stage: SkillStage | None) -> bool:
     """Only ACTIVE skills are offered for execution/retrieval (M13.4)."""
-    return stage == SkillStage.ACTIVE
+    return stage is SkillStage.ACTIVE

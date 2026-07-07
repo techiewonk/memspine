@@ -53,7 +53,6 @@ def test_deprecated_is_terminal() -> None:
 
 def test_only_active_is_usable() -> None:
     assert is_usable(SkillStage.ACTIVE)
-    assert is_usable("active")
     for stage in (SkillStage.DRAFT, SkillStage.STAGED, SkillStage.VERIFIED, SkillStage.DEPRECATED):
         assert not is_usable(stage)
     assert not is_usable(None)

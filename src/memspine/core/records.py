@@ -21,7 +21,7 @@ from typing import Any
 from fastuuid import uuid4
 from pydantic import BaseModel, ConfigDict, Field
 
-from memspine.config.constants import TRUST_DEFAULT
+from memspine.config.constants import REFLECTION_DEPTH_CAP, TRUST_DEFAULT
 from memspine.core.events import fingerprint_payload
 
 __all__ = [
@@ -30,6 +30,7 @@ __all__ = [
     "PiiTier",
     "RecordStatus",
     "ScoringState",
+    "SkillStage",
     "SourceInfo",
     "new_record_id",
 ]
@@ -48,6 +49,21 @@ class RecordStatus(StrEnum):
     QUARANTINED = "quarantined"
     ARCHIVED = "archived"
     DELETED = "deleted"
+
+
+class SkillStage(StrEnum):
+    """Procedural ladder (M13.4): draft→staged→verified→active→deprecated.
+
+    Lives in core so ``MemoryRecord.skill_stage`` is enum-typed (an illegal
+    stage string fails validation at the model boundary, not deep in a
+    caller); the transition rules stay in ``memories/procedural/lifecycle``.
+    """
+
+    DRAFT = "draft"
+    STAGED = "staged"
+    VERIFIED = "verified"
+    ACTIVE = "active"
+    DEPRECATED = "deprecated"
 
 
 class PiiTier(StrEnum):
@@ -152,10 +168,14 @@ class MemoryRecord(BaseModel):
     content_zstd: bytes | None = None
 
     # Procedural lifecycle (M13.4): a skill/plan rides a draft→staged→verified→
-    # active→deprecated ladder; None for non-procedural records.
-    skill_stage: str | None = None
-    # Reflective depth (M13.7): 0 = raw memory, 1 = reflection, 2 = meta (capped).
-    reflection_depth: int = Field(default=0, ge=0)
+    # active→deprecated ladder; None for non-procedural records. Enum-typed so
+    # an illegal stage is a ValidationError at construction, never a ValueError
+    # deep in a transition.
+    skill_stage: SkillStage | None = None
+    # Reflective depth (M13.7): 0 = raw memory, 1 = reflection, 2 = meta.
+    # The cap is enforced at the type too — a hand-built depth-3 record must
+    # fail loudly even if it never went through guards.reflection_depth_for.
+    reflection_depth: int = Field(default=0, ge=0, le=REFLECTION_DEPTH_CAP)
 
     def model_post_init(self, _context: Any) -> None:
         if not self.content_fingerprint:

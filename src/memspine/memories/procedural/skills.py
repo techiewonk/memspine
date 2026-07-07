@@ -16,23 +16,26 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
-from typing import ClassVar, Protocol
+from typing import ClassVar, Literal, Protocol, get_args
 
 from memspine.core.events import EventKind, MemoryEvent
 from memspine.core.records import MemoryRecord, RecordStatus, SourceInfo
 from memspine.exceptions import ConflictError
 from memspine.memories.base import BaseMemory
 from memspine.memories.procedural.lifecycle import SkillStage, is_usable, next_stage
-from memspine.observability.logging import get_logger
+from memspine.observability.logging import EVENT_DECAY_TRANSITION, get_logger
 
-__all__ = ["SKILL_KINDS", "ProceduralMemory", "make_skill_record", "stage_status"]
+__all__ = ["SKILL_KINDS", "ProceduralMemory", "SkillKind", "make_skill_record", "stage_status"]
 
 _log = get_logger(__name__)
 
 AppendEvent = Callable[[MemoryEvent], Awaitable[None]]
 
-#: Procedural subtypes carried in ``attribute`` (M13.4 + E6).
-SKILL_KINDS: tuple[str, ...] = ("skill", "plan", "prompt")
+#: Procedural subtypes carried in ``attribute`` (M13.4 + E6). The Literal is
+#: the source of truth so a typo'd kind is a type error at the call site, not
+#: a runtime surprise; SKILL_KINDS derives from it for runtime validation.
+SkillKind = Literal["skill", "plan", "prompt"]
+SKILL_KINDS: tuple[str, ...] = get_args(SkillKind)
 
 
 class ProceduralStore(Protocol):
@@ -60,7 +63,7 @@ def make_skill_record(
     name: str,
     content: str,
     *,
-    kind: str = "skill",
+    kind: SkillKind = "skill",
     source: SourceInfo | None = None,
 ) -> MemoryRecord:
     """A new procedural record. Skills enter at ``draft``; plans enter at
@@ -75,7 +78,7 @@ def make_skill_record(
         content=content,
         entity=name,
         attribute=kind,
-        skill_stage=stage.value,
+        skill_stage=stage,
         status=stage_status(stage),
         source=source or SourceInfo(role="user", channel="internal"),
     )
@@ -97,6 +100,11 @@ class ProceduralMemory(BaseMemory):
     ) -> list[MemoryRecord]:
         """Procedural records; ``usable_only`` applies the M13.4 execution gate
         (ACTIVE stage, ACTIVATED status, never quarantined)."""
+        if kind is not None and kind not in SKILL_KINDS:
+            # A typo'd kind must not read as "no plans exist" (silent empty).
+            raise ConflictError(
+                f"unknown procedural kind {kind!r} (valid: {', '.join(SKILL_KINDS)})"
+            )
         records = await self._storage.list_records(namespace, "procedural")
         if kind is not None:
             records = [record for record in records if record.attribute == kind]
@@ -112,14 +120,16 @@ class ProceduralMemory(BaseMemory):
             and not record.quarantined
         )
 
-    async def promote(self, record_id: str, *, dry_run_passed: bool = False) -> MemoryRecord:
+    async def promote(
+        self, record_id: str, *, namespace: str, dry_run_passed: bool = False
+    ) -> MemoryRecord:
         """One legal step up the ladder, as a delta event through the door.
 
         A quarantined record can never be promoted here: corroboration (E1)
         is the only exit from quarantine — otherwise a poisoned skill could be
         walked into ``active`` by the same channel that wrote it.
         """
-        record = await self._require_procedural(record_id)
+        record = await self._require_procedural(record_id, namespace)
         if record.quarantined:
             raise ConflictError(
                 f"record {record_id} is quarantined (E1) — corroboration, not promotion, "
@@ -129,9 +139,11 @@ class ProceduralMemory(BaseMemory):
         target = next_stage(current, dry_run_passed=dry_run_passed)
         return await self._transition(record, current, target, reason="skill_promotion")
 
-    async def deprecate(self, record_id: str) -> MemoryRecord:
-        """Retire a skill from any live stage; terminal (M13.4)."""
-        record = await self._require_procedural(record_id)
+    async def deprecate(self, record_id: str, *, namespace: str) -> MemoryRecord:
+        """Retire a skill from any live stage; terminal (M13.4). Deprecating a
+        quarantined record is allowed — retiring suspect content only shrinks
+        the attack surface (E1)."""
+        record = await self._require_procedural(record_id, namespace)
         current = self._stage_of(record)
         if current is SkillStage.DEPRECATED:
             return record  # idempotent: already terminal
@@ -167,14 +179,14 @@ class ProceduralMemory(BaseMemory):
             )
         )
         _log.info(
-            "memory.skill_transition",
+            EVENT_DECAY_TRANSITION,
             namespace=record.namespace,
             record_id=record.record_id,
-            transition=f"{current.value}->{target.value}",
+            transition=f"skill:{current.value}->{target.value}",
         )
         updated = record.model_copy(
             update={
-                "skill_stage": target.value,
+                "skill_stage": target,
                 "status": stage_status(target),
                 **(
                     {"valid_to": datetime.fromisoformat(str(change["valid_to"]))}
@@ -185,10 +197,14 @@ class ProceduralMemory(BaseMemory):
         )
         return updated
 
-    async def _require_procedural(self, record_id: str) -> MemoryRecord:
+    async def _require_procedural(self, record_id: str, namespace: str) -> MemoryRecord:
         record = await self._storage.get_record(record_id)
-        if record is None:
-            raise ConflictError(f"no such record {record_id!r}")
+        # Namespace isolation: a caller may only transition records in the
+        # namespace it named (and whose write lock it holds) — a leaked
+        # record_id must not mutate another namespace. Same error as "not
+        # found" so this is not a cross-namespace existence oracle.
+        if record is None or record.namespace != namespace:
+            raise ConflictError(f"no such record {record_id!r} in namespace {namespace!r}")
         if record.memory_type != "procedural":
             raise ConflictError(
                 f"record {record_id} is {record.memory_type!r}, not procedural — "
@@ -203,4 +219,4 @@ class ProceduralMemory(BaseMemory):
                 f"record {record.record_id} has no skill_stage — it never entered "
                 "the ladder (write it via add_skill/record_plan)"
             )
-        return SkillStage(record.skill_stage)
+        return record.skill_stage

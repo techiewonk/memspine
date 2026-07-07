@@ -196,6 +196,40 @@ async def test_ephemeral_offsets_never_touch_the_database_file(tmp_path: Path) -
     await client2.close()
 
 
+async def test_migration_0006_backfills_existing_rows_in_place(tmp_path: Path) -> None:
+    """Upgrade path: a populated 0005 database gains NULL skill_stage (never
+    entered the ladder) and reflection_depth=0 (raw) on its existing rows."""
+    from alembic import command
+    from sqlalchemy import create_engine, text
+
+    from memspine.services.storage.sqlite.migrations import alembic_config
+
+    db = tmp_path / "old.db"
+    command.upgrade(alembic_config(db), "0005")
+    engine = create_engine(f"sqlite:///{db}")
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO memory_records (record_id, namespace, memory_type, content,"
+                " content_fingerprint, valid_from, recorded_at, source, status, version,"
+                " history, pii_tier, consent_tags, scoring, trust, quarantined,"
+                " instruction_flag, corroborations) VALUES ('r1', 'agent/a', 'semantic',"
+                " 'kept', 'fp', '2026-01-01', '2026-01-01', X'7B7D', 'activated', 1,"
+                " X'5B5D', 'none', X'5B5D', X'7B7D', 0.5, 0, 0, 0)"
+            )
+        )
+    command.upgrade(alembic_config(db), "head")
+    with engine.connect() as conn:
+        row = conn.execute(
+            text(
+                "SELECT content, skill_stage, reflection_depth"
+                " FROM memory_records WHERE record_id='r1'"
+            )
+        ).one()
+    engine.dispose()
+    assert row[0] == "kept" and row[1] is None and row[2] == 0
+
+
 async def test_migration_0004_backfills_existing_rows_in_place(tmp_path: Path) -> None:
     """Upgrade path: a populated 0003 database gains tier='hot' and NULL
     content_zstd on its existing rows without loss (server_default backfill)."""
