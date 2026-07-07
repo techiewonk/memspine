@@ -9,7 +9,7 @@ report is exactly what the log proves.
 
 from __future__ import annotations
 
-from typing import Protocol
+from typing import Any, Protocol
 
 from pydantic import BaseModel, Field
 
@@ -140,10 +140,29 @@ async def trace_taint(storage: _EventSource, record_id: str) -> TaintReport:
                         report.descendants[existing_id] = f"superseded_by_taint@{event.seq}"
                         changed = True
 
-    mention_ids = tainted
     for event in events:
         assert event.seq is not None
-        text = str(event.payload)
-        if any(marked in text for marked in mention_ids):
+        if _event_references(event.payload, tainted):
             report.event_seqs.append(event.seq)
     return report
+
+
+def _event_references(node: Any, ids: set[str]) -> bool:
+    """Structured (not substring) check: does this payload name any tainted
+    record in a record-id-bearing field? Substring matching over ``str(payload)``
+    would false-positive on ids quoted inside unrelated content."""
+    if isinstance(node, dict):
+        for key, value in node.items():
+            if (
+                key in ("record_id", "summary_record_id", "existing_record_id", "kept_record_id")
+                and value in ids
+            ):
+                return True
+            if key == "member_record_ids" and isinstance(value, list) and set(value) & ids:
+                return True
+            if _event_references(value, ids):
+                return True
+        return False
+    if isinstance(node, list):
+        return any(_event_references(item, ids) for item in node)
+    return False

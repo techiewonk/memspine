@@ -31,7 +31,9 @@ __all__ = ["Firewall", "FirewallVerdict", "instruction_shaped"]
 #: Imperative-injection framing (MINJA/ASI06 corpus). Deliberately coarse:
 #: the flag is *inert* metadata + a quarantine input, never a deletion.
 _INSTRUCTION_PATTERNS: tuple[re.Pattern[str], ...] = tuple(
-    re.compile(pattern, re.IGNORECASE)
+    # DOTALL so ``.`` in the bounded gaps spans newlines — line-wrapped
+    # injections ("Ignore all previous\ninstructions") must not slip the net.
+    re.compile(pattern, re.IGNORECASE | re.DOTALL)
     for pattern in (
         r"\bignore (all|any|the|previous|prior|above)\b.{0,40}\b(instruction|prompt|rule)",
         r"\bdisregard\b.{0,40}\b(instruction|prompt|rule|polic)",

@@ -98,3 +98,14 @@ class LanceDBVectorStore:
     async def delete_all(self) -> None:
         table = await self._ensure_table()
         await asyncio.to_thread(table.delete, "record_id IS NOT NULL")
+
+    async def exists(self, record_id: str) -> bool:
+        """M7 ``forget --verify`` support: is a row still present? Without this
+        the erasure verifier cannot prove the default backend is clean."""
+        table = await self._ensure_table()
+        escaped = record_id.replace("'", "''")
+
+        def _count() -> int:
+            return int(table.count_rows(f"record_id = '{escaped}'"))
+
+        return await asyncio.to_thread(_count) > 0

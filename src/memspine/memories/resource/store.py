@@ -24,6 +24,8 @@ __all__ = ["ResourceMemory"]
 _log = get_logger(__name__)
 
 AppendEvent = Callable[[MemoryEvent], Awaitable[None]]
+#: Firewall gate the engine injects: stamp trust/quarantine on a chunk (E1).
+AssessChunk = Callable[[MemoryRecord], MemoryRecord]
 
 
 class ResourceStore(Protocol):
@@ -37,9 +39,15 @@ class ResourceStore(Protocol):
 class ResourceMemory(BaseMemory):
     name: ClassVar[str] = "resource"
 
-    def __init__(self, append_event: AppendEvent, storage: ResourceStore | None = None) -> None:
+    def __init__(
+        self,
+        append_event: AppendEvent,
+        storage: ResourceStore | None = None,
+        assess: AssessChunk | None = None,
+    ) -> None:
         self._append_event = append_event
         self._storage = storage
+        self._assess = assess
 
     async def ingest(
         self,
@@ -90,6 +98,12 @@ class ResourceMemory(BaseMemory):
             if (str(source_path), record.content_fingerprint) in already:
                 skipped += 1
                 continue  # retry after partial failure: chunk already landed
+            # Firewall gate (E1): an ingested chunk is external content — assess
+            # and stamp it (trust cap + instruction-shape quarantine) before the
+            # door, exactly like any other write. Ingest is the RAG poisoning
+            # surface, so it must never bypass the firewall.
+            if self._assess is not None:
+                record = self._assess(record)
             try:
                 await self._append_event(
                     MemoryEvent(

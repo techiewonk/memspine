@@ -27,6 +27,7 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from memspine.clients.sqlite import SQLiteClient
 from memspine.config.constants import ZSTD_LEVEL
+from memspine.core.erasure import redact_record
 from memspine.core.events import EventKind, EventLogMode, MemoryEvent, canonical_payload
 from memspine.core.records import MemoryRecord
 from memspine.exceptions import StorageError
@@ -358,11 +359,10 @@ class SQLiteStorage(ServiceAdapter):
                 if mapping["compressed"]:
                     raw = self._dctx.decompress(raw)
                 payload = orjson.loads(raw)
-                snapshot = payload.get("record")
-                if not isinstance(snapshot, dict) or snapshot.get("record_id") != record_id:
+                # Scrub EVERY snapshot/delta of this record, wherever it hides
+                # (record / incoming_record / dropped_record / compress delta).
+                if not redact_record(payload, record_id):
                     continue
-                snapshot["content"] = ""
-                snapshot["content_zstd"] = None
                 payload["redacted"] = True
                 encoded = canonical_payload(payload)
                 if mapping["compressed"]:

@@ -27,6 +27,7 @@ from memspine.config import constants
 from memspine.config.loader import ResolvedConfig, load_config
 from memspine.config.schema import MemspineConfig
 from memspine.core.audit import TaintReport, trace_taint
+from memspine.core.erasure import payload_retains_content
 from memspine.core.events import EventKind, EventLogMode, MemoryEvent, fingerprint_payload
 from memspine.core.firewall import Firewall, FirewallVerdict
 from memspine.core.namespace import validate_namespace
@@ -88,6 +89,10 @@ _T = TypeVar("_T")
 
 #: Services the Phase-0 engine always constructs (core install, D-03).
 _CORE_SERVICES = frozenset({"storage", "secrets"})
+
+#: Roles whose writes may corroborate a quarantined record out of quarantine
+#: (E1). Excludes assistant/tool — the indirect-injection authorship surface.
+_CORROBORATION_ROLES = frozenset({"operator", "system", "user"})
 
 
 def _as_options_dict(raw: Any) -> dict[str, object] | None:
@@ -224,7 +229,11 @@ class Engine:
         if "episodic" in self._enabled:
             self._episodic = EpisodicMemory(self._storage)
         if "resource" in self._enabled:
-            self._resource = ResourceMemory(self._append_and_project, storage=self._storage)
+            self._resource = ResourceMemory(
+                self._append_and_project,
+                storage=self._storage,
+                assess=lambda record: self._firewall.assess(record).apply(record),
+            )
         self._summarize = self._build_summarize()
         self._projectors = [
             RecordProjector(self._storage),
@@ -394,10 +403,13 @@ class Engine:
         scored: list[tuple[MemoryRecord, float]] = []
         for hit in hits:
             record = await storage.get_record(hit.record_id)
-            if record is None or record.status is RecordStatus.DELETED:
-                continue  # ghost vector row; FORGET projection or rebuild reconciles
+            if record is None or record.status is not RecordStatus.ACTIVATED:
+                # Only live facts reach a context window: DELETED/QUARANTINED are
+                # excluded (E1), and ARCHIVED/superseded history never surfaces as
+                # current truth — a promoted-then-superseded record cannot re-enter.
+                continue
             if record.quarantined:
-                continue  # E1: quarantined memories never reach a context window
+                continue  # defense in depth: quarantined never reaches assembly
             try:
                 record = self._inflate.inflate(record)  # cold-tier content restored (M6)
             except StorageError:
@@ -502,6 +514,15 @@ class Engine:
         """
         storage = self._require_started()
         ns = validate_namespace(namespace)
+        # Same per-namespace lock as write(): a hard delete's read-hold-check-
+        # redact sequence must not interleave with a concurrent write or its
+        # corroboration read-modify-write on the same record.
+        async with self._write_locks.setdefault(ns, asyncio.Lock()):
+            await self._forget_locked(storage, ns, record_id, hard)
+
+    async def _forget_locked(
+        self, storage: SQLiteStorage, ns: str, record_id: str, hard: bool
+    ) -> None:
         if hard:
             record = await storage.get_record(record_id)
             if record is not None:
@@ -534,34 +555,37 @@ class Engine:
         _log.info(EVENT_FORGET, namespace=ns, record_id=record_id)
 
     async def verify_forget(self, record_id: str) -> dict[str, object]:
-        """M7 ``forget --verify``: prove erasure across every store we own."""
+        """M7 ``forget --verify``: prove erasure across every store we own.
+
+        Uses the SAME payload walker as the redactor (``payload_retains_content``
+        ↔ ``redact_record``) so the proof cannot share a blind spot with the
+        erasure. An unverifiable vector backend and an ephemeral (unpersisted)
+        log are reported as *unproven*, never silently as clean.
+        """
         storage = self._require_started()
         record_absent = await storage.get_record(record_id) is None
         vector_absent: bool | None = None
         exists = getattr(self._vector, "exists", None)
         if callable(exists):
             vector_absent = not await exists(record_id)
+        log_verifiable = storage.can_rebuild  # ephemeral persists nothing to prove
         log_clean = True
         after = 0
-        while True:
+        while log_verifiable:
             batch = await storage.read_events(after_seq=after)
             if not batch:
                 break
             for event in batch:
-                snapshot = event.payload.get("record")
-                if (
-                    isinstance(snapshot, dict)
-                    and snapshot.get("record_id") == record_id
-                    and (snapshot.get("content") or snapshot.get("content_zstd"))
-                ):
+                if payload_retains_content(event.payload, record_id):
                     log_clean = False
             assert batch[-1].seq is not None
             after = batch[-1].seq
-        clean = record_absent and log_clean and vector_absent is not False
+        clean = record_absent and log_verifiable and log_clean and vector_absent is True
         return {
             "record_id": record_id,
             "record_absent": record_absent,
-            "vector_absent": vector_absent,
+            "vector_absent": vector_absent,  # None => backend cannot prove it
+            "log_verifiable": log_verifiable,
             "log_redacted": log_clean,
             "clean": clean,
         }
@@ -594,12 +618,39 @@ class Engine:
     async def _corroborate(self, namespace: str, incoming: MemoryRecord) -> None:
         """E1 promotion path: a trusted write that independently asserts what a
         quarantined record claims counts as corroboration; enough of them
-        activate the record (through the door, as a delta)."""
-        if incoming.trust < constants.TRUST_DEFAULT or incoming.quarantined:
+        activate the record (through the door, as a delta).
+
+        Independence is the security property (E1): the corroborator must be a
+        *different, trusted* source than the quarantined write — a poison's own
+        author (or any low-trust/external channel) can never vote itself out of
+        quarantine. Because external channels are capped below the promotion
+        floor, an attacker confined to retrieved/web/tool input cannot
+        corroborate at all.
+        """
+        # Only genuinely privileged roles corroborate: operator/system/user.
+        # assistant/tool (LLM- or tool-authored, the indirect-injection surface)
+        # are excluded even on internal channels — an injection-influenced
+        # assistant must not vote poison out of quarantine (empirically found).
+        if (
+            incoming.trust < constants.TRUST_DEFAULT
+            or incoming.quarantined
+            or incoming.source.role not in _CORROBORATION_ROLES
+        ):
             return
         storage = self._require_started()
         for held in await storage.list_records(namespace):
             if not held.quarantined or held.status is not RecordStatus.QUARANTINED:
+                continue
+            # Independence: a record cannot corroborate itself, and neither can
+            # a write from the identical source signature (same role+channel+
+            # message) — that is a replay, not an independent second opinion.
+            if incoming.record_id == held.record_id:
+                continue
+            if (
+                incoming.source.role == held.source.role
+                and incoming.source.channel == held.source.channel
+                and incoming.source.message_id == held.source.message_id
+            ):
                 continue
             same_content = held.content_fingerprint == incoming.content_fingerprint
             same_fact = (
@@ -627,7 +678,10 @@ class Engine:
                 if incumbent is not None and incumbent.record_id != held.record_id:
                     change["status"] = RecordStatus.ARCHIVED.value
                     change["evolve_to"] = incumbent.record_id
-                    change["valid_to"] = incumbent.valid_from.isoformat()
+                    # Clamp so a held record newer than the incumbent never gets
+                    # an inverted (valid_to < valid_from) interval.
+                    close_at = max(held.valid_from, incumbent.valid_from)
+                    change["valid_to"] = close_at.isoformat()
                 else:
                     change["status"] = RecordStatus.ACTIVATED.value
             await self._append_and_project(

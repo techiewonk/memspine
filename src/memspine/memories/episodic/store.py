@@ -35,8 +35,15 @@ class EpisodicMemory(BaseMemory):
         self._storage = storage
 
     async def _active(self, namespace: str) -> list[MemoryRecord]:
+        """Timelines and sessions expose only live episodes — DELETED and
+        QUARANTINED (E1) records never reach a narrative-building caller,
+        matching the search()/assemble() quarantine gate."""
         records = await self._storage.list_records(namespace, "episodic")
-        return [record for record in records if record.status is not RecordStatus.DELETED]
+        return [
+            record
+            for record in records
+            if record.status is not RecordStatus.DELETED and not record.quarantined
+        ]
 
     async def timeline(
         self,

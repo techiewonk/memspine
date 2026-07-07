@@ -31,8 +31,9 @@ _ROLE_TRUST: dict[str, float] = {
 }
 
 #: Channels whose content originated OUTSIDE the trust boundary — retrieved
-#: documents, web pages, third-party messages. Capped, never boosted.
-_EXTERNAL_CHANNELS = frozenset({"retrieved", "web", "external", "email", "mcp"})
+#: documents, web pages, third-party messages, INGESTED FILES. Capped, never
+#: boosted: an ingested PDF is exactly the RAG poisoning surface E1 defends.
+_EXTERNAL_CHANNELS = frozenset({"retrieved", "web", "external", "email", "mcp", "ingest"})
 
 
 class TrustOptions(PolicyOptions):

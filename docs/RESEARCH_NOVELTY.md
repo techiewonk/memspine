@@ -110,7 +110,7 @@ deepeval live in `evals/`, outside the wheel (D-35).
 
 | # | Contribution | Substrate in code today | Full mechanism |
 |---|---|---|---|
-| N1 | Memory Firewall | P0–P2 (columns, trust contract, provenance; **R1 trust gate live in the M4 ladder + rejected writes fully recoverable from audit events**; P3: quarantined records frozen out of decay/compression; ingest chunks carry doc-path taint trail) | P4 |
+| N1 | Memory Firewall | **P4 COMPLETE (headline live)**: deterministic write-path gate — (role×channel) trust matrix with external cap, instruction-shape flag (inert), embedding-outlier + MINJA-bridge anomaly, quarantine tier excluded from search/assemble/conflict, corroboration promotion, `audit taint` blast-radius from the log, M7 hard-delete with event-payload redaction + `forget --verify`. No LLM in the defense (uninjectable). | evals harness |
 | N2 | Retention-mode spectrum | **P0 complete + tested; P3: prune scheduled in the sleep cycle** | ✔ complete |
 | N3 | Combination calculus | P0 (registry + closure + golden tests) | matrix P1–P7 |
 | N4 | Universal record | **P0 complete; M4/M5 consumers live in P2; M3/M6 consumers live in P3** (decay tier + cold-tier `content_zstd` on the same row — rebuild-identity holds across compression) | firewall consumer P4 |
