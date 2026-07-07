@@ -23,7 +23,7 @@ import yaml
 from memspine.config.schema import MemspineConfig
 from memspine.exceptions import ConfigError
 
-__all__ = ["ResolvedConfig", "load_config", "template_dir"]
+__all__ = ["ResolvedConfig", "flatten_dotted", "load_config", "template_dir"]
 
 _SECRET_REF = re.compile(r"\$\{secret:([A-Za-z0-9_.-]+)\}")
 _ENV_PREFIX = "MEMSPINE_"
@@ -53,12 +53,14 @@ def _deep_merge(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]
     return merged
 
 
-def _flatten(data: dict[str, Any], prefix: str = "") -> dict[str, Any]:
+def flatten_dotted(data: dict[str, Any], prefix: str = "") -> dict[str, Any]:
+    """Nested dict -> {"a.b.c": leaf}. The one flattening used for source
+    tracking AND ``config resolve`` display — they must never diverge."""
     flat: dict[str, Any] = {}
     for key, value in data.items():
         dotted = f"{prefix}{key}"
         if isinstance(value, dict) and value:
-            flat.update(_flatten(value, f"{dotted}."))
+            flat.update(flatten_dotted(value, f"{dotted}."))
         else:
             flat[dotted] = value
     return flat
@@ -66,7 +68,11 @@ def _flatten(data: dict[str, Any], prefix: str = "") -> dict[str, Any]:
 
 def _read_yaml(path: Path) -> dict[str, Any]:
     try:
-        raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+        text = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise ConfigError(f"cannot read config file {path}: {exc}") from exc
+    try:
+        raw = yaml.safe_load(text)
     except yaml.YAMLError as exc:
         raise ConfigError(f"invalid YAML in {path}: {exc}") from exc
     if raw is None:
@@ -108,13 +114,25 @@ def _find_template(name: str, search_dirs: list[Path]) -> Path:
 
 
 def _env_layer(env: Mapping[str, str]) -> dict[str, Any]:
-    """``MEMSPINE_EVENT_LOG__MODE=rolling`` -> ``{"event_log": {"mode": "rolling"}}``."""
+    """``MEMSPINE_EVENT_LOG__MODE=rolling`` -> ``{"event_log": {"mode": "rolling"}}``.
+
+    Only vars whose first segment matches a real config field enter the layer —
+    unrelated tooling vars (MEMSPINE_HOME, MEMSPINE_DEBUG, …) must not crash a
+    strict (``extra="forbid"``) schema. Values that are not valid YAML scalars
+    fall back to the raw string rather than raising a parser error.
+    """
+    known_roots = set(MemspineConfig.model_fields)
     layer: dict[str, Any] = {}
     for key, raw in env.items():
         if not key.startswith(_ENV_PREFIX):
             continue
         dotted = key.removeprefix(_ENV_PREFIX).lower().split("__")
-        value = yaml.safe_load(raw)  # scalars: "true" -> bool, "30" -> int
+        if dotted[0] not in known_roots:
+            continue
+        try:
+            value = yaml.safe_load(raw)  # scalars: "true" -> bool, "30" -> int
+        except yaml.YAMLError:
+            value = raw
         node = layer
         for part in dotted[:-1]:
             node = node.setdefault(part, {})
@@ -174,7 +192,7 @@ def load_config(
     sources: dict[str, str] = {}
     for layer_name, layer_data in layers:
         merged = _deep_merge(merged, layer_data)
-        for dotted in _flatten(layer_data):
+        for dotted in flatten_dotted(layer_data):
             sources[dotted] = layer_name
 
     merged = _resolve_secrets(merged, secret_resolver)
@@ -187,6 +205,6 @@ def load_config(
         raise ConfigError(f"invalid configuration: {exc}") from exc
 
     # Anything not set by an explicit layer came from schema defaults.
-    for dotted in _flatten(config.model_dump(mode="json")):
+    for dotted in flatten_dotted(config.model_dump(mode="json")):
         sources.setdefault(dotted, "default")
     return ResolvedConfig(config=config, sources=sources)

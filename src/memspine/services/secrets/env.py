@@ -28,7 +28,12 @@ class EnvSecrets:
                 self._file_values = _parse_dotenv(path.read_text(encoding="utf-8"))
 
     def get(self, name: str) -> str | None:
-        return self._environ.get(name) or self._file_values.get(name)
+        # `is not None`, not truthiness: a set-but-empty env var must still win
+        # over the file, or a blanked-out secret would resurrect a stale value.
+        value = self._environ.get(name)
+        if value is not None:
+            return value
+        return self._file_values.get(name)
 
 
 def _parse_dotenv(text: str) -> dict[str, str]:

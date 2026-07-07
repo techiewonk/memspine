@@ -36,3 +36,22 @@ DECAY_COLD_TO_DORMANT_DAYS = 90
 TRUST_DEFAULT = 0.5
 TRUST_RETRIEVED_CAP = 0.3
 QUARANTINE_PROMOTION_CORROBORATIONS = 2
+
+# Scoring (M1): recency half-life + composite weights.
+SCORING_RECENCY_HALF_LIFE_DAYS = 7.0
+SCORING_IMPORTANCE_WEIGHT = 1.0
+SCORING_RELEVANCE_WEIGHT = 1.0
+SCORING_UTILITY_WEIGHT = 0.5
+
+# Assembly (M12): MMR diversity/relevance balance.
+MMR_LAMBDA = 0.7
+
+# Consolidation (M2): heat trigger threshold (writes per namespace per cycle).
+CONSOLIDATION_HEAT_THRESHOLD = 50
+
+# Compression (D-32/D-45): one zstd level for cold-tier records and event
+# payloads at rest, so the two never drift without an ADR.
+ZSTD_LEVEL = 3
+
+# Replay (D0.1): events per catch-up batch — bounds catch-up memory footprint.
+REPLAY_BATCH_SIZE = 1000

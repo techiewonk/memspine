@@ -34,6 +34,14 @@ class SQLiteClient(Client):
         self._engine: AsyncEngine | None = None
 
     @property
+    def path(self) -> str:
+        return self._path
+
+    @property
+    def is_memory(self) -> bool:
+        return self._path == ":memory:"
+
+    @property
     def engine(self) -> AsyncEngine:
         if self._engine is None:
             raise StorageError("SQLiteClient is not connected — call connect() first")

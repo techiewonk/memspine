@@ -32,6 +32,9 @@ def upgrade() -> None:
         sa.Column("payload", sa.LargeBinary, nullable=False),
         sa.Column("compressed", sa.Boolean, nullable=False),
         sa.Column("fingerprint", sa.String, nullable=False),
+        # AUTOINCREMENT prevents rowid reuse after rolling-mode pruning (D-45):
+        # a reused seq would fall below projector high-water marks.
+        sqlite_autoincrement=True,
     )
     op.create_index("ix_memory_events_namespace", "memory_events", ["namespace"])
     op.create_index("ix_memory_events_kind", "memory_events", ["kind"])

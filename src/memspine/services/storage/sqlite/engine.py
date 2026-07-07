@@ -16,18 +16,22 @@ an injected :class:`~memspine.clients.sqlite.SQLiteClient` (D-24).
 
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime
 from typing import Any
 
 import orjson
 import zstandard
-from sqlalchemy import delete, func, insert, select, update
+from sqlalchemy import delete, func, select
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from memspine.clients.sqlite import SQLiteClient
-from memspine.core.events import EventKind, EventLogMode, MemoryEvent
+from memspine.config.constants import ZSTD_LEVEL
+from memspine.core.events import EventKind, EventLogMode, MemoryEvent, canonical_payload
 from memspine.core.records import MemoryRecord
 from memspine.exceptions import StorageError
 from memspine.services.base import CapabilityManifest, ServiceAdapter
+from memspine.services.storage.sqlite.migrations import ensure_schema
 from memspine.services.storage.sqlite.schema import (
     memory_events,
     memory_records,
@@ -36,8 +40,6 @@ from memspine.services.storage.sqlite.schema import (
 )
 
 __all__ = ["SQLiteStorage"]
-
-_ZSTD_LEVEL = 3
 
 
 def _iso(ts: datetime) -> str:
@@ -61,9 +63,12 @@ class SQLiteStorage(ServiceAdapter):
         self._mode = mode
         self._compress = compress
         self._started = False
-        # Ephemeral mode: monotonic seq without persistence (D-45).
+        # Ephemeral mode (D-45): monotonic seq + projector offsets live purely
+        # in memory — persisting either would poison a later full/rolling run
+        # on the same database file with high-water marks no event backs.
         self._ephemeral_seq = 0
-        self._cctx = zstandard.ZstdCompressor(level=_ZSTD_LEVEL)
+        self._ephemeral_offsets: dict[str, int] = {}
+        self._cctx = zstandard.ZstdCompressor(level=ZSTD_LEVEL)
         self._dctx = zstandard.ZstdDecompressor()
 
     @property
@@ -80,12 +85,19 @@ class SQLiteStorage(ServiceAdapter):
 
     @property
     def can_rebuild(self) -> bool:
-        return self._mode is EventLogMode.FULL
+        """Ephemeral never rebuilds; rolling rebuilds while its window is intact
+        (the window check happens at rebuild time, where the log can be read)."""
+        return self._mode is not EventLogMode.EPHEMERAL
 
     async def start(self) -> None:
-        """Create the Phase-0 schema. Real deployments run Alembic (see alembic/)."""
-        async with self._client.engine.begin() as conn:
-            await conn.run_sync(metadata.create_all)
+        """Bring the schema to head: Alembic for file-backed databases (the real
+        migration path), ``create_all`` only for ``:memory:`` engines, which a
+        separate migration connection cannot reach."""
+        if self._client.is_memory:
+            async with self._client.engine.begin() as conn:
+                await conn.run_sync(metadata.create_all)
+        else:
+            await asyncio.to_thread(ensure_schema, self._client.path)
         self._started = True
 
     async def stop(self) -> None:
@@ -104,14 +116,14 @@ class SQLiteStorage(ServiceAdapter):
             self._ephemeral_seq += 1
             return event.model_copy(update={"seq": self._ephemeral_seq})
 
-        payload = orjson.dumps(event.payload, option=orjson.OPT_SORT_KEYS)
+        payload = canonical_payload(event.payload)  # same encoding the fingerprint hashed
         compressed = self._compress
         if compressed:
             payload = self._cctx.compress(payload)
 
         async with self._client.engine.begin() as conn:
             result = await conn.execute(
-                insert(memory_events).values(
+                sqlite_insert(memory_events).values(
                     event_id=event.event_id,
                     kind=event.kind.value,
                     namespace=event.namespace,
@@ -160,6 +172,8 @@ class SQLiteStorage(ServiceAdapter):
     # ── projector offsets ────────────────────────────────────────────────────
 
     async def get_offset(self, projector_name: str) -> int:
+        if self._mode is EventLogMode.EPHEMERAL:
+            return self._ephemeral_offsets.get(projector_name, 0)
         stmt = select(projector_offsets.c.last_seq).where(
             projector_offsets.c.projector_name == projector_name
         )
@@ -168,21 +182,31 @@ class SQLiteStorage(ServiceAdapter):
         return int(row[0]) if row is not None else 0
 
     async def set_offset(self, projector_name: str, seq: int) -> None:
+        """Advance-only, atomic upsert: concurrent checkpoints can neither race
+        the insert nor move a high-water mark backwards."""
+        if self._mode is EventLogMode.EPHEMERAL:
+            current = self._ephemeral_offsets.get(projector_name, 0)
+            self._ephemeral_offsets[projector_name] = max(current, seq)
+            return
         now = _iso(datetime.now(UTC))
+        stmt = sqlite_insert(projector_offsets).values(
+            projector_name=projector_name, last_seq=seq, updated_at=now
+        )
+        stmt = stmt.on_conflict_do_update(
+            index_elements=["projector_name"],
+            set_={
+                "last_seq": func.max(stmt.excluded.last_seq, projector_offsets.c.last_seq),
+                "updated_at": now,
+            },
+        )
         async with self._client.engine.begin() as conn:
-            result = await conn.execute(
-                update(projector_offsets)
-                .where(projector_offsets.c.projector_name == projector_name)
-                .values(last_seq=seq, updated_at=now)
-            )
-            if result.rowcount == 0:
-                await conn.execute(
-                    insert(projector_offsets).values(
-                        projector_name=projector_name, last_seq=seq, updated_at=now
-                    )
-                )
+            await conn.execute(stmt)
 
     async def reset_offset(self, projector_name: str) -> None:
+        """Rebuild support: the one sanctioned way to move a high-water mark back."""
+        if self._mode is EventLogMode.EPHEMERAL:
+            self._ephemeral_offsets.pop(projector_name, None)
+            return
         async with self._client.engine.begin() as conn:
             await conn.execute(
                 delete(projector_offsets).where(
@@ -241,16 +265,10 @@ class SQLiteStorage(ServiceAdapter):
             "simhash": record.simhash,
             "minhash_sig": record.minhash_sig,
         }
+        stmt = sqlite_insert(memory_records).values(record_id=record.record_id, **values)
+        stmt = stmt.on_conflict_do_update(index_elements=["record_id"], set_=values)
         async with self._client.engine.begin() as conn:
-            result = await conn.execute(
-                update(memory_records)
-                .where(memory_records.c.record_id == record.record_id)
-                .values(**values)
-            )
-            if result.rowcount == 0:
-                await conn.execute(
-                    insert(memory_records).values(record_id=record.record_id, **values)
-                )
+            await conn.execute(stmt)
 
     async def get_record(self, record_id: str) -> MemoryRecord | None:
         stmt = select(memory_records).where(memory_records.c.record_id == record_id)

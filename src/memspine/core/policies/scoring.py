@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from typing import ClassVar
 
+from memspine.config import constants
 from memspine.core.policies.base import BindablePolicy, PolicyOptions
 from memspine.core.records import MemoryRecord
 
@@ -14,10 +15,10 @@ __all__ = ["ScoringPolicy"]
 
 
 class ScoringOptions(PolicyOptions):
-    recency_half_life_days: float = 7.0
-    importance_weight: float = 1.0
-    relevance_weight: float = 1.0
-    utility_weight: float = 0.5
+    recency_half_life_days: float = constants.SCORING_RECENCY_HALF_LIFE_DAYS
+    importance_weight: float = constants.SCORING_IMPORTANCE_WEIGHT
+    relevance_weight: float = constants.SCORING_RELEVANCE_WEIGHT
+    utility_weight: float = constants.SCORING_UTILITY_WEIGHT
 
 
 class ScoringPolicy(BindablePolicy):

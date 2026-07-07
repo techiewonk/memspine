@@ -21,6 +21,7 @@ from typing import Any
 from fastuuid import uuid4
 from pydantic import BaseModel, Field
 
+from memspine.config.constants import TRUST_DEFAULT
 from memspine.core.events import fingerprint_payload
 
 __all__ = [
@@ -122,7 +123,7 @@ class MemoryRecord(BaseModel):
     scoring: ScoringState = Field(default_factory=ScoringState)
 
     # Memory Firewall columns (E1) — present from day one.
-    trust: float = 0.5
+    trust: float = TRUST_DEFAULT
     quarantined: bool = False
     instruction_flag: bool = False
 

@@ -168,6 +168,34 @@ async def test_record_upsert_get_round_trip_preserves_all_fields() -> None:
     assert len(await storage.list_records("agent/alice")) == 1
 
 
+async def test_ephemeral_offsets_never_touch_the_database_file(tmp_path: Path) -> None:
+    """Regression: ephemeral runs used to persist offsets, poisoning later
+    full-mode runs on the same file (stale high-water mark > real max seq)."""
+    db = tmp_path / "spine.db"
+
+    client1 = SQLiteClient(db)
+    await client1.connect()
+    ephemeral = SQLiteStorage(client1, mode=EventLogMode.EPHEMERAL)
+    await ephemeral.start()
+    for i in range(5):
+        appended = await ephemeral.append_event(ev(content=str(i)))
+        await ephemeral.set_offset("records", appended.seq or 0)
+    assert await ephemeral.get_offset("records") == 5  # in-memory only
+    await client1.close()
+
+    client2 = SQLiteClient(db)
+    await client2.connect()
+    full = SQLiteStorage(client2, mode=EventLogMode.FULL)
+    await full.start()
+    assert await full.get_offset("records") == 0  # nothing leaked to disk
+    projector = DictProjector("records")
+    e1 = await full.append_event(ev(content="first real event"))
+    assert e1.seq == 1
+    applied = await catch_up(full, [projector])
+    assert applied["records"] == 1  # the first full-mode event is projected
+    await client2.close()
+
+
 async def test_alembic_migration_builds_same_schema(tmp_path: Path) -> None:
     db = tmp_path / "memspine.db"
     upgrade_to_head(db)

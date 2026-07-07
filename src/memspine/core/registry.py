@@ -10,7 +10,14 @@ import structlog
 
 from memspine.exceptions import ConfigError
 
-__all__ = ["MEMORY_TYPES", "dependency_closure", "validate_types"]
+__all__ = [
+    "MEMORY_TYPES",
+    "REQUIRED_SERVICES",
+    "SERVICE_EXTRAS",
+    "dependency_closure",
+    "missing_services",
+    "validate_types",
+]
 
 _log = structlog.get_logger(__name__)
 
@@ -41,6 +48,29 @@ _REQUIRES: dict[str, frozenset[str]] = {
 _REQUIRES_ANY: dict[str, tuple[str, ...]] = {
     "shared": ("semantic", "episodic"),
 }
+
+#: Optional-service requirements per memory type (D-10). Phase 0 memories run on
+#: core services only; P1+ fills this in (e.g. associative -> "graph").
+REQUIRED_SERVICES: dict[str, frozenset[str]] = {}
+
+#: Which extra installs which optional service — used by MissingServiceError so
+#: the fix is one pip install away (D-10).
+SERVICE_EXTRAS: dict[str, str] = {
+    "vector": "lance",
+    "graph": "graph",
+    "cache": "lmdb",
+    "rest": "rest",
+}
+
+
+def missing_services(enabled: set[str], available: set[str]) -> dict[str, set[str]]:
+    """Map of memory type -> optional services it needs that are not available."""
+    missing: dict[str, set[str]] = {}
+    for mem_type in sorted(enabled):
+        gaps = set(REQUIRED_SERVICES.get(mem_type, frozenset())) - available
+        if gaps:
+            missing[mem_type] = gaps
+    return missing
 
 
 def validate_types(names: set[str]) -> None:

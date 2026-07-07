@@ -10,6 +10,8 @@ import logging
 
 import structlog
 
+from memspine.core.events import EventKind
+
 __all__ = [
     "EVENT_CONFLICT",
     "EVENT_CONSOLIDATE",
@@ -23,15 +25,16 @@ __all__ = [
     "get_logger",
 ]
 
-# M11 vocabulary — mirrors core.events.EventKind on purpose.
-EVENT_WRITE = "memory.write"
-EVENT_RETRIEVE = "memory.retrieve"
-EVENT_CONSOLIDATE = "memory.consolidate"
-EVENT_DECAY_TRANSITION = "memory.decay_transition"
-EVENT_CONFLICT = "memory.conflict"
-EVENT_MERGE = "memory.merge"
-EVENT_FORGET = "memory.forget"
-EVENT_REBUILD = "memory.rebuild"
+# M11 vocabulary — derived from EventKind so log names and event kinds
+# cannot drift (adding a kind updates both automatically).
+EVENT_WRITE = EventKind.WRITE.value
+EVENT_RETRIEVE = EventKind.RETRIEVE.value
+EVENT_CONSOLIDATE = EventKind.CONSOLIDATE.value
+EVENT_DECAY_TRANSITION = EventKind.DECAY_TRANSITION.value
+EVENT_CONFLICT = EventKind.CONFLICT.value
+EVENT_MERGE = EventKind.MERGE.value
+EVENT_FORGET = EventKind.FORGET.value
+EVENT_REBUILD = EventKind.REBUILD.value
 
 
 def configure_logging(level: str = "INFO", json_output: bool = False) -> None:

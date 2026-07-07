@@ -7,26 +7,19 @@ models use ``extra="forbid"`` so a typo in a template fails at config time.
 
 from __future__ import annotations
 
-from typing import ClassVar, Protocol, Self, runtime_checkable
+from typing import ClassVar, Self
 
 from pydantic import BaseModel, ConfigDict
 
 from memspine.exceptions import ConfigError
 
-__all__ = ["Policy", "PolicyOptions", "bind_policy"]
+__all__ = ["BindablePolicy", "PolicyOptions"]
 
 
 class PolicyOptions(BaseModel):
     """Base for every policy's options; rejects unknown keys at bind time."""
 
     model_config = ConfigDict(extra="forbid")
-
-
-@runtime_checkable
-class Policy(Protocol):
-    """Minimal shape shared by all policies."""
-
-    name: ClassVar[str]
 
 
 class BindablePolicy:
@@ -46,7 +39,3 @@ class BindablePolicy:
         except Exception as exc:
             raise ConfigError(f"invalid options for policy {cls.name!r}: {exc}") from exc
         return cls(options)
-
-
-def bind_policy(policy_cls: type[BindablePolicy], raw: dict[str, object] | None) -> BindablePolicy:
-    return policy_cls.bind(raw)

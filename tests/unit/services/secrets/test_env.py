@@ -17,6 +17,15 @@ def test_environ_wins_over_dotenv(tmp_path: Path) -> None:
     assert secrets.get("MISSING") is None
 
 
+def test_empty_env_value_still_beats_dotenv(tmp_path: Path) -> None:
+    """Regression: a set-but-empty env var must win, or a blanked-out secret
+    would resurrect the stale file value."""
+    dotenv = tmp_path / ".env"
+    dotenv.write_text("TOKEN=old-leaked-value\n", encoding="utf-8")
+    secrets = EnvSecrets(dotenv_path=dotenv, environ={"TOKEN": ""})
+    assert secrets.get("TOKEN") == ""
+
+
 def test_two_phase_bootstrap_with_loader(tmp_path: Path) -> None:
     dotenv = tmp_path / ".env"
     dotenv.write_text("DB_PATH=/data/spine.db\n", encoding="utf-8")

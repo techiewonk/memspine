@@ -7,6 +7,7 @@ from typing import ClassVar
 
 from pydantic import Field
 
+from memspine.config import constants
 from memspine.core.policies.base import BindablePolicy, PolicyOptions
 
 __all__ = ["ConsolidationPolicy", "ConsolidationTrigger"]
@@ -22,7 +23,7 @@ class ConsolidationOptions(PolicyOptions):
     triggers: list[ConsolidationTrigger] = Field(
         default_factory=lambda: [ConsolidationTrigger.SESSION_END]
     )
-    heat_threshold: int = 50
+    heat_threshold: int = constants.CONSOLIDATION_HEAT_THRESHOLD
 
 
 class ConsolidationPolicy(BindablePolicy):

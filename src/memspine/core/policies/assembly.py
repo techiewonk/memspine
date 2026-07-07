@@ -18,7 +18,7 @@ __all__ = ["AssemblyPolicy"]
 
 class AssemblyOptions(PolicyOptions):
     theta_abstain: float = constants.THETA_ABSTAIN
-    mmr_lambda: float = 0.7
+    mmr_lambda: float = constants.MMR_LAMBDA
     cache_aware_placement: bool = True  # E2
 
 

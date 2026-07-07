@@ -33,7 +33,13 @@ class StorageService(Protocol):
 
     async def get_offset(self, projector_name: str) -> int: ...
 
-    async def set_offset(self, projector_name: str, seq: int) -> None: ...
+    async def set_offset(self, projector_name: str, seq: int) -> None:
+        """Advance-only checkpoint; implementations must never move a mark backwards."""
+        ...
+
+    async def reset_offset(self, projector_name: str) -> None:
+        """Rebuild support: the one sanctioned way to move a high-water mark back."""
+        ...
 
     async def prune_events(self, older_than: datetime) -> int:
         """Rolling mode only: delete events all projectors have applied (D-45)."""

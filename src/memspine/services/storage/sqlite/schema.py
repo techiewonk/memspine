@@ -25,6 +25,9 @@ metadata = MetaData()
 
 # The append-only source of truth (D0.1). Payload is canonical orjson, optionally
 # zstd-compressed at rest (D-45); timestamps are ISO-8601 UTC strings.
+# sqlite_autoincrement is load-bearing: without the AUTOINCREMENT keyword SQLite
+# reuses rowids after rolling-mode pruning, and reused seqs would fall below
+# projector high-water marks — events silently never projected.
 memory_events = Table(
     "memory_events",
     metadata,
@@ -40,6 +43,7 @@ memory_events = Table(
     Column("fingerprint", String, nullable=False),
     Index("ix_memory_events_namespace", "namespace"),
     Index("ix_memory_events_kind", "kind"),
+    sqlite_autoincrement=True,
 )
 
 # Durable high-water marks: one row per projector.

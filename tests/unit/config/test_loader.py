@@ -93,3 +93,22 @@ def test_env_scalars_parse_types() -> None:
     )
     assert resolved.config.event_log.compress is True
     assert resolved.config.event_log.mode is EventLogMode.EPHEMERAL
+
+
+def test_unrelated_memspine_env_vars_are_ignored() -> None:
+    """Regression: MEMSPINE_HOME/MEMSPINE_DEBUG from other tooling used to be
+    injected into the strict schema and crash every load."""
+    resolved = load_config(env={"MEMSPINE_HOME": "/opt/x", "MEMSPINE_DEBUG": "1"})
+    assert resolved.config.profile == "simple"
+
+
+def test_yaml_hostile_env_value_falls_back_to_string() -> None:
+    """Regression: '@data/db.sqlite' used to raise a raw yaml.ScannerError."""
+    resolved = load_config(env={"MEMSPINE_STORAGE__PATH": "@data/db.sqlite"})
+    assert resolved.config.storage.path == "@data/db.sqlite"
+
+
+def test_missing_user_config_file_is_config_error(tmp_path: Path) -> None:
+    """Regression: FileNotFoundError used to escape the ConfigError contract."""
+    with pytest.raises(ConfigError, match="cannot read config file"):
+        load_config(user_config=tmp_path / "nope.yaml")
