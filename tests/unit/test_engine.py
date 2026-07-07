@@ -13,7 +13,12 @@ from memspine.exceptions import MemspineError, RebuildUnavailableError
 
 @pytest.fixture
 async def engine() -> AsyncIterator[Engine]:
-    eng = Engine(template="base", dotenv_path=None, storage={"path": ":memory:"})
+    eng = Engine(
+        template="base",
+        dotenv_path=None,
+        storage={"path": ":memory:"},
+        embedding={"provider": "hash"},
+    )
     await eng.start()
     yield eng
     await eng.stop()
@@ -48,11 +53,19 @@ async def test_describe_reports_effective_world(engine: Engine) -> None:
         "retention_days": 30,
         "rebuildable": True,
     }
-    assert world["projectors"] == ["records"]
+    assert world["projectors"] == ["records", "vectors"]
+    assert world["embedding"] == "hash:64"
+    assert world["vector"] == "SQLiteVectorStore"
+    assert world["runner"] == "inline"
 
 
 async def test_personal_template_auto_enables_dependencies() -> None:
-    eng = Engine(template="personal", dotenv_path=None, storage={"path": ":memory:"})
+    eng = Engine(
+        template="personal",
+        dotenv_path=None,
+        storage={"path": ":memory:"},
+        embedding={"provider": "hash"},
+    )
     await eng.start()
     try:
         world = eng.describe()
@@ -69,6 +82,7 @@ async def test_ephemeral_engine_writes_but_cannot_rebuild() -> None:
         dotenv_path=None,
         storage={"path": ":memory:"},
         event_log={"mode": "ephemeral"},
+        embedding={"provider": "hash"},
     )
     await eng.start()
     try:
@@ -82,6 +96,59 @@ async def test_ephemeral_engine_writes_but_cannot_rebuild() -> None:
         await eng.stop()
 
 
+async def test_search_ranks_semantically_related_first(engine: Engine) -> None:
+    await engine.write("the sky is blue today", namespace="agent/alice")
+    await engine.write("postgres index tuning notes", namespace="agent/alice")
+    scored = await engine.search("blue sky", namespace="agent/alice", top_k=5)
+    assert scored, "search returned nothing"
+    assert scored[0][0].content == "the sky is blue today"
+
+
+async def test_assemble_places_persona_first_and_marks_boundary(engine: Engine) -> None:
+    await engine.set_persona("agent/alice", "I am Alice's assistant")
+    await engine.write("sky is blue", namespace="agent/alice", memory_type="semantic")
+    await engine.write("we met yesterday", namespace="agent/alice", memory_type="episodic")
+
+    context = await engine.assemble("sky", namespace="agent/alice", budget_tokens=1000)
+    assert not context.abstained
+    assert context.records[0].source.channel == "persona"
+    assert context.boundary_index >= 1  # persona (+facts) form the stable prefix
+
+
+async def test_working_memory_pages_out_to_episodic() -> None:
+    eng = Engine(
+        template="base",
+        dotenv_path=None,
+        storage={"path": ":memory:"},
+        embedding={"provider": "hash"},
+        memories={"working": {"enabled": True, "policies": {"page_size": 2}}},
+    )
+    await eng.start()
+    try:
+        for i in range(4):
+            await eng.write(f"turn {i}", namespace="agent/w", memory_type="working")
+        working = await eng.retrieve("agent/w", "working")
+        episodic = await eng.retrieve("agent/w", "episodic")
+        assert len(working) == 2  # hot window bounded (M13.1)
+        assert len(episodic) == 2  # overflow paged out, identity preserved
+        assert {r.content for r in episodic} == {"turn 0", "turn 1"}
+        assert all(r.version == 2 for r in episodic)
+    finally:
+        await eng.stop()
+
+
+async def test_sleep_cycle_and_vector_rebuild(engine: Engine) -> None:
+    await engine.write("fact one", namespace="agent/alice")
+    results = await engine.sleep()
+    assert results["consolidate"]["status"] == "noop"
+    assert results["event_log_prune"]["status"] == "skipped"  # full mode
+
+    counts = await engine.rebuild()
+    assert counts["vectors"] == 1  # vector projection rebuilt by re-embedding
+    scored = await engine.search("fact", namespace="agent/alice")
+    assert scored and scored[0][0].content == "fact one"
+
+
 async def test_verbs_require_start() -> None:
     eng = Engine(template="base", dotenv_path=None)
     with pytest.raises(MemspineError, match="not started"):
@@ -91,7 +158,12 @@ async def test_verbs_require_start() -> None:
 
 
 def test_sync_wrappers_round_trip() -> None:
-    eng = Engine(template="base", dotenv_path=None, storage={"path": ":memory:"})
+    eng = Engine(
+        template="base",
+        dotenv_path=None,
+        storage={"path": ":memory:"},
+        embedding={"provider": "hash"},
+    )
     eng.start_sync()
     try:
         eng.write_sync("hello", namespace="agent/sync")
@@ -102,14 +174,24 @@ def test_sync_wrappers_round_trip() -> None:
 
 async def test_sync_wrapper_refuses_running_loop() -> None:
     """asyncio.run-style wrappers must fail loudly inside a live event loop."""
-    eng = Engine(template="base", dotenv_path=None, storage={"path": ":memory:"})
+    eng = Engine(
+        template="base",
+        dotenv_path=None,
+        storage={"path": ":memory:"},
+        embedding={"provider": "hash"},
+    )
     with pytest.raises(MemspineError, match="running event loop"):
         eng.start_sync()
 
 
 async def test_describe_requires_started_even_after_stop() -> None:
     """Regression: describe() used to report a healthy world after stop()."""
-    eng = Engine(template="base", dotenv_path=None, storage={"path": ":memory:"})
+    eng = Engine(
+        template="base",
+        dotenv_path=None,
+        storage={"path": ":memory:"},
+        embedding={"provider": "hash"},
+    )
     await eng.start()
     assert eng.describe()["profile"] == "simple"
     await eng.stop()
@@ -132,7 +214,11 @@ async def test_strict_services_hard_fails_with_extra_name(monkeypatch: pytest.Mo
     from memspine.exceptions import MissingServiceError
 
     monkeypatch.setitem(registry.REQUIRED_SERVICES, "associative", frozenset({"graph"}))
-    cfg = {"memories": {"associative": {"enabled": True}}, "storage": {"path": ":memory:"}}
+    cfg = {
+        "memories": {"associative": {"enabled": True}},
+        "storage": {"path": ":memory:"},
+        "embedding": {"provider": "hash"},
+    }
 
     strict = Engine(template="base", dotenv_path=None, user_config=cfg)
     with pytest.raises(MissingServiceError, match=r"memspine\[graph\]"):
@@ -154,6 +240,7 @@ async def test_rolling_engine_prunes_on_start(tmp_path: object) -> None:
     cfg = {
         "storage": {"path": db},
         "event_log": {"mode": "rolling", "retention_days": 1},
+        "embedding": {"provider": "hash"},
     }
     eng = Engine(template="base", dotenv_path=None, user_config=cfg)
     await eng.start()

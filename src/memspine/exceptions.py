@@ -9,6 +9,7 @@ from __future__ import annotations
 __all__ = [
     "ConfigError",
     "ConflictError",
+    "LLMError",
     "MemspineError",
     "MissingServiceError",
     "NamespaceError",
@@ -48,6 +49,10 @@ class ConflictError(MemspineError):
 
 class StorageError(MemspineError):
     """Persistence-layer failure in the storage service (D-36)."""
+
+
+class LLMError(MemspineError):
+    """An LLM provider call failed or returned an unusable response (D-07/D-39)."""
 
 
 class RebuildUnavailableError(MemspineError):

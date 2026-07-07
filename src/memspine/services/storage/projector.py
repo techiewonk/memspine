@@ -30,8 +30,12 @@ class RecordProjector(Projector):
     def __init__(self, store: RecordStore) -> None:
         self._store = store
 
+    #: Kinds that carry a full record snapshot to materialize. WRITE creates,
+    #: DECAY_TRANSITION re-tiers (e.g. working->episodic page-out, M13.1).
+    _MATERIALIZING = frozenset({EventKind.WRITE, EventKind.DECAY_TRANSITION})
+
     async def apply(self, event: MemoryEvent) -> None:
-        if event.kind is not EventKind.WRITE:
+        if event.kind not in self._MATERIALIZING:
             return  # other kinds materialize in later phases (M2-M7)
         record = MemoryRecord.model_validate(event.payload["record"])
         await self._store.upsert_record(record)  # upsert => idempotent replay

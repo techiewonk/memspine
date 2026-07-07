@@ -19,7 +19,13 @@ from sqlalchemy import (
     Table,
 )
 
-__all__ = ["memory_events", "memory_records", "metadata", "projector_offsets"]
+__all__ = [
+    "memory_embeddings",
+    "memory_events",
+    "memory_records",
+    "metadata",
+    "projector_offsets",
+]
 
 metadata = MetaData()
 
@@ -84,4 +90,18 @@ memory_records = Table(
     Column("minhash_sig", LargeBinary),
     Index("ix_memory_records_ns_type", "namespace", "memory_type"),
     Index("ix_memory_records_fingerprint", "content_fingerprint"),
+)
+
+# Zero-dep vector fallback (P1): float32 little-endian vectors, brute-force
+# cosine at query time. LanceDB [lance] is the scalable default; this table is
+# a rebuildable projection like every other derived store (D0.1).
+memory_embeddings = Table(
+    "memory_embeddings",
+    metadata,
+    Column("record_id", String, primary_key=True),
+    Column("namespace", String, nullable=False),
+    Column("embedder_id", String, nullable=False),
+    Column("dim", Integer, nullable=False),
+    Column("vector", LargeBinary, nullable=False),
+    Index("ix_memory_embeddings_ns", "namespace"),
 )

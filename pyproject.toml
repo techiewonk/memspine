@@ -27,6 +27,7 @@ dependencies = [
     "aiosqlite>=0.20",         # async SQLite driver for SQLAlchemy (D-44)
     "greenlet>=3.1",           # required by SQLAlchemy async engine (D-44)
     "pyyaml>=6.0",             # config layering / templates / prompt packs (D-11/D-12/D-43)
+    "httpx>=0.27",             # clients/http: OpenAI-compatible local LLM surface (D-39/D-46)
 ]
 
 [project.optional-dependencies]
@@ -121,5 +122,19 @@ strict = true
 files = ["src/memspine"]
 
 [[tool.mypy.overrides]]
-module = ["fastuuid", "datasketch", "datasketch.*", "fastembed", "fastembed.*", "json_repair"]
+module = [
+    "fastuuid",
+    "datasketch",
+    "datasketch.*",
+    "fastembed",
+    "fastembed.*",
+    "json_repair",
+    # optional extras — typed only when installed
+    "lancedb",
+    "lancedb.*",
+    "pyarrow",
+    "pyarrow.*",
+    "llama_cpp",
+    "llama_cpp.*",
+]
 ignore_missing_imports = true

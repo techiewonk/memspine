@@ -17,11 +17,16 @@ from memspine.core.registry import validate_types
 from memspine.exceptions import ConfigError
 
 __all__ = [
+    "EmbeddingConfig",
     "EventLogConfig",
+    "LLMConfig",
+    "LLMRoleConfig",
     "MemoryTypeConfig",
     "MemspineConfig",
     "NamespaceConfig",
+    "ReadConfig",
     "StorageConfig",
+    "VectorConfig",
 ]
 
 
@@ -39,6 +44,60 @@ class StorageConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     path: str = "./memspine.db"
+
+
+class EmbeddingConfig(BaseModel):
+    """Embedder defaults (D-08). ``hash`` is the deterministic zero-network
+    provider for tests/CI; ``fastembed`` (ONNX, CPU) is the production default."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    provider: str = "fastembed"  # fastembed | hash
+    model: str = "BAAI/bge-small-en-v1.5"
+
+
+class VectorConfig(BaseModel):
+    """Vector store selection (D-09). ``auto`` prefers lancedb when installed
+    and falls back to the zero-dep SQLite brute-force store."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    backend: str = "auto"  # auto | lance | sqlite
+
+
+class LLMRoleConfig(BaseModel):
+    """One provider binding per role (D-07/D-22). The default base_url is the
+    Ollama endpoint; any OpenAI-compatible host works unchanged (D-39)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    provider: str = "openai_compat"  # openai_compat | llama_cpp | bedrock
+    base_url: str = "http://localhost:11434/v1"
+    model: str = ""
+    api_key: str | None = None
+    timeout_seconds: float = 60.0
+
+
+class LLMConfig(BaseModel):
+    """Per-role providers: extract / judge / chat (M14). Roles absent here are
+    disabled; the engine only requires them when a feature needs the role."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    roles: dict[str, LLMRoleConfig] = Field(default_factory=dict)
+
+
+class ReadConfig(BaseModel):
+    """ReadPolicy bindings (M12): options for the scoring + assembly policies.
+
+    Values here flow into ``ScoringPolicy.bind`` / ``AssemblyPolicy.bind``;
+    per-namespace overrides ride the D-14 policy-override channel later.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    scoring: dict[str, Any] = Field(default_factory=dict)
+    assembly: dict[str, Any] = Field(default_factory=dict)
 
 
 class MemoryTypeConfig(BaseModel):
@@ -65,6 +124,10 @@ class MemspineConfig(BaseModel):
     strict_services: bool = True
     event_log: EventLogConfig = Field(default_factory=EventLogConfig)
     storage: StorageConfig = Field(default_factory=StorageConfig)
+    embedding: EmbeddingConfig = Field(default_factory=EmbeddingConfig)
+    vector: VectorConfig = Field(default_factory=VectorConfig)
+    llm: LLMConfig = Field(default_factory=LLMConfig)
+    read: ReadConfig = Field(default_factory=ReadConfig)
     memories: dict[str, MemoryTypeConfig] = Field(default_factory=dict)
     namespaces: dict[str, NamespaceConfig] = Field(default_factory=dict)
 

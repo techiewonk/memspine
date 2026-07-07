@@ -4,6 +4,15 @@ All notable changes to memspine are documented here. Format: [Keep a Changelog](
 
 ## [Unreleased]
 
+### Added — Phase 1 "Working memory + retrieval"
+- **Retrieval path:** `Engine.search()` — embed → vector search → M1 composite scoring (recency half-life, relevance, importance, utility modifier); `Engine.assemble()` — MMR selection under a token budget, θ_abstain honesty gate, **E2 cache-aware placement** (persona → skills → facts → [cache boundary] → episodic/working) with `boundary_index` exposed.
+- **Embedding (D-08):** `EmbeddingService` port; fastembed default (lazy, threaded); deterministic `hash` provider for offline tests/CI; **E3 embedding cache** (`CachedEmbedding`, content-hash × embedder-id keys) over a KV port with in-process default.
+- **Vector (D-09):** `VectorStore` port; zero-dep SQLite brute-force fallback (migration 0002); LanceDB adapter behind `[lance]` (auto-selected when installed); `VectorProjector` makes the vector index a rebuildable projection of the event log.
+- **Working memory (M13.1):** MemGPT-style paging — bounded hot window (`policies.page_size`), overflow pages out to episodic via `DECAY_TRANSITION` events through the write door (identity preserved, version bumped); pinned persona block (`set_persona`) that paging never evicts and assembly places first.
+- **LLM (D-07/D-39/D-46):** per-role router (extract/judge/chat); `OpenAICompatLLM` covering Ollama/vLLM/LM Studio/llama.cpp-server over the new core httpx client (ADR-012); guarded `llama_cpp` in-process provider `[llmlocal]`; always-on `lenient_json` repair (D-31).
+- **Workers (D-16/D-17):** pipelines as plain idempotent functions (no runner imports — test-enforced), `TaskRunner` protocol, inline runner with D-18 dead-letter logging, sleep cycle (consolidate → decay → compress → [E7 slot] → event_log_prune) via `Engine.sleep()`; rolling-mode boot prune now runs through the pipeline.
+- Examples: `01_quickstart.py`, `02_working_memory_and_assembly.py` (both offline-runnable).
+
 ### Added — Phase 0 "Substrate"
 - **Event-sourced core (ADR-001):** append-only `memory_events` log behind a single write door; `Projector` ABC with durable high-water marks; `catch_up`/`rebuild` replay.
 - **Configurable event-log retention (D-45, ADR-011):** `event_log.mode = full | rolling | ephemeral` + optional zstd payload compression; rolling prune never passes the slowest projector; reduced modes fail loudly (`RebuildUnavailableError`).
