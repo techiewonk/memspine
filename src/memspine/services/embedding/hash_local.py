@@ -14,6 +14,7 @@ import math
 import xxhash
 
 from memspine.config.constants import HASH_EMBEDDING_DIM
+from memspine.services.embedding.base import EmbedderManifest
 
 __all__ = ["HashEmbedding"]
 
@@ -29,6 +30,11 @@ class HashEmbedding:
     @property
     def dim(self) -> int:
         return self._dim
+
+    @property
+    def manifest(self) -> EmbedderManifest:
+        """E4 seam: hash vectors declare no truncation/quantization tolerance."""
+        return EmbedderManifest(embedder_id=self.embedder_id, dim=self._dim)
 
     async def embed(self, texts: list[str]) -> list[list[float]]:
         return [self._embed_one(text) for text in texts]

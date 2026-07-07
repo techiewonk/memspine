@@ -18,9 +18,10 @@ import threading
 from collections.abc import Coroutine
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Self, TypeVar
+from typing import Any, Self, TypeVar, cast
 
 from memspine.clients.http import HTTPClient
+from memspine.clients.kuzu import KuzuClient
 from memspine.clients.lancedb import LanceDBClient
 from memspine.clients.sqlite import SQLiteClient
 from memspine.config import constants
@@ -50,6 +51,9 @@ from memspine.core.registry import SERVICE_EXTRAS, dependency_closure, missing_s
 from memspine.core.replay import catch_up
 from memspine.core.replay import rebuild as replay_rebuild
 from memspine.exceptions import ConfigError, MemspineError, MissingServiceError, StorageError
+from memspine.memories.associative.evolution import propose_links
+from memspine.memories.associative.projector import GraphProjector
+from memspine.memories.associative.store import AssociativeMemory
 from memspine.memories.episodic.sessions import Session
 from memspine.memories.episodic.store import EpisodicMemory
 from memspine.memories.procedural.prompt_registry import prompt_version_records
@@ -66,6 +70,7 @@ from memspine.memories.working.manager import DEFAULT_PAGE_SIZE, WorkingMemory
 from memspine.memories.working.persona import make_persona_record
 from memspine.observability.logging import (
     EVENT_FORGET,
+    EVENT_LINK,
     EVENT_REBUILD,
     EVENT_RETRIEVE,
     EVENT_WRITE,
@@ -75,6 +80,8 @@ from memspine.prompts.registry import PromptRegistry
 from memspine.services.cache.base import MemoryKV
 from memspine.services.cache.semantic import CachedEmbedding, CachedExtractor
 from memspine.services.embedding.base import EmbeddingService
+from memspine.services.graph.base import GraphStore
+from memspine.services.graph.sqlite_adjacency import SQLiteAdjacencyGraph
 from memspine.services.llm.base import LLMRouter, LLMService
 from memspine.services.llm.local import OpenAICompatLLM
 from memspine.services.secrets.env import EnvSecrets
@@ -140,10 +147,12 @@ class Engine:
         self._client: SQLiteClient | None = None
         self._http: HTTPClient | None = None
         self._lance: LanceDBClient | None = None
+        self._kuzu: KuzuClient | None = None
         self._storage: SQLiteStorage | None = None
         self._projectors: list[Projector] = []
         self._embedder: EmbeddingService | None = None
         self._vector: VectorStore | None = None
+        self._graph: GraphStore | None = None
         self._llm: LLMRouter | None = None
         self._working: WorkingMemory | None = None
         self._semantic: SemanticMemory | None = None
@@ -151,6 +160,7 @@ class Engine:
         self._resource: ResourceMemory | None = None
         self._procedural: ProceduralMemory | None = None
         self._reflective: ReflectiveMemory | None = None
+        self._associative: AssociativeMemory | None = None
         self._prompts: PromptRegistry | None = None
         self._scoring: ScoringPolicy | None = None
         self._assembly: AssemblyPolicy | None = None
@@ -221,6 +231,10 @@ class Engine:
         # P1 services: embedding (E3-cached), vector store, LLM router, policies.
         self._embedder = CachedEmbedding(self._build_embedder(config), MemoryKV())
         self._vector = await self._build_vector_store(config)
+        # P6 graph store (D-26): only when associative memory needs it or the
+        # user asked for it explicitly — profile="simple" never constructs one.
+        if "associative" in self._enabled or "graph" in config.model_fields_set:
+            self._graph = await self._build_graph_store(config)
         self._llm = await self._build_llm_router(config)
         self._scoring = ScoringPolicy.bind(config.read.scoring)
         self._assembly = AssemblyPolicy.bind(config.read.assembly)
@@ -263,11 +277,22 @@ class Engine:
                 self._append_and_project,
                 assess=self._gated_assess,
             )
+        if "associative" in self._enabled:
+            # The graph store was constructed above (the associative gate).
+            assert self._graph is not None
+            self._associative = AssociativeMemory(
+                self._storage, self._graph, self._append_and_project
+            )
         self._summarize = self._build_summarize()
         self._projectors = [
             RecordProjector(self._storage),
             VectorProjector(self._vector, self._embedder),
         ]
+        if self._associative is not None:
+            # Registered only when associative is enabled, so rebuild() replays
+            # it and profile="simple" never projects a graph (D0.1/ADR-015).
+            assert self._graph is not None
+            self._projectors.append(GraphProjector(self._graph))
 
         # Background runner seam (D-16): inline default, dbos durable [dbos].
         self._runner = self._build_runner(config)
@@ -292,7 +317,9 @@ class Engine:
             await self._runner.close()
         if self._storage is not None:
             await self._storage.stop()
-        for client in (self._client, self._http, self._lance):
+        if self._graph is not None:
+            await self._graph.close()  # store-held handles; connections close below
+        for client in (self._client, self._http, self._lance, self._kuzu):
             if client is not None:
                 await client.close()
         self._started = False
@@ -378,6 +405,7 @@ class Engine:
                 action=result.action,
             )
             await self._corroborate(ns, result.record)
+            await self._evolve_links(ns, result.record)
             return result.record
 
         event = MemoryEvent(
@@ -389,6 +417,7 @@ class Engine:
         await self._append_and_project(event)
         _log.info(EVENT_WRITE, namespace=ns, record_id=record.record_id)
         await self._corroborate(ns, record)
+        await self._evolve_links(ns, record)
 
         # Working memory keeps its hot window bounded (M13.1): overflow pages
         # out to episodic via DECAY_TRANSITION events through the same door.
@@ -604,6 +633,7 @@ class Engine:
             self._resource,
             self._procedural,
             self._reflective,
+            self._associative,
         ):
             if memory is not None:
                 await memory.on_forget(ns, record_id)
@@ -1041,6 +1071,88 @@ class Engine:
                 source=source or SourceInfo(role=actor, channel="reflection"),
             )
 
+    # ── associative verbs (P6: M13.6 / D-40 / ADR-015) ───────────────────────
+
+    async def associate(
+        self,
+        src_id: str,
+        dst_id: str,
+        namespace: str = "default",
+        rel: str = "related",
+        weight: float = 1.0,
+    ) -> None:
+        """Link two records (M13.6): a budget-checked LINK event through the
+        door (ADR-015); the graph projection materializes the edge. Both
+        records must live in ``namespace`` — cross-namespace links refused."""
+        self._require_started()
+        if self._associative is None:
+            raise MemspineError(
+                "associative memory not enabled — set memories.associative.enabled: true"
+            )
+        ns = validate_namespace(namespace)
+        # Same one-writer-per-namespace unit as write(): the budget read and
+        # the LINK append must not interleave with a concurrent linker.
+        async with self._write_locks.setdefault(ns, asyncio.Lock()):
+            await self._associative.link(ns, src_id, dst_id, rel=rel, weight=weight)
+
+    async def related(
+        self, record_id: str, namespace: str = "default", k: int = 10
+    ) -> list[MemoryRecord]:
+        """Records associated with ``record_id`` via personalized PageRank over
+        the link graph (D-40). Same E1 gate as ``search``: only ACTIVATED,
+        never quarantined, never cross-namespace."""
+        self._require_started()
+        if self._associative is None:
+            raise MemspineError(
+                "associative memory not enabled — set memories.associative.enabled: true"
+            )
+        ns = validate_namespace(namespace)
+        return self._inflate_all(await self._associative.related(ns, record_id, k=k), ns)
+
+    async def _evolve_links(self, ns: str, record: MemoryRecord) -> None:
+        """Bounded A-MEM hook (D-42/ADR-015): after a non-quarantined semantic/
+        episodic write, propose links to the vector neighbourhood. Best-effort:
+        a failure is logged loudly (never raised) — an auto-link must not fail
+        the write it decorates."""
+        if (
+            self._associative is None
+            or record.quarantined
+            or record.memory_type not in ("semantic", "episodic")
+        ):
+            return
+        assert self._graph is not None and self._storage is not None
+        if self._embedder is None or self._vector is None:
+            return
+        try:
+            [vector] = await self._embedder.embed([record.content])
+            hits = await self._vector.query(
+                ns, vector, embedder_id=self._embedder.embedder_id, top_k=constants.SEARCH_TOP_K
+            )
+            created = await propose_links(
+                namespace=ns,
+                record=record,
+                hits=hits,
+                storage=self._storage,
+                graph=self._graph,
+                append_event=self._append_and_project,
+            )
+            if created:
+                _log.info(
+                    EVENT_LINK,
+                    namespace=ns,
+                    record_id=record.record_id,
+                    links=created,
+                    reason="evolution",
+                )
+        except Exception as exc:
+            _log.warning(
+                "associative.evolution_failed",
+                namespace=ns,
+                record_id=record.record_id,
+                error=str(exc),
+                exc_info=True,
+            )
+
     async def sync_prompt_versions(self, namespace: str = "default") -> list[MemoryRecord]:
         """D-43 §4: record each resolved prompt version as a procedural record
         (reference only — the definition lives in prompts/). Idempotent."""
@@ -1146,6 +1258,7 @@ class Engine:
             "storage": {"backend": "sqlite", "path": config.storage.path},
             "embedding": self._embedder.embedder_id if self._embedder else None,
             "vector": type(self._vector).__name__ if self._vector else None,
+            "graph": type(self._graph).__name__ if self._graph else None,
             "llm_roles": self._llm.roles if self._llm else [],
             "prompts": (
                 {p.id: p.prompt_version for p in self._prompts.list()} if self._prompts else {}
@@ -1156,6 +1269,7 @@ class Engine:
             "resource_ingest": self._resource is not None,
             "procedural": self._procedural is not None,
             "reflective": self._reflective is not None,
+            "associative": self._associative is not None,
             "consolidation_summarizer": "llm" if self._summarize is not None else "extractive",
             "projectors": [projector.name for projector in self._projectors],
             "runner": config.workers.runner,
@@ -1237,6 +1351,9 @@ class Engine:
             config=self._resolved.config,
             append_event=self._append_and_project,
             summarize=self._summarize,
+            # Only when associative projects it (ADR-015): an explicit-config
+            # graph store without the projector would reorganize a stale graph.
+            graph=self._graph if self._associative is not None else None,
         )
 
     def _build_runner(self, config: MemspineConfig) -> TaskRunner:
@@ -1337,6 +1454,40 @@ class Engine:
         raise ConfigError(
             f"unknown vector.backend {config.vector.backend!r} (valid: auto, lance, sqlite)"
         )
+
+    async def _build_graph_store(self, config: MemspineConfig) -> GraphStore:
+        """Graph provider selection (D-26). ``sqlite_adjacency`` (default) rides
+        the existing SQLite client; ``kuzu`` opens its own embedded database via
+        a dedicated client (D-24) — in-memory when the event log is in-memory,
+        so the projection can never outlive its log (D0.1)."""
+        provider = config.graph.provider
+        if provider == "sqlite_adjacency":
+            assert self._client is not None
+            return SQLiteAdjacencyGraph(self._client)
+        if provider == "kuzu":
+            from memspine.services.graph.kuzu import KuzuGraphStore
+
+            path = ":memory:" if self._client_is_memory(config) else f"{config.storage.path}.kuzu"
+            self._kuzu = KuzuClient(path)
+            await self._kuzu.connect()
+            return KuzuGraphStore(self._kuzu)
+        if provider == "ladybug":
+            from memspine.services.graph.ladybug import LadybugGraphStore
+
+            # Stub: the constructor always raises the D-10 error naming
+            # [graph]; the cast documents that no value ever escapes here.
+            return cast("GraphStore", LadybugGraphStore())
+        if provider == "neo4j":
+            from memspine.services.graph.neo4j import Neo4jGraphStore
+
+            return cast("GraphStore", Neo4jGraphStore())  # stub — always raises
+        raise ConfigError(
+            f"unknown graph.provider {provider!r} (valid: sqlite_adjacency, kuzu, ladybug, neo4j)"
+        )
+
+    @staticmethod
+    def _client_is_memory(config: MemspineConfig) -> bool:
+        return config.storage.path == ":memory:"
 
     async def _build_llm_router(self, config: MemspineConfig) -> LLMRouter:
         providers: dict[str, LLMService] = {}

@@ -132,6 +132,8 @@ module = [
     # optional extras — typed only when installed
     "lancedb",
     "lancedb.*",
+    "kuzu",
+    "kuzu.*",
     "pyarrow",
     "pyarrow.*",
     "llama_cpp",
@@ -142,5 +144,9 @@ module = [
     "markitdown.*",
     "chonkie",
     "chonkie.*",
+    "graspologic",
+    "graspologic.*",
+    "networkx",
+    "networkx.*",
 ]
 ignore_missing_imports = true

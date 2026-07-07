@@ -14,6 +14,7 @@ def test_m11_vocabulary_matches_event_kinds() -> None:
         obs_logging.EVENT_DECAY_TRANSITION,
         obs_logging.EVENT_CONFLICT,
         obs_logging.EVENT_MERGE,
+        obs_logging.EVENT_LINK,
         obs_logging.EVENT_FORGET,
         obs_logging.EVENT_REBUILD,
     }

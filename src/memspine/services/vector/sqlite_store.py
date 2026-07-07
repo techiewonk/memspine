@@ -80,6 +80,13 @@ class SQLiteVectorStore:
         hits.sort(key=lambda hit: hit.score, reverse=True)
         return hits[:top_k]
 
+    async def search_rescore(
+        self, namespace: str, vector: list[float], embedder_id: str, top_k: int = 8
+    ) -> list[VectorHit]:
+        """E4 fallback: this store holds float32 only, so the two-stage search
+        degenerates to plain query (documented seam, plan Phase 6)."""
+        return await self.query(namespace, vector, embedder_id, top_k)
+
     async def delete(self, record_id: str) -> None:
         async with self._client.engine.begin() as conn:
             await conn.execute(

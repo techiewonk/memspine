@@ -17,6 +17,20 @@ LSH_THRESHOLD = 0.6
 # Associative memory (M13.6): max outgoing links per node (bounded A-MEM).
 LINK_BUDGET = 12
 
+# Associative recall (plan §5 Phase 6 / E4 pairing, D-40): personalized-
+# PageRank walk bounds — pure-Python power iteration, hard-capped.
+PPR_DAMPING = 0.85
+PPR_ITERATIONS = 20
+
+# Bounded A-MEM evolution (D-42/ADR-015): auto-proposed links require at
+# least this vector similarity, and one write proposes at most this many.
+EVOLUTION_LINK_MIN_SIMILARITY = 0.6
+EVOLUTION_MAX_LINKS_PER_WRITE = 4
+
+# Background reorganizer (D-40/D-42): communities below this size are not
+# worth a summary-parent record (mirrors CONSOLIDATION_MIN_SESSION_RECORDS).
+REORGANIZE_MIN_COMMUNITY_SIZE = 3
+
 # Reflective memory (M13.7): maximum reflection-on-reflection depth.
 REFLECTION_DEPTH_CAP = 2
 

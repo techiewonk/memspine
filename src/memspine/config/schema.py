@@ -19,6 +19,7 @@ from memspine.exceptions import ConfigError
 __all__ = [
     "EmbeddingConfig",
     "EventLogConfig",
+    "GraphConfig",
     "LLMConfig",
     "LLMRoleConfig",
     "MemoryTypeConfig",
@@ -64,6 +65,18 @@ class VectorConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     backend: str = "auto"  # auto | lance | sqlite
+
+
+class GraphConfig(BaseModel):
+    """Graph store selection (D-26). ``sqlite_adjacency`` is the zero-dep v0.1
+    default (ladybugdb is not on PyPI yet — its ``[graph]`` extra is empty);
+    ``kuzu`` is the first-class embedded-Cypher alternative behind ``[kuzu]``.
+    The store is only constructed when associative memory is enabled or this
+    block is set explicitly — ``profile="simple"`` never touches it."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    provider: str = "sqlite_adjacency"  # sqlite_adjacency | kuzu | ladybug | neo4j
 
 
 class LLMRoleConfig(BaseModel):
@@ -146,6 +159,7 @@ class MemspineConfig(BaseModel):
     storage: StorageConfig = Field(default_factory=StorageConfig)
     embedding: EmbeddingConfig = Field(default_factory=EmbeddingConfig)
     vector: VectorConfig = Field(default_factory=VectorConfig)
+    graph: GraphConfig = Field(default_factory=GraphConfig)
     llm: LLMConfig = Field(default_factory=LLMConfig)
     read: ReadConfig = Field(default_factory=ReadConfig)
     workers: WorkersConfig = Field(default_factory=WorkersConfig)

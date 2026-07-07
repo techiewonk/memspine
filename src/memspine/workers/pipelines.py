@@ -16,16 +16,24 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Protocol
 
+from memspine.config import constants
 from memspine.config.schema import MemspineConfig
-from memspine.core.events import EventKind, EventLogMode, MemoryEvent
+from memspine.core.events import EventKind, EventLogMode, MemoryEvent, fingerprint_payload
 from memspine.core.firewall import instruction_shaped
 from memspine.core.policies.compression import CompressionPolicy
-from memspine.core.policies.consolidation import ConsolidationPolicy, ConsolidationTrigger
+from memspine.core.policies.consolidation import (
+    ConsolidationPolicy,
+    ConsolidationTrigger,
+    extractive_summary,
+)
 from memspine.core.policies.decay import DecayPolicy
 from memspine.core.policies.retention import RetentionPolicy
 from memspine.core.records import MemoryRecord, RecordStatus, SourceInfo
+from memspine.memories.associative.communities import communities_available, detect_communities
+from memspine.memories.associative.links import link_event
 from memspine.memories.episodic.sessions import Session, detect_sessions
 from memspine.observability.logging import get_logger
+from memspine.services.graph.base import GraphStore
 
 __all__ = [
     "PIPELINES",
@@ -36,6 +44,7 @@ __all__ = [
     "consolidate",
     "decay_sweep",
     "event_log_prune",
+    "reorganize",
     "sleep_compute",
 ]
 
@@ -59,6 +68,8 @@ class PipelineStorage(Protocol):
         self, namespace: str, memory_type: str | None = None
     ) -> list[MemoryRecord]: ...
 
+    async def get_record(self, record_id: str) -> MemoryRecord | None: ...
+
 
 AppendEvent = Callable[[MemoryEvent], Awaitable[None]]
 Summarize = Callable[[str], Awaitable[str]]
@@ -74,6 +85,9 @@ class PipelineContext:
     #: Optional LLM summarizer (summarize role, D-43). None => deterministic
     #: extractive fallback (N6) — consolidation never *requires* an LLM.
     summarize: Summarize | None = None
+    #: The association graph projection (D-26/P6). None => associative memory
+    #: is disabled and the reorganizer reports "skipped".
+    graph: GraphStore | None = None
 
 
 Pipeline = Callable[[PipelineContext], Awaitable[dict[str, object]]]
@@ -415,10 +429,180 @@ async def sleep_compute(ctx: PipelineContext) -> dict[str, object]:
     return {"status": "noop", "hook": "E7"}
 
 
+async def reorganize(ctx: PipelineContext) -> dict[str, object]:
+    """D-40/D-42 background graph reorganizer: Leiden communities over the
+    association graph → one consolidation-style summary parent per community
+    of >= REORGANIZE_MIN_COMMUNITY_SIZE members, members linked to the parent
+    via LINK events (ADR-015).
+
+    No-op ("skipped") without a graph store (associative disabled) or without
+    the ``[community]`` extra (D-40). Idempotent: the parent's provenance key
+    fingerprints the full membership, so an unchanged community is skipped and
+    a drifted one supersedes its stale parent (same pattern as consolidate).
+    Parents mirror consolidation summaries: derived trust = min(member trust)
+    (D-47 §5), instruction framing stays flagged, quarantined/non-active
+    members never contribute.
+    """
+    if ctx.append_event is None:
+        return {"status": "skipped", "reason": "read-only context (no write door)"}
+    if ctx.graph is None:
+        return {"status": "skipped", "reason": "no graph store (associative memory disabled)"}
+    if not communities_available():
+        return {
+            "status": "skipped",
+            "reason": "graspologic not installed — `pip install memspine[community]` (D-40)",
+        }
+    inflate = CompressionPolicy.bind()
+    communities = detect_communities(
+        await ctx.graph.edge_list(), min_size=constants.REORGANIZE_MIN_COMMUNITY_SIZE
+    )
+    parents = 0
+    superseded = 0
+    errors: list[str] = []
+    fresh_keys: dict[str, set[str]] = {}  # namespace -> live community keys
+    for community in communities:
+        try:
+            created, key, namespace = await _reorganize_community(ctx, inflate, community)
+        except Exception as exc:  # one bad community must not kill the sweep
+            errors.append(f"{community[0]}…: {exc}")
+            _log.warning(
+                "reorganize.community_failed",
+                members=len(community),
+                error=str(exc),
+                exc_info=True,
+            )
+            continue
+        if key is not None and namespace is not None:
+            fresh_keys.setdefault(namespace, set()).add(key)
+            parents += created
+    # Membership drift: a stale parent whose community dissolved or changed
+    # membership is archived — never a silent second active summary (D-42).
+    for namespace in await ctx.storage.list_namespaces():
+        for old in await _reorganize_summaries(ctx, namespace):
+            if old.source.message_id in fresh_keys.get(namespace, set()):
+                continue
+            await ctx.append_event(
+                MemoryEvent(
+                    kind=EventKind.DECAY_TRANSITION,
+                    namespace=namespace,
+                    actor="system",
+                    payload={
+                        "record_id": old.record_id,
+                        "set": {
+                            "status": RecordStatus.ARCHIVED.value,
+                            "superseded_at": datetime.now(UTC).isoformat(),
+                        },
+                        "transition": "community_parent->superseded",
+                        "reason": "reorganized",
+                    },
+                )
+            )
+            superseded += 1
+    stats: dict[str, object] = {
+        "status": "ok",
+        "communities": len(communities),
+        "parents": parents,
+        "superseded": superseded,
+    }
+    if errors:
+        stats.update(status="partial", errors=errors)
+    return stats
+
+
+async def _reorganize_summaries(ctx: PipelineContext, namespace: str) -> list[MemoryRecord]:
+    """Active summary parents this pipeline previously wrote in ``namespace``."""
+    return [
+        record
+        for record in await ctx.storage.list_records(namespace, "semantic")
+        if record.source.channel == "reorganize" and record.status is RecordStatus.ACTIVATED
+    ]
+
+
+async def _reorganize_community(
+    ctx: PipelineContext, inflate: CompressionPolicy, community: list[str]
+) -> tuple[int, str | None, str | None]:
+    """Write one summary parent for ``community``. Returns
+    ``(parents_created, community_key, namespace)`` — key/namespace are None
+    when the community does not qualify."""
+    assert ctx.append_event is not None
+    members: list[MemoryRecord] = []
+    for record_id in community:
+        record = await ctx.storage.get_record(record_id)
+        # Only live namespace truth feeds a summary (E1): quarantined or
+        # non-active members are held/derived content, not community evidence.
+        if (
+            record is not None
+            and record.status is RecordStatus.ACTIVATED
+            and not record.quarantined
+        ):
+            members.append(inflate.inflate(record))
+    if len(members) < constants.REORGANIZE_MIN_COMMUNITY_SIZE:
+        return 0, None, None
+    namespaces = {member.namespace for member in members}
+    if len(namespaces) > 1:
+        # Links never cross namespaces (ADR-015), so a mixed community means
+        # corrupted state — refuse loudly rather than pick a tenant.
+        raise ValueError(f"community spans namespaces {sorted(namespaces)} — refusing to summarize")
+    namespace = members[0].namespace
+    member_ids = sorted(member.record_id for member in members)
+    key = fingerprint_payload({"community": member_ids})
+    if any(old.source.message_id == key for old in await _reorganize_summaries(ctx, namespace)):
+        return 0, key, namespace  # unchanged membership (idempotence)
+    ordered = sorted(members, key=lambda member: (member.valid_from, member.record_id))
+    summary_text = extractive_summary(
+        [member.content for member in ordered], constants.CONSOLIDATION_SUMMARY_MAX_CHARS
+    )
+    if ctx.summarize is not None:
+        try:
+            summary_text = await ctx.summarize("\n".join(member.content for member in ordered))
+        except Exception as exc:  # LLM is an enhancer, never a gate (N6)
+            _log.warning("reorganize.summarize_fallback", namespace=namespace, error=str(exc))
+    summary = MemoryRecord(
+        namespace=namespace,
+        memory_type="semantic",
+        content=summary_text,
+        source=SourceInfo(role="system", channel="reorganize", message_id=key),
+        # E1/D-47 §5: derived content is never more trusted than its
+        # least-trusted member, and echoed injection framing stays flagged.
+        trust=min(member.trust for member in members),
+        instruction_flag=instruction_shaped(summary_text),
+    )
+    # The WRITE carries consolidation-shaped provenance, so audit taint and
+    # the graph projector's derived_from edges ride existing machinery.
+    await ctx.append_event(
+        MemoryEvent(
+            kind=EventKind.WRITE,
+            namespace=namespace,
+            actor="system",
+            payload={
+                "record": summary.model_dump(mode="json"),
+                "consolidation": {"session_key": key, "member_record_ids": member_ids},
+            },
+        )
+    )
+    # Member -> parent LINK events (ADR-015). System-written membership links
+    # are budget-exempt by design: budget enforcement lives at the memory-layer
+    # creation surface, and a 20-member community keeps all 20 links.
+    for member_id in member_ids:
+        await ctx.append_event(
+            link_event(
+                namespace,
+                member_id,
+                summary.record_id,
+                "community",
+                weight=1.0,
+                reason="reorganize",
+                actor="system",
+            )
+        )
+    return 1, key, namespace
+
+
 #: Name -> pipeline. Runners register from this table; the M11-adjacent names
 #: are stable identifiers used in schedules and dead-letter reporting.
 PIPELINES: dict[str, Pipeline] = {
     "consolidate": consolidate,
+    "reorganize": reorganize,
     "decay_sweep": decay_sweep,
     "compress": compress,
     "sleep_compute": sleep_compute,

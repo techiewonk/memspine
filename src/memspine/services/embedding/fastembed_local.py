@@ -9,6 +9,8 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
+from memspine.services.embedding.base import EmbedderManifest
+
 __all__ = ["FastembedEmbedding"]
 
 _KNOWN_DIMS = {
@@ -32,6 +34,12 @@ class FastembedEmbedding:
     @property
     def dim(self) -> int:
         return self._dim
+
+    @property
+    def manifest(self) -> EmbedderManifest:
+        """E4 seam: no capability declared until per-model metadata lands —
+        an unclaimed capability is safer than a guessed one (D-10 spirit)."""
+        return EmbedderManifest(embedder_id=self.embedder_id, dim=self._dim)
 
     async def _ensure_model(self) -> Any:
         if self._model is None:

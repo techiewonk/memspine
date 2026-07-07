@@ -54,6 +54,11 @@ class EventKind(StrEnum):
     DECAY_TRANSITION = "memory.decay_transition"
     CONFLICT = "memory.conflict"
     MERGE = "memory.merge"
+    #: Associative link between two records (M13.6/ADR-015). Payload:
+    #: ``{"src", "dst", "rel", "weight", "reason"}`` — new relational
+    #: information rides the log like any other write; the graph store is
+    #: only ever a projection of these events.
+    LINK = "memory.link"
     FORGET = "memory.forget"
     REBUILD = "memory.rebuild"
 

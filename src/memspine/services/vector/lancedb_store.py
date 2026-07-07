@@ -91,6 +91,13 @@ class LanceDBVectorStore:
             for row in rows
         ]
 
+    async def search_rescore(
+        self, namespace: str, vector: list[float], embedder_id: str, top_k: int = 8
+    ) -> list[VectorHit]:
+        """E4 fallback: quantized prefilter lands when the embedder manifest
+        declares ``quantization``/``matryoshka_dims`` — plain query until then."""
+        return await self.query(namespace, vector, embedder_id, top_k)
+
     async def delete(self, record_id: str) -> None:
         table = await self._ensure_table()
         await asyncio.to_thread(table.delete, f"record_id = '{record_id}'")

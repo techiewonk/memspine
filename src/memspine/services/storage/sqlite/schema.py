@@ -20,6 +20,8 @@ from sqlalchemy import (
 )
 
 __all__ = [
+    "graph_edges",
+    "graph_nodes",
     "memory_embeddings",
     "memory_events",
     "memory_records",
@@ -102,6 +104,30 @@ memory_records = Table(
     Index("ix_memory_records_fingerprint", "content_fingerprint"),
     Index("ix_memory_records_fact_key", "namespace", "entity", "attribute"),
     Index("ix_memory_records_tier", "tier"),
+)
+
+# Zero-dep graph fallback (P6, D-26): adjacency lists for associative memory,
+# the v0.1 default (ladybugdb is not on PyPI yet). Labels/properties are
+# canonical orjson blobs (D-38). A rebuildable projection like every other
+# derived store (D0.1) — never a second source of truth.
+graph_nodes = Table(
+    "graph_nodes",
+    metadata,
+    Column("node_id", String, primary_key=True),
+    Column("labels", LargeBinary, nullable=False),
+    Column("properties", LargeBinary, nullable=False),
+)
+
+graph_edges = Table(
+    "graph_edges",
+    metadata,
+    Column("src", String, primary_key=True),
+    Column("dst", String, primary_key=True),
+    Column("rel_type", String, primary_key=True),
+    Column("properties", LargeBinary, nullable=False),
+    # src lookups ride the composite PK; dst lookups need their own index for
+    # the undirected traversal neighbors()/edges_of() perform.
+    Index("ix_graph_edges_dst", "dst"),
 )
 
 # Zero-dep vector fallback (P1): float32 little-endian vectors, brute-force

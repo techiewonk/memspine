@@ -16,7 +16,7 @@ import xxhash
 
 from memspine.prompts.models import ExtractedFact
 from memspine.services.cache.base import KVCache
-from memspine.services.embedding.base import EmbeddingService
+from memspine.services.embedding.base import EmbedderManifest, EmbeddingService
 
 __all__ = ["CachedEmbedding", "CachedExtractor"]
 
@@ -46,6 +46,10 @@ class CachedEmbedding:
     @property
     def dim(self) -> int:
         return self._inner.dim
+
+    @property
+    def manifest(self) -> EmbedderManifest:
+        return self._inner.manifest  # caching changes nothing the E4 seam reads
 
     def _key(self, text: str) -> str:
         return f"emb:{self._inner.embedder_id}:{xxhash.xxh64_hexdigest(text.encode())}"

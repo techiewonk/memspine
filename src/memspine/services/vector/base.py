@@ -32,6 +32,15 @@ class VectorStore(Protocol):
         be excluded, never silently compared across dimensions."""
         ...
 
+    async def search_rescore(
+        self, namespace: str, vector: list[float], embedder_id: str, top_k: int = 8
+    ) -> list[VectorHit]:
+        """E4 two-stage seam (plan Phase 6): quantized/truncated prefilter →
+        full-precision rescore. v0.1 adapters implement this as a fallback to
+        plain ``query`` — the real prefilter is adapter work gated on an
+        embedder manifest that declares ``quantization``/``matryoshka_dims``."""
+        ...
+
     async def delete(self, record_id: str) -> None: ...
 
     async def delete_all(self) -> None:

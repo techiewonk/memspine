@@ -1,28 +1,37 @@
 # 📊 memspine — Status
 
-> Auto-refreshed every 30 min · **last refresh: 2026-07-07 19:14 IST** · working tree clean.
+> Auto-refreshed every 30 min · **last refresh: 2026-07-07 20:03 IST** · working tree: 25 uncommitted change(s).
 
 | | |
 |---|---|
-| **Phase** | ✅ P0–P5 complete · 🔨 **P6 (associative graph) next** |
-| **Tests** | **293** passing · `ruff` + `mypy --strict` clean |
-| **ADRs** | 14 (ADR-001…ADR-013) |
+| **Phase** | ✅ P0–P5 complete · 🔨 **P6 (Associative graph) next** |
+| **Tests** | **311** passing |
+| **ADRs** | 15 |
 | **Version** | `0.0.1` — pre-alpha |
-| **Latest commit** | `4c0bb6e` — P5 review fixes (2026-07-07 19:13) |
+| **Latest commit** | `12b2eb8` — docs: ADR-014 P5 lifecycle amendments (D-48) - staged-plan RESOLVING hold, prompt active (2026-07-07) |
+
+### 🏗️ Architecture — four-layer engine, event-sourced core
+- **core** — audit · erasure · events · firewall · namespace · projector · records · registry · replay
+- **memories (7/9)** — working · episodic · semantic · procedural · reflective · resource · associative · _(prospective + shared → P7)_
+- **services** — cache · embedding · graph · llm · secrets · storage · vector _(graph is a P6 scaffold until the adapter lands)_
+- **workers** — dbos_runner · inline · pipelines · runner · schedule
+- **prompts** — registry · loader · YAML default pack
+- **config** — loader · schema · 6 templates
+- **protocols** — _REST → P7 (not started)_
 
 ### ✅ Done
-P0 Substrate · P1 Working memory + retrieval · P2 Semantic · P3 Episodic + lifecycle · P4 Memory Firewall · P5 Procedural + reflective — each with a multi-agent review pass.
+P0 Substrate · P1 Working memory + retrieval · P2 Semantic · P3 Episodic + lifecycle · P4 Memory Firewall · P5 Procedural + reflective
 
 ### 🔜 Next
-**P6** associative graph (LadybugDB/kuzu, communities) → **P7** prospective + shared + REST.
+**P6** Associative graph → **P7** Prospective + shared + REST.
 
 ### 🕑 Recent commits
 ```
-4c0bb6e P5 review fixes: 6-agent pass (corroboration ladder, reflection firewall, isolation…)
-3af6d57 P5: procedural + reflective memories — skill ladder, plan cache, reflections
-d6efaea P4 re-review fixes: 4-agent pass + ADR-013 + D-47
-a10b0d2 P4: Memory Firewall (E1/M17) — trust matrix, quarantine, audit taint, forget --verify
-7086feb P4 review fixes: security + silent-failure + red-team pass
+12b2eb8 docs: ADR-014 P5 lifecycle amendments (D-48) - staged-plan RESOLVING hold, prompt active…
+4c0bb6e P5 review fixes: 6-agent pass (python, code, type-design, test-coverage, silent-failure…)
+d6efaea P4 re-review fixes: 4-agent pass (code-reviewer, type-design, test-coverage, blueprint)…
+3af6d57 P5: procedural + reflective memories - M13.4 skill ladder, plan cache, reflections
+7086feb P4 review fixes: security-reviewer + silent-failure-hunter + python-reviewer + red-team…
 ```
 
-<sub>Generated from `git log` + test scan. Do not hand-edit — the scheduled task overwrites this file.</sub>
+<sub>Generated from `git log` + `src/` scan. Do not hand-edit — the scheduled task overwrites this file.</sub>
