@@ -6,6 +6,8 @@ from __future__ import annotations
 import time
 from typing import Protocol, runtime_checkable
 
+from memspine.config.constants import MEMORY_KV_MAX_ENTRIES
+
 __all__ = ["KVCache", "MemoryKV"]
 
 
@@ -21,7 +23,7 @@ class KVCache(Protocol):
 class MemoryKV:
     """In-process dict KV with lazy TTL expiry — the core-install default."""
 
-    def __init__(self, max_entries: int = 65536) -> None:
+    def __init__(self, max_entries: int = MEMORY_KV_MAX_ENTRIES) -> None:
         self._data: dict[str, tuple[bytes, float | None]] = {}
         self._max_entries = max_entries
 

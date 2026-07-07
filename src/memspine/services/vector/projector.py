@@ -23,13 +23,16 @@ class VectorProjector(Projector):
         self._embedder = embedder
 
     async def apply(self, event: MemoryEvent) -> None:
-        if event.kind is not EventKind.WRITE:
-            return
-        record = MemoryRecord.model_validate(event.payload["record"])
-        [vector] = await self._embedder.embed([record.content])
-        await self._store.upsert(
-            record.record_id, record.namespace, self._embedder.embedder_id, vector
-        )
+        if event.kind is EventKind.WRITE:
+            record = MemoryRecord.model_validate(event.payload["record"])
+            [vector] = await self._embedder.embed([record.content])
+            await self._store.upsert(
+                record.record_id, record.namespace, self._embedder.embedder_id, vector
+            )
+        elif event.kind is EventKind.FORGET:
+            # A forgotten memory must stop being retrievable (delete is
+            # idempotent, so replay is safe).
+            await self._store.delete(str(event.payload["record_id"]))
 
     async def reset(self) -> None:
         await self._store.delete_all()

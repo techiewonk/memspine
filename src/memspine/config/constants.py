@@ -55,3 +55,17 @@ ZSTD_LEVEL = 3
 
 # Replay (D0.1): events per catch-up batch — bounds catch-up memory footprint.
 REPLAY_BATCH_SIZE = 1000
+
+# Working memory (M13.1): default hot-window size when a profile sets none.
+WORKING_PAGE_SIZE = 16
+
+# Retrieval defaults (M12): candidates fetched and context token budget.
+SEARCH_TOP_K = 8
+ASSEMBLE_TOP_K = 16
+ASSEMBLE_BUDGET_TOKENS = 2048
+
+# In-process KV cache (E3): entry cap for the zero-dep default backend.
+MEMORY_KV_MAX_ENTRIES = 65536
+
+# Hash test embedder: vector width (tests/CI only, never production).
+HASH_EMBEDDING_DIM = 64

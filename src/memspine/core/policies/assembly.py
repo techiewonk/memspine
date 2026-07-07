@@ -37,13 +37,6 @@ def _estimate_tokens(text: str) -> int:
     return len(text) // 4 + 1
 
 
-def _token_jaccard(a: str, b: str) -> float:
-    ta, tb = set(a.lower().split()), set(b.lower().split())
-    if not ta or not tb:
-        return 0.0
-    return len(ta & tb) / len(ta | tb)
-
-
 def _rank(record: MemoryRecord) -> int:
     if record.source.channel == "persona":
         return _PLACEMENT_RANK["persona"]
@@ -87,7 +80,16 @@ class AssemblyPolicy(BindablePolicy):
         if not scored or max(score for _, score in scored) < options.theta_abstain:
             return AssembledContext(abstained=True)
 
-        # Greedy MMR selection under the token budget.
+        # Greedy MMR selection under the token budget. Token sets are computed
+        # once per record — jaccard over pre-split sets, not raw strings.
+        token_sets = {id(record): set(record.content.lower().split()) for record, _ in scored}
+
+        def _jaccard(a: MemoryRecord, b: MemoryRecord) -> float:
+            ta, tb = token_sets[id(a)], token_sets[id(b)]
+            if not ta or not tb:
+                return 0.0
+            return len(ta & tb) / len(ta | tb)
+
         remaining = sorted(scored, key=lambda pair: pair[1], reverse=True)
         selected: list[tuple[MemoryRecord, float]] = []
         tokens_used = 0
@@ -96,7 +98,7 @@ class AssemblyPolicy(BindablePolicy):
             best_value = float("-inf")
             for index, (candidate, score) in enumerate(remaining):
                 redundancy = max(
-                    (_token_jaccard(candidate.content, chosen.content) for chosen, _ in selected),
+                    (_jaccard(candidate, chosen) for chosen, _ in selected),
                     default=0.0,
                 )
                 value = options.mmr_lambda * score - (1.0 - options.mmr_lambda) * redundancy
@@ -114,10 +116,14 @@ class AssemblyPolicy(BindablePolicy):
                 break
 
         # E2 placement: stability rank first; within a rank, score descending.
+        # The stable-prefix promise only holds when placement actually sorted —
+        # with placement off, boundary_index is 0 (no cacheable prefix claimed).
         if options.cache_aware_placement:
             selected.sort(key=lambda pair: (_rank(pair[0]), -pair[1]))
+            boundary = sum(1 for record, _ in selected if _rank(record) in _STABLE_RANKS)
+        else:
+            boundary = 0
         records = [record for record, _ in selected]
-        boundary = sum(1 for record in records if _rank(record) in _STABLE_RANKS)
         return AssembledContext(
             records=records,
             boundary_index=boundary,

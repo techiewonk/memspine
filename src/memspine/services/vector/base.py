@@ -25,8 +25,12 @@ class VectorStore(Protocol):
     ) -> None: ...
 
     async def query(
-        self, namespace: str, vector: list[float], top_k: int = 8
-    ) -> list[VectorHit]: ...
+        self, namespace: str, vector: list[float], embedder_id: str, top_k: int = 8
+    ) -> list[VectorHit]:
+        """Rank by cosine within a namespace. ``embedder_id`` scopes the search:
+        rows written by a different embedder (model swap without rebuild) must
+        be excluded, never silently compared across dimensions."""
+        ...
 
     async def delete(self, record_id: str) -> None: ...
 

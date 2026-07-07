@@ -56,17 +56,24 @@ class SQLiteVectorStore:
         async with self._client.engine.begin() as conn:
             await conn.execute(stmt)
 
-    async def query(self, namespace: str, vector: list[float], top_k: int = 8) -> list[VectorHit]:
+    async def query(
+        self, namespace: str, vector: list[float], embedder_id: str, top_k: int = 8
+    ) -> list[VectorHit]:
         query_vec = _normalize(vector)
+        # embedder_id + dim filters: rows from a different embedder (model swap
+        # without rebuild) are excluded — comparing across dimensions would
+        # silently truncate and rank garbage.
         stmt = select(memory_embeddings.c.record_id, memory_embeddings.c.vector).where(
-            memory_embeddings.c.namespace == namespace
+            memory_embeddings.c.namespace == namespace,
+            memory_embeddings.c.embedder_id == embedder_id,
+            memory_embeddings.c.dim == len(query_vec),
         )
         async with self._client.engine.connect() as conn:
             rows = (await conn.execute(stmt)).all()
         hits = [
             VectorHit(
                 record_id=row[0],
-                score=sum(a * b for a, b in zip(query_vec, _unpack(row[1]), strict=False)),
+                score=sum(a * b for a, b in zip(query_vec, _unpack(row[1]), strict=True)),
             )
             for row in rows
         ]

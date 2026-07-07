@@ -10,17 +10,19 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from typing import ClassVar
 
+from memspine.config.constants import WORKING_PAGE_SIZE as DEFAULT_PAGE_SIZE
 from memspine.core.events import EventKind, MemoryEvent
 from memspine.core.records import MemoryRecord
 from memspine.memories.base import BaseMemory
 from memspine.memories.working.paging import select_page_out
+from memspine.observability.logging import EVENT_DECAY_TRANSITION, get_logger
 
-__all__ = ["WorkingMemory"]
+__all__ = ["DEFAULT_PAGE_SIZE", "WorkingMemory"]
+
+_log = get_logger(__name__)
 
 #: The engine hands the manager this append-through-the-write-door callable.
 AppendEvent = Callable[[MemoryEvent], Awaitable[None]]
-
-DEFAULT_PAGE_SIZE = 16
 
 
 class WorkingMemory(BaseMemory):
@@ -57,5 +59,12 @@ class WorkingMemory(BaseMemory):
                         "reason": "page_out",
                     },
                 )
+            )
+            _log.info(
+                EVENT_DECAY_TRANSITION,
+                namespace=namespace,
+                record_id=record.record_id,
+                transition="working->episodic",
+                reason="page_out",
             )
         return evicted

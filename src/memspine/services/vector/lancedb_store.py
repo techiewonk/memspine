@@ -1,18 +1,19 @@
 """LanceDB vector store — the scalable default (D-09), behind ``[lance]``.
 
-Import-guarded: constructing it without the extra raises
-:class:`MissingServiceError` naming the fix (D-10). One table per embedder id
-keeps model swaps clean (a new embedder writes a new table).
+Consumes an injected :class:`LanceDBClient` (D-24) and the live embedder: the
+table schema is created lazily on first use, reading ``embedder.dim`` *after*
+the first real embedding has corrected any guessed dimension — never a baked
+startup guess. One table per embedder id keeps model swaps clean.
 """
 
 from __future__ import annotations
 
 import asyncio
 import re
-from pathlib import Path
 from typing import Any
 
-from memspine.exceptions import MissingServiceError
+from memspine.clients.lancedb import LanceDBClient
+from memspine.services.embedding.base import EmbeddingService
 from memspine.services.vector.base import VectorHit
 
 __all__ = ["LanceDBVectorStore"]
@@ -23,15 +24,9 @@ def _table_name(embedder_id: str) -> str:
 
 
 class LanceDBVectorStore:
-    def __init__(self, path: str | Path, embedder_id: str, dim: int) -> None:
-        try:
-            import lancedb  # noqa: F401
-        except ImportError as exc:
-            raise MissingServiceError("vector:lancedb", extra="lance") from exc
-        self._path = str(path)
-        self._embedder_id = embedder_id
-        self._dim = dim
-        self._db: Any = None
+    def __init__(self, client: LanceDBClient, embedder: EmbeddingService) -> None:
+        self._client = client
+        self._embedder = embedder
         self._table: Any = None
         self._lock = asyncio.Lock()
 
@@ -39,25 +34,23 @@ class LanceDBVectorStore:
         if self._table is None:
             async with self._lock:
                 if self._table is None:
-                    import lancedb
                     import pyarrow as pa
 
-                    self._db = await asyncio.to_thread(lancedb.connect, self._path)
+                    db = self._client.db
+                    # Read dim NOW (post-first-embed) — not a startup guess.
                     schema = pa.schema(
                         [
                             pa.field("record_id", pa.string()),
                             pa.field("namespace", pa.string()),
-                            pa.field("vector", pa.list_(pa.float32(), self._dim)),
+                            pa.field("vector", pa.list_(pa.float32(), self._embedder.dim)),
                         ]
                     )
-                    name = _table_name(self._embedder_id)
-                    existing = await asyncio.to_thread(self._db.table_names)
+                    name = _table_name(self._embedder.embedder_id)
+                    existing = await asyncio.to_thread(db.table_names)
                     if name in existing:
-                        self._table = await asyncio.to_thread(self._db.open_table, name)
+                        self._table = await asyncio.to_thread(db.open_table, name)
                     else:
-                        self._table = await asyncio.to_thread(
-                            self._db.create_table, name, schema=schema
-                        )
+                        self._table = await asyncio.to_thread(db.create_table, name, schema=schema)
         return self._table
 
     async def upsert(
@@ -73,10 +66,15 @@ class LanceDBVectorStore:
             )
         )
 
-    async def query(self, namespace: str, vector: list[float], top_k: int = 8) -> list[VectorHit]:
+    async def query(
+        self, namespace: str, vector: list[float], embedder_id: str, top_k: int = 8
+    ) -> list[VectorHit]:
+        # The table is per-embedder (name derives from embedder_id), so the
+        # embedder scoping the port requires is structural here.
         table = await self._ensure_table()
 
         def _search() -> list[dict[str, Any]]:
+            # namespace grammar (core.namespace) admits no quotes — safe filter.
             result: list[dict[str, Any]] = (
                 table.search(vector)
                 .where(f"namespace = '{namespace}'", prefilter=True)

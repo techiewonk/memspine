@@ -40,6 +40,18 @@ def test_mmr_penalizes_near_duplicates() -> None:
     assert ids == {a.record_id, fresh.record_id}
 
 
+def test_boundary_is_zero_when_placement_disabled() -> None:
+    """Regression: with placement off, records are unsorted, so no stable
+    prefix may be claimed — boundary_index must be 0, not the stable count."""
+    policy = AssemblyPolicy.bind({"cache_aware_placement": False, "theta_abstain": 0.0})
+    context = policy.assemble(
+        [(rec("episode", memory_type="episodic"), 0.9), (rec("fact"), 0.5)],
+        budget_tokens=10_000,
+    )
+    assert context.boundary_index == 0
+    assert len(context.records) == 2
+
+
 def test_e2_placement_persona_then_stable_then_volatile() -> None:
     policy = AssemblyPolicy.bind({"theta_abstain": 0.0})
     persona = rec("I am a helpful assistant", memory_type="working", persona=True)

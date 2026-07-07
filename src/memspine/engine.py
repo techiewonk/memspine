@@ -16,26 +16,41 @@ import asyncio
 import os
 import threading
 from collections.abc import Coroutine
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Self, TypeVar
 
 from memspine.clients.http import HTTPClient
+from memspine.clients.lancedb import LanceDBClient
 from memspine.clients.sqlite import SQLiteClient
+from memspine.config import constants
 from memspine.config.loader import ResolvedConfig, load_config
 from memspine.config.schema import MemspineConfig
-from memspine.core.events import EventKind, EventLogMode, MemoryEvent
+from memspine.core.events import EventKind, EventLogMode, MemoryEvent, fingerprint_payload
 from memspine.core.namespace import validate_namespace
 from memspine.core.policies.assembly import AssembledContext, AssemblyPolicy
 from memspine.core.policies.scoring import ScoringPolicy
 from memspine.core.projector import Projector
-from memspine.core.records import MemoryRecord, PiiTier, SourceInfo
+from memspine.core.records import (
+    ArchivedVersion,
+    MemoryRecord,
+    PiiTier,
+    RecordStatus,
+    SourceInfo,
+)
 from memspine.core.registry import SERVICE_EXTRAS, dependency_closure, missing_services
 from memspine.core.replay import catch_up
 from memspine.core.replay import rebuild as replay_rebuild
 from memspine.exceptions import ConfigError, MemspineError, MissingServiceError
 from memspine.memories.working.manager import DEFAULT_PAGE_SIZE, WorkingMemory
 from memspine.memories.working.persona import make_persona_record
-from memspine.observability.logging import EVENT_REBUILD, EVENT_RETRIEVE, EVENT_WRITE, get_logger
+from memspine.observability.logging import (
+    EVENT_FORGET,
+    EVENT_REBUILD,
+    EVENT_RETRIEVE,
+    EVENT_WRITE,
+    get_logger,
+)
 from memspine.services.cache.base import MemoryKV
 from memspine.services.cache.semantic import CachedEmbedding
 from memspine.services.embedding.base import EmbeddingService
@@ -80,6 +95,7 @@ class Engine:
         self._auto_enabled: list[str] = []
         self._client: SQLiteClient | None = None
         self._http: HTTPClient | None = None
+        self._lance: LanceDBClient | None = None
         self._storage: SQLiteStorage | None = None
         self._projectors: list[Projector] = []
         self._embedder: EmbeddingService | None = None
@@ -96,9 +112,17 @@ class Engine:
     # ── lifecycle ────────────────────────────────────────────────────────────
 
     async def start(self) -> Self:
+        """Start the engine; on any mid-start failure every already-opened
+        client/service is torn down before the error propagates (no leaks)."""
         if self._started:
             return self
+        try:
+            return await self._start_inner()
+        except BaseException:
+            await self._teardown()
+            raise
 
+    async def _start_inner(self) -> Self:
         # 1. secrets, then config (D-22 two-phase).
         secrets = EnvSecrets(dotenv_path=self._dotenv_path)
         self._resolved = load_config(
@@ -142,7 +166,7 @@ class Engine:
 
         # P1 services: embedding (E3-cached), vector store, LLM router, policies.
         self._embedder = CachedEmbedding(self._build_embedder(config), MemoryKV())
-        self._vector = self._build_vector_store(config)
+        self._vector = await self._build_vector_store(config)
         self._llm = await self._build_llm_router(config)
         self._scoring = ScoringPolicy.bind(config.read.scoring)
         self._assembly = AssemblyPolicy.bind(config.read.assembly)
@@ -173,14 +197,16 @@ class Engine:
         return self
 
     async def stop(self) -> None:
+        await self._teardown()
+
+    async def _teardown(self) -> None:
         if self._runner is not None:
             await self._runner.close()
         if self._storage is not None:
             await self._storage.stop()
-        if self._client is not None:
-            await self._client.close()
-        if self._http is not None:
-            await self._http.close()
+        for client in (self._client, self._http, self._lance):
+            if client is not None:
+                await client.close()
         self._started = False
 
     # ── public verbs (P0: write / retrieve / rebuild / describe) ─────────────
@@ -226,7 +252,11 @@ class Engine:
         """P0 read path: relational listing. Hybrid retrieval lands in Phase 1."""
         storage = self._require_started()
         ns = validate_namespace(namespace)
-        records = await storage.list_records(ns, memory_type)
+        records = [
+            record
+            for record in await storage.list_records(ns, memory_type)
+            if record.status is not RecordStatus.DELETED
+        ]
         _log.info(EVENT_RETRIEVE, namespace=ns, memory_type=memory_type, count=len(records))
         return records
 
@@ -234,27 +264,41 @@ class Engine:
         self,
         query: str,
         namespace: str = "default",
-        top_k: int = 8,
+        top_k: int = constants.SEARCH_TOP_K,
     ) -> list[tuple[MemoryRecord, float]]:
         """Semantic retrieval (P1): embed → vector search → composite scoring.
 
         Returns ``(record, score)`` pairs sorted by the M1 composite score
         (recency/relevance/importance + utility), not raw cosine — a stale
-        near-duplicate loses to a fresher, proven-useful memory.
+        near-duplicate loses to a fresher, proven-useful memory. Each search
+        appends one RETRIEVE event so access stats (reinforcement, M1) update
+        through the write door like every other mutation.
         """
         storage = self._require_started()
         if self._embedder is None or self._vector is None or self._scoring is None:
             raise MemspineError("retrieval services not constructed — engine not started?")
         ns = validate_namespace(namespace)
         [query_vector] = await self._embedder.embed([query])
-        hits = await self._vector.query(ns, query_vector, top_k=top_k)
+        hits = await self._vector.query(
+            ns, query_vector, embedder_id=self._embedder.embedder_id, top_k=top_k
+        )
         scored: list[tuple[MemoryRecord, float]] = []
         for hit in hits:
             record = await storage.get_record(hit.record_id)
-            if record is None:
-                continue  # vector row outlived its record; rebuild reconciles
+            if record is None or record.status is RecordStatus.DELETED:
+                continue  # ghost vector row; FORGET projection or rebuild reconciles
             scored.append((record, self._scoring.composite_score(record, relevance=hit.score)))
         scored.sort(key=lambda pair: pair[1], reverse=True)
+        if scored:
+            # Reinforcement stats via the log (M1): last_accessed_at + access_count.
+            await self._append_and_project(
+                MemoryEvent(
+                    kind=EventKind.RETRIEVE,
+                    namespace=ns,
+                    actor="system",
+                    payload={"record_ids": [record.record_id for record, _ in scored]},
+                )
+            )
         _log.info(EVENT_RETRIEVE, namespace=ns, query=True, count=len(scored))
         return scored
 
@@ -262,8 +306,8 @@ class Engine:
         self,
         query: str,
         namespace: str = "default",
-        budget_tokens: int = 2048,
-        top_k: int = 16,
+        budget_tokens: int = constants.ASSEMBLE_BUDGET_TOKENS,
+        top_k: int = constants.ASSEMBLE_TOP_K,
     ) -> AssembledContext:
         """Retrieval + M12/E2 assembly: MMR-selected, cache-aware-ordered context.
 
@@ -284,10 +328,41 @@ class Engine:
         return self._assembly.assemble(scored, budget_tokens=budget_tokens)
 
     async def set_persona(self, namespace: str, text: str) -> MemoryRecord:
-        """Pin the persona block (M13.1): first token of the E2 stable prefix."""
-        self._require_started()
+        """Pin the persona block (M13.1): first token of the E2 stable prefix.
+
+        Updating supersedes in place: the persona keeps ONE stable record_id
+        per namespace (version bumped, prior text archived to history) so the
+        stable prefix stays stable instead of accumulating contradictory
+        personas that paging can never evict.
+        """
+        storage = self._require_started()
         ns = validate_namespace(namespace)
-        record = make_persona_record(ns, text)
+        existing = [
+            record
+            for record in await storage.list_records(ns, "working")
+            if record.source.channel == "persona" and record.status is not RecordStatus.DELETED
+        ]
+        if existing:
+            existing.sort(key=lambda record: record.recorded_at)
+            prior = existing[0]
+            record = prior.model_copy(
+                update={
+                    "content": text,
+                    "content_fingerprint": fingerprint_payload({"content": text}),
+                    "version": prior.version + 1,
+                    "history": [
+                        *prior.history,
+                        ArchivedVersion(
+                            version=prior.version,
+                            content=prior.content,
+                            archived_at=datetime.now(UTC),
+                            reason="persona_update",
+                        ),
+                    ],
+                }
+            )
+        else:
+            record = make_persona_record(ns, text)
         event = MemoryEvent(
             kind=EventKind.WRITE,
             namespace=ns,
@@ -295,7 +370,24 @@ class Engine:
             payload={"record": record.model_dump(mode="json")},
         )
         await self._append_and_project(event)
+        _log.info(EVENT_WRITE, namespace=ns, record_id=record.record_id, persona=True)
         return record
+
+    async def forget(self, record_id: str, namespace: str = "default") -> None:
+        """Soft-forget one memory (M7 minimal): FORGET event → status=DELETED in
+        the read model, vector row removed. The Phase-4 cascade adds hard
+        deletion with referential retention and `forget --verify`."""
+        self._require_started()
+        ns = validate_namespace(namespace)
+        await self._append_and_project(
+            MemoryEvent(
+                kind=EventKind.FORGET,
+                namespace=ns,
+                actor="user",
+                payload={"record_id": record_id},
+            )
+        )
+        _log.info(EVENT_FORGET, namespace=ns, record_id=record_id)
 
     def llm(self, role: str) -> LLMService:
         """The provider bound to a role (D-07/D-22): extract / judge / chat."""
@@ -436,7 +528,7 @@ class Engine:
             f"unknown embedding.provider {config.embedding.provider!r} (valid: fastembed, hash)"
         )
 
-    def _build_vector_store(self, config: MemspineConfig) -> VectorStore:
+    async def _build_vector_store(self, config: MemspineConfig) -> VectorStore:
         assert self._client is not None and self._embedder is not None
         backend = config.vector.backend
         if backend == "auto":
@@ -446,31 +538,37 @@ class Engine:
                 backend = "lance"
             except ImportError:
                 backend = "sqlite"
+        # A projection must never outlive its log (D0.1): with a throwaway
+        # ':memory:' log, a durable on-disk Lance table would accumulate ghost
+        # rows across runs — force the same-lifetime SQLite store instead.
+        if backend == "lance" and config.storage.path == ":memory:":
+            _log.warning(
+                "vector.lance_downgraded_to_sqlite",
+                detail="storage.path=':memory:' — a durable Lance projection would "
+                "outlive the in-memory event log (ghost rows on restart)",
+            )
+            backend = "sqlite"
         if backend == "sqlite":
             return SQLiteVectorStore(self._client)
         if backend == "lance":
             from memspine.services.vector.lancedb_store import LanceDBVectorStore
 
-            lance_dir = (
-                f"{config.storage.path}.lance"
-                if config.storage.path != ":memory:"
-                else "./memspine.lance"
-            )
-            return LanceDBVectorStore(lance_dir, self._embedder.embedder_id, self._embedder.dim)
+            self._lance = LanceDBClient(f"{config.storage.path}.lance")
+            await self._lance.connect()
+            return LanceDBVectorStore(self._lance, self._embedder)
         raise ConfigError(
             f"unknown vector.backend {config.vector.backend!r} (valid: auto, lance, sqlite)"
         )
 
     async def _build_llm_router(self, config: MemspineConfig) -> LLMRouter:
         providers: dict[str, LLMService] = {}
-        openai_roles = {
-            role: role_config
-            for role, role_config in config.llm.roles.items()
-            if role_config.provider == "openai_compat"
-        }
-        if openai_roles:
-            timeout = max(role.timeout_seconds for role in openai_roles.values())
-            self._http = HTTPClient(timeout_seconds=timeout)
+        has_openai_role = any(
+            role_config.provider == "openai_compat" for role_config in config.llm.roles.values()
+        )
+        if has_openai_role:
+            # One shared pool; each provider enforces its own per-role timeout
+            # per request (a role's 5s fail-fast must not inherit chat's 300s).
+            self._http = HTTPClient()
             await self._http.connect()
         for role, role_config in config.llm.roles.items():
             if role_config.provider == "openai_compat":
@@ -480,6 +578,7 @@ class Engine:
                     base_url=role_config.base_url,
                     model=role_config.model,
                     api_key=role_config.api_key,
+                    timeout_seconds=role_config.timeout_seconds,
                 )
             elif role_config.provider == "llama_cpp":
                 from memspine.services.llm.llama_cpp import LlamaCppLLM

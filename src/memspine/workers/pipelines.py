@@ -12,17 +12,24 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from typing import Protocol
 
 from memspine.config.schema import MemspineConfig
 from memspine.core.events import EventLogMode
-from memspine.services.storage.sqlite.engine import SQLiteStorage
 
-__all__ = ["PIPELINES", "Pipeline", "PipelineContext", "event_log_prune"]
+__all__ = ["PIPELINES", "Pipeline", "PipelineContext", "PipelineStorage", "event_log_prune"]
+
+
+class PipelineStorage(Protocol):
+    """The narrow storage slice pipelines may touch — keeps this module free of
+    any concrete backend import (anti-lock-in, D-17)."""
+
+    async def prune_events(self, older_than: datetime) -> int: ...
 
 
 @dataclass
 class PipelineContext:
-    storage: SQLiteStorage
+    storage: PipelineStorage
     config: MemspineConfig
 
 

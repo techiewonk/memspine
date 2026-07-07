@@ -149,6 +149,70 @@ async def test_sleep_cycle_and_vector_rebuild(engine: Engine) -> None:
     assert scored and scored[0][0].content == "fact one"
 
 
+async def test_set_persona_supersedes_in_place(engine: Engine) -> None:
+    """Regression: personas used to accumulate — one new pinned record per call."""
+    first = await engine.set_persona("agent/alice", "v1 persona")
+    second = await engine.set_persona("agent/alice", "v2 persona")
+    assert second.record_id == first.record_id  # stable identity
+    assert second.version == 2
+    assert second.history[0].content == "v1 persona"
+
+    personas = [
+        record
+        for record in await engine.retrieve("agent/alice", "working")
+        if record.source.channel == "persona"
+    ]
+    assert len(personas) == 1 and personas[0].content == "v2 persona"
+
+    context = await engine.assemble("anything", namespace="agent/alice", budget_tokens=1000)
+    persona_blocks = [r for r in context.records if r.source.channel == "persona"]
+    assert len(persona_blocks) == 1
+
+
+async def test_forget_removes_from_reads_and_survives_rebuild(engine: Engine) -> None:
+    kept = await engine.write("keep me", namespace="agent/alice")
+    doomed = await engine.write("forget me", namespace="agent/alice")
+    await engine.forget(doomed.record_id, namespace="agent/alice")
+
+    remaining = await engine.retrieve("agent/alice")
+    assert [record.record_id for record in remaining] == [kept.record_id]
+    hits = await engine.search("forget", namespace="agent/alice")
+    assert all(record.record_id != doomed.record_id for record, _ in hits)
+
+    await engine.rebuild()  # FORGET must replay identically (D0.1)
+    remaining = await engine.retrieve("agent/alice")
+    assert [record.record_id for record in remaining] == [kept.record_id]
+
+
+async def test_search_updates_access_stats_through_the_log(engine: Engine) -> None:
+    """M1 reinforcement is event-sourced: RETRIEVE events update access stats."""
+    written = await engine.write("the sky is blue", namespace="agent/alice")
+    assert written.scoring.access_count == 0
+
+    await engine.search("sky", namespace="agent/alice")
+    await engine.search("sky", namespace="agent/alice")
+
+    [record] = await engine.retrieve("agent/alice")
+    # 2 searches; the 2nd search's stats-read happens before its own event.
+    assert record.scoring.access_count == 2
+    assert record.scoring.last_accessed_at is not None
+
+
+async def test_failed_start_leaks_nothing() -> None:
+    """Regression: a mid-start ConfigError used to leak connected clients."""
+    eng = Engine(
+        template="base",
+        dotenv_path=None,
+        storage={"path": ":memory:"},
+        embedding={"provider": "hash"},
+        llm={"roles": {"chat": {"provider": "bogus"}}},
+    )
+    with pytest.raises(Exception, match="bogus"):
+        await eng.start()
+    assert eng._client is None or not await eng._client.health()
+    assert eng._http is None or not await eng._http.health()
+
+
 async def test_verbs_require_start() -> None:
     eng = Engine(template="base", dotenv_path=None)
     with pytest.raises(MemspineError, match="not started"):

@@ -20,11 +20,15 @@ class OpenAICompatLLM:
         base_url: str,
         model: str,
         api_key: str | None = None,
+        timeout_seconds: float | None = None,
     ) -> None:
         self._http = http
         self._base_url = base_url.rstrip("/")
         self._model = model
         self._api_key = api_key
+        # Per-role timeout enforced per request (the pool is shared across
+        # roles, so the client-level default must not win over role config).
+        self._timeout = timeout_seconds
 
     @property
     def provider_id(self) -> str:
@@ -35,9 +39,15 @@ class OpenAICompatLLM:
         if self._api_key:
             headers["Authorization"] = f"Bearer {self._api_key}"
         payload: dict[str, Any] = {"model": self._model, "messages": messages, **options}
+        request_kwargs: dict[str, Any] = {}
+        if self._timeout is not None:
+            request_kwargs["timeout"] = self._timeout
         try:
             response = await self._http.client.post(
-                f"{self._base_url}/chat/completions", json=payload, headers=headers
+                f"{self._base_url}/chat/completions",
+                json=payload,
+                headers=headers,
+                **request_kwargs,
             )
             response.raise_for_status()
         except httpx.HTTPStatusError as exc:

@@ -51,3 +51,36 @@ async def test_cache_mixes_hits_and_misses_in_order() -> None:
     vectors = await cached.embed(["a", "b", "c"])
     direct = await HashEmbedding(dim=16).embed(["a", "b", "c"])
     assert vectors == direct  # order preserved regardless of hit/miss layout
+
+
+async def test_duplicate_texts_in_one_batch_embed_once() -> None:
+    """Regression: same-batch duplicates used to hit the inner embedder N times."""
+
+    calls: list[list[str]] = []
+
+    class CountingEmbedder(HashEmbedding):
+        async def embed(self, texts: list[str]) -> list[list[float]]:
+            calls.append(texts)
+            return await super().embed(texts)
+
+    inner = CountingEmbedder(dim=16)
+    cached = CachedEmbedding(inner, MemoryKV())
+    vectors = await cached.embed(["dup", "unique", "dup", "dup"])
+    assert calls == [["dup", "unique"]]  # each unique text embedded once
+    assert vectors[0] == vectors[2] == vectors[3]
+    direct = await HashEmbedding(dim=16).embed(["dup", "unique", "dup", "dup"])
+    assert vectors == direct
+
+
+async def test_memory_kv_ttl_and_eviction() -> None:
+    kv = MemoryKV(max_entries=2)
+    await kv.set("a", b"1")
+    await kv.set("b", b"2")
+    await kv.set("c", b"3")  # cap reached: oldest-inserted ('a') dropped
+    assert await kv.get("a") is None
+    assert await kv.get("b") == b"2" and await kv.get("c") == b"3"
+
+    await kv.set("t", b"x", ttl_seconds=0.0)  # already expired
+    assert await kv.get("t") is None
+    await kv.delete("b")
+    assert await kv.get("b") is None

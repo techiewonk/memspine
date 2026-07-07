@@ -48,21 +48,30 @@ class CachedEmbedding:
 
     async def embed(self, texts: list[str]) -> list[list[float]]:
         vectors: list[list[float] | None] = []
-        missing: list[str] = []
-        missing_at: list[int] = []
+        # Duplicate texts in one batch embed once: positions grouped per key.
+        miss_positions: dict[str, list[int]] = {}
+        miss_texts: dict[str, str] = {}
         for index, text in enumerate(texts):
-            cached = await self._kv.get(self._key(text))
+            key = self._key(text)
+            if key in miss_positions:
+                self.hits += 1  # same-batch duplicate: served by the first miss
+                vectors.append(None)
+                miss_positions[key].append(index)
+                continue
+            cached = await self._kv.get(key)
             if cached is not None:
                 self.hits += 1
                 vectors.append(_unpack(cached))
             else:
                 self.misses += 1
                 vectors.append(None)
-                missing.append(text)
-                missing_at.append(index)
-        if missing:
-            fresh = await self._inner.embed(missing)
-            for position, vector in zip(missing_at, fresh, strict=True):
-                vectors[position] = vector
-                await self._kv.set(self._key(texts[position]), _pack(vector))
+                miss_positions[key] = [index]
+                miss_texts[key] = text
+        if miss_texts:
+            keys = list(miss_texts)
+            fresh = await self._inner.embed([miss_texts[key] for key in keys])
+            for key, vector in zip(keys, fresh, strict=True):
+                for position in miss_positions[key]:
+                    vectors[position] = vector
+                await self._kv.set(key, _pack(vector))
         return [vector for vector in vectors if vector is not None]

@@ -13,11 +13,13 @@ import math
 
 import xxhash
 
+from memspine.config.constants import HASH_EMBEDDING_DIM
+
 __all__ = ["HashEmbedding"]
 
 
 class HashEmbedding:
-    def __init__(self, dim: int = 64) -> None:
+    def __init__(self, dim: int = HASH_EMBEDDING_DIM) -> None:
         self._dim = dim
 
     @property
