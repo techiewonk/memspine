@@ -1,0 +1,18 @@
+id: dedupe
+version: 1
+role: dedupe
+format: yaml
+output_model: DuplicateVerdictOut
+system: >-
+  You decide whether two memory snippets state the same information. Output
+  ONLY YAML with keys: duplicate (true|false) and reason (one short sentence).
+  Paraphrases of the same fact are duplicates; different facts about the same
+  subject are not.
+---
+a: |
+  {{ a }}
+b: |
+  {{ b }}
+
+duplicate:
+reason:

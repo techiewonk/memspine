@@ -29,6 +29,8 @@ from memspine.config.schema import MemspineConfig
 from memspine.core.events import EventKind, EventLogMode, MemoryEvent, fingerprint_payload
 from memspine.core.namespace import validate_namespace
 from memspine.core.policies.assembly import AssembledContext, AssemblyPolicy
+from memspine.core.policies.conflict import ConflictPolicy
+from memspine.core.policies.dedup import DedupPolicy
 from memspine.core.policies.scoring import ScoringPolicy
 from memspine.core.projector import Projector
 from memspine.core.records import (
@@ -42,6 +44,8 @@ from memspine.core.registry import SERVICE_EXTRAS, dependency_closure, missing_s
 from memspine.core.replay import catch_up
 from memspine.core.replay import rebuild as replay_rebuild
 from memspine.exceptions import ConfigError, MemspineError, MissingServiceError
+from memspine.memories.semantic.entities import EntityExtractor, LLMEntityExtractor
+from memspine.memories.semantic.store import SemanticMemory
 from memspine.memories.working.manager import DEFAULT_PAGE_SIZE, WorkingMemory
 from memspine.memories.working.persona import make_persona_record
 from memspine.observability.logging import (
@@ -51,6 +55,7 @@ from memspine.observability.logging import (
     EVENT_WRITE,
     get_logger,
 )
+from memspine.prompts.registry import PromptRegistry
 from memspine.services.cache.base import MemoryKV
 from memspine.services.cache.semantic import CachedEmbedding
 from memspine.services.embedding.base import EmbeddingService
@@ -74,6 +79,12 @@ _T = TypeVar("_T")
 
 #: Services the Phase-0 engine always constructs (core install, D-03).
 _CORE_SERVICES = frozenset({"storage", "secrets"})
+
+
+def _as_options_dict(raw: Any) -> dict[str, object] | None:
+    """Policy sub-blocks arrive as plain config dicts; anything else is a typo
+    the policy's own extra='forbid' validation will surface."""
+    return dict(raw) if isinstance(raw, dict) else None
 
 
 class Engine:
@@ -102,6 +113,8 @@ class Engine:
         self._vector: VectorStore | None = None
         self._llm: LLMRouter | None = None
         self._working: WorkingMemory | None = None
+        self._semantic: SemanticMemory | None = None
+        self._prompts: PromptRegistry | None = None
         self._scoring: ScoringPolicy | None = None
         self._assembly: AssemblyPolicy | None = None
         self._runner: InlineRunner | None = None
@@ -176,6 +189,18 @@ class Engine:
                 self._memory_policy(config, "working").get("page_size", DEFAULT_PAGE_SIZE)
             ),
         )
+        # Prompt pack resolution (§4 step 2, D-43): defaults + config overrides.
+        self._prompts = PromptRegistry(overrides=config.prompts.overrides)
+        if "semantic" in self._enabled:
+            semantic_policies = self._memory_policy(config, "semantic")
+            self._semantic = SemanticMemory(
+                storage=self._storage,
+                embedder=self._embedder,
+                append_event=self._append_and_project,
+                conflict=ConflictPolicy.bind(_as_options_dict(semantic_policies.get("conflict"))),
+                dedup=DedupPolicy.bind(_as_options_dict(semantic_policies.get("dedup"))),
+                extractor=self._build_extractor(config),
+            )
         self._projectors = [
             RecordProjector(self._storage),
             VectorProjector(self._vector, self._embedder),
@@ -230,6 +255,18 @@ class Engine:
             source=source or SourceInfo(role=actor),
             pii_tier=pii_tier,
         )
+        # Semantic writes run the full M5/M4 pipeline (dedup → entities →
+        # conflict); every other type is a plain WRITE through the door.
+        if memory_type == "semantic" and self._semantic is not None:
+            result = await self._semantic.write(record)
+            _log.info(
+                EVENT_WRITE,
+                namespace=ns,
+                record_id=result.record.record_id,
+                action=result.action,
+            )
+            return result.record
+
         event = MemoryEvent(
             kind=EventKind.WRITE,
             namespace=ns,
@@ -409,6 +446,8 @@ class Engine:
             projector.name: await replay_rebuild(storage, projector)
             for projector in self._projectors
         }
+        if self._semantic is not None:
+            self._semantic.invalidate_index()  # LSH state rebuilt from fresh rows
         _log.info(EVENT_REBUILD, counts=counts)
         return counts
 
@@ -433,6 +472,10 @@ class Engine:
             "embedding": self._embedder.embedder_id if self._embedder else None,
             "vector": type(self._vector).__name__ if self._vector else None,
             "llm_roles": self._llm.roles if self._llm else [],
+            "prompts": (
+                {p.id: p.prompt_version for p in self._prompts.list()} if self._prompts else {}
+            ),
+            "semantic_pipeline": self._semantic is not None,
             "projectors": [projector.name for projector in self._projectors],
             "runner": "inline",
             "strict_services": config.strict_services,
@@ -514,6 +557,25 @@ class Engine:
     def _memory_policy(config: MemspineConfig, memory_type: str) -> dict[str, Any]:
         mem = config.memories.get(memory_type)
         return dict(mem.policies) if mem is not None else {}
+
+    def _build_extractor(self, config: MemspineConfig) -> EntityExtractor | None:
+        """Entity extraction provider (D-28): off (default) | llm | gliner."""
+        mode = str(self._memory_policy(config, "semantic").get("entity_extraction", "off"))
+        if mode == "off":
+            return None
+        if mode == "llm":
+            assert self._prompts is not None and self._llm is not None
+            return LLMEntityExtractor(
+                self._llm.for_role("extract"), self._prompts.for_role("extract")
+            )
+        if mode == "gliner":
+            from memspine.memories.semantic.entities import GlinerEntityExtractor
+
+            return GlinerEntityExtractor()
+        raise ConfigError(
+            f"unknown memories.semantic.policies.entity_extraction {mode!r} "
+            "(valid: off, llm, gliner)"
+        )
 
     def _build_embedder(self, config: MemspineConfig) -> EmbeddingService:
         if config.embedding.provider == "hash":

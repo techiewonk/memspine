@@ -1,0 +1,14 @@
+id: subcluster
+version: 1
+role: subcluster
+format: text
+system: >-
+  You label a cluster of related memories with a short community summary
+  (one sentence) capturing what unites them. The clustering itself is
+  algorithmic (D-40); you only name what the algorithm found.
+---
+members:
+{% for member in members %}- {{ member }}
+{% endfor %}
+
+One-sentence community summary:

@@ -247,6 +247,8 @@ class SQLiteStorage(ServiceAdapter):
             "memory_type": record.memory_type,
             "content": record.content,
             "content_fingerprint": record.content_fingerprint,
+            "entity": record.entity,
+            "attribute": record.attribute,
             "valid_from": _iso(record.valid_from),
             "valid_to": _iso(record.valid_to) if record.valid_to else None,
             "recorded_at": _iso(record.recorded_at),
@@ -286,6 +288,27 @@ class SQLiteStorage(ServiceAdapter):
             rows = (await conn.execute(stmt)).all()
         return [self._row_to_record(row._mapping) for row in rows]
 
+    async def find_active_fact(
+        self, namespace: str, entity: str, attribute: str
+    ) -> MemoryRecord | None:
+        """The currently-valid record for one (entity, attribute) key (M4):
+        open validity (valid_to IS NULL), not deleted, latest recorded_at."""
+        stmt = (
+            select(memory_records)
+            .where(
+                memory_records.c.namespace == namespace,
+                memory_records.c.entity == entity,
+                memory_records.c.attribute == attribute,
+                memory_records.c.valid_to.is_(None),
+                memory_records.c.status != "deleted",
+            )
+            .order_by(memory_records.c.recorded_at.desc())
+            .limit(1)
+        )
+        async with self._client.engine.connect() as conn:
+            row = (await conn.execute(stmt)).first()
+        return self._row_to_record(row._mapping) if row is not None else None
+
     async def delete_all_records(self) -> None:
         """Projector rebuild support: drop the read model, keep the log."""
         async with self._client.engine.begin() as conn:
@@ -299,6 +322,8 @@ class SQLiteStorage(ServiceAdapter):
                 "memory_type": row["memory_type"],
                 "content": row["content"],
                 "content_fingerprint": row["content_fingerprint"],
+                "entity": row["entity"],
+                "attribute": row["attribute"],
                 "valid_from": row["valid_from"],
                 "valid_to": row["valid_to"],
                 "recorded_at": row["recorded_at"],

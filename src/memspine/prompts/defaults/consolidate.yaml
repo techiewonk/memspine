@@ -1,0 +1,14 @@
+id: consolidate
+version: 1
+role: consolidate
+format: yaml
+system: >-
+  You consolidate related episodic memories into durable semantic facts.
+  Output ONLY YAML: a list under `facts`, each with entity, attribute, value,
+  source_count. Drop chit-chat; keep only stable, reusable knowledge.
+---
+episodes:
+{% for episode in episodes %}- {{ episode }}
+{% endfor %}
+
+facts:

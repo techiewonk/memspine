@@ -24,6 +24,7 @@ __all__ = [
     "MemoryTypeConfig",
     "MemspineConfig",
     "NamespaceConfig",
+    "PromptsConfig",
     "ReadConfig",
     "StorageConfig",
     "VectorConfig",
@@ -87,6 +88,16 @@ class LLMConfig(BaseModel):
     roles: dict[str, LLMRoleConfig] = Field(default_factory=dict)
 
 
+class PromptsConfig(BaseModel):
+    """User prompt customization (D-43): per-prompt overrides that ride the
+    ordinary config layering. Keys under an override: body / system / format /
+    version / output_model / token_budget (validated by the registry)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    overrides: dict[str, dict[str, Any]] = Field(default_factory=dict)
+
+
 class ReadConfig(BaseModel):
     """ReadPolicy bindings (M12): options for the scoring + assembly policies.
 
@@ -128,6 +139,7 @@ class MemspineConfig(BaseModel):
     vector: VectorConfig = Field(default_factory=VectorConfig)
     llm: LLMConfig = Field(default_factory=LLMConfig)
     read: ReadConfig = Field(default_factory=ReadConfig)
+    prompts: PromptsConfig = Field(default_factory=PromptsConfig)
     memories: dict[str, MemoryTypeConfig] = Field(default_factory=dict)
     namespaces: dict[str, NamespaceConfig] = Field(default_factory=dict)
 

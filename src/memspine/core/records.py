@@ -19,7 +19,7 @@ from enum import StrEnum
 from typing import Any
 
 from fastuuid import uuid4
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from memspine.config.constants import TRUST_DEFAULT
 from memspine.core.events import fingerprint_payload
@@ -96,11 +96,19 @@ class ArchivedVersion(BaseModel):
 class MemoryRecord(BaseModel):
     """The universal record. Memory-type packages specialize behaviour, not shape."""
 
+    # minhash_sig is binary; event payloads are JSON (D-38) — base64 both ways.
+    model_config = ConfigDict(ser_json_bytes="base64", val_json_bytes="base64")
+
     record_id: str = Field(default_factory=new_record_id)
     namespace: str
     memory_type: str
     content: str
     content_fingerprint: str = ""
+
+    # Fact keying (M13.3): semantic records may carry an (entity, attribute)
+    # key — the unit the conflict ladder (M4) operates on. None = unkeyed.
+    entity: str | None = None
+    attribute: str | None = None
 
     # Bi-temporal columns (M4): event time vs. record time.
     valid_from: datetime = Field(default_factory=lambda: datetime.now(UTC))

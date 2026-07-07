@@ -49,6 +49,12 @@ class StorageService(Protocol):
 
     async def get_record(self, record_id: str) -> MemoryRecord | None: ...
 
+    async def find_active_fact(
+        self, namespace: str, entity: str, attribute: str
+    ) -> MemoryRecord | None:
+        """The currently-valid record for one (entity, attribute) key (M4)."""
+        ...
+
     async def list_records(
         self, namespace: str, memory_type: str | None = None
     ) -> list[MemoryRecord]: ...

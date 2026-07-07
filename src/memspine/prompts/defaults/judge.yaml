@@ -1,0 +1,19 @@
+id: judge
+version: 1
+role: judge
+format: yaml
+output_model: ConflictVerdictOut
+system: >-
+  You adjudicate whether a new memory contradicts, updates, duplicates, or is
+  independent of an existing memory. Output ONLY YAML with keys: verdict (one
+  of add|update|invalidate|noop) and reason (one short sentence).
+---
+existing (valid from {{ existing_valid_from }}):
+  {{ existing_content }}
+
+incoming (valid from {{ incoming_valid_from }}):
+  {{ incoming_content }}
+
+Which verdict applies to the incoming memory?
+verdict:
+reason:

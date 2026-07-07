@@ -213,6 +213,29 @@ async def test_failed_start_leaks_nothing() -> None:
     assert eng._http is None or not await eng._http.health()
 
 
+async def test_semantic_pipeline_dedups_and_resolves_conflicts(engine: Engine) -> None:
+    """P2 end-to-end: semantic writes run dedup + conflict through the engine."""
+    first = await engine.write(
+        "alice prefers her coffee black in the morning", namespace="agent/p2"
+    )
+    dup = await engine.write(
+        "alice prefers her coffee black in the morning !", namespace="agent/p2"
+    )
+    assert dup.record_id == first.record_id  # merged, not duplicated
+    assert len(await engine.retrieve("agent/p2")) == 1
+    assert engine.describe()["semantic_pipeline"] is True
+    assert engine.describe()["prompts"]["extract"] == "extract@1"
+
+
+async def test_semantic_pipeline_survives_rebuild(engine: Engine) -> None:
+    await engine.write("alice prefers her coffee black", namespace="agent/p2")
+    before = {r.record_id: r.model_dump() for r in await engine.retrieve("agent/p2")}
+    await engine.rebuild()
+    after = {r.record_id: r.model_dump() for r in await engine.retrieve("agent/p2")}
+    # RETRIEVE stats events replay too, so the read model is identical.
+    assert after == before
+
+
 async def test_verbs_require_start() -> None:
     eng = Engine(template="base", dotenv_path=None)
     with pytest.raises(MemspineError, match="not started"):

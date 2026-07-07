@@ -2,15 +2,25 @@
 
 Owns the engine and the WAL/pragma setup. The storage service receives this
 client injected; it never creates an engine itself.
+
+Concurrency model: file-backed databases use SQLAlchemy's default async pool
+(one connection per concurrent transaction, WAL handles multi-reader).
+``:memory:`` databases use a *named shared-cache* in-memory URI so the pool's
+connections all see the same database — a plain ``:memory:`` would give every
+pooled connection its own empty database, and a single shared static
+connection races under concurrent asyncio transactions. An anchor connection
+held for the client's lifetime keeps the shared in-memory database alive even
+when the pool is momentarily empty.
 """
 
 from __future__ import annotations
 
+import itertools
 from pathlib import Path
 from typing import Any
 
 from sqlalchemy import event as sa_event
-from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, create_async_engine
 
 from memspine.clients.base import Client
 from memspine.exceptions import StorageError
@@ -24,6 +34,8 @@ _PRAGMAS = (
     "PRAGMA busy_timeout=5000",
 )
 
+_memory_db_counter = itertools.count(1)
+
 
 class SQLiteClient(Client):
     """One async engine per database file (or ``:memory:``)."""
@@ -32,6 +44,7 @@ class SQLiteClient(Client):
         self._path = str(path)
         self._echo = echo
         self._engine: AsyncEngine | None = None
+        self._anchor: AsyncConnection | None = None
 
     @property
     def path(self) -> str:
@@ -50,13 +63,13 @@ class SQLiteClient(Client):
     async def connect(self) -> None:
         if self._engine is not None:
             return
-        if self._path != ":memory:":
+        if self.is_memory:
+            # Unique per client: two ':memory:' clients must not share state.
+            name = f"memspine_mem_{next(_memory_db_counter)}"
+            url = f"sqlite+aiosqlite:///file:{name}?mode=memory&cache=shared&uri=true"
+        else:
             Path(self._path).parent.mkdir(parents=True, exist_ok=True)
-        url = (
-            f"sqlite+aiosqlite:///{self._path}"
-            if self._path != ":memory:"
-            else ("sqlite+aiosqlite://")
-        )
+            url = f"sqlite+aiosqlite:///{self._path}"
         engine = create_async_engine(url, echo=self._echo)
 
         @sa_event.listens_for(engine.sync_engine, "connect")
@@ -67,8 +80,14 @@ class SQLiteClient(Client):
             cursor.close()
 
         self._engine = engine
+        if self.is_memory:
+            # Keep the shared in-memory database alive across pool churn.
+            self._anchor = await engine.connect()
 
     async def close(self) -> None:
+        if self._anchor is not None:
+            await self._anchor.close()
+            self._anchor = None
         if self._engine is not None:
             await self._engine.dispose()
             self._engine = None

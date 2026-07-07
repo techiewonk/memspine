@@ -71,6 +71,8 @@ memory_records = Table(
     Column("memory_type", String, nullable=False),
     Column("content", String, nullable=False),
     Column("content_fingerprint", String, nullable=False),
+    Column("entity", String),
+    Column("attribute", String),
     Column("valid_from", String, nullable=False),
     Column("valid_to", String),
     Column("recorded_at", String, nullable=False),
@@ -90,6 +92,7 @@ memory_records = Table(
     Column("minhash_sig", LargeBinary),
     Index("ix_memory_records_ns_type", "namespace", "memory_type"),
     Index("ix_memory_records_fingerprint", "content_fingerprint"),
+    Index("ix_memory_records_fact_key", "namespace", "entity", "attribute"),
 )
 
 # Zero-dep vector fallback (P1): float32 little-endian vectors, brute-force

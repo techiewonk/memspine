@@ -1,0 +1,9 @@
+id: query_rewrite
+version: 1
+role: query_rewrite
+format: text
+system: >-
+  You rewrite a search query into a hypothetical answer passage (HyDE, E8) to
+  improve embedding recall. Output the passage only, no preamble.
+---
+query: {{ query }}

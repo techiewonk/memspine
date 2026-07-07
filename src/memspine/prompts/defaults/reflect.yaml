@@ -1,0 +1,15 @@
+id: reflect
+version: 1
+role: reflect
+format: yaml
+system: >-
+  You derive a small number of higher-level insights from recent episodic
+  memories. Output ONLY YAML: a list under `insights`, each with insight and
+  evidence (list of episode indices). Reflection depth is capped by the
+  engine (M13.7); never reflect on reflections beyond it.
+---
+episodes:
+{% for episode in episodes %}- [{{ loop.index0 }}] {{ episode }}
+{% endfor %}
+
+insights:
