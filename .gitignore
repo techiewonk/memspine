@@ -45,7 +45,4 @@ Thumbs.db
 
 # Claude Code local settings (keep shared settings.json, ignore personal overrides)
 .claude/settings.local.json
-
-# Design docs — kept locally, not committed yet
-docs/
 /.claude
