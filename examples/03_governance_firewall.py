@@ -61,14 +61,14 @@ async def main() -> None:
     print(f"corroborated: status={promoted[0].status.value if promoted else '?'}")
 
     # 3. Blast-radius audit: everything the log proves about one record.
-    report = await engine.audit_taint(poison.record_id)
+    report = await engine.audit_taint(poison.record_id, namespace=ns)
     print(f"audit taint: origin_seq={report.origin_seq} blast_radius={report.blast_radius}")
 
     # 4. M7 provable hard erasure: the row leaves every projection AND every
     #    log payload carrying its content is redacted; verify proves it.
     secret = await engine.write("Alice's passport number is X1234567", namespace=ns)
     await engine.forget(secret.record_id, namespace=ns, hard=True)
-    proof = await engine.verify_forget(secret.record_id)
+    proof = await engine.verify_forget(secret.record_id, namespace=ns)
     print(f"hard erasure proven clean: {proof['clean']}")
 
     await engine.stop()

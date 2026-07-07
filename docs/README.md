@@ -2,13 +2,22 @@
 
 The blueprint and evidence base for the engine. **The structure plan is authoritative;** if any doc disagrees with it, the plan wins.
 
+## Using memspine
+
 | Doc | What it is |
 |-----|------------|
-| [`memspine-structure-plan.md`](./memspine-structure-plan.md) | **The buildable blueprint** — repository tree, extras matrix, locked decision register (D-01…D-43), enhancement program (E1–E9, Parts B–E), phase plan (P0–P7). Start here. |
+| [`FEATURES.md`](./FEATURES.md) | **Feature catalog** — the 9 memory types (purpose · enable key · verbs · ADR), the Memory Firewall, and the E1–E9 optimization program (on-by-default vs opt-in). |
+| [`USAGE.md`](./USAGE.md) | **How-to guide** — install & extras, constructing an `Engine`, a worked example per memory type, the CLI, and the REST protocol (with the no-authn caveat). |
+
+## Design & rationale
+
+| Doc | What it is |
+|-----|------------|
+| [`memspine-structure-plan.md`](./memspine-structure-plan.md) | **The buildable blueprint** — repository tree, extras matrix, locked decision register (D-01…D-52), enhancement program (E1–E9, Parts B–E), phase plan (P0–P7). Start here. |
 | [`UNIMEM_V2_REWORK_PROPOSAL.md`](./UNIMEM_V2_REWORK_PROPOSAL.md) | Architecture rationale — from storage facade to cognitive engine — with the code-level evidence base. |
 | [`DEPENDENCY_ANALYSIS.md`](./DEPENDENCY_ANALYSIS.md) | Code-level scan of the memory-engine ecosystem: why each dependency was chosen, adoption signal, D-26…D-42 reasoning. |
 | [`PACKAGE_CATALOG.md`](./PACKAGE_CATALOG.md) | Every candidate package (564 scanned), grouped by function, with "does what". |
-| [`adr/`](./adr/) | Architecture Decision Records — one file per decision (ADR-001…). |
+| [`adr/`](./adr/) | Architecture Decision Records — one file per decision (ADR-001 … ADR-018). |
 
 ## Reading order
 
