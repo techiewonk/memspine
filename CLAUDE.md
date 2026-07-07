@@ -10,7 +10,7 @@ This file is loaded into every Claude Code session. Keep it accurate and terse.
 
 ## Read these first (in order)
 
-1. `docs/memspine-structure-plan.md` — **the buildable blueprint**: repo tree, extras matrix, decision register (D-01…D-46), phase plan (P0…P7), enhancement program (E1–E9). This is authoritative.
+1. `docs/memspine-structure-plan.md` — **the buildable blueprint**: repo tree, extras matrix, decision register (D-01…D-47), phase plan (P0…P7), enhancement program (E1–E9). This is authoritative.
 2. `docs/UNIMEM_V2_REWORK_PROPOSAL.md` — architecture rationale (why, and the evidence base).
 3. `docs/DEPENDENCY_ANALYSIS.md` + `docs/PACKAGE_CATALOG.md` — why each dependency was chosen; every candidate package with "does what".
 

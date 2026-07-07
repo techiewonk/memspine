@@ -244,7 +244,7 @@ class Engine:
             self._resource = ResourceMemory(
                 self._append_and_project,
                 storage=self._storage,
-                assess=lambda record: self._firewall.assess(record).apply(record),
+                assess=self._gated_assess,
             )
         if "procedural" in self._enabled:
             self._procedural = ProceduralMemory(self._storage, self._append_and_project)
@@ -252,7 +252,7 @@ class Engine:
             self._reflective = ReflectiveMemory(
                 self._storage,
                 self._append_and_project,
-                assess=lambda record: self._firewall.assess(record).apply(record),
+                assess=self._gated_assess,
             )
         self._summarize = self._build_summarize()
         self._projectors = [
@@ -474,6 +474,23 @@ class Engine:
                 record.record_id != candidate.record_id for candidate, _ in scored
             ):
                 scored.append((record, 1.0))
+        # E1: instruction-shaped content enters a context window WRAPPED — the
+        # flag was stored inert at write time precisely so assembly could do
+        # this; unwrapped, a flagged-but-unquarantined record (e.g. a benign
+        # user imperative) would read as instructions to the model.
+        scored = [
+            (
+                record.model_copy(
+                    update={
+                        "content": constants.INSTRUCTION_FLAG_WRAP.format(content=record.content)
+                    }
+                )
+                if record.instruction_flag
+                else record,
+                score,
+            )
+            for record, score in scored
+        ]
         return self._assembly.assemble(scored, budget_tokens=budget_tokens)
 
     async def set_persona(self, namespace: str, text: str) -> MemoryRecord:
@@ -569,9 +586,18 @@ class Engine:
             _log.error(
                 EVENT_FORGET, namespace=ns, record_id=record_id, hard=True, redacted=len(redacted)
             )
-        if self._semantic is not None:
-            # Drop the namespace LSH cache so the ghost id stops being probed.
-            self._semantic.invalidate_index(ns)
+        # M7 delete hooks: every enabled memory type drops derived state that
+        # references the record (e.g. the semantic LSH cache stops probing it).
+        for memory in (
+            self._working,
+            self._semantic,
+            self._episodic,
+            self._resource,
+            self._procedural,
+            self._reflective,
+        ):
+            if memory is not None:
+                await memory.on_forget(ns, record_id)
         _log.info(EVENT_FORGET, namespace=ns, record_id=record_id)
 
     async def verify_forget(self, record_id: str) -> dict[str, object]:
@@ -616,7 +642,13 @@ class Engine:
 
     async def _assess_write(self, record: MemoryRecord) -> FirewallVerdict:
         """Gather the firewall's namespace context: nearest-neighbour
-        similarities (embedding outlier) + recent contents (MINJA prefixes)."""
+        similarities (embedding outlier) + recent contents (MINJA prefixes).
+
+        Quarantined rows are EXCLUDED from both signals: a cluster of similar
+        poison writes must not dampen each other's outlier score or supply the
+        MINJA bridge prefixes (they are held content, not namespace truth).
+        """
+        storage = self._require_started()
         neighbour_sims: list[float] | None = None
         if self._embedder is not None and self._vector is not None:
             [vector] = await self._embedder.embed([record.content])
@@ -626,14 +658,29 @@ class Engine:
                 embedder_id=self._embedder.embedder_id,
                 top_k=constants.ANOMALY_MIN_NEIGHBOURS,
             )
-            neighbour_sims = [hit.score for hit in hits]
-        storage = self._require_started()
-        recent = await storage.list_records(record.namespace)
+            neighbour_sims = []
+            for hit in hits:
+                neighbour = await storage.get_record(hit.record_id)
+                if neighbour is not None and neighbour.quarantined:
+                    continue
+                neighbour_sims.append(hit.score)
+        recent = [
+            existing
+            for existing in await storage.list_records(record.namespace)
+            if not existing.quarantined
+        ]
         recent.sort(key=lambda existing: existing.recorded_at)
         recent_contents = [existing.content for existing in recent[-50:]]
         return self._firewall.assess(
             record, neighbour_similarities=neighbour_sims, recent_contents=recent_contents
         )
+
+    async def _gated_assess(self, record: MemoryRecord) -> MemoryRecord:
+        """The full firewall gate as an injectable seam (E1): resource ingest
+        and reflections get the SAME anomaly context as Engine.write — a
+        context-free assess would silently disable the embedding-outlier and
+        MINJA defenses on exactly the RAG-poisoning surface."""
+        return (await self._assess_write(record)).apply(record)
 
     async def _corroborate(self, namespace: str, incoming: MemoryRecord) -> None:
         """E1 promotion path: a trusted write that independently asserts what a
@@ -760,7 +807,12 @@ class Engine:
         self._require_started()
         if self._resource is None:
             raise MemspineError("resource memory not enabled — set memories.resource.enabled: true")
-        return await self._resource.ingest(validate_namespace(namespace), path, pii_tier=pii_tier)
+        ns = validate_namespace(namespace)
+        # Same one-writer-per-namespace unit as write()/forget(): ingest's
+        # firewall-context reads and chunk writes must not interleave with a
+        # concurrent hard delete's read-hold-check-redact sequence.
+        async with self._write_locks.setdefault(ns, asyncio.Lock()):
+            return await self._resource.ingest(ns, path, pii_tier=pii_tier)
 
     # ── procedural + reflective verbs (P5: M13.4 / M13.7 / E6) ───────────────
 
@@ -985,7 +1037,13 @@ class Engine:
 
     def _inflate_all(self, records: list[MemoryRecord], namespace: str) -> list[MemoryRecord]:
         """Inflate cold-tier content, skipping (loudly) any corrupt row rather
-        than failing the entire read (blast-radius containment)."""
+        than failing the entire read (blast-radius containment).
+
+        Quarantined rows are NOT filtered here by design: ``retrieve()`` is the
+        operator listing/audit surface, so held content stays inspectable.
+        Model-facing paths (``search``/``assemble``/timeline/sessions) apply
+        the E1 quarantine gate themselves — never feed ``retrieve()`` output
+        to a context window."""
         inflated: list[MemoryRecord] = []
         for record in records:
             if record.status is RecordStatus.DELETED:

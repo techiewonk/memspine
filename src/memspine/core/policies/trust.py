@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import ClassVar
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from memspine.config import constants
 from memspine.core.policies.base import BindablePolicy, PolicyOptions
@@ -37,11 +37,23 @@ _EXTERNAL_CHANNELS = frozenset({"retrieved", "web", "external", "email", "mcp", 
 
 
 class TrustOptions(PolicyOptions):
-    default_trust: float = constants.TRUST_DEFAULT
-    retrieved_content_cap: float = constants.TRUST_RETRIEVED_CAP
-    quarantine_below: float = constants.QUARANTINE_TRUST_THRESHOLD
-    corroborations_to_promote: int = constants.QUARANTINE_PROMOTION_CORROBORATIONS
+    # Bounded fields: a config override outside [0, 1] (or a zero promotion
+    # floor) must be a loud ConfigError, never a silent cap defeat (E1).
+    default_trust: float = Field(default=constants.TRUST_DEFAULT, ge=0.0, le=1.0)
+    retrieved_content_cap: float = Field(default=constants.TRUST_RETRIEVED_CAP, ge=0.0, le=1.0)
+    quarantine_below: float = Field(default=constants.QUARANTINE_TRUST_THRESHOLD, ge=0.0, le=1.0)
+    corroborations_to_promote: int = Field(
+        default=constants.QUARANTINE_PROMOTION_CORROBORATIONS, ge=1
+    )
     role_trust: dict[str, float] = Field(default_factory=lambda: dict(_ROLE_TRUST))
+
+    @field_validator("role_trust")
+    @classmethod
+    def _roles_in_unit_interval(cls, value: dict[str, float]) -> dict[str, float]:
+        bad = {role: t for role, t in value.items() if not 0.0 <= t <= 1.0}
+        if bad:
+            raise ValueError(f"role_trust values must be in [0, 1]: {bad}")
+        return value
 
 
 class TrustPolicy(BindablePolicy):

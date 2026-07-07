@@ -18,6 +18,7 @@ from typing import Protocol
 
 from memspine.config.schema import MemspineConfig
 from memspine.core.events import EventKind, EventLogMode, MemoryEvent
+from memspine.core.firewall import instruction_shaped
 from memspine.core.policies.compression import CompressionPolicy
 from memspine.core.policies.consolidation import ConsolidationPolicy, ConsolidationTrigger
 from memspine.core.policies.decay import DecayPolicy
@@ -228,6 +229,11 @@ async def _consolidate_session(
         valid_from=session.start,
         valid_to=session.end,
         source=SourceInfo(role="system", channel="consolidation", message_id=session.session_key),
+        # E1: a summary is DERIVED content — never more trusted than its
+        # least-trusted member, and injection framing echoed into the summary
+        # text (an LLM summarizing a poisoned episode) keeps the inert flag.
+        trust=min(member.trust for member in members),
+        instruction_flag=instruction_shaped(summary_text),
     )
     # Membership drift: archive every prior summary whose window
     # overlaps this session — the fresh summary supersedes it (D-42).

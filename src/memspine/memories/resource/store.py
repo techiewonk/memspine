@@ -25,7 +25,9 @@ _log = get_logger(__name__)
 
 AppendEvent = Callable[[MemoryEvent], Awaitable[None]]
 #: Firewall gate the engine injects: stamp trust/quarantine on a chunk (E1).
-AssessChunk = Callable[[MemoryRecord], MemoryRecord]
+#: Async so the engine can supply the FULL assessment — including the
+#: embedding-outlier and MINJA namespace context, which needs I/O.
+AssessChunk = Callable[[MemoryRecord], Awaitable[MemoryRecord]]
 
 
 class ResourceStore(Protocol):
@@ -103,7 +105,7 @@ class ResourceMemory(BaseMemory):
             # door, exactly like any other write. Ingest is the RAG poisoning
             # surface, so it must never bypass the firewall.
             if self._assess is not None:
-                record = self._assess(record)
+                record = await self._assess(record)
             try:
                 await self._append_event(
                     MemoryEvent(

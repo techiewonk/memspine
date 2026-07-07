@@ -97,6 +97,10 @@ class SemanticMemory(BaseMemory):
         else:
             self._indexes.pop(namespace, None)
 
+    async def on_forget(self, namespace: str, record_id: str) -> None:
+        """M7 delete hook: the namespace LSH cache must stop probing the ghost."""
+        self.invalidate_index(namespace)
+
     # ── the write pipeline ───────────────────────────────────────────────────
 
     async def write(self, record: MemoryRecord) -> SemanticWriteResult:

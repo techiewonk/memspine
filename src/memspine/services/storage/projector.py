@@ -36,6 +36,26 @@ __all__ = ["RecordProjector", "RecordStore"]
 
 _log = get_logger(__name__)
 
+#: Fields a DECAY_TRANSITION delta may patch — the lifecycle surface. Notably
+#: ABSENT: ``trust`` (only the firewall assigns it) and any identity/content
+#: field except the cold-tier compress pair (content -> content_zstd, M6).
+_DELTA_MUTABLE = frozenset(
+    {
+        "status",
+        "superseded_at",
+        "evolve_to",
+        "tier",
+        "content",
+        "content_zstd",
+        "valid_to",
+        "quarantined",
+        "corroborations",
+        "skill_stage",
+        "memory_type",  # working -> episodic page-out (M13.1)
+        "version",
+    }
+)
+
 
 class RecordStore(Protocol):
     """The slice of the storage port this projector needs — any backend qualifies."""
@@ -81,8 +101,22 @@ class RecordProjector(Projector):
                 reason=payload.get("reason"),
             )
             return
+        delta = dict(payload.get("set") or {})
+        # Allow-list gate (E1): a delta is a lifecycle patch, not a general
+        # writer — fields like trust/content that only the firewall or a WRITE
+        # may set are dropped loudly instead of silently applied.
+        unknown = set(delta) - _DELTA_MUTABLE
+        if unknown:
+            _log.warning(
+                "decay_transition.illegal_delta_keys_dropped",
+                record_id=payload["record_id"],
+                keys=sorted(unknown),
+                reason=payload.get("reason"),
+            )
+            for key in unknown:
+                delta.pop(key)
         data = record.model_dump(mode="json")
-        data.update(payload.get("set") or {})
+        data.update(delta)
         # JSON round-trip so base64-encoded bytes fields (content_zstd)
         # validate the same way they serialize (D-38).
         await self._store.upsert_record(MemoryRecord.model_validate_json(orjson.dumps(data)))

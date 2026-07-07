@@ -25,8 +25,9 @@ __all__ = ["ReflectiveMemory"]
 _log = get_logger(__name__)
 
 AppendEvent = Callable[[MemoryEvent], Awaitable[None]]
-#: Firewall gate the engine injects (E1) — same seam as resource ingest.
-AssessRecord = Callable[[MemoryRecord], MemoryRecord]
+#: Firewall gate the engine injects (E1) — same seam as resource ingest;
+#: async so the full anomaly context (vector neighbours) participates.
+AssessRecord = Callable[[MemoryRecord], Awaitable[MemoryRecord]]
 
 
 class ReflectiveStore(Protocol):
@@ -81,7 +82,7 @@ class ReflectiveMemory(BaseMemory):
             source=source or SourceInfo(role="system", channel="reflection"),
         )
         if self._assess is not None:
-            record = self._assess(record)  # E1: reflections pass the gate too
+            record = await self._assess(record)  # E1: reflections pass the gate too
         await self._append_event(
             MemoryEvent(
                 kind=EventKind.WRITE,
@@ -103,9 +104,7 @@ class ReflectiveMemory(BaseMemory):
         )
         return record
 
-    async def reflections(
-        self, namespace: str, *, depth: int | None = None
-    ) -> list[MemoryRecord]:
+    async def reflections(self, namespace: str, *, depth: int | None = None) -> list[MemoryRecord]:
         """Stored reflections, optionally filtered to one depth level."""
         records = await self._storage.list_records(namespace, "reflective")
         if depth is not None:

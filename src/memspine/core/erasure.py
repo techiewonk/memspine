@@ -18,12 +18,24 @@ __all__ = ["payload_retains_content", "redact_record"]
 _CONTENT_FIELDS = ("content", "content_zstd")
 
 
+def _with_history(snapshot: dict[str, Any]) -> list[dict[str, Any]]:
+    """A snapshot plus its archived versions: ``history[*].content`` is the
+    SAME record's recoverable content under another key (supersession — e.g.
+    a persona update — parks the prior text there without a record_id)."""
+    carriers = [snapshot]
+    history = snapshot.get("history")
+    if isinstance(history, list):
+        carriers.extend(item for item in history if isinstance(item, dict))
+    return carriers
+
+
 def _content_carriers(node: dict[str, Any], record_id: str) -> list[dict[str, Any]]:
     """The dicts that hold ``record_id``'s recoverable content, if this node is
     one of the two carrier shapes:
 
     - a full snapshot: ``{record_id, content/content_fingerprint/namespace, ...}``
-      (WRITE ``record``, CONFLICT ``incoming_record``, MERGE ``dropped_record``),
+      (WRITE ``record``, CONFLICT ``incoming_record``, MERGE ``dropped_record``)
+      — including its ``history`` entries, which carry prior versions' content,
     - a lifecycle delta: ``{record_id, "set": {content/content_zstd}}`` (the
       cold-tier compress DECAY_TRANSITION — plaintext lives zstd'd in ``set``).
     """
@@ -31,7 +43,7 @@ def _content_carriers(node: dict[str, Any], record_id: str) -> list[dict[str, An
         return []
     carriers: list[dict[str, Any]] = []
     if any(field in node for field in ("content", "content_fingerprint", "namespace")):
-        carriers.append(node)
+        carriers.extend(_with_history(node))
     delta = node.get("set")
     if isinstance(delta, dict) and any(field in delta for field in _CONTENT_FIELDS):
         carriers.append(delta)
@@ -59,10 +71,9 @@ def redact_record(node: Any, record_id: str) -> bool:
     if isinstance(node, dict):
         for carrier in _content_carriers(node, record_id):
             changed |= _scrub(carrier)
-        if node.get("kept_record_id") == record_id and isinstance(
-            node.get("dropped_record"), dict
-        ):
-            changed |= _scrub(node["dropped_record"])
+        if node.get("kept_record_id") == record_id and isinstance(node.get("dropped_record"), dict):
+            for carrier in _with_history(node["dropped_record"]):
+                changed |= _scrub(carrier)
         for value in node.values():
             changed |= redact_record(value, record_id)
     elif isinstance(node, list):
@@ -86,7 +97,11 @@ def payload_retains_content(node: Any, record_id: str) -> bool:
         if (
             node.get("kept_record_id") == record_id
             and isinstance(dropped, dict)
-            and any(dropped.get(field) for field in _CONTENT_FIELDS)
+            and any(
+                carrier.get(field)
+                for carrier in _with_history(dropped)
+                for field in _CONTENT_FIELDS
+            )
         ):
             return True
         return any(payload_retains_content(value, record_id) for value in node.values())

@@ -63,8 +63,7 @@ class FakeStorage:
         return [
             r
             for r in self.records.values()
-            if r.namespace == namespace
-            and (memory_type is None or r.memory_type == memory_type)
+            if r.namespace == namespace and (memory_type is None or r.memory_type == memory_type)
         ]
 
     async def get_record(self, record_id: str) -> MemoryRecord | None:
@@ -116,7 +115,7 @@ async def test_reflect_passes_the_firewall_gate_when_injected() -> None:
     async def append(event: MemoryEvent) -> None:
         events.append(event)
 
-    def assess(record: MemoryRecord) -> MemoryRecord:
+    async def assess(record: MemoryRecord) -> MemoryRecord:
         assessed.append(record.record_id)
         return record
 

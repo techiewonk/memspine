@@ -37,3 +37,9 @@ class VectorStore(Protocol):
     async def delete_all(self) -> None:
         """Projector rebuild support."""
         ...
+
+    async def exists(self, record_id: str) -> bool:
+        """M7 erasure proof: is a row for this record still present? Backends
+        that cannot answer honestly should not implement this — the engine
+        treats an absent capability as *unproven*, never as clean."""
+        ...

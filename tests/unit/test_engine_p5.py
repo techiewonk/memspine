@@ -38,9 +38,7 @@ async def test_skill_ladder_end_to_end(engine: Engine) -> None:
 
     # Draft skills never surface: not in the usable set, not in search.
     assert await engine.skills() == []
-    assert all(
-        record.record_id != skill.record_id for record, _ in await engine.search("release")
-    )
+    assert all(record.record_id != skill.record_id for record, _ in await engine.search("release"))
 
     await engine.promote_skill(skill.record_id)  # draft -> staged
     await engine.promote_skill(skill.record_id)  # staged -> verified

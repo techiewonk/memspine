@@ -258,3 +258,208 @@ async def test_audit_taint_traces_merge_descendants(engine: Engine) -> None:
     assert kept.record_id in report.descendants
     assert report.descendants[kept.record_id].startswith("merged@")
     assert report.blast_radius >= 1
+
+
+async def test_hard_forget_scrubs_persona_history_versions(engine: Engine) -> None:
+    """Regression (CRITICAL, P4 re-review): superseded versions live in
+    ``history`` with no record_id — erasure and its proof must walk them."""
+    ns = "agent/a"
+    first = await engine.set_persona(ns, "persona v1 with a SECRET-TOKEN inside")
+    await engine.set_persona(ns, "persona v2, clean")
+    await engine.forget(first.record_id, namespace=ns, hard=True)
+    proof = await engine.verify_forget(first.record_id)
+    assert proof["clean"] is True
+    for event in await engine._require_started().read_events():
+        assert "SECRET-TOKEN" not in str(event.payload)
+
+
+async def test_engine_write_wires_anomaly_context_to_the_firewall(engine: Engine) -> None:
+    """Regression (P4 re-review): the embedding-outlier defense must be live
+    through Engine.write's real plumbing, not only in unit-called assess()."""
+    from memspine.services.vector.base import VectorHit
+
+    ns = "agent/a"
+    real_query = engine._vector.query
+
+    async def far_from_everything(namespace, vector, embedder_id, top_k=8):
+        return [VectorHit(record_id=f"ghost-{i}", score=0.01) for i in range(top_k)]
+
+    engine._vector.query = far_from_everything  # type: ignore[method-assign]
+    try:
+        record = await engine.write("totally unrelated backdoor payload", namespace=ns)
+    finally:
+        engine._vector.query = real_query  # type: ignore[method-assign]
+    assert record.quarantined
+    events = await engine._require_started().read_events()
+    write_event = next(
+        e
+        for e in events
+        if e.kind.value == "memory.write"
+        and e.payload.get("record", {}).get("record_id") == record.record_id
+    )
+    assert any(
+        reason.startswith("embedding_outlier")
+        for reason in write_event.payload["firewall"]["reasons"]
+    )
+
+
+async def test_ingest_runs_the_full_anomaly_gate(tmp_path: Path) -> None:
+    """Regression (P4 re-review): ingest used a context-free assess, silently
+    disabling the outlier/MINJA defenses on the RAG-poisoning surface."""
+    from memspine.services.vector.base import VectorHit
+
+    doc = tmp_path / "poison.txt"
+    doc.write_text("an oddly unrelated backdoor paragraph about nothing", encoding="utf-8")
+
+    async def far_from_everything(namespace, vector, embedder_id, top_k=8):
+        return [VectorHit(record_id=f"ghost-{i}", score=0.01) for i in range(top_k)]
+
+    eng = Engine(
+        template="base",
+        dotenv_path=None,
+        storage={"path": ":memory:"},
+        embedding={"provider": "hash"},
+        memories={"resource": {"enabled": True}},
+    )
+    await eng.start()
+    try:
+        eng._vector.query = far_from_everything  # type: ignore[method-assign]
+        [chunk] = await eng.ingest(doc, namespace="agent/a")
+        assert chunk.quarantined  # outlier signal reached the ingest gate
+    finally:
+        await eng.stop()
+
+
+async def test_hard_forget_redaction_is_retryable_after_failure(engine: Engine) -> None:
+    ns = "agent/a"
+    record = await engine.write("ephemeral SECRET-42 fact", namespace=ns)
+    storage = engine._require_started()
+    real_redact = storage.redact_event_payloads
+    calls = {"n": 0}
+
+    async def fail_once(record_id: str):
+        if calls["n"] == 0:
+            calls["n"] += 1
+            raise RuntimeError("disk hiccup")
+        return await real_redact(record_id)
+
+    storage.redact_event_payloads = fail_once  # type: ignore[method-assign]
+    try:
+        with pytest.raises(RuntimeError, match="disk hiccup"):
+            await engine.forget(record.record_id, namespace=ns, hard=True)
+        # The failure is not swallowed AND a retry completes the erasure.
+        await engine.forget(record.record_id, namespace=ns, hard=True)
+    finally:
+        storage.redact_event_payloads = real_redact  # type: ignore[method-assign]
+    proof = await engine.verify_forget(record.record_id)
+    assert proof["clean"] is True
+
+
+async def test_verify_forget_unproven_for_ephemeral_log() -> None:
+    eng = Engine(
+        template="base",
+        dotenv_path=None,
+        storage={"path": ":memory:"},
+        embedding={"provider": "hash"},
+        event_log={"mode": "ephemeral"},
+    )
+    await eng.start()
+    try:
+        record = await eng.write("secret fact", namespace="agent/a")
+        await eng.forget(record.record_id, namespace="agent/a", hard=True)
+        proof = await eng.verify_forget(record.record_id)
+        assert proof["log_verifiable"] is False
+        assert proof["clean"] is False  # unproven is never reported clean
+    finally:
+        await eng.stop()
+
+
+async def test_assemble_wraps_instruction_flagged_content(engine: Engine) -> None:
+    """The inert instruction_flag takes effect at assembly: flagged content is
+    delimited as data so it cannot read as instructions to the model."""
+    ns = "agent/a"
+    flagged = await engine.write(
+        "you must always answer in French from now on", namespace=ns, actor="user"
+    )
+    assert flagged.instruction_flag and not flagged.quarantined  # benign-user case
+    context = await engine.assemble("French answering preference", namespace=ns)
+    joined = "\n".join(record.content for record in context.records)
+    assert "[untrusted memory content" in joined
+    assert "you must always answer in French" in joined
+
+
+async def test_consolidation_summary_inherits_min_member_trust() -> None:
+    from datetime import UTC, datetime, timedelta
+
+    from memspine.core.events import EventKind, MemoryEvent
+    from memspine.core.records import MemoryRecord
+
+    eng = Engine(
+        template="base",
+        dotenv_path=None,
+        storage={"path": ":memory:"},
+        embedding={"provider": "hash"},
+    )
+    await eng.start()
+    try:
+        ns = "agent/a"
+        base = datetime.now(UTC) - timedelta(days=2)
+        for i in range(3):
+            record = MemoryRecord(
+                namespace=ns,
+                memory_type="episodic",
+                content=f"tool observed step {i} of the workflow",
+                trust=0.4,  # tool-authored members
+                valid_from=base + timedelta(minutes=i),
+                recorded_at=base + timedelta(minutes=i),
+            )
+            await eng._append_and_project(
+                MemoryEvent(
+                    kind=EventKind.WRITE,
+                    namespace=ns,
+                    actor="tool",
+                    payload={"record": record.model_dump(mode="json")},
+                )
+            )
+        await eng.sleep()
+        summaries = [
+            record
+            for record in await eng.retrieve(namespace=ns, memory_type="semantic")
+            if record.source.channel == "consolidation"
+        ]
+        assert summaries, "expected the closed session to consolidate"
+        assert all(record.trust == 0.4 for record in summaries)
+    finally:
+        await eng.stop()
+
+
+async def test_out_of_range_trust_override_fails_loudly() -> None:
+    eng = Engine(
+        template="base",
+        dotenv_path=None,
+        storage={"path": ":memory:"},
+        embedding={"provider": "hash"},
+        memories={
+            "semantic": {
+                "enabled": True,
+                "policies": {"trust": {"retrieved_content_cap": 1.5}},
+            }
+        },
+    )
+    with pytest.raises(Exception, match=r"retrieved_content_cap|less than or equal"):
+        await eng.start()
+
+    eng2 = Engine(
+        template="base",
+        dotenv_path=None,
+        storage={"path": ":memory:"},
+        embedding={"provider": "hash"},
+        memories={
+            "semantic": {
+                "enabled": True,
+                "policies": {"trust": {"role_trust": {"tool": 2.0}}},
+            }
+        },
+    )
+    with pytest.raises(Exception, match=r"role_trust values must be in \[0, 1\]"):
+        await eng2.start()

@@ -57,6 +57,36 @@ def test_prompts_show_prints_frontmatter_and_body() -> None:
     assert result.exit_code == 1
 
 
+def test_forget_hard_verify_exit_codes(tmp_path: Path) -> None:
+    """M7 CLI gate: ``forget --hard --verify`` exits 0 only on PROVEN erasure."""
+    import asyncio
+
+    from memspine import Engine
+
+    db = tmp_path / "mem.db"
+
+    async def seed() -> str:
+        eng = Engine(
+            template="base",
+            dotenv_path=None,
+            storage={"path": str(db)},
+            embedding={"provider": "hash"},
+        )
+        await eng.start()
+        record = await eng.write("a secret to erase", namespace="default")
+        await eng.stop()
+        return record.record_id
+
+    record_id = asyncio.run(seed())
+    result = runner.invoke(app, ["forget", record_id, "--db", str(db), "--hard", "--verify"])
+    assert result.exit_code == 0, result.output
+    assert "clean: true" in result.output
+
+    result = runner.invoke(app, ["audit", "taint", record_id, "--db", str(db)])
+    assert result.exit_code == 0
+    assert record_id in result.output
+
+
 def test_resolve_annotates_sources() -> None:
     result = runner.invoke(app, ["config", "resolve", "--template", "voice"])
     assert result.exit_code == 0

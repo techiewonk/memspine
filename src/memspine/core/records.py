@@ -132,10 +132,13 @@ class MemoryRecord(BaseModel):
 
     # Memory Firewall columns (E1) — present from day one; ``corroborations``
     # counts independent trusted assertions that promote a quarantined record.
-    trust: float = TRUST_DEFAULT
+    # Bounds are enforced at the type: an out-of-range trust (e.g. a config
+    # override boosting an external channel past 1.0) must fail loudly, never
+    # silently defeat the cap.
+    trust: float = Field(default=TRUST_DEFAULT, ge=0.0, le=1.0)
     quarantined: bool = False
     instruction_flag: bool = False
-    corroborations: int = 0
+    corroborations: int = Field(default=0, ge=0)
 
     # Two-stage dedup fields (D-27): simhash for cheap distance, MinHash signature
     # bytes for LSH candidate generation; both computed at write time in M5.
@@ -152,7 +155,7 @@ class MemoryRecord(BaseModel):
     # active→deprecated ladder; None for non-procedural records.
     skill_stage: str | None = None
     # Reflective depth (M13.7): 0 = raw memory, 1 = reflection, 2 = meta (capped).
-    reflection_depth: int = 0
+    reflection_depth: int = Field(default=0, ge=0)
 
     def model_post_init(self, _context: Any) -> None:
         if not self.content_fingerprint:

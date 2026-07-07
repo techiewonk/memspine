@@ -25,8 +25,7 @@ class FakeStorage:
         return [
             r
             for r in self.records.values()
-            if r.namespace == namespace
-            and (memory_type is None or r.memory_type == memory_type)
+            if r.namespace == namespace and (memory_type is None or r.memory_type == memory_type)
         ]
 
     async def get_record(self, record_id: str) -> MemoryRecord | None:

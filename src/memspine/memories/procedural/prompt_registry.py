@@ -48,11 +48,7 @@ def prompt_version_records(
 
     Pure function: the caller writes the returned records through the door.
     """
-    seen = {
-        (record.entity, record.version)
-        for record in existing
-        if record.attribute == "prompt"
-    }
+    seen = {(record.entity, record.version) for record in existing if record.attribute == "prompt"}
     fresh: list[MemoryRecord] = []
     for prompt in registry.list():
         if (prompt.id, prompt.version) in seen:

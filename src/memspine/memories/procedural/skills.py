@@ -112,9 +112,7 @@ class ProceduralMemory(BaseMemory):
             and not record.quarantined
         )
 
-    async def promote(
-        self, record_id: str, *, dry_run_passed: bool = False
-    ) -> MemoryRecord:
+    async def promote(self, record_id: str, *, dry_run_passed: bool = False) -> MemoryRecord:
         """One legal step up the ladder, as a delta event through the door.
 
         A quarantined record can never be promoted here: corroboration (E1)

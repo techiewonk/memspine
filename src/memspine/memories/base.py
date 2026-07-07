@@ -31,3 +31,7 @@ class BaseMemory:
     async def on_read(self, records: list[MemoryRecord]) -> list[MemoryRecord]:
         """Called on retrieval; may filter or annotate. Default: pass-through."""
         return records
+
+    async def on_forget(self, namespace: str, record_id: str) -> None:
+        """M7 delete hook: called after a FORGET event lands, so a memory type
+        can drop derived state (caches, indexes) that references the record."""
