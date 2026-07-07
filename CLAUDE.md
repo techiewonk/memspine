@@ -6,7 +6,7 @@ This file is loaded into every Claude Code session. Keep it accurate and terse.
 
 `memspine` is an open-source **cognitive-memory engine** for AI agents: one clean API (`Engine`) over a real write pipeline, hybrid + graph retrieval, and background learning dynamics — with pluggable, composable stores. It is the *engine*, not a product.
 
-**Status:** pre-alpha, under active construction. **P0–P4 are implemented and review-passed** (substrate · working memory + retrieval · semantic · episodic + lifecycle · Memory Firewall) — 231 tests, `ruff` + `mypy --strict` clean, 13 ADRs. **P5 (procedural + reflective) is in progress.** The design docs in `docs/` are the **single source of truth** — read them before writing code.
+**Status:** pre-alpha, under active construction. **P0–P5 are implemented and review-passed** (substrate · working memory + retrieval · semantic · episodic + lifecycle · Memory Firewall · procedural + reflective) — 293 tests, `ruff` + `mypy --strict` clean, 14 ADRs. **P6 (associative graph) is next.** Current snapshot lives in `STATUS.md` (auto-refreshed every 30 min). The design docs in `docs/` are the **single source of truth** — read them before writing code.
 
 ## Read these first (in order)
 
