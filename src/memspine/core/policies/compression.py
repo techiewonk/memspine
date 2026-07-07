@@ -5,6 +5,8 @@ from __future__ import annotations
 
 from typing import ClassVar
 
+from pydantic import Field
+
 from memspine.core.policies.base import BindablePolicy, PolicyOptions
 from memspine.core.records import MemoryRecord
 
@@ -13,7 +15,8 @@ __all__ = ["CompressionPolicy"]
 
 class CompressionOptions(PolicyOptions):
     cold_tier_zstd_level: int = 3
-    assembly_stage: list[str] = ["drop_lowest_score"]  # E5 ordered fallbacks
+    # E5 ordered fallbacks
+    assembly_stage: list[str] = Field(default_factory=lambda: ["drop_lowest_score"])
 
 
 class CompressionPolicy(BindablePolicy):

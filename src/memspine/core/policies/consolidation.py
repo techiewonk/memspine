@@ -5,6 +5,8 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import ClassVar
 
+from pydantic import Field
+
 from memspine.core.policies.base import BindablePolicy, PolicyOptions
 
 __all__ = ["ConsolidationPolicy", "ConsolidationTrigger"]
@@ -17,7 +19,9 @@ class ConsolidationTrigger(StrEnum):
 
 
 class ConsolidationOptions(PolicyOptions):
-    triggers: list[ConsolidationTrigger] = [ConsolidationTrigger.SESSION_END]
+    triggers: list[ConsolidationTrigger] = Field(
+        default_factory=lambda: [ConsolidationTrigger.SESSION_END]
+    )
     heat_threshold: int = 50
 
 

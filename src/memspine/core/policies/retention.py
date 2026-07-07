@@ -5,6 +5,8 @@ from __future__ import annotations
 
 from typing import ClassVar
 
+from pydantic import Field
+
 from memspine.core.policies.base import BindablePolicy, PolicyOptions
 from memspine.core.records import MemoryRecord
 
@@ -13,7 +15,7 @@ __all__ = ["RetentionPolicy"]
 
 class RetentionOptions(PolicyOptions):
     default_class: str = "standard"
-    legal_hold_namespaces: list[str] = []
+    legal_hold_namespaces: list[str] = Field(default_factory=list)
 
 
 class RetentionPolicy(BindablePolicy):
