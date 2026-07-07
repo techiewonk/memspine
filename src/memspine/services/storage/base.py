@@ -52,7 +52,10 @@ class StorageService(Protocol):
     async def find_active_fact(
         self, namespace: str, entity: str, attribute: str
     ) -> MemoryRecord | None:
-        """The currently-valid record for one (entity, attribute) key (M4)."""
+        """The currently-valid SEMANTIC record for one (entity, attribute) key
+        (M4). Semantic-only by contract (ADR-016): other memory types reuse
+        the key columns for non-fact identities (skill names, watch targets)
+        that must never become the M4 incumbent."""
         ...
 
     async def list_records(

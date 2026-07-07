@@ -308,11 +308,16 @@ class SQLiteStorage(ServiceAdapter):
         """The currently-valid record for one (entity, attribute) key (M4):
         open validity (valid_to IS NULL), not deleted, NOT quarantined (E1: a
         quarantined claim must never act as the incumbent fact the conflict
-        ladder defends), latest recorded_at."""
+        ladder defends), latest recorded_at. SEMANTIC records only (ADR-016):
+        other types reuse the key columns for non-fact identities — a skill's
+        name, a prospective watch's watched target — and none of those may
+        become the incumbent the M4 ladder supersedes (a semantic write would
+        otherwise archive the watch instead of firing it)."""
         stmt = (
             select(memory_records)
             .where(
                 memory_records.c.namespace == namespace,
+                memory_records.c.memory_type == "semantic",
                 memory_records.c.entity == entity,
                 memory_records.c.attribute == attribute,
                 memory_records.c.valid_to.is_(None),

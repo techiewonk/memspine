@@ -31,7 +31,7 @@ from memspine.core.audit import TaintReport, trace_taint
 from memspine.core.erasure import payload_retains_content
 from memspine.core.events import EventKind, EventLogMode, MemoryEvent, fingerprint_payload
 from memspine.core.firewall import Firewall, FirewallVerdict
-from memspine.core.namespace import validate_namespace
+from memspine.core.namespace import grant_allows, validate_namespace
 from memspine.core.policies.assembly import AssembledContext, AssemblyPolicy
 from memspine.core.policies.compression import CompressionPolicy
 from memspine.core.policies.conflict import ConflictPolicy
@@ -62,10 +62,13 @@ from memspine.memories.procedural.skills import (
     make_skill_record,
     stage_status,
 )
+from memspine.memories.prospective.watches import ProspectiveMemory, make_watch_record
 from memspine.memories.reflective.reflections import ReflectiveMemory
 from memspine.memories.resource.store import ResourceMemory
 from memspine.memories.semantic.entities import EntityExtractor, LLMEntityExtractor
 from memspine.memories.semantic.store import SemanticMemory
+from memspine.memories.shared.grants import SharedMemory
+from memspine.memories.shared.subscriptions import make_subscription_record
 from memspine.memories.working.manager import DEFAULT_PAGE_SIZE, WorkingMemory
 from memspine.memories.working.persona import make_persona_record
 from memspine.observability.logging import (
@@ -161,6 +164,8 @@ class Engine:
         self._procedural: ProceduralMemory | None = None
         self._reflective: ReflectiveMemory | None = None
         self._associative: AssociativeMemory | None = None
+        self._prospective: ProspectiveMemory | None = None
+        self._shared: SharedMemory | None = None
         self._prompts: PromptRegistry | None = None
         self._scoring: ScoringPolicy | None = None
         self._assembly: AssemblyPolicy | None = None
@@ -290,6 +295,10 @@ class Engine:
             self._associative = AssociativeMemory(
                 self._storage, self._graph, self._append_and_project
             )
+        if "prospective" in self._enabled:
+            self._prospective = ProspectiveMemory(self._storage, self._append_and_project)
+        if "shared" in self._enabled:
+            self._shared = SharedMemory(self._storage, self._append_and_project)
         self._summarize = self._build_summarize()
         self._projectors = [
             RecordProjector(self._storage),
@@ -641,6 +650,8 @@ class Engine:
             self._procedural,
             self._reflective,
             self._associative,
+            self._prospective,
+            self._shared,
         ):
             if memory is not None:
                 await memory.on_forget(ns, record_id)
@@ -800,7 +811,7 @@ class Engine:
                     # stage implies (RESOLVING pre-active), and still has to be
                     # promoted through verified + the dry-run gate to surface.
                     change["status"] = stage_status(held.skill_stage).value
-                else:
+                elif held.memory_type == "semantic":
                     # If the corroborators themselves established an active fact
                     # on the same key, the promoted record joins the history as
                     # its corroborated predecessor — never a second active fact.
@@ -818,6 +829,12 @@ class Engine:
                         change["valid_to"] = close_at.isoformat()
                     else:
                         change["status"] = RecordStatus.ACTIVATED.value
+                else:
+                    # Non-fact types (episodic, prospective watches, …): the
+                    # single-active-fact invariant is semantic-only (ADR-016) —
+                    # a semantic incumbent must never archive e.g. a watch that
+                    # merely reuses the key columns as its watched target.
+                    change["status"] = RecordStatus.ACTIVATED.value
             await self._append_and_project(
                 MemoryEvent(
                     kind=EventKind.DECAY_TRANSITION,
@@ -1116,6 +1133,200 @@ class Engine:
         ns = validate_namespace(namespace)
         return self._inflate_all(await self._associative.related(ns, record_id, k=k), ns)
 
+    # ── prospective + shared verbs (P7: M13.8 / R2 / ADR-016) ────────────────
+
+    async def watch(
+        self,
+        content: str,
+        namespace: str = "default",
+        due_at: datetime | None = None,
+        entity: str | None = None,
+        attribute: str | None = None,
+        actor: str = "user",
+        source: SourceInfo | None = None,
+    ) -> MemoryRecord:
+        """Store a prospective watch (M13.8): ``content`` is what to do or
+        remember when it fires — at ``due_at`` (bi-temporal reuse: the due
+        time rides ``valid_from``) OR when the watched ``entity``/``attribute``
+        fact key is invalidated by the M4 conflict ladder.
+
+        A watch is a write like any other: it enters through the firewall
+        gate (E1) — instruction-shaped watch content is quarantined and can
+        never fire.
+        """
+        storage = self._require_started()
+        self._require_prospective()  # enablement check — the write rides the normal door
+        ns = validate_namespace(namespace)
+        record = make_watch_record(
+            ns,
+            content,
+            due_at=due_at,
+            entity=entity,
+            attribute=attribute,
+            source=source or SourceInfo(role=actor),
+        )
+        async with self._write_locks.setdefault(ns, asyncio.Lock()):
+            return await self._write_locked(storage, ns, record, "prospective", actor)
+
+    async def due(
+        self, namespace: str = "default", now: datetime | None = None
+    ) -> list[MemoryRecord]:
+        """Fired-but-unacknowledged watches (M13.8): due time reached or the
+        watched fact key invalidated. Read-only and pull-based (ADR-016) —
+        a fired watch stays here until ``acknowledge_watch`` archives it.
+        ``now`` defaults to the current UTC instant; pass it explicitly to
+        own time (tests always should)."""
+        self._require_started()
+        prospective = self._require_prospective()
+        ns = validate_namespace(namespace)
+        fired = await prospective.pending(ns, now if now is not None else datetime.now(UTC))
+        return self._inflate_all(fired, ns)
+
+    async def acknowledge_watch(self, record_id: str, namespace: str = "default") -> MemoryRecord:
+        """Acknowledge a fired watch: archived via a delta event
+        (``reason="watch_fired"``), idempotent (M13.8)."""
+        self._require_started()
+        prospective = self._require_prospective()
+        ns = validate_namespace(namespace)
+        async with self._write_locks.setdefault(ns, asyncio.Lock()):
+            return await prospective.acknowledge(record_id, namespace=ns)
+
+    async def grant(
+        self,
+        to_namespace: str,
+        namespace: str = "default",
+        memory_types: list[str] | None = None,
+        actor: str = "user",
+    ) -> MemoryRecord:
+        """Grant ``to_namespace`` read access to ``namespace``'s records (R2),
+        optionally scoped to ``memory_types``. The grant record rides the log
+        (D0.1); enforcement lives in ``core.namespace.grant_allows``. Grant
+        content is engine-built canonical JSON — the stated firewall
+        exemption shared with prompt sync (ADR-014 §2/ADR-016)."""
+        self._require_started()
+        shared = self._require_shared()
+        grantor = validate_namespace(namespace)
+        grantee = validate_namespace(to_namespace)
+        # Write lock on the GRANTOR namespace: the read-diff-append unit must
+        # not interleave with a concurrent grant/revoke or forget cascade.
+        async with self._write_locks.setdefault(grantor, asyncio.Lock()):
+            return await shared.grant(
+                grantor,
+                grantee,
+                memory_types=memory_types,
+                source=SourceInfo(role=actor, channel="grant"),
+            )
+
+    async def revoke(self, to_namespace: str, namespace: str = "default") -> MemoryRecord:
+        """Revoke ``to_namespace``'s read access to ``namespace`` (R2): the
+        grant record is archived via a delta event; raises when no grant is
+        live (a typo'd grantee must not read as success)."""
+        self._require_started()
+        shared = self._require_shared()
+        grantor = validate_namespace(namespace)
+        grantee = validate_namespace(to_namespace)
+        async with self._write_locks.setdefault(grantor, asyncio.Lock()):
+            return await shared.revoke(grantor, grantee)
+
+    async def shared_search(
+        self,
+        query: str,
+        namespace: str = "default",
+        top_k: int = constants.SEARCH_TOP_K,
+    ) -> list[tuple[MemoryRecord, float]]:
+        """Own-namespace search plus granted foreign results (R2/E1).
+
+        Foreign records are LIVE VIEWS into the grantor namespace — never
+        copied (no second source of truth) — and are clearly marked by their
+        differing ``record.namespace``. Their trust is capped at
+        ``TRUST_RETRIEVED_CAP``: content crossing a grant is foreign, and its
+        home-namespace trust must never ride along (E1). Quarantined or
+        non-ACTIVATED records never cross, ``shared`` bookkeeping records
+        never cross, and foreign reads append NO events — a reader must not
+        mutate grantor state (no reinforcement across the boundary).
+        """
+        storage = self._require_started()
+        shared = self._require_shared()
+        if self._embedder is None or self._vector is None or self._scoring is None:
+            raise MemspineError("retrieval services not constructed — engine not started?")
+        ns = validate_namespace(namespace)
+        results = await self.search(query, namespace=ns, top_k=top_k)
+        grants = await shared.grants_to(ns)
+        if not grants:
+            return results
+        [query_vector] = await self._embedder.embed([query])
+        for grantor in sorted(grants):
+            hits = await self._vector.query(
+                grantor, query_vector, embedder_id=self._embedder.embedder_id, top_k=top_k
+            )
+            for hit in hits:
+                record = await storage.get_record(hit.record_id)
+                if (
+                    record is None
+                    or record.namespace != grantor
+                    or record.status is not RecordStatus.ACTIVATED
+                    or record.quarantined
+                ):
+                    continue  # same E1 gate as search — held content never crosses
+                # The ONE enforcement point (ADR-016): scope + bookkeeping gate.
+                if not grant_allows(ns, record.namespace, record.memory_type, grants):
+                    continue
+                try:
+                    record = self._inflate.inflate(record)
+                except StorageError:
+                    _log.warning(
+                        "memory.inflate_failed", namespace=grantor, record_id=hit.record_id
+                    )
+                    continue
+                # E1: foreign content is retrieved content — trust-capped, never
+                # its home-namespace trust.
+                record = record.model_copy(
+                    update={"trust": min(record.trust, constants.TRUST_RETRIEVED_CAP)}
+                )
+                results.append((record, self._scoring.composite_score(record, relevance=hit.score)))
+        results.sort(key=lambda pair: pair[1], reverse=True)
+        _log.info(
+            EVENT_RETRIEVE, namespace=ns, shared=True, grantors=sorted(grants), count=len(results)
+        )
+        return results
+
+    async def subscribe(
+        self,
+        query: str,
+        namespace: str = "default",
+        actor: str = "user",
+        source: SourceInfo | None = None,
+    ) -> MemoryRecord:
+        """Store a standing query (ADR-016, v0.1 minimal). Caller free text —
+        it enters through the firewall gate like any write. Pull-based: feed
+        ``record.content`` to ``shared_search`` yourself; push delivery is
+        deferred to the taskiq build."""
+        storage = self._require_started()
+        self._require_shared()
+        ns = validate_namespace(namespace)
+        record = make_subscription_record(ns, query, source=source or SourceInfo(role=actor))
+        async with self._write_locks.setdefault(ns, asyncio.Lock()):
+            return await self._write_locked(storage, ns, record, "shared", actor)
+
+    async def subscriptions(self, namespace: str = "default") -> list[MemoryRecord]:
+        """Live standing-query records in ``namespace`` (ADR-016)."""
+        self._require_started()
+        shared = self._require_shared()
+        ns = validate_namespace(namespace)
+        return self._inflate_all(await shared.subscriptions(ns), ns)
+
+    def _require_prospective(self) -> ProspectiveMemory:
+        if self._prospective is None:
+            raise MemspineError(
+                "prospective memory not enabled — set memories.prospective.enabled: true"
+            )
+        return self._prospective
+
+    def _require_shared(self) -> SharedMemory:
+        if self._shared is None:
+            raise MemspineError("shared memory not enabled — set memories.shared.enabled: true")
+        return self._shared
+
     async def _evolve_links(self, ns: str, record: MemoryRecord) -> None:
         """Bounded A-MEM hook (D-42/ADR-015): after a non-quarantined semantic/
         episodic write, propose links to the vector neighbourhood. Best-effort:
@@ -1278,6 +1489,8 @@ class Engine:
             "procedural": self._procedural is not None,
             "reflective": self._reflective is not None,
             "associative": self._associative is not None,
+            "prospective": self._prospective is not None,
+            "shared": self._shared is not None,
             "consolidation_summarizer": "llm" if self._summarize is not None else "extractive",
             "projectors": [projector.name for projector in self._projectors],
             "runner": config.workers.runner,

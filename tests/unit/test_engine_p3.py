@@ -52,6 +52,7 @@ async def test_sleep_cycle_runs_all_stages_in_order(engine: Engine) -> None:
     assert list(stats) == [
         "consolidate",
         "reorganize",  # D-42 optional stage (P6): skipped without a graph
+        "check_watches",  # M13.8 read-only fired-count report (P7/ADR-016)
         "decay_sweep",
         "compress",
         "sleep_compute",
@@ -59,6 +60,7 @@ async def test_sleep_cycle_runs_all_stages_in_order(engine: Engine) -> None:
     ]
     assert stats["consolidate"]["status"] == "ok"
     assert stats["reorganize"]["status"] == "skipped"
+    assert stats["check_watches"]["status"] == "ok"
     assert stats["decay_sweep"]["status"] == "ok"
     assert stats["compress"]["status"] == "ok"
     assert stats["sleep_compute"] == {"status": "noop", "hook": "E7"}
