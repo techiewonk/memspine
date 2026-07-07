@@ -140,7 +140,7 @@ async def test_working_memory_pages_out_to_episodic() -> None:
 async def test_sleep_cycle_and_vector_rebuild(engine: Engine) -> None:
     await engine.write("fact one", namespace="agent/alice")
     results = await engine.sleep()
-    assert results["consolidate"]["status"] == "noop"
+    assert results["consolidate"]["status"] == "ok"  # real since P3
     assert results["event_log_prune"]["status"] == "skipped"  # full mode
 
     counts = await engine.rebuild()

@@ -79,4 +79,4 @@ def test_llama_cpp_without_extra_names_the_fix() -> None:
         with pytest.raises(MissingServiceError, match=r"memspine\[llmlocal\]"):
             LlamaCppLLM(model_path="model.gguf")
     finally:
-        builtins.__import__ = real_import  # type: ignore[assignment]
+        builtins.__import__ = real_import

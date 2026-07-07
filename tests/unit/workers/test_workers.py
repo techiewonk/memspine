@@ -13,7 +13,9 @@ from memspine.workers.pipelines import PIPELINES, PipelineContext
 from memspine.workers.schedule import SLEEP_CYCLE_ORDER, run_sleep_cycle
 
 
-async def make_ctx(mode: str = "rolling", retention_days: int = 1) -> PipelineContext:
+async def make_ctx(
+    mode: str = "rolling", retention_days: int = 1
+) -> tuple[PipelineContext, SQLiteStorage]:
     config = load_config(
         overrides={"event_log": {"mode": mode, "retention_days": retention_days}}
     ).config
@@ -21,7 +23,7 @@ async def make_ctx(mode: str = "rolling", retention_days: int = 1) -> PipelineCo
     await client.connect()
     storage = SQLiteStorage(client, mode=EventLogMode(mode))
     await storage.start()
-    return PipelineContext(storage=storage, config=config)
+    return PipelineContext(storage=storage, config=config), storage
 
 
 def make_runner() -> InlineRunner:
@@ -43,7 +45,7 @@ async def test_pipelines_contain_no_runner_imports() -> None:
 
 
 async def test_sleep_cycle_runs_all_steps_idempotently() -> None:
-    ctx = await make_ctx()
+    ctx, _storage = await make_ctx()
     runner = make_runner()
     results = await run_sleep_cycle(runner, ctx)
     assert set(results) == set(SLEEP_CYCLE_ORDER)
@@ -53,14 +55,14 @@ async def test_sleep_cycle_runs_all_steps_idempotently() -> None:
 
 
 async def test_prune_pipeline_respects_mode_and_offsets() -> None:
-    ctx = await make_ctx(mode="rolling", retention_days=1)
+    ctx, storage = await make_ctx(mode="rolling", retention_days=1)
     event = MemoryEvent(kind=EventKind.WRITE, namespace="n", payload={})
-    appended = await ctx.storage.append_event(event)
+    appended = await storage.append_event(event)
     assert appended.seq == 1
 
     # Age the event far past the retention window up front.
     old = datetime(2020, 1, 1, tzinfo=UTC).isoformat()
-    async with ctx.storage._client.engine.begin() as conn:
+    async with storage._client.engine.begin() as conn:
         from sqlalchemy import text
 
         await conn.execute(text("UPDATE memory_events SET ts = :ts"), {"ts": old})
@@ -70,11 +72,11 @@ async def test_prune_pipeline_respects_mode_and_offsets() -> None:
     stats = await runner.run("event_log_prune", ctx)
     assert stats == {"status": "ok", "pruned": 0}
 
-    await ctx.storage.set_offset("records", 1)
+    await storage.set_offset("records", 1)
     stats = await runner.run("event_log_prune", ctx)
     assert stats == {"status": "ok", "pruned": 1}
 
-    full_ctx = await make_ctx(mode="full")
+    full_ctx, _full_storage = await make_ctx(mode="full")
     assert (await runner.run("event_log_prune", full_ctx))["status"] == "skipped"
 
 
@@ -85,7 +87,7 @@ async def test_dead_letter_logs_and_returns_error_without_raising() -> None:
         raise RuntimeError("kaboom")
 
     runner.register("explode", explode)
-    ctx = await make_ctx()
+    ctx, _storage = await make_ctx()
     stats = await runner.run("explode", ctx)
     assert stats["status"] == "error" and "kaboom" in str(stats["error"])
     assert (await runner.run("unknown", ctx))["status"] == "error"

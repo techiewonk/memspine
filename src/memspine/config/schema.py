@@ -98,6 +98,15 @@ class PromptsConfig(BaseModel):
     overrides: dict[str, dict[str, Any]] = Field(default_factory=dict)
 
 
+class WorkersConfig(BaseModel):
+    """Background runner selection (D-16): inline (default) / dbos [dbos];
+    taskiq joins in P7. Validated against the known set at engine start."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    runner: str = "inline"
+
+
 class ReadConfig(BaseModel):
     """ReadPolicy bindings (M12): options for the scoring + assembly policies.
 
@@ -139,6 +148,7 @@ class MemspineConfig(BaseModel):
     vector: VectorConfig = Field(default_factory=VectorConfig)
     llm: LLMConfig = Field(default_factory=LLMConfig)
     read: ReadConfig = Field(default_factory=ReadConfig)
+    workers: WorkersConfig = Field(default_factory=WorkersConfig)
     prompts: PromptsConfig = Field(default_factory=PromptsConfig)
     memories: dict[str, MemoryTypeConfig] = Field(default_factory=dict)
     namespaces: dict[str, NamespaceConfig] = Field(default_factory=dict)

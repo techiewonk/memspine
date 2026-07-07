@@ -90,9 +90,13 @@ memory_records = Table(
     Column("instruction_flag", Boolean, nullable=False),
     Column("simhash", Integer),
     Column("minhash_sig", LargeBinary),
+    # M3 decay tier + M6/D-32 cold-tier compressed content (migration 0004).
+    Column("tier", String, nullable=False, server_default="hot"),
+    Column("content_zstd", LargeBinary),
     Index("ix_memory_records_ns_type", "namespace", "memory_type"),
     Index("ix_memory_records_fingerprint", "content_fingerprint"),
     Index("ix_memory_records_fact_key", "namespace", "entity", "attribute"),
+    Index("ix_memory_records_tier", "tier"),
 )
 
 # Zero-dep vector fallback (P1): float32 little-endian vectors, brute-force

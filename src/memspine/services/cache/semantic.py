@@ -1,20 +1,24 @@
-"""E3 semantic + operation caching: the embedding cache lands in Phase 1.
+"""E3 semantic + operation caching: embedding (P1) + extraction (P3) caches.
 
-Key = ``emb:{embedder_id}:{xxh64(content)}`` — embedder identity is part of the
-key so a model swap cleanly invalidates (extraction/judge caches join in P3 and
-add prompt-version to their keys, D-43).
+Keys carry the *identity of the producer*, not just the content:
+
+- embeddings — ``emb:{embedder_id}:{xxh64(content)}`` (model swap invalidates),
+- extraction — ``ext:{prompt_version}:{xxh64(content)}`` (a prompt upgrade
+  cleanly invalidates, D-43/N7 — prompt provenance as a cache key).
 """
 
 from __future__ import annotations
 
 import struct
 
+import orjson
 import xxhash
 
+from memspine.prompts.models import ExtractedFact
 from memspine.services.cache.base import KVCache
 from memspine.services.embedding.base import EmbeddingService
 
-__all__ = ["CachedEmbedding"]
+__all__ = ["CachedEmbedding", "CachedExtractor"]
 
 
 def _pack(vector: list[float]) -> bytes:
@@ -75,3 +79,34 @@ class CachedEmbedding:
                     vectors[position] = vector
                 await self._kv.set(key, _pack(vector))
         return [vector for vector in vectors if vector is not None]
+
+
+class CachedExtractor:
+    """EntityExtractor decorator (E3): the same content extracted with the same
+    prompt version is an LLM call saved; a prompt upgrade invalidates (N7)."""
+
+    def __init__(self, inner: object, kv: KVCache) -> None:
+        self._inner = inner
+        self._kv = kv
+        self.hits = 0
+        self.misses = 0
+
+    @property
+    def prompt_version(self) -> str | None:
+        version = getattr(self._inner, "prompt_version", None)
+        return str(version) if version is not None else None
+
+    def _key(self, content: str) -> str:
+        return f"ext:{self.prompt_version}:{xxhash.xxh64_hexdigest(content.encode())}"
+
+    async def extract(self, content: str) -> list[ExtractedFact]:
+        key = self._key(content)
+        cached = await self._kv.get(key)
+        if cached is not None:
+            self.hits += 1
+            return [ExtractedFact.model_validate(item) for item in orjson.loads(cached)]
+        self.misses += 1
+        extract = getattr(self._inner, "extract")  # noqa: B009 - protocol member
+        facts: list[ExtractedFact] = await extract(content)
+        await self._kv.set(key, orjson.dumps([fact.model_dump() for fact in facts]))
+        return facts

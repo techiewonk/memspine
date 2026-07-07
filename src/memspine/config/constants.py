@@ -49,6 +49,17 @@ MMR_LAMBDA = 0.7
 # Consolidation (M2): heat trigger threshold (writes per namespace per cycle).
 CONSOLIDATION_HEAT_THRESHOLD = 50
 
+# Episodic sessions (M13.2): minutes of silence that close a session boundary.
+SESSION_GAP_MINUTES = 30
+
+# Consolidation (M2): sessions smaller than this are not worth a summary; the
+# deterministic extractive fallback caps summaries at this many characters.
+CONSOLIDATION_MIN_SESSION_RECORDS = 3
+CONSOLIDATION_SUMMARY_MAX_CHARS = 600
+
+# Ingest (D-29): fallback chunker target size when chonkie is not installed.
+INGEST_CHUNK_MAX_CHARS = 1200
+
 # Compression (D-32/D-45): one zstd level for cold-tier records and event
 # payloads at rest, so the two never drift without an ADR.
 ZSTD_LEVEL = 3

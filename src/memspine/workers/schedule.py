@@ -15,7 +15,9 @@ SLEEP_CYCLE_ORDER: tuple[str, ...] = (
     "consolidate",
     "decay_sweep",
     "compress",
-    # E7 hook slot: anticipatory sleep-time compute (reserved, no-op default)
+    # E7 hook slot: anticipatory sleep-time compute (no-op default; deployments
+    # override by registering their own pipeline under this name)
+    "sleep_compute",
     "event_log_prune",
 )
 

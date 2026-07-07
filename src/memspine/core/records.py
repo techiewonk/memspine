@@ -140,6 +140,12 @@ class MemoryRecord(BaseModel):
     simhash: int | None = None
     minhash_sig: bytes | None = None
 
+    # Decay lifecycle (M3): current tier, advanced by the decay sweep through
+    # DECAY_TRANSITION events. Cold-tier compression (M6/D-32) moves ``content``
+    # into ``content_zstd``; the fingerprint stays, so round-trips are checkable.
+    tier: str = "hot"
+    content_zstd: bytes | None = None
+
     def model_post_init(self, _context: Any) -> None:
         if not self.content_fingerprint:
             self.content_fingerprint = fingerprint_payload({"content": self.content})

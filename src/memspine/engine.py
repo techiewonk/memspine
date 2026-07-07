@@ -29,6 +29,7 @@ from memspine.config.schema import MemspineConfig
 from memspine.core.events import EventKind, EventLogMode, MemoryEvent, fingerprint_payload
 from memspine.core.namespace import validate_namespace
 from memspine.core.policies.assembly import AssembledContext, AssemblyPolicy
+from memspine.core.policies.compression import CompressionPolicy
 from memspine.core.policies.conflict import ConflictPolicy
 from memspine.core.policies.dedup import DedupPolicy
 from memspine.core.policies.scoring import ScoringPolicy
@@ -44,6 +45,9 @@ from memspine.core.registry import SERVICE_EXTRAS, dependency_closure, missing_s
 from memspine.core.replay import catch_up
 from memspine.core.replay import rebuild as replay_rebuild
 from memspine.exceptions import ConfigError, MemspineError, MissingServiceError
+from memspine.memories.episodic.sessions import Session
+from memspine.memories.episodic.store import EpisodicMemory
+from memspine.memories.resource.store import ResourceMemory
 from memspine.memories.semantic.entities import EntityExtractor, LLMEntityExtractor
 from memspine.memories.semantic.store import SemanticMemory
 from memspine.memories.working.manager import DEFAULT_PAGE_SIZE, WorkingMemory
@@ -57,7 +61,7 @@ from memspine.observability.logging import (
 )
 from memspine.prompts.registry import PromptRegistry
 from memspine.services.cache.base import MemoryKV
-from memspine.services.cache.semantic import CachedEmbedding
+from memspine.services.cache.semantic import CachedEmbedding, CachedExtractor
 from memspine.services.embedding.base import EmbeddingService
 from memspine.services.llm.base import LLMRouter, LLMService
 from memspine.services.llm.local import OpenAICompatLLM
@@ -68,7 +72,8 @@ from memspine.services.vector.base import VectorStore
 from memspine.services.vector.projector import VectorProjector
 from memspine.services.vector.sqlite_store import SQLiteVectorStore
 from memspine.workers.inline import InlineRunner
-from memspine.workers.pipelines import PIPELINES, PipelineContext
+from memspine.workers.pipelines import PIPELINES, PipelineContext, Summarize
+from memspine.workers.runner import TaskRunner
 from memspine.workers.schedule import run_sleep_cycle
 
 __all__ = ["Engine"]
@@ -114,10 +119,14 @@ class Engine:
         self._llm: LLMRouter | None = None
         self._working: WorkingMemory | None = None
         self._semantic: SemanticMemory | None = None
+        self._episodic: EpisodicMemory | None = None
+        self._resource: ResourceMemory | None = None
         self._prompts: PromptRegistry | None = None
         self._scoring: ScoringPolicy | None = None
         self._assembly: AssemblyPolicy | None = None
-        self._runner: InlineRunner | None = None
+        self._inflate: CompressionPolicy = CompressionPolicy.bind()
+        self._summarize: Summarize | None = None
+        self._runner: TaskRunner | None = None
         self._started = False
         self._sync_loop: asyncio.AbstractEventLoop | None = None
         self._sync_thread: threading.Thread | None = None
@@ -201,13 +210,18 @@ class Engine:
                 dedup=DedupPolicy.bind(_as_options_dict(semantic_policies.get("dedup"))),
                 extractor=self._build_extractor(config),
             )
+        if "episodic" in self._enabled:
+            self._episodic = EpisodicMemory(self._storage)
+        if "resource" in self._enabled:
+            self._resource = ResourceMemory(self._append_and_project)
+        self._summarize = self._build_summarize()
         self._projectors = [
             RecordProjector(self._storage),
             VectorProjector(self._vector, self._embedder),
         ]
 
-        # Background runner seam (D-16): inline default, pipelines from the table.
-        self._runner = InlineRunner()
+        # Background runner seam (D-16): inline default, dbos durable [dbos].
+        self._runner = self._build_runner(config)
         for name, pipeline in PIPELINES.items():
             self._runner.register(name, pipeline)
 
@@ -299,7 +313,7 @@ class Engine:
         storage = self._require_started()
         ns = validate_namespace(namespace)
         records = [
-            record
+            self._inflate.inflate(record)
             for record in await storage.list_records(ns, memory_type)
             if record.status is not RecordStatus.DELETED
         ]
@@ -333,6 +347,7 @@ class Engine:
             record = await storage.get_record(hit.record_id)
             if record is None or record.status is RecordStatus.DELETED:
                 continue  # ghost vector row; FORGET projection or rebuild reconciles
+            record = self._inflate.inflate(record)  # cold-tier content restored (M6)
             scored.append((record, self._scoring.composite_score(record, relevance=hit.score)))
         scored.sort(key=lambda pair: pair[1], reverse=True)
         if scored:
@@ -438,6 +453,41 @@ class Engine:
             self._semantic.invalidate_index(ns)
         _log.info(EVENT_FORGET, namespace=ns, record_id=record_id)
 
+    async def timeline(
+        self,
+        namespace: str = "default",
+        start: datetime | None = None,
+        end: datetime | None = None,
+    ) -> list[MemoryRecord]:
+        """Chronological episodic timeline (M13.2), optionally windowed."""
+        self._require_started()
+        if self._episodic is None:
+            raise MemspineError("episodic memory not enabled — set memories.episodic.enabled: true")
+        ns = validate_namespace(namespace)
+        records = await self._episodic.timeline(ns, start, end)
+        return [self._inflate.inflate(record) for record in records]
+
+    async def sessions(
+        self, namespace: str = "default", gap_minutes: int = constants.SESSION_GAP_MINUTES
+    ) -> list[Session]:
+        """Derived session boundaries over the episodic timeline (M13.2)."""
+        self._require_started()
+        if self._episodic is None:
+            raise MemspineError("episodic memory not enabled — set memories.episodic.enabled: true")
+        return await self._episodic.sessions(validate_namespace(namespace), gap_minutes)
+
+    async def ingest(
+        self,
+        path: str | Path,
+        namespace: str = "default",
+        pii_tier: PiiTier = PiiTier.NONE,
+    ) -> list[MemoryRecord]:
+        """Ingest a document (D-29): extract → chunk → resource records."""
+        self._require_started()
+        if self._resource is None:
+            raise MemspineError("resource memory not enabled — set memories.resource.enabled: true")
+        return await self._resource.ingest(validate_namespace(namespace), path, pii_tier=pii_tier)
+
     def llm(self, role: str) -> LLMService:
         """The provider bound to a role (D-07/D-22): extract / judge / chat."""
         if self._llm is None:
@@ -488,8 +538,11 @@ class Engine:
                 {p.id: p.prompt_version for p in self._prompts.list()} if self._prompts else {}
             ),
             "semantic_pipeline": self._semantic is not None,
+            "episodic": self._episodic is not None,
+            "resource_ingest": self._resource is not None,
+            "consolidation_summarizer": "llm" if self._summarize is not None else "extractive",
             "projectors": [projector.name for projector in self._projectors],
-            "runner": "inline",
+            "runner": config.workers.runner,
             "strict_services": config.strict_services,
         }
 
@@ -563,7 +616,37 @@ class Engine:
 
     def _pipeline_ctx(self) -> PipelineContext:
         assert self._storage is not None and self._resolved is not None
-        return PipelineContext(storage=self._storage, config=self._resolved.config)
+        return PipelineContext(
+            storage=self._storage,
+            config=self._resolved.config,
+            append_event=self._append_and_project,
+            summarize=self._summarize,
+        )
+
+    def _build_runner(self, config: MemspineConfig) -> TaskRunner:
+        if config.workers.runner == "inline":
+            return InlineRunner()
+        if config.workers.runner == "dbos":
+            from memspine.workers.dbos_runner import DBOSRunner
+
+            return DBOSRunner()
+        raise ConfigError(
+            f"unknown workers.runner {config.workers.runner!r} "
+            "(valid in P3: inline, dbos; taskiq lands in P7)"
+        )
+
+    def _build_summarize(self) -> Summarize | None:
+        """The consolidation summarizer (M2): only when a ``summarize`` LLM role
+        is bound; pipelines fall back to the deterministic extractive path."""
+        if self._llm is None or self._prompts is None or "summarize" not in self._llm.roles:
+            return None
+        llm = self._llm.for_role("summarize")
+        prompt = self._prompts.for_role("summarize")
+
+        async def summarize(content: str) -> str:
+            return await llm.chat(prompt.render({"content": content}))
+
+        return summarize
 
     @staticmethod
     def _memory_policy(config: MemspineConfig, memory_type: str) -> dict[str, Any]:
@@ -577,8 +660,13 @@ class Engine:
             return None
         if mode == "llm":
             assert self._prompts is not None and self._llm is not None
-            return LLMEntityExtractor(
-                self._llm.for_role("extract"), self._prompts.for_role("extract")
+            # E3 extraction cache: keyed by (prompt version x content hash), so
+            # a prompt upgrade cleanly invalidates (N7).
+            return CachedExtractor(
+                LLMEntityExtractor(
+                    self._llm.for_role("extract"), self._prompts.for_role("extract")
+                ),
+                MemoryKV(),
             )
         if mode == "gliner":
             from memspine.memories.semantic.entities import GlinerEntityExtractor

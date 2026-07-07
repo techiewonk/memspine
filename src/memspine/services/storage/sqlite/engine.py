@@ -266,6 +266,8 @@ class SQLiteStorage(ServiceAdapter):
             "instruction_flag": record.instruction_flag,
             "simhash": record.simhash,
             "minhash_sig": record.minhash_sig,
+            "tier": record.tier,
+            "content_zstd": record.content_zstd,
         }
         stmt = sqlite_insert(memory_records).values(record_id=record.record_id, **values)
         stmt = stmt.on_conflict_do_update(index_elements=["record_id"], set_=values)
@@ -277,6 +279,14 @@ class SQLiteStorage(ServiceAdapter):
         async with self._client.engine.connect() as conn:
             row = (await conn.execute(stmt)).first()
         return self._row_to_record(row._mapping) if row is not None else None
+
+    async def list_namespaces(self) -> list[str]:
+        """Every namespace with at least one materialized record — the sweep
+        surface for the lifecycle pipelines (M2/M3/M6)."""
+        stmt = select(memory_records.c.namespace).distinct().order_by(memory_records.c.namespace)
+        async with self._client.engine.connect() as conn:
+            rows = (await conn.execute(stmt)).all()
+        return [str(row[0]) for row in rows]
 
     async def list_records(
         self, namespace: str, memory_type: str | None = None
@@ -341,5 +351,7 @@ class SQLiteStorage(ServiceAdapter):
                 "instruction_flag": row["instruction_flag"],
                 "simhash": row["simhash"],
                 "minhash_sig": row["minhash_sig"],
+                "tier": row["tier"],
+                "content_zstd": row["content_zstd"],
             }
         )

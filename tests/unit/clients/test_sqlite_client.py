@@ -54,6 +54,6 @@ async def test_shared_cache_database_survives_pool_churn() -> None:
         await client.engine.dispose()  # drain every pooled connection
         async with client.engine.connect() as conn:
             rows = (await conn.execute(text("SELECT x FROM t"))).all()
-        assert rows == [(1,)]
+        assert [tuple(row) for row in rows] == [(1,)]
     finally:
         await client.close()
