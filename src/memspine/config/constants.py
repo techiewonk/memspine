@@ -9,6 +9,27 @@ from __future__ import annotations
 # Hybrid retrieval fusion (D-25): reciprocal-rank-fusion constant.
 RRF_K = 60
 
+# Lexical BM25 leg (D-25/D-42 §5): bounded LRU cache of query results, dropped
+# on any index mutation. Keeps repeated hybrid queries off the FTS5 index.
+LEXICAL_CACHE_MAX_ENTRIES = 512
+
+# Hybrid recall (E8/D-25): each leg fetches ``top_k * multiplier`` candidates
+# before RRF fusion, so a record ranked just outside a single leg's top_k window
+# but strong when the two legs combine can still enter the fused top_k.
+LEXICAL_FETCH_MULTIPLIER = 3
+
+# Lexical query DoS guard (E8/D-25): user queries are bounded before they reach
+# the FTS5 parser (one quoted OR-phrase per token → super-linear parse) and
+# before the raw string becomes a cache key. Terms past the cap are dropped;
+# chars past the cap are truncated.
+MAX_LEXICAL_QUERY_TERMS = 64
+MAX_LEXICAL_QUERY_CHARS = 1024
+
+# Lexical LIKE fallback (D-25): rows scanned per query when the SQLite build
+# lacks FTS5 — a full-namespace scan is bounded so a huge namespace cannot make
+# the degraded path an accidental DoS.
+LEXICAL_LIKE_SCAN_MAX_ROWS = 10_000
+
 # Two-stage dedup (D-27 / M5).
 DEDUP_COSINE_THRESHOLD = 0.92
 MINHASH_NUM_PERM = 128

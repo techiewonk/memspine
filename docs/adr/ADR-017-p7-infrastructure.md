@@ -86,29 +86,49 @@ false`) — off means bit-identical results to the plain pipeline.
 - **Strategy rerank** (D-42 §5): the reranker scores `concat_background`
   text — record content prefixed with `type/entity/attribute/channel/doc`.
 - **Static prefilter:** a cheap lexical-overlap gate applied to the candidate
-  set after the vector leg (a true pre-vector static-embedding prefilter is
-  the E4 model2vec track); an empty filtrate falls back to the unfiltered set.
+  set after the vector/hybrid leg (a true pre-vector static-embedding prefilter
+  is the E4 model2vec track); an empty filtrate falls back to the unfiltered set.
 - **No foreign-hit penalty:** trust-capped grant results get NO artificial
   rank penalty — `TRUST_RETRIEVED_CAP` already carries the signal (E1);
   double-counting it would silently bury legitimately granted knowledge.
-- **Deferred:** the D-42 §5 LRU corpus cache for the BM25 leg — `services/
-  lexical` (the D-25 port) is not built yet, so there is no BM25 leg to
-  cache; the cache lands with that port.
+- **BM25 corpus cache:** the D-42 §5 LRU cache now lands with the lexical port —
+  a bounded (`LEXICAL_CACHE_MAX_ENTRIES`) query-result cache in the FTS5 store,
+  invalidated on every index mutation.
 
-### 5. E8 "hybrid" is a target, not a shipped leg (honesty, amended ADR-018)
+### 5. E8 hybrid RRF is IMPLEMENTED, opt-in (see ADR-019)
 
-The stage diagram writes `hybrid`, but v0.1 has **no lexical/BM25 leg** — the
-`services/lexical`/D-25 port is unbuilt, so the retrieval leg is **vector-only**
-and there is no RRF fusion. Hybrid RRF is therefore **DEFERRED until that port
-lands**. Two consequences are documented deviations, not bugs:
+> The full decision — port surface, RRF normalization, NUL/length hardening,
+> and the cleartext-FTS tradeoff — now lives in **ADR-019 (hybrid retrieval)**,
+> which supersedes this section. The summary below is retained for continuity.
 
-- `Engine.search` is documented **"vector"**, not "vector/hybrid" (the earlier
-  wording overstated the pipeline).
-- `static_prefilter` runs **after** the vector leg (a cheap lexical-overlap
-  gate over the candidate set), not as a true pre-vector static-embedding
-  prefilter (that is the E4 model2vec track); an empty filtrate falls back to
-  the unfiltered set.
-- There is **no BM25 corpus cache** because there is no BM25 leg (above).
+The `services/lexical`/D-25 port now exists (SQLite **FTS5/BM25** core default,
+`rrf_fuse` implemented once in the port, Tantivy stubbed behind `[tantivy]`),
+so hybrid RRF fusion of the vector + lexical legs is **built and wired into
+`Engine.search`** — this reverses the earlier "DEFERRED until that port lands"
+posture. It is **opt-in via `read.hybrid` (default FALSE)**: off, the retrieval
+leg is vector-only and results are **bit-identical** to before (no lexical
+store or projector is even constructed — `simple` stays inert at the write/read
+path). **Default-on is the intended v0.2 flip** (D-25's core-default intent),
+held back in v0.1 only for strict backward-compat.
+
+> **Caveat (migration 0008):** the `memory_fts` table is created empty for
+> **all** profiles by migration 0008, `simple` included. This is harmless — it
+> is an empty structure with no write-path cost (the projector that would fill
+> it is registered only when `read.hybrid` is on), so "`simple` stays inert"
+> refers to the write/read pipeline, not the schema.
+
+- `Engine.search` is documented **"vector/hybrid (opt-in)"**. With
+  `read.hybrid: true` the lexical leg is fused via `rrf_fuse` and a record only
+  BM25 would surface can enter the results; the E1 status/quarantine gate runs
+  on the **fused** candidates, so held content never crosses the lexical leg.
+- The lexical index is a **rebuildable projection** (`LexicalProjector`),
+  registered only when hybrid is on, so `rebuild()` replays it and turning
+  hybrid on for an existing DB backfills the index from the log via catch-up.
+- `static_prefilter` still runs **after** the vector/hybrid leg (a cheap
+  lexical-overlap gate over the candidate set), not as a true pre-vector
+  static-embedding prefilter (that is the E4 model2vec track).
+- **FTS5-missing fallback:** if the SQLite build lacks the FTS5 module the store
+  degrades to a `LIKE` scan and logs the downgrade once (the D-25 ILIKE path).
 
 ### 6. REST deployment guidance (amended ADR-018)
 

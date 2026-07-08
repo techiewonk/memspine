@@ -134,6 +134,10 @@ class ReadConfig(BaseModel):
       ``flashrank`` (``[rerank]`` extra) — E8 rerank stage over the candidate
       set, fed concat_background text (D-42 §5).
     - ``static_prefilter``: cheap lexical-overlap gate before rerank/score (E8).
+    - ``hybrid``: fuse the vector leg with a lexical BM25 leg via RRF (D-25).
+      Default OFF — off means bit-identical results to the vector-only pipeline
+      and no lexical index is built. Default-on is the intended v0.2 flip
+      (D-25's core-default intent), held back only for backward-compat.
     - ``compression``: options for the E5 assembly-stage ``CompressionPolicy``
       binding (``{"assembly": true, "assembly_stage": [...]}``); the master
       switch defaults off so ``profile="simple"`` behavior never changes.
@@ -145,6 +149,7 @@ class ReadConfig(BaseModel):
     assembly: dict[str, Any] = Field(default_factory=dict)
     rerank: str = "off"
     static_prefilter: bool = False
+    hybrid: bool = False
     compression: dict[str, Any] = Field(default_factory=dict)
 
 

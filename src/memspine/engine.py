@@ -91,6 +91,9 @@ from memspine.services.cache.semantic import CachedEmbedding, CachedExtractor
 from memspine.services.embedding.base import EmbeddingService
 from memspine.services.graph.base import GraphStore
 from memspine.services.graph.sqlite_adjacency import SQLiteAdjacencyGraph
+from memspine.services.lexical.base import LexicalStore, rrf_fuse
+from memspine.services.lexical.projector import LexicalProjector
+from memspine.services.lexical.sqlite_fts5 import SQLiteFTS5Lexical
 from memspine.services.llm.base import LLMRouter, LLMService
 from memspine.services.llm.local import OpenAICompatLLM
 from memspine.services.rerank.base import Reranker, concat_background
@@ -193,6 +196,7 @@ class Engine:
         self._projectors: list[Projector] = []
         self._embedder: EmbeddingService | None = None
         self._vector: VectorStore | None = None
+        self._lexical: LexicalStore | None = None
         self._graph: GraphStore | None = None
         self._llm: LLMRouter | None = None
         self._working: WorkingMemory | None = None
@@ -280,6 +284,12 @@ class Engine:
         # P1 services: embedding (E3-cached), vector store, LLM router, policies.
         self._embedder = CachedEmbedding(self._build_embedder(config), MemoryKV())
         self._vector = await self._build_vector_store(config)
+        # Lexical BM25 leg (D-25): built ONLY when hybrid retrieval is on, so
+        # profile="simple" stays truly inert — no lexical index, no projector,
+        # no write-path cost, and describe()["projectors"] is unchanged. When
+        # first switched on, catch-up/rebuild backfills the index from the log.
+        if config.read.hybrid:
+            self._lexical = SQLiteFTS5Lexical(self._client)
         # P6 graph store (D-26): constructed only when associative memory
         # projects it — profile="simple" never constructs one. An explicit
         # ``graph:`` block without associative would be a dead handle (no
@@ -360,6 +370,10 @@ class Engine:
             RecordProjector(self._storage),
             VectorProjector(self._vector, self._embedder),
         ]
+        if self._lexical is not None:
+            # Registered only when hybrid is on, so rebuild() replays it and the
+            # index backfills from seq 0 the first time hybrid is enabled.
+            self._projectors.append(LexicalProjector(self._lexical))
         if self._associative is not None:
             # Registered only when associative is enabled, so rebuild() replays
             # it and profile="simple" never projects a graph (D0.1/ADR-015).
@@ -389,6 +403,8 @@ class Engine:
             await self._runner.close()
         if self._storage is not None:
             await self._storage.stop()
+        if self._lexical is not None:
+            await self._lexical.close()  # shares the SQLite client; a no-op there
         if self._graph is not None:
             await self._graph.close()  # store-held handles; connections close below
         for client in (self._client, self._http, self._lance, self._kuzu):
@@ -523,13 +539,18 @@ class Engine:
         top_k: int = constants.SEARCH_TOP_K,
     ) -> list[tuple[MemoryRecord, float]]:
         """Semantic retrieval (P1 + E8 opt-in stages, D-51):
-        ``[static_prefilter?] → vector → [rerank?] → score`` (MMR and assembly
-        follow in :meth:`assemble`).
+        ``[static_prefilter?] → vector/hybrid → [rerank?] → score`` (MMR and
+        assembly follow in :meth:`assemble`).
 
-        The retrieval leg is **vector-only** in v0.1: the lexical/BM25 port
-        (``services/lexical``, D-25) is not built, so there is no hybrid RRF
-        fusion yet — it is DEFERRED until that port lands (ADR-017/ADR-018).
-        ``static_prefilter`` is a cheap lexical-overlap gate applied POST-vector,
+        The retrieval leg is **vector-only by default**; with ``read.hybrid: true``
+        (D-25) a lexical BM25 leg (``services/lexical``) is fused into the
+        candidate ranking via reciprocal-rank fusion (``rrf_fuse``), so a record
+        that only lexical search would surface can enter the results. Hybrid is
+        opt-in for backward-compat (default-on is the intended v0.2 flip); off,
+        results are bit-identical to the vector-only pipeline. The E1
+        status/quarantine gate below runs on the FUSED candidates, so held
+        content never surfaces through the lexical leg either.
+        ``static_prefilter`` is a cheap lexical-overlap gate applied POST-fusion,
         not a true pre-vector prefilter.
 
         Returns ``(record, score)`` pairs sorted by the M1 composite score
@@ -542,14 +563,46 @@ class Engine:
         storage = self._require_started()
         if self._embedder is None or self._vector is None or self._scoring is None:
             raise MemspineError("retrieval services not constructed — engine not started?")
+        if top_k < 1:
+            # SQLite LIMIT treats -1 as unbounded while Python's ``[:top_k]`` slice
+            # would diverge; reject rather than let the two layers silently disagree
+            # (REST already guards ``ge=1``).
+            raise ValueError(f"top_k must be >= 1, got {top_k}")
         ns = validate_namespace(namespace)
         [query_vector] = await self._embedder.embed([query])
-        hits = await self._vector.query(
-            ns, query_vector, embedder_id=self._embedder.embedder_id, top_k=top_k
+        use_hybrid = self._config().read.hybrid and self._lexical is not None
+        # Hybrid recall (E8/D-25): fetch a wider candidate window per leg so a
+        # record ranked just outside a single leg's top_k, but strong when the two
+        # legs combine, can still enter the fused top_k.
+        fetch_k = top_k * constants.LEXICAL_FETCH_MULTIPLIER if use_hybrid else top_k
+        vector_hits = await self._vector.query(
+            ns, query_vector, embedder_id=self._embedder.embedder_id, top_k=fetch_k
         )
+        # Hybrid (D-25): fuse the lexical BM25 leg via RRF. Off (default),
+        # ``ranked`` is exactly the vector hits in cosine order — bit-identical.
+        if use_hybrid:
+            assert self._lexical is not None  # narrowed by use_hybrid
+            try:
+                lexical_hits = await self._lexical.search(ns, query, top_k=fetch_k)
+            except Exception as exc:
+                # Defense in depth: a broken lexical leg degrades to vector-only
+                # (fusing an empty leg preserves the vector ordering), it never
+                # takes down the whole search().
+                _log.warning("lexical.search_failed", namespace=ns, error=str(exc))
+                lexical_hits = []
+            fused = rrf_fuse(vector_hits, lexical_hits)[:top_k]
+            # F1: raw RRF scores are ~1/(k+1) (≈0.016), but the M1 composite expects
+            # relevance in [0, 1]. Normalize by the theoretical max (a record ranked
+            # #1 in BOTH legs scores 2/(k+1)) so the fused relevance composes with
+            # recency/importance exactly like a cosine similarity would — otherwise
+            # relevance collapses and recency/importance dominate under hybrid.
+            rrf_max = 2.0 / (constants.RRF_K + 1)
+            ranked: list[tuple[str, float]] = [(rid, score / rrf_max) for rid, score in fused]
+        else:
+            ranked = [(hit.record_id, hit.score) for hit in vector_hits]
         candidates: list[tuple[MemoryRecord, float]] = []
-        for hit in hits:
-            record = await storage.get_record(hit.record_id)
+        for record_id, relevance in ranked:
+            record = await storage.get_record(record_id)
             if record is None or record.status is not RecordStatus.ACTIVATED:
                 # Only live facts reach a context window: DELETED/QUARANTINED are
                 # excluded (E1), and ARCHIVED/superseded history never surfaces as
@@ -563,7 +616,7 @@ class Engine:
                 # One corrupt cold-tier row must not take down the whole query.
                 _log.warning("memory.inflate_failed", namespace=ns, record_id=record.record_id)
                 continue
-            candidates.append((record, hit.score))
+            candidates.append((record, relevance))
         # E8 stage: static prefilter (opt-in, default off).
         if candidates and self._config().read.static_prefilter:
             candidates = _static_prefilter(query, candidates)
@@ -799,6 +852,12 @@ class Engine:
         exists = getattr(self._vector, "exists", None)
         if callable(exists):
             vector_absent = not await exists(record_id)
+        # The lexical index (memory_fts) holds raw content when hybrid is on, so
+        # erasure is not proven until it too is inspected. None => no lexical store
+        # is owned (hybrid off) — nothing to erase, so it cannot block ``clean``.
+        lexical_absent: bool | None = None
+        if self._lexical is not None:
+            lexical_absent = not await self._lexical.exists(record_id)
         log_verifiable = storage.can_rebuild  # ephemeral persists nothing to prove
         log_clean = True
         after = 0
@@ -811,11 +870,18 @@ class Engine:
                     log_clean = False
             assert batch[-1].seq is not None
             after = batch[-1].seq
-        clean = record_absent and log_verifiable and log_clean and vector_absent is True
+        clean = (
+            record_absent
+            and log_verifiable
+            and log_clean
+            and vector_absent is True
+            and lexical_absent is not False  # True (absent) or None (no store) both pass
+        )
         return {
             "record_id": record_id,
             "record_absent": record_absent,
             "vector_absent": vector_absent,  # None => backend cannot prove it
+            "lexical_absent": lexical_absent,  # None => no lexical store owned
             "log_verifiable": log_verifiable,
             "log_redacted": log_clean,
             "clean": clean,

@@ -46,12 +46,14 @@ class WriteRequest(_Request):
 
 
 class SearchRequest(_Request):
-    query: str
+    # max_length bounds the query before it reaches the lexical leg (a DoS guard
+    # matching the store's own cap, MAX_LEXICAL_QUERY_CHARS — E8/D-25).
+    query: str = Field(max_length=constants.MAX_LEXICAL_QUERY_CHARS)
     top_k: int = Field(default=constants.SEARCH_TOP_K, ge=1)
 
 
 class AssembleRequest(_Request):
-    query: str
+    query: str = Field(max_length=constants.MAX_LEXICAL_QUERY_CHARS)
     budget_tokens: int = Field(default=constants.ASSEMBLE_BUDGET_TOKENS, ge=1)
     top_k: int = Field(default=constants.ASSEMBLE_TOP_K, ge=1)
 

@@ -288,6 +288,43 @@ async def test_migration_0007_creates_working_graph_tables(tmp_path: Path) -> No
         await client.close()
 
 
+async def test_migration_0008_creates_lexical_fts_index(tmp_path: Path) -> None:
+    """Upgrade path: a populated 0007 database gains the D-25 lexical index,
+    and the FTS5 store indexes + searches against the migrated table."""
+    from alembic import command
+    from sqlalchemy import create_engine, inspect
+
+    from memspine.core.records import SourceInfo
+    from memspine.services.lexical.sqlite_fts5 import SQLiteFTS5Lexical
+    from memspine.services.storage.sqlite.migrations import alembic_config
+
+    db = tmp_path / "old.db"
+    command.upgrade(alembic_config(db), "0007")
+    command.upgrade(alembic_config(db), "head")
+
+    engine = create_engine(f"sqlite:///{db}")
+    assert inspect(engine).has_table("memory_fts")  # table exists after upgrade
+    engine.dispose()
+
+    client = SQLiteClient(db)
+    await client.connect()
+    try:
+        store = SQLiteFTS5Lexical(client)
+        await store.index(
+            MemoryRecord(
+                record_id="r1",
+                namespace="agent/a",
+                memory_type="semantic",
+                content="the migrated fox",
+                source=SourceInfo(role="user"),
+            )
+        )
+        hits = await store.search("agent/a", "fox")
+        assert [h.record_id for h in hits] == ["r1"]
+    finally:
+        await client.close()
+
+
 async def test_alembic_migration_builds_same_schema(tmp_path: Path) -> None:
     db = tmp_path / "memspine.db"
     upgrade_to_head(db)

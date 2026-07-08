@@ -20,6 +20,7 @@ from sqlalchemy import (
 )
 
 __all__ = [
+    "LEXICAL_FTS_TABLE",
     "graph_edges",
     "graph_nodes",
     "memory_embeddings",
@@ -30,6 +31,13 @@ __all__ = [
 ]
 
 metadata = MetaData()
+
+# Lexical BM25 projection (P7/D-25). Deliberately NOT a SQLAlchemy ``Table`` in
+# ``metadata``: FTS5 is a *virtual* table ``create_all`` cannot model, and the
+# store must fall back to a plain table when the build lacks FTS5. The name is
+# fixed here so the migration (0008), the SQLite FTS5 store, and tests agree on
+# one identifier. Rebuildable projection like every other derived store (D0.1).
+LEXICAL_FTS_TABLE = "memory_fts"
 
 # The append-only source of truth (D0.1). Payload is canonical orjson, optionally
 # zstd-compressed at rest (D-45); timestamps are ISO-8601 UTC strings.
