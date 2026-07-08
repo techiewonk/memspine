@@ -144,6 +144,17 @@ RERANK_FASTEMBED_MODEL = "Xenova/ms-marco-MiniLM-L-6-v2"
 # E5 assembly-time compression (D-51): llmlingua target keep-rate per block.
 ASSEMBLY_COMPRESS_RATE = 0.5
 
+# E4 embedding quantization (plan Part B §E4 / ADR-020): the quantized (int8 /
+# binary) or Matryoshka-truncated prefilter fetches this multiple of ``top_k``
+# candidates before the exact float32 cosine rescore re-ranks them — a wider
+# cheap scan buys back the recall a lossy prefilter would otherwise drop.
+RESCORE_OVERSAMPLE = 4
+
+# E4 static-embedding prefilter (model2vec, [static], plan Part B §E4): the cheap
+# static-cosine gate keeps this multiple of ``top_k`` candidates before the
+# expensive rerank/score stages see them. Opt-in; default off.
+STATIC_PREFILTER_KEEP_MULTIPLIER = 4
+
 # In-process KV cache (E3): entry cap for the zero-dep default backend.
 MEMORY_KV_MAX_ENTRIES = 65536
 

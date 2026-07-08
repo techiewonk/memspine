@@ -49,6 +49,7 @@ dbos       = ["dbos>=0.20"]                          # durable worker runner (D-
 taskiq     = ["taskiq>=0.11", "taskiq-redis>=1.0"]  # brokered worker runner (D-16)
 rest       = ["fastapi>=0.115", "uvicorn>=0.32"]    # REST protocol (D-06)
 rerank     = ["flashrank>=0.2"]                      # E8 cross-encoder rerank alt (D-51)
+static     = ["model2vec>=0.3"]                      # E4 static-embedding prefilter (ADR-020)
 aws        = ["boto3>=1.35"]                         # Bedrock LLM/embeddings + Secrets (D-07/D-22)
 litellm    = ["litellm>=1.50"]                       # optional unified LLM gateway adapter (D-33)
 promptopt  = ["langmem>=0.0.20"]                     # RG-only prompt self-optimization hook (D-43)
@@ -62,7 +63,7 @@ local      = ["memspine[lance,graph,lmdb,dbos,ingest,ner]"]
 prod-aws   = ["memspine[aws,taskiq,rest]"]
 # NOTE: `community` (graspologic, numpy<2) conflicts with `ingest` (markitdown→magika, numpy>=2.1);
 # declared under [tool.uv] conflicts and excluded from `all` until graspologic supports numpy 2.
-all        = ["memspine[lance,graph,kuzu,lmdb,ingest,structured,ner,compress,llmlocal,tantivy,dbos,taskiq,rest,rerank,aws,litellm,postgres,weaviate,neo4j,valkey]"]
+all        = ["memspine[lance,graph,kuzu,lmdb,ingest,structured,ner,compress,llmlocal,tantivy,dbos,taskiq,rest,rerank,static,aws,litellm,postgres,weaviate,neo4j,valkey]"]
 
 dev = [
     "pytest>=8.3",
@@ -162,5 +163,7 @@ module = [
     "flashrank.*",
     "llmlingua",
     "llmlingua.*",
+    "model2vec",
+    "model2vec.*",
 ]
 ignore_missing_imports = true

@@ -33,7 +33,9 @@ class HashEmbedding:
 
     @property
     def manifest(self) -> EmbedderManifest:
-        """E4 seam: hash vectors declare no truncation/quantization tolerance."""
+        """E4: hash vectors declare no truncation/quantization tolerance, so the
+        vector store keeps the exact float32 path (ADR-020) — bit buckets do not
+        survive an int8/binary prefilter meaningfully."""
         return EmbedderManifest(embedder_id=self.embedder_id, dim=self._dim)
 
     async def embed(self, texts: list[str]) -> list[list[float]]:

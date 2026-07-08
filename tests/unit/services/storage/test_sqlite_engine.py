@@ -325,6 +325,50 @@ async def test_migration_0008_creates_lexical_fts_index(tmp_path: Path) -> None:
         await client.close()
 
 
+async def test_migration_0009_adds_quantization_columns_in_place(tmp_path: Path) -> None:
+    """Upgrade path: a populated 0008 database gains the E4 quantized-prefilter
+    columns (ADR-020) on memory_embeddings; the existing float32 row is
+    untouched and carries NULL quantized_vec/quantization (default path)."""
+    from alembic import command
+    from sqlalchemy import create_engine, text
+
+    from memspine.services.storage.sqlite.migrations import alembic_config
+    from memspine.services.vector.sqlite_store import SQLiteVectorStore
+
+    db = tmp_path / "old.db"
+    command.upgrade(alembic_config(db), "0008")
+    engine = create_engine(f"sqlite:///{db}")
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO memory_embeddings (record_id, namespace, embedder_id, dim, vector)"
+                " VALUES ('r1', 'agent/a', 'e:1', 1, X'00000000')"  # one float32 = 0.0
+            )
+        )
+    command.upgrade(alembic_config(db), "head")
+    with engine.connect() as conn:
+        row = conn.execute(
+            text(
+                "SELECT dim, quantized_vec, quantization"
+                " FROM memory_embeddings WHERE record_id='r1'"
+            )
+        ).one()
+    engine.dispose()
+    assert row[0] == 1 and row[1] is None and row[2] is None
+
+    # Functional proof: the store round-trips against the migrated table, and an
+    # int8-quantized upsert now populates the new columns.
+    client = SQLiteClient(db)
+    await client.connect()
+    try:
+        store = SQLiteVectorStore(client, quantization="int8")
+        await store.upsert("r2", "agent/a", "e:4", [1.0, 0.0, 0.0, 0.0])
+        hits = await store.search_rescore("agent/a", [1.0, 0.0, 0.0, 0.0], embedder_id="e:4")
+        assert [h.record_id for h in hits] == ["r2"]
+    finally:
+        await client.close()
+
+
 async def test_alembic_migration_builds_same_schema(tmp_path: Path) -> None:
     db = tmp_path / "memspine.db"
     upgrade_to_head(db)

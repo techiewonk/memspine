@@ -37,8 +37,10 @@ class FastembedEmbedding:
 
     @property
     def manifest(self) -> EmbedderManifest:
-        """E4 seam: no capability declared until per-model metadata lands —
-        an unclaimed capability is safer than a guessed one (D-10 spirit)."""
+        """E4: no capability declared until per-model metadata lands — an
+        unclaimed capability is safer than a guessed one (D-10 spirit), so the
+        default fastembed path stays exact float32 (ADR-020). A deployer who
+        knows their model tolerates int8 opts in via ``vector.quantization``."""
         return EmbedderManifest(embedder_id=self.embedder_id, dim=self._dim)
 
     async def _ensure_model(self) -> Any:

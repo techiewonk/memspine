@@ -49,7 +49,7 @@
 - **onnxruntime** (4) — ONNX inference runtime (fastembed's engine). ⭐ under fastembed
 - **flashrank** (1) — lightweight cross-encoder reranker (ONNX). ⭐ **ADOPTED as the `[rerank]` extra** (E8/D-51/ADR-017): fastembed's `TextCrossEncoder` rides the core dep when the installed version ships it; flashrank is the fallback when it does not (or upgrade fastembed).
 - **voyageai/cohere** — hosted embeddings/rerank (see A1).
-- **model2vec** — (referenced in analysis, not a pinned dep) static embeddings.
+- **model2vec** — distills a sentence-transformer into a static lookup table (no torch, pure-numpy inference); embeds on CPU orders of magnitude faster than fastembed at a quality cost. ⭐ **ADOPTED as the `[static]` extra** (E4/D-54/ADR-020): the opt-in static-embedding prefilter that narrows candidates before the real embedder + float32 rescore; also selectable as `embedding.provider: static`.
 - **igraph** (1), **graspologic** (1) — graph embedding / spectral methods.
 
 ## A4. Vector stores & ANN indexes

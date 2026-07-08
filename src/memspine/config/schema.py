@@ -50,21 +50,31 @@ class StorageConfig(BaseModel):
 
 class EmbeddingConfig(BaseModel):
     """Embedder defaults (D-08). ``hash`` is the deterministic zero-network
-    provider for tests/CI; ``fastembed`` (ONNX, CPU) is the production default."""
+    provider for tests/CI; ``fastembed`` (ONNX, CPU) is the production default;
+    ``static`` is the cheap model2vec table (``[static]``, E4/ADR-020)."""
 
     model_config = ConfigDict(extra="forbid")
 
-    provider: str = "fastembed"  # fastembed | hash
+    provider: str = "fastembed"  # fastembed | hash | static
     model: str = "BAAI/bge-small-en-v1.5"
 
 
 class VectorConfig(BaseModel):
     """Vector store selection (D-09). ``auto`` prefers lancedb when installed
-    and falls back to the zero-dep SQLite brute-force store."""
+    and falls back to the zero-dep SQLite brute-force store.
+
+    ``quantization`` drives the E4 two-stage rescore (ADR-020) on the SQLite
+    store: ``auto`` (default) reads the embedder manifest — the default
+    embedders declare none, so the exact float32 path is unchanged; ``none``
+    forces it off; ``int8``/``binary`` force that scheme even for an embedder
+    that does not declare it (a deployer opting a known-tolerant model in).
+    Matryoshka truncation is manifest-only (the model must be trained for it).
+    """
 
     model_config = ConfigDict(extra="forbid")
 
     backend: str = "auto"  # auto | lance | sqlite
+    quantization: str = "auto"  # auto | none | int8 | binary (E4/ADR-020)
 
 
 class GraphConfig(BaseModel):
@@ -134,6 +144,10 @@ class ReadConfig(BaseModel):
       ``flashrank`` (``[rerank]`` extra) — E8 rerank stage over the candidate
       set, fed concat_background text (D-42 §5).
     - ``static_prefilter``: cheap lexical-overlap gate before rerank/score (E8).
+    - ``static_embedding_prefilter``: E4 model2vec static-embedding gate
+      (``[static]``) that narrows the candidate set with cheap static cosine
+      before rerank/score. Default OFF; when on but the extra is missing the
+      engine skip-logs and the stage is a no-op (retrieval never fails).
     - ``hybrid``: fuse the vector leg with a lexical BM25 leg via RRF (D-25).
       Default OFF — off means bit-identical results to the vector-only pipeline
       and no lexical index is built. Default-on is the intended v0.2 flip
@@ -149,6 +163,7 @@ class ReadConfig(BaseModel):
     assembly: dict[str, Any] = Field(default_factory=dict)
     rerank: str = "off"
     static_prefilter: bool = False
+    static_embedding_prefilter: bool = False
     hybrid: bool = False
     compression: dict[str, Any] = Field(default_factory=dict)
 

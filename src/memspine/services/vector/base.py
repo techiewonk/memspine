@@ -1,7 +1,11 @@
 """VectorStore port (D-09): upsert / query / delete-by-record.
 
 Vector stores are projections (D0.1): rebuildable from the event log by
-re-embedding. ``search_rescore()`` (E4 quantization rescore) joins in Phase 6.
+re-embedding. ``search_rescore()`` is the E4 two-stage retrieval (ADR-020):
+a quantized (int8/binary) or Matryoshka-truncated prefilter over an oversampled
+candidate window, then an exact float32 cosine rescore. The zero-dep SQLite
+store implements it in pure Python; adapters that own native quantization (or
+have nothing to quantize) degenerate it to ``query`` — byte-identical.
 """
 
 from __future__ import annotations
@@ -35,10 +39,12 @@ class VectorStore(Protocol):
     async def search_rescore(
         self, namespace: str, vector: list[float], embedder_id: str, top_k: int = 8
     ) -> list[VectorHit]:
-        """E4 two-stage seam (plan Phase 6): quantized/truncated prefilter →
-        full-precision rescore. v0.1 adapters implement this as a fallback to
-        plain ``query`` — the real prefilter is adapter work gated on an
-        embedder manifest that declares ``quantization``/``matryoshka_dims``."""
+        """E4 two-stage retrieval (ADR-020): a quantized/Matryoshka-truncated
+        prefilter over an oversampled candidate window → exact float32 cosine
+        rescore → ``top_k``. Active only when the store was constructed with a
+        quantization/truncation config (driven by the embedder manifest +
+        ``vector.quantization`` override); otherwise it is exactly ``query`` —
+        the guard that keeps ``profile="simple"`` byte-identical."""
         ...
 
     async def delete(self, record_id: str) -> None: ...

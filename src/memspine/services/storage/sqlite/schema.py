@@ -149,5 +149,11 @@ memory_embeddings = Table(
     Column("embedder_id", String, nullable=False),
     Column("dim", Integer, nullable=False),
     Column("vector", LargeBinary, nullable=False),
+    # E4 quantized/truncated prefilter (migration 0009): the int8/binary codes
+    # (of the optionally Matryoshka-truncated vector) + the scheme that built
+    # them. Both NULL for the default float32-only path — an embedder that
+    # declares no quantization stores nothing here and search_rescore == query.
+    Column("quantized_vec", LargeBinary),
+    Column("quantization", String),
     Index("ix_memory_embeddings_ns", "namespace"),
 )

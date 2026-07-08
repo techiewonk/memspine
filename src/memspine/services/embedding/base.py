@@ -1,10 +1,14 @@
 """Embedding port. ``embedder_id`` participates in E3 cache keys and vector
 store metadata so a model swap cleanly invalidates both.
 
-The manifest (E4, plan Phase 6) declares storage/speed capabilities:
-``matryoshka_dims`` (truncatable prefix dimensions) and ``quantization``
-(``"int8"``/``"binary"``; ``None`` = float32). Both are seams in v0.1 — the
-core defaults declare no capability; quantized adapters fill them in later.
+The manifest (E4, ADR-020) declares storage/speed capabilities the vector store
+exploits: ``matryoshka_dims`` (truncatable prefix dimensions) and
+``quantization`` (``"int8"``/``"binary"``; ``None`` = float32). The zero-dep
+SQLite store reads these to drive its two-stage ``search_rescore``. The core
+default embedders (hash, fastembed) declare neither — an unclaimed capability
+is safer than a guessed one (D-10) — so the default retrieval path is unchanged;
+an embedder that declares one, or a ``vector.quantization`` config override,
+opts in.
 """
 
 from __future__ import annotations

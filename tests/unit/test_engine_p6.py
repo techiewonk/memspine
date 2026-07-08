@@ -303,7 +303,10 @@ async def test_forget_survives_rebuild_without_resurrection(engine: Engine) -> N
 
 
 async def test_search_rescore_falls_back_to_plain_search(engine: Engine) -> None:
-    """E4 seam: until a quantized adapter lands, rescore == query."""
+    """E4 (ADR-020): with the quantized adapter landed, ``search_rescore`` still
+    degenerates to ``query`` because the default hash embedder declares
+    ``quantization=None``/``matryoshka_dims=None`` — the rescore path stays
+    inactive, keeping the simple-profile vector leg byte-identical."""
     await engine.write("alpha beta gamma")
     vector_store = engine._vector
     embedder = engine._embedder

@@ -94,8 +94,11 @@ class LanceDBVectorStore:
     async def search_rescore(
         self, namespace: str, vector: list[float], embedder_id: str, top_k: int = 8
     ) -> list[VectorHit]:
-        """E4 fallback: quantized prefilter lands when the embedder manifest
-        declares ``quantization``/``matryoshka_dims`` — plain query until then."""
+        """E4 (ADR-020): LanceDB owns quantization natively (IVF_PQ / binary
+        indexes) rather than through this two-stage rescore, so here it stays a
+        plain cosine query — the SQLite fallback store is where the pure-Python
+        int8/binary prefilter + float32 rescore lives. Wiring LanceDB's native
+        quantized index is deferred (tracked in ADR-020's consequences)."""
         return await self.query(namespace, vector, embedder_id, top_k)
 
     async def delete(self, record_id: str) -> None:

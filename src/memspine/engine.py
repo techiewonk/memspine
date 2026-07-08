@@ -214,6 +214,16 @@ class Engine:
         self._assembly_compression: CompressionPolicy | None = None
         self._reranker: Reranker | None = None
         self._rerank_unavailable = False
+        # E4 (ADR-020): whether the vector leg runs the two-stage quantized
+        # rescore (manifest-driven + vector.quantization override). Off => the
+        # exact query() path, byte-identical to the pre-E4 pipeline.
+        self._rescore_active = False
+        # E4 model2vec static-embedding prefilter (opt-in, default off). The
+        # embedder loads lazily; a missing [static] extra self-disables the
+        # stage once (skip-log), never crashes retrieval.
+        self._static_embedder: EmbeddingService | None = None
+        self._static_prefilter_on = False
+        self._static_unavailable = False
         # SF-1/ADR-018: latch so the "invalidation watches never fire under
         # event_log.mode=ephemeral" warning is logged at most once per engine.
         self._ephemeral_watch_warned = False
@@ -284,6 +294,10 @@ class Engine:
         # P1 services: embedding (E3-cached), vector store, LLM router, policies.
         self._embedder = CachedEmbedding(self._build_embedder(config), MemoryKV())
         self._vector = await self._build_vector_store(config)
+        # E4 model2vec prefilter (ADR-020): only the intent is recorded here; the
+        # static embedder loads lazily on first search so a heavy model download
+        # never blocks start and a missing [static] extra self-disables (skip-log).
+        self._static_prefilter_on = config.read.static_embedding_prefilter
         # Lexical BM25 leg (D-25): built ONLY when hybrid retrieval is on, so
         # profile="simple" stays truly inert — no lexical index, no projector,
         # no write-path cost, and describe()["projectors"] is unchanged. When
@@ -575,9 +589,28 @@ class Engine:
         # record ranked just outside a single leg's top_k, but strong when the two
         # legs combine, can still enter the fused top_k.
         fetch_k = top_k * constants.LEXICAL_FETCH_MULTIPLIER if use_hybrid else top_k
-        vector_hits = await self._vector.query(
-            ns, query_vector, embedder_id=self._embedder.embedder_id, top_k=fetch_k
-        )
+        # E4 (ADR-020): the two-stage quantized rescore replaces the plain cosine
+        # query ONLY when active (a quantized/Matryoshka manifest or the
+        # vector.quantization override). Off, this is exactly query() — the
+        # vector-only pipeline stays byte-identical. Rescore happens here, at the
+        # vector leg, BEFORE fusion/gate/rerank compose over the candidates.
+        if self._rescore_active:
+            try:
+                vector_hits = await self._vector.search_rescore(
+                    ns, query_vector, embedder_id=self._embedder.embedder_id, top_k=fetch_k
+                )
+            except Exception as exc:
+                # Defense in depth (mirrors the lexical leg below): any residual
+                # rescore error — e.g. a corrupt code row surviving the scheme/dim
+                # guards — degrades to the exact query() path, never crashes search().
+                _log.warning("vector.rescore_failed", namespace=ns, error=str(exc))
+                vector_hits = await self._vector.query(
+                    ns, query_vector, embedder_id=self._embedder.embedder_id, top_k=fetch_k
+                )
+        else:
+            vector_hits = await self._vector.query(
+                ns, query_vector, embedder_id=self._embedder.embedder_id, top_k=fetch_k
+            )
         # Hybrid (D-25): fuse the lexical BM25 leg via RRF. Off (default),
         # ``ranked`` is exactly the vector hits in cosine order — bit-identical.
         if use_hybrid:
@@ -620,6 +653,11 @@ class Engine:
         # E8 stage: static prefilter (opt-in, default off).
         if candidates and self._config().read.static_prefilter:
             candidates = _static_prefilter(query, candidates)
+        # E4 stage: model2vec static-embedding prefilter (opt-in, default off).
+        # A cheap static-cosine gate that narrows the candidate set before the
+        # expensive rerank/score; a missing [static] extra self-disables it.
+        if candidates and self._static_prefilter_on and not self._static_unavailable:
+            candidates = await self._static_embedding_prefilter(query, candidates, top_k)
         # E8 stage: cross-encoder rerank (opt-in, default off). The reranked
         # relevance replaces the vector similarity; the E1 gates above already
         # ran, so a reranker can only reorder live content, never resurface
@@ -1098,6 +1136,57 @@ class Engine:
                 detail=f"E8 rerank stage skipped — {exc}",
             )
         return self._reranker
+
+    async def _static_embedding_prefilter(
+        self, query: str, candidates: list[tuple[MemoryRecord, float]], top_k: int
+    ) -> list[tuple[MemoryRecord, float]]:
+        """E4 model2vec gate (ADR-020): rank the candidates by cheap static
+        cosine and keep the strongest ``top_k * STATIC_PREFILTER_KEEP_MULTIPLIER``
+        before the expensive rerank/score. The embedder loads lazily.
+
+        Two failure modes, deliberately different: a genuinely absent ``[static]``
+        extra (MissingServiceError/ImportError at construction) STICKY-disables
+        the stage for the process — it can never work, so stop trying. A transient
+        embed/count error (weight download, a model2vec vector-count mismatch)
+        skips the prefilter for THIS search ONLY and is NOT sticky, so a later
+        search retries. Either way retrieval degrades to the unfiltered set."""
+        if self._static_embedder is None:
+            try:
+                from memspine.services.embedding.static_local import StaticEmbedder
+
+                self._static_embedder = StaticEmbedder()
+            except (MissingServiceError, ImportError) as exc:
+                # The extra is genuinely absent — disable permanently.
+                self._static_unavailable = True
+                _log.info(
+                    "static_prefilter.unavailable",
+                    detail=f"E4 static-embedding prefilter disabled — {exc}",
+                )
+                return candidates
+        keep = max(top_k * constants.STATIC_PREFILTER_KEEP_MULTIPLIER, top_k)
+        if len(candidates) <= keep:
+            return candidates  # nothing to narrow — skip the embed cost entirely
+        try:
+            vectors = await self._static_embedder.embed(
+                [query, *(record.content for record, _ in candidates)]
+            )
+            # Unpack + zip INSIDE the try: a model2vec count mismatch (vectors not
+            # 1 + len(candidates)) must degrade to the unfiltered set, not raise.
+            query_vec, doc_vecs = vectors[0], vectors[1:]
+            scored = sorted(
+                zip(candidates, doc_vecs, strict=True),
+                key=lambda pair: sum(a * b for a, b in zip(query_vec, pair[1], strict=True)),
+                reverse=True,
+            )
+        except Exception as exc:
+            # Transient (OSError weight download, RuntimeError, a length mismatch):
+            # skip THIS search only — not sticky, so a later search tries again.
+            _log.warning(
+                "static_prefilter.skipped",
+                detail=f"E4 static-embedding prefilter skipped this search — {exc}",
+            )
+            return candidates
+        return [candidate for candidate, _ in scored[:keep]]
 
     async def timeline(
         self,
@@ -1939,12 +2028,47 @@ class Engine:
             from memspine.services.embedding.fastembed_local import FastembedEmbedding
 
             return FastembedEmbedding(model=config.embedding.model)
+        if config.embedding.provider == "static":
+            # E4 model2vec (ADR-020): a missing [static] extra hard-fails here
+            # (D-10) because the deployer chose it as their embedder — as a mere
+            # prefilter *stage* the engine skip-logs instead (see search()).
+            from memspine.services.embedding.static_local import StaticEmbedder
+
+            return StaticEmbedder(model=config.embedding.model)
         raise ConfigError(
-            f"unknown embedding.provider {config.embedding.provider!r} (valid: fastembed, hash)"
+            f"unknown embedding.provider {config.embedding.provider!r} "
+            "(valid: fastembed, hash, static)"
         )
+
+    def _rescore_settings(self, config: MemspineConfig) -> tuple[str | None, int | None]:
+        """E4 (ADR-020): resolve the effective (quantization, matryoshka_dim)
+        from the embedder manifest + the ``vector.quantization`` override.
+
+        ``auto`` reads the manifest (default embedders declare none → the exact
+        float32 path); ``none`` forces off; ``int8``/``binary`` force a scheme.
+        Matryoshka truncation is manifest-only and uses the smallest declared
+        prefix dim (max prefilter savings; the rescore restores full precision).
+        """
+        assert self._embedder is not None
+        manifest = self._embedder.manifest
+        override = config.vector.quantization
+        if override == "none":
+            quantization = None
+        elif override in ("int8", "binary"):
+            quantization = override
+        elif override == "auto":
+            quantization = manifest.quantization
+        else:
+            raise ConfigError(
+                f"unknown vector.quantization {override!r} (valid: auto, none, int8, binary)"
+            )
+        matryoshka_dim = min(manifest.matryoshka_dims) if manifest.matryoshka_dims else None
+        return quantization, matryoshka_dim
 
     async def _build_vector_store(self, config: MemspineConfig) -> VectorStore:
         assert self._client is not None and self._embedder is not None
+        quantization, matryoshka_dim = self._rescore_settings(config)
+        self._rescore_active = quantization is not None or matryoshka_dim is not None
         backend = config.vector.backend
         if backend == "auto":
             try:
@@ -1964,8 +2088,23 @@ class Engine:
             )
             backend = "sqlite"
         if backend == "sqlite":
-            return SQLiteVectorStore(self._client)
+            return SQLiteVectorStore(
+                self._client,
+                quantization=quantization,
+                matryoshka_dim=matryoshka_dim,
+                oversample=constants.RESCORE_OVERSAMPLE,
+            )
         if backend == "lance":
+            if self._rescore_active:
+                # LanceDB owns quantization natively (ADR-020) — the pure-Python
+                # rescore is a SQLite-store feature. Fall back to its exact cosine
+                # query and disable the rescore dispatch so search() stays honest.
+                _log.info(
+                    "vector.rescore_unsupported",
+                    backend="lance",
+                    detail="E4 int8/binary rescore is SQLite-store-only; using exact cosine",
+                )
+                self._rescore_active = False
             from memspine.services.vector.lancedb_store import LanceDBVectorStore
 
             self._lance = LanceDBClient(f"{config.storage.path}.lance")
