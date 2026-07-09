@@ -179,5 +179,10 @@ STATIC_PREFILTER_KEEP_MULTIPLIER = 4
 # In-process KV cache (E3): entry cap for the zero-dep default backend.
 MEMORY_KV_MAX_ENTRIES = 65536
 
+# LMDB cache env map size (Phase 2 / D-09): the max on-disk size LMDB reserves
+# for the memory-mapped cache file. 1 GiB is ample for an embedding/extraction
+# cache and costs nothing until written (sparse file).
+LMDB_MAP_SIZE_BYTES = 1 << 30
+
 # Hash test embedder: vector width (tests/CI only, never production).
 HASH_EMBEDDING_DIM = 64

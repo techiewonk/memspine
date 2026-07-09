@@ -17,6 +17,7 @@ from memspine.core.registry import validate_types
 from memspine.exceptions import ConfigError
 
 __all__ = [
+    "CacheConfig",
     "EmbeddingConfig",
     "EventLogConfig",
     "GraphConfig",
@@ -204,6 +205,33 @@ class NamespaceConfig(BaseModel):
     policies: dict[str, Any] = Field(default_factory=dict)
 
 
+class CacheConfig(BaseModel):
+    """KV cache selection (D-09, Phase 2). One cache is built and shared by the
+    embedding (E3) and extraction (E3) caches — the ``emb:``/``ext:`` producer
+    key prefixes already keep them from colliding in a shared store.
+
+    - ``memory`` (default): in-process :class:`MemoryKV`, zero-dep, per-process.
+    - ``lmdb`` (``[lmdb]``): persistent single-process cache at ``path`` (a
+      directory); survives restarts, TTL via lazy expiry.
+    - ``redis`` (``[redis]``) / ``valkey`` (``[valkey]``): shared cross-process
+      cache at ``url``; native ``EX`` TTL. The two are wire-compatible — either
+      client library serves either backend.
+
+    ``namespace`` prefixes every key so multiple memspine instances can share
+    one lmdb env / redis server safely. ``default_ttl_seconds`` (``None`` = no
+    expiry) applies when a caller does not pass an explicit TTL. ``url`` is
+    secrets-resolved once the pluggable secrets tier lands (Phase 3)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    backend: str = "memory"  # memory | lmdb | redis | valkey
+    path: str = "./memspine.cache.lmdb"  # lmdb env directory
+    url: str = "redis://localhost:6379/0"  # redis/valkey DSN
+    namespace: str = "memspine"
+    default_ttl_seconds: float | None = None
+    max_entries: int = constants.MEMORY_KV_MAX_ENTRIES  # memory backend cap
+
+
 class MemspineConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -213,6 +241,7 @@ class MemspineConfig(BaseModel):
     storage: StorageConfig = Field(default_factory=StorageConfig)
     embedding: EmbeddingConfig = Field(default_factory=EmbeddingConfig)
     vector: VectorConfig = Field(default_factory=VectorConfig)
+    cache: CacheConfig = Field(default_factory=CacheConfig)
     graph: GraphConfig = Field(default_factory=GraphConfig)
     llm: LLMConfig = Field(default_factory=LLMConfig)
     read: ReadConfig = Field(default_factory=ReadConfig)

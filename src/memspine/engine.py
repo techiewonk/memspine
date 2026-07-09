@@ -26,6 +26,8 @@ from memspine.clients.http import HTTPClient
 from memspine.clients.kuzu import KuzuClient
 from memspine.clients.ladybug import LadybugClient
 from memspine.clients.lancedb import LanceDBClient
+from memspine.clients.lmdb import LmdbClient
+from memspine.clients.redis import RedisClient
 from memspine.clients.sqlite import SQLiteClient
 from memspine.config import constants
 from memspine.config.loader import ResolvedConfig, load_config
@@ -89,7 +91,7 @@ from memspine.observability.logging import (
     get_logger,
 )
 from memspine.prompts.registry import PromptRegistry
-from memspine.services.cache.base import MemoryKV
+from memspine.services.cache.base import KVCache, MemoryKV
 from memspine.services.cache.semantic import CachedEmbedding, CachedExtractor
 from memspine.services.embedding.base import EmbeddingService
 from memspine.services.graph.base import GraphStore
@@ -201,6 +203,10 @@ class Engine:
         self._lance_scratch: Path | None = None
         self._kuzu: KuzuClient | None = None
         self._ladybug: LadybugClient | None = None
+        # Phase 2: one shared KV cache + the optional clients backing it.
+        self._cache: KVCache | None = None
+        self._lmdb: LmdbClient | None = None
+        self._redis_client: RedisClient | None = None
         self._storage: SQLiteStorage | None = None
         self._projectors: list[Projector] = []
         self._embedder: EmbeddingService | None = None
@@ -301,7 +307,10 @@ class Engine:
             )
 
         # P1 services: embedding (E3-cached), vector store, LLM router, policies.
-        self._embedder = CachedEmbedding(self._build_embedder(config), MemoryKV())
+        # One shared cache (Phase 2) fronts both the embedding and extraction
+        # caches; the emb:/ext: producer key prefixes keep them isolated in it.
+        self._cache = await self._build_cache(config)
+        self._embedder = CachedEmbedding(self._build_embedder(config), self._cache)
         self._vector = await self._build_vector_store(config)
         # E4 model2vec prefilter (ADR-020): only the intent is recorded here; the
         # static embedder loads lazily on first search so a heavy model download
@@ -430,7 +439,15 @@ class Engine:
             await self._lexical.close()  # shares the SQLite client; a no-op there
         if self._graph is not None:
             await self._graph.close()  # store-held handles; connections close below
-        for client in (self._client, self._http, self._lance, self._kuzu, self._ladybug):
+        for client in (
+            self._client,
+            self._http,
+            self._lance,
+            self._kuzu,
+            self._ladybug,
+            self._lmdb,
+            self._redis_client,
+        ):
             if client is not None:
                 await client.close()
         if self._lance_scratch is not None:
@@ -1872,6 +1889,7 @@ class Engine:
             "storage": {"backend": "sqlite", "path": config.storage.path},
             "embedding": self._embedder.embedder_id if self._embedder else None,
             "vector": type(self._vector).__name__ if self._vector else None,
+            "cache": config.cache.backend,
             "graph": type(self._graph).__name__ if self._graph else None,
             "llm_roles": self._llm.roles if self._llm else [],
             "prompts": (
@@ -2043,11 +2061,12 @@ class Engine:
             assert self._prompts is not None and self._llm is not None
             # E3 extraction cache: keyed by (prompt version x content hash), so
             # a prompt upgrade cleanly invalidates (N7).
+            assert self._cache is not None  # built in _start_inner before extractors
             return CachedExtractor(
                 LLMEntityExtractor(
                     self._llm.for_role("extract"), self._prompts.for_role("extract")
                 ),
-                MemoryKV(),
+                self._cache,
             )
         if mode == "gliner":
             from memspine.memories.semantic.entities import GlinerEntityExtractor
@@ -2103,6 +2122,37 @@ class Engine:
             )
         matryoshka_dim = min(manifest.matryoshka_dims) if manifest.matryoshka_dims else None
         return quantization, matryoshka_dim
+
+    async def _build_cache(self, config: MemspineConfig) -> KVCache:
+        """Build the one shared KV cache (Phase 2, D-09). ``memory`` is the
+        zero-dep default; ``lmdb`` persists to a local env; ``redis``/``valkey``
+        share a server across processes. Missing extras hard-fail with the D-10
+        error naming the extra (raised by the client on ``connect()``)."""
+        cache = config.cache
+        backend = cache.backend
+        if backend == "memory":
+            return MemoryKV(max_entries=cache.max_entries)
+        if backend == "lmdb":
+            from memspine.services.cache.lmdb_cache import LmdbCache
+
+            self._lmdb = LmdbClient(cache.path)
+            await self._lmdb.connect()
+            return LmdbCache(
+                self._lmdb,
+                namespace=cache.namespace,
+                default_ttl_seconds=cache.default_ttl_seconds,
+            )
+        if backend in ("redis", "valkey"):
+            from memspine.services.cache.redis_cache import RedisCache
+
+            self._redis_client = RedisClient(cache.url, backend=backend)
+            await self._redis_client.connect()
+            return RedisCache(
+                self._redis_client.client,
+                namespace=cache.namespace,
+                default_ttl_seconds=cache.default_ttl_seconds,
+            )
+        raise ConfigError(f"unknown cache.backend {backend!r} (valid: memory, lmdb, redis, valkey)")
 
     async def _build_vector_store(self, config: MemspineConfig) -> VectorStore:
         assert self._embedder is not None

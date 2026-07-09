@@ -58,14 +58,15 @@ promptopt  = ["langmem>=0.0.20"]                     # RG-only prompt self-optim
 postgres   = ["psycopg[binary]>=3.2", "pgvector>=0.3", "asyncpg>=0.30"]  # prod swap-ins
 weaviate   = ["weaviate-client>=4.9"]
 neo4j      = ["neo4j>=5.26"]
-valkey     = ["valkey>=6.0"]
+valkey     = ["valkey>=6.0"]                        # shared cross-process cache (D-09)
+redis      = ["redis>=5.0"]                          # shared cross-process cache alt (D-09)
 
 # Convenience bundles
 local      = ["memspine[graph,lmdb,dbos,ingest,ner]"]
 prod-aws   = ["memspine[aws,taskiq,rest]"]
 # NOTE: `community` (graspologic, numpy<2) conflicts with `ingest` (markitdown→magika, numpy>=2.1);
 # declared under [tool.uv] conflicts and excluded from `all` until graspologic supports numpy 2.
-all        = ["memspine[graph,kuzu,lmdb,ingest,structured,ner,compress,llmlocal,tantivy,dbos,taskiq,rest,rerank,static,aws,litellm,postgres,weaviate,neo4j,valkey]"]
+all        = ["memspine[graph,kuzu,lmdb,ingest,structured,ner,compress,llmlocal,tantivy,dbos,taskiq,rest,rerank,static,aws,litellm,postgres,weaviate,neo4j,valkey,redis]"]
 
 dev = [
     "pytest>=8.3",
@@ -165,6 +166,10 @@ module = [
     "taskiq_redis.*",
     "redis",
     "redis.*",
+    "valkey",
+    "valkey.*",
+    "lmdb",
+    "lmdb.*",
     "flashrank",
     "flashrank.*",
     "llmlingua",
