@@ -40,9 +40,12 @@ set to `PIPELINES`); consumer-group delivery with **XAUTOCLAIM
 claim-recovery**. Each `run()` appends a durable work marker (XADD), claims
 it (XREADGROUP) and acknowledges on success (XACK); a crashed run leaves the
 marker pending for `claim_stale` — safe because pipelines are idempotent
-(D-17). Honesty note (same posture as the DBOS runner): pipeline bodies
-execute in-process because `PipelineContext` holds live connections; the
-worker-fleet/push-delivery story (ADR-016) consumes these same streams later.
+(D-17). Honesty note: pipeline bodies execute in-process because
+`PipelineContext` holds live connections — the durable unit here is the
+broker-level work marker + claim-recovery, not a checkpointed workflow (the
+dbos runner gained that distinction in a later hardening pass, see ADR-005's
+update); the worker-fleet/push-delivery story (ADR-016) consumes these same
+streams later.
 v0.1 pipelines are engine-wide, so the default scope is `engine`;
 per-namespace scoping joins when pipelines take a namespace. Broker outages
 degrade loudly to inline execution — maintenance never depends on broker

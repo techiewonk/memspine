@@ -14,8 +14,9 @@ D-42 §3 (the MemOS ``SchedulerRedisQueue`` pattern, adopted):
   :func:`claim_stale` (XAUTOCLAIM) at the start of the run before executing the
   (idempotent, D-17) pipeline body again — so the dead-letter set is bounded.
 
-HONESTY NOTE (P7, same posture as ``dbos_runner``): this is the seam plus the
-durable at-least-once work record — not yet a distributed worker fleet.
+HONESTY NOTE (P7): this is the seam plus the durable at-least-once work
+record — not yet a distributed worker fleet, and not a checkpointed workflow
+engine (``dbos_runner`` gained that distinction in a later hardening pass).
 ``PipelineContext`` holds live connections and callables, so the pipeline body
 executes in-process; re-execution after claim-recovery is safe because
 pipelines are idempotent by the D-17 contract. Claim-recovery is best-effort:

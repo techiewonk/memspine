@@ -125,12 +125,18 @@ class WorkersConfig(BaseModel):
     """Background runner selection (D-16): inline (default) / dbos [dbos] /
     taskiq [taskiq] (P7, D-42 §3). Validated against the known set at engine
     start. ``broker_url`` is the Redis/Valkey endpoint the taskiq runner's
-    per-scope streams live on; ignored by the other runners."""
+    per-scope streams live on; ignored by the other runners.
+    ``dbos_system_database_url`` is ignored by the other runners too: None
+    (default) derives a SQLite file colocated with ``storage.path`` — zero
+    external infra, matching every other core default (D-09/D-25/D-26); set
+    it to a Postgres URL only for multi-instance deployments where DBOS's own
+    cross-replica recovery requires a shared system database."""
 
     model_config = ConfigDict(extra="forbid")
 
     runner: str = "inline"
     broker_url: str = "redis://localhost:6379/0"
+    dbos_system_database_url: str | None = None
 
 
 class ReadConfig(BaseModel):

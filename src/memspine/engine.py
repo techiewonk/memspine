@@ -1966,9 +1966,32 @@ class Engine:
         if config.workers.runner == "inline":
             return InlineRunner()
         if config.workers.runner == "dbos":
-            from memspine.workers.dbos_runner import DBOSRunner
+            from memspine.workers.dbos_runner import DBOSRunner, default_system_database_url
 
-            return DBOSRunner()
+            system_database_url = (
+                config.workers.dbos_system_database_url
+                or default_system_database_url(config.storage.path)
+            )
+            # ``_pipeline_ctx`` is safe to hand over now: by this point in
+            # ``_start_inner`` storage/config are already set, and the bound
+            # method builds a FRESH PipelineContext on every call — exactly
+            # what the durable workflow needs on recovery (see dbos_runner's
+            # module docstring).
+            runner = DBOSRunner(
+                system_database_url=system_database_url,
+                context_factory=self._pipeline_ctx,
+            )
+            # Register every pipeline BEFORE launch(): DBOS dispatches
+            # recovery of any crash-orphaned PENDING workflow the moment
+            # launch() runs, and that recovery resolves pipelines by name
+            # through this same runner (dbos_runner's `_run_pipeline_
+            # workflow`) — an empty registry would race it. The generic
+            # registration loop below (identical for every runner) still
+            # runs afterwards; re-registering the same names is a no-op.
+            for name, pipeline in PIPELINES.items():
+                runner.register(name, pipeline)
+            runner.launch()
+            return runner
         if config.workers.runner == "taskiq":
             from memspine.workers.taskiq_runner import TaskiqRunner
 

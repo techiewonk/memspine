@@ -45,7 +45,7 @@ community  = ["graspologic>=3.4"]                   # graph community detection 
 compress   = ["llmlingua>=0.2"]                     # assembly-time context compression (E5)
 llmlocal   = ["llama-cpp-python>=0.3"]              # in-proc open-weight inference (D-39)
 tantivy    = ["tantivy>=0.22"]                       # standalone lexical for non-Lance configs (D-25)
-dbos       = ["dbos>=0.20"]                          # durable worker runner (D-16)
+dbos       = ["dbos>=2.20,<3.0"]                     # durable worker runner (D-16); needs the SQLite system-db support (zero-infra, D-10) verified against 2.26
 taskiq     = ["taskiq>=0.11", "taskiq-redis>=1.0"]  # brokered worker runner (D-16)
 rest       = ["fastapi>=0.115", "uvicorn>=0.32"]    # REST protocol (D-06)
 rerank     = ["flashrank>=0.2"]                      # E8 cross-encoder rerank alt (D-51)

@@ -26,7 +26,7 @@
 | D-13 | Memory deps | C1(b): auto-enable dependencies with logged notice |
 | D-14 | Combination granularity | v0.1 per-instance type enablement + per-namespace *policy* overrides; per-namespace *type* enablement reserved for v0.2 (config key reserved now) |
 | D-15 | Custom memory types | registry internal-only v1; interfaces written plugin-ready |
-| D-16 | Background execution | `TaskRunner` seam with three runners: `inline` / **`dbos`** (blessed worker; SQLite→Postgres) / `taskiq` (Valkey-Streams & other brokers) |
+| D-16 | Background execution | `TaskRunner` seam with three runners: `inline` / **`dbos`** (blessed worker; real per-invocation checkpointing via `@DBOS.workflow` + `DBOS.launch()` auto-recovery; SQLite system-db default, Postgres via `workers.dbos_system_database_url` override, verified against dbos 2.26 — see ADR-005 update) / `taskiq` (Valkey-Streams & other brokers; durable work-marker + claim-recovery, not step-checkpointed) |
 | D-17 | Anti-lock-in rule | pipelines are plain idempotent step functions; runners decorate them |
 | D-18 | Dead-letter severity | consolidation = warning; M7 hard-delete cascade = alert |
 | D-19 | Evals | repo root, not in `src/`; hardening deferred |

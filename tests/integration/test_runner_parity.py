@@ -90,7 +90,7 @@ async def _summary_count(storage: SQLiteStorage) -> int:
     )
 
 
-def _available_runners() -> dict[str, TaskRunner]:
+def _available_runners(tmp_path: Path) -> dict[str, TaskRunner]:
     runners: dict[str, TaskRunner] = {"inline": InlineRunner()}
     try:
         import fakeredis.aioredis
@@ -103,22 +103,35 @@ def _available_runners() -> dict[str, TaskRunner]:
     try:
         import dbos  # noqa: F401
 
-        from memspine.workers.dbos_runner import DBOSRunner
+        from memspine.workers.dbos_runner import DBOSRunner, default_system_database_url
 
-        runners["dbos"] = DBOSRunner()
+        # No PipelineContext exists yet at this point — this test builds one
+        # PER RUNNER NAME below, unlike the engine, which builds DBOSRunner
+        # AFTER its own storage/config already exist (see engine.py's
+        # `_build_runner`). `context_factory` is reassigned once the real
+        # `ctx` is built, just before `run_sleep_cycle` needs it.
+        runners["dbos"] = DBOSRunner(
+            system_database_url=default_system_database_url(str(tmp_path / "dbos.db")),
+        )
     except ImportError:  # pragma: no cover - env-dependent
         pass
     return runners
 
 
 async def test_sleep_cycle_parity_across_available_runners(tmp_path: Path) -> None:
-    runners = _available_runners()
+    runners = _available_runners(tmp_path)
     effects: dict[str, tuple[int, int]] = {}
 
     for name, runner in runners.items():
         for pipeline_name, pipeline in PIPELINES.items():
             runner.register(pipeline_name, pipeline)
         ctx, storage, client = await _build_ctx(str(tmp_path / f"{name}.db"))
+        if hasattr(runner, "_context_factory"):  # dbos: bind the context built above
+            runner._context_factory = lambda ctx=ctx: ctx  # type: ignore[attr-defined]
+            # Pipelines are registered (above) BEFORE launch(), same ordering
+            # `Engine._build_runner` follows — see dbos_runner's docstring on
+            # why launch() must never race an empty pipeline registry.
+            runner.launch()  # type: ignore[attr-defined]
         try:
             await _seed(ctx)
             stats = await run_sleep_cycle(runner, ctx)

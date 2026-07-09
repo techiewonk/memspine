@@ -19,6 +19,44 @@ Background pipelines are plain, idempotent step functions in `workers/pipelines.
 - Negative / cost: pipelines can't use runner-specific niceties directly; the seam must be tested per runner (crash-resume, flush-on-exit).
 - Follow-up: P1 inline runner; P3 dbos; P7 taskiq with per-scope streams.
 
+## Update — dbos runner is real (post-P3 hardening pass)
+
+The dbos runner shipped through P3/C6 as a seam only: pipelines ran with
+inline semantics plus dead-letter reporting, `DBOS.launch()` was never called
+anywhere, and `DBOSRunner.__init__` took no arguments. That gap is closed:
+
+- Every `DBOSRunner.run()` call executes the pipeline through a real
+  `@DBOS.workflow`-decorated function, so DBOS's own system database records
+  PENDING → SUCCESS/ERROR for each invocation and `DBOS.launch()` (now called
+  from `Engine._build_runner`, guarded on `workers.runner == "dbos"`)
+  auto-recovers anything left PENDING by a crash.
+- The durable *unit* is the whole pipeline invocation, not its internal
+  steps: `PipelineContext` holds live connections/callables that cannot be
+  checkpointed, so the workflow body takes only a pipeline name (a plain
+  `str`) and rebuilds a fresh context on every call — including on recovery —
+  via a `context_factory` callable the engine wires in (`self._pipeline_ctx`).
+  Re-execution from the top is always safe because pipelines are idempotent
+  (D-17).
+- Zero-infra confirmed for real: the installed DBOS SDK (2.26, verified
+  against the actual package — `dbos>=0.20` was too permissive a floor and is
+  now `dbos>=2.20,<3.0`) defaults its system database to **SQLite**, not
+  Postgres. No external server is required to install, configure, or test
+  `[dbos]`; `workers.dbos_system_database_url` exists only as an escape hatch
+  for deployments wanting a shared Postgres system db across a fleet.
+- Two DBOS SDK edges surfaced during hardening and are handled in
+  `workers/dbos_runner.py` (see its module docstring for the full mechanism):
+  DBOS is a process-wide singleton that silently reuses a stale instance
+  across engine restarts unless explicitly destroyed, and calling any DBOS
+  async workflow repoints the calling event loop's default executor at
+  DBOS's own — `DBOSRunner.close()` repairs both so the stop()/start() engine
+  cycles this codebase relies on everywhere stay safe.
+
+See `tests/integration/test_dbos_crash_resume.py::test_dbos_durable_resume`
+for the checkpointing proof (a genuine mid-pipeline process kill is not
+simulated — the workflow has no internal step checkpoints by design, so only
+"before start" and "after completion" are meaningful tear points, and the
+former is exactly what the idempotent-resume property already covers).
+
 ## Alternatives rejected
 
 - **celery / apscheduler** — heavyweight, wrong grain (anti-decision).

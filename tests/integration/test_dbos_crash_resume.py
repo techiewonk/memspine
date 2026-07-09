@@ -20,12 +20,37 @@ Two layers, each labelled with what it proves:
 * ``test_dbos_durable_resume`` — runs only when ``[dbos]`` is installed
   (``pytest.importorskip("dbos")``); otherwise it SKIPS with a reason. It
   repeats the same crash/resume scenario under ``workers.runner="dbos"`` and
-  additionally asserts the durable-runner-specific surface (the engine reports
-  the dbos runner and the same idempotent outcome).
+  additionally proves the DBOS-specific surface: the pipeline invocation is
+  genuinely checkpointed in DBOS's own system database — a SUCCESS row with
+  the exact returned stats exists after ``run()`` returns (via
+  ``DBOS.list_workflows``) — not merely executed inline behind a warning log
+  (the old seam's behavior). A true mid-pipeline process kill is not
+  simulated here: the workflow body has no internal ``@DBOS.step()``
+  checkpoints (deliberately — pipelines must never import ``dbos``, D-17), so
+  the only two points a "crash" can tear at are before the invocation starts
+  (recovery re-runs it — already covered by the idempotent
+  stop()/reopen()/resume() sequence below, the same property
+  ``test_inline_crash_resume_is_idempotent`` proves for the default runner)
+  or after it fully completes (irrelevant to durability). Racing a real OS
+  thread to kill it strictly *between* those points would be flaky without
+  step-level checkpoints to pause on.
+
+  Note: this test calls the SYNC ``DBOS.list_workflows`` (off the event loop,
+  via ``asyncio.to_thread``) rather than ``list_workflows_async``. The async
+  variants call DBOS's internal ``_configure_asyncio_thread_pool()``, which
+  repoints the CURRENT event loop's default executor at DBOS's own
+  (``loop.set_default_executor(dbos_instance._executor)``) — and
+  ``DBOS.destroy()`` later shuts that executor down. Since this test runs two
+  engines on the same event loop (pytest-asyncio's per-function loop), that
+  leaves the loop's default executor dead for the second engine's own
+  ``asyncio.to_thread`` calls (its SQLite schema setup) with a confusing
+  "cannot schedule new futures after shutdown" — a sharp, DBOS-SDK-level edge
+  worth knowing about if this module's assertions are ever extended.
 """
 
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -133,7 +158,9 @@ async def test_inline_crash_resume_is_idempotent(make_file_engine: Any) -> None:
 async def test_dbos_durable_resume(make_file_engine: Any) -> None:
     """DURABLE LAYER (skips without ``[dbos]``): the same crash/resume scenario
     under the DBOS runner, plus the durable-runner-specific surface."""
-    pytest.importorskip("dbos", reason="dbos extra not installed — skipping durable-resume layer")
+    dbos = pytest.importorskip(
+        "dbos", reason="dbos extra not installed — skipping durable-resume layer"
+    )
 
     engine = make_file_engine(**_CONFIG, workers={"runner": "dbos"})
     await engine.start()
@@ -142,6 +169,15 @@ async def test_dbos_durable_resume(make_file_engine: Any) -> None:
         await _seed_closed_session(engine)
         partial = await engine._runner.run("consolidate", engine._pipeline_ctx())  # type: ignore[union-attr]
         assert partial == {"status": "ok", "summaries": 1, "superseded": 0}
+
+        # PROOF this went through a real DBOS workflow, not the old fake-inline
+        # seam: the invocation is durably recorded SUCCESS with the exact
+        # stats `run()` returned to us — DBOS's own checkpoint, not memspine's.
+        # (SYNC list_workflows off-thread — see module docstring note on why
+        # the async variant is unsafe to call here.)
+        completed = await asyncio.to_thread(dbos.DBOS.list_workflows, name="memspine.run_pipeline")
+        successes = [wf for wf in completed if wf.status == "SUCCESS" and wf.output == partial]
+        assert successes, f"no checkpointed SUCCESS workflow matched {partial!r}: {completed!r}"
     finally:
         await engine.stop()  # crash mid-cycle
 
@@ -155,5 +191,13 @@ async def test_dbos_durable_resume(make_file_engine: Any) -> None:
         again = await resumed.sleep()
         assert again["consolidate"]["summaries"] == 0
         assert int(again["decay_sweep"].get("transitions", 0)) == 0
+
+        # No PENDING workflow leaked across the stop()/reopen() boundary: the
+        # crashed cycle's consolidate() had already reached SUCCESS before the
+        # "crash", so recovery had nothing outstanding to re-run.
+        pending = await asyncio.to_thread(
+            dbos.DBOS.list_workflows, name="memspine.run_pipeline", status="PENDING"
+        )
+        assert pending == []
     finally:
         await resumed.stop()
