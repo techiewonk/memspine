@@ -165,5 +165,7 @@ module = [
     "llmlingua.*",
     "model2vec",
     "model2vec.*",
+    "tantivy",
+    "tantivy.*",
 ]
 ignore_missing_imports = true

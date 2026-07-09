@@ -152,6 +152,10 @@ class ReadConfig(BaseModel):
       Default OFF — off means bit-identical results to the vector-only pipeline
       and no lexical index is built. Default-on is the intended v0.2 flip
       (D-25's core-default intent), held back only for backward-compat.
+    - ``lexical_provider``: which lexical store backs the hybrid leg —
+      ``sqlite_fts5`` (default, zero-dep FTS5/BM25) or ``tantivy`` (standalone
+      Tantivy BM25 index, ``[tantivy]`` extra). Only consulted when ``hybrid``
+      is on; ``profile="simple"`` never builds either.
     - ``compression``: options for the E5 assembly-stage ``CompressionPolicy``
       binding (``{"assembly": true, "assembly_stage": [...]}``); the master
       switch defaults off so ``profile="simple"`` behavior never changes.
@@ -165,6 +169,7 @@ class ReadConfig(BaseModel):
     static_prefilter: bool = False
     static_embedding_prefilter: bool = False
     hybrid: bool = False
+    lexical_provider: str = "sqlite_fts5"  # sqlite_fts5 | tantivy (D-25)
     compression: dict[str, Any] = Field(default_factory=dict)
 
 

@@ -21,8 +21,15 @@ existing config keep bit-identical behavior.
 `services/lexical` is a minimal namespace-scoped port (`index` / `search` /
 `delete` / `clear` / `exists` / `close`) with `rrf_fuse` implemented **once** in
 the port (D-25). The core default is a zero-dep SQLite **FTS5/BM25** store
-(`SQLiteFTS5Lexical`); a standalone **Tantivy** adapter is stubbed behind the
-`[tantivy]` extra. The lexical index is a **rebuildable projection**
+(`SQLiteFTS5Lexical`); a standalone **Tantivy** adapter (`TantivyLexical`) is now
+implemented behind the `[tantivy]` extra and selectable via
+`read.lexical_provider: tantivy` (default `sqlite_fts5`). It satisfies the same
+port — an in-RAM index for a `:memory:` event log (else an on-disk directory
+`<db>.tantivy`), one long-lived synchronous `IndexWriter` wrapped in
+`asyncio.to_thread` with serialized mutations, namespace isolation via a `Must`
+term-query filter, and query safety by tokenizing user text into content
+term-queries (never `parse_query`, so no field reference can cross namespaces).
+The lexical index is a **rebuildable projection**
 (`LexicalProjector`), registered in `engine._projectors` **only when
 `read.hybrid` is on** — so `rebuild()` replays it, turning hybrid on for an
 existing DB backfills the index from the log via catch-up, and off means no

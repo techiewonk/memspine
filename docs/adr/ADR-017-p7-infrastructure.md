@@ -102,7 +102,8 @@ false`) — off means bit-identical results to the plain pipeline.
 > which supersedes this section. The summary below is retained for continuity.
 
 The `services/lexical`/D-25 port now exists (SQLite **FTS5/BM25** core default,
-`rrf_fuse` implemented once in the port, Tantivy stubbed behind `[tantivy]`),
+`rrf_fuse` implemented once in the port, standalone Tantivy adapter implemented
+behind `[tantivy]` — later recorded in full by ADR-019/D-53),
 so hybrid RRF fusion of the vector + lexical legs is **built and wired into
 `Engine.search`** — this reverses the earlier "DEFERRED until that port lands"
 posture. It is **opt-in via `read.hybrid` (default FALSE)**: off, the retrieval

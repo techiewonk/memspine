@@ -30,6 +30,12 @@ MAX_LEXICAL_QUERY_CHARS = 1024
 # the degraded path an accidental DoS.
 LEXICAL_LIKE_SCAN_MAX_ROWS = 10_000
 
+# Standalone Tantivy lexical adapter (D-25): per-thread heap the single
+# long-lived IndexWriter buffers into before a commit flushes to a segment.
+# tantivy requires a floor around 15 MB per writer thread; one writer serves the
+# whole store (mutations are serialized), so this is allocated once, not per write.
+TANTIVY_WRITER_HEAP_BYTES = 15_000_000
+
 # Two-stage dedup (D-27 / M5).
 DEDUP_COSINE_THRESHOLD = 0.92
 MINHASH_NUM_PERM = 128
@@ -149,6 +155,21 @@ ASSEMBLY_COMPRESS_RATE = 0.5
 # candidates before the exact float32 cosine rescore re-ranks them — a wider
 # cheap scan buys back the recall a lossy prefilter would otherwise drop.
 RESCORE_OVERSAMPLE = 4
+
+# E4 native LanceDB rescore (ADR-020 §6): the Lance store realizes the two-stage
+# quantized prefilter → exact rescore through a native ANN index with a
+# compressed sub-index (IVF_PQ / IVF_HNSW_SQ) queried with ``refine_factor`` +
+# ``nprobes`` — NOT the pure-Python codes. LanceDB trains an IVF/PQ codebook by
+# k-means over the corpus, which needs a minimum row count (256 PQ centroids at
+# ``num_bits=8``); below it, ``create_index`` raises "Not enough rows to train
+# PQ", so the store falls back to a flat exact query and skip-logs once until the
+# corpus grows past the threshold.
+LANCE_ANN_MIN_ROWS = 256
+# Partitions probed per ANN query: higher recall (covers more IVF cells) at more
+# read cost. Combined with ``refine_factor = RESCORE_OVERSAMPLE`` this is Lance's
+# native "search the compressed index, re-rank the oversampled window by exact
+# vector distance" flow.
+LANCE_NPROBES = 20
 
 # E4 static-embedding prefilter (model2vec, [static], plan Part B §E4): the cheap
 # static-cosine gate keeps this multiple of ``top_k`` candidates before the

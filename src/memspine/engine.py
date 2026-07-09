@@ -303,7 +303,7 @@ class Engine:
         # no write-path cost, and describe()["projectors"] is unchanged. When
         # first switched on, catch-up/rebuild backfills the index from the log.
         if config.read.hybrid:
-            self._lexical = SQLiteFTS5Lexical(self._client)
+            self._lexical = self._build_lexical_store(config)
         # P6 graph store (D-26): constructed only when associative memory
         # projects it — profile="simple" never constructs one. An explicit
         # ``graph:`` block without associative would be a dead handle (no
@@ -2095,23 +2095,49 @@ class Engine:
                 oversample=constants.RESCORE_OVERSAMPLE,
             )
         if backend == "lance":
-            if self._rescore_active:
-                # LanceDB owns quantization natively (ADR-020) — the pure-Python
-                # rescore is a SQLite-store feature. Fall back to its exact cosine
-                # query and disable the rescore dispatch so search() stays honest.
-                _log.info(
-                    "vector.rescore_unsupported",
-                    backend="lance",
-                    detail="E4 int8/binary rescore is SQLite-store-only; using exact cosine",
-                )
-                self._rescore_active = False
+            # E4 (ADR-020 §6): LanceDB owns quantization natively — an active
+            # int8/binary/Matryoshka manifest drives its native compressed ANN
+            # index (IVF_HNSW_SQ / IVF_PQ) queried with refine_factor + nprobes,
+            # NOT the SQLite store's pure-Python codes. ``_rescore_active`` stays
+            # as resolved above; the store itself degrades to a flat exact query
+            # (skip-logged once) when the corpus is too small to train an index.
             from memspine.services.vector.lancedb_store import LanceDBVectorStore
 
             self._lance = LanceDBClient(f"{config.storage.path}.lance")
             await self._lance.connect()
-            return LanceDBVectorStore(self._lance, self._embedder)
+            return LanceDBVectorStore(
+                self._lance,
+                self._embedder,
+                quantization=quantization,
+                matryoshka_dim=matryoshka_dim,
+                oversample=constants.RESCORE_OVERSAMPLE,
+            )
         raise ConfigError(
             f"unknown vector.backend {config.vector.backend!r} (valid: auto, lance, sqlite)"
+        )
+
+    def _build_lexical_store(self, config: MemspineConfig) -> LexicalStore:
+        """Lexical provider selection (D-25). ``sqlite_fts5`` (default) rides the
+        existing SQLite client; ``tantivy`` builds a standalone BM25 index
+        (``[tantivy]`` extra). Both are rebuildable projections driven by the
+        same :class:`LexicalProjector`. A missing ``[tantivy]`` extra hard-fails
+        with the D-10 error at construction (``TantivyLexical.__init__``)."""
+        provider = config.read.lexical_provider
+        if provider == "sqlite_fts5":
+            assert self._client is not None
+            return SQLiteFTS5Lexical(self._client)
+        if provider == "tantivy":
+            from memspine.services.lexical.tantivy import TantivyLexical
+
+            # In-RAM index for an in-memory event log (same lifetime, no ghost
+            # segments across runs — mirrors the vector store's :memory: rule);
+            # else an on-disk directory beside the db file.
+            index_path = (
+                None if self._client_is_memory(config) else f"{config.storage.path}.tantivy"
+            )
+            return TantivyLexical(index_path)
+        raise ConfigError(
+            f"unknown read.lexical_provider {provider!r} (valid: sqlite_fts5, tantivy)"
         )
 
     async def _build_graph_store(self, config: MemspineConfig) -> GraphStore:

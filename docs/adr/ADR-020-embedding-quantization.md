@@ -121,12 +121,55 @@ before the expensive rerank/score, NOT a true pre-vector prefilter that would
 cut the vector search itself. It cannot resurface content the E1 status/quarantine
 gate already dropped; it only reorders/narrows live candidates.
 
-### 6. LanceDB delegates quantization to its native index
+### 6. LanceDB rescore via its native quantized index (IMPLEMENTED)
 
-The pure-Python int8/binary rescore is a SQLite-store feature. LanceDB owns
-quantization natively (IVF_PQ / binary indexes), so its `search_rescore` stays
-an exact cosine query and the engine disables the rescore dispatch for the Lance
-backend (skip-logged). Wiring LanceDB's native quantized index is deferred.
+The pure-Python int8/binary codes are a SQLite-store feature; LanceDB owns
+quantization natively, so its `search_rescore` realizes E4 the **idiomatic Lance
+way** rather than replicating those codes. When the manifest/override declares a
+scheme (resolved by the same `Engine._rescore_settings`, now passed through to
+`LanceDBVectorStore(quantization=…, matryoshka_dim=…, oversample=…)`), the store:
+
+1. **Lazily builds a native ANN index with a compressed sub-index** on first
+   active `search_rescore` — `int8` → **IVF_HNSW_SQ** (scalar quantization: each
+   dim to int8, HNSW graph over the IVF cells); `binary`/Matryoshka-only →
+   **IVF_PQ** (product quantization). Both use `distance_type="cosine"` to match
+   the `query()` metric. Built once, reused; never rebuilt per query (guarded by
+   an `asyncio.Lock` + an `_index_ready` flag, and it adopts a pre-existing index
+   persisted from a prior run via `list_indices()`).
+2. **Queries with `.nprobes(LANCE_NPROBES).refine_factor(RESCORE_OVERSAMPLE)`** —
+   LanceDB's native two-stage flow: search the compressed index (probing
+   `nprobes` IVF cells), then re-rank the `refine_factor`×`limit` oversampled
+   window by **exact** vector distance. This *is* the "quantized prefilter →
+   float rescore" of E4, done in-engine. Scores stay `1 − cosine_distance`,
+   identical to `query()`.
+
+**Row-count floor / flat fallback.** IVF/PQ trains a codebook by k-means over the
+corpus and needs ≥ `LANCE_ANN_MIN_ROWS` (**256**, the PQ-centroid minimum at
+`num_bits=8`; below it `create_index` raises "Not enough rows to train PQ"). So
+the store guards on `count_rows()`: under the threshold it **skip-logs once**
+(`vector.lance_index_deferred`) and runs a **flat exact query** — retried as the
+corpus grows. A genuine `create_index` failure at/above the threshold sticky-
+disables the ANN path for the process (`vector.lance_index_failed`, the §5
+precedent) and likewise degrades to flat exact search. The default (no
+quantization/Matryoshka) path never touches any of this: `search_rescore` returns
+`query()` directly — no index requirement, byte-identical to the pre-E4 behavior.
+
+**Matryoshka at the Lance layer** is *not* applied by truncating query/stored
+vectors here: the per-embedder table stores full-dim vectors and the native
+IVF/PQ compressed sub-index already provides the cheap-prefilter → exact-refine
+two-stage. An embedder that genuinely emits a truncated prefix presents a smaller
+`dim` upstream and therefore a smaller table; declaring `matryoshka_dims` simply
+opts the Lance store into building an IVF_PQ index (whose PQ compression delivers
+the storage/speed win) with the full-dim vectors as the exact-refine source.
+
+The engine no longer disables rescore for the Lance backend (the old
+`vector.rescore_unsupported` skip-log is removed); `_rescore_active` stays as
+resolved and `Engine.search` dispatches to the native path, with its existing
+`vector.rescore_failed` try/except as a final backstop to `query()`.
+
+**Remaining limitation:** below `LANCE_ANN_MIN_ROWS` there is no ANN index to
+rescore against, so a small Lance corpus runs an exact flat query (correct, just
+without the compressed-index speed/storage win) until it grows past the floor.
 
 ## Consequences
 
