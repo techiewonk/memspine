@@ -94,13 +94,13 @@ _active_runner: DBOSRunner | None = None
 dbos: Any = None
 _DBOS_AVAILABLE = False
 try:
-    import dbos  # type: ignore[no-redef]  # reassigns the Any placeholder above
+    import dbos  # reassigns the Any placeholder above; ignore_missing_imports covers typing
 except ImportError:
     pass
 else:
     _DBOS_AVAILABLE = True
 
-    @dbos.DBOS.workflow(name="memspine.run_pipeline")  # type: ignore[misc]  # dbos is untyped (D-10 extra)
+    @dbos.DBOS.workflow(name="memspine.run_pipeline")  # type: ignore[untyped-decorator]
     async def _run_pipeline_workflow(name: str) -> dict[str, object]:
         """The one checkpointed unit (see module docstring): resolve + run.
 
