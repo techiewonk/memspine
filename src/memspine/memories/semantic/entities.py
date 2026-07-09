@@ -74,7 +74,7 @@ class GlinerEntityExtractor:
 
     def __init__(self, labels: tuple[str, ...] = _DEFAULT_LABELS) -> None:
         try:
-            from gliner2 import GLiNER2  # type: ignore[import-not-found]
+            from gliner2 import GLiNER2
         except ImportError as exc:
             raise MissingServiceError("ner:gliner2", extra="ner") from exc
         self._labels = list(labels)

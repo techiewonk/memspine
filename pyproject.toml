@@ -135,6 +135,8 @@ module = [
     "datasketch.*",
     "fastembed",
     "fastembed.*",
+    "gliner2",
+    "gliner2.*",
     "json_repair",
     # optional extras — typed only when installed
     "lancedb",

@@ -13,6 +13,7 @@ All functions here are synchronous CPU/disk work — callers run them via
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 from memspine.config.constants import INGEST_CHUNK_MAX_CHARS
 from memspine.exceptions import MissingServiceError, StorageError
@@ -43,7 +44,13 @@ def chunk_text(text: str, max_chars: int = INGEST_CHUNK_MAX_CHARS) -> list[str]:
     except ImportError:
         return _paragraph_chunks(text, max_chars)
     chunker = RecursiveChunker()
-    chunks = [str(chunk.text).strip() for chunk in chunker(text)]
+    # chonkie 1.0 types ``__call__`` as an overloaded ``Chunk | list[Chunk]``
+    # union mypy will not narrow through; a single-string call returns a list of
+    # chunks. Treat the result as untyped (the [ingest] extra's own contract) and
+    # normalize to a flat list.
+    result: Any = chunker(text)
+    raw_chunks = result if isinstance(result, list) else [result]
+    chunks = [str(chunk.text).strip() for chunk in raw_chunks]
     return [chunk for chunk in chunks if chunk]
 
 
