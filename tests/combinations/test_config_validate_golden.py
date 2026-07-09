@@ -14,6 +14,7 @@ All error types are the real ones from ``memspine.exceptions``.
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import pytest
@@ -68,7 +69,6 @@ async def test_engine_reports_auto_enabled_in_describe(make_engine) -> None:
 @pytest.mark.parametrize(
     ("provider", "extra"),
     [
-        ("ladybug", "graph"),  # embedded default is not on PyPI yet — stub always raises
         ("neo4j", "neo4j"),  # server adapter is out of scope for v0.1 — stub always raises
     ],
 )
@@ -86,6 +86,24 @@ async def test_missing_graph_service_hard_fails_naming_the_extra(
         await engine.start()
     assert excinfo.value.extra == extra
     assert f"memspine[{extra}]" in str(excinfo.value)
+
+
+async def test_missing_ladybug_package_hard_fails_naming_the_graph_extra(
+    monkeypatch: pytest.MonkeyPatch, make_engine
+) -> None:
+    # ladybug (D-26) is now a real, installable adapter — no longer a stub —
+    # so force the missing-package path deterministically instead of relying
+    # on whether [graph] happens to be installed in this environment.
+    monkeypatch.setitem(sys.modules, "ladybug", None)
+    engine = make_engine(
+        template="base",
+        memories={"associative": {"enabled": True}},
+        graph={"provider": "ladybug"},
+    )
+    with pytest.raises(MissingServiceError) as excinfo:
+        await engine.start()
+    assert excinfo.value.extra == "graph"
+    assert "memspine[graph]" in str(excinfo.value)
 
 
 async def test_strict_services_is_the_gate_default(make_engine) -> None:

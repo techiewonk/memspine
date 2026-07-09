@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import asyncio
 import os
+import shutil
+import tempfile
 import threading
 from collections.abc import Coroutine
 from datetime import UTC, datetime
@@ -22,6 +24,7 @@ from typing import Any, Self, TypeVar, cast
 
 from memspine.clients.http import HTTPClient
 from memspine.clients.kuzu import KuzuClient
+from memspine.clients.ladybug import LadybugClient
 from memspine.clients.lancedb import LanceDBClient
 from memspine.clients.sqlite import SQLiteClient
 from memspine.config import constants
@@ -102,7 +105,6 @@ from memspine.services.storage.projector import RecordProjector
 from memspine.services.storage.sqlite.engine import SQLiteStorage
 from memspine.services.vector.base import VectorStore
 from memspine.services.vector.projector import VectorProjector
-from memspine.services.vector.sqlite_store import SQLiteVectorStore
 from memspine.workers.inline import InlineRunner
 from memspine.workers.pipelines import PIPELINES, PipelineContext, Summarize
 from memspine.workers.runner import TaskRunner
@@ -191,7 +193,14 @@ class Engine:
         self._client: SQLiteClient | None = None
         self._http: HTTPClient | None = None
         self._lance: LanceDBClient | None = None
+        # Per-engine scratch dir for the LanceDB table when the event log is
+        # in-memory (storage.path == ":memory:"): a durable on-disk table would
+        # outlive the ephemeral log and accumulate ghost rows across runs
+        # (D0.1). The dir is created in _build_vector_store and removed in
+        # _teardown so the projection shares the log's lifetime.
+        self._lance_scratch: Path | None = None
         self._kuzu: KuzuClient | None = None
+        self._ladybug: LadybugClient | None = None
         self._storage: SQLiteStorage | None = None
         self._projectors: list[Projector] = []
         self._embedder: EmbeddingService | None = None
@@ -421,9 +430,16 @@ class Engine:
             await self._lexical.close()  # shares the SQLite client; a no-op there
         if self._graph is not None:
             await self._graph.close()  # store-held handles; connections close below
-        for client in (self._client, self._http, self._lance, self._kuzu):
+        for client in (self._client, self._http, self._lance, self._kuzu, self._ladybug):
             if client is not None:
                 await client.close()
+        if self._lance_scratch is not None:
+            # The Lance client is closed above (file handles released), so the
+            # ephemeral :memory: scratch table can be removed now — it shares
+            # the in-memory log's lifetime (D0.1). Best-effort: a lingering OS
+            # handle must never fail stop().
+            shutil.rmtree(self._lance_scratch, ignore_errors=True)
+            self._lance_scratch = None
         self._started = False
 
     # ── public verbs (P0: write / retrieve / rebuild / describe) ─────────────
@@ -2089,54 +2105,44 @@ class Engine:
         return quantization, matryoshka_dim
 
     async def _build_vector_store(self, config: MemspineConfig) -> VectorStore:
-        assert self._client is not None and self._embedder is not None
+        assert self._embedder is not None
         quantization, matryoshka_dim = self._rescore_settings(config)
         self._rescore_active = quantization is not None or matryoshka_dim is not None
         backend = config.vector.backend
-        if backend == "auto":
-            try:
-                import lancedb  # noqa: F401
+        if backend != "lance":
+            # ``weaviate`` (and future remote stores) keep the config seam open
+            # but are not built yet — LanceDB is the sole reference adapter
+            # (ADR-021, amends D-09). The zero-dep SQLite brute-force store was
+            # removed with it, so there is no ``auto``/``sqlite`` path anymore.
+            raise ConfigError(
+                f"unknown vector.backend {backend!r} (valid: lance; weaviate reserved)"
+            )
+        # LanceDB is the only vector store (ADR-021). E4 (ADR-020 §6): LanceDB
+        # owns quantization natively — an active int8/binary/Matryoshka manifest
+        # drives its native compressed ANN index (IVF_HNSW_SQ / IVF_PQ) queried
+        # with refine_factor + nprobes. ``_rescore_active`` stays as resolved
+        # above; the store degrades to a flat exact query (skip-logged once)
+        # when the corpus is too small to train an index.
+        from memspine.services.vector.lancedb_store import LanceDBVectorStore
 
-                backend = "lance"
-            except ImportError:
-                backend = "sqlite"
-        # A projection must never outlive its log (D0.1): with a throwaway
-        # ':memory:' log, a durable on-disk Lance table would accumulate ghost
-        # rows across runs — force the same-lifetime SQLite store instead.
-        if backend == "lance" and config.storage.path == ":memory:":
-            _log.warning(
-                "vector.lance_downgraded_to_sqlite",
-                detail="storage.path=':memory:' — a durable Lance projection would "
-                "outlive the in-memory event log (ghost rows on restart)",
-            )
-            backend = "sqlite"
-        if backend == "sqlite":
-            return SQLiteVectorStore(
-                self._client,
-                quantization=quantization,
-                matryoshka_dim=matryoshka_dim,
-                oversample=constants.RESCORE_OVERSAMPLE,
-            )
-        if backend == "lance":
-            # E4 (ADR-020 §6): LanceDB owns quantization natively — an active
-            # int8/binary/Matryoshka manifest drives its native compressed ANN
-            # index (IVF_HNSW_SQ / IVF_PQ) queried with refine_factor + nprobes,
-            # NOT the SQLite store's pure-Python codes. ``_rescore_active`` stays
-            # as resolved above; the store itself degrades to a flat exact query
-            # (skip-logged once) when the corpus is too small to train an index.
-            from memspine.services.vector.lancedb_store import LanceDBVectorStore
-
-            self._lance = LanceDBClient(f"{config.storage.path}.lance")
-            await self._lance.connect()
-            return LanceDBVectorStore(
-                self._lance,
-                self._embedder,
-                quantization=quantization,
-                matryoshka_dim=matryoshka_dim,
-                oversample=constants.RESCORE_OVERSAMPLE,
-            )
-        raise ConfigError(
-            f"unknown vector.backend {config.vector.backend!r} (valid: auto, lance, sqlite)"
+        if config.storage.path == ":memory:":
+            # A projection must never outlive its log (D0.1): an in-memory event
+            # log gets a per-engine scratch dir, removed in _teardown, so the
+            # Lance table shares the log's ephemeral lifetime (no ghost rows on
+            # restart). mkdtemp is unique per engine — concurrent :memory:
+            # engines never collide on one directory.
+            self._lance_scratch = Path(tempfile.mkdtemp(prefix="memspine-lance-"))
+            lance_path = str(self._lance_scratch / "vectors.lance")
+        else:
+            lance_path = f"{config.storage.path}.lance"
+        self._lance = LanceDBClient(lance_path)
+        await self._lance.connect()
+        return LanceDBVectorStore(
+            self._lance,
+            self._embedder,
+            quantization=quantization,
+            matryoshka_dim=matryoshka_dim,
+            oversample=constants.RESCORE_OVERSAMPLE,
         )
 
     def _build_lexical_store(self, config: MemspineConfig) -> LexicalStore:
@@ -2165,9 +2171,10 @@ class Engine:
 
     async def _build_graph_store(self, config: MemspineConfig) -> GraphStore:
         """Graph provider selection (D-26). ``sqlite_adjacency`` (default) rides
-        the existing SQLite client; ``kuzu`` opens its own embedded database via
-        a dedicated client (D-24) — in-memory when the event log is in-memory,
-        so the projection can never outlive its log (D0.1)."""
+        the existing SQLite client; ``kuzu`` and ``ladybug`` each open their own
+        embedded database via a dedicated client (D-24) — in-memory when the
+        event log is in-memory, so the projection can never outlive its log
+        (D0.1)."""
         provider = config.graph.provider
         if provider == "sqlite_adjacency":
             assert self._client is not None
@@ -2182,9 +2189,12 @@ class Engine:
         if provider == "ladybug":
             from memspine.services.graph.ladybug import LadybugGraphStore
 
-            # Stub: the constructor always raises the D-10 error naming
-            # [graph]; the cast documents that no value ever escapes here.
-            return cast("GraphStore", LadybugGraphStore())
+            path = (
+                ":memory:" if self._client_is_memory(config) else f"{config.storage.path}.ladybug"
+            )
+            self._ladybug = LadybugClient(path)
+            await self._ladybug.connect()
+            return LadybugGraphStore(self._ladybug)
         if provider == "neo4j":
             from memspine.services.graph.neo4j import Neo4jGraphStore
 

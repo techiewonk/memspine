@@ -60,29 +60,37 @@ class EmbeddingConfig(BaseModel):
 
 
 class VectorConfig(BaseModel):
-    """Vector store selection (D-09). ``auto`` prefers lancedb when installed
-    and falls back to the zero-dep SQLite brute-force store.
+    """Vector store selection (D-09, amended by ADR-021). ``lance`` (LanceDB) is
+    the sole vector store and now a core dependency — the zero-dep SQLite
+    brute-force store was removed, so there is no ``auto``/``sqlite`` fallback.
+    ``weaviate`` (and future remote stores) keep the config seam open but are
+    not built yet; selecting one raises ``ConfigError``. An ``:memory:`` event
+    log points LanceDB at a per-engine scratch dir removed on ``stop()`` so the
+    projection never outlives its log (D0.1).
 
-    ``quantization`` drives the E4 two-stage rescore (ADR-020) on the SQLite
-    store: ``auto`` (default) reads the embedder manifest — the default
-    embedders declare none, so the exact float32 path is unchanged; ``none``
-    forces it off; ``int8``/``binary`` force that scheme even for an embedder
-    that does not declare it (a deployer opting a known-tolerant model in).
-    Matryoshka truncation is manifest-only (the model must be trained for it).
+    ``quantization`` drives the E4 two-stage rescore (ADR-020), realized by
+    LanceDB's native compressed ANN index (IVF_HNSW_SQ / IVF_PQ): ``auto``
+    (default) reads the embedder manifest — the default embedders declare none,
+    so the exact float32 path is unchanged; ``none`` forces it off;
+    ``int8``/``binary`` force that scheme even for an embedder that does not
+    declare it (a deployer opting a known-tolerant model in). Matryoshka
+    truncation is manifest-only (the model must be trained for it).
     """
 
     model_config = ConfigDict(extra="forbid")
 
-    backend: str = "auto"  # auto | lance | sqlite
+    backend: str = "lance"  # lance (sole store); weaviate reserved (ADR-021)
     quantization: str = "auto"  # auto | none | int8 | binary (E4/ADR-020)
 
 
 class GraphConfig(BaseModel):
     """Graph store selection (D-26). ``sqlite_adjacency`` is the zero-dep v0.1
-    default (ladybugdb is not on PyPI yet — its ``[graph]`` extra is empty);
-    ``kuzu`` is the first-class embedded-Cypher alternative behind ``[kuzu]``.
-    The store is only constructed when associative memory is enabled or this
-    block is set explicitly — ``profile="simple"`` never touches it."""
+    default; ``ladybug`` (the published Kuzu fork, ``[graph]``) is the intended
+    embedded default once a follow-up ADR flips it — until then it is a fully
+    working opt-in; ``kuzu`` is the first-class embedded-Cypher alternative
+    behind ``[kuzu]``. The store is only constructed when associative memory
+    is enabled or this block is set explicitly — ``profile="simple"`` never
+    touches it."""
 
     model_config = ConfigDict(extra="forbid")
 

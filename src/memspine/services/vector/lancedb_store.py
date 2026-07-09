@@ -82,11 +82,16 @@ class LanceDBVectorStore:
                         ]
                     )
                     name = _table_name(self._embedder.embedder_id)
-                    existing = await asyncio.to_thread(db.table_names)
-                    if name in existing:
-                        self._table = await asyncio.to_thread(db.open_table, name)
-                    else:
-                        self._table = await asyncio.to_thread(db.create_table, name, schema=schema)
+                    # ``exist_ok=True`` makes create-or-open one atomic call on
+                    # LanceDB's side: a check-then-act (table_names() then
+                    # create_table()) races two engines opening the same file
+                    # concurrently (D-45/D0.1 concurrent-engines contract) —
+                    # both can observe "absent" and both call create_table,
+                    # and the loser raises "Table already exists" instead of
+                    # just opening it.
+                    self._table = await asyncio.to_thread(
+                        db.create_table, name, schema=schema, exist_ok=True
+                    )
         return self._table
 
     async def upsert(

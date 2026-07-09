@@ -23,7 +23,6 @@ __all__ = [
     "LEXICAL_FTS_TABLE",
     "graph_edges",
     "graph_nodes",
-    "memory_embeddings",
     "memory_events",
     "memory_records",
     "metadata",
@@ -138,22 +137,9 @@ graph_edges = Table(
     Index("ix_graph_edges_dst", "dst"),
 )
 
-# Zero-dep vector fallback (P1): float32 little-endian vectors, brute-force
-# cosine at query time. LanceDB [lance] is the scalable default; this table is
-# a rebuildable projection like every other derived store (D0.1).
-memory_embeddings = Table(
-    "memory_embeddings",
-    metadata,
-    Column("record_id", String, primary_key=True),
-    Column("namespace", String, nullable=False),
-    Column("embedder_id", String, nullable=False),
-    Column("dim", Integer, nullable=False),
-    Column("vector", LargeBinary, nullable=False),
-    # E4 quantized/truncated prefilter (migration 0009): the int8/binary codes
-    # (of the optionally Matryoshka-truncated vector) + the scheme that built
-    # them. Both NULL for the default float32-only path — an embedder that
-    # declares no quantization stores nothing here and search_rescore == query.
-    Column("quantized_vec", LargeBinary),
-    Column("quantization", String),
-    Index("ix_memory_embeddings_ns", "namespace"),
-)
+# NOTE(ADR-021): the ``memory_embeddings`` table (the zero-dep SQLite
+# brute-force vector fallback) was removed from the live metadata when LanceDB
+# became the sole vector store — ``create_all`` no longer materializes it. The
+# now-inert Alembic migrations that created it (0002) and added its E4 quant
+# columns (0009) stay on disk until the Phase-6 dialect-neutral migration
+# squash retires them (avoiding a double schema refactor).

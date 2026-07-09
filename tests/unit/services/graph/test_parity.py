@@ -1,7 +1,7 @@
 """Graph-adapter parity: every available adapter answers the port identically.
 
-Parametrized over the adapters installable in this environment; kuzu joins
-automatically once ``pip install memspine[kuzu]`` is present (importorskip).
+Parametrized over the adapters installable in this environment; kuzu and
+ladybug join automatically once their extras are present (importorskip).
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ from memspine.clients.sqlite import SQLiteClient
 from memspine.services.graph.base import GraphStore
 from memspine.services.storage.sqlite.schema import metadata
 
-ADAPTERS = ["sqlite_adjacency", "kuzu"]
+ADAPTERS = ["sqlite_adjacency", "kuzu", "ladybug"]
 
 
 @pytest.fixture(params=ADAPTERS)
@@ -28,6 +28,15 @@ async def store(request: pytest.FixtureRequest) -> AsyncIterator[GraphStore]:
         await client.connect()
         yield KuzuGraphStore(client)
         await client.close()
+    elif request.param == "ladybug":
+        pytest.importorskip("ladybug")
+        from memspine.clients.ladybug import LadybugClient
+        from memspine.services.graph.ladybug import LadybugGraphStore
+
+        ladybug_client = LadybugClient(":memory:")
+        await ladybug_client.connect()
+        yield LadybugGraphStore(ladybug_client)
+        await ladybug_client.close()
     else:
         sqlite_client = SQLiteClient(":memory:")
         await sqlite_client.connect()

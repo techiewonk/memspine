@@ -10,9 +10,13 @@ Two further angles:
 
 * ``rebuild()`` from the persisted log reproduces a byte-identical read model
   (the D0.1 rebuildability guarantee), and
-* the E4/L2 angle — writes made with the default embedder are still vector-
-  queryable after reopen, and the quantized columns are NULL by default (the
-  exact float32 path; quantization is opt-in, proven in test_hybrid_and_quant).
+* the L2 angle — writes made with the default embedder are still vector-
+  queryable (through ``search()``) after reopen: the LanceDB table persisted
+  beside the db file and its rows survived the construct/teardown boundary.
+
+Vector store is LanceDB (the sole backend, ADR-021), file-backed beside the db
+file (``<path>.lance``) so its projection persists across the reopen exactly
+like the SQLite read model.
 """
 
 from __future__ import annotations
@@ -21,18 +25,17 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import select
-
 from memspine import Engine
 from memspine.core.registry import MEMORY_TYPES
-from memspine.services.storage.sqlite.schema import memory_embeddings
 
 ALL_TYPES = sorted(MEMORY_TYPES)
 
 #: A fixed instant so the prospective watch never touches the wall clock.
 NOW = datetime(2026, 1, 1, 12, 0, 0, tzinfo=UTC)
 
-_CONFIG: dict[str, Any] = {"memories": {name: {"enabled": True} for name in ALL_TYPES}}
+_CONFIG: dict[str, Any] = {
+    "memories": {name: {"enabled": True} for name in ALL_TYPES},
+}
 
 
 async def _snapshot(engine: Engine) -> dict[str, dict[str, Any]]:
@@ -45,14 +48,6 @@ async def _snapshot(engine: Engine) -> dict[str, dict[str, Any]]:
         for record in await storage.list_records(namespace):
             snapshot[record.record_id] = record.model_dump(mode="json")
     return snapshot
-
-
-async def _quantized_codes(engine: Engine) -> list[bytes | None]:
-    client = engine._client
-    assert client is not None
-    async with client.engine.connect() as conn:
-        rows = (await conn.execute(select(memory_embeddings.c.quantized_vec))).all()
-    return [row[0] for row in rows]
 
 
 async def test_persistence_survives_reopen_and_rebuild(
@@ -142,10 +137,9 @@ async def test_persistence_survives_reopen_and_rebuild(
 
         assert set(reopened.describe()["memories"]["enabled"]) == set(ALL_TYPES)
 
-        # E4/L2 angle: default embedder → vectors persisted + queryable after
-        # reopen, and the quantized columns are NULL (opt-in; the float32 path).
-        codes = await _quantized_codes(reopened)
-        assert codes, "no embeddings persisted"
-        assert all(code is None for code in codes), "quantization is opt-in — codes must be NULL"
+        # L2 angle: the semantic search at the top of this block already proved
+        # the default embedder's vectors persisted in the file-backed LanceDB
+        # table and stayed queryable across the reopen (fact.record_id was in
+        # the search hits) — no store-internal column read is needed or possible.
     finally:
         await reopened.stop()

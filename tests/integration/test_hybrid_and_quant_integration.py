@@ -7,34 +7,28 @@ FTS5 index from the persisted event log; hybrid search then fuses and returns a
 record the lexical leg surfaces. This proves the lexical projector caught up
 from the persisted log (not from any in-memory state).
 
-Part B (L2, quantization): write with quantization OFF (codes NULL), reopen with
-``vector.quantization=int8`` (codes STILL NULL — catch-up does not re-project
-already-applied events), then ``rebuild()`` — which resets the vector projector
-and replays the log, populating the quantized codes. The two-stage rescore then
-returns the correct exact-cosine top-1.
+Part B (L2, quantization): write with quantization OFF, reopen with
+``vector.quantization=int8`` (the vector projector is already caught up, so
+catch-up re-projects nothing), then ``rebuild()`` — which resets the vector
+projector and replays the log into a freshly int8-indexed LanceDB table. The
+native two-stage rescore then returns the correct exact-cosine top-1.
 
-Both paths are core (FTS5 + the default hash embedder + the SQLite vector
-store); nothing here needs an optional extra, so there is nothing to skip.
+The vector store is LanceDB (the sole backend, ADR-021) — file-backed beside
+the db file so the projection persists across the reopen. Unlike the removed
+SQLite brute-force store, LanceDB owns quantization inside its own table
+(no ``memory_embeddings.quantized_vec`` column to read), so Part B asserts the
+behavioral outcome (rebuild re-projects every record + the int8 rescore returns
+the exact top-1); the native rescore's recall is proven directly in
+tests/unit/services/vector/test_lancedb_rescore.py.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy import select
-
-from memspine import Engine
-from memspine.services.storage.sqlite.schema import memory_embeddings
-
-_SEMANTIC: dict[str, Any] = {"memories": {"semantic": {"enabled": True}}}
-
-
-async def _codes(engine: Engine) -> list[bytes | None]:
-    client = engine._client
-    assert client is not None
-    async with client.engine.connect() as conn:
-        rows = (await conn.execute(select(memory_embeddings.c.quantized_vec))).all()
-    return [row[0] for row in rows]
+_SEMANTIC: dict[str, Any] = {
+    "memories": {"semantic": {"enabled": True}},
+}
 
 
 async def test_hybrid_lexical_index_backfills_from_log_on_reopen(make_file_engine: Any) -> None:
@@ -67,37 +61,32 @@ async def test_hybrid_lexical_index_backfills_from_log_on_reopen(make_file_engin
         await hybrid.stop()
 
 
-async def test_rebuild_populates_quantized_codes_and_rescores(make_file_engine: Any) -> None:
-    # ── write with quantization OFF: float32 rows, codes NULL ─────────────────
+async def test_rebuild_reprojects_and_int8_rescore_returns_exact_top1(
+    make_file_engine: Any,
+) -> None:
+    # ── write with quantization OFF: the exact float32 query() path ───────────
     engine = make_file_engine(**_SEMANTIC)
     await engine.start()
     try:
         assert engine._rescore_active is False
         for content in ("the sky is blue today", "green grass grows", "red apples fall"):
             await engine.write(content)
-        assert all(code is None for code in await _codes(engine))
     finally:
         await engine.stop()
 
-    # ── reopen with int8: rescore is active, but codes are still NULL until a
-    #     rebuild re-projects the log (catch-up skips already-applied events) ──
-    quant = make_file_engine(**_SEMANTIC, vector={"quantization": "int8"})
+    # ── reopen with int8: rescore is active. The vector projector is already
+    #     caught up (its offset persisted), so start() re-projects nothing;
+    #     rebuild() resets it and replays the log into an int8-indexed table ───
+    quant = make_file_engine(memories=_SEMANTIC["memories"], vector={"quantization": "int8"})
     await quant.start()
     try:
         assert quant._rescore_active is True
-        assert all(code is None for code in await _codes(quant)), (
-            "catch-up must not re-project already-applied WRITE events"
-        )
 
         counts = await quant.rebuild()
-        assert counts["vectors"] == 3
-        codes = await _codes(quant)
-        assert codes and all(code is not None for code in codes), (
-            "rebuild must backfill quantized codes from the persisted log"
-        )
+        assert counts["vectors"] == 3, "rebuild must re-project every record from the log"
 
-        # The two-stage rescore over the freshly-coded rows returns the exact
-        # float32 top-1 (small corpus < oversample window => exact).
+        # The native two-stage rescore over the freshly int8-indexed rows returns
+        # the exact float32 top-1 (small corpus < oversample window => exact).
         results = await quant.search("the sky is blue today")
         assert results[0][0].content == "the sky is blue today"
     finally:

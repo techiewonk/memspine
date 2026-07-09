@@ -55,7 +55,7 @@ async def test_describe_reports_effective_world(engine: Engine) -> None:
     }
     assert world["projectors"] == ["records", "vectors"]
     assert world["embedding"] == "hash:64"
-    assert world["vector"] == "SQLiteVectorStore"
+    assert world["vector"] == "LanceDBVectorStore"
     assert world["runner"] == "inline"
 
 

@@ -10,11 +10,17 @@ from memspine.clients.kuzu import KuzuClient
 from memspine.exceptions import MissingServiceError
 
 
-def test_ladybug_stub_names_the_graph_extra() -> None:
-    from memspine.services.graph.ladybug import LadybugGraphStore
+async def test_ladybug_client_without_package_names_the_graph_extra(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # sys.modules["ladybug"] = None makes `import ladybug` raise ImportError even
+    # in an environment that has ladybug installed — the missing-extra path is
+    # exercised deterministically everywhere (mirrors the kuzu test below).
+    from memspine.clients.ladybug import LadybugClient
 
+    monkeypatch.setitem(sys.modules, "ladybug", None)
     with pytest.raises(MissingServiceError) as excinfo:
-        LadybugGraphStore()
+        await LadybugClient(":memory:").connect()
     assert excinfo.value.service == "graph:ladybug"
     assert excinfo.value.extra == "graph"
     assert "pip install memspine[graph]" in str(excinfo.value)

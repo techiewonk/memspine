@@ -76,19 +76,31 @@ projection ride existing machinery), min-member-trust inheritance (D-47 §5),
 membership-fingerprint idempotency, stale parents archived — plus
 member→parent LINK events (`rel: "community"`).
 
-### 5. Default graph store: `sqlite_adjacency` (D-26 amended)
+### 5. Default graph store: `sqlite_adjacency` (D-26 amended; ladybug now real, 2026-07-09)
 
-D-26 named LadybugDB the default embedded graph behind `[graph]`, but the
-pinned ladybugdb fork is **not published on PyPI** — an extra that cannot
-install is worse than no extra. For v0.1: the default graph provider is
-**`sqlite_adjacency`** (zero-dep, rides the existing SQLite client and the
-0007 migration), the `[graph]` extra ships **empty/reserved** until the
-pinned ladybugdb fork publishes, the `ladybug` provider is **reserved** (its
-stub raises `MissingServiceError` naming `[graph]`), and **kuzu stays the
-first-class alternative** behind `[kuzu]`. Alternative rejected: promoting
-kuzu to default — that would put a heavier native dependency in the zero-extra
-associative path, and `sqlite_adjacency` already serves the shallow graphs the
-link budget allows.
+D-26 named LadybugDB the default embedded graph behind `[graph]`, but at the
+time the pinned ladybugdb fork was **not published on PyPI** — an extra that
+cannot install is worse than no extra. For v0.1: the default graph provider
+was set to **`sqlite_adjacency`** (zero-dep, rides the existing SQLite client
+and the 0007 migration), the `[graph]` extra shipped **empty/reserved**, the
+`ladybug` provider was **reserved** (its stub raised `MissingServiceError`
+naming `[graph]`), and **kuzu stayed the first-class alternative** behind
+`[kuzu]`. Alternative rejected: promoting kuzu to default — that would put a
+heavier native dependency in the zero-extra associative path, and
+`sqlite_adjacency` already serves the shallow graphs the link budget allows.
+
+**Update (2026-07-09):** the fork — now published as `ladybug` on PyPI
+(v0.18.0, 2026-07-01; MIT-licensed, actively maintained; Kuzu's own
+development stopped after Apple acquired and closed it) — is real and
+installable. `[graph]` now declares `ladybug>=0.18` and
+`services/graph/ladybug.py` is a genuine adapter (verified against the
+installed package: the fork kept Kuzu's embedded-Cypher Python API and DDL
+dialect — including `CREATE NODE/REL TABLE IF NOT EXISTS` — unchanged, so the
+adapter mirrors `kuzu.py` line-for-line). The config default deliberately
+**stays `sqlite_adjacency`** — flipping it to `ladybug` would make a fresh
+`profile="simple"` install hard-fail without `[graph]` installed, breaking
+"profiles stay green." Promoting `ladybug` to the config default is left as
+an explicit follow-up decision for a future ADR, not made here.
 
 ## Consequences
 
@@ -109,7 +121,7 @@ link budget allows.
 
 | # | Decision | Ruling |
 |---|---|---|
-| **D-49** | **Associative links & graph projection** | `EventKind.LINK` (`memory.link`, payload `{src, dst, rel, weight, reason}`) — links are new information and ride the log; graph = rebuildable GraphProjector over WRITE/LINK/FORGET + derivation payloads · link budget enforced at creation (`ConflictError`), prune = weight-0 tombstone LINK (replay-deterministic; provenance/reorganize links budget-exempt) · `sqlite_adjacency` default graph (ladybugdb unpublished; kuzu `[kuzu]` first-class alt) · PPR pure-Python bounded · reorganizer writes consolidation-shaped community parents (min-member trust, D-47 §5), no-op without `[community]`. (ADR-015) |
+| **D-49** | **Associative links & graph projection** | `EventKind.LINK` (`memory.link`, payload `{src, dst, rel, weight, reason}`) — links are new information and ride the log; graph = rebuildable GraphProjector over WRITE/LINK/FORGET + derivation payloads · link budget enforced at creation (`ConflictError`), prune = weight-0 tombstone LINK (replay-deterministic; provenance/reorganize links budget-exempt) · `sqlite_adjacency` default graph (ladybug published 2026-07-01, real `[graph]` adapter since 2026-07-09, config default unchanged pending a follow-up ADR; kuzu `[kuzu]` first-class alt) · PPR pure-Python bounded · reorganizer writes consolidation-shaped community parents (min-member trust, D-47 §5), no-op without `[community]`. (ADR-015) |
 
 ## Alternatives rejected
 

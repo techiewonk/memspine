@@ -28,14 +28,16 @@ dependencies = [
     "greenlet>=3.1",           # required by SQLAlchemy async engine (D-44)
     "pyyaml>=6.0",             # config layering / templates / prompt packs (D-11/D-12/D-43)
     "httpx>=0.27",             # clients/http: OpenAI-compatible local LLM surface (D-39/D-46)
+    "lancedb>=0.13",           # sole vector store + native quantization (D-09, amends D-03 — ADR-021)
 ]
 
 [project.optional-dependencies]
-lance      = ["lancedb>=0.13"]                      # default vector store + Tantivy FTS (D-09)
-# NOTE(D-26/P6): ladybugdb (kuzu community fork) is not on PyPI yet — the pinned-fork
-# requirement is added when the graph adapter lands in Phase 6. Until then the extra
-# exists but is empty so configs referencing [graph] stay installable.
-graph      = []                                     # default embedded graph (D-26) — fork pin lands in P6
+# NOTE(D-26): ladybug (the actively-maintained, MIT-licensed Kuzu fork — Kuzu's own
+# development stopped after Apple acquired and closed it) published v0.18.0 on PyPI
+# on 2026-07-01. The adapter is real (services/graph/ladybug.py); ``graph.provider``
+# still defaults to sqlite_adjacency (D-03 slim core) — flipping the default is a
+# deliberate follow-up decision for a future ADR, not made here.
+graph      = ["ladybug>=0.18"]                       # default embedded graph adapter (D-26)
 kuzu       = ["kuzu>=0.11"]                         # embedded-Cypher graph alt (D-26)
 lmdb       = ["lmdb>=1.5"]                           # hot cache (D-09)
 ingest     = ["markitdown>=0.1", "chonkie>=1.0"]    # multi-format ingest + chunking (D-29)
@@ -59,11 +61,11 @@ neo4j      = ["neo4j>=5.26"]
 valkey     = ["valkey>=6.0"]
 
 # Convenience bundles
-local      = ["memspine[lance,graph,lmdb,dbos,ingest,ner]"]
+local      = ["memspine[graph,lmdb,dbos,ingest,ner]"]
 prod-aws   = ["memspine[aws,taskiq,rest]"]
 # NOTE: `community` (graspologic, numpy<2) conflicts with `ingest` (markitdown→magika, numpy>=2.1);
 # declared under [tool.uv] conflicts and excluded from `all` until graspologic supports numpy 2.
-all        = ["memspine[lance,graph,kuzu,lmdb,ingest,structured,ner,compress,llmlocal,tantivy,dbos,taskiq,rest,rerank,static,aws,litellm,postgres,weaviate,neo4j,valkey]"]
+all        = ["memspine[graph,kuzu,lmdb,ingest,structured,ner,compress,llmlocal,tantivy,dbos,taskiq,rest,rerank,static,aws,litellm,postgres,weaviate,neo4j,valkey]"]
 
 dev = [
     "pytest>=8.3",
@@ -139,6 +141,8 @@ module = [
     "lancedb.*",
     "kuzu",
     "kuzu.*",
+    "ladybug",
+    "ladybug.*",
     "pyarrow",
     "pyarrow.*",
     "llama_cpp",
