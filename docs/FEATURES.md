@@ -154,20 +154,32 @@ rows inspectable — never feed its output straight to a context window.
 | **E1** | Memory Firewall | on by default | `memories.semantic.policies.trust` (tuning) |
 | **E2** | cache-friendly context assembly — stability-ordered placement with a cache `boundary_index` | on by default | — (shape via `read.assembly`) |
 | **E3** | semantic + operation caching — content-hash embedding cache; prompt-versioned extraction cache | on by default | — |
-| **E4** | embedding storage/speed (quantization, static prefilter) | partial | see E8 `static_prefilter` (post-vector today) |
+| **E4** | embedding quantization + static-embedding prefilter | opt-in | `vector.quantization` (`auto`\|`none`\|`int8`\|`binary` — LanceDB-native rescore, ADR-020); `read.static_embedding_prefilter: true` + `memspine[static]` (model2vec pre-rerank gate) |
 | **E5** | assembly-time context compression | opt-in | `read.compression: {assembly: true}` + `memspine[compress]` |
 | **E6** | plan & tool-value caching → procedural plans | on by default (with procedural) | `record_plan` / `recall_plan` |
 | **E7** | sleep-time compute | reserved hook | 4th `sleep()` cycle slot (no-op default) |
-| **E8** | retrieval-quality stages — cross-encoder rerank + static prefilter | opt-in | `read.rerank: fastembed`\|`flashrank` (`flashrank` needs `memspine[rerank]`); `read.static_prefilter: true` |
+| **E8** | retrieval-quality stages — cross-encoder rerank + static prefilter | opt-in | `read.rerank: fastembed`\|`flashrank`\|`litellm` (`flashrank` needs `memspine[rerank]`; `litellm` needs `read.rerank_model`); `read.static_prefilter: true` |
 | **E9** | token micro-optimizations — YAML/CoD prompt formats + always-on `json-repair` | on by default | prompt `format` per prompt |
 
 **Defaults are safe:** with the shipped config, E5 and E8 are off and results are
 bit-identical to the plain pipeline — `profile="simple"` behavior never changes.
 
-Example — turn on E8 rerank and E5 compression:
+### Hybrid retrieval (D-25)
+
+`search` is **vector-only by default**. Set `read.hybrid: true` to fuse a lexical
+BM25 leg into the candidate ranking via reciprocal-rank fusion (RRF), so a record
+only lexical search would surface can still enter results. The lexical store is
+`read.lexical_provider`: `sqlite_fts5` (default, zero-dep, rides the storage SQLite
+client) or `tantivy` (`memspine[tantivy]`, a standalone index — required with a
+`postgres` backend). Off means bit-identical to the vector-only pipeline and no
+lexical index is built; `profile="simple"` never builds one.
+
+Example — turn on hybrid, E8 rerank, and E5 compression:
 ```yaml
 read:
-  rerank: fastembed          # ONNX cross-encoder; reorders live candidates
+  hybrid: true               # fuse vector + lexical BM25 via RRF (D-25)
+  lexical_provider: sqlite_fts5   # sqlite_fts5 | tantivy [tantivy]
+  rerank: fastembed          # off | fastembed | flashrank [rerank] | litellm
   static_prefilter: true     # cheap lexical-overlap gate (post-vector)
   compression:
     assembly: true           # E5 fit stage (needs memspine[compress])
@@ -189,3 +201,27 @@ read:
   inflated on read.
 - **Prompts as data:** every internal LLM call resolves a named, versioned,
   override-able prompt (`prompts/defaults/*.yaml` + `prompts.overrides`), D-43.
+
+---
+
+## Pluggable backends (composable by config)
+
+Every store is a capability port; the event-sourced core is the single source of
+truth, so backends are swappable by config alone. Selecting an unbuilt/reserved
+backend raises `ConfigError`.
+
+| Capability | Config key | Options |
+|------------|-----------|---------|
+| SQL storage / event log | `storage.backend` | `sqlite` (default) · `postgres` `[postgres]` (ADR-025) |
+| Vector | `vector.backend` | `lance` (sole store, ADR-021) · `weaviate` reserved |
+| Graph | `graph.provider` | `sqlite_adjacency` (default) · `kuzu` `[kuzu]` · `ladybug` `[graph]` · `neo4j` reserved |
+| Cache / KV | `cache.backend` | `memory` (default) · `lmdb` `[lmdb]` · `redis` `[redis]` · `valkey` `[valkey]` |
+| Lexical (hybrid leg) | `read.lexical_provider` | `sqlite_fts5` (default) · `tantivy` `[tantivy]` |
+| Embedding | `embedding.provider` | `fastembed` (default) · `hash` · `static` `[static]` · `litellm` (cloud; `dim` required) |
+| LLM (per role) | `llm.roles.<role>.model` | LiteLLM prefix routing — `openai/` · `ollama/` · `bedrock/` · `vertex_ai/` · `llamacpp/<path>` (ADR-024) |
+| Secrets | `MEMSPINE_SECRETS_BACKEND` *(env var)* | `env` (default) · `aws` `[aws]` (ADR-023) |
+| Workers | `workers.runner` | `inline` (default) · `dbos` `[dbos]` · `taskiq` `[taskiq]` |
+
+The full key-by-key reference (defaults + notes) is in
+[`USAGE.md` § Config-key reference](./USAGE.md#config-key-reference); swap recipes
+(config diffs) are in [`USAGE.md` § Swap a backend](./USAGE.md#swap-a-backend-config-alone).

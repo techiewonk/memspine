@@ -11,23 +11,22 @@ For *what* each feature is, see [`FEATURES.md`](./FEATURES.md).
 
 ## Install
 
-The **core** install is slim — SQLite storage, fastembed embeddings, a zero-dep
-SQLite vector store, inline workers. Add capabilities as extras.
+The **core** install is slim — SQLite storage + FTS5, **LanceDB vector** (ADR-021),
+fastembed embeddings, inline workers. Add capabilities as extras.
 
 ```bash
 # Users:
 pip install memspine
-pip install "memspine[lance,kuzu,ingest,rest]"   # pick the extras you need
+pip install "memspine[kuzu,ingest,rest]"   # pick the extras you need
 
 # Developers (all extras + test/lint/docs tooling):
 uv sync --all-extras
 just check        # ruff + mypy --strict + pytest
 ```
 
-Common extras: `lance` (LanceDB vector), `kuzu` (graph), `ingest`
-(markitdown+chonkie), `ner` (gliner2), `structured` (instructor), `compress`
-(llmlingua, E5), `rerank` (flashrank, E8), `community` (graspologic), `rest`
-(FastAPI), `dbos`/`taskiq` (durable/brokered workers). See the
+Common extras: `kuzu` (graph), `ingest` (markitdown+chonkie), `ner` (gliner2),
+`structured` (instructor), `compress` (llmlingua, E5), `rerank` (flashrank, E8),
+`community` (graspologic), `rest` (FastAPI), `dbos`/`taskiq` (durable/brokered workers). See the
 [README extras table](../README.md#-install--extras) for the full set.
 
 > A feature that needs a missing extra raises `MissingServiceError` naming the
@@ -61,14 +60,14 @@ await engine.start()
 ```python
 engine = Engine(
     template="base",
-    storage={"path": "./memspine.db"},          # ":memory:" for ephemeral
+    storage={"backend": "sqlite", "path": "./memspine.db"},   # ":memory:" for ephemeral
     embedding={"provider": "hash"},             # deterministic, offline; default is "fastembed"
-    vector={"backend": "auto"},                 # auto | lance | sqlite
+    vector={"backend": "lance"},                # lance is the sole store (ADR-021); weaviate reserved
     memories={
         "semantic": {"enabled": True, "policies": {"entity_extraction": "off"}},
         "prospective": {"enabled": True},
     },
-    read={"rerank": "off", "static_prefilter": False},
+    read={"rerank": "off", "hybrid": False},
     strict_services=True,
 )
 await engine.start()
@@ -93,7 +92,7 @@ print(engine.describe())   # enabled types, services, event-log mode, projectors
 | `base` | working + episodic + semantic |
 | `coding` | + procedural (`conflict_bias: newest`) |
 | `personal` | + reflective + prospective |
-| `voice` | rolling+zstd event log; larger working window |
+| `voice` | rolling+zstd event log; tighter working window (`page_size: 8`) |
 | `multi_agent` | + shared |
 | `regulated_financial` | full audit log, strict PII, no forgetting |
 
@@ -308,9 +307,155 @@ Never expose this app to an untrusted network without filling the auth seam.
 
 ---
 
+## Swap a backend (config alone)
+
+Every store is a port; you pick the adapter by config, and the event-sourced core
+stays the single source of truth. Nothing below changes the API you call — only
+which backend the same verbs run against. Each swap is a small config diff.
+
+**Storage: SQLite → PostgreSQL** *(needs `memspine[postgres]`)* — one dialect-neutral
+schema serves both (ADR-025). `data_dir` is where the file-backed projections
+(LanceDB vectors, Tantivy lexical) live, since a DSN is not a filesystem path.
+```yaml
+storage:
+  backend: postgres
+  url: postgresql+psycopg://user:pass@host:5432/memspine   # secrets-resolved
+  data_dir: /var/lib/memspine                               # base dir for derived files
+read:
+  lexical_provider: tantivy   # FTS5 is SQLite-only; use tantivy when hybrid is on with postgres
+graph:
+  provider: kuzu              # sqlite_adjacency is SQLite-only; use kuzu/ladybug with postgres
+```
+
+**Cache: in-process → Redis** *(needs `memspine[redis]`; `valkey` is wire-compatible)* —
+also `lmdb` for a persistent single-process cache (`memspine[lmdb]`).
+```yaml
+cache:
+  backend: redis            # memory (default) | lmdb | redis | valkey
+  url: redis://localhost:6379/0
+  namespace: memspine       # key prefix so instances can share one server
+  default_ttl_seconds: 3600
+```
+
+**LLM: local → cloud/Bedrock** — LiteLLM routes by the model-id **prefix** (ADR-024).
+The special `llamacpp/<path>` prefix runs the in-process llama.cpp adapter
+(`memspine[llmlocal]`); every other prefix (`openai/`, `ollama/`, `bedrock/`,
+`vertex_ai/`, `azure/`, …) goes through LiteLLM.
+```yaml
+llm:
+  roles:
+    extract:                       # local Ollama
+      model: ollama/llama3
+      api_base: http://localhost:11434
+    judge:                         # AWS Bedrock
+      model: bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0
+      aws_region: us-east-1
+```
+> **⚠ Breaking (ADR-024):** `llm.roles.<role>` dropped `provider` and `base_url`.
+> Migrate `provider: openai` + `base_url: …` → `model: openai/<name>` + `api_base: …`.
+> `ollama`/`vllm`/`lmstudio`/OpenAI-compatible all become a `model` prefix + `api_base`.
+
+**Embedding: local → cloud (LiteLLM)** — a cloud embedder's output dimension is not
+locally discoverable, so `dim` is **required** when `provider: litellm`.
+```yaml
+embedding:
+  provider: litellm
+  model: openai/text-embedding-3-small
+  dim: 1536                 # REQUIRED for litellm; the vector store needs it up front
+  # api_base / api_key / aws_region as your provider needs
+```
+
+**Secrets: env → AWS Secrets Manager** *(needs `memspine[aws]`)* — secrets resolve
+*before* the config exists, so this is an **environment variable**, not a config key
+(ADR-023). `aws` chains env/`.env` first, then AWS, so local values always win.
+```bash
+export MEMSPINE_SECRETS_BACKEND=aws     # env (default) | aws
+```
+
+**Retrieval: vector-only → hybrid + rerank** — fuse a lexical BM25 leg via RRF, then
+optionally cross-encoder rerank. Both default OFF (results stay bit-identical to the
+vector-only pipeline until you opt in).
+```yaml
+read:
+  hybrid: true                 # fuse vector + lexical BM25 via RRF (D-25)
+  lexical_provider: sqlite_fts5   # sqlite_fts5 (default) | tantivy [tantivy]
+  rerank: fastembed            # off (default) | fastembed | flashrank [rerank] | litellm
+  rerank_model: cohere/rerank-english-v3.0   # required only when rerank: litellm
+```
+
+---
+
+## Config-key reference
+
+Every key of `MemspineConfig` (`src/memspine/config/schema.py`) and its sub-blocks.
+`*` marks an open map keyed by name (a role, memory type, or namespace). Dict-valued
+keys (`read.scoring`, `*.policies`, `prompts.overrides`) take nested option maps
+validated by their own policy/registry. This table is kept honest by
+`tests/unit/test_docs_config_surface.py`, which fails if a key here does not exist
+in the schema — or if the schema gains a key not documented here.
+
+<!-- CONFIG-KEYS-TABLE:START -->
+| Key | Default | Notes |
+|-----|---------|-------|
+| `profile` | `simple` | Behavior profile; templates set it (base/coding/personal/voice/multi_agent/regulated_financial). |
+| `strict_services` | `true` | Missing service hard-fails naming the extra (D-10); `false` starts degraded. |
+| `event_log.mode` | `full` | `full` \| `rolling` (bounded window) \| `ephemeral` (nothing persisted — no rebuild/audit) (D-45). |
+| `event_log.retention_days` | `30` | Rolling-window retention floor; never prunes past a projector high-water mark. |
+| `event_log.compress` | `false` | zstd-compress event payloads at rest. |
+| `storage.backend` | `sqlite` | `sqlite` \| `postgres` (ADR-025). |
+| `storage.path` | `./memspine.db` | SQLite db file, or `:memory:` for ephemeral. |
+| `storage.url` | `null` | Postgres DSN (secrets-resolved); required when `backend: postgres`. |
+| `storage.data_dir` | `null` | Base dir for file-backed projections (LanceDB/Tantivy); required for postgres. |
+| `embedding.provider` | `fastembed` | `fastembed` (ONNX/CPU) \| `hash` (deterministic, tests) \| `static` (model2vec `[static]`) \| `litellm` (cloud). |
+| `embedding.model` | `BAAI/bge-small-en-v1.5` | Embedder model id. |
+| `embedding.dim` | `null` | **Required** when `provider: litellm` — a cloud embedder's output dim. |
+| `embedding.api_base` | `null` | Endpoint override (litellm). |
+| `embedding.api_key` | `null` | API key (litellm; secrets-resolved). |
+| `embedding.aws_region` | `null` | Bedrock region (litellm). |
+| `vector.backend` | `lance` | `lance` is the sole store (ADR-021); `weaviate` reserved (raises). |
+| `vector.quantization` | `auto` | `auto` (manifest-driven) \| `none` \| `int8` \| `binary` — E4 native rescore (ADR-020). |
+| `cache.backend` | `memory` | `memory` \| `lmdb` `[lmdb]` \| `redis` `[redis]` \| `valkey` `[valkey]` (D-09). |
+| `cache.path` | `./memspine.cache.lmdb` | LMDB env directory. |
+| `cache.url` | `redis://localhost:6379/0` | Redis/Valkey DSN (secrets-resolved). |
+| `cache.namespace` | `memspine` | Key prefix so instances can share one store. |
+| `cache.default_ttl_seconds` | `null` | Default TTL when a caller passes none (`null` = no expiry). |
+| `cache.max_entries` | *(constant)* | In-memory backend entry cap. |
+| `graph.provider` | `sqlite_adjacency` | `sqlite_adjacency` \| `kuzu` `[kuzu]` \| `ladybug` `[graph]` \| `neo4j` (reserved) (D-26). |
+| `llm.roles.*.model` | `""` | LiteLLM model id; **prefix routes** (`openai/`, `ollama/`, `bedrock/`, `vertex_ai/`, `llamacpp/<path>`) (ADR-024). |
+| `llm.roles.*.api_base` | `null` | Local endpoint override (Ollama, vLLM, …). |
+| `llm.roles.*.api_key` | `null` | API key (secrets-resolved). |
+| `llm.roles.*.aws_region` | `null` | Bedrock region. |
+| `llm.roles.*.timeout_seconds` | `60.0` | Per-call timeout. |
+| `read.scoring` | `{}` | Options for `ScoringPolicy.bind` (M1 composite). |
+| `read.assembly` | `{}` | Options for `AssemblyPolicy.bind` (E2 placement / MMR). |
+| `read.rerank` | `off` | `off` \| `fastembed` \| `flashrank` `[rerank]` \| `litellm` — E8 cross-encoder (D-51). |
+| `read.rerank_model` | `null` | LiteLLM rerank model id; required when `rerank: litellm`. |
+| `read.static_prefilter` | `false` | E8 cheap lexical-overlap gate (post-vector). |
+| `read.static_embedding_prefilter` | `false` | E4 model2vec static-cosine gate `[static]`. |
+| `read.hybrid` | `false` | Fuse the lexical BM25 leg via RRF (D-25); off = vector-only, bit-identical. |
+| `read.lexical_provider` | `sqlite_fts5` | `sqlite_fts5` (FTS5/BM25) \| `tantivy` `[tantivy]`; only when `hybrid` is on. |
+| `read.compression` | `{}` | Options for the E5 assembly-stage `CompressionPolicy` (`memspine[compress]`). |
+| `workers.runner` | `inline` | `inline` \| `dbos` `[dbos]` \| `taskiq` `[taskiq]` (D-16). |
+| `workers.broker_url` | `redis://localhost:6379/0` | taskiq broker endpoint (ignored by other runners). |
+| `workers.dbos_system_database_url` | `null` | DBOS system db; `null` derives a SQLite file beside `storage.path`. |
+| `prompts.overrides` | `{}` | Per-prompt overrides (body/system/format/version/output_model/token_budget) (D-43). |
+| `memories.*.enabled` | `false` | Enable a memory type (`working`/`episodic`/`semantic`/…); C1b auto-enables prerequisites. |
+| `memories.*.policies` | `{}` | Per-type policy overrides (conflict/dedup/trust/entity_extraction/page_size/…). |
+| `namespaces.*.policies` | `{}` | Per-namespace policy overrides (D-14). |
+<!-- CONFIG-KEYS-TABLE:END -->
+
+Secrets backend selection is **not** a config key: `MEMSPINE_SECRETS_BACKEND`
+(`env` default \| `aws`) is an environment variable, because secrets resolve before
+`MemspineConfig` is built (ADR-023).
+
+---
+
 ## Where to go next
 
 - [`FEATURES.md`](./FEATURES.md) — the feature catalog (types, firewall, E2–E9).
 - [`examples/01_quickstart.py`](../examples/01_quickstart.py) → `04_prospective_shared_rest.py`.
 - [`memspine-structure-plan.md`](./memspine-structure-plan.md) — the authoritative blueprint.
-- [`adr/`](./adr/) — architecture decision records (ADR-001 … ADR-018).
+- [`adr/`](./adr/) — architecture decision records (ADR-001 … ADR-025); the newest cover
+  LanceDB core vector (ADR-021), shared cache backends (ADR-022), pluggable secrets +
+  AWS (ADR-023), the LiteLLM LLM/embedding/rerank gateway (ADR-024), and PostgreSQL
+  storage (ADR-025).
