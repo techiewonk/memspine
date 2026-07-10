@@ -150,6 +150,8 @@ def build_app(engine: Engine) -> FastAPI:
             actor=body.actor,
             entity=body.entity,
             attribute=body.attribute,
+            group_id=body.group_id,
+            tags=body.tags,
         )
 
     @app.post("/write_messages")

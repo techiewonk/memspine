@@ -514,12 +514,16 @@ class Engine:
         actor: str = "user",
         entity: str | None = None,
         attribute: str | None = None,
+        group_id: str | None = None,
+        tags: list[str] | None = None,
     ) -> MemoryRecord:
         """Append a WRITE event through the single door; projection materializes it.
 
         ``entity``/``attribute`` key a semantic fact directly (M13.3) so the M4
         conflict ladder engages without requiring an extractor — callers that
-        know the fact key should always pass it.
+        know the fact key should always pass it. ``group_id``/``tags`` (D2) are a
+        sub-scoping facet within the namespace (a conversation, a document, a
+        project) — a retrieval filter, never an isolation boundary.
         """
         storage = self._require_started()
         ns = validate_namespace(namespace)
@@ -539,6 +543,8 @@ class Engine:
             pii_tier=pii_tier,
             entity=entity,
             attribute=attribute,
+            group_id=group_id,
+            tags=tags or [],
         )
         # One writer per namespace: the firewall's context reads, the write,
         # and corroboration form one unit racing writers must not interleave.
@@ -552,6 +558,8 @@ class Engine:
         actor: str = "user",
         session_id: str | None = None,
         channel: str = "messages",
+        group_id: str | None = None,
+        tags: list[str] | None = None,
     ) -> list[MemoryRecord]:
         """C4: ingest a chat transcript as per-turn **episodic** records.
 
@@ -579,6 +587,8 @@ class Engine:
                 memory_type="episodic",
                 source=SourceInfo(role=role, channel=channel, message_id=session_id),
                 actor=actor,
+                group_id=group_id,
+                tags=tags,
             )
             records.append(record)
         return records
@@ -589,15 +599,23 @@ class Engine:
         namespace: str = "default",
         actor: str = "user",
         channel: str = "messages",
+        tags: list[str] | None = None,
     ) -> list[MemoryRecord]:
         """C4: ingest a transcript as ONE conversation. Like
         :meth:`write_messages`, but stamps every turn with a shared,
-        content-derived session id (``message_id``), so the turns are
-        retrievable and consolidatable as a single episode — the M13.2 session
-        detector then treats them as one session at consolidation time."""
+        content-derived session id (``message_id``) AND the same ``group_id``
+        (D2), so the turns are retrievable and consolidatable as a single
+        episode — the M13.2 session detector then treats them as one session at
+        consolidation time."""
         session_id = fingerprint_payload({"episode": [str(turn) for turn in messages]})
         return await self.write_messages(
-            messages, namespace=namespace, actor=actor, session_id=session_id, channel=channel
+            messages,
+            namespace=namespace,
+            actor=actor,
+            session_id=session_id,
+            channel=channel,
+            group_id=session_id,
+            tags=tags,
         )
 
     async def _write_locked(
@@ -668,12 +686,21 @@ class Engine:
         return record
 
     async def retrieve(
-        self, namespace: str = "default", memory_type: str | None = None
+        self,
+        namespace: str = "default",
+        memory_type: str | None = None,
+        group_id: str | None = None,
+        tags: list[str] | None = None,
     ) -> list[MemoryRecord]:
-        """P0 read path: relational listing. Hybrid retrieval lands in Phase 1."""
+        """P0 read path: relational listing. ``group_id``/``tags`` (D2) narrow to
+        a sub-scope within the namespace; tags match records carrying ALL of the
+        given tags."""
         storage = self._require_started()
         ns = validate_namespace(namespace)
-        records = self._inflate_all(await storage.list_records(ns, memory_type), ns)
+        records = self._inflate_all(await storage.list_records(ns, memory_type, group_id), ns)
+        if tags:
+            wanted = set(tags)
+            records = [r for r in records if wanted.issubset(r.tags)]
         _log.info(EVENT_RETRIEVE, namespace=ns, memory_type=memory_type, count=len(records))
         return records
 
@@ -682,6 +709,8 @@ class Engine:
         query: str,
         namespace: str = "default",
         top_k: int = constants.SEARCH_TOP_K,
+        group_id: str | None = None,
+        tags: list[str] | None = None,
     ) -> list[tuple[MemoryRecord, float]]:
         """Semantic retrieval (P1 + E8 opt-in stages, D-51):
         ``[static_prefilter?] → vector/hybrid → [rerank?] → score`` (MMR and
@@ -774,6 +803,11 @@ class Engine:
                 continue
             if record.quarantined:
                 continue  # defense in depth: quarantined never reaches assembly
+            # D2 sub-scoping gate: narrow to a group and/or records carrying all tags.
+            if group_id is not None and record.group_id != group_id:
+                continue
+            if tags and not set(tags).issubset(record.tags):
+                continue
             try:
                 record = self._inflate.inflate(record)  # cold-tier content restored (M6)
             except StorageError:

@@ -126,6 +126,14 @@ class MemoryRecord(BaseModel):
     entity: str | None = None
     attribute: str | None = None
 
+    # Sub-scoping facet over the namespace (D2). ``group_id`` groups records
+    # (a conversation, a document, a project) within a namespace; ``tags`` are
+    # free-form labels. Both are orthogonal to namespace isolation — a filter,
+    # never a security boundary — and default empty so unkeyed records behave
+    # exactly as in v0.1.
+    group_id: str | None = None
+    tags: list[str] = Field(default_factory=list)
+
     # Bi-temporal columns (M4): event time vs. record time.
     valid_from: datetime = Field(default_factory=lambda: datetime.now(UTC))
     valid_to: datetime | None = None

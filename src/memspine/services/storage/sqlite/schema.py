@@ -107,10 +107,15 @@ memory_records = Table(
     # M13.4 procedural stage + M13.7 reflective depth (migration 0006).
     Column("skill_stage", String),
     Column("reflection_depth", Integer, nullable=False, server_default="0"),
+    # D2 sub-scoping facet (migration 0002): group_id + orjson tags blob. Both
+    # nullable — a NULL tags column reads back as an empty list.
+    Column("group_id", String),
+    Column("tags", LargeBinary),
     Index("ix_memory_records_ns_type", "namespace", "memory_type"),
     Index("ix_memory_records_fingerprint", "content_fingerprint"),
     Index("ix_memory_records_fact_key", "namespace", "entity", "attribute"),
     Index("ix_memory_records_tier", "tier"),
+    Index("ix_memory_records_ns_group", "namespace", "group_id"),
 )
 
 # Zero-dep graph fallback (P6, D-26): adjacency lists for associative memory,

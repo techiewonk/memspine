@@ -121,8 +121,8 @@ Mirascope/BAML/DSPy/guidance/LangChain-hub/banks/Prompt-Poet/priompt/Promptify a
 | C2 | C · Multi-call | Async **`extract_graph` pipeline** → `LINK`/`WRITE` events (after `consolidate`, before `reorganize`), opt-in | 🏗 | ADR-026 | C1 | 🔴 | ☑ |
 | C3 | C · Multi-call | Optional **sync `WritePipeline`** in semantic door + E1 provenance inheritance | 🏗 | ADR-026 | C1 | 🔴 | ☑ |
 | C4 | C · Multi-call | **`write_messages()`/`write_episode()`** verb (chat transcript → episodic records + session detect) | 🏗 | — | — | 🟡 | ☑ |
-| D1 | D · Lifecycle | **Autonomous forgetting/decay scheduler** — `workers/scheduler.py` interval loop → `run_sleep_cycle` | 🏗 | amends D-16 (+M7) | — | 🟡 | ☐ |
-| D2 | D · Lifecycle | **`group_id` + `tags`** on `MemoryRecord` — fields + migration + write/REST/filter threading | 🏗 | amends D-21 | — | 🟡 | ☐ |
+| D1 | D · Lifecycle | **Autonomous forgetting/decay scheduler** — `workers/scheduler.py` interval loop → `run_sleep_cycle` | 🏗 | amends D-16 (ADR-005) | — | 🟡 | ☑ |
+| D2 | D · Lifecycle | **`group_id` + `tags`** on `MemoryRecord` — fields + migration + write/REST/filter threading | 🏗 | ADR-027 (amends D-21) | — | 🟡 | ☑ |
 | E1 | E · Retrieval | **Configurable graph traversal** — `strategy: ppr\|bfs\|rrf`; wire unused `walk_neighbors` + RRF blend | 🏗 | amends D-49 | — | 🟡 | ☐ |
 | F1 | F · Compression | **llmlingua-2** + configurable model (`_load_llmlingua`) | 🔧 | — | — | 🟢 | ☐ |
 | F2 | F · Compression | **Per-stage token budgets** (`stage_budgets` by placement band; protect cacheable prefix) | 🏗 | — | F1 | 🟡 | ☐ |

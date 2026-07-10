@@ -43,6 +43,8 @@ class WriteRequest(_Request):
     actor: str = "user"
     pii_tier: PiiTier = PiiTier.NONE
     source: SourceInfo | None = None
+    group_id: str | None = None  # D2 sub-scoping facet
+    tags: list[str] = Field(default_factory=list)
 
 
 class Turn(_Request):

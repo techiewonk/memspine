@@ -289,6 +289,8 @@ class SqlStorage(ServiceAdapter):
             "corroborations": record.corroborations,
             "skill_stage": record.skill_stage,
             "reflection_depth": record.reflection_depth,
+            "group_id": record.group_id,
+            "tags": orjson.dumps(record.tags),
         }
         stmt = self._insert(memory_records).values(record_id=record.record_id, **values)
         stmt = stmt.on_conflict_do_update(index_elements=["record_id"], set_=values)
@@ -310,11 +312,16 @@ class SqlStorage(ServiceAdapter):
         return [str(row[0]) for row in rows]
 
     async def list_records(
-        self, namespace: str, memory_type: str | None = None
+        self,
+        namespace: str,
+        memory_type: str | None = None,
+        group_id: str | None = None,
     ) -> list[MemoryRecord]:
         stmt = select(memory_records).where(memory_records.c.namespace == namespace)
         if memory_type is not None:
             stmt = stmt.where(memory_records.c.memory_type == memory_type)
+        if group_id is not None:  # D2 sub-scoping facet
+            stmt = stmt.where(memory_records.c.group_id == group_id)
         async with self._client.engine.connect() as conn:
             rows = (await conn.execute(stmt)).all()
         return [self._row_to_record(row._mapping) for row in rows]
@@ -431,5 +438,8 @@ class SqlStorage(ServiceAdapter):
                 "corroborations": row["corroborations"],
                 "skill_stage": row["skill_stage"],
                 "reflection_depth": row["reflection_depth"],
+                "group_id": row["group_id"],
+                # NULL tags (rows written before D2) read back as an empty list.
+                "tags": orjson.loads(row["tags"]) if row["tags"] is not None else [],
             }
         )

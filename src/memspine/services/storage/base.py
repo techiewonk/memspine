@@ -59,5 +59,8 @@ class StorageService(Protocol):
         ...
 
     async def list_records(
-        self, namespace: str, memory_type: str | None = None
+        self,
+        namespace: str,
+        memory_type: str | None = None,
+        group_id: str | None = None,
     ) -> list[MemoryRecord]: ...

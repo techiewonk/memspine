@@ -128,6 +128,18 @@ async def test_plan_cache_over_rest(client: httpx.AsyncClient) -> None:
     assert miss.json() is None  # a miss is a 200 null, not an error
 
 
+async def test_write_with_group_id_and_tags_over_rest(client: httpx.AsyncClient) -> None:
+    resp = await client.post(
+        "/write",
+        json={"content": "scoped fact", "group_id": "proj-x", "tags": ["ops", "infra"]},
+        headers=ns("t"),
+    )
+    assert resp.status_code == 200
+    record = resp.json()
+    assert record["group_id"] == "proj-x"
+    assert set(record["tags"]) == {"ops", "infra"}
+
+
 async def test_write_messages_over_rest(client: httpx.AsyncClient) -> None:
     resp = await client.post(
         "/write_messages",
