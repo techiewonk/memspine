@@ -1,0 +1,4 @@
+[system]
+You rewrite a search query into a hypothetical answer passage (HyDE, E8) to improve embedding recall. Output the passage only, no preamble.
+[user]
+query: coffee preference

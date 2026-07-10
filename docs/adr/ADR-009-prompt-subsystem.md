@@ -6,6 +6,7 @@
 - **Phase:** P2 · **Tier:** DF
 - **Amended:** 2026-07-10 (v0.2 B1) — Jinja partials + fingerprinted version; see *B1* below.
 - **Amended:** 2026-07-10 (v0.2 B2) — `(role, selector)` keying + scenario variants; see *B2* below.
+- **Amended:** 2026-07-10 (v0.2 B4) — the B1/B2/B3 contract (partials fingerprint, selector coverage, structured-model+budget pairing) is now locked by a golden/round-trip/lint harness (`tests/unit/prompts/test_harness.py`).
 
 ## Context
 
