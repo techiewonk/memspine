@@ -97,3 +97,40 @@ Sequenced low-risk/high-value → bigger builds. Each phase stays green + commit
 
 ## Explicitly rejected (with disadvantages captured)
 Mirascope/BAML/DSPy/guidance/LangChain-hub/banks/Prompt-Poet/priompt/Promptify as prompt libs (DEC-2) · per-vendor reranker SDKs and the answer.ai `rerankers` wrapper (covered by litellm + one `[st]` adapter) · ColBERT/late-interaction reranking (deferred — doesn't fit the single-score port).
+
+---
+
+## Master to-do — all 22 tasks (one table for verify/track)
+
+**Type:** 🐛 bug · 🔧 config/flip · 🏗 build · 📦 dep-swap  **Risk:** 🟢 low 🟡 med 🔴 high  **Status:** ☐ todo · ◐ in-progress · ☑ done
+
+| ID | Phase | Task | Type | ADR delta | Depends | Risk | Status |
+|----|-------|------|------|-----------|---------|------|--------|
+| A0 | A · Quick wins | Adopt **cashews**, drop **LMDB** + hand-rolled Redis; `cache.backend = memory\|disk\|redis\|valkey`; MemoryKV stays core | 📦 | amends ADR-022, D-09 | — | 🟡 | ☐ |
+| A1 | A · Quick wins | Fix `read.rerank=litellm` **startup-validator bug** (ConfigError today) | 🐛 | — | — | 🟢 | ☐ |
+| A2 | A · Quick wins | **RerankerFactory** (registry keyed by id, lazy, graceful-degrade; single validation source) | 🏗 | amends D-51 | A1 | 🟢 | ☐ |
+| A3 | A · Quick wins | Hybrid retrieval **default-on** flip (`read.hybrid → true`); verify C6 matrix | 🔧 | D-25 intent | — | 🟡 | ☐ |
+| A4 | A · Quick wins | **DBOS+SQLite default** via server-profile templates (not schema default) | 🔧 | D-16 note | — | 🟢 | ☐ |
+| A5 | A · Quick wins | **Reinforcement on read** — additive salience (`utility += step`) in `_apply_retrieve` | 🏗 | — | — | 🟢 | ☐ |
+| A6 | A · Quick wins | Expose **graspologic Leiden** knobs (`min_size`/`resolution`/`randomness`/`seed`) + compression `compress_tiers`/rate as config | 🔧 | — | — | 🟢 | ☐ |
+| B1 | B · Prompts | Jinja **loader + partials** (`_partials/`); fingerprint partials into `prompt_version` | 🏗 | amends D-43 | — | 🟡 | ☐ |
+| B2 | B · Prompts | **Scenario/conditional selection** — `(role, selector)` key, `<role>@<scenario>` variants, `select()` + role fallback | 🏗 | amends D-43 | — | 🟡 | ☐ |
+| B3 | B · Prompts | **Enhance all 10 prompts** — anti-injection framing, `output_model`+lean `format`, split double-duty into variants | 🏗 | — | B1,B2 | 🟢 | ☐ |
+| B4 | B · Prompts | **Prompt test harness** — golden renders, output-model round-trip, selector coverage, lint | 🏗 | amends D-43 | B1,B2 | 🟢 | ☐ |
+| C1 | C · Multi-call | New roles + output models: `extract_edges`, `resolve_entity`, `invalidate_edge`, reflexion round | 🏗 | — | B2 | 🟡 | ☐ |
+| C2 | C · Multi-call | Async **`extract_graph` pipeline** → `LINK`/`WRITE` events (after `consolidate`, before `reorganize`), opt-in | 🏗 | new ADR | C1 | 🔴 | ☐ |
+| C3 | C · Multi-call | Optional **sync `WritePipeline`** in semantic door + E1 provenance inheritance | 🏗 | new ADR | C1 | 🔴 | ☐ |
+| C4 | C · Multi-call | **`write_messages()`/`write_episode()`** verb (chat transcript → episodic records + session detect) | 🏗 | — | — | 🟡 | ☐ |
+| D1 | D · Lifecycle | **Autonomous forgetting/decay scheduler** — `workers/scheduler.py` interval loop → `run_sleep_cycle` | 🏗 | amends D-16 (+M7) | — | 🟡 | ☐ |
+| D2 | D · Lifecycle | **`group_id` + `tags`** on `MemoryRecord` — fields + migration + write/REST/filter threading | 🏗 | amends D-21 | — | 🟡 | ☐ |
+| E1 | E · Retrieval | **Configurable graph traversal** — `strategy: ppr\|bfs\|rrf`; wire unused `walk_neighbors` + RRF blend | 🏗 | amends D-49 | — | 🟡 | ☐ |
+| F1 | F · Compression | **llmlingua-2** + configurable model (`_load_llmlingua`) | 🔧 | — | — | 🟢 | ☐ |
+| F2 | F · Compression | **Per-stage token budgets** (`stage_budgets` by placement band; protect cacheable prefix) | 🏗 | — | F1 | 🟡 | ☐ |
+| F3 | F · Compression | Per-stage rate/target-token + **entity `preserve`** list | 🏗 | — | F2 | 🟢 | ☐ |
+| F4 | F · Compression | zstd-vs-llmlingua **decision rule** + inflate-before-compress assert + observability event | 🏗 | — | F1 | 🟢 | ☐ |
+
+**Totals:** 22 tasks · 🐛1 🔧6 🏗14 📦1 · risk 🟢12 🟡8 🔴2 · ~6 ADR deltas (ADR-022, D-43, multi-call, D-16, D-21, D-49, D-51).
+
+**Sequencing:** A first (A0/A1 are the openers) → B before C (C1 needs B2) → D/E/F independent after A. C is the heaviest (🔴, opt-in — must not perturb `profile="simple"`).
+
+*Plan version: v0.2 · updated 2026-07-10 (cashews adopted DEC-1, graspologic Leiden confirmed DEC-5).*
