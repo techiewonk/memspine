@@ -1,12 +1,20 @@
 ---
-gsd_state_version: '1.0'
+gsd_state_version: 1.0
+milestone: v0.1
+milestone_name: Release Hardening
+current_phase: 15
+current_phase_name: Documentation & Usage Finalization
 status: in_progress
+stopped_at: Phase 15 context gathered
+last_updated: "2026-07-10T05:57:07.023Z"
+last_activity: 2026-07-10
+last_activity_desc: ingest bootstrap; roadmap reflects P0–P7 + composable-stores (Phases 1–14) as landed, release-hardening tail (15–17) open
 progress:
-  total_phases: 17
-  completed_phases: 14
-  total_plans: 17
-  completed_plans: 14
-  percent: 82
+  total_phases: 3
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -30,6 +38,7 @@ Progress: [████████░░] 82%
 ## Performance Metrics
 
 **Velocity:**
+
 - Total plans completed: 14 (Phases 1–14, landed across two build efforts)
 - Average duration: n/a (delivered pre-GSD; not instrumented)
 - Total execution time: n/a
@@ -41,6 +50,7 @@ Progress: [████████░░] 82%
 | 1–14 (landed) | 14 | n/a | n/a |
 
 **Recent Trend:**
+
 - Last 5 landed: Phases 10–14 (cache → secrets → litellm → lexical parity → Postgres)
 - Trend: Stable — ports-completion milestone closed green
 
@@ -84,6 +94,6 @@ Items acknowledged and carried forward:
 
 ## Session Continuity
 
-Last session: 2026-07-10
-Stopped at: Bootstrapped .planning/ from ingest (PROJECT / REQUIREMENTS / ROADMAP / STATE written); Phases 1–14 recorded as landed, release-hardening tail open
-Resume file: None
+Last session: 2026-07-10T05:57:07.003Z
+Stopped at: Phase 15 context gathered
+Resume file: .planning/phases/15-documentation-usage-finalization/15-CONTEXT.md
