@@ -5,6 +5,7 @@
 - **Decision id:** D-16 / D-17 / D-18
 - **Phase:** P0 contract, P1/P3/P7 runners · **Tier:** DF
 - **Amended:** 2026-07-10 (v0.2 A4, DEC-4) — see *Server-profile default* below.
+- **Amended:** 2026-07-10 (v0.2 D1) — autonomous sleep scheduler; see *D1* below.
 
 ## Context
 
@@ -13,6 +14,22 @@ Consolidation/decay/compression must run in the background, but binding the engi
 ## Decision
 
 Background pipelines are plain, idempotent step functions in `workers/pipelines.py`. Runners *decorate* them: `inline` (default), `dbos` (durable, SQLite→Postgres), `taskiq` (Valkey Streams with per-scope keys + priority labels). No runner imports inside pipeline code. Dead-letter severity: consolidation = warning, M7 hard-delete cascade = alert (D-18).
+
+### Autonomous sleep scheduler (v0.2 D1)
+
+The sleep cycle (consolidate → extract_graph → reorganize → decay → prune) ran
+only on an explicit `Engine.sleep()` in v0.1, so learning dynamics were dormant
+unless something drove them. D1 adds `workers/scheduler.py::SleepScheduler`: a
+thin asyncio task that runs the full cycle every `workers.sleep_interval_seconds`
+and is started/stopped by the engine. It decides *when*, never *how* — the work
+still flows through the configured runner (inline/dbos/taskiq), so anti-lock-in
+(D-17) holds. Runs cannot overlap (await-then-sleep in one task), a failing
+cycle is logged and the loop continues, and stop() cancels-and-awaits before
+tearing down the runner. **Off by default** (`sleep_interval_seconds = null`):
+`profile="simple"` and existing deployments are unchanged. The optional
+decay→FORGET auto-archival of dormant records is deferred — hard deletion is M7
+-governed and needs its own decision; the scheduler advancing decay *tiers*
+(reversible) is the safe core.
 
 ### Server-profile default (v0.2 A4, DEC-4)
 

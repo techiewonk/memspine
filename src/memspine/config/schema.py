@@ -181,6 +181,11 @@ class WorkersConfig(BaseModel):
     runner: str = "inline"
     broker_url: str = "redis://localhost:6379/0"
     dbos_system_database_url: str | None = None
+    #: D1: autonomous maintenance. When set to a positive number of seconds the
+    #: engine starts a background loop that runs the full sleep cycle
+    #: (consolidate → … → decay → prune) on that interval. None (default) keeps
+    #: v0.1 behavior — the cycle runs only on an explicit ``Engine.sleep()``.
+    sleep_interval_seconds: float | None = None
 
 
 class ReadConfig(BaseModel):

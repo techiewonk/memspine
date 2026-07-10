@@ -121,6 +121,7 @@ from memspine.workers.pipelines import (
 )
 from memspine.workers.runner import TaskRunner
 from memspine.workers.schedule import run_sleep_cycle
+from memspine.workers.scheduler import SleepScheduler
 
 __all__ = ["Engine"]
 
@@ -256,6 +257,7 @@ class Engine:
         self._summarize: Summarize | None = None
         self._extract_edges: ExtractEdges | None = None
         self._runner: TaskRunner | None = None
+        self._scheduler: SleepScheduler | None = None  # D1: autonomous sleep loop
         self._started = False
         self._write_locks: dict[str, asyncio.Lock] = {}
         self._sync_loop: asyncio.AbstractEventLoop | None = None
@@ -452,6 +454,17 @@ class Engine:
             stats = await self._runner.run("event_log_prune", self._pipeline_ctx())
             if stats.get("pruned"):
                 _log.info("event_log.pruned", **stats)
+        # D1: autonomous maintenance loop (opt-in). Runs the full sleep cycle on
+        # a fixed interval so learning dynamics advance without an external cron.
+        interval = config.workers.sleep_interval_seconds
+        if interval is not None and interval > 0:
+
+            async def _tick() -> object:
+                assert self._runner is not None  # set above; loop only runs while started
+                return await run_sleep_cycle(self._runner, self._pipeline_ctx())
+
+            self._scheduler = SleepScheduler(interval, _tick)
+            self._scheduler.start()
         self._started = True
         return self
 
@@ -459,6 +472,9 @@ class Engine:
         await self._teardown()
 
     async def _teardown(self) -> None:
+        if self._scheduler is not None:
+            await self._scheduler.stop()  # stop the loop before tearing down its deps
+            self._scheduler = None
         if self._runner is not None:
             await self._runner.close()
         if self._storage is not None:
@@ -1975,6 +1991,8 @@ class Engine:
             "consolidation_summarizer": "llm" if self._summarize is not None else "extractive",
             "projectors": [projector.name for projector in self._projectors],
             "runner": config.workers.runner,
+            # D1: whether the autonomous sleep loop is active this run.
+            "scheduler": self._scheduler.running if self._scheduler is not None else False,
             "strict_services": config.strict_services,
         }
 
