@@ -1,0 +1,18 @@
+algorithm_id,description,ecosystem_proof,memspine_slot
+hybrid_retrieval,RRF fusion k=60 + optional MMR/cross-encoder rerank,"graphiti, powermem, SimpleMem",memspine read.hybrid D-53
+minhash_lsh_dedup,datasketch MinHash-LSH stage-1 + cosine confirm,MemOS pref-mem,D-27 policies/dedup.py
+ebbinghaus_decay,strength × time decay dormancy→decay→clearance,"MemoryBear, powermem",M6 lifecycle
+bitemporal_graph,valid_at/invalid_at on edges and nodes,graphiti,substrate bitemporal fields
+hierarchical_leiden,graspologic community → summary parent,MemoryBear graphrag,D-40 optional [community]
+add_update_delete_none,LLM infer terminal state NONE,mem0 v2,policies/infer.py
+zstd_cold_tier,zstandard compress low-salience memories,"MemOS, ReMe, SimpleMem",D-32 compression.py
+llmlingua_compress,prompt/context compression ~20×,LightMem,E5 [compress]
+instructor_structured,pydantic-validated LLM JSON + retries,"cognee, langmem",D-31 services/llm
+gliner2_ner,local zero-shot entity extraction CPU,graphiti [gliner2],D-28 entities.py
+markitdown_chonkie_ingest,multi-format → markdown → chunk,MemOS mem-reader,D-29 extraction.py
+hmm_me_alignment,hierarchical memory + personal alignment,Second-Me,research — not core
+redis_streams_scheduler,per-scope queue isolation async ingest,MemOS MemScheduler,D-42 workers pattern
+graph_reorganizer,background merge/summary parent nodes,MemOS tree_text_memory,D-42 associative consolidate
+trust_quarantine,write-path trust scoring + quarantine tier,memspine E1,OWASP ASI06 — novel vs surveyed
+file_native_profile,frontmatter + mistletoe + watchfiles SoT,"ReMe, EverMemOS",optional profile
+evermemos_vendored_algo,everalgo-* closed wheels,EverMemOS,not inspectable — gap
