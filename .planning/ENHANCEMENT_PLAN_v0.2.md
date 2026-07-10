@@ -124,10 +124,10 @@ Mirascope/BAML/DSPy/guidance/LangChain-hub/banks/Prompt-Poet/priompt/Promptify a
 | D1 | D · Lifecycle | **Autonomous forgetting/decay scheduler** — `workers/scheduler.py` interval loop → `run_sleep_cycle` | 🏗 | amends D-16 (ADR-005) | — | 🟡 | ☑ |
 | D2 | D · Lifecycle | **`group_id` + `tags`** on `MemoryRecord` — fields + migration + write/REST/filter threading | 🏗 | ADR-027 (amends D-21) | — | 🟡 | ☑ |
 | E1 | E · Retrieval | **Configurable graph traversal** — `strategy: ppr\|bfs\|rrf`; wire unused `walk_neighbors` + RRF blend | 🏗 | amends D-49 (ADR-015) | — | 🟡 | ☑ |
-| F1 | F · Compression | **llmlingua-2** + configurable model (`_load_llmlingua`) | 🔧 | — | — | 🟢 | ☐ |
-| F2 | F · Compression | **Per-stage token budgets** (`stage_budgets` by placement band; protect cacheable prefix) | 🏗 | — | F1 | 🟡 | ☐ |
-| F3 | F · Compression | Per-stage rate/target-token + **entity `preserve`** list | 🏗 | — | F2 | 🟢 | ☐ |
-| F4 | F · Compression | zstd-vs-llmlingua **decision rule** + inflate-before-compress assert + observability event | 🏗 | — | F1 | 🟢 | ☐ |
+| F1 | F · Compression | **llmlingua-2** + configurable model (`_load_llmlingua`) | 🔧 | — | — | 🟢 | ☑ |
+| F2 | F · Compression | **Per-stage token budgets** (`stage_budgets` by placement band; protect cacheable prefix) | 🏗 | — | F1 | 🟡 | ☑ |
+| F3 | F · Compression | Per-stage rate/target-token + **entity `preserve`** list | 🏗 | — | F2 | 🟢 | ☑ |
+| F4 | F · Compression | zstd-vs-llmlingua **decision rule** + inflate-before-compress assert + observability event | 🏗 | — | F1 | 🟢 | ☑ |
 
 **Totals:** 22 tasks · 🐛1 🔧6 🏗14 📦1 · risk 🟢12 🟡8 🔴2 · ~6 ADR deltas (ADR-022, D-43, multi-call, D-16, D-21, D-49, D-51).
 

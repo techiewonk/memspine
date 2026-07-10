@@ -14,6 +14,24 @@ persona, instruction-flagged, and disputed (RESOLVING) content — are NEVER
 dropped or compressed: the E1 ``INSTRUCTION_FLAG_WRAP`` framing must survive
 assembly intact, and a persona prefix that shrinks per-turn would defeat E2
 prefix caching.
+
+**Two compressions, orthogonal (F4 decision rule):**
+
+- **zstd cold tier** (``compress``/``inflate``) is *at-rest* and **reversible** —
+  it changes only the storage encoding, never meaning, and the original is
+  recoverable byte-for-byte (the preserved fingerprint proves it). Applies to
+  dormant records.
+- **llmlingua assembly** (``fit_assembly``) is *in-context* and **lossy** — it
+  drops tokens to fit a budget for one prompt; the stored record is unchanged.
+
+They must not be conflated: ``fit_assembly`` operates on **inflated** content, so
+a record that reached it still cold-compressed (``content_zstd`` set, ``content``
+empty) is a bug — it is refused loudly rather than silently compressing empty
+text. F1 makes the llmlingua-2 model configurable; F2 adds per-placement-band
+budgets (squeeze volatile before the cacheable stable prefix); F3 adds a
+``preserve`` force-tokens list + a per-block ``target_token`` cap so entity keys
+survive; every compressed block emits a ``compression.block_compressed`` M11
+event.
 """
 
 from __future__ import annotations
@@ -41,11 +59,25 @@ ASSEMBLY_STAGES = ("drop_lowest_score", "llmlingua", "provider_compaction")
 _llmlingua_warned = False
 
 
-def _load_llmlingua(rate: float = constants.ASSEMBLY_COMPRESS_RATE) -> Callable[[str], str] | None:
+def _load_llmlingua(
+    rate: float = constants.ASSEMBLY_COMPRESS_RATE,
+    *,
+    model: str = constants.LLMLINGUA_MODEL,
+    use_llmlingua2: bool = True,
+    device_map: str = "cpu",
+    target_token: int | None = None,
+    preserve: list[str] | None = None,
+) -> Callable[[str], str] | None:
     """Lazy llmlingua loader (``[compress]``): a block-compress callable, or
     None (with one info log) when the extra is absent. Module-level so tests
-    can substitute a deterministic compressor. ``rate`` is the per-block keep
-    ratio (config-surfaced as ``read.compression.assembly_rate``, v0.2 A6)."""
+    can substitute a deterministic compressor.
+
+    F1: ``model``/``use_llmlingua2``/``device_map`` are config-surfaced
+    (``read.compression.llmlingua_model`` …) so a deployment picks the LLMLingua-2
+    model without a code change — torch stays behind ``[compress]``, never core
+    (D-03). F3: ``target_token`` caps the per-block output length and ``preserve``
+    becomes llmlingua ``force_tokens`` so entity names/numbers the ``(entity,
+    attribute)`` retrieval key depends on are never compressed away."""
     global _llmlingua_warned
     try:
         from llmlingua import PromptCompressor
@@ -57,10 +89,20 @@ def _load_llmlingua(rate: float = constants.ASSEMBLY_COMPRESS_RATE) -> Callable[
                 detail="E5 llmlingua stage skipped — install with `pip install memspine[compress]`",
             )
         return None
-    compressor = PromptCompressor()
+    compressor = PromptCompressor(
+        model_name=model, use_llmlingua2=use_llmlingua2, device_map=device_map
+    )
+    force_tokens = list(preserve) if preserve else None
 
     def compress(text: str) -> str:
-        result = compressor.compress_prompt([text], rate=rate)
+        kwargs: dict[str, object] = {}
+        if target_token is not None:
+            kwargs["target_token"] = target_token
+        else:
+            kwargs["rate"] = rate
+        if force_tokens:
+            kwargs["force_tokens"] = force_tokens
+        result = compressor.compress_prompt([text], **kwargs)
         return str(result["compressed_prompt"])
 
     return compress
@@ -78,6 +120,19 @@ class CompressionOptions(PolicyOptions):
     # E5 llmlingua per-block keep ratio (v0.2 A6): lower => more aggressive
     # compression. Only consulted by the llmlingua stage.
     assembly_rate: float = constants.ASSEMBLY_COMPRESS_RATE
+    # F1: llmlingua-2 model selection (torch stays behind [compress]).
+    llmlingua_model: str = constants.LLMLINGUA_MODEL
+    use_llmlingua2: bool = True
+    llmlingua_device_map: str = "cpu"
+    # F3: hard per-block output cap (overrides assembly_rate when set) + a list
+    # of tokens (entity names, numbers) llmlingua must never drop (force_tokens).
+    assembly_target_token: int | None = None
+    preserve: list[str] = Field(default_factory=list)
+    # F2: optional per-placement-band token budgets. Keys are band names
+    # ("stable" = persona/procedural/semantic prefix, "volatile" = everything
+    # else); volatile bands over their budget are block-compressed FIRST so the
+    # cacheable stable prefix (E2) is squeezed last. Empty => single-value default.
+    stage_budgets: dict[str, int] = Field(default_factory=dict)
 
     @field_validator("assembly_stage")
     @classmethod
@@ -151,6 +206,15 @@ class CompressionPolicy(BindablePolicy):
             or record.status is RecordStatus.RESOLVING
         )
 
+    @staticmethod
+    def _band(record: MemoryRecord) -> str:
+        """F2 placement band: ``stable`` = the cacheable persona/procedural/
+        semantic prefix (E2), ``volatile`` = everything else (episodic/working/
+        derived). Mirrors assembly._PLACEMENT_RANK's cache boundary."""
+        if record.source.channel == "persona" or record.memory_type in {"procedural", "semantic"}:
+            return "stable"
+        return "volatile"
+
     def fit_assembly(
         self,
         selected: list[tuple[MemoryRecord, float]],
@@ -162,13 +226,21 @@ class CompressionPolicy(BindablePolicy):
         Protected blocks are never dropped or compressed — if they alone
         exceed the budget the result stays over (documented, deliberate:
         correctness of the E1/E2 guarantees beats the budget).
+
+        F2: when ``stage_budgets`` is set, over-budget placement bands are
+        block-compressed FIRST — volatile (episodic/working) before stable — so
+        the cacheable persona/procedural/semantic prefix (E2) is squeezed last.
         """
         items = list(selected)
+        options = self._options()
 
         def total() -> int:
             return sum(estimate(record.content) for record, _ in items)
 
-        for stage in self._options().assembly_stage:
+        if options.stage_budgets:
+            items = self._squeeze_bands(items, options.stage_budgets, estimate)
+
+        for stage in options.assembly_stage:
             if total() <= budget_tokens:
                 break
             if stage == "drop_lowest_score":
@@ -199,17 +271,62 @@ class CompressionPolicy(BindablePolicy):
             kept = [pair for pair in kept if pair[0].record_id != victim[0].record_id]
         return kept
 
-    def _block_compress(
-        self, items: list[tuple[MemoryRecord, float]]
+    def _squeeze_bands(
+        self,
+        items: list[tuple[MemoryRecord, float]],
+        budgets: dict[str, int],
+        estimate: Callable[[str], int],
     ) -> list[tuple[MemoryRecord, float]]:
-        compress = _load_llmlingua(self._options().assembly_rate)
+        """F2: block-compress the records of any placement band whose total
+        exceeds its ``stage_budgets`` entry — volatile first, so the cacheable
+        stable prefix (E2) is only compressed if it alone blows its budget."""
+        band_totals: dict[str, int] = {}
+        for record, _ in items:
+            band = self._band(record)
+            band_totals[band] = band_totals.get(band, 0) + estimate(record.content)
+        to_compress: set[str] = set()
+        for band in ("volatile", "stable"):  # squeeze volatile before stable
+            budget = budgets.get(band)
+            if budget is not None and band_totals.get(band, 0) > budget:
+                to_compress |= {
+                    record.record_id
+                    for record, _ in items
+                    if self._band(record) == band and not self.protected(record)
+                }
+        return self._block_compress(items, only=to_compress) if to_compress else items
+
+    def _block_compress(
+        self,
+        items: list[tuple[MemoryRecord, float]],
+        only: set[str] | None = None,
+    ) -> list[tuple[MemoryRecord, float]]:
+        """llmlingua-compress each non-protected block (F1/F3). ``only`` limits
+        compression to those record ids (F2 per-band squeeze); None = all."""
+        options = self._options()
+        compress = _load_llmlingua(
+            options.assembly_rate,
+            model=options.llmlingua_model,
+            use_llmlingua2=options.use_llmlingua2,
+            device_map=options.llmlingua_device_map,
+            target_token=options.assembly_target_token,
+            preserve=options.preserve,
+        )
         if compress is None:
             return items
         out: list[tuple[MemoryRecord, float]] = []
         for record, score in items:
-            if self.protected(record):
+            if self.protected(record) or (only is not None and record.record_id not in only):
                 out.append((record, score))
                 continue
+            # F4: fit_assembly operates on INFLATED content — a cold-tier record
+            # (content_zstd set, content empty) must have been inflated upstream;
+            # compressing its empty content would silently drop it.
+            if record.content_zstd is not None and not record.content:
+                raise StorageError(
+                    f"record {record.record_id} reached assembly compression still "
+                    "cold-compressed (content_zstd set, content empty) — inflate first"
+                )
+            before = len(record.content)
             try:
                 compressed = compress(record.content)
             except Exception as exc:
@@ -225,5 +342,13 @@ class CompressionPolicy(BindablePolicy):
                 )
                 out.append((record, score))
                 continue
+            # F4: M11 observability — one structured event per compressed block.
+            _log.info(
+                "compression.block_compressed",
+                record_id=record.record_id,
+                memory_type=record.memory_type,
+                chars_before=before,
+                chars_after=len(compressed),
+            )
             out.append((record.model_copy(update={"content": compressed}), score))
         return out

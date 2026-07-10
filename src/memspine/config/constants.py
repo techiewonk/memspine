@@ -169,6 +169,10 @@ RERANK_FASTEMBED_MODEL = "Xenova/ms-marco-MiniLM-L-6-v2"
 # Surfaced as ``read.compression.assembly_rate`` (v0.2 A6) so a deployment can
 # trade fidelity for token savings without a code change.
 ASSEMBLY_COMPRESS_RATE = 0.5
+# F1: default llmlingua-2 model (CPU). Surfaced as
+# ``read.compression.llmlingua_model``; the small XLM-RoBERTa LLMLingua-2 model
+# is CPU-friendly and keeps torch behind [compress], never in core (D-03).
+LLMLINGUA_MODEL = "microsoft/llmlingua-2-xlm-roberta-large-meetingbank"
 
 # E4 embedding quantization (plan Part B §E4 / ADR-020): the quantized (int8 /
 # binary) or Matryoshka-truncated prefilter fetches this multiple of ``top_k``

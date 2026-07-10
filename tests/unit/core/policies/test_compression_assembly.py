@@ -84,7 +84,7 @@ def test_persona_is_never_dropped_even_over_budget() -> None:
 def test_flagged_and_disputed_content_is_never_dropped_or_compressed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def fake_loader(rate: float = 0.5) -> Callable[[str], str] | None:
+    def fake_loader(rate: float = 0.5, **kwargs: object) -> Callable[[str], str] | None:
         return lambda text: text[:8]  # brutal, obvious "compression"
 
     monkeypatch.setattr(compression_module, "_load_llmlingua", fake_loader)
@@ -105,7 +105,7 @@ def test_flagged_and_disputed_content_is_never_dropped_or_compressed(
 
 
 def test_llmlingua_absent_falls_through_without_failing(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(compression_module, "_load_llmlingua", lambda rate=0.5: None)
+    monkeypatch.setattr(compression_module, "_load_llmlingua", lambda rate=0.5, **kw: None)
     policy = CompressionPolicy.bind({"assembly": True, "assembly_stage": ["llmlingua"]})
     over = [(rec("far too long " * 100), 0.9)]
     fitted = policy.fit_assembly(over, budget_tokens=10, estimate=estimate)
@@ -116,7 +116,7 @@ def test_assembly_rate_is_threaded_to_the_loader(monkeypatch: pytest.MonkeyPatch
     """v0.2 A6: ``read.compression.assembly_rate`` reaches ``_load_llmlingua``."""
     seen: list[float] = []
 
-    def spy_loader(rate: float = 0.5) -> Callable[[str], str] | None:
+    def spy_loader(rate: float = 0.5, **kwargs: object) -> Callable[[str], str] | None:
         seen.append(rate)
         return lambda text: text[:4]
 
@@ -153,7 +153,7 @@ def test_block_compress_survives_a_compressor_that_raises(
     """SF-4: one record llmlingua chokes on must not 500 /assemble — log and
     leave that record uncompressed; the rest still compress."""
 
-    def boom_loader(rate: float = 0.5) -> Callable[[str], str] | None:
+    def boom_loader(rate: float = 0.5, **kwargs: object) -> Callable[[str], str] | None:
         def compress(text: str) -> str:
             if "poison" in text:
                 raise RuntimeError("llmlingua choked on this block")
@@ -179,7 +179,7 @@ def test_all_protected_over_budget_stays_over_unmodified(
     the selection stays OVER budget, every block byte-identical (E1/E2 beat the
     budget)."""
 
-    def fake_loader(rate: float = 0.5) -> Callable[[str], str] | None:
+    def fake_loader(rate: float = 0.5, **kwargs: object) -> Callable[[str], str] | None:
         return lambda text: text[:4]
 
     monkeypatch.setattr(compression_module, "_load_llmlingua", fake_loader)
@@ -207,3 +207,106 @@ def test_budget_exactly_at_boundary_drops_nothing() -> None:
     exact = estimate(a.content) + estimate(b.content)
     fitted = policy.fit_assembly([(a, 0.9), (b, 0.8)], budget_tokens=exact, estimate=estimate)
     assert {r.record_id for r, _ in fitted} == {a.record_id, b.record_id}
+
+
+# ── F1-F4: compression depth ──────────────────────────────────────────────────
+
+
+def _volatile(content: str) -> MemoryRecord:
+    """A non-protected volatile-band record (episodic)."""
+    return MemoryRecord(namespace="n", memory_type="episodic", content=content)
+
+
+def test_f1_model_and_device_thread_to_the_loader(monkeypatch: pytest.MonkeyPatch) -> None:
+    seen: dict[str, object] = {}
+
+    def spy_loader(rate=0.5, **kwargs):  # type: ignore[no-untyped-def]
+        seen.update(kwargs)
+        return lambda text: text[:4]
+
+    monkeypatch.setattr(compression_module, "_load_llmlingua", spy_loader)
+    policy = CompressionPolicy.bind(
+        {
+            "assembly": True,
+            "assembly_stage": ["llmlingua"],
+            "llmlingua_model": "custom/model",
+            "llmlingua_device_map": "cuda",
+            "use_llmlingua2": False,
+        }
+    )
+    policy.fit_assembly([(_volatile("x" * 200), 0.9)], budget_tokens=1, estimate=estimate)
+    assert seen["model"] == "custom/model"
+    assert seen["device_map"] == "cuda"
+    assert seen["use_llmlingua2"] is False
+
+
+def test_f3_preserve_and_target_token_reach_the_loader(monkeypatch: pytest.MonkeyPatch) -> None:
+    seen: dict[str, object] = {}
+
+    def spy_loader(rate=0.5, **kwargs):  # type: ignore[no-untyped-def]
+        seen.update(kwargs)
+        return lambda text: text[:4]
+
+    monkeypatch.setattr(compression_module, "_load_llmlingua", spy_loader)
+    policy = CompressionPolicy.bind(
+        {
+            "assembly": True,
+            "assembly_stage": ["llmlingua"],
+            "preserve": ["Acme", "42"],
+            "assembly_target_token": 30,
+        }
+    )
+    policy.fit_assembly([(_volatile("y" * 200), 0.9)], budget_tokens=1, estimate=estimate)
+    assert seen["preserve"] == ["Acme", "42"]
+    assert seen["target_token"] == 30
+
+
+def test_f2_stage_budgets_squeeze_volatile_before_stable(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        compression_module,
+        "_load_llmlingua",
+        lambda rate=0.5, **kw: (lambda text: text[:4]),
+    )
+    policy = CompressionPolicy.bind(
+        {"assembly": True, "assembly_stage": [], "stage_budgets": {"volatile": 1}}
+    )
+    stable = rec("semantic fact " * 50)  # memory_type=semantic => stable band
+    volatile = _volatile("episodic chatter " * 50)  # over the volatile budget
+    fitted = policy.fit_assembly(
+        [(stable, 0.9), (volatile, 0.8)], budget_tokens=10_000, estimate=estimate
+    )
+    by_id = {r.record_id: r for r, _ in fitted}
+    assert by_id[stable.record_id].content == stable.content  # stable prefix untouched
+    assert by_id[volatile.record_id].content == "epis"  # volatile band compressed
+
+
+def test_f4_block_compressed_emits_observability_event(monkeypatch: pytest.MonkeyPatch) -> None:
+    import structlog
+
+    monkeypatch.setattr(
+        compression_module,
+        "_load_llmlingua",
+        lambda rate=0.5, **kw: (lambda text: text[:4]),
+    )
+    policy = CompressionPolicy.bind({"assembly": True, "assembly_stage": ["llmlingua"]})
+    with structlog.testing.capture_logs() as logs:
+        policy.fit_assembly([(_volatile("z" * 200), 0.9)], budget_tokens=1, estimate=estimate)
+    assert any(e["event"] == "compression.block_compressed" for e in logs)
+
+
+def test_f4_asserts_inflated_content_before_compressing(monkeypatch: pytest.MonkeyPatch) -> None:
+    from memspine.exceptions import StorageError
+
+    monkeypatch.setattr(
+        compression_module,
+        "_load_llmlingua",
+        lambda rate=0.5, **kw: (lambda text: text[:4]),
+    )
+    policy = CompressionPolicy.bind({"assembly": True, "assembly_stage": ["llmlingua"]})
+    # A still-cold-compressed record (content_zstd set, content empty) must raise
+    # rather than silently drop its (empty) content.
+    cold = MemoryRecord(
+        namespace="n", memory_type="episodic", content="", content_zstd=b"\x00compressed"
+    )
+    with pytest.raises(StorageError, match="inflate first"):
+        policy.fit_assembly([(cold, 0.9)], budget_tokens=0, estimate=estimate)
