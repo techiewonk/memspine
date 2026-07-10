@@ -265,7 +265,7 @@ def test_f2_stage_budgets_squeeze_volatile_before_stable(monkeypatch: pytest.Mon
     monkeypatch.setattr(
         compression_module,
         "_load_llmlingua",
-        lambda rate=0.5, **kw: (lambda text: text[:4]),
+        lambda rate=0.5, **kw: lambda text: text[:4],
     )
     policy = CompressionPolicy.bind(
         {"assembly": True, "assembly_stage": [], "stage_budgets": {"volatile": 1}}
@@ -286,7 +286,7 @@ def test_f4_block_compressed_emits_observability_event(monkeypatch: pytest.Monke
     monkeypatch.setattr(
         compression_module,
         "_load_llmlingua",
-        lambda rate=0.5, **kw: (lambda text: text[:4]),
+        lambda rate=0.5, **kw: lambda text: text[:4],
     )
     policy = CompressionPolicy.bind({"assembly": True, "assembly_stage": ["llmlingua"]})
     with structlog.testing.capture_logs() as logs:
@@ -300,7 +300,7 @@ def test_f4_asserts_inflated_content_before_compressing(monkeypatch: pytest.Monk
     monkeypatch.setattr(
         compression_module,
         "_load_llmlingua",
-        lambda rate=0.5, **kw: (lambda text: text[:4]),
+        lambda rate=0.5, **kw: lambda text: text[:4],
     )
     policy = CompressionPolicy.bind({"assembly": True, "assembly_stage": ["llmlingua"]})
     # A still-cold-compressed record (content_zstd set, content empty) must raise
