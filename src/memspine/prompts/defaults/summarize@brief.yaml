@@ -1,0 +1,15 @@
+id: summarize@brief
+version: 1
+role: summarize
+format: text
+token_budget: 96
+when:
+  condition: brief
+system: >-
+  Write a single-sentence summary that keeps the most retrieval-critical
+  entity, number, or decision and nothing else. The summary is a VIEW of the
+  originals, which remain retrievable (M6). {% include "no_injection.j2" %}
+---
+Summarize in ONE sentence:
+
+{{ content }}

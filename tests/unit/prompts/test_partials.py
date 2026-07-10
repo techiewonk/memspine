@@ -18,9 +18,9 @@ from memspine.prompts.registry import PromptRegistry
 
 def test_prompts_including_partials_carry_a_version_suffix() -> None:
     reg = PromptRegistry()
-    # extract includes both shared partials; summarize includes none.
+    # extract includes both shared partials; query_rewrite includes none.
     assert "+" in reg.get("extract").prompt_version
-    assert reg.get("summarize").prompt_version == "summarize@1"
+    assert reg.get("query_rewrite").prompt_version == "query_rewrite@1"
 
 
 def test_prompts_sharing_partials_share_the_same_digest() -> None:

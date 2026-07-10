@@ -1,0 +1,22 @@
+id: extract@document
+version: 1
+role: extract
+format: yaml
+output_model: ExtractedFacts
+token_budget: 1024
+when:
+  condition: document
+system: >-
+  You extract atomic facts from a LONG document for a memory system. Read the
+  whole document, then extract only durable, self-contained facts — skip
+  narrative, formatting, and boilerplate. Each fact has: entity (the subject),
+  attribute (the property), value (the stated value), confidence (0-1). Never
+  invent facts. {% include "no_injection.j2" %} {% include "yaml_only.j2" %}
+  Emit a YAML list under the key `facts`.
+---
+Extract the atomic facts from the following document.
+
+document: |
+  {{ content }}
+
+facts:

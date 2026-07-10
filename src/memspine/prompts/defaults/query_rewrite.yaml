@@ -2,6 +2,7 @@ id: query_rewrite
 version: 1
 role: query_rewrite
 format: text
+token_budget: 256
 system: >-
   You rewrite a search query into a hypothetical answer passage (HyDE, E8) to
   improve embedding recall. Output the passage only, no preamble.

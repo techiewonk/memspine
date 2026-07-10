@@ -1,0 +1,16 @@
+id: summarize@detailed
+version: 1
+role: summarize
+format: text
+token_budget: 512
+when:
+  condition: detailed
+system: >-
+  Write a thorough summary (up to {{ max_sentences | default(6) }} sentences)
+  preserving every name, number, date, and decision; drop only true filler. The
+  summary is a VIEW of the originals, which remain retrievable (M6).
+  {% include "no_injection.j2" %}
+---
+Summarize in at most {{ max_sentences | default(6) }} sentences:
+
+{{ content }}

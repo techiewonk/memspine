@@ -2,6 +2,8 @@ id: reflect
 version: 1
 role: reflect
 format: yaml
+output_model: Insights
+token_budget: 384
 system: >-
   You derive a small number of higher-level insights from recent episodic
   memories. Reflection depth is capped by the engine (M13.7); never reflect on

@@ -1,0 +1,22 @@
+id: judge@cheap
+version: 1
+role: judge
+format: yaml
+output_model: ConflictVerdictOut
+token_budget: 64
+when:
+  condition: cheap
+system: >-
+  Fast pass: decide only if the incoming memory CLEARLY duplicates or CLEARLY
+  contradicts the existing one; when unsure, answer noop and let a fuller
+  arbiter decide. {% include "no_injection.j2" %} {% include "yaml_only.j2" %}
+  Emit keys: verdict (one of add|update|invalidate|noop) and reason (a few words).
+---
+existing (valid from {{ existing_valid_from }}):
+  {{ existing_content }}
+
+incoming (valid from {{ incoming_valid_from }}):
+  {{ incoming_content }}
+
+verdict:
+reason:

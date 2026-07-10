@@ -11,9 +11,13 @@ from pydantic import BaseModel, Field
 __all__ = [
     "OUTPUT_MODELS",
     "ConflictVerdictOut",
+    "ConsolidatedFact",
+    "ConsolidatedFacts",
     "DuplicateVerdictOut",
     "ExtractedFact",
     "ExtractedFacts",
+    "Insight",
+    "Insights",
     "InstructionFlagOut",
 ]
 
@@ -27,6 +31,26 @@ class ExtractedFact(BaseModel):
 
 class ExtractedFacts(BaseModel):
     facts: list[ExtractedFact] = Field(default_factory=list)
+
+
+class ConsolidatedFact(BaseModel):
+    entity: str
+    attribute: str
+    value: str
+    source_count: int = 1  # how many episodes supported this durable fact (M2)
+
+
+class ConsolidatedFacts(BaseModel):
+    facts: list[ConsolidatedFact] = Field(default_factory=list)
+
+
+class Insight(BaseModel):
+    insight: str
+    evidence: list[int] = Field(default_factory=list)  # episode indices (M13.7)
+
+
+class Insights(BaseModel):
+    insights: list[Insight] = Field(default_factory=list)
 
 
 class ConflictVerdictOut(BaseModel):
@@ -46,6 +70,8 @@ class InstructionFlagOut(BaseModel):
 
 OUTPUT_MODELS: dict[str, type[BaseModel]] = {
     "ExtractedFacts": ExtractedFacts,
+    "ConsolidatedFacts": ConsolidatedFacts,
+    "Insights": Insights,
     "ConflictVerdictOut": ConflictVerdictOut,
     "DuplicateVerdictOut": DuplicateVerdictOut,
     "InstructionFlagOut": InstructionFlagOut,

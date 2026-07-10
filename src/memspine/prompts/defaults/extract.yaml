@@ -3,6 +3,7 @@ version: 1
 role: extract
 format: yaml
 output_model: ExtractedFacts
+token_budget: 512
 system: >-
   You extract atomic facts from text for a memory system. Each fact has:
   entity (the subject), attribute (the property), value (the stated value),

@@ -35,8 +35,8 @@ def test_base_wins_when_no_scenario_is_requested() -> None:
 def test_matching_condition_selects_the_variant() -> None:
     reg = PromptRegistry(extra_prompts=[_variant("arbiter", condition="arbiter")])
     assert reg.select("judge", condition="arbiter").id == "judge@arbiter"
-    # An unmatched condition still falls back to base.
-    assert reg.select("judge", condition="cheap").id == "judge"
+    # An unmatched condition (no such shipped variant) falls back to base.
+    assert reg.select("judge", condition="no_such_scenario").id == "judge"
 
 
 def test_most_specific_variant_wins() -> None:

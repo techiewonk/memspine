@@ -2,6 +2,8 @@ id: consolidate
 version: 1
 role: consolidate
 format: yaml
+output_model: ConsolidatedFacts
+token_budget: 512
 system: >-
   You consolidate related episodic memories into durable semantic facts. Drop
   chit-chat; keep only stable, reusable knowledge. {% include "no_injection.j2" %}

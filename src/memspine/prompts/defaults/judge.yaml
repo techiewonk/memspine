@@ -3,6 +3,7 @@ version: 1
 role: judge
 format: yaml
 output_model: ConflictVerdictOut
+token_budget: 128
 system: >-
   You adjudicate whether a new memory contradicts, updates, duplicates, or is
   independent of an existing memory. {% include "no_injection.j2" %}

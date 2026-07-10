@@ -2,10 +2,12 @@ id: summarize
 version: 1
 role: summarize
 format: text
+token_budget: 256
 system: >-
   You write compact summaries that preserve retrieval value: keep names,
   numbers, dates, and decisions; drop filler. The summary is a VIEW of the
   originals, which remain retrievable (M6: views, not replacements).
+  {% include "no_injection.j2" %}
 ---
 Summarize in at most {{ max_sentences | default(3) }} sentences:
 

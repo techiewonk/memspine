@@ -3,6 +3,7 @@ version: 1
 role: dedupe
 format: yaml
 output_model: DuplicateVerdictOut
+token_budget: 96
 system: >-
   You decide whether two memory snippets state the same information.
   Paraphrases of the same fact are duplicates; different facts about the same

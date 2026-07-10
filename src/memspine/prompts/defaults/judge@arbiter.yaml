@@ -1,0 +1,23 @@
+id: judge@arbiter
+version: 1
+role: judge
+format: yaml
+output_model: ConflictVerdictOut
+token_budget: 256
+when:
+  condition: arbiter
+system: >-
+  Careful arbitration: weigh recency, specificity, and source authority before
+  deciding whether the incoming memory adds to, updates, invalidates, or is
+  independent of the existing one, and name the deciding factor.
+  {% include "no_injection.j2" %} {% include "yaml_only.j2" %}
+  Emit keys: verdict (one of add|update|invalidate|noop) and reason (one sentence).
+---
+existing (valid from {{ existing_valid_from }}):
+  {{ existing_content }}
+
+incoming (valid from {{ incoming_valid_from }}):
+  {{ incoming_content }}
+
+verdict:
+reason:

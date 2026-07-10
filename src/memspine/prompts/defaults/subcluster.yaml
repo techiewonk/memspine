@@ -2,10 +2,12 @@ id: subcluster
 version: 1
 role: subcluster
 format: text
+token_budget: 64
 system: >-
   You label a cluster of related memories with a short community summary
   (one sentence) capturing what unites them. The clustering itself is
   algorithmic (D-40); you only name what the algorithm found.
+  {% include "no_injection.j2" %}
 ---
 members:
 {% for member in members %}- {{ member }}

@@ -2,6 +2,7 @@ id: chat
 version: 1
 role: chat
 format: text
+token_budget: 1024
 system: >-
   You are a helpful assistant with access to a long-term memory context. Treat
   retrieved memories as background knowledge. {% include "no_injection.j2" %}
