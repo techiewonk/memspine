@@ -123,7 +123,7 @@ Mirascope/BAML/DSPy/guidance/LangChain-hub/banks/Prompt-Poet/priompt/Promptify a
 | C4 | C · Multi-call | **`write_messages()`/`write_episode()`** verb (chat transcript → episodic records + session detect) | 🏗 | — | — | 🟡 | ☑ |
 | D1 | D · Lifecycle | **Autonomous forgetting/decay scheduler** — `workers/scheduler.py` interval loop → `run_sleep_cycle` | 🏗 | amends D-16 (ADR-005) | — | 🟡 | ☑ |
 | D2 | D · Lifecycle | **`group_id` + `tags`** on `MemoryRecord` — fields + migration + write/REST/filter threading | 🏗 | ADR-027 (amends D-21) | — | 🟡 | ☑ |
-| E1 | E · Retrieval | **Configurable graph traversal** — `strategy: ppr\|bfs\|rrf`; wire unused `walk_neighbors` + RRF blend | 🏗 | amends D-49 | — | 🟡 | ☐ |
+| E1 | E · Retrieval | **Configurable graph traversal** — `strategy: ppr\|bfs\|rrf`; wire unused `walk_neighbors` + RRF blend | 🏗 | amends D-49 (ADR-015) | — | 🟡 | ☑ |
 | F1 | F · Compression | **llmlingua-2** + configurable model (`_load_llmlingua`) | 🔧 | — | — | 🟢 | ☐ |
 | F2 | F · Compression | **Per-stage token budgets** (`stage_budgets` by placement band; protect cacheable prefix) | 🏗 | — | F1 | 🟡 | ☐ |
 | F3 | F · Compression | Per-stage rate/target-token + **entity `preserve`** list | 🏗 | — | F2 | 🟢 | ☐ |

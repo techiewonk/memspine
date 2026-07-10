@@ -420,7 +420,12 @@ class Engine:
             # The graph store was constructed above (the associative gate).
             assert self._graph is not None
             self._associative = AssociativeMemory(
-                self._storage, self._graph, self._append_and_project
+                self._storage,
+                self._graph,
+                self._append_and_project,
+                policies=self._memory_policy(config, "associative"),
+                vector=self._vector,  # E1 rrf strategy: graph-rank ⊕ vector-rank
+                embedder=self._embedder,
             )
         if "prospective" in self._enabled:
             self._prospective = ProspectiveMemory(self._storage, self._append_and_project)
@@ -1600,18 +1605,25 @@ class Engine:
             await self._associative.link(ns, src_id, dst_id, rel=rel, weight=weight)
 
     async def related(
-        self, record_id: str, namespace: str = "default", k: int = 10
+        self,
+        record_id: str,
+        namespace: str = "default",
+        k: int = 10,
+        strategy: str | None = None,
     ) -> list[MemoryRecord]:
-        """Records associated with ``record_id`` via personalized PageRank over
-        the link graph (D-40). Same E1 gate as ``search``: only ACTIVATED,
-        never quarantined, never cross-namespace."""
+        """Records associated with ``record_id`` over the link graph (D-40).
+        ``strategy`` (E1: ``ppr`` default | ``bfs`` | ``rrf``) overrides
+        ``memories.associative.policies.related.strategy``. Same E1 gate as
+        ``search``: only ACTIVATED, never quarantined, never cross-namespace."""
         self._require_started()
         if self._associative is None:
             raise MemspineError(
                 "associative memory not enabled — set memories.associative.enabled: true"
             )
         ns = validate_namespace(namespace)
-        return self._inflate_all(await self._associative.related(ns, record_id, k=k), ns)
+        return self._inflate_all(
+            await self._associative.related(ns, record_id, k=k, strategy=strategy), ns
+        )
 
     # ── prospective + shared verbs (P7: M13.8 / R2 / ADR-016) ────────────────
 

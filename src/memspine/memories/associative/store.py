@@ -10,23 +10,29 @@ from __future__ import annotations
 
 import math
 from collections.abc import Awaitable, Callable
-from typing import ClassVar, Protocol
+from typing import Any, ClassVar, Protocol
 
 from memspine.config.constants import LINK_BUDGET, SEARCH_TOP_K
 from memspine.core.events import EventKind, MemoryEvent
 from memspine.core.records import MemoryRecord, RecordStatus
-from memspine.exceptions import ConflictError
+from memspine.exceptions import ConfigError, ConflictError
 from memspine.memories.associative import links as link_rules
 from memspine.memories.associative.ppr import personalized_pagerank
 from memspine.memories.base import BaseMemory
 from memspine.observability.logging import EVENT_LINK, EVENT_RETRIEVE, get_logger
+from memspine.services.embedding.base import EmbeddingService
 from memspine.services.graph.base import GraphEdge, GraphStore
+from memspine.services.lexical.base import LexicalHit, rrf_fuse
+from memspine.services.vector.base import VectorStore
 
 __all__ = ["AssociativeMemory"]
 
 _log = get_logger(__name__)
 
 AppendEvent = Callable[[MemoryEvent], Awaitable[None]]
+
+#: E1 traversal strategies for ``related`` (amends D-49).
+_STRATEGIES = frozenset({"ppr", "bfs", "rrf"})
 
 
 class AssociativeStore(Protocol):
@@ -44,10 +50,19 @@ class AssociativeMemory(BaseMemory):
         storage: AssociativeStore,
         graph: GraphStore,
         append_event: AppendEvent,
+        policies: dict[str, Any] | None = None,
+        vector: VectorStore | None = None,
+        embedder: EmbeddingService | None = None,
     ) -> None:
         self._storage = storage
         self._graph = graph
         self._append_event = append_event
+        # E1: memories.associative.policies. ``related`` sub-block selects the
+        # traversal strategy + depth. vector/embedder power the ``rrf`` blend;
+        # when absent, ``rrf`` degrades to ``ppr`` (graceful, never crashes).
+        self._policies = policies or {}
+        self._vector = vector
+        self._embedder = embedder
 
     async def link(
         self,
@@ -106,15 +121,23 @@ class AssociativeMemory(BaseMemory):
         _log.info(EVENT_LINK, namespace=namespace, src=src_id, dst=dst_id, rel=rel, weight=weight)
 
     async def related(
-        self, namespace: str, record_id: str, k: int = SEARCH_TOP_K
+        self, namespace: str, record_id: str, k: int = SEARCH_TOP_K, strategy: str | None = None
     ) -> list[MemoryRecord]:
-        """Records associated with ``record_id``, ranked by personalized
-        PageRank over the whole graph (plan §5 Phase 6 / D-40).
+        """Records associated with ``record_id`` (plan §5 Phase 6 / D-40), ranked
+        by a configurable traversal **strategy** (E1, amends D-49):
 
+        - ``ppr`` (default): personalized PageRank over the whole graph — the
+          v0.1 behavior, byte-identical.
+        - ``bfs``: breadth-first neighbors within ``depth`` hops (recency of
+          connection, not global centrality); wires the shared ``walk_neighbors``.
+        - ``rrf``: reciprocal-rank fusion of the PPR graph rank with a vector
+          similarity rank (embed the seed, query the vector store) — surfaces
+          records that are both graph-close and semantically similar. Falls back
+          to ``ppr`` when no vector store/embedder is bound.
+
+        ``strategy`` overrides ``memories.associative.policies.related.strategy``.
         Mirrors the ``engine.search`` gate (E1): only ACTIVATED, never
-        quarantined, never cross-namespace — the graph walk may traverse
-        anything the log linked, but only live namespace truth is returned.
-        Returned ids ride a RETRIEVE event (M1 reinforcement), like search.
+        quarantined, never cross-namespace. Returned ids ride a RETRIEVE event.
         """
         seed = await self._require_record(record_id, namespace)
         if seed.quarantined or seed.status is RecordStatus.QUARANTINED:
@@ -124,9 +147,13 @@ class AssociativeMemory(BaseMemory):
                 f"record {record_id} is quarantined (E1) — held content "
                 "cannot seed graph recall until corroborated"
             )
-        ranked = personalized_pagerank(await self._graph.edge_list(), {record_id})
+        related_policy = self._policies.get("related", {})
+        chosen = strategy or related_policy.get("strategy", "ppr")
+        if chosen not in _STRATEGIES:
+            raise ConfigError(f"unknown related strategy {chosen!r} (valid: {sorted(_STRATEGIES)})")
+        ranked_ids = await self._rank_related(namespace, record_id, seed, chosen, k, related_policy)
         results: list[MemoryRecord] = []
-        for candidate_id, _score in ranked:
+        for candidate_id in ranked_ids:
             if len(results) >= k:
                 break
             candidate = await self._storage.get_record(candidate_id)
@@ -147,8 +174,47 @@ class AssociativeMemory(BaseMemory):
                     payload={"record_ids": [record.record_id for record in results]},
                 )
             )
-        _log.info(EVENT_RETRIEVE, namespace=namespace, related=True, count=len(results))
+        _log.info(
+            EVENT_RETRIEVE, namespace=namespace, related=True, strategy=chosen, count=len(results)
+        )
         return results
+
+    async def _rank_related(
+        self,
+        namespace: str,
+        record_id: str,
+        seed: MemoryRecord,
+        strategy: str,
+        k: int,
+        policy: dict[str, Any],
+    ) -> list[str]:
+        """Ordered candidate ids for a ``related`` query, per E1 strategy.
+        Gating/limiting happens in the caller; this only ranks."""
+        depth = int(policy.get("depth", 2))
+        graph_ids = [
+            rid for rid, _ in personalized_pagerank(await self._graph.edge_list(), {record_id})
+        ]
+        if strategy == "ppr":
+            return graph_ids
+        if strategy == "bfs":
+            nodes = await self._graph.neighbors(record_id, depth=max(1, depth))
+            return [node.node_id for node in nodes]
+        # rrf: fuse the graph rank with a vector-similarity rank of the seed.
+        if self._vector is None or self._embedder is None:
+            _log.info("associative.rrf_fallback_ppr", reason="no vector store/embedder bound")
+            return graph_ids
+        fetch_k = k * int(policy.get("fetch_multiplier", 4))
+        [seed_vec] = await self._embedder.embed([seed.content])
+        vector_hits = await self._vector.query(
+            namespace, seed_vec, embedder_id=self._embedder.embedder_id, top_k=fetch_k
+        )
+        # rrf_fuse reads only .record_id; ranking order (not score) is what
+        # matters, so the graph leg rides zero-score LexicalHits in PPR order.
+        graph_hits = [LexicalHit(rid, 0.0) for rid in graph_ids]
+        fused = rrf_fuse(vector_hits, graph_hits)
+        # The seed is its own nearest vector neighbor — never return it (PPR/BFS
+        # already exclude it, so this keeps rrf consistent).
+        return [rid for rid, _ in fused if rid != record_id]
 
     async def prune_weakest(self, namespace: str, record_id: str) -> GraphEdge | None:
         """Free one budget slot on ``record_id`` (weakest live link retired

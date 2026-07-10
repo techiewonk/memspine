@@ -1,6 +1,15 @@
 # ADR-015 — Associative links as LINK events (P6)
 
 **Status:** accepted · **Date:** 2026-07-07 · **Register:** D-49
+**Amended:** 2026-07-10 (v0.2 E1) — `related()` gains a configurable traversal
+**strategy** (`memories.associative.policies.related.strategy`): `ppr` (default,
+byte-identical to v0.1), `bfs` (breadth-first neighbors within `depth` hops,
+wiring the shared `walk_neighbors` primitive), and `rrf` (reciprocal-rank fusion
+of the PPR graph rank with a vector-similarity rank of the seed — surfaces
+records that are both graph-close and semantically similar; degrades to `ppr`
+when no vector store/embedder is bound). A `strategy=` argument on `related()`
+overrides the policy. The E1 gate (ACTIVATED · not quarantined · same namespace)
+and RETRIEVE-event reinforcement are unchanged across all three.
 
 ## Context
 
