@@ -102,6 +102,8 @@ from memspine.services.lexical.sqlite_fts5 import SQLiteFTS5Lexical
 from memspine.services.llm.base import LLMRouter, LLMService
 from memspine.services.llm.local import OpenAICompatLLM
 from memspine.services.rerank.base import Reranker, concat_background
+from memspine.services.secrets.base import SecretsService
+from memspine.services.secrets.chained import ChainedSecrets
 from memspine.services.secrets.env import EnvSecrets
 from memspine.services.storage.projector import RecordProjector
 from memspine.services.storage.sqlite.engine import SQLiteStorage
@@ -264,9 +266,26 @@ class Engine:
             await self._teardown()
             raise
 
+    def _build_secrets(self) -> SecretsService:
+        """Bootstrap-phase secrets resolver (D-22). Selected by the env var
+        ``MEMSPINE_SECRETS_BACKEND`` — NOT config, because secrets resolve
+        *before* ``MemspineConfig`` exists (the chicken-and-egg the two-phase
+        bootstrap avoids). ``env`` (default) is the zero-cloud ``EnvSecrets``;
+        ``aws`` chains env/.env first, then AWS Secrets Manager, so local dev
+        never needs credentials and a locally-set value always wins."""
+        backend = os.environ.get("MEMSPINE_SECRETS_BACKEND", "env").strip().lower()
+        env_secrets = EnvSecrets(dotenv_path=self._dotenv_path)
+        if backend == "env":
+            return env_secrets
+        if backend == "aws":
+            from memspine.services.secrets.aws import AwsSecrets
+
+            return ChainedSecrets(env_secrets, AwsSecrets())
+        raise ConfigError(f"unknown MEMSPINE_SECRETS_BACKEND {backend!r} (valid: env, aws)")
+
     async def _start_inner(self) -> Self:
         # 1. secrets, then config (D-22 two-phase).
-        secrets = EnvSecrets(dotenv_path=self._dotenv_path)
+        secrets = self._build_secrets()
         self._resolved = load_config(
             template=self._template,
             user_config=self._user_config,
