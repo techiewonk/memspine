@@ -20,14 +20,13 @@ from __future__ import annotations
 from enum import StrEnum
 
 import yaml
-from jinja2 import Environment, StrictUndefined
-from pydantic import BaseModel, ConfigDict
+from jinja2 import Environment
+from pydantic import BaseModel, ConfigDict, PrivateAttr
 
 from memspine.exceptions import ConfigError
+from memspine.prompts.env import default_environment
 
 __all__ = ["Prompt", "PromptFormat", "parse_prompt_text"]
-
-_JINJA = Environment(undefined=StrictUndefined, autoescape=False)
 
 
 class PromptFormat(StrEnum):
@@ -49,20 +48,32 @@ class Prompt(BaseModel):
     system: str | None = None
     body: str
 
+    #: Jinja environment used to resolve ``{% include %}`` partials, and a digest
+    #: of the partials this body references. Both are bound by the PromptRegistry
+    #: (B1): default (shipped ``_partials/`` only) until then, so a Prompt built
+    #: straight from YAML still renders and versions correctly on its own.
+    _env: Environment | None = PrivateAttr(default=None)
+    _version_suffix: str = PrivateAttr(default="")
+
     @property
     def prompt_version(self) -> str:
-        """Provenance/cache-key identity: ``<id>@<version>`` (E3/E1)."""
-        return f"{self.id}@{self.version}"
+        """Provenance/cache-key identity: ``<id>@<version>`` (E3/E1), plus a
+        ``+<digest>`` suffix when the body includes partials so a fragment edit
+        shifts the identity too (B1)."""
+        return f"{self.id}@{self.version}{self._version_suffix}"
 
     def render(self, context: dict[str, object]) -> list[dict[str, str]]:
-        """Render to chat messages. Unknown template variables fail loudly."""
+        """Render to chat messages. Unknown template variables fail loudly;
+        ``{% include %}`` names resolve against the bound partials loader."""
+        env = self._env or default_environment()
         try:
-            user = _JINJA.from_string(self.body).render(**context)
+            user = env.from_string(self.body).render(**context)
+            system = env.from_string(self.system).render(**context) if self.system else None
         except Exception as exc:
             raise ConfigError(f"prompt {self.prompt_version} failed to render: {exc}") from exc
         messages: list[dict[str, str]] = []
-        if self.system:
-            messages.append({"role": "system", "content": self.system})
+        if system:
+            messages.append({"role": "system", "content": system})
         messages.append({"role": "user", "content": user})
         return messages
 

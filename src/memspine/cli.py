@@ -73,7 +73,9 @@ def config_resolve(template: TemplateOpt = None, config_file: FileOpt = None) ->
 
 def _registry(template: str | None, config_file: Path | None) -> PromptRegistry:
     resolved = _load(template, config_file)
-    return PromptRegistry(overrides=resolved.config.prompts.overrides)
+    return PromptRegistry(
+        overrides=resolved.config.prompts.overrides, partials=resolved.config.prompts.partials
+    )
 
 
 @prompts_app.command("list")

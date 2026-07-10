@@ -145,11 +145,17 @@ class LLMConfig(BaseModel):
 class PromptsConfig(BaseModel):
     """User prompt customization (D-43): per-prompt overrides that ride the
     ordinary config layering. Keys under an override: body / system / format /
-    version / output_model / token_budget (validated by the registry)."""
+    version / output_model / token_budget (validated by the registry).
+
+    ``partials`` (B1) supplies override fragments for the shared Jinja
+    ``{% include %}`` partials (anti-injection block, output footer, format
+    instructions): ``prompts.partials.<name>`` maps a partial name to its
+    replacement text, consulted before the shipped ``_partials/`` directory."""
 
     model_config = ConfigDict(extra="forbid")
 
     overrides: dict[str, dict[str, Any]] = Field(default_factory=dict)
+    partials: dict[str, str] = Field(default_factory=dict)
 
 
 class WorkersConfig(BaseModel):

@@ -4,10 +4,10 @@ role: dedupe
 format: yaml
 output_model: DuplicateVerdictOut
 system: >-
-  You decide whether two memory snippets state the same information. Output
-  ONLY YAML with keys: duplicate (true|false) and reason (one short sentence).
+  You decide whether two memory snippets state the same information.
   Paraphrases of the same fact are duplicates; different facts about the same
-  subject are not.
+  subject are not. {% include "no_injection.j2" %} {% include "yaml_only.j2" %}
+  Emit keys: duplicate (true|false) and reason (one short sentence).
 ---
 a: |
   {{ a }}

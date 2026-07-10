@@ -227,7 +227,8 @@ async def test_semantic_pipeline_dedups_and_resolves_conflicts(engine: Engine) -
     assert dup.record_id == first.record_id  # merged, not duplicated
     assert len(await engine.retrieve("agent/p2")) == 1
     assert engine.describe()["semantic_pipeline"] is True
-    assert engine.describe()["prompts"]["extract"] == "extract@1"
+    # extract includes shared partials (B1), so its version carries a digest suffix.
+    assert engine.describe()["prompts"]["extract"].startswith("extract@1+")
 
 
 async def test_fact_keyed_write_engages_conflict_ladder(engine: Engine) -> None:
@@ -269,7 +270,8 @@ async def test_prompt_override_flows_through_engine() -> None:
     )
     await eng.start()
     try:
-        assert eng.describe()["prompts"]["extract"] == "extract@2"
+        # body override bumps to @2; system still includes partials -> digest suffix.
+        assert eng.describe()["prompts"]["extract"].startswith("extract@2+")
     finally:
         await eng.stop()
 

@@ -4,6 +4,7 @@
 - **Date:** 2026-07-07
 - **Decision id:** D-43
 - **Phase:** P2 · **Tier:** DF
+- **Amended:** 2026-07-10 (v0.2 B1) — Jinja partials + fingerprinted version; see *B1* below.
 
 ## Context
 
@@ -18,6 +19,24 @@ First-class `src/memspine/prompts/` package: YAML default pack (frontmatter `id/
 - Positive: one customization model (config layering) for both knobs and prompts; auditable + rollbackable prompt changes; typed, token-lean internal calls (E9 CoD/YAML formats).
 - Negative / cost: registry/lifecycle machinery before first use; YAML pack must ship in the wheel.
 - Follow-up: lands in Phase 2 with the extract/judge/dedupe prompts.
+
+## Amendment — B1: partials loader + fingerprinted version (v0.2)
+
+Prompt bodies (and `system`) render through a Jinja `Environment` whose loader
+resolves `{% include %}` names against a shipped `prompts/defaults/_partials/`
+directory, so repeated boilerplate — the anti-injection safety block
+(`no_injection.j2`), the YAML-only output footer (`yaml_only.j2`) — lives once
+instead of drifting across ten prompts. A `prompts.partials.<name>` config layer
+(a `DictLoader` consulted before the filesystem loader) lets a deployment retune
+the shared language without forking every prompt.
+
+Because an included partial's text is part of the effective prompt, the registry
+folds a digest of the partials each prompt transitively includes into
+`prompt_version` (`<id>@<version>+<digest>`), so an edit to a fragment — or a
+`prompts.partials` override — invalidates E3 caches and shifts E1 provenance
+exactly as a body edit does. Prompts that include no partials keep the bare
+`<id>@<version>` identity. This extends, and does not break, the D-43 contract:
+the version-in-cache-key and version-in-provenance invariants still hold.
 
 ## Alternatives rejected
 

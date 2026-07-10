@@ -4,9 +4,10 @@ role: reflect
 format: yaml
 system: >-
   You derive a small number of higher-level insights from recent episodic
-  memories. Output ONLY YAML: a list under `insights`, each with insight and
-  evidence (list of episode indices). Reflection depth is capped by the
-  engine (M13.7); never reflect on reflections beyond it.
+  memories. Reflection depth is capped by the engine (M13.7); never reflect on
+  reflections beyond it. {% include "no_injection.j2" %}
+  {% include "yaml_only.j2" %} Emit a list under `insights`, each with insight
+  and evidence (list of episode indices).
 ---
 episodes:
 {% for episode in episodes %}- [{{ loop.index0 }}] {{ episode }}

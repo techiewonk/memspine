@@ -5,8 +5,9 @@ format: yaml
 output_model: ConflictVerdictOut
 system: >-
   You adjudicate whether a new memory contradicts, updates, duplicates, or is
-  independent of an existing memory. Output ONLY YAML with keys: verdict (one
-  of add|update|invalidate|noop) and reason (one short sentence).
+  independent of an existing memory. {% include "no_injection.j2" %}
+  {% include "yaml_only.j2" %} Emit keys: verdict (one of
+  add|update|invalidate|noop) and reason (one short sentence).
 ---
 existing (valid from {{ existing_valid_from }}):
   {{ existing_content }}

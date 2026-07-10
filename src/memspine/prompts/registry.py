@@ -11,8 +11,11 @@ from __future__ import annotations
 
 from typing import Any
 
+from jinja2 import Environment
+
 from memspine.exceptions import ConfigError
 from memspine.prompts.base import Prompt
+from memspine.prompts.env import build_environment, partials_fingerprint
 from memspine.prompts.loader import load_default_pack
 from memspine.prompts.models import OUTPUT_MODELS
 
@@ -23,11 +26,29 @@ _OVERRIDABLE = {"body", "system", "format", "version", "output_model", "token_bu
 
 
 class PromptRegistry:
-    def __init__(self, overrides: dict[str, dict[str, Any]] | None = None) -> None:
-        self._prompts: dict[str, Prompt] = {p.id: p for p in load_default_pack()}
+    def __init__(
+        self,
+        overrides: dict[str, dict[str, Any]] | None = None,
+        partials: dict[str, str] | None = None,
+    ) -> None:
+        # One environment per registry (B1): its loader consults the config
+        # ``prompts.partials`` overrides before the shipped ``_partials/`` dir.
+        self._env: Environment = build_environment(partials)
+        self._prompts: dict[str, Prompt] = {}
+        for prompt in load_default_pack():
+            self._prompts[prompt.id] = self._bind(prompt)
         self._overridden: set[str] = set()
         for prompt_id, raw in (overrides or {}).items():
             self._apply_override(prompt_id, raw)
+
+    def _bind(self, prompt: Prompt) -> Prompt:
+        """Attach this registry's Jinja environment and fold the digest of the
+        partials the prompt includes into its ``prompt_version`` (B1) — so a
+        partial edit invalidates E3 caches and shifts E1 provenance."""
+        fp = partials_fingerprint(self._env, prompt.system, prompt.body)
+        prompt._env = self._env
+        prompt._version_suffix = f"+{fp}" if fp else ""
+        return prompt
 
     def _apply_override(self, prompt_id: str, raw: dict[str, Any]) -> None:
         base = self._prompts.get(prompt_id)
@@ -53,7 +74,7 @@ class PromptRegistry:
                 f"prompts.overrides.{prompt_id}: unknown output_model "
                 f"{prompt.output_model!r} (known: {sorted(OUTPUT_MODELS)})"
             )
-        self._prompts[prompt_id] = prompt
+        self._prompts[prompt_id] = self._bind(prompt)
         self._overridden.add(prompt_id)
 
     def get(self, prompt_id: str) -> Prompt:

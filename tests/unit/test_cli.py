@@ -45,7 +45,9 @@ def test_prompts_list_and_resolve(tmp_path: Path) -> None:
     )
     result = runner.invoke(app, ["prompts", "resolve", "--config", str(cfg)])
     assert result.exit_code == 0
-    assert "extract@2  # source: override" in result.output
+    # @2 (body override bump) + B1 partials digest suffix from the unchanged system.
+    assert "extract@2+" in result.output
+    assert "# source: override" in result.output
 
 
 def test_prompts_show_prints_frontmatter_and_body() -> None:

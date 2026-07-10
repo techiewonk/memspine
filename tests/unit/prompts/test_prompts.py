@@ -47,9 +47,16 @@ def test_override_bumps_version_and_tracks_source() -> None:
     registry = PromptRegistry(overrides={"extract": {"body": "custom {{ content }}"}})
     prompt = registry.get("extract")
     assert prompt.version == 2  # auto-bumped: changed content = changed identity
-    assert prompt.prompt_version == "extract@2"
+    # extract's system still includes shared partials, so prompt_version carries
+    # the B1 partials digest suffix on top of the bumped version.
+    assert prompt.prompt_version.startswith("extract@2+")
     assert registry.source_of("extract") == "override"
     assert registry.source_of("judge") == "defaults"
+    # A prompt with no partials in system or body has a bare <id>@<version>.
+    bare = PromptRegistry(
+        overrides={"extract": {"body": "x {{ content }}", "system": "plain"}}
+    ).get("extract")
+    assert bare.prompt_version == "extract@2"
     # explicit version wins
     registry2 = PromptRegistry(overrides={"extract": {"body": "x {{ content }}", "version": 9}})
     assert registry2.get("extract").version == 9

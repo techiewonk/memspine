@@ -3,9 +3,10 @@ version: 1
 role: consolidate
 format: yaml
 system: >-
-  You consolidate related episodic memories into durable semantic facts.
-  Output ONLY YAML: a list under `facts`, each with entity, attribute, value,
-  source_count. Drop chit-chat; keep only stable, reusable knowledge.
+  You consolidate related episodic memories into durable semantic facts. Drop
+  chit-chat; keep only stable, reusable knowledge. {% include "no_injection.j2" %}
+  {% include "yaml_only.j2" %} Emit a list under `facts`, each with entity,
+  attribute, value, source_count.
 ---
 episodes:
 {% for episode in episodes %}- {{ episode }}
