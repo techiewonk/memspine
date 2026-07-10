@@ -56,10 +56,19 @@ fresh LLM edges. It is a plain idempotent step function in `workers/pipelines.py
   deterministic (every mutation is a logged event).
 - Negative / cost: N extra LLM calls per source record per sleep; a background
   latency knob (`max_rounds`, `min_confidence`) deployments must tune.
-- Follow-up (C3): an optional **synchronous** `WritePipeline` in the semantic
-  write door (`memories.semantic.policies.write_pipeline: single|graph`) for
-  deployments that want edges extracted at write time, with E1 provenance
-  inheritance. This ADR is amended when C3 lands.
+- **C3 (landed):** an optional **synchronous** `WritePipeline` in the semantic
+  write door (`memories.semantic.policies.write_pipeline: single|graph`).
+  `graph` mode extracts edges at write time and writes each as a fact-keyed
+  record **through the same `_write_locked` door**, so dedup (M5) and the
+  conflict ladder (M4) apply — edge *invalidation* is thus the existing ladder
+  (using the `judge` LLM when configured), not a separate mechanism. Edge
+  records carry `channel="write_pipeline"`; the memory guards on it, so an edge
+  record never re-triggers the pipeline (bounded depth-1 recursion). E1
+  provenance inheritance (derived trust ≤ source, injection framing preserved).
+  Default `single` is byte-identical to v0.1. The `resolve_entity` role (C1)
+  has a hook in `GraphWritePipeline` but is not wired by default — LSH+cosine
+  dedup already canonicalizes at the record level; full coreference is future
+  work.
 
 ## Alternatives rejected
 

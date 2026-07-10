@@ -24,6 +24,7 @@ from memspine.core.policies.dedup import DedupPolicy
 from memspine.core.records import MemoryRecord, RecordStatus
 from memspine.memories.base import BaseMemory
 from memspine.memories.semantic.entities import EntityExtractor
+from memspine.memories.semantic.write_pipeline import EDGE_CHANNEL, WritePipeline
 from memspine.observability.logging import EVENT_CONFLICT, EVENT_MERGE, get_logger
 from memspine.services.embedding.base import EmbeddingService
 from memspine.services.storage.base import StorageService
@@ -58,6 +59,7 @@ class SemanticMemory(BaseMemory):
         conflict: ConflictPolicy,
         dedup: DedupPolicy,
         extractor: EntityExtractor | None = None,
+        write_pipeline: WritePipeline | None = None,
     ) -> None:
         self._storage = storage
         self._embedder = embedder
@@ -65,6 +67,9 @@ class SemanticMemory(BaseMemory):
         self._conflict = conflict
         self._dedup = dedup
         self._extractor = extractor
+        # C3: optional synchronous graphiti-style edge extraction (ADR-026).
+        # None => single-pass write (default), byte-identical to v0.1.
+        self._write_pipeline = write_pipeline
         # Stage-1 LSH index per namespace, built lazily from stored signatures.
         self._indexes: dict[str, MinHashLSH] = {}
         # Per-namespace write serialization (read-modify-write on fact keys).
@@ -112,6 +117,15 @@ class SemanticMemory(BaseMemory):
             return await self._write_locked(record)
 
     async def _write_locked(self, record: MemoryRecord) -> SemanticWriteResult:
+        result = await self._write_primary(record)
+        # C3: after the primary fact lands, extract relationship edges from the
+        # same content and write each through this door (guarded by channel so
+        # an edge record never recurses). Off unless a pipeline is injected.
+        if self._write_pipeline is not None and record.source.channel != EDGE_CHANNEL:
+            await self._write_pipeline.run(record, self._write_locked)
+        return result
+
+    async def _write_primary(self, record: MemoryRecord) -> SemanticWriteResult:
         # Sketch computation (minhash over tokens) is CPU-bound — off the loop.
         record = await asyncio.to_thread(self._dedup.annotate, record)
         index = await self._index_for(record.namespace)

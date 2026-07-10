@@ -77,6 +77,7 @@ from memspine.memories.reflective.reflections import ReflectiveMemory
 from memspine.memories.resource.store import ResourceMemory
 from memspine.memories.semantic.entities import EntityExtractor, LLMEntityExtractor
 from memspine.memories.semantic.store import SemanticMemory
+from memspine.memories.semantic.write_pipeline import GraphWritePipeline, WritePipeline
 from memspine.memories.shared.grants import Grant, SharedMemory
 from memspine.memories.shared.subscriptions import make_subscription_record
 from memspine.memories.working.manager import DEFAULT_PAGE_SIZE, WorkingMemory
@@ -390,6 +391,7 @@ class Engine:
                 conflict=ConflictPolicy.bind(_as_options_dict(semantic_policies.get("conflict"))),
                 dedup=DedupPolicy.bind(_as_options_dict(semantic_policies.get("dedup"))),
                 extractor=self._build_extractor(config),
+                write_pipeline=self._build_write_pipeline(config),
             )
         # Memory Firewall (E1/M17): trust matrix binds from the semantic
         # policy block (D-14 channel); the gate itself covers every type.
@@ -2059,35 +2061,55 @@ class Engine:
 
         return summarize
 
-    def _build_edge_extractor(self, config: MemspineConfig) -> ExtractEdges | None:
-        """C2 graphiti-style edge extractor for the ``extract_graph`` pipeline.
-
-        Active only when ``memories.semantic.policies.extract_graph`` is truthy
-        AND an ``extract_edges`` LLM role is bound — otherwise None, so the
-        pipeline self-skips and ``profile="simple"`` is unchanged. Reflexion is
-        ``max_rounds`` extraction passes whose unique edges are merged (a later
-        pass recovers edges a stochastic first pass missed); one round by
-        default. The LLM is an enhancer — any failure raises to the pipeline,
-        which logs and continues (N6)."""
-        policy = self._memory_policy(config, "semantic").get("extract_graph")
-        if not policy:
-            return None
-        if self._llm is None or self._prompts is None or "extract_edges" not in self._llm.roles:
-            return None
-        opts = policy if isinstance(policy, dict) else {}
-        max_rounds = max(1, int(opts.get("max_rounds", 1)))
+    def _edge_extract_callable(self, max_rounds: int) -> ExtractEdges:
+        """The shared reflexion-merged ``extract_edges`` callable (C2 async +
+        C3 sync). Caller guarantees the ``extract_edges`` role is bound."""
+        assert self._llm is not None and self._prompts is not None
         llm = self._llm.for_role("extract_edges")
         prompt = self._prompts.for_role("extract_edges")
+        rounds = max(1, max_rounds)
 
         async def extract_edges(content: str) -> list[ExtractedEdge]:
             merged: dict[tuple[str, str, str], ExtractedEdge] = {}
-            for _ in range(max_rounds):
+            for _ in range(rounds):
                 result = await structured_call(llm, prompt, {"content": content}, ExtractedEdges)
                 for edge in result.edges:
                     merged[(edge.src_entity, edge.rel, edge.dst_entity)] = edge
             return list(merged.values())
 
         return extract_edges
+
+    def _build_edge_extractor(self, config: MemspineConfig) -> ExtractEdges | None:
+        """C2 graphiti-style edge extractor for the ``extract_graph`` pipeline.
+
+        Active only when ``memories.semantic.policies.extract_graph`` is truthy
+        AND an ``extract_edges`` LLM role is bound — otherwise None, so the
+        pipeline self-skips and ``profile="simple"`` is unchanged."""
+        policy = self._memory_policy(config, "semantic").get("extract_graph")
+        if not policy:
+            return None
+        if self._llm is None or self._prompts is None or "extract_edges" not in self._llm.roles:
+            return None
+        opts = policy if isinstance(policy, dict) else {}
+        return self._edge_extract_callable(int(opts.get("max_rounds", 1)))
+
+    def _build_write_pipeline(self, config: MemspineConfig) -> WritePipeline | None:
+        """C3 synchronous graphiti write pipeline for the semantic door.
+
+        Active only when ``memories.semantic.policies.write_pipeline == "graph"``
+        AND an ``extract_edges`` role is bound — otherwise None (single-pass,
+        byte-identical to v0.1). Edges are written through the M4/M5 ladder, so
+        edge invalidation reuses the conflict machinery (ADR-026)."""
+        sem = self._memory_policy(config, "semantic")
+        if sem.get("write_pipeline", "single") != "graph":
+            return None
+        if self._llm is None or self._prompts is None or "extract_edges" not in self._llm.roles:
+            return None
+        rounds = 1
+        graph_opts = sem.get("extract_graph")
+        if isinstance(graph_opts, dict):
+            rounds = int(graph_opts.get("max_rounds", 1))
+        return GraphWritePipeline(self._edge_extract_callable(rounds))
 
     @staticmethod
     def _memory_policy(config: MemspineConfig, memory_type: str) -> dict[str, Any]:
