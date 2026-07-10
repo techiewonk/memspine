@@ -17,7 +17,7 @@ import os
 import shutil
 import tempfile
 import threading
-from collections.abc import Coroutine
+from collections.abc import Coroutine, Mapping, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Self, TypeVar, cast
@@ -528,6 +528,61 @@ class Engine:
         # and corroboration form one unit racing writers must not interleave.
         async with self._write_locks.setdefault(ns, asyncio.Lock()):
             return await self._write_locked(storage, ns, record, memory_type, actor)
+
+    async def write_messages(
+        self,
+        messages: Sequence[Mapping[str, str]],
+        namespace: str = "default",
+        actor: str = "user",
+        session_id: str | None = None,
+        channel: str = "messages",
+    ) -> list[MemoryRecord]:
+        """C4: ingest a chat transcript as per-turn **episodic** records.
+
+        ``messages`` is OpenAI-style ``[{"role": ..., "content": ...}]``. Each
+        turn becomes one episodic record whose provenance ``role`` is the turn's
+        role and whose ``channel`` is ``channel`` (default ``"messages"``);
+        passing ``session_id`` (or using :meth:`write_episode`) stamps every turn
+        with the same conversation id so they group as one episode. Untrusted
+        callers (e.g. REST) pass ``channel="rest"`` so TrustPolicy caps the
+        turns' trust regardless of the claimed role (SEC-C1). Turns ride the
+        ordinary write door, so the firewall, dedup, and lifecycle all apply.
+        Additive over the P0 contract — callers that never use it see no change."""
+        records: list[MemoryRecord] = []
+        for i, turn in enumerate(messages):
+            try:
+                role = turn["role"]
+                content = turn["content"]
+            except (KeyError, TypeError) as exc:
+                raise ValueError(
+                    f"messages[{i}] must be a mapping with 'role' and 'content' keys"
+                ) from exc
+            record = await self.write(
+                content,
+                namespace=namespace,
+                memory_type="episodic",
+                source=SourceInfo(role=role, channel=channel, message_id=session_id),
+                actor=actor,
+            )
+            records.append(record)
+        return records
+
+    async def write_episode(
+        self,
+        messages: Sequence[Mapping[str, str]],
+        namespace: str = "default",
+        actor: str = "user",
+        channel: str = "messages",
+    ) -> list[MemoryRecord]:
+        """C4: ingest a transcript as ONE conversation. Like
+        :meth:`write_messages`, but stamps every turn with a shared,
+        content-derived session id (``message_id``), so the turns are
+        retrievable and consolidatable as a single episode — the M13.2 session
+        detector then treats them as one session at consolidation time."""
+        session_id = fingerprint_payload({"episode": [str(turn) for turn in messages]})
+        return await self.write_messages(
+            messages, namespace=namespace, actor=actor, session_id=session_id, channel=channel
+        )
 
     async def _write_locked(
         self,

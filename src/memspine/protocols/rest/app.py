@@ -51,6 +51,7 @@ from memspine.protocols.rest.models import (
     SkillRequest,
     SubscriptionRequest,
     WatchRequest,
+    WriteMessagesRequest,
     WriteRequest,
 )
 
@@ -150,6 +151,16 @@ def build_app(engine: Engine) -> FastAPI:
             entity=body.entity,
             attribute=body.attribute,
         )
+
+    @app.post("/write_messages")
+    async def write_messages(body: WriteMessagesRequest, ns: Namespace) -> list[MemoryRecord]:
+        # C4: chat-transcript ingestion. Force channel="rest" (SEC-C1, same as
+        # /write) so TrustPolicy caps each turn's trust regardless of the claimed
+        # role — the per-turn role is preserved for provenance only.
+        turns = [{"role": turn.role, "content": turn.content} for turn in body.messages]
+        if body.as_episode:
+            return await engine.write_episode(turns, namespace=ns, actor=body.actor, channel="rest")
+        return await engine.write_messages(turns, namespace=ns, actor=body.actor, channel="rest")
 
     @app.post("/search")
     async def search(body: SearchRequest, ns: Namespace) -> list[ScoredRecord]:

@@ -117,10 +117,10 @@ Mirascope/BAML/DSPy/guidance/LangChain-hub/banks/Prompt-Poet/priompt/Promptify a
 | B2 | B · Prompts | **Scenario/conditional selection** — `(role, selector)` key, `<role>@<scenario>` variants, `select()` + role fallback | 🏗 | amends D-43 (ADR-009) | — | 🟡 | ☑ |
 | B3 | B · Prompts | **Enhance all 10 prompts** — anti-injection framing, `output_model`+lean `format`, split double-duty into variants | 🏗 | — | B1,B2 | 🟢 | ☑ |
 | B4 | B · Prompts | **Prompt test harness** — golden renders, output-model round-trip, selector coverage, lint | 🏗 | amends D-43 (ADR-009) | B1,B2 | 🟢 | ☑ |
-| C1 | C · Multi-call | New roles + output models: `extract_edges`, `resolve_entity`, `invalidate_edge`, reflexion round | 🏗 | — | B2 | 🟡 | ☐ |
-| C2 | C · Multi-call | Async **`extract_graph` pipeline** → `LINK`/`WRITE` events (after `consolidate`, before `reorganize`), opt-in | 🏗 | new ADR | C1 | 🔴 | ☐ |
-| C3 | C · Multi-call | Optional **sync `WritePipeline`** in semantic door + E1 provenance inheritance | 🏗 | new ADR | C1 | 🔴 | ☐ |
-| C4 | C · Multi-call | **`write_messages()`/`write_episode()`** verb (chat transcript → episodic records + session detect) | 🏗 | — | — | 🟡 | ☐ |
+| C1 | C · Multi-call | New roles + output models: `extract_edges`, `resolve_entity`, `invalidate_edge`, reflexion round | 🏗 | — | B2 | 🟡 | ☑ |
+| C2 | C · Multi-call | Async **`extract_graph` pipeline** → `LINK`/`WRITE` events (after `consolidate`, before `reorganize`), opt-in | 🏗 | ADR-026 | C1 | 🔴 | ☑ |
+| C3 | C · Multi-call | Optional **sync `WritePipeline`** in semantic door + E1 provenance inheritance | 🏗 | ADR-026 | C1 | 🔴 | ☑ |
+| C4 | C · Multi-call | **`write_messages()`/`write_episode()`** verb (chat transcript → episodic records + session detect) | 🏗 | — | — | 🟡 | ☑ |
 | D1 | D · Lifecycle | **Autonomous forgetting/decay scheduler** — `workers/scheduler.py` interval loop → `run_sleep_cycle` | 🏗 | amends D-16 (+M7) | — | 🟡 | ☐ |
 | D2 | D · Lifecycle | **`group_id` + `tags`** on `MemoryRecord` — fields + migration + write/REST/filter threading | 🏗 | amends D-21 | — | 🟡 | ☐ |
 | E1 | E · Retrieval | **Configurable graph traversal** — `strategy: ppr\|bfs\|rrf`; wire unused `walk_neighbors` + RRF blend | 🏗 | amends D-49 | — | 🟡 | ☐ |

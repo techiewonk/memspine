@@ -128,6 +128,44 @@ async def test_plan_cache_over_rest(client: httpx.AsyncClient) -> None:
     assert miss.json() is None  # a miss is a 200 null, not an error
 
 
+async def test_write_messages_over_rest(client: httpx.AsyncClient) -> None:
+    resp = await client.post(
+        "/write_messages",
+        json={
+            "messages": [
+                {"role": "user", "content": "what's the plan?"},
+                {"role": "assistant", "content": "ship v0.2"},
+            ]
+        },
+        headers=ns("chat"),
+    )
+    assert resp.status_code == 200
+    records = resp.json()
+    assert len(records) == 2
+    assert [r["memory_type"] for r in records] == ["episodic", "episodic"]
+    # SEC-C1: REST turns land on the external "rest" channel (trust-capped),
+    # not "messages", regardless of the per-turn role.
+    assert all(r["source"]["channel"] == "rest" for r in records)
+    assert [r["source"]["role"] for r in records] == ["user", "assistant"]
+
+
+async def test_write_episode_links_turns_over_rest(client: httpx.AsyncClient) -> None:
+    resp = await client.post(
+        "/write_messages",
+        json={
+            "messages": [
+                {"role": "user", "content": "book a table"},
+                {"role": "assistant", "content": "for when?"},
+            ],
+            "as_episode": True,
+        },
+        headers=ns("chat"),
+    )
+    records = resp.json()
+    session_ids = {r["source"]["message_id"] for r in records}
+    assert len(session_ids) == 1 and None not in session_ids
+
+
 async def test_reflect_over_rest(client: httpx.AsyncClient) -> None:
     parent = (await client.post("/write", json={"content": "raw event"}, headers=ns("a"))).json()
     reflection = await client.post(

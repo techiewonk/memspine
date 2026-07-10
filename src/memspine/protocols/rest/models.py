@@ -45,6 +45,21 @@ class WriteRequest(_Request):
     source: SourceInfo | None = None
 
 
+class Turn(_Request):
+    role: str
+    content: str
+
+
+class WriteMessagesRequest(_Request):
+    """C4: a chat transcript to ingest as per-turn episodic records."""
+
+    messages: list[Turn]
+    actor: str = "user"
+    #: When true, link all turns under one content-derived session id
+    #: (Engine.write_episode); else per-turn records with no shared session.
+    as_episode: bool = False
+
+
 class SearchRequest(_Request):
     # max_length bounds the query before it reaches the lexical leg (a DoS guard
     # matching the store's own cap, MAX_LEXICAL_QUERY_CHARS — E8/D-25).
