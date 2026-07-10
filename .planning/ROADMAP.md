@@ -220,7 +220,7 @@ Plans:
 **Milestone Goal:** Ship a clean, documented, live-verified v0.1 — the docs match the code, the
 swappable backends pass under real services, and the migration history is a tidy baseline.
 
-#### Phase 15: Documentation & Usage Finalization
+#### Phase 15: Documentation & Usage Finalization ✅ COMPLETE (2026-07-10, commit 4ad6ba6)
 **Goal**: The user-facing docs describe exactly what the shipped engine does and how to drive it.
 **Depends on**: Phase 14
 **Requirements**: REL-01
@@ -231,7 +231,7 @@ swappable backends pass under real services, and the migration history is a tidy
 **Plans**: TBD
 
 Plans:
-- [ ] 15-01: Verify + refresh USAGE.md / FEATURES.md / README against the shipped Engine/CLI/REST surface
+- [x] 15-01: Verify + refresh USAGE.md / FEATURES.md / README against the shipped Engine/CLI/REST surface — DONE (commit 4ad6ba6): full doc set finalized + config-surface drift test (45 keys), suite/ruff/mypy green
 
 #### Phase 16: Live Backend Contract Verification
 **Goal**: The composability promise holds against real services, not just SQLite/in-memory stand-ins.
