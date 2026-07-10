@@ -14,20 +14,31 @@ from __future__ import annotations
 
 import pytest
 
-#: template -> (expected profile, expected enabled set after dependency closure).
-TEMPLATES: dict[str, tuple[str, frozenset[str]]] = {
-    "base": ("simple", frozenset({"working", "episodic", "semantic"})),
-    "coding": ("coding", frozenset({"working", "episodic", "semantic", "procedural"})),
-    "multi_agent": ("multi_agent", frozenset({"working", "episodic", "semantic", "shared"})),
+#: template -> (expected profile, expected enabled set after closure, expected runner).
+#: Server profiles (multi_agent, regulated_financial) default to the durable DBOS
+#: runner (DEC-4/A4); the embedded profiles stay on inline. A dbos template only
+#: boots when [dbos] is installed — otherwise start() hard-fails naming the extra
+#: (D-10), which the boot below asserts instead, so the matrix stays honest in
+#: both zero-extra and all-extras environments.
+TEMPLATES: dict[str, tuple[str, frozenset[str], str]] = {
+    "base": ("simple", frozenset({"working", "episodic", "semantic"}), "inline"),
+    "coding": ("coding", frozenset({"working", "episodic", "semantic", "procedural"}), "inline"),
+    "multi_agent": (
+        "multi_agent",
+        frozenset({"working", "episodic", "semantic", "shared"}),
+        "dbos",
+    ),
     "personal": (
         "personal",
         frozenset({"working", "episodic", "semantic", "reflective", "prospective"}),
+        "inline",
     ),
     "regulated_financial": (
         "regulated_financial",
         frozenset({"working", "episodic", "semantic"}),
+        "dbos",
     ),
-    "voice": ("voice", frozenset({"working", "episodic", "semantic"})),
+    "voice": ("voice", frozenset({"working", "episodic", "semantic"}), "inline"),
 }
 
 #: The describe() schema every started engine must expose (§4 step 7).
@@ -60,8 +71,21 @@ def test_all_shipped_templates_are_in_the_matrix() -> None:
 
 @pytest.mark.parametrize("template", sorted(TEMPLATES))
 async def test_template_boots_clean(template: str, make_engine) -> None:
-    expected_profile, expected_enabled = TEMPLATES[template]
+    import importlib.util
+
+    from memspine.exceptions import MissingServiceError
+
+    expected_profile, expected_enabled, expected_runner = TEMPLATES[template]
     engine = make_engine(template=template)
+
+    # A server profile pins runner=dbos (DEC-4): it can only boot when [dbos] is
+    # installed; without it, start() hard-fails naming the extra (D-10).
+    if expected_runner == "dbos" and importlib.util.find_spec("dbos") is None:
+        with pytest.raises(MissingServiceError) as excinfo:
+            await engine.start()
+        assert excinfo.value.extra == "dbos"
+        return
+
     await engine.start()
     try:
         world = engine.describe()
@@ -73,7 +97,7 @@ async def test_template_boots_clean(template: str, make_engine) -> None:
         # A zero-extra boot always lands on the pure-Python defaults.
         assert world["storage"]["backend"] == "sqlite"
         assert world["embedding"] == engine._embedder.embedder_id  # hash embedder
-        assert world["runner"] == "inline"
+        assert world["runner"] == expected_runner
         assert world["event_log"]["mode"] in {"full", "rolling", "ephemeral"}
         assert "records" in world["projectors"]  # the M1 projector always runs
     finally:

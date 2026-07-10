@@ -4,6 +4,7 @@
 - **Date:** 2026-07-07
 - **Decision id:** D-16 / D-17 / D-18
 - **Phase:** P0 contract, P1/P3/P7 runners · **Tier:** DF
+- **Amended:** 2026-07-10 (v0.2 A4, DEC-4) — see *Server-profile default* below.
 
 ## Context
 
@@ -12,6 +13,10 @@ Consolidation/decay/compression must run in the background, but binding the engi
 ## Decision
 
 Background pipelines are plain, idempotent step functions in `workers/pipelines.py`. Runners *decorate* them: `inline` (default), `dbos` (durable, SQLite→Postgres), `taskiq` (Valkey Streams with per-scope keys + priority labels). No runner imports inside pipeline code. Dead-letter severity: consolidation = warning, M7 hard-delete cascade = alert (D-18).
+
+### Server-profile default (v0.2 A4, DEC-4)
+
+The **schema default stays `inline`** — a bare `pip install memspine` must boot with zero extras (slim-core D-03, profiles-stay-green). Durable execution is opted into per *server* deployment profile at the **template** layer, not the schema: the `multi_agent` and `regulated_financial` templates pin `workers.runner: dbos`. DBOS defaults to a colocated SQLite system database (`<storage.path>.dbos.sqlite`), so this adds no external infrastructure — only the `memspine[dbos]` extra, which a deployed server installs. Embedded profiles (`base`/simple, `coding`, `personal`, `voice`) remain `inline`. A schema-level `runner="dbos"` default was rejected: it would fail every zero-extra install at start. Template scope keeps the blast radius to profiles a server operator explicitly selects.
 
 ## Consequences
 

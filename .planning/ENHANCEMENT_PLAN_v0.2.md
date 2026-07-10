@@ -110,7 +110,7 @@ Mirascope/BAML/DSPy/guidance/LangChain-hub/banks/Prompt-Poet/priompt/Promptify a
 | A1 | A · Quick wins | Fix `read.rerank=litellm` **startup-validator bug** (ConfigError today) | 🐛 | — | — | 🟢 | ☑ |
 | A2 | A · Quick wins | **RerankerFactory** (registry keyed by id, lazy, graceful-degrade; single validation source) | 🏗 | amends D-51 | A1 | 🟢 | ☑ |
 | A3 | A · Quick wins | Hybrid retrieval **default-on** flip (`read.hybrid → true`); verify C6 matrix | 🔧 | D-25 intent, ADR-019 amend | — | 🟡 | ☑ |
-| A4 | A · Quick wins | **DBOS+SQLite default** via server-profile templates (not schema default) | 🔧 | D-16 note | — | 🟢 | ☐ |
+| A4 | A · Quick wins | **DBOS+SQLite default** via server-profile templates (not schema default) | 🔧 | D-16 note (ADR-005) | — | 🟢 | ☑ |
 | A5 | A · Quick wins | **Reinforcement on read** — additive salience (`utility += step`) in `_apply_retrieve` | 🏗 | — | — | 🟢 | ☑ |
 | A6 | A · Quick wins | Expose **graspologic Leiden** knobs (`min_size`/`resolution`/`randomness`/`seed`) + compression `compress_tiers`/rate as config | 🔧 | — | — | 🟢 | ☑ |
 | B1 | B · Prompts | Jinja **loader + partials** (`_partials/`); fingerprint partials into `prompt_version` | 🏗 | amends D-43 | — | 🟡 | ☐ |
