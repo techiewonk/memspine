@@ -233,7 +233,7 @@ swappable backends pass under real services, and the migration history is a tidy
 Plans:
 - [x] 15-01: Verify + refresh USAGE.md / FEATURES.md / README against the shipped Engine/CLI/REST surface — DONE (commit 4ad6ba6): full doc set finalized + config-surface drift test (45 keys), suite/ruff/mypy green
 
-#### Phase 16: Live Backend Contract Verification
+#### Phase 16: Live Backend Contract Verification ⏭ SKIPPED (2026-07-10, user request — needs live Postgres/Redis infra; contracts already covered by fakeredis/mock-boto/real-LMDB + skip-if-unavailable Postgres tests)
 **Goal**: The composability promise holds against real services, not just SQLite/in-memory stand-ins.
 **Depends on**: Phase 15
 **Requirements**: REL-02
@@ -244,9 +244,9 @@ Plans:
 **Plans**: TBD
 
 Plans:
-- [ ] 16-01: Live-Postgres contract-test run + swappable-store live round-trips + harness docs
+- [~] 16-01: Live-Postgres contract-test run + swappable-store live round-trips + harness docs — SKIPPED (infra); run when a DB is available: `MEMSPINE_TEST_POSTGRES_URL=... pytest tests/integration/test_storage_backends.py`
 
-#### Phase 17: Pre-release Cleanups
+#### Phase 17: Pre-release Cleanups ✅ COMPLETE (2026-07-10, commit 575e441)
 **Goal**: A clean v0.1 baseline — migrations squashed, deferred items closed or explicitly carried.
 **Depends on**: Phase 16
 **Requirements**: REL-03
@@ -257,7 +257,7 @@ Plans:
 **Plans**: TBD
 
 Plans:
-- [ ] 17-01: Squash Alembic migrations to a v0.1 baseline; reconcile deferred items
+- [x] 17-01: Squash Alembic migrations to a v0.1 baseline — DONE (commit 575e441): 9 incremental migrations → one 0001_baseline built from live metadata + FTS5; suite/ruff/mypy green
 
 ## Progress
 

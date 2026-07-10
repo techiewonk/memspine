@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: Release Hardening
-current_phase: 16
-current_phase_name: Live Backend Contract Verification
-status: blocked_on_infra
-stopped_at: "Phase 15 COMPLETE (commit 4ad6ba6); Phase 16 blocked on live Postgres/Redis (Docker daemon down); Phase 17 (Alembic squash) is a risky migration refactor to do carefully"
+current_phase: 17
+current_phase_name: Pre-release Cleanups
+status: milestone_complete_except_skipped_16
+stopped_at: "Phase 15 COMPLETE (4ad6ba6); Phase 16 SKIPPED (needs live Postgres/Redis infra); Phase 17 COMPLETE (575e441, Alembic squash to single baseline). v0.1 Release Hardening done bar the infra-gated live verification."
 last_updated: "2026-07-10T05:57:07.023Z"
 last_activity: 2026-07-10
 last_activity_desc: ingest bootstrap; roadmap reflects P0–P7 + composable-stores (Phases 1–14) as landed, release-hardening tail (15–17) open
@@ -24,7 +24,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-10)
 
 **Core value:** Every store (vector / graph / cache / SQL storage / LLM / embedding / secrets) is pluggable behind a capability port — swap backends by config alone, zero code change, `profile="simple"` byte-identical.
-**Current focus:** Phase 15 ✅ COMPLETE (docs finalized + config-surface drift test, commit 4ad6ba6). Next: Phase 16 — Live Backend Contract Verification (blocked on live Postgres/Redis infra) → Phase 17 — Alembic migration squash (risky, do carefully).
+**Current focus:** v0.1 Release Hardening milestone essentially done. Phase 15 ✅ (docs + drift test, 4ad6ba6) · Phase 16 ⏭ SKIPPED (needs live DB infra) · Phase 17 ✅ (Alembic squash to single baseline, 575e441). Only remaining: run the infra-gated live-backend verification when a Postgres/Redis server is available.
 
 ## Current Position
 
