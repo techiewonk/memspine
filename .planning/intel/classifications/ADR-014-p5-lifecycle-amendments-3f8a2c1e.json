@@ -1,0 +1,12 @@
+{
+  "source_path": "D:/mem/memspine/docs/adr/ADR-014-p5-lifecycle-amendments.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "ADR-014 — P5 lifecycle amendments (procedural, prompts, reflections)",
+  "summary": "Records three P5 lifecycle decisions correcting design-doc reinterpretations: staged plans via RESOLVING, prompts entering ladder at active, and reflections carrying caller trust.",
+  "scope": ["procedural memory / skill lifecycle", "prompt registry / versioning", "reflections", "Memory Firewall / quarantine", "record status / SkillStage", "namespace ownership"],
+  "cross_refs": ["ADR-013", "D-48", "D-43", "D-47", "E6", "E1", "core/records.py", "prompt_registry.py"],
+  "locked": true,
+  "precedence": null
+}

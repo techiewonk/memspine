@@ -1,0 +1,13 @@
+{
+  "source_path": "D:/mem/memspine/docs/RESEARCH_NOVELTY.md",
+  "type": "DOC",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "memspine — Novelty catalog (research-paper backbone)",
+  "summary": "Running inventory of memspine's research contributions, each with claim, evidence base, and code location, positioned against a 15+ framework survey corpus.",
+  "scope": ["Memory Firewall", "event-sourced retention modes", "typed-memory combination calculus", "research novelty claims", "evaluation harnesses"],
+  "cross_refs": ["DEPENDENCY_ANALYSIS.md", "PACKAGE_CATALOG.md", "CLAUDE.md", "ADR-001", "ADR-011"],
+  "locked": false,
+  "precedence": null,
+  "notes": "Prose-heavy research/design rationale catalog; references ADRs and decisions but records no single decision or requirement of its own — supporting context only."
+}

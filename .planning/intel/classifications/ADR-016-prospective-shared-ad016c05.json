@@ -1,0 +1,25 @@
+{
+  "source_path": "D:/mem/memspine/docs/adr/ADR-016-prospective-shared.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "ADR-016 — Prospective watches & shared-memory grants (P7)",
+  "summary": "Records how prospective watches and cross-namespace shared-memory grants map onto existing event-log columns and events with no new DDL or EventKind.",
+  "scope": [
+    "prospective memory",
+    "shared memory",
+    "watches",
+    "grants",
+    "subscriptions",
+    "event log",
+    "memory firewall",
+    "find_active_fact",
+    "namespace grants",
+    "trust capping"
+  ],
+  "cross_refs": [
+    "ADR-014"
+  ],
+  "locked": true,
+  "precedence": null
+}

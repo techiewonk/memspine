@@ -1,0 +1,13 @@
+{
+  "source_path": "D:/mem/memspine/docs/adr/ADR-001-event-sourced-core.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "ADR-001 — Event-sourced core: append-only `memory_events` as the single source of truth",
+  "summary": "Establishes an append-only memory_events log as the sole source of truth, with all derived stores as rebuildable projectors.",
+  "scope": ["memory_events log", "SQLiteStorage.append_event", "projectors", "vector store", "graph store", "FTS", "cache", "core/events.py", "core/projector.py", "core/replay.py", "services/storage"],
+  "cross_refs": ["ADR-011"],
+  "locked": true,
+  "precedence": null,
+  "notes": ""
+}

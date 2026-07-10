@@ -1,0 +1,42 @@
+{
+  "source_path": "D:/mem/memspine/docs/memspine-structure-plan.md",
+  "type": "DOC",
+  "confidence": "medium",
+  "manifest_override": false,
+  "title": "memspine — Repository & Feature Structure Plan (v1.5, consolidated)",
+  "summary": "The authoritative buildable blueprint for memspine: repo tree, extras matrix, locked decision register (D-01…D-54), phase plan, and enhancement program.",
+  "scope": [
+    "repository structure",
+    "packaging / extras matrix",
+    "decision register",
+    "storage (SQLite/SQLAlchemy)",
+    "vector (LanceDB)",
+    "graph store",
+    "lexical/hybrid retrieval",
+    "workers/runners",
+    "prompt subsystem",
+    "memory firewall",
+    "phase plan P0-P7",
+    "enhancement program E1-E9"
+  ],
+  "cross_refs": [
+    "docs/UNIMEM_V2_REWORK_PROPOSAL.md",
+    "docs/DEPENDENCY_ANALYSIS.md",
+    "docs/PACKAGE_CATALOG.md",
+    "docs/adr/ADR-010.md",
+    "docs/adr/ADR-011.md",
+    "docs/adr/ADR-012.md",
+    "docs/adr/ADR-013.md",
+    "docs/adr/ADR-014.md",
+    "docs/adr/ADR-015.md",
+    "docs/adr/ADR-016.md",
+    "docs/adr/ADR-017.md",
+    "docs/adr/ADR-018.md",
+    "docs/adr/ADR-019.md",
+    "docs/adr/ADR-020.md",
+    "docs/adr/ADR-021-lancedb-core-vector.md"
+  ],
+  "locked": false,
+  "precedence": null,
+  "notes": "Master planning blueprint spanning many decisions, a repo tree, an extras matrix, and a phase plan rather than a single decision (not ADR) or a narrow API/schema contract (not SPEC). Contains a 'locked decision register' with strong ADR-like signals, but it aggregates/indexes decisions that live in individual ADRs rather than deciding one; the ADRs themselves are the locked sources. Competes SPEC vs DOC; classified DOC as an authoritative context/index document. Source hash derived deterministically from POSIX path (no SHA-256 compute tool available)."
+}

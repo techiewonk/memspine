@@ -1,0 +1,13 @@
+{
+  "source_path": "D:/mem/memspine/docs/USAGE.md",
+  "type": "DOC",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "memspine — usage guide",
+  "summary": "Tutorial guide for installing memspine, constructing an Engine, and driving each memory type via the real API.",
+  "scope": ["Engine", "install/extras", "config layering", "memory types", "CLI", "REST protocol"],
+  "cross_refs": ["../examples", "./FEATURES.md", "../README.md", "src/memspine/engine.py", "src/memspine/cli.py", "src/memspine/protocols/rest/"],
+  "locked": false,
+  "precedence": null,
+  "notes": ""
+}

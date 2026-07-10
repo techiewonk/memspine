@@ -1,0 +1,25 @@
+{
+  "source_path": "D:/mem/memspine/docs/README.md",
+  "type": "DOC",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "memspine — design docs",
+  "summary": "Index and reading-order guide to the memspine design docs: features, usage, ecosystem comparison, structure plan, dependency rationale, and ADRs.",
+  "scope": ["design docs index", "reading order", "structure plan", "ecosystem comparison", "dependency analysis", "ADR register"],
+  "cross_refs": [
+    "./FEATURES.md",
+    "./USAGE.md",
+    "./ECOSYSTEM_COMPARISON.md",
+    "./ARCHITECTURE_FLOWS.md",
+    "./exports/ECOSYSTEM_PEER_TRACE.csv",
+    "./exports/ECOSYSTEM_WRITE_STAGES.csv",
+    "./memspine-structure-plan.md",
+    "./UNIMEM_V2_REWORK_PROPOSAL.md",
+    "./DEPENDENCY_ANALYSIS.md",
+    "./PACKAGE_CATALOG.md",
+    "./adr/"
+  ],
+  "locked": false,
+  "precedence": null,
+  "notes": ""
+}

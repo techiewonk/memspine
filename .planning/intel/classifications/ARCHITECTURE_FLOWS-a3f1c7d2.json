@@ -1,0 +1,17 @@
+{
+  "source_path": "D:/mem/memspine/docs/ARCHITECTURE_FLOWS.md",
+  "type": "DOC",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "memspine — Architecture Flows (Ecosystem)",
+  "summary": "Code-traced flow reference and evidence document mapping memspine and 16 peer memory engines' write/read pipelines via cited entry points and diagrams.",
+  "scope": ["memspine Engine", "memory_events log", "projectors", "16 peer memory engines", "write/read flows", "storage model"],
+  "cross_refs": [
+    "./ECOSYSTEM_COMPARISON.md",
+    "./exports/ECOSYSTEM_PEER_TRACE.csv",
+    "./exports/ECOSYSTEM_WRITE_STAGES.csv"
+  ],
+  "locked": false,
+  "precedence": null,
+  "notes": ""
+}

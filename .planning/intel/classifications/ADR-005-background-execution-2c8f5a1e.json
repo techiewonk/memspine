@@ -1,0 +1,12 @@
+{
+  "source_path": "D:/mem/memspine/docs/adr/ADR-005-background-execution.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "ADR-005 — Background execution: TaskRunner seam, pipelines stay plain functions",
+  "summary": "Locks background pipelines as plain idempotent step functions decorated by pluggable runners (inline/dbos/taskiq) to avoid worker-framework lock-in.",
+  "scope": ["background execution", "TaskRunner seam", "workers/pipelines.py", "inline runner", "dbos runner", "taskiq runner", "consolidation", "decay", "compression", "dead-letter handling"],
+  "cross_refs": ["tests/integration/test_dbos_crash_resume.py", "workers/dbos_runner.py", "workers/pipelines.py"],
+  "locked": true,
+  "precedence": null
+}

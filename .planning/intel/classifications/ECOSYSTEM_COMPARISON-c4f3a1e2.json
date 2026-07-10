@@ -1,0 +1,13 @@
+{
+  "source_path": "D:/mem/memspine/docs/ECOSYSTEM_COMPARISON.md",
+  "type": "DOC",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "memspine — Ecosystem Comparison",
+  "summary": "Evidence document positioning memspine against 16 peer memory engines and supplying ADR evidence for its differentiators and convergent choices.",
+  "scope": ["memspine", "cognitive-memory engine", "peer engine comparison", "event-sourced core", "Memory Firewall", "vector/graph/lexical stores"],
+  "cross_refs": ["./ARCHITECTURE_FLOWS.md", "./DEPENDENCY_ANALYSIS.md", "./PACKAGE_CATALOG.md", "./UNIMEM_V2_REWORK_PROPOSAL.md", "./exports/ECOSYSTEM_PEER_TRACE.csv", "./exports/ECOSYSTEM_WRITE_STAGES.csv"],
+  "locked": false,
+  "precedence": null,
+  "notes": ""
+}

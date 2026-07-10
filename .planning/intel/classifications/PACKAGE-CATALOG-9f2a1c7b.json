@@ -1,0 +1,13 @@
+{
+  "source_path": "D:/mem/memspine/docs/PACKAGE_CATALOG.md",
+  "type": "DOC",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "Package Catalog — every dependency across D:\\mem, with \"does what\"",
+  "summary": "Reference catalog of all 564 dependency packages found across 27 memory-engine repos, with a one-line role for each and memspine relevance markers.",
+  "scope": ["dependencies", "package glossary", "LLM SDKs", "embeddings/rerankers", "vector stores", "per-repo requirements"],
+  "cross_refs": ["./ECOSYSTEM_COMPARISON.md"],
+  "locked": false,
+  "precedence": null,
+  "notes": ""
+}

@@ -1,0 +1,13 @@
+{
+  "source_path": "D:/mem/memspine/docs/adr/ADR-004-ports-and-adapters.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "ADR-004 — Two-layer ports & adapters: services/ + clients/",
+  "summary": "Decision to split capability ports (services/) from connection-owning adapters (clients/) so backends stay swappable.",
+  "scope": ["services layer", "clients layer", "ports and adapters", "capability manifest", "lifecycle manager", "connection management"],
+  "cross_refs": [],
+  "locked": true,
+  "precedence": null,
+  "notes": ""
+}

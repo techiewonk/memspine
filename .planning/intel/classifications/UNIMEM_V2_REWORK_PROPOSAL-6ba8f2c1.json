@@ -1,0 +1,13 @@
+{
+  "source_path": "D:/mem/memspine/docs/UNIMEM_V2_REWORK_PROPOSAL.md",
+  "type": "DOC",
+  "confidence": "medium",
+  "manifest_override": false,
+  "title": "Drastic Rework Proposal: unimem v2 — from storage facade to cognitive memory engine",
+  "summary": "Architecture rationale and evidence base arguing to evolve unimem v1's storage facade into a layered cognitive memory engine feeding memspine.",
+  "scope": ["unimem v2", "memspine engine", "write pipeline", "hybrid + graph retrieval", "memory taxonomy", "dependency adoption decisions D-26..D-35"],
+  "cross_refs": ["memspine-structure-plan.md", "DEPENDENCY_ANALYSIS.md"],
+  "locked": false,
+  "precedence": null,
+  "notes": "Status: Draft v3, self-described as 'architecture rationale' (context), while structure-plan is the buildable blueprint. Contains a decision register (D-26..D-35) which gives an ADR-like signal, but it is a multi-decision proposal document, not a single locked ADR; the decisions are meant to slot into the structure plan's register. Classified DOC as context/rationale; synthesizer may wish to note the embedded proposed decisions."
+}

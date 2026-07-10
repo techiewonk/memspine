@@ -1,0 +1,13 @@
+{
+  "source_path": "D:/mem/memspine/docs/adr/ADR-017-p7-infrastructure.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "ADR-017 — P7 infrastructure: REST, taskiq runner, E5/E8 stages",
+  "summary": "Records P7's infrastructure decisions: the no-authn REST protocol, the taskiq brokered runner, E5 assembly-time compression, and opt-in E8 retrieval-quality stages.",
+  "scope": ["protocols/rest", "taskiq runner", "workers/pipelines", "E5 assembly compression", "CompressionPolicy", "E8 retrieval stages", "rerank providers", "static prefilter", "hybrid RRF", "lexical/FTS5 store", "Engine.search"],
+  "cross_refs": ["docs/adr/ADR-016.md", "docs/adr/ADR-005.md", "docs/adr/ADR-018.md", "docs/adr/ADR-019.md"],
+  "locked": true,
+  "precedence": null,
+  "notes": ""
+}

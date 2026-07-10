@@ -1,0 +1,13 @@
+{
+  "source_path": "D:/mem/memspine/docs/adr/ADR-010-async-storage-driver.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "ADR-010 — Async storage driver: aiosqlite + greenlet in core",
+  "summary": "Decision to add aiosqlite and greenlet to core so SQLAlchemy Core storage runs a genuinely async engine with sync verbs wrapping the async path.",
+  "scope": ["storage service", "SQLite client", "aiosqlite", "greenlet", "SQLAlchemy async engine", "sync wrappers"],
+  "cross_refs": [],
+  "locked": true,
+  "precedence": null,
+  "notes": ""
+}

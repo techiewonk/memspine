@@ -1,0 +1,13 @@
+{
+  "source_path": "D:/mem/memspine/docs/adr/ADR-008-code-level-adoptions.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "ADR-008 — Code-level adoptions D-26…D-42 (two dependency-scan passes)",
+  "summary": "Adopts field-proven libraries and five MemOS patterns across dedup, NER, ingest, storage, hashing, and community detection sub-problems.",
+  "scope": ["datasketch", "gliner2", "markitdown", "chonkie", "instructor", "zstandard", "litellm", "SQLAlchemy Core", "xxhash", "fastuuid", "pydantic", "orjson", "graspologic", "dependency selection", "MemOS patterns"],
+  "cross_refs": ["DEPENDENCY_ANALYSIS.md", "PACKAGE_CATALOG.md"],
+  "locked": true,
+  "precedence": null,
+  "notes": ""
+}

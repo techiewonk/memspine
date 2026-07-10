@@ -1,0 +1,13 @@
+{
+  "source_path": "D:/mem/memspine/docs/adr/ADR-013-firewall-governance-amendments.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "ADR-013 — Memory-Firewall & M7 governance amendments to the event-sourced contract",
+  "summary": "Makes explicit four firewall/M7 implementation choices that amend event-sourced invariants: content-mutable erasure, deterministic gate, canonical quarantine, allow-listed lifecycle deltas.",
+  "scope": ["Memory Firewall", "M7 hard erasure", "event-sourced log", "quarantine", "trust policy", "DECAY_TRANSITION deltas", "core/erasure.py"],
+  "cross_refs": ["core/erasure.py", "firewall_flag.yaml"],
+  "locked": true,
+  "precedence": null,
+  "notes": ""
+}

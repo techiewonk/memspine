@@ -1,0 +1,13 @@
+{
+  "source_path": "D:/mem/memspine/docs/FEATURES.md",
+  "type": "DOC",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "memspine — feature catalog",
+  "summary": "Reference catalog of the features memspine ships (P0-P7), documenting the nine memory types, their config keys, verbs, and policies.",
+  "scope": ["memory types", "semantic memory", "working memory", "episodic memory", "resource memory", "procedural memory", "config keys", "profiles"],
+  "cross_refs": ["./USAGE.md", "./memspine-structure-plan.md", "src/memspine/config/schema.py", "config/constants.py"],
+  "locked": false,
+  "precedence": null,
+  "notes": ""
+}

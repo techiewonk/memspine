@@ -1,0 +1,13 @@
+{
+  "source_path": "D:/mem/memspine/docs/adr/ADR-020-embedding-quantization.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "ADR-020 — Embedding quantization + float rescore, Matryoshka, model2vec prefilter (E4)",
+  "summary": "Decides two-stage quantized-prefilter/float-rescore vector search (LanceDB-native), Matryoshka truncation, and an opt-in model2vec static prefilter, all additive and default-off.",
+  "scope": ["embedding quantization", "vector store", "LanceDB", "search_rescore", "Matryoshka truncation", "model2vec static prefilter", "migration 0009", "SQLiteVectorStore"],
+  "cross_refs": ["./ADR-021-lancedb-core-vector.md", "docs/memspine-structure-plan.md"],
+  "locked": true,
+  "precedence": null,
+  "notes": ""
+}

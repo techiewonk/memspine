@@ -1,0 +1,13 @@
+{
+  "source_path": "D:/mem/memspine/docs/adr/ADR-006-config-layering.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "ADR-006 — Config layering + templates with `extends:`",
+  "summary": "Locks the config layering order (schema defaults -> template extends -> user YAML -> env -> kwargs) with per-key source tracking.",
+  "scope": ["config loader", "config schema", "config templates", "secrets port", "namespace policy overrides", "profiles"],
+  "cross_refs": ["ADR-009", "config/loader.py", "config/schema.py", "config/templates/"],
+  "locked": true,
+  "precedence": null,
+  "notes": ""
+}

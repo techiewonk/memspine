@@ -1,0 +1,27 @@
+{
+  "source_path": "D:/mem/memspine/docs/adr/ADR-015-associative-links.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "ADR-015 — Associative links as LINK events (P6)",
+  "summary": "Records the LINK event shape, link-budget mechanics, PPR recall, evolution/reorganization writers, and the default sqlite_adjacency graph store for associative memory.",
+  "scope": [
+    "associative memory",
+    "EventKind.LINK",
+    "GraphProjector",
+    "link budget / prune_weakest tombstones",
+    "personalized PageRank recall",
+    "D-42 reorganizer",
+    "sqlite_adjacency graph store",
+    "ladybug/kuzu graph adapters"
+  ],
+  "cross_refs": [
+    "ADR-014",
+    "observability/logging.py",
+    "services/graph/ladybug.py",
+    "services/graph/kuzu.py"
+  ],
+  "locked": true,
+  "precedence": null,
+  "notes": ""
+}

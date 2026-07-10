@@ -1,0 +1,12 @@
+{
+  "source_path": "D:/mem/memspine/docs/adr/ADR-024-litellm-llm-embedding.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "ADR-024 — LiteLLM as the unified LLM / embedding / rerank gateway",
+  "summary": "Adopts litellm as a core, lazily-imported single adapter for cloud and local LLM, embedding, and rerank, removing the hand-rolled openai_compat path.",
+  "scope": ["litellm", "LLM gateway", "embeddings", "rerank", "OpenAICompatLLM", "HTTPClient", "LLMRoleConfig", "LlamaCppLLM", "slim core"],
+  "cross_refs": [],
+  "locked": true,
+  "precedence": null
+}

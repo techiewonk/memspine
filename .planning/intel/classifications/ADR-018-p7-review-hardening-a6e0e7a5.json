@@ -1,0 +1,13 @@
+{
+  "source_path": "D:/mem/memspine/docs/adr/ADR-018-p7-review-hardening.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "ADR-018 — P7 review hardening (security + robustness)",
+  "summary": "Records four security decisions plus correctness/robustness closures from a 5-agent review of the P7 surface, and sharpens the REST deployment contract.",
+  "scope": ["shared memory type", "forget/verify_forget/audit_taint", "REST /write trust boundary", "TrustPolicy external channels", "taskiq", "shared_search", "reranker", "REST deployment contract", "TaintReport"],
+  "cross_refs": ["ADR-017", "ADR-014", "ADR-016", "docs/memspine-structure-plan.md"],
+  "locked": true,
+  "precedence": null,
+  "notes": ""
+}

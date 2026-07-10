@@ -1,0 +1,13 @@
+{
+  "source_path": "D:/mem/memspine/docs/adr/ADR-002-slim-core-extras.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "ADR-002 — Slim core + extras packaging",
+  "summary": "Decision to keep memspine core dependencies small and pure-ish, pushing all heavy deps into optional pip extras.",
+  "scope": ["core dependencies", "extras matrix", "packaging", "fastembed", "LanceDB", "SQLite", "tooling (Python 3.13, uv, ruff, pytest, mkdocs)"],
+  "cross_refs": ["ADR-021", "ADR-002-slim-core-extras.md"],
+  "locked": true,
+  "precedence": null,
+  "notes": ""
+}

@@ -1,0 +1,29 @@
+{
+  "source_path": "D:/mem/memspine/docs/adr/ADR-025-postgres-storage.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "ADR-025 — PostgreSQL storage backend + dialect-neutral SqlStorage base",
+  "summary": "Adds a PostgreSQL storage backend via a shared dialect-neutral SqlStorage base so the event log and read model run identically on SQLite and Postgres.",
+  "scope": [
+    "SqlStorage base",
+    "SQLiteStorage",
+    "PostgresStorage",
+    "PostgresClient",
+    "psycopg3",
+    "StorageConfig",
+    "event log",
+    "relational read model",
+    "Alembic migrations",
+    "FTS5 lexical provider",
+    "sqlite_adjacency graph provider"
+  ],
+  "cross_refs": [
+    "ADR-021",
+    "D-36",
+    "D-45",
+    "D-10"
+  ],
+  "locked": true,
+  "precedence": null
+}

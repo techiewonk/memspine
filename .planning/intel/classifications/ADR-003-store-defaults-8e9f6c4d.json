@@ -1,0 +1,12 @@
+{
+  "source_path": "D:/mem/memspine/docs/adr/ADR-003-store-defaults.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "ADR-003 — Store defaults: SQLite · LanceDB · LadybugDB · LMDB",
+  "summary": "Decides embedded, zero-server default stores: SQLite core, LanceDB vectors, LadybugDB/kuzu graph, LMDB cache.",
+  "scope": ["SQLite", "LanceDB", "LadybugDB", "kuzu", "sqlite_adjacency", "LMDB", "FTS5", "vector store", "graph store", "lexical port"],
+  "cross_refs": ["DEPENDENCY_ANALYSIS.md", "ADR-021"],
+  "locked": true,
+  "precedence": null
+}

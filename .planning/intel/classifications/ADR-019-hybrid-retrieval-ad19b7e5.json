@@ -1,0 +1,28 @@
+{
+  "source_path": "D:/mem/memspine/docs/adr/ADR-019-hybrid-retrieval.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "ADR-019 — Hybrid retrieval: lexical BM25 port + RRF fusion (L1)",
+  "summary": "Records the hybrid-retrieval decision: an opt-in lexical BM25 port fused with the vector leg via normalized RRF, plus L1 hardening.",
+  "scope": [
+    "hybrid retrieval",
+    "lexical BM25 port (services/lexical)",
+    "SQLiteFTS5Lexical",
+    "TantivyLexical",
+    "RRF fusion",
+    "LexicalProjector",
+    "Engine.search",
+    "verify_forget",
+    "corpus cache generation counter",
+    "query/content sanitization"
+  ],
+  "cross_refs": [
+    "ADR-017",
+    "ADR-018",
+    "D-25",
+    "D-53"
+  ],
+  "locked": true,
+  "precedence": null
+}

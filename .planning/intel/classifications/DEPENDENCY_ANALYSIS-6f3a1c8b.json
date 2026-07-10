@@ -1,0 +1,13 @@
+{
+  "source_path": "D:/mem/memspine/docs/DEPENDENCY_ANALYSIS.md",
+  "type": "DOC",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "Dependency Analysis — code-level scan of D:\\mem for memspine adoption",
+  "summary": "Cross-ecosystem scan inventorying dependencies across repos, describing what each package does, and mapping candidates to memspine's blueprint slots.",
+  "scope": ["dependency selection", "vector store", "graph DB", "embedder", "LLM gateway", "chunking/ingest", "structured output", "observability", "package catalog"],
+  "cross_refs": ["./ECOSYSTEM_COMPARISON.md", "./ARCHITECTURE_FLOWS.md", "memspine-structure-plan.md"],
+  "locked": false,
+  "precedence": null,
+  "notes": ""
+}

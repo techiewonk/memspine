@@ -1,0 +1,13 @@
+{
+  "source_path": "D:/mem/memspine/docs/adr/ADR-021-lancedb-core-vector.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "ADR-021 — LanceDB as sole core vector store",
+  "summary": "Makes LanceDB a core (non-extra) dependency and removes the SQLite brute-force vector store as the sole vector backend.",
+  "scope": ["LanceDB", "vector store", "SQLite brute-force vector store", "E4 quantization", "SQLite FTS5 lexical", "profile=simple"],
+  "cross_refs": ["ADR-020", "docs/memspine-structure-plan.md", "schema.py"],
+  "locked": true,
+  "precedence": null,
+  "notes": ""
+}

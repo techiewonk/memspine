@@ -1,0 +1,13 @@
+{
+  "source_path": "D:/mem/memspine/docs/adr/ADR-007-public-oss-posture.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "ADR-007 — Public OSS from day one: semver, conservative schema, docs+ADRs",
+  "summary": "Decision to ship memspine as public open-source from day one with Apache-2.0, semver, additive schema, and mkdocs+ADR discipline.",
+  "scope": ["licensing", "semver/versioning", "public API (memspine.Engine)", "database schema/DDL", "docs (mkdocs-material)", "ADR register", "evals packaging"],
+  "cross_refs": ["docs/adr/"],
+  "locked": true,
+  "precedence": null,
+  "notes": ""
+}

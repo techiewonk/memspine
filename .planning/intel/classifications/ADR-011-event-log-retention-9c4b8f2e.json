@@ -1,0 +1,13 @@
+{
+  "source_path": "D:/mem/memspine/docs/adr/ADR-011-event-log-retention.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "ADR-011 — Configurable event-log retention: full / rolling / ephemeral + zstd",
+  "summary": "Introduces event_log.mode (full/rolling/ephemeral) plus zstd compression to bound append-only event-log storage without silently breaking rebuild/audit guarantees.",
+  "scope": ["memory_events log", "event_log.mode", "prune_events", "zstd compression", "StorageService.can_rebuild", "Engine.rebuild", "audit taint"],
+  "cross_refs": ["ADR-001", "E1", "D-32", "D-45"],
+  "locked": true,
+  "precedence": null,
+  "notes": ""
+}

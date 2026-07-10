@@ -1,0 +1,13 @@
+{
+  "source_path": "D:/mem/memspine/docs/adr/ADR-000-template.md",
+  "type": "DOC",
+  "confidence": "medium",
+  "manifest_override": false,
+  "title": "ADR-NNN — <short title>",
+  "summary": "Boilerplate ADR template defining the structure (Context/Decision/Consequences/Alternatives) for future architecture decision records.",
+  "scope": ["ADR format", "decision record structure", "documentation template"],
+  "cross_refs": ["../memspine-structure-plan.md", "../DEPENDENCY_ANALYSIS.md"],
+  "locked": false,
+  "precedence": null,
+  "notes": "Lives under docs/adr/ (strong ADR path signal) and contains ADR section headers, but it is an empty template with placeholder title and status (proposed | accepted | superseded). No actual decision content, so classified DOC not ADR. Not locked."
+}

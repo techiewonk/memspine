@@ -1,0 +1,13 @@
+{
+  "source_path": "D:/mem/memspine/docs/adr/ADR-022-shared-cache-backends.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "ADR-022 — Shared, pluggable KV cache (memory / LMDB / Redis / Valkey)",
+  "summary": "Decision to inject a single pluggable KVCache backend (memory/LMDB/Redis/Valkey) shared across the embedding and extractor caches.",
+  "scope": ["KVCache", "CacheConfig", "MemoryKV", "LmdbClient", "RedisClient", "CachedEmbedding", "CachedExtractor", "services/cache"],
+  "cross_refs": ["services/cache/base.py", "clients/lmdb.py", "clients/redis.py", "services/cache/lmdb_cache.py", "redis_cache.py"],
+  "locked": true,
+  "precedence": null,
+  "notes": ""
+}
