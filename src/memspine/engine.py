@@ -22,7 +22,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Self, TypeVar, cast
 
-from memspine.clients.http import HTTPClient
 from memspine.clients.kuzu import KuzuClient
 from memspine.clients.ladybug import LadybugClient
 from memspine.clients.lancedb import LanceDBClient
@@ -100,7 +99,6 @@ from memspine.services.lexical.base import LexicalStore, rrf_fuse
 from memspine.services.lexical.projector import LexicalProjector
 from memspine.services.lexical.sqlite_fts5 import SQLiteFTS5Lexical
 from memspine.services.llm.base import LLMRouter, LLMService
-from memspine.services.llm.local import OpenAICompatLLM
 from memspine.services.rerank.base import Reranker, concat_background
 from memspine.services.secrets.base import SecretsService
 from memspine.services.secrets.chained import ChainedSecrets
@@ -195,7 +193,6 @@ class Engine:
         self._enabled: set[str] = set()
         self._auto_enabled: list[str] = []
         self._client: SQLiteClient | None = None
-        self._http: HTTPClient | None = None
         self._lance: LanceDBClient | None = None
         # Per-engine scratch dir for the LanceDB table when the event log is
         # in-memory (storage.path == ":memory:"): a durable on-disk table would
@@ -460,7 +457,6 @@ class Engine:
             await self._graph.close()  # store-held handles; connections close below
         for client in (
             self._client,
-            self._http,
             self._lance,
             self._kuzu,
             self._ladybug,
@@ -1175,6 +1171,18 @@ class Engine:
                 from memspine.services.rerank.flashrank_rerank import FlashrankReranker
 
                 self._reranker = FlashrankReranker()
+            elif mode == "litellm":
+                rerank_model = self._config().read.rerank_model
+                if not rerank_model:
+                    # A misconfigured cloud rerank must degrade like any other
+                    # unavailable adapter (caught below → skip-log, sticky), not
+                    # crash retrieval; name the fix in the raised message.
+                    raise MissingServiceError(
+                        "services.rerank.litellm (set read.rerank_model)", extra="litellm"
+                    )
+                from memspine.services.rerank.litellm_rerank import LiteLLMReranker
+
+                self._reranker = LiteLLMReranker(rerank_model)
         except Exception as exc:
             # COR-3/ADR-018: not just ImportError/MissingServiceError — a
             # cross-encoder constructor can raise OSError (model download),
@@ -2112,9 +2120,24 @@ class Engine:
             from memspine.services.embedding.static_local import StaticEmbedder
 
             return StaticEmbedder(model=config.embedding.model)
+        if config.embedding.provider == "litellm":
+            if config.embedding.dim is None:
+                raise ConfigError(
+                    "embedding.dim is required when embedding.provider='litellm' — "
+                    "a cloud embedder's output dimension is not locally discoverable"
+                )
+            from memspine.services.embedding.litellm_embed import LiteLLMEmbedding
+
+            return LiteLLMEmbedding(
+                config.embedding.model,
+                config.embedding.dim,
+                api_base=config.embedding.api_base,
+                api_key=config.embedding.api_key,
+                aws_region=config.embedding.aws_region,
+            )
         raise ConfigError(
             f"unknown embedding.provider {config.embedding.provider!r} "
-            "(valid: fastembed, hash, static)"
+            "(valid: fastembed, hash, static, litellm)"
         )
 
     def _rescore_settings(self, config: MemspineConfig) -> tuple[str | None, int | None]:
@@ -2277,32 +2300,31 @@ class Engine:
         return config.storage.path == ":memory:"
 
     async def _build_llm_router(self, config: MemspineConfig) -> LLMRouter:
+        """Route each role by its ``model`` prefix (D-33). ``llamacpp/<path>``
+        binds the in-process :class:`LlamaCppLLM` (``[llmlocal]``); every other
+        model id — ``openai/…``, ``ollama/…``, ``bedrock/…``, ``vertex_ai/…`` —
+        goes through the unified LiteLLM adapter. litellm is imported lazily so a
+        default engine with no LLM role never pays its import cost."""
         providers: dict[str, LLMService] = {}
-        has_openai_role = any(
-            role_config.provider == "openai_compat" for role_config in config.llm.roles.values()
-        )
-        if has_openai_role:
-            # One shared pool; each provider enforces its own per-role timeout
-            # per request (a role's 5s fail-fast must not inherit chat's 300s).
-            self._http = HTTPClient()
-            await self._http.connect()
         for role, role_config in config.llm.roles.items():
-            if role_config.provider == "openai_compat":
-                assert self._http is not None
-                providers[role] = OpenAICompatLLM(
-                    self._http,
-                    base_url=role_config.base_url,
-                    model=role_config.model,
-                    api_key=role_config.api_key,
-                    timeout_seconds=role_config.timeout_seconds,
-                )
-            elif role_config.provider == "llama_cpp":
+            model = role_config.model
+            if model.startswith("llamacpp/"):
                 from memspine.services.llm.llama_cpp import LlamaCppLLM
 
-                providers[role] = LlamaCppLLM(model_path=role_config.model)
+                providers[role] = LlamaCppLLM(model_path=model[len("llamacpp/") :])
+            elif model:
+                from memspine.services.llm.litellm_llm import LiteLLMLLM
+
+                providers[role] = LiteLLMLLM(
+                    model,
+                    api_base=role_config.api_base,
+                    api_key=role_config.api_key,
+                    aws_region=role_config.aws_region,
+                    timeout_seconds=role_config.timeout_seconds,
+                )
             else:
                 raise ConfigError(
-                    f"unknown llm provider {role_config.provider!r} for role {role!r} "
-                    "(valid in P1: openai_compat, llama_cpp; bedrock lands with [aws])"
+                    f"llm.roles.{role}.model is required — a LiteLLM model id "
+                    "(e.g. openai/gpt-4o, ollama/llama3, bedrock/...) or llamacpp/<path>"
                 )
         return LLMRouter(providers)

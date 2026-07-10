@@ -56,8 +56,14 @@ class EmbeddingConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    provider: str = "fastembed"  # fastembed | hash | static
+    provider: str = "fastembed"  # fastembed | hash | static | litellm
     model: str = "BAAI/bge-small-en-v1.5"
+    #: REQUIRED when provider=litellm — a cloud embedder's output dimension is
+    #: not locally discoverable, and the vector store needs it up front.
+    dim: int | None = None
+    api_base: str | None = None
+    api_key: str | None = None
+    aws_region: str | None = None  # bedrock
 
 
 class VectorConfig(BaseModel):
@@ -99,15 +105,22 @@ class GraphConfig(BaseModel):
 
 
 class LLMRoleConfig(BaseModel):
-    """One provider binding per role (D-07/D-22). The default base_url is the
-    Ollama endpoint; any OpenAI-compatible host works unchanged (D-39)."""
+    """One provider binding per role (D-07/D-22/D-33), routed through LiteLLM.
+
+    ``model`` is a LiteLLM model id whose **prefix selects the provider**:
+    ``openai/gpt-4o``, ``ollama/llama3`` (local — set ``api_base``, e.g.
+    ``http://localhost:11434``), ``bedrock/anthropic.claude-3-5-sonnet-...``
+    (set ``aws_region`` or rely on the boto3 credential chain),
+    ``vertex_ai/gemini-...``, ``azure/...``, etc. The special prefix
+    ``llamacpp/<path-to.gguf>`` routes to the in-process
+    :class:`LlamaCppLLM` (``[llmlocal]``) instead of LiteLLM."""
 
     model_config = ConfigDict(extra="forbid")
 
-    provider: str = "openai_compat"  # openai_compat | llama_cpp | bedrock
-    base_url: str = "http://localhost:11434/v1"
     model: str = ""
+    api_base: str | None = None  # local endpoint override (e.g. Ollama, vLLM)
     api_key: str | None = None
+    aws_region: str | None = None  # bedrock
     timeout_seconds: float = 60.0
 
 
@@ -180,7 +193,10 @@ class ReadConfig(BaseModel):
 
     scoring: dict[str, Any] = Field(default_factory=dict)
     assembly: dict[str, Any] = Field(default_factory=dict)
-    rerank: str = "off"
+    rerank: str = "off"  # off | fastembed | flashrank | litellm
+    #: LiteLLM rerank model id, required when rerank=litellm
+    #: (e.g. cohere/rerank-english-v3.0, bedrock/amazon.rerank-v1:0).
+    rerank_model: str | None = None
     static_prefilter: bool = False
     static_embedding_prefilter: bool = False
     hybrid: bool = False

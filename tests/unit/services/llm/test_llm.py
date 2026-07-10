@@ -1,51 +1,73 @@
-"""LLM port: router, OpenAI-compatible provider (MockTransport), json repair."""
+"""LLM port: router, LiteLLM provider (mocked), json repair, llama.cpp guard."""
 
 from __future__ import annotations
 
-import httpx
+from typing import Any
+
 import pytest
 
-from memspine.clients.http import HTTPClient
 from memspine.exceptions import ConfigError, LLMError, MissingServiceError
 from memspine.services.llm.base import LLMRouter, lenient_json
-from memspine.services.llm.local import OpenAICompatLLM
+from memspine.services.llm.litellm_llm import LiteLLMLLM
 
 
-def mock_http(handler: httpx.MockTransport) -> HTTPClient:
-    return HTTPClient(transport=handler)
+class _Msg:
+    def __init__(self, content: str | None) -> None:
+        self.content = content
 
 
-async def test_openai_compat_happy_path_and_auth_header() -> None:
-    seen: dict[str, str] = {}
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        seen["url"] = str(request.url)
-        seen["auth"] = request.headers.get("Authorization", "")
-        return httpx.Response(
-            200, json={"choices": [{"message": {"content": "hello from ollama"}}]}
-        )
-
-    http = mock_http(httpx.MockTransport(handler))
-    await http.connect()
-    llm = OpenAICompatLLM(http, "http://localhost:11434/v1", "llama3", api_key="sk-x")
-    reply = await llm.chat([{"role": "user", "content": "hi"}])
-    assert reply == "hello from ollama"
-    assert seen["url"] == "http://localhost:11434/v1/chat/completions"
-    assert seen["auth"] == "Bearer sk-x"
+class _Choice:
+    def __init__(self, content: str | None) -> None:
+        self.message = _Msg(content)
 
 
-async def test_http_error_and_bad_shape_raise_llm_error() -> None:
-    http = mock_http(httpx.MockTransport(lambda _req: httpx.Response(500, text="boom")))
-    await http.connect()
-    llm = OpenAICompatLLM(http, "http://x/v1", "m")
-    with pytest.raises(LLMError, match="500"):
+class _Response:
+    def __init__(self, content: str | None) -> None:
+        self.choices = [_Choice(content)]
+
+
+async def test_litellm_chat_passes_model_and_options(monkeypatch: pytest.MonkeyPatch) -> None:
+    import litellm
+
+    seen: dict[str, Any] = {}
+
+    async def fake_acompletion(**kwargs: Any) -> _Response:
+        seen.update(kwargs)
+        return _Response("hello from the cloud")
+
+    monkeypatch.setattr(litellm, "acompletion", fake_acompletion)
+    llm = LiteLLMLLM("bedrock/anthropic.claude-3", aws_region="us-east-1", api_base="http://x")
+    reply = await llm.chat([{"role": "user", "content": "hi"}], temperature=0.2)
+    assert reply == "hello from the cloud"
+    assert seen["model"] == "bedrock/anthropic.claude-3"
+    assert seen["aws_region_name"] == "us-east-1"
+    assert seen["api_base"] == "http://x"
+    assert seen["temperature"] == 0.2  # extra options forwarded
+    assert llm.provider_id == "litellm:bedrock/anthropic.claude-3"
+
+
+async def test_litellm_wraps_provider_errors(monkeypatch: pytest.MonkeyPatch) -> None:
+    import litellm
+
+    async def boom(**_kwargs: Any) -> _Response:
+        raise RuntimeError("429 rate limited")
+
+    monkeypatch.setattr(litellm, "acompletion", boom)
+    llm = LiteLLMLLM("openai/gpt-4o")
+    with pytest.raises(LLMError, match="litellm chat failed"):
         await llm.chat([{"role": "user", "content": "hi"}])
 
-    http2 = mock_http(httpx.MockTransport(lambda _req: httpx.Response(200, json={"odd": 1})))
-    await http2.connect()
-    llm2 = OpenAICompatLLM(http2, "http://x/v1", "m")
-    with pytest.raises(LLMError, match="unexpected response shape"):
-        await llm2.chat([{"role": "user", "content": "hi"}])
+
+async def test_litellm_empty_content_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    import litellm
+
+    async def none_content(**_kwargs: Any) -> _Response:
+        return _Response(None)
+
+    monkeypatch.setattr(litellm, "acompletion", none_content)
+    llm = LiteLLMLLM("openai/gpt-4o")
+    with pytest.raises(LLMError, match="empty content"):
+        await llm.chat([{"role": "user", "content": "hi"}])
 
 
 def test_router_names_missing_role() -> None:
@@ -55,7 +77,7 @@ def test_router_names_missing_role() -> None:
 
 
 def test_lenient_json_repairs_llm_output() -> None:
-    # trailing comma + unquoted key + missing brace: classic LLM near-JSON
+    # trailing comma + missing brace: classic LLM near-JSON
     assert lenient_json('{"facts": ["a", "b",], "count": 2') == {
         "facts": ["a", "b"],
         "count": 2,

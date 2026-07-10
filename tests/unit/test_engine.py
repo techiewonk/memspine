@@ -204,13 +204,13 @@ async def test_failed_start_leaks_nothing() -> None:
         template="base",
         dotenv_path=None,
         storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
-        llm={"roles": {"chat": {"provider": "bogus"}}},
+        # A mid-start ConfigError (unknown embedder) fires AFTER the storage
+        # client connects, exercising the teardown-on-failure leak path.
+        embedding={"provider": "bogus"},
     )
     with pytest.raises(Exception, match="bogus"):
         await eng.start()
     assert eng._client is None or not await eng._client.health()
-    assert eng._http is None or not await eng._http.health()
 
 
 async def test_semantic_pipeline_dedups_and_resolves_conflicts(engine: Engine) -> None:

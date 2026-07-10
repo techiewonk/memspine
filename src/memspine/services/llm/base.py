@@ -52,6 +52,6 @@ class LLMRouter:
         if provider is None:
             raise ConfigError(
                 f"no LLM provider bound for role {role!r} — add llm.roles.{role} "
-                "to your config (any OpenAI-compatible endpoint works, D-39)"
+                "to your config (a LiteLLM model id: openai/…, ollama/…, bedrock/…, D-33)"
             )
         return provider
