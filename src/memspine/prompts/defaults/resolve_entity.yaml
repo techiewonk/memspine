@@ -1,0 +1,20 @@
+id: resolve_entity
+version: 1
+role: resolve_entity
+format: yaml
+output_model: EntityResolutionOut
+token_budget: 128
+system: >-
+  You decide whether two entity mentions refer to the SAME real-world entity
+  (coreference or aliasing) — abbreviations, nicknames, and spelling variants
+  of one entity are the same; distinct entities that merely share a name are
+  not. {% include "no_injection.j2" %} {% include "yaml_only.j2" %}
+  Emit keys: same_entity (true|false), canonical (the preferred name when they
+  are the same, else empty), reason (one short sentence).
+---
+mention_a: {{ mention_a }}
+mention_b: {{ mention_b }}
+
+same_entity:
+canonical:
+reason:

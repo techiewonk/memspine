@@ -14,6 +14,9 @@ __all__ = [
     "ConsolidatedFact",
     "ConsolidatedFacts",
     "DuplicateVerdictOut",
+    "EntityResolutionOut",
+    "ExtractedEdge",
+    "ExtractedEdges",
     "ExtractedFact",
     "ExtractedFacts",
     "Insight",
@@ -53,6 +56,29 @@ class Insights(BaseModel):
     insights: list[Insight] = Field(default_factory=list)
 
 
+class ExtractedEdge(BaseModel):
+    """A relationship edge between two entities (C1, graphiti-style writes)."""
+
+    src_entity: str
+    rel: str  # a short verb-phrase slug, e.g. "works_at"
+    dst_entity: str
+    fact: str  # the sentence asserting the edge (provenance for the context window)
+    valid_from: str | None = None  # ISO date if the text states one
+    confidence: float = 1.0
+
+
+class ExtractedEdges(BaseModel):
+    edges: list[ExtractedEdge] = Field(default_factory=list)
+
+
+class EntityResolutionOut(BaseModel):
+    """Coreference/aliasing verdict for two entity mentions (C1)."""
+
+    same_entity: bool
+    canonical: str = ""  # preferred name when same_entity is true
+    reason: str = ""
+
+
 class ConflictVerdictOut(BaseModel):
     verdict: str  # add | update | invalidate | noop
     reason: str = ""
@@ -70,9 +96,11 @@ class InstructionFlagOut(BaseModel):
 
 OUTPUT_MODELS: dict[str, type[BaseModel]] = {
     "ExtractedFacts": ExtractedFacts,
+    "ExtractedEdges": ExtractedEdges,
     "ConsolidatedFacts": ConsolidatedFacts,
     "Insights": Insights,
     "ConflictVerdictOut": ConflictVerdictOut,
     "DuplicateVerdictOut": DuplicateVerdictOut,
+    "EntityResolutionOut": EntityResolutionOut,
     "InstructionFlagOut": InstructionFlagOut,
 }

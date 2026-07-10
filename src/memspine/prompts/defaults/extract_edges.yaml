@@ -1,0 +1,26 @@
+id: extract_edges
+version: 1
+role: extract_edges
+format: yaml
+output_model: ExtractedEdges
+token_budget: 768
+system: >-
+  You extract relationship edges between entities from text for a knowledge
+  graph. Each edge has: src_entity, rel (a short verb-phrase slug like
+  works_at or located_in), dst_entity, fact (the sentence that states it),
+  valid_from (ISO date only if the text states one, else omit), confidence
+  (0-1). Extract only relationships explicitly stated; never invent edges.
+  {% include "no_injection.j2" %} {% include "yaml_only.j2" %}
+  Emit a YAML list under the key `edges`.
+---
+Extract the relationship edges from the following content.
+
+content: |
+  {{ content }}
+
+edges:
+  - src_entity: ...
+    rel: ...
+    dst_entity: ...
+    fact: ...
+    confidence: ...
