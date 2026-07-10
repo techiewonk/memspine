@@ -150,12 +150,19 @@ class PromptsConfig(BaseModel):
     ``partials`` (B1) supplies override fragments for the shared Jinja
     ``{% include %}`` partials (anti-injection block, output footer, format
     instructions): ``prompts.partials.<name>`` maps a partial name to its
-    replacement text, consulted before the shipped ``_partials/`` directory."""
+    replacement text, consulted before the shipped ``_partials/`` directory.
+
+    ``selection`` (B2) pins per-role default scenario selectors:
+    ``prompts.selection.<role>`` is a map with optional ``memory_type`` /
+    ``condition`` keys, merged into every ``select(role)`` query the caller
+    doesn't override — so a deployment can force a scenario variant of a role's
+    prompt without a code change."""
 
     model_config = ConfigDict(extra="forbid")
 
     overrides: dict[str, dict[str, Any]] = Field(default_factory=dict)
     partials: dict[str, str] = Field(default_factory=dict)
+    selection: dict[str, dict[str, str]] = Field(default_factory=dict)
 
 
 class WorkersConfig(BaseModel):

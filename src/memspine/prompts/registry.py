@@ -9,6 +9,7 @@ always see a changed identity for changed content.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from typing import Any
 
 from jinja2 import Environment
@@ -30,12 +31,26 @@ class PromptRegistry:
         self,
         overrides: dict[str, dict[str, Any]] | None = None,
         partials: dict[str, str] | None = None,
+        selection: dict[str, dict[str, str]] | None = None,
+        extra_prompts: Iterable[Prompt] | None = None,
     ) -> None:
         # One environment per registry (B1): its loader consults the config
         # ``prompts.partials`` overrides before the shipped ``_partials/`` dir.
         self._env: Environment = build_environment(partials)
+        # ``prompts.selection`` (B2): per-role default selectors merged into
+        # every select() query that doesn't override them.
+        self._selection: dict[str, dict[str, str]] = dict(selection or {})
+        for role, sel in self._selection.items():
+            unknown = set(sel) - {"memory_type", "condition"}
+            if unknown:
+                raise ConfigError(
+                    f"prompts.selection.{role}: unknown selector key(s) {sorted(unknown)} "
+                    "(valid: memory_type, condition)"
+                )
         self._prompts: dict[str, Prompt] = {}
         for prompt in load_default_pack():
+            self._prompts[prompt.id] = self._bind(prompt)
+        for prompt in extra_prompts or ():  # programmatic/test-only variants
             self._prompts[prompt.id] = self._bind(prompt)
         self._overridden: set[str] = set()
         for prompt_id, raw in (overrides or {}).items():
@@ -84,8 +99,55 @@ class PromptRegistry:
         return prompt
 
     def for_role(self, role: str) -> Prompt:
-        """The active prompt whose id equals the role name (shipped convention)."""
-        return self.get(role)
+        """The active prompt for a role, honoring any ``prompts.selection``
+        defaults. Kept for callers that don't pass a scenario; equivalent to
+        ``select(role)``."""
+        return self.select(role)
+
+    def select(
+        self,
+        role: str,
+        *,
+        memory_type: str | None = None,
+        condition: str | None = None,
+    ) -> Prompt:
+        """Pick the most-specific prompt for ``role`` given the scenario (B2).
+
+        Variants declare a ``when:`` block; the base prompt (``id == role``) has
+        none and matches everything at specificity 0. A variant is *eligible*
+        only if every field its ``when`` sets equals the corresponding query
+        value; among eligible prompts the highest-specificity one wins. Ties are
+        a config error (two equally-specific variants). With no variants shipped
+        this returns the base prompt — ``profile="simple"`` is unchanged."""
+        defaults = self._selection.get(role, {})
+        query = {
+            "memory_type": memory_type if memory_type is not None else defaults.get("memory_type"),
+            "condition": condition if condition is not None else defaults.get("condition"),
+        }
+        eligible: list[tuple[int, Prompt]] = []
+        for prompt in self._prompts.values():
+            if prompt.role != role:
+                continue
+            when = prompt.when
+            if when is None:
+                eligible.append((0, prompt))
+                continue
+            constraints = {"memory_type": when.memory_type, "condition": when.condition}
+            if all(v is None or query[k] == v for k, v in constraints.items()):
+                eligible.append((when.specificity, prompt))
+        if not eligible:
+            raise ConfigError(
+                f"no prompt for role {role!r}"
+                + (f" matching {query}" if any(query.values()) else "")
+            )
+        best = max(spec for spec, _ in eligible)
+        winners = [p for spec, p in eligible if spec == best]
+        if len(winners) > 1:
+            raise ConfigError(
+                f"ambiguous prompt selection for role {role!r} {query}: "
+                f"{sorted(p.id for p in winners)}"
+            )
+        return winners[0]
 
     def list(self) -> list[Prompt]:
         return sorted(self._prompts.values(), key=lambda p: p.id)

@@ -114,7 +114,7 @@ Mirascope/BAML/DSPy/guidance/LangChain-hub/banks/Prompt-Poet/priompt/Promptify a
 | A5 | A · Quick wins | **Reinforcement on read** — additive salience (`utility += step`) in `_apply_retrieve` | 🏗 | — | — | 🟢 | ☑ |
 | A6 | A · Quick wins | Expose **graspologic Leiden** knobs (`min_size`/`resolution`/`randomness`/`seed`) + compression `compress_tiers`/rate as config | 🔧 | — | — | 🟢 | ☑ |
 | B1 | B · Prompts | Jinja **loader + partials** (`_partials/`); fingerprint partials into `prompt_version` | 🏗 | amends D-43 (ADR-009) | — | 🟡 | ☑ |
-| B2 | B · Prompts | **Scenario/conditional selection** — `(role, selector)` key, `<role>@<scenario>` variants, `select()` + role fallback | 🏗 | amends D-43 | — | 🟡 | ☐ |
+| B2 | B · Prompts | **Scenario/conditional selection** — `(role, selector)` key, `<role>@<scenario>` variants, `select()` + role fallback | 🏗 | amends D-43 (ADR-009) | — | 🟡 | ☑ |
 | B3 | B · Prompts | **Enhance all 10 prompts** — anti-injection framing, `output_model`+lean `format`, split double-duty into variants | 🏗 | — | B1,B2 | 🟢 | ☐ |
 | B4 | B · Prompts | **Prompt test harness** — golden renders, output-model round-trip, selector coverage, lint | 🏗 | amends D-43 | B1,B2 | 🟢 | ☐ |
 | C1 | C · Multi-call | New roles + output models: `extract_edges`, `resolve_entity`, `invalidate_edge`, reflexion round | 🏗 | — | B2 | 🟡 | ☐ |

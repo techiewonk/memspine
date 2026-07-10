@@ -5,6 +5,7 @@
 - **Decision id:** D-43
 - **Phase:** P2 · **Tier:** DF
 - **Amended:** 2026-07-10 (v0.2 B1) — Jinja partials + fingerprinted version; see *B1* below.
+- **Amended:** 2026-07-10 (v0.2 B2) — `(role, selector)` keying + scenario variants; see *B2* below.
 
 ## Context
 
@@ -37,6 +38,22 @@ folds a digest of the partials each prompt transitively includes into
 exactly as a body edit does. Prompts that include no partials keep the bare
 `<id>@<version>` identity. This extends, and does not break, the D-43 contract:
 the version-in-cache-key and version-in-provenance invariants still hold.
+
+## Amendment — B2: scenario keying + conditional selection (v0.2)
+
+The registry key generalizes from a bare `id` to `(role, selector)`. A role may
+now have scenario *variants* shipped as `<role>@<scenario>.yaml` files carrying a
+`when:` block (`memory_type` and/or `condition`); the base prompt (`id == role`)
+has no `when` and matches everything at specificity 0. `registry.select(role,
+memory_type=…, condition=…)` returns the most-specific eligible prompt — a
+variant is eligible only if every constraint its `when` sets equals the query —
+falling back to the base; two equally-specific matches are a config error.
+`for_role(role)` now delegates to `select(role)`, so existing call sites keep
+working and automatically honor a new `prompts.selection.<role>` config layer
+that pins per-role default selectors. With no variants in the shipped pack the
+base always wins, so `profile="simple"` is byte-identical. B3 populates the
+actual variants (judge cheap/arbiter, extract short-text/document, summarize
+length tiers); C's scenario-conditioned write prompts depend on this keying.
 
 ## Alternatives rejected
 

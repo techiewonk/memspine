@@ -369,7 +369,9 @@ class Engine:
         )
         # Prompt pack resolution (§4 step 2, D-43): defaults + config overrides.
         self._prompts = PromptRegistry(
-            overrides=config.prompts.overrides, partials=config.prompts.partials
+            overrides=config.prompts.overrides,
+            partials=config.prompts.partials,
+            selection=config.prompts.selection,
         )
         if "semantic" in self._enabled:
             semantic_policies = self._memory_policy(config, "semantic")

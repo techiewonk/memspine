@@ -26,7 +26,7 @@ from pydantic import BaseModel, ConfigDict, PrivateAttr
 from memspine.exceptions import ConfigError
 from memspine.prompts.env import default_environment
 
-__all__ = ["Prompt", "PromptFormat", "parse_prompt_text"]
+__all__ = ["Prompt", "PromptFormat", "PromptWhen", "parse_prompt_text"]
 
 
 class PromptFormat(StrEnum):
@@ -34,6 +34,23 @@ class PromptFormat(StrEnum):
     YAML = "yaml"  # E9: ~half the output tokens of JSON
     COD = "cod"  # Chain-of-Draft (E9)
     TEXT = "text"
+
+
+class PromptWhen(BaseModel):
+    """Scenario selector for a prompt variant (B2). A variant file
+    (``<role>@<scenario>.yaml``) declares the conditions under which it should be
+    picked over the role's base prompt; a base prompt has no ``when``. Each set
+    field is a match constraint — the more set fields that match a ``select()``
+    query, the more specific (and preferred) the variant."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    memory_type: str | None = None  # match a specific memory type (episodic/…)
+    condition: str | None = None  # a named scenario the caller passes explicitly
+
+    @property
+    def specificity(self) -> int:
+        return sum(v is not None for v in (self.memory_type, self.condition))
 
 
 class Prompt(BaseModel):
@@ -45,6 +62,7 @@ class Prompt(BaseModel):
     format: PromptFormat = PromptFormat.TEXT
     output_model: str | None = None  # pydantic model name -> instructor (D-31)
     token_budget: int | None = None
+    when: PromptWhen | None = None  # scenario selector (B2); None => role base
     system: str | None = None
     body: str
 
