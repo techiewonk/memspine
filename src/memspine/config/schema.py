@@ -239,26 +239,26 @@ class NamespaceConfig(BaseModel):
 
 
 class CacheConfig(BaseModel):
-    """KV cache selection (D-09, Phase 2). One cache is built and shared by the
-    embedding (E3) and extraction (E3) caches — the ``emb:``/``ext:`` producer
-    key prefixes already keep them from colliding in a shared store.
+    """KV cache selection (D-09, ADR-022 amendment). One cache is built and shared
+    by the embedding (E3) and extraction (E3) caches — the ``emb:``/``ext:``
+    producer key prefixes already keep them from colliding in a shared store.
 
-    - ``memory`` (default): in-process :class:`MemoryKV`, zero-dep, per-process.
-    - ``lmdb`` (``[lmdb]``): persistent single-process cache at ``path`` (a
-      directory); survives restarts, TTL via lazy expiry.
-    - ``redis`` (``[redis]``) / ``valkey`` (``[valkey]``): shared cross-process
-      cache at ``url``; native ``EX`` TTL. The two are wire-compatible — either
-      client library serves either backend.
+    - ``memory`` (default): in-process :class:`MemoryKV`, zero-dep core (slim-core
+      D-03 keeps this hand-rolled — cashews never imports into core).
+    - ``disk`` (``[cache]``): persistent on-disk cache (cashews → diskcache) at
+      ``path`` (a directory); survives restarts.
+    - ``redis`` / ``valkey`` (``[cache]``): shared cross-process cache at ``url``
+      (cashews → redis-py; valkey is redis-wire-compatible), native TTL.
 
     ``namespace`` prefixes every key so multiple memspine instances can share
-    one lmdb env / redis server safely. ``default_ttl_seconds`` (``None`` = no
+    one disk dir / redis server safely. ``default_ttl_seconds`` (``None`` = no
     expiry) applies when a caller does not pass an explicit TTL. ``url`` is
-    secrets-resolved once the pluggable secrets tier lands (Phase 3)."""
+    secrets-resolved by the config loader (Phase 3)."""
 
     model_config = ConfigDict(extra="forbid")
 
-    backend: str = "memory"  # memory | lmdb | redis | valkey
-    path: str = "./memspine.cache.lmdb"  # lmdb env directory
+    backend: str = "memory"  # memory | disk | redis | valkey (disk/redis/valkey via cashews)
+    path: str = "./memspine.cache"  # disk cache directory
     url: str = "redis://localhost:6379/0"  # redis/valkey DSN
     namespace: str = "memspine"
     default_ttl_seconds: float | None = None

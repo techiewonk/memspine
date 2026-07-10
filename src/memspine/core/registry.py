@@ -58,7 +58,7 @@ REQUIRED_SERVICES: dict[str, frozenset[str]] = {}
 SERVICE_EXTRAS: dict[str, str] = {
     "vector": "lance",
     "graph": "graph",
-    "cache": "lmdb",
+    "cache": "cache",
     "rest": "rest",
 }
 

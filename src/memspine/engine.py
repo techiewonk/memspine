@@ -22,12 +22,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Self, TypeVar, cast
 
+from memspine.clients.cashews import CashewsClient
 from memspine.clients.kuzu import KuzuClient
 from memspine.clients.ladybug import LadybugClient
 from memspine.clients.lancedb import LanceDBClient
-from memspine.clients.lmdb import LmdbClient
 from memspine.clients.postgres import PostgresClient
-from memspine.clients.redis import RedisClient
 from memspine.clients.sqlite import SQLiteClient
 from memspine.config import constants
 from memspine.config.loader import ResolvedConfig, load_config
@@ -208,8 +207,7 @@ class Engine:
         self._ladybug: LadybugClient | None = None
         # Phase 2: one shared KV cache + the optional clients backing it.
         self._cache: KVCache | None = None
-        self._lmdb: LmdbClient | None = None
-        self._redis_client: RedisClient | None = None
+        self._cashews: CashewsClient | None = None  # [cache]: disk/redis/valkey
         self._storage: SqlStorage | None = None
         self._projectors: list[Projector] = []
         self._embedder: EmbeddingService | None = None
@@ -460,8 +458,7 @@ class Engine:
             self._lance,
             self._kuzu,
             self._ladybug,
-            self._lmdb,
-            self._redis_client,
+            self._cashews,
         ):
             if client is not None:
                 await client.close()
@@ -2162,35 +2159,29 @@ class Engine:
         raise ConfigError(f"unknown storage.backend {backend!r} (valid: sqlite, postgres)")
 
     async def _build_cache(self, config: MemspineConfig) -> KVCache:
-        """Build the one shared KV cache (Phase 2, D-09). ``memory`` is the
-        zero-dep default; ``lmdb`` persists to a local env; ``redis``/``valkey``
-        share a server across processes. Missing extras hard-fail with the D-10
-        error naming the extra (raised by the client on ``connect()``)."""
+        """Build the one shared KV cache (D-09, ADR-022 amendment). ``memory`` is
+        the zero-dep :class:`MemoryKV` core default; ``disk``/``redis``/``valkey``
+        go through **cashews** (`[cache]` extra) — on-disk (diskcache) or a shared
+        server. A missing extra hard-fails with the D-10 error (raised by the
+        client on ``connect()``)."""
         cache = config.cache
         backend = cache.backend
         if backend == "memory":
             return MemoryKV(max_entries=cache.max_entries)
-        if backend == "lmdb":
-            from memspine.services.cache.lmdb_cache import LmdbCache
+        if backend in ("disk", "redis", "valkey"):
+            from memspine.services.cache.cashews_cache import CashewsCache
 
-            self._lmdb = LmdbClient(cache.path)
-            await self._lmdb.connect()
-            return LmdbCache(
-                self._lmdb,
+            # disk → diskcache dir at cache.path; redis/valkey → cache.url DSN
+            # (valkey is redis-wire-compatible, so it rides the same client).
+            url = f"disk://?directory={cache.path}" if backend == "disk" else cache.url
+            self._cashews = CashewsClient(url)
+            await self._cashews.connect()
+            return CashewsCache(
+                self._cashews,
                 namespace=cache.namespace,
                 default_ttl_seconds=cache.default_ttl_seconds,
             )
-        if backend in ("redis", "valkey"):
-            from memspine.services.cache.redis_cache import RedisCache
-
-            self._redis_client = RedisClient(cache.url, backend=backend)
-            await self._redis_client.connect()
-            return RedisCache(
-                self._redis_client.client,
-                namespace=cache.namespace,
-                default_ttl_seconds=cache.default_ttl_seconds,
-            )
-        raise ConfigError(f"unknown cache.backend {backend!r} (valid: memory, lmdb, redis, valkey)")
+        raise ConfigError(f"unknown cache.backend {backend!r} (valid: memory, disk, redis, valkey)")
 
     async def _build_vector_store(self, config: MemspineConfig) -> VectorStore:
         assert self._embedder is not None

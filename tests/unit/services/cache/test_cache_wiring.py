@@ -47,19 +47,19 @@ async def test_shared_cache_serves_repeat_embeds() -> None:
         await eng.stop()
 
 
-async def test_lmdb_backend_wires_and_closes(tmp_path: Path) -> None:
-    pytest.importorskip("lmdb")
-    from memspine.services.cache.lmdb_cache import LmdbCache
+async def test_disk_backend_wires_and_closes(tmp_path: Path) -> None:
+    pytest.importorskip("cashews")
+    from memspine.services.cache.cashews_cache import CashewsCache
 
-    eng = _engine(cache={"backend": "lmdb", "path": str(tmp_path / "c.lmdb")})
+    eng = _engine(cache={"backend": "disk", "path": str(tmp_path / "cache")})
     await eng.start()
     try:
-        assert eng.describe()["cache"] == "lmdb"
-        assert isinstance(eng._cache, LmdbCache)
-        assert eng._lmdb is not None and await eng._lmdb.health()
+        assert eng.describe()["cache"] == "disk"
+        assert isinstance(eng._cache, CashewsCache)
+        assert eng._cashews is not None and await eng._cashews.health()
     finally:
         await eng.stop()
-    assert eng._lmdb is not None and not await eng._lmdb.health()  # closed on stop()
+    assert eng._cashews is not None and not await eng._cashews.health()  # closed on stop()
 
 
 async def test_unknown_backend_raises_config_error() -> None:

@@ -40,7 +40,7 @@ dependencies = [
 # deliberate follow-up decision for a future ADR, not made here.
 graph      = ["ladybug>=0.18"]                       # default embedded graph adapter (D-26)
 kuzu       = ["kuzu>=0.11"]                         # embedded-Cypher graph alt (D-26)
-lmdb       = ["lmdb>=1.5"]                           # hot cache (D-09)
+cache      = ["cashews[redis,diskcache]>=7.0"]       # unified disk + redis/valkey cache (D-09, ADR-022)
 ingest     = ["markitdown>=0.1", "chonkie>=1.0"]    # multi-format ingest + chunking (D-29)
 structured = ["instructor>=1.9"]                    # schema-validated LLM output (D-31)
 ner        = ["gliner2>=1.2"]                        # local CPU entity extraction (D-28)
@@ -58,15 +58,13 @@ promptopt  = ["langmem>=0.0.20"]                     # RG-only prompt self-optim
 postgres   = ["psycopg[binary]>=3.2", "pgvector>=0.3"]  # storage backend (D-36, psycopg3: sync Alembic + async runtime)
 weaviate   = ["weaviate-client>=4.9"]
 neo4j      = ["neo4j>=5.26"]
-valkey     = ["valkey>=6.0"]                        # shared cross-process cache (D-09)
-redis      = ["redis>=5.0"]                          # shared cross-process cache alt (D-09)
 
 # Convenience bundles
-local      = ["memspine[graph,lmdb,dbos,ingest,ner]"]
+local      = ["memspine[graph,cache,dbos,ingest,ner]"]
 prod-aws   = ["memspine[aws,taskiq,rest]"]
 # NOTE: `community` (graspologic, numpy<2) conflicts with `ingest` (markitdown→magika, numpy>=2.1);
 # declared under [tool.uv] conflicts and excluded from `all` until graspologic supports numpy 2.
-all        = ["memspine[graph,kuzu,lmdb,ingest,structured,ner,compress,llmlocal,tantivy,dbos,taskiq,rest,rerank,static,aws,postgres,weaviate,neo4j,valkey,redis]"]
+all        = ["memspine[graph,kuzu,cache,ingest,structured,ner,compress,llmlocal,tantivy,dbos,taskiq,rest,rerank,static,aws,postgres,weaviate,neo4j]"]
 
 dev = [
     "pytest>=8.3",
@@ -166,10 +164,10 @@ module = [
     "taskiq_redis.*",
     "redis",
     "redis.*",
-    "valkey",
-    "valkey.*",
-    "lmdb",
-    "lmdb.*",
+    "cashews",
+    "cashews.*",
+    "diskcache",
+    "diskcache.*",
     "boto3",
     "boto3.*",
     "botocore",
