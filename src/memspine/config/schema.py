@@ -181,9 +181,17 @@ class ReadConfig(BaseModel):
       and no lexical index is built. Default-on is the intended v0.2 flip
       (D-25's core-default intent), held back only for backward-compat.
     - ``lexical_provider``: which lexical store backs the hybrid leg —
-      ``sqlite_fts5`` (default, zero-dep FTS5/BM25) or ``tantivy`` (standalone
-      Tantivy BM25 index, ``[tantivy]`` extra). Only consulted when ``hybrid``
-      is on; ``profile="simple"`` never builds either.
+      ``sqlite_fts5`` (default, zero-dep FTS5/BM25, rides the storage SQLite
+      client — pick it for single-node/embedded deployments) or ``tantivy``
+      (standalone Tantivy BM25 index, ``[tantivy]`` extra — pick it for larger
+      corpora or when the lexical index should live apart from the db file).
+      Both satisfy the same ``LexicalStore`` port and share ``LexicalProjector``,
+      so they are interchangeable (proven in tests/.../lexical/test_parity.py).
+      Only consulted when ``hybrid`` is on; ``profile="simple"`` never builds
+      either. There is intentionally **no lexical-only reranking** — the fused
+      RRF result is reranked (when enabled) by the E8 cross-encoder stage
+      (``rerank`` above), which scores the query against fused candidates from
+      *both* legs, so a second BM25 pass would add nothing.
     - ``compression``: options for the E5 assembly-stage ``CompressionPolicy``
       binding (``{"assembly": true, "assembly_stage": [...]}``); the master
       switch defaults off so ``profile="simple"`` behavior never changes.
