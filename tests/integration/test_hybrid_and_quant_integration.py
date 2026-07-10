@@ -33,7 +33,8 @@ _SEMANTIC: dict[str, Any] = {
 
 async def test_hybrid_lexical_index_backfills_from_log_on_reopen(make_file_engine: Any) -> None:
     # ── write with hybrid OFF: no lexical projector, no FTS index ─────────────
-    engine = make_file_engine(**_SEMANTIC)
+    # (hybrid is the v0.2 A3 default; opt out explicitly to stage the reopen.)
+    engine = make_file_engine(**_SEMANTIC, read={"hybrid": False})
     await engine.start()
     try:
         target = await engine.write("the quick brown fox jumps over the lazy dog")

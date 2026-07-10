@@ -106,13 +106,13 @@ Mirascope/BAML/DSPy/guidance/LangChain-hub/banks/Prompt-Poet/priompt/Promptify a
 
 | ID | Phase | Task | Type | ADR delta | Depends | Risk | Status |
 |----|-------|------|------|-----------|---------|------|--------|
-| A0 | A · Quick wins | Adopt **cashews**, drop **LMDB** + hand-rolled Redis; `cache.backend = memory\|disk\|redis\|valkey`; MemoryKV stays core | 📦 | amends ADR-022, D-09 | — | 🟡 | ☐ |
-| A1 | A · Quick wins | Fix `read.rerank=litellm` **startup-validator bug** (ConfigError today) | 🐛 | — | — | 🟢 | ☐ |
-| A2 | A · Quick wins | **RerankerFactory** (registry keyed by id, lazy, graceful-degrade; single validation source) | 🏗 | amends D-51 | A1 | 🟢 | ☐ |
-| A3 | A · Quick wins | Hybrid retrieval **default-on** flip (`read.hybrid → true`); verify C6 matrix | 🔧 | D-25 intent | — | 🟡 | ☐ |
+| A0 | A · Quick wins | Adopt **cashews**, drop **LMDB** + hand-rolled Redis; `cache.backend = memory\|disk\|redis\|valkey`; MemoryKV stays core | 📦 | amends ADR-022, D-09 | — | 🟡 | ☑ |
+| A1 | A · Quick wins | Fix `read.rerank=litellm` **startup-validator bug** (ConfigError today) | 🐛 | — | — | 🟢 | ☑ |
+| A2 | A · Quick wins | **RerankerFactory** (registry keyed by id, lazy, graceful-degrade; single validation source) | 🏗 | amends D-51 | A1 | 🟢 | ☑ |
+| A3 | A · Quick wins | Hybrid retrieval **default-on** flip (`read.hybrid → true`); verify C6 matrix | 🔧 | D-25 intent, ADR-019 amend | — | 🟡 | ☑ |
 | A4 | A · Quick wins | **DBOS+SQLite default** via server-profile templates (not schema default) | 🔧 | D-16 note | — | 🟢 | ☐ |
-| A5 | A · Quick wins | **Reinforcement on read** — additive salience (`utility += step`) in `_apply_retrieve` | 🏗 | — | — | 🟢 | ☐ |
-| A6 | A · Quick wins | Expose **graspologic Leiden** knobs (`min_size`/`resolution`/`randomness`/`seed`) + compression `compress_tiers`/rate as config | 🔧 | — | — | 🟢 | ☐ |
+| A5 | A · Quick wins | **Reinforcement on read** — additive salience (`utility += step`) in `_apply_retrieve` | 🏗 | — | — | 🟢 | ☑ |
+| A6 | A · Quick wins | Expose **graspologic Leiden** knobs (`min_size`/`resolution`/`randomness`/`seed`) + compression `compress_tiers`/rate as config | 🔧 | — | — | 🟢 | ☑ |
 | B1 | B · Prompts | Jinja **loader + partials** (`_partials/`); fingerprint partials into `prompt_version` | 🏗 | amends D-43 | — | 🟡 | ☐ |
 | B2 | B · Prompts | **Scenario/conditional selection** — `(role, selector)` key, `<role>@<scenario>` variants, `select()` + role fallback | 🏗 | amends D-43 | — | 🟡 | ☐ |
 | B3 | B · Prompts | **Enhance all 10 prompts** — anti-injection framing, `output_model`+lean `format`, split double-duty into variants | 🏗 | — | B1,B2 | 🟢 | ☐ |

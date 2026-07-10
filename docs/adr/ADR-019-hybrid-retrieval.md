@@ -2,6 +2,13 @@
 
 **Status:** accepted · **Date:** 2026-07-08 · **Register:** D-53
 **Supersedes:** ADR-017 §5 (the amended-in-place hybrid note)
+**Amended:** 2026-07-10 (v0.2 A3) — `read.hybrid` default flipped **OFF → ON**
+(D-25's core-default intent). The lexical leg is now built by default; the
+sqlite_fts5 provider rides the existing storage SQLite client, so the default
+adds no dependency. `read.hybrid: false` restores the bit-identical vector-only
+pipeline. All shipped templates use the sqlite backend, so the default is safe;
+a postgres backend must pair the flip with `read.lexical_provider: tantivy`
+(FTS5 is a SQLite virtual table).
 
 ## Context
 
@@ -16,7 +23,7 @@ existing config keep bit-identical behavior.
 
 ## Decisions
 
-### 1. Lexical port + RRF, opt-in via `read.hybrid` (default OFF)
+### 1. Lexical port + RRF via `read.hybrid` (default ON as of v0.2 A3; originally OFF)
 
 `services/lexical` is a minimal namespace-scoped port (`index` / `search` /
 `delete` / `clear` / `exists` / `close`) with `rrf_fuse` implemented **once** in

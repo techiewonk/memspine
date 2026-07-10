@@ -328,10 +328,11 @@ class Engine:
         # static embedder loads lazily on first search so a heavy model download
         # never blocks start and a missing [static] extra self-disables (skip-log).
         self._static_prefilter_on = config.read.static_embedding_prefilter
-        # Lexical BM25 leg (D-25): built ONLY when hybrid retrieval is on, so
-        # profile="simple" stays truly inert — no lexical index, no projector,
-        # no write-path cost, and describe()["projectors"] is unchanged. When
-        # first switched on, catch-up/rebuild backfills the index from the log.
+        # Lexical BM25 leg (D-25): built when hybrid retrieval is on — the v0.2
+        # A3 default (ADR-019). With ``read.hybrid: false`` no lexical index,
+        # projector, or write-path cost exists and describe()["projectors"] is
+        # unchanged from vector-only. Toggling on later: catch-up/rebuild
+        # backfills the index from the persisted log at first construction.
         if config.read.hybrid:
             self._lexical = self._build_lexical_store(config)
         # P6 graph store (D-26): constructed only when associative memory
@@ -358,8 +359,7 @@ class Engine:
         # ONNX download must not).
         if config.read.rerank not in rerank_modes():
             raise ConfigError(
-                f"unknown read.rerank {config.read.rerank!r} "
-                f"(valid: {', '.join(rerank_modes())})"
+                f"unknown read.rerank {config.read.rerank!r} (valid: {', '.join(rerank_modes())})"
             )
         self._working = WorkingMemory(
             append_event=self._append_and_project,

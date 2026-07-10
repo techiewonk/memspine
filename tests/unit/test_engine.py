@@ -53,7 +53,10 @@ async def test_describe_reports_effective_world(engine: Engine) -> None:
         "retention_days": 30,
         "rebuildable": True,
     }
-    assert world["projectors"] == ["records", "vectors"]
+    # v0.2 A3: hybrid retrieval is default-on, so the lexical projector rides
+    # the simple profile by default (ADR-019). It builds on the shared storage
+    # SQLite client (sqlite_fts5) — no extra dependency.
+    assert world["projectors"] == ["records", "vectors", "lexical"]
     assert world["embedding"] == "hash:64"
     assert world["vector"] == "LanceDBVectorStore"
     assert world["runner"] == "inline"
