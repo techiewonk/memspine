@@ -44,9 +44,18 @@ class EventLogConfig(BaseModel):
 
 
 class StorageConfig(BaseModel):
+    """Event-log + read-model storage (D-36, Phase 6). ``sqlite`` (default) uses
+    ``path`` (a file, or ``:memory:``); ``postgres`` uses ``url`` (a DSN,
+    secrets-resolved) and ``data_dir`` as the base directory for the derived
+    file-backed projections (LanceDB vectors, Tantivy lexical) that live outside
+    the SQL database. Both backends share one dialect-neutral schema (ADR-025)."""
+
     model_config = ConfigDict(extra="forbid")
 
-    path: str = "./memspine.db"
+    backend: str = "sqlite"  # sqlite | postgres
+    path: str = "./memspine.db"  # sqlite db file, or ":memory:"
+    url: str | None = None  # postgres DSN, required when backend=postgres
+    data_dir: str | None = None  # base dir for derived vector/lexical files (postgres)
 
 
 class EmbeddingConfig(BaseModel):

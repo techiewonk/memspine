@@ -55,7 +55,7 @@ rerank     = ["flashrank>=0.2"]                      # E8 cross-encoder rerank a
 static     = ["model2vec>=0.3"]                      # E4 static-embedding prefilter (ADR-020)
 aws        = ["boto3>=1.35"]                         # Bedrock LLM/embeddings + Secrets (D-07/D-22)
 promptopt  = ["langmem>=0.0.20"]                     # RG-only prompt self-optimization hook (D-43)
-postgres   = ["psycopg[binary]>=3.2", "pgvector>=0.3", "asyncpg>=0.30"]  # prod swap-ins
+postgres   = ["psycopg[binary]>=3.2", "pgvector>=0.3"]  # storage backend (D-36, psycopg3: sync Alembic + async runtime)
 weaviate   = ["weaviate-client>=4.9"]
 neo4j      = ["neo4j>=5.26"]
 valkey     = ["valkey>=6.0"]                        # shared cross-process cache (D-09)
@@ -176,6 +176,8 @@ module = [
     "botocore.*",
     "litellm",
     "litellm.*",
+    "psycopg",
+    "psycopg.*",
     "flashrank",
     "flashrank.*",
     "llmlingua",

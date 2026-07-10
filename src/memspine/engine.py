@@ -26,6 +26,7 @@ from memspine.clients.kuzu import KuzuClient
 from memspine.clients.ladybug import LadybugClient
 from memspine.clients.lancedb import LanceDBClient
 from memspine.clients.lmdb import LmdbClient
+from memspine.clients.postgres import PostgresClient
 from memspine.clients.redis import RedisClient
 from memspine.clients.sqlite import SQLiteClient
 from memspine.config import constants
@@ -104,6 +105,7 @@ from memspine.services.secrets.base import SecretsService
 from memspine.services.secrets.chained import ChainedSecrets
 from memspine.services.secrets.env import EnvSecrets
 from memspine.services.storage.projector import RecordProjector
+from memspine.services.storage.sql_base import SqlStorage
 from memspine.services.storage.sqlite.engine import SQLiteStorage
 from memspine.services.vector.base import VectorStore
 from memspine.services.vector.projector import VectorProjector
@@ -192,7 +194,8 @@ class Engine:
         self._resolved: ResolvedConfig | None = None
         self._enabled: set[str] = set()
         self._auto_enabled: list[str] = []
-        self._client: SQLiteClient | None = None
+        self._client: SQLiteClient | None = None  # SQLite storage + FTS5/adjacency projections
+        self._pg: PostgresClient | None = None  # Postgres storage backend (Phase 6)
         self._lance: LanceDBClient | None = None
         # Per-engine scratch dir for the LanceDB table when the event log is
         # in-memory (storage.path == ":memory:"): a durable on-disk table would
@@ -206,7 +209,7 @@ class Engine:
         self._cache: KVCache | None = None
         self._lmdb: LmdbClient | None = None
         self._redis_client: RedisClient | None = None
-        self._storage: SQLiteStorage | None = None
+        self._storage: SqlStorage | None = None
         self._projectors: list[Projector] = []
         self._embedder: EmbeddingService | None = None
         self._vector: VectorStore | None = None
@@ -308,13 +311,7 @@ class Engine:
             )
 
         # 3./4. construct services + open the write door.
-        self._client = SQLiteClient(config.storage.path)
-        await self._client.connect()
-        self._storage = SQLiteStorage(
-            self._client,
-            mode=config.event_log.mode,
-            compress=config.event_log.compress,
-        )
+        self._storage = await self._build_storage(config)
         await self._storage.start()
         if config.event_log.mode is EventLogMode.EPHEMERAL:
             _log.warning(
@@ -457,6 +454,7 @@ class Engine:
             await self._graph.close()  # store-held handles; connections close below
         for client in (
             self._client,
+            self._pg,
             self._lance,
             self._kuzu,
             self._ladybug,
@@ -519,7 +517,7 @@ class Engine:
 
     async def _write_locked(
         self,
-        storage: SQLiteStorage,
+        storage: SqlStorage,
         ns: str,
         record: MemoryRecord,
         memory_type: str,
@@ -853,7 +851,7 @@ class Engine:
             await self._forget_locked(storage, ns, record_id, hard)
 
     async def _forget_locked(
-        self, storage: SQLiteStorage, ns: str, record_id: str, hard: bool
+        self, storage: SqlStorage, ns: str, record_id: str, hard: bool
     ) -> None:
         record = await storage.get_record(record_id)
         # SEC-C2/ADR-018: forget is scoped to the caller's namespace. A grantee
@@ -1913,7 +1911,7 @@ class Engine:
                 "retention_days": config.event_log.retention_days,
                 "rebuildable": storage.can_rebuild,
             },
-            "storage": {"backend": "sqlite", "path": config.storage.path},
+            "storage": {"backend": config.storage.backend, "path": config.storage.path},
             "embedding": self._embedder.embedder_id if self._embedder else None,
             "vector": type(self._vector).__name__ if self._vector else None,
             "cache": config.cache.backend,
@@ -1985,7 +1983,7 @@ class Engine:
 
     # ── internals ────────────────────────────────────────────────────────────
 
-    def _require_started(self) -> SQLiteStorage:
+    def _require_started(self) -> SqlStorage:
         if not self._started or self._storage is None:
             raise MemspineError("Engine not started — call start() first")
         return self._storage
@@ -2165,6 +2163,28 @@ class Engine:
         matryoshka_dim = min(manifest.matryoshka_dims) if manifest.matryoshka_dims else None
         return quantization, matryoshka_dim
 
+    async def _build_storage(self, config: MemspineConfig) -> SqlStorage:
+        """Storage backend dispatch (D-36, Phase 6). ``sqlite`` (default) opens a
+        SQLiteClient at ``storage.path``; ``postgres`` opens a PostgresClient at
+        ``storage.url`` (already secrets-resolved by the config loader). Both wrap
+        the same dialect-neutral :class:`SqlStorage`."""
+        backend = config.storage.backend
+        mode = config.event_log.mode
+        compress = config.event_log.compress
+        if backend == "sqlite":
+            self._client = SQLiteClient(config.storage.path)
+            await self._client.connect()
+            return SQLiteStorage(self._client, mode=mode, compress=compress)
+        if backend == "postgres":
+            if not config.storage.url:
+                raise ConfigError("storage.url is required when storage.backend='postgres'")
+            from memspine.services.storage.postgres.engine import PostgresStorage
+
+            self._pg = PostgresClient(config.storage.url)
+            await self._pg.connect()
+            return PostgresStorage(self._pg, mode=mode, compress=compress)
+        raise ConfigError(f"unknown storage.backend {backend!r} (valid: sqlite, postgres)")
+
     async def _build_cache(self, config: MemspineConfig) -> KVCache:
         """Build the one shared KV cache (Phase 2, D-09). ``memory`` is the
         zero-dep default; ``lmdb`` persists to a local env; ``redis``/``valkey``
@@ -2217,7 +2237,7 @@ class Engine:
         # when the corpus is too small to train an index.
         from memspine.services.vector.lancedb_store import LanceDBVectorStore
 
-        if config.storage.path == ":memory:":
+        if self._client_is_memory(config):
             # A projection must never outlive its log (D0.1): an in-memory event
             # log gets a per-engine scratch dir, removed in _teardown, so the
             # Lance table shares the log's ephemeral lifetime (no ghost rows on
@@ -2226,7 +2246,8 @@ class Engine:
             self._lance_scratch = Path(tempfile.mkdtemp(prefix="memspine-lance-"))
             lance_path = str(self._lance_scratch / "vectors.lance")
         else:
-            lance_path = f"{config.storage.path}.lance"
+            # sqlite: <path>.lance beside the db; postgres: <data_dir>/memspine.lance
+            lance_path = f"{self._derived_base(config)}.lance"
         self._lance = LanceDBClient(lance_path)
         await self._lance.connect()
         return LanceDBVectorStore(
@@ -2245,16 +2266,20 @@ class Engine:
         with the D-10 error at construction (``TantivyLexical.__init__``)."""
         provider = config.read.lexical_provider
         if provider == "sqlite_fts5":
-            assert self._client is not None
+            if self._client is None:
+                raise ConfigError(
+                    "read.lexical_provider='sqlite_fts5' requires storage.backend='sqlite' "
+                    "(FTS5 is a SQLite virtual table) — use 'tantivy' with a postgres backend"
+                )
             return SQLiteFTS5Lexical(self._client)
         if provider == "tantivy":
             from memspine.services.lexical.tantivy import TantivyLexical
 
             # In-RAM index for an in-memory event log (same lifetime, no ghost
             # segments across runs — mirrors the vector store's :memory: rule);
-            # else an on-disk directory beside the db file.
+            # else an on-disk directory beside the derived base.
             index_path = (
-                None if self._client_is_memory(config) else f"{config.storage.path}.tantivy"
+                None if self._client_is_memory(config) else f"{self._derived_base(config)}.tantivy"
             )
             return TantivyLexical(index_path)
         raise ConfigError(
@@ -2269,12 +2294,20 @@ class Engine:
         (D0.1)."""
         provider = config.graph.provider
         if provider == "sqlite_adjacency":
-            assert self._client is not None
+            if self._client is None:
+                raise ConfigError(
+                    "graph.provider='sqlite_adjacency' requires storage.backend='sqlite' — "
+                    "use 'kuzu' or 'ladybug' (own embedded db) with a postgres backend"
+                )
             return SQLiteAdjacencyGraph(self._client)
         if provider == "kuzu":
             from memspine.services.graph.kuzu import KuzuGraphStore
 
-            path = ":memory:" if self._client_is_memory(config) else f"{config.storage.path}.kuzu"
+            path = (
+                ":memory:"
+                if self._client_is_memory(config)
+                else f"{self._derived_base(config)}.kuzu"
+            )
             self._kuzu = KuzuClient(path)
             await self._kuzu.connect()
             return KuzuGraphStore(self._kuzu)
@@ -2282,7 +2315,9 @@ class Engine:
             from memspine.services.graph.ladybug import LadybugGraphStore
 
             path = (
-                ":memory:" if self._client_is_memory(config) else f"{config.storage.path}.ladybug"
+                ":memory:"
+                if self._client_is_memory(config)
+                else f"{self._derived_base(config)}.ladybug"
             )
             self._ladybug = LadybugClient(path)
             await self._ladybug.connect()
@@ -2297,7 +2332,22 @@ class Engine:
 
     @staticmethod
     def _client_is_memory(config: MemspineConfig) -> bool:
-        return config.storage.path == ":memory:"
+        return config.storage.backend == "sqlite" and config.storage.path == ":memory:"
+
+    @staticmethod
+    def _derived_base(config: MemspineConfig) -> str:
+        """Base path for the file-backed projections that live OUTSIDE the SQL
+        database (LanceDB vectors, Tantivy lexical). For ``sqlite`` it is the db
+        path (``<path>.lance`` etc.); for ``postgres`` it is ``storage.data_dir``
+        (required — the DSN is not a filesystem path)."""
+        if config.storage.backend == "postgres":
+            if not config.storage.data_dir:
+                raise ConfigError(
+                    "storage.data_dir is required when storage.backend='postgres' — "
+                    "it is the base directory for the LanceDB/Tantivy projections"
+                )
+            return str(Path(config.storage.data_dir) / "memspine")
+        return config.storage.path
 
     async def _build_llm_router(self, config: MemspineConfig) -> LLMRouter:
         """Route each role by its ``model`` prefix (D-33). ``llamacpp/<path>``
