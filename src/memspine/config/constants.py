@@ -58,6 +58,17 @@ EVOLUTION_MAX_LINKS_PER_WRITE = 4
 # worth a summary-parent record (mirrors CONSOLIDATION_MIN_SESSION_RECORDS).
 REORGANIZE_MIN_COMMUNITY_SIZE = 3
 
+# Leiden community-detection knobs (D-40/v0.2 A6): graspologic
+# ``hierarchical_leiden`` defaults, surfaced as
+# ``memories.associative.policies.community.*`` so a deployment can tune
+# community granularity without a code change. The seed is fixed so the same
+# graph yields the same communities (rebuild determinism, D0.1) — override it
+# only when a deployment deliberately wants to reshuffle clustering.
+LEIDEN_RANDOM_SEED = 1
+LEIDEN_RESOLUTION = 1.0
+LEIDEN_RANDOMNESS = 0.001
+LEIDEN_MAX_CLUSTER_SIZE = 1000
+
 # Reflective memory (M13.7): maximum reflection-on-reflection depth.
 REFLECTION_DEPTH_CAP = 2
 
@@ -155,6 +166,8 @@ REST_MAX_BODY_BYTES = 1_048_576  # 1 MiB
 RERANK_FASTEMBED_MODEL = "Xenova/ms-marco-MiniLM-L-6-v2"
 
 # E5 assembly-time compression (D-51): llmlingua target keep-rate per block.
+# Surfaced as ``read.compression.assembly_rate`` (v0.2 A6) so a deployment can
+# trade fidelity for token savings without a code change.
 ASSEMBLY_COMPRESS_RATE = 0.5
 
 # E4 embedding quantization (plan Part B §E4 / ADR-020): the quantized (int8 /

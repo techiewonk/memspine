@@ -79,7 +79,11 @@ def force_communities(monkeypatch: pytest.MonkeyPatch, clusters: list[list[str]]
     """Deterministic community detection: the extra is 'installed' and Leiden
     always answers ``clusters`` — the reorganize body runs for real."""
     monkeypatch.setattr(pipelines, "communities_available", lambda: True)
-    monkeypatch.setattr(pipelines, "detect_communities", lambda edges, *, min_size=1: clusters)
+
+    def fake_detect(edges: object, **_knobs: object) -> list[list[str]]:
+        return clusters  # ignores min_size/resolution/randomness/seed/max_cluster_size (A6)
+
+    monkeypatch.setattr(pipelines, "detect_communities", fake_detect)
 
 
 async def parents_of(ctx: PipelineContext, ns: str = "agent/a") -> list[MemoryRecord]:

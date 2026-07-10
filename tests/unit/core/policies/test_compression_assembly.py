@@ -84,7 +84,7 @@ def test_persona_is_never_dropped_even_over_budget() -> None:
 def test_flagged_and_disputed_content_is_never_dropped_or_compressed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def fake_loader() -> Callable[[str], str] | None:
+    def fake_loader(rate: float = 0.5) -> Callable[[str], str] | None:
         return lambda text: text[:8]  # brutal, obvious "compression"
 
     monkeypatch.setattr(compression_module, "_load_llmlingua", fake_loader)
@@ -105,11 +105,27 @@ def test_flagged_and_disputed_content_is_never_dropped_or_compressed(
 
 
 def test_llmlingua_absent_falls_through_without_failing(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(compression_module, "_load_llmlingua", lambda: None)
+    monkeypatch.setattr(compression_module, "_load_llmlingua", lambda rate=0.5: None)
     policy = CompressionPolicy.bind({"assembly": True, "assembly_stage": ["llmlingua"]})
     over = [(rec("far too long " * 100), 0.9)]
     fitted = policy.fit_assembly(over, budget_tokens=10, estimate=estimate)
     assert fitted[0][0].content == over[0][0].content  # stage skipped, nothing broken
+
+
+def test_assembly_rate_is_threaded_to_the_loader(monkeypatch: pytest.MonkeyPatch) -> None:
+    """v0.2 A6: ``read.compression.assembly_rate`` reaches ``_load_llmlingua``."""
+    seen: list[float] = []
+
+    def spy_loader(rate: float = 0.5) -> Callable[[str], str] | None:
+        seen.append(rate)
+        return lambda text: text[:4]
+
+    monkeypatch.setattr(compression_module, "_load_llmlingua", spy_loader)
+    policy = CompressionPolicy.bind(
+        {"assembly": True, "assembly_stage": ["llmlingua"], "assembly_rate": 0.25}
+    )
+    policy.fit_assembly([(rec("long block " * 40), 0.9)], budget_tokens=1, estimate=estimate)
+    assert seen == [0.25]  # the configured rate, not the default
 
 
 def test_provider_compaction_is_a_noop_seam() -> None:
@@ -137,7 +153,7 @@ def test_block_compress_survives_a_compressor_that_raises(
     """SF-4: one record llmlingua chokes on must not 500 /assemble — log and
     leave that record uncompressed; the rest still compress."""
 
-    def boom_loader() -> Callable[[str], str] | None:
+    def boom_loader(rate: float = 0.5) -> Callable[[str], str] | None:
         def compress(text: str) -> str:
             if "poison" in text:
                 raise RuntimeError("llmlingua choked on this block")
@@ -163,7 +179,7 @@ def test_all_protected_over_budget_stays_over_unmodified(
     the selection stays OVER budget, every block byte-identical (E1/E2 beat the
     budget)."""
 
-    def fake_loader() -> Callable[[str], str] | None:
+    def fake_loader(rate: float = 0.5) -> Callable[[str], str] | None:
         return lambda text: text[:4]
 
     monkeypatch.setattr(compression_module, "_load_llmlingua", fake_loader)

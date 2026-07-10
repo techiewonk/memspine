@@ -21,6 +21,7 @@ from memspine.config import constants
 from memspine.config.schema import MemspineConfig
 from memspine.core.events import EventKind, EventLogMode, MemoryEvent, fingerprint_payload
 from memspine.core.firewall import instruction_shaped
+from memspine.core.policies.community import CommunityOptions, CommunityPolicy
 from memspine.core.policies.compression import CompressionPolicy
 from memspine.core.policies.consolidation import (
     ConsolidationPolicy,
@@ -561,11 +562,22 @@ async def reorganize(ctx: PipelineContext) -> dict[str, object]:
             "reason": "graspologic not installed — `pip install memspine[community]` (D-40)",
         }
     inflate = CompressionPolicy.bind()
+    community_opts = CommunityPolicy.bind(
+        _policy_options(ctx, "associative", "community")
+    ).options
+    assert isinstance(community_opts, CommunityOptions)
     edges = await ctx.graph.edge_list()
     # Leiden clustering is CPU work — keep it off the event loop (same
-    # pattern as compress()'s zstd call).
+    # pattern as compress()'s zstd call). Knobs ride the associative policy
+    # (v0.2 A6); defaults preserve rebuild determinism (D0.1).
     communities = await asyncio.to_thread(
-        detect_communities, edges, min_size=constants.REORGANIZE_MIN_COMMUNITY_SIZE
+        detect_communities,
+        edges,
+        min_size=community_opts.min_size,
+        resolution=community_opts.resolution,
+        randomness=community_opts.randomness,
+        random_seed=community_opts.random_seed,
+        max_cluster_size=community_opts.max_cluster_size,
     )
     parents = 0
     superseded = 0

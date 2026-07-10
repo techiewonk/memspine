@@ -41,10 +41,11 @@ ASSEMBLY_STAGES = ("drop_lowest_score", "llmlingua", "provider_compaction")
 _llmlingua_warned = False
 
 
-def _load_llmlingua() -> Callable[[str], str] | None:
+def _load_llmlingua(rate: float = constants.ASSEMBLY_COMPRESS_RATE) -> Callable[[str], str] | None:
     """Lazy llmlingua loader (``[compress]``): a block-compress callable, or
     None (with one info log) when the extra is absent. Module-level so tests
-    can substitute a deterministic compressor."""
+    can substitute a deterministic compressor. ``rate`` is the per-block keep
+    ratio (config-surfaced as ``read.compression.assembly_rate``, v0.2 A6)."""
     global _llmlingua_warned
     try:
         from llmlingua import PromptCompressor
@@ -59,7 +60,7 @@ def _load_llmlingua() -> Callable[[str], str] | None:
     compressor = PromptCompressor()
 
     def compress(text: str) -> str:
-        result = compressor.compress_prompt([text], rate=constants.ASSEMBLY_COMPRESS_RATE)
+        result = compressor.compress_prompt([text], rate=rate)
         return str(result["compressed_prompt"])
 
     return compress
@@ -74,6 +75,9 @@ class CompressionOptions(PolicyOptions):
     # E5 ordered fallbacks (assembly-time). llmlingua self-skips without the
     # [compress] extra; provider_compaction is the no-op seam.
     assembly_stage: list[str] = Field(default_factory=lambda: list(ASSEMBLY_STAGES))
+    # E5 llmlingua per-block keep ratio (v0.2 A6): lower => more aggressive
+    # compression. Only consulted by the llmlingua stage.
+    assembly_rate: float = constants.ASSEMBLY_COMPRESS_RATE
 
     @field_validator("assembly_stage")
     @classmethod
@@ -198,7 +202,7 @@ class CompressionPolicy(BindablePolicy):
     def _block_compress(
         self, items: list[tuple[MemoryRecord, float]]
     ) -> list[tuple[MemoryRecord, float]]:
-        compress = _load_llmlingua()
+        compress = _load_llmlingua(self._options().assembly_rate)
         if compress is None:
             return items
         out: list[tuple[MemoryRecord, float]] = []

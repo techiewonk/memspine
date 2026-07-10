@@ -8,15 +8,13 @@ INFO exactly once, never a warning storm and never an ImportError leaking up.
 
 from __future__ import annotations
 
+from memspine.config import constants
 from memspine.observability.logging import get_logger
 from memspine.services.graph.base import GraphEdge
 
 __all__ = ["communities_available", "detect_communities"]
 
 _log = get_logger(__name__)
-
-#: Fixed Leiden seed: same graph => same communities (rebuild determinism).
-_LEIDEN_SEED = 1
 
 _absence_logged = False
 
@@ -38,12 +36,26 @@ def communities_available() -> bool:
     return True
 
 
-def detect_communities(edges: list[GraphEdge], *, min_size: int = 1) -> list[list[str]]:
+def detect_communities(
+    edges: list[GraphEdge],
+    *,
+    min_size: int = 1,
+    resolution: float = constants.LEIDEN_RESOLUTION,
+    randomness: float = constants.LEIDEN_RANDOMNESS,
+    random_seed: int = constants.LEIDEN_RANDOM_SEED,
+    max_cluster_size: int = constants.LEIDEN_MAX_CLUSTER_SIZE,
+) -> list[list[str]]:
     """Hierarchical-Leiden clusters over the live association graph.
 
     Returns sorted member-id lists (communities ordered by their members) of
     at least ``min_size`` nodes; ``[]`` without the extra or without edges.
     Prune tombstones (weight ``<= 0``, ADR-015) are excluded from the graph.
+
+    ``resolution``/``randomness``/``max_cluster_size`` are the graspologic
+    ``hierarchical_leiden`` granularity knobs (higher resolution => more,
+    smaller communities); ``random_seed`` is fixed by default so the same graph
+    yields the same communities (rebuild determinism, D0.1). All are surfaced as
+    ``memories.associative.policies.community.*`` config (v0.2 A6).
     """
     if not communities_available():
         return []
@@ -56,7 +68,13 @@ def detect_communities(edges: list[GraphEdge], *, min_size: int = 1) -> list[lis
             graph.add_edge(edge.src, edge.dst, weight=edge.weight)
     if graph.number_of_edges() == 0:
         return []
-    clusters = hierarchical_leiden(graph, random_seed=_LEIDEN_SEED)
+    clusters = hierarchical_leiden(
+        graph,
+        max_cluster_size=max_cluster_size,
+        resolution=resolution,
+        randomness=randomness,
+        random_seed=random_seed,
+    )
     membership: dict[int, list[str]] = {}
     for entry in clusters:
         if entry.is_final_cluster:
