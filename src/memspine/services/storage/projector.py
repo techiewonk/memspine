@@ -27,6 +27,7 @@ from typing import Protocol
 
 import orjson
 
+from memspine.config import constants
 from memspine.core.events import EventKind, MemoryEvent
 from memspine.core.projector import Projector
 from memspine.core.records import MemoryRecord, RecordStatus
@@ -155,6 +156,13 @@ class RecordProjector(Projector):
                         else event.ts
                     ),
                     "access_count": record.scoring.access_count + 1,
+                    # A5 reinforcement-on-read: durable salience lift, clamped so
+                    # a hot record can't run away. Rides the RETRIEVE event, so a
+                    # rebuild replays it deterministically.
+                    "utility": min(
+                        record.scoring.utility + constants.RETRIEVE_UTILITY_STEP,
+                        constants.RETRIEVE_UTILITY_MAX,
+                    ),
                 }
             )
             await self._store.upsert_record(record.model_copy(update={"scoring": scoring}))

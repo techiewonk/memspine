@@ -93,6 +93,13 @@ SCORING_IMPORTANCE_WEIGHT = 1.0
 SCORING_RELEVANCE_WEIGHT = 1.0
 SCORING_UTILITY_WEIGHT = 0.5
 
+# Reinforcement on read (v0.2/A5): each retrieval bumps a record's utility by
+# STEP (clamped to MAX), so repeatedly-recalled records earn a durable salience
+# lift in composite_score. The bump rides the RETRIEVE event, so a rebuild
+# replays it deterministically. Tunable; 0.1 is the "salience += 0.1" default.
+RETRIEVE_UTILITY_STEP = 0.1
+RETRIEVE_UTILITY_MAX = 1.0
+
 # Assembly (M12): MMR diversity/relevance balance.
 MMR_LAMBDA = 0.7
 
