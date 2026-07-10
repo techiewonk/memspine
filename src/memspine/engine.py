@@ -89,6 +89,7 @@ from memspine.observability.logging import (
     EVENT_WRITE,
     get_logger,
 )
+from memspine.prompts.models import ExtractedEdge, ExtractedEdges
 from memspine.prompts.registry import PromptRegistry
 from memspine.services.cache.base import KVCache, MemoryKV
 from memspine.services.cache.semantic import CachedEmbedding, CachedExtractor
@@ -99,6 +100,7 @@ from memspine.services.lexical.base import LexicalStore, rrf_fuse
 from memspine.services.lexical.projector import LexicalProjector
 from memspine.services.lexical.sqlite_fts5 import SQLiteFTS5Lexical
 from memspine.services.llm.base import LLMRouter, LLMService
+from memspine.services.llm.structured import structured_call
 from memspine.services.rerank.base import Reranker, concat_background
 from memspine.services.rerank.factory import RerankSettings, build_reranker, rerank_modes
 from memspine.services.secrets.base import SecretsService
@@ -110,7 +112,12 @@ from memspine.services.storage.sqlite.engine import SQLiteStorage
 from memspine.services.vector.base import VectorStore
 from memspine.services.vector.projector import VectorProjector
 from memspine.workers.inline import InlineRunner
-from memspine.workers.pipelines import PIPELINES, PipelineContext, Summarize
+from memspine.workers.pipelines import (
+    PIPELINES,
+    ExtractEdges,
+    PipelineContext,
+    Summarize,
+)
 from memspine.workers.runner import TaskRunner
 from memspine.workers.schedule import run_sleep_cycle
 
@@ -246,6 +253,7 @@ class Engine:
         self._inflate: CompressionPolicy = CompressionPolicy.bind()
         self._firewall: Firewall = Firewall()
         self._summarize: Summarize | None = None
+        self._extract_edges: ExtractEdges | None = None
         self._runner: TaskRunner | None = None
         self._started = False
         self._write_locks: dict[str, asyncio.Lock] = {}
@@ -415,6 +423,7 @@ class Engine:
         if "shared" in self._enabled:
             self._shared = SharedMemory(self._storage, self._append_and_project)
         self._summarize = self._build_summarize()
+        self._extract_edges = self._build_edge_extractor(config)
         self._projectors = [
             RecordProjector(self._storage),
             VectorProjector(self._vector, self._embedder),
@@ -1992,6 +2001,7 @@ class Engine:
             config=self._resolved.config,
             append_event=self._append_and_project,
             summarize=self._summarize,
+            extract_edges=self._extract_edges,
             # Only when associative projects it (ADR-015): an explicit-config
             # graph store without the projector would reorganize a stale graph.
             graph=self._graph if self._associative is not None else None,
@@ -2048,6 +2058,36 @@ class Engine:
             return await llm.chat(prompt.render({"content": content}))
 
         return summarize
+
+    def _build_edge_extractor(self, config: MemspineConfig) -> ExtractEdges | None:
+        """C2 graphiti-style edge extractor for the ``extract_graph`` pipeline.
+
+        Active only when ``memories.semantic.policies.extract_graph`` is truthy
+        AND an ``extract_edges`` LLM role is bound — otherwise None, so the
+        pipeline self-skips and ``profile="simple"`` is unchanged. Reflexion is
+        ``max_rounds`` extraction passes whose unique edges are merged (a later
+        pass recovers edges a stochastic first pass missed); one round by
+        default. The LLM is an enhancer — any failure raises to the pipeline,
+        which logs and continues (N6)."""
+        policy = self._memory_policy(config, "semantic").get("extract_graph")
+        if not policy:
+            return None
+        if self._llm is None or self._prompts is None or "extract_edges" not in self._llm.roles:
+            return None
+        opts = policy if isinstance(policy, dict) else {}
+        max_rounds = max(1, int(opts.get("max_rounds", 1)))
+        llm = self._llm.for_role("extract_edges")
+        prompt = self._prompts.for_role("extract_edges")
+
+        async def extract_edges(content: str) -> list[ExtractedEdge]:
+            merged: dict[tuple[str, str, str], ExtractedEdge] = {}
+            for _ in range(max_rounds):
+                result = await structured_call(llm, prompt, {"content": content}, ExtractedEdges)
+                for edge in result.edges:
+                    merged[(edge.src_entity, edge.rel, edge.dst_entity)] = edge
+            return list(merged.values())
+
+        return extract_edges
 
     @staticmethod
     def _memory_policy(config: MemspineConfig, memory_type: str) -> dict[str, Any]:

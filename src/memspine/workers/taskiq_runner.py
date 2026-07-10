@@ -74,11 +74,12 @@ CONSUMER_GROUP = "memspine-workers"
 PIPELINE_PRIORITIES: dict[str, int] = {
     "check_watches": 0,
     "consolidate": 1,
-    "reorganize": 2,
-    "decay_sweep": 3,
-    "compress": 4,
-    "sleep_compute": 5,
-    "event_log_prune": 6,
+    "extract_graph": 2,  # C2: LLM edges before communities form over them
+    "reorganize": 3,
+    "decay_sweep": 4,
+    "compress": 5,
+    "sleep_compute": 6,
+    "event_log_prune": 7,
 }
 
 #: Labels outside the known pipeline set (deployment-registered pipelines,

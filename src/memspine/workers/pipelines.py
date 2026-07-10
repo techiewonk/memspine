@@ -31,15 +31,18 @@ from memspine.core.policies.consolidation import (
 from memspine.core.policies.decay import DecayPolicy
 from memspine.core.policies.retention import RetentionPolicy
 from memspine.core.records import MemoryRecord, RecordStatus, SourceInfo
+from memspine.exceptions import ConflictError
 from memspine.memories.associative.communities import communities_available, detect_communities
-from memspine.memories.associative.links import link_event
+from memspine.memories.associative.links import assert_within_budget, link_event
 from memspine.memories.episodic.sessions import Session, detect_sessions
 from memspine.memories.prospective.triggers import due_watches, invalidation_watches
 from memspine.observability.logging import get_logger
+from memspine.prompts.models import ExtractedEdge
 from memspine.services.graph.base import GraphStore
 
 __all__ = [
     "PIPELINES",
+    "ExtractEdges",
     "NamespaceLock",
     "Pipeline",
     "PipelineContext",
@@ -49,6 +52,7 @@ __all__ = [
     "consolidate",
     "decay_sweep",
     "event_log_prune",
+    "extract_graph",
     "reorganize",
     "sleep_compute",
 ]
@@ -85,6 +89,10 @@ class PipelineStorage(Protocol):
 
 AppendEvent = Callable[[MemoryEvent], Awaitable[None]]
 Summarize = Callable[[str], Awaitable[str]]
+#: LLM edge extraction for the graphiti-style write path (C2). Takes source
+#: text, returns the (reflexion-merged) relationship edges. None => the
+#: extract_graph pipeline self-skips — no LLM role or the feature is off.
+ExtractEdges = Callable[[str], Awaitable[list[ExtractedEdge]]]
 #: Per-namespace write serialization: ``lock(namespace)`` yields the same
 #: async context manager the engine's write verbs hold, so a pipeline's
 #: read-then-write unit cannot interleave with a concurrent forget cascade.
@@ -114,6 +122,9 @@ class PipelineContext:
     #: reorganize cannot race forget's delete cascade — a forgotten node must
     #: not be resurrected by a late LINK projection). No-op by default.
     lock: NamespaceLock = _no_lock
+    #: LLM edge extractor for the C2 graphiti-style pipeline. None => the
+    #: extract_graph stage self-skips (feature off or no extract_edges LLM role).
+    extract_edges: ExtractEdges | None = None
 
 
 Pipeline = Callable[[PipelineContext], Awaitable[dict[str, object]]]
@@ -562,9 +573,7 @@ async def reorganize(ctx: PipelineContext) -> dict[str, object]:
             "reason": "graspologic not installed — `pip install memspine[community]` (D-40)",
         }
     inflate = CompressionPolicy.bind()
-    community_opts = CommunityPolicy.bind(
-        _policy_options(ctx, "associative", "community")
-    ).options
+    community_opts = CommunityPolicy.bind(_policy_options(ctx, "associative", "community")).options
     assert isinstance(community_opts, CommunityOptions)
     edges = await ctx.graph.edge_list()
     # Leiden clustering is CPU work — keep it off the event loop (same
@@ -771,11 +780,145 @@ async def _reorganize_community(
     return 1, key, namespace
 
 
+def _edge_key(namespace: str, edge: ExtractedEdge) -> str:
+    """Idempotency key for an extracted edge: same (src, rel, dst) in a
+    namespace fingerprints to the same record, so a re-run never duplicates."""
+    return fingerprint_payload(
+        {"extract_graph": [namespace, edge.src_entity, edge.rel, edge.dst_entity]}
+    )
+
+
+def _edge_valid_from(edge: ExtractedEdge, fallback: datetime) -> datetime:
+    """The edge's stated ISO ``valid_from`` if parseable, else the source
+    record's time — a malformed date never fails the sweep."""
+    if edge.valid_from:
+        try:
+            parsed = datetime.fromisoformat(edge.valid_from)
+        except ValueError:
+            return fallback
+        return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+    return fallback
+
+
+async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
+    """C2 graphiti-style write path: LLM edge extraction over recent records →
+    semantic fact records + ``asserted`` association LINKs.
+
+    For each source record (episodic/semantic, active, not itself extract_graph
+    output) the ``extract_edges`` callable returns reflexion-merged relationship
+    edges; each edge becomes a semantic record keyed ``(entity=src, attribute=
+    rel)`` with the fact as content, and an ``asserted`` LINK from the source to
+    the new fact so the D-42 reorganizer forms communities over the LLM edges.
+    Slotted after ``consolidate`` and before ``reorganize`` for exactly that.
+
+    No-op ("skipped") without a write door or an ``extract_edges`` callable
+    (feature off / no LLM role). Idempotent: an edge's (src, rel, dst) keys its
+    record, so a re-run skips already-written edges; LINK upserts are replay
+    -deterministic. Derived trust never exceeds the source's (E1/D-47 §5), and
+    the ``asserted`` rel is non-reserved so the M13.6 link budget applies — a
+    saturated source keeps the fact record but skips the extra edge (logged)."""
+    if ctx.append_event is None:
+        return {"status": "skipped", "reason": "read-only context (no write door)"}
+    if ctx.extract_edges is None:
+        return {"status": "skipped", "reason": "extract_graph disabled or no extract_edges role"}
+    opts = _policy_options(ctx, "semantic", "extract_graph") or {}
+    raw_conf = opts.get("min_confidence", 0.0)
+    min_conf = float(raw_conf) if isinstance(raw_conf, (int, float, str)) else 0.0
+    written = 0
+    linked = 0
+    skipped = 0
+    errors: list[str] = []
+    for namespace in await ctx.storage.list_namespaces():
+        async with ctx.lock(namespace):
+            existing: set[str] = set()
+            sources: list[MemoryRecord] = []
+            for mtype in ("episodic", "semantic"):
+                for record in await ctx.storage.list_records(namespace, mtype):
+                    if record.source.channel == "extract_graph":
+                        if record.source.message_id:
+                            existing.add(record.source.message_id)
+                        continue  # never re-extract from our own output (no feedback loop)
+                    if record.status is RecordStatus.ACTIVATED and not record.quarantined:
+                        sources.append(record)
+            for record in sources:
+                try:
+                    edges = await ctx.extract_edges(record.content)
+                except Exception as exc:  # the LLM is an enhancer, never a gate (N6)
+                    errors.append(f"{record.record_id}: {exc}")
+                    _log.warning(
+                        "extract_graph.extract_failed", record_id=record.record_id, error=str(exc)
+                    )
+                    continue
+                for edge in edges:
+                    if edge.confidence < min_conf:
+                        continue
+                    key = _edge_key(namespace, edge)
+                    if key in existing:
+                        skipped += 1
+                        continue
+                    existing.add(key)
+                    fact = MemoryRecord(
+                        namespace=namespace,
+                        memory_type="semantic",
+                        content=edge.fact,
+                        entity=edge.src_entity,
+                        attribute=edge.rel,
+                        valid_from=_edge_valid_from(edge, record.valid_from),
+                        source=SourceInfo(role="system", channel="extract_graph", message_id=key),
+                        trust=record.trust,  # derived trust never exceeds the source (E1)
+                        instruction_flag=instruction_shaped(edge.fact),
+                    )
+                    await ctx.append_event(
+                        MemoryEvent(
+                            kind=EventKind.WRITE,
+                            namespace=namespace,
+                            actor="system",
+                            payload={
+                                "record": fact.model_dump(mode="json"),
+                                "extract_graph": {"source_record_id": record.record_id},
+                            },
+                        )
+                    )
+                    written += 1
+                    # Associate the fact with its source (non-reserved rel: budget
+                    # applies). A saturated source keeps the record, skips the link.
+                    if ctx.graph is not None:
+                        try:
+                            await assert_within_budget(ctx.graph, record.record_id)
+                        except ConflictError:
+                            _log.warning(
+                                "extract_graph.link_budget_full", record_id=record.record_id
+                            )
+                            continue
+                    await ctx.append_event(
+                        link_event(
+                            namespace,
+                            record.record_id,
+                            fact.record_id,
+                            "asserted",
+                            weight=max(0.0, min(1.0, edge.confidence)),
+                            reason="extract_graph",
+                            actor="system",
+                        )
+                    )
+                    linked += 1
+    stats: dict[str, object] = {
+        "status": "ok" if not errors else "partial",
+        "edges_written": written,
+        "links": linked,
+        "skipped_existing": skipped,
+    }
+    if errors:
+        stats["errors"] = errors
+    return stats
+
+
 #: Name -> pipeline. Runners register from this table; the M11-adjacent names
 #: are stable identifiers used in schedules and dead-letter reporting.
 PIPELINES: dict[str, Pipeline] = {
     "consolidate": consolidate,
     "reorganize": reorganize,
+    "extract_graph": extract_graph,
     "check_watches": check_watches,
     "decay_sweep": decay_sweep,
     "compress": compress,

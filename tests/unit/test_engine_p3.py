@@ -51,6 +51,7 @@ async def test_sleep_cycle_runs_all_stages_in_order(engine: Engine) -> None:
     stats = await engine.sleep()
     assert list(stats) == [
         "consolidate",
+        "extract_graph",  # C2 optional stage: skipped without an extract_edges role
         "reorganize",  # D-42 optional stage (P6): skipped without a graph
         "check_watches",  # M13.8 read-only fired-count report (P7/ADR-016)
         "decay_sweep",
@@ -59,6 +60,7 @@ async def test_sleep_cycle_runs_all_stages_in_order(engine: Engine) -> None:
         "event_log_prune",
     ]
     assert stats["consolidate"]["status"] == "ok"
+    assert stats["extract_graph"]["status"] == "skipped"
     assert stats["reorganize"]["status"] == "skipped"
     assert stats["check_watches"]["status"] == "ok"
     assert stats["decay_sweep"]["status"] == "ok"
