@@ -101,6 +101,7 @@ from memspine.services.lexical.projector import LexicalProjector
 from memspine.services.lexical.sqlite_fts5 import SQLiteFTS5Lexical
 from memspine.services.llm.base import LLMRouter, LLMService
 from memspine.services.rerank.base import Reranker, concat_background
+from memspine.services.rerank.factory import RerankSettings, build_reranker, rerank_modes
 from memspine.services.secrets.base import SecretsService
 from memspine.services.secrets.chained import ChainedSecrets
 from memspine.services.secrets.env import EnvSecrets
@@ -357,9 +358,10 @@ class Engine:
         # E8 rerank (D-51): validate the mode now; the model itself loads
         # lazily on first search (a config typo must fail at start, a heavy
         # ONNX download must not).
-        if config.read.rerank not in ("off", "fastembed", "flashrank"):
+        if config.read.rerank not in rerank_modes():
             raise ConfigError(
-                f"unknown read.rerank {config.read.rerank!r} (valid: off, fastembed, flashrank)"
+                f"unknown read.rerank {config.read.rerank!r} "
+                f"(valid: {', '.join(rerank_modes())})"
             )
         self._working = WorkingMemory(
             append_event=self._append_and_project,
@@ -1155,44 +1157,18 @@ class Engine:
         on first use (cross-encoder weights must not load at engine start).
         An unavailable adapter is skip-logged ONCE and the stage disables
         itself — retrieval quality degrades, retrieval never fails."""
-        mode = self._config().read.rerank
+        read = self._config().read
+        mode = read.rerank
         if mode == "off" or self._rerank_unavailable:
             return None if mode == "off" else self._reranker
         if self._reranker is not None:
             return self._reranker
-        try:
-            if mode == "fastembed":
-                from memspine.services.rerank.fastembed_rerank import FastembedReranker
-
-                self._reranker = FastembedReranker()
-            elif mode == "flashrank":
-                from memspine.services.rerank.flashrank_rerank import FlashrankReranker
-
-                self._reranker = FlashrankReranker()
-            elif mode == "litellm":
-                rerank_model = self._config().read.rerank_model
-                if not rerank_model:
-                    # A misconfigured cloud rerank must degrade like any other
-                    # unavailable adapter (caught below → skip-log, sticky), not
-                    # crash retrieval; name the fix in the raised message.
-                    raise MissingServiceError(
-                        "services.rerank.litellm (set read.rerank_model)", extra="litellm"
-                    )
-                from memspine.services.rerank.litellm_rerank import LiteLLMReranker
-
-                self._reranker = LiteLLMReranker(rerank_model)
-        except Exception as exc:
-            # COR-3/ADR-018: not just ImportError/MissingServiceError — a
-            # cross-encoder constructor can raise OSError (model download),
-            # ValueError, RuntimeError (weight load), etc. ANY construction
-            # failure self-disables the stage (matching the per-call .rerank()
-            # guard); retrieval degrades to vector order, never crashes.
+        # The RerankerFactory (A2/D-51) owns lazy construction + the swallow-to-
+        # None on ANY failure (COR-3/ADR-018); the engine keeps only the cache +
+        # sticky-disable. A None here means unavailable → disable the stage once.
+        self._reranker = build_reranker(RerankSettings(mode=mode, model=read.rerank_model))
+        if self._reranker is None:
             self._rerank_unavailable = True
-            _log.info(
-                "rerank.unavailable",
-                provider=mode,
-                detail=f"E8 rerank stage skipped — {exc}",
-            )
         return self._reranker
 
     async def _static_embedding_prefilter(

@@ -103,3 +103,21 @@ async def test_litellm_embedder_requires_dim() -> None:
     with pytest.raises(ConfigError, match=r"embedding\.dim is required"):
         await eng.start()
     await eng.stop()
+
+
+async def test_read_rerank_litellm_accepted_at_start() -> None:
+    """A1 regression: read.rerank='litellm' (ADR-024) must pass the startup
+    validator — it used to raise ConfigError because the validator tuple
+    predated the litellm rerank branch. The reranker itself loads lazily."""
+    eng = Engine(
+        dotenv_path=None,
+        storage={"path": ":memory:"},
+        embedding={"provider": "hash"},
+        memories={"semantic": {"enabled": True}},
+        read={"rerank": "litellm", "rerank_model": "cohere/rerank-english-v3.0"},
+    )
+    await eng.start()  # must NOT raise
+    try:
+        assert eng.describe()["vector"] == "LanceDBVectorStore"  # engine came up
+    finally:
+        await eng.stop()
