@@ -1,0 +1,395 @@
+repo,package,gap_type,rationale,notes
+EverMemOS → EverOS,sqlmodel,surveyed_not_default,,candidate or alt adapter
+EverMemOS → EverOS,typer,surveyed_not_default,,candidate or alt adapter
+EverMemOS → EverOS,textual,surveyed_not_default,,candidate or alt adapter
+EverMemOS → EverOS,apscheduler,surveyed_not_default,,candidate or alt adapter
+EverMemOS → EverOS,watchdog,surveyed_not_default,,candidate or alt adapter
+EverMemOS → EverOS,portalocker,surveyed_not_default,,candidate or alt adapter
+EverMemOS → EverOS,jieba,rejected,D-34 reversed — CJK not v0.1 goal,
+EverMemOS → EverOS,vendored,surveyed_not_default,,candidate or alt adapter
+EverMemOS → EverOS,everalgo-agent-memory,surveyed_not_default,,candidate or alt adapter
+EverMemOS → EverOS,everalgo-rank,surveyed_not_default,,candidate or alt adapter
+EverMemOS → EverOS,everalgo-knowledge,surveyed_not_default,,candidate or alt adapter
+EverMemOS → EverOS,everalgo-parser,surveyed_not_default,,candidate or alt adapter
+EverMemOS → EverOS,web/util:,surveyed_not_default,,candidate or alt adapter
+EverMemOS → EverOS,python-multipart,surveyed_not_default,,candidate or alt adapter
+EverMemOS → EverOS,python-dotenv,surveyed_not_default,,candidate or alt adapter
+EverMemOS → EverOS,pyyaml,surveyed_not_default,,candidate or alt adapter
+EverMemOS → EverOS,anyio,surveyed_not_default,,candidate or alt adapter
+EverMemOS → EverOS,greenlet,surveyed_not_default,,candidate or alt adapter
+LightMem,sentence-transformers,rejected,heavy torch default; fastembed D-08 instead,
+LightMem,qdrant-client,surveyed_not_default,,candidate or alt adapter
+LightMem,faiss-cpu,rejected,in-proc index alt; lancedb D-09 default,
+LightMem,nltk,rejected,core reject — heavy corpora; FTS5/Tantivy suffice,
+LightMem,hnswlib,surveyed_not_default,,candidate or alt adapter
+LightMem,igraph,rejected,not adopted,
+LightMem,fastmcp,surveyed_not_default,,candidate or alt adapter
+LightMem,ollama,surveyed_not_default,,candidate or alt adapter
+LightMem,vllm,surveyed_not_default,,candidate or alt adapter
+LightMem,ml,surveyed_not_default,,candidate or alt adapter
+LightMem,torchvision,surveyed_not_default,,candidate or alt adapter
+LightMem,torchcodec,surveyed_not_default,,candidate or alt adapter
+LightMem,accelerate,surveyed_not_default,,candidate or alt adapter
+LightMem,peft,surveyed_not_default,,candidate or alt adapter
+LightMem,timm,surveyed_not_default,,candidate or alt adapter
+LightMem,einops,surveyed_not_default,,candidate or alt adapter
+LightMem,flash-attn,surveyed_not_default,,candidate or alt adapter
+LightMem,ray,surveyed_not_default,,candidate or alt adapter
+LightMem,wandb,surveyed_not_default,,candidate or alt adapter
+LightMem,opencv-python/-contrib,surveyed_not_default,,candidate or alt adapter
+LightMem,scikit-image,surveyed_not_default,,candidate or alt adapter
+LightMem,decord,surveyed_not_default,,candidate or alt adapter
+LightMem,pysrt,surveyed_not_default,,candidate or alt adapter
+LightMem,qwen-vl-utils,surveyed_not_default,,candidate or alt adapter
+LightMem,+§z,surveyed_not_default,,candidate or alt adapter
+LightMem,h2,surveyed_not_default,,candidate or alt adapter
+LightMem,nvidia-,surveyed_not_default,,candidate or alt adapter
+LightMem,etc.),surveyed_not_default,,candidate or alt adapter
+MemMachine,neo4j,rejected,server graph — embedded default sqlite_adjacency/kuzu D-26,
+MemMachine,nebula5-python,surveyed_not_default,,candidate or alt adapter
+MemMachine,qdrant-client,surveyed_not_default,,candidate or alt adapter
+MemMachine,pgvector,surveyed_not_default,,candidate or alt adapter
+MemMachine,sqlite-vec,surveyed_not_default,,candidate or alt adapter
+MemMachine,usearch,surveyed_not_default,,candidate or alt adapter
+MemMachine,hnswlib,surveyed_not_default,,candidate or alt adapter
+MemMachine,sentence-transformers,rejected,heavy torch default; fastembed D-08 instead,
+MemMachine,langchain-aws,surveyed_not_default,,candidate or alt adapter
+MemMachine,langchain-text-splitters,surveyed_not_default,,candidate or alt adapter
+MemMachine,nltk,rejected,core reject — heavy corpora; FTS5/Tantivy suffice,
+MemMachine,agents:,surveyed_not_default,,candidate or alt adapter
+MemMachine,dify_plugin,surveyed_not_default,,candidate or alt adapter
+MemMachine,web/dev:,surveyed_not_default,,candidate or alt adapter
+MemMachine,streamlit,surveyed_not_default,,candidate or alt adapter
+MemMachine,pytest(-asyncio),surveyed_not_default,,candidate or alt adapter
+MemMachine,mypy,surveyed_not_default,,candidate or alt adapter
+MemMachine,hatch,surveyed_not_default,,candidate or alt adapter
+MemMachine,boto3,surveyed_not_default,,candidate or alt adapter
+MemMachine,cohere,surveyed_not_default,,candidate or alt adapter
+MemMachine,google-generativeai,surveyed_not_default,,candidate or alt adapter
+MemOS,langchain-text-splitters,surveyed_not_default,,candidate or alt adapter
+MemOS,pymilvus,surveyed_not_default,,candidate or alt adapter
+MemOS,neo4j,rejected,server graph — embedded default sqlite_adjacency/kuzu D-26,
+MemOS,pika,surveyed_not_default,,candidate or alt adapter
+MemOS,qdrant-client,surveyed_not_default,,candidate or alt adapter
+MemOS,rake-nltk,rejected,reject — tags from NER/LLM,
+MemOS,jieba,rejected,D-34 reversed — CJK not v0.1 goal,
+MemOS,sentence-transformers,rejected,heavy torch default; fastembed D-08 instead,
+MemOS,schedule,surveyed_not_default,,candidate or alt adapter
+MemOS,mem0ai,surveyed_not_default,,candidate or alt adapter
+MemOS,zep-cloud,surveyed_not_default,,candidate or alt adapter
+MemOS,ingest:,surveyed_not_default,,candidate or alt adapter
+MemOS,markdownify,surveyed_not_default,,candidate or alt adapter
+MemOS,pdfminer-six,surveyed_not_default,,candidate or alt adapter
+MemOS,python-pptx,surveyed_not_default,,candidate or alt adapter
+MemOS,openpyxl,surveyed_not_default,,candidate or alt adapter
+MemOS,xlrd,surveyed_not_default,,candidate or alt adapter
+MemOS,xlsxwriter,surveyed_not_default,,candidate or alt adapter
+MemOS,magika,surveyed_not_default,,candidate or alt adapter
+MemOS,beautifulsoup4,surveyed_not_default,,candidate or alt adapter
+MemOS,lxml,surveyed_not_default,,candidate or alt adapter
+MemOS,infra:,surveyed_not_default,,candidate or alt adapter
+MemOS,psycopg2-binary,surveyed_not_default,,candidate or alt adapter
+MemOS,pymysql,surveyed_not_default,,candidate or alt adapter
+MemOS,structlog?→no;,surveyed_not_default,,candidate or alt adapter
+MemOS,sentry-sdk,surveyed_not_default,,candidate or alt adapter
+MemOS,typer,surveyed_not_default,,candidate or alt adapter
+MemOS,diskcache,surveyed_not_default,,candidate or alt adapter
+MemOS,keyring,surveyed_not_default,,candidate or alt adapter
+MemOS,+heavy,surveyed_not_default,,candidate or alt adapter
+MemOS,triton,surveyed_not_default,,candidate or alt adapter
+MemOS,nvidia-*),surveyed_not_default,,candidate or alt adapter
+Memori,faiss-cpu,rejected,in-proc index alt; lancedb D-09 default,
+Memori,sqlalchemy-cockroachdb,surveyed_not_default,,candidate or alt adapter
+Memori,psycopg,surveyed_not_default,,candidate or alt adapter
+Memori,psycopg2-binary,surveyed_not_default,,candidate or alt adapter
+Memori,pymysql,surveyed_not_default,,candidate or alt adapter
+Memori,pymongo,surveyed_not_default,,candidate or alt adapter
+Memori,sentence-transformers,rejected,heavy torch default; fastembed D-08 instead,
+Memori,botocore,surveyed_not_default,,candidate or alt adapter
+Memori,agents:,surveyed_not_default,,candidate or alt adapter
+Memori,util:,surveyed_not_default,,candidate or alt adapter
+Memori,pandas,surveyed_not_default,,candidate or alt adapter
+Memori,protobuf,surveyed_not_default,,candidate or alt adapter
+Memori,grpcio,surveyed_not_default,,candidate or alt adapter
+Memori,tenacity,surveyed_not_default,,candidate or alt adapter
+Memori,pyfiglet,surveyed_not_default,,candidate or alt adapter
+Memori,requests,surveyed_not_default,,candidate or alt adapter
+Memori,python-dotenv,surveyed_not_default,,candidate or alt adapter
+Memori,notebooks:,surveyed_not_default,,candidate or alt adapter
+Memori,ipywidgets,surveyed_not_default,,candidate or alt adapter
+Memori,jupyterlab,surveyed_not_default,,candidate or alt adapter
+Memori,iprogress,surveyed_not_default,,candidate or alt adapter
+MemoryBear,neo4j,rejected,server graph — embedded default sqlite_adjacency/kuzu D-26,
+MemoryBear,rdflib,surveyed_not_default,,candidate or alt adapter
+MemoryBear,owlready2,surveyed_not_default,,candidate or alt adapter
+MemoryBear,elasticsearch(-dsl),surveyed_not_default,,candidate or alt adapter
+MemoryBear,valkey,surveyed_not_default,,candidate or alt adapter
+MemoryBear,celery,rejected,D-16 workers — MemoryBear uses; memspine prefers DBOS/taskiq/inline,
+MemoryBear,flower,surveyed_not_default,,candidate or alt adapter
+MemoryBear,langchain(-community/-aws/-ollama/-openai/-mcp-adapters),surveyed_not_default,,candidate or alt adapter
+MemoryBear,xgboost,surveyed_not_default,,candidate or alt adapter
+MemoryBear,sentence-transformers?→via,surveyed_not_default,,candidate or alt adapter
+MemoryBear,ingest:,surveyed_not_default,,candidate or alt adapter
+MemoryBear,markdownify,surveyed_not_default,,candidate or alt adapter
+MemoryBear,pdfplumber,surveyed_not_default,,candidate or alt adapter
+MemoryBear,python-docx,surveyed_not_default,,candidate or alt adapter
+MemoryBear,python-pptx,surveyed_not_default,,candidate or alt adapter
+MemoryBear,tika,surveyed_not_default,,candidate or alt adapter
+MemoryBear,markdown-to-json,surveyed_not_default,,candidate or alt adapter
+MemoryBear,beautifulsoup4,surveyed_not_default,,candidate or alt adapter
+MemoryBear,lxml,surveyed_not_default,,candidate or alt adapter
+MemoryBear,cjk:,surveyed_not_default,,candidate or alt adapter
+MemoryBear,hanziconv,rejected,D-34 CJK reject,
+MemoryBear,cn2an,rejected,D-34 CJK reject,
+MemoryBear,xpinyin,rejected,D-34 CJK reject,
+MemoryBear,web/auth:,surveyed_not_default,,candidate or alt adapter
+MemoryBear,psycopg2-binary,surveyed_not_default,,candidate or alt adapter
+MemoryBear,cryptography,surveyed_not_default,,candidate or alt adapter
+MemoryBear,python-jose,surveyed_not_default,,candidate or alt adapter
+MemoryBear,passlib,surveyed_not_default,,candidate or alt adapter
+MemoryBear,bcrypt,surveyed_not_default,,candidate or alt adapter
+MemoryBear,+§z,surveyed_not_default,,candidate or alt adapter
+ReMe,croniter,surveyed_not_default,,candidate or alt adapter
+ReMe,faiss-cpu,rejected,in-proc index alt; lancedb D-09 default,
+ReMe,neo4j,rejected,server graph — embedded default sqlite_adjacency/kuzu D-26,
+ReMe,jieba,rejected,D-34 reversed — CJK not v0.1 goal,
+ReMe,rjieba,rejected,D-34 reversed — CJK not v0.1 goal,
+ReMe,agentscope,surveyed_not_default,,candidate or alt adapter
+ReMe,claude-agent-sdk,surveyed_not_default,,candidate or alt adapter
+ReMe,web/util:,surveyed_not_default,,candidate or alt adapter
+ReMe,fastmcp,surveyed_not_default,,candidate or alt adapter
+ReMe,aiofiles,surveyed_not_default,,candidate or alt adapter
+ReMe,loguru,surveyed_not_default,,candidate or alt adapter
+ReMe,rich,surveyed_not_default,,candidate or alt adapter
+ReMe,psutil,surveyed_not_default,,candidate or alt adapter
+ReMe,pyyaml,surveyed_not_default,,candidate or alt adapter
+ReMe,dev:,surveyed_not_default,,candidate or alt adapter
+ReMe,pre-commit,surveyed_not_default,,candidate or alt adapter
+Second-Me,chromadb,rejected,vector alt stub only,
+Second-Me,sentence-transformers,rejected,heavy torch default; fastembed D-08 instead,
+Second-Me,aiomysql,surveyed_not_default,,candidate or alt adapter
+Second-Me,langchain,surveyed_not_default,,candidate or alt adapter
+Second-Me,peft,surveyed_not_default,,candidate or alt adapter
+Second-Me,trl,surveyed_not_default,,candidate or alt adapter
+Second-Me,sentencepiece,surveyed_not_default,,candidate or alt adapter
+Second-Me,gguf,surveyed_not_default,,candidate or alt adapter
+Second-Me,modelscope,surveyed_not_default,,candidate or alt adapter
+Second-Me,fnllm,surveyed_not_default,,candidate or alt adapter
+Second-Me,ingest:,surveyed_not_default,,candidate or alt adapter
+Second-Me,pymupdf,surveyed_not_default,,candidate or alt adapter
+Second-Me,pytesseract,surveyed_not_default,,candidate or alt adapter
+Second-Me,web:,surveyed_not_default,,candidate or alt adapter
+Second-Me,python-socks,surveyed_not_default,,candidate or alt adapter
+Second-Me,wxpy,surveyed_not_default,,candidate or alt adapter
+Second-Me,util:,surveyed_not_default,,candidate or alt adapter
+Second-Me,pandas,surveyed_not_default,,candidate or alt adapter
+Second-Me,scikit-learn,surveyed_not_default,,candidate or alt adapter
+Second-Me,requests,surveyed_not_default,,candidate or alt adapter
+Second-Me,docs:,surveyed_not_default,,candidate or alt adapter
+SimpleMem / EvolveMem / Omni,pylance,surveyed_not_default,,candidate or alt adapter
+SimpleMem / EvolveMem / Omni,tantivy,surveyed_not_default,,candidate or alt adapter
+SimpleMem / EvolveMem / Omni,faiss-cpu,rejected,in-proc index alt; lancedb D-09 default,
+SimpleMem / EvolveMem / Omni,qdrant-client,surveyed_not_default,,candidate or alt adapter
+SimpleMem / EvolveMem / Omni,rank_bm25/rank-bm25,surveyed_not_default,,candidate or alt adapter
+SimpleMem / EvolveMem / Omni,langmem,surveyed_not_default,,candidate or alt adapter
+SimpleMem / EvolveMem / Omni,langgraph(+checkpoint/-prebuilt/-sdk),surveyed_not_default,,candidate or alt adapter
+SimpleMem / EvolveMem / Omni,trustcall,surveyed_not_default,,candidate or alt adapter
+SimpleMem / EvolveMem / Omni,langchain(-core/-openai/-anthropic),surveyed_not_default,,candidate or alt adapter
+SimpleMem / EvolveMem / Omni,sentence-transformers,rejected,heavy torch default; fastembed D-08 instead,
+SimpleMem / EvolveMem / Omni,dydantic,surveyed_not_default,,candidate or alt adapter
+SimpleMem / EvolveMem / Omni,multimodal:,surveyed_not_default,,candidate or alt adapter
+SimpleMem / EvolveMem / Omni,librosa,surveyed_not_default,,candidate or alt adapter
+SimpleMem / EvolveMem / Omni,pillow,surveyed_not_default,,candidate or alt adapter
+SimpleMem / EvolveMem / Omni,eval:,surveyed_not_default,,candidate or alt adapter
+SimpleMem / EvolveMem / Omni,rouge_score,surveyed_not_default,,candidate or alt adapter
+SimpleMem / EvolveMem / Omni,+§z,surveyed_not_default,,candidate or alt adapter
+SimpleMem / EvolveMem / Omni,etc.),surveyed_not_default,,candidate or alt adapter
+cognee,pylance,surveyed_not_default,,candidate or alt adapter
+cognee,neo4j,rejected,server graph — embedded default sqlite_adjacency/kuzu D-26,
+cognee,rdflib,surveyed_not_default,,candidate or alt adapter
+cognee,graphiti-core,surveyed_not_default,,candidate or alt adapter
+cognee,lightrag-hku,surveyed_not_default,,candidate or alt adapter
+cognee,nano-vectordb,surveyed_not_default,,candidate or alt adapter
+cognee,chromadb,rejected,vector alt stub only,
+cognee,pgvector,surveyed_not_default,,candidate or alt adapter
+cognee,diskcache,surveyed_not_default,,candidate or alt adapter
+cognee,ingest:,surveyed_not_default,,candidate or alt adapter
+cognee,unstructured,surveyed_not_default,,candidate or alt adapter
+cognee,pypdf,surveyed_not_default,,candidate or alt adapter
+cognee,beautifulsoup4,surveyed_not_default,,candidate or alt adapter
+cognee,lxml,surveyed_not_default,,candidate or alt adapter
+cognee,tree-sitter(-python),surveyed_not_default,,candidate or alt adapter
+cognee,langchain-text-splitters,surveyed_not_default,,candidate or alt adapter
+cognee,llm:,surveyed_not_default,,candidate or alt adapter
+cognee,groq,surveyed_not_default,,candidate or alt adapter
+cognee,mistralai,surveyed_not_default,,candidate or alt adapter
+cognee,llama-index-core,surveyed_not_default,,candidate or alt adapter
+cognee,llama-cpp-python,surveyed_not_default,,candidate or alt adapter
+cognee,baml-py,surveyed_not_default,,candidate or alt adapter
+cognee,eval/docs:,surveyed_not_default,,candidate or alt adapter
+cognee,mkdocs-material,surveyed_not_default,,candidate or alt adapter
+cognee,plotly,surveyed_not_default,,candidate or alt adapter
+cognee,matplotlib,surveyed_not_default,,candidate or alt adapter
+cognee,seaborn,surveyed_not_default,,candidate or alt adapter
+cognee,infra:,surveyed_not_default,,candidate or alt adapter
+cognee,gunicorn,surveyed_not_default,,candidate or alt adapter
+cognee,asyncpg,surveyed_not_default,,candidate or alt adapter
+cognee,sentry-sdk,surveyed_not_default,,candidate or alt adapter
+cognee,modal,surveyed_not_default,,candidate or alt adapter
+cognee,s3fs,surveyed_not_default,,candidate or alt adapter
+graphiti,graphiti-core,surveyed_not_default,,candidate or alt adapter
+graphiti,neo4j,rejected,server graph — embedded default sqlite_adjacency/kuzu D-26,
+graphiti,falkordb,surveyed_not_default,,candidate or alt adapter
+graphiti,opensearch-py,surveyed_not_default,,candidate or alt adapter
+graphiti,sentence-transformers,rejected,heavy torch default; fastembed D-08 instead,
+graphiti,voyageai,surveyed_not_default,,candidate or alt adapter
+graphiti,llm:,surveyed_not_default,,candidate or alt adapter
+graphiti,anthropic,surveyed_not_default,,candidate or alt adapter
+graphiti,groq,surveyed_not_default,,candidate or alt adapter
+graphiti,google-genai,surveyed_not_default,,candidate or alt adapter
+graphiti,langchain(-openai/-anthropic/-aws),surveyed_not_default,,candidate or alt adapter
+graphiti,langgraph,surveyed_not_default,,candidate or alt adapter
+graphiti,obs:,surveyed_not_default,,candidate or alt adapter
+graphiti,posthog,surveyed_not_default,,candidate or alt adapter
+graphiti,web/dev:,surveyed_not_default,,candidate or alt adapter
+graphiti,pydantic(-settings),surveyed_not_default,,candidate or alt adapter
+graphiti,pytest(-asyncio/-xdist),surveyed_not_default,,candidate or alt adapter
+graphiti,pyright,surveyed_not_default,,candidate or alt adapter
+graphiti,jupyterlab,surveyed_not_default,,candidate or alt adapter
+graphiti,ipykernel,surveyed_not_default,,candidate or alt adapter
+graphiti,boto3,surveyed_not_default,,candidate or alt adapter
+graphiti,azure-identity,surveyed_not_default,,candidate or alt adapter
+hindsight,flashrank,surveyed_not_default,,candidate or alt adapter
+hindsight,llama-index-core,surveyed_not_default,,candidate or alt adapter
+hindsight,langchain(-core/-text-splitters),surveyed_not_default,,candidate or alt adapter
+hindsight,langgraph,surveyed_not_default,,candidate or alt adapter
+hindsight,pgvector,surveyed_not_default,,candidate or alt adapter
+hindsight,asyncpg,surveyed_not_default,,candidate or alt adapter
+hindsight,obstore,surveyed_not_default,,candidate or alt adapter
+hindsight,pg0-embedded,surveyed_not_default,,candidate or alt adapter
+hindsight,sentence-transformers,rejected,heavy torch default; fastembed D-08 instead,
+hindsight,mlx(-lm),surveyed_not_default,,candidate or alt adapter
+hindsight,einops,surveyed_not_default,,candidate or alt adapter
+hindsight,cohere,surveyed_not_default,,candidate or alt adapter
+hindsight,agents:,surveyed_not_default,,candidate or alt adapter
+hindsight,agno,surveyed_not_default,,candidate or alt adapter
+hindsight,crewai,surveyed_not_default,,candidate or alt adapter
+hindsight,autogen-core,surveyed_not_default,,candidate or alt adapter
+hindsight,strands-agents,surveyed_not_default,,candidate or alt adapter
+hindsight,claude-agent-sdk,surveyed_not_default,,candidate or alt adapter
+hindsight,pydantic-ai-slim,surveyed_not_default,,candidate or alt adapter
+hindsight,dify_plugin,surveyed_not_default,,candidate or alt adapter
+hindsight,web/obs:,surveyed_not_default,,candidate or alt adapter
+hindsight,streamlit,surveyed_not_default,,candidate or alt adapter
+hindsight,tornado,surveyed_not_default,,candidate or alt adapter
+hindsight,python-fasthtml,surveyed_not_default,,candidate or alt adapter
+hindsight,opentelemetry-,surveyed_not_default,,candidate or alt adapter
+hindsight,prometheus(exporter),surveyed_not_default,,candidate or alt adapter
+hindsight,self:,surveyed_not_default,,candidate or alt adapter
+hindsight,hindsight-client,surveyed_not_default,,candidate or alt adapter
+hindsight,hindsight-embed,surveyed_not_default,,candidate or alt adapter
+honcho,pyarrow,surveyed_not_default,,candidate or alt adapter
+honcho,turbopuffer,surveyed_not_default,,candidate or alt adapter
+honcho,pgvector,surveyed_not_default,,candidate or alt adapter
+honcho,psycopg,surveyed_not_default,,candidate or alt adapter
+honcho,cashews,surveyed_not_default,,candidate or alt adapter
+honcho,sentry-sdk,surveyed_not_default,,candidate or alt adapter
+honcho,scikit-learn,surveyed_not_default,,candidate or alt adapter
+honcho,crewai,surveyed_not_default,,candidate or alt adapter
+honcho,langgraph,surveyed_not_default,,candidate or alt adapter
+honcho,langchain-core,surveyed_not_default,,candidate or alt adapter
+honcho,ingest:,surveyed_not_default,,candidate or alt adapter
+honcho,web:,surveyed_not_default,,candidate or alt adapter
+honcho,typer,surveyed_not_default,,candidate or alt adapter
+honcho,rich,surveyed_not_default,,candidate or alt adapter
+honcho,nanoid,surveyed_not_default,,candidate or alt adapter
+honcho,cloudevents,surveyed_not_default,,candidate or alt adapter
+honcho,prometheus_client,surveyed_not_default,,candidate or alt adapter
+honcho,self:,surveyed_not_default,,candidate or alt adapter
+honcho,honcho-cli,surveyed_not_default,,candidate or alt adapter
+mem0,qdrant-client,surveyed_not_default,,candidate or alt adapter
+mem0,chromadb,rejected,vector alt stub only,
+mem0,pgvector/vecs,surveyed_not_default,,candidate or alt adapter
+mem0,weaviate-client,surveyed_not_default,,candidate or alt adapter
+mem0,pymilvus,surveyed_not_default,,candidate or alt adapter
+mem0,faiss-cpu,rejected,in-proc index alt; lancedb D-09 default,
+mem0,pinecone(-text),surveyed_not_default,,candidate or alt adapter
+mem0,upstash-vector,surveyed_not_default,,candidate or alt adapter
+mem0,azure-search-documents,surveyed_not_default,,candidate or alt adapter
+mem0,elasticsearch,surveyed_not_default,,candidate or alt adapter
+mem0,opensearch-py,surveyed_not_default,,candidate or alt adapter
+mem0,redis/redisvl/valkey,surveyed_not_default,,candidate or alt adapter
+mem0,spacy,surveyed_not_default,,candidate or alt adapter
+mem0,sentence-transformers,rejected,heavy torch default; fastembed D-08 instead,
+mem0,llm:,surveyed_not_default,,candidate or alt adapter
+mem0,anthropic,surveyed_not_default,,candidate or alt adapter
+mem0,groq,surveyed_not_default,,candidate or alt adapter
+mem0,together,surveyed_not_default,,candidate or alt adapter
+mem0,ollama,surveyed_not_default,,candidate or alt adapter
+mem0,vertexai,surveyed_not_default,,candidate or alt adapter
+mem0,google-genai/-generativeai,surveyed_not_default,,candidate or alt adapter
+mem0,langchain(-community/-aws),surveyed_not_default,,candidate or alt adapter
+mem0,web:,surveyed_not_default,,candidate or alt adapter
+mem0,slowapi,surveyed_not_default,,candidate or alt adapter
+mem0,typer,surveyed_not_default,,candidate or alt adapter
+mem0,rich,surveyed_not_default,,candidate or alt adapter
+mem0,db:,surveyed_not_default,,candidate or alt adapter
+mem0,pymongo,surveyed_not_default,,candidate or alt adapter
+mem0,pymysql,surveyed_not_default,,candidate or alt adapter
+mem0,cassandra-driver,surveyed_not_default,,candidate or alt adapter
+mem0,databricks-sdk,surveyed_not_default,,candidate or alt adapter
+mem0,pymochow,surveyed_not_default,,candidate or alt adapter
+mem0,dbutils,surveyed_not_default,,candidate or alt adapter
+memobase,pgvector,surveyed_not_default,,candidate or alt adapter
+memobase,psycopg2-binary,surveyed_not_default,,candidate or alt adapter
+memobase,realtime:,surveyed_not_default,,candidate or alt adapter
+memobase,livekit-plugins-noise-cancellation,surveyed_not_default,,candidate or alt adapter
+memobase,obs:,surveyed_not_default,,candidate or alt adapter
+memobase,web:,surveyed_not_default,,candidate or alt adapter
+memobase,rich,surveyed_not_default,,candidate or alt adapter
+memobase,mcp,surveyed_not_default,,candidate or alt adapter
+memobase,memobase,surveyed_not_default,,candidate or alt adapter
+memobase,volcengine-python-sdk,surveyed_not_default,,candidate or alt adapter
+powermem,pyobvector,surveyed_not_default,,candidate or alt adapter
+powermem,pyseekdb,surveyed_not_default,,candidate or alt adapter
+powermem,pgvector,surveyed_not_default,,candidate or alt adapter
+powermem,psycopg(-pool)/psycopg2-binary,surveyed_not_default,,candidate or alt adapter
+powermem,sqlglot,surveyed_not_default,,candidate or alt adapter
+powermem,jieba,rejected,D-34 reversed — CJK not v0.1 goal,
+powermem,sentence-transformers,rejected,heavy torch default; fastembed D-08 instead,
+powermem,slowapi,surveyed_not_default,,candidate or alt adapter
+powermem,llm:,surveyed_not_default,,candidate or alt adapter
+powermem,anthropic,surveyed_not_default,,candidate or alt adapter
+powermem,ollama,surveyed_not_default,,candidate or alt adapter
+powermem,together,surveyed_not_default,,candidate or alt adapter
+powermem,vertexai,surveyed_not_default,,candidate or alt adapter
+powermem,google-genai/-generativeai,surveyed_not_default,,candidate or alt adapter
+powermem,dashscope,surveyed_not_default,,candidate or alt adapter
+powermem,zai-sdk,surveyed_not_default,,candidate or alt adapter
+powermem,langchain(-community/-openai),surveyed_not_default,,candidate or alt adapter
+powermem,langgraph,surveyed_not_default,,candidate or alt adapter
+powermem,web/dev:,surveyed_not_default,,candidate or alt adapter
+powermem,pydantic(-settings),surveyed_not_default,,candidate or alt adapter
+powermem,playwright,surveyed_not_default,,candidate or alt adapter
+powermem,pytest(-asyncio/-cov/-mock/-playwright),surveyed_not_default,,candidate or alt adapter
+powermem,black,surveyed_not_default,,candidate or alt adapter
+powermem,isort,surveyed_not_default,,candidate or alt adapter
+powermem,flake8,surveyed_not_default,,candidate or alt adapter
+powermem,mypy,surveyed_not_default,,candidate or alt adapter
+telemem,mem0ai,surveyed_not_default,,candidate or alt adapter
+telemem,memobase,surveyed_not_default,,candidate or alt adapter
+telemem,chromadb,rejected,vector alt stub only,
+telemem,nano-vectordb,surveyed_not_default,,candidate or alt adapter
+telemem,faiss-cpu/-gpu,surveyed_not_default,,candidate or alt adapter
+telemem,qdrant-client,surveyed_not_default,,candidate or alt adapter
+telemem,pgvector,surveyed_not_default,,candidate or alt adapter
+telemem,sentence-transformers,rejected,heavy torch default; fastembed D-08 instead,
+telemem,multimodal:,surveyed_not_default,,candidate or alt adapter
+telemem,yt-dlp,surveyed_not_default,,candidate or alt adapter
+telemem,soundfile?→no;,surveyed_not_default,,candidate or alt adapter
+telemem,obs:,surveyed_not_default,,candidate or alt adapter
+telemem,prometheus,surveyed_not_default,,candidate or alt adapter
+telemem,instrumentation-fastapi),surveyed_not_default,,candidate or alt adapter
+telemem,posthog,surveyed_not_default,,candidate or alt adapter
+telemem,+§z,surveyed_not_default,,candidate or alt adapter
+telemem,nvidia-free),surveyed_not_default,,candidate or alt adapter

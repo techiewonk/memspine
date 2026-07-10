@@ -1,0 +1,29 @@
+package,status,memspine_decision,ecosystem_proof,notes
+aiosqlite,adopted,D-44 async storage,memspine core,memspine default or extra
+alembic,adopted,D-36 migrations,memspine core,memspine default or extra
+chonkie,adopted,D-29 ingest,MemOS,memspine default or extra
+datasketch,adopted,D-27 dedup,MemOS,memspine default or extra
+fakeredis,adopted,D-41 test double,cognee,memspine default or extra
+fastembed,adopted,D-08 embedder,"mem0, cognee",memspine default or extra
+gliner2,adopted,D-28 NER,graphiti,memspine default or extra
+graspologic,adopted,D-40 communities,MemoryBear,memspine default or extra
+instructor,adopted,D-31 structured,"cognee, MemMachine, honcho",memspine default or extra
+json-repair,adopted,D-31 structured,"honcho, MemoryBear",memspine default or extra
+kuzu,adopted,D-26 graph alt,"graphiti, cognee",memspine default or extra
+lancedb,adopted,D-09 vector,"EverMemOS, cognee, honcho, SimpleMem",memspine default or extra
+langfuse,adopted,observability,"honcho, cognee",memspine default or extra
+litellm,adopted,D-33 llm gateway,"A-mem, mem0, cognee, hindsight, telemem",memspine default or extra
+llmlingua,adopted,E5 compress,"LightMem, SimpleMem",memspine default or extra
+markitdown,adopted,D-29 ingest,"MemOS, hindsight",memspine default or extra
+mistletoe,adopted,file-native,ReMe,memspine default or extra
+onnxruntime,adopted,D-08 embedder,cognee,memspine default or extra
+prometheus-client,adopted,observability,"EverMemOS, MemOS, honcho",memspine default or extra
+pydantic-settings,adopted,config,"powermem, EverMemOS, cognee",memspine default or extra
+python-frontmatter,adopted,file-native,"ReMe, EverMemOS",memspine default or extra
+rank-bm25,adopted,D-25 lexical,"A-mem, powermem, SimpleMem, MemOS, ReMe",memspine default or extra
+rank_bm25,adopted,D-25 lexical,"A-mem, powermem, SimpleMem, MemOS, ReMe",memspine default or extra
+sqlalchemy,adopted,D-36 storage,memspine core,memspine default or extra
+structlog,adopted,observability,"EverMemOS, cognee",memspine default or extra
+watchfiles,adopted,file-native,"ReMe, EverMemOS",memspine default or extra
+xxhash,adopted,D-37 hashing,MemoryBear,memspine default or extra
+zstandard,adopted,D-32 cold compress,"MemOS, ReMe, SimpleMem",memspine default or extra
