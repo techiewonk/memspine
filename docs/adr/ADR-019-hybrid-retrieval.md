@@ -3,12 +3,19 @@
 **Status:** accepted · **Date:** 2026-07-08 · **Register:** D-53
 **Supersedes:** ADR-017 §5 (the amended-in-place hybrid note)
 **Amended:** 2026-07-10 (v0.2 A3) — `read.hybrid` default flipped **OFF → ON**
-(D-25's core-default intent). The lexical leg is now built by default; the
-sqlite_fts5 provider rides the existing storage SQLite client, so the default
-adds no dependency. `read.hybrid: false` restores the bit-identical vector-only
-pipeline. All shipped templates use the sqlite backend, so the default is safe;
-a postgres backend must pair the flip with `read.lexical_provider: tantivy`
-(FTS5 is a SQLite virtual table).
+(D-25's core-default intent): the lexical leg is now built by default;
+`read.hybrid: false` restores the bit-identical vector-only pipeline.
+**Amended:** 2026-07-11 (v0.2) — the default `lexical_provider` is now the
+standalone **Tantivy** BM25 index, promoted to a **core** dependency (amends
+D-03). It is backend-independent (owns its own index, never touches the
+transactional store), so hybrid-default-on works on **every** storage backend
+with no extra and no per-backend caveat — the earlier "postgres must set
+tantivy" note is obsolete. The transactional-DB `sqlite_fts5` provider was
+removed: the lexical leg is a dedicated search index, never bolted onto the
+system-of-record. Server-scale deployments swap in the `[opensearch]` provider
+(OpenSearch/Elasticsearch) — a stub seam today. Constraint: embedded Tantivy is
+single-writer per index directory, so two live Engine instances cannot share one
+file-backed lexical index (use `opensearch` or one engine per process).
 
 ## Context
 

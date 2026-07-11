@@ -30,6 +30,7 @@ dependencies = [
     "httpx>=0.27",             # clients/http: OpenAI-compatible local LLM surface (D-39/D-46)
     "lancedb>=0.13",           # sole vector store + native quantization (D-09, amends D-03 — ADR-021)
     "litellm>=1.50",           # unified cloud+local LLM/embedding/rerank gateway (D-33, amends D-03/D-39 — ADR-024)
+    "tantivy>=0.22",           # default lexical/BM25 leg — standalone, backend-independent (D-25, amends D-03; hybrid is default-on since A3)
 ]
 
 [project.optional-dependencies]
@@ -47,7 +48,7 @@ ner        = ["gliner2>=1.2"]                        # local CPU entity extracti
 community  = ["graspologic>=3.4"]                   # graph community detection (D-40)
 compress   = ["llmlingua>=0.2"]                     # assembly-time context compression (E5)
 llmlocal   = ["llama-cpp-python>=0.3"]              # in-proc open-weight inference (D-39)
-tantivy    = ["tantivy>=0.22"]                       # standalone lexical for non-Lance configs (D-25)
+opensearch = ["opensearch-py>=2.6"]                 # server-scale lexical/BM25 leg (D-25); embedded default is core tantivy
 dbos       = ["dbos>=2.20,<3.0"]                     # durable worker runner (D-16); needs the SQLite system-db support (zero-infra, D-10) verified against 2.26
 taskiq     = ["taskiq>=0.11", "taskiq-redis>=1.0"]  # brokered worker runner (D-16)
 rest       = ["fastapi>=0.115", "uvicorn>=0.32"]    # REST protocol (D-06)
@@ -64,7 +65,7 @@ local      = ["memspine[graph,cache,dbos,ingest,ner]"]
 prod-aws   = ["memspine[aws,taskiq,rest]"]
 # NOTE: `community` (graspologic, numpy<2) conflicts with `ingest` (markitdown→magika, numpy>=2.1);
 # declared under [tool.uv] conflicts and excluded from `all` until graspologic supports numpy 2.
-all        = ["memspine[graph,kuzu,cache,ingest,structured,ner,compress,llmlocal,tantivy,dbos,taskiq,rest,rerank,static,aws,postgres,weaviate,neo4j]"]
+all        = ["memspine[graph,kuzu,cache,ingest,structured,ner,compress,llmlocal,opensearch,dbos,taskiq,rest,rerank,static,aws,postgres,weaviate,neo4j]"]
 
 dev = [
     "pytest>=8.3",

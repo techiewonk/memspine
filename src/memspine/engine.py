@@ -99,7 +99,6 @@ from memspine.services.graph.base import GraphStore
 from memspine.services.graph.sqlite_adjacency import SQLiteAdjacencyGraph
 from memspine.services.lexical.base import LexicalStore, rrf_fuse
 from memspine.services.lexical.projector import LexicalProjector
-from memspine.services.lexical.sqlite_fts5 import SQLiteFTS5Lexical
 from memspine.services.llm.base import LLMRouter, LLMService
 from memspine.services.llm.structured import structured_call
 from memspine.services.rerank.base import Reranker, concat_background
@@ -463,13 +462,24 @@ class Engine:
         # a fixed interval so learning dynamics advance without an external cron.
         interval = config.workers.sleep_interval_seconds
         if interval is not None and interval > 0:
+            if self._client_is_memory(config):
+                # An in-memory SQLite DB shares one connection and can't use WAL,
+                # so a background sleep cycle collides with foreground writes
+                # ("table is locked"); and an ephemeral DB has nothing durable to
+                # maintain. Skip the loop rather than emit lock-contention noise.
+                _log.warning(
+                    "scheduler.disabled_on_memory_db",
+                    detail="workers.sleep_interval_seconds ignored for storage.path=':memory:' "
+                    "(no WAL, nothing to persist) — use a file-backed DB",
+                )
+            else:
 
-            async def _tick() -> object:
-                assert self._runner is not None  # set above; loop only runs while started
-                return await run_sleep_cycle(self._runner, self._pipeline_ctx())
+                async def _tick() -> object:
+                    assert self._runner is not None  # set above; loop only runs while started
+                    return await run_sleep_cycle(self._runner, self._pipeline_ctx())
 
-            self._scheduler = SleepScheduler(interval, _tick)
-            self._scheduler.start()
+                self._scheduler = SleepScheduler(interval, _tick)
+                self._scheduler.start()
         self._started = True
         return self
 
@@ -1060,7 +1070,7 @@ class Engine:
         exists = getattr(self._vector, "exists", None)
         if callable(exists):
             vector_absent = not await exists(record_id)
-        # The lexical index (memory_fts) holds raw content when hybrid is on, so
+        # The Tantivy lexical index holds raw content when hybrid is on, so
         # erasure is not proven until it too is inspected. None => no lexical store
         # is owned (hybrid off) — nothing to erase, so it cannot block ``clean``.
         lexical_absent: bool | None = None
@@ -2411,19 +2421,13 @@ class Engine:
         )
 
     def _build_lexical_store(self, config: MemspineConfig) -> LexicalStore:
-        """Lexical provider selection (D-25). ``sqlite_fts5`` (default) rides the
-        existing SQLite client; ``tantivy`` builds a standalone BM25 index
-        (``[tantivy]`` extra). Both are rebuildable projections driven by the
-        same :class:`LexicalProjector`. A missing ``[tantivy]`` extra hard-fails
-        with the D-10 error at construction (``TantivyLexical.__init__``)."""
+        """Lexical provider selection (D-25). ``tantivy`` (default, **core**)
+        builds a standalone BM25 index independent of the storage backend;
+        ``opensearch`` (``[opensearch]`` extra) is the server-scale seam. Both are
+        rebuildable projections driven by the same :class:`LexicalProjector`. The
+        transactional-DB ``sqlite_fts5`` provider was removed (v0.2): the lexical
+        leg is a dedicated search index, never bolted onto the system-of-record."""
         provider = config.read.lexical_provider
-        if provider == "sqlite_fts5":
-            if self._client is None:
-                raise ConfigError(
-                    "read.lexical_provider='sqlite_fts5' requires storage.backend='sqlite' "
-                    "(FTS5 is a SQLite virtual table) — use 'tantivy' with a postgres backend"
-                )
-            return SQLiteFTS5Lexical(self._client)
         if provider == "tantivy":
             from memspine.services.lexical.tantivy import TantivyLexical
 
@@ -2434,8 +2438,12 @@ class Engine:
                 None if self._client_is_memory(config) else f"{self._derived_base(config)}.tantivy"
             )
             return TantivyLexical(index_path)
+        if provider == "opensearch":
+            from memspine.services.lexical.opensearch import OpenSearchLexical
+
+            return cast("LexicalStore", OpenSearchLexical(config.read))  # stub — always raises
         raise ConfigError(
-            f"unknown read.lexical_provider {provider!r} (valid: sqlite_fts5, tantivy)"
+            f"unknown read.lexical_provider {provider!r} (valid: tantivy, opensearch)"
         )
 
     async def _build_graph_store(self, config: MemspineConfig) -> GraphStore:

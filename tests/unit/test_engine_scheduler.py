@@ -1,18 +1,23 @@
-"""D1: the engine wires the autonomous sleep scheduler (workers.sleep_interval_seconds)."""
+"""D1: the engine wires the autonomous sleep scheduler (workers.sleep_interval_seconds).
+
+The scheduler needs a file-backed DB (WAL) — it is deliberately disabled on
+``:memory:`` (no WAL, nothing to persist), which is its own test below.
+"""
 
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
 
 from memspine.engine import Engine
 
 
-async def _engine(interval: float | None) -> Engine:
+async def _engine(interval: float | None, path: str = ":memory:") -> Engine:
     workers = {"sleep_interval_seconds": interval} if interval is not None else {}
     engine = Engine(
         template="base",
         dotenv_path=None,
-        storage={"path": ":memory:"},
+        storage={"path": path},
         embedding={"provider": "hash"},
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
         workers=workers,
@@ -30,8 +35,18 @@ async def test_scheduler_off_by_default() -> None:
         await engine.stop()
 
 
-async def test_scheduler_runs_the_cycle_on_its_interval() -> None:
-    engine = await _engine(0.01)
+async def test_scheduler_disabled_on_memory_db() -> None:
+    # Even with an interval set, :memory: gets no scheduler (guarded).
+    engine = await _engine(0.01, path=":memory:")
+    try:
+        assert engine.describe()["scheduler"] is False
+        assert engine._scheduler is None
+    finally:
+        await engine.stop()
+
+
+async def test_scheduler_runs_the_cycle_on_its_interval(tmp_path: Path) -> None:
+    engine = await _engine(0.01, path=str(tmp_path / "sched.db"))
     try:
         assert engine.describe()["scheduler"] is True
         # The loop drives consolidate/decay/prune without an explicit sleep():
@@ -53,8 +68,8 @@ async def test_scheduler_runs_the_cycle_on_its_interval() -> None:
     assert engine._scheduler is None
 
 
-async def test_stop_cancels_the_scheduler() -> None:
-    engine = await _engine(0.01)
+async def test_stop_cancels_the_scheduler(tmp_path: Path) -> None:
+    engine = await _engine(0.01, path=str(tmp_path / "sched.db"))
     scheduler = engine._scheduler
     assert scheduler is not None and scheduler.running
     await engine.stop()

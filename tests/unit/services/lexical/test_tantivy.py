@@ -1,10 +1,8 @@
-"""Standalone Tantivy lexical adapter (D-25, ``[tantivy]``): BM25 ordering,
+"""Standalone Tantivy lexical adapter (D-25, **core** default): BM25 ordering,
 namespace isolation, delete/clear+rebuild, NUL/injection safety, exists().
 
-Skipped cleanly when the ``[tantivy]`` extra is not installed (it is NOT a dev
-dependency) — the suite runs only where ``import tantivy`` succeeds. A parity
-test cross-checks the target against the zero-dep SQLite FTS5 store (the two
-BM25 backends rank differently, but both must surface the same target record).
+Tantivy is a core dependency (v0.2), so this always runs; ``importorskip`` is a
+belt-and-braces guard for a broken build.
 """
 
 from __future__ import annotations
@@ -13,13 +11,9 @@ import pytest
 
 pytest.importorskip("tantivy")
 
-from memspine.clients.sqlite import SQLiteClient
 from memspine.config.constants import MAX_LEXICAL_QUERY_TERMS
 from memspine.core.records import MemoryRecord, SourceInfo
-from memspine.exceptions import MissingServiceError
-from memspine.services.lexical.sqlite_fts5 import SQLiteFTS5Lexical
 from memspine.services.lexical.tantivy import TantivyLexical, tokenize_content
-from memspine.services.storage.sqlite.schema import metadata
 
 
 def rec(record_id: str, namespace: str, content: str) -> MemoryRecord:
@@ -170,54 +164,22 @@ def test_tokenize_content_matches_default_tokenizer_shape() -> None:
     assert len(tokenize_content(" ".join(f"t{i}" for i in range(1000)))) == MAX_LEXICAL_QUERY_TERMS
 
 
-# ── parity with the zero-dep SQLite FTS5 store ────────────────────────────────
+# ── target BM25 ranking ───────────────────────────────────────────────────────
 
 
-async def _fts5_store() -> SQLiteFTS5Lexical:
-    client = SQLiteClient(":memory:")
-    await client.connect()
-    async with client.engine.begin() as conn:
-        await conn.run_sync(metadata.create_all)
-    return SQLiteFTS5Lexical(client)
-
-
-async def test_parity_both_backends_find_the_target() -> None:
-    """Same corpus + query → both backends surface the target and honor the
-    namespace filter (exact BM25 scores differ, ordering of the target does not)."""
+async def test_term_frequency_dominates_ranking() -> None:
+    """More occurrences of the query term → higher BM25 rank; ns filter honored."""
     corpus = [
         rec("r1", "ns/a", "the quick brown fox jumps"),
         rec("r2", "ns/a", "a lazy dog sleeps all day"),
         rec("r3", "ns/a", "quick quick quick reflexes"),
         rec("r4", "ns/b", "quick content in another namespace"),
     ]
-    tantivy_store = await make_store()
-    fts5_store = await _fts5_store()
+    store = await make_store()
     for record in corpus:
-        await tantivy_store.index(record)
-        await fts5_store.index(record)
-
-    t_ids = {h.record_id for h in await tantivy_store.search("ns/a", "quick", top_k=5)}
-    f_ids = {h.record_id for h in await fts5_store.search("ns/a", "quick", top_k=5)}
-    assert t_ids == f_ids == {"r1", "r3"}  # r4 (ns/b) excluded by both
-    # The 3x-"quick" record ranks first in both (term frequency dominates BM25).
-    assert (await tantivy_store.search("ns/a", "quick", top_k=5))[0].record_id == "r3"
-    assert (await fts5_store.search("ns/a", "quick", top_k=5))[0].record_id == "r3"
-    await tantivy_store.close()
-    await fts5_store.close()
-
-
-def test_missing_extra_raises_missing_service(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Even where tantivy IS installed, a broken import surfaces the D-10 error
-    naming the extra (the not-installed contract the stub used to hold)."""
-    import builtins
-
-    real_import = builtins.__import__
-
-    def fake_import(name: str, *args: object, **kwargs: object) -> object:
-        if name == "tantivy":
-            raise ImportError("no tantivy")
-        return real_import(name, *args, **kwargs)  # type: ignore[arg-type]
-
-    monkeypatch.setattr(builtins, "__import__", fake_import)
-    with pytest.raises(MissingServiceError):
-        TantivyLexical()
+        await store.index(record)
+    hits = await store.search("ns/a", "quick", top_k=5)
+    ids = {h.record_id for h in hits}
+    assert ids == {"r1", "r3"}  # r4 (ns/b) excluded by the namespace filter
+    assert hits[0].record_id == "r3"  # 3x "quick" ranks first
+    await store.close()

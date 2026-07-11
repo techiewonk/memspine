@@ -250,38 +250,21 @@ async def test_migration_adds_group_id_and_tags_columns(tmp_path: Path) -> None:
     assert {"group_id", "tags"} <= columns()
 
 
-async def test_baseline_creates_lexical_fts_index(tmp_path: Path) -> None:
-    """The single baseline (ADR-025 squash) creates the D-25 lexical index, and
-    the FTS5 store indexes + searches against it."""
+async def test_baseline_creates_no_lexical_table(tmp_path: Path) -> None:
+    """v0.2: the transactional-DB FTS5 lexical table was removed with the
+    sqlite_fts5 provider — the baseline must not create it (the BM25 leg is the
+    standalone core Tantivy index, independent of the storage backend)."""
     from sqlalchemy import create_engine, inspect
-
-    from memspine.core.records import SourceInfo
-    from memspine.services.lexical.sqlite_fts5 import SQLiteFTS5Lexical
 
     db = tmp_path / "fresh.db"
     upgrade_to_head(db)
 
     engine = create_engine(f"sqlite:///{db}")
-    assert inspect(engine).has_table("memory_fts")  # table exists after upgrade
-    engine.dispose()
-
-    client = SQLiteClient(db)
-    await client.connect()
     try:
-        store = SQLiteFTS5Lexical(client)
-        await store.index(
-            MemoryRecord(
-                record_id="r1",
-                namespace="agent/a",
-                memory_type="semantic",
-                content="the migrated fox",
-                source=SourceInfo(role="user"),
-            )
-        )
-        hits = await store.search("agent/a", "fox")
-        assert [h.record_id for h in hits] == ["r1"]
+        assert not inspect(engine).has_table("memory_fts")
+        assert inspect(engine).has_table("memory_records")  # the real tables still land
     finally:
-        await client.close()
+        engine.dispose()
 
 
 async def test_alembic_migration_builds_same_schema(tmp_path: Path) -> None:

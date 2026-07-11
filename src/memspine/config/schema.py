@@ -208,17 +208,19 @@ class ReadConfig(BaseModel):
       every search so records that only exact keywords surface can still land.
       Set ``hybrid: false`` for the pre-v0.2 vector-only pipeline: bit-identical
       to vector-only results and no lexical index is built. This is D-25's
-      core-default intent (see ADR-019); the sqlite_fts5 provider rides the
-      existing storage SQLite client, so the default carries no new dependency.
+      core-default intent (see ADR-019); the default ``tantivy`` provider is a
+      **core** dependency and is backend-independent, so the default works on
+      every storage backend with no extra to install.
     - ``lexical_provider``: which lexical store backs the hybrid leg —
-      ``sqlite_fts5`` (default, zero-dep FTS5/BM25, rides the storage SQLite
-      client — pick it for single-node/embedded deployments) or ``tantivy``
-      (standalone Tantivy BM25 index, ``[tantivy]`` extra — pick it for larger
-      corpora or when the lexical index should live apart from the db file).
-      Both satisfy the same ``LexicalStore`` port and share ``LexicalProjector``,
-      so they are interchangeable (proven in tests/.../lexical/test_parity.py).
+      ``tantivy`` (default, standalone Tantivy BM25 index — **core**, no extra,
+      independent of the storage backend; an on-disk index dir beside the db, or
+      in-RAM for a ``:memory:`` log) or ``opensearch`` (``[opensearch]`` extra —
+      server-scale BM25 for large multi-node deployments). All satisfy the same
+      ``LexicalStore`` port and share ``LexicalProjector``. The transactional-DB
+      ``sqlite_fts5`` provider was removed (v0.2): the lexical leg is a dedicated
+      search index, never bolted onto the system-of-record.
       Only consulted when ``hybrid`` is on (the default); with ``hybrid: false``
-      neither store is built. There is intentionally **no lexical-only reranking** — the fused
+      no store is built. There is intentionally **no lexical-only reranking** — the fused
       RRF result is reranked (when enabled) by the E8 cross-encoder stage
       (``rerank`` above), which scores the query against fused candidates from
       *both* legs, so a second BM25 pass would add nothing.
@@ -238,7 +240,7 @@ class ReadConfig(BaseModel):
     static_prefilter: bool = False
     static_embedding_prefilter: bool = False
     hybrid: bool = True  # v0.2 A3: default-on hybrid retrieval (D-25, ADR-019)
-    lexical_provider: str = "sqlite_fts5"  # sqlite_fts5 | tantivy (D-25)
+    lexical_provider: str = "tantivy"  # tantivy (core, default) | opensearch [opensearch] (D-25)
     compression: dict[str, Any] = Field(default_factory=dict)
 
 

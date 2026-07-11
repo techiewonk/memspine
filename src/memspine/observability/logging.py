@@ -6,7 +6,10 @@ greppable and exporters (Langfuse/OTel, later phases) can map them 1:1.
 
 from __future__ import annotations
 
+import io
 import logging
+import sys
+from typing import TextIO
 
 import structlog
 
@@ -39,6 +42,22 @@ EVENT_FORGET = EventKind.FORGET.value
 EVENT_REBUILD = EventKind.REBUILD.value
 
 
+def _utf8_console_stream() -> TextIO:
+    """A UTF-8 sink over stdout's file descriptor, so a non-ASCII log field
+    (``—``, ``→``, or unicode record content) never raises ``UnicodeEncodeError``
+    on a legacy-codepage console (Windows cp1252). ``closefd=False`` means this
+    view never closes the underlying fd, so the host's ``sys.stdout`` is left
+    untouched. Falls back to ``sys.stdout`` when there is no real fd (pytest
+    capture, an in-memory ``StringIO`` — both already unicode-safe)."""
+    try:
+        fd = sys.stdout.fileno()
+    except (AttributeError, io.UnsupportedOperation, ValueError):
+        return sys.stdout
+    return open(
+        fd, mode="w", encoding="utf-8", errors="backslashreplace", closefd=False, buffering=1
+    )
+
+
 def configure_logging(level: str = "INFO", json_output: bool = False) -> None:
     """Idempotent structlog setup. ``json_output=True`` for production pipelines."""
     renderer: structlog.typing.Processor = (
@@ -56,10 +75,21 @@ def configure_logging(level: str = "INFO", json_output: bool = False) -> None:
         wrapper_class=structlog.make_filtering_bound_logger(
             logging.getLevelNamesMapping()[level.upper()]
         ),
-        cache_logger_on_first_use=True,
+        # UTF-8 sink so unicode in log fields never crashes on a cp1252 console.
+        logger_factory=structlog.PrintLoggerFactory(file=_utf8_console_stream()),
+        # False (structlog's default): caching binds loggers to a fixed processor
+        # chain, which defeats ``structlog.testing.capture_logs`` — this config now
+        # installs on first use everywhere (get_logger), so caching would break
+        # capture across the suite. Logging is not a hot path; the cost is nil.
+        cache_logger_on_first_use=False,
     )
 
 
 def get_logger(name: str) -> structlog.typing.FilteringBoundLogger:
+    # Install the UTF-8-safe default on first use so a unicode log field never
+    # crashes on a cp1252 console (Windows). A host that has already called
+    # ``structlog.configure`` is respected — we never override an explicit setup.
+    if not structlog.is_configured():
+        configure_logging()
     logger: structlog.typing.FilteringBoundLogger = structlog.get_logger(name)
     return logger

@@ -31,6 +31,16 @@ decay→FORGET auto-archival of dormant records is deferred — hard deletion is
 -governed and needs its own decision; the scheduler advancing decay *tiers*
 (reversible) is the safe core.
 
+**Guard (v0.2):** the scheduler is **skipped on `:memory:`** storage. An
+in-memory SQLite DB shares one connection and can't use WAL, so a background
+sleep cycle collides with foreground writes ("table is locked"), and an
+ephemeral DB has nothing durable to maintain anyway. File-backed DBs (WAL +
+`busy_timeout`) run it safely; production autonomous scheduling should pair with
+a durable runner (dbos/taskiq), which serializes work through its queue. A
+coarse whole-cycle serialization lock was evaluated and rejected — it would add
+write-path latency for no benefit over WAL, and a partial version gives false
+safety (the pipeline writes through the same door it would need to lock).
+
 ### Server-profile default (v0.2 A4, DEC-4)
 
 The **schema default stays `inline`** — a bare `pip install memspine` must boot with zero extras (slim-core D-03, profiles-stay-green). Durable execution is opted into per *server* deployment profile at the **template** layer, not the schema: the `multi_agent` and `regulated_financial` templates pin `workers.runner: dbos`. DBOS defaults to a colocated SQLite system database (`<storage.path>.dbos.sqlite`), so this adds no external infrastructure — only the `memspine[dbos]` extra, which a deployed server installs. Embedded profiles (`base`/simple, `coding`, `personal`, `voice`) remain `inline`. A schema-level `runner="dbos"` default was rejected: it would fail every zero-extra install at start. Template scope keeps the blast radius to profiles a server operator explicitly selects.

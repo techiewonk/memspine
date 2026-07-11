@@ -20,7 +20,6 @@ from sqlalchemy import (
 )
 
 __all__ = [
-    "LEXICAL_FTS_TABLE",
     "graph_edges",
     "graph_nodes",
     "memory_events",
@@ -31,12 +30,10 @@ __all__ = [
 
 metadata = MetaData()
 
-# Lexical BM25 projection (P7/D-25). Deliberately NOT a SQLAlchemy ``Table`` in
-# ``metadata``: FTS5 is a *virtual* table ``create_all`` cannot model, and the
-# store must fall back to a plain table when the build lacks FTS5. The name is
-# fixed here so the migration (0008), the SQLite FTS5 store, and tests agree on
-# one identifier. Rebuildable projection like every other derived store (D0.1).
-LEXICAL_FTS_TABLE = "memory_fts"
+# NOTE (v0.2): the transactional-DB FTS5 lexical projection was removed with the
+# ``sqlite_fts5`` provider — the lexical/BM25 leg is now the standalone core
+# Tantivy index (D-25), independent of the storage backend, so no lexical table
+# lives in this schema anymore.
 
 # The append-only source of truth (D0.1). Payload is canonical orjson, optionally
 # zstd-compressed at rest (D-45); timestamps are ISO-8601 UTC strings.
@@ -145,6 +142,7 @@ graph_edges = Table(
 # NOTE(ADR-021/ADR-025): ``memory_embeddings`` (the removed SQLite brute-force
 # vector fallback) is intentionally absent — LanceDB is the sole vector store,
 # so ``create_all`` never materializes it. The ADR-025 migration squash
-# collapsed the old incremental 0001-0009 chain (which once created it) into a
-# single ``0001_baseline`` that builds exactly this ``metadata`` + the FTS5
-# lexical virtual table — no upgrade path to preserve in a pre-alpha project.
+# collapsed the old incremental 0001-0009 chain into a single ``0001_baseline``
+# that builds exactly this ``metadata`` — no upgrade path to preserve in a
+# pre-alpha project. (v0.2 also removed the FTS5 lexical virtual table with the
+# ``sqlite_fts5`` provider; the lexical leg is the standalone core Tantivy index.)

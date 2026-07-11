@@ -1,13 +1,13 @@
-"""Standalone Tantivy lexical adapter — the BM25 index for non-Lance configs
-(D-25), behind the ``[tantivy]`` extra.
+"""Standalone Tantivy lexical adapter — the **default, core** BM25 leg (D-25).
 
-The zero-dep SQLite FTS5 store (:mod:`memspine.services.lexical.sqlite_fts5`) is
-the core-default lexical leg; this adapter is the drop-in for deployments that
-want Tantivy's dedicated BM25 index without pulling in LanceDB. It satisfies the
-same :class:`~memspine.services.lexical.base.LexicalStore` port, so the
+Tantivy is a core dependency (v0.2): it backs the default hybrid retrieval leg
+on every storage backend, since it owns its own index and never touches the
+transactional store. It satisfies the
+:class:`~memspine.services.lexical.base.LexicalStore` port, so the
 :class:`~memspine.services.lexical.projector.LexicalProjector` drives it
 identically and it is a fully rebuildable projection (:meth:`clear` truncates so
-a rebuild replays from seq 0).
+a rebuild replays from seq 0). Server-scale deployments swap in the
+``[opensearch]`` provider (:mod:`memspine.services.lexical.opensearch`).
 
 tantivy-py is **synchronous** — it owns an on-disk (or in-RAM) index directory,
 a schema, a single ``IndexWriter`` (holding the index-wide writer lock) and a
@@ -21,7 +21,7 @@ Schema (D-25): ``record_id`` (stored + ``raw``-indexed, for exact upsert/delete
 and result retrieval), ``namespace`` (stored + ``raw``-indexed, for the exact
 term filter), ``content`` (``default``-tokenized, not stored — the BM25 body).
 
-Namespace isolation is the same guarantee as sqlite_fts5: every search ANDs a
+Namespace isolation: every search ANDs a
 ``Must`` term query on the ``namespace`` field with the content query, so a hit
 can never come from another namespace. User text is treated strictly as DATA —
 the query is NEVER handed to Tantivy's query parser (which would let
@@ -45,15 +45,25 @@ from memspine.config.constants import (
     TANTIVY_WRITER_HEAP_BYTES,
 )
 from memspine.core.records import MemoryRecord
-from memspine.exceptions import MissingServiceError
 from memspine.observability.logging import get_logger
 from memspine.services.lexical.base import LexicalHit
-from memspine.services.lexical.sqlite_fts5 import strip_control_chars
 
 if TYPE_CHECKING:
     pass
 
-__all__ = ["TantivyLexical", "tokenize_content"]
+__all__ = ["TantivyLexical", "strip_control_chars", "tokenize_content"]
+
+# C0 control chars (keeping tab/newline/CR) + DEL. A NUL in content can never
+# poison the projector chain, and a NUL in a query can never crash search().
+_CONTROL_TABLE = {
+    codepoint: None for codepoint in (*range(0x00, 0x09), 0x0B, 0x0C, *range(0x0E, 0x20), 0x7F)
+}
+
+
+def strip_control_chars(text: str) -> str:
+    """Remove NUL and other C0 control characters (keeping tab/newline/CR)."""
+    return text.translate(_CONTROL_TABLE)
+
 
 _log = get_logger(__name__)
 
@@ -82,24 +92,23 @@ def tokenize_content(query: str) -> list[str]:
 
 
 class TantivyLexical:
-    """Tantivy-backed lexical store (D-25), behind ``[tantivy]``.
+    """Tantivy-backed lexical store (D-25) — the default hybrid leg, **core**.
 
     ``index_path=None`` builds an in-RAM index (``:memory:`` parity — same
     lifetime as an in-memory event log, no ghost segments across runs); a path
-    opens/creates an on-disk index directory. Lazy-imports ``tantivy`` at
-    construction so a core install without the extra hard-fails with the D-10
-    :class:`MissingServiceError` naming ``tantivy``.
+    opens/creates an on-disk index directory. Backend-independent: it never
+    touches the transactional store, so hybrid works the same on SQLite and
+    Postgres.
     """
 
     def __init__(
         self, index_path: str | Path | None = None, heap_bytes: int = TANTIVY_WRITER_HEAP_BYTES
     ) -> None:
-        try:
-            import tantivy
-        except ImportError as exc:
-            # Keep the stub's D-10 contract: without [tantivy], fail at
-            # construction naming the extra to install.
-            raise MissingServiceError("lexical:tantivy", extra="tantivy") from exc
+        # tantivy is a CORE dependency (v0.2): it backs the default hybrid leg on
+        # every backend, so a failed import is a broken install, not a missing
+        # optional extra — surface it plainly rather than as a D-10 "pip install".
+        import tantivy
+
         self._path = str(index_path) if index_path is not None else None
         self._heap = heap_bytes
         # Schema building is pure in-memory work — safe in __init__. Opening the
@@ -153,8 +162,7 @@ class TantivyLexical:
         await self._ensure()
         # Strip control chars from the lexical projection (a NUL is a bind hazard
         # elsewhere and carries no lexical signal); the record store keeps the
-        # content verbatim. Mirrors sqlite_fts5 so both stores accept the same
-        # input and a NUL can never poison the projector chain.
+        # content verbatim, so a NUL can never poison the projector chain.
         content = strip_control_chars(record.content)
         rid, ns = record.record_id, record.namespace
         async with self._lock:
