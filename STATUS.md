@@ -5,8 +5,8 @@
 | | |
 |---|---|
 | **Phase** | ✅ P0–P7 complete · 🎉 **full roadmap landed (P7 review fixes in)** |
-| **Tests** | **575** passing |
-| **ADRs** | 20 |
+| **Tests** | **705** collected (`uv run pytest --collect-only -q`) |
+| **ADRs** | **21** (ADR-001 … ADR-021) |
 | **Version** | `0.0.1` — pre-alpha |
 | **Latest commit** | `af359bb` — docs: full feature + how-to-use pass for P0–P7 (README/FEATURES/USAGE rewrite, CLAUDE.md) (2026-07-08 00:54) |
 

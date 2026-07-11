@@ -1,6 +1,7 @@
 # ADR-020 — Embedding quantization + float rescore, Matryoshka, model2vec prefilter (E4)
 
-**Status:** accepted · **Date:** 2026-07-08 · **Register:** D-54
+**Status:** accepted · **Date:** 2026-07-08 · **Register:** D-54  
+**Amended by:** [ADR-021](./ADR-021-lancedb-core-vector.md) — SQLite brute-force vector store and pure-Python int8/binary prefilter **removed**; E4 rescore is **LanceDB-native only** in current code.
 **Amends:** the E4 note in the structure plan (Part B) — the `search_rescore`
 "seam only / joins in Phase 6" text is now the real implementation.
 
@@ -10,16 +11,20 @@ E4 (plan Part B) called for "binary/int8 quantization + float rescore (~32×
 storage cut, ~95% quality); Matryoshka truncation; static-embedding prefilter
 (model2vec)". Until now only the *seams* existed: `EmbedderManifest` carried
 `matryoshka_dims`/`quantization` fields and `VectorStore.search_rescore()` fell
-back to plain `query()`. This ADR makes quantization real in the zero-dep SQLite
-vector store (the `simple`-profile default), keeping every change **additive and
-opt-in** — `profile="simple"` and every existing config stay byte-identical.
+back to plain `query()`. This ADR makes quantization real — initially in a SQLite
+vector store (since removed by **ADR-021**), now **LanceDB-native** only — keeping
+every change **additive and opt-in** — `profile="simple"` and every existing
+config stay byte-identical when quantization is off.
 
 ## Decisions
 
-### 1. Two-stage `search_rescore` in the SQLite store (pure Python, zero-dep)
+### 1. Two-stage `search_rescore` (historical: SQLite store; current: LanceDB only)
 
-The core stays slim (D-03): no numpy. `services/vector/quantize.py` holds the
-primitives; `SQLiteVectorStore.search_rescore` runs:
+> **ADR-021:** the SQLite brute-force store and pure-Python int8/binary prefilter
+> described below were removed. **§6 (LanceDB rescore)** is the live implementation.
+
+The core stays slim (D-03): no numpy. `services/vector/quantize.py` held the
+primitives; `SQLiteVectorStore.search_rescore` (removed) ran:
 
 1. **Prefilter** — rank every candidate on a cheap, COMMON `~[-1, 1]` scale.
    Stage 1a reads only the small codes (`SELECT record_id, quantized_vec,

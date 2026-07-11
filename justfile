@@ -25,7 +25,7 @@ check: lint test
 
 # serve docs locally
 docs:
-    uv run mkdocs serve
+    uv run mkdocs serve -f docs/mkdocs.yml
 
 # run the combination-matrix boot tests
 combos:

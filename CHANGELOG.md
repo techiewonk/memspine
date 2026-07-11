@@ -4,6 +4,9 @@ All notable changes to memspine are documented here. Format: [Keep a Changelog](
 
 ## [Unreleased]
 
+### Changed
+- **Vector (ADR-021):** LanceDB (`lancedb>=0.13`) is a **core dependency** — sole vector backend; P1 SQLite brute-force fallback and `[lance]` extra removed; E4 rescore is LanceDB-native (IVF_HNSW_SQ / IVF_PQ + refine).
+
 ### Added — Phase 2 "Semantic memory"
 - **Prompts subsystem (D-43):** prompts are data — 10-role YAML default pack (frontmatter + Jinja2, strict variables), `PromptRegistry` with config-layered overrides (auto version bump so E3 cache keys / E1 provenance change with content), `memspine prompts list|show|resolve`; prompt versions surface in `describe()` and extractor provenance.
 - **Conflict ladder (M4):** deterministic R-ladder over `(entity, attribute)` fact keys — identity NOOP, trust gate (E1 seam), temporal supersede with bi-temporal interval closing + `evolve_to` chaining (D-42), historical backfill with closed validity; CONFLICT audit events; point-in-time `fact_at()` queries.

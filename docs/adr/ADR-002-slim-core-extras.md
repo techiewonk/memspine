@@ -11,7 +11,9 @@ Memory frameworks bloat fast (torch, transformers, servers). Adoption requires `
 
 ## Decision
 
-Core dependencies are only small, pure-ish wheels (pydantic, SQLAlchemy Core+Alembic, orjson, xxhash, fastuuid, structlog, typer, fastembed, json-repair, datasketch, zstandard, jinja2, aiosqlite, pyyaml). Everything else is an extra per the §2 matrix (`[lance]`, `[graph]`, `[rest]`, …). `torch`/`transformers` never enter core. Python 3.13 floor; uv/ruff/pytest/mkdocs tooling.
+Core dependencies are only small, pure-ish wheels (pydantic, SQLAlchemy Core+Alembic, orjson, xxhash, fastuuid, structlog, typer, fastembed, json-repair, datasketch, zstandard, jinja2, aiosqlite, pyyaml, httpx, **lancedb**). Everything else is an extra per the §2 matrix (`[graph]`, `[rest]`, …). `torch`/`transformers` never enter core. Python 3.13 floor; uv/ruff/pytest/mkdocs tooling.
+
+**Amended by ADR-021:** LanceDB is core (no `[lance]` extra).
 
 ## Consequences
 

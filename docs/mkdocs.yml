@@ -1,0 +1,53 @@
+site_name: memspine
+site_description: Cognitive memory engine for AI agents
+repo_url: https://github.com/memspine/memspine
+repo_name: memspine/memspine
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+nav:
+  - Home: README.md
+  - Using memspine:
+      - Features: FEATURES.md
+      - Usage: USAGE.md
+  - Ecosystem comparison:
+      - Overview: ECOSYSTEM_COMPARISON.md
+      - Architecture flows: ARCHITECTURE_FLOWS.md
+      - Peer trace (CSV): exports/ECOSYSTEM_PEER_TRACE.csv
+      - Write stages (CSV): exports/ECOSYSTEM_WRITE_STAGES.csv
+      - Package adoption (CSV): exports/ECOSYSTEM_PACKAGE_ADOPTION.csv
+      - Memory types MS×CG×EO (CSV): exports/ECOSYSTEM_MEMORY_TYPES_MS_CG_EO.csv
+  - Design:
+      - Structure plan: memspine-structure-plan.md
+      - Dependency analysis: DEPENDENCY_ANALYSIS.md
+      - Package catalog: PACKAGE_CATALOG.md
+      - ADRs: adr/ADR-001-event-sourced-core.md
+
+docs_dir: docs
+
+markdown_extensions:
+  - admonition
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - toc:
+      permalink: true
+
+plugins:
+  - search

@@ -32,6 +32,11 @@ data/
 # Docs build
 site/
 
+# Untracked third-party doc dumps (verbatim survey/export material — not part of
+# the repo's authored docs; trips `ruff check .` and clutters `git status`).
+docs/survey/
+docs/exports/
+
 # Env / secrets
 .env
 .env.*

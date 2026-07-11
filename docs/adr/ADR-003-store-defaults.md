@@ -11,7 +11,9 @@ The 2026-07-07 dependency scan (`DEPENDENCY_ANALYSIS.md`) shows the field conver
 
 ## Decision
 
-SQLite (relational/event-log/FTS5) in core; LanceDB `[lance]` default vector; LadybugDB `[graph]` default graph with kuzu `[kuzu]` first-class alternative and `sqlite_adjacency` zero-dep fallback; LMDB `[lmdb]` hot cache. Lexical is a first-class port with FTS5/BM25 core default and RRF implemented once (D-25). Prod swap-ins (Postgres/Weaviate/Neo4j/Valkey) are stubs in v0.1.
+SQLite (relational/event-log/FTS5) in core; **LanceDB in core** as the sole vector store (ADR-021, amends D-09); LadybugDB `[graph]` graph adapter with kuzu `[kuzu]` first-class alternative and `sqlite_adjacency` zero-dep fallback; LMDB `[lmdb]` hot cache. Lexical is a first-class port with FTS5/BM25 core default and RRF implemented once (D-25). Prod swap-ins (Postgres/Weaviate/Neo4j/Valkey) are stubs in v0.1.
+
+**Amendment (ADR-021, 2026-07-09):** the P1 SQLite brute-force vector fallback and `[lance]` extra are removed. E4 rescore is LanceDB-native only.
 
 ## Consequences
 

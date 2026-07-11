@@ -1,6 +1,6 @@
 # Package Catalog — every dependency across `D:\mem`, with "does what"
 
-**Status:** Reference · Generated 2026-07-07 from a code-level parse of all `pyproject.toml` (core + optional + poetry groups) and `requirements*.txt` across the 27 repos.
+**Status:** Reference · Generated 2026-07-07 from a code-level parse of all `pyproject.toml` (core + optional + poetry groups) and `requirements*.txt` across the 27 repos. **Cross-ref:** complete package adoption union (what / why / who) in [`ECOSYSTEM_COMPARISON.md`](./ECOSYSTEM_COMPARISON.md) §3.12 + [`exports/ECOSYSTEM_PACKAGE_ADOPTION.csv`](./exports/ECOSYSTEM_PACKAGE_ADOPTION.csv) (pass #4, 2026-07-10).
 **Scale:** **564 unique packages.** Several repos (LightMem, SimpleMem, telemem, MemoryBear, MemOS, mofsl-simplememory) ship *lockfile-style* requirements that pin transitive deps, so the raw count is inflated by infrastructure packages — these are grouped under §Z so the signal (direct, meaningful deps) stays readable.
 **How to read:** Part A = **master glossary** (every package appears once, grouped by function, with a one-line "does what" and a ⭐ where it is relevant to `memspine`). Part B = **per-repo listing** (each repo's full package set; look up any name in Part A). Counts in `()` = how many repos use it.
 
