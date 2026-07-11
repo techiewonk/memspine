@@ -9,8 +9,8 @@
 <br/>
 
 [![status](https://img.shields.io/badge/status-pre--alpha-orange?style=flat-square)](#-roadmap)
-[![phase](https://img.shields.io/badge/phase-P0–P7_complete-7c3aed?style=flat-square)](#-roadmap)
-[![tests](https://img.shields.io/badge/tests-705_collected-2ea44f?style=flat-square)](#-roadmap)
+[![phase](https://img.shields.io/badge/phase-P0–P7_·_v0.2-7c3aed?style=flat-square)](#-roadmap)
+[![tests](https://img.shields.io/badge/tests-773_collected-2ea44f?style=flat-square)](#-roadmap)
 [![python](https://img.shields.io/badge/python-3.13+-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
 [![license](https://img.shields.io/badge/license-Apache--2.0-2ea44f?style=flat-square)](./LICENSE)
 [![built with uv](https://img.shields.io/badge/built%20with-uv-DE5FE9?style=flat-square)](https://github.com/astral-sh/uv)
@@ -28,7 +28,7 @@
 ---
 
 > [!NOTE]
-> **Status: pre-alpha, under active construction.** Phases **P0–P7 are implemented and review-passed** — event-sourced substrate, working memory + retrieval, semantic memory + prompts, episodic + lifecycle, the Memory Firewall, procedural + reflective, associative graph, and prospective + shared + REST — with **705 collected tests**, `ruff` + `mypy --strict` clean, and **21 ADRs**. The blueprint in [`docs/`](./docs) is the single source of truth; see [`docs/FEATURES.md`](./docs/FEATURES.md), [`docs/USAGE.md`](./docs/USAGE.md), and the ecosystem comparison ([`ECOSYSTEM_COMPARISON.md`](./docs/ECOSYSTEM_COMPARISON.md) · [`ARCHITECTURE_FLOWS.md`](./docs/ARCHITECTURE_FLOWS.md)). Some capabilities need extras (below) and a few production swap-ins are reserved — see the [honest caveats](#-honest-caveats).
+> **Status: pre-alpha, under active construction.** Phases **P0–P7 are implemented and review-passed** — event-sourced substrate, working memory + retrieval, semantic memory + prompts, episodic + lifecycle, the Memory Firewall, procedural + reflective, associative graph, and prospective + shared + REST — plus the **v0.2 enhancement program** (hybrid-retrieval default-on, Tantivy-core lexical, graphiti-style graph extraction, an autonomous learning scheduler, `group_id`/`tags` sub-scoping, configurable graph traversal, and deeper compression). **773 collected tests**, `ruff` + `mypy --strict` clean, **28 ADRs**, decision register through D-54. The blueprint in [`docs/`](./docs) is the single source of truth; see [`docs/FEATURES.md`](./docs/FEATURES.md), [`docs/USAGE.md`](./docs/USAGE.md), and the ecosystem comparison ([`ECOSYSTEM_COMPARISON.md`](./docs/ECOSYSTEM_COMPARISON.md) · [`ARCHITECTURE_FLOWS.md`](./docs/ARCHITECTURE_FLOWS.md)). Some capabilities need extras (below) and a few production swap-ins are reserved — see the [honest caveats](#-honest-caveats).
 
 ---
 
@@ -146,54 +146,72 @@ Every write of every type passes a deterministic gate before the door (OWASP **A
 | **E8** retrieval-quality stages | | `read.rerank: fastembed`\|`flashrank`\|`litellm` (+ `rerank_model`); `read.static_prefilter: true` |
 | **E9** token micro-opts | ✅ YAML/CoD prompt formats + always-on `json-repair` | |
 
-> **Hybrid retrieval is built (opt-in):** `read.hybrid: true` fuses a lexical BM25 leg (`sqlite_fts5` or `tantivy`) into the vector ranking via reciprocal-rank fusion (D-25). Off by default so results stay bit-identical to the vector-only pipeline.
+> **Hybrid retrieval is on by default (v0.2):** every `search` fuses a lexical **BM25** leg — a standalone **Tantivy** index (core dependency, backend-independent) — into the vector ranking via reciprocal-rank fusion (D-25). Set `read.hybrid: false` to restore the bit-identical vector-only pipeline; server-scale deployments swap the lexical leg to OpenSearch/Elasticsearch with `memspine[opensearch]`.
+
+### 🆕 New in v0.2
+
+The engine now *learns on its own* and retrieves more sharply out of the box:
+
+| | What changed | How to reach it |
+|---|---|---|
+| 🔎 **Hybrid by default** | vector + Tantivy BM25 fused via RRF on every backend, no extra | on by default · `read.hybrid: false` to opt out |
+| 🌐 **Graphiti-style graph writes** | async `extract_graph` pipeline mines entities/edges into `LINK`/`WRITE` events; bitemporal edge invalidation | `memories.semantic.policies.extract_graph` (opt-in) |
+| ⏱️ **Autonomous learning scheduler** | a background loop drives the full sleep cycle (consolidate → extract → reorganize → decay → prune) — dynamics run without an explicit `sleep()` | `workers.sleep_interval_seconds: 3600` |
+| 💬 **Chat-transcript ingest** | `write_messages()` / `write_episode()` turn a message list into episodic records with session detection | core verbs |
+| 🏷️ **Sub-scoping facets** | `group_id` + `tags` on every record, threaded through write / filter / REST (ADR-027) | `write(..., group_id=..., tags=[...])` |
+| 🧭 **Configurable graph recall** | `related()` traversal strategy — `ppr` (PageRank) · `bfs` · `rrf`-blended | `related(..., strategy="ppr\|bfs\|rrf")` |
+| 🗜️ **Deeper compression** | llmlingua-2 model, per-placement-band token budgets, entity `preserve`, and a zstd-vs-llmlingua decision rule | `memspine[compress]` |
+| 🧠 **Reinforcement on read** | retrieving a record additively bumps its salience (`utility += step`) — used memories decay slower | on by default |
+| 🧩 **Prompt partials + scenarios** | Jinja `_partials/` includes + `(role, scenario)` variant selection, fingerprinted into `prompt_version` | prompt pack |
+| 🗃️ **Unified cache** | cashews backs `cache.backend = memory\|disk\|redis\|valkey` (LMDB retired) | `memspine[cache]` for disk/redis |
 
 ---
 
 ## 📦 Install / extras
 
-The **core** install is slim (D-03) — SQLite storage + FTS5, **LanceDB vector** (core dep, ADR-021), fastembed embeddings, inline workers. Everything heavier is an extra:
+The **core** install is slim (D-03) but already a full brain — SQLite event log, **LanceDB vector** (ADR-021), **Tantivy BM25** for default-on hybrid (D-25), the **LiteLLM** LLM/embedding/rerank gateway (ADR-024), fastembed embeddings, and the inline worker runner. Everything heavier is an extra:
 
 ```bash
-pip install memspine                              # core: SQLite + LanceDB + fastembed
+pip install memspine                              # core: SQLite + LanceDB + Tantivy + LiteLLM + fastembed
 pip install "memspine[kuzu]"                   # embedded-Cypher graph for associative memory
 pip install "memspine[ingest]"                 # markitdown + chonkie — document ingest()
 pip install "memspine[ner]"                    # gliner2 CPU entity extraction
 pip install "memspine[structured]"             # instructor — schema-validated LLM output
-pip install "memspine[compress]"               # llmlingua — E5 assembly compression
+pip install "memspine[compress]"               # llmlingua-2 — assembly compression
 pip install "memspine[rerank]"                 # flashrank — E8 cross-encoder rerank
 pip install "memspine[community]"              # graspologic — graph community detection
+pip install "memspine[cache]"                  # cashews — disk / redis / valkey cache backends
 pip install "memspine[rest]"                   # FastAPI + uvicorn — REST protocol
+pip install "memspine[opensearch]"             # server-scale lexical (OpenSearch / Elasticsearch)
 pip install "memspine[dbos]" / "[taskiq]"      # durable / brokered background workers
 pip install "memspine[llmlocal]"               # llama-cpp-python in-proc inference
 ```
 
 | Extra | Unlocks |
 |-------|---------|
-| *(core)* | SQLite event log + FTS5, **LanceDB vector**, fastembed, inline runner (ADR-021) |
+| *(core)* | SQLite event log, **LanceDB vector**, **Tantivy BM25**, LiteLLM gateway, fastembed, inline runner (ADR-021/024/D-25) |
 | `graph` | LadybugDB embedded graph adapter (D-26) |
 | `kuzu` | embedded-Cypher graph store for associative memory (D-26) |
-| `lmdb` | LMDB hot cache (D-09) |
+| `cache` | cashews-backed disk / redis / valkey cache (`cache.backend`, ADR-022) |
 | `ingest` | multi-format document ingest + chunking (D-29) |
 | `ner` | local CPU entity extraction (D-28) |
 | `structured` | schema-validated LLM output via instructor (D-31) |
-| `compress` | E5 assembly-time context compression (llmlingua) |
+| `compress` | assembly-time context compression (llmlingua-2, E5/D-32) |
 | `rerank` | E8 cross-encoder rerank alternative (flashrank) |
 | `static` | E4 model2vec static-embedding prefilter (ADR-020) |
 | `community` | graph community detection (graspologic, D-40) |
+| `opensearch` | server-scale lexical backend for hybrid (OpenSearch / Elasticsearch, D-25) |
 | `dbos` / `taskiq` | durable / brokered worker runners (D-16) |
 | `rest` | REST protocol (FastAPI, D-06) |
 | `llmlocal` | in-proc open-weight inference (llama-cpp-python) |
-| `tantivy` | standalone lexical index for non-SQLite / hybrid configs (D-25) |
 | `postgres` | PostgreSQL storage backend (ADR-025) |
-| `redis` / `valkey` | shared cross-process cache backends (D-09) |
 | `aws` | Bedrock LLM/embeddings + AWS Secrets Manager (ADR-023/024) |
 | `promptopt` | prompt self-optimization hook (langmem, D-43) |
 | `weaviate`, `neo4j` | reserved production swap-ins (raise if selected) |
 
-> The LiteLLM gateway (cloud + local LLM/embedding/rerank, ADR-024) is a **core** dependency — no extra needed.
+> Both the **LiteLLM** gateway (cloud + local LLM/embedding/rerank, ADR-024) and the **Tantivy** BM25 leg (default-on hybrid, D-25) are **core** dependencies — no extra needed.
 
-Convenience bundles: `local` (`graph,lmdb,dbos,ingest,ner`), `prod-aws`, `all`. Dev: `uv sync --all-extras`.
+Convenience bundles: `local` (`graph,cache,dbos,ingest,ner`), `prod-aws`, `all`. Dev: `uv sync --all-extras`.
 
 ---
 
@@ -207,8 +225,10 @@ Construct with `Engine(template="...")`. Each template is a partial overlay on t
 | `coding` | + procedural | coding agents with reusable skills; `conflict_bias: newest` |
 | `personal` | + reflective + prospective | personal assistants (reflective auto-enables episodic) |
 | `voice` | rolling+zstd event log; larger working window | high-volume voice transcripts |
-| `multi_agent` | + shared | namespace grants across agents (R2) |
-| `regulated_financial` | full audit log, strict PII, no forgetting | audited / compliant deployments |
+| `multi_agent` | + shared; **DBOS** durable workers | namespace grants across agents (R2), server-grade durability |
+| `regulated_financial` | full audit log, strict PII, no forgetting; **DBOS** durable workers | audited / compliant deployments |
+
+> Server profiles (`multi_agent`, `regulated_financial`) pin `workers.runner: dbos` at the **template** layer (A4/ADR-005) — DBOS defaults to a colocated SQLite system database, so this needs only `memspine[dbos]`, no external infra. Embedded profiles stay `inline`.
 
 ---
 
@@ -216,12 +236,22 @@ Construct with `Engine(template="...")`. Each template is a partial overlay on t
 
 All snippets assume a started engine (`await engine.start()`), the hash embedder for offline demos, and the relevant memory type enabled. Full runnable versions are in [`examples/`](./examples).
 
-**Semantic — write + search**
+**Semantic — write + search** *(hybrid vector + BM25 by default)*
 ```python
 await engine.write("primary region is eu-west-1", namespace="ops",
-                   entity="deploy", attribute="region")   # entity/attribute key the conflict ladder
-for record, score in await engine.search("where do we deploy?", namespace="ops"):
+                   entity="deploy", attribute="region",   # entity/attribute key the conflict ladder
+                   group_id="infra", tags=["prod"])        # v0.2 sub-scoping facets
+for record, score in await engine.search("where do we deploy?", namespace="ops", tags=["prod"]):
     print(score, record.content)
+```
+
+**Chat transcript → episodic records** *(v0.2)*
+```python
+await engine.write_messages(
+    [{"role": "user", "content": "let's ship on friday"},
+     {"role": "assistant", "content": "ok, I'll prep the release notes"}],
+    namespace="agent/demo",
+)   # one episodic record per turn; write_episode() stamps a shared session_id across turns
 ```
 
 **Working memory — persona + cache-aware assembly**
@@ -313,7 +343,7 @@ flowchart TB
         KV["KV cache"]
     end
     subgraph BK["🔌 Backends"]
-        B["LanceDB · kuzu / sqlite_adjacency · SQLite · LMDB"]
+        B["LanceDB · Tantivy · kuzu / sqlite_adjacency · SQLite · cashews"]
     end
     API --> COG --> STORE --> BK
 
@@ -337,11 +367,11 @@ Every capability is a port. The engine plans against capabilities, degrades grac
 |------------|----------------------------------|-----------|
 | **Vector** | **LanceDB** *(core, ADR-021)* | Weaviate *(reserved)* |
 | **Graph** | **`sqlite_adjacency`** *(zero-dep)* · **kuzu** with `[kuzu]` · **ladybug** with `[graph]` | Neo4j *(reserved)* |
-| **Cache / KV** | in-process KV *(core)* · **LMDB** with `[lmdb]` | Redis `[redis]` · Valkey `[valkey]` |
+| **Cache / KV** | in-process KV *(core)* · cashews **disk** with `[cache]` | Redis / Valkey via `cache.backend` + `[cache]` *(ADR-022)* |
 | **Relational / event log** | **SQLite** (SQLAlchemy Core + Alembic) | **PostgreSQL** `[postgres]` *(ADR-025)* |
 | **Embeddings** | **fastembed** (ONNX, CPU) · `hash` for tests · model2vec `[static]` | **LiteLLM** cloud (OpenAI / Bedrock / …) via `embedding.provider: litellm` *(ADR-024)* |
 | **LLM** | **local**: Ollama · vLLM · llama.cpp `[llmlocal]` · LM Studio · any OpenAI-compatible | **LiteLLM** prefix routing: `openai/` · `bedrock/` · `vertex_ai/` · `azure/` *(ADR-024)* |
-| **Lexical** | **FTS5/BM25** *(core, opt-in `read.hybrid`)* | **Tantivy** `[tantivy]` |
+| **Lexical** | **Tantivy BM25** *(core, hybrid on by default)* | **OpenSearch / Elasticsearch** `[opensearch]` |
 | **Secrets** | env / `.env` *(core, ADR-023)* | **AWS Secrets Manager** `[aws]` via `MEMSPINE_SECRETS_BACKEND=aws` |
 | **Workers** | **inline** | DBOS `[dbos]` · taskiq `[taskiq]` |
 
@@ -351,10 +381,11 @@ Every capability is a port. The engine plans against capabilities, degrades grac
 
 memspine is **pre-alpha**. What's shipped vs. deferred, so you're not surprised:
 
-- **Retrieval is vector-only *by default* — hybrid is opt-in, not missing.** `search` runs `[static_prefilter?] → vector/[hybrid RRF] → [rerank?] → score`. Set `read.hybrid: true` to fuse a lexical BM25 leg (`sqlite_fts5` core, or `tantivy`) via RRF (D-25); it's held off by default only for backward-compat, so results stay bit-identical until you flip it.
-- **Graph default is `sqlite_adjacency`.** `sqlite_adjacency` (zero-dep) is the shipped default; `ladybug` (`[graph]`) and `kuzu` (`[kuzu]`) are working embedded-Cypher opt-ins; Neo4j is a reserved stub.
-- **Some backends are still reserved stubs.** `weaviate` vector and `neo4j` graph raise `ConfigError` if selected; everything else in the swap-in table is wired.
-- **Extras gate features.** `ingest`, `compress`, `rerank`, `static`, `community`, `postgres`, `redis`/`valkey`, `aws`, and durable/brokered workers each need their extra installed.
+- **Retrieval is hybrid *by default* (v0.2).** `search` runs `[static_prefilter?] → vector + Tantivy BM25 fused by RRF → [rerank?] → score`. Set `read.hybrid: false` for the bit-identical vector-only pipeline. The embedded Tantivy index is **single-writer per directory**, so two live Engine instances can't share one file-backed lexical index — use one engine per process or the `[opensearch]` provider.
+- **Graph default is `sqlite_adjacency`.** `sqlite_adjacency` (zero-dep) is the shipped default; `ladybug` (`[graph]`) and `kuzu` (`[kuzu]`) are working embedded-Cypher opt-ins; Neo4j is a reserved stub. Graphiti-style `extract_graph` is **opt-in** (`memories.semantic.policies.extract_graph`).
+- **The autonomous scheduler is off by default and skipped on `:memory:`.** Set `workers.sleep_interval_seconds` to drive dynamics on a file-backed DB; production autonomous scheduling should pair with a durable runner (`[dbos]`/`[taskiq]`).
+- **Some backends are still reserved stubs.** `weaviate` vector, `neo4j` graph, and the `opensearch` lexical provider raise a clear error if selected; everything else in the swap-in table is wired.
+- **Extras gate features.** `ingest`, `compress`, `rerank`, `static`, `community`, `cache` (disk/redis/valkey), `postgres`, `opensearch`, `aws`, and durable/brokered workers each need their extra installed.
 - **REST has no authentication in v0.1.** The namespace comes from the `X-Memspine-Namespace` header verbatim — binding caller → namespace is the deployer's job (ADR-017/018). REST writes are forced onto the low-trust `rest` channel.
 - **Sync wrappers cover only** `start`/`write`/`retrieve`/`stop`; everything else is async.
 
@@ -386,7 +417,7 @@ flowchart LR
 - [x] **P6** associative graph
 - [x] **P7** prospective + shared + REST
 
-Since P7: opt-in hybrid/lexical retrieval (BM25 RRF, D-25), the LiteLLM LLM/embedding/rerank gateway (ADR-024), pluggable cache backends (ADR-022), AWS secrets (ADR-023), and PostgreSQL storage (ADR-025). Next: live-backend contract verification and default-on hybrid — see the [structure plan](./docs/memspine-structure-plan.md).
+**Since P7 (v0.1 tail + v0.2 program, all landed):** the LiteLLM LLM/embedding/rerank gateway (ADR-024), cashews cache backends (ADR-022), AWS secrets (ADR-023), PostgreSQL storage (ADR-025) — then the **v0.2 enhancement program**: hybrid retrieval **default-on** with Tantivy-core BM25 (D-25), graphiti-style `extract_graph` writes (ADR-026), the autonomous learning scheduler (ADR-005), `group_id`/`tags` sub-scoping (ADR-027), configurable graph traversal (E1), and deeper llmlingua-2 compression (E5). **Next:** live-backend contract verification (needs Postgres/Redis infra), then REST auth and WS/gRPC/MCP protocol adapters (v2) — see the [structure plan](./docs/memspine-structure-plan.md).
 
 ---
 
