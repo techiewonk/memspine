@@ -1,4 +1,4 @@
-"""LanceDB vector store — the scalable default (D-09), behind ``[lance]``.
+"""LanceDB vector store — sole vector backend (D-09, ADR-021).
 
 Consumes an injected :class:`LanceDBClient` (D-24) and the live embedder: the
 table schema is created lazily on first use, reading ``embedder.dim`` *after*

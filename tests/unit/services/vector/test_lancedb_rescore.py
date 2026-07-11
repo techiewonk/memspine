@@ -8,8 +8,6 @@ index, the quantized rescore returns the SAME top-1 as an exact flat scan on a
 controlled set (the ~95%-recall claim, 100% on a well-separated set); (2) the
 inactive path (quantization=None) is byte-identical to query(); (3) below the
 row threshold the store degrades to a flat exact query and builds no index.
-
-Skips cleanly when the ``[lance]`` extra is not installed.
 """
 
 from __future__ import annotations

@@ -1,9 +1,7 @@
-"""LanceDB connection client (D-24), ``[lance]``.
+"""LanceDB connection client (D-24, core dep — ADR-021).
 
 Owns the ``lancedb.connect`` handle; the vector service receives this client
-injected and never connects itself. Import of the lancedb package is deferred
-to ``connect()`` so constructing the client without the extra fails with the
-actionable D-10 error, and a core install never imports it at all.
+injected and never connects itself.
 """
 
 from __future__ import annotations
@@ -35,7 +33,7 @@ class LanceDBClient(Client):
         try:
             import lancedb
         except ImportError as exc:
-            raise MissingServiceError("vector:lancedb", extra="lance") from exc
+            raise MissingServiceError("vector:lancedb") from exc
         self._db = await asyncio.to_thread(lancedb.connect, self._path)
 
     async def close(self) -> None:
