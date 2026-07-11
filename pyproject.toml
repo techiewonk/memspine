@@ -45,7 +45,7 @@ cache      = ["cashews[redis,diskcache]>=7.0"]       # unified disk + redis/valk
 ingest     = ["markitdown>=0.1", "chonkie>=1.0"]    # multi-format ingest + chunking (D-29)
 structured = ["instructor>=1.9"]                    # schema-validated LLM output (D-31)
 ner        = ["gliner2>=1.2"]                        # local CPU entity extraction (D-28)
-community  = ["graspologic>=3.4"]                   # graph community detection (D-40)
+community  = ["leidenalg>=0.10"]                    # graph community detection — Leiden (D-40, ADR-028; no numpy pin)
 compress   = ["llmlingua>=0.2"]                     # assembly-time context compression (E5)
 llmlocal   = ["llama-cpp-python>=0.3"]              # in-proc open-weight inference (D-39)
 opensearch = ["opensearch-py>=2.6"]                 # server-scale lexical/BM25 leg (D-25); embedded default is core tantivy
@@ -63,9 +63,9 @@ neo4j      = ["neo4j>=5.26"]
 # Convenience bundles
 local      = ["memspine[graph,cache,dbos,ingest,ner]"]
 prod-aws   = ["memspine[aws,taskiq,rest]"]
-# NOTE: `community` (graspologic, numpy<2) conflicts with `ingest` (markitdown→magika, numpy>=2.1);
-# declared under [tool.uv] conflicts and excluded from `all` until graspologic supports numpy 2.
-all        = ["memspine[graph,kuzu,cache,ingest,structured,ner,compress,llmlocal,opensearch,dbos,taskiq,rest,rerank,static,aws,postgres,weaviate,neo4j]"]
+# `community` (leidenalg) declares no numpy pin (ADR-028), so it no longer conflicts
+# with `ingest` (numpy>=2.1) and is included in `all` — `--all-extras` is unblocked.
+all        = ["memspine[graph,kuzu,cache,ingest,structured,ner,community,compress,llmlocal,opensearch,dbos,taskiq,rest,rerank,static,aws,postgres,weaviate,neo4j]"]
 
 dev = [
     "pytest>=8.3",
@@ -86,14 +86,6 @@ memspine = "memspine.cli:app"
 Homepage = "https://github.com/techiewonk/memspine"
 Repository = "https://github.com/techiewonk/memspine"
 Documentation = "https://github.com/techiewonk/memspine/tree/main/docs"
-
-[tool.uv]
-# graspologic (numpy<2) vs markitdown→magika (numpy>=2.1) — cannot co-install today.
-conflicts = [
-    [{ extra = "community" }, { extra = "ingest" }],
-    [{ extra = "community" }, { extra = "all" }],
-    [{ extra = "community" }, { extra = "local" }],
-]
 
 [build-system]
 requires = ["hatchling"]
@@ -155,10 +147,10 @@ module = [
     "markitdown.*",
     "chonkie",
     "chonkie.*",
-    "graspologic",
-    "graspologic.*",
-    "networkx",
-    "networkx.*",
+    "leidenalg",
+    "leidenalg.*",
+    "igraph",
+    "igraph.*",
     "taskiq",
     "taskiq.*",
     "taskiq_redis",

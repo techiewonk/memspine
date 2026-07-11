@@ -6,6 +6,7 @@ All notable changes to memspine are documented here. Format: [Keep a Changelog](
 
 ### Changed
 - **Vector (ADR-021):** LanceDB (`lancedb>=0.13`) is a **core dependency** — sole vector backend; P1 SQLite brute-force fallback and `[lance]` extra removed; E4 rescore is LanceDB-native (IVF_HNSW_SQ / IVF_PQ + refine).
+- **Community detection (ADR-028, amends D-40):** `[community]` extra swapped `graspologic` → **`leidenalg`** (Leiden over `igraph`). `leidenalg` declares no `numpy` pin, so `[community]` no longer conflicts with `ingest` (numpy≥2.1) — the `[tool.uv].conflicts` block is removed, `community` is back in the `all` bundle, and `uv sync --all-extras` is unblocked. `detect_communities` keeps its signature/return; the hierarchical `max_cluster_size` bound is reproduced by a recursive re-partition splitter. Determinism preserved via fixed `seed`.
 
 ### Added — Phase 2 "Semantic memory"
 - **Prompts subsystem (D-43):** prompts are data — 10-role YAML default pack (frontmatter + Jinja2, strict variables), `PromptRegistry` with config-layered overrides (auto version bump so E3 cache keys / E1 provenance change with content), `memspine prompts list|show|resolve`; prompt versions surface in `describe()` and extractor provenance.

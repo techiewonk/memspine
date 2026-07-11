@@ -1,9 +1,9 @@
-"""Community-detection policy (D-40 + v0.2 A6): the background reorganizer's
-graspologic hierarchical-Leiden knobs, surfaced as config.
+"""Community-detection policy (D-40 + v0.2 A6, ADR-028): the background
+reorganizer's Leiden knobs, surfaced as config.
 
 Pure options carrier — the clustering itself lives in
 ``memspine.memories.associative.communities.detect_communities`` (lazy
-graspologic import, slim core D-03). The reorganize pipeline binds this from
+leidenalg import, slim core D-03). The reorganize pipeline binds this from
 ``memories.associative.policies.community`` and passes the validated knobs
 through, so a deployment can tune community granularity without a code change
 while defaults preserve today's behavior (rebuild determinism, D0.1).
@@ -23,10 +23,10 @@ class CommunityOptions(PolicyOptions):
     #: Communities smaller than this earn no summary parent (mirrors the
     #: consolidation min-session floor).
     min_size: int = constants.REORGANIZE_MIN_COMMUNITY_SIZE
-    #: hierarchical_leiden granularity: higher resolution => more, smaller
-    #: communities.
+    #: Leiden granularity: higher resolution => more, smaller communities.
     resolution: float = constants.LEIDEN_RESOLUTION
-    #: Leiden refinement randomness (graspologic default).
+    #: Refinement randomness (retained for compat; leidenalg seeds it internally
+    #: via ``random_seed`` — see detect_communities, ADR-028).
     randomness: float = constants.LEIDEN_RANDOMNESS
     #: Fixed by default so the same graph yields the same communities.
     random_seed: int = constants.LEIDEN_RANDOM_SEED

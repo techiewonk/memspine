@@ -179,7 +179,7 @@ pip install "memspine[ner]"                    # gliner2 CPU entity extraction
 pip install "memspine[structured]"             # instructor — schema-validated LLM output
 pip install "memspine[compress]"               # llmlingua-2 — assembly compression
 pip install "memspine[rerank]"                 # flashrank — E8 cross-encoder rerank
-pip install "memspine[community]"              # graspologic — graph community detection
+pip install "memspine[community]"              # leidenalg — Leiden graph community detection
 pip install "memspine[cache]"                  # cashews — disk / redis / valkey cache backends
 pip install "memspine[rest]"                   # FastAPI + uvicorn — REST protocol
 pip install "memspine[opensearch]"             # server-scale lexical (OpenSearch / Elasticsearch)
@@ -199,7 +199,7 @@ pip install "memspine[llmlocal]"               # llama-cpp-python in-proc infere
 | `compress` | assembly-time context compression (llmlingua-2, E5/D-32) |
 | `rerank` | E8 cross-encoder rerank alternative (flashrank) |
 | `static` | E4 model2vec static-embedding prefilter (ADR-020) |
-| `community` | graph community detection (graspologic, D-40) |
+| `community` | Leiden graph community detection (leidenalg, D-40/ADR-028 — no numpy pin) |
 | `opensearch` | server-scale lexical backend for hybrid (OpenSearch / Elasticsearch, D-25) |
 | `dbos` / `taskiq` | durable / brokered worker runners (D-16) |
 | `rest` | REST protocol (FastAPI, D-06) |

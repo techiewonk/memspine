@@ -18,7 +18,7 @@ Core dependencies are only small, pure-ish wheels (pydantic, SQLAlchemy Core+Ale
 ## Consequences
 
 - Positive: instant OOTB brain (SQLite + FTS5 + inline runner); CI matrix per extra; clear capability→extra mapping in `MissingServiceError` (D-10).
-- Negative / cost: extras matrix maintenance; conflict management between extras (e.g. graspologic vs markitdown numpy pins, recorded in pyproject).
+- Negative / cost: extras matrix maintenance; conflict management between extras (the former graspologic-vs-markitdown numpy-pin conflict was removed by **ADR-028**, which swapped community detection to numpy-free `leidenalg` — no `[tool.uv].conflicts` remain).
 - Follow-up: `[graph]` extra is empty until the ladybugdb fork is published (P6).
 
 ## Alternatives rejected

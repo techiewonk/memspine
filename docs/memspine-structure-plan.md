@@ -51,7 +51,7 @@
 | **D-37** | **Hashing & IDs** | **xxhash** (xxh64) for content fingerprints / simhash / cache keys / blob addressing; **fastuuid** for hot-path record IDs. (xxhash proven in MemoryBear graphrag.) |
 | **D-38** | **Serialization** | **pydantic** for models/validation (not either/or with orjson) + **orjson** for hot-path JSON — event-log payloads, REST responses, structured logs. Both in core. |
 | **D-39** | **Local / open-weight model hosting** | First-class: **Ollama · vLLM · llama.cpp (llama-cpp-python) · LM Studio · any OpenAI-compatible endpoint**, alongside Bedrock (extends D-07). `services/llm/local.py` targets the OpenAI-compatible surface all of these expose. |
-| **D-40** | **Graph community detection** | **graspologic** (`hierarchical_leiden`) optional under `[community]` — algorithmic hierarchical clustering for associative-memory consolidation / summary-parent nodes (MemoryBear + MemOS-reorganizer pattern). |
+| **D-40** | **Graph community detection** | **leidenalg** (Leiden `find_partition` + recursive `max_cluster_size` bound) optional under `[community]`, amended by **D-55/ADR-028** (was graspologic — swapped to drop the `numpy<2` pin that blocked `ingest`) — algorithmic clustering for associative-memory consolidation / summary-parent nodes (MemoryBear + MemOS-reorganizer pattern). |
 | **D-41** | **Test doubles** | **fakeredis** for mocking cache/broker (Valkey/Redis) in unit tests; keeps `[valkey]`/`[taskiq]` paths testable without a server. |
 | **D-42** | **MemOS-derived patterns** | Adopt five patterns (Part D): typed-memory MemCube container · rich provenance + versioned lifecycle · Redis-Streams scheduler w/ per-scope queue isolation · background graph reorganizer · hybrid + strategy reranking. Avoid KV-cache activation memory + backend sprawl. |
 | **D-43** | **Prompt subsystem (customizable)** | First-class `prompts/` package (Part E): **YAML default pack (frontmatter: id/version/role/output_model/format + Jinja2 body)** + `PromptRegistry` keyed `(role, name, version)` + **config-layered overrides (D-11/D-12)** + per-role binding + **pydantic output-model pairing (instructor, D-31)** + versioned lifecycle (rides procedural draft→…→active) + `memspine prompts` CLI. Self-optimization is an RG hook only. |
@@ -244,7 +244,7 @@ memspine/
 | `ingest` | **markitdown, chonkie** ★NEW | multi-format doc ingest + chunking (D-29) |
 | `structured` | **instructor** ★NEW | schema-validated LLM extract/judge output (D-31) |
 | `ner` | **gliner2** ★NEW | local CPU entity extraction (D-28) |
-| `community` | **graspologic** ★NEW | Leiden hierarchical community detection for graph consolidation (D-40) |
+| `community` | **leidenalg** (Leiden) | Leiden community detection for graph consolidation (D-40/ADR-028; no numpy pin) |
 | `llmlocal` | **llama-cpp-python** ★NEW | in-process open-weight inference; Ollama/vLLM/LM Studio need no extra (OpenAI-compatible HTTP) (D-39) |
 | `promptopt` | **langmem** (or trustcall) ★NEW | RG-only prompt self-optimization hook (D-43); off by default |
 | `compress` | llmlingua | E5 assembly-time context compression |
@@ -291,7 +291,7 @@ resource ──(none)                consolidation pipeline ──needs──> e
 | 3 Episodic + lifecycle | memories/episodic/*, policies/consolidation+decay+compression **(★zstandard cold-tier D-32)**, workers/pipelines+dbos_runner+schedule, resource ingest **(★markitdown+chonkie `[ingest]` D-29)**, E3 extraction cache, E7 hook |
 | 4 Governance + Firewall | M7 delete hooks, cli forget --verify, memories/resource/*, E1 full Memory Firewall, example 03 |
 | 5 Procedural + reflective | memories/procedural/*, memories/reflective/*, E6 plan-skill subtype |
-| 6 Associative | memories/associative/*, services/graph/sqlite_adjacency **(v0.1 default — D-26 amended by D-49)** + **★services/graph/kuzu `[kuzu]` alt** + **★services/graph/ladybug `[graph]` real adapter (published 2026-07-01, wired 2026-07-09)**, **★associative/communities.py graspologic `[community]` (D-40)** + background reorganizer (D-42), E4 two-stage retrieval |
+| 6 Associative | memories/associative/*, services/graph/sqlite_adjacency **(v0.1 default — D-26 amended by D-49)** + **★services/graph/kuzu `[kuzu]` alt** + **★services/graph/ladybug `[graph]` real adapter (published 2026-07-01, wired 2026-07-09)**, **★associative/communities.py leidenalg `[community]` (D-40/ADR-028)** + background reorganizer (D-42), E4 two-stage retrieval |
 | 7 Prospective + shared + REST | memories/prospective+shared, protocols/rest, workers/taskiq_runner (**★per-scope Redis-Streams queues + priority labels, D-42**), E5 compress + E8 rerank/strategy-rerank opt-in (D-42), example 04 |
 
 ## 6. Combination test matrix (C6, v0.1 scope)

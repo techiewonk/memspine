@@ -114,7 +114,7 @@ async def test_reorganize_reports_skipped_without_the_extra(engine: Engine) -> N
     from memspine.memories.associative.communities import communities_available
 
     if communities_available():
-        pytest.skip("graspologic installed — the skipped path is not reachable")
+        pytest.skip("leidenalg installed — the skipped path is not reachable")
     stats = await engine.sleep()
     assert stats["reorganize"]["status"] == "skipped"
     assert "community" in str(stats["reorganize"]["reason"])

@@ -570,7 +570,7 @@ async def reorganize(ctx: PipelineContext) -> dict[str, object]:
     if not communities_available():
         return {
             "status": "skipped",
-            "reason": "graspologic not installed — `pip install memspine[community]` (D-40)",
+            "reason": "leidenalg not installed — `pip install memspine[community]` (D-40)",
         }
     inflate = CompressionPolicy.bind()
     community_opts = CommunityPolicy.bind(_policy_options(ctx, "associative", "community")).options

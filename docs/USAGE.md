@@ -26,7 +26,7 @@ just check        # ruff + mypy --strict + pytest
 
 Common extras: `kuzu` (graph), `ingest` (markitdown+chonkie), `ner` (gliner2),
 `structured` (instructor), `compress` (llmlingua, E5), `rerank` (flashrank, E8),
-`community` (graspologic), `rest` (FastAPI), `dbos`/`taskiq` (durable/brokered workers). See the
+`community` (leidenalg), `rest` (FastAPI), `dbos`/`taskiq` (durable/brokered workers). See the
 [README extras table](../README.md#-install--extras) for the full set.
 
 > A feature that needs a missing extra raises `MissingServiceError` naming the

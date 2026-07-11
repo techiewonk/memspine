@@ -24,4 +24,4 @@ SQLite (relational/event-log/FTS5) in core; **LanceDB in core** as the sole vect
 ## Alternatives rejected
 
 - **Server-first (Postgres+pgvector+Neo4j)** — heavy OOTB; they remain swap-ins, not defaults.
-- **igraph** — networkx stays the pure-Python default; graspologic covers community detection (D-40).
+- **igraph / community detection** — `leidenalg` over `igraph` covers Leiden community detection under `[community]` (D-40, per ADR-028; supersedes the earlier graspologic choice).

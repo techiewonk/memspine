@@ -58,8 +58,8 @@ EVOLUTION_MAX_LINKS_PER_WRITE = 4
 # worth a summary-parent record (mirrors CONSOLIDATION_MIN_SESSION_RECORDS).
 REORGANIZE_MIN_COMMUNITY_SIZE = 3
 
-# Leiden community-detection knobs (D-40/v0.2 A6): graspologic
-# ``hierarchical_leiden`` defaults, surfaced as
+# Leiden community-detection knobs (D-40/v0.2 A6, ADR-028): leidenalg
+# ``find_partition`` defaults + recursive ``max_cluster_size`` bound, surfaced as
 # ``memories.associative.policies.community.*`` so a deployment can tune
 # community granularity without a code change. The seed is fixed so the same
 # graph yields the same communities (rebuild determinism, D0.1) — override it
