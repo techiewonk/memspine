@@ -283,10 +283,21 @@ note = await engine.reflect("windows builds are flaky", [a.record_id, b.record_i
 chunks = await engine.ingest("docs/runbook.md", namespace="ops")
 ```
 
-**Associative — link + graph recall** *(needs a graph store)*
+**Associative — link + graph recall** *(uses the core `sqlite_adjacency` graph)*
 ```python
 await engine.associate(a.record_id, b.record_id, namespace="dev", rel="related")
-neighbours = await engine.related(a.record_id, namespace="dev", k=10)   # personalized PageRank
+neighbours = await engine.related(a.record_id, namespace="dev", k=10)                  # PPR default
+alt = await engine.related(a.record_id, namespace="dev", k=10, strategy="bfs")         # or bfs | rrf
+```
+
+**Community detection — background reorganize** *(needs `memspine[community]`)*
+```python
+# Leiden (leidenalg) clusters the link graph and writes one summary-parent record
+# per community; it runs inside the sleep cycle's `reorganize` stage.
+stats = await engine.sleep()          # consolidate → extract_graph → reorganize → decay → …
+print(stats["reorganize"])            # {'status': 'ok', 'communities': 2, 'parents': 2, 'superseded': 0}
+# Autonomous alternative: set workers.sleep_interval_seconds to run the cycle on a timer.
+# Tune granularity via memories.associative.policies.community.{resolution,max_cluster_size,random_seed}.
 ```
 
 **Prospective — watches**
