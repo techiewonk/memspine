@@ -94,10 +94,11 @@ _active_runner: DBOSRunner | None = None
 dbos: Any = None
 _DBOS_AVAILABLE = False
 try:
-    import dbos  # reassigns the Any placeholder above; ignore_missing_imports covers typing
+    import dbos as _dbos  # aliased so the assignment below reuses the Any placeholder
 except ImportError:
     pass
 else:
+    dbos = _dbos  # bind the module onto the module-global name used throughout
     _DBOS_AVAILABLE = True
 
     @dbos.DBOS.workflow(name="memspine.run_pipeline")  # type: ignore[untyped-decorator]

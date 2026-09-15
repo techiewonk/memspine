@@ -1,11 +1,11 @@
 # memspine — Ecosystem Comparison
 
-**Status:** Evidence document · **Last verified:** 2026-07-10 (reviewer **pass #4** — final confirmation, 18 dedicated agents; **pass #5** methodology/prompt/taxonomy deep survey + one-shot repo sync)  
-**Prior passes:** 2026-07-09 initial trace · 2026-07-10 pass #2 (architecture) · pass #3 (stages/packages/prompts/I/O) · **pass #4** (final doc confirmation) · **pass #5** (methodology · full prompts · algorithms · taxonomy · package gaps).  
+**Status:** Evidence document · **Last verified:** 2026-07-11 (**pass #6** — full fresh re-run: one-shot re-pull + 25 air-gapped per-repo agents via workflow orchestration; methodology/prompt/taxonomy/algorithm/package deep survey regenerated)  
+**Prior passes:** 2026-07-09 initial trace · 2026-07-10 pass #2 (architecture) · pass #3 (stages/packages/prompts/I/O) · **pass #4** (final doc confirmation) · **pass #5** (methodology · full prompts · algorithms · taxonomy · package gaps) · **pass #6** (2026-07-11 full re-run; +unimem, fresh SHAs).  
 **Purpose:** Verify memspine novelty, position it against peer engines, and supply ADR evidence (D-01…D-54).  
 **Companion:** [`ARCHITECTURE_FLOWS.md`](./ARCHITECTURE_FLOWS.md) — code-traced write/read/sleep diagrams. **Pass #5 deep dive:** [`ECOSYSTEM_METHODOLOGY.md`](./ECOSYSTEM_METHODOLOGY.md) · [`ECOSYSTEM_PROMPTS.md`](./ECOSYSTEM_PROMPTS.md) · [`ECOSYSTEM_MEMORY_TAXONOMY.md`](./ECOSYSTEM_MEMORY_TAXONOMY.md) · [`exports/ECOSYSTEM_REPO_SYNC.csv`](./exports/ECOSYSTEM_REPO_SYNC.csv).
 
-**Scope:** memspine + **baseline peers** (cognee, graphiti, mem0, MemOS, honcho, OpenMemory, ReMe, LightMem, powermem, MemoryBear, MemMachine, langmem, A-mem, EverMemOS, hindsight, SimpleMem) + **Pass #5 expanded** (Memori, memU, Second-Me, memobase, telemem, memonto, memory-opensource). **unimem** path missing at sync. See [`exports/ECOSYSTEM_REPO_SYNC.csv`](./exports/ECOSYSTEM_REPO_SYNC.csv).
+**Scope (Pass #6 = 25 in-scope):** memspine + **baseline peers** (cognee, graphiti, mem0, MemOS, honcho, OpenMemory, ReMe, **unimem**, LightMem, powermem, MemoryBear, MemMachine, langmem, A-mem, EverMemOS, hindsight, SimpleMem) + **expanded** (Memori, memU, Second-Me, memobase, telemem, memonto, memory-opensource). **unimem** is now included (present on disk but not a git clone — surveyed from files). See [`exports/ECOSYSTEM_REPO_SYNC.csv`](./exports/ECOSYSTEM_REPO_SYNC.csv).
 
 **Prior art in this repo:** [`DEPENDENCY_ANALYSIS.md`](./DEPENDENCY_ANALYSIS.md) (manifest scan, 2026-07-07) · [`PACKAGE_CATALOG.md`](./PACKAGE_CATALOG.md) · [`UNIMEM_V2_REWORK_PROPOSAL.md`](./UNIMEM_V2_REWORK_PROPOSAL.md).
 
