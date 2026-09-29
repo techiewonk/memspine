@@ -37,6 +37,11 @@ class TaintReport(BaseModel):
     descendants: dict[str, str] = Field(default_factory=dict)
     #: every event seq that mentions the record (the full evidence trail).
     event_seqs: list[int] = Field(default_factory=list)
+    #: Cross-namespace walk only (``follow_parents``): the namespace each
+    #: descendant lives in, and every reader namespace an EXPOSE event shows
+    #: received tainted content (reader -> first exposure seq).
+    descendant_namespaces: dict[str, str] = Field(default_factory=dict)
+    exposed_namespaces: dict[str, int] = Field(default_factory=dict)
 
     @property
     def blast_radius(self) -> int:
@@ -63,12 +68,21 @@ def _snapshot_id(event: MemoryEvent) -> str | None:
     return None
 
 
-async def trace_taint(storage: _EventSource, record_id: str) -> TaintReport:
+async def trace_taint(
+    storage: _EventSource, record_id: str, follow_parents: bool = False
+) -> TaintReport:
     """Walk the log once; expand the tainted set transitively (a summary built
-    from a tainted episode taints whatever later merges with the summary)."""
+    from a tainted episode taints whatever later merges with the summary).
+
+    ``follow_parents`` (MTI forensics) also follows ``source.parents`` — the
+    ``derived_from`` lineage a writer declared — which crosses grant
+    boundaries, and reports EXPOSE readers. Off, the walk is exactly the
+    namespace-local pre-MTI walk.
+    """
     events = await _all_events(storage)
     report = TaintReport(record_id=record_id)
     tainted: set[str] = {record_id}
+    write_namespace: dict[str, str] = {}
 
     changed = True
     while changed:  # transitive closure over derivations
@@ -86,6 +100,16 @@ async def trace_taint(storage: _EventSource, record_id: str) -> TaintReport:
                         source = snapshot.get("source")
                         if isinstance(source, dict):
                             report.origin_source = source
+                if snapshot_id is not None:
+                    write_namespace.setdefault(snapshot_id, event.namespace)
+                if follow_parents and snapshot_id is not None and snapshot_id not in tainted:
+                    snapshot = payload.get("record")
+                    source = snapshot.get("source") if isinstance(snapshot, dict) else None
+                    parents = source.get("parents") if isinstance(source, dict) else None
+                    if isinstance(parents, list) and tainted & set(map(str, parents)):
+                        tainted.add(snapshot_id)
+                        report.descendants[snapshot_id] = f"derived@{event.seq}"
+                        changed = True
                 # Derivation provenance rides the WRITE payload: consolidation
                 # (P3.1) and reflection (M13.7/P5) both name their members.
                 for derivation_key, label in (
@@ -179,6 +203,15 @@ async def trace_taint(storage: _EventSource, record_id: str) -> TaintReport:
             report.origin_namespace = event.namespace
         if _event_references(event.payload, tainted):
             report.event_seqs.append(event.seq)
+        if follow_parents and event.kind is EventKind.EXPOSE:
+            exposed = event.payload.get("record_ids")
+            reader = str(event.payload.get("reader_namespace", event.namespace))
+            if isinstance(exposed, list) and tainted & set(map(str, exposed)):
+                report.exposed_namespaces.setdefault(reader, event.seq)
+    if follow_parents:
+        report.descendant_namespaces = {
+            rid: write_namespace[rid] for rid in report.descendants if rid in write_namespace
+        }
     return report
 
 

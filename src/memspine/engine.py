@@ -18,6 +18,7 @@ import shutil
 import tempfile
 import threading
 from collections.abc import Coroutine, Mapping, Sequence
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Self, TypeVar, cast
@@ -35,6 +36,7 @@ from memspine.core.audit import TaintReport, trace_taint
 from memspine.core.erasure import payload_retains_content
 from memspine.core.events import EventKind, EventLogMode, MemoryEvent, fingerprint_payload
 from memspine.core.firewall import Firewall, FirewallVerdict
+from memspine.core.integrity import IntegrityPolicy
 from memspine.core.namespace import grant_allows, validate_namespace
 from memspine.core.policies.assembly import AssembledContext, AssemblyPolicy
 from memspine.core.policies.compression import CompressionPolicy
@@ -50,6 +52,7 @@ from memspine.core.records import (
     PiiTier,
     RecordStatus,
     SourceInfo,
+    new_record_id,
 )
 from memspine.core.registry import SERVICE_EXTRAS, dependency_closure, missing_services
 from memspine.core.replay import catch_up
@@ -123,6 +126,17 @@ from memspine.workers.schedule import run_sleep_cycle
 from memspine.workers.scheduler import SleepScheduler
 
 __all__ = ["Engine"]
+
+
+@dataclass(frozen=True)
+class WriteOutcome:
+    """What ``Engine.write_ex`` did (G8): the surviving record, the action taken,
+    and a fresh per-call occurrence id."""
+
+    record: MemoryRecord
+    action: str
+    occurrence_id: str
+
 
 _log = get_logger(__name__)
 
@@ -259,6 +273,7 @@ class Engine:
         self._scheduler: SleepScheduler | None = None  # D1: autonomous sleep loop
         self._started = False
         self._write_locks: dict[str, asyncio.Lock] = {}
+        self._last_write_action: str = "added"  # G8: read by write_ex()
         self._sync_loop: asyncio.AbstractEventLoop | None = None
         self._sync_thread: threading.Thread | None = None
 
@@ -393,6 +408,9 @@ class Engine:
                 dedup=DedupPolicy.bind(_as_options_dict(semantic_policies.get("dedup"))),
                 extractor=self._build_extractor(config),
                 write_pipeline=self._build_write_pipeline(config),
+                merge_reinforcement_gate=(
+                    config.integrity.enabled and config.integrity.merge_reinforcement_gate
+                ),
             )
         # Memory Firewall (E1/M17): trust matrix binds from the semantic
         # policy block (D-14 channel); the gate itself covers every type.
@@ -531,6 +549,7 @@ class Engine:
         attribute: str | None = None,
         group_id: str | None = None,
         tags: list[str] | None = None,
+        derived_from: Sequence[str] | None = None,
     ) -> MemoryRecord:
         """Append a WRITE event through the single door; projection materializes it.
 
@@ -539,6 +558,12 @@ class Engine:
         know the fact key should always pass it. ``group_id``/``tags`` (D2) are a
         sub-scoping facet within the namespace (a conversation, a document, a
         project) — a retrieval filter, never an isolation boundary.
+
+        ``derived_from`` names the records the writer had in context when it
+        produced ``content`` (own or granted). They are always recorded as
+        ``source.parents``; with ``integrity.enabled`` they also cap the new
+        record's trust at the least-trusted parent's view trust (MTI-D), which
+        is what stops a paraphrase from laundering foreign content.
         """
         storage = self._require_started()
         ns = validate_namespace(namespace)
@@ -550,21 +575,77 @@ class Engine:
         # build the record and go through _write_locked directly.
         if memory_type == "shared":
             raise ConflictError("memory_type 'shared' is engine-internal — use grant()/subscribe()")
+        source = source or SourceInfo(role=actor)
+        if derived_from:
+            source = source.model_copy(update={"parents": list(dict.fromkeys(derived_from))})
         record = MemoryRecord(
             namespace=ns,
             memory_type=memory_type,
             content=content,
-            source=source or SourceInfo(role=actor),
+            source=source,
             pii_tier=pii_tier,
             entity=entity,
             attribute=attribute,
             group_id=group_id,
             tags=tags or [],
         )
+        trust_cap = await self._parent_trust_cap(ns, record.source.parents)
         # One writer per namespace: the firewall's context reads, the write,
         # and corroboration form one unit racing writers must not interleave.
         async with self._write_locks.setdefault(ns, asyncio.Lock()):
-            return await self._write_locked(storage, ns, record, memory_type, actor)
+            written, action = await self._write_locked_ex(
+                storage, ns, record, memory_type, actor, trust_cap=trust_cap
+            )
+        self._last_write_action = action
+        return written
+
+    async def write_ex(self, content: str, **kwargs: Any) -> WriteOutcome:
+        """``write`` that also reports what happened (G8).
+
+        ``action`` is ``added`` | ``merged`` | ``updated`` | ``rejected`` |
+        ``quarantined``. On ``merged`` the returned record is the KEPT record
+        (its id predates this call) — a caller tracking lineage must alias its
+        occurrence to that id instead of assuming a fresh record.
+        ``occurrence_id`` is fresh per call, so two identical deposits remain
+        distinguishable in the caller's own bookkeeping.
+        """
+        record = await self.write(content, **kwargs)
+        # Safe without a lock: ``write`` sets the action and returns with no
+        # await in between, so no other task can run before it is read here.
+        action = self._last_write_action
+        return WriteOutcome(record=record, action=action, occurrence_id=new_record_id())
+
+    def _integrity(self) -> IntegrityPolicy:
+        return IntegrityPolicy.from_config(self._config().integrity)
+
+    async def _parent_trust_cap(self, ns: str, parents: Sequence[str]) -> list[float] | None:
+        """View trusts of ``parents`` for a writer in ``ns`` (MTI-D input).
+
+        ``None`` when integrity is off or there are no parents — the write is
+        then exactly the pre-MTI write. A parent the writer cannot read (missing,
+        not live, or outside every grant) counts as 0.0: a caller must not be
+        able to raise trust by naming records it never saw.
+        """
+        policy = self._integrity()
+        if not policy.enabled or not parents:
+            return None
+        storage = self._require_started()
+        grants: Mapping[str, frozenset[str] | None] = (
+            await self._shared.grants_to(ns) if self._shared is not None else {}
+        )
+        views: list[float] = []
+        for parent_id in parents:
+            parent = await storage.get_record(parent_id)
+            if (
+                parent is None
+                or parent.quarantined
+                or not grant_allows(ns, parent.namespace, parent.memory_type, grants)
+            ):
+                _log.warning("memory.integrity_unreadable_parent", namespace=ns, parent=parent_id)
+                views.append(0.0)
+                continue
+            views.append(policy.view_trust(parent.trust, parent.namespace, ns))
+        return views
 
     async def write_messages(
         self,
@@ -640,11 +721,30 @@ class Engine:
         record: MemoryRecord,
         memory_type: str,
         actor: str,
+        trust_cap: list[float] | None = None,
     ) -> MemoryRecord:
+        written, _ = await self._write_locked_ex(storage, ns, record, memory_type, actor, trust_cap)
+        return written
+
+    async def _write_locked_ex(
+        self,
+        storage: SqlStorage,
+        ns: str,
+        record: MemoryRecord,
+        memory_type: str,
+        actor: str,
+        trust_cap: list[float] | None = None,
+    ) -> tuple[MemoryRecord, str]:
         # Memory Firewall gate (E1/M17): every write of every type passes the
         # deterministic trust/anomaly/instruction assessment BEFORE the door.
         verdict = await self._assess_write(record)
         record = verdict.apply(record)
+        if trust_cap is not None:
+            # MTI-D (integrity.enabled): after the firewall has set base trust,
+            # never exceed the least-trusted parent's view. Quarantine stays the
+            # firewall's decision; admission (read side) enforces the radius.
+            capped = self._integrity().deposit_trust(record.trust, trust_cap)
+            record = record.model_copy(update={"trust": capped})
         if verdict.quarantine:
             # Quarantined content is stored inert: no dedup merging, no
             # conflict-ladder participation, no retrieval surface — but the
@@ -666,7 +766,7 @@ class Engine:
                 record_id=record.record_id,
                 reasons=verdict.reasons,
             )
-            return record
+            return record, "quarantined"
 
         # Semantic writes run the full M5/M4 pipeline (dedup → entities →
         # conflict); every other type is a plain WRITE through the door.
@@ -680,7 +780,7 @@ class Engine:
             )
             await self._corroborate(ns, result.record)
             await self._evolve_links(ns, result.record)
-            return result.record
+            return result.record, result.action
 
         event = MemoryEvent(
             kind=EventKind.WRITE,
@@ -698,7 +798,7 @@ class Engine:
         if memory_type == "working" and self._working is not None:
             active = await storage.list_records(ns, "working")
             await self._working.enforce(ns, active)
-        return record
+        return record, "added"
 
     async def retrieve(
         self,
@@ -818,6 +918,11 @@ class Engine:
                 continue
             if record.quarantined:
                 continue  # defense in depth: quarantined never reaches assembly
+            if record.memory_type == "shared":
+                # EI-1: grant/subscription bookkeeping is authorization state, not
+                # memory content — it must never occupy retrieval slots (shared_search
+                # already hides foreign ones; this hides the reader's own).
+                continue
             # D2 sub-scoping gate: narrow to a group and/or records carrying all tags.
             if group_id is not None and record.group_id != group_id:
                 continue
@@ -860,6 +965,14 @@ class Engine:
             (record, self._scoring.composite_score(record, relevance=relevance))
             for record, relevance in candidates
         ]
+        integrity = self._integrity()
+        if integrity.enabled:
+            # MTI read door, own namespace: view trust is the record's trust.
+            scored = [
+                (record, integrity.ranked(score, record.trust))
+                for record, score in scored
+                if integrity.admits(record.trust)
+            ]
         scored.sort(key=lambda pair: pair[1], reverse=True)
         if scored:
             # Reinforcement stats via the log (M1): last_accessed_at + access_count.
@@ -880,15 +993,33 @@ class Engine:
         namespace: str = "default",
         budget_tokens: int = constants.ASSEMBLE_BUDGET_TOKENS,
         top_k: int = constants.ASSEMBLE_TOP_K,
+        shared: bool = False,
     ) -> AssembledContext:
         """Retrieval + M12/E2 assembly: MMR-selected, cache-aware-ordered context.
 
         Persona and other stable records sit before ``boundary_index``; volatile
         episodic/working content after it — feed the prefix to provider caching.
+
+        ``shared=True`` (G9) assembles over own + granted records via
+        ``shared_search``, so a multi-agent turn sees exactly what its grants allow
+        (trust-capped, and under ``integrity.*`` attenuated and admitted at theta).
         """
         if self._assembly is None:
             raise MemspineError("assembly policy not bound — engine not started?")
-        scored = await self.search(query, namespace=namespace, top_k=top_k)
+        if shared:
+            scored = await self.shared_search(query, namespace=namespace, top_k=top_k)
+        else:
+            scored = await self.search(query, namespace=namespace, top_k=top_k)
+        integrity = self._integrity()
+        if integrity.enabled and integrity.trust_weighted_ranking and scored:
+            # Scores are composite x view trust. Abstention (theta_abstain) judges
+            # RELEVANCE, and trust already had its own gate (admission theta), so
+            # rescale uniformly: the top candidate sits at its unweighted score,
+            # the trust-aware ORDER is preserved.
+            best = max(scored, key=lambda pair: pair[1])
+            unweighted = best[1] / best[0].trust if best[0].trust > 0 else best[1]
+            factor = unweighted / best[1] if best[1] > 0 else 1.0
+            scored = [(record, score * factor) for record, score in scored]
         # Persona is pinned context (E2): always a candidate, never query-gated.
         storage = self._require_started()
         ns = validate_namespace(namespace)
@@ -1105,22 +1236,75 @@ class Engine:
             "clean": clean,
         }
 
-    async def audit_taint(self, record_id: str, namespace: str = "default") -> TaintReport:
+    async def audit_taint(
+        self, record_id: str, namespace: str = "default", cross_namespace: bool = False
+    ) -> TaintReport:
         """E1 blast-radius audit: origin + every derivation, from the log.
 
         SEC-C3/ADR-018: scoped to ``namespace``. The seed record must belong to
         the caller's namespace; a foreign or unknown seed raises the ADR-014
         anti-oracle error. The taint WALK itself is not weakened — derivation
         edges are namespace-local post-P5/P6, so scoping the seed is sufficient.
+
+        ``cross_namespace=True`` is the MTI forensic walk (G4): it also follows
+        declared ``derived_from`` lineage across grants and lists reader
+        namespaces that EXPOSE events show received tainted content. It reveals
+        descendants outside ``namespace``, so it is an operator-level call.
         """
         storage = self._require_started()
         ns = validate_namespace(namespace)
-        report = await trace_taint(storage, record_id)
+        report = await trace_taint(storage, record_id, follow_parents=cross_namespace)
         record = await storage.get_record(record_id)
         seed_ns = record.namespace if record is not None else report.origin_namespace
         if seed_ns != ns:
             raise ConflictError(f"no such record {record_id!r} in namespace {ns!r}")
         return report
+
+    async def rollback_taint(
+        self, record_id: str, namespace: str = "default", actor: str = "operator"
+    ) -> dict[str, list[str]]:
+        """MG-9 repair: archive a poison seed and every content-tainted descendant.
+
+        Uses the cross-namespace walk. Descendants that inherited taint only by
+        *absorbing* it in a dedup merge (``merged@`` — the survivor kept its own
+        content) are returned for review, not archived: their content is not the
+        poison's (Paper A, Def. taint, T_c vs T_a). Archival is a DECAY_TRANSITION
+        through the door, so it replays and is itself auditable.
+        """
+        storage = self._require_started()
+        report = await self.audit_taint(record_id, namespace, cross_namespace=True)
+        archived: list[str] = []
+        review: list[str] = []
+        targets = [(record_id, "seed"), *report.descendants.items()]
+        for target_id, proof in targets:
+            if proof.startswith("merged@"):
+                review.append(target_id)
+                continue
+            record = await storage.get_record(target_id)
+            if record is None or record.status in (RecordStatus.ARCHIVED, RecordStatus.DELETED):
+                continue
+            await self._append_and_project(
+                MemoryEvent(
+                    kind=EventKind.DECAY_TRANSITION,
+                    namespace=record.namespace,
+                    actor=actor,
+                    payload={
+                        "record_id": target_id,
+                        "set": {"status": RecordStatus.ARCHIVED.value},
+                        "transition": f"{record.status.value}->archived",
+                        "reason": f"taint_rollback:{record_id}",
+                    },
+                )
+            )
+            archived.append(target_id)
+        _log.warning(
+            "memory.taint_rollback",
+            namespace=namespace,
+            seed=record_id,
+            archived=len(archived),
+            review=len(review),
+        )
+        return {"archived": archived, "review": review}
 
     async def _assess_write(self, record: MemoryRecord) -> FirewallVerdict:
         """Gather the firewall's namespace context: nearest-neighbour
@@ -1197,6 +1381,7 @@ class Engine:
         ):
             return
         storage = self._require_started()
+        integrity = self._integrity()
         for held in await storage.list_records(namespace):
             if not held.quarantined or held.status is not RecordStatus.QUARANTINED:
                 continue
@@ -1222,6 +1407,9 @@ class Engine:
                 and held.attribute == incoming.attribute
             )
             if not (same_content or same_fact):
+                continue
+            principal_bound = integrity.enabled and integrity.principal_bound_corroboration
+            if principal_bound and not await self._independent_principal(held, incoming):
                 continue
             count = held.corroborations + 1
             change: dict[str, object] = {"corroborations": count}
@@ -1260,17 +1448,22 @@ class Engine:
                     # a semantic incumbent must never archive e.g. a watch that
                     # merely reuses the key columns as its watched target.
                     change["status"] = RecordStatus.ACTIVATED.value
+            payload: dict[str, object] = {
+                "record_id": held.record_id,
+                "set": change,
+                "transition": "quarantined->activated" if promoted else "corroborated",
+                "reason": "quarantine_promoted" if promoted else "corroborated",
+            }
+            if principal_bound:
+                # Durable record of who vouched: the next corroborator is checked
+                # against it (replay-safe, no in-memory state).
+                payload["principal"] = incoming.source.principal
             await self._append_and_project(
                 MemoryEvent(
                     kind=EventKind.DECAY_TRANSITION,
                     namespace=namespace,
                     actor="system",
-                    payload={
-                        "record_id": held.record_id,
-                        "set": change,
-                        "transition": "quarantined->activated" if promoted else "corroborated",
-                        "reason": "quarantine_promoted" if promoted else "corroborated",
-                    },
+                    payload=payload,
                 )
             )
             _log.info(
@@ -1782,6 +1975,7 @@ class Engine:
         if not grants:
             return results
         [query_vector] = await self._embedder.embed([query])
+        integrity = self._integrity()
         for grantor in sorted(grants):
             # SF-7/ADR-018: one grantor's broken vector index must not sink the
             # reader's own results or the other grantors' — contain per grantor.
@@ -1808,14 +2002,22 @@ class Engine:
                             "memory.inflate_failed", namespace=grantor, record_id=hit.record_id
                         )
                         continue
+                    score = self._scoring.composite_score(record, relevance=hit.score)
+                    if integrity.enabled:
+                        # MTI read door: attenuate per grant edge, rank by
+                        # score x view trust, admit only at >= threshold.
+                        view = integrity.view_trust(record.trust, grantor, ns)
+                        if not integrity.admits(view):
+                            continue
+                        record = record.model_copy(update={"trust": view})
+                        results.append((record, integrity.ranked(score, view)))
+                        continue
                     # E1: foreign content is retrieved content — trust-capped,
                     # never its home-namespace trust.
                     record = record.model_copy(
                         update={"trust": min(record.trust, constants.TRUST_RETRIEVED_CAP)}
                     )
-                    results.append(
-                        (record, self._scoring.composite_score(record, relevance=hit.score))
-                    )
+                    results.append((record, score))
             except Exception as exc:
                 _log.warning(
                     "shared_search.grantor_failed",
@@ -1828,6 +2030,19 @@ class Engine:
         # COR-2/ADR-018: the per-grantor loop appended up to top_k EACH — a final
         # truncation keeps the contract that shared_search returns at most top_k.
         results = results[:top_k]
+        foreign_ids = [record.record_id for record, _ in results if record.namespace != ns]
+        if integrity.enabled and foreign_ids:
+            # G4: the reader-side exposure trail that makes blast radius
+            # computable from the log — in the reader's namespace, never the
+            # grantor's (reads must not mutate grantor state, E1).
+            await self._append_and_project(
+                MemoryEvent(
+                    kind=EventKind.EXPOSE,
+                    namespace=ns,
+                    actor="system",
+                    payload={"reader_namespace": ns, "record_ids": foreign_ids},
+                )
+            )
         _log.info(
             EVENT_RETRIEVE, namespace=ns, shared=True, grantors=sorted(grants), count=len(results)
         )
@@ -1873,6 +2088,32 @@ class Engine:
                 "prospective memory not enabled — set memories.prospective.enabled: true"
             )
         return self._prospective
+
+    async def _independent_principal(self, held: MemoryRecord, incoming: MemoryRecord) -> bool:
+        """Principal-bound independence (integrity.principal_bound_corroboration).
+
+        The corroborator must name a principal, differ from the held record's
+        principal, and differ from every principal that already corroborated
+        ``held`` — so k promotions need k distinct principals, not k sessions
+        (Paper A, Prop. 4b). Earlier corroborators are read from the log.
+        """
+        principal = incoming.source.principal
+        if principal is None or principal == held.source.principal:
+            return False
+        storage = self._require_started()
+        after = 0
+        while True:
+            events = await storage.read_events(after_seq=after, limit=1000)
+            if not events:
+                return True
+            for event in events:
+                if (
+                    event.kind is EventKind.DECAY_TRANSITION
+                    and event.payload.get("record_id") == held.record_id
+                    and event.payload.get("principal") == principal
+                ):
+                    return False
+            after = max(event.seq for event in events if event.seq is not None)
 
     def _require_shared(self) -> SharedMemory:
         if self._shared is None:

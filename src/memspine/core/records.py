@@ -87,6 +87,12 @@ class SourceInfo(BaseModel):
     doc_path: str | None = None
     message_id: str | None = None
     prompt_version: str | None = None
+    # MTI provenance (integrity.*, opt-in): the authenticated principal behind
+    # the write, and the records the writer had in context when it produced
+    # this content (``derived_from``). Both default empty, so records written
+    # without them behave exactly as before.
+    principal: str | None = None
+    parents: list[str] = Field(default_factory=list)
 
 
 class ScoringState(BaseModel):

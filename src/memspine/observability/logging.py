@@ -19,6 +19,7 @@ __all__ = [
     "EVENT_CONFLICT",
     "EVENT_CONSOLIDATE",
     "EVENT_DECAY_TRANSITION",
+    "EVENT_EXPOSE",
     "EVENT_FORGET",
     "EVENT_LINK",
     "EVENT_MERGE",
@@ -40,6 +41,7 @@ EVENT_MERGE = EventKind.MERGE.value
 EVENT_LINK = EventKind.LINK.value
 EVENT_FORGET = EventKind.FORGET.value
 EVENT_REBUILD = EventKind.REBUILD.value
+EVENT_EXPOSE = EventKind.EXPOSE.value
 
 
 def _utf8_console_stream() -> TextIO:

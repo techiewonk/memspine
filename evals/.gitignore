@@ -1,0 +1,6 @@
+# Fetched datasets and run outputs never enter git.
+data/
+runs/
+__pycache__/
+.pytest_cache/
+.deepeval

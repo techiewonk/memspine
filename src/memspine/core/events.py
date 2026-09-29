@@ -61,6 +61,11 @@ class EventKind(StrEnum):
     LINK = "memory.link"
     FORGET = "memory.forget"
     REBUILD = "memory.rebuild"
+    #: Reader-side exposure record (integrity.enabled only). Payload:
+    #: ``{"reader_namespace", "record_ids"}`` — foreign records a grantee's
+    #: ``shared_search`` returned. Appended in the READER's namespace so the
+    #: grantor is never mutated; no projector materializes it (audit-only).
+    EXPOSE = "memory.expose"
 
 
 def new_event_id() -> str:

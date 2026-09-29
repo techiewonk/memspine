@@ -288,6 +288,62 @@ class CacheConfig(BaseModel):
     max_entries: int = constants.MEMORY_KV_MAX_ENTRIES  # memory backend cap
 
 
+class IntegrityConfig(BaseModel):
+    """Monotone trust invariant (MTI) for shared memory — opt-in, default OFF.
+
+    Off, every path is byte-identical to the pre-MTI engine: shared reads keep
+    the flat ``TRUST_RETRIEVED_CAP`` min-cap, ranking stays trust-blind, and
+    ``derived_from`` parents are recorded but never lower trust.
+
+    On:
+
+    - ``write(..., derived_from=[ids])`` sets trust to
+      ``min(base_trust, view_trust(parent) for each parent) * derivation_decay``
+      (MTI-D). An unreadable parent counts as view trust 0.0 (fail closed).
+    - A foreign record's view trust is ``trust ⊗ kappa`` for its grant edge, with
+      ``⊗`` = ``attenuation`` (``product`` or ``min``). ``edge_kappa`` overrides
+      per edge, keyed ``"grantor->grantee"``.
+    - ``trust_weighted_ranking`` ranks by ``composite_score * view_trust``;
+      ``admission_threshold`` drops candidates whose view trust is below it.
+    - ``principal_bound_corroboration`` requires every corroborator to name a
+      ``source.principal`` that differs from the held record's and from every
+      earlier corroborator's.
+    - ``merge_reinforcement_gate`` skips dedup-merge reinforcement when the
+      incoming write is less trusted than the kept record.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = False
+    attenuation: str = "product"  # product | min
+    kappa: float = Field(default=0.5, gt=0.0, le=1.0)
+    edge_kappa: dict[str, float] = Field(default_factory=dict)
+    derivation_decay: float = Field(default=1.0, gt=0.0, le=1.0)
+    #: Baseline emulation ONLY (MAP-Graph-style verification bonus): multiplies
+    #: derived trust and so can exceed the parents' minimum — it breaks the
+    #: invariant on purpose, to measure what that costs. Never raise in production.
+    verification_bonus: float = Field(default=1.0, ge=1.0, le=2.0)
+    admission_threshold: float = Field(default=0.0, ge=0.0, le=1.0)
+    trust_weighted_ranking: bool = True
+    principal_bound_corroboration: bool = True
+    merge_reinforcement_gate: bool = True
+
+    @field_validator("attenuation")
+    @classmethod
+    def _known_attenuation(cls, value: str) -> str:
+        if value not in {"product", "min"}:
+            raise ConfigError(f"integrity.attenuation must be 'product' or 'min', got {value!r}")
+        return value
+
+    @field_validator("edge_kappa")
+    @classmethod
+    def _edge_kappa_in_range(cls, value: dict[str, float]) -> dict[str, float]:
+        for edge, kappa in value.items():
+            if "->" not in edge or not 0.0 < kappa <= 1.0:
+                raise ConfigError(f"integrity.edge_kappa[{edge!r}] must be 'a->b' with 0<kappa<=1")
+        return value
+
+
 class MemspineConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -301,6 +357,7 @@ class MemspineConfig(BaseModel):
     graph: GraphConfig = Field(default_factory=GraphConfig)
     llm: LLMConfig = Field(default_factory=LLMConfig)
     read: ReadConfig = Field(default_factory=ReadConfig)
+    integrity: IntegrityConfig = Field(default_factory=IntegrityConfig)
     workers: WorkersConfig = Field(default_factory=WorkersConfig)
     prompts: PromptsConfig = Field(default_factory=PromptsConfig)
     memories: dict[str, MemoryTypeConfig] = Field(default_factory=dict)

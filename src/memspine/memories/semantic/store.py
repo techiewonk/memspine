@@ -60,8 +60,12 @@ class SemanticMemory(BaseMemory):
         dedup: DedupPolicy,
         extractor: EntityExtractor | None = None,
         write_pipeline: WritePipeline | None = None,
+        merge_reinforcement_gate: bool = False,
     ) -> None:
         self._storage = storage
+        # MTI (integrity.merge_reinforcement_gate): a less-trusted duplicate must
+        # not reinforce a record. Off = pre-MTI behaviour (every merge reinforces).
+        self._merge_reinforcement_gate = merge_reinforcement_gate
         self._embedder = embedder
         self._append_event = append_event
         self._conflict = conflict
@@ -211,16 +215,22 @@ class SemanticMemory(BaseMemory):
     async def _merge(self, kept: MemoryRecord, incoming: MemoryRecord) -> SemanticWriteResult:
         """Union-preserving merge (M5): reinforce the kept record, never lose
         governance state — consent tags union, PII tier maxes upward."""
+        reinforce = not (self._merge_reinforcement_gate and incoming.trust < kept.trust)
+        scoring = (
+            kept.scoring.model_copy(
+                update={
+                    "importance": min(1.0, kept.scoring.importance + 0.1),
+                    "utility": min(1.0, kept.scoring.utility + 0.05),
+                }
+            )
+            if reinforce
+            else kept.scoring
+        )
         merged = kept.model_copy(
             update={
                 "consent_tags": sorted(set(kept.consent_tags) | set(incoming.consent_tags)),
                 "pii_tier": max(kept.pii_tier, incoming.pii_tier, key=_pii_rank),
-                "scoring": kept.scoring.model_copy(
-                    update={
-                        "importance": min(1.0, kept.scoring.importance + 0.1),
-                        "utility": min(1.0, kept.scoring.utility + 0.05),
-                    }
-                ),
+                "scoring": scoring,
             }
         )
         # State first, audit second (see _resolve_conflict ordering contract).

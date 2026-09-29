@@ -1,0 +1,146 @@
+# memspine evals — any system × any dataset × one fixed protocol
+
+Outside the wheel (D-35). Nothing here ships, nothing here is importable from `memspine`, and the
+core runs with **stdlib only** — the baselines need no dependencies at all, which is what makes them
+usable as a floor and a ceiling in an environment where the engine is not installed.
+
+Research plan of record: `../../PLAN_A_EVIDENCE_REFRESH.md` §A4. Gating experiment: `../../PLAN_C_MEMSPINE_SERVICE.md` §1.1.
+
+## Why this exists
+
+`MASTER_PLAN.md` records the engine as *"82%, evals absent"*. Every one of the seven novelty claims
+(N1–N7) needs evidence, and nothing could produce it. Separately, the survey's own audit of the
+field's twenty highest reported scores found **21 inadmissible, 6 partial, zero fully admissible**
+under D16 — not one published number carries a complete protocol, and no existing harness is
+system-agnostic (`mem0ai/memory-benchmarks` is Mem0-only).
+
+So the harness is built around the failures we can already name:
+
+| The failure, observed in the literature | What the harness does about it |
+|---|---|
+| MAGMA's 0.700 is a graded partial-credit mean; Mem0's 92.5 is an accuracy. Same column header. | `JudgeSpec` has **no default scale**. Every row carries its scale. `aggregate()` raises on mixed scales. |
+| LongMemEval was silently re-released in Sept 2025 with cleaned histories. | `DatasetInfo.revision_id` is mandatory; the LongMemEval adapter refuses to construct without it. |
+| Mastra: 84.23 on `gpt-4o` vs 94.87 on `gpt-5-mini` — same harness, same judge, same data. | The backbone is a declared `ReaderSpec` on every manifest; a run with no backbone is marked inadmissible for answer metrics. |
+| MemPalace's 96.6% is R@5 **recall**, quoted everywhere as if it were accuracy. | `JudgeScale.RETRIEVAL_RECALL.is_answer_metric` is `False`; retrieval-only runs cannot pass as QA runs. |
+| ConvoMem: full context beats memory systems below ~150 conversations. | Full-context replay is a first-class arm, not an afterthought. |
+| Runs that cost more than intended. | `max_model_calls` is a hard cap; `expect_model_calls=False` makes "no model calls" a property of the run. |
+| The native run lost 14 of 60 scheduled slots to an abort and 17 answers to an output cap. | Every scheduled question gets a row — `completed`, `truncated`, `error` or `unattempted`. A run that stops early still accounts for what it never ran. |
+| 1,986 LoCoMo questions come from 10 conversations. | The 95% CI is bootstrapped by **item**, not by question. |
+
+## It follows the paper's own evaluation contract
+
+`../../paper_spine/EVALUATION_PLAN_2026-09.md` and `../../paper_spine/evaluation/LOOP_METRIC_CONTRACT.md`
+are the authority here, not Plan A's sketch. Specifically:
+
+- **Budget 4,096 retrieved tokens** is the primary setting (§4); 2,048 and 8,192 are *later* ablations,
+  never mid-comparison.
+- **Five baseline conditions** (§3): no persistent memory, BM25 over timestamped raw turns,
+  dense/hybrid RAG over the same turns, the engine, and the engine plus a named governance
+  intervention. Full-context replay is the separately costed reference. The first four ship;
+  the governance arm arrives with A4-10.
+- **Development items reserved before tuning** (§4): `python -m memspine_evals split` writes the ids
+  to a file — 2 whole LoCoMo conversations, 40 LongMemEval histories — and `SplitView` stamps
+  `split:dev` or `split:heldout` into the subset field, so every row discloses which side it came from.
+- **Two means, both reported** (`LOOP_METRIC_CONTRACT.md` observation contract): `score_mean` keeps
+  failed answers in the denominator at the declared failure score; `score_mean_measured` covers only
+  gradeable answers. Unattempted questions are in neither — they are *unknown*, and never imputed.
+- **CPC per stage** (§5): one homogeneous unit, each cost event assigned to exactly one of
+  𝓡/𝓒/𝓖/𝓓/𝓚, failed attempts included. A stage whose cost the adapter cannot observe is marked
+  unknown and `cost_accounting_complete` goes false — an unmeasured total never passes as a measured one.
+
+This harness does **not** replace `paper_spine/evaluation/`. That tree holds the governance probes
+(correction, deletion, scope, forgetting audit) over the two synthetic development histories — the
+plan's P0 row. This is the P1+ benchmark track: many systems, public datasets, one protocol.
+
+## Three interfaces, and nothing else
+
+```python
+DatasetAdapter:  info() -> DatasetInfo          # id + revision + licence + content hash
+                 items() -> Iterator[EvalItem]  # history stream + queries + gold + type labels
+
+SystemAdapter:   reset(item_id); insert(turn) -> DepositResult; query(q, budget, k) -> RetrievedContext
+
+RunProtocol:     budget_tokens, top_k, seed, + ReaderSpec + JudgeSpec
+```
+
+Insert is sequential, a query sees only what preceded it, and the returned context is truncated to
+the declared budget before the reader sees it — the LongMemEval-V2 precedent, cited rather than
+reinvented.
+
+## Run it
+
+```bash
+# end-to-end check: no data, no models, no network
+python -m memspine_evals smoke
+
+# reserve development items BEFORE tuning anything, and commit the file
+python -m memspine_evals split --dataset locomo --path data/locomo10.json \
+    --revision auto --dev-items 2 --output data/locomo_split.json
+
+# the C0-1 gate, retrieval mode (zero model calls, zero cost)
+python -m memspine_evals c0-1 --dataset locomo --path data/locomo10.json --revision auto
+
+# same gate with dense retrieval — the like-for-like MemPalace comparison
+python -m memspine_evals c0-1 --dataset longmemeval --path data/longmemeval_s.json \
+    --revision 2025-09-cleaned --dense
+
+# QA mode against a local Ollama backbone; the cap is mandatory
+python -m memspine_evals c0-1 --dataset locomo --path data/locomo10.json --revision auto \
+    --mode qa --reader-model qwen3:4b --max-model-calls 500
+
+# tests (68, all offline, zero model calls)
+python -m pytest tests/ -q
+```
+
+Every run writes `runs/<run_id>/`:
+
+| file | contents |
+|---|---|
+| `results.jsonl` | **line 1 is the manifest**, then one line per query, then the summary |
+| `trace.jsonl` | per-turn stage trace: `E_t`, `M_ctx,t`, `y_t`, `Δ_t`, `P^u_t` |
+| `summary.json` | manifest + summary + a ready-made `_shared/score_matrix.csv` row |
+| `COMPARISON.md` | the cross-system table (C0-1 runs) |
+
+## Data: fetch it yourself, and record the licence
+
+The harness **never downloads data**. Put files under `evals/data/` (git-ignored) and pass `--path`.
+
+| dataset | where | licence position |
+|---|---|---|
+| LoCoMo | `snap-research/locomo` → `locomo10.json` | check the release before publishing any number |
+| LongMemEval | `xiaowu0162/LongMemEval` → `longmemeval_s.json` | cleaned release is MIT — **verify the file you hold** |
+| LoCoMo-Plus | upstream repo | **no LICENSE file** as of the last check — clear terms before use |
+
+`--revision auto` labels a file by its own content hash. That is a weaker label than a release name
+and a stronger identifier than the nothing most papers record.
+
+## What is built, and what is not
+
+**Built and tested (A4-1 … A4-4, A4-9):** contracts, provenance + D16 admissibility, stage trace,
+(accuracy, tokens, latency) triplet with per-stage cost and CPC, judge module with four scales and
+no silent default, the runner with both call guards, denominator preservation, cluster-bootstrap
+CIs, deterministic splits, result/summary/score-matrix writers, the CLI.
+
+**Systems (A4-8, first half):** `no-memory`, `full-context`, `naive-rag`, `verbatim` (lexical,
+dense or hybrid RRF), and a `memspine` adapter that drives the public facade only (`write_messages`
+in, `assemble` out). Peer systems — Mem0, A-MEM, Zep, MAGMA, MemOS, T-Mem, SaliMory — are not
+written yet.
+
+**Datasets (A4-5, first half):** LoCoMo and LongMemEval S/M/oracle. Tier 2 and tier 3 are not
+written yet.
+
+**Not started:** A4-10 (firewall ablation, MINJA / AgentPoison / MemoryGraft), A4-11 (E1–E9 single
+toggles), A4-12 (go/no-go).
+
+**Known limitation, recorded rather than hidden:** the memspine adapter cannot see deposit-stage
+model calls, because the public facade does not report them. Profiles with LLM extraction or entity
+NER on the write path *do* call models. The adapter therefore marks the deposit stage **unknown**
+rather than zero, which flips `cost_accounting_complete` to false for that run — the cost is
+unmeasured, and the summary says so instead of implying a free write. Reading it properly means
+instrumenting the engine's structlog events.
+
+## Note on the synthetic dataset
+
+`synthetic-smoke` exists to prove the harness, not a system. Its `DatasetInfo.notes` says
+*"never quote as a system result"*, and nothing it produces belongs in a score matrix that anyone
+reads.

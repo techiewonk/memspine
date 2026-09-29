@@ -17,6 +17,7 @@ def test_m11_vocabulary_matches_event_kinds() -> None:
         obs_logging.EVENT_LINK,
         obs_logging.EVENT_FORGET,
         obs_logging.EVENT_REBUILD,
+        obs_logging.EVENT_EXPOSE,
     }
     assert vocab == {kind.value for kind in EventKind}
 
