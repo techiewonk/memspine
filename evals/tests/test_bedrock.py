@@ -6,7 +6,6 @@ import os
 from pathlib import Path
 
 import pytest
-
 from memspine_evals.bedrock import (
     COHERE_EMBED_V4,
     COHERE_EMBED_V4_DIM,
