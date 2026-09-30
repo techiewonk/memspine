@@ -296,6 +296,27 @@ class CacheConfig(BaseModel):
     max_entries: int = constants.MEMORY_KV_MAX_ENTRIES  # memory backend cap
 
 
+class FirewallConfig(BaseModel):
+    """Memory Firewall switches (E1 + B8). Defaults reproduce the pre-B8 firewall.
+
+    - ``enabled``: ``false`` keeps trust scoring but disables flagging, anomaly
+      checks and quarantine: the N1 ablation arm. Never use it in production.
+    - ``redact_secrets``: replace cloud keys, tokens, JWTs, private keys,
+      ``key=value`` credentials and emails with ``[REDACTED:<kind>]`` at write.
+    - ``max_content_chars``: a non-privileged write longer than this is
+      quarantined (size anomaly, a common bulk-injection signature).
+    - ``protected_keys``: fact keys (``entity`` or ``entity.attribute``) only an
+      operator or system source may write; others are quarantined.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = True
+    redact_secrets: bool = False
+    max_content_chars: int | None = Field(default=None, ge=1)
+    protected_keys: list[str] = Field(default_factory=list)
+
+
 class IntegrityConfig(BaseModel):
     """Monotone trust invariant (MTI) for shared memory — opt-in, default OFF.
 
@@ -385,6 +406,7 @@ class MemspineConfig(BaseModel):
     llm: LLMConfig = Field(default_factory=LLMConfig)
     read: ReadConfig = Field(default_factory=ReadConfig)
     integrity: IntegrityConfig = Field(default_factory=IntegrityConfig)
+    firewall: FirewallConfig = Field(default_factory=FirewallConfig)
     workers: WorkersConfig = Field(default_factory=WorkersConfig)
     prompts: PromptsConfig = Field(default_factory=PromptsConfig)
     memories: dict[str, MemoryTypeConfig] = Field(default_factory=dict)

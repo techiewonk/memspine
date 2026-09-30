@@ -54,6 +54,7 @@ from memspine.core.records import (
     SourceInfo,
     new_record_id,
 )
+from memspine.core.redaction import redact
 from memspine.core.registry import SERVICE_EXTRAS, dependency_closure, missing_services
 from memspine.core.replay import catch_up
 from memspine.core.replay import rebuild as replay_rebuild
@@ -577,6 +578,7 @@ class Engine:
         derived_from: Sequence[str] | None = None,
         valid_from: datetime | None = None,
         session_id: str | None = None,
+        parent_weights: Mapping[str, float] | None = None,
     ) -> MemoryRecord:
         """Append a WRITE event through the single door; projection materializes it.
 
@@ -626,6 +628,16 @@ class Engine:
             stamp = valid_from if valid_from.tzinfo else valid_from.replace(tzinfo=UTC)
             record = record.model_copy(update={"valid_from": stamp})
         trust_cap = await self._parent_trust_cap(ns, record.source.parents)
+        if trust_cap is not None and parent_weights:
+            # B1 weighted lineage: a parent of weight w contributes
+            # w*view + (1-w)*base, so strong edges (w=1) keep the full MTI-D and
+            # the radius; weak edges (e.g. retrieved but barely used) drain less.
+            base = self._firewall.policy.trust_at_write(record.source)
+            weighted = []
+            for parent_id, view in zip(record.source.parents, trust_cap, strict=False):
+                w = min(1.0, max(0.0, parent_weights.get(parent_id, 1.0)))
+                weighted.append(w * view + (1.0 - w) * base)
+            trust_cap = weighted
         if implicit:
             # B0: the view trust the session SAW at read time also caps the write
             # (a record's trust may have dropped since; never raise it back).
@@ -955,9 +967,47 @@ class Engine:
         actor: str,
         trust_cap: list[float] | None = None,
     ) -> tuple[MemoryRecord, str]:
+        fw = self._config().firewall
+        if fw.redact_secrets:
+            cleaned, kinds = redact(record.content)
+            if kinds:
+                record = record.model_copy(
+                    update={
+                        "content": cleaned,
+                        "content_fingerprint": fingerprint_payload({"content": cleaned}),
+                    }
+                )
+                _log.warning("memory.redacted", namespace=ns, kinds=kinds)
         # Memory Firewall gate (E1/M17): every write of every type passes the
         # deterministic trust/anomaly/instruction assessment BEFORE the door.
-        verdict = await self._assess_write(record)
+        if fw.enabled:
+            verdict = await self._assess_write(record)
+            privileged = record.source.role in ("operator", "system")
+            key = f"{record.entity}.{record.attribute}" if record.entity else None
+            extra: list[str] = []
+            if (
+                fw.max_content_chars is not None
+                and len(record.content) > fw.max_content_chars
+                and not privileged
+            ):
+                extra.append(f"size_anomaly({len(record.content)}>{fw.max_content_chars})")
+            if (
+                fw.protected_keys
+                and not privileged
+                and (record.entity in fw.protected_keys or key in fw.protected_keys)
+            ):
+                extra.append(f"protected_key({key or record.entity})")
+            if extra:
+                verdict = FirewallVerdict(
+                    trust=verdict.trust,
+                    instruction_flag=verdict.instruction_flag,
+                    anomalous=True,
+                    quarantine=True,
+                    reasons=[*verdict.reasons, *extra, "quarantined"],
+                )
+        else:
+            # N1 ablation arm: trust scoring only — no flags, anomaly or quarantine.
+            verdict = FirewallVerdict(trust=self._firewall.policy.trust_at_write(record.source))
         record = verdict.apply(record)
         if trust_cap is not None:
             # MTI-D (integrity.enabled): after the firewall has set base trust,

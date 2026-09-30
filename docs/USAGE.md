@@ -438,6 +438,10 @@ in the schema — or if the schema gains a key not documented here.
 | `read.hybrid` | `false` | Fuse the lexical BM25 leg via RRF (D-25); off = vector-only, bit-identical. |
 | `read.lexical_provider` | `sqlite_fts5` | `sqlite_fts5` (FTS5/BM25) \| `tantivy` `[tantivy]`; only when `hybrid` is on. |
 | `read.compression` | `{}` | Options for the E5 assembly-stage `CompressionPolicy` (`memspine[compress]`). |
+| `firewall.enabled` | `true` | `false` keeps trust scoring but disables flagging, anomaly checks and quarantine: the N1 ablation arm only. |
+| `firewall.redact_secrets` | `false` | Replace cloud keys, VCS/chat tokens, JWTs, private keys, `key=value` credentials and emails with `[REDACTED:<kind>]` at write. |
+| `firewall.max_content_chars` | `null` | Quarantine non-privileged writes longer than this (size anomaly). |
+| `firewall.protected_keys` | `[]` | Fact keys (`entity` or `entity.attribute`) only operator/system sources may write; others are quarantined. |
 | `integrity.enabled` | `false` | Monotone trust invariant for shared memory (opt-in); off = pre-MTI behaviour, byte-identical. |
 | `integrity.attenuation` | `product` | `product` (trust × κ per grant hop) \| `min` (min(trust, κ)). |
 | `integrity.kappa` | `0.5` | Default per-grant attenuation κ ∈ (0, 1]. |
