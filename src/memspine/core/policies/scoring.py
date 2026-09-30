@@ -22,6 +22,13 @@ class ScoringOptions(PolicyOptions):
     importance_weight: float = constants.SCORING_IMPORTANCE_WEIGHT
     relevance_weight: float = constants.SCORING_RELEVANCE_WEIGHT
     utility_weight: float = constants.SCORING_UTILITY_WEIGHT
+    #: ``blend`` (default): the weighted mean below. ``relevance_first``: rank by
+    #: relevance, and let recency/importance/utility only break near-ties (they
+    #: contribute at most ``tie_break_weight``). On a static corpus, where event
+    #: or ingest times cluster, the blend demotes the best match: on LoCoMo it
+    #: cost about two-thirds of R@1 (0.30 relevance-only vs 0.08 blended).
+    mode: str = "blend"
+    tie_break_weight: float = 0.05
 
 
 class ScoringPolicy(BindablePolicy):
@@ -48,6 +55,21 @@ class ScoringPolicy(BindablePolicy):
         age_days = max(0.0, (now - anchor).total_seconds() / 86400.0)
         recency = 0.5 ** (age_days / options.recency_half_life_days)
 
+        if options.mode == "relevance_first":
+            other_sum = options.recency_weight + options.importance_weight
+            other = (
+                (
+                    options.recency_weight * recency
+                    + options.importance_weight * record.scoring.importance
+                )
+                / other_sum
+                if other_sum > 0.0
+                else 0.0
+            )
+            nudge = (other + options.utility_weight * record.scoring.utility) / (
+                1.0 + options.utility_weight
+            )
+            return relevance + options.tie_break_weight * nudge
         weight_sum = options.recency_weight + options.relevance_weight + options.importance_weight
         if weight_sum <= 0.0:
             base = 0.0

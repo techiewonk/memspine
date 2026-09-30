@@ -55,3 +55,29 @@ def test_last_accessed_beats_recorded_at_as_recency_anchor() -> None:
     assert policy.composite_score(old_but_touched, now=NOW) > policy.composite_score(
         untouched, now=NOW
     )
+
+
+def test_relevance_first_keeps_relevance_order_and_breaks_ties() -> None:
+    from datetime import UTC, datetime, timedelta
+
+    from memspine.core.policies.scoring import ScoringPolicy
+    from memspine.core.records import MemoryRecord
+
+    now = datetime(2026, 1, 1, tzinfo=UTC)
+    old = MemoryRecord(
+        namespace="a", memory_type="episodic", content="old", recorded_at=now - timedelta(days=60)
+    )
+    new = MemoryRecord(namespace="a", memory_type="episodic", content="new", recorded_at=now)
+    blend = ScoringPolicy.bind({})
+    first = ScoringPolicy.bind({"mode": "relevance_first"})
+    # blended: a fresher, less relevant record can outrank the best match
+    assert blend.composite_score(new, 0.55, now) > blend.composite_score(old, 0.60, now)
+    # relevance-first: the best match wins; recency only breaks exact ties
+    assert first.composite_score(old, 0.60, now) > first.composite_score(new, 0.55, now)
+    assert first.composite_score(new, 0.60, now) > first.composite_score(old, 0.60, now)
+
+
+def test_default_mode_is_blend() -> None:
+    from memspine.core.policies.scoring import ScoringPolicy
+
+    assert ScoringPolicy.bind({}).options.mode == "blend"
