@@ -4,6 +4,27 @@ All notable changes to memspine are documented here. Format: [Keep a Changelog](
 
 ## [Unreleased]
 
+### Added — monotone trust invariant (`integrity.*`, opt-in, ADR-029 *proposed*, D-56)
+- **Provenance-carrying writes:** `write(..., derived_from=[ids])` records `source.parents`. With `integrity.enabled`, it caps trust at `min(base, view_trust(parent)…)` (× `derivation_decay`); an unreadable parent counts as 0.0.
+- **Attenuated shared reads:** per-grant `kappa` (`edge_kappa` overrides, `product` or `min`) replaces the flat 0.3 cap when enabled. `search`/`shared_search` rank by score × view trust and drop records below `admission_threshold`.
+- **Principal-bound corroboration:** promotion needs `source.principal`s that differ from the held record's and from every earlier corroborator's, checked against the log. Merges from a less-trusted duplicate no longer reinforce.
+- **Forensics and repair:** reader-side `memory.expose` events (`EVENT_EXPOSE`); `audit_taint(..., cross_namespace=True)` follows declared parents across grants and lists exposed readers; `rollback_taint(seed)` archives the seed and every content-derived descendant.
+- **`write_ex()`** → `WriteOutcome(record, action, occurrence_id)` exposes dedup merges to callers. **`assemble(..., shared=True)`** assembles over grants; under `integrity` its scores are rescaled so abstention still judges relevance.
+- `integrity.verification_bonus` exists for baseline emulation only (it breaks the invariant on purpose).
+
+### Fixed
+- **`search` no longer returns grant/subscription bookkeeping** (`memory_type="shared"`) from the reader's own namespace. These records took top-k slots; `shared_search` already hid foreign ones.
+
+### Added — evaluation harness (`evals/`, outside the wheel per D-35)
+- **Plug-and-play evaluation:** any system x any dataset x one fixed protocol, in three interfaces — `DatasetAdapter`, `SystemAdapter` (sequential `insert` then bounded `query`, the LongMemEval-V2 precedent) and `RunProtocol` (reader, budget, judge, seed). Stdlib-only core: the baselines run with nothing installed.
+- **Provenance is structural, not procedural.** `ResultWriter` cannot be built without a `RunManifest`; `DatasetInfo` cannot be built without a data revision; `JudgeSpec` has no default scale. A bare number is unreachable, and each run self-reports D16 admissibility.
+- **Stage trace** per turn — `E_t`, `M_ctx,t`, `y_t`, `delta_t`, `P^u_t` — emitted from the first run, since retrofitting it costs a full re-run.
+- **Metrics:** (accuracy, tokens, latency) reported together, per-stage cost across R/C/G/D/K and CPC per the loop-metric contract; unobservable stage cost is marked *unknown* rather than zero. 95% CIs bootstrapped by item, not by question.
+- **Denominator preservation:** every scheduled question gets a row — `completed`, `truncated`, `error` or `unattempted`. `max_model_calls` caps a run; `expect_model_calls=False` makes "no model calls" a checked property.
+- **Systems:** `no-memory`, `full-context`, `naive-rag`, `verbatim` (BM25 / fastembed / RRF hybrid) and a `memspine` adapter over the public facade only.
+- **Datasets:** LoCoMo and LongMemEval S/M/oracle, plus a synthetic smoke set labelled unquotable. Nothing is ever downloaded by the harness.
+- **CLI:** `python -m memspine_evals {smoke,c0-1,split}`. 74 offline tests, including the model-free multi-agent constructions (`memspine_evals.multiagent`).
+
 ### Changed
 - **Vector (ADR-021):** LanceDB (`lancedb>=0.13`) is a **core dependency** — sole vector backend; P1 SQLite brute-force fallback and `[lance]` extra removed; E4 rescore is LanceDB-native (IVF_HNSW_SQ / IVF_PQ + refine).
 - **Community detection (ADR-028, amends D-40):** `[community]` extra swapped `graspologic` → **`leidenalg`** (Leiden over `igraph`). `leidenalg` declares no `numpy` pin, so `[community]` no longer conflicts with `ingest` (numpy≥2.1) — the `[tool.uv].conflicts` block is removed, `community` is back in the `all` bundle, and `uv sync --all-extras` is unblocked. `detect_communities` keeps its signature/return; the hierarchical `max_cluster_size` bound is reproduced by a recursive re-partition splitter. Determinism preserved via fixed `seed`.

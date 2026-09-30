@@ -6,7 +6,7 @@ This file is loaded into every Claude Code session. Keep it accurate and terse.
 
 `memspine` is an open-source **cognitive-memory engine** for AI agents: one clean API (`Engine`) over a real write pipeline, hybrid + graph retrieval, and background learning dynamics — with pluggable, composable stores. It is the *engine*, not a product.
 
-**Status:** pre-alpha, under active construction. **P0–P7 are all implemented and review-passed** (substrate · working memory + retrieval · semantic · episodic + lifecycle · Memory Firewall · procedural + reflective · associative graph · prospective + shared + REST), plus the C6 combination matrix — **705** tests collected (`uv run pytest --collect-only -q`), `ruff` + `mypy --strict` clean, **21 ADRs**, decision register through D-54. All 9 memory types and E1–E9 are landed. User-facing docs: `docs/FEATURES.md` + `docs/USAGE.md`. Ecosystem comparison: `docs/ECOSYSTEM_COMPARISON.md` + `docs/ARCHITECTURE_FLOWS.md` (pass #3: stages, packages, prompts, memory I/O). Current snapshot lives in `STATUS.md` (auto-refreshed every 30 min). The design docs in `docs/` are the **single source of truth** — read them before writing code.
+**Status:** pre-alpha, under active construction. **P0–P7 are all implemented and review-passed** (substrate · working memory + retrieval · semantic · episodic + lifecycle · Memory Firewall · procedural + reflective · associative graph · prospective + shared + REST), plus the C6 combination matrix — **790** tests collected (`uv run pytest --collect-only -q`; +74 in `evals/tests`), `ruff` + `mypy --strict` clean, **29 ADRs** (ADR-001…ADR-029; ADR-029 *proposed*), decision register through D-56. All 9 memory types and E1–E9 are landed. User-facing docs: `docs/FEATURES.md` + `docs/USAGE.md`. Ecosystem comparison: `docs/ECOSYSTEM_COMPARISON.md` + `docs/ARCHITECTURE_FLOWS.md` (pass #3: stages, packages, prompts, memory I/O). Current snapshot lives in `STATUS.md` (manually refreshed; the 30-min auto-refresh stopped in July). The design docs in `docs/` are the **single source of truth** — read them before writing code.
 
 ## Read these first (in order)
 
@@ -89,3 +89,15 @@ evals/ (repo root, not shipped) · tests/{unit,integration,combinations}/ · doc
 ```
 
 The full annotated tree, extras matrix, and phase→file mapping are in `docs/memspine-structure-plan.md`.
+
+## Evaluation harness (`evals/`)
+
+`evals/` holds the benchmark harness — **outside the wheel (D-35)**, stdlib-only core, its own
+`README.md`. One protocol over any system and any dataset, with provenance enforced in the type
+system rather than by convention. It is not part of `uv run pytest` (pyproject `testpaths = ["tests"]`);
+run it with `python -m pytest evals/tests -q`, and drive it with `python -m memspine_evals {smoke,c0-1,split}`.
+
+Its authority is the research repo's `paper_spine/EVALUATION_PLAN_2026-09.md` and
+`paper_spine/evaluation/LOOP_METRIC_CONTRACT.md` — budget, baseline conditions, denominator rules
+and the CPC definition come from there. **No paid API runs are authorised**; local
+OpenAI-compatible backends only, and QA mode refuses to start without an explicit model-call cap.
