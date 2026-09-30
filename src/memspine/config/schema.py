@@ -250,6 +250,10 @@ class ReadConfig(BaseModel):
     hybrid: bool = True  # v0.2 A3: default-on hybrid retrieval (D-25, ADR-019)
     lexical_provider: str = "tantivy"  # tantivy (core, default) | opensearch [opensearch] (D-25)
     compression: dict[str, Any] = Field(default_factory=dict)
+    #: Append a RETRIEVE event per search (access stats feed reinforcement, M1).
+    #: ``false`` makes reads side-effect free, e.g. so benchmark questions cannot
+    #: change the store that later questions see.
+    record_access: bool = True
 
 
 class MemoryTypeConfig(BaseModel):

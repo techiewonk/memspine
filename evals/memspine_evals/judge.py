@@ -209,12 +209,7 @@ class LLMJudge:
     def _parse(self, raw: str) -> float:
         text = raw.strip()
         if self.spec.scale is JudgeScale.BINARY:
-            upper = text.upper()
-            if "INCORRECT" in upper:
-                return 0.0
-            if "CORRECT" in upper:
-                return 1.0
-            raise ValueError(f"binary judge returned an ungradable reply: {raw!r}")
+            return parse_binary_verdict(raw)
         match = re.search(r"-?\d+(?:\.\d+)?", text)
         if match is None:
             raise ValueError(f"graded judge returned no number: {raw!r}")
@@ -224,6 +219,28 @@ class LLMJudge:
         if self.spec.scale is JudgeScale.GRADED_15 and not 1.0 <= value <= 5.0:
             raise ValueError(f"graded_15 judge returned {value} outside [1, 5]")
         return value
+
+
+_LABEL_JSON = re.compile(r'"label"\s*:\s*"(CORRECT|WRONG|INCORRECT)"', re.I)
+_VERDICT = re.compile(r"\b(INCORRECT|CORRECT|WRONG)\b", re.I)
+
+
+def parse_binary_verdict(raw: str) -> float:
+    """Binary judge reply -> 1.0 / 0.0.
+
+    Accepts the Mem0/T-Mem LoCoMo judge format (``{"label": "CORRECT"|"WRONG"}``)
+    and bare ``CORRECT``/``INCORRECT``/``WRONG``. A structured label wins; else
+    the LAST verdict word does, so an explanation that mentions "correct"
+    before concluding WRONG is not misread (the pre-fix parser scored it 1).
+    """
+    text = re.sub(r"<think>.*?</think>", "", raw, flags=re.S)
+    labelled = _LABEL_JSON.findall(text)
+    if labelled:
+        return 1.0 if labelled[-1].upper() == "CORRECT" else 0.0
+    words = _VERDICT.findall(text)
+    if not words:
+        raise ValueError(f"binary judge returned an ungradable reply: {raw!r}")
+    return 1.0 if words[-1].upper() == "CORRECT" else 0.0
 
 
 def recall_at_k(retrieved_ids: tuple[str, ...], gold_ids: tuple[str, ...], k: int) -> float | None:

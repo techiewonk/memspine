@@ -180,6 +180,7 @@ class LiteLLMReader:
         max_tokens: int = 256,
         prompt: str = DEFAULT_QA_PROMPT,
         reader_id: str | None = None,
+        no_think: bool | None = None,
     ) -> None:
         import litellm
 
@@ -191,6 +192,10 @@ class LiteLLMReader:
         self.max_tokens = max_tokens
         self.prompt = prompt
         self.reader_id = reader_id or f"litellm:{model}"
+        # Qwen3 thinks by default and AWS documents no switch; Qwen's model card
+        # documents the /no_think soft switch. Default ON for qwen3 models, so a
+        # reader's token budget is not spent on hidden reasoning.
+        self.no_think = ("qwen3" in model.lower()) if no_think is None else no_think
 
     def describe(self) -> Mapping[str, Any]:
         return {
@@ -198,12 +203,15 @@ class LiteLLMReader:
             "model": self.model,
             "temperature": self.temperature,
             "max_tokens": self.max_tokens,
+            "no_think": self.no_think,
             "prompt_sha256": hashlib.sha256(self.prompt.encode()).hexdigest(),
         }
 
     async def complete(self, content: str) -> ReaderAnswer:
         self.budget.reserve()
         started = time.perf_counter()
+        if self.no_think:
+            content = f"{content} /no_think"
         response = await self._litellm.acompletion(
             model=self.model,
             messages=[{"role": "user", "content": content}],
@@ -234,7 +242,8 @@ class LiteLLMReader:
 
 def litellm_chat(budget: CallBudget, model: str = QWEN3_32B, temperature: float = 0.0) -> Any:
     """A bare ``async (prompt) -> str`` callable for ``LLMJudge``, budget-capped."""
-    reader = LiteLLMReader(budget, model=model, temperature=temperature, max_tokens=16)
+    # 96 tokens: the LoCoMo judge format emits a JSON label; 16 truncated it.
+    reader = LiteLLMReader(budget, model=model, temperature=temperature, max_tokens=96)
 
     async def chat(prompt: str) -> str:
         return (await reader.complete(prompt)).text

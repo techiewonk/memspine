@@ -88,3 +88,22 @@ def test_engine_config_can_select_titan() -> None:
     cfg = bedrock_engine_config("us-east-1", embed_model=TITAN_V2, embed_dim=TITAN_V2_DIM)
     assert cfg["embedding"]["model"] == TITAN_V2 and cfg["embedding"]["dim"] == 1024
     assert "query_input_type" not in cfg["embedding"]  # Titan is symmetric
+
+
+def test_judge_parser_handles_locomo_label_and_explanations() -> None:
+    from memspine_evals.judge import parse_binary_verdict
+
+    assert parse_binary_verdict('{"label": "CORRECT"}') == 1.0
+    assert parse_binary_verdict('{"label": "WRONG"}') == 0.0
+    assert parse_binary_verdict('The answer looks correct at first, but {"label":"WRONG"}') == 0.0
+    assert parse_binary_verdict("Mostly correct phrasing, final verdict: INCORRECT") == 0.0
+    assert parse_binary_verdict("<think>it is wrong?</think> CORRECT") == 1.0
+    with pytest.raises(ValueError):
+        parse_binary_verdict("no verdict here")
+
+
+def test_qwen3_reader_disables_thinking_by_default() -> None:
+    from memspine_evals.bedrock import LiteLLMReader
+
+    assert LiteLLMReader(CallBudget(1)).no_think is True
+    assert LiteLLMReader(CallBudget(1), model="bedrock/other").no_think is False

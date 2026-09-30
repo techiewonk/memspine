@@ -1251,7 +1251,7 @@ class Engine:
                 if integrity.admits(record.trust)
             ]
         scored.sort(key=lambda pair: pair[1], reverse=True)
-        if scored:
+        if scored and self._config().read.record_access:
             # Reinforcement stats via the log (M1): last_accessed_at + access_count.
             await self._append_and_project(
                 MemoryEvent(
