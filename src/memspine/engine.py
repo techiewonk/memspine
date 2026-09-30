@@ -1554,6 +1554,134 @@ class Engine:
         )
         return {"archived": archived, "review": review}
 
+    async def repair_taint(
+        self, record_id: str, namespace: str = "default", actor: str = "operator"
+    ) -> dict[str, list[str]]:
+        """B3: counterfactual repair (rollback that keeps benign knowledge).
+
+        Like :meth:`rollback_taint`, content-tainted records are archived, but a
+        consolidation SUMMARY that absorbed the seed is not simply thrown away:
+        it is rebuilt from its untainted members with the same deterministic
+        extractive summariser, so the result is exactly what consolidation would
+        have produced had the seed never been written (tested). Summaries with
+        no untainted member left are archived. Merge survivors go to review.
+        """
+        from memspine.core.policies.consolidation import ConsolidationPolicy
+
+        storage = self._require_started()
+        report = await self.audit_taint(record_id, namespace, cross_namespace=True)
+        tainted = {record_id, *report.descendants}
+        members_of: dict[str, list[str]] = {}
+        after = 0
+        while True:
+            events = await storage.read_events(after_seq=after, limit=1000)
+            if not events:
+                break
+            for event in events:
+                if event.kind is EventKind.CONSOLIDATE:
+                    sid = str(event.payload.get("summary_record_id", ""))
+                    members_of[sid] = [str(m) for m in event.payload.get("member_record_ids", [])]
+            after = max(event.seq for event in events if event.seq is not None)
+        policy = ConsolidationPolicy.bind(
+            _as_options_dict(self._memory_policy(self._config(), "episodic").get("consolidation"))
+        )
+        archived: list[str] = []
+        rebuilt: list[str] = []
+        review: list[str] = []
+
+        async def archive(rid: str, evolve_to: str | None = None) -> None:
+            rec = await storage.get_record(rid)
+            if rec is None or rec.status in (RecordStatus.ARCHIVED, RecordStatus.DELETED):
+                return
+            change: dict[str, object] = {"status": RecordStatus.ARCHIVED.value}
+            if evolve_to is not None:
+                change["evolve_to"] = evolve_to
+            await self._append_and_project(
+                MemoryEvent(
+                    kind=EventKind.DECAY_TRANSITION,
+                    namespace=rec.namespace,
+                    actor=actor,
+                    payload={
+                        "record_id": rid,
+                        "set": change,
+                        "transition": f"{rec.status.value}->archived",
+                        "reason": f"taint_repair:{record_id}",
+                    },
+                )
+            )
+            archived.append(rid)
+
+        for target_id, proof in [(record_id, "seed"), *report.descendants.items()]:
+            if proof.startswith("merged@"):
+                review.append(target_id)
+                continue
+            members = members_of.get(target_id)
+            if not members:
+                await archive(target_id)
+                continue
+            clean = []
+            for mid in members:
+                if mid in tainted:
+                    continue
+                member = await storage.get_record(mid)
+                if member is not None and member.status is RecordStatus.ACTIVATED:
+                    clean.append(self._inflate.inflate(member))
+            old = await storage.get_record(target_id)
+            if not clean or old is None:
+                await archive(target_id)
+                continue
+            summary = MemoryRecord(
+                namespace=old.namespace,
+                memory_type=old.memory_type,
+                content=policy.fallback_summary(clean),
+                valid_from=old.valid_from,
+                valid_to=old.valid_to,
+                source=SourceInfo(
+                    role="system",
+                    channel="consolidation",
+                    message_id=old.source.message_id,
+                    parents=[m.record_id for m in clean],
+                ),
+                trust=min(m.trust for m in clean),
+                instruction_flag=any(m.instruction_flag for m in clean),
+            )
+            await self._append_and_project(
+                MemoryEvent(
+                    kind=EventKind.WRITE,
+                    namespace=old.namespace,
+                    actor=actor,
+                    payload={
+                        "record": summary.model_dump(mode="json"),
+                        "consolidation": {
+                            "session_key": old.source.message_id,
+                            "member_record_ids": [m.record_id for m in clean],
+                            "repaired_from": target_id,
+                        },
+                    },
+                )
+            )
+            await self._append_and_project(
+                MemoryEvent(
+                    kind=EventKind.CONSOLIDATE,
+                    namespace=old.namespace,
+                    actor=actor,
+                    payload={
+                        "session_key": old.source.message_id,
+                        "member_record_ids": [m.record_id for m in clean],
+                        "summary_record_id": summary.record_id,
+                        "superseded_summary_ids": [target_id],
+                        "summarizer": "extractive-repair",
+                    },
+                )
+            )
+            await archive(target_id, evolve_to=summary.record_id)
+            rebuilt.append(summary.record_id)
+        _log.warning(
+            "memory.taint_repair", namespace=namespace, seed=record_id,
+            archived=len(archived), rebuilt=len(rebuilt), review=len(review),
+        )
+        return {"archived": archived, "rebuilt": rebuilt, "review": review}
+
     async def _assess_write(self, record: MemoryRecord) -> FirewallVerdict:
         """Gather the firewall's namespace context: nearest-neighbour
         similarities (embedding outlier) + recent contents (MINJA prefixes).

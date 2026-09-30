@@ -267,8 +267,17 @@ async def _consolidate_session(
         return summaries, superseded
     summary_text = policy.fallback_summary(members)
     if ctx.summarize is not None:
+        # B9 (F3): sanitise BEFORE compression. A flagged member reaches the
+        # summariser wrapped as data, never as raw instructions; cleaning the
+        # summary afterwards leaves the influence in (State Contamination).
+        rendered = [
+            constants.INSTRUCTION_FLAG_WRAP.format(content=record.content)
+            if record.instruction_flag
+            else record.content
+            for record in members
+        ]
         try:
-            summary_text = await ctx.summarize("\n".join(record.content for record in members))
+            summary_text = await ctx.summarize("\n".join(rendered))
         except Exception as exc:  # LLM is an enhancer, never a gate (N6)
             _log.warning("consolidate.summarize_fallback", namespace=namespace, error=str(exc))
     # A summary of a closed session is bi-temporally a closed fact:
@@ -284,7 +293,10 @@ async def _consolidate_session(
         # least-trusted member, and injection framing echoed into the summary
         # text (an LLM summarizing a poisoned episode) keeps the inert flag.
         trust=min(member.trust for member in members),
-        instruction_flag=instruction_shaped(summary_text),
+        # B9: a summary inherits its members' flags (monotone, like trust);
+        # re-detection on the summary text alone misses paraphrased framing.
+        instruction_flag=instruction_shaped(summary_text)
+        or any(member.instruction_flag for member in members),
     )
     # Membership drift: archive every prior summary whose window
     # overlaps this session — the fresh summary supersedes it (D-42).
