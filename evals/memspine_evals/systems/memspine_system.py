@@ -58,6 +58,7 @@ class MemspineSystem:
         system_id: str = "memspine",
         record_deposit_calls: bool = True,
         dated: bool = True,
+        read_mode: str | None = None,
     ) -> None:
         self.system_id = system_id
         # ``template`` names a config template (base, personal, coding, ...);
@@ -69,6 +70,10 @@ class MemspineSystem:
         self._counter = counter or HeuristicTokenCounter()
         self._record_deposit_calls = record_deposit_calls
         self._dated = dated
+        #: None = ``assemble`` (the default arm); else an ``Engine.read`` mode
+        #: (``replay`` / ``auto`` / ``full``, C7'). Replay orders context
+        #: chronologically, so R@k is not comparable with ranked arms.
+        self._read_mode = read_mode
         self._engine: Any = None
         self._version = "unknown"
         # record_id -> turn_id, so retrieved records map back to gold units.
@@ -84,6 +89,7 @@ class MemspineSystem:
             "config": self.config,
             "record_access": bool((self.config.get("read") or {}).get("record_access", False)),
             "dated_rendering": self._dated,
+            "read_mode": self._read_mode or "assemble",
             "token_counter": dict(self._counter.describe()),
         }
 
@@ -157,9 +163,19 @@ class MemspineSystem:
     async def query(self, text: str, budget_tokens: int, top_k: int) -> RetrievedContext:
         if self._engine is None:
             raise RuntimeError("query before reset/insert — no engine started")
-        assembled = await self._engine.assemble(
-            text, namespace=self.namespace, budget_tokens=budget_tokens, top_k=top_k
-        )
+        if self._read_mode:
+            result = await self._engine.read(
+                text,
+                namespace=self.namespace,
+                mode=self._read_mode,
+                budget_tokens=budget_tokens,
+                top_k=top_k,
+            )
+            assembled = result.context
+        else:
+            assembled = await self._engine.assemble(
+                text, namespace=self.namespace, budget_tokens=budget_tokens, top_k=top_k
+            )
         lines: list[str] = []
         evidence: list[Evidence] = []
         for rank, record in enumerate(assembled.records):
@@ -184,9 +200,10 @@ class MemspineSystem:
             truncated=False,
             boundary_index=getattr(assembled, "boundary_index", None),
             meta={
-                "ranked": True,
                 "abstained": getattr(assembled, "abstained", False),
                 "n_records": len(evidence),
+                "read_mode": self._read_mode or "assemble",
+                "ranked": self._read_mode is None,
             },
         )
 

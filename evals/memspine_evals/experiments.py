@@ -75,6 +75,8 @@ class C01Config:
     bedrock: bool = False
     #: Engine overrides for the memspine arm (e.g. Cohere embed-v4 at 1024-d).
     memspine_config: dict[str, Any] | None = None
+    #: memspine arm read path: None = assemble, else an Engine.read mode (C7').
+    memspine_read_mode: str | None = None
 
 
 def _retriever(config: C01Config) -> Any:
@@ -109,7 +111,9 @@ def build_systems(config: C01Config) -> list[SystemAdapter]:
     if config.include_memspine:
         from .systems.memspine_system import MemspineSystem
 
-        systems.append(MemspineSystem(config=config.memspine_config))
+        systems.append(
+            MemspineSystem(config=config.memspine_config, read_mode=config.memspine_read_mode)
+        )
     return systems
 
 
