@@ -533,3 +533,49 @@ async def test_f1_without_live_reevaluation_a_forgotten_ancestor_still_authorise
     hits = await on.search("rotate cert vpn 809", namespace="b")
     assert any(r.record_id == note.record_id for r, _ in hits)  # still served
     assert (await on.effective_trust(note.record_id)) == 0.0  # but B4' knows better
+
+
+async def test_b2_verify_integrity_chain_fingerprints_and_offline_mti(on: Engine) -> None:
+    await on.grant("b", namespace="a")
+    src = await on.write("vpn 809: rotate the certificate", namespace="a", memory_type="episodic")
+    await on.write(
+        "b note",
+        namespace="b",
+        memory_type="episodic",
+        source=SourceInfo(role="assistant"),
+        derived_from=[src.record_id],
+    )
+    first = await on.verify_integrity(key=b"secret")
+    assert first.ok and first.checked_writes >= 1 and first.mti_violations == []
+    again = await on.verify_integrity(key=b"secret", expected_head=first.chain_head)
+    assert again.head_matches is True
+    await on.write("later", namespace="a", memory_type="episodic")
+    moved = await on.verify_integrity(key=b"secret", expected_head=first.chain_head)
+    assert moved.head_matches is False  # history grew/changed: head no longer matches
+    unkeyed = await on.verify_integrity()
+    assert unkeyed.chain_head != moved.chain_head and not unkeyed.keyed
+
+
+def test_b2_offline_check_detects_an_mti_violation_and_tampering() -> None:
+    from memspine.core.audit import verify_events
+    from memspine.core.events import EventKind, MemoryEvent
+
+    def write(seq: int, rid: str, ns: str, trust: float, parents: list[str]) -> MemoryEvent:
+        rec = {
+            "record_id": rid,
+            "namespace": ns,
+            "trust": trust,
+            "source": {"role": "assistant", "parents": parents},
+        }
+        return MemoryEvent(seq=seq, kind=EventKind.WRITE, namespace=ns, payload={"record": rec})
+
+    def view(t: float, g: str, r: str) -> float:
+        return t if g == r else t * 0.5
+
+    ok = verify_events([write(1, "p", "a", 0.6, []), write(2, "c", "b", 0.3, ["p"])], view)
+    assert ok.ok and ok.checked_writes == 1
+    bad = verify_events([write(1, "p", "a", 0.6, []), write(2, "c", "b", 0.5, ["p"])], view)
+    assert bad.mti_violations == ["c"]  # 0.5 > 0.6 * 0.5
+    tampered = write(1, "p", "a", 0.6, [])
+    tampered.payload["record"]["trust"] = 0.9  # payload edited after fingerprinting
+    assert verify_events([tampered], view).fingerprint_mismatches == [1]

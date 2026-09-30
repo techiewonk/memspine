@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 
 from memspine.core.events import EventKind, MemoryEvent
 
-__all__ = ["TaintReport", "trace_taint"]
+__all__ = ["IntegrityReport", "TaintReport", "trace_taint", "verify_events"]
 
 
 class _EventSource(Protocol):
@@ -242,3 +242,89 @@ def _event_references(node: Any, ids: set[str]) -> bool:
     if isinstance(node, list):
         return any(_event_references(item, ids) for item in node)
     return False
+
+
+class IntegrityReport(BaseModel):
+    """B2': what an offline pass over the log proves (``Engine.verify_integrity``)."""
+
+    events: int = 0
+    chain_head: str = ""
+    keyed: bool = False
+    head_matches: bool | None = None  # None when no expected head was supplied
+    fingerprint_mismatches: list[int] = Field(default_factory=list)  # event seqs
+    checked_writes: int = 0
+    mti_violations: list[str] = Field(default_factory=list)  # record ids
+
+    @property
+    def ok(self) -> bool:
+        return (
+            not self.fingerprint_mismatches
+            and not self.mti_violations
+            and self.head_matches is not False
+        )
+
+
+def verify_events(
+    events: list[MemoryEvent],
+    view: Any,
+    key: bytes | None = None,
+    expected_head: str | None = None,
+) -> IntegrityReport:
+    """Chain + fingerprint + offline MTI recomputation over ``events`` (in seq order).
+
+    - **Chain.** ``h_i = H(h_{i-1} || seq || kind || namespace || sha256(payload))``,
+      with ``H`` = HMAC-SHA256 under ``key`` (tamper-evident without an anchor) or
+      plain SHA-256 (tamper-evident against an externally stored head).
+    - **Fingerprints.** Each stored xxh64 fingerprint must match its payload.
+    - **MTI.** Every WRITE whose record declares ``source.parents`` must satisfy
+      ``trust <= min(view(parent_trust, parent_ns, ns))`` over parents already
+      written: the invariant recomputed from the log alone, no engine state.
+      ``view(trust, grantor, grantee)`` is the integrity policy's view function.
+    """
+    import hashlib
+    import hmac
+
+    from memspine.core.events import canonical_payload, fingerprint_payload
+
+    report = IntegrityReport(keyed=key is not None)
+    head = b"memspine-log-v1"
+    trust: dict[str, tuple[float, str]] = {}  # record_id -> (trust, namespace)
+    for event in events:
+        report.events += 1
+        body = canonical_payload(event.payload)
+        if event.fingerprint and fingerprint_payload(event.payload) != event.fingerprint:
+            report.fingerprint_mismatches.append(int(event.seq or -1))
+        message = b"|".join(
+            [
+                head,
+                str(event.seq).encode(),
+                event.kind.value.encode(),
+                event.namespace.encode(),
+                hashlib.sha256(body).digest(),
+            ]
+        )
+        head = (
+            hmac.new(key, message, hashlib.sha256).digest()
+            if key is not None
+            else hashlib.sha256(message).digest()
+        )
+        if event.kind is not EventKind.WRITE:
+            continue
+        snapshot = event.payload.get("record")
+        if not isinstance(snapshot, dict):
+            continue
+        rid = str(snapshot.get("record_id", ""))
+        ns = str(snapshot.get("namespace", event.namespace))
+        value = float(snapshot.get("trust", 0.0))
+        source = snapshot.get("source") or {}
+        parents = source.get("parents") if isinstance(source, dict) else None
+        if isinstance(parents, list) and parents:
+            report.checked_writes += 1
+            views = [view(trust[p][0], trust[p][1], ns) for p in map(str, parents) if p in trust]
+            if views and value > min(views) + 1e-9:
+                report.mti_violations.append(rid)
+        trust[rid] = (value, ns)
+    report.chain_head = head.hex()
+    if expected_head is not None:
+        report.head_matches = hmac.compare_digest(report.chain_head, expected_head)
+    return report

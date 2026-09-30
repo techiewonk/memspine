@@ -32,7 +32,7 @@ from memspine.clients.sqlite import SQLiteClient
 from memspine.config import constants
 from memspine.config.loader import ResolvedConfig, load_config
 from memspine.config.schema import MemspineConfig
-from memspine.core.audit import TaintReport, trace_taint
+from memspine.core.audit import IntegrityReport, TaintReport, trace_taint, verify_events
 from memspine.core.erasure import payload_retains_content
 from memspine.core.events import EventKind, EventLogMode, MemoryEvent, fingerprint_payload
 from memspine.core.firewall import Firewall, FirewallVerdict
@@ -706,9 +706,7 @@ class Engine:
         shared = self._require_shared()
         grants = await shared.grants_to(receiver)
         if sender not in grants:
-            raise ConflictError(
-                f"no grant {sender!r} -> {receiver!r}: messages follow grant edges"
-            )
+            raise ConflictError(f"no grant {sender!r} -> {receiver!r}: messages follow grant edges")
         implicit = self._consume_reads(sender, session_id)
         parents = list(dict.fromkeys([*(derived_from or []), *implicit]))
         source = SourceInfo(role=actor, channel="message", principal=principal, parents=parents)
@@ -724,8 +722,10 @@ class Engine:
         sender_views = await self._parent_trust_cap(sender, parents) or []
         sender_views = [*sender_views, *implicit.values()]
         at_sender = min([base, *sender_views])
-        crossed = policy.view_trust(at_sender, sender, receiver) if policy.enabled else min(
-            at_sender, constants.TRUST_RETRIEVED_CAP
+        crossed = (
+            policy.view_trust(at_sender, sender, receiver)
+            if policy.enabled
+            else min(at_sender, constants.TRUST_RETRIEVED_CAP)
         )
         async with self._write_locks.setdefault(receiver, asyncio.Lock()):
             return await self._write_locked(
@@ -768,15 +768,20 @@ class Engine:
             view = (
                 policy.view_trust(effective, record.namespace, ns)
                 if policy.enabled
-                else (effective if record.namespace == ns
-                      else min(effective, constants.TRUST_RETRIEVED_CAP))
+                else (
+                    effective
+                    if record.namespace == ns
+                    else min(effective, constants.TRUST_RETRIEVED_CAP)
+                )
             )
             if weakest is None or view < weakest[0]:
                 weakest = (view, evidence_id)
         assert weakest is not None
         allowed = weakest[0] >= threshold
         return AuthorizeDecision(
-            allowed, weakest[0], weakest[1],
+            allowed,
+            weakest[0],
+            weakest[1],
             "ok" if allowed else f"weakest evidence trust {weakest[0]:.3f} < {threshold}",
         )
 
@@ -1554,6 +1559,35 @@ class Engine:
         )
         return {"archived": archived, "review": review}
 
+    async def verify_integrity(
+        self, key: bytes | None = None, expected_head: str | None = None
+    ) -> IntegrityReport:
+        """B2': offline integrity pass over the whole event log.
+
+        Recomputes a SHA-256 (or, with ``key``, HMAC-SHA256) chain over every
+        event, re-checks every stored fingerprint, and recomputes the monotone
+        trust invariant for every WRITE that declares parents, from the log alone.
+        Store ``chain_head`` outside the engine; pass it back as ``expected_head``
+        to detect any later rewrite of history. Without ``key`` the head is only
+        meaningful against such an external anchor.
+        """
+        storage = self._require_started()
+        events: list[MemoryEvent] = []
+        after = 0
+        while True:
+            batch = await storage.read_events(after_seq=after, limit=1000)
+            if not batch:
+                break
+            events.extend(batch)
+            after = max(event.seq for event in batch if event.seq is not None)
+        policy = self._integrity()
+        view = (
+            policy.view_trust
+            if policy.enabled
+            else (lambda t, g, r: t if g == r else min(t, constants.TRUST_RETRIEVED_CAP))
+        )
+        return verify_events(events, view, key=key, expected_head=expected_head)
+
     async def repair_taint(
         self, record_id: str, namespace: str = "default", actor: str = "operator"
     ) -> dict[str, list[str]]:
@@ -1677,8 +1711,12 @@ class Engine:
             await archive(target_id, evolve_to=summary.record_id)
             rebuilt.append(summary.record_id)
         _log.warning(
-            "memory.taint_repair", namespace=namespace, seed=record_id,
-            archived=len(archived), rebuilt=len(rebuilt), review=len(review),
+            "memory.taint_repair",
+            namespace=namespace,
+            seed=record_id,
+            archived=len(archived),
+            rebuilt=len(rebuilt),
+            review=len(review),
         )
         return {"archived": archived, "rebuilt": rebuilt, "review": review}
 
