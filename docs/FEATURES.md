@@ -166,13 +166,30 @@ bit-identical to the plain pipeline — `profile="simple"` behavior never change
 
 ### Hybrid retrieval (D-25)
 
-`search` is **vector-only by default**. Set `read.hybrid: true` to fuse a lexical
-BM25 leg into the candidate ranking via reciprocal-rank fusion (RRF), so a record
-only lexical search would surface can still enter results. The lexical store is
-`read.lexical_provider`: `sqlite_fts5` (default, zero-dep, rides the storage SQLite
-client) or `tantivy` (`memspine[tantivy]`, a standalone index — required with a
-`postgres` backend). Off means bit-identical to the vector-only pipeline and no
-lexical index is built; `profile="simple"` never builds one.
+`search` fuses a lexical BM25 leg into the vector ranking via reciprocal-rank fusion
+(RRF) **by default** (`read.hybrid: true`, the v0.2 flip, ADR-019), so a record only
+lexical search would surface can still enter results. The lexical store is
+`read.lexical_provider`: `tantivy` (default) or `opensearch` (`memspine[opensearch]`).
+`read.hybrid: false` restores the vector-only pipeline bit-identically and builds no
+lexical index. Two further opt-in legs join the same fusion: `read.temporal_leg`
+(records whose event time lies in an absolute date span named in the query) and
+`read.metadata_leg` (records whose entity the query names).
+
+### Read modes, current state, cues (v0.3 research track, opt-in)
+
+- `Engine.read(query, mode="auto")` routes between **full context** (every live,
+  admitted record, chronological, when it fits the budget), **session replay**
+  (assembled hits expanded to neighbouring raw turns) and plain **retrieve**. Replay
+  and full context apply the search-time gates, so they never bypass erasure,
+  quarantine or the trust admission threshold.
+- `read.current_state_view` renders keyed facts as `CURRENT (since …)` with their
+  superseded `HISTORY`; `Engine.retract(entity, attribute)` ends a fact with no successor.
+- `Engine.add_cues(record_id, cues)` stores anticipatory retrieval keys that resolve
+  to their target (`read.anticipatory_cues`). Cues pass the firewall, their trust is
+  capped at the target's, and cues below `read.cue_min_trust` are ignored.
+- Integrity enforcement (`integrity.*`): implicit parents from the read ledger,
+  live re-evaluation, the untrusted-note wrapper, `authorize()` for tool actions,
+  `repair_taint()` and `verify_integrity()`. See `USAGE.md` for every key.
 
 Example — turn on hybrid, E8 rerank, and E5 compression:
 ```yaml

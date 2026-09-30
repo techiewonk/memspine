@@ -4,6 +4,22 @@ All notable changes to memspine are documented here. Format: [Keep a Changelog](
 
 ## [Unreleased]
 
+### Added — integrity enforcement and read path (v0.3 research track; all opt-in, `profile="simple"` unchanged)
+- **Enforced provenance (B0):** `integrity.implicit_parents: turn|session` records what a session reads (`search`/`shared_search(..., session_id=)`) and uses it as the parents of that session's next writes. Omitting `derived_from` can no longer launder trust. `end_session()` clears the ledger.
+- **Live re-evaluation (B4′):** `integrity.live_reevaluation` re-checks each candidate against its current parents at read time. Quarantining, rolling back or revoking an ancestor propagates to its descendants.
+- **Untrusted-note wrapper (B6):** `integrity.untrusted_wrap_below` renders low-trust records in assembly as labelled data, not instructions.
+- **Action gate (B5):** `authorize(record_ids, namespace, threshold)` → `AuthorizeDecision`, which permits a tool action only when every record behind it clears the threshold. `send()` delivers agent-to-agent messages through the write door. `effective_trust()` returns a record's view trust.
+- **Repair and verification:** `repair_taint(seed)` rolls back a taint and re-derives benign descendants. `verify_integrity()` checks the hash chain and fingerprints, and re-checks MTI offline over the log (`IntegrityReport`).
+- **Firewall parity (B8/B9):** `firewall.redact_secrets` (deterministic secret and PII regexes), `max_content_chars`, `protected_keys`. The summariser sanitises before it summarises, and summaries inherit instruction flags.
+- **Temporal anchoring (C-1):** `write(..., valid_from=)` and per-message event times in `write_messages`. Dated rendering in the eval adapter.
+- **Current-state view and retraction (C4′):** `read.current_state_view` renders `CURRENT (since …)` plus the superseded `HISTORY` for keyed facts. `retract(entity, attribute)` ends a fact with no successor, through a deterministic ladder rung.
+- **Atomic-fact mining (C6′):** `consolidation.mine_facts` adds a sleep-cycle stage that mines dated facts once per session through the write door. Raw turns are kept.
+- **Temporal and metadata legs (C3′):** `read.temporal_leg` and `read.metadata_leg` add RRF legs for absolute dates and entities named in the query.
+- **Mode-routed `read()` (C7′):** full context when it fits, else session replay of neighbouring raw turns, else retrieve. The same erasure, taint and admission gates apply.
+- **Anticipatory cues (C8′):** `add_cues(record_id, cues)` stores question-shaped retrieval keys. Cues are firewall-screened, their trust is capped at the target's, they are ignored below `read.cue_min_trust`, and they are never content.
+- **Embeddings:** `embedding.request_dimensions` (e.g. Cohere embed-v4 at 1024) and asymmetric `query_input_type` / `document_input_type`, with a query-side cache.
+- **Evals:** Bedrock helpers (Qwen3 reader/judge with `/no_think`, `CallBudget` hard cap), and a LoCoMo judge-label parser that uses the last verdict. Readers report cache-served input as `cached_prompt_tokens` (C9′). `read.record_access: false` makes reads side-effect free.
+
 ### Added — monotone trust invariant (`integrity.*`, opt-in, ADR-029 *proposed*, D-56)
 - **Provenance-carrying writes:** `write(..., derived_from=[ids])` records `source.parents`. With `integrity.enabled`, it caps trust at `min(base, view_trust(parent)…)` (× `derivation_decay`); an unreadable parent counts as 0.0.
 - **Attenuated shared reads:** per-grant `kappa` (`edge_kappa` overrides, `product` or `min`) replaces the flat 0.3 cap when enabled. `search`/`shared_search` rank by score × view trust and drop records below `admission_threshold`.
