@@ -150,6 +150,25 @@ DEFAULT_BINARY_PROMPT = (
     "Reply with exactly one token: CORRECT or INCORRECT."
 )
 
+#: Rubric judge for the D23 Qwen3 protocol. The one-token DEFAULT_BINARY_PROMPT
+#: let Qwen3-32B (thinking off) label "I do not know." CORRECT against a dated
+#: gold answer, so a no-memory control scored 72% on a LoCoMo pilot. This prompt
+#: states the abstention rule explicitly and asks for the Mem0/LoCoMo JSON label
+#: format; it agreed with hand labels on an 8-case calibration set (8/8).
+RUBRIC_BINARY_PROMPT = (
+    "Your task is to label an answer to a question as CORRECT or WRONG, given a gold (reference) "
+    "answer.\n"
+    "Rules:\n"
+    "- CORRECT only if the answer states the same fact as the gold answer. Wording may differ, "
+    "and a longer answer is fine if it contains the gold fact. For dates, the same day, month or year as "
+    "the gold (at the gold's precision) is CORRECT, including relative forms that resolve to it.\n"
+    "- WRONG if the answer gives a different fact, or says it does not know, cannot tell, or that "
+    "the information is not available, unless the gold answer itself says the information is not "
+    "available.\n\n"
+    "Question: {question}\nGold answer: {gold}\nAnswer to label: {answer}\n\n"
+    'Respond with JSON only: {{"label": "CORRECT"}} or {{"label": "WRONG"}}'
+)
+
 DEFAULT_GRADED_PROMPT = (
     "You are grading a question-answering system against a reference answer.\n"
     "Question: {question}\n"

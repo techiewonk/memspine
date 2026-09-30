@@ -403,6 +403,7 @@ class EvalRunner:
                 model_calls=answer.model_calls + verdict.model_calls,
                 retrieved_ids=retrieved_ids,
                 recall=recall,
+                meta={"judge_raw": verdict.raw[:200]} if verdict.raw else {},
             )
         except (ModelCallBudgetExceeded, UnexpectedModelCall):
             raise

@@ -31,7 +31,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from .contracts import DatasetAdapter, Reader, SystemAdapter
-from .judge import ContainsJudge, Judge, JudgeScale, LLMJudge
+from .judge import RUBRIC_BINARY_PROMPT, ContainsJudge, Judge, JudgeScale, LLMJudge
 from .metrics import CostModel
 from .provenance import RunProtocol
 from .readers import ContextOnlyReader, OpenAICompatReader, openai_compat_chat
@@ -129,7 +129,11 @@ def build_reader_and_judge(config: C01Config) -> tuple[Reader, Judge, bool]:
         )
         bedrock_reader = LiteLLMReader(budget, model=QWEN3_32B, temperature=0.0, max_tokens=256)
         bedrock_judge = LLMJudge(
-            litellm_chat(budget, model=QWEN3_32B), model=QWEN3_32B, scale=JudgeScale.BINARY
+            litellm_chat(budget, model=QWEN3_32B),
+            model=QWEN3_32B,
+            scale=JudgeScale.BINARY,
+            prompt=RUBRIC_BINARY_PROMPT,
+            judge_id="qwen3-32b-rubric-binary",
         )
         return bedrock_reader, bedrock_judge, True
     reader = OpenAICompatReader(model=config.reader_model, base_url=config.base_url)
