@@ -94,7 +94,7 @@ from memspine.observability.logging import (
     EVENT_WRITE,
     get_logger,
 )
-from memspine.prompts.models import ExtractedEdge, ExtractedEdges
+from memspine.prompts.models import ExtractedEdge, ExtractedEdges, ExtractedFact, ExtractedFacts
 from memspine.prompts.registry import PromptRegistry
 from memspine.services.cache.base import KVCache, MemoryKV
 from memspine.services.cache.semantic import CachedEmbedding, CachedExtractor
@@ -2916,6 +2916,8 @@ class Engine:
             append_event=self._append_and_project,
             summarize=self._summarize,
             extract_edges=self._extract_edges,
+            mine_facts=self._build_fact_miner(),
+            deposit_fact=self._deposit_mined_fact,
             # Only when associative projects it (ADR-015): an explicit-config
             # graph store without the projector would reorganize a stale graph.
             graph=self._graph if self._associative is not None else None,
@@ -2972,6 +2974,55 @@ class Engine:
             return await llm.chat(prompt.render({"content": content}))
 
         return summarize
+
+    def _build_fact_miner(self) -> Any:
+        """C6': the atomic-fact miner, only when an ``extract`` LLM role is bound."""
+        if self._llm is None or self._prompts is None or "extract" not in self._llm.roles:
+            return None
+        llm = self._llm.for_role("extract")
+        prompt = self._prompts.for_role("extract")
+
+        async def mine(content: str) -> list[ExtractedFact]:
+            result = await structured_call(llm, prompt, {"content": content}, ExtractedFacts)
+            return list(result.facts)
+
+        return mine
+
+    async def _deposit_mined_fact(
+        self,
+        namespace: str,
+        text: str,
+        entity: str | None,
+        attribute: str | None,
+        parents: list[str],
+        valid_from: datetime,
+        session_key: str,
+    ) -> MemoryRecord:
+        """C6': one mined fact through the write door (firewall, ladder, MTI).
+
+        Trust is capped at the least-trusted source turn even with integrity
+        off, exactly like a consolidation summary: derived content is never
+        more trusted than what it was derived from (E1).
+        """
+        storage = self._require_started()
+        ns = validate_namespace(namespace)
+        sources = [r for r in [await storage.get_record(p) for p in parents] if r is not None]
+        record = MemoryRecord(
+            namespace=ns,
+            memory_type="semantic",
+            content=text,
+            source=SourceInfo(role="system", channel="mining", parents=list(parents)),
+            entity=entity,
+            attribute=attribute,
+            valid_from=valid_from,
+            tags=["atomic_fact", f"mined:{session_key}"],
+        )
+        cap = [min(r.trust for r in sources)] if sources else None
+        integrity_cap = await self._parent_trust_cap(ns, parents)
+        if integrity_cap:
+            cap = [*(cap or []), *integrity_cap]
+        async with self._write_locks.setdefault(ns, asyncio.Lock()):
+            return await self._write_locked(storage, ns, record, "semantic", "system", cap)
 
     def _edge_extract_callable(self, max_rounds: int) -> ExtractEdges:
         """The shared reflexion-merged ``extract_edges`` callable (C2 async +

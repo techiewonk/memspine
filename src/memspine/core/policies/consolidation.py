@@ -39,6 +39,10 @@ class ConsolidationOptions(PolicyOptions):
     session_gap_minutes: int = constants.SESSION_GAP_MINUTES
     min_session_records: int = constants.CONSOLIDATION_MIN_SESSION_RECORDS
     summary_max_chars: int = constants.CONSOLIDATION_SUMMARY_MAX_CHARS
+    #: C6': after consolidating a session, mine ATOMIC facts from it once (needs
+    #: an ``extract`` LLM role). Facts are dated with the session start, carry
+    #: the session records as parents, and go through the engine's write door.
+    mine_facts: bool = False
 
 
 def extractive_summary(contents: list[str], max_chars: int) -> str:

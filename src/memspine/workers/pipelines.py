@@ -37,7 +37,7 @@ from memspine.memories.associative.links import assert_within_budget, link_event
 from memspine.memories.episodic.sessions import Session, detect_sessions
 from memspine.memories.prospective.triggers import due_watches, invalidation_watches
 from memspine.observability.logging import get_logger
-from memspine.prompts.models import ExtractedEdge
+from memspine.prompts.models import ExtractedEdge, ExtractedFact
 from memspine.services.graph.base import GraphStore
 
 __all__ = [
@@ -53,6 +53,7 @@ __all__ = [
     "decay_sweep",
     "event_log_prune",
     "extract_graph",
+    "mine_facts",
     "reorganize",
     "sleep_compute",
 ]
@@ -93,6 +94,13 @@ Summarize = Callable[[str], Awaitable[str]]
 #: text, returns the (reflexion-merged) relationship edges. None => the
 #: extract_graph pipeline self-skips — no LLM role or the feature is off.
 ExtractEdges = Callable[[str], Awaitable[list[ExtractedEdge]]]
+#: C6': LLM fact miner (``extract`` role): session text -> atomic facts.
+MineFacts = Callable[[str], Awaitable[list[ExtractedFact]]]
+#: C6': engine-side deposit of one mined fact through the write door
+#: (namespace, text, entity, attribute, parent ids, event time, session key).
+DepositFact = Callable[
+    [str, str, str | None, str | None, list[str], datetime, str], Awaitable[object]
+]
 #: Per-namespace write serialization: ``lock(namespace)`` yields the same
 #: async context manager the engine's write verbs hold, so a pipeline's
 #: read-then-write unit cannot interleave with a concurrent forget cascade.
@@ -125,6 +133,9 @@ class PipelineContext:
     #: LLM edge extractor for the C2 graphiti-style pipeline. None => the
     #: extract_graph stage self-skips (feature off or no extract_edges LLM role).
     extract_edges: ExtractEdges | None = None
+    #: C6' atomic-fact mining. Both None => the mine_facts stage self-skips.
+    mine_facts: MineFacts | None = None
+    deposit_fact: DepositFact | None = None
 
 
 Pipeline = Callable[[PipelineContext], Awaitable[dict[str, object]]]
@@ -925,12 +936,85 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
     return stats
 
 
+async def mine_facts(ctx: PipelineContext) -> dict[str, object]:
+    """C6': mine atomic, dated facts from each consolidated session, once.
+
+    Idempotent: a session whose key already tags a mined fact is skipped. The
+    transcript given to the miner carries each turn's event date, so relative
+    dates ("yesterday") can be resolved to absolute ones. Raw turns are kept:
+    facts are an index over them, not a replacement (M6 views).
+    """
+    policy = ConsolidationPolicy.bind(_policy_options(ctx, "episodic", "consolidation"))
+    options = policy.options
+    if not getattr(options, "mine_facts", False):
+        return {"status": "skipped", "reason": "consolidation.mine_facts is off"}
+    if ctx.mine_facts is None or ctx.deposit_fact is None:
+        return {"status": "skipped", "reason": "no extract LLM role bound"}
+    mined_sessions = 0
+    facts = 0
+    errors: list[str] = []
+    after = 0
+    sessions: list[tuple[str, str, list[str]]] = []
+    while True:
+        events = await ctx.storage.read_events(after_seq=after, limit=1000)
+        if not events:
+            break
+        for event in events:
+            if event.kind is EventKind.CONSOLIDATE:
+                sessions.append(
+                    (
+                        event.namespace,
+                        str(event.payload.get("session_key", "")),
+                        [str(m) for m in event.payload.get("member_record_ids", [])],
+                    )
+                )
+        after = max(e.seq for e in events if e.seq is not None)
+    for namespace, key, member_ids in sessions:
+        if not key:
+            continue
+        existing = await ctx.storage.list_records(namespace, "semantic")
+        if any(f"mined:{key}" in r.tags for r in existing):
+            continue
+        members = [m for m in [await ctx.storage.get_record(i) for i in member_ids] if m]
+        members = [m for m in members if not m.quarantined]
+        if not members:
+            continue
+        members.sort(key=lambda m: m.valid_from)
+        transcript = "\n".join(f"[{m.valid_from:%Y-%m-%d}] {m.content}" for m in members)
+        try:
+            mined = await ctx.mine_facts(transcript)
+        except Exception as exc:  # LLM is an enhancer, never a gate
+            errors.append(f"{namespace}:{key}: {exc}")
+            continue
+        start = members[0].valid_from
+        for fact in mined:
+            text = f"{fact.entity} {fact.attribute}: {fact.value}"
+            await ctx.deposit_fact(
+                namespace,
+                text,
+                fact.entity or None,
+                fact.attribute or None,
+                [m.record_id for m in members],
+                start,
+                key,
+            )
+            facts += 1
+        mined_sessions += 1
+    return {
+        "status": "ok" if not errors else "partial",
+        "sessions": mined_sessions,
+        "facts": facts,
+        "errors": errors,
+    }
+
+
 #: Name -> pipeline. Runners register from this table; the M11-adjacent names
 #: are stable identifiers used in schedules and dead-letter reporting.
 PIPELINES: dict[str, Pipeline] = {
     "consolidate": consolidate,
     "reorganize": reorganize,
     "extract_graph": extract_graph,
+    "mine_facts": mine_facts,
     "check_watches": check_watches,
     "decay_sweep": decay_sweep,
     "compress": compress,
