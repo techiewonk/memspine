@@ -340,6 +340,13 @@ class IntegrityConfig(BaseModel):
     #: (Paper A's A1/A2 become enforced, not assumed). ``turn``: the read ledger
     #: is consumed by each write; ``session``: kept until ``end_session``; ``off``.
     implicit_parents: str = "off"
+    #: B6: assembled records whose view trust is below this are rendered inside
+    #: an untrusted-data wrapper (data, not instructions). 0.0 = off.
+    untrusted_wrap_below: float = Field(default=0.0, ge=0.0, le=1.0)
+    #: B4': re-check each candidate's trust against its CURRENT parents at read
+    #: time (quarantine / rollback / revocation of an ancestor propagates; proved
+    #: radii can only shrink). Costs extra storage reads per candidate.
+    live_reevaluation: bool = False
 
     @field_validator("attenuation")
     @classmethod

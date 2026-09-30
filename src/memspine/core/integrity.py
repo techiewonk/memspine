@@ -28,6 +28,8 @@ class IntegrityPolicy:
     principal_bound_corroboration: bool = True
     merge_reinforcement_gate: bool = True
     implicit_parents: str = "off"
+    untrusted_wrap_below: float = 0.0
+    live_reevaluation: bool = False
 
     @classmethod
     def from_config(cls, config: IntegrityConfig) -> IntegrityPolicy:
