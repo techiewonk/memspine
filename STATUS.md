@@ -25,7 +25,7 @@
 - **v0.1 (P0–P7 + composable stores, Phases 1–14)** and **v0.1 Release Hardening** (Phase 15 ✅, Phase 17 ✅; Phase 16 ⏭ skipped, since it needs live Postgres/Redis).
 - **v0.2 (on `main`):** default-on hybrid retrieval · Tantivy-core lexical · `llmlingua-2` compression · graph-traversal strategies for `related()` · `group_id` + tags (ADR-027) · autonomous sleep scheduler · `write_messages()` / `write_episode()` · WritePipeline (ADR-026) · leidenalg communities (ADR-028) · LanceDB as the sole core vector store (ADR-021).
 - **Evaluation harness (`evals/`, committed 2026-09-29):** `DatasetAdapter` / `SystemAdapter` / `RunProtocol`; provenance enforced in types; baselines `no-memory`, `full-context`, `naive-rag`, `verbatim`; LoCoMo / LongMemEval adapters (no data on disk yet).
-- **Integrity / monotone trust invariant (branch, 2026-09-29, ADR-029 *proposed*, D-56):**
+- **Integrity / trust-horizon invariant, formerly MTI (branch, 2026-09-29, ADR-029 *proposed*, D-56):**
   - `derived_from` provenance with MTI-D;
   - per-grant attenuation, trust-weighted ranking and an admission threshold;
   - principal-bound corroboration;

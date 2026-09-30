@@ -335,7 +335,7 @@ class FirewallConfig(BaseModel):
 
 
 class IntegrityConfig(BaseModel):
-    """Monotone trust invariant (MTI) for shared memory — opt-in, default OFF.
+    """Trust-horizon invariant (THI, formerly "MTI") for shared memory — opt-in, default OFF.
 
     Off, every path is byte-identical to the pre-MTI engine: shared reads keep
     the flat ``TRUST_RETRIEVED_CAP`` min-cap, ranking stays trust-blind, and

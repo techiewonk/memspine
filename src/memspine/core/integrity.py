@@ -1,4 +1,4 @@
-"""Monotone trust invariant (MTI) — pure trust arithmetic for shared memory.
+"""Trust-horizon invariant (THI, formerly "MTI") — pure trust arithmetic for shared memory.
 
 No I/O: the engine supplies records and grant scopes; this module only decides
 numbers. Keeping it pure is what lets the invariant be property-tested

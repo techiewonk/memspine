@@ -1,4 +1,8 @@
-# ADR-029 — Monotone trust invariant for shared memory (`integrity.*`, opt-in)
+# ADR-029 — Trust-horizon invariant for shared memory (`integrity.*`, opt-in)
+
+> Renamed 2026-09-30 from "monotone trust invariant (MTI)": the phrase "monotone trust" is used by
+> LoopHarness (arXiv 2608.27141) for a single-agent write gate. The name now says what the invariant
+> bounds, the grant-hop *horizon* of admitted poison. Config keys and this file name are unchanged.
 
 - **Status:** proposed (awaiting maintainer approval)
 - **Date:** 2026-09-29

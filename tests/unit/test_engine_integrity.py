@@ -1,4 +1,4 @@
-"""Engine surface of the monotone trust invariant (integrity.*, opt-in)."""
+"""Engine surface of the trust-horizon invariant (integrity.*, opt-in)."""
 
 from __future__ import annotations
 

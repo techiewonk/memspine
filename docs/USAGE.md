@@ -448,7 +448,7 @@ in the schema — or if the schema gains a key not documented here.
 | `firewall.redact_secrets` | `false` | Replace cloud keys, VCS/chat tokens, JWTs, private keys, `key=value` credentials and emails with `[REDACTED:<kind>]` at write. |
 | `firewall.max_content_chars` | `null` | Quarantine non-privileged writes longer than this (size anomaly). |
 | `firewall.protected_keys` | `[]` | Fact keys (`entity` or `entity.attribute`) only operator/system sources may write; others are quarantined. |
-| `integrity.enabled` | `false` | Monotone trust invariant for shared memory (opt-in); off = pre-MTI behaviour, byte-identical. |
+| `integrity.enabled` | `false` | Trust-horizon invariant (THI) for shared memory (opt-in); off = pre-MTI behaviour, byte-identical. |
 | `integrity.attenuation` | `product` | `product` (trust × κ per grant hop) \| `min` (min(trust, κ)). |
 | `integrity.kappa` | `0.5` | Default per-grant attenuation κ ∈ (0, 1]. |
 | `integrity.edge_kappa` | `{}` | Per-edge κ overrides keyed `"grantor->grantee"`. |

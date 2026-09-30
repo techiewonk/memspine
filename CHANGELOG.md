@@ -20,7 +20,7 @@ All notable changes to memspine are documented here. Format: [Keep a Changelog](
 - **Embeddings:** `embedding.request_dimensions` (e.g. Cohere embed-v4 at 1024) and asymmetric `query_input_type` / `document_input_type`, with a query-side cache.
 - **Evals:** Bedrock helpers (Qwen3 reader/judge with `/no_think`, `CallBudget` hard cap), and a LoCoMo judge-label parser that uses the last verdict. Readers report cache-served input as `cached_prompt_tokens` (C9′). `read.record_access: false` makes reads side-effect free.
 
-### Added — monotone trust invariant (`integrity.*`, opt-in, ADR-029 *proposed*, D-56)
+### Added — trust-horizon invariant, formerly "monotone trust invariant" (`integrity.*`, opt-in, ADR-029 *proposed*, D-56)
 - **Provenance-carrying writes:** `write(..., derived_from=[ids])` records `source.parents`. With `integrity.enabled`, it caps trust at `min(base, view_trust(parent)…)` (× `derivation_decay`); an unreadable parent counts as 0.0.
 - **Attenuated shared reads:** per-grant `kappa` (`edge_kappa` overrides, `product` or `min`) replaces the flat 0.3 cap when enabled. `search`/`shared_search` rank by score × view trust and drop records below `admission_threshold`.
 - **Principal-bound corroboration:** promotion needs `source.principal`s that differ from the held record's and from every earlier corroborator's, checked against the log. Merges from a less-trusted duplicate no longer reinforce.
