@@ -51,5 +51,25 @@ Related changes made in the same pass:
 - **Known limits:**
   - Principal-bound independence reads prior corroborations from the log, so under `event_log.mode: ephemeral` it degrades to "differs from the held record".
   - Conservative parents drain benign trust (tracked as MG-2).
-  - Soft admission (wrapping below-θ content) is not implemented; strict is the only mode.
+  - Soft admission is not implemented as an admission mode. The B6 wrapper (below) labels low-trust
+    records that were already admitted; below-θ content is still dropped.
+
+## Amendment (2026-09-30): enforcement, not assumption
+
+Paper A's assumptions A1 (complete mediation) and A2 (declared parents) were caller obligations. These
+opt-in keys make the engine enforce them. All default off; `integrity.enabled: false` stays byte-identical.
+
+| Key / call | Effect |
+|---|---|
+| `implicit_parents: turn \| session` (B0) | Reads made with a `session_id` are recorded, and become the parents of that session's next write (`turn`: consumed per write; `session`: until `end_session`). Omitting `derived_from` no longer launders trust |
+| `live_reevaluation` (B4′) | Candidates are re-checked against their current parents at read time, so quarantine, rollback or revocation of an ancestor propagates to descendants. Radii can only shrink |
+| `untrusted_wrap_below` (B6) | Assembly renders records below this view trust as labelled data |
+| `authorize(ids, namespace, threshold)` (B6) | Allows an action only if every evidence record is readable and its current view trust is at least `threshold`. Fails closed; returns the weakest link |
+| `send()` (B5) | Agent-to-agent messages go through the write door, so A1 holds for messages sent this way |
+| `repair_taint(seed)`, `verify_integrity()` | Roll back, then re-derive the benign descendants. Offline hash-chain, fingerprint and MTI verification over the log |
+
+Evidence: the unit tests in `tests/unit/test_engine_integrity.py` and `test_engine_repair.py`. For the
+real-LLM guard study (Qwen3-32B agents, `authorize` as the action gate), see `paper_aamas27/results/llm_guard.json`
+in the research repository. Retrieval-only surfaces added later on the read path (anticipatory cues,
+C8′; replay and full-context `read()`, C7′) apply the same gates.
 - **Not changed:** the default profile, firewall verdicts, quarantine semantics, and grant enforcement (`grant_allows` remains the single decision point).
