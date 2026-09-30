@@ -58,6 +58,7 @@ from memspine.core.redaction import redact
 from memspine.core.registry import SERVICE_EXTRAS, dependency_closure, missing_services
 from memspine.core.replay import catch_up
 from memspine.core.replay import rebuild as replay_rebuild
+from memspine.core.temporal_query import LegHit, metadata_leg, temporal_leg
 from memspine.exceptions import (
     ConfigError,
     ConflictError,
@@ -868,6 +869,29 @@ class Engine:
 
         return await walk(record_id)
 
+    async def _metadata_legs(self, ns: str, query: str, fetch_k: int) -> list[list[LegHit]]:
+        """C3': the non-empty temporal / metadata legs for this query (opt-in)."""
+        read = self._config().read
+        if not (read.temporal_leg or read.metadata_leg):
+            return []
+        try:
+            live = [
+                r
+                for r in await self._require_started().list_records(ns)
+                if r.status is RecordStatus.ACTIVATED
+                and not r.quarantined
+                and r.memory_type != "shared"
+            ]
+            legs = []
+            if read.temporal_leg:
+                legs.append(temporal_leg(query, live, fetch_k))
+            if read.metadata_leg:
+                legs.append(metadata_leg(query, live, fetch_k))
+        except Exception as exc:  # an enhancer, never a gate: degrade to the base legs
+            _log.warning("read.metadata_legs_failed", namespace=ns, error=str(exc))
+            return []
+        return [leg for leg in legs if leg]
+
     async def _current_state_view(
         self, ns: str, scored: list[tuple[MemoryRecord, float]]
     ) -> list[tuple[MemoryRecord, float]]:
@@ -1238,13 +1262,19 @@ class Engine:
                 # takes down the whole search().
                 _log.warning("lexical.search_failed", namespace=ns, error=str(exc))
                 lexical_hits = []
-            fused = rrf_fuse(vector_hits, lexical_hits)[:top_k]
+        else:
+            lexical_hits = []
+        extra_legs = await self._metadata_legs(ns, query, fetch_k)
+        if use_hybrid or extra_legs:
+            fused = rrf_fuse(vector_hits, lexical_hits, extra=extra_legs)[:top_k]
             # F1: raw RRF scores are ~1/(k+1) (≈0.016), but the M1 composite expects
             # relevance in [0, 1]. Normalize by the theoretical max (a record ranked
-            # #1 in BOTH legs scores 2/(k+1)) so the fused relevance composes with
+            # #1 in EVERY non-empty leg) so the fused relevance composes with
             # recency/importance exactly like a cosine similarity would — otherwise
             # relevance collapses and recency/importance dominate under hybrid.
-            rrf_max = 2.0 / (constants.RRF_K + 1)
+            # Without C3' legs this is 2/(k+1), exactly as before.
+            legs = 2 + len(extra_legs) if use_hybrid else 1 + len(extra_legs)
+            rrf_max = legs / (constants.RRF_K + 1)
             ranked: list[tuple[str, float]] = [(rid, score / rrf_max) for rid, score in fused]
         else:
             ranked = [(hit.record_id, hit.score) for hit in vector_hits]

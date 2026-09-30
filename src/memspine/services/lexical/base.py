@@ -81,6 +81,7 @@ def rrf_fuse(
     vector_hits: Sequence[RankedHit],
     lexical_hits: Sequence[RankedHit],
     k: int = RRF_K,
+    extra: Sequence[Sequence[RankedHit]] = (),
 ) -> list[tuple[str, float]]:
     """Reciprocal-rank fusion (D-25) of the vector and lexical legs.
 
@@ -91,7 +92,7 @@ def rrf_fuse(
     that surface at identical ranks must not reorder run-to-run).
     """
     fused: dict[str, float] = {}
-    for hits in (vector_hits, lexical_hits):
+    for hits in (vector_hits, lexical_hits, *extra):
         for rank, hit in enumerate(hits, start=1):
             fused[hit.record_id] = fused.get(hit.record_id, 0.0) + 1.0 / (k + rank)
     return sorted(fused.items(), key=lambda item: (-item[1], item[0]))

@@ -105,3 +105,37 @@ async def test_low_trust_source_cannot_retract_an_operator_fact() -> None:
         assert kept is not None and kept.status is RecordStatus.ACTIVATED  # trust gate held
     finally:
         await eng.stop()
+
+
+async def test_temporal_leg_surfaces_the_dated_record() -> None:
+    """C3': with the temporal leg on, a record whose event time is the date named
+    in the query enters the results even when its wording shares nothing with it."""
+    eng = _engine(read={"temporal_leg": True, "hybrid": False})
+    await eng.start()
+    try:
+        target = await eng.write(
+            "went hiking with the dog",
+            namespace="a",
+            valid_from=datetime(2023, 5, 7, tzinfo=UTC),
+        )
+        for i in range(20):
+            await eng.write(
+                f"filler note {i} about what happened at work",
+                namespace="a",
+                valid_from=datetime(2023, 8, 1 + i, tzinfo=UTC),
+            )
+        hits = await eng.search("what happened on 7 May 2023?", namespace="a", top_k=3)
+        assert target.record_id in [r.record_id for r, _ in hits]
+    finally:
+        await eng.stop()
+
+
+async def test_legs_off_is_unchanged() -> None:
+    """Off (default), no C3' leg is built, so fusion sees exactly the base legs."""
+    eng = _engine()
+    await eng.start()
+    try:
+        await eng.write("note on 7 May 2023", namespace="a", entity="caroline")
+        assert await eng._metadata_legs("a", "Caroline on 7 May 2023", 10) == []
+    finally:
+        await eng.stop()

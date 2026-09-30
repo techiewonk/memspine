@@ -257,6 +257,11 @@ class ReadConfig(BaseModel):
     #: C4': render each retrieved keyed fact as ``CURRENT (since date)`` plus its
     #: superseded ``HISTORY`` from the bi-temporal chain (deterministic, no LLM).
     current_state_view: bool = False
+    #: C3': fuse a temporal leg (records whose event time lies in an absolute
+    #: date span named in the query) and a metadata leg (records whose entity is
+    #: named in the query) into the RRF ranking. Off: bit-identical ranking.
+    temporal_leg: bool = False
+    metadata_leg: bool = False
 
 
 class MemoryTypeConfig(BaseModel):
