@@ -262,6 +262,11 @@ class ReadConfig(BaseModel):
     #: named in the query) into the RRF ranking. Off: bit-identical ranking.
     temporal_leg: bool = False
     metadata_leg: bool = False
+    #: C8': resolve search hits on anticipatory cues (``Engine.add_cues``) to
+    #: their target records. A cue below ``cue_min_trust`` is ignored, so cues
+    #: from low-trust sources cannot redirect retrieval. Off: cues are invisible.
+    anticipatory_cues: bool = False
+    cue_min_trust: float = 0.5
 
 
 class MemoryTypeConfig(BaseModel):

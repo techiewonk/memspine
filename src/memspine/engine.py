@@ -165,6 +165,9 @@ class WriteOutcome:
 
 _log = get_logger(__name__)
 
+#: C8': tag marking an anticipatory cue record (a retrieval key, never content).
+CUE_TAG = "anticipatory_cue"
+
 _T = TypeVar("_T")
 
 #: Services the Phase-0 engine always constructs (core install, D-03).
@@ -691,6 +694,48 @@ class Engine:
         if policy.implicit_parents == "turn":
             return self._read_ledger.pop(key, {})
         return dict(self._read_ledger.get(key, {}))
+
+    async def add_cues(
+        self,
+        record_id: str,
+        cues: Sequence[str],
+        namespace: str = "default",
+        source: SourceInfo | None = None,
+        actor: str = "user",
+    ) -> list[MemoryRecord]:
+        """C8': attach anticipatory cues (likely future questions) to a record.
+
+        A cue is a retrieval KEY, never content: with ``read.anticipatory_cues``
+        a search hit on a cue resolves to its target record, and only when the
+        cue's trust reaches ``read.cue_min_trust``. Each cue goes through the
+        write door (firewall screening, quarantine) and its trust is capped at
+        the target's, so a cue can never make content more trusted than it is,
+        and a low-trust source cannot plant cues that redirect retrieval.
+        """
+        storage = self._require_started()
+        ns = validate_namespace(namespace)
+        target = await storage.get_record(record_id)
+        if target is None or target.namespace != ns:
+            raise MemspineError(f"cue target {record_id!r} not found in namespace {ns!r}")
+        base = source or SourceInfo(role="system", channel="anticipation")
+        written: list[MemoryRecord] = []
+        for cue in cues:
+            record = MemoryRecord(
+                namespace=ns,
+                memory_type="semantic",
+                content=cue,
+                source=base.model_copy(update={"parents": [record_id]}),
+                tags=[CUE_TAG],
+            )
+            cap = [target.trust]
+            integrity_cap = await self._parent_trust_cap(ns, [record_id])
+            if integrity_cap:
+                cap = [*cap, *integrity_cap]
+            async with self._write_locks.setdefault(ns, asyncio.Lock()):
+                written.append(
+                    await self._write_locked(storage, ns, record, "semantic", actor, cap)
+                )
+        return written
 
     async def retract(
         self,
@@ -1293,6 +1338,22 @@ class Engine:
                 # memory content — it must never occupy retrieval slots (shared_search
                 # already hides foreign ones; this hides the reader's own).
                 continue
+            if CUE_TAG in record.tags:
+                # C8': a cue is a key, never content. Off, cues are invisible; on,
+                # a trusted cue resolves to its live target, which then passes the
+                # same gates as any other hit.
+                read_cfg = self._config().read
+                if not read_cfg.anticipatory_cues or record.trust < read_cfg.cue_min_trust:
+                    continue
+                parents = record.source.parents
+                target = await storage.get_record(parents[0]) if parents else None
+                if (
+                    target is None
+                    or target.status is not RecordStatus.ACTIVATED
+                    or target.quarantined
+                ):
+                    continue
+                record = target
             # D2 sub-scoping gate: narrow to a group and/or records carrying all tags.
             if group_id is not None and record.group_id != group_id:
                 continue
@@ -1305,6 +1366,13 @@ class Engine:
                 _log.warning("memory.inflate_failed", namespace=ns, record_id=record.record_id)
                 continue
             candidates.append((record, relevance))
+        if self._config().read.anticipatory_cues and candidates:
+            # C8': a target reached both directly and via a cue keeps its best score.
+            best: dict[str, tuple[MemoryRecord, float]] = {}
+            for rec, rel in candidates:
+                if rec.record_id not in best or rel > best[rec.record_id][1]:
+                    best[rec.record_id] = (rec, rel)
+            candidates = sorted(best.values(), key=lambda pair: pair[1], reverse=True)
         # E8 stage: static prefilter (opt-in, default off).
         if candidates and self._config().read.static_prefilter:
             candidates = _static_prefilter(query, candidates)
