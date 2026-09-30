@@ -62,6 +62,12 @@ class ConflictPolicy(BindablePolicy):
         if incoming.trust < existing.trust - options.trust_margin:
             return ConflictVerdict.NOOP
 
+        # R2' — explicit retraction (FORK-A6): a trust-gated write tagged
+        # ``retract`` on the same key ends the fact with NO successor. Tag-based,
+        # so the rung is deterministic; no LLM decides what a negation is.
+        if "retract" in incoming.tags:
+            return ConflictVerdict.INVALIDATE
+
         # R3 — temporal: the biased-newer statement supersedes the current one.
         incoming_newer = incoming.valid_from >= existing.valid_from
         if options.bias == "oldest":

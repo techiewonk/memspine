@@ -254,6 +254,9 @@ class ReadConfig(BaseModel):
     #: ``false`` makes reads side-effect free, e.g. so benchmark questions cannot
     #: change the store that later questions see.
     record_access: bool = True
+    #: C4': render each retrieved keyed fact as ``CURRENT (since date)`` plus its
+    #: superseded ``HISTORY`` from the bi-temporal chain (deterministic, no LLM).
+    current_state_view: bool = False
 
 
 class MemoryTypeConfig(BaseModel):

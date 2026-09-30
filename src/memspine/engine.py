@@ -691,6 +691,35 @@ class Engine:
             return self._read_ledger.pop(key, {})
         return dict(self._read_ledger.get(key, {}))
 
+    async def retract(
+        self,
+        entity: str,
+        attribute: str,
+        namespace: str = "default",
+        reason: str = "",
+        source: SourceInfo | None = None,
+        valid_from: datetime | None = None,
+    ) -> MemoryRecord:
+        """C4'/FORK-A6: end a fact with no successor (the user retracts it).
+
+        Writes a ``retract``-tagged semantic record on the key; the conflict
+        ladder's deterministic retraction rung turns it into INVALIDATE: the
+        current fact is archived with ``valid_to`` set, and the retraction is
+        kept as a closed record, so history shows when and why it ended. The
+        trust gate still applies: a markedly less trusted source cannot retract.
+        """
+        text = f"RETRACTED {entity}.{attribute}" + (f": {reason}" if reason else "")
+        return await self.write(
+            text,
+            namespace=namespace,
+            memory_type="semantic",
+            source=source,
+            entity=entity,
+            attribute=attribute,
+            tags=["retract"],
+            valid_from=valid_from,
+        )
+
     async def send(
         self,
         content: str,
@@ -838,6 +867,46 @@ class Engine:
             return value
 
         return await walk(record_id)
+
+    async def _current_state_view(
+        self, ns: str, scored: list[tuple[MemoryRecord, float]]
+    ) -> list[tuple[MemoryRecord, float]]:
+        """C4': annotate keyed facts with CURRENT / HISTORY from the bi-temporal chain."""
+        storage = self._require_started()
+        keyed = [r for r, _ in scored if r.entity is not None and r.attribute is not None]
+        if not keyed:
+            return scored
+        by_key: dict[tuple[str, str], list[MemoryRecord]] = {}
+        for record in await storage.list_records(ns, "semantic"):
+            if record.entity is None or record.attribute is None:
+                continue
+            if record.status is RecordStatus.ARCHIVED:
+                by_key.setdefault((record.entity, record.attribute), []).append(record)
+        out: list[tuple[MemoryRecord, float]] = []
+        for record, score in scored:
+            if record.entity is None or record.attribute is None:
+                out.append((record, score))
+                continue
+            history = sorted(
+                (
+                    h
+                    for h in by_key.get((record.entity, record.attribute), [])
+                    if h.record_id != record.record_id and "retract" not in h.tags
+                ),
+                key=lambda h: h.valid_from,
+                reverse=True,
+            )[:3]
+            text = f"CURRENT (since {record.valid_from:%Y-%m-%d}): {record.content}"
+            if history:
+                past = "; ".join(
+                    f"{h.valid_from:%Y-%m-%d} to {h.valid_to:%Y-%m-%d}: {h.content}"
+                    if h.valid_to
+                    else f"{h.valid_from:%Y-%m-%d}: {h.content}"
+                    for h in history
+                )
+                text += f"\nHISTORY (superseded): {past}"
+            out.append((record.model_copy(update={"content": text}), score))
+        return out
 
     def _integrity(self) -> IntegrityPolicy:
         return IntegrityPolicy.from_config(self._config().integrity)
@@ -1328,6 +1397,8 @@ class Engine:
             )
             for record, score in scored
         ]
+        if self._config().read.current_state_view:
+            scored = await self._current_state_view(ns, scored)
         wrap_below = integrity.untrusted_wrap_below if integrity.enabled else 0.0
         if wrap_below > 0.0:
             # B6: low-trust records reach the model as labelled DATA with their
