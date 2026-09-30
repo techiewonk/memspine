@@ -76,6 +76,8 @@ def cmd_c0_1(args: argparse.Namespace) -> int:
         bedrock=args.bedrock,
         memspine_config=json.loads(args.memspine_config) if args.memspine_config else None,
         memspine_read_mode=args.memspine_read_mode,
+        only_systems=tuple(args.only_systems.split(",")) if args.only_systems else None,
+        item_ids=tuple(args.item_ids.split(",")) if args.item_ids else None,
     )
     if config.bedrock:
         from .bedrock import load_aws_credentials
@@ -175,6 +177,8 @@ def build_parser() -> argparse.ArgumentParser:
     c01.add_argument(
         "--memspine-config", default=None, help="JSON engine overrides for the memspine arm"
     )
+    c01.add_argument("--only-systems", default=None, help="comma list of system ids to run")
+    c01.add_argument("--item-ids", default=None, help="comma list of item ids (resume a run)")
     c01.add_argument(
         "--memspine-read-mode",
         choices=("replay", "auto", "full"),

@@ -77,6 +77,11 @@ class C01Config:
     memspine_config: dict[str, Any] | None = None
     #: memspine arm read path: None = assemble, else an Engine.read mode (C7').
     memspine_read_mode: str | None = None
+    #: Resume support: run only these system ids / item ids (None = all). A
+    #: partial run is completed into a separate run id and merged by item, which
+    #: is valid because items are independent (each resets the system).
+    only_systems: tuple[str, ...] | None = None
+    item_ids: tuple[str, ...] | None = None
 
 
 def _retriever(config: C01Config) -> Any:
@@ -114,7 +119,23 @@ def build_systems(config: C01Config) -> list[SystemAdapter]:
         systems.append(
             MemspineSystem(config=config.memspine_config, read_mode=config.memspine_read_mode)
         )
+    if config.only_systems:
+        systems = [s for s in systems if s.system_id in config.only_systems]
     return systems
+
+
+class _ItemFilter:
+    """A dataset view restricted to some item ids (resume of a partial run)."""
+
+    def __init__(self, inner: DatasetAdapter, item_ids: tuple[str, ...]) -> None:
+        self._inner = inner
+        self._ids = set(item_ids)
+
+    def info(self) -> Any:
+        return self._inner.info()
+
+    def items(self) -> Any:
+        return (item for item in self._inner.items() if item.item_id in self._ids)
 
 
 def build_reader_and_judge(config: C01Config) -> tuple[Reader, Judge, bool]:
@@ -180,6 +201,8 @@ async def run_c0_1(
             "hybrid": config.hybrid,
         },
     )
+    if config.item_ids:
+        dataset = _ItemFilter(dataset, config.item_ids)  # type: ignore[assignment]
     return await run_matrix(dataset, build_systems(config), reader, judge, run_config)
 
 
