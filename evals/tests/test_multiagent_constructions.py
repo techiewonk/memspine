@@ -72,3 +72,23 @@ def test_semantic_promotion_archives_rather_than_activates() -> None:
     report = asyncio.run(sybil_promotion(same_session=True, memory_type="semantic"))
     assert report.held_quarantined_at_write
     assert report.promoted and report.final_status == "archived"
+
+
+def test_b0_implicit_parents_restore_the_radius_when_writers_declare_nothing() -> None:
+    """Writers omit derived_from entirely. Without B0 that launders (no radius);
+    with B0 the engine's own read ledger restores the bound."""
+    common = {
+        "topology": "chain",
+        "n_agents": 5,
+        "kappa": 0.5,
+        "theta": 0.2,
+        "seed_role": "assistant",
+        "seed_channel": "internal",
+        "parent_mode": "none",
+    }
+    laundered = asyncio.run(scripted_propagation(**common))
+    enforced = asyncio.run(
+        scripted_propagation(**common, integrity_extra={"implicit_parents": "turn"})
+    )
+    assert laundered.depth == 4  # no declared parents, no bound
+    assert enforced.depth == enforced.predicted_radius == 1

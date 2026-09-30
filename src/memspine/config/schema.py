@@ -335,12 +335,24 @@ class IntegrityConfig(BaseModel):
     trust_weighted_ranking: bool = True
     principal_bound_corroboration: bool = True
     merge_reinforcement_gate: bool = True
+    #: B0: the engine records what each session READS and treats it as parents
+    #: of the session's next writes, so omitting ``derived_from`` cannot launder
+    #: (Paper A's A1/A2 become enforced, not assumed). ``turn``: the read ledger
+    #: is consumed by each write; ``session``: kept until ``end_session``; ``off``.
+    implicit_parents: str = "off"
 
     @field_validator("attenuation")
     @classmethod
     def _known_attenuation(cls, value: str) -> str:
         if value not in {"product", "min"}:
             raise ConfigError(f"integrity.attenuation must be 'product' or 'min', got {value!r}")
+        return value
+
+    @field_validator("implicit_parents")
+    @classmethod
+    def _known_implicit_mode(cls, value: str) -> str:
+        if value not in {"off", "turn", "session"}:
+            raise ConfigError(f"integrity.implicit_parents must be off|turn|session, got {value!r}")
         return value
 
     @field_validator("edge_kappa")

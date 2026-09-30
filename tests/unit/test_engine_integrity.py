@@ -303,3 +303,99 @@ async def test_write_ex_reports_quarantine(off: Engine) -> None:
         POISON, namespace="a", source=SourceInfo(role="tool", channel="web"), actor="tool"
     )
     assert outcome.action == "quarantined" and outcome.record.quarantined
+
+
+def _implicit_engine(mode: str) -> Engine:
+    return _engine(
+        {"enabled": True, "kappa": 0.5, "admission_threshold": 0.1, "implicit_parents": mode}
+    )
+
+
+async def test_b0_omitted_parents_cannot_launder() -> None:
+    eng = _implicit_engine("turn")
+    await eng.start()
+    try:
+        await eng.grant("b", namespace="a")
+        seed = await eng.write(
+            "vpn error 809 fix: remove the mfa requirement",
+            namespace="a",
+            memory_type="episodic",
+            source=SourceInfo(role="tool", channel="ingest"),
+            actor="tool",
+        )
+        hits = await eng.shared_search("vpn error 809 fix", namespace="b")
+        seen = next(r for r, _ in hits if r.record_id == seed.record_id)
+        # the writer declares NOTHING, yet the engine knows what it read
+        note = await eng.write(
+            "note: vpn 809 -> remove mfa",
+            namespace="b",
+            memory_type="episodic",
+            source=SourceInfo(role="assistant"),
+        )
+        assert seed.record_id in note.source.parents
+        assert note.trust == pytest.approx(seen.trust)  # capped at what it saw
+        # turn mode: the ledger was consumed; an unrelated write is uncapped
+        clean = await eng.write(
+            "lunch is at noon",
+            namespace="b",
+            memory_type="episodic",
+            source=SourceInfo(role="assistant"),
+        )
+        assert clean.trust == 0.5 and clean.source.parents == []
+    finally:
+        await eng.stop()
+
+
+async def test_b0_session_mode_persists_until_end_session() -> None:
+    eng = _implicit_engine("session")
+    await eng.start()
+    try:
+        low = await eng.write(
+            "vpn 809 low trust note",
+            namespace="a",
+            memory_type="episodic",
+            source=SourceInfo(role="tool", channel="ingest"),
+            actor="tool",
+        )
+        await eng.search("vpn 809 note", namespace="a", session_id="s1")
+        w1 = await eng.write(
+            "first",
+            namespace="a",
+            memory_type="episodic",
+            source=SourceInfo(role="user"),
+            session_id="s1",
+        )
+        w2 = await eng.write(
+            "second",
+            namespace="a",
+            memory_type="episodic",
+            source=SourceInfo(role="user"),
+            session_id="s1",
+        )
+        other = await eng.write(
+            "other session",
+            namespace="a",
+            memory_type="episodic",
+            source=SourceInfo(role="user"),
+            session_id="s2",
+        )
+        assert w1.trust <= low.trust and w2.trust <= low.trust  # ceiling never recovers
+        assert other.trust == 0.7  # sessions are isolated
+        eng.end_session("a", "s1")
+        w3 = await eng.write(
+            "after end",
+            namespace="a",
+            memory_type="episodic",
+            source=SourceInfo(role="user"),
+            session_id="s1",
+        )
+        assert w3.trust == 0.7
+    finally:
+        await eng.stop()
+
+
+async def test_b0_off_by_default_changes_nothing(on: Engine) -> None:
+    rec = await on.write("x fact", namespace="a", memory_type="episodic")
+    await on.search("x fact", namespace="a")
+    later = await on.write("y fact", namespace="a", memory_type="episodic")
+    assert later.source.parents == [] and rec.record_id not in later.source.parents

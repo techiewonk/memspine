@@ -12,11 +12,38 @@ need none of them, could not be run either.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
+from datetime import UTC, datetime
 from typing import Any
 
 from ..contracts import DepositResult, Evidence, RetrievedContext, Turn
 from ..tokens import HeuristicTokenCounter, TokenCounter
+
+_DATE_FORMATS = (
+    "%I:%M %p on %d %B, %Y",  # LoCoMo: "1:56 pm on 8 May, 2023"
+    "%I:%M %p on %d %b, %Y",
+    "%Y/%m/%d (%a) %H:%M",  # LongMemEval haystack dates: "2023/05/20 (Sat) 02:21"
+    "%Y-%m-%d %H:%M:%S",
+    "%Y-%m-%d",
+)
+
+
+def parse_turn_time(stamp: str | None) -> datetime | None:
+    """Benchmark session stamps -> aware datetime (None if absent or unknown format)."""
+    if not stamp:
+        return None
+    text = re.sub(r"\s+", " ", stamp.strip())
+    for fmt in _DATE_FORMATS:
+        try:
+            return datetime.strptime(text, fmt).replace(tzinfo=UTC)
+        except ValueError:
+            continue
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
 
 
 class MemspineSystem:
@@ -30,6 +57,7 @@ class MemspineSystem:
         counter: TokenCounter | None = None,
         system_id: str = "memspine",
         record_deposit_calls: bool = True,
+        dated: bool = True,
     ) -> None:
         self.system_id = system_id
         # ``template`` names a config template (base, personal, coding, ...);
@@ -40,6 +68,7 @@ class MemspineSystem:
         self.config = dict(config or {})
         self._counter = counter or HeuristicTokenCounter()
         self._record_deposit_calls = record_deposit_calls
+        self._dated = dated
         self._engine: Any = None
         self._version = "unknown"
         # record_id -> turn_id, so retrieved records map back to gold units.
@@ -53,6 +82,7 @@ class MemspineSystem:
             "template": self.template,
             "namespace": self.namespace,
             "config": self.config,
+            "dated_rendering": self._dated,
             "token_counter": dict(self._counter.describe()),
         }
 
@@ -79,11 +109,16 @@ class MemspineSystem:
     async def insert(self, turn: Turn) -> DepositResult:
         if self._engine is None:
             self._engine = await self._build_engine()
+        # The speaker NAME is content ("Caroline: ..."), not a provenance role:
+        # passing it as the role dropped names from the stored text and gave
+        # every speaker an unknown-role trust. The session stamp becomes the
+        # record's event time (valid_from), so dated questions are answerable.
         records = await self._engine.write_messages(
-            [{"role": turn.speaker, "content": turn.text}],
+            [{"role": "user", "content": f"{turn.speaker}: {turn.text}"}],
             namespace=self.namespace,
             session_id=turn.session_id,
             group_id=turn.session_id,
+            valid_from=parse_turn_time(turn.timestamp),
         )
         ids: list[str] = []
         for record in records:
@@ -118,7 +153,11 @@ class MemspineSystem:
         lines: list[str] = []
         evidence: list[Evidence] = []
         for rank, record in enumerate(assembled.records):
-            lines.append(str(record.content))
+            # Dated rendering: absolute event dates next to every retrieved line
+            # (the single largest temporal-question lever in the literature).
+            when = getattr(record, "valid_from", None)
+            prefix = f"[{when:%Y-%m-%d}] " if self._dated and when is not None else ""
+            lines.append(f"{prefix}{record.content}")
             record_id = str(record.record_id)
             evidence.append(
                 Evidence(

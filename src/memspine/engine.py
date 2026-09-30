@@ -128,6 +128,19 @@ from memspine.workers.scheduler import SleepScheduler
 __all__ = ["Engine"]
 
 
+def _parse_event_time(value: object) -> datetime | None:
+    """ISO-8601 string or datetime -> aware datetime; None when absent/unparseable."""
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value if value.tzinfo else value.replace(tzinfo=UTC)
+    try:
+        parsed = datetime.fromisoformat(str(value))
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+
+
 @dataclass(frozen=True)
 class WriteOutcome:
     """What ``Engine.write_ex`` did (G8): the surviving record, the action taken,
@@ -274,6 +287,8 @@ class Engine:
         self._started = False
         self._write_locks: dict[str, asyncio.Lock] = {}
         self._last_write_action: str = "added"  # G8: read by write_ex()
+        #: B0 read ledger: (namespace, session) -> {record_id: view trust at read}
+        self._read_ledger: dict[tuple[str, str], dict[str, float]] = {}
         self._sync_loop: asyncio.AbstractEventLoop | None = None
         self._sync_thread: threading.Thread | None = None
 
@@ -550,6 +565,8 @@ class Engine:
         group_id: str | None = None,
         tags: list[str] | None = None,
         derived_from: Sequence[str] | None = None,
+        valid_from: datetime | None = None,
+        session_id: str | None = None,
     ) -> MemoryRecord:
         """Append a WRITE event through the single door; projection materializes it.
 
@@ -564,6 +581,10 @@ class Engine:
         ``source.parents``; with ``integrity.enabled`` they also cap the new
         record's trust at the least-trusted parent's view trust (MTI-D), which
         is what stops a paraphrase from laundering foreign content.
+
+        ``valid_from`` sets the record's EVENT time (when the content was true or
+        said), distinct from ``recorded_at`` (when the engine learned it). Default
+        is "now", which keeps every existing caller unchanged.
         """
         storage = self._require_started()
         ns = validate_namespace(namespace)
@@ -576,8 +597,10 @@ class Engine:
         if memory_type == "shared":
             raise ConflictError("memory_type 'shared' is engine-internal — use grant()/subscribe()")
         source = source or SourceInfo(role=actor)
-        if derived_from:
-            source = source.model_copy(update={"parents": list(dict.fromkeys(derived_from))})
+        implicit = self._consume_reads(ns, session_id)
+        parents = list(dict.fromkeys([*(derived_from or []), *implicit]))
+        if parents:
+            source = source.model_copy(update={"parents": parents})
         record = MemoryRecord(
             namespace=ns,
             memory_type=memory_type,
@@ -589,7 +612,14 @@ class Engine:
             group_id=group_id,
             tags=tags or [],
         )
+        if valid_from is not None:
+            stamp = valid_from if valid_from.tzinfo else valid_from.replace(tzinfo=UTC)
+            record = record.model_copy(update={"valid_from": stamp})
         trust_cap = await self._parent_trust_cap(ns, record.source.parents)
+        if implicit:
+            # B0: the view trust the session SAW at read time also caps the write
+            # (a record's trust may have dropped since; never raise it back).
+            trust_cap = [*(trust_cap or []), *implicit.values()]
         # One writer per namespace: the firewall's context reads, the write,
         # and corroboration form one unit racing writers must not interleave.
         async with self._write_locks.setdefault(ns, asyncio.Lock()):
@@ -614,6 +644,34 @@ class Engine:
         # await in between, so no other task can run before it is read here.
         action = self._last_write_action
         return WriteOutcome(record=record, action=action, occurrence_id=new_record_id())
+
+    def _record_reads(
+        self, ns: str, session_id: str | None, results: Sequence[tuple[MemoryRecord, float]]
+    ) -> None:
+        """B0: remember what this session was shown, with the view trust it saw."""
+        policy = self._integrity()
+        if not policy.enabled or policy.implicit_parents == "off" or not results:
+            return
+        ledger = self._read_ledger.setdefault((ns, session_id or ""), {})
+        for record, _ in results:
+            if record.memory_type == "shared":
+                continue
+            seen = ledger.get(record.record_id)
+            ledger[record.record_id] = record.trust if seen is None else min(seen, record.trust)
+
+    def _consume_reads(self, ns: str, session_id: str | None) -> dict[str, float]:
+        """B0: the reads that become implicit parents of this write."""
+        policy = self._integrity()
+        if not policy.enabled or policy.implicit_parents == "off":
+            return {}
+        key = (ns, session_id or "")
+        if policy.implicit_parents == "turn":
+            return self._read_ledger.pop(key, {})
+        return dict(self._read_ledger.get(key, {}))
+
+    def end_session(self, namespace: str = "default", session_id: str | None = None) -> None:
+        """B0: forget a session's read ledger (``implicit_parents: session``)."""
+        self._read_ledger.pop((validate_namespace(namespace), session_id or ""), None)
 
     def _integrity(self) -> IntegrityPolicy:
         return IntegrityPolicy.from_config(self._config().integrity)
@@ -656,6 +714,7 @@ class Engine:
         channel: str = "messages",
         group_id: str | None = None,
         tags: list[str] | None = None,
+        valid_from: datetime | None = None,
     ) -> list[MemoryRecord]:
         """C4: ingest a chat transcript as per-turn **episodic** records.
 
@@ -667,7 +726,12 @@ class Engine:
         callers (e.g. REST) pass ``channel="rest"`` so TrustPolicy caps the
         turns' trust regardless of the claimed role (SEC-C1). Turns ride the
         ordinary write door, so the firewall, dedup, and lifecycle all apply.
-        Additive over the P0 contract — callers that never use it see no change."""
+        Additive over the P0 contract — callers that never use it see no change.
+
+        Event time: a message may carry ``"timestamp"`` (ISO-8601 string or
+        ``datetime``); otherwise ``valid_from`` applies to the whole batch;
+        otherwise "now". This is what lets "when did X happen" be answered from
+        the session date rather than from the ingestion time."""
         records: list[MemoryRecord] = []
         for i, turn in enumerate(messages):
             try:
@@ -677,6 +741,7 @@ class Engine:
                 raise ValueError(
                     f"messages[{i}] must be a mapping with 'role' and 'content' keys"
                 ) from exc
+            stamp = _parse_event_time(turn.get("timestamp")) or valid_from
             record = await self.write(
                 content,
                 namespace=namespace,
@@ -685,6 +750,7 @@ class Engine:
                 actor=actor,
                 group_id=group_id,
                 tags=tags,
+                valid_from=stamp,
             )
             records.append(record)
         return records
@@ -826,6 +892,7 @@ class Engine:
         top_k: int = constants.SEARCH_TOP_K,
         group_id: str | None = None,
         tags: list[str] | None = None,
+        session_id: str | None = None,
     ) -> list[tuple[MemoryRecord, float]]:
         """Semantic retrieval (P1 + E8 opt-in stages, D-51):
         ``[static_prefilter?] → vector/hybrid → [rerank?] → score`` (MMR and
@@ -985,6 +1052,7 @@ class Engine:
                 )
             )
         _log.info(EVENT_RETRIEVE, namespace=ns, query=True, count=len(scored))
+        self._record_reads(ns, session_id, scored)
         return scored
 
     async def assemble(
@@ -994,6 +1062,7 @@ class Engine:
         budget_tokens: int = constants.ASSEMBLE_BUDGET_TOKENS,
         top_k: int = constants.ASSEMBLE_TOP_K,
         shared: bool = False,
+        session_id: str | None = None,
     ) -> AssembledContext:
         """Retrieval + M12/E2 assembly: MMR-selected, cache-aware-ordered context.
 
@@ -1007,9 +1076,13 @@ class Engine:
         if self._assembly is None:
             raise MemspineError("assembly policy not bound — engine not started?")
         if shared:
-            scored = await self.shared_search(query, namespace=namespace, top_k=top_k)
+            scored = await self.shared_search(
+                query, namespace=namespace, top_k=top_k, session_id=session_id
+            )
         else:
-            scored = await self.search(query, namespace=namespace, top_k=top_k)
+            scored = await self.search(
+                query, namespace=namespace, top_k=top_k, session_id=session_id
+            )
         integrity = self._integrity()
         if integrity.enabled and integrity.trust_weighted_ranking and scored:
             # Scores are composite x view trust. Abstention (theta_abstain) judges
@@ -1953,6 +2026,7 @@ class Engine:
         query: str,
         namespace: str = "default",
         top_k: int = constants.SEARCH_TOP_K,
+        session_id: str | None = None,
     ) -> list[tuple[MemoryRecord, float]]:
         """Own-namespace search plus granted foreign results (R2/E1).
 
@@ -1970,7 +2044,7 @@ class Engine:
         if self._embedder is None or self._vector is None or self._scoring is None:
             raise MemspineError("retrieval services not constructed — engine not started?")
         ns = validate_namespace(namespace)
-        results = await self.search(query, namespace=ns, top_k=top_k)
+        results = await self.search(query, namespace=ns, top_k=top_k, session_id=session_id)
         grants = await shared.grants_to(ns)
         if not grants:
             return results
@@ -2046,6 +2120,7 @@ class Engine:
         _log.info(
             EVENT_RETRIEVE, namespace=ns, shared=True, grantors=sorted(grants), count=len(results)
         )
+        self._record_reads(ns, session_id, results)
         return results
 
     async def subscribe(

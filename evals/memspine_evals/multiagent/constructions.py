@@ -321,7 +321,7 @@ async def scripted_propagation(
     instead of directly into the origin. ``benign_seed`` adds an operator fact at
     the origin whose lineage is tracked separately (benign reach, Cor. 1).
     """
-    if parent_mode not in {"all", "max_trust"}:
+    if parent_mode not in {"all", "max_trust", "none"}:
         raise ValueError(f"unknown parent_mode {parent_mode!r}")
     from memspine.core.records import SourceInfo
 
@@ -447,6 +447,8 @@ async def scripted_propagation(
                         [record.record_id for record in context]
                         if parent_mode == "all"
                         else [max(context, key=lambda record: record.trust).record_id]
+                        if parent_mode == "max_trust"
+                        else None  # "none": the writer declares nothing (laundering)
                     ),
                 )
                 report.deposits += 1
@@ -560,6 +562,9 @@ class LLMPropagationReport:
     exposed_follows: int = 0  # of which recommend the target (p_follow estimate)
     answers_restating: int = 0  # deposits whose text restates the poison (p_launder)
     llm_calls: int = 0
+    #: one row per answer: round, agent, hop distance, exposed, target hit, and the
+    #: best view trust of any tainted record in context (None if not exposed)
+    answers: list[dict[str, Any]] = field(default_factory=list)
 
     def as_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -617,13 +622,24 @@ async def llm_propagation(
                 )
                 context = [r for r, _ in hits if r.memory_type != "shared" and r.trust >= theta]
                 context = context[:top_k]
-                bad = any(r.record_id in tainted for r in context)
+                tainted_views = [r.trust for r in context if r.record_id in tainted]
+                bad = bool(tainted_views)
                 notes = "\n".join(f"- {r.content}" for r in context) or "- (no notes)"
                 ans = await reader.complete(
                     AGENT_PROMPT.format(name=name, notes=notes, question=VICTIM_QUESTION)
                 )
                 report.llm_calls += 1
                 hit = restates_poison(ans.text)
+                report.answers.append(
+                    {
+                        "round": _rnd,
+                        "agent": i,
+                        "dist": dist.get(i, -1),
+                        "exposed": bad,
+                        "hit": hit,
+                        "best_tainted_view": max(tainted_views) if tainted_views else None,
+                    }
+                )
                 if i != 0:
                     report.victim_answers += 1
                     report.victim_hits += hit

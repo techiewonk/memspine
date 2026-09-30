@@ -27,6 +27,7 @@ class IntegrityPolicy:
     trust_weighted_ranking: bool = True
     principal_bound_corroboration: bool = True
     merge_reinforcement_gate: bool = True
+    implicit_parents: str = "off"
 
     @classmethod
     def from_config(cls, config: IntegrityConfig) -> IntegrityPolicy:
