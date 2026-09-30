@@ -38,6 +38,7 @@ __all__ = [
     "CallBudget",
     "LiteLLMReader",
     "bedrock_engine_config",
+    "cached_prompt_tokens",
     "litellm_chat",
     "load_aws_credentials",
 ]
@@ -138,16 +139,21 @@ class CallBudget:
     prices_per_mtok: Mapping[str, tuple[float, float]] | None = None  # model -> (in, out) $/1M
     calls: int = 0
     tokens: dict[str, list[int]] = field(default_factory=dict)  # model -> [in, out]
+    cached: dict[str, int] = field(default_factory=dict)  # C9': model -> cache-read input
 
     def reserve(self) -> None:
         if self.calls >= self.max_calls:
             raise BudgetExceeded(f"call cap reached ({self.max_calls})")
         self.calls += 1
 
-    def record(self, model: str, prompt_tokens: int, completion_tokens: int) -> None:
+    def record(
+        self, model: str, prompt_tokens: int, completion_tokens: int, cached_tokens: int = 0
+    ) -> None:
         acc = self.tokens.setdefault(model, [0, 0])
         acc[0] += prompt_tokens
         acc[1] += completion_tokens
+        if cached_tokens:
+            self.cached[model] = self.cached.get(model, 0) + cached_tokens
 
     def usd(self) -> float | None:
         if self.prices_per_mtok is None:
@@ -163,8 +169,27 @@ class CallBudget:
             "calls": self.calls,
             "max_calls": self.max_calls,
             "tokens": self.tokens,
+            "cached_input_tokens": self.cached,
             "usd": self.usd(),
         }
+
+
+def cached_prompt_tokens(usage: Any) -> int:
+    """C9': cache-served input tokens from a LiteLLM usage block, 0 if unreported.
+
+    OpenAI-style providers report ``prompt_tokens_details.cached_tokens``;
+    Anthropic/Bedrock-style ones ``cache_read_input_tokens``.
+    """
+    if usage is None:
+        return 0
+    details = getattr(usage, "prompt_tokens_details", None)
+    cached = getattr(details, "cached_tokens", None) if details is not None else None
+    if not cached:
+        cached = getattr(usage, "cache_read_input_tokens", None)
+    try:
+        return int(cached or 0)
+    except (TypeError, ValueError):
+        return 0
 
 
 class LiteLLMReader:
@@ -222,7 +247,8 @@ class LiteLLMReader:
         usage = getattr(response, "usage", None)
         pt = int(getattr(usage, "prompt_tokens", 0) or 0)
         ct = int(getattr(usage, "completion_tokens", 0) or 0)
-        self.budget.record(self.model, pt, ct)
+        cached = cached_prompt_tokens(usage)
+        self.budget.record(self.model, pt, ct, cached)
         choice = response.choices[0]
         text = _THINK.sub("", choice.message.content or "").strip()
         finish = str(getattr(choice, "finish_reason", "") or "")
@@ -234,6 +260,7 @@ class LiteLLMReader:
             model_calls=1,
             truncated=finish == "length",
             finish_reason=finish,
+            cached_prompt_tokens=cached,
         )
 
     async def answer(self, question: str, context: str) -> ReaderAnswer:

@@ -395,6 +395,7 @@ class EvalRunner:
                 context_tokens=context.tokens,
                 context_truncated=context.truncated,
                 prompt_tokens=answer.prompt_tokens,
+                cached_prompt_tokens=answer.cached_prompt_tokens,
                 completion_tokens=answer.completion_tokens,
                 latency_retrieve_ms=latency_retrieve,
                 latency_answer_ms=answer.latency_ms,

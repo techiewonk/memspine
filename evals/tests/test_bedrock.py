@@ -107,3 +107,20 @@ def test_qwen3_reader_disables_thinking_by_default() -> None:
 
     assert LiteLLMReader(CallBudget(1)).no_think is True
     assert LiteLLMReader(CallBudget(1), model="bedrock/other").no_think is False
+
+
+def test_cached_prompt_tokens_reads_both_usage_shapes() -> None:
+    from types import SimpleNamespace
+
+    from memspine_evals.bedrock import CallBudget, cached_prompt_tokens
+
+    openai_style = SimpleNamespace(prompt_tokens_details=SimpleNamespace(cached_tokens=120))
+    bedrock_style = SimpleNamespace(prompt_tokens_details=None, cache_read_input_tokens=64)
+    assert cached_prompt_tokens(openai_style) == 120
+    assert cached_prompt_tokens(bedrock_style) == 64
+    assert cached_prompt_tokens(SimpleNamespace()) == 0
+    assert cached_prompt_tokens(None) == 0
+    budget = CallBudget(max_calls=2)
+    budget.record("m", 200, 10, 120)
+    budget.record("m", 50, 5)
+    assert budget.summary()["cached_input_tokens"] == {"m": 120}

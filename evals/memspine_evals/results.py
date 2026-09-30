@@ -68,6 +68,7 @@ class ResultRow:
     context_truncated: bool = False
     answer_truncated: bool = False
     prompt_tokens: int = 0
+    cached_prompt_tokens: int = 0  # C9': cache-served part of prompt_tokens
     completion_tokens: int = 0
     latency_retrieve_ms: float = 0.0
     latency_answer_ms: float = 0.0

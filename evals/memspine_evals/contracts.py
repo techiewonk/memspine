@@ -186,6 +186,9 @@ class ReaderAnswer:
     latency_ms: float = 0.0
     model_calls: int = 0
     truncated: bool = False
+    #: C9': the part of ``prompt_tokens`` served from the provider's prompt cache
+    #: (0 when the provider reports none); fresh = prompt_tokens - cached.
+    cached_prompt_tokens: int = 0
     finish_reason: str = ""
 
 
