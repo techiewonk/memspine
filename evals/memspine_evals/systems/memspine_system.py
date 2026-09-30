@@ -82,6 +82,7 @@ class MemspineSystem:
             "template": self.template,
             "namespace": self.namespace,
             "config": self.config,
+            "record_access": bool((self.config.get("read") or {}).get("record_access", False)),
             "dated_rendering": self._dated,
             "token_counter": dict(self._counter.describe()),
         }
@@ -100,6 +101,12 @@ class MemspineSystem:
         # Never load a .env: the harness passes only what a run needs (a repo .env
         # can hold unrelated secrets, and a benchmark must not depend on it).
         overrides.setdefault("dotenv_path", None)
+        # Questions must be independent: with access recording on, every search
+        # refreshes last_accessed_at, so records retrieved for early questions
+        # rank higher (recency) for later ones. Off unless a run asks for it.
+        read = dict(overrides.get("read") or {})
+        read.setdefault("record_access", False)
+        overrides["read"] = read
         engine = Engine(template=self.template, **overrides)
         await engine.start()
         return engine
