@@ -30,6 +30,7 @@ class IntegrityPolicy:
     implicit_parents: str = "off"
     untrusted_wrap_below: float = 0.0
     live_reevaluation: bool = False
+    principal_reputation: bool = False
 
     @classmethod
     def from_config(cls, config: IntegrityConfig) -> IntegrityPolicy:

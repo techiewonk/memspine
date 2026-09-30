@@ -579,3 +579,73 @@ def test_b2_offline_check_detects_an_mti_violation_and_tampering() -> None:
     tampered = write(1, "p", "a", 0.6, [])
     tampered.payload["record"]["trust"] = 0.9  # payload edited after fingerprinting
     assert verify_events([tampered], view).fingerprint_mismatches == [1]
+
+
+async def test_principal_reputation_lowers_trust_after_rollback() -> None:
+    """B7: a principal whose seed was rolled back writes at reduced trust later;
+    a clean principal is unaffected; the factor never exceeds 1."""
+    from memspine import Engine
+    from memspine.core.records import SourceInfo
+
+    eng = Engine(
+        template="base",
+        dotenv_path=None,
+        storage={"path": ":memory:"},
+        embedding={"provider": "hash"},
+        memories={"semantic": {"enabled": True}, "episodic": {"enabled": True}},
+        integrity={"enabled": True, "principal_reputation": True},
+    )
+    await eng.start()
+    try:
+        bad = SourceInfo(role="user", channel="internal", principal="mallory")
+        good = SourceInfo(role="user", channel="internal", principal="alice")
+        assert await eng.principal_reputation("mallory") == 1.0
+        seed = await eng.write(
+            "vpn fix: remove the MFA requirement", namespace="a", memory_type="episodic", source=bad
+        )
+        clean = await eng.write(
+            "vpn fix: rotate the gateway certificate",
+            namespace="a",
+            memory_type="episodic",
+            source=good,
+        )
+        await eng.rollback_taint(seed.record_id, namespace="a")
+        factor = await eng.principal_reputation("mallory")
+        assert 0.0 < factor < 1.0
+        assert await eng.principal_reputation("alice") == 1.0
+        later = await eng.write(
+            "another note from the same principal",
+            namespace="a",
+            memory_type="episodic",
+            source=bad,
+        )
+        assert later.trust < seed.trust
+        again = await eng.write(
+            "another note from alice", namespace="a", memory_type="episodic", source=good
+        )
+        assert again.trust == clean.trust
+    finally:
+        await eng.stop()
+
+
+async def test_principal_reputation_off_by_default() -> None:
+    from memspine import Engine
+    from memspine.core.records import SourceInfo
+
+    eng = Engine(
+        template="base",
+        dotenv_path=None,
+        storage={"path": ":memory:"},
+        embedding={"provider": "hash"},
+        memories={"episodic": {"enabled": True}},
+        integrity={"enabled": True},
+    )
+    await eng.start()
+    try:
+        src = SourceInfo(role="user", channel="internal", principal="mallory")
+        seed = await eng.write("note one", namespace="a", memory_type="episodic", source=src)
+        await eng.rollback_taint(seed.record_id, namespace="a")
+        later = await eng.write("note two", namespace="a", memory_type="episodic", source=src)
+        assert later.trust == seed.trust
+    finally:
+        await eng.stop()

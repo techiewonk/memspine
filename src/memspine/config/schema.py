@@ -385,6 +385,12 @@ class IntegrityConfig(BaseModel):
     #: time (quarantine / rollback / revocation of an ancestor propagates; proved
     #: radii can only shrink). Costs extra storage reads per candidate.
     live_reevaluation: bool = False
+    #: B7: per-principal reputation. A principal whose records were quarantined,
+    #: or whose record was the SEED of a taint rollback, has its later writes'
+    #: trust multiplied by min(1, 2 * Beta-mean(good, bad)) with a uniform prior:
+    #: a new or clean principal keeps full trust, a bad history lowers it. It can
+    #: only LOWER trust, so the per-hop gain stays below 1 and the horizon holds.
+    principal_reputation: bool = False
 
     @field_validator("attenuation")
     @classmethod

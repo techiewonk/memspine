@@ -746,6 +746,48 @@ class Engine:
                 )
         return written
 
+    async def principal_reputation(self, principal: str) -> float:
+        """B7: trust multiplier in (0, 1] for ``principal``, from the event log.
+
+        ``bad`` counts the principal's records that are currently quarantined,
+        plus those that were the seed of a taint rollback (descendants archived
+        by the same rollback are not blamed on their authors). With a uniform
+        Beta prior, the mean is ``(1 + good) / (2 + good + bad)``, and the
+        multiplier is ``min(1, 2 * mean)``: 1.0 for a new or clean principal.
+        """
+        storage = self._require_started()
+        owned: set[str] = set()
+        seeds: set[str] = set()
+        after = 0
+        while True:
+            events = await storage.read_events(after_seq=after, limit=1000)
+            if not events:
+                break
+            for event in events:
+                payload = event.payload or {}
+                if event.kind is EventKind.WRITE:
+                    rec = payload.get("record") or {}
+                    if (rec.get("source") or {}).get("principal") == principal:
+                        owned.add(str(rec.get("record_id")))
+                elif event.kind is EventKind.DECAY_TRANSITION:
+                    target = str(payload.get("record_id", ""))
+                    if str(payload.get("reason", "")) == f"taint_rollback:{target}":
+                        seeds.add(target)
+            after = max(e.seq for e in events if e.seq is not None)
+        if not owned:
+            return 1.0
+        bad = 0
+        for record_id in owned:
+            if record_id in seeds:
+                bad += 1
+                continue
+            current = await storage.get_record(record_id)
+            if current is not None and current.quarantined:
+                bad += 1
+        good = len(owned) - bad
+        mean = (1 + good) / (2 + good + bad)
+        return min(1.0, 2.0 * mean)
+
     async def retract(
         self,
         entity: str,
@@ -1162,6 +1204,11 @@ class Engine:
             # firewall's decision; admission (read side) enforces the radius.
             capped = self._integrity().deposit_trust(record.trust, trust_cap)
             record = record.model_copy(update={"trust": capped})
+        integrity_cfg = self._config().integrity
+        if integrity_cfg.enabled and integrity_cfg.principal_reputation and record.source.principal:
+            factor = await self.principal_reputation(record.source.principal)
+            if factor < 1.0:
+                record = record.model_copy(update={"trust": record.trust * factor})
         if verdict.quarantine:
             # Quarantined content is stored inert: no dedup merging, no
             # conflict-ladder participation, no retrieval surface — but the

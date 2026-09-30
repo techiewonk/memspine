@@ -18,6 +18,7 @@ All notable changes to memspine are documented here. Format: [Keep a Changelog](
 - **Mode-routed `read()` (C7′):** full context when it fits, else session replay of neighbouring raw turns, else retrieve. The same erasure, taint and admission gates apply.
 - **Anticipatory cues (C8′):** `add_cues(record_id, cues)` stores question-shaped retrieval keys. Cues are firewall-screened, their trust is capped at the target's, they are ignored below `read.cue_min_trust`, and they are never content.
 - **Embeddings:** `embedding.request_dimensions` (e.g. Cohere embed-v4 at 1024) and asymmetric `query_input_type` / `document_input_type`, with a query-side cache.
+- **Principal reputation (B7):** `integrity.principal_reputation`. Write trust is multiplied by min(1, 2 × Beta mean) of the principal's history, where bad = quarantined records, or the seed of a taint rollback (descendants are not blamed on their authors). It can only lower trust, so the trust horizon holds. `Engine.principal_reputation(p)`.
 - **Relevance-first scoring (ADR-030, proposed):** `scoring.mode: relevance_first` ranks by relevance, and recency, importance and utility only break near-ties (`tie_break_weight`, default 0.05). The default stays `blend`. On LoCoMo, R@1 goes from 0.10 (blend) to 0.29.
 - **Evals:** Bedrock helpers (Qwen3 reader/judge with `/no_think`, `CallBudget` hard cap), and a LoCoMo judge-label parser that uses the last verdict. Readers report cache-served input as `cached_prompt_tokens` (C9′). `read.record_access: false` makes reads side-effect free.
 
