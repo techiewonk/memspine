@@ -97,7 +97,7 @@ from memspine.prompts.models import ExtractedEdge, ExtractedEdges
 from memspine.prompts.registry import PromptRegistry
 from memspine.services.cache.base import KVCache, MemoryKV
 from memspine.services.cache.semantic import CachedEmbedding, CachedExtractor
-from memspine.services.embedding.base import EmbeddingService
+from memspine.services.embedding.base import EmbeddingService, embed_queries
 from memspine.services.graph.base import GraphStore
 from memspine.services.graph.sqlite_adjacency import SQLiteAdjacencyGraph
 from memspine.services.lexical.base import LexicalStore, rrf_fuse
@@ -858,7 +858,7 @@ class Engine:
             # (REST already guards ``ge=1``).
             raise ValueError(f"top_k must be >= 1, got {top_k}")
         ns = validate_namespace(namespace)
-        [query_vector] = await self._embedder.embed([query])
+        [query_vector] = await embed_queries(self._embedder, [query])
         use_hybrid = self._config().read.hybrid and self._lexical is not None
         # Hybrid recall (E8/D-25): fetch a wider candidate window per leg so a
         # record ranked just outside a single leg's top_k, but strong when the two
@@ -1974,7 +1974,7 @@ class Engine:
         grants = await shared.grants_to(ns)
         if not grants:
             return results
-        [query_vector] = await self._embedder.embed([query])
+        [query_vector] = await embed_queries(self._embedder, [query])
         integrity = self._integrity()
         for grantor in sorted(grants):
             # SF-7/ADR-018: one grantor's broken vector index must not sink the
@@ -2541,6 +2541,9 @@ class Engine:
                 api_base=config.embedding.api_base,
                 api_key=config.embedding.api_key,
                 aws_region=config.embedding.aws_region,
+                request_dimensions=config.embedding.request_dimensions,
+                query_input_type=config.embedding.query_input_type,
+                document_input_type=config.embedding.document_input_type,
             )
         raise ConfigError(
             f"unknown embedding.provider {config.embedding.provider!r} "

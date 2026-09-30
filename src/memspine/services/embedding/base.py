@@ -47,3 +47,14 @@ class EmbeddingService(Protocol):
         ...
 
     async def embed(self, texts: list[str]) -> list[list[float]]: ...
+
+
+async def embed_queries(embedder: EmbeddingService, texts: list[str]) -> list[list[float]]:
+    """Embed retrieval QUERIES. Asymmetric models (e.g. Cohere v4 ``search_query``
+    vs ``search_document``) expose ``embed_queries``; everyone else embeds queries
+    exactly like documents, so this is a no-op for symmetric embedders."""
+    method = getattr(embedder, "embed_queries", None)
+    if method is None:
+        return await embedder.embed(texts)
+    vectors: list[list[float]] = await method(texts)
+    return vectors

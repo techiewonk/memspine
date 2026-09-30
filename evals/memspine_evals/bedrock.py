@@ -45,10 +45,12 @@ __all__ = [
 #: LiteLLM model ids, verified on-demand in us-east-1 on 2026-09-30.
 QWEN3_32B = "bedrock/converse/qwen.qwen3-32b-v1:0"
 QWEN3_NEXT_80B = "bedrock/converse/qwen.qwen3-next-80b-a3b"
-#: Default embedder. 1536 is Cohere v4's default and maximum output dimension on
-#: Bedrock (256/512/1024/1536 are valid; other values are rejected).
+#: Default embedder: Cohere v4 requested at 1024 dims (Matryoshka; 256/512/1024/1536
+#: are valid, 1536 is the model default). On a 62-question paraphrase test (results/
+#: cohere_dim_test.json) 1024 matched 1536 within noise at 2/3 the storage, and it is
+#: the same size as Titan v2, so the two are swappable without resizing a store.
 COHERE_EMBED_V4 = "bedrock/cohere.embed-v4:0"
-COHERE_EMBED_V4_DIM = 1536
+COHERE_EMBED_V4_DIM = 1024
 TITAN_V2 = "bedrock/amazon.titan-embed-text-v2:0"
 TITAN_V2_DIM = 1024
 
@@ -107,13 +109,19 @@ def bedrock_engine_config(
     embedder on an existing store needs a rebuild: vectors of different models
     (and dimensions) are not comparable.
     """
+    embedding: dict[str, Any] = {
+        "provider": "litellm",
+        "model": embed_model,
+        "dim": embed_dim,
+        "aws_region": region,
+        "request_dimensions": True,
+    }
+    if "cohere" in embed_model:
+        # asymmetric retrieval: +5 pp R@1 on the same test vs one input type for both
+        embedding["query_input_type"] = "search_query"
+        embedding["document_input_type"] = "search_document"
     return {
-        "embedding": {
-            "provider": "litellm",
-            "model": embed_model,
-            "dim": embed_dim,
-            "aws_region": region,
-        },
+        "embedding": embedding,
         "llm": {"roles": {role: {"model": llm_model, "aws_region": region} for role in roles}},
     }
 

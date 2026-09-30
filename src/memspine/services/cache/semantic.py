@@ -10,6 +10,7 @@ Keys carry the *identity of the producer*, not just the content:
 from __future__ import annotations
 
 import struct
+from typing import Any
 
 import orjson
 import xxhash
@@ -51,16 +52,27 @@ class CachedEmbedding:
     def manifest(self) -> EmbedderManifest:
         return self._inner.manifest  # caching changes nothing the E4 seam reads
 
-    def _key(self, text: str) -> str:
-        return f"emb:{self._inner.embedder_id}:{xxhash.xxh64_hexdigest(text.encode())}"
+    def _key(self, text: str, prefix: str = "emb") -> str:
+        return f"{prefix}:{self._inner.embedder_id}:{xxhash.xxh64_hexdigest(text.encode())}"
+
+    async def embed_queries(self, texts: list[str]) -> list[list[float]]:
+        """Query path for asymmetric embedders; cached under its own keys so a
+        query vector is never served as a document vector (or vice versa)."""
+        inner = getattr(self._inner, "embed_queries", None)
+        if inner is None:
+            return await self.embed(texts)
+        return await self._cached(texts, inner, "embq")
 
     async def embed(self, texts: list[str]) -> list[list[float]]:
+        return await self._cached(texts, self._inner.embed, "emb")
+
+    async def _cached(self, texts: list[str], producer: Any, prefix: str) -> list[list[float]]:
         vectors: list[list[float] | None] = []
         # Duplicate texts in one batch embed once: positions grouped per key.
         miss_positions: dict[str, list[int]] = {}
         miss_texts: dict[str, str] = {}
         for index, text in enumerate(texts):
-            key = self._key(text)
+            key = self._key(text, prefix)
             if key in miss_positions:
                 self.hits += 1  # same-batch duplicate: served by the first miss
                 vectors.append(None)
@@ -77,7 +89,7 @@ class CachedEmbedding:
                 miss_texts[key] = text
         if miss_texts:
             keys = list(miss_texts)
-            fresh = await self._inner.embed([miss_texts[key] for key in keys])
+            fresh = await producer([miss_texts[key] for key in keys])
             for key, vector in zip(keys, fresh, strict=True):
                 for position in miss_positions[key]:
                     vectors[position] = vector

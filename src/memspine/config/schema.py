@@ -73,6 +73,14 @@ class EmbeddingConfig(BaseModel):
     api_base: str | None = None
     api_key: str | None = None
     aws_region: str | None = None  # bedrock
+    #: litellm only: ask the model for exactly ``dim`` dimensions (Matryoshka
+    #: models: Cohere embed-v4 256/512/1024/1536, Titan v2, OpenAI v3). Off =
+    #: the model's default size, which must then equal ``dim``.
+    request_dimensions: bool = False
+    #: litellm only: asymmetric retrieval models (Cohere: ``search_query`` /
+    #: ``search_document``). None = the provider default for both.
+    query_input_type: str | None = None
+    document_input_type: str | None = None
 
 
 class VectorConfig(BaseModel):

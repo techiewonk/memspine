@@ -76,11 +76,15 @@ def test_engine_config_defaults_to_cohere_v4_and_qwen3() -> None:
         "model": COHERE_EMBED_V4,
         "dim": COHERE_EMBED_V4_DIM,
         "aws_region": "us-east-1",
+        "request_dimensions": True,
+        "query_input_type": "search_query",
+        "document_input_type": "search_document",
     }
-    assert COHERE_EMBED_V4_DIM == 1536
+    assert COHERE_EMBED_V4_DIM == 1024
     assert all(role["model"] == QWEN3_32B for role in cfg["llm"]["roles"].values())
 
 
 def test_engine_config_can_select_titan() -> None:
     cfg = bedrock_engine_config("us-east-1", embed_model=TITAN_V2, embed_dim=TITAN_V2_DIM)
     assert cfg["embedding"]["model"] == TITAN_V2 and cfg["embedding"]["dim"] == 1024
+    assert "query_input_type" not in cfg["embedding"]  # Titan is symmetric

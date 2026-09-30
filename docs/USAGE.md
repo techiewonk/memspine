@@ -412,6 +412,9 @@ in the schema — or if the schema gains a key not documented here.
 | `embedding.api_base` | `null` | Endpoint override (litellm). |
 | `embedding.api_key` | `null` | API key (litellm; secrets-resolved). |
 | `embedding.aws_region` | `null` | Bedrock region (litellm). |
+| `embedding.request_dimensions` | `false` | litellm only: request exactly `dim` dimensions (Matryoshka models: Cohere embed-v4 256/512/1024/1536, Titan v2, OpenAI v3). |
+| `embedding.query_input_type` | `null` | litellm only: input type for retrieval queries (Cohere: `search_query`). |
+| `embedding.document_input_type` | `null` | litellm only: input type for stored content (Cohere: `search_document`). |
 | `vector.backend` | `lance` | `lance` is the sole store (ADR-021); `weaviate` reserved (raises). |
 | `vector.quantization` | `auto` | `auto` (manifest-driven) \| `none` \| `int8` \| `binary` — E4 native rescore (ADR-020). |
 | `cache.backend` | `memory` | `memory` \| `lmdb` `[lmdb]` \| `redis` `[redis]` \| `valkey` `[valkey]` (D-09). |
