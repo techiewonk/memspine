@@ -144,3 +144,14 @@ instrumenting the engine's structlog events.
 `synthetic-smoke` exists to prove the harness, not a system. Its `DatasetInfo.notes` says
 *"never quote as a system result"*, and nothing it produces belongs in a score matrix that anyone
 reads.
+
+## Bedrock backends (Qwen3 + Cohere Embed v4)
+
+`memspine_evals.bedrock` runs readers, judges and multi-agent LLM agents on AWS Bedrock through LiteLLM.
+
+- **Credentials:** `load_aws_credentials(".env")` exports **only** `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN` and the region (`AWS_MODEL_REGION`). Nothing else in `.env` is loaded. Pass `dotenv_path=None` to `Engine` so the rest of the file never enters config layering.
+- **Models** (verified on-demand in us-east-1, 2026-09-30): `QWEN3_32B` = `bedrock/converse/qwen.qwen3-32b-v1:0`, `QWEN3_NEXT_80B`, and `COHERE_EMBED_V4` = `bedrock/cohere.embed-v4:0` (1536-d, the default; 256/512/1024/1536 valid), and `TITAN_V2` = `bedrock/amazon.titan-embed-text-v2:0` (1024-d, optional).
+- **Engine:** `Engine(..., dotenv_path=None, **bedrock_engine_config(region))` gives Cohere v4 embeddings and Qwen3 for the `extract`/`judge`/`chat` roles.
+- **Cost control:** every LLM call goes through `CallBudget(max_calls=N)`, which raises *before* the call. Token counts are always recorded; dollars only if you pass a price table from the AWS pricing page (none are hard-coded).
+- **Needs** the `[aws]` extra (`uv sync --extra aws`) for boto3. LiteLLM is core.
+- **Smoke test:** `uv run --no-sync python evals/bedrock_smoke.py` (1 Qwen3 call plus a few Cohere embeds).
