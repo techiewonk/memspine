@@ -70,6 +70,11 @@ class C01Config:
     include_memspine: bool = False
     max_items: int | None = None
     max_model_calls: int | None = None
+    #: D23 "Qwen3 protocol": reader AND judge are Bedrock Qwen3 via LiteLLM,
+    #: sharing one CallBudget capped at ``max_model_calls``.
+    bedrock: bool = False
+    #: Engine overrides for the memspine arm (e.g. Cohere embed-v4 at 1024-d).
+    memspine_config: dict[str, Any] | None = None
 
 
 def _retriever(config: C01Config) -> Any:
@@ -104,7 +109,7 @@ def build_systems(config: C01Config) -> list[SystemAdapter]:
     if config.include_memspine:
         from .systems.memspine_system import MemspineSystem
 
-        systems.append(MemspineSystem())
+        systems.append(MemspineSystem(config=config.memspine_config))
     return systems
 
 
@@ -114,6 +119,19 @@ def build_reader_and_judge(config: C01Config) -> tuple[Reader, Judge, bool]:
         # No generation: "was the answer retrievable at all". This is what R@k
         # and MemPalace's 96.6 measure, and it costs nothing to run.
         return ContextOnlyReader(), ContainsJudge(), False
+    if config.bedrock:
+        from .bedrock import QWEN3_32B, CallBudget, LiteLLMReader, litellm_chat
+
+        if config.max_model_calls is None:
+            raise ValueError("bedrock qa needs max_model_calls (the D23 budget cap)")
+        budget = CallBudget(
+            max_calls=config.max_model_calls, prices_per_mtok={QWEN3_32B: (0.16, 0.62)}
+        )
+        bedrock_reader = LiteLLMReader(budget, model=QWEN3_32B, temperature=0.0, max_tokens=256)
+        bedrock_judge = LLMJudge(
+            litellm_chat(budget, model=QWEN3_32B), model=QWEN3_32B, scale=JudgeScale.BINARY
+        )
+        return bedrock_reader, bedrock_judge, True
     reader = OpenAICompatReader(model=config.reader_model, base_url=config.base_url)
     judge = LLMJudge(
         openai_compat_chat(config.judge_model, base_url=config.base_url),

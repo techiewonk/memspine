@@ -73,7 +73,14 @@ def cmd_c0_1(args: argparse.Namespace) -> int:
         include_memspine=args.with_memspine,
         max_items=args.items,
         max_model_calls=args.max_model_calls,
+        bedrock=args.bedrock,
+        memspine_config=json.loads(args.memspine_config) if args.memspine_config else None,
     )
+    if config.bedrock:
+        from .bedrock import load_aws_credentials
+
+        # AWS keys + region ONLY; nothing else in the repo .env is read.
+        load_aws_credentials(Path(__file__).resolve().parents[2] / ".env")
     if config.mode == "qa" and args.max_model_calls is None:
         raise SystemExit(
             "qa mode calls models — pass --max-model-calls with a cap you have agreed to. "
@@ -161,6 +168,12 @@ def build_parser() -> argparse.ArgumentParser:
     c01.add_argument("--judge-model", default=None)
     c01.add_argument("--base-url", default="http://localhost:11434/v1")
     c01.add_argument("--max-model-calls", type=int, default=None)
+    c01.add_argument(
+        "--bedrock", action="store_true", help="D23 Qwen3 protocol: Bedrock Qwen3 reader + judge"
+    )
+    c01.add_argument(
+        "--memspine-config", default=None, help="JSON engine overrides for the memspine arm"
+    )
     c01.add_argument("--run-id", default=None)
     c01.add_argument("--out", default=str(DEFAULT_OUT))
     c01.add_argument("--score-matrix", default=None, help="append rows to this CSV")

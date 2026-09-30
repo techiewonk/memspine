@@ -97,6 +97,9 @@ class MemspineSystem:
             ) from exc
         self._version = getattr(memspine, "__version__", "unknown")
         overrides: dict[str, Any] = {"storage": {"path": ":memory:"}, **self.config}
+        # Never load a .env: the harness passes only what a run needs (a repo .env
+        # can hold unrelated secrets, and a benchmark must not depend on it).
+        overrides.setdefault("dotenv_path", None)
         engine = Engine(template=self.template, **overrides)
         await engine.start()
         return engine
