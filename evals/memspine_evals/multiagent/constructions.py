@@ -230,6 +230,14 @@ def grant_edges(topology: str, n: int) -> list[tuple[int, int]]:
         return [pair for leaf in range(n - 1) for pair in ((leaf, hub), (hub, leaf))]
     if topology == "fc":
         return [(j, i) for j in range(n) for i in range(n) if i != j]
+    if topology == "tree":
+        # Balanced binary tree, grants both ways along each edge. Heap node k is
+        # agent n-1-k, so the origin (agent 0) is the deepest leaf (as in star).
+        def agent(k: int) -> int:
+            return n - 1 - k
+
+        pairs = [(agent((k - 1) // 2), agent(k)) for k in range(1, n)]
+        return [e for a, b in pairs for e in ((a, b), (b, a))]
     raise ValueError(f"unknown topology {topology!r}")
 
 
