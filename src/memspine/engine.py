@@ -139,6 +139,20 @@ from memspine.workers.scheduler import SleepScheduler
 __all__ = ["Engine"]
 
 
+#: H21: markers memspine itself writes into assembled context. A message carrying them is
+#: recalled memory echoed back, not a new observation.
+_RECALL_MARKERS = (
+    "[UNTRUSTED NOTE, trust",
+    "CURRENT (since ",
+    "HISTORY (superseded):",
+    "[DISPUTED:",
+)
+
+
+def _looks_like_recall(content: str) -> bool:
+    return any(marker in content for marker in _RECALL_MARKERS)
+
+
 def _parse_event_time(value: object) -> datetime | None:
     """ISO-8601 string or datetime -> aware datetime; None when absent/unparseable."""
     if value is None:
@@ -1109,6 +1123,7 @@ class Engine:
         otherwise "now". This is what lets "when did X happen" be answered from
         the session date rather than from the ingestion time."""
         records: list[MemoryRecord] = []
+        fw = self._config().firewall
         for i, turn in enumerate(messages):
             try:
                 role = turn["role"]
@@ -1117,6 +1132,14 @@ class Engine:
                 raise ValueError(
                     f"messages[{i}] must be a mapping with 'role' and 'content' keys"
                 ) from exc
+            if role in fw.skip_message_roles:
+                continue  # H21: system/tool text is not memory
+            if fw.skip_injected_recall and _looks_like_recall(content):
+                _log.info("memory.skip_injected_recall", namespace=namespace)
+                continue  # H21: recalled memory echoed back is not new evidence
+            turn_tags = list(tags or [])
+            if fw.tag_assistant_claims and role == "assistant":
+                turn_tags.append("assistant_claim")
             stamp = _parse_event_time(turn.get("timestamp")) or valid_from
             record = await self.write(
                 content,
@@ -1125,7 +1148,7 @@ class Engine:
                 source=SourceInfo(role=role, channel=channel, message_id=session_id),
                 actor=actor,
                 group_id=group_id,
-                tags=tags,
+                tags=turn_tags or None,
                 valid_from=stamp,
             )
             records.append(record)

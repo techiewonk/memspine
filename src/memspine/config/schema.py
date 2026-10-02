@@ -355,6 +355,14 @@ class FirewallConfig(BaseModel):
     redact_secrets: bool = False
     max_content_chars: int | None = Field(default=None, ge=1)
     protected_keys: list[str] = Field(default_factory=list)
+    #: H21 (G->D self-contamination): ``write_messages`` never deposits turns whose role
+    #: is listed here (e.g. ``["system", "tool"]``).
+    skip_message_roles: list[str] = Field(default_factory=list)
+    #: H21: never re-deposit a turn that carries memspine's own assembly markers
+    #: (recalled memory echoed back into the conversation).
+    skip_injected_recall: bool = False
+    #: H21: tag assistant turns ``assistant_claim``: a proposal, not an observed fact.
+    tag_assistant_claims: bool = False
 
 
 class IntegrityConfig(BaseModel):
