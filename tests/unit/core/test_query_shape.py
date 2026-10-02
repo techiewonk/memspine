@@ -38,3 +38,23 @@ def test_core_terms_drops_function_words() -> None:
     assert core_terms("How many times has Melanie gone to the beach in 2023?") == (
         "times Melanie gone beach 2023"
     )
+
+
+@pytest.mark.parametrize(
+    "q",
+    [
+        "When did Caroline first go hiking?",
+        "What is the latest book Melanie read?",
+        "What did John do most recently?",
+    ],
+)
+def test_ordering_questions(q: str) -> None:
+    from memspine.core.query_shape import is_ordering
+
+    assert is_ordering(q)
+
+
+def test_non_ordering_question() -> None:
+    from memspine.core.query_shape import is_ordering
+
+    assert not is_ordering("Where does Caroline live?")

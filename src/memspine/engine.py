@@ -46,7 +46,7 @@ from memspine.core.policies.retention import RetentionPolicy
 from memspine.core.policies.scoring import ScoringPolicy
 from memspine.core.policies.trust import TrustPolicy
 from memspine.core.projector import Projector
-from memspine.core.query_shape import core_terms, is_aggregation
+from memspine.core.query_shape import core_terms, is_aggregation, is_ordering
 from memspine.core.records import (
     ArchivedVersion,
     MemoryRecord,
@@ -1580,9 +1580,23 @@ class Engine:
             ]
         # E5 (D-51): the compression policy's own master switch decides whether
         # the fit stage runs; with the default options this is a no-op.
-        return self._assembly.assemble(
+        assembled = self._assembly.assemble(
             scored, budget_tokens=budget_tokens, compression=self._assembly_compression
         )
+        read_cfg = self._config().read
+        if read_cfg.order_by_time_for_ordering and is_ordering(query):
+            stable = assembled.records[: assembled.boundary_index]
+            volatile = sorted(
+                assembled.records[assembled.boundary_index :],
+                key=lambda r: (r.valid_from, r.record_id),
+            )
+            assembled.records = [*stable, *volatile]
+        if read_cfg.render == "dated":
+            assembled.records = [
+                *assembled.records[: assembled.boundary_index],
+                *(self._render_dated(r) for r in assembled.records[assembled.boundary_index :]),
+            ]
+        return assembled
 
     async def read(
         self,
@@ -1731,6 +1745,15 @@ class Engine:
             return False
         integrity = self._integrity()
         return not integrity.enabled or integrity.admits(record.trust)
+
+    @staticmethod
+    def _render_dated(record: MemoryRecord) -> MemoryRecord:
+        """H5: ``[YYYY-MM-DD Day] content`` for episodic and semantic records."""
+        if record.memory_type not in ("episodic", "semantic"):
+            return record
+        return record.model_copy(
+            update={"content": f"[{record.valid_from:%Y-%m-%d %a}] {record.content}"}
+        )
 
     def _annotate_dates(self, record: MemoryRecord) -> MemoryRecord:
         """H1: ``[= absolute date]`` after each relative-time phrase (projection only)."""

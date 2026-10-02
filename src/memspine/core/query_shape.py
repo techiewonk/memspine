@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import re
 
-__all__ = ["core_terms", "is_aggregation"]
+__all__ = ["core_terms", "is_aggregation", "is_ordering"]
 
 _AGGREGATE = re.compile(
     r"\bhow (?:many|often|much)\b"
@@ -90,6 +90,18 @@ _STOP = frozenset(
     ]
 )
 _WORD = re.compile(r"[A-Za-z0-9']+")
+
+
+_ORDERING = re.compile(
+    r"\b(?:first|last time|latest|most recent(?:ly)?|earliest|recently|in what order|"
+    r"before or after|which came first|start(?:ed)? (?:to|doing)|since when)\b",
+    re.I,
+)
+
+
+def is_ordering(query: str) -> bool:
+    """True when the answer depends on temporal order (H16: show evidence in time order)."""
+    return bool(_ORDERING.search(query))
 
 
 def is_aggregation(query: str) -> bool:

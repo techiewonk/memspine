@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -276,6 +276,12 @@ class ReadConfig(BaseModel):
     #: top-10 filled ~400 of 4,096 tokens). 1 = unchanged. Pair with
     #: ``assembly.relative_floor`` to keep precision.
     candidate_pool: int = Field(default=1, ge=1, le=10)
+    #: H16: for ordering questions ("first", "latest", "most recent", ...) present
+    #: the assembled volatile records in event-time order instead of score order.
+    order_by_time_for_ordering: bool = False
+    #: H5: ``dated`` prefixes each episodic/semantic record with its event date,
+    #: ``[2023-05-08 Mon]``, after the stable prefix. ``plain`` = unchanged.
+    render: Literal["plain", "dated"] = "plain"
     cue_min_trust: float = 0.5
 
 

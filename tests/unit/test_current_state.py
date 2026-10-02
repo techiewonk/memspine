@@ -185,3 +185,22 @@ async def test_candidate_pool_and_relative_floor() -> None:
     assert counts["default"] == 2
     assert counts["pool"] == 8
     assert counts["pool+floor"] < counts["pool"]
+
+
+async def test_dated_render_and_time_order_for_ordering_questions() -> None:
+    eng = _engine(read={"hybrid": False, "render": "dated", "order_by_time_for_ordering": True})
+    await eng.start()
+    try:
+        for day in (20, 3, 11):
+            await eng.write(
+                f"Melanie read a new book on day {day}",
+                namespace="a",
+                memory_type="episodic",
+                valid_from=datetime(2023, 5, day, tzinfo=UTC),
+            )
+        ctx = await eng.assemble("What is the latest book Melanie read?", namespace="a")
+        lines = [r.content for r in ctx.records]
+        assert lines == sorted(lines)  # dated prefixes sort by date
+        assert lines[0].startswith("[2023-05-03 Wed] ")
+    finally:
+        await eng.stop()
