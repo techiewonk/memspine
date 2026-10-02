@@ -9,16 +9,23 @@ ReMe, powermem, EverMemOS, hindsight, honcho, telemem, langmem).
 
 ## N1 — Memory Firewall: first-class memory-poisoning defense (E1)
 
-**Claim.** First open-source memory engine with an integrated, write-path
-poisoning defense: trust scoring at write (source class × channel, retrieved
-content capped), a quarantine tier excluded from consolidation/promotion until
-corroborated, write-path anomaly detection (embedding-outlier + MINJA
-heuristics), instruction-shaped-content flagging, and blast-radius `audit taint`.
+**Claim (narrowed 2 Oct 2026, review R4-7).** No open-source memory engine
+ships a poisoning defense with a proved cross-agent reach bound; Hindsight,
+Mastra and MemOS filter PII/secrets at write; research defenses (MemLineage,
+MP-IFC) lack a horizon. memspine's write-path poisoning defense: trust scoring
+at write (source class × channel, retrieved content capped), a quarantine tier
+excluded from consolidation/promotion until corroborated, write-path anomaly
+detection (embedding-outlier + MINJA heuristics), instruction-shaped-content
+flagging, blast-radius `audit taint`, and the opt-in trust-horizon invariant
+(`integrity.*`), which bounds cross-agent reach under complete mediation.
 
 **Evidence gap in the field.** OWASP ASI06 / LLM08 name the attack class; MINJA
 (~98% injection success), AgentPoison (<0.1% poisoned entries → >80% attack
-success), MemoryGraft (10 seeds → 48%) demonstrate it; **no surveyed framework
-ships any defense** (Mem0/Letta/Zep/Cognee/MIRIX audit, plan §E1).
+success), MemoryGraft (10 seeds → 48%) demonstrate it. Peer engines now filter
+PII/secrets at write (Hindsight's "Memory Defense", Mastra, MemOS), but none
+bounds how far poisoned content travels; the earlier "no surveyed framework
+ships any defense" (Mem0/Letta/Zep/Cognee/MIRIX audit, plan §E1) is superseded.
+Corpus: 26 engines staged in `docs/survey/_staging/`.
 
 **In code.** Phase-0 DDL already carries `trust`/`quarantined`/`instruction_flag`
 (`core/records.py`, migration 0001); contract in `core/policies/trust.py`; full
@@ -110,7 +117,7 @@ deepeval live in `evals/`, outside the wheel (D-35).
 
 | # | Contribution | Substrate in code today | Full mechanism |
 |---|---|---|---|
-| N1 | Memory Firewall | **P4 COMPLETE (headline live)**: deterministic write-path gate — (role×channel) trust matrix with external cap, instruction-shape flag (inert), embedding-outlier + MINJA-bridge anomaly, quarantine tier excluded from search/assemble/conflict, corroboration promotion, `audit taint` blast-radius from the log, M7 hard-delete with event-payload redaction + `forget --verify`. No LLM in the defense (uninjectable). | evals harness |
+| N1 | Memory Firewall | **P4 COMPLETE (headline live)**: deterministic write-path gate — (role×channel) trust matrix with external cap, instruction-shape flag (inert), embedding-outlier + MINJA-bridge anomaly, quarantine tier excluded from search/assemble/conflict, corroboration promotion, `audit taint` blast-radius from the log, M7 hard-delete with event-payload redaction + `forget --verify`. No LLM in the defense (uninjectable). Trust-horizon invariant opt-in (`integrity.*`); the reported LLM-study numbers use declared parents with harness-side admission, and enforcement-on reruns are queued. Engine: 920 tests (+106 harness tests); 30 ADRs, plus ADR-031 proposed | evals harness |
 | N2 | Retention-mode spectrum | **P0 complete + tested; P3: prune scheduled in the sleep cycle** | ✔ complete |
 | N3 | Combination calculus | P0 (registry + closure + golden tests) | matrix P1–P7 |
 | N4 | Universal record | **P0 complete; M4/M5 consumers live in P2; M3/M6 consumers live in P3** (decay tier + cold-tier `content_zstd` on the same row — rebuild-identity holds across compression) | firewall consumer P4 |
