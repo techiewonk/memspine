@@ -21,7 +21,7 @@ from collections.abc import Coroutine, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Self, TypeVar, cast
+from typing import Any, ClassVar, Self, TypeVar, cast
 
 from memspine.clients.cashews import CashewsClient
 from memspine.clients.kuzu import KuzuClient
@@ -1725,6 +1725,8 @@ class Engine:
                 return ReadResult("full", AssembledContext(records=live, tokens_used=cost))
             if mode == "full":
                 mode = "retrieve"
+        if mode == "auto" and self._config().read.planner == "decision":
+            mode = await self._plan_read_mode(query) or mode
         if mode == "compose" or (mode == "auto" and is_aggregation(query)):
             return await self._compose(query, ns, budget_tokens, top_k, compose_pool)
         base = await self.assemble(query, namespace=ns, budget_tokens=budget_tokens, top_k=top_k)
@@ -3445,6 +3447,35 @@ class Engine:
         raise ConfigError(
             f"unknown workers.runner {config.workers.runner!r} (valid: inline, dbos, taskiq)"
         )
+
+    _READ_MODES: ClassVar[dict[str, str]] = {
+        "compose": "the question asks for a count, a list, or several things over time",
+        "replay": "the question needs exact wording or what was said around an event",
+        "retrieve": "the question asks for one specific fact",
+    }
+
+    def _decision_provider(self) -> Any:
+        """H24: the configured decision provider, built lazily; None when off."""
+        cfg = self._config().decision
+        if cfg.provider == "off":
+            return None
+        if getattr(self, "_decision", None) is None:
+            from memspine.services.decision.gliner2_decision import GLiNER2Decision
+
+            self._decision = GLiNER2Decision(cfg.model)
+        return self._decision
+
+    async def _plan_read_mode(self, query: str) -> str | None:
+        """H24: the decision provider's read mode, or None (rules) on any failure."""
+        provider = self._decision_provider()
+        if provider is None:
+            return None
+        try:
+            label, _ = await provider.choose(query, self._READ_MODES)
+        except Exception as exc:  # an enhancer, never a gate
+            _log.warning("read.planner_failed", error=str(exc))
+            return None
+        return label if label in self._READ_MODES else None
 
     async def _query_rewrite_probes(self, query: str) -> list[str]:
         """P4 (JustMem COMPOSE): up to two answer-free rewrites from the ``query_rewrite``

@@ -289,6 +289,10 @@ class ReadConfig(BaseModel):
     #: P4 (JustMem COMPOSE): the compose read adds up to two answer-free rewrites
     #: from the ``query_rewrite`` LLM role (``@compose`` prompt). Needs the role bound.
     compose_rewrites: bool = False
+    #: H24: how ``read(mode="auto")`` picks a mode once full context does not fit:
+    #: ``rules`` (deterministic cues) or ``decision`` (the decision provider chooses
+    #: among compose / replay / retrieve; rules on any failure).
+    planner: Literal["rules", "decision"] = "rules"
     relevance_safety_net: int = Field(default=10, ge=0)
     #: C8': resolve search hits on anticipatory cues (``Engine.add_cues``) to
     #: their target records. A cue below ``cue_min_trust`` is ignored, so cues
@@ -467,6 +471,16 @@ class IntegrityConfig(BaseModel):
         return value
 
 
+class DecisionConfig(BaseModel):
+    """H24: the optional decision provider (calibrated choice among described options,
+    no generation). ``off`` = none; ``gliner2`` uses the ``[ner]`` extra."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    provider: Literal["off", "gliner2"] = "off"
+    model: str = "fastino/gliner2.5-base-v1"
+
+
 class MemspineConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -480,6 +494,7 @@ class MemspineConfig(BaseModel):
     graph: GraphConfig = Field(default_factory=GraphConfig)
     llm: LLMConfig = Field(default_factory=LLMConfig)
     read: ReadConfig = Field(default_factory=ReadConfig)
+    decision: DecisionConfig = Field(default_factory=DecisionConfig)
     integrity: IntegrityConfig = Field(default_factory=IntegrityConfig)
     firewall: FirewallConfig = Field(default_factory=FirewallConfig)
     workers: WorkersConfig = Field(default_factory=WorkersConfig)

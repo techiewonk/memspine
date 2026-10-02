@@ -5,6 +5,7 @@ All notable changes to memspine are documented here. Format: [Keep a Changelog](
 ## [Unreleased]
 
 ### Added — integrity enforcement and read path (v0.3 research track; all opt-in, `profile="simple"` unchanged)
+- **Decision port (H24):** `services/decision` (`DecisionProvider.choose(text, options)` returns label and confidence) with a GLiNER2 adapter behind the `[ner]` extra (`decision.provider: gliner2`, `decision.model`). Its first consumer is `read.planner: decision`, which lets the provider route `read(mode="auto")` to compose, replay or retrieve; any provider failure falls back to the rules.
 - **Enforced provenance (B0):** `integrity.implicit_parents: turn|session` records what a session reads (`search`/`shared_search(..., session_id=)`) and uses it as the parents of that session's next writes. Omitting `derived_from` can no longer launder trust. `end_session()` clears the ledger.
 - **Live re-evaluation (B4′):** `integrity.live_reevaluation` re-checks each candidate against its current parents at read time. Quarantining, rolling back or revoking an ancestor propagates to its descendants.
 - **Untrusted-note wrapper (B6):** `integrity.untrusted_wrap_below` renders low-trust records in assembly as labelled data, not instructions.
