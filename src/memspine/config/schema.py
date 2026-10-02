@@ -269,6 +269,9 @@ class ReadConfig(BaseModel):
     #: most when few of many candidates are kept, and can hurt abstention when
     #: many are). None = always rerank when a reranker is configured.
     rerank_max_top_k: int | None = Field(default=None, ge=1)
+    #: H15: replay windows stay inside the hit's topic segment (lexical-cohesion
+    #: boundaries within a session), so neighbours from another topic are not replayed.
+    replay_topic_segments: bool = False
     #: C8': resolve search hits on anticipatory cues (``Engine.add_cues``) to
     #: their target records. A cue below ``cue_min_trust`` is ignored, so cues
     #: from low-trust sources cannot redirect retrieval. Off: cues are invisible.

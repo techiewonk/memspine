@@ -71,7 +71,7 @@ from memspine.exceptions import (
 from memspine.memories.associative.evolution import propose_links
 from memspine.memories.associative.projector import GraphProjector
 from memspine.memories.associative.store import AssociativeMemory
-from memspine.memories.episodic.sessions import Session
+from memspine.memories.episodic.sessions import Session, topic_segments
 from memspine.memories.episodic.store import EpisodicMemory
 from memspine.memories.procedural.prompt_registry import prompt_version_records
 from memspine.memories.procedural.skills import (
@@ -1700,12 +1700,25 @@ class Engine:
             return ReadResult("retrieve", base)
         sessions = await self._episodic.sessions(ns, constants.SESSION_GAP_MINUTES)
         where = {rid: s for s in sessions for rid in s.record_ids}
+        segment_of: dict[str, list[str]] = {}
+        if self._config().read.replay_topic_segments:
+            # H15: restrict each replay window to the hit's topic segment.
+            for sess in sessions:
+                members = [
+                    r for r in [await storage.get_record(i) for i in sess.record_ids] if r
+                ]
+                for segment in topic_segments(members):
+                    ids_in = [r.record_id for r in segment]
+                    for rid in ids_in:
+                        segment_of[rid] = ids_in
         chosen: list[MemoryRecord] = [r for r in base.records if r.memory_type != "episodic"]
         seen = {r.record_id for r in chosen}
         used = sum(len(r.content) // 4 + 1 for r in chosen)
         for hit in episodic_hits:
             session = where.get(hit.record_id)
-            ids = session.record_ids if session else [hit.record_id]
+            ids = segment_of.get(hit.record_id) or (
+                session.record_ids if session else [hit.record_id]
+            )
             at = ids.index(hit.record_id) if hit.record_id in ids else 0
             window = ids[max(0, at - replay_window) : at + replay_window + 1]
             for rid in window:

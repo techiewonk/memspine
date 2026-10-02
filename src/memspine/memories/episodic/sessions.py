@@ -9,6 +9,7 @@ member, which stays stable as later records extend the session's tail.
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from itertools import pairwise
 
 from pydantic import BaseModel
 
@@ -16,7 +17,11 @@ from memspine.core.events import fingerprint_payload
 from memspine.core.records import MemoryRecord
 from memspine.memories.episodic.timeops import sort_timeline
 
-__all__ = ["Session", "detect_sessions"]
+__all__ = [
+    "Session",
+    "detect_sessions",
+    "topic_segments",
+]
 
 
 class Session(BaseModel):
@@ -50,6 +55,41 @@ def detect_sessions(records: list[MemoryRecord], gap: timedelta) -> list[Session
     if current:
         sessions.append(_build(current))
     return sessions
+
+
+def _words(record: MemoryRecord) -> set[str]:
+    return {w for w in record.content.lower().split() if len(w) > 3}
+
+
+def topic_segments(
+    records: list[MemoryRecord], window: int = 3, threshold: float = 0.08, min_len: int = 4
+) -> list[list[MemoryRecord]]:
+    """H15: split one session at topic shifts (TextTiling-style lexical cohesion).
+
+    At each gap between turns, cohesion is the Jaccard overlap between the words of the
+    ``window`` turns before and after it. A gap becomes a boundary when its cohesion is a
+    local minimum below ``threshold`` and both sides keep at least ``min_len`` turns.
+    Deterministic; no model and no embeddings.
+    """
+    turns = sort_timeline(records)
+    if len(turns) < 2 * min_len:
+        return [turns]
+    cohesion: list[float] = []
+    for gap in range(1, len(turns)):
+        left: set[str] = set().union(*(_words(r) for r in turns[max(0, gap - window) : gap]))
+        right: set[str] = set().union(*(_words(r) for r in turns[gap : gap + window]))
+        cohesion.append(len(left & right) / (len(left | right) or 1))
+    cuts: list[int] = []
+    for i, value in enumerate(cohesion):
+        gap = i + 1
+        lower = cohesion[i - 1] if i > 0 else 1.0
+        upper = cohesion[i + 1] if i + 1 < len(cohesion) else 1.0
+        if value < threshold and value <= lower and value <= upper:
+            start = cuts[-1] if cuts else 0
+            if gap - start >= min_len and len(turns) - gap >= min_len:
+                cuts.append(gap)
+    bounds = [0, *cuts, len(turns)]
+    return [turns[a:b] for a, b in pairwise(bounds)]
 
 
 def _build(members: list[MemoryRecord]) -> Session:
