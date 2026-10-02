@@ -52,6 +52,13 @@ class AssemblyOptions(PolicyOptions):
     #: MMR fills the budget (precision over recall: distractors cost more than a
     #: missing marginal record). 0.0 = off, byte-identical.
     relative_floor: float = 0.0
+    #: H19 (Mem++): guarantee up to this many of the most recent (by event time)
+    #: candidates a place in the selection, so "latest" evidence is never crowded
+    #: out by older, higher-scoring matches. 0 = off.
+    latest_slots: int = 0
+    #: H23 (Mnemon): drop a candidate whose word set overlaps an already selected
+    #: one at or above this Jaccard ratio (near-duplicates waste budget). 1.0 = off.
+    dedupe_jaccard: float = 1.0
 
 
 @dataclass
@@ -108,6 +115,15 @@ class AssemblyPolicy(BindablePolicy):
         remaining = sorted(scored, key=lambda pair: pair[1], reverse=True)
         selected: list[tuple[MemoryRecord, float]] = []
         tokens_used = 0
+        if options.latest_slots > 0:
+            newest = sorted(remaining, key=lambda pair: pair[0].valid_from, reverse=True)
+            for pair in newest[: options.latest_slots]:
+                cost = _estimate_tokens(pair[0].content)
+                if selected and tokens_used + cost > budget_tokens:
+                    break
+                remaining.remove(pair)
+                selected.append(pair)
+                tokens_used += cost
         while remaining:
             best_index = -1
             best_value = float("-inf")
@@ -120,6 +136,10 @@ class AssemblyPolicy(BindablePolicy):
                 if value > best_value:
                     best_value, best_index = value, index
             candidate, score = remaining.pop(best_index)
+            if options.dedupe_jaccard < 1.0 and any(
+                _jaccard(candidate, chosen) >= options.dedupe_jaccard for chosen, _ in selected
+            ):
+                continue
             cost = _estimate_tokens(candidate.content)
             # E5 on: admit everything in MMR order — the compression stage
             # fits the selection to the budget afterwards (D-51). Otherwise,
