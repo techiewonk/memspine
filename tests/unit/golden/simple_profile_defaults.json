@@ -1,0 +1,158 @@
+{
+  "config": {
+    "decision": {
+      "model": "fastino/gliner2-base-v1",
+      "provider": "off"
+    },
+    "firewall": {
+      "enabled": true,
+      "max_content_chars": null,
+      "protected_keys": [],
+      "redact_secrets": false,
+      "skip_injected_recall": false,
+      "skip_message_roles": [],
+      "tag_assistant_claims": false
+    },
+    "integrity": {
+      "admission_threshold": 0.0,
+      "attenuation": "product",
+      "derivation_decay": 1.0,
+      "edge_kappa": {},
+      "enabled": false,
+      "implicit_parents": "off",
+      "kappa": 0.5,
+      "live_reevaluation": false,
+      "merge_reinforcement_gate": true,
+      "principal_bound_corroboration": true,
+      "principal_reputation": false,
+      "trust_weighted_ranking": true,
+      "untrusted_wrap_below": 0.0,
+      "verification_bonus": 1.0
+    },
+    "read": {
+      "anticipatory_cues": false,
+      "assembly": {},
+      "candidate_pool": 1,
+      "compose_rewrites": false,
+      "compression": {},
+      "core_terms_leg": false,
+      "cue_min_trust": 0.5,
+      "current_state_view": false,
+      "gap_markers": false,
+      "hybrid": true,
+      "lexical_provider": "tantivy",
+      "metadata_leg": false,
+      "order_by_time_for_ordering": false,
+      "planner": "rules",
+      "record_access": true,
+      "relevance_filter": false,
+      "relevance_safety_net": 10,
+      "render": "plain",
+      "replay_topic_segments": false,
+      "reply_reserve_tokens": 0,
+      "rerank": "off",
+      "rerank_date_prefix": false,
+      "rerank_max_top_k": null,
+      "rerank_model": null,
+      "resolve_relative_dates": false,
+      "rrf_k": null,
+      "scoring": {},
+      "skip_rerank_for_ordering": false,
+      "static_embedding_prefilter": false,
+      "static_prefilter": false,
+      "temporal_leg": false
+    }
+  },
+  "policy_options": {
+    "assembly": {
+      "cache_aware_placement": true,
+      "dedupe_jaccard": 1.0,
+      "latest_slots": 0,
+      "mmr_lambda": 0.7,
+      "relative_floor": 0.0,
+      "theta_abstain": 0.25
+    },
+    "community": {
+      "max_cluster_size": 1000,
+      "min_size": 3,
+      "random_seed": 1,
+      "randomness": 0.001,
+      "resolution": 1.0
+    },
+    "compression": {
+      "assembly": false,
+      "assembly_rate": 0.5,
+      "assembly_stage": [
+        "drop_lowest_score",
+        "llmlingua",
+        "provider_compaction"
+      ],
+      "assembly_target_token": null,
+      "cold_tier_zstd_level": 3,
+      "compress_tiers": [
+        "dormant"
+      ],
+      "llmlingua_device_map": "cpu",
+      "llmlingua_model": "microsoft/llmlingua-2-xlm-roberta-large-meetingbank",
+      "preserve": [],
+      "stage_budgets": {},
+      "use_llmlingua2": true
+    },
+    "conflict": {
+      "bias": "newest",
+      "contest_ties": false,
+      "contest_trust_margin": 0.05,
+      "contest_window_seconds": 0.0,
+      "trust_margin": 0.3
+    },
+    "consolidation": {
+      "anticipate": false,
+      "heat_threshold": 50,
+      "min_session_records": 3,
+      "mine_facts": false,
+      "reflect_profile": false,
+      "session_gap_minutes": 30,
+      "summary_max_chars": 600,
+      "triggers": [
+        "session_end",
+        "sleep_cycle"
+      ]
+    },
+    "decay": {
+      "cold_to_dormant_days": 90,
+      "hot_to_warm_days": 7,
+      "warm_to_cold_days": 30
+    },
+    "dedup": {
+      "cosine_threshold": 0.92,
+      "lsh_threshold": 0.6,
+      "minhash_num_perm": 128
+    },
+    "retention": {
+      "default_class": "standard",
+      "legal_hold_namespaces": []
+    },
+    "scoring": {
+      "importance_weight": 1.0,
+      "mode": "blend",
+      "recency_half_life_days": 7.0,
+      "recency_weight": 1.0,
+      "relevance_weight": 1.0,
+      "tie_break_weight": 0.05,
+      "utility_weight": 0.5
+    },
+    "trust": {
+      "corroborations_to_promote": 2,
+      "default_trust": 0.5,
+      "quarantine_below": 0.25,
+      "retrieved_content_cap": 0.3,
+      "role_trust": {
+        "assistant": 0.5,
+        "operator": 0.9,
+        "system": 0.9,
+        "tool": 0.4,
+        "user": 0.7
+      }
+    }
+  }
+}
