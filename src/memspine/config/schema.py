@@ -478,7 +478,7 @@ class DecisionConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     provider: Literal["off", "gliner2"] = "off"
-    model: str = "fastino/gliner2.5-base-v1"
+    model: str = "fastino/gliner2-base-v1"
 
 
 class MemspineConfig(BaseModel):

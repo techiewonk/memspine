@@ -27,6 +27,9 @@ __all__ = ["EntityExtractor", "GlinerEntityExtractor", "LLMEntityExtractor"]
 
 _log = get_logger(__name__)
 
+# The Hugging Face id of the GLiNER2 base checkpoint (the decision provider uses the same one).
+GLINER2_NER_MODEL = "fastino/gliner2-base-v1"
+
 
 @runtime_checkable
 class EntityExtractor(Protocol):
@@ -78,7 +81,7 @@ class GlinerEntityExtractor:
         except ImportError as exc:
             raise MissingServiceError("ner:gliner2", extra="ner") from exc
         self._labels = list(labels)
-        self._model: Any = GLiNER2.from_pretrained("fastino/gliner2-base")
+        self._model: Any = GLiNER2.from_pretrained(GLINER2_NER_MODEL)
 
     async def extract(self, content: str) -> list[ExtractedFact]:
         def _run() -> Any:

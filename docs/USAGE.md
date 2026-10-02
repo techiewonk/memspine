@@ -446,7 +446,7 @@ in the schema — or if the schema gains a key not documented here.
 | `read.rerank_date_prefix` | `false` | Hindsight: prefix reranker inputs with `[Date: YYYY-MM-DD]`, so the cross-encoder sees when each candidate happened. |
 | `read.skip_rerank_for_ordering` | `false` | Agent Zero: skip the reranker for ordering questions (first / latest / most recent). |
 | `decision.provider` | `off` | H24: optional decision provider for calibrated choices among described options without generation. `gliner2` uses the `[ner]` extra (GLiNER2, Apache-2.0). |
-| `decision.model` | `fastino/gliner2.5-base-v1` | H24: the GLiNER2 checkpoint. |
+| `decision.model` | `fastino/gliner2-base-v1` | H24: the GLiNER2 checkpoint (Hugging Face id; `-large-v1` and `-multi-v1` also exist). |
 | `read.planner` | `rules` | H24: how `read(mode="auto")` picks compose / replay / retrieve once full context does not fit. `rules` = deterministic cues; `decision` = the decision provider chooses (falls back to rules on any failure). |
 | `read.compose_rewrites` | `false` | P4 (JustMem COMPOSE): `read(mode="compose")` adds up to two answer-free query rewrites from the `query_rewrite` LLM role (`@compose` prompt variant). |
 | `read.gap_markers` | `false` | H22 (Mastra): with `render: dated`, prefix records after long silences with `[3 weeks later]`. |

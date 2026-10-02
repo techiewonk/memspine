@@ -1,15 +1,25 @@
-"""H24: decision port, GLiNER2 result parsing, and the read planner (fake provider)."""
+"""H24: decision port, GLiNER2 adapter (fake gliner2 module), and the read planner."""
 
 from __future__ import annotations
 
+import sys
+import threading
+import types
 from collections.abc import Mapping
 from datetime import UTC, datetime
+from typing import Any, ClassVar
 
 import pytest
 
 from memspine import Engine
+from memspine.exceptions import MissingServiceError
 from memspine.services.decision import DecisionProvider
-from memspine.services.decision.gliner2_decision import GLiNER2Decision, parse_choice
+from memspine.services.decision.gliner2_decision import (
+    DEFAULT_MODEL,
+    GLiNER2Decision,
+    gliner2_class,
+    parse_choice,
+)
 
 OPTS = {"a": "first", "b": "second"}
 
@@ -25,6 +35,153 @@ def test_gliner2_satisfies_the_port() -> None:
     assert isinstance(GLiNER2Decision(), DecisionProvider)
 
 
+# ── fake gliner2 module ──────────────────────────────────────────────────────
+
+
+class _Schema:
+    def __init__(self) -> None:
+        self.fields: dict[str, Any] = {}
+
+    def classification(self, name: str, labels: Any) -> _Schema:
+        self.fields[name] = labels
+        return self
+
+
+class _FakeModel:
+    """Mimics ``GLiNER2``: ``from_pretrained`` + ``create_schema`` + ``extract``."""
+
+    loaded: ClassVar[list[str]] = []
+
+    @classmethod
+    def from_pretrained(cls, model_id: str) -> _FakeModel:
+        cls.loaded.append(model_id)
+        return cls()
+
+    def create_schema(self) -> _Schema:
+        return _Schema()
+
+    def extract(self, text: str, schema: _Schema, **kw: Any) -> dict[str, Any]:
+        assert schema.fields["choice"] == OPTS
+        return {"choice": {"label": "b", "confidence": 0.7}}
+
+
+class _ClassifyOnly:
+    """A gliner2 build exposing only ``classify_text`` (and no confidence kwarg)."""
+
+    @classmethod
+    def from_pretrained(cls, model_id: str) -> _ClassifyOnly:
+        return cls()
+
+    def classify_text(self, text: str, tasks: Mapping[str, Any]) -> dict[str, Any]:
+        return {"choice": "a"}
+
+
+def _fake_gliner2(monkeypatch: pytest.MonkeyPatch, cls: type, name: str = "GLiNER2") -> None:
+    module = types.ModuleType("gliner2")
+    setattr(module, name, cls)
+    monkeypatch.setitem(sys.modules, "gliner2", module)
+
+
+def _no_gliner2(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setitem(sys.modules, "gliner2", None)  # import raises ImportError
+
+
+async def test_adapter_uses_gliner2_class_and_default_checkpoint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _FakeModel.loaded = []
+    _fake_gliner2(monkeypatch, _FakeModel)
+    provider = GLiNER2Decision()
+    assert await provider.choose("q", OPTS) == ("b", 0.7)
+    assert _FakeModel.loaded == [DEFAULT_MODEL] == ["fastino/gliner2-base-v1"]
+
+
+async def test_adapter_falls_back_to_autoextractor_and_classify_text(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _fake_gliner2(monkeypatch, _ClassifyOnly, name="AutoExtractor")
+    assert await GLiNER2Decision().choose("q", OPTS) == ("a", 1.0)
+
+
+def test_gliner2_class_missing_names_the_extra(monkeypatch: pytest.MonkeyPatch) -> None:
+    _no_gliner2(monkeypatch)
+    with pytest.raises(MissingServiceError) as info:
+        gliner2_class()
+    assert info.value.extra == "ner"
+
+
+async def test_load_failure_is_cached(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = {"n": 0}
+
+    class _Broken:
+        @classmethod
+        def from_pretrained(cls, model_id: str) -> Any:
+            calls["n"] += 1
+            raise OSError("no weights")
+
+    _fake_gliner2(monkeypatch, _Broken)
+    provider = GLiNER2Decision()
+    for _ in range(3):
+        with pytest.raises(OSError):
+            await provider.choose("q", OPTS)
+    assert calls["n"] == 1
+
+
+def test_load_is_serialised_by_a_lock(monkeypatch: pytest.MonkeyPatch) -> None:
+    gate = threading.Event()
+    calls = {"n": 0}
+
+    class _Slow(_FakeModel):
+        @classmethod
+        def from_pretrained(cls, model_id: str) -> _Slow:
+            calls["n"] += 1
+            gate.wait(0.2)
+            return cls()
+
+    _fake_gliner2(monkeypatch, _Slow)
+    provider = GLiNER2Decision()
+    threads = [threading.Thread(target=provider._load) for _ in range(4)]
+    for t in threads:
+        t.start()
+    gate.set()
+    for t in threads:
+        t.join()
+    assert calls["n"] == 1
+
+
+# ── engine start validation + planner ─────────────────────────────────────────
+
+
+def _engine(**extra: Any) -> Engine:
+    return Engine(
+        template="base",
+        dotenv_path=None,
+        storage={"path": ":memory:"},
+        embedding={"provider": "hash"},
+        read={"hybrid": False, "planner": "decision"},
+        decision={"provider": "gliner2"},
+        **extra,
+    )
+
+
+async def test_start_raises_when_gliner2_missing(monkeypatch: pytest.MonkeyPatch) -> None:
+    _no_gliner2(monkeypatch)
+    with pytest.raises(MissingServiceError) as info:
+        await _engine().start()
+    assert info.value.extra == "ner"
+
+
+async def test_start_lenient_turns_decision_off(monkeypatch: pytest.MonkeyPatch) -> None:
+    _no_gliner2(monkeypatch)
+    eng = _engine(strict_services=False)
+    await eng.start()
+    try:
+        assert eng._decision_provider() is None
+        assert await eng._plan_read_mode("how many cities") is None
+    finally:
+        await eng.stop()
+
+
 class _Fake:
     provider_id = "fake"
 
@@ -38,15 +195,8 @@ class _Fake:
 
 
 async def test_planner_routes_read_auto(monkeypatch: pytest.MonkeyPatch) -> None:
-    eng = Engine(
-        template="base",
-        dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
-        memories={"episodic": {"enabled": True}},
-        read={"hybrid": False, "planner": "decision"},
-        decision={"provider": "gliner2"},
-    )
+    _fake_gliner2(monkeypatch, _FakeModel)
+    eng = _engine(memories={"episodic": {"enabled": True}})
     await eng.start()
     try:
         fake = _Fake("compose")
@@ -67,14 +217,8 @@ async def test_planner_routes_read_auto(monkeypatch: pytest.MonkeyPatch) -> None
 
 
 async def test_planner_failure_falls_back_to_rules(monkeypatch: pytest.MonkeyPatch) -> None:
-    eng = Engine(
-        template="base",
-        dotenv_path=None,
-        storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
-        read={"hybrid": False, "planner": "decision"},
-        decision={"provider": "gliner2"},
-    )
+    _fake_gliner2(monkeypatch, _FakeModel)
+    eng = _engine()
     await eng.start()
     try:
 
@@ -88,3 +232,12 @@ async def test_planner_failure_falls_back_to_rules(monkeypatch: pytest.MonkeyPat
         assert await eng._plan_read_mode("q") is None
     finally:
         await eng.stop()
+
+
+def test_ner_adapter_uses_the_same_checkpoint(monkeypatch: pytest.MonkeyPatch) -> None:
+    from memspine.memories.semantic.entities import GlinerEntityExtractor
+
+    _FakeModel.loaded = []
+    _fake_gliner2(monkeypatch, _FakeModel)
+    GlinerEntityExtractor()
+    assert _FakeModel.loaded == [DEFAULT_MODEL]
