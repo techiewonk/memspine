@@ -44,7 +44,9 @@ class HashEmbedding:
     def _embed_one(self, text: str) -> list[float]:
         vector = [0.0] * self._dim
         for token in text.lower().split():
-            digest = xxhash.xxh64_intdigest(token)
+            # xxhash >=4 rejects str; explicit UTF-8 matches 3.x's implicit
+            # behaviour, so vectors are unchanged across both majors.
+            digest = xxhash.xxh64_intdigest(token.encode("utf-8"))
             bucket = digest % self._dim
             sign = 1.0 if (digest >> 63) & 1 else -1.0
             vector[bucket] += sign

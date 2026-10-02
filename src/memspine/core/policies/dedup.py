@@ -72,7 +72,10 @@ class DedupPolicy(BindablePolicy):
         """
         weights = [0] * 64
         for token in _tokens(text):
-            digest = xxhash.xxh64_intdigest(token)
+            # xxhash >=4 rejects str ("Strings must be encoded before hashing").
+            # Encoding explicitly is value-identical to 3.x's implicit UTF-8, so no
+            # stored fingerprint changes, and it works on both majors.
+            digest = xxhash.xxh64_intdigest(token.encode("utf-8"))
             for bit in range(64):
                 weights[bit] += 1 if (digest >> bit) & 1 else -1
         value = 0

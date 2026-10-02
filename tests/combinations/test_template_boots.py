@@ -6,8 +6,13 @@ clean ``stop()``. The write→read round-trips live in ``test_single_type_boots`
 and ``test_kitchen_sink``; here we only prove the profiles start and describe
 themselves.
 
-Template-count note: the plan (§6) says "5 templates"; six ship today
-(``base`` + the five profiles). We boot all six and pin the count.
+Template-count note: the plan (§6) says "5 templates"; seven ship today
+(``base`` + the five profiles + ``benchmark``). We boot all seven and pin the
+count.
+
+``benchmark`` is a measurement-only profile, not a deployment one: it exists to
+be the lean row of the cost-versus-capability frontier. It still ships inside
+the wheel, so it is still held to booting clean here.
 """
 
 from __future__ import annotations
@@ -22,6 +27,14 @@ import pytest
 #: both zero-extra and all-extras environments.
 TEMPLATES: dict[str, tuple[str, frozenset[str], str]] = {
     "base": ("simple", frozenset({"working", "episodic", "semantic"}), "inline"),
+    # Measurement profile: `working` is off (no paging window in LoCoMo /
+    # LongMemEval) and `associative` is on, satisfying its C1(b) hard dependency
+    # on `semantic`.
+    "benchmark": (
+        "benchmark",
+        frozenset({"episodic", "semantic", "associative"}),
+        "inline",
+    ),
     "coding": ("coding", frozenset({"working", "episodic", "semantic", "procedural"}), "inline"),
     "multi_agent": (
         "multi_agent",
@@ -66,7 +79,7 @@ def test_all_shipped_templates_are_in_the_matrix() -> None:
 
     shipped = {p.stem for p in template_dir().glob("*.yaml")}
     assert shipped == set(TEMPLATES), f"matrix out of sync with shipped templates: {shipped}"
-    assert len(TEMPLATES) == 6
+    assert len(TEMPLATES) == 7
 
 
 @pytest.mark.parametrize("template", sorted(TEMPLATES))
