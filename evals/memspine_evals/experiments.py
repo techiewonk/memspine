@@ -244,7 +244,7 @@ def build_reader_and_judge(config: C01Config) -> tuple[Reader, Judge, bool]:
         scale=JudgeScale.BINARY,
         prompt=RUBRIC_BINARY_PROMPT if config.protocol_notes else None,
     )
-    return alias_judge and (reader, alias_judge, True) or (reader, judge, True)
+    return (alias_judge and (reader, alias_judge, True)) or (reader, judge, True)
 
 
 async def run_c0_1(
