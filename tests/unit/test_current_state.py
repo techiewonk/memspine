@@ -139,3 +139,26 @@ async def test_legs_off_is_unchanged() -> None:
         assert await eng._metadata_legs("a", "Caroline on 7 May 2023", 10) == []
     finally:
         await eng.stop()
+
+
+async def test_resolve_relative_dates_annotates_assembled_records() -> None:
+    """H1: a record written on 15 July 2023 that says "last Friday" is assembled with the
+    absolute date; the stored record is unchanged; off by default."""
+    for on in (True, False):
+        eng = _engine(read={"resolve_relative_dates": on, "hybrid": False})
+        await eng.start()
+        try:
+            rec = await eng.write(
+                "Caroline went to the support group last Friday",
+                namespace="a",
+                valid_from=datetime(2023, 7, 15, tzinfo=UTC),
+            )
+            ctx = await eng.assemble("support group", namespace="a")
+            [line] = [r.content for r in ctx.records if r.record_id == rec.record_id]
+            if on:
+                assert line == "Caroline went to the support group last Friday [= Fri 2023-07-14]"
+            else:
+                assert line == "Caroline went to the support group last Friday"
+            assert rec.content == "Caroline went to the support group last Friday"
+        finally:
+            await eng.stop()

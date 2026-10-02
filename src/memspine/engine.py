@@ -59,6 +59,7 @@ from memspine.core.registry import SERVICE_EXTRAS, dependency_closure, missing_s
 from memspine.core.replay import catch_up
 from memspine.core.replay import rebuild as replay_rebuild
 from memspine.core.temporal_query import LegHit, metadata_leg, temporal_leg
+from memspine.core.temporal_resolve import annotate as annotate_relative_dates
 from memspine.exceptions import (
     ConfigError,
     ConflictError,
@@ -1553,6 +1554,8 @@ class Engine:
         ]
         if self._config().read.current_state_view:
             scored = await self._current_state_view(ns, scored)
+        if self._config().read.resolve_relative_dates:
+            scored = [(self._annotate_dates(record), score) for record, score in scored]
         wrap_below = integrity.untrusted_wrap_below if integrity.enabled else 0.0
         if wrap_below > 0.0:
             # B6: low-trust records reach the model as labelled DATA with their
@@ -1671,8 +1674,17 @@ class Engine:
         integrity = self._integrity()
         return not integrity.enabled or integrity.admits(record.trust)
 
+    def _annotate_dates(self, record: MemoryRecord) -> MemoryRecord:
+        """H1: ``[= absolute date]`` after each relative-time phrase (projection only)."""
+        annotated = annotate_relative_dates(record.content, record.valid_from)
+        if annotated == record.content:
+            return record
+        return record.model_copy(update={"content": annotated})
+
     def _wrap_for_context(self, record: MemoryRecord) -> MemoryRecord:
         """C7': the assembly wrappers (E1 instruction flag, B6 untrusted note)."""
+        if self._config().read.resolve_relative_dates:
+            record = self._annotate_dates(record)
         if record.instruction_flag:
             record = record.model_copy(
                 update={"content": constants.INSTRUCTION_FLAG_WRAP.format(content=record.content)}

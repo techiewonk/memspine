@@ -266,6 +266,11 @@ class ReadConfig(BaseModel):
     #: their target records. A cue below ``cue_min_trust`` is ignored, so cues
     #: from low-trust sources cannot redirect retrieval. Off: cues are invisible.
     anticipatory_cues: bool = False
+    #: H1: annotate relative-time phrases in assembled/read records with the absolute
+    #: date they denote, resolved against each record's event time (``valid_from``):
+    #: "last Friday" -> "last Friday [= Fri 2023-07-14]". Deterministic rules, no model;
+    #: stored content is never changed. Off: byte-identical.
+    resolve_relative_dates: bool = False
     cue_min_trust: float = 0.5
 
 
