@@ -77,6 +77,9 @@ class C01Config:
     memspine_config: dict[str, Any] | None = None
     #: memspine arm read path: None = assemble, else an Engine.read mode (C7').
     memspine_read_mode: str | None = None
+    #: H7/H12: QA prompt variant for EVERY arm (default | dated | abstain), recorded
+    #: in the reader manifest via its prompt hash.
+    qa_prompt: str = "default"
     #: Resume support: run only these system ids / item ids (None = all). A
     #: partial run is completed into a separate run id and merged by item, which
     #: is valid because items are independent (each resets the system).
@@ -152,7 +155,15 @@ def build_reader_and_judge(config: C01Config) -> tuple[Reader, Judge, bool]:
         budget = CallBudget(
             max_calls=config.max_model_calls, prices_per_mtok={QWEN3_32B: (0.16, 0.62)}
         )
-        bedrock_reader = LiteLLMReader(budget, model=QWEN3_32B, temperature=0.0, max_tokens=256)
+        from .readers import QA_PROMPTS
+
+        bedrock_reader = LiteLLMReader(
+            budget,
+            model=QWEN3_32B,
+            temperature=0.0,
+            max_tokens=256,
+            prompt=QA_PROMPTS[config.qa_prompt],
+        )
         bedrock_judge = LLMJudge(
             litellm_chat(budget, model=QWEN3_32B),
             model=QWEN3_32B,

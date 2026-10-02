@@ -76,6 +76,7 @@ def cmd_c0_1(args: argparse.Namespace) -> int:
         bedrock=args.bedrock,
         memspine_config=json.loads(args.memspine_config) if args.memspine_config else None,
         memspine_read_mode=args.memspine_read_mode,
+        qa_prompt=args.qa_prompt,
         only_systems=tuple(args.only_systems.split(",")) if args.only_systems else None,
         item_ids=tuple(args.item_ids.split(",")) if args.item_ids else None,
     )
@@ -178,6 +179,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--memspine-config", default=None, help="JSON engine overrides for the memspine arm"
     )
     c01.add_argument("--only-systems", default=None, help="comma list of system ids to run")
+    c01.add_argument(
+        "--qa-prompt",
+        choices=("default", "dated", "abstain"),
+        default="default",
+        help="QA prompt variant for every arm (H7/H12)",
+    )
     c01.add_argument("--item-ids", default=None, help="comma list of item ids (resume a run)")
     c01.add_argument(
         "--memspine-read-mode",

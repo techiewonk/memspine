@@ -22,6 +22,27 @@ DEFAULT_QA_PROMPT = (
     "Context:\n{context}\n\nQuestion: {question}\nAnswer:"
 )
 
+#: H12: date-aware QA prompt. Context lines carry their dates; the reader is told
+#: to compute relative times from the line's own date and to answer briefly.
+DATED_QA_PROMPT = (
+    "Answer the question using only the context below. Each line starts with the date it "
+    'was said, and phrases like "last Friday [= Fri 2023-07-14]" show the absolute date. '
+    "When a question asks when something happened, give the date it happened, computed from "
+    "the line's date, not the date of the conversation. Answer in one short sentence. If the "
+    "context does not contain the answer, say you do not know.\n\n"
+    "Context:\n{context}\n\nQuestion: {question}\nAnswer:"
+)
+
+#: H7: abstention-aware variant for adversarial questions (LoCoMo cat 5): answer only
+#: what the context states about the person asked about.
+ABSTAIN_QA_PROMPT = DATED_QA_PROMPT.replace(
+    "If the context does not contain the answer, say you do not know.",
+    "Answer only what the context states about the person the question names; if the "
+    'context attributes it to someone else, or does not state it, reply "Not mentioned".',
+)
+
+QA_PROMPTS = {"default": DEFAULT_QA_PROMPT, "dated": DATED_QA_PROMPT, "abstain": ABSTAIN_QA_PROMPT}
+
 
 class ContextOnlyReader:
     """No generation at all: the 'answer' is the retrieved context.
