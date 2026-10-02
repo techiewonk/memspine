@@ -3364,7 +3364,9 @@ class Engine:
         if self._llm is None or self._prompts is None or "extract" not in self._llm.roles:
             return None
         llm = self._llm.for_role("extract")
-        prompt = self._prompts.for_role("extract")
+        # H2: the session variant (no pronouns, absolute dates, one fact each) when
+        # shipped; the base extract prompt otherwise.
+        prompt = self._prompts.select("extract", condition="session")
 
         async def mine(content: str) -> list[ExtractedFact]:
             result = await structured_call(llm, prompt, {"content": content}, ExtractedFacts)

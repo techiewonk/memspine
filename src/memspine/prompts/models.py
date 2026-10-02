@@ -30,6 +30,9 @@ class ExtractedFact(BaseModel):
     attribute: str
     value: str
     confidence: float = 1.0
+    #: H2: the date the fact refers to (YYYY-MM-DD, YYYY-MM or YYYY), resolved by the
+    #: session-mining prompt from the line's date; None when no time is involved.
+    date: str | None = None
 
 
 class ExtractedFacts(BaseModel):

@@ -117,3 +117,43 @@ async def test_mined_fact_trust_follows_low_trust_sources(monkeypatch: pytest.Mo
         assert fact.trust <= 0.3  # external-channel sources cap the mined fact
     finally:
         await eng.stop()
+
+
+async def test_mined_fact_date_becomes_its_event_time(monkeypatch: pytest.MonkeyPatch) -> None:
+    """H2: a fact the miner dated (relative date resolved to 2023-05-07) is stored
+    with that event time, not the session start; undated facts keep the session start."""
+    eng = _engine(mine=True)
+
+    async def fake_mine(text: str) -> list[ExtractedFact]:
+        return [
+            ExtractedFact(
+                entity="Caroline",
+                attribute="event",
+                value="Caroline went to an LGBTQ support group",
+                date="2023-05-07",
+            ),
+            ExtractedFact(entity="Caroline", attribute="career goal", value="counselor"),
+        ]
+
+    monkeypatch.setattr(eng, "_build_fact_miner", lambda: fake_mine)
+    await eng.start()
+    try:
+        t0 = await _write_session(eng)
+        await eng.sleep()
+        facts = {
+            r.attribute: r
+            for r in await eng.retrieve(namespace="a", memory_type="semantic")
+            if "atomic_fact" in r.tags
+        }
+        assert facts["event"].valid_from == datetime(2023, 5, 7, tzinfo=UTC)
+        assert facts["career goal"].valid_from == t0
+    finally:
+        await eng.stop()
+
+
+def test_session_prompt_variant_is_selected() -> None:
+    from memspine.prompts.registry import PromptRegistry
+
+    reg = PromptRegistry()
+    assert reg.select("extract", condition="session").id == "extract@session"
+    assert reg.select("extract").id == "extract"

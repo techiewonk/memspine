@@ -936,6 +936,18 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
     return stats
 
 
+def _fact_date(value: str | None) -> datetime | None:
+    """H2: YYYY-MM-DD / YYYY-MM / YYYY from a mined fact, as an aware datetime."""
+    if not value:
+        return None
+    for fmt in ("%Y-%m-%d", "%Y-%m", "%Y"):
+        try:
+            return datetime.strptime(value.strip(), fmt).replace(tzinfo=UTC)
+        except ValueError:
+            continue
+    return None
+
+
 async def mine_facts(ctx: PipelineContext) -> dict[str, object]:
     """C6': mine atomic, dated facts from each consolidated session, once.
 
@@ -989,13 +1001,14 @@ async def mine_facts(ctx: PipelineContext) -> dict[str, object]:
         start = members[0].valid_from
         for fact in mined:
             text = f"{fact.entity} {fact.attribute}: {fact.value}"
+            when = _fact_date(getattr(fact, "date", None)) or start
             await ctx.deposit_fact(
                 namespace,
                 text,
                 fact.entity or None,
                 fact.attribute or None,
                 [m.record_id for m in members],
-                start,
+                when,
                 key,
             )
             facts += 1
