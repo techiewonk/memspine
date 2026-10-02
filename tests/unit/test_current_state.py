@@ -204,3 +204,33 @@ async def test_dated_render_and_time_order_for_ordering_questions() -> None:
         assert lines[0].startswith("[2023-05-03 Wed] ")
     finally:
         await eng.stop()
+
+
+async def test_contested_fact_keeps_one_current_and_shows_the_dispute() -> None:
+    """H9: two equal-standing statements on one key at the same event time are both kept;
+    exactly one stays current; the current-state view flags the dispute."""
+    eng = Engine(
+        template="base",
+        dotenv_path=None,
+        storage={"path": ":memory:"},
+        embedding={"provider": "hash"},
+        memories={"semantic": {"enabled": True, "policies": {"conflict": {"contest_ties": True}}}},
+        read={"current_state_view": True, "hybrid": False},
+    )
+    await eng.start()
+    try:
+        when = datetime(2023, 5, 1, tzinfo=UTC)
+        await eng.write(
+            "Ana lives in Lyon", namespace="a", entity="ana", attribute="city", valid_from=when
+        )
+        await eng.write(
+            "Ana lives in Nice", namespace="a", entity="ana", attribute="city", valid_from=when
+        )
+        facts = [r for r in await eng.retrieve(namespace="a", memory_type="semantic")]
+        current = [r for r in facts if r.valid_to is None]
+        assert len(current) == 1 and "disputed" in current[0].tags
+        assert {"Ana lives in Lyon", "Ana lives in Nice"} <= {r.content for r in facts}
+        ctx = await eng.assemble("where does Ana live", namespace="a")
+        assert any("[DISPUTED" in r.content for r in ctx.records)
+    finally:
+        await eng.stop()

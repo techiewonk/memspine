@@ -301,6 +301,23 @@ class SemanticMemory(BaseMemory):
             )
             await self._write_through(index, negation)
             result = SemanticWriteResult(record=negation, action="invalidated")
+        elif verdict is ConflictVerdict.CONTEST:
+            # H9: both statements are kept and flagged. The current fact stays the
+            # single active one (find_active_fact invariant); the contender gets a
+            # zero-length interval like a bias-rejected statement, so it remains
+            # retrievable evidence but never becomes "current".
+            disputed = existing.model_copy(
+                update={"tags": sorted(set(existing.tags) | {"disputed"})}
+            )
+            await self._write_event(disputed)
+            contender = incoming.model_copy(
+                update={
+                    "valid_to": incoming.valid_from,
+                    "tags": sorted(set(incoming.tags) | {"disputed"}),
+                }
+            )
+            await self._write_through(index, contender)
+            result = SemanticWriteResult(record=contender, action="contested")
         else:
             # ADD on the SAME fact key never creates a second active fact: the
             # single-active-fact invariant (find_active_fact/fact_at) depends

@@ -1019,6 +1019,8 @@ class Engine:
                 reverse=True,
             )[:3]
             text = f"CURRENT (since {record.valid_from:%Y-%m-%d}): {record.content}"
+            if "disputed" in record.tags:
+                text += " [DISPUTED: another source of equal standing states a different value]"
             if history:
                 past = "; ".join(
                     f"{h.valid_from:%Y-%m-%d} to {h.valid_to:%Y-%m-%d}: {h.content}"
