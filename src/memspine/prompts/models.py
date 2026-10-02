@@ -24,6 +24,8 @@ __all__ = [
     "Insight",
     "Insights",
     "InstructionFlagOut",
+    "RelevanceLabel",
+    "RelevanceLabels",
 ]
 
 
@@ -39,6 +41,17 @@ class ExtractedFact(BaseModel):
 
 class ExtractedFacts(BaseModel):
     facts: list[ExtractedFact] = Field(default_factory=list)
+
+
+class RelevanceLabel(BaseModel):
+    """H17: one candidate's 3-way relevance label (Hindsight-style)."""
+
+    index: int
+    label: str  # relevant | related | irrelevant
+
+
+class RelevanceLabels(BaseModel):
+    labels: list[RelevanceLabel] = Field(default_factory=list)
 
 
 class AnticipatedCue(BaseModel):
@@ -120,4 +133,5 @@ OUTPUT_MODELS: dict[str, type[BaseModel]] = {
     "EntityResolutionOut": EntityResolutionOut,
     "InstructionFlagOut": InstructionFlagOut,
     "AnticipatedCues": AnticipatedCues,
+    "RelevanceLabels": RelevanceLabels,
 }

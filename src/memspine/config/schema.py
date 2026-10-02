@@ -272,6 +272,11 @@ class ReadConfig(BaseModel):
     #: H15: replay windows stay inside the hit's topic segment (lexical-cohesion
     #: boundaries within a session), so neighbours from another topic are not replayed.
     replay_topic_segments: bool = False
+    #: H17: label search candidates relevant / related / irrelevant with the
+    #: ``relevance`` LLM role and drop only "irrelevant" ones, always keeping the
+    #: ``relevance_safety_net`` best-scored candidates (a yes/no filter loses gold).
+    relevance_filter: bool = False
+    relevance_safety_net: int = Field(default=10, ge=0)
     #: C8': resolve search hits on anticipatory cues (``Engine.add_cues``) to
     #: their target records. A cue below ``cue_min_trust`` is ignored, so cues
     #: from low-trust sources cannot redirect retrieval. Off: cues are invisible.

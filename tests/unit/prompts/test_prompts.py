@@ -81,6 +81,7 @@ def test_every_shipped_prompt_renders_with_plausible_context() -> None:
     # the same context vars as their role's base prompt.
     contexts: dict[str, dict[str, object]] = {
         "extract": {"content": "Alice lives in Berlin"},
+        "relevance": {"question": "Where does Alice live?", "notes": "[0] Alice lives in Berlin"},
         "anticipate": {"content": "[1] [2026-01-02] Alice: I am allergic to nuts"},
         "judge": {
             "existing_content": "a",

@@ -23,4 +23,5 @@ PROMPT_ROLES: tuple[str, ...] = (
     "resolve_entity",  # C1: entity coreference/aliasing resolution
     "invalidate_edge",  # C1: edge add/update/invalidate/noop adjudication
     "anticipate",  # H8: write-time anticipatory retrieval cues (T-Mem-style)
+    "relevance",  # H17: 3-way relevance filter on read (Hindsight-style), opt-in
 )

@@ -104,6 +104,7 @@ from memspine.prompts.models import (
     ExtractedEdges,
     ExtractedFact,
     ExtractedFacts,
+    RelevanceLabels,
 )
 from memspine.prompts.registry import PromptRegistry
 from memspine.services.cache.base import KVCache, MemoryKV
@@ -1485,6 +1486,8 @@ class Engine:
         # relevance replaces the vector similarity; the E1 gates above already
         # ran, so a reranker can only reorder live content, never resurface
         # held content. Failures degrade loudly to the vector ordering.
+        if candidates and self._config().read.relevance_filter:
+            candidates = await self._relevance_filter(query, candidates)
         reranker = self._rerank_provider()
         gate = self._config().read.rerank_max_top_k
         if gate is not None and top_k > gate:
@@ -1704,9 +1707,7 @@ class Engine:
         if self._config().read.replay_topic_segments:
             # H15: restrict each replay window to the hit's topic segment.
             for sess in sessions:
-                members = [
-                    r for r in [await storage.get_record(i) for i in sess.record_ids] if r
-                ]
+                members = [r for r in [await storage.get_record(i) for i in sess.record_ids] if r]
                 for segment in topic_segments(members):
                     ids_in = [r.record_id for r in segment]
                     for rid in ids_in:
@@ -3418,6 +3419,33 @@ class Engine:
             return await llm.chat(prompt.render({"content": content}))
 
         return summarize
+
+    async def _relevance_filter(
+        self, query: str, candidates: list[tuple[MemoryRecord, float]]
+    ) -> list[tuple[MemoryRecord, float]]:
+        """H17: drop only candidates the ``relevance`` role labels irrelevant.
+
+        The ``relevance_safety_net`` best-scored candidates are always kept. Any failure,
+        or no bound role, leaves the candidates unchanged (an enhancer, never a gate).
+        """
+        if self._llm is None or self._prompts is None or "relevance" not in self._llm.roles:
+            return candidates
+        keep_n = self._config().read.relevance_safety_net
+        ranked = sorted(range(len(candidates)), key=lambda i: candidates[i][1], reverse=True)
+        safe = set(ranked[:keep_n])
+        notes = "\n".join(f"[{i}] {r.content[:400]}" for i, (r, _) in enumerate(candidates))
+        try:
+            result = await structured_call(
+                self._llm.for_role("relevance"),
+                self._prompts.select("relevance"),
+                {"question": query, "notes": notes},
+                RelevanceLabels,
+            )
+        except Exception as exc:
+            _log.warning("read.relevance_filter_failed", error=str(exc))
+            return candidates
+        drop = {item.index for item in result.labels if item.label.strip().lower() == "irrelevant"}
+        return [pair for i, pair in enumerate(candidates) if i in safe or i not in drop]
 
     def _build_anticipator(self) -> Any:
         """H8: the anticipator, when an ``anticipate`` (or ``extract``) LLM role is bound."""
