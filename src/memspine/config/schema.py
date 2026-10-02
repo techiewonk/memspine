@@ -262,6 +262,9 @@ class ReadConfig(BaseModel):
     #: named in the query) into the RRF ranking. Off: bit-identical ranking.
     temporal_leg: bool = False
     metadata_leg: bool = False
+    #: H13: an extra BM25 leg over the question's core terms (interrogative and
+    #: function words removed), fused by RRF. Needs the lexical store (hybrid).
+    core_terms_leg: bool = False
     #: C8': resolve search hits on anticipatory cues (``Engine.add_cues``) to
     #: their target records. A cue below ``cue_min_trust`` is ignored, so cues
     #: from low-trust sources cannot redirect retrieval. Off: cues are invisible.

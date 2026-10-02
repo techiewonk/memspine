@@ -234,3 +234,18 @@ async def test_contested_fact_keeps_one_current_and_shows_the_dispute() -> None:
         assert any("[DISPUTED" in r.content for r in ctx.records)
     finally:
         await eng.stop()
+
+
+async def test_core_terms_leg_adds_a_lexical_probe() -> None:
+    """H13: the leg is built only when enabled and the lexical store exists."""
+    for on in (False, True):
+        eng = _engine(read={"core_terms_leg": on})
+        await eng.start()
+        try:
+            await eng.write("Melanie went to the beach with her kids", namespace="a")
+            legs = await eng._metadata_legs(
+                "a", "How many times has Melanie gone to the beach?", 10
+            )
+            assert (len(legs) == 1) is on
+        finally:
+            await eng.stop()

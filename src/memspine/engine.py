@@ -970,8 +970,18 @@ class Engine:
     async def _metadata_legs(self, ns: str, query: str, fetch_k: int) -> list[list[LegHit]]:
         """C3': the non-empty temporal / metadata legs for this query (opt-in)."""
         read = self._config().read
+        legs: list[list[LegHit]] = []
+        if read.core_terms_leg and self._lexical is not None:
+            # H13: BM25 over the question without interrogative/function words.
+            terms = core_terms(query)
+            if terms and terms.lower() != query.lower():
+                try:
+                    hits = await self._lexical.search(ns, terms, top_k=fetch_k)
+                    legs.append([LegHit(h.record_id, 1.0) for h in hits])
+                except Exception as exc:  # an enhancer, never a gate
+                    _log.warning("read.core_terms_leg_failed", namespace=ns, error=str(exc))
         if not (read.temporal_leg or read.metadata_leg):
-            return []
+            return [leg for leg in legs if leg]
         try:
             live = [
                 r
@@ -980,7 +990,6 @@ class Engine:
                 and not r.quarantined
                 and r.memory_type != "shared"
             ]
-            legs = []
             if read.temporal_leg:
                 legs.append(temporal_leg(query, live, fetch_k))
             if read.metadata_leg:
