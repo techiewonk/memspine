@@ -58,7 +58,16 @@ class _Counted:
         return await self._inner.chat(messages, **options)
 
     def __getattr__(self, name: str) -> Any:
+        # ``__getattr__`` only runs for names not found normally. During copy/pickle the
+        # instance is built without ``__init__``, so ``_inner`` is absent and delegating
+        # would recurse; dunder lookups (``__deepcopy__``, ``__getstate__``…) must not
+        # leak to the provider either.
+        if name == "_inner" or (name.startswith("__") and name.endswith("__")):
+            raise AttributeError(name)
         return getattr(self._inner, name)
+
+    def __repr__(self) -> str:
+        return f"_Counted(role={self._role!r}, inner={self._inner!r})"
 
 
 class LLMRouter:

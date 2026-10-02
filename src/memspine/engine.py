@@ -3226,7 +3226,12 @@ class Engine:
         return self._llm.call_counts() if self._llm is not None else {}
 
     def llm(self, role: str) -> LLMService:
-        """The provider bound to a role (D-07/D-22): extract / judge / chat."""
+        """The provider bound to a role (D-07/D-22): extract / judge / chat.
+
+        Returns a counting wrapper, not the bare provider: every ``chat`` call made
+        through it is added to :meth:`model_calls` under ``role``. Other attributes are
+        delegated to the bound provider.
+        """
         if self._llm is None:
             raise MemspineError("Engine not started — call start() first")
         return self._llm.for_role(role)
