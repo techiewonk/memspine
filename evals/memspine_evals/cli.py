@@ -35,6 +35,15 @@ def _dataset(args: argparse.Namespace) -> DatasetAdapter:
         from .datasets import LoCoMoDataset
 
         return LoCoMoDataset(args.path, revision_id=args.revision)
+    if args.dataset == "convomem":
+        from .datasets import ConvoMemDataset
+
+        return ConvoMemDataset(
+            args.path,
+            revision_id=args.revision,
+            per_stratum=args.per_stratum,
+            filler=args.filler,
+        )
     if args.dataset == "memoryagentbench":
         from .datasets import MemoryAgentBenchDataset
 
@@ -160,9 +169,18 @@ def build_parser() -> argparse.ArgumentParser:
     c01 = sub.add_parser("c0-1", help="verbatim-baseline gate (Plan C section 1.1)")
     c01.add_argument(
         "--dataset",
-        choices=("locomo", "locomo_plus", "longmemeval", "memoryagentbench", "synthetic"),
+        choices=(
+            "convomem",
+            "locomo",
+            "locomo_plus",
+            "longmemeval",
+            "memoryagentbench",
+            "synthetic",
+        ),
         required=True,
     )
+    c01.add_argument("--per-stratum", type=int, default=20, help="ConvoMem items per stratum")
+    c01.add_argument("--filler", type=int, default=0, help="ConvoMem filler conversations")
     c01.add_argument("--locomo-path", default=None, help="locomo10.json paired with LoCoMo-Plus")
     c01.add_argument("--path", help="path to the dataset json")
     c01.add_argument(
