@@ -17,7 +17,12 @@ Shared reads capped foreign trust at a flat `TRUST_RETRIEVED_CAP = 0.3`, but tha
 - **Writes took no parents.** `Engine.write` had no parent argument, so every agent answer re-entered memory at its role's base trust. A foreign record paraphrased by a grantee was *laundered* back to 0.5 and re-shared: a model-free construction reaches every agent of a 5-agent chain.
 - **Corroboration was Sybil-prone.** Promotion checked independence only between the corroborator and the held record, so one principal, even with a single message id, could promote its own quarantined payload.
 
-Paper A (research repo, `paper_aamas27/`) proves that a finite propagation radius exists iff the per-hop trust gain is < 1. It needs three things from the engine: provenance-carrying deposits, per-grant attenuation, and trust-aware admission.
+Paper A (research repo, `paper_aamas27/`) bounds how far admitted poison can propagate. The result is one-directional, not an "iff". Write g for the per-hop trust gain (κ · `derivation_decay` · `verification_bonus` under `product` attenuation), c for the poison's base trust and θ for the admission threshold:
+- **g < 1 suffices** for a finite horizon: trust falls geometrically per hop and drops below θ after finitely many hops.
+- **g ≥ 1 and c · κ_min ≥ θ:** poison can reach every agent of a connected grant graph.
+- **g ≥ 1 and c · κ_min < θ** is not covered by the result.
+
+The bound is "tight" only for the refined depth prediction (Depth*), not for the coarse bound. The result needs three things from the engine: provenance-carrying deposits, per-grant attenuation, and trust-aware admission.
 
 ## Decision
 
@@ -66,7 +71,7 @@ opt-in keys make the engine enforce them. All default off; `integrity.enabled: f
 | Key / call | Effect |
 |---|---|
 | `implicit_parents: turn \| session` (B0) | Reads made with a `session_id` are recorded, and become the parents of that session's next write (`turn`: consumed per write; `session`: until `end_session`). Omitting `derived_from` no longer launders trust |
-| `live_reevaluation` (B4′) | Candidates are re-checked against their current parents at read time, so quarantine, rollback or revocation of an ancestor propagates to descendants. Radii can only shrink |
+| `live_reevaluation` (B4′) | Candidates are re-checked against their current parents at read time, so quarantine or rollback (archive) of an ancestor propagates to descendants. Grant revocation does not (see Edge cases). Radii can only shrink |
 | `untrusted_wrap_below` (B6) | Assembly renders records below this view trust as labelled data |
 | `authorize(ids, namespace, threshold)` (B6) | Allows an action only if every evidence record is readable and its current view trust is at least `threshold`. Fails closed; returns the weakest link |
 | `send()` (B5) | Agent-to-agent messages go through the write door, so A1 holds for messages sent this way |
@@ -77,3 +82,53 @@ real-LLM guard study (Qwen3-32B agents, `authorize` as the action gate), see `pa
 in the research repository. Retrieval-only surfaces added later on the read path (anticipatory cues,
 C8′; replay and full-context `read()`, C7′) apply the same gates.
 - **Not changed:** the default profile, firewall verdicts, quarantine semantics, and grant enforcement (`grant_allows` remains the single decision point).
+
+## Edge cases (2026-10-02, review R4-3 / R4-9)
+
+What the invariant covers at the edges, and where the code does or does not enforce it. References
+are to `src/memspine/engine.py` and `src/memspine/core/integrity.py` at the time of writing.
+
+- **Revocation.** Revoking a grant (`Engine.revoke`) archives the grant record. Later reads
+  (`shared_search` goes through `grant_allows`) and later derivations (`_parent_trust_cap` counts a
+  parent outside every grant as 0.0) are cut off. Draining the *existing* descendants would need
+  `live_reevaluation`, but **the code does not do it**: `effective_trust` walks parents by record id
+  and applies κ for the parent's namespace without checking that the grant still exists. A
+  descendant derived before the revocation keeps its trust. Treat "revocation drains descendants" as
+  not implemented; the fix is a grant check in `effective_trust`.
+- **Ancestor quarantine with re-evaluation off.** Trust is capped once, at write time. When an
+  ancestor is quarantined or rolled back later, and `live_reevaluation` is off, descendants keep their
+  stored (now stale) trust and stay admissible. With `live_reevaluation` on, `effective_trust` gives a
+  quarantined, archived, deleted or missing ancestor 0.0, so the descendants drop below any θ > 0.
+- **Trust-raising paths.** The bound needs every path that can raise a record's trust to stay at or
+  below min(parents) · κ, or to be excluded from the claim. In the current code:
+  - *Promotion* (corroboration out of quarantine) only clears the `quarantined` flag and sets the
+    status. It does not change the trust number, and that number was capped against the parents
+    before the quarantine decision. So promotion makes a record admissible again at its capped trust.
+    It never exceeds the cap.
+  - *Principal reputation* multiplies write trust by min(1, 2 × Beta mean) **after** the parent cap,
+    so it can only lower trust.
+  - *Merge reinforcement* raises importance and utility, never trust.
+  - *`verification_bonus` > 1* deliberately breaks the invariant (baseline emulation only).
+
+  A future feature that raises trust (for example, reputation above 1, or a trust boost on
+  promotion) must be capped at min(parents) · κ, or the claim must exclude it.
+- **Dead parents at write time.** `_parent_trust_cap` gives 0.0 to a missing, quarantined or
+  out-of-grant parent. It does **not** check `status`, so an ARCHIVED or soft-DELETED parent still
+  counts at its stored trust. This is review gap R2-2, owned by the write-path fix.
+- **κ = 1.** No attenuation: under `product` the per-hop gain is `derivation_decay` ×
+  `verification_bonus`, so with the defaults (1.0) g = 1 and there is no finite horizon. Under `min`
+  attenuation, view trust is min(trust, κ), which does not decay over hops for any κ. A finite horizon
+  under `min` comes only from θ > κ (one hop) or from `derivation_decay` < 1.
+- **Supersession is a possible availability vector.** The conflict ladder rejects an incoming fact
+  only when its trust is below the incumbent's minus `trust_margin` (0.3 by default). A poisoned write
+  within that margin can supersede a benign fact on the same key (UPDATE archives the incumbent),
+  even when the poison itself is later hidden by θ. The invariant bounds the *trust* of poison, not
+  the loss of benign facts. `contest_ties` (H9) narrows this only for ties.
+- **Compromised trusted principal.** Out of scope. A principal that writes with operator, system or
+  user trust is trusted by assumption; the invariant bounds what derives from it, not what it says.
+- **Cycles and multiple parents.** A write can only name records that already exist, and merges do
+  not change `source.parents`, so the parent graph is acyclic by construction. `effective_trust`
+  relies on that and has no cycle guard (its memo is filled only after a node is computed). With
+  several parents, both `deposit_trust` and `effective_trust` take the min. A record's trust is
+  therefore bounded along every ancestor path, so in particular along the shortest grant path from
+  the poison source, which is the distance the horizon is stated in.
