@@ -276,6 +276,16 @@ class ReadConfig(BaseModel):
     #: ``relevance`` LLM role and drop only "irrelevant" ones, always keeping the
     #: ``relevance_safety_net`` best-scored candidates (a yes/no filter loses gold).
     relevance_filter: bool = False
+    #: RRF rank constant (k in 1/(k+rank)); None = the default 60. Graphiti uses 1.
+    rrf_k: int | None = Field(default=None, ge=1)
+    #: ContextPipe: tokens kept free for the reply inside the assembly budget.
+    reply_reserve_tokens: int = Field(default=0, ge=0)
+    #: Hindsight: prefix reranker inputs with ``[Date: YYYY-MM-DD]``.
+    rerank_date_prefix: bool = False
+    #: Agent Zero: skip the reranker for ordering questions (first / latest / ...).
+    skip_rerank_for_ordering: bool = False
+    #: H22 (Mastra): with ``render: dated``, mark long gaps ("[3 weeks later]").
+    gap_markers: bool = False
     relevance_safety_net: int = Field(default=10, ge=0)
     #: C8': resolve search hits on anticipatory cues (``Engine.add_cues``) to
     #: their target records. A cue below ``cue_min_trust`` is ignored, so cues

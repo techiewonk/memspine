@@ -150,6 +150,19 @@ _RECALL_MARKERS = (
 )
 
 
+def _gap_marker(days: int) -> str:
+    """H22: ``[N days/weeks/months later]`` for gaps of at least a day; ``""`` otherwise."""
+    if days >= 60:
+        return f"[{days // 30} months later]"
+    if days >= 14:
+        return f"[{days // 7} weeks later]"
+    if days >= 2:
+        return f"[{days} days later]"
+    if days == 1:
+        return "[1 day later]"
+    return ""
+
+
 def _looks_like_recall(content: str) -> bool:
     return any(marker in content for marker in _RECALL_MARKERS)
 
@@ -1412,7 +1425,8 @@ class Engine:
             lexical_hits = []
         extra_legs = await self._metadata_legs(ns, query, fetch_k)
         if use_hybrid or extra_legs:
-            fused = rrf_fuse(vector_hits, lexical_hits, extra=extra_legs)[:top_k]
+            rrf_k = self._config().read.rrf_k or constants.RRF_K
+            fused = rrf_fuse(vector_hits, lexical_hits, k=rrf_k, extra=extra_legs)[:top_k]
             # F1: raw RRF scores are ~1/(k+1) (≈0.016), but the M1 composite expects
             # relevance in [0, 1]. Normalize by the theoretical max (a record ranked
             # #1 in EVERY non-empty leg) so the fused relevance composes with
@@ -1420,7 +1434,7 @@ class Engine:
             # relevance collapses and recency/importance dominate under hybrid.
             # Without C3' legs this is 2/(k+1), exactly as before.
             legs = 2 + len(extra_legs) if use_hybrid else 1 + len(extra_legs)
-            rrf_max = legs / (constants.RRF_K + 1)
+            rrf_max = legs / (rrf_k + 1)
             ranked: list[tuple[str, float]] = [(rid, score / rrf_max) for rid, score in fused]
         else:
             ranked = [(hit.record_id, hit.score) for hit in vector_hits]
@@ -1492,8 +1506,17 @@ class Engine:
         gate = self._config().read.rerank_max_top_k
         if gate is not None and top_k > gate:
             reranker = None  # H18: reranking pays when few of many candidates are kept
+        read_cfg = self._config().read
+        if read_cfg.skip_rerank_for_ordering and is_ordering(query):
+            reranker = None  # Agent Zero: a relevance reranker scrambles temporal order
         if reranker is not None and candidates:
             documents = [concat_background(record) for record, _ in candidates]
+            if read_cfg.rerank_date_prefix:
+                # Hindsight: the cross-encoder sees when each candidate happened.
+                documents = [
+                    f"[Date: {record.valid_from:%Y-%m-%d}] {doc}"
+                    for (record, _), doc in zip(candidates, documents, strict=True)
+                ]
             try:
                 raw_scores = await reranker.rerank(query, documents)
                 relevances = _minmax_normalize(raw_scores)
@@ -1558,6 +1581,10 @@ class Engine:
         """
         if self._assembly is None:
             raise MemspineError("assembly policy not bound — engine not started?")
+        reserve = self._config().read.reply_reserve_tokens
+        if reserve:
+            # ContextPipe: leave room for the reply inside the same window budget.
+            budget_tokens = max(1, budget_tokens - reserve)
         fetch_k = top_k * self._config().read.candidate_pool
         if shared:
             scored = await self.shared_search(
@@ -1640,10 +1667,18 @@ class Engine:
             )
             assembled.records = [*stable, *volatile]
         if read_cfg.render == "dated":
-            assembled.records = [
-                *assembled.records[: assembled.boundary_index],
-                *(self._render_dated(r) for r in assembled.records[assembled.boundary_index :]),
-            ]
+            volatile = assembled.records[assembled.boundary_index :]
+            rendered = [self._render_dated(r) for r in volatile]
+            if read_cfg.gap_markers:
+                # H22 (Mastra): mark long silences between consecutive dated records.
+                for i in range(1, len(volatile)):
+                    gap = volatile[i].valid_from - volatile[i - 1].valid_from
+                    marker = _gap_marker(gap.days)
+                    if marker:
+                        rendered[i] = rendered[i].model_copy(
+                            update={"content": f"{marker} {rendered[i].content}"}
+                        )
+            assembled.records = [*assembled.records[: assembled.boundary_index], *rendered]
         return assembled
 
     async def read(

@@ -271,3 +271,62 @@ async def test_rerank_gate_skips_reranker_for_large_top_k(monkeypatch) -> None: 
         assert len(calls) == 1
     finally:
         await eng.stop()
+
+
+async def test_reply_reserve_shrinks_the_budget() -> None:
+    eng = _engine(read={"hybrid": False, "reply_reserve_tokens": 3990})
+    await eng.start()
+    try:
+        for i in range(5):
+            await eng.write(f"note {i} about the beach " + "word " * 10, namespace="a")
+        ctx = await eng.assemble("beach", namespace="a", budget_tokens=4000)
+        assert ctx.tokens_used <= 30
+    finally:
+        await eng.stop()
+
+
+async def test_gap_markers_mark_long_silences() -> None:
+    eng = _engine(
+        read={
+            "hybrid": False,
+            "render": "dated",
+            "gap_markers": True,
+            "order_by_time_for_ordering": True,
+        }
+    )
+    await eng.start()
+    try:
+        for when in (datetime(2023, 5, 1, tzinfo=UTC), datetime(2023, 5, 22, tzinfo=UTC)):
+            await eng.write(
+                "Melanie went hiking", namespace="a", memory_type="episodic", valid_from=when
+            )
+        ctx = await eng.assemble("when did Melanie first go hiking", namespace="a")
+        lines = [r.content for r in ctx.records]
+        assert lines[1].startswith("[3 weeks later] [2023-05-22")
+    finally:
+        await eng.stop()
+
+
+async def test_rerank_date_prefix_and_ordering_skip(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    seen: list[list[str]] = []
+
+    class FakeReranker:
+        async def rerank(self, query: str, documents: list[str]) -> list[float]:
+            seen.append(documents)
+            return [0.0] * len(documents)
+
+    eng = _engine(
+        read={"hybrid": False, "rerank_date_prefix": True, "skip_rerank_for_ordering": True}
+    )
+    await eng.start()
+    try:
+        monkeypatch.setattr(eng, "_rerank_provider", lambda: FakeReranker())
+        await eng.write(
+            "Melanie went hiking", namespace="a", valid_from=datetime(2023, 5, 1, tzinfo=UTC)
+        )
+        await eng.search("where did Melanie go", namespace="a", top_k=2)
+        assert seen and seen[0][0].startswith("[Date: 2023-05-01] ")
+        await eng.search("what did Melanie do most recently", namespace="a", top_k=2)
+        assert len(seen) == 1  # ordering query: reranker skipped
+    finally:
+        await eng.stop()
