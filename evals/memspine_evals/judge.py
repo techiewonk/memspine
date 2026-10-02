@@ -140,6 +140,24 @@ class ContainsJudge:
         return Verdict(score=1.0 if g and g in a else 0.0, scale=JudgeScale.BINARY)
 
 
+class AliasContainsJudge:
+    """Binary, deterministic: any ``" || "``-separated alias appears in the answer.
+
+    MemoryAgentBench's own metric for fact consolidation is substring match against the
+    answer aliases; no model is involved, so the score is reproducible exactly.
+    """
+
+    def __init__(self) -> None:
+        self.spec = JudgeSpec(judge_id="alias-contains", scale=JudgeScale.BINARY)
+
+    async def score(self, question: str, answer: str, gold: str | None) -> Verdict:
+        if not gold:
+            return Verdict(score=0.0, scale=JudgeScale.BINARY, meta={"skipped": "no gold"})
+        a = normalise_answer(answer)
+        hit = any(g and g in a for g in (normalise_answer(x) for x in gold.split(" || ")))
+        return Verdict(score=1.0 if hit else 0.0, scale=JudgeScale.BINARY)
+
+
 # -- LLM judge ---------------------------------------------------------------
 
 DEFAULT_BINARY_PROMPT = (

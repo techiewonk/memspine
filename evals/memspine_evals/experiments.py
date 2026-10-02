@@ -156,6 +156,12 @@ def build_reader_and_judge(config: C01Config) -> tuple[Reader, Judge, bool]:
         # No generation: "was the answer retrievable at all". This is what R@k
         # and MemPalace's 96.6 measure, and it costs nothing to run.
         return ContextOnlyReader(), ContainsJudge(), False
+    if config.judge_prompt == "alias":
+        from .judge import AliasContainsJudge
+
+        alias_judge: Judge = AliasContainsJudge()
+    else:
+        alias_judge = None  # type: ignore[assignment]
     if config.bedrock:
         from .bedrock import QWEN3_32B, CallBudget, LiteLLMReader, litellm_chat
 
@@ -184,7 +190,7 @@ def build_reader_and_judge(config: C01Config) -> tuple[Reader, Judge, bool]:
             ),
             judge_id=f"qwen3-32b-{config.judge_prompt}-binary",
         )
-        return bedrock_reader, bedrock_judge, True
+        return bedrock_reader, alias_judge or bedrock_judge, True
     reader = OpenAICompatReader(model=config.reader_model, base_url=config.base_url)
     judge = LLMJudge(
         openai_compat_chat(config.judge_model, base_url=config.base_url),

@@ -50,7 +50,17 @@ CONVERSE_QA_PROMPT = (
     "Memory notes:\n{context}\n\nLatest message: {question}\nReply:"
 )
 
+#: MemoryAgentBench fact consolidation: the benchmark tells the reader that a larger
+#: serial number means a newer fact (paraphrase of its instruction; declared per run).
+MAB_FC_QA_PROMPT = (
+    "You are a knowledge management system. Each fact below starts with a serial number; a "
+    "fact with a larger serial number is newer and overrides an older fact it contradicts. "
+    "Answer the question using the newest facts only, with just the answer (a few words).\n\n"
+    "Facts:\n{context}\n\nQuestion: {question}\nAnswer:"
+)
+
 QA_PROMPTS = {
+    "mab_fc": MAB_FC_QA_PROMPT,
     "default": DEFAULT_QA_PROMPT,
     "dated": DATED_QA_PROMPT,
     "abstain": ABSTAIN_QA_PROMPT,

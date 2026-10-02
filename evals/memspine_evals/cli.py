@@ -35,6 +35,10 @@ def _dataset(args: argparse.Namespace) -> DatasetAdapter:
         from .datasets import LoCoMoDataset
 
         return LoCoMoDataset(args.path, revision_id=args.revision)
+    if args.dataset == "memoryagentbench":
+        from .datasets import MemoryAgentBenchDataset
+
+        return MemoryAgentBenchDataset(args.path, revision_id=args.revision)
     if args.dataset == "locomo_plus":
         from .datasets import LoCoMoPlusDataset
 
@@ -155,7 +159,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     c01 = sub.add_parser("c0-1", help="verbatim-baseline gate (Plan C section 1.1)")
     c01.add_argument(
-        "--dataset", choices=("locomo", "locomo_plus", "longmemeval", "synthetic"), required=True
+        "--dataset",
+        choices=("locomo", "locomo_plus", "longmemeval", "memoryagentbench", "synthetic"),
+        required=True,
     )
     c01.add_argument("--locomo-path", default=None, help="locomo10.json paired with LoCoMo-Plus")
     c01.add_argument("--path", help="path to the dataset json")
@@ -191,13 +197,13 @@ def build_parser() -> argparse.ArgumentParser:
     c01.add_argument("--only-systems", default=None, help="comma list of system ids to run")
     c01.add_argument(
         "--judge-prompt",
-        choices=("rubric", "constraint"),
+        choices=("rubric", "constraint", "alias"),
         default="rubric",
         help="Qwen3-protocol judge: rubric (QA) or constraint (LoCoMo-Plus)",
     )
     c01.add_argument(
         "--qa-prompt",
-        choices=("default", "dated", "abstain", "converse"),
+        choices=("default", "dated", "abstain", "converse", "mab_fc"),
         default="default",
         help="QA prompt variant for every arm (H7/H12)",
     )
