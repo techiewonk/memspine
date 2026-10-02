@@ -37,17 +37,43 @@ def lenient_json(text: str) -> Any:
     return repair_json(text, return_objects=True)
 
 
+class _Counted:
+    """A provider that counts its own ``chat`` calls into the router's ledger.
+
+    Cost must be measured, not assumed: evaluations report model calls per loop
+    stage, and the write path (mining, anticipation, reflection) calls models.
+    """
+
+    def __init__(self, inner: LLMService, role: str, counts: dict[str, int]) -> None:
+        self._inner = inner
+        self._role = role
+        self._counts = counts
+
+    @property
+    def provider_id(self) -> str:
+        return self._inner.provider_id
+
+    async def chat(self, messages: list[dict[str, str]], **options: Any) -> str:
+        self._counts[self._role] = self._counts.get(self._role, 0) + 1
+        return await self._inner.chat(messages, **options)
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._inner, name)
+
+
 class LLMRouter:
     """Role -> provider table resolved from config at engine start."""
 
     def __init__(self, providers: dict[str, LLMService]) -> None:
         self._providers = providers
+        self._counts: dict[str, int] = {}
 
     @property
     def roles(self) -> list[str]:
         return sorted(self._providers)
 
-    def for_role(self, role: str) -> LLMService:
+    def provider(self, role: str) -> LLMService:
+        """The bound provider itself (uncounted); for wiring checks."""
         provider = self._providers.get(role)
         if provider is None:
             raise ConfigError(
@@ -55,3 +81,11 @@ class LLMRouter:
                 "to your config (a LiteLLM model id: openai/…, ollama/…, bedrock/…, D-33)"
             )
         return provider
+
+    def for_role(self, role: str) -> LLMService:
+        """The provider for ``role``, counting every call (see ``call_counts``)."""
+        return _Counted(self.provider(role), role, self._counts)
+
+    def call_counts(self) -> dict[str, int]:
+        """Model calls made so far, per role."""
+        return dict(self._counts)

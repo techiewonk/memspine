@@ -74,7 +74,7 @@ async def test_engine_routes_litellm_model_prefix() -> None:
     )
     await eng.start()
     try:
-        provider = eng._llm.for_role("chat")  # type: ignore[union-attr]
+        provider = eng._llm.provider("chat")  # type: ignore[union-attr]
         assert isinstance(provider, LiteLLMLLM)
         assert provider.provider_id == "litellm:openai/gpt-4o"
     finally:

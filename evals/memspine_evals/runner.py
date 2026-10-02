@@ -259,6 +259,7 @@ class EvalRunner:
                 for query in pending.get(turn.turn_id, ()):
                     rows.append(await self._answer(item, query, t, tracer))
                     done.add(query.query_id)
+            await self._build(item.item_id)
             for i, query in enumerate(tail):
                 rows.append(await self._answer(item, query, len(item.history) + i, tracer))
                 done.add(query.query_id)
@@ -299,6 +300,21 @@ class EvalRunner:
                 model_calls=deposit.model_calls,
                 meta=deposit.meta,
             )
+        )
+
+    async def _build(self, item_id: str) -> None:
+        """Optional adapter hook between ingestion and the tail queries (e.g. a
+        sleep cycle). Its cost is synthesis (K), not deposit."""
+        build = getattr(self.system, "build", None)
+        if build is None:
+            return
+        started = time.perf_counter()
+        result = await build()
+        self._account_model_calls(result.model_calls, f"{self.system.system_id}.build")
+        self.ledger.add(
+            Stage.SYNTHESISE,
+            calls=result.model_calls,
+            latency_ms=(time.perf_counter() - started) * 1000,
         )
 
     async def _answer(self, item: EvalItem, query: Query, t: int, tracer: TraceWriter) -> ResultRow:

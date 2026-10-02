@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from memspine_evals.multiagent.constructions import restates_poison
 
 CASES = [

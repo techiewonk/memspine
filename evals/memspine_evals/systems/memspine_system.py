@@ -59,6 +59,7 @@ class MemspineSystem:
         record_deposit_calls: bool = True,
         dated: bool = True,
         read_mode: str | None = None,
+        build_sleep: bool = False,
     ) -> None:
         self.system_id = system_id
         # ``template`` names a config template (base, personal, coding, ...);
@@ -74,6 +75,9 @@ class MemspineSystem:
         #: (``replay`` / ``auto`` / ``full``, C7'). Replay orders context
         #: chronologically, so R@k is not comparable with ranked arms.
         self._read_mode = read_mode
+        #: run ``Engine.sleep()`` once the history is in (``build``), so write-time
+        #: stages (mine_facts, anticipate, reflect_profile, ...) take part in a run.
+        self._build_sleep = build_sleep
         self._engine: Any = None
         self._version = "unknown"
         # record_id -> turn_id, so retrieved records map back to gold units.
@@ -90,6 +94,7 @@ class MemspineSystem:
             "record_access": bool((self.config.get("read") or {}).get("record_access", False)),
             "dated_rendering": self._dated,
             "read_mode": self._read_mode or "assemble",
+            "build_sleep": self._build_sleep,
             "token_counter": dict(self._counter.describe()),
         }
 
@@ -117,6 +122,11 @@ class MemspineSystem:
         await engine.start()
         return engine
 
+    def _calls(self) -> int | None:
+        """Total model calls the engine has made (None when it cannot say)."""
+        counts = getattr(self._engine, "model_calls", None)
+        return sum(counts().values()) if callable(counts) else None
+
     async def reset(self, item_id: str) -> None:
         await self.close()
         self._origin = {}
@@ -129,6 +139,7 @@ class MemspineSystem:
         # passing it as the role dropped names from the stored text and gave
         # every speaker an unknown-role trust. The session stamp becomes the
         # record's event time (valid_from), so dated questions are answerable.
+        before = self._calls()
         records = await self._engine.write_messages(
             [{"role": "user", "content": f"{turn.speaker}: {turn.text}"}],
             namespace=self.namespace,
@@ -141,28 +152,40 @@ class MemspineSystem:
             record_id = str(record.record_id)
             self._origin[record_id] = turn.turn_id
             ids.append(record_id)
+        after = self._calls()
+        if before is None or after is None:
+            # An engine without ``model_calls()`` cannot report write cost; the
+            # flag marks the gap rather than letting the ledger imply a free write.
+            return DepositResult(
+                n_records=len(ids),
+                record_ids=tuple(ids),
+                model_calls=0,
+                meta={
+                    "cost_observable": False,
+                    "cost_unknown_reason": "engine does not expose model_calls()",
+                },
+            )
+        return DepositResult(n_records=len(ids), record_ids=tuple(ids), model_calls=after - before)
+
+    async def build(self) -> DepositResult:
+        """After the history is in: run the sleep cycle when ``build_sleep`` is on.
+
+        Its model calls (one per session per LLM stage) are measured and land in
+        the synthesise (K) bucket; queries pinned mid-stream run before it.
+        """
+        if not self._build_sleep or self._engine is None:
+            return DepositResult()
+        before = self._calls() or 0
+        stats = await self._engine.sleep()
         return DepositResult(
-            n_records=len(ids),
-            record_ids=tuple(ids),
-            # The public facade does not report per-write model calls, so this
-            # is 0 by observation, not by measurement. Profiles that enable LLM
-            # extraction or entity NER on the write path DO call models; a run
-            # that needs deposit-stage cost must read it from the engine's own
-            # structlog events, and the flag below marks the gap rather than
-            # letting the ledger imply a free write.
-            model_calls=0,
-            meta={
-                "cost_observable": False,
-                "cost_unknown_reason": (
-                    "memspine's public facade does not report per-write model calls; "
-                    "profiles with LLM extraction or NER on the write path do call models"
-                ),
-            },
+            model_calls=(self._calls() or 0) - before,
+            meta={"sleep": {name: dict(stage) for name, stage in stats.items()}},
         )
 
     async def query(self, text: str, budget_tokens: int, top_k: int) -> RetrievedContext:
         if self._engine is None:
             raise RuntimeError("query before reset/insert — no engine started")
+        before = self._calls() or 0
         if self._read_mode:
             result = await self._engine.read(
                 text,
@@ -204,6 +227,8 @@ class MemspineSystem:
                 "n_records": len(evidence),
                 "read_mode": self._read_mode or "assemble",
                 "ranked": self._read_mode is None,
+                # query-side calls (rewrites, relevance filter, planner LLMs)
+                "model_calls": (self._calls() or 0) - before,
             },
         )
 

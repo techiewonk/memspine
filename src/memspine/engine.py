@@ -3219,6 +3219,11 @@ class Engine:
             _log.info(EVENT_WRITE, namespace=ns, prompt_versions=len(fresh))
         return fresh
 
+    def model_calls(self) -> dict[str, int]:
+        """LLM calls this engine has made since ``start()``, per role (read and
+        write path alike). Empty when no LLM is configured."""
+        return self._llm.call_counts() if self._llm is not None else {}
+
     def llm(self, role: str) -> LLMService:
         """The provider bound to a role (D-07/D-22): extract / judge / chat."""
         if self._llm is None:

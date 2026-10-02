@@ -1,4 +1,5 @@
 """Audit: every planned memspine feature -> is its identifier present in src/?"""
+
 from pathlib import Path
 
 SRC = Path(r"D:\mem\memory research\memspine\src\memspine")
@@ -15,7 +16,12 @@ FEATURES = [
     ("B3", "counterfactual repair", ["repair_taint"], code),
     ("B4", "revocation/quarantine propagation to descendants", ["live_reevaluation"], code),
     ("B5", "message mediation", ["async def send("], code),
-    ("B6", "action gate + untrusted wrapper", ["async def authorize(", "untrusted_wrap_below"], code),
+    (
+        "B6",
+        "action gate + untrusted wrapper",
+        ["async def authorize(", "untrusted_wrap_below"],
+        code,
+    ),
     ("B7", "per-principal reputation", ["principal_reputation"], code),
     ("B8", "secret/PII redaction", ["redact_secrets"], code),
     ("B9", "sanitise-before-summarise", ["instruction_flag"], code),
@@ -41,7 +47,12 @@ FEATURES = [
     ("H10", "relevance-first scoring", ["relevance_first"], code),
     ("H11", "candidate pool", ["candidate_pool"], code),
     ("H13", "core-terms leg", ["core_terms_leg"], code),
-    ("H14", "profile / persona cards from reflection", ["async def reflect_profile(", "reflect_profile"], code),
+    (
+        "H14",
+        "profile / persona cards from reflection",
+        ["async def reflect_profile(", "reflect_profile"],
+        code,
+    ),
     ("H15", "topic segments", ["topic_segments"], code),
     ("H16", "time order for ordering questions", ["order_by_time_for_ordering"], code),
     ("H17", "3-way relevance filter", ["relevance_filter"], code),
@@ -51,11 +62,26 @@ FEATURES = [
     ("H21", "deposit filters", ["skip_injected_recall"], code),
     ("H22", "topic timeline / gap markers in render", ["gap_markers"], code),
     ("H23", "near-duplicate removal", ["dedupe_jaccard"], code),
-    ("H24", "learned/encoder query planner (decision port)", ["services/decision", "DecisionProvider"], code),
+    (
+        "H24",
+        "learned/encoder query planner (decision port)",
+        ["services/decision", "DecisionProvider"],
+        code,
+    ),
     ("H25", "OmniMemEval protocol profile", ["omnimemeval"], evals),
-    ("P4-llm", "LLM query planner / rewrites for COMPOSE (query_rewrite role wired)", ["query_rewrite_probes"], code),
+    (
+        "P4-llm",
+        "LLM query planner / rewrites for COMPOSE (query_rewrite role wired)",
+        ["query_rewrite_probes"],
+        code,
+    ),
     ("RERANK-DATE", "date prefix in rerank input (Hindsight)", ["[Date:"], code),
-    ("ORDER-NORERANK", "skip rerank for ordering queries (Agent Zero)", ["skip_rerank_for_ordering"], code),
+    (
+        "ORDER-NORERANK",
+        "skip rerank for ordering queries (Agent Zero)",
+        ["skip_rerank_for_ordering"],
+        code,
+    ),
     ("RESERVE", "reply reserve in the budget (ContextPipe)", ["reply_reserve_tokens"], code),
     ("RRFK", "RRF constant as config (ablation)", ["rrf_k"], code),
 ]

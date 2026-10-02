@@ -84,6 +84,8 @@ class C01Config:
     memspine_config: dict[str, Any] | None = None
     #: memspine arm read path: None = assemble, else an Engine.read mode (C7').
     memspine_read_mode: str | None = None
+    #: run the engine's sleep cycle after ingestion (write-time stages: H2, H8, H14)
+    memspine_build_sleep: bool = False
     #: H7/H12: QA prompt variant for EVERY arm (default | dated | abstain), recorded
     #: in the reader manifest via its prompt hash.
     qa_prompt: str = "default"
@@ -168,7 +170,11 @@ def build_systems(config: C01Config) -> list[SystemAdapter]:
         from .systems.memspine_system import MemspineSystem
 
         systems.append(
-            MemspineSystem(config=config.memspine_config, read_mode=config.memspine_read_mode)
+            MemspineSystem(
+                config=config.memspine_config,
+                read_mode=config.memspine_read_mode,
+                build_sleep=config.memspine_build_sleep,
+            )
         )
     if config.only_systems:
         systems = [s for s in systems if s.system_id in config.only_systems]
