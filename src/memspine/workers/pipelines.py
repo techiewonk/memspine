@@ -55,6 +55,7 @@ __all__ = [
     "event_log_prune",
     "extract_graph",
     "mine_facts",
+    "reflect_profile",
     "reorganize",
     "sleep_compute",
 ]
@@ -95,6 +96,10 @@ Summarize = Callable[[str], Awaitable[str]]
 #: text, returns the (reflexion-merged) relationship edges. None => the
 #: extract_graph pipeline self-skips — no LLM role or the feature is off.
 ExtractEdges = Callable[[str], Awaitable[list[ExtractedEdge]]]
+#: H14: reflector (``reflect`` role): session turns -> (insight, evidence indices).
+Reflect = Callable[[list[str]], Awaitable[list[tuple[str, list[int]]]]]
+#: H14: engine-side reflection deposit (namespace, insight, evidence record ids, key).
+DepositReflection = Callable[[str, str, list[str], str], Awaitable[object]]
 #: H8: anticipator (``anticipate`` role): numbered session text -> cues.
 Anticipate = Callable[[str], Awaitable[list[AnticipatedCue]]]
 #: H8: engine-side cue deposit (namespace, target record id, cue texts, session key).
@@ -142,6 +147,9 @@ class PipelineContext:
     mine_facts: MineFacts | None = None
     #: H8 anticipatory cues. Both None => the anticipate stage self-skips.
     anticipate: Anticipate | None = None
+    #: H14 profile reflection. Both None => the reflect_profile stage self-skips.
+    reflect: Reflect | None = None
+    deposit_reflection: DepositReflection | None = None
     deposit_cues: DepositCues | None = None
     deposit_fact: DepositFact | None = None
 
@@ -1095,6 +1103,64 @@ async def anticipate(ctx: PipelineContext) -> dict[str, object]:
     }
 
 
+async def reflect_profile(ctx: PipelineContext) -> dict[str, object]:
+    """H14: profile insights per consolidated session, once (idempotent per session key)."""
+    policy = ConsolidationPolicy.bind(_policy_options(ctx, "episodic", "consolidation"))
+    if not getattr(policy.options, "reflect_profile", False):
+        return {"status": "skipped", "reason": "consolidation.reflect_profile is off"}
+    if ctx.reflect is None or ctx.deposit_reflection is None:
+        return {"status": "skipped", "reason": "no reflect LLM role / reflective memory"}
+    done = 0
+    insights = 0
+    errors: list[str] = []
+    after = 0
+    sessions: list[tuple[str, str, list[str]]] = []
+    while True:
+        events = await ctx.storage.read_events(after_seq=after, limit=1000)
+        if not events:
+            break
+        for event in events:
+            if event.kind is EventKind.CONSOLIDATE:
+                sessions.append(
+                    (
+                        event.namespace,
+                        str(event.payload.get("session_key", "")),
+                        [str(m) for m in event.payload.get("member_record_ids", [])],
+                    )
+                )
+        after = max(e.seq for e in events if e.seq is not None)
+    for namespace, key, member_ids in sessions:
+        if not key:
+            continue
+        existing = await ctx.storage.list_records(namespace, "reflective")
+        if any(r.source.message_id == f"reflected:{key}" for r in existing):
+            continue
+        members = [m for m in [await ctx.storage.get_record(i) for i in member_ids] if m]
+        members = [m for m in members if not m.quarantined]
+        if not members:
+            continue
+        members.sort(key=lambda m: m.valid_from)
+        try:
+            proposed = await ctx.reflect(
+                [f"[{m.valid_from:%Y-%m-%d}] {m.content}" for m in members]
+            )
+        except Exception as exc:  # LLM is an enhancer, never a gate
+            errors.append(f"{namespace}:{key}: {exc}")
+            continue
+        for text, evidence in proposed:
+            ids = [members[i].record_id for i in evidence if 0 <= i < len(members)]
+            if text.strip() and ids:
+                await ctx.deposit_reflection(namespace, text.strip(), ids, key)
+                insights += 1
+        done += 1
+    return {
+        "status": "ok" if not errors else "partial",
+        "sessions": done,
+        "insights": insights,
+        "errors": errors,
+    }
+
+
 #: Name -> pipeline. Runners register from this table; the M11-adjacent names
 #: are stable identifiers used in schedules and dead-letter reporting.
 PIPELINES: dict[str, Pipeline] = {
@@ -1103,6 +1169,7 @@ PIPELINES: dict[str, Pipeline] = {
     "extract_graph": extract_graph,
     "mine_facts": mine_facts,
     "anticipate": anticipate,
+    "reflect_profile": reflect_profile,
     "check_watches": check_watches,
     "decay_sweep": decay_sweep,
     "compress": compress,

@@ -104,6 +104,7 @@ from memspine.prompts.models import (
     ExtractedEdges,
     ExtractedFact,
     ExtractedFacts,
+    Insights,
     RelevanceLabels,
 )
 from memspine.prompts.registry import PromptRegistry
@@ -3399,6 +3400,8 @@ class Engine:
             deposit_fact=self._deposit_mined_fact,
             anticipate=self._build_anticipator(),
             deposit_cues=self._deposit_anticipated_cues,
+            reflect=self._build_reflector(),
+            deposit_reflection=self._deposit_profile_reflection,
             # Only when associative projects it (ADR-015): an explicit-config
             # graph store without the projector would reorganize a stale graph.
             graph=self._graph if self._associative is not None else None,
@@ -3502,6 +3505,38 @@ class Engine:
             return candidates
         drop = {item.index for item in result.labels if item.label.strip().lower() == "irrelevant"}
         return [pair for i, pair in enumerate(candidates) if i in safe or i not in drop]
+
+    def _build_reflector(self) -> Any:
+        """H14: the profile reflector, when a ``reflect`` role and reflective memory exist."""
+        if (
+            self._llm is None
+            or self._prompts is None
+            or "reflect" not in self._llm.roles
+            or self._reflective is None
+        ):
+            return None
+        llm = self._llm.for_role("reflect")
+        prompt = self._prompts.select("reflect")
+
+        async def reflect(episodes: list[str]) -> list[tuple[str, list[int]]]:
+            result = await structured_call(llm, prompt, {"episodes": episodes}, Insights)
+            return [(i.insight, list(i.evidence)) for i in result.insights]
+
+        return reflect
+
+    async def _deposit_profile_reflection(
+        self, namespace: str, content: str, evidence_ids: list[str], session_key: str
+    ) -> MemoryRecord:
+        """H14: a profile insight through the governed ``reflect`` door."""
+        return await self.reflect(
+            content,
+            evidence_ids,
+            namespace=namespace,
+            actor="system",
+            source=SourceInfo(
+                role="system", channel="reflection", message_id=f"reflected:{session_key}"
+            ),
+        )
 
     def _build_anticipator(self) -> Any:
         """H8: the anticipator, when an ``anticipate`` (or ``extract``) LLM role is bound."""

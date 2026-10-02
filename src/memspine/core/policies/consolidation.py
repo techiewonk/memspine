@@ -47,6 +47,10 @@ class ConsolidationOptions(PolicyOptions):
     #: ``extract``) for likely future questions and store them as firewall-governed
     #: retrieval cues on the turns that answer them (``Engine.add_cues``), once.
     anticipate: bool = False
+    #: H14: after consolidating a session, derive profile insights (preferences,
+    #: habits, goals) with the ``reflect`` role and store them as reflective memory
+    #: through ``Engine.reflect`` (trust capped at the evidence, depth capped), once.
+    reflect_profile: bool = False
 
 
 def extractive_summary(contents: list[str], max_chars: int) -> str:

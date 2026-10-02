@@ -53,6 +53,7 @@ async def test_sleep_cycle_runs_all_stages_in_order(engine: Engine) -> None:
         "consolidate",
         "mine_facts",  # C6' optional stage: skipped unless consolidation.mine_facts
         "anticipate",  # H8 optional stage: skipped unless consolidation.anticipate
+        "reflect_profile",  # H14 optional stage: skipped unless consolidation.reflect_profile
         "extract_graph",  # C2 optional stage: skipped without an extract_edges role
         "reorganize",  # D-42 optional stage (P6): skipped without a graph
         "check_watches",  # M13.8 read-only fired-count report (P7/ADR-016)

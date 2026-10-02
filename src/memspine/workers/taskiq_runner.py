@@ -76,12 +76,13 @@ PIPELINE_PRIORITIES: dict[str, int] = {
     "consolidate": 1,
     "mine_facts": 2,  # C6': atomic facts right after their session is consolidated
     "anticipate": 3,  # H8: cues right after their session is consolidated
-    "extract_graph": 4,  # C2: LLM edges before communities form over them
-    "reorganize": 5,
-    "decay_sweep": 6,
-    "compress": 7,
-    "sleep_compute": 8,
-    "event_log_prune": 9,
+    "reflect_profile": 4,  # H14: profile insights right after their session
+    "extract_graph": 5,  # C2: LLM edges before communities form over them
+    "reorganize": 6,
+    "decay_sweep": 7,
+    "compress": 8,
+    "sleep_compute": 9,
+    "event_log_prune": 10,
 }
 
 #: Labels outside the known pipeline set (deployment-registered pipelines,
