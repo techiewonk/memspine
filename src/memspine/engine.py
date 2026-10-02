@@ -1463,6 +1463,9 @@ class Engine:
         # ran, so a reranker can only reorder live content, never resurface
         # held content. Failures degrade loudly to the vector ordering.
         reranker = self._rerank_provider()
+        gate = self._config().read.rerank_max_top_k
+        if gate is not None and top_k > gate:
+            reranker = None  # H18: reranking pays when few of many candidates are kept
         if reranker is not None and candidates:
             documents = [concat_background(record) for record, _ in candidates]
             try:

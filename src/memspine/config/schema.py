@@ -265,6 +265,10 @@ class ReadConfig(BaseModel):
     #: H13: an extra BM25 leg over the question's core terms (interrogative and
     #: function words removed), fused by RRF. Needs the lexical store (hybrid).
     core_terms_leg: bool = False
+    #: H18: run the reranker only when ``top_k`` is at most this (reranking helps
+    #: most when few of many candidates are kept, and can hurt abstention when
+    #: many are). None = always rerank when a reranker is configured.
+    rerank_max_top_k: int | None = Field(default=None, ge=1)
     #: C8': resolve search hits on anticipatory cues (``Engine.add_cues``) to
     #: their target records. A cue below ``cue_min_trust`` is ignored, so cues
     #: from low-trust sources cannot redirect retrieval. Off: cues are invisible.

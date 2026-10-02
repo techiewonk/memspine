@@ -249,3 +249,25 @@ async def test_core_terms_leg_adds_a_lexical_probe() -> None:
             assert (len(legs) == 1) is on
         finally:
             await eng.stop()
+
+
+async def test_rerank_gate_skips_reranker_for_large_top_k(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    """H18: with rerank_max_top_k=3 the reranker runs for top_k=2 but not for top_k=10."""
+    calls: list[int] = []
+
+    class FakeReranker:
+        async def rerank(self, query: str, documents: list[str]) -> list[float]:
+            calls.append(len(documents))
+            return [float(i) for i in range(len(documents))]
+
+    eng = _engine(read={"hybrid": False, "rerank_max_top_k": 3})
+    await eng.start()
+    try:
+        monkeypatch.setattr(eng, "_rerank_provider", lambda: FakeReranker())
+        for i in range(6):
+            await eng.write(f"note {i} about hiking", namespace="a")
+        await eng.search("hiking", namespace="a", top_k=2)
+        await eng.search("hiking", namespace="a", top_k=10)
+        assert len(calls) == 1
+    finally:
+        await eng.stop()
