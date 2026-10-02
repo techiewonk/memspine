@@ -148,3 +148,29 @@ async def test_compose_spreads_over_sessions_for_aggregation() -> None:
         assert times == sorted(times)
     finally:
         await eng.stop()
+
+
+async def test_replay_follows_a_mined_fact_to_its_source_turn() -> None:
+    """H6: a retrieved atomic fact brings its best-matching source turn into context."""
+    eng = _engine()
+    await eng.start()
+    try:
+        ids = await _session(
+            eng,
+            [
+                "we talked about the weather",
+                "my sister Ana adopted a grey cat called Miso",
+                "then we discussed football",
+            ],
+            T0,
+        )
+        await eng._deposit_mined_fact(
+            "a", "Ana pet: grey cat named Miso", "Ana", "pet", ids, T0, "s1"
+        )
+        out = await eng.read(
+            "what pet does Ana have", namespace="a", mode="replay", top_k=1, budget_tokens=400
+        )
+        got = [r.record_id for r in out.context.records]
+        assert ids[1] in got
+    finally:
+        await eng.stop()

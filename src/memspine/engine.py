@@ -1645,6 +1645,12 @@ class Engine:
             return await self._compose(query, ns, budget_tokens, top_k, compose_pool)
         base = await self.assemble(query, namespace=ns, budget_tokens=budget_tokens, top_k=top_k)
         episodic_hits = [r for r in base.records if r.memory_type == "episodic"]
+        # H6: a mined atomic fact replays the source turn it best matches (its
+        # derived_from lists the whole session, which would not fit the budget).
+        for fact in (r for r in base.records if "atomic_fact" in r.tags and r.source.parents):
+            source = await self._best_source_turn(fact)
+            if source is not None and all(source.record_id != h.record_id for h in episodic_hits):
+                episodic_hits.append(source)
         if mode == "retrieve" or self._episodic is None or not episodic_hits:
             return ReadResult("retrieve", base)
         sessions = await self._episodic.sessions(ns, constants.SESSION_GAP_MINUTES)
@@ -1688,6 +1694,26 @@ class Engine:
                 tokens_used=used,
             ),
         )
+
+    async def _best_source_turn(self, fact: MemoryRecord) -> MemoryRecord | None:
+        """H6: the eligible parent turn sharing the most words with ``fact``."""
+        storage = self._require_started()
+        words = set(fact.content.lower().split())
+        best: tuple[float, MemoryRecord] | None = None
+        for parent_id in fact.source.parents:
+            parent = await storage.get_record(parent_id)
+            if parent is None or parent.memory_type != "episodic":
+                continue
+            if not self._context_eligible(parent):
+                continue
+            other = set(parent.content.lower().split())
+            overlap = len(words & other) / (len(words | other) or 1)
+            if best is None or overlap > best[0]:
+                best = (overlap, parent)
+        if best is None:
+            return None
+        inflated = self._inflate_all([best[1]], fact.namespace)
+        return self._wrap_for_context(inflated[0]) if inflated else None
 
     async def _compose(
         self, query: str, ns: str, budget_tokens: int, top_k: int, pool: int
