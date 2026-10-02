@@ -181,7 +181,7 @@ def build_parser() -> argparse.ArgumentParser:
     c01.add_argument("--item-ids", default=None, help="comma list of item ids (resume a run)")
     c01.add_argument(
         "--memspine-read-mode",
-        choices=("replay", "auto", "full"),
+        choices=("replay", "auto", "full", "compose"),
         default=None,
         help="memspine arm reads via Engine.read(mode) instead of assemble (C7')",
     )

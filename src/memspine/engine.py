@@ -46,6 +46,7 @@ from memspine.core.policies.retention import RetentionPolicy
 from memspine.core.policies.scoring import ScoringPolicy
 from memspine.core.policies.trust import TrustPolicy
 from memspine.core.projector import Projector
+from memspine.core.query_shape import core_terms, is_aggregation
 from memspine.core.records import (
     ArchivedVersion,
     MemoryRecord,
@@ -1590,6 +1591,7 @@ class Engine:
         budget_tokens: int = constants.ASSEMBLE_BUDGET_TOKENS,
         top_k: int = constants.ASSEMBLE_TOP_K,
         replay_window: int = 2,
+        compose_pool: int = 3,
     ) -> ReadResult:
         """C7': mode-routed read. Rules decide; no model on the read path.
 
@@ -1598,15 +1600,20 @@ class Engine:
         - ``replay``: :meth:`assemble`, then each retrieved episodic turn is
           expanded to ``replay_window`` neighbouring raw turns of its session;
         - ``retrieve``: exactly :meth:`assemble`;
-        - ``auto``: ``full`` if it fits, else ``replay`` when episodic memory is
-          on and a hit is episodic, else ``retrieve``.
+        - ``compose`` (H3): for aggregation questions. Pools ``compose_pool x top_k``
+          candidates from the query and its core-terms probe (rank-fused), then
+          picks them session-diversely (the best hit of each session in turn) up to
+          ``2 x top_k`` records and the budget, chronological;
+        - ``auto``: ``full`` if it fits; else ``compose`` for aggregation questions;
+          else ``replay`` when episodic memory is on and a hit is episodic; else
+          ``retrieve``.
 
         Full and replay honour the same gates as search: erased (DELETED),
         superseded, quarantined, grant and cue records never enter, and under
         ``integrity.enabled`` nothing below the admission threshold does; the
         instruction-flag and untrusted-note wrappers apply as in assembly.
         """
-        if mode not in ("auto", "full", "replay", "retrieve"):
+        if mode not in ("auto", "full", "replay", "retrieve", "compose"):
             raise ValueError(f"unknown read mode {mode!r}")
         storage = self._require_started()
         ns = validate_namespace(namespace)
@@ -1619,6 +1626,8 @@ class Engine:
                 return ReadResult("full", AssembledContext(records=live, tokens_used=cost))
             if mode == "full":
                 mode = "retrieve"
+        if mode == "compose" or (mode == "auto" and is_aggregation(query)):
+            return await self._compose(query, ns, budget_tokens, top_k, compose_pool)
         base = await self.assemble(query, namespace=ns, budget_tokens=budget_tokens, top_k=top_k)
         episodic_hits = [r for r in base.records if r.memory_type == "episodic"]
         if mode == "retrieve" or self._episodic is None or not episodic_hits:
@@ -1664,6 +1673,54 @@ class Engine:
                 tokens_used=used,
             ),
         )
+
+    async def _compose(
+        self, query: str, ns: str, budget_tokens: int, top_k: int, pool: int
+    ) -> ReadResult:
+        """H3: session-diverse, wider-recall read for aggregation questions."""
+        probes = [query]
+        terms = core_terms(query)
+        if terms and terms.lower() != query.lower():
+            probes.append(terms)
+        fused: dict[str, float] = {}
+        records: dict[str, MemoryRecord] = {}
+        for probe in probes:
+            hits = await self.search(probe, namespace=ns, top_k=max(1, top_k * pool))
+            for rank, (record, _) in enumerate(hits, start=1):
+                fused[record.record_id] = fused.get(record.record_id, 0.0) + 1.0 / (
+                    constants.RRF_K + rank
+                )
+                records[record.record_id] = record
+        ranked = sorted(fused, key=lambda rid: (-fused[rid], rid))
+        sessions: dict[str, list[str]] = {}
+        if self._episodic is not None:
+            for s in await self._episodic.sessions(ns, constants.SESSION_GAP_MINUTES):
+                for rid in s.record_ids:
+                    sessions.setdefault(rid, []).append(s.session_key)
+        queues: dict[str, list[str]] = {}
+        order: list[str] = []
+        for rid in ranked:
+            key = (sessions.get(rid) or [records[rid].group_id or rid])[0]
+            if key not in queues:
+                queues[key] = []
+                order.append(key)
+            queues[key].append(rid)
+        chosen: list[MemoryRecord] = []
+        used = 0
+        limit = 2 * top_k
+        while len(chosen) < limit and any(queues[k] for k in order):
+            for key in order:
+                if not queues[key] or len(chosen) >= limit:
+                    continue
+                record = self._wrap_for_context(records[queues[key].pop(0)])
+                cost = len(record.content) // 4 + 1
+                if used + cost > budget_tokens:
+                    queues[key].clear()
+                    continue
+                chosen.append(record)
+                used += cost
+        chosen.sort(key=lambda r: (r.valid_from, r.record_id))
+        return ReadResult("compose", AssembledContext(records=chosen, tokens_used=used))
 
     def _context_eligible(self, record: MemoryRecord) -> bool:
         """C7': the search-time gates, for records reached without a search."""

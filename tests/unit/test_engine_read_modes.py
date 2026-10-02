@@ -115,3 +115,36 @@ async def test_unknown_mode_rejected() -> None:
             await eng.read("q", namespace="a", mode="guess")
     finally:
         await eng.stop()
+
+
+async def test_compose_spreads_over_sessions_for_aggregation() -> None:
+    """H3: an aggregation question collects evidence from every session that has it,
+    in chronological order, instead of the top turns of one session."""
+    eng = _engine()
+    await eng.start()
+    try:
+        days = [T0 + timedelta(days=d) for d in (0, 30, 60)]
+        ids = []
+        for d in days:
+            await _session(eng, [f"chit chat {i} " + "blah " * 20 for i in range(6)], d)
+            rec = await eng.write(
+                "Melanie went to the beach with her kids",
+                namespace="a",
+                memory_type="episodic",
+                valid_from=d + timedelta(minutes=30),
+            )
+            ids.append(rec.record_id)
+        out = await eng.read(
+            "How many times has Melanie gone to the beach?",
+            namespace="a",
+            mode="auto",
+            top_k=2,
+            budget_tokens=60,
+        )
+        assert out.mode == "compose"
+        got = [r.record_id for r in out.context.records]
+        assert set(ids) <= set(got)
+        times = [r.valid_from for r in out.context.records]
+        assert times == sorted(times)
+    finally:
+        await eng.stop()
