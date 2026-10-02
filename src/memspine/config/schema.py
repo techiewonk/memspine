@@ -271,6 +271,11 @@ class ReadConfig(BaseModel):
     #: "last Friday" -> "last Friday [= Fri 2023-07-14]". Deterministic rules, no model;
     #: stored content is never changed. Off: byte-identical.
     resolve_relative_dates: bool = False
+    #: H11: assembly draws from ``candidate_pool x top_k`` search candidates, so
+    #: the token budget, not a fixed K, decides how much evidence enters (LoCoMo:
+    #: top-10 filled ~400 of 4,096 tokens). 1 = unchanged. Pair with
+    #: ``assembly.relative_floor`` to keep precision.
+    candidate_pool: int = Field(default=1, ge=1, le=10)
     cue_min_trust: float = 0.5
 
 

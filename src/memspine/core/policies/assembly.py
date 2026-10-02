@@ -48,6 +48,10 @@ class AssemblyOptions(PolicyOptions):
     theta_abstain: float = constants.THETA_ABSTAIN
     mmr_lambda: float = constants.MMR_LAMBDA
     cache_aware_placement: bool = True  # E2
+    #: H4: drop candidates scoring below ``relative_floor x best score`` before
+    #: MMR fills the budget (precision over recall: distractors cost more than a
+    #: missing marginal record). 0.0 = off, byte-identical.
+    relative_floor: float = 0.0
 
 
 @dataclass
@@ -87,6 +91,9 @@ class AssemblyPolicy(BindablePolicy):
 
         if not scored or max(score for _, score in scored) < options.theta_abstain:
             return AssembledContext(abstained=True)
+        if options.relative_floor > 0.0:
+            best = max(score for _, score in scored)
+            scored = [(r, s) for r, s in scored if s >= options.relative_floor * best]
 
         # Greedy MMR selection under the token budget. Token sets are computed
         # once per record — jaccard over pre-split sets, not raw strings.

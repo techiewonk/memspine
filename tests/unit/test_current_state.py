@@ -162,3 +162,26 @@ async def test_resolve_relative_dates_annotates_assembled_records() -> None:
             assert rec.content == "Caroline went to the support group last Friday"
         finally:
             await eng.stop()
+
+
+async def test_candidate_pool_and_relative_floor() -> None:
+    """H11/H4: a wider candidate pool lets the budget, not K, decide how much enters;
+    the relative floor then removes weak candidates. Defaults are unchanged."""
+    counts = {}
+    for name, read in {
+        "default": {"hybrid": False},
+        "pool": {"hybrid": False, "candidate_pool": 4},
+        "pool+floor": {"hybrid": False, "candidate_pool": 4, "assembly": {"relative_floor": 0.99}},
+    }.items():
+        eng = _engine(read=read)
+        await eng.start()
+        try:
+            for i in range(12):
+                await eng.write(f"note {i} about the beach trip", namespace="a")
+            ctx = await eng.assemble("beach trip", namespace="a", top_k=2, budget_tokens=4096)
+            counts[name] = len(ctx.records)
+        finally:
+            await eng.stop()
+    assert counts["default"] == 2
+    assert counts["pool"] == 8
+    assert counts["pool+floor"] < counts["pool"]

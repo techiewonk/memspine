@@ -1510,13 +1510,14 @@ class Engine:
         """
         if self._assembly is None:
             raise MemspineError("assembly policy not bound — engine not started?")
+        fetch_k = top_k * self._config().read.candidate_pool
         if shared:
             scored = await self.shared_search(
-                query, namespace=namespace, top_k=top_k, session_id=session_id
+                query, namespace=namespace, top_k=fetch_k, session_id=session_id
             )
         else:
             scored = await self.search(
-                query, namespace=namespace, top_k=top_k, session_id=session_id
+                query, namespace=namespace, top_k=fetch_k, session_id=session_id
             )
         integrity = self._integrity()
         if integrity.enabled and integrity.trust_weighted_ranking and scored:
