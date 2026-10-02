@@ -26,7 +26,7 @@ _STOP = frozenset(
         "do does did what which who whom whose when where why how many much often list all every "
         "each some any that this these those it its they them their he she his her i you we us "
         "our my me your"
-    ).split()
+    ).split()  # noqa: SIM905 - one readable block instead of 70 one-word lines
 )
 _WORD = re.compile(r"[A-Za-z0-9']+")
 
