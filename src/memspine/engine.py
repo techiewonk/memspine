@@ -1817,6 +1817,7 @@ class Engine:
         terms = core_terms(query)
         if terms and terms.lower() != query.lower():
             probes.append(terms)
+        probes += await self._query_rewrite_probes(query)
         fused: dict[str, float] = {}
         records: dict[str, MemoryRecord] = {}
         for probe in probes:
@@ -3441,6 +3442,26 @@ class Engine:
         raise ConfigError(
             f"unknown workers.runner {config.workers.runner!r} (valid: inline, dbos, taskiq)"
         )
+
+    async def _query_rewrite_probes(self, query: str) -> list[str]:
+        """P4 (JustMem COMPOSE): up to two answer-free rewrites from the ``query_rewrite``
+        role (``@compose`` variant), when ``read.compose_rewrites`` is on and the role is
+        bound. Any failure yields no extra probes (an enhancer, never a gate)."""
+        if (
+            not self._config().read.compose_rewrites
+            or self._llm is None
+            or self._prompts is None
+            or "query_rewrite" not in self._llm.roles
+        ):
+            return []
+        prompt = self._prompts.select("query_rewrite", condition="compose")
+        try:
+            text = await self._llm.for_role("query_rewrite").chat(prompt.render({"query": query}))
+        except Exception as exc:
+            _log.warning("read.query_rewrite_failed", error=str(exc))
+            return []
+        lines = [line.strip(" -*0123456789.\t") for line in text.splitlines()]
+        return [line for line in lines if line and line.lower() != query.lower()][:2]
 
     def _build_summarize(self) -> Summarize | None:
         """The consolidation summarizer (M2): only when a ``summarize`` LLM role

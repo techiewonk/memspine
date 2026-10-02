@@ -286,6 +286,9 @@ class ReadConfig(BaseModel):
     skip_rerank_for_ordering: bool = False
     #: H22 (Mastra): with ``render: dated``, mark long gaps ("[3 weeks later]").
     gap_markers: bool = False
+    #: P4 (JustMem COMPOSE): the compose read adds up to two answer-free rewrites
+    #: from the ``query_rewrite`` LLM role (``@compose`` prompt). Needs the role bound.
+    compose_rewrites: bool = False
     relevance_safety_net: int = Field(default=10, ge=0)
     #: C8': resolve search hits on anticipatory cues (``Engine.add_cues``) to
     #: their target records. A cue below ``cue_min_trust`` is ignored, so cues
