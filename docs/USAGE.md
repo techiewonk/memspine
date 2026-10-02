@@ -418,7 +418,7 @@ in the schema — or if the schema gains a key not documented here.
 | `vector.backend` | `lance` | `lance` is the sole store (ADR-021); `weaviate` reserved (raises). |
 | `vector.quantization` | `auto` | `auto` (manifest-driven) \| `none` \| `int8` \| `binary` — E4 native rescore (ADR-020). |
 | `cache.backend` | `memory` | `memory` \| `lmdb` `[lmdb]` \| `redis` `[redis]` \| `valkey` `[valkey]` (D-09). |
-| `cache.path` | `./memspine.cache.lmdb` | LMDB env directory. |
+| `cache.path` | `./memspine.cache` | LMDB env directory. |
 | `cache.url` | `redis://localhost:6379/0` | Redis/Valkey DSN (secrets-resolved). |
 | `cache.namespace` | `memspine` | Key prefix so instances can share one store. |
 | `cache.default_ttl_seconds` | `null` | Default TTL when a caller passes none (`null` = no expiry). |
@@ -435,8 +435,8 @@ in the schema — or if the schema gains a key not documented here.
 | `read.rerank_model` | `null` | LiteLLM rerank model id; required when `rerank: litellm`. |
 | `read.static_prefilter` | `false` | E8 cheap lexical-overlap gate (post-vector). |
 | `read.static_embedding_prefilter` | `false` | E4 model2vec static-cosine gate `[static]`. |
-| `read.hybrid` | `false` | Fuse the lexical BM25 leg via RRF (D-25); off = vector-only, bit-identical. |
-| `read.lexical_provider` | `sqlite_fts5` | `sqlite_fts5` (FTS5/BM25) \| `tantivy` `[tantivy]`; only when `hybrid` is on. |
+| `read.hybrid` | `true` | Fuse the lexical BM25 leg via RRF (D-25; on by default since the v0.2 flip, ADR-019); `false` = vector-only. |
+| `read.lexical_provider` | `tantivy` | `sqlite_fts5` (FTS5/BM25) \| `tantivy` `[tantivy]`; only when `hybrid` is on. |
 | `read.compression` | `{}` | Options for the E5 assembly-stage `CompressionPolicy` (`memspine[compress]`). |
 | `read.record_access` | `true` | Append a RETRIEVE event per search (reinforcement stats). `false` makes reads side-effect free (e.g. benchmark isolation). |
 | `read.current_state_view` | `false` | C4': render each retrieved keyed fact as `CURRENT (since date)` plus its superseded `HISTORY` (deterministic, from the bi-temporal chain). |
@@ -482,7 +482,7 @@ in the schema — or if the schema gains a key not documented here.
 | `integrity.merge_reinforcement_gate` | `true` | A less-trusted duplicate never reinforces the record it merges into. |
 | `integrity.implicit_parents` | `off` | B0: `turn` / `session`: records each session's reads and makes them implicit parents of its next write (write trust ≤ lowest view trust read), so omitting `derived_from` cannot launder. `turn` consumes the ledger per write; `session` keeps it until `end_session()`. |
 | `integrity.untrusted_wrap_below` | `0.0` | B6: `assemble` renders records whose view trust is below this inside an untrusted-data wrapper (data, not instructions). 0.0 = off. |
-| `integrity.live_reevaluation` | `false` | B4': search/shared_search re-check each candidate's trust against its current parents (ancestor quarantine/rollback/revocation propagates; radii only shrink). |
+| `integrity.live_reevaluation` | `false` | B4': search/shared_search re-check each candidate's trust against its current parents (ancestor quarantine/rollback propagates; grant revocation does not, see ADR-029 edge cases; radii only shrink). |
 | `workers.runner` | `inline` | `inline` \| `dbos` `[dbos]` \| `taskiq` `[taskiq]` (D-16). |
 | `workers.broker_url` | `redis://localhost:6379/0` | taskiq broker endpoint (ignored by other runners). |
 | `workers.dbos_system_database_url` | `null` | DBOS system db; `null` derives a SQLite file beside `storage.path`. |
@@ -499,6 +499,24 @@ Secrets backend selection is **not** a config key: `MEMSPINE_SECRETS_BACKEND`
 (`env` default \| `aws`) is an environment variable, because secrets resolve before
 `MemspineConfig` is built (ADR-023).
 
+### Policy options (nested under the dict-valued keys)
+
+The dict-valued keys above take the options of a bindable policy
+(`src/memspine/core/policies/`). These are the opt-in read and write options that the
+table above does not list one by one. All are off by default, so `profile="simple"` is
+unchanged; `tests/unit/test_simple_profile_golden.py` pins their defaults.
+
+| Option path | Default | Notes |
+|-----|---------|-------|
+| `memories.semantic.policies.conflict.contest_ties` | `false` | H9: when neither event time nor trust decides between two values of one fact key, keep both (verdict CONTEST). The contender is tagged `disputed`; the current fact stays the single active one. |
+| `memories.semantic.policies.conflict.contest_window_seconds` | `0.0` | H9: two event times at most this many seconds apart count as a tie. `0.0` = only identical event times. |
+| `memories.semantic.policies.conflict.contest_trust_margin` | `0.05` | H9: two trusts at most this far apart count as a tie. |
+| `read.assembly.latest_slots` | `0` | H19: reserve up to this many of the most recent candidates (by event time) in the selection, so the latest evidence is not crowded out. `0` = off. |
+| `read.assembly.dedupe_jaccard` | `1.0` | H23: drop a candidate whose word set overlaps an already selected one at or above this Jaccard ratio. `1.0` = off. |
+| `memories.episodic.policies.consolidation.mine_facts` | `false` | C6′: a sleep stage mines dated atomic facts once per consolidated session through the write door. Needs an `extract` LLM role. |
+| `memories.episodic.policies.consolidation.anticipate` | `false` | H8: a sleep stage asks the `anticipate` role (falls back to `extract`) once per session for likely future questions and stores them as cues via `add_cues`. |
+| `memories.episodic.policies.consolidation.reflect_profile` | `false` | H14: a sleep stage asks the `reflect` role (generic `reflect.yaml` prompt) once per session for profile insights, stored through `Engine.reflect`. Needs reflective memory enabled. |
+
 ---
 
 ## Where to go next
@@ -506,7 +524,8 @@ Secrets backend selection is **not** a config key: `MEMSPINE_SECRETS_BACKEND`
 - [`FEATURES.md`](./FEATURES.md) — the feature catalog (types, firewall, E2–E9).
 - [`examples/01_quickstart.py`](../examples/01_quickstart.py) → `04_prospective_shared_rest.py`.
 - [`memspine-structure-plan.md`](./memspine-structure-plan.md) — the authoritative blueprint.
-- [`adr/`](./adr/) — architecture decision records (ADR-001 … ADR-025); the newest cover
-  LanceDB core vector (ADR-021), shared cache backends (ADR-022), pluggable secrets +
-  AWS (ADR-023), the LiteLLM LLM/embedding/rerank gateway (ADR-024), and PostgreSQL
-  storage (ADR-025).
+- [`adr/`](./adr/) — architecture decision records (ADR-001 … ADR-031); the newest cover
+  the multi-call write pipeline (ADR-026), record group tags (ADR-027), Leiden community
+  detection (ADR-028), the trust-horizon invariant (ADR-029, proposed), relevance-first
+  scoring (ADR-030, proposed), and the decision port with call accounting (ADR-031,
+  proposed).
