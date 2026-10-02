@@ -13,6 +13,7 @@ from typing import Any
 #: shipped prompt (base or variant) of that role references must appear here.
 CANONICAL_CONTEXTS: dict[str, dict[str, Any]] = {
     "extract": {"content": "Alice lives in Berlin and works at Acme."},
+    "anticipate": {"content": "[1] [2026-01-02] Alice: I found out I am allergic to nuts"},
     "judge": {
         "existing_content": "Alice lives in Berlin",
         "existing_valid_from": "2026-01-01",
@@ -40,6 +41,7 @@ CANONICAL_CONTEXTS: dict[str, dict[str, Any]] = {
 #: A minimal valid payload for each output model (D-31), used to prove the
 #: prompt↔model pairing round-trips through the offline parse+validate path.
 SAMPLE_PAYLOADS: dict[str, dict[str, Any]] = {
+    "AnticipatedCues": {"cues": [{"line": 1, "cue": "What can Alice eat at the party?"}]},
     "ExtractedFacts": {
         "facts": [{"entity": "Alice", "attribute": "city", "value": "Berlin", "confidence": 0.9}]
     },

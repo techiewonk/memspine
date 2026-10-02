@@ -1,6 +1,6 @@
 """Sleep cycle (M2/E7): the ordered maintenance pass.
 
-consolidate → mine_facts → extract_graph → reorganize → check_watches → decay_sweep →
+consolidate → mine_facts → anticipate → extract_graph → reorganize → check_watches → decay_sweep →
 compress → event_log_prune, with the E7 sleep-time-compute hook slot reserved
 after compress (no-op default, RG tier). The C2 extract_graph stage (LLM edge
 extraction → asserted links) runs before reorganize so communities form over
@@ -21,6 +21,7 @@ __all__ = ["SLEEP_CYCLE_ORDER", "run_sleep_cycle"]
 SLEEP_CYCLE_ORDER: tuple[str, ...] = (
     "consolidate",
     "mine_facts",
+    "anticipate",
     # C2 optional stage: LLM edge extraction -> semantic facts + asserted links.
     # Runs before reorganize so communities form over the fresh LLM edges.
     "extract_graph",

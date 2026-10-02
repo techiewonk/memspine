@@ -37,7 +37,7 @@ from memspine.memories.associative.links import assert_within_budget, link_event
 from memspine.memories.episodic.sessions import Session, detect_sessions
 from memspine.memories.prospective.triggers import due_watches, invalidation_watches
 from memspine.observability.logging import get_logger
-from memspine.prompts.models import ExtractedEdge, ExtractedFact
+from memspine.prompts.models import AnticipatedCue, ExtractedEdge, ExtractedFact
 from memspine.services.graph.base import GraphStore
 
 __all__ = [
@@ -47,6 +47,7 @@ __all__ = [
     "Pipeline",
     "PipelineContext",
     "PipelineStorage",
+    "anticipate",
     "check_watches",
     "compress",
     "consolidate",
@@ -94,6 +95,10 @@ Summarize = Callable[[str], Awaitable[str]]
 #: text, returns the (reflexion-merged) relationship edges. None => the
 #: extract_graph pipeline self-skips — no LLM role or the feature is off.
 ExtractEdges = Callable[[str], Awaitable[list[ExtractedEdge]]]
+#: H8: anticipator (``anticipate`` role): numbered session text -> cues.
+Anticipate = Callable[[str], Awaitable[list[AnticipatedCue]]]
+#: H8: engine-side cue deposit (namespace, target record id, cue texts, session key).
+DepositCues = Callable[[str, str, list[str], str], Awaitable[object]]
 #: C6': LLM fact miner (``extract`` role): session text -> atomic facts.
 MineFacts = Callable[[str], Awaitable[list[ExtractedFact]]]
 #: C6': engine-side deposit of one mined fact through the write door
@@ -135,6 +140,9 @@ class PipelineContext:
     extract_edges: ExtractEdges | None = None
     #: C6' atomic-fact mining. Both None => the mine_facts stage self-skips.
     mine_facts: MineFacts | None = None
+    #: H8 anticipatory cues. Both None => the anticipate stage self-skips.
+    anticipate: Anticipate | None = None
+    deposit_cues: DepositCues | None = None
     deposit_fact: DepositFact | None = None
 
 
@@ -1021,6 +1029,72 @@ async def mine_facts(ctx: PipelineContext) -> dict[str, object]:
     }
 
 
+async def anticipate(ctx: PipelineContext) -> dict[str, object]:
+    """H8: store likely future questions as cues on the turns that answer them.
+
+    One call per consolidated session, idempotent per session key. Cues go through
+    ``Engine.add_cues``: firewall-screened, trust capped at the target turn's, and
+    retrieval keys only (never assembled as content).
+    """
+    policy = ConsolidationPolicy.bind(_policy_options(ctx, "episodic", "consolidation"))
+    if not getattr(policy.options, "anticipate", False):
+        return {"status": "skipped", "reason": "consolidation.anticipate is off"}
+    if ctx.anticipate is None or ctx.deposit_cues is None:
+        return {"status": "skipped", "reason": "no anticipate/extract LLM role bound"}
+    done = 0
+    cues = 0
+    errors: list[str] = []
+    after = 0
+    sessions: list[tuple[str, str, list[str]]] = []
+    while True:
+        events = await ctx.storage.read_events(after_seq=after, limit=1000)
+        if not events:
+            break
+        for event in events:
+            if event.kind is EventKind.CONSOLIDATE:
+                sessions.append(
+                    (
+                        event.namespace,
+                        str(event.payload.get("session_key", "")),
+                        [str(m) for m in event.payload.get("member_record_ids", [])],
+                    )
+                )
+        after = max(e.seq for e in events if e.seq is not None)
+    for namespace, key, member_ids in sessions:
+        if not key:
+            continue
+        existing = await ctx.storage.list_records(namespace, "semantic")
+        if any(f"anticipated:{key}" in r.tags for r in existing):
+            continue
+        members = [m for m in [await ctx.storage.get_record(i) for i in member_ids] if m]
+        members = [m for m in members if not m.quarantined]
+        if not members:
+            continue
+        members.sort(key=lambda m: m.valid_from)
+        transcript = "\n".join(
+            f"[{n}] [{m.valid_from:%Y-%m-%d}] {m.content}" for n, m in enumerate(members, 1)
+        )
+        try:
+            proposed = await ctx.anticipate(transcript)
+        except Exception as exc:  # LLM is an enhancer, never a gate
+            errors.append(f"{namespace}:{key}: {exc}")
+            continue
+        by_line: dict[int, list[str]] = {}
+        for item in proposed:
+            if 1 <= item.line <= len(members) and item.cue.strip():
+                by_line.setdefault(item.line, []).append(item.cue.strip())
+        for line, texts in by_line.items():
+            await ctx.deposit_cues(namespace, members[line - 1].record_id, texts, key)
+            cues += len(texts)
+        done += 1
+    return {
+        "status": "ok" if not errors else "partial",
+        "sessions": done,
+        "cues": cues,
+        "errors": errors,
+    }
+
+
 #: Name -> pipeline. Runners register from this table; the M11-adjacent names
 #: are stable identifiers used in schedules and dead-letter reporting.
 PIPELINES: dict[str, Pipeline] = {
@@ -1028,6 +1102,7 @@ PIPELINES: dict[str, Pipeline] = {
     "reorganize": reorganize,
     "extract_graph": extract_graph,
     "mine_facts": mine_facts,
+    "anticipate": anticipate,
     "check_watches": check_watches,
     "decay_sweep": decay_sweep,
     "compress": compress,

@@ -97,7 +97,14 @@ from memspine.observability.logging import (
     EVENT_WRITE,
     get_logger,
 )
-from memspine.prompts.models import ExtractedEdge, ExtractedEdges, ExtractedFact, ExtractedFacts
+from memspine.prompts.models import (
+    AnticipatedCue,
+    AnticipatedCues,
+    ExtractedEdge,
+    ExtractedEdges,
+    ExtractedFact,
+    ExtractedFacts,
+)
 from memspine.prompts.registry import PromptRegistry
 from memspine.services.cache.base import KVCache, MemoryKV
 from memspine.services.cache.semantic import CachedEmbedding, CachedExtractor
@@ -713,6 +720,7 @@ class Engine:
         namespace: str = "default",
         source: SourceInfo | None = None,
         actor: str = "user",
+        extra_tags: Sequence[str] = (),
     ) -> list[MemoryRecord]:
         """C8': attach anticipatory cues (likely future questions) to a record.
 
@@ -736,7 +744,7 @@ class Engine:
                 memory_type="semantic",
                 content=cue,
                 source=base.model_copy(update={"parents": [record_id]}),
-                tags=[CUE_TAG],
+                tags=[CUE_TAG, *extra_tags],
             )
             cap = [target.trust]
             integrity_cap = await self._parent_trust_cap(ns, [record_id])
@@ -3313,6 +3321,8 @@ class Engine:
             extract_edges=self._extract_edges,
             mine_facts=self._build_fact_miner(),
             deposit_fact=self._deposit_mined_fact,
+            anticipate=self._build_anticipator(),
+            deposit_cues=self._deposit_anticipated_cues,
             # Only when associative projects it (ADR-015): an explicit-config
             # graph store without the projector would reorganize a stale graph.
             graph=self._graph if self._associative is not None else None,
@@ -3369,6 +3379,35 @@ class Engine:
             return await llm.chat(prompt.render({"content": content}))
 
         return summarize
+
+    def _build_anticipator(self) -> Any:
+        """H8: the anticipator, when an ``anticipate`` (or ``extract``) LLM role is bound."""
+        if self._llm is None or self._prompts is None:
+            return None
+        role = next((r for r in ("anticipate", "extract") if r in self._llm.roles), None)
+        if role is None:
+            return None
+        llm = self._llm.for_role(role)
+        prompt = self._prompts.select("anticipate")
+
+        async def anticipate(content: str) -> list[AnticipatedCue]:
+            result = await structured_call(llm, prompt, {"content": content}, AnticipatedCues)
+            return list(result.cues)
+
+        return anticipate
+
+    async def _deposit_anticipated_cues(
+        self, namespace: str, record_id: str, cues: list[str], session_key: str
+    ) -> list[MemoryRecord]:
+        """H8: anticipated cues through the governed ``add_cues`` door (system source)."""
+        return await self.add_cues(
+            record_id,
+            cues,
+            namespace=namespace,
+            source=SourceInfo(role="system", channel="anticipation"),
+            actor="system",
+            extra_tags=[f"anticipated:{session_key}"],
+        )
 
     def _build_fact_miner(self) -> Any:
         """C6': the atomic-fact miner, only when an ``extract`` LLM role is bound."""

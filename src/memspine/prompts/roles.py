@@ -22,4 +22,5 @@ PROMPT_ROLES: tuple[str, ...] = (
     "extract_edges",  # C1: relationship-edge extraction (graphiti-style writes)
     "resolve_entity",  # C1: entity coreference/aliasing resolution
     "invalidate_edge",  # C1: edge add/update/invalidate/noop adjudication
+    "anticipate",  # H8: write-time anticipatory retrieval cues (T-Mem-style)
 )

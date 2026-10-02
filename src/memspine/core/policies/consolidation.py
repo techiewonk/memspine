@@ -43,6 +43,10 @@ class ConsolidationOptions(PolicyOptions):
     #: an ``extract`` LLM role). Facts are dated with the session start, carry
     #: the session records as parents, and go through the engine's write door.
     mine_facts: bool = False
+    #: H8: after consolidating a session, ask the ``anticipate`` role (falls back to
+    #: ``extract``) for likely future questions and store them as firewall-governed
+    #: retrieval cues on the turns that answer them (``Engine.add_cues``), once.
+    anticipate: bool = False
 
 
 def extractive_summary(contents: list[str], max_chars: int) -> str:

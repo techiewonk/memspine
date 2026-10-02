@@ -10,6 +10,8 @@ from pydantic import BaseModel, Field
 
 __all__ = [
     "OUTPUT_MODELS",
+    "AnticipatedCue",
+    "AnticipatedCues",
     "ConflictVerdictOut",
     "ConsolidatedFact",
     "ConsolidatedFacts",
@@ -37,6 +39,17 @@ class ExtractedFact(BaseModel):
 
 class ExtractedFacts(BaseModel):
     facts: list[ExtractedFact] = Field(default_factory=list)
+
+
+class AnticipatedCue(BaseModel):
+    """H8: a likely future question/need and the transcript line that answers it."""
+
+    line: int
+    cue: str
+
+
+class AnticipatedCues(BaseModel):
+    cues: list[AnticipatedCue] = Field(default_factory=list)
 
 
 class ConsolidatedFact(BaseModel):
@@ -106,4 +119,5 @@ OUTPUT_MODELS: dict[str, type[BaseModel]] = {
     "DuplicateVerdictOut": DuplicateVerdictOut,
     "EntityResolutionOut": EntityResolutionOut,
     "InstructionFlagOut": InstructionFlagOut,
+    "AnticipatedCues": AnticipatedCues,
 }

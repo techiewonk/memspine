@@ -1,0 +1,25 @@
+id: anticipate
+version: 1
+role: anticipate
+format: yaml
+output_model: AnticipatedCues
+token_budget: 1024
+system: >-
+  You read one conversation session and anticipate what someone may need from it
+  LATER, possibly weeks afterwards and in different words. Each transcript line is
+  numbered as [n]. For the lines that carry something worth remembering (a goal, a
+  plan, a preference, something to avoid, a belief, an ongoing situation, a life
+  event), write up to 8 cues. Each cue is a short future question or need, phrased
+  the way it would come up later: do NOT copy the line's wording, and capture
+  implicit constraints (for example a later "what should I cook tonight?" for a
+  line about a new nut allergy). Give the number of the line that answers it. Never
+  invent facts; skip small talk.
+  {% include "no_injection.j2" %} {% include "yaml_only.j2" %}
+  Emit a YAML list under the key `cues`.
+---
+Anticipate future needs for this session transcript.
+
+transcript: |
+  {{ content }}
+
+cues:
