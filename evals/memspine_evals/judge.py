@@ -170,6 +170,19 @@ RUBRIC_BINARY_PROMPT = (
     'Respond with JSON only: {{"label": "CORRECT"}} or {{"label": "WRONG"}}'
 )
 
+#: LoCoMo-Plus binary judge (T-Mem-style: the question is included). ``gold`` carries the
+#: earlier cue dialogue; the reply is correct only if it explicitly acknowledges or adapts to
+#: the constraint the cue established.
+CONSTRAINT_BINARY_PROMPT = (
+    "Earlier in a conversation, this exchange took place:\n{gold}\n\n"
+    "Much later, the user wrote: {question}\n\n"
+    "The assistant replied: {answer}\n\n"
+    "Label the reply CORRECT only if it explicitly acknowledges or adapts to what the earlier "
+    "exchange established (a cause, state, goal or value that matters for the later message). "
+    "A generic reply that ignores it is WRONG.\n"
+    'Respond with JSON only: {{"label": "CORRECT"}} or {{"label": "WRONG"}}'
+)
+
 DEFAULT_GRADED_PROMPT = (
     "You are grading a question-answering system against a reference answer.\n"
     "Question: {question}\n"

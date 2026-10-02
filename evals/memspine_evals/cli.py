@@ -35,6 +35,12 @@ def _dataset(args: argparse.Namespace) -> DatasetAdapter:
         from .datasets import LoCoMoDataset
 
         return LoCoMoDataset(args.path, revision_id=args.revision)
+    if args.dataset == "locomo_plus":
+        from .datasets import LoCoMoPlusDataset
+
+        if not args.locomo_path:
+            raise SystemExit("--locomo-path (the repo's data/locomo10.json) is required")
+        return LoCoMoPlusDataset(args.path, args.locomo_path, revision_id=args.revision)
     if args.dataset == "longmemeval":
         from .datasets import LongMemEvalDataset
 
@@ -77,6 +83,7 @@ def cmd_c0_1(args: argparse.Namespace) -> int:
         memspine_config=json.loads(args.memspine_config) if args.memspine_config else None,
         memspine_read_mode=args.memspine_read_mode,
         qa_prompt=args.qa_prompt,
+        judge_prompt=args.judge_prompt,
         only_systems=tuple(args.only_systems.split(",")) if args.only_systems else None,
         item_ids=tuple(args.item_ids.split(",")) if args.item_ids else None,
     )
@@ -147,7 +154,10 @@ def build_parser() -> argparse.ArgumentParser:
     smoke.set_defaults(func=cmd_smoke)
 
     c01 = sub.add_parser("c0-1", help="verbatim-baseline gate (Plan C section 1.1)")
-    c01.add_argument("--dataset", choices=("locomo", "longmemeval", "synthetic"), required=True)
+    c01.add_argument(
+        "--dataset", choices=("locomo", "locomo_plus", "longmemeval", "synthetic"), required=True
+    )
+    c01.add_argument("--locomo-path", default=None, help="locomo10.json paired with LoCoMo-Plus")
     c01.add_argument("--path", help="path to the dataset json")
     c01.add_argument(
         "--revision",
@@ -180,8 +190,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     c01.add_argument("--only-systems", default=None, help="comma list of system ids to run")
     c01.add_argument(
+        "--judge-prompt",
+        choices=("rubric", "constraint"),
+        default="rubric",
+        help="Qwen3-protocol judge: rubric (QA) or constraint (LoCoMo-Plus)",
+    )
+    c01.add_argument(
         "--qa-prompt",
-        choices=("default", "dated", "abstain"),
+        choices=("default", "dated", "abstain", "converse"),
         default="default",
         help="QA prompt variant for every arm (H7/H12)",
     )

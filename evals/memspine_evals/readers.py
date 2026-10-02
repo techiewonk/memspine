@@ -41,7 +41,21 @@ ABSTAIN_QA_PROMPT = DATED_QA_PROMPT.replace(
     'context attributes it to someone else, or does not state it, reply "Not mentioned".',
 )
 
-QA_PROMPTS = {"default": DEFAULT_QA_PROMPT, "dated": DATED_QA_PROMPT, "abstain": ABSTAIN_QA_PROMPT}
+#: LoCoMo-Plus: the "question" is a later conversational message; the reader replies to it
+#: as the assistant, using whatever it remembers.
+CONVERSE_QA_PROMPT = (
+    "You are a helpful assistant in a long-running conversation. Your memory notes from earlier "
+    "in the conversation are below. Reply to the latest message in two or three sentences, "
+    "taking into account anything from the notes that matters for it.\n\n"
+    "Memory notes:\n{context}\n\nLatest message: {question}\nReply:"
+)
+
+QA_PROMPTS = {
+    "default": DEFAULT_QA_PROMPT,
+    "dated": DATED_QA_PROMPT,
+    "abstain": ABSTAIN_QA_PROMPT,
+    "converse": CONVERSE_QA_PROMPT,
+}
 
 
 class ContextOnlyReader:

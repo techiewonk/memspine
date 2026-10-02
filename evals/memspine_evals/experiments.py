@@ -31,7 +31,14 @@ from pathlib import Path
 from typing import Any, Literal
 
 from .contracts import DatasetAdapter, Reader, SystemAdapter
-from .judge import RUBRIC_BINARY_PROMPT, ContainsJudge, Judge, JudgeScale, LLMJudge
+from .judge import (
+    CONSTRAINT_BINARY_PROMPT,
+    RUBRIC_BINARY_PROMPT,
+    ContainsJudge,
+    Judge,
+    JudgeScale,
+    LLMJudge,
+)
 from .metrics import CostModel
 from .provenance import RunProtocol
 from .readers import ContextOnlyReader, OpenAICompatReader, openai_compat_chat
@@ -80,6 +87,8 @@ class C01Config:
     #: H7/H12: QA prompt variant for EVERY arm (default | dated | abstain), recorded
     #: in the reader manifest via its prompt hash.
     qa_prompt: str = "default"
+    #: judge prompt for the Qwen3 protocol: rubric (default) | constraint (LoCoMo-Plus)
+    judge_prompt: str = "rubric"
     #: Resume support: run only these system ids / item ids (None = all). A
     #: partial run is completed into a separate run id and merged by item, which
     #: is valid because items are independent (each resets the system).
@@ -168,8 +177,12 @@ def build_reader_and_judge(config: C01Config) -> tuple[Reader, Judge, bool]:
             litellm_chat(budget, model=QWEN3_32B),
             model=QWEN3_32B,
             scale=JudgeScale.BINARY,
-            prompt=RUBRIC_BINARY_PROMPT,
-            judge_id="qwen3-32b-rubric-binary",
+            prompt=(
+                CONSTRAINT_BINARY_PROMPT
+                if config.judge_prompt == "constraint"
+                else RUBRIC_BINARY_PROMPT
+            ),
+            judge_id=f"qwen3-32b-{config.judge_prompt}-binary",
         )
         return bedrock_reader, bedrock_judge, True
     reader = OpenAICompatReader(model=config.reader_model, base_url=config.base_url)
