@@ -100,6 +100,10 @@ def cmd_c0_1(args: argparse.Namespace) -> int:
         only_systems=tuple(args.only_systems.split(",")) if args.only_systems else None,
         item_ids=tuple(args.item_ids.split(",")) if args.item_ids else None,
     )
+    if args.protocol:
+        from .experiments import apply_protocol_preset
+
+        config = apply_protocol_preset(config, args.protocol)
     if config.bedrock:
         from .bedrock import load_aws_credentials
 
@@ -213,6 +217,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--memspine-config", default=None, help="JSON engine overrides for the memspine arm"
     )
     c01.add_argument("--only-systems", default=None, help="comma list of system ids to run")
+    c01.add_argument(
+        "--protocol",
+        choices=("omnimemeval",),
+        default=None,
+        help="declared protocol preset (reader/judge/endpoint), H25",
+    )
     c01.add_argument(
         "--judge-prompt",
         choices=("rubric", "constraint", "alias"),

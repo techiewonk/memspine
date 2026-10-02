@@ -89,11 +89,50 @@ class C01Config:
     qa_prompt: str = "default"
     #: judge prompt for the Qwen3 protocol: rubric (default) | constraint (LoCoMo-Plus)
     judge_prompt: str = "rubric"
+    #: free-text protocol note recorded in every manifest (set by a preset, H25)
+    protocol_notes: str = ""
     #: Resume support: run only these system ids / item ids (None = all). A
     #: partial run is completed into a separate run id and merged by item, which
     #: is valid because items are independent (each resets the system).
     only_systems: tuple[str, ...] | None = None
     item_ids: tuple[str, ...] | None = None
+
+
+#: H25: declared protocol presets. OmniMemEval (MemTensor/OmniMemEval @ 0b1ea8d) is the
+#: largest uniform memory-QA table (14 engines). Its protocol, as reported by Mnemon
+#: (arXiv 2609.36059, Table 1): gpt-4.1-mini answers at T=0, gpt-4o-mini grades, LoCoMo
+#: categories 1-4 (1,540 questions), context tokens reported per question. The grading
+#: prompt here is our rubric judge, NOT OmniMemEval's: it is UNVERIFIED until it is ported
+#: from that repo, and every manifest of a preset run says so.
+PROTOCOL_PRESETS: dict[str, dict[str, Any]] = {
+    "omnimemeval": {
+        "reader_model": "gpt-4.1-mini",
+        "judge_model": "gpt-4o-mini",
+        "base_url": "https://api.openai.com/v1",
+        "notes": (
+            "OmniMemEval-protocol preset (reader gpt-4.1-mini T=0, judge gpt-4o-mini, "
+            "cats 1-4); judge prompt = memspine rubric, UNVERIFIED vs OmniMemEval"
+        ),
+    },
+}
+
+
+def apply_protocol_preset(config: C01Config, name: str | None) -> C01Config:
+    """Return ``config`` with a named protocol preset's reader/judge/endpoint applied."""
+    if not name:
+        return config
+    if name not in PROTOCOL_PRESETS:
+        raise ValueError(f"unknown protocol preset {name!r}; known: {sorted(PROTOCOL_PRESETS)}")
+    from dataclasses import replace
+
+    preset = PROTOCOL_PRESETS[name]
+    return replace(
+        config,
+        reader_model=preset["reader_model"],
+        judge_model=preset["judge_model"],
+        base_url=preset["base_url"],
+        protocol_notes=preset["notes"],
+    )
 
 
 def _retriever(config: C01Config) -> Any:
@@ -191,13 +230,21 @@ def build_reader_and_judge(config: C01Config) -> tuple[Reader, Judge, bool]:
             judge_id=f"qwen3-32b-{config.judge_prompt}-binary",
         )
         return bedrock_reader, alias_judge or bedrock_judge, True
-    reader = OpenAICompatReader(model=config.reader_model, base_url=config.base_url)
+    import os
+
+    # Local OpenAI-compatible servers ignore the key; hosted endpoints (e.g. the
+    # OmniMemEval preset) read it from the process environment, never from .env.
+    api_key = os.environ.get("OPENAI_API_KEY", "not-needed")
+    reader = OpenAICompatReader(
+        model=config.reader_model, base_url=config.base_url, api_key=api_key
+    )
     judge = LLMJudge(
-        openai_compat_chat(config.judge_model, base_url=config.base_url),
+        openai_compat_chat(config.judge_model, base_url=config.base_url, api_key=api_key),
         model=config.judge_model,
         scale=JudgeScale.BINARY,
+        prompt=RUBRIC_BINARY_PROMPT if config.protocol_notes else None,
     )
-    return reader, judge, True
+    return alias_judge and (reader, alias_judge, True) or (reader, judge, True)
 
 
 async def run_c0_1(
@@ -212,7 +259,8 @@ async def run_c0_1(
         budget_tokens=config.budget_tokens,
         top_k=config.top_k,
         seed=config.seed,
-        notes="C0-1 verbatim-baseline gate; identical protocol across arms",
+        notes="C0-1 verbatim-baseline gate; identical protocol across arms"
+        + (f"; {config.protocol_notes}" if config.protocol_notes else ""),
     )
     info = dataset.info()
     run_config = RunConfig(
