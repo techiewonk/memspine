@@ -9,7 +9,7 @@ from memspine_evals.experiments import PROTOCOL_PRESETS, C01Config, apply_protoc
 def test_omnimemeval_preset() -> None:
     cfg = apply_protocol_preset(C01Config(mode="qa"), "omnimemeval")
     assert cfg.reader_model == "gpt-4.1-mini" and cfg.judge_model == "gpt-4o-mini"
-    assert "UNVERIFIED" in cfg.protocol_notes
+    assert "verbatim @ 0b1ea8d" in cfg.protocol_notes and cfg.judge_prompt == "omnimemeval"
     assert "omnimemeval" in PROTOCOL_PRESETS
 
 

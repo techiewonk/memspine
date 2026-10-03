@@ -6,10 +6,18 @@ Each string is the exact template text, byte for byte, including its format plac
 Sources:
 - LOCOMO_PLUS_TEMPLATES: ``PROMPT_TEMPLATES`` in ``evaluation_framework/task_eval/prompt.py`` of
   github.com/xjtuleeyf/Locomo-Plus @ 059f4e3 (official LoCoMo-Plus judge, v2).
-- LONGMEMEVAL_ANSCHECK: the five templates of ``get_anscheck_prompt`` as vendored in
-  ``experiments/longmemeval/run_lightmem_gpt.py`` of github.com/zjunlp/LightMem @ 4a9f1d6 (a
-  copy of LongMemEval's ``src/evaluation/evaluate_qa.py``; the upstream LongMemEval repo is NOT on
-  disk, so these are a vendored copy, not verified against upstream).
+- LONGMEMEVAL_ANSCHECK: the five templates of ``get_anscheck_prompt`` in
+  ``src/evaluation/evaluate_qa.py`` of github.com/xiaowu0162/LongMemEval @ 9e0b455 (main on
+  2026-10-03; the file's last change is d6dc8b5). First copied from the vendored copy in
+  ``experiments/longmemeval/run_lightmem_gpt.py`` of github.com/zjunlp/LightMem @ 4a9f1d6, then
+  verified byte-identical to upstream on 2026-10-03 (raw file SHA-256
+  ecce9c4c79dc89d99534ac17b383a5cbb5b9f0c69ee98adaf0684742e3d95251).
+- OMNIMEMEVAL_JUDGE / OMNIMEMEVAL_JUDGE_SYSTEM: ``JUDGE_PROMPT`` / ``JUDGE_SYSTEM_PROMPT`` in
+  ``scripts/utils/prompts.py`` of github.com/MemTensor/OmniMemEval @ 0b1ea8d (full SHA
+  0b1ea8d28aa2d3e03ac4a6aee17b3006a131da7d; raw file SHA-256
+  0e0eadc6a476a89f8d5f8b60e37a0139585b998e228152e66a95109bedb71bbe), the LoCoMo judge sent by
+  ``scripts/locomo/locomo_eval.py:locomo_grader`` as (system, user) messages at temperature 0.
+  Fields: ``{question}``, ``{golden_answer}``, ``{response}``.
 """
 
 from __future__ import annotations
@@ -33,3 +41,8 @@ LONGMEMEVAL_ANSCHECK: dict[str, str] = {
     'single-session-preference': "I will give you a question, a rubric for desired personalized response, and a response from a model. Please answer yes if the response satisfies the desired response. Otherwise, answer no. The model does not need to reflect all the points in the rubric. The response is correct as long as it recalls and utilizes the user's personal information correctly.\n\nQuestion: {}\n\nRubric: {}\n\nModel Response: {}\n\nIs the model response correct? Answer yes or no only.",
     'abstention': 'I will give you an unanswerable question, an explanation, and a response from a model. Please answer yes if the model correctly identifies the question as unanswerable. The model could say that the information is incomplete, or some other information is given but the asked information is not.\n\nQuestion: {}\n\nExplanation: {}\n\nModel Response: {}\n\nDoes the model correctly identify the question as unanswerable? Answer yes or no only.',
 }
+
+# OmniMemEval LoCoMo judge (scripts/utils/prompts.py; used by scripts/locomo/locomo_eval.py:locomo_grader).
+OMNIMEMEVAL_JUDGE_SYSTEM: str = 'You are an expert grader that determines if answers to questions match a gold standard answer.'
+
+OMNIMEMEVAL_JUDGE: str = '\n    Your task is to label an answer to a question as \'CORRECT\' or \'WRONG\'. You will be given the following data:\n        (1) a question (posed by one user to another user),\n        (2) a \'gold\' (ground truth) answer,\n        (3) a generated answer\n    which you will score as CORRECT/WRONG.\n\n    The point of the question is to ask about something one user should know about the other user based on their prior conversations.\n    The gold answer will usually be a concise and short answer that includes the referenced topic, for example:\n    Question: Do you remember what I got the last time I went to Hawaii?\n    Gold answer: A shell necklace\n    The generated answer might be much longer, but you should be generous with your grading - as long as it touches on the same topic as the gold answer, it should be counted as CORRECT.\n\n    For time related questions, the gold answer will be a specific date, month, year, etc. The generated answer might be much longer or use relative time references (like "last Tuesday" or "next month"), but you should be generous with your grading - as long as it refers to the same date or time period as the gold answer, it should be counted as CORRECT. Even if the format differs (e.g., "May 7th" vs "7 May"), consider it CORRECT if it\'s the same date.\n\n    Now it\'s time for the real question:\n    Question: {question}\n    Gold answer: {golden_answer}\n    Generated answer: {response}\n\n    First, provide a short (one sentence) explanation of your reasoning, then finish with CORRECT or WRONG.\n    Do NOT include both CORRECT and WRONG in your response, or it will break the evaluation script.\n\n    Just return the label CORRECT or WRONG in a json format with the key as "label".\n    '

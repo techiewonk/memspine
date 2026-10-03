@@ -2,11 +2,13 @@
 
 Every judge prompt a run can use is an entry here, with its text, its provenance and a status:
 
-* ``official-verbatim``: copied byte for byte from the benchmark's own repository on disk
-  (LoCoMo-Plus @ 059f4e3, ``evaluation_framework/task_eval/prompt.py``);
-* ``vendored-copy``: copied byte for byte from a third-party copy of the benchmark's code
-  (LongMemEval's ``get_anscheck_prompt`` as vendored in LightMem @ 4a9f1d6). The upstream repo
-  is not on disk, so the text is not verified against it, and the manifest says so;
+* ``official-verbatim``: copied byte for byte from the benchmark's own repository
+  (LoCoMo-Plus @ 059f4e3, ``evaluation_framework/task_eval/prompt.py``;
+  LongMemEval @ 9e0b455, ``src/evaluation/evaluate_qa.py``; OmniMemEval @ 0b1ea8d,
+  ``scripts/utils/prompts.py``);
+* ``vendored-copy``: copied byte for byte from a third-party copy of the benchmark's code and
+  not yet verified against upstream (none at present: LongMemEval's ``get_anscheck_prompt``,
+  first taken from LightMem @ 4a9f1d6, was verified byte-identical to upstream on 2026-10-03);
 * ``memspine``: written for this harness (the rubric, constraint and abstention judges);
 * ``placeholder``: the official text is not on disk. The entry has no text and **refuses to
   run** (``OfficialPromptMissing``) until the text is pasted in from the source it names.
@@ -36,7 +38,12 @@ from .judge import (
     Verdict,
     parse_binary_verdict,
 )
-from .official_prompts import LOCOMO_PLUS_TEMPLATES, LONGMEMEVAL_ANSCHECK
+from .official_prompts import (
+    LOCOMO_PLUS_TEMPLATES,
+    LONGMEMEVAL_ANSCHECK,
+    OMNIMEMEVAL_JUDGE,
+    OMNIMEMEVAL_JUDGE_SYSTEM,
+)
 
 __all__ = [
     "JUDGE_PROMPTS",
@@ -53,9 +60,13 @@ LOCOMO_PLUS_SOURCE = (
     ":PROMPT_TEMPLATES"
 )
 LONGMEMEVAL_SOURCE = (
-    "github.com/zjunlp/LightMem@4a9f1d6:experiments/longmemeval/run_lightmem_gpt.py"
-    ":get_anscheck_prompt (vendored copy of LongMemEval src/evaluation/evaluate_qa.py; "
-    "upstream not on disk, unverified)"
+    "github.com/xiaowu0162/LongMemEval@9e0b455:src/evaluation/evaluate_qa.py"
+    ":get_anscheck_prompt (verified byte-identical 2026-10-03; first vendored from "
+    "github.com/zjunlp/LightMem@4a9f1d6)"
+)
+OMNIMEMEVAL_SOURCE = (
+    "github.com/MemTensor/OmniMemEval@0b1ea8d:scripts/utils/prompts.py"
+    ":JUDGE_PROMPT + JUDGE_SYSTEM_PROMPT (LoCoMo judge, scripts/locomo/locomo_eval.py)"
 )
 
 #: LoCoMo category ids -> LoCoMo-Plus judge category names (``data/unified_input.py``).
@@ -123,8 +134,10 @@ class JudgePrompt:
     """One judge template and where it came from.
 
     ``fields`` names the template's placeholder style: ``named`` ({question}, {gold},
-    {answer}), ``positional`` (question, gold, answer in order: LongMemEval) or
-    ``locomo_plus`` ({gold}, {pred}, {evidence}). ``parse`` names the reply format.
+    {answer}), ``positional`` (question, gold, answer in order: LongMemEval),
+    ``locomo_plus`` ({gold}, {pred}, {evidence}) or ``omnimemeval`` ({question},
+    {golden_answer}, {response}). ``parse`` names the reply format. ``system`` is the
+    official system message sent with the template, when the benchmark sends one.
     """
 
     prompt_id: str
@@ -133,6 +146,7 @@ class JudgePrompt:
     source: str
     fields: str = "named"
     parse: str = "label"
+    system: str | None = None
 
     def require_text(self) -> str:
         if self.text is None:
@@ -152,6 +166,8 @@ class JudgePrompt:
             return text.format(question, gold, answer)
         if self.fields == "locomo_plus":
             return text.format(gold=gold, pred=answer, evidence=evidence)
+        if self.fields == "omnimemeval":
+            return text.format(question=question, golden_answer=gold, response=answer)
         return text.format(question=question, gold=gold, answer=answer)
 
     def parse_reply(self, raw: str) -> float:
@@ -162,12 +178,15 @@ class JudgePrompt:
         return parse_binary_verdict(raw)
 
     def describe(self) -> dict[str, Any]:
-        return {
+        info = {
             "prompt_id": self.prompt_id,
             "status": self.status.value,
             "source": self.source,
             "sha256": self.sha256,
         }
+        if self.system is not None:
+            info["system_sha256"] = sha256_text(self.system)
+        return info
 
 
 def _registry() -> dict[str, JudgePrompt]:
@@ -195,20 +214,22 @@ def _registry() -> dict[str, JudgePrompt]:
         JudgePrompt(
             f"longmemeval/{name}",
             text,
-            PromptStatus.VENDORED,
+            PromptStatus.OFFICIAL,
             f"{LONGMEMEVAL_SOURCE} [{name}]",
             fields="positional",
             parse="yes_no",
         )
         for name, text in LONGMEMEVAL_ANSCHECK.items()
     ]
-    # Not on disk: refuses to run until pasted (H25's preset judge).
+    # H25's preset judge, ported verbatim with its system message.
     prompts.append(
         JudgePrompt(
             "omnimemeval/judge",
-            None,
-            PromptStatus.PLACEHOLDER,
-            "github.com/MemTensor/OmniMemEval@0b1ea8d (grading prompt; path to be confirmed)",
+            OMNIMEMEVAL_JUDGE,
+            PromptStatus.OFFICIAL,
+            OMNIMEMEVAL_SOURCE,
+            fields="omnimemeval",
+            system=OMNIMEMEVAL_JUDGE_SYSTEM,
         )
     )
     return {p.prompt_id: p for p in prompts}
@@ -298,7 +319,7 @@ JUDGE_SUITES: dict[str, JudgeSuite] = {
         {name: f"longmemeval/{name}" for name in LONGMEMEVAL_ANSCHECK},
         route_longmemeval,
         handles_abstention=True,
-        notes="LongMemEval anscheck templates by question type (vendored copy, unverified)",
+        notes="LongMemEval anscheck templates by question type (verified against upstream)",
     ),
     "omnimemeval": JudgeSuite(
         "omnimemeval",
@@ -306,7 +327,7 @@ JUDGE_SUITES: dict[str, JudgeSuite] = {
         {"default": "omnimemeval/judge"},
         route_constant,
         handles_abstention=False,
-        notes="placeholder: refuses to run until the official text is pasted in",
+        notes="official OmniMemEval LoCoMo judge (CORRECT/WRONG JSON label)",
     ),
 }
 
@@ -360,7 +381,11 @@ class RoutedLLMJudge:
     async def _grade(self, prompt: JudgePrompt, question: str, gold: str, answer: str,
                      evidence: str) -> Verdict:
         started = time.perf_counter()
-        raw = await self._chat(prompt.render(question, gold, answer, evidence))
+        rendered = prompt.render(question, gold, answer, evidence)
+        if prompt.system is not None:
+            raw = await self._chat(rendered, system=prompt.system)
+        else:
+            raw = await self._chat(rendered)
         return Verdict(
             score=prompt.parse_reply(raw),
             scale=self.spec.scale,

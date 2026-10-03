@@ -237,14 +237,18 @@ class LiteLLMReader:
             "prompt_sha256": hashlib.sha256(self.prompt.encode()).hexdigest(),
         }
 
-    async def complete(self, content: str) -> ReaderAnswer:
+    async def complete(self, content: str, system: str | None = None) -> ReaderAnswer:
+        """One completion. ``system``, when given, is sent as a system message first."""
         self.budget.reserve()
         started = time.perf_counter()
         if self.no_think:
             content = f"{content} /no_think"
+        messages = [{"role": "user", "content": content}]
+        if system is not None:
+            messages.insert(0, {"role": "system", "content": system})
         response = await self._litellm.acompletion(
             model=self.model,
-            messages=[{"role": "user", "content": content}],
+            messages=messages,
             temperature=self.temperature,
             max_tokens=self.max_tokens,
         )
@@ -285,8 +289,8 @@ def litellm_chat(
     # 96 tokens: the LoCoMo judge format emits a JSON label; 16 truncated it.
     reader = LiteLLMReader(budget, model=model, temperature=temperature, max_tokens=max_tokens)
 
-    async def chat(prompt: str) -> str:
-        return (await reader.complete(prompt)).text
+    async def chat(prompt: str, system: str | None = None) -> str:
+        return (await reader.complete(prompt, system=system)).text
 
     # R3-11: the judge records these in its spec.
     chat.params = {  # type: ignore[attr-defined]

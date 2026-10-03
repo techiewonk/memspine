@@ -237,14 +237,17 @@ def openai_compat_chat(
     """A bare ``async (prompt) -> str`` callable, for ``LLMJudge``."""
     import httpx
 
-    async def chat(prompt: str) -> str:
+    async def chat(prompt: str, system: str | None = None) -> str:
+        messages = [{"role": "user", "content": prompt}]
+        if system is not None:
+            messages.insert(0, {"role": "system", "content": system})
         async with httpx.AsyncClient(timeout=timeout) as client:
             response = await client.post(
                 f"{base_url.rstrip('/')}/chat/completions",
                 json={
                     "model": model,
                     "temperature": temperature,
-                    "messages": [{"role": "user", "content": prompt}],
+                    "messages": messages,
                 },
                 headers={"Authorization": f"Bearer {api_key}"},
             )
