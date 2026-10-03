@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from memspine.services._retry import retry_transient
 from memspine.services.embedding.base import EmbedderManifest
 
 __all__ = ["LiteLLMEmbedding"]
@@ -77,5 +78,7 @@ class LiteLLMEmbedding:
             kwargs["api_key"] = self._api_key
         if self._aws_region is not None:
             kwargs["aws_region_name"] = self._aws_region
-        response = await litellm.aembedding(**kwargs)
+        response = await retry_transient(
+            lambda: litellm.aembedding(**kwargs), what=f"embed:{self._model}"
+        )
         return [list(item["embedding"]) for item in response.data]

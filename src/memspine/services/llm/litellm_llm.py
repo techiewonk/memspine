@@ -21,6 +21,7 @@ import re
 from typing import Any
 
 from memspine.exceptions import LLMError
+from memspine.services._retry import retry_transient
 
 __all__ = ["LiteLLMLLM", "default_no_think", "strip_think"]
 
@@ -106,7 +107,9 @@ class LiteLLMLLM:
             kwargs["aws_region_name"] = self._aws_region
         kwargs.update(options)
         try:
-            response = await litellm.acompletion(**kwargs)
+            response = await retry_transient(
+                lambda: litellm.acompletion(**kwargs), what=f"chat:{self._model}"
+            )
             content = response.choices[0].message.content
         except Exception as exc:
             raise LLMError(f"litellm chat failed for model {self._model!r}: {exc}") from exc

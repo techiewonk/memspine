@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from memspine.services._retry import retry_transient
+
 __all__ = ["LiteLLMReranker"]
 
 
@@ -44,7 +46,9 @@ class LiteLLMReranker:
             kwargs["api_key"] = self._api_key
         if self._aws_region is not None:
             kwargs["aws_region_name"] = self._aws_region
-        response = await litellm.arerank(**kwargs)
+        response = await retry_transient(
+            lambda: litellm.arerank(**kwargs), what=f"rerank:{self._model}"
+        )
         scores = [0.0] * len(documents)
         for item in response.results:
             scores[int(item["index"])] = float(item["relevance_score"])
