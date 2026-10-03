@@ -27,6 +27,7 @@ _DATE_FORMATS = (
     "%Y-%m-%d %H:%M:%S",
     "%Y-%m-%d",
 )
+_USAGE_KEYS = ("calls", "prompt", "completion")
 
 
 def engine_version() -> str:
@@ -155,6 +156,24 @@ class MemspineSystem:
         counts = getattr(self._engine, "model_calls", None)
         return sum(counts().values()) if callable(counts) else None
 
+    def _usage(self) -> dict[str, dict[str, Any]]:
+        """Per-role engine LLM use so far (``Engine.model_usage``), {} when unavailable."""
+        usage = getattr(self._engine, "model_usage", None)
+        return dict(usage()) if callable(usage) else {}
+
+    @staticmethod
+    def _usage_delta(
+        before: Mapping[str, Mapping[str, Any]], after: Mapping[str, Mapping[str, Any]]
+    ) -> dict[str, dict[str, Any]]:
+        """Per-role calls and tokens spent between two ``_usage`` snapshots."""
+        delta: dict[str, dict[str, Any]] = {}
+        for role, now in after.items():
+            then = before.get(role, {})
+            diff = {k: int(now.get(k, 0)) - int(then.get(k, 0)) for k in _USAGE_KEYS}
+            if any(diff.values()):
+                delta[role] = {"model": now.get("model", ""), **diff}
+        return delta
+
     async def reset(self, item_id: str) -> None:
         await self.close()
         self._origin = {}
@@ -170,6 +189,7 @@ class MemspineSystem:
         # record's event time (valid_from), so dated questions are answerable.
         self._sessions.add(turn.session_id)
         before = self._calls()
+        usage_before = self._usage()
         records = await self._engine.write_messages(
             [{"role": "user", "content": f"{turn.speaker}: {turn.text}"}],
             namespace=self.namespace,
@@ -195,7 +215,13 @@ class MemspineSystem:
                     "cost_unknown_reason": "engine does not expose model_calls()",
                 },
             )
-        return DepositResult(n_records=len(ids), record_ids=tuple(ids), model_calls=after - before)
+        engine_llm = self._usage_delta(usage_before, self._usage())
+        return DepositResult(
+            n_records=len(ids),
+            record_ids=tuple(ids),
+            model_calls=after - before,
+            meta={"engine_llm": engine_llm} if engine_llm else {},
+        )
 
     async def build(self) -> DepositResult:
         """After the history is in: run the sleep cycle when ``build_sleep`` is on.
@@ -214,9 +240,13 @@ class MemspineSystem:
                 f"{self.sleep_calls_per_session}); only {self.remaining_model_calls} remain"
             )
         before = self._calls()
+        usage_before = self._usage()
         stats = await self._engine.sleep()
         after = self._calls()
         meta: dict[str, Any] = {"sleep": {name: dict(stage) for name, stage in stats.items()}}
+        engine_llm = self._usage_delta(usage_before, self._usage())
+        if engine_llm:
+            meta["engine_llm"] = engine_llm
         if before is None or after is None:
             # R3-10: unknown is not zero; the ledger must not report a free sleep.
             meta["cost_observable"] = False
@@ -228,6 +258,7 @@ class MemspineSystem:
         if self._engine is None:
             raise RuntimeError("query before reset/insert — no engine started")
         before = self._calls()
+        usage_before = self._usage()
         if self._read_mode:
             result = await self._engine.read(
                 text,
@@ -242,6 +273,7 @@ class MemspineSystem:
                 text, namespace=self.namespace, budget_tokens=budget_tokens, top_k=top_k
             )
         after = self._calls()
+        engine_llm = self._usage_delta(usage_before, self._usage())
         lines: list[str] = []
         evidence: list[Evidence] = []
         offset = 0
@@ -288,6 +320,7 @@ class MemspineSystem:
                 "ranked": self._read_mode is None,
                 # query-side calls (rewrites, relevance filter, planner LLMs)
                 **cost,
+                **({"engine_llm": engine_llm} if engine_llm else {}),
             },
         )
 

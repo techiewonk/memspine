@@ -50,6 +50,17 @@ def resolve_categories(args: argparse.Namespace) -> tuple[int, ...] | None:
         return None
     return parse_categories(given)
 
+
+def parse_prices(specs: list[str] | None) -> tuple[tuple[str, float, float], ...]:
+    """Repeated ``--price model=IN,OUT`` flags -> ``(model, in, out)`` triples."""
+    from .bedrock import parse_price
+
+    try:
+        return tuple(parse_price(spec) for spec in specs or ())
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
+
+
 DEFAULT_OUT = Path(__file__).resolve().parents[1] / "runs"
 
 
@@ -134,16 +145,30 @@ def cmd_c0_1(args: argparse.Namespace) -> int:
         categories=resolve_categories(args) if args.dataset == "locomo" else None,
         naive_dense_same_embedder=args.naive_dense_same_embedder,
         matched_budget_tokens=args.matched_budget_tokens,
+        memspine_llm=args.memspine_llm,
+        prices_per_mtok=parse_prices(args.price),
+        max_usd=args.max_usd,
     )
     if args.protocol:
         from .experiments import apply_protocol_preset
 
         config = apply_protocol_preset(config, args.protocol)
-    if config.bedrock:
+    from .experiments import check_dollar_cap
+
+    try:
+        check_dollar_cap(config)
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
+    if config.bedrock or (config.include_memspine and config.memspine_llm != "none"):
         from .bedrock import load_aws_credentials
 
         # AWS keys + region ONLY; nothing else in the repo .env is read.
         load_aws_credentials(Path(__file__).resolve().parents[2] / ".env")
+    if config.include_memspine and config.memspine_llm != "none" and args.max_model_calls is None:
+        raise SystemExit(
+            "--memspine-llm binds the engine's LLM roles to a paid model — pass "
+            "--max-model-calls with a cap you have agreed to"
+        )
     if config.mode == "qa" and args.max_model_calls is None:
         raise SystemExit(
             "qa mode calls models — pass --max-model-calls with a cap you have agreed to. "
@@ -302,6 +327,29 @@ def build_parser() -> argparse.ArgumentParser:
         choices=("replay", "auto", "full", "compose"),
         default=None,
         help="memspine arm reads via Engine.read(mode) instead of assemble (C7')",
+    )
+    c01.add_argument(
+        "--memspine-llm",
+        choices=("none", "bedrock-qwen3"),
+        default="none",
+        help="bind every engine LLM role of the memspine arm (extract, summarize, reflect, ...) "
+        "to this model; bedrock-qwen3 = the reader's Qwen3-32B in the environment's AWS region. "
+        "Explicit llm.roles in --memspine-config win",
+    )
+    c01.add_argument(
+        "--price",
+        action="append",
+        default=None,
+        metavar="MODEL=IN,OUT",
+        help="USD per 1M input,output tokens for a model id (repeatable); overrides the "
+        "built-in table. Take it from the AWS Bedrock pricing page",
+    )
+    c01.add_argument(
+        "--max-usd",
+        type=float,
+        default=None,
+        help="dollar cap per arm (reader + judge + engine); a call whose worst case would "
+        "cross it is refused and the arm stops with UNATTEMPTED rows",
     )
     c01.add_argument("--run-id", default=None)
     c01.add_argument("--out", default=str(DEFAULT_OUT))

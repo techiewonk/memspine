@@ -31,6 +31,8 @@ from .runner import ModelCallBudgetExceeded
 __all__ = [
     "COHERE_EMBED_V4",
     "COHERE_EMBED_V4_DIM",
+    "ENGINE_LLM_ROLES",
+    "MEMSPINE_LLM_CHOICES",
     "QWEN3_32B",
     "QWEN3_NEXT_80B",
     "TITAN_V2",
@@ -38,10 +40,15 @@ __all__ = [
     "BudgetExceeded",
     "CallBudget",
     "LiteLLMReader",
+    "aws_region_from_env",
     "bedrock_engine_config",
     "cached_prompt_tokens",
+    "engine_llm_config",
+    "estimate_prompt_tokens",
     "litellm_chat",
     "load_aws_credentials",
+    "merge_engine_llm_roles",
+    "parse_price",
 ]
 
 #: LiteLLM model ids, verified on-demand in us-east-1 on 2026-09-30.
@@ -55,6 +62,25 @@ COHERE_EMBED_V4 = "bedrock/cohere.embed-v4:0"
 COHERE_EMBED_V4_DIM = 1024
 TITAN_V2 = "bedrock/amazon.titan-embed-text-v2:0"
 TITAN_V2_DIM = 1024
+
+#: Every LLM role the engine binds through ``Engine.llm`` / ``LLMRouter.for_role``:
+#: fact mining and LLM entity extraction, graph edges, consolidation summaries,
+#: profile reflection, anticipatory cues, the H17 relevance filter, P4 compose
+#: rewrites, conflict adjudication, and chat.
+ENGINE_LLM_ROLES: tuple[str, ...] = (
+    "extract",
+    "extract_edges",
+    "summarize",
+    "reflect",
+    "anticipate",
+    "relevance",
+    "query_rewrite",
+    "judge",
+    "chat",
+)
+
+#: ``c0-1 --memspine-llm`` choices: which model the memspine arm's engine roles use.
+MEMSPINE_LLM_CHOICES: dict[str, str | None] = {"none": None, "bedrock-qwen3": QWEN3_32B}
 
 _AWS_KEYS = ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN")
 _THINK = re.compile(r"<think>.*?</think>", re.S)
@@ -98,6 +124,64 @@ def load_aws_credentials(dotenv_path: str | Path = ".env", override: bool = Fals
     return region
 
 
+def aws_region_from_env(default: str = "us-east-1") -> str:
+    """The AWS region the process is configured for (what ``load_aws_credentials`` set)."""
+    return os.environ.get("AWS_REGION_NAME") or os.environ.get("AWS_DEFAULT_REGION") or default
+
+
+def engine_llm_config(
+    model: str, region: str, roles: tuple[str, ...] = ENGINE_LLM_ROLES
+) -> dict[str, Any]:
+    """``llm`` config binding every engine role to one LiteLLM model in ``region``."""
+    return {"roles": {role: {"model": model, "aws_region": region} for role in roles}}
+
+
+def merge_engine_llm_roles(
+    memspine_config: Mapping[str, Any] | None,
+    model: str,
+    region: str,
+    roles: tuple[str, ...] = ENGINE_LLM_ROLES,
+) -> dict[str, Any]:
+    """A copy of ``memspine_config`` with every missing engine role bound to ``model``.
+
+    Roles the caller already bound are kept exactly as given: an explicit role
+    always wins over the run-wide default.
+    """
+    merged = dict(memspine_config or {})
+    llm = dict(merged.get("llm") or {})
+    bound = dict(llm.get("roles") or {})
+    for role, binding in engine_llm_config(model, region, roles)["roles"].items():
+        bound.setdefault(role, binding)
+    llm["roles"] = bound
+    merged["llm"] = llm
+    return merged
+
+
+def parse_price(spec: str) -> tuple[str, float, float]:
+    """``"model=IN,OUT"`` (USD per 1M input / output tokens) -> (model, in, out)."""
+    model, sep, prices = spec.rpartition("=")
+    parts = prices.split(",")
+    if not sep or not model.strip() or len(parts) != 2:
+        raise ValueError(f"--price takes model=IN_PER_MTOK,OUT_PER_MTOK, got {spec!r}")
+    try:
+        p_in, p_out = float(parts[0]), float(parts[1])
+    except ValueError as exc:
+        raise ValueError(f"--price prices must be numbers, got {spec!r}") from exc
+    if p_in < 0 or p_out < 0:
+        raise ValueError(f"--price prices must be >= 0, got {spec!r}")
+    return model.strip(), p_in, p_out
+
+
+def estimate_prompt_tokens(messages: list[dict[str, str]]) -> int:
+    """A conservative prompt-size estimate for the pre-call dollar check.
+
+    Three characters per token (real tokenizers average about four on English)
+    plus a per-message allowance for the chat template, so the estimate errs high.
+    """
+    chars = sum(len(str(m.get("content", ""))) for m in messages)
+    return chars // 3 + 1 + 8 * len(messages)
+
+
 def bedrock_engine_config(
     region: str,
     llm_model: str = QWEN3_32B,
@@ -138,18 +222,62 @@ class BudgetExceeded(ModelCallBudgetExceeded):
 
 @dataclass
 class CallBudget:
-    """Hard cap on paid calls; checked BEFORE each call."""
+    """Hard caps on paid calls and dollars; checked BEFORE each harness call.
+
+    ``max_usd`` (G3) is checked with a conservative estimate of the call about to
+    be made (its prompt tokens plus its full ``max_tokens``), so a capped run stops
+    before the call that would cross the cap. Engine-side calls are only known
+    after they happen: they are charged as observed (``charge``), and the cap then
+    stops the next call (``check_usd``).
+    """
 
     max_calls: int
     prices_per_mtok: Mapping[str, tuple[float, float]] | None = None  # model -> (in, out) $/1M
+    max_usd: float | None = None
     calls: int = 0
+    engine_calls: int = 0
     tokens: dict[str, list[int]] = field(default_factory=dict)  # model -> [in, out]
     cached: dict[str, int] = field(default_factory=dict)  # C9': model -> cache-read input
 
-    def reserve(self) -> None:
+    def price(self, model: str) -> tuple[float, float]:
+        return (self.prices_per_mtok or {}).get(model, (0.0, 0.0))
+
+    def estimate_usd(self, model: str, prompt_tokens: int, completion_tokens: int) -> float:
+        p_in, p_out = self.price(model)
+        return prompt_tokens / 1e6 * p_in + completion_tokens / 1e6 * p_out
+
+    def spent_usd(self) -> float:
+        return sum(self.estimate_usd(m, t[0], t[1]) for m, t in self.tokens.items())
+
+    def check_usd(self, estimate: float = 0.0, what: str = "the next call") -> None:
+        """Raise ``BudgetExceeded`` if spending ``estimate`` more would cross ``max_usd``."""
+        if self.max_usd is None:
+            return
+        spent = self.spent_usd()
+        if spent >= self.max_usd or spent + estimate > self.max_usd:
+            raise BudgetExceeded(
+                f"dollar cap: spent ${spent:.4f}, {what} may cost up to ${estimate:.4f}, "
+                f"cap ${self.max_usd:.4f}"
+            )
+
+    def reserve(
+        self, model: str | None = None, prompt_tokens: int = 0, max_completion_tokens: int = 0
+    ) -> None:
+        """Take one call from the budget; with ``model``, check its worst-case dollars too."""
         if self.calls >= self.max_calls:
             raise BudgetExceeded(f"call cap reached ({self.max_calls})")
+        if model is not None:
+            estimate = self.estimate_usd(model, prompt_tokens, max_completion_tokens)
+            self.check_usd(estimate, what=f"a {model} call")
         self.calls += 1
+
+    def charge(
+        self, model: str, prompt_tokens: int, completion_tokens: int, calls: int = 0
+    ) -> None:
+        """Charge spend observed after the fact (engine-side calls). Never raises."""
+        self.calls += calls
+        self.engine_calls += calls
+        self.record(model, prompt_tokens, completion_tokens)
 
     def record(
         self, model: str, prompt_tokens: int, completion_tokens: int, cached_tokens: int = 0
@@ -163,16 +291,14 @@ class CallBudget:
     def usd(self) -> float | None:
         if self.prices_per_mtok is None:
             return None
-        total = 0.0
-        for model, (tin, tout) in self.tokens.items():
-            pin, pout = self.prices_per_mtok.get(model, (0.0, 0.0))
-            total += tin / 1e6 * pin + tout / 1e6 * pout
-        return total
+        return self.spent_usd()
 
     def summary(self) -> dict[str, Any]:
         return {
             "calls": self.calls,
+            "engine_calls": self.engine_calls,
             "max_calls": self.max_calls,
+            "max_usd": self.max_usd,
             "tokens": self.tokens,
             "cached_input_tokens": self.cached,
             "usd": self.usd(),
@@ -239,13 +365,14 @@ class LiteLLMReader:
 
     async def complete(self, content: str, system: str | None = None) -> ReaderAnswer:
         """One completion. ``system``, when given, is sent as a system message first."""
-        self.budget.reserve()
-        started = time.perf_counter()
         if self.no_think:
             content = f"{content} /no_think"
         messages = [{"role": "user", "content": content}]
         if system is not None:
             messages.insert(0, {"role": "system", "content": system})
+        # G3: refused before the call if its worst case (prompt + max_tokens) crosses the cap.
+        self.budget.reserve(self.model, estimate_prompt_tokens(messages), self.max_tokens)
+        started = time.perf_counter()
         response = await self._litellm.acompletion(
             model=self.model,
             messages=messages,

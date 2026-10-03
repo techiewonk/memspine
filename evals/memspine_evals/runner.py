@@ -84,12 +84,20 @@ class RunConfig:
     #: free-form run limits recorded next to the caps above (e.g. an item-id filter, the
     #: scope of a provider call budget)
     extra_limits: Mapping[str, Any] = field(default_factory=dict)
+    #: G3 dollar cap per arm. The reader's own provider budget (``reader.budget``,
+    #: Bedrock) enforces it before each reader/judge call; engine-side spend is charged
+    #: to the same meter as it is observed and stops the next call.
+    max_usd: float | None = None
+    #: USD per 1M (input, output) tokens by model id, for the meter the runner builds
+    #: when the reader brings none.
+    prices_per_mtok: Mapping[str, tuple[float, float]] | None = None
 
     def limits(self) -> dict[str, Any]:
         return {
             "max_items": self.max_items,
             "max_queries_per_item": self.max_queries_per_item,
             "max_model_calls": self.max_model_calls,
+            "max_usd": self.max_usd,
             "expect_model_calls": self.expect_model_calls,
             "fail_fast": self.fail_fast,
             **dict(self.extra_limits),
@@ -118,6 +126,9 @@ class EvalRunner:
         self._model_calls = 0
         self._judge_calls = 0
         self._rng = random.Random(config.protocol.seed)
+        #: per loop stage, per engine role: {"model", "calls", "prompt", "completion"}
+        self.engine_llm: dict[str, dict[str, dict[str, Any]]] = {}
+        self._meter, self._own_meter = self._spend_meter()
         try:
             params = inspect.signature(reader.answer).parameters
         except (TypeError, ValueError):  # pragma: no cover - builtins without a signature
@@ -150,6 +161,53 @@ class EvalRunner:
             labels=self.config.labels,
             limits=self.config.limits(),
         )
+
+    # -- spend ---------------------------------------------------------------
+
+    def _spend_meter(self) -> tuple[Any, bool]:
+        """The dollar meter for this arm: the reader's provider budget when it has one
+        (it also checks reader/judge calls before they are made), else one the runner
+        builds when a cap or a price table is declared. ``(meter, runner_owned)``."""
+        budget = getattr(self.reader, "budget", None)
+        if budget is not None and callable(getattr(budget, "charge", None)):
+            if self.config.max_usd is not None and getattr(budget, "max_usd", None) is None:
+                budget.max_usd = self.config.max_usd
+            return budget, False
+        if self.config.max_usd is None and not self.config.prices_per_mtok:
+            return None, False
+        from .bedrock import CallBudget
+
+        meter = CallBudget(
+            max_calls=2**62,  # the call cap is the runner's own (max_model_calls)
+            prices_per_mtok=dict(self.config.prices_per_mtok or {}),
+            max_usd=self.config.max_usd,
+        )
+        return meter, True
+
+    def _check_spend(self, what: str) -> None:
+        """Stop before ``what`` once observed spend has reached the dollar cap."""
+        if self._meter is not None:
+            self._meter.check_usd(what=what)
+
+    def _charge_engine(self, stage: Stage, meta: Mapping[str, Any]) -> None:
+        """Charge the engine's observed LLM use (``meta["engine_llm"]``) to the meter."""
+        usage = meta.get("engine_llm")
+        if not usage:
+            return
+        bucket = self.engine_llm.setdefault(stage.value, {})
+        for role, used in usage.items():
+            acc = bucket.setdefault(
+                role, {"model": used.get("model", ""), "calls": 0, "prompt": 0, "completion": 0}
+            )
+            for key in ("calls", "prompt", "completion"):
+                acc[key] += int(used.get(key, 0) or 0)
+            if self._meter is not None:
+                self._meter.charge(
+                    str(used.get("model", "")),
+                    int(used.get("prompt", 0) or 0),
+                    int(used.get("completion", 0) or 0),
+                    calls=int(used.get("calls", 0) or 0),
+                )
 
     # -- guards --------------------------------------------------------------
 
@@ -266,6 +324,9 @@ class EvalRunner:
             "score_matrix_row": manifest.score_matrix_row(summary.score_mean, summary.n_queries),
             "judge_model_calls": self._judge_calls,
             "loop_model_calls": self._model_calls - self._judge_calls,
+            # per loop stage (D / K / R), per engine LLM role: calls and tokens
+            "engine_llm_usage": self.engine_llm,
+            "spend": self._meter.summary() if self._meter is not None else None,
         }
         self.summary_path.parent.mkdir(parents=True, exist_ok=True)
         self.summary_path.write_text(
@@ -315,9 +376,11 @@ class EvalRunner:
         return rows
 
     async def _insert(self, item_id: str, t: int, turn: Turn, tracer: TraceWriter) -> None:
+        self._check_spend(f"{self.system.system_id}.insert")
         started = time.perf_counter()
         deposit = await self.system.insert(turn)
         latency = (time.perf_counter() - started) * 1000
+        self._charge_engine(Stage.DEPOSIT, deposit.meta)
         self._account_model_calls(deposit.model_calls, f"{self.system.system_id}.insert")
         self.ledger.add(
             Stage.DEPOSIT,
@@ -357,8 +420,10 @@ class EvalRunner:
             self.system.remaining_model_calls = (  # type: ignore[attr-defined]
                 None if cap is None else max(cap - self._model_calls, 0)
             )
+        self._check_spend(f"{self.system.system_id}.build")
         started = time.perf_counter()
         result = await build()
+        self._charge_engine(Stage.SYNTHESISE, result.meta)
         self._account_model_calls(result.model_calls, f"{self.system.system_id}.build")
         self.ledger.add(
             Stage.SYNTHESISE,
@@ -374,9 +439,11 @@ class EvalRunner:
     async def _answer(self, item: EvalItem, query: Query, t: int, tracer: TraceWriter) -> ResultRow:
         protocol = self.config.protocol
         try:
+            self._check_spend(f"{self.system.system_id}.query")
             started = time.perf_counter()
             context = await self.system.query(query.text, protocol.budget_tokens, protocol.top_k)
             latency_retrieve = (time.perf_counter() - started) * 1000
+            self._charge_engine(Stage.RETRIEVE, context.meta)
 
             # The protocol owns the budget, not the system: truncate here even
             # when the system says it already did.
@@ -428,6 +495,11 @@ class EvalRunner:
                 )
             else:
                 answer = await self.reader.answer(query.text, context.text)
+            if self._own_meter and answer.model_calls:
+                # a reader without a provider budget is charged after the fact
+                self._meter.charge(
+                    self.reader.model, answer.prompt_tokens, answer.completion_tokens
+                )
             self._account_model_calls(answer.model_calls, self.reader.reader_id)
             self.ledger.add(
                 Stage.GENERATE,
@@ -573,6 +645,8 @@ async def run_matrix(
             expect_model_calls=config.expect_model_calls,
             fail_fast=config.fail_fast,
             labels=config.labels,
+            max_usd=config.max_usd,
+            prices_per_mtok=config.prices_per_mtok,
             extra_limits={
                 **dict(config.extra_limits),
                 "model_call_cap_scope": "per-arm",
