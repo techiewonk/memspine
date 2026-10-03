@@ -221,5 +221,21 @@ def sha256_mapping(payload: Mapping[str, Any]) -> str:
     ).hexdigest()
 
 
+def visible_evidence(evidence: Sequence[Evidence], text_len: int) -> tuple[Evidence, ...]:
+    """Evidence still inside a context cut to ``text_len`` characters (R3-7).
+
+    Systems that know where each unit sits in the context put ``meta["span"] = (start,
+    end)``; a unit whose span ends past the cut was truncated away and is dropped, so R@k
+    cannot credit text the reader never saw. Evidence without a span is kept.
+    """
+    kept = []
+    for row in evidence:
+        span = (row.meta or {}).get("span")
+        if span is not None and int(span[1]) > text_len:
+            continue
+        kept.append(row)
+    return tuple(kept)
+
+
 def join_turns(turns: Sequence[Turn]) -> str:
     return "\n".join(f"[{t.session_id}/{t.turn_id}] {t.speaker}: {t.text}" for t in turns)

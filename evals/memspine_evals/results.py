@@ -119,6 +119,8 @@ class RunSummary:
     stages: Mapping[str, Any]
     admissible_d16: bool
     missing_protocol_fields: tuple[str, ...]
+    #: R3-8: per type, how many rows were scored, failed and never attempted
+    by_type_n: Mapping[str, Mapping[str, int]] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
@@ -212,19 +214,34 @@ def aggregate(
     scale = JudgeScale(scale_value)
     units = [to_unit_interval(r.score, scale) for r in scored]
 
+    # R3-8: per-type means follow the headline rule: a failed answer counts at the
+    # failure score and stays in the denominator; unattempted rows are counted only.
     by_type: dict[str, float] = {}
-    labels = {r.type_label for r in scored if r.type_label}
+    by_type_n: dict[str, dict[str, int]] = {}
+    labels = {r.type_label for r in rows if r.type_label}
     for label in sorted(labels):
         subset = [to_unit_interval(r.score, scale) for r in scored if r.type_label == label]
-        by_type[label] = round(sum(subset) / len(subset), 4) if subset else 0.0
+        n_failed = sum(1 for r in failed if r.type_label == label)
+        denominator = len(subset) + n_failed
+        by_type_n[label] = {
+            "scored": len(subset),
+            "errors": n_failed,
+            "unattempted": sum(
+                1
+                for r in rows
+                if r.type_label == label and r.status == RowStatus.UNATTEMPTED.value
+            ),
+        }
+        if denominator:
+            by_type[label] = round((sum(subset) + failure_score * n_failed) / denominator, 4)
 
     recall: dict[str, float] = {}
     for k in manifest.protocol.recall_ks:
-        key = f"R@{k}"
-        values = [r.recall.get(key) for r in scored]
-        present = [v for v in values if v is not None]
-        if present:
-            recall[key] = round(sum(present) / len(present), 4)
+        for key in (f"R@{k}", f"R_all@{k}"):
+            values = [r.recall.get(key) for r in scored]
+            present = [v for v in values if v is not None]
+            if present:
+                recall[key] = round(sum(present) / len(present), 4)
 
     return RunSummary(
         run_id=manifest.run_id,
@@ -257,6 +274,7 @@ def aggregate(
         stages=ledger.to_dict(),
         admissible_d16=manifest.admissible_d16,
         missing_protocol_fields=manifest.missing_protocol_fields(),
+        by_type_n=by_type_n,
     )
 
 
