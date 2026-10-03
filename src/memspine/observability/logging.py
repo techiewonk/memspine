@@ -22,6 +22,7 @@ __all__ = [
     "EVENT_EXPOSE",
     "EVENT_FORGET",
     "EVENT_LINK",
+    "EVENT_MARKER",
     "EVENT_MERGE",
     "EVENT_REBUILD",
     "EVENT_RETRIEVE",
@@ -42,6 +43,7 @@ EVENT_LINK = EventKind.LINK.value
 EVENT_FORGET = EventKind.FORGET.value
 EVENT_REBUILD = EventKind.REBUILD.value
 EVENT_EXPOSE = EventKind.EXPOSE.value
+EVENT_MARKER = EventKind.MARKER.value
 
 
 def _utf8_console_stream() -> TextIO:

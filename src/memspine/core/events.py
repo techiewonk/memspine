@@ -66,6 +66,12 @@ class EventKind(StrEnum):
     #: ``shared_search`` returned. Appended in the READER's namespace so the
     #: grantor is never mutated; no projector materializes it (audit-only).
     EXPOSE = "memory.expose"
+    #: Bookkeeping marker (audit-only, no projector materializes it). Payload:
+    #: ``{"marker": ..., ...}``. ``stage_done`` / ``stage_cleared`` carry
+    #: ``{"stage", "session_key"}`` and make the background stages idempotent per
+    #: session even when a session yields nothing (it survives rebuild because it
+    #: is in the log); ``recall_skipped`` traces a message the H21 filter dropped.
+    MARKER = "memory.marker"
 
 
 def new_event_id() -> str:
