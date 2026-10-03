@@ -8,6 +8,7 @@ parse step for OpenAI-compatible endpoints; the core path never requires it.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 import yaml
@@ -38,7 +39,52 @@ def _parse_payload(text: str, format_: PromptFormat) -> Any:
             # Keep the exact parse error visible before the repair net hides it
             # — it pinpoints the malformed line when a format regression hits.
             _log.debug("structured.yaml_parse_failed", error=str(exc))
+            # Models often leave a value unquoted that contains ": " (a quoted
+            # title, a time). Strict YAML rejects the whole reply; the line-based
+            # reader keeps every item by splitting each field on its FIRST colon.
+            salvaged = _lenient_yaml_items(cleaned)
+            if salvaged is not None:
+                return salvaged
     return lenient_json(cleaned)
+
+
+_TOP = re.compile(r"^([A-Za-z_][\w-]*):\s*(\[\])?\s*$")
+_ITEM = re.compile(r"^\s*-\s+([A-Za-z_][\w-]*):\s?(.*)$")
+_FIELD = re.compile(r"^\s+([A-Za-z_][\w-]*):\s?(.*)$")
+
+
+def _scalar(value: str) -> str:
+    value = value.strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+        value = value[1:-1]
+    return value
+
+
+def _lenient_yaml_items(text: str) -> dict[str, list[dict[str, str]]] | None:
+    """Salvage the ``key:`` + list-of-flat-mappings shape every structured prompt
+    answers in (``facts:``, ``cues:``, ``labels:`` ...). Values stay strings and
+    pydantic coerces them. Returns None for any other shape."""
+    out: dict[str, list[dict[str, str]]] = {}
+    key: str | None = None
+    item: dict[str, str] | None = None
+    for line in text.splitlines():
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        if m := _TOP.match(line):
+            key = m.group(1)
+            out[key] = []
+            item = None
+        elif (m := _ITEM.match(line)) and key is not None:
+            item = {m.group(1): _scalar(m.group(2))}
+            out[key].append(item)
+        elif (m := _FIELD.match(line)) and item is not None:
+            item[m.group(1)] = _scalar(m.group(2))
+        elif item is not None and line.startswith((" ", "\t")):
+            last = next(reversed(item))  # continuation of a wrapped value
+            item[last] = f"{item[last]} {_scalar(line)}".strip()
+        else:
+            return None
+    return out or None
 
 
 async def structured_call[ModelT: BaseModel](

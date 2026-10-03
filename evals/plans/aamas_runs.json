@@ -94,6 +94,15 @@
       "notes": "replay read, relevance-only scoring, record_access off, Cohere v4; every engine role bound to Qwen3 (--memspine-llm bedrock-qwen3)"
     },
     {
+      "id": "memspine-assemble",
+      "hypothesis": "control",
+      "systems": [
+        "memspine"
+      ],
+      "read_mode": null,
+      "notes": "memspine on the default assemble read path (no replay): the one-change control for H2, which reads via assemble. Pilot 2026-10-03 showed base (replay) and H2 (assemble) differ in read mode."
+    },
+    {
       "id": "H1",
       "hypothesis": "H1",
       "benchmark": "LoCoMo cat 2",
