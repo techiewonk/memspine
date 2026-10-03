@@ -18,15 +18,24 @@ to mean less than they appeared to:
 
 from __future__ import annotations
 
+import inspect
 import random
 import time
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from .contracts import DatasetAdapter, EvalItem, Query, Reader, SystemAdapter, Turn
-from .judge import Judge, recall_at_k
+from .contracts import (
+    DatasetAdapter,
+    EvalItem,
+    Query,
+    Reader,
+    SystemAdapter,
+    Turn,
+    visible_evidence,
+)
+from .judge import Judge, recall_over_units, unit_ranking
 from .metrics import CostModel, Ledger, Stage
 from .provenance import ReaderSpec, RunManifest, RunProtocol, SystemSpec
 from .results import ResultRow, ResultWriter, RowStatus, RunSummary, aggregate
@@ -72,6 +81,19 @@ class RunConfig:
     expect_model_calls: bool = True
     fail_fast: bool = False
     labels: Mapping[str, Any] = field(default_factory=dict)
+    #: free-form run limits recorded next to the caps above (e.g. an item-id filter, the
+    #: scope of a provider call budget)
+    extra_limits: Mapping[str, Any] = field(default_factory=dict)
+
+    def limits(self) -> dict[str, Any]:
+        return {
+            "max_items": self.max_items,
+            "max_queries_per_item": self.max_queries_per_item,
+            "max_model_calls": self.max_model_calls,
+            "expect_model_calls": self.expect_model_calls,
+            "fail_fast": self.fail_fast,
+            **dict(self.extra_limits),
+        }
 
 
 class EvalRunner:
@@ -96,6 +118,13 @@ class EvalRunner:
         self._model_calls = 0
         self._judge_calls = 0
         self._rng = random.Random(config.protocol.seed)
+        try:
+            params = inspect.signature(reader.answer).parameters
+        except (TypeError, ValueError):  # pragma: no cover - builtins without a signature
+            params = {}  # type: ignore[assignment]
+        self._reader_takes_date = "question_date" in params or any(
+            p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values()
+        )
 
     # -- manifest ------------------------------------------------------------
 
@@ -119,6 +148,7 @@ class EvalRunner:
             protocol=self.config.protocol,
             token_counter=dict(self.counter.describe()),
             labels=self.config.labels,
+            limits=self.config.limits(),
         )
 
     # -- guards --------------------------------------------------------------
@@ -155,11 +185,14 @@ class EvalRunner:
             ResultWriter(results_path, manifest) as writer,
             TraceWriter(trace_path, self.config.include_trace_content) as tracer,
         ):
-            items = self.dataset.items()
+            items = iter(self.dataset.items())
+            max_items = self.config.max_items
+            n_items = 0
             try:
-                for n_items, item in enumerate(items):
-                    if self.config.max_items is not None and n_items >= self.config.max_items:
+                for item in items:
+                    if max_items is not None and n_items >= max_items:
                         break
+                    n_items += 1
                     item_rows = await self._run_item(item, tracer)
                     for row in item_rows:
                         writer.write(row)
@@ -176,8 +209,13 @@ class EvalRunner:
                     row = self._unattempted(abort.item, query)
                     writer.write(row)
                     rows.append(row)
+                # R3-8: "scheduled" means within the run's own caps, so the unrun
+                # remainder honours max_items and max_queries_per_item too.
                 for item in items:
-                    for query in item.queries:
+                    if max_items is not None and n_items >= max_items:
+                        break
+                    n_items += 1
+                    for query in self._capped_queries(item):
                         row = self._unattempted(item, query)
                         writer.write(row)
                         rows.append(row)
@@ -234,11 +272,15 @@ class EvalRunner:
             json.dumps(payload, indent=2, ensure_ascii=False, default=str), encoding="utf-8"
         )
 
-    async def _run_item(self, item: EvalItem, tracer: TraceWriter) -> list[ResultRow]:
-        await self.system.reset(item.item_id)
+    def _capped_queries(self, item: EvalItem) -> list[Query]:
         queries = list(item.queries)
         if self.config.max_queries_per_item is not None:
             queries = queries[: self.config.max_queries_per_item]
+        return queries
+
+    async def _run_item(self, item: EvalItem, tracer: TraceWriter) -> list[ResultRow]:
+        await self.system.reset(item.item_id)
+        queries = self._capped_queries(item)
 
         # Streaming datasets pin a query to the turn it must follow; everything
         # else runs once the whole history is in.
@@ -308,6 +350,13 @@ class EvalRunner:
         build = getattr(self.system, "build", None)
         if build is None:
             return
+        # R3-10: the build hook's calls are charged only after it returns, so a
+        # system that can bound itself is told what is left before it starts.
+        if hasattr(self.system, "remaining_model_calls"):
+            cap = self.config.max_model_calls
+            self.system.remaining_model_calls = (  # type: ignore[attr-defined]
+                None if cap is None else max(cap - self._model_calls, 0)
+            )
         started = time.perf_counter()
         result = await build()
         self._account_model_calls(result.model_calls, f"{self.system.system_id}.build")
@@ -316,6 +365,11 @@ class EvalRunner:
             calls=result.model_calls,
             latency_ms=(time.perf_counter() - started) * 1000,
         )
+        if result.meta.get("cost_observable") is False:
+            self.ledger.mark_unknown(
+                Stage.SYNTHESISE,
+                str(result.meta.get("cost_unknown_reason", "adapter cannot observe build cost")),
+            )
 
     async def _answer(self, item: EvalItem, query: Query, t: int, tracer: TraceWriter) -> ResultRow:
         protocol = self.config.protocol
@@ -330,10 +384,11 @@ class EvalRunner:
                 context.text, protocol.budget_tokens, self.counter
             )
             if truncated:
+                # R3-7: evidence whose unit was cut away is not retrieved evidence.
                 context = type(context)(
                     text=text,
                     tokens=tokens,
-                    evidence=context.evidence,
+                    evidence=visible_evidence(context.evidence, len(text)),
                     truncated=True,
                     boundary_index=context.boundary_index,
                     meta=context.meta,
@@ -343,12 +398,36 @@ class EvalRunner:
                 latency_ms=latency_retrieve,
                 calls=int(context.meta.get("model_calls", 0)),
             )
+            if context.meta.get("cost_observable") is False:
+                self.ledger.mark_unknown(
+                    Stage.RETRIEVE,
+                    str(context.meta.get("cost_unknown_reason", "query cost not observable")),
+                )
             self._account_model_calls(
                 int(context.meta.get("model_calls", 0)), f"{self.system.system_id}.query"
             )
             self.ledger.add(Stage.COMPOSE, prompt_tokens=context.tokens)
 
-            answer = await self.reader.answer(query.text, context.text)
+            if query.meta.get("abstention") and not getattr(
+                self.judge, "handles_abstention", False
+            ):
+                # R3-1: an unanswerable question's gold is a refusal; a judge that
+                # only compares strings cannot grade it, and must not be asked to.
+                raise ValueError(
+                    f"judge {self.judge.spec.judge_id!r} cannot grade abstention questions; "
+                    "exclude them (--categories) or use an abstention-aware judge"
+                )
+
+            # R3-6: the date the question is asked, for readers whose prompt uses it.
+            question_date = query.meta.get("question_date")
+            if self._reader_takes_date:
+                answer = await self.reader.answer(
+                    query.text,
+                    context.text,
+                    question_date=None if question_date is None else str(question_date),
+                )
+            else:
+                answer = await self.reader.answer(query.text, context.text)
             self._account_model_calls(answer.model_calls, self.reader.reader_id)
             self.ledger.add(
                 Stage.GENERATE,
@@ -361,19 +440,32 @@ class EvalRunner:
                 ),
             )
 
-            verdict = await self.judge.score(query.text, answer.text, query.gold)
+            score_query = getattr(self.judge, "score_query", None)
+            if score_query is not None:
+                verdict = await score_query(query, answer.text)
+            else:
+                verdict = await self.judge.score(query.text, answer.text, query.gold)
             self._judge_calls += verdict.model_calls
             self._account_model_calls(verdict.model_calls, self.judge.spec.judge_id)
 
-            retrieved_ids = tuple(e.turn_id for e in context.evidence)
+            retrieved_ids = tuple(dict.fromkeys(e.turn_id for e in context.evidence))
             # R@k is defined over a *ranking*. Full-context replay returns turns
             # in recency order, so scoring it would hand the baseline a free
             # perfect recall and make every comparison against it meaningless.
+            # R3-7: k counts ranked units (a chunk is one unit, expanded to all of
+            # its turns), "R@k" is any-hit and "R_all@k" needs every gold turn.
             ranked = bool(context.meta.get("ranked", True))
-            recall: dict[str, float | None] = {
-                f"R@{k}": (recall_at_k(retrieved_ids, query.gold_turn_ids, k) if ranked else None)
-                for k in protocol.recall_ks
-            }
+            units = unit_ranking(context.evidence)
+            recall: dict[str, float | None] = {}
+            for k in protocol.recall_ks:
+                recall[f"R@{k}"] = (
+                    recall_over_units(units, query.gold_turn_ids, k) if ranked else None
+                )
+                recall[f"R_all@{k}"] = (
+                    recall_over_units(units, query.gold_turn_ids, k, require_all=True)
+                    if ranked
+                    else None
+                )
 
             tracer.write(
                 cycle_from_context(
@@ -419,7 +511,14 @@ class EvalRunner:
                 model_calls=answer.model_calls + verdict.model_calls,
                 retrieved_ids=retrieved_ids,
                 recall=recall,
-                meta={"judge_raw": verdict.raw[:200]} if verdict.raw else {},
+                meta={
+                    **({"judge_raw": verdict.raw[:200]} if verdict.raw else {}),
+                    **(
+                        {"judge_prompt_id": verdict.meta["prompt_id"]}
+                        if verdict.meta.get("prompt_id")
+                        else {}
+                    ),
+                },
             )
         except (ModelCallBudgetExceeded, UnexpectedModelCall):
             raise
@@ -444,6 +543,7 @@ async def run_matrix(
     judge: Judge,
     config: RunConfig,
     token_counter: TokenCounter | None = None,
+    reader_judge_factory: Callable[[], tuple[Reader, Judge]] | None = None,
 ) -> list[RunSummary]:
     """Run several systems over one dataset under one protocol.
 
@@ -451,8 +551,15 @@ async def run_matrix(
     published table in the field currently has: the protocol object is shared
     by construction, so the systems cannot silently differ in budget, reader,
     judge or seed.
+
+    R3-3: every arm gets the same caps, never the remainder of another arm's.
+    ``max_model_calls`` is counted per arm; a provider-side budget is per arm when
+    ``reader_judge_factory`` builds a fresh reader and judge for each one. An arm
+    that exhausts its cap stops with UNATTEMPTED rows, the remaining arms still
+    run, and the first budget error is raised once all of them have.
     """
     summaries: list[RunSummary] = []
+    budget_error: ModelCallBudgetExceeded | None = None
     for system in systems:
         per_system = RunConfig(
             run_id=f"{config.run_id}--{system.system_id}",
@@ -466,10 +573,24 @@ async def run_matrix(
             expect_model_calls=config.expect_model_calls,
             fail_fast=config.fail_fast,
             labels=config.labels,
+            extra_limits={
+                **dict(config.extra_limits),
+                "model_call_cap_scope": "per-arm",
+                "provider_budget_scope": (
+                    "per-arm" if reader_judge_factory is not None else "shared-by-caller"
+                ),
+            },
         )
-        runner = EvalRunner(dataset, system, reader, judge, per_system, token_counter)
+        arm_reader, arm_judge = (
+            reader_judge_factory() if reader_judge_factory is not None else (reader, judge)
+        )
+        runner = EvalRunner(dataset, system, arm_reader, arm_judge, per_system, token_counter)
         try:
             summaries.append(await runner.run())
+        except ModelCallBudgetExceeded as exc:
+            budget_error = budget_error or exc
         finally:
             await system.close()
+    if budget_error is not None:
+        raise budget_error
     return summaries

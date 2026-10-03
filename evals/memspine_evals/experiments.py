@@ -30,15 +30,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
-from .contracts import DatasetAdapter, Reader, SystemAdapter
-from .judge import (
-    CONSTRAINT_BINARY_PROMPT,
-    RUBRIC_BINARY_PROMPT,
-    ContainsJudge,
-    Judge,
-    JudgeScale,
-    LLMJudge,
-)
+from .contracts import DatasetAdapter, Reader, SystemAdapter, sha256_text
+from .judge import DEFAULT_BINARY_PROMPT, ContainsJudge, Judge
 from .metrics import CostModel
 from .provenance import RunProtocol
 from .readers import ContextOnlyReader, OpenAICompatReader, openai_compat_chat
@@ -51,6 +44,15 @@ from .systems import (
     NoMemorySystem,
     VerbatimSystem,
 )
+from .systems.baselines import BudgetCappedSystem
+
+#: Recorded in every C0-1 manifest from this revision on (R3 fixes of 2 Oct 2026): cat-5
+#: abstention gold, unit-level R@k with R_all, cut evidence dropped, per-arm call budgets,
+#: per-question judge routing, the question date passed to the reader.
+HARNESS_PROTOCOL_REVISION = "harness-protocol=r3-2026-10-02"
+
+#: judge choices: the alias judge (no model) plus every routed suite.
+JUDGE_CHOICES = ("rubric", "constraint", "alias", "locomo-plus-v2", "longmemeval", "omnimemeval")
 
 Mode = Literal["retrieval", "qa"]
 
@@ -89,8 +91,15 @@ class C01Config:
     #: H7/H12: QA prompt variant for EVERY arm (default | dated | abstain), recorded
     #: in the reader manifest via its prompt hash.
     qa_prompt: str = "default"
-    #: judge prompt for the Qwen3 protocol: rubric (default) | constraint (LoCoMo-Plus)
+    #: judge for QA mode, every endpoint (R3-4/R3-5): rubric (default) | constraint
+    #: (LoCoMo-Plus) | alias | locomo-plus-v2 | longmemeval | omnimemeval (placeholder)
     judge_prompt: str = "rubric"
+    #: LoCoMo categories the run loads (R3-1); None = every category. Recorded in labels.
+    categories: tuple[int, ...] | None = None
+    #: R4-6: add a naive-RAG arm whose dense retriever is memspine's own embedder
+    naive_dense_same_embedder: bool = False
+    #: R4-6: add a naive-RAG arm capped at this many context tokens (match memspine's mean)
+    matched_budget_tokens: int | None = None
     #: free-text protocol note recorded in every manifest (set by a preset, H25)
     protocol_notes: str = ""
     #: Resume support: run only these system ids / item ids (None = all). A
@@ -111,6 +120,7 @@ PROTOCOL_PRESETS: dict[str, dict[str, Any]] = {
         "reader_model": "gpt-4.1-mini",
         "judge_model": "gpt-4o-mini",
         "base_url": "https://api.openai.com/v1",
+        "categories": (1, 2, 3, 4),
         "notes": (
             "OmniMemEval-protocol preset (reader gpt-4.1-mini T=0, judge gpt-4o-mini, "
             "cats 1-4); judge prompt = memspine rubric, UNVERIFIED vs OmniMemEval"
@@ -128,12 +138,20 @@ def apply_protocol_preset(config: C01Config, name: str | None) -> C01Config:
     from dataclasses import replace
 
     preset = PROTOCOL_PRESETS[name]
+    categories = preset.get("categories")
+    if (
+        config.categories is not None
+        and categories is not None
+        and tuple(config.categories) != tuple(categories)
+    ):
+        raise ValueError(f"preset {name!r} fixes categories {categories}; got {config.categories}")
     return replace(
         config,
         reader_model=preset["reader_model"],
         judge_model=preset["judge_model"],
         base_url=preset["base_url"],
         protocol_notes=preset["notes"],
+        categories=tuple(categories) if categories is not None else config.categories,
     )
 
 
@@ -152,6 +170,29 @@ def _retriever(config: C01Config) -> Any:
     return FastEmbedRetriever(model=config.embedding_model)
 
 
+def memspine_embedding_model(config: C01Config) -> str:
+    """The embedder the memspine arm uses, for the same-embedder naive arm (R4-6).
+
+    Only a local fastembed model can be shared: a cloud embedder would make the baseline
+    pay for calls the harness does not budget, so that combination is refused.
+    """
+    embedding = dict((config.memspine_config or {}).get("embedding") or {})
+    try:
+        from memspine.config.schema import EmbeddingConfig
+
+        defaults = EmbeddingConfig()
+        provider = embedding.get("provider", defaults.provider)
+        model = embedding.get("model", defaults.model)
+    except ImportError:  # the engine is not installed: its documented default
+        provider = embedding.get("provider", "fastembed")
+        model = embedding.get("model", "BAAI/bge-small-en-v1.5")
+    if provider != "fastembed":
+        raise ValueError(
+            f"the same-embedder naive arm needs a fastembed embedder; memspine uses {provider!r}"
+        )
+    return str(model)
+
+
 def build_systems(config: C01Config) -> list[SystemAdapter]:
     """The arms, in the order they should be read.
 
@@ -166,6 +207,21 @@ def build_systems(config: C01Config) -> list[SystemAdapter]:
         NaiveRAGSystem(retriever=_retriever(config)),
         VerbatimSystem(retriever=_retriever(config)),
     ]
+    if config.naive_dense_same_embedder:
+        from .systems.retrievers import FastEmbedRetriever
+
+        systems.append(
+            NaiveRAGSystem(
+                retriever=FastEmbedRetriever(model=memspine_embedding_model(config)),
+                system_id="naive-rag-dense-memspine-embedder",
+            )
+        )
+    if config.matched_budget_tokens is not None:
+        systems.append(
+            BudgetCappedSystem(
+                NaiveRAGSystem(retriever=_retriever(config)), config.matched_budget_tokens
+            )
+        )
     if config.include_memspine:
         from .systems.memspine_system import MemspineSystem
 
@@ -195,18 +251,39 @@ class _ItemFilter:
         return (item for item in self._inner.items() if item.item_id in self._ids)
 
 
+def build_judge(config: C01Config, chat: Any, model: str, judge_id: str | None = None) -> Judge:
+    """The QA-mode judge, the same choice on every endpoint (R3-4).
+
+    ``alias`` is deterministic; every other choice is a routed suite (``judge_prompts``).
+    The one-token default prompt is never used in QA: it graded "I do not know" CORRECT.
+    """
+    if config.judge_prompt == "alias":
+        from .judge import AliasContainsJudge
+
+        return AliasContainsJudge()
+    from .judge_prompts import RoutedLLMJudge
+
+    judge = RoutedLLMJudge(chat, model=model, suite=config.judge_prompt, judge_id=judge_id)
+    if judge.spec.prompt_hash == sha256_text(DEFAULT_BINARY_PROMPT):  # pragma: no cover
+        raise ValueError("the default binary judge prompt is not allowed in QA mode")
+    return judge
+
+
 def build_reader_and_judge(config: C01Config) -> tuple[Reader, Judge, bool]:
-    """Returns ``(reader, judge, makes_model_calls)`` for the chosen mode."""
+    """Returns ``(reader, judge, makes_model_calls)`` for the chosen mode.
+
+    Every call builds a fresh reader and judge, and on Bedrock a fresh ``CallBudget``:
+    ``run_c0_1`` calls it once per arm, so one arm cannot spend another's budget (R3-3).
+    """
     if config.mode == "retrieval":
         # No generation: "was the answer retrievable at all". This is what R@k
         # and MemPalace's 96.6 measure, and it costs nothing to run.
         return ContextOnlyReader(), ContainsJudge(), False
-    if config.judge_prompt == "alias":
-        from .judge import AliasContainsJudge
+    from .readers import QA_PROMPTS
 
-        alias_judge: Judge = AliasContainsJudge()
-    else:
-        alias_judge = None  # type: ignore[assignment]
+    if config.qa_prompt not in QA_PROMPTS:
+        raise ValueError(f"unknown qa prompt {config.qa_prompt!r}; known: {sorted(QA_PROMPTS)}")
+    qa_prompt = QA_PROMPTS[config.qa_prompt]
     if config.bedrock:
         from .bedrock import QWEN3_32B, CallBudget, LiteLLMReader, litellm_chat
 
@@ -215,42 +292,34 @@ def build_reader_and_judge(config: C01Config) -> tuple[Reader, Judge, bool]:
         budget = CallBudget(
             max_calls=config.max_model_calls, prices_per_mtok={QWEN3_32B: (0.16, 0.62)}
         )
-        from .readers import QA_PROMPTS
-
         bedrock_reader = LiteLLMReader(
-            budget,
-            model=QWEN3_32B,
-            temperature=0.0,
-            max_tokens=256,
-            prompt=QA_PROMPTS[config.qa_prompt],
+            budget, model=QWEN3_32B, temperature=0.0, max_tokens=256, prompt=qa_prompt
         )
-        bedrock_judge = LLMJudge(
+        judge = build_judge(
+            config,
             litellm_chat(budget, model=QWEN3_32B),
-            model=QWEN3_32B,
-            scale=JudgeScale.BINARY,
-            prompt=(
-                CONSTRAINT_BINARY_PROMPT
-                if config.judge_prompt == "constraint"
-                else RUBRIC_BINARY_PROMPT
-            ),
-            judge_id=f"qwen3-32b-{config.judge_prompt}-binary",
+            QWEN3_32B,
+            judge_id=f"qwen3-32b-{config.judge_prompt}",
         )
-        return bedrock_reader, alias_judge or bedrock_judge, True
+        return bedrock_reader, judge, True
     import os
 
     # Local OpenAI-compatible servers ignore the key; hosted endpoints (e.g. the
     # OmniMemEval preset) read it from the process environment, never from .env.
     api_key = os.environ.get("OPENAI_API_KEY", "not-needed")
     reader = OpenAICompatReader(
-        model=config.reader_model, base_url=config.base_url, api_key=api_key
+        model=config.reader_model, base_url=config.base_url, api_key=api_key, prompt=qa_prompt
     )
-    judge = LLMJudge(
+    judge = build_judge(
+        config,
         openai_compat_chat(config.judge_model, base_url=config.base_url, api_key=api_key),
-        model=config.judge_model,
-        scale=JudgeScale.BINARY,
-        prompt=RUBRIC_BINARY_PROMPT if config.protocol_notes else None,
+        config.judge_model,
     )
-    return (alias_judge and (reader, alias_judge, True)) or (reader, judge, True)
+    return reader, judge, True
+
+
+def _abstention_queries(dataset: DatasetAdapter) -> int:
+    return sum(1 for item in dataset.items() for q in item.queries if q.meta.get("abstention"))
 
 
 async def run_c0_1(
@@ -260,14 +329,25 @@ async def run_c0_1(
     run_id: str | None = None,
 ) -> list[RunSummary]:
     reader, judge, calls = build_reader_and_judge(config)
+    if config.item_ids:
+        dataset = _ItemFilter(dataset, config.item_ids)  # type: ignore[assignment]
+    n_abstention = _abstention_queries(dataset)
+    if n_abstention and not getattr(judge, "handles_abstention", False):
+        raise ValueError(
+            f"{n_abstention} abstention question(s) (e.g. LoCoMo cat 5) but judge "
+            f"{judge.spec.judge_id!r} cannot grade a refusal; pass --categories 1,2,3,4 "
+            "or an abstention-aware judge"
+        )
     protocol = RunProtocol(
         protocol_id=f"c0-1-{config.mode}",
         budget_tokens=config.budget_tokens,
         top_k=config.top_k,
         seed=config.seed,
         notes="C0-1 verbatim-baseline gate; identical protocol across arms"
+        + f"; {HARNESS_PROTOCOL_REVISION}"
         + (f"; {config.protocol_notes}" if config.protocol_notes else ""),
     )
+    systems = build_systems(config)
     info = dataset.info()
     run_config = RunConfig(
         run_id=run_id or f"c0-1-{config.mode}-{info.dataset_id}",
@@ -283,11 +363,19 @@ async def run_c0_1(
             "mode": config.mode,
             "dense": config.dense,
             "hybrid": config.hybrid,
+            "categories": list(config.categories) if config.categories is not None else "all",
+            "qa_prompt": config.qa_prompt if config.mode == "qa" else None,
+            "judge_prompt": config.judge_prompt if config.mode == "qa" else None,
+            "arms": [s.system_id for s in systems],
+            "naive_dense_same_embedder": config.naive_dense_same_embedder,
+            "matched_budget_tokens": config.matched_budget_tokens,
         },
+        extra_limits={"item_ids": list(config.item_ids) if config.item_ids else None},
     )
-    if config.item_ids:
-        dataset = _ItemFilter(dataset, config.item_ids)  # type: ignore[assignment]
-    return await run_matrix(dataset, build_systems(config), reader, judge, run_config)
+    factory = (lambda: build_reader_and_judge(config)[:2]) if calls else None
+    return await run_matrix(
+        dataset, systems, reader, judge, run_config, reader_judge_factory=factory
+    )
 
 
 def comparison_table(summaries: Sequence[RunSummary], mode: Mode) -> str:

@@ -27,6 +27,6 @@ is a mistake this project already found in the published literature:
 
 from __future__ import annotations
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 HARNESS_ID = "memspine-evals"

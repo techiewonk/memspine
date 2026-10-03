@@ -26,6 +26,7 @@ from typing import Any
 
 from .contracts import ReaderAnswer
 from .readers import DEFAULT_QA_PROMPT
+from .runner import ModelCallBudgetExceeded
 
 __all__ = [
     "COHERE_EMBED_V4",
@@ -127,8 +128,12 @@ def bedrock_engine_config(
     }
 
 
-class BudgetExceeded(RuntimeError):
-    pass
+class BudgetExceeded(ModelCallBudgetExceeded):
+    """The provider call budget is spent (R3-3).
+
+    A ``ModelCallBudgetExceeded``, so the runner stops the arm cleanly with UNATTEMPTED
+    rows instead of recording every later question as an ERROR row.
+    """
 
 
 @dataclass
@@ -263,16 +268,31 @@ class LiteLLMReader:
             cached_prompt_tokens=cached,
         )
 
-    async def answer(self, question: str, context: str) -> ReaderAnswer:
-        return await self.complete(self.prompt.format(context=context, question=question))
+    async def answer(
+        self, question: str, context: str, question_date: str | None = None
+    ) -> ReaderAnswer:
+        return await self.complete(
+            self.prompt.format(
+                context=context, question=question, question_date=question_date or "unknown"
+            )
+        )
 
 
-def litellm_chat(budget: CallBudget, model: str = QWEN3_32B, temperature: float = 0.0) -> Any:
+def litellm_chat(
+    budget: CallBudget, model: str = QWEN3_32B, temperature: float = 0.0, max_tokens: int = 96
+) -> Any:
     """A bare ``async (prompt) -> str`` callable for ``LLMJudge``, budget-capped."""
     # 96 tokens: the LoCoMo judge format emits a JSON label; 16 truncated it.
-    reader = LiteLLMReader(budget, model=model, temperature=temperature, max_tokens=96)
+    reader = LiteLLMReader(budget, model=model, temperature=temperature, max_tokens=max_tokens)
 
     async def chat(prompt: str) -> str:
         return (await reader.complete(prompt)).text
 
+    # R3-11: the judge records these in its spec.
+    chat.params = {  # type: ignore[attr-defined]
+        "endpoint": "litellm",
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+        "no_think": reader.no_think,
+    }
     return chat

@@ -109,7 +109,28 @@ def test_locomo_keeps_the_adversarial_class_separable(locomo_path: Path) -> None
     labels = [q.type_label for q in item.queries]
     assert labels == ["cat1", "cat5"]
     assert item.queries[1].meta["adversarial"] is True
-    assert item.queries[1].gold == "No information available"
+
+
+def test_locomo_cat5_gold_is_a_refusal_never_the_distractor(locomo_path: Path) -> None:
+    """R3-1: cat 5's ``adversarial_answer`` is what a fooled system says; as gold it
+    scored being fooled as correct."""
+    from memspine_evals.judge import ABSTENTION_GOLD
+
+    dataset = LoCoMoDataset(locomo_path, revision_id="fixture")
+    cat5 = [q for item in dataset.items() for q in item.queries if q.type_label == "cat5"]
+    assert cat5
+    for query in cat5:
+        assert query.gold == ABSTENTION_GOLD
+        assert query.gold != query.meta["adversarial_answer"]
+        assert query.meta["abstention"] is True
+        assert query.gold_turn_ids == ()
+    assert "cat5-gold=abstention" in dataset.info().notes
+
+
+def test_locomo_judge_evidence_matches_locomo_plus_format(locomo_path: Path) -> None:
+    item = next(LoCoMoDataset(locomo_path, revision_id="fixture").items())
+    assert item.queries[0].meta["judge_evidence"] == "Ana\uff1aHer name is Juno."
+    assert item.queries[0].meta["category"] == 1
 
 
 def test_locomo_category_filter_narrows_the_subset(locomo_path: Path) -> None:

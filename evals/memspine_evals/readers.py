@@ -59,8 +59,18 @@ MAB_FC_QA_PROMPT = (
     "Facts:\n{context}\n\nQuestion: {question}\nAnswer:"
 )
 
+#: R3-6: the dated prompt plus the date the question is asked. LongMemEval questions carry a
+#: ``question_date`` and are relative to it ("how many weeks ago..."); without it the reader
+#: has no anchor. The runner passes the date; "unknown" when the dataset has none.
+QUESTION_DATED_QA_PROMPT = DATED_QA_PROMPT.replace(
+    "Context:\n{context}\n\nQuestion: {question}\nAnswer:",
+    "Context:\n{context}\n\nThe question is asked on {question_date}.\n"
+    "Question: {question}\nAnswer:",
+)
+
 QA_PROMPTS = {
     "mab_fc": MAB_FC_QA_PROMPT,
+    "question_dated": QUESTION_DATED_QA_PROMPT,
     "default": DEFAULT_QA_PROMPT,
     "dated": DATED_QA_PROMPT,
     "abstain": ABSTAIN_QA_PROMPT,
@@ -87,7 +97,9 @@ class ContextOnlyReader:
     def describe(self) -> Mapping[str, Any]:
         return {"reader_id": self.reader_id, "model": self.model, "generation": "none"}
 
-    async def answer(self, question: str, context: str) -> ReaderAnswer:
+    async def answer(
+        self, question: str, context: str, question_date: str | None = None
+    ) -> ReaderAnswer:
         return ReaderAnswer(
             text=context,
             prompt_tokens=self._counter.count(context),
@@ -117,7 +129,9 @@ class ScriptedReader:
     def describe(self) -> Mapping[str, Any]:
         return {"reader_id": self.reader_id, "model": self.model, "n_scripted": len(self._answers)}
 
-    async def answer(self, question: str, context: str) -> ReaderAnswer:
+    async def answer(
+        self, question: str, context: str, question_date: str | None = None
+    ) -> ReaderAnswer:
         text = self._answers.get(question, self._default)
         return ReaderAnswer(
             text=text,
@@ -173,7 +187,9 @@ class OpenAICompatReader:
             "prompt_sha256": __import__("hashlib").sha256(self.prompt.encode()).hexdigest(),
         }
 
-    async def answer(self, question: str, context: str) -> ReaderAnswer:
+    async def answer(
+        self, question: str, context: str, question_date: str | None = None
+    ) -> ReaderAnswer:
         payload = {
             "model": self.model,
             "temperature": self.temperature,
@@ -181,7 +197,11 @@ class OpenAICompatReader:
             "messages": [
                 {
                     "role": "user",
-                    "content": self.prompt.format(context=context, question=question),
+                    "content": self.prompt.format(
+                        context=context,
+                        question=question,
+                        question_date=question_date or "unknown",
+                    ),
                 }
             ],
         }
@@ -231,4 +251,11 @@ def openai_compat_chat(
             response.raise_for_status()
             return str(response.json()["choices"][0]["message"]["content"])
 
+    # R3-11: the judge records these in its spec.
+    chat.params = {  # type: ignore[attr-defined]
+        "endpoint": "openai-compat",
+        "base_url": base_url,
+        "temperature": temperature,
+        "max_tokens": None,
+    }
     return chat

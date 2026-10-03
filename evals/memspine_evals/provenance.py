@@ -129,6 +129,9 @@ class RunManifest:
     harness: str = HARNESS_ID
     harness_version: str = __version__
     labels: Mapping[str, Any] = field(default_factory=dict)
+    #: R3-11: the caps a run was started under (items, queries per item, model calls,
+    #: offline flag, call-budget scope). A capped pilot is not a full run.
+    limits: Mapping[str, Any] = field(default_factory=dict)
 
     @staticmethod
     def build(
@@ -141,6 +144,7 @@ class RunManifest:
         token_counter: Mapping[str, Any],
         repo: Path | None = None,
         labels: Mapping[str, Any] | None = None,
+        limits: Mapping[str, Any] | None = None,
     ) -> RunManifest:
         repo = repo or Path(__file__).resolve().parents[2]
         return RunManifest(
@@ -158,6 +162,7 @@ class RunManifest:
             },
             created_at=datetime.now(UTC).isoformat(timespec="seconds"),
             labels=dict(labels or {}),
+            limits=dict(limits or {}),
         )
 
     # -- D16 admissibility ---------------------------------------------------

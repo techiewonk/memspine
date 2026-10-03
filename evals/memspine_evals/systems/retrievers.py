@@ -46,6 +46,8 @@ class Retriever(Protocol):
 
     def search(self, query: str, top_k: int) -> list[tuple[Unit, float]]: ...
 
+    def remove(self, unit_id: str) -> None: ...
+
     def clear(self) -> None: ...
 
 
@@ -75,6 +77,17 @@ class BM25Retriever:
         self._tokens.append(tokens)
         for term in set(tokens):
             self._df[term] = self._df.get(term, 0) + 1
+
+    def remove(self, unit_id: str) -> None:
+        """Drop a unit (and its document frequencies); unknown ids are ignored."""
+        for i in range(len(self._units) - 1, -1, -1):
+            if self._units[i].unit_id == unit_id:
+                for term in set(self._tokens[i]):
+                    self._df[term] -= 1
+                    if not self._df[term]:
+                        del self._df[term]
+                del self._units[i]
+                del self._tokens[i]
 
     def clear(self) -> None:
         self._units.clear()
@@ -152,6 +165,11 @@ class FastEmbedRetriever:
         self._units.extend(units)
         self._vectors.extend(vectors)
 
+    def remove(self, unit_id: str) -> None:
+        keep = [i for i, unit in enumerate(self._units) if unit.unit_id != unit_id]
+        self._units = [self._units[i] for i in keep]
+        self._vectors = [self._vectors[i] for i in keep]
+
     def clear(self) -> None:
         self._units.clear()
         self._vectors.clear()
@@ -192,6 +210,10 @@ class HybridRetriever:
     def add(self, unit: Unit) -> None:
         self.sparse.add(unit)
         self.dense.add(unit)
+
+    def remove(self, unit_id: str) -> None:
+        self.sparse.remove(unit_id)
+        self.dense.remove(unit_id)
 
     def clear(self) -> None:
         self.sparse.clear()

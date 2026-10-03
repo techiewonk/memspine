@@ -3,11 +3,15 @@
 For each cat-2 question: the gold answer is turned into a date range. It is either absolute ("7 May
 2023", "May 2023", "2022") or relative to a stated date ("The Friday before 15 July 2023", which is
 resolved as "last Friday" on 15 July). Each evidence turn's relative phrases are resolved
-against the
-turn's session date. Reported:
+against the turn's session date. Reported (R4-4):
 
-- coverage: questions whose evidence contains at least one resolved phrase;
-- agreement: among covered questions, the share where some resolution overlaps the gold range.
+- coverage: questions whose evidence contains at least one resolved phrase, over ALL cat-2;
+- overlap agreement: among covered questions, some resolution overlaps the gold range;
+- exact-day agreement: among covered single-day golds, some resolution is exactly that day;
+- exact-range agreement: among covered questions, some resolution equals the gold range.
+
+The check is partly circular (gold ranges for relative golds are resolved with the same
+resolver), so overlap agreement is an upper bound and exact-day the stricter number.
 
     python temporal_check.py --data data/locomo10.json
 """
@@ -16,7 +20,8 @@ from __future__ import annotations
 
 import argparse
 import re
-from datetime import date, datetime
+from datetime import date
+from typing import Any
 
 from memspine_evals.datasets import LoCoMoDataset
 
@@ -115,13 +120,16 @@ def session_date(ts: str | None) -> date | None:
     return parse_date(ts or "")
 
 
-def main() -> None:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--data", required=True)
-    ap.add_argument("--show", type=int, default=0, help="print N disagreements")
-    args = ap.parse_args()
-    ds = LoCoMoDataset(args.data, revision_id="auto")
-    n = parsed = covered = agree = 0
+def evaluate(ds: LoCoMoDataset, show: int = 0) -> dict[str, Any]:
+    """Score the resolver on every cat-2 question of ``ds`` (R4-4: two agreement metrics).
+
+    - ``coverage`` = covered / all cat-2 questions (not / parsed), the share the check speaks for;
+    - ``agree_overlap``: some resolution overlaps the gold range (lenient);
+    - ``agree_exact_day``: the gold is one day and some resolution is exactly that day, over
+      the covered questions whose gold is a single day (``n_single_day``);
+    - ``agree_exact_range``: some resolution equals the gold range exactly, over covered.
+    """
+    n = parsed = covered = agree = single = exact = exact_range = 0
     misses = []
     for item in ds.items():
         turns = {t.turn_id: t for t in item.history}
@@ -144,17 +152,48 @@ def main() -> None:
             covered += 1
             if any(r.first <= g[1] and g[0] <= r.last for r, _ in res):
                 agree += 1
-            elif len(misses) < args.show:
+            elif len(misses) < show:
                 misses.append((q.text, q.gold, [(r.phrase, r.label) for r, _ in res]))
+            if any(r.first == g[0] and r.last == g[1] for r, _ in res):
+                exact_range += 1
+            if g[0] == g[1]:
+                single += 1
+                if any(r.first == r.last == g[0] for r, _ in res):
+                    exact += 1
+    return {
+        "n_cat2": n,
+        "gold_parsed": parsed,
+        "covered": covered,
+        "coverage": covered / n if n else 0.0,
+        "agree_overlap": agree,
+        "agree_overlap_rate": agree / covered if covered else 0.0,
+        "n_single_day": single,
+        "agree_exact_day": exact,
+        "agree_exact_day_rate": exact / single if single else 0.0,
+        "agree_exact_range": exact_range,
+        "agree_exact_range_rate": exact_range / covered if covered else 0.0,
+        "misses": misses,
+    }
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--data", required=True)
+    ap.add_argument("--show", type=int, default=0, help="print N disagreements")
+    args = ap.parse_args()
+    r = evaluate(LoCoMoDataset(args.data, revision_id="auto"), show=args.show)
     print(
-        f"cat2 questions {n}; gold parsed {parsed}; evidence has a resolvable phrase {covered} "
-        f"({100 * covered / max(parsed, 1):.1f}% of parsed); resolution agrees with gold "
-        f"{agree}/{covered} = {100 * agree / max(covered, 1):.1f}%"
+        f"cat2 questions {r['n_cat2']}; gold parsed {r['gold_parsed']}; evidence has a "
+        f"resolvable phrase {r['covered']} (coverage {100 * r['coverage']:.1f}% of all cat-2); "
+        f"overlap agreement {r['agree_overlap']}/{r['covered']} = "
+        f"{100 * r['agree_overlap_rate']:.1f}%; exact-day agreement {r['agree_exact_day']}/"
+        f"{r['n_single_day']} single-day golds = {100 * r['agree_exact_day_rate']:.1f}%; "
+        f"exact-range agreement {r['agree_exact_range']}/{r['covered']} = "
+        f"{100 * r['agree_exact_range_rate']:.1f}%"
     )
-    for q, gold, rs in misses:
+    for q, gold, rs in r["misses"]:
         print(f"  Q: {q[:70]} | gold: {gold} | resolved: {rs}")
 
 
 if __name__ == "__main__":
-    _ = datetime
     main()

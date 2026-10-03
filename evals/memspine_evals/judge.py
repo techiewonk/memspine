@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import re
 import time
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Protocol, runtime_checkable
@@ -201,6 +201,24 @@ CONSTRAINT_BINARY_PROMPT = (
     'Respond with JSON only: {{"label": "CORRECT"}} or {{"label": "WRONG"}}'
 )
 
+#: Abstention judge (R3-1), memspine-authored. The question cannot be answered from the
+#: conversation (LoCoMo cat 5 attributes an event to the wrong person or asks about something
+#: never said). The adversarial distractor is never shown: the only correct reply is a refusal.
+ABSTENTION_BINARY_PROMPT = (
+    "Your task is to label an answer to a question that the conversation does not answer: the "
+    "information was never mentioned, or the question attributes something to the wrong "
+    "person.\n"
+    "Rules:\n"
+    "- CORRECT only if the answer says the information is not mentioned, not available or cannot "
+    "be determined, or points out that the question names the wrong person.\n"
+    "- WRONG if the answer gives a concrete answer to the question as asked.\n\n"
+    "Question: {question}\nAnswer to label: {answer}\n\n"
+    'Respond with JSON only: {{"label": "CORRECT"}} or {{"label": "WRONG"}}'
+)
+
+#: The gold string for a question whose correct answer is a refusal (LoCoMo cat 5).
+ABSTENTION_GOLD = "Not mentioned in the conversation"
+
 DEFAULT_GRADED_PROMPT = (
     "You are grading a question-answering system against a reference answer.\n"
     "Question: {question}\n"
@@ -225,6 +243,7 @@ class LLMJudge:
         scale: JudgeScale,
         prompt: str | None = None,
         judge_id: str | None = None,
+        params: Mapping[str, Any] | None = None,
     ) -> None:
         if not isinstance(scale, JudgeScale):
             raise TypeError("LLMJudge needs an explicit JudgeScale")
@@ -234,6 +253,7 @@ class LLMJudge:
         self.prompt = prompt or (
             DEFAULT_BINARY_PROMPT if scale is JudgeScale.BINARY else DEFAULT_GRADED_PROMPT
         )
+        # R3-11: the sampling parameters of the judge's endpoint are part of its identity.
         self.spec = JudgeSpec(
             judge_id=judge_id or f"llm-{model}-{scale.value}",
             scale=scale,
@@ -241,6 +261,7 @@ class LLMJudge:
             prompt_id="inline",
             prompt_hash=sha256_text(self.prompt),
             makes_model_calls=True,
+            params={**dict(getattr(chat, "params", {}) or {}), **dict(params or {})},
         )
 
     async def score(self, question: str, answer: str, gold: str | None) -> Verdict:
@@ -301,3 +322,37 @@ def recall_at_k(retrieved_ids: tuple[str, ...], gold_ids: tuple[str, ...], k: in
         return None
     top = set(retrieved_ids[:k])
     return 1.0 if top & set(gold_ids) else 0.0
+
+
+def unit_ranking(evidence: Sequence[Any]) -> list[tuple[str, ...]]:
+    """Retrieved evidence -> ranked units, each a tuple of distinct turn ids (R3-7).
+
+    A unit is what the system ranked: a chunk (``meta["unit_id"]``) or, without that key, a
+    turn. Evidence rows of one unit collapse into one rank, and a turn id seen in an earlier
+    unit is not counted again, so ``k`` counts units rather than expanded turn ids.
+    """
+    order: list[str] = []
+    turns: dict[str, list[str]] = {}
+    seen: set[str] = set()
+    for row in evidence:
+        meta = getattr(row, "meta", None) or {}
+        key = str(meta.get("unit_id") or row.turn_id)
+        if key not in turns:
+            order.append(key)
+            turns[key] = []
+        if row.turn_id not in seen:
+            seen.add(row.turn_id)
+            turns[key].append(row.turn_id)
+    return [tuple(turns[key]) for key in order if turns[key]]
+
+
+def recall_over_units(
+    units: Sequence[tuple[str, ...]], gold_ids: tuple[str, ...], k: int, require_all: bool = False
+) -> float | None:
+    """R@k over the top ``k`` units. ``require_all``: every gold turn must be in them."""
+    if not gold_ids:
+        return None
+    covered = {turn for unit in units[:k] for turn in unit}
+    gold = set(gold_ids)
+    hit = gold <= covered if require_all else bool(gold & covered)
+    return 1.0 if hit else 0.0
