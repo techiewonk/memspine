@@ -10,7 +10,7 @@ derivation-provenance pattern consolidation uses (P3.1), so ``audit taint``
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from typing import ClassVar, Protocol
 
 from memspine.core.events import EventKind, MemoryEvent
@@ -28,6 +28,8 @@ AppendEvent = Callable[[MemoryEvent], Awaitable[None]]
 #: Firewall gate the engine injects (E1) — same seam as resource ingest;
 #: async so the full anomaly context (vector neighbours) participates.
 AssessRecord = Callable[[MemoryRecord], Awaitable[MemoryRecord]]
+#: MTI-D cap the engine injects (R2-5): parent view trusts -> deposited trust.
+CapTrust = Callable[[float, Sequence[float]], float]
 
 
 class ReflectiveStore(Protocol):
@@ -60,12 +62,19 @@ class ReflectiveMemory(BaseMemory):
         content: str,
         source_record_ids: list[str],
         source: SourceInfo | None = None,
+        parent_views: Sequence[float] | None = None,
+        cap_trust: CapTrust | None = None,
     ) -> MemoryRecord:
         """Write one reflection derived from ``source_record_ids``.
 
         The guards run against the *fetched* parents (never caller-supplied
         depths), so the cap and the quarantine-laundering refusal cannot be
         bypassed by lying about a parent.
+
+        R2-5: the evidence ids are also the record's ``source.parents``, so the
+        integrity cap, ``effective_trust`` (live re-evaluation) and the
+        cross-namespace taint walk all see the lineage. With integrity on the
+        engine passes ``parent_views`` and ``cap_trust`` (MTI-D).
         """
         parents: list[MemoryRecord] = []
         for record_id in source_record_ids:
@@ -80,15 +89,20 @@ class ReflectiveMemory(BaseMemory):
                 )
             parents.append(parent)
         depth = reflection_depth_for(parents)
+        # role="assistant", never "system": reflection content is
+        # LLM/caller-authored free text — the privileged-role firewall
+        # exemptions must not apply to it (E1).
+        base = source or SourceInfo(role="assistant", channel="reflection")
+        lineage = list(dict.fromkeys([*base.parents, *source_record_ids]))
+        # R2-11: an insight drawn only from assistant claims stays one.
+        claim = all("assistant_claim" in parent.tags for parent in parents)
         record = MemoryRecord(
             namespace=namespace,
             memory_type="reflective",
             content=content,
             reflection_depth=depth,
-            # role="assistant", never "system": reflection content is
-            # LLM/caller-authored free text — the privileged-role firewall
-            # exemptions must not apply to it (E1).
-            source=source or SourceInfo(role="assistant", channel="reflection"),
+            source=base.model_copy(update={"parents": lineage}),
+            tags=["assistant_claim"] if claim else [],
         )
         if self._assess is not None:
             record = await self._assess(record)  # E1: reflections pass the gate too
@@ -98,6 +112,8 @@ class ReflectiveMemory(BaseMemory):
         floor = min(parent.trust for parent in parents)
         if record.trust > floor:
             record = record.model_copy(update={"trust": floor})
+        if parent_views and cap_trust is not None:
+            record = record.model_copy(update={"trust": cap_trust(record.trust, parent_views)})
         await self._append_event(
             MemoryEvent(
                 kind=EventKind.WRITE,

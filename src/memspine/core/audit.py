@@ -74,14 +74,20 @@ async def trace_taint(
     """Walk the log once; expand the tainted set transitively (a summary built
     from a tainted episode taints whatever later merges with the summary).
 
-    ``follow_parents`` (MTI forensics) also follows ``source.parents`` — the
-    ``derived_from`` lineage a writer declared — which crosses grant
-    boundaries, and reports EXPOSE readers. Off, the walk is exactly the
-    namespace-local pre-MTI walk.
+    ``source.parents`` (the ``derived_from`` lineage a writer declared, mined
+    facts' turns, cue targets, reflection evidence) are always followed within
+    a namespace (R2-10). ``follow_parents`` (MTI forensics) also follows them
+    across grant boundaries and reports EXPOSE readers.
+
+    A record DISPLACED by a tainted statement (``superseded_by_taint``: a clean
+    fact archived by a poisoned UPDATE/INVALIDATE) is reported, but it does not
+    propagate taint: its content is not the poison's, so what was derived from
+    it is not tainted, and rollback restores it rather than archiving it.
     """
     events = await _all_events(storage)
     report = TaintReport(record_id=record_id)
     tainted: set[str] = {record_id}
+    displaced: set[str] = set()
     write_namespace: dict[str, str] = {}
 
     changed = True
@@ -102,14 +108,6 @@ async def trace_taint(
                             report.origin_source = source
                 if snapshot_id is not None:
                     write_namespace.setdefault(snapshot_id, event.namespace)
-                if follow_parents and snapshot_id is not None and snapshot_id not in tainted:
-                    snapshot = payload.get("record")
-                    source = snapshot.get("source") if isinstance(snapshot, dict) else None
-                    parents = source.get("parents") if isinstance(source, dict) else None
-                    if isinstance(parents, list) and tainted & set(map(str, parents)):
-                        tainted.add(snapshot_id)
-                        report.descendants[snapshot_id] = f"derived@{event.seq}"
-                        changed = True
                 # Derivation provenance rides the WRITE payload: consolidation
                 # (P3.1) and reflection (M13.7/P5) both name their members.
                 for derivation_key, label in (
@@ -127,6 +125,18 @@ async def trace_taint(
                             tainted.add(snapshot_id)
                             report.descendants[snapshot_id] = f"{label}@{event.seq}"
                             changed = True
+                if snapshot_id is not None and snapshot_id not in tainted:
+                    snapshot = payload.get("record")
+                    source = snapshot.get("source") if isinstance(snapshot, dict) else None
+                    parents = source.get("parents") if isinstance(source, dict) else None
+                    hit = tainted & set(map(str, parents)) if isinstance(parents, list) else set()
+                    if hit and (
+                        follow_parents
+                        or any(write_namespace.get(p) == event.namespace for p in hit)
+                    ):
+                        tainted.add(snapshot_id)
+                        report.descendants[snapshot_id] = f"derived@{event.seq}"
+                        changed = True
             elif event.kind is EventKind.MERGE:
                 kept = str(payload.get("kept_record_id", ""))
                 dropped_snapshot = payload.get("dropped_record")
@@ -188,10 +198,10 @@ async def trace_taint(
                         and existing_id
                         and payload.get("verdict") in ("update", "invalidate")
                         and existing_id not in tainted
+                        and existing_id not in displaced
                     ):
-                        tainted.add(existing_id)
+                        displaced.add(existing_id)
                         report.descendants[existing_id] = f"superseded_by_taint@{event.seq}"
-                        changed = True
 
     seed = {record_id}
     for event in events:
@@ -201,7 +211,7 @@ async def trace_taint(
         # even when the read-model row is gone (merged/hard-deleted).
         if report.origin_namespace is None and _event_references(event.payload, seed):
             report.origin_namespace = event.namespace
-        if _event_references(event.payload, tainted):
+        if _event_references(event.payload, tainted | displaced):
             report.event_seqs.append(event.seq)
         if follow_parents and event.kind is EventKind.EXPOSE:
             exposed = event.payload.get("record_ids")

@@ -18,6 +18,7 @@ from typing import ClassVar
 
 from datasketch import MinHashLSH
 
+from memspine.config.constants import CUE_TAG
 from memspine.core.events import EventKind, MemoryEvent
 from memspine.core.policies.conflict import ConflictPolicy, ConflictVerdict
 from memspine.core.policies.dedup import DedupPolicy
@@ -85,8 +86,11 @@ class SemanticMemory(BaseMemory):
         index = self._indexes.get(namespace)
         if index is None:
             records = await self._storage.list_records(namespace, "semantic")
-            # Only ACTIVE facts are merge targets (see _confirm_duplicate).
-            active = [r for r in records if r.status is RecordStatus.ACTIVATED]
+            # Only ACTIVE facts are merge targets (see _confirm_duplicate); cues
+            # are retrieval keys, never facts, so never merge targets (R2-1).
+            active = [
+                r for r in records if r.status is RecordStatus.ACTIVATED and CUE_TAG not in r.tags
+            ]
 
             def _build() -> MinHashLSH:
                 # CPU-bound sketch reconstruction — off the event loop.
@@ -190,7 +194,11 @@ class SemanticMemory(BaseMemory):
         live: list[MemoryRecord] = []
         for candidate_id in candidate_ids:
             candidate = await self._storage.get_record(candidate_id)
-            if candidate is None or candidate.status is not RecordStatus.ACTIVATED:
+            if (
+                candidate is None
+                or candidate.status is not RecordStatus.ACTIVATED
+                or CUE_TAG in candidate.tags
+            ):
                 _log.debug(
                     "dedup.stale_candidate_skipped",
                     namespace=record.namespace,
@@ -279,10 +287,12 @@ class SemanticMemory(BaseMemory):
                     "superseded_at": incoming.recorded_at,
                     "status": RecordStatus.ARCHIVED,
                     "evolve_to": incoming.record_id,
+                    "tags": _without_disputed(existing.tags),
                 }
             )
             await self._write_event(closed)
             await self._write_through(index, incoming)
+            await self._clear_dispute(existing, keep={existing.record_id})
             result = SemanticWriteResult(record=incoming, action="updated")
         elif verdict is ConflictVerdict.INVALIDATE:
             # The incoming statement negates the fact: archive the existing
@@ -293,9 +303,11 @@ class SemanticMemory(BaseMemory):
                     "valid_to": incoming.valid_from,
                     "superseded_at": incoming.recorded_at,
                     "status": RecordStatus.ARCHIVED,
+                    "tags": _without_disputed(existing.tags),
                 }
             )
             await self._write_event(invalidated)
+            await self._clear_dispute(existing, keep={existing.record_id})
             negation = incoming.model_copy(
                 update={"valid_to": incoming.valid_from, "status": RecordStatus.ARCHIVED}
             )
@@ -359,6 +371,29 @@ class SemanticMemory(BaseMemory):
         )
         return result
 
+    async def _clear_dispute(self, existing: MemoryRecord, keep: set[str]) -> None:
+        """R2-3: an UPDATE or INVALIDATE resolves a contest on the key.
+
+        The contenders the CONTEST verdict tagged ``disputed`` stay as history,
+        but they are no longer disputed: a later statement decided the key.
+        Only runs when the incumbent was disputed (a contest happened), so the
+        common write path pays nothing. ``keep`` = ids already rewritten.
+        """
+        if "disputed" not in existing.tags or existing.entity is None:
+            return
+        for record in await self._storage.list_records(existing.namespace, "semantic"):
+            if (
+                record.record_id in keep
+                or record.entity != existing.entity
+                or record.attribute != existing.attribute
+                or "disputed" not in record.tags
+                or record.status is RecordStatus.DELETED
+            ):
+                continue
+            await self._write_event(
+                record.model_copy(update={"tags": _without_disputed(record.tags)})
+            )
+
     # ── event emission ───────────────────────────────────────────────────────
 
     async def _write_through(self, index: MinHashLSH, record: MemoryRecord) -> None:
@@ -374,6 +409,10 @@ class SemanticMemory(BaseMemory):
                 payload={"record": record.model_dump(mode="json")},
             )
         )
+
+
+def _without_disputed(tags: list[str]) -> list[str]:
+    return [tag for tag in tags if tag != "disputed"]
 
 
 _PII_ORDER = {"none": 0, "low": 1, "high": 2, "regulated": 3}
