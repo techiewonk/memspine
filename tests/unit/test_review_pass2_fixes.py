@@ -1,9 +1,10 @@
-"""Second gap pass on the 2 Oct review: N2 (derived writes).
+"""Second gap pass on the 2 Oct review: N2 (derived writes) and N6 (grant revocation).
 
 N2: every derived or LLM-authored write carries the non-privileged
 ``constants.DERIVED_ROLE``, keeps trust capped at its parents, and the edge
 facts written outside the engine door (``extract_graph``, the C3 write
-pipeline) pass the same firewall screening.
+pipeline) pass the same firewall screening. N6: under
+``integrity.live_reevaluation`` a revoked grant drains every descendant.
 """
 
 from __future__ import annotations
@@ -11,10 +12,12 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+import pytest
+
 from memspine import Engine
 from memspine.config import constants
 from memspine.core.events import EventKind
-from memspine.core.records import MemoryRecord, RecordStatus
+from memspine.core.records import MemoryRecord, RecordStatus, SourceInfo
 from memspine.memories.semantic.write_pipeline import EDGE_CHANNEL, GraphWritePipeline
 from memspine.prompts.models import ExtractedEdge
 from memspine.workers.pipelines import consolidate, extract_graph
@@ -190,5 +193,84 @@ async def test_n2_write_pipeline_skips_an_instruction_flagged_source() -> None:
         await eng.write(f"Alice joined Acme. {INJECTION}", namespace="a")
         assert seen == []
         assert await _by_channel(eng, EDGE_CHANNEL) == []
+    finally:
+        await eng.stop()
+
+
+# ── N6: grant revocation drains descendants ─────────────────────────────────
+
+
+def _integrity(live: bool) -> dict[str, Any]:
+    return {
+        "enabled": True,
+        "kappa": 0.8,
+        "admission_threshold": 0.2,
+        "live_reevaluation": live,
+    }
+
+
+async def _derived_chain(eng: Engine) -> tuple[MemoryRecord, MemoryRecord]:
+    await eng.grant("b", namespace="a")
+    src = await eng.write("vpn 809: rotate the certificate", namespace="a", memory_type="episodic")
+    note = await eng.write(
+        "b note: rotate cert for vpn 809",
+        namespace="b",
+        memory_type="episodic",
+        source=SourceInfo(role="user"),
+        derived_from=[src.record_id],
+    )
+    child = await eng.write(
+        "b checklist: vpn 809 needs a cert rotation",
+        namespace="b",
+        memory_type="episodic",
+        source=SourceInfo(role="user"),
+        derived_from=[note.record_id],
+    )
+    return note, child
+
+
+async def test_n6_revocation_drains_descendants_under_live_reevaluation() -> None:
+    eng = _engine(integrity=_integrity(live=True))
+    await eng.start()
+    try:
+        note, child = await _derived_chain(eng)
+        assert await eng.effective_trust(note.record_id) > 0.2
+        assert await eng.effective_trust(child.record_id) > 0.2
+        before = {r.record_id for r, _ in await eng.search("vpn 809 cert", namespace="b")}
+        assert {note.record_id, child.record_id} <= before
+        await eng.revoke("b", namespace="a")
+        assert await eng.effective_trust(note.record_id) == 0.0
+        assert await eng.effective_trust(child.record_id) == 0.0
+        after = {r.record_id for r, _ in await eng.search("vpn 809 cert", namespace="b")}
+        assert not after & {note.record_id, child.record_id}
+    finally:
+        await eng.stop()
+
+
+async def test_n6_revoked_sender_grant_drains_a_message() -> None:
+    eng = _engine(integrity=_integrity(live=True))
+    await eng.start()
+    try:
+        await eng.grant("b", namespace="a")
+        msg = await eng.send("deploy window is friday", from_namespace="a", to_namespace="b")
+        assert await eng.effective_trust(msg.record_id) > 0.0
+        await eng.revoke("b", namespace="a")
+        assert await eng.effective_trust(msg.record_id) == 0.0
+    finally:
+        await eng.stop()
+
+
+@pytest.mark.parametrize("enabled", [True, False])
+async def test_n6_without_live_reevaluation_revocation_changes_nothing(enabled: bool) -> None:
+    integrity = _integrity(live=False) | {"enabled": enabled}
+    eng = _engine(integrity=integrity)
+    await eng.start()
+    try:
+        note, child = await _derived_chain(eng)
+        before = [await eng.effective_trust(r.record_id) for r in (note, child)]
+        await eng.revoke("b", namespace="a")
+        assert [await eng.effective_trust(r.record_id) for r in (note, child)] == before
+        after = {r.record_id for r, _ in await eng.search("vpn 809 cert", namespace="b")}
+        assert {note.record_id, child.record_id} <= after
     finally:
         await eng.stop()

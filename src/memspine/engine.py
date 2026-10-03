@@ -262,6 +262,16 @@ def _as_options_dict(raw: Any) -> dict[str, object] | None:
     return dict(raw) if isinstance(raw, dict) else None
 
 
+def _message_sender(record: MemoryRecord) -> str | None:
+    """B5: the sender namespace of a :meth:`Engine.send` message, else None."""
+    if record.source.channel != "message":
+        return None
+    for tag in record.tags:
+        if tag.startswith("from:") and tag[5:] != record.namespace:
+            return tag[5:]
+    return None
+
+
 def _static_prefilter(
     query: str, candidates: list[tuple[MemoryRecord, float]]
 ) -> list[tuple[MemoryRecord, float]]:
@@ -1031,9 +1041,19 @@ class Engine:
         deleted contributes 0 (fail closed). Parents recorded before integrity
         was enabled are ignored if unknown to storage only when integrity is off.
         Memoised per call; cycles are impossible (parents predate children).
+
+        N6: under ``integrity.live_reevaluation`` the grant edge is re-checked
+        too. A parent the record's writer could only read through a grant that
+        is now revoked (or no longer covers the parent's memory type) counts as
+        0, and so does a message whose sender grant is gone. Because the walk
+        takes the min over every ancestor, revocation drains the whole derived
+        chain. With re-evaluation off, grants are not consulted.
         """
         storage = self._require_started()
         memo: dict[str, float] = {}
+        grants_cache: dict[str, Mapping[str, frozenset[str] | None]] = {}
+        policy = self._integrity()
+        check_grants = policy.enabled and policy.live_reevaluation
 
         async def walk(rid: str) -> float:
             if rid in memo:
@@ -1047,19 +1067,47 @@ class Engine:
                 memo[rid] = 0.0
                 return 0.0
             value = record.trust
-            policy = self._integrity()
             if not policy.enabled:
                 memo[rid] = value  # pre-MTI: stored trust, held records still fail closed
                 return value
+            reader = record.namespace
+            if check_grants:
+                sender = _message_sender(record)
+                if sender is not None:
+                    # B5: a message crossed sender -> receiver, and its parents
+                    # were read by the sender.
+                    if sender not in await self._grants_cached(record.namespace, grants_cache):
+                        memo[rid] = 0.0
+                        return 0.0
+                    reader = sender
             for parent_id in record.source.parents:
                 parent = await storage.get_record(parent_id)
                 parent_ns = parent.namespace if parent is not None else record.namespace
                 view = policy.view_trust(await walk(parent_id), parent_ns, record.namespace)
+                if (
+                    check_grants
+                    and parent is not None
+                    and not grant_allows(
+                        reader,
+                        parent.namespace,
+                        parent.memory_type,
+                        await self._grants_cached(reader, grants_cache),
+                    )
+                ):
+                    view = 0.0  # N6: the grant that carried this parent is gone
                 value = min(value, view * policy.derivation_decay)
             memo[rid] = value
             return value
 
         return await walk(record_id)
+
+    async def _grants_cached(
+        self, reader: str, cache: dict[str, Mapping[str, frozenset[str] | None]]
+    ) -> Mapping[str, frozenset[str] | None]:
+        """``reader``'s live grants, read once per caller-held ``cache``."""
+        if reader not in cache:
+            cache[reader] = await self._shared.grants_to(reader) if self._shared is not None else {}
+        return cache[reader]
 
     async def _metadata_legs(self, ns: str, query: str, fetch_k: int) -> list[list[LegHit]]:
         """C3': the non-empty temporal / metadata legs for this query (opt-in)."""
@@ -1179,12 +1227,20 @@ class Engine:
             trust = record.trust
             if integrity.live_reevaluation:
                 storage = self._require_started()
+                grants_cache: dict[str, Mapping[str, frozenset[str] | None]] = {}
                 for parent_id in record.source.parents:
                     parent = await storage.get_record(parent_id)
                     parent_ns = parent.namespace if parent is not None else record.namespace
                     view = integrity.view_trust(
                         await self.effective_trust(parent_id), parent_ns, record.namespace
                     )
+                    if parent is not None and not grant_allows(
+                        record.namespace,
+                        parent.namespace,
+                        parent.memory_type,
+                        await self._grants_cached(record.namespace, grants_cache),
+                    ):
+                        view = 0.0  # N6: the grant that carried this parent is gone
                     trust = min(trust, view * integrity.derivation_decay)
             if not integrity.admits(trust):
                 return None
