@@ -100,6 +100,7 @@
     },
     "conflict": {
       "bias": "newest",
+      "contest_lower_trust": false,
       "contest_ties": false,
       "contest_trust_margin": 0.05,
       "contest_window_seconds": 0.0,

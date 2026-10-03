@@ -49,6 +49,11 @@ class ConflictOptions(PolicyOptions):
     contest_ties: bool = False
     contest_window_seconds: float = 0.0
     contest_trust_margin: float = 0.05
+    #: A write less trusted than the current fact (but inside ``trust_margin``)
+    #: CONTESTs it instead of superseding or retracting it, so a lower-trust source
+    #: cannot silently archive a higher-trust fact (the supersession availability
+    #: cell, `paper_aamas27/results/edge_cells.md`). Off by default.
+    contest_lower_trust: bool = False
 
 
 class ConflictPolicy(BindablePolicy):
@@ -75,6 +80,11 @@ class ConflictPolicy(BindablePolicy):
         # the current fact; the store records the rejection as a CONFLICT event.
         if incoming.trust < existing.trust - options.trust_margin:
             return ConflictVerdict.NOOP
+
+        # R1' — lower-trust contest (opt-in): inside the margin, but less trusted
+        # than the current fact, so it may neither supersede nor retract it.
+        if options.contest_lower_trust and incoming.trust < existing.trust - 1e-9:
+            return ConflictVerdict.CONTEST
 
         # R2' — explicit retraction (FORK-A6): a trust-gated write tagged
         # ``retract`` on the same key ends the fact with NO successor. Tag-based,

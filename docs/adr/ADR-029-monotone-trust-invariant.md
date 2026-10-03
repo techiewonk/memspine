@@ -128,7 +128,11 @@ are to `src/memspine/engine.py` and `src/memspine/core/integrity.py` at the time
   only when its trust is below the incumbent's minus `trust_margin` (0.3 by default). A poisoned write
   within that margin can supersede a benign fact on the same key (UPDATE archives the incumbent),
   even when the poison itself is later hidden by θ. The invariant bounds the *trust* of poison, not
-  the loss of benign facts. `contest_ties` (H9) narrows this only for ties.
+  the loss of benign facts. `contest_ties` (H9) narrows this only for ties. Measured in
+  `paper_aamas27/results/edge_cells.md`: a poison at trust 0.5 archives a user fact at 0.7. Mitigation
+  (opt-in): `memories.semantic.policies.conflict.contest_lower_trust: true` turns any less-trusted
+  same-key write (supersede or retract) into CONTEST, so the incumbent stays current and both are
+  marked disputed. Alternatively `trust_margin: 0` rejects it outright.
 - **Compromised trusted principal.** Out of scope. A principal that writes with operator, system or
   user trust is trusted by assumption; the invariant bounds what derives from it, not what it says.
 - **Cycles and multiple parents.** A write can only name records that already exist, and merges do

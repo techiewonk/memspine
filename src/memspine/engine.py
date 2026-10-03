@@ -2611,6 +2611,47 @@ class Engine:
             raise ConflictError(f"no such record {record_id!r} in namespace {ns!r}")
         return report
 
+    async def quarantine(
+        self,
+        record_id: str,
+        namespace: str = "default",
+        reason: str = "operator_quarantine",
+        actor: str = "operator",
+    ) -> MemoryRecord:
+        """Quarantine an existing record (operator action).
+
+        The same lifecycle event the firewall's own path uses (a DECAY_TRANSITION
+        setting ``quarantined``), through the door, so it replays and is auditable.
+        Model-facing reads stop serving the record at once; under
+        ``integrity.live_reevaluation`` its descendants' effective trust drops to 0.
+        Namespace-scoped like ``forget``: a foreign or missing id raises the same
+        ``ConflictError`` (no existence oracle). Idempotent on a held record.
+        """
+        storage = self._require_started()
+        ns = validate_namespace(namespace)
+        async with self._write_locks.setdefault(ns, asyncio.Lock()):
+            record = await storage.get_record(record_id)
+            if record is None or record.namespace != ns:
+                raise ConflictError(f"no such record {record_id!r} in namespace {ns!r}")
+            if record.quarantined:
+                return record
+            await self._append_and_project(
+                MemoryEvent(
+                    kind=EventKind.DECAY_TRANSITION,
+                    namespace=ns,
+                    actor=actor,
+                    payload={
+                        "record_id": record_id,
+                        "set": {"quarantined": True, "status": RecordStatus.QUARANTINED.value},
+                        "transition": f"{record.status.value}->quarantined",
+                        "reason": reason,
+                    },
+                )
+            )
+            updated = await storage.get_record(record_id)
+            assert updated is not None
+            return updated
+
     async def rollback_taint(
         self, record_id: str, namespace: str = "default", actor: str = "operator"
     ) -> dict[str, list[str]]:
