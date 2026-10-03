@@ -12,12 +12,23 @@ import re
 
 __all__ = ["core_terms", "is_aggregation", "is_ordering"]
 
+#: Time words after which "every" / "each" describe a habit ("every morning"), not a set.
+_HABIT = (
+    r"(?:other|day|days|morning|evening|night|week|weekend|month|year|summer|winter|spring|"
+    r"autumn|fall|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b"
+)
 _AGGREGATE = re.compile(
-    r"\bhow (?:many|often|much)\b"
-    r"|\blist\b|\ball (?:the|of)\b|\bevery\b|\beach\b"
+    r"\bhow (?:many|often)\b"
+    # "how much" asks for one amount unless the question sums over occasions.
+    r"|\bhow much\b.*\b(?:in total|total|altogether|in all|combined)\b"
+    r"|\blist\b|\ball (?:the|of)\b"
+    rf"|\bevery\b(?! {_HABIT})|\beach\b(?! {_HABIT})"
     r"|\bwhat (?:are|were) (?:\w+'s |the |some |all )?\w+s\b"
-    r"|\b(?:names|kinds|types|ways|activities|places|books|events|hobbies|items|things)\b"
-    r"|\bwhat \w+s (?:has|have|did)\b",
+    # A plural set noun counts only as the thing asked for ("what kinds", "which
+    # events"), not inside a single-item question ("which of the books ...").
+    r"|\b(?:what|which) (?:\w+ )?"
+    r"(?:names|kinds|types|ways|activities|places|books|events|hobbies|items|things)\b"
+    r"|\bwhat \w+s (?:has|have|did|does|do)\b",
     re.I,
 )
 _STOP = frozenset(
@@ -94,7 +105,11 @@ _WORD = re.compile(r"[A-Za-z0-9']+")
 
 _ORDERING = re.compile(
     r"\b(?:first|last time|latest|most recent(?:ly)?|earliest|recently|in what order|"
-    r"before or after|which came first|start(?:ed)? (?:to|doing)|since when)\b",
+    r"before or after|which came first|start(?:ed)? (?:to|doing)|since when)\b"
+    # "the last book", "Melanie's last trip"; not "last week" (a relative date).
+    r"|(?:\b(?:the|her|his|their|my|your|our)|'s) last\b(?! (?:few |couple of )?"
+    r"(?:week|weekend|month|year|night|summer|winter|spring|autumn|fall|monday|tuesday|"
+    r"wednesday|thursday|friday|saturday|sunday)s?\b)",
     re.I,
 )
 
