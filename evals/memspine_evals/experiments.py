@@ -30,9 +30,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
+from .bedrock import QWEN3_32B
 from .contracts import DatasetAdapter, Reader, SystemAdapter, sha256_text
 from .judge import DEFAULT_BINARY_PROMPT, ContainsJudge, Judge
-from .metrics import CostModel
+from .metrics import CostModel, Price
 from .provenance import RunProtocol
 from .readers import ContextOnlyReader, OpenAICompatReader, openai_compat_chat
 from .results import RunSummary
@@ -107,6 +108,15 @@ class C01Config:
     #: is valid because items are independent (each resets the system).
     only_systems: tuple[str, ...] | None = None
     item_ids: tuple[str, ...] | None = None
+    #: G2b: bind every engine LLM role of the memspine arm to this model family
+    #: (``none`` | ``bedrock-qwen3``). Explicit ``llm.roles`` in ``memspine_config`` win.
+    memspine_llm: str = "none"
+    #: G3: USD per 1M tokens, ``(model, in, out)`` triples; override the built-in table.
+    prices_per_mtok: tuple[tuple[str, float, float], ...] = ()
+    #: G3: dollar cap per arm (reader + judge + engine). None = no dollar cap.
+    max_usd: float | None = None
+    #: questions per item (rehearsals: the first N of a conversation). None = all.
+    max_queries_per_item: int | None = None
 
 
 #: H25: declared protocol presets. OmniMemEval (MemTensor/OmniMemEval @ 0b1ea8d) is the
@@ -202,6 +212,65 @@ def memspine_embedding_model(config: C01Config) -> str:
     return str(model)
 
 
+#: Built-in Bedrock price table (USD per 1M input / output tokens), used when no
+#: ``--price`` is given. Verify against the AWS Bedrock pricing page for the region.
+DEFAULT_PRICES_PER_MTOK: dict[str, tuple[float, float]] = {
+    QWEN3_32B: (0.16, 0.62),
+}
+
+
+def price_table(config: C01Config) -> dict[str, tuple[float, float]]:
+    """The run's price table: the built-in defaults, overridden by ``--price``."""
+    table = dict(DEFAULT_PRICES_PER_MTOK)
+    for model, p_in, p_out in config.prices_per_mtok:
+        table[model] = (p_in, p_out)
+    return table
+
+
+def memspine_engine_config(config: C01Config) -> dict[str, Any] | None:
+    """The memspine arm's engine overrides, with ``--memspine-llm`` roles merged in (G2b)."""
+    from .bedrock import MEMSPINE_LLM_CHOICES, aws_region_from_env, merge_engine_llm_roles
+
+    if config.memspine_llm not in MEMSPINE_LLM_CHOICES:
+        raise ValueError(
+            f"unknown memspine llm {config.memspine_llm!r}; known: {sorted(MEMSPINE_LLM_CHOICES)}"
+        )
+    model = MEMSPINE_LLM_CHOICES[config.memspine_llm]
+    if model is None:
+        return config.memspine_config
+    return merge_engine_llm_roles(config.memspine_config, model, aws_region_from_env())
+
+
+def engine_llm_models(config: C01Config) -> set[str]:
+    """Model ids bound to the memspine arm's engine roles (empty without the arm)."""
+    if not config.include_memspine:
+        return set()
+    roles = ((memspine_engine_config(config) or {}).get("llm") or {}).get("roles") or {}
+    return {str(binding.get("model", "")) for binding in roles.values() if binding.get("model")}
+
+
+def check_dollar_cap(config: C01Config) -> None:
+    """A dollar cap is only a cap if every paid model in the run has a price (G3)."""
+    if config.max_usd is None:
+        return
+    if config.max_usd <= 0:
+        raise ValueError(f"max_usd must be > 0, got {config.max_usd}")
+    paid = set(engine_llm_models(config))
+    if config.mode == "qa":
+        if not config.bedrock:
+            raise ValueError(
+                "--max-usd checks reader and judge calls before they are made only on the "
+                "Bedrock endpoint (--bedrock); other endpoints are not metered"
+            )
+        paid.add(QWEN3_32B)
+    if not paid:
+        raise ValueError("--max-usd was given but this run makes no paid model calls")
+    table = price_table(config)
+    missing = sorted(m for m in paid if m not in table)
+    if missing:
+        raise ValueError(f"--max-usd needs a --price for every paid model; missing: {missing}")
+
+
 def build_systems(config: C01Config) -> list[SystemAdapter]:
     """The arms, in the order they should be read.
 
@@ -236,7 +305,7 @@ def build_systems(config: C01Config) -> list[SystemAdapter]:
 
         systems.append(
             MemspineSystem(
-                config=config.memspine_config,
+                config=memspine_engine_config(config),
                 read_mode=config.memspine_read_mode,
                 build_sleep=config.memspine_build_sleep,
             )
@@ -294,12 +363,14 @@ def build_reader_and_judge(config: C01Config) -> tuple[Reader, Judge, bool]:
         raise ValueError(f"unknown qa prompt {config.qa_prompt!r}; known: {sorted(QA_PROMPTS)}")
     qa_prompt = QA_PROMPTS[config.qa_prompt]
     if config.bedrock:
-        from .bedrock import QWEN3_32B, CallBudget, LiteLLMReader, litellm_chat
+        from .bedrock import CallBudget, LiteLLMReader, litellm_chat
 
         if config.max_model_calls is None:
             raise ValueError("bedrock qa needs max_model_calls (the D23 budget cap)")
         budget = CallBudget(
-            max_calls=config.max_model_calls, prices_per_mtok={QWEN3_32B: (0.16, 0.62)}
+            max_calls=config.max_model_calls,
+            prices_per_mtok=price_table(config),
+            max_usd=config.max_usd,
         )
         bedrock_reader = LiteLLMReader(
             budget, model=QWEN3_32B, temperature=0.0, max_tokens=256, prompt=qa_prompt
@@ -356,16 +427,31 @@ async def run_c0_1(
         + f"; {HARNESS_PROTOCOL_REVISION}"
         + (f"; {config.protocol_notes}" if config.protocol_notes else ""),
     )
+    check_dollar_cap(config)
     systems = build_systems(config)
+    engine_models = engine_llm_models(config)
+    if engine_models and config.max_model_calls is None:
+        raise ValueError(
+            "the memspine arm's engine roles call models — set max_model_calls (a cap you "
+            "have agreed to)"
+        )
+    prices = price_table(config)
     info = dataset.info()
     run_config = RunConfig(
         run_id=run_id or f"c0-1-{config.mode}-{info.dataset_id}",
         protocol=protocol,
         out_dir=out_dir,
-        cost_model=CostModel(),
+        cost_model=CostModel(
+            model_prices={
+                m: Price(p_in / 1000, p_out / 1000) for m, (p_in, p_out) in prices.items()
+            }
+        ),
         max_items=config.max_items,
+        max_queries_per_item=config.max_queries_per_item,
         max_model_calls=config.max_model_calls,
-        expect_model_calls=calls,
+        expect_model_calls=calls or bool(engine_models),
+        max_usd=config.max_usd,
+        prices_per_mtok=prices,
         labels={
             "experiment": "C0-1",
             "question": "does verbatim storage beat extraction on our own harness",
@@ -378,6 +464,9 @@ async def run_c0_1(
             "arms": [s.system_id for s in systems],
             "naive_dense_same_embedder": config.naive_dense_same_embedder,
             "matched_budget_tokens": config.matched_budget_tokens,
+            "memspine_llm": config.memspine_llm,
+            "engine_llm_models": sorted(engine_models),
+            "prices_per_mtok": {m: list(p) for m, p in sorted(prices.items())},
         },
         extra_limits={"item_ids": list(config.item_ids) if config.item_ids else None},
     )

@@ -3870,6 +3870,28 @@ class Engine:
         write path alike). Empty when no LLM is configured."""
         return self._llm.call_counts() if self._llm is not None else {}
 
+    def model_usage(self) -> dict[str, dict[str, Any]]:
+        """Per-role LLM spend since ``start()``: ``{"model", "calls", "prompt", "completion"}``.
+
+        Token counts are the provider's own usage report where it gives one (LiteLLM),
+        else a four-characters-per-token estimate. Roles never called are omitted.
+        """
+        if self._llm is None:
+            return {}
+        calls = self._llm.call_counts()
+        tokens = self._llm.token_counts()
+        models = self._llm.models()
+        out: dict[str, dict[str, Any]] = {}
+        for role in sorted(set(calls) | set(tokens)):
+            used = tokens.get(role, {})
+            out[role] = {
+                "model": models.get(role, ""),
+                "calls": calls.get(role, 0),
+                "prompt": used.get("prompt", 0),
+                "completion": used.get("completion", 0),
+            }
+        return out
+
     def llm(self, role: str) -> LLMService:
         """The provider bound to a role (D-07/D-22): extract / judge / chat.
 
@@ -4683,6 +4705,7 @@ class Engine:
                     api_key=role_config.api_key,
                     aws_region=role_config.aws_region,
                     timeout_seconds=role_config.timeout_seconds,
+                    no_think=role_config.no_think,
                 )
             else:
                 raise ConfigError(

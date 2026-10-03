@@ -6,7 +6,10 @@ structured-output helper validates the (repaired) response against it.
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from datetime import date as _date
+from typing import Any
+
+from pydantic import BaseModel, Field, field_validator
 
 __all__ = [
     "OUTPUT_MODELS",
@@ -29,6 +32,16 @@ __all__ = [
 ]
 
 
+def _as_text(value: Any) -> Any:
+    """Scalars YAML did not keep as text: an unquoted ``2023-05-08`` loads as a date,
+    ``2023`` or ``32`` as a number. Turn them back into the string the model wrote."""
+    if isinstance(value, _date):
+        return value.isoformat()
+    if isinstance(value, int | float) and not isinstance(value, bool):
+        return str(value)
+    return value
+
+
 class ExtractedFact(BaseModel):
     entity: str
     attribute: str
@@ -37,6 +50,10 @@ class ExtractedFact(BaseModel):
     #: H2: the date the fact refers to (YYYY-MM-DD, YYYY-MM or YYYY), resolved by the
     #: session-mining prompt from the line's date; None when no time is involved.
     date: str | None = None
+
+    _scalars_as_text = field_validator("entity", "attribute", "value", "date", mode="before")(
+        _as_text
+    )
 
 
 class ExtractedFacts(BaseModel):
@@ -94,6 +111,8 @@ class ExtractedEdge(BaseModel):
     fact: str  # the sentence asserting the edge (provenance for the context window)
     valid_from: str | None = None  # ISO date if the text states one
     confidence: float = 1.0
+
+    _valid_from_as_text = field_validator("valid_from", mode="before")(_as_text)
 
 
 class ExtractedEdges(BaseModel):
