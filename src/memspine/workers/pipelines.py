@@ -13,7 +13,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Awaitable, Callable
 from contextlib import AbstractAsyncContextManager, nullcontext
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Protocol
 
@@ -47,6 +47,7 @@ __all__ = [
     "Pipeline",
     "PipelineContext",
     "PipelineStorage",
+    "SessionIndex",
     "anticipate",
     "check_watches",
     "compress",
@@ -58,6 +59,7 @@ __all__ = [
     "reflect_profile",
     "reorganize",
     "sleep_compute",
+    "stage_marker",
 ]
 
 _log = get_logger(__name__)
@@ -152,6 +154,8 @@ class PipelineContext:
     deposit_reflection: DepositReflection | None = None
     deposit_cues: DepositCues | None = None
     deposit_fact: DepositFact | None = None
+    #: One incremental log index shared by the derived stages of a cycle.
+    session_index: SessionIndex = field(default_factory=lambda: SessionIndex())
 
 
 Pipeline = Callable[[PipelineContext], Awaitable[dict[str, object]]]
@@ -877,6 +881,8 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
                         if record.source.message_id:
                             existing.add(record.source.message_id)
                         continue  # never re-extract from our own output (no feedback loop)
+                    if constants.CUE_TAG in record.tags:
+                        continue  # a cue is a retrieval key, never a fact source (R2-1)
                     if record.status is RecordStatus.ACTIVATED and not record.quarantined:
                         sources.append(record)
             for record in sources:
@@ -952,22 +958,240 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
     return stats
 
 
-def _fact_date(value: str | None) -> datetime | None:
-    """H2: YYYY-MM-DD / YYYY-MM / YYYY from a mined fact, as an aware datetime."""
+def _fact_date(value: str | None, latest: datetime | None = None) -> datetime | None:
+    """H2: YYYY-MM-DD / YYYY-MM / YYYY from a mined fact, as an aware datetime.
+
+    R2-7: the date is an LLM output, so it is range-checked. A year before
+    ``MINED_FACT_MIN_YEAR`` or a date past ``latest`` (the session's last turn,
+    default now) plus ``MINED_FACT_FUTURE_SLACK_DAYS`` yields None, and the
+    caller falls back to the session start. Unchecked, ``9999-12-31`` would be
+    the newest statement on its key and win every later conflict.
+    """
     if not value:
         return None
+    parsed: datetime | None = None
     for fmt in ("%Y-%m-%d", "%Y-%m", "%Y"):
         try:
-            return datetime.strptime(value.strip(), fmt).replace(tzinfo=UTC)
+            parsed = datetime.strptime(value.strip(), fmt).replace(tzinfo=UTC)
+            break
         except ValueError:
             continue
-    return None
+    if parsed is None:
+        return None
+    ceiling = (latest or datetime.now(UTC)) + timedelta(days=constants.MINED_FACT_FUTURE_SLACK_DAYS)
+    if parsed.year < constants.MINED_FACT_MIN_YEAR or parsed > ceiling:
+        return None
+    return parsed
+
+
+#: The background stages that derive records from consolidated sessions and
+#: keep a per-session done marker (R2-6/R5-2) in the event log.
+DERIVED_STAGES = ("mine_facts", "anticipate", "reflect_profile")
+
+
+def _members_fp(record_ids: list[str]) -> str:
+    return fingerprint_payload({"members": sorted(record_ids)})
+
+
+def stage_marker(
+    namespace: str,
+    stage: str,
+    session_key: str,
+    *,
+    cleared: bool = False,
+    members_fp: str | None = None,
+) -> MemoryEvent:
+    """A ``stage_done`` (or ``stage_cleared``) MARKER event for one session.
+
+    The marker lives in the log, so it survives replay and rebuild like the
+    CONSOLIDATE event it refers to. ``Engine.repair_taint`` appends the cleared
+    form so a repaired session is processed again from its clean members.
+    ``members_fp`` fingerprints the live members the stage actually read.
+    """
+    payload: dict[str, object] = {
+        "marker": "stage_cleared" if cleared else "stage_done",
+        "stage": stage,
+        "session_key": session_key,
+    }
+    if members_fp is not None:
+        payload["members_fp"] = members_fp
+    return MemoryEvent(kind=EventKind.MARKER, namespace=namespace, actor="system", payload=payload)
+
+
+@dataclass
+class SessionIndex:
+    """Consolidated sessions and stage markers, read from the log incrementally.
+
+    One index lives on a :class:`PipelineContext`, so the three derived stages
+    of a sleep cycle share one pass over the log (R2-12): each ``refresh`` only
+    reads events past the last seq it saw. A session key seen twice (repair
+    re-consolidates under the same key) keeps its latest membership.
+
+    Done-ness is also tracked per live-membership fingerprint: after a repair,
+    the cleared session and the fresh consolidation of the same clean turns are
+    one unit of work, so the LLM sees those turns once, not twice.
+    """
+
+    after_seq: int = 0
+    sessions: dict[tuple[str, str], list[str]] = field(default_factory=dict)
+    #: (stage, namespace, session_key) -> True (done) / False (cleared).
+    markers: dict[tuple[str, str, str], bool] = field(default_factory=dict)
+    #: (stage, namespace, session_key) -> membership fingerprint of its done marker.
+    key_fp: dict[tuple[str, str, str], str] = field(default_factory=dict)
+    #: (stage, namespace, fingerprint) -> session keys done with that membership.
+    done_fp: dict[tuple[str, str, str], set[str]] = field(default_factory=dict)
+
+    async def refresh(self, storage: PipelineStorage) -> None:
+        while True:
+            events = await storage.read_events(after_seq=self.after_seq, limit=1000)
+            if not events:
+                return
+            for event in events:
+                self.observe(event)
+            self.after_seq = max([self.after_seq, *(e.seq for e in events if e.seq is not None)])
+
+    def observe(self, event: MemoryEvent) -> None:
+        payload = event.payload or {}
+        if event.kind is EventKind.CONSOLIDATE:
+            key = str(payload.get("session_key", ""))
+            if key:
+                members = [str(m) for m in payload.get("member_record_ids", [])]
+                self.sessions[(event.namespace, key)] = members
+        elif event.kind is EventKind.MARKER:
+            marker = payload.get("marker")
+            if marker in ("stage_done", "stage_cleared"):
+                fp = payload.get("members_fp")
+                self.mark(
+                    str(payload.get("stage", "")),
+                    event.namespace,
+                    str(payload.get("session_key", "")),
+                    done=marker == "stage_done",
+                    members_fp=str(fp) if fp else None,
+                )
+
+    def mark(
+        self, stage: str, namespace: str, key: str, *, done: bool, members_fp: str | None
+    ) -> None:
+        slot = (stage, namespace, key)
+        self.markers[slot] = done
+        old = self.key_fp.pop(slot, None)
+        if old is not None:
+            self.done_fp.get((stage, namespace, old), set()).discard(key)
+        if done and members_fp is not None:
+            self.key_fp[slot] = members_fp
+            self.done_fp.setdefault((stage, namespace, members_fp), set()).add(key)
+
+    def membership_done(self, stage: str, namespace: str, members_fp: str) -> bool:
+        return bool(self.done_fp.get((stage, namespace, members_fp)))
+
+    def state(self, stage: str, namespace: str, key: str) -> bool | None:
+        """True = done, False = cleared, None = no marker (a pre-marker log)."""
+        return self.markers.get((stage, namespace, key))
+
+
+async def _live_members(ctx: PipelineContext, member_ids: list[str]) -> list[MemoryRecord]:
+    """R2-2/R2-8: the session members a derived stage may read.
+
+    Only ACTIVATED, unquarantined records: a forgotten (DELETED) or rolled-back
+    (ARCHIVED) turn must never be re-mined into new memories. Cold-tier members
+    are inflated, otherwise the stage would see compressed (blank) text.
+    """
+    inflate = CompressionPolicy.bind()
+    members: list[MemoryRecord] = []
+    for record_id in member_ids:
+        record = await ctx.storage.get_record(record_id)
+        if record is None or record.status is not RecordStatus.ACTIVATED or record.quarantined:
+            continue
+        members.append(inflate.inflate(record))
+    members.sort(key=lambda m: (m.valid_from, m.record_id))
+    return members
+
+
+#: work(namespace, session_key, members) -> (records produced, deposit errors).
+#: Raising means the LLM call failed: the session is retried next cycle.
+_StageWork = Callable[[str, str, list[MemoryRecord]], Awaitable[tuple[int, list[str]]]]
+#: legacy_done(namespace, session_key): done-ness for logs written before markers.
+_LegacyDone = Callable[[str, str], Awaitable[bool]]
+
+
+async def _run_session_stage(
+    ctx: PipelineContext,
+    stage: str,
+    counter: str,
+    legacy_done: _LegacyDone,
+    work: _StageWork,
+) -> dict[str, object]:
+    """Shared loop of the derived stages: each consolidated session once.
+
+    A session is marked done once its LLM call succeeded, whatever the call
+    produced (nothing, merges, rejects, or some failed deposits), so it is never
+    re-sent to the LLM and a merge never re-inflates importance (R2-6/R5-2).
+    A deposit that raises is reported and the rest still land.
+    """
+    if ctx.append_event is None:
+        return {"status": "skipped", "reason": "read-only context (no write door)"}
+    if ctx.config.event_log.mode is EventLogMode.EPHEMERAL:
+        # R2-12: CONSOLIDATE events are not persisted, so there is nothing to
+        # read sessions from; "ok, 0" would hide that the stage never runs.
+        return {
+            "status": "skipped",
+            "reason": "event_log.mode=ephemeral: consolidated sessions are not in the log",
+        }
+    index = ctx.session_index
+    await index.refresh(ctx.storage)
+    processed = 0
+    produced = 0
+    errors: list[str] = []
+    for (namespace, key), member_ids in list(index.sessions.items()):
+        state = index.state(stage, namespace, key)
+        if state is True:
+            continue
+        if state is None and await legacy_done(namespace, key):
+            continue
+        members = await _live_members(ctx, member_ids)
+        fp = _members_fp([m.record_id for m in members])
+        if members and index.membership_done(stage, namespace, fp):
+            members = []  # the same turns were already processed under another key
+        if members:
+            try:
+                count, deposit_errors = await work(namespace, key, members)
+            except Exception as exc:  # LLM is an enhancer, never a gate: retry next cycle
+                errors.append(f"{namespace}:{key}: {exc}")
+                continue
+            produced += count
+            errors.extend(deposit_errors)
+            processed += 1
+        await ctx.append_event(stage_marker(namespace, stage, key, members_fp=fp))
+        index.mark(stage, namespace, key, done=True, members_fp=fp)
+    return {
+        "status": "ok" if not errors else "partial",
+        "sessions": processed,
+        counter: produced,
+        "errors": errors,
+    }
+
+
+def _legacy_tag_check(
+    ctx: PipelineContext, memory_type: str, matches: Callable[[MemoryRecord, str], bool]
+) -> _LegacyDone:
+    """Pre-marker idempotence: a derived record already names the session.
+
+    Lists each namespace once per stage run, not once per session (R5-2).
+    """
+    cache: dict[str, list[MemoryRecord]] = {}
+
+    async def done(namespace: str, key: str) -> bool:
+        if namespace not in cache:
+            cache[namespace] = await ctx.storage.list_records(namespace, memory_type)
+        return any(matches(record, key) for record in cache[namespace])
+
+    return done
 
 
 async def mine_facts(ctx: PipelineContext) -> dict[str, object]:
     """C6': mine atomic, dated facts from each consolidated session, once.
 
-    Idempotent: a session whose key already tags a mined fact is skipped. The
+    Idempotent through a per-session ``stage_done`` marker in the log. The
     transcript given to the miner carries each turn's event date, so relative
     dates ("yesterday") can be resolved to absolute ones. Raw turns are kept:
     facts are an index over them, not a replacement (M6 views).
@@ -978,187 +1202,104 @@ async def mine_facts(ctx: PipelineContext) -> dict[str, object]:
         return {"status": "skipped", "reason": "consolidation.mine_facts is off"}
     if ctx.mine_facts is None or ctx.deposit_fact is None:
         return {"status": "skipped", "reason": "no extract LLM role bound"}
-    mined_sessions = 0
-    facts = 0
-    errors: list[str] = []
-    after = 0
-    sessions: list[tuple[str, str, list[str]]] = []
-    while True:
-        events = await ctx.storage.read_events(after_seq=after, limit=1000)
-        if not events:
-            break
-        for event in events:
-            if event.kind is EventKind.CONSOLIDATE:
-                sessions.append(
-                    (
-                        event.namespace,
-                        str(event.payload.get("session_key", "")),
-                        [str(m) for m in event.payload.get("member_record_ids", [])],
-                    )
-                )
-        after = max(e.seq for e in events if e.seq is not None)
-    for namespace, key, member_ids in sessions:
-        if not key:
-            continue
-        existing = await ctx.storage.list_records(namespace, "semantic")
-        if any(f"mined:{key}" in r.tags for r in existing):
-            continue
-        members = [m for m in [await ctx.storage.get_record(i) for i in member_ids] if m]
-        members = [m for m in members if not m.quarantined]
-        if not members:
-            continue
-        members.sort(key=lambda m: m.valid_from)
+    miner, deposit = ctx.mine_facts, ctx.deposit_fact
+
+    async def work(namespace: str, key: str, members: list[MemoryRecord]) -> tuple[int, list[str]]:
         transcript = "\n".join(f"[{m.valid_from:%Y-%m-%d}] {m.content}" for m in members)
-        try:
-            mined = await ctx.mine_facts(transcript)
-        except Exception as exc:  # LLM is an enhancer, never a gate
-            errors.append(f"{namespace}:{key}: {exc}")
-            continue
-        start = members[0].valid_from
+        mined = await miner(transcript)
+        start, latest = members[0].valid_from, members[-1].valid_from
+        written = 0
+        errors: list[str] = []
         for fact in mined:
             text = f"{fact.entity} {fact.attribute}: {fact.value}"
-            when = _fact_date(getattr(fact, "date", None)) or start
-            await ctx.deposit_fact(
-                namespace,
-                text,
-                fact.entity or None,
-                fact.attribute or None,
-                [m.record_id for m in members],
-                when,
-                key,
-            )
-            facts += 1
-        mined_sessions += 1
-    return {
-        "status": "ok" if not errors else "partial",
-        "sessions": mined_sessions,
-        "facts": facts,
-        "errors": errors,
-    }
+            when = _fact_date(getattr(fact, "date", None), latest) or start
+            try:
+                await deposit(
+                    namespace,
+                    text,
+                    fact.entity or None,
+                    fact.attribute or None,
+                    [m.record_id for m in members],
+                    when,
+                    key,
+                )
+            except Exception as exc:  # one bad fact must not lose the rest
+                errors.append(f"{namespace}:{key}: deposit failed: {exc}")
+                continue
+            written += 1
+        return written, errors
+
+    legacy = _legacy_tag_check(ctx, "semantic", lambda r, key: f"mined:{key}" in r.tags)
+    return await _run_session_stage(ctx, "mine_facts", "facts", legacy, work)
 
 
 async def anticipate(ctx: PipelineContext) -> dict[str, object]:
     """H8: store likely future questions as cues on the turns that answer them.
 
-    One call per consolidated session, idempotent per session key. Cues go through
-    ``Engine.add_cues``: firewall-screened, trust capped at the target turn's, and
-    retrieval keys only (never assembled as content).
+    One call per consolidated session, idempotent per session (done marker). Cues
+    go through ``Engine.add_cues``: firewall-screened, trust capped at the target
+    turn's, and retrieval keys only (never assembled as content).
     """
     policy = ConsolidationPolicy.bind(_policy_options(ctx, "episodic", "consolidation"))
     if not getattr(policy.options, "anticipate", False):
         return {"status": "skipped", "reason": "consolidation.anticipate is off"}
     if ctx.anticipate is None or ctx.deposit_cues is None:
         return {"status": "skipped", "reason": "no anticipate/extract LLM role bound"}
-    done = 0
-    cues = 0
-    errors: list[str] = []
-    after = 0
-    sessions: list[tuple[str, str, list[str]]] = []
-    while True:
-        events = await ctx.storage.read_events(after_seq=after, limit=1000)
-        if not events:
-            break
-        for event in events:
-            if event.kind is EventKind.CONSOLIDATE:
-                sessions.append(
-                    (
-                        event.namespace,
-                        str(event.payload.get("session_key", "")),
-                        [str(m) for m in event.payload.get("member_record_ids", [])],
-                    )
-                )
-        after = max(e.seq for e in events if e.seq is not None)
-    for namespace, key, member_ids in sessions:
-        if not key:
-            continue
-        existing = await ctx.storage.list_records(namespace, "semantic")
-        if any(f"anticipated:{key}" in r.tags for r in existing):
-            continue
-        members = [m for m in [await ctx.storage.get_record(i) for i in member_ids] if m]
-        members = [m for m in members if not m.quarantined]
-        if not members:
-            continue
-        members.sort(key=lambda m: m.valid_from)
+    anticipator, deposit = ctx.anticipate, ctx.deposit_cues
+
+    async def work(namespace: str, key: str, members: list[MemoryRecord]) -> tuple[int, list[str]]:
         transcript = "\n".join(
             f"[{n}] [{m.valid_from:%Y-%m-%d}] {m.content}" for n, m in enumerate(members, 1)
         )
-        try:
-            proposed = await ctx.anticipate(transcript)
-        except Exception as exc:  # LLM is an enhancer, never a gate
-            errors.append(f"{namespace}:{key}: {exc}")
-            continue
+        proposed = await anticipator(transcript)
         by_line: dict[int, list[str]] = {}
         for item in proposed:
             if 1 <= item.line <= len(members) and item.cue.strip():
                 by_line.setdefault(item.line, []).append(item.cue.strip())
+        written = 0
+        errors: list[str] = []
         for line, texts in by_line.items():
-            await ctx.deposit_cues(namespace, members[line - 1].record_id, texts, key)
-            cues += len(texts)
-        done += 1
-    return {
-        "status": "ok" if not errors else "partial",
-        "sessions": done,
-        "cues": cues,
-        "errors": errors,
-    }
+            try:
+                await deposit(namespace, members[line - 1].record_id, texts, key)
+            except Exception as exc:
+                errors.append(f"{namespace}:{key}: cue deposit failed: {exc}")
+                continue
+            written += len(texts)
+        return written, errors
+
+    legacy = _legacy_tag_check(ctx, "semantic", lambda r, key: f"anticipated:{key}" in r.tags)
+    return await _run_session_stage(ctx, "anticipate", "cues", legacy, work)
 
 
 async def reflect_profile(ctx: PipelineContext) -> dict[str, object]:
-    """H14: profile insights per consolidated session, once (idempotent per session key)."""
+    """H14: profile insights per consolidated session, once (done marker)."""
     policy = ConsolidationPolicy.bind(_policy_options(ctx, "episodic", "consolidation"))
     if not getattr(policy.options, "reflect_profile", False):
         return {"status": "skipped", "reason": "consolidation.reflect_profile is off"}
     if ctx.reflect is None or ctx.deposit_reflection is None:
         return {"status": "skipped", "reason": "no reflect LLM role / reflective memory"}
-    done = 0
-    insights = 0
-    errors: list[str] = []
-    after = 0
-    sessions: list[tuple[str, str, list[str]]] = []
-    while True:
-        events = await ctx.storage.read_events(after_seq=after, limit=1000)
-        if not events:
-            break
-        for event in events:
-            if event.kind is EventKind.CONSOLIDATE:
-                sessions.append(
-                    (
-                        event.namespace,
-                        str(event.payload.get("session_key", "")),
-                        [str(m) for m in event.payload.get("member_record_ids", [])],
-                    )
-                )
-        after = max(e.seq for e in events if e.seq is not None)
-    for namespace, key, member_ids in sessions:
-        if not key:
-            continue
-        existing = await ctx.storage.list_records(namespace, "reflective")
-        if any(r.source.message_id == f"reflected:{key}" for r in existing):
-            continue
-        members = [m for m in [await ctx.storage.get_record(i) for i in member_ids] if m]
-        members = [m for m in members if not m.quarantined]
-        if not members:
-            continue
-        members.sort(key=lambda m: m.valid_from)
-        try:
-            proposed = await ctx.reflect(
-                [f"[{m.valid_from:%Y-%m-%d}] {m.content}" for m in members]
-            )
-        except Exception as exc:  # LLM is an enhancer, never a gate
-            errors.append(f"{namespace}:{key}: {exc}")
-            continue
+    reflector, deposit = ctx.reflect, ctx.deposit_reflection
+
+    async def work(namespace: str, key: str, members: list[MemoryRecord]) -> tuple[int, list[str]]:
+        proposed = await reflector([f"[{m.valid_from:%Y-%m-%d}] {m.content}" for m in members])
+        written = 0
+        errors: list[str] = []
         for text, evidence in proposed:
             ids = [members[i].record_id for i in evidence if 0 <= i < len(members)]
-            if text.strip() and ids:
-                await ctx.deposit_reflection(namespace, text.strip(), ids, key)
-                insights += 1
-        done += 1
-    return {
-        "status": "ok" if not errors else "partial",
-        "sessions": done,
-        "insights": insights,
-        "errors": errors,
-    }
+            if not (text.strip() and ids):
+                continue
+            try:
+                await deposit(namespace, text.strip(), ids, key)
+            except Exception as exc:  # e.g. evidence forgotten mid-cycle (R2-2)
+                errors.append(f"{namespace}:{key}: reflection deposit failed: {exc}")
+                continue
+            written += 1
+        return written, errors
+
+    legacy = _legacy_tag_check(
+        ctx, "reflective", lambda r, key: r.source.message_id == f"reflected:{key}"
+    )
+    return await _run_session_stage(ctx, "reflect_profile", "insights", legacy, work)
 
 
 #: Name -> pipeline. Runners register from this table; the M11-adjacent names

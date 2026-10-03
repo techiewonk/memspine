@@ -205,3 +205,23 @@ MEMORY_KV_MAX_ENTRIES = 65536
 
 # Hash test embedder: vector width (tests/CI only, never production).
 HASH_EMBEDDING_DIM = 64
+
+# C8': tag marking an anticipatory cue record (a retrieval key, never content).
+# Cues bypass dedup, entity extraction and the M4 conflict ladder, and are never
+# merge targets: a cue must not archive or absorb the fact it points at.
+CUE_TAG = "anticipatory_cue"
+
+# H21/R5-4: the literal markers memspine writes into assembled context. The
+# recall filter (``firewall.skip_injected_recall``) is built from these, so a
+# message echoing recalled memory back is recognised whichever wrapper it carries.
+UNTRUSTED_NOTE_MARKER = "[UNTRUSTED NOTE, trust"
+CURRENT_STATE_MARKER = "CURRENT (since "
+HISTORY_MARKER = "HISTORY (superseded):"
+DISPUTED_MARKER = "[DISPUTED:"
+INSTRUCTION_FLAG_MARKER = INSTRUCTION_FLAG_WRAP.split("{content}", 1)[0].strip()
+
+# H2/R2-7: a mined fact's LLM-stated date is kept only inside [this year, the
+# session's last turn + the slack]; outside it the session start is used, so a
+# far-future date cannot win every later conflict on its key.
+MINED_FACT_MIN_YEAR = 1900
+MINED_FACT_FUTURE_SLACK_DAYS = 366
