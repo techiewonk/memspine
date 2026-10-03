@@ -92,7 +92,7 @@ class C01Config:
     #: in the reader manifest via its prompt hash.
     qa_prompt: str = "default"
     #: judge for QA mode, every endpoint (R3-4/R3-5): rubric (default) | constraint
-    #: (LoCoMo-Plus) | alias | locomo-plus-v2 | longmemeval | omnimemeval (placeholder)
+    #: (LoCoMo-Plus) | alias | locomo-plus-v2 | longmemeval | omnimemeval (official, ported)
     judge_prompt: str = "rubric"
     #: LoCoMo categories the run loads (R3-1); None = every category. Recorded in labels.
     categories: tuple[int, ...] | None = None
@@ -113,17 +113,20 @@ class C01Config:
 #: largest uniform memory-QA table (14 engines). Its protocol, as reported by Mnemon
 #: (arXiv 2609.36059, Table 1): gpt-4.1-mini answers at T=0, gpt-4o-mini grades, LoCoMo
 #: categories 1-4 (1,540 questions), context tokens reported per question. The grading
-#: prompt here is our rubric judge, NOT OmniMemEval's: it is UNVERIFIED until it is ported
-#: from that repo, and every manifest of a preset run says so.
+#: prompt is OmniMemEval's own LoCoMo judge (``JUDGE_PROMPT`` + ``JUDGE_SYSTEM_PROMPT`` from
+#: ``scripts/utils/prompts.py`` @ 0b1ea8d, ported verbatim on 2026-10-03), so the preset
+#: sets ``judge_prompt="omnimemeval"``. OmniMemEval may average several judge runs per
+#: question; this harness grades once.
 PROTOCOL_PRESETS: dict[str, dict[str, Any]] = {
     "omnimemeval": {
         "reader_model": "gpt-4.1-mini",
         "judge_model": "gpt-4o-mini",
         "base_url": "https://api.openai.com/v1",
         "categories": (1, 2, 3, 4),
+        "judge_prompt": "omnimemeval",
         "notes": (
             "OmniMemEval-protocol preset (reader gpt-4.1-mini T=0, judge gpt-4o-mini, "
-            "cats 1-4); judge prompt = memspine rubric, UNVERIFIED vs OmniMemEval"
+            "cats 1-4); judge prompt = OmniMemEval LoCoMo judge, verbatim @ 0b1ea8d"
         ),
     },
 }
@@ -145,6 +148,11 @@ def apply_protocol_preset(config: C01Config, name: str | None) -> C01Config:
         and tuple(config.categories) != tuple(categories)
     ):
         raise ValueError(f"preset {name!r} fixes categories {categories}; got {config.categories}")
+    judge_prompt = preset.get("judge_prompt", config.judge_prompt)
+    if config.judge_prompt not in ("rubric", judge_prompt):
+        raise ValueError(
+            f"preset {name!r} fixes judge prompt {judge_prompt!r}; got {config.judge_prompt!r}"
+        )
     return replace(
         config,
         reader_model=preset["reader_model"],
@@ -152,6 +160,7 @@ def apply_protocol_preset(config: C01Config, name: str | None) -> C01Config:
         base_url=preset["base_url"],
         protocol_notes=preset["notes"],
         categories=tuple(categories) if categories is not None else config.categories,
+        judge_prompt=judge_prompt,
     )
 
 

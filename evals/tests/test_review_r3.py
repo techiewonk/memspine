@@ -356,14 +356,18 @@ def test_r3_5_locomo_plus_prompts_are_verbatim() -> None:
         assert official == LOCOMO_PLUS_TEMPLATES
 
 
-def test_r3_5_longmemeval_prompts_match_the_vendored_copy() -> None:
+def test_r3_5_longmemeval_prompts_are_verified_against_upstream() -> None:
+    """N12: byte-identical to xiaowu0162/LongMemEval@9e0b455 (checked 2026-10-03)."""
     import ast
     import re
 
     from memspine_evals.judge_prompts import JUDGE_PROMPTS, PromptStatus
     from memspine_evals.official_prompts import LONGMEMEVAL_ANSCHECK
 
-    assert JUDGE_PROMPTS["longmemeval/default"].status is PromptStatus.VENDORED
+    for name in LONGMEMEVAL_ANSCHECK:
+        prompt = JUDGE_PROMPTS[f"longmemeval/{name}"]
+        assert prompt.status is PromptStatus.OFFICIAL
+        assert "github.com/xiaowu0162/LongMemEval@9e0b455" in prompt.source
     assert JUDGE_PROMPTS["longmemeval/abstention"].sha256 == (
         "5c0b365a1e1d06db36377c735432b56e122ca3c428f89faf61d43a0d5a7e050b"
     )
@@ -375,15 +379,59 @@ def test_r3_5_longmemeval_prompts_match_the_vendored_copy() -> None:
 
 
 def test_r3_5_placeholder_prompt_refuses_to_run() -> None:
-    from memspine_evals.experiments import C01Config, build_reader_and_judge
-    from memspine_evals.judge_prompts import JUDGE_PROMPTS, OfficialPromptMissing, RoutedLLMJudge
+    from memspine_evals.judge_prompts import (
+        JUDGE_PROMPTS,
+        JudgePrompt,
+        OfficialPromptMissing,
+        PromptStatus,
+    )
 
+    placeholder = JudgePrompt("x/judge", None, PromptStatus.PLACEHOLDER, "somewhere")
     with pytest.raises(OfficialPromptMissing):
-        JUDGE_PROMPTS["omnimemeval/judge"].render("q", "g", "a")
-    with pytest.raises(OfficialPromptMissing):
-        RoutedLLMJudge(_fake_chat([], []), model="m", suite="omnimemeval")
-    with pytest.raises(OfficialPromptMissing):
-        build_reader_and_judge(C01Config(mode="qa", judge_prompt="omnimemeval"))
+        placeholder.render("q", "g", "a")
+    assert not any(p.status is PromptStatus.PLACEHOLDER for p in JUDGE_PROMPTS.values())
+
+
+def test_n12_omnimemeval_judge_is_ported_verbatim() -> None:
+    """N12: MemTensor/OmniMemEval@0b1ea8d scripts/utils/prompts.py JUDGE_PROMPT (+ system)."""
+    from memspine_evals.experiments import C01Config, build_reader_and_judge
+    from memspine_evals.judge_prompts import JUDGE_PROMPTS, PromptStatus, RoutedLLMJudge
+    from memspine_evals.official_prompts import OMNIMEMEVAL_JUDGE_SYSTEM
+
+    prompt = JUDGE_PROMPTS["omnimemeval/judge"]
+    assert prompt.status is PromptStatus.OFFICIAL
+    assert "MemTensor/OmniMemEval@0b1ea8d:scripts/utils/prompts.py" in prompt.source
+    assert prompt.sha256 == "6baa73873a66c6ea712e3a4f07f200870ca15d73330f719b5ad9df10954abea3"
+    assert prompt.describe()["system_sha256"] == (
+        "8d1b3c72c9b7febd0bf07e4a8c17d3d9632b5d463556558fd67eed807aafeb29"
+    )
+    rendered = prompt.render("Where?", "Paris", "In Paris.")
+    assert "Question: Where?" in rendered and "Gold answer: Paris" in rendered
+    assert "Generated answer: In Paris." in rendered
+
+    calls: list[tuple[str, str | None]] = []
+
+    async def chat(text: str, system: str | None = None) -> str:
+        calls.append((text, system))
+        return 'Same city. {"label": "CORRECT"}'
+
+    judge = RoutedLLMJudge(chat, model="m", suite="omnimemeval")
+    verdict = asyncio.run(judge.score("Where?", "In Paris.", "Paris"))
+    assert verdict.score == 1.0 and calls[0][1] == OMNIMEMEVAL_JUDGE_SYSTEM
+    _, judge2, _ = build_reader_and_judge(
+        C01Config(mode="qa", judge_prompt="omnimemeval", reader_model="m", judge_model="m",
+                  base_url="http://localhost:1/v1")
+    )
+    assert judge2.spec.prompt_id == "suite:omnimemeval"
+
+
+def test_n12_omnimemeval_preset_uses_the_ported_judge() -> None:
+    from memspine_evals.experiments import C01Config, apply_protocol_preset
+
+    cfg = apply_protocol_preset(C01Config(mode="qa"), "omnimemeval")
+    assert cfg.judge_prompt == "omnimemeval"
+    with pytest.raises(ValueError, match="fixes judge prompt"):
+        apply_protocol_preset(C01Config(mode="qa", judge_prompt="longmemeval"), "omnimemeval")
 
 
 def test_r3_5_longmemeval_routes_by_type_and_abstention(tmp_path: Path) -> None:
@@ -698,7 +746,7 @@ def test_r3_12_feature_audit_has_behavioural_checks(monkeypatch: pytest.MonkeyPa
 
     assert feature_audit.SRC.exists()
     assert len(feature_audit.BEHAVIOURAL) >= 6
-    assert feature_audit.check_relative_dates() and feature_audit.check_qa_prompts()
+    assert asyncio.run(feature_audit.check_h1_relative_dates()) and feature_audit.check_qa_prompts()
     monkeypatch.setattr(
         feature_audit, "BEHAVIOURAL", [("X", "broken", lambda: 1 / 0)]  # type: ignore[arg-type]
     )
@@ -788,3 +836,36 @@ def test_r4_6_arms_are_declared_in_the_manifest(tmp_path: Path) -> None:
     assert "naive-rag-bm25-matched200" in manifest["labels"]["arms"]
     assert manifest["labels"]["matched_budget_tokens"] == 200
     assert "harness-protocol=r3-2026-10-02" in manifest["protocol"]["notes"]
+
+
+#: N5: at most this many features may stay identifier-only (none today; the slack is for a
+#: feature added before its behavioural check lands).
+MAX_IDENTIFIER_ONLY = 2
+
+
+def test_n5_every_feature_behaves_offline(capsys: pytest.CaptureFixture[str]) -> None:
+    """N5 (R3-12): the full behavioural audit, offline (hash embedder, stub LLM providers)."""
+    import feature_audit
+
+    statuses = feature_audit.audit()
+    capsys.readouterr()
+    failed = [fid for fid, s in statuses.items() if s == "behaviour-fail"]
+    missing = [fid for fid, s in statuses.items() if s == "identifier-missing"]
+    only = [fid for fid, s in statuses.items() if s == "identifier-only"]
+    assert not failed, f"behaviour-fail: {failed}"
+    assert not missing, f"identifier-missing: {missing}"
+    assert len(only) <= MAX_IDENTIFIER_ONLY, f"identifier-only: {only}"
+    assert set(statuses) == {fid for fid, *_ in feature_audit.FEATURES}
+    # every behavioural check names a real feature
+    assert {fid for fid, _, _ in feature_audit.BEHAVIOURAL} <= set(statuses)
+
+
+def test_n5_statuses_classify_fail_and_identifier_only(monkeypatch: pytest.MonkeyPatch) -> None:
+    import feature_audit
+
+    monkeypatch.setattr(
+        feature_audit, "BEHAVIOURAL", [("B0", "x", lambda: True), ("B1", "y", lambda: False)]
+    )
+    statuses = feature_audit.feature_statuses(["B1"])
+    assert statuses["B0"] == "behaviour-ok" and statuses["B1"] == "behaviour-fail"
+    assert statuses["B2"] == "identifier-only"

@@ -265,7 +265,7 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "QA judge on every endpoint: rubric (QA; abstention-aware), constraint "
             "(LoCoMo-Plus), alias, locomo-plus-v2 (official LoCoMo-Plus prompts), longmemeval "
-            "(anscheck templates by type), omnimemeval (placeholder: refuses to run)"
+            "(anscheck templates by type), omnimemeval (official OmniMemEval LoCoMo judge)"
         ),
     )
     c01.add_argument(

@@ -124,3 +124,30 @@ def test_cached_prompt_tokens_reads_both_usage_shapes() -> None:
     budget.record("m", 200, 10, 120)
     budget.record("m", 50, 5)
     assert budget.summary()["cached_input_tokens"] == {"m": 120}
+
+
+def test_n12_judge_chat_sends_the_system_message() -> None:
+    """N12: OmniMemEval's judge is a (system, user) pair; the LiteLLM chat sends both."""
+    import asyncio
+    from types import SimpleNamespace
+
+    from memspine_evals.bedrock import LiteLLMReader
+
+    sent: list[list[dict[str, str]]] = []
+
+    async def acompletion(**kwargs: object) -> object:
+        sent.append(kwargs["messages"])  # type: ignore[arg-type]
+        message = SimpleNamespace(content='{"label": "WRONG"}')
+        return SimpleNamespace(
+            usage=None, choices=[SimpleNamespace(message=message, finish_reason="stop")]
+        )
+
+    reader = LiteLLMReader(CallBudget(max_calls=2), model="m", no_think=False)
+    reader._litellm = SimpleNamespace(acompletion=acompletion)  # type: ignore[assignment]
+    asyncio.run(reader.complete("grade this", system="You are a grader."))
+    asyncio.run(reader.complete("plain"))
+    assert sent[0] == [
+        {"role": "system", "content": "You are a grader."},
+        {"role": "user", "content": "grade this"},
+    ]
+    assert sent[1] == [{"role": "user", "content": "plain"}]
