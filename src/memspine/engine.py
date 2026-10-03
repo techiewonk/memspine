@@ -129,10 +129,12 @@ from memspine.services.vector.base import VectorStore
 from memspine.services.vector.projector import VectorProjector
 from memspine.workers.inline import InlineRunner
 from memspine.workers.pipelines import (
+    DERIVED_STAGES,
     PIPELINES,
     ExtractEdges,
     PipelineContext,
     Summarize,
+    stage_marker,
 )
 from memspine.workers.runner import TaskRunner
 from memspine.workers.schedule import run_sleep_cycle
@@ -142,12 +144,14 @@ __all__ = ["Engine"]
 
 
 #: H21: markers memspine itself writes into assembled context. A message carrying them is
-#: recalled memory echoed back, not a new observation.
+#: recalled memory echoed back, not a new observation. Built from the emitters' constants
+#: (R5-4) so a new or reworded wrapper cannot silently slip past the filter.
 _RECALL_MARKERS = (
-    "[UNTRUSTED NOTE, trust",
-    "CURRENT (since ",
-    "HISTORY (superseded):",
-    "[DISPUTED:",
+    constants.UNTRUSTED_NOTE_MARKER,
+    constants.CURRENT_STATE_MARKER,
+    constants.HISTORY_MARKER,
+    constants.DISPUTED_MARKER,
+    constants.INSTRUCTION_FLAG_MARKER,
 )
 
 
@@ -166,6 +170,16 @@ def _gap_marker(days: int) -> str:
 
 def _looks_like_recall(content: str) -> bool:
     return any(marker in content for marker in _RECALL_MARKERS)
+
+
+def _taint_archive_delta(record: MemoryRecord) -> dict[str, object]:
+    """Rollback/repair archive patch. An open interval is closed at its start, so
+    an archived poison never stays the M4 incumbent (``find_active_fact`` keys
+    on ``valid_to IS NULL``) and never reads as "current" (R2-9)."""
+    change: dict[str, object] = {"status": RecordStatus.ARCHIVED.value}
+    if record.valid_to is None:
+        change["valid_to"] = record.valid_from.isoformat()
+    return change
 
 
 def _parse_event_time(value: object) -> datetime | None:
@@ -213,7 +227,7 @@ class ReadResult:
 
 
 #: C8': tag marking an anticipatory cue record (a retrieval key, never content).
-CUE_TAG = "anticipatory_cue"
+CUE_TAG = constants.CUE_TAG
 
 _T = TypeVar("_T")
 
@@ -351,6 +365,9 @@ class Engine:
         self._last_write_action: str = "added"  # G8: read by write_ex()
         #: B0 read ledger: (namespace, session) -> {record_id: view trust at read}
         self._read_ledger: dict[tuple[str, str], dict[str, float]] = {}
+        #: B0 ``turn`` mode: ledgers a write has used since their last read. The
+        #: next read on such a key starts a fresh turn (R4-1).
+        self._ledger_written: set[tuple[str, str]] = set()
         self._sync_loop: asyncio.AbstractEventLoop | None = None
         self._sync_thread: threading.Thread | None = None
 
@@ -718,6 +735,20 @@ class Engine:
         action = self._last_write_action
         return WriteOutcome(record=record, action=action, occurrence_id=new_record_id())
 
+    @staticmethod
+    def _ledger_key(ns: str, session_id: str | None) -> tuple[str, str]:
+        """B0 ledger key. Reads without a session id share ONE anonymous ledger
+        per namespace (``""``): the engine cannot tell their callers apart.
+
+        R4-1 choice: that ledger is fail-closed. It is never reset by a read or
+        consumed by a write (``turn`` acts like ``session`` for it), and is only
+        cleared by ``end_session(namespace)``. Resetting it would let caller Y's
+        read or write drop caller X's reads before X writes (laundering);
+        keeping it can only over-attribute parents, which lowers trust, never
+        raises it. Callers that want per-turn precision pass a ``session_id``.
+        """
+        return (ns, session_id or "")
+
     def _record_reads(
         self, ns: str, session_id: str | None, results: Sequence[tuple[MemoryRecord, float]]
     ) -> None:
@@ -725,7 +756,13 @@ class Engine:
         policy = self._integrity()
         if not policy.enabled or policy.implicit_parents == "off" or not results:
             return
-        ledger = self._read_ledger.setdefault((ns, session_id or ""), {})
+        key = self._ledger_key(ns, session_id)
+        if policy.implicit_parents == "turn" and session_id and key in self._ledger_written:
+            # The first read after a write opens a new turn: the old turn's
+            # parents stop applying (they applied to every write of that turn).
+            self._read_ledger.pop(key, None)
+            self._ledger_written.discard(key)
+        ledger = self._read_ledger.setdefault(key, {})
         for record, _ in results:
             if record.memory_type == "shared":
                 continue
@@ -733,13 +770,18 @@ class Engine:
             ledger[record.record_id] = record.trust if seen is None else min(seen, record.trust)
 
     def _consume_reads(self, ns: str, session_id: str | None) -> dict[str, float]:
-        """B0: the reads that become implicit parents of this write."""
+        """B0: the reads that become implicit parents of this write.
+
+        ``turn`` (R4-1): the parents apply to EVERY write until the session's
+        next read, not just the first one; a read-once, write-twice agent cannot
+        launder through its second write. ``session``: until ``end_session``.
+        """
         policy = self._integrity()
         if not policy.enabled or policy.implicit_parents == "off":
             return {}
-        key = (ns, session_id or "")
-        if policy.implicit_parents == "turn":
-            return self._read_ledger.pop(key, {})
+        key = self._ledger_key(ns, session_id)
+        if policy.implicit_parents == "turn" and session_id and key in self._read_ledger:
+            self._ledger_written.add(key)
         return dict(self._read_ledger.get(key, {}))
 
     async def add_cues(
@@ -765,7 +807,12 @@ class Engine:
         target = await storage.get_record(record_id)
         if target is None or target.namespace != ns:
             raise MemspineError(f"cue target {record_id!r} not found in namespace {ns!r}")
-        base = source or SourceInfo(role="system", channel="anticipation")
+        # R2-4: cue text is LLM- or caller-authored, so the default role is the
+        # non-privileged "assistant" (never "system"): the firewall's instruction
+        # and protected-key checks apply to it in full.
+        base = source or SourceInfo(role="assistant", channel="anticipation")
+        # R2-11: a cue on an assistant claim is itself only an assistant claim.
+        claim = ["assistant_claim"] if "assistant_claim" in target.tags else []
         written: list[MemoryRecord] = []
         for cue in cues:
             record = MemoryRecord(
@@ -773,7 +820,7 @@ class Engine:
                 memory_type="semantic",
                 content=cue,
                 source=base.model_copy(update={"parents": [record_id]}),
-                tags=[CUE_TAG, *extra_tags],
+                tags=list(dict.fromkeys([CUE_TAG, *extra_tags, *claim])),
             )
             cap = [target.trust]
             integrity_cap = await self._parent_trust_cap(ns, [record_id])
@@ -963,8 +1010,11 @@ class Engine:
         )
 
     def end_session(self, namespace: str = "default", session_id: str | None = None) -> None:
-        """B0: forget a session's read ledger (``implicit_parents: session``)."""
-        self._read_ledger.pop((validate_namespace(namespace), session_id or ""), None)
+        """B0: forget a session's read ledger (``session_id=None``: the namespace's
+        anonymous ledger, which no read or write ever clears on its own)."""
+        key = self._ledger_key(validate_namespace(namespace), session_id)
+        self._read_ledger.pop(key, None)
+        self._ledger_written.discard(key)
 
     async def effective_trust(self, record_id: str) -> float:
         """B4': a record's trust re-checked against its CURRENT parents.
@@ -1102,6 +1152,9 @@ class Engine:
             if (
                 parent is None
                 or parent.quarantined
+                # R5-1: an archived or forgotten parent is not live evidence; it
+                # counts like an unreadable one (as in effective_trust).
+                or parent.status in (RecordStatus.ARCHIVED, RecordStatus.DELETED)
                 or not grant_allows(ns, parent.namespace, parent.memory_type, grants)
             ):
                 _log.warning("memory.integrity_unreadable_parent", namespace=ns, parent=parent_id)
@@ -1150,8 +1203,28 @@ class Engine:
             if role in fw.skip_message_roles:
                 continue  # H21: system/tool text is not memory
             if fw.skip_injected_recall and _looks_like_recall(content):
+                # H21: recalled memory echoed back is not new evidence. R2-11:
+                # never silently: a MARKER event traces what was dropped (by
+                # fingerprint, not content) so a genuine turn that merely
+                # quotes a marker can be found and re-ingested.
                 _log.info("memory.skip_injected_recall", namespace=namespace)
-                continue  # H21: recalled memory echoed back is not new evidence
+                self._require_started()
+                await self._append_and_project(
+                    MemoryEvent(
+                        kind=EventKind.MARKER,
+                        namespace=validate_namespace(namespace),
+                        actor=actor,
+                        payload={
+                            "marker": "recall_skipped",
+                            "role": role,
+                            "session_id": session_id,
+                            "message_index": i,
+                            "content_fingerprint": fingerprint_payload({"content": content}),
+                            "chars": len(content),
+                        },
+                    )
+                )
+                continue
             turn_tags = list(tags or [])
             if fw.tag_assistant_claims and role == "assistant":
                 turn_tags.append("assistant_claim")
@@ -1290,6 +1363,21 @@ class Engine:
                 reasons=verdict.reasons,
             )
             return record, "quarantined"
+
+        if CUE_TAG in record.tags:
+            # R2-1: a cue is a retrieval key, not a fact. It skips dedup, entity
+            # extraction and the M4 ladder (an extracted key would let the cue
+            # archive the very fact it points at), and it corroborates nothing.
+            await self._append_and_project(
+                MemoryEvent(
+                    kind=EventKind.WRITE,
+                    namespace=ns,
+                    actor=actor,
+                    payload={"record": record.model_dump(mode="json")},
+                )
+            )
+            _log.info(EVENT_WRITE, namespace=ns, record_id=record.record_id, cue=True)
+            return record, "added"
 
         # Semantic writes run the full M5/M4 pipeline (dedup → entities →
         # conflict); every other type is a plain WRITE through the door.
@@ -2126,6 +2214,11 @@ class Engine:
         content) are returned for review, not archived: their content is not the
         poison's (Paper A, Def. taint, T_c vs T_a). Archival is a DECAY_TRANSITION
         through the door, so it replays and is itself auditable.
+
+        R2-9: a clean fact the poison displaced (``superseded_by_taint``) is
+        restored as the current fact when nothing else holds its key now, and a
+        contest the poison opened no longer marks the survivors ``disputed``.
+        Restored ids are returned under ``"restored"``.
         """
         storage = self._require_started()
         report = await self.audit_taint(record_id, namespace, cross_namespace=True)
@@ -2136,6 +2229,8 @@ class Engine:
             if proof.startswith("merged@"):
                 review.append(target_id)
                 continue
+            if proof.startswith("superseded_by_taint@"):
+                continue  # displaced, not derived: restored below
             record = await storage.get_record(target_id)
             if record is None or record.status in (RecordStatus.ARCHIVED, RecordStatus.DELETED):
                 continue
@@ -2146,21 +2241,99 @@ class Engine:
                     actor=actor,
                     payload={
                         "record_id": target_id,
-                        "set": {"status": RecordStatus.ARCHIVED.value},
+                        "set": _taint_archive_delta(record),
                         "transition": f"{record.status.value}->archived",
                         "reason": f"taint_rollback:{record_id}",
                     },
                 )
             )
             archived.append(target_id)
+        restored = await self._undo_displacement(record_id, report, archived, actor)
         _log.warning(
             "memory.taint_rollback",
             namespace=namespace,
             seed=record_id,
             archived=len(archived),
+            restored=len(restored),
             review=len(review),
         )
-        return {"archived": archived, "review": review}
+        return {"archived": archived, "restored": restored, "review": review}
+
+    async def _undo_displacement(
+        self, seed: str, report: TaintReport, removed: Sequence[str], actor: str
+    ) -> list[str]:
+        """R2-9: after a rollback/repair, give the fact keys back to clean records.
+
+        1. A ``superseded_by_taint`` record (archived by the poison's UPDATE or
+           INVALIDATE) is reactivated as the current fact, unless another
+           record holds its key now (a later clean statement wins).
+        2. On every key a removed record sat on, the ``disputed`` tag is cleared
+           when no live contender is left (the contest was the poison's).
+        """
+        storage = self._require_started()
+        restored: list[str] = []
+        for target_id, proof in report.descendants.items():
+            if not proof.startswith("superseded_by_taint@"):
+                continue
+            rec = await storage.get_record(target_id)
+            if (
+                rec is None
+                or rec.status is not RecordStatus.ARCHIVED
+                or rec.quarantined
+                or rec.entity is None
+                or rec.attribute is None
+            ):
+                continue
+            holder = await storage.find_active_fact(rec.namespace, rec.entity, rec.attribute)
+            if holder is not None and holder.status is RecordStatus.ACTIVATED:
+                continue
+            await self._append_and_project(
+                MemoryEvent(
+                    kind=EventKind.DECAY_TRANSITION,
+                    namespace=rec.namespace,
+                    actor=actor,
+                    payload={
+                        "record_id": target_id,
+                        "set": {
+                            "status": RecordStatus.ACTIVATED.value,
+                            "valid_to": None,
+                            "superseded_at": None,
+                            "evolve_to": None,
+                        },
+                        "transition": "archived->activated",
+                        "reason": f"taint_restore:{seed}",
+                    },
+                )
+            )
+            restored.append(target_id)
+        keys: set[tuple[str, str, str]] = set()
+        for rid in removed:
+            rec = await storage.get_record(rid)
+            if rec is not None and rec.memory_type == "semantic" and rec.entity and rec.attribute:
+                keys.add((rec.namespace, rec.entity, rec.attribute))
+        for ns, entity, attribute in sorted(keys):
+            live = [
+                r
+                for r in await storage.list_records(ns, "semantic")
+                if r.entity == entity
+                and r.attribute == attribute
+                and r.status is RecordStatus.ACTIVATED
+                and not r.quarantined
+                and "disputed" in r.tags
+            ]
+            if any(r.valid_to is not None for r in live):
+                continue  # a clean contender still disputes the key
+            for r in live:
+                cleared = r.model_copy(update={"tags": [t for t in r.tags if t != "disputed"]})
+                await self._append_and_project(
+                    MemoryEvent(
+                        kind=EventKind.WRITE,
+                        namespace=ns,
+                        actor=actor,
+                        payload={"record": cleared.model_dump(mode="json")},
+                    )
+                )
+        return restored
 
     async def verify_integrity(
         self, key: bytes | None = None, expected_head: str | None = None
@@ -2209,6 +2382,7 @@ class Engine:
         report = await self.audit_taint(record_id, namespace, cross_namespace=True)
         tainted = {record_id, *report.descendants}
         members_of: dict[str, list[str]] = {}
+        sessions_of_tainted: set[tuple[str, str]] = set()
         after = 0
         while True:
             events = await storage.read_events(after_seq=after, limit=1000)
@@ -2218,6 +2392,9 @@ class Engine:
                 if event.kind is EventKind.CONSOLIDATE:
                     sid = str(event.payload.get("summary_record_id", ""))
                     members_of[sid] = [str(m) for m in event.payload.get("member_record_ids", [])]
+                    session_key = str(event.payload.get("session_key", ""))
+                    if session_key and tainted & set(members_of[sid]):
+                        sessions_of_tainted.add((event.namespace, session_key))
             after = max(event.seq for event in events if event.seq is not None)
         policy = ConsolidationPolicy.bind(
             _as_options_dict(self._memory_policy(self._config(), "episodic").get("consolidation"))
@@ -2230,7 +2407,7 @@ class Engine:
             rec = await storage.get_record(rid)
             if rec is None or rec.status in (RecordStatus.ARCHIVED, RecordStatus.DELETED):
                 return
-            change: dict[str, object] = {"status": RecordStatus.ARCHIVED.value}
+            change = _taint_archive_delta(rec)
             if evolve_to is not None:
                 change["evolve_to"] = evolve_to
             await self._append_and_project(
@@ -2252,6 +2429,8 @@ class Engine:
             if proof.startswith("merged@"):
                 review.append(target_id)
                 continue
+            if proof.startswith("superseded_by_taint@"):
+                continue  # displaced, not derived: restored below
             members = members_of.get(target_id)
             if not members:
                 await archive(target_id)
@@ -2313,15 +2492,31 @@ class Engine:
             )
             await archive(target_id, evolve_to=summary.record_id)
             rebuilt.append(summary.record_id)
+        restored = await self._undo_displacement(record_id, report, archived, actor)
+        # R2-9: a session the seed was a member of has had its derived records
+        # (mined facts, cues, insights) archived above. Clearing the stages'
+        # done markers lets the next sleep cycle derive them again, from the
+        # clean members only.
+        for session_ns, session_key in sorted(sessions_of_tainted):
+            for stage in DERIVED_STAGES:
+                await self._append_and_project(
+                    stage_marker(session_ns, stage, session_key, cleared=True)
+                )
         _log.warning(
             "memory.taint_repair",
             namespace=namespace,
             seed=record_id,
             archived=len(archived),
             rebuilt=len(rebuilt),
+            restored=len(restored),
             review=len(review),
         )
-        return {"archived": archived, "rebuilt": rebuilt, "review": review}
+        return {
+            "archived": archived,
+            "rebuilt": rebuilt,
+            "restored": restored,
+            "review": review,
+        }
 
     async def _assess_write(self, record: MemoryRecord) -> FirewallVerdict:
         """Gather the firewall's namespace context: nearest-neighbour
@@ -2792,12 +2987,15 @@ class Engine:
                 "reflective memory not enabled — set memories.reflective.enabled: true"
             )
         ns = validate_namespace(namespace)
+        views = await self._parent_trust_cap(ns, source_record_ids)
         async with self._write_locks.setdefault(ns, asyncio.Lock()):
             return await self._reflective.reflect(
                 ns,
                 content,
                 source_record_ids,
                 source=source or SourceInfo(role=actor, channel="reflection"),
+                parent_views=views,
+                cap_trust=self._integrity().deposit_trust,
             )
 
     # ── associative verbs (P6: M13.6 / D-40 / ADR-015) ───────────────────────
@@ -3564,13 +3762,14 @@ class Engine:
         self, namespace: str, content: str, evidence_ids: list[str], session_key: str
     ) -> MemoryRecord:
         """H14: a profile insight through the governed ``reflect`` door."""
+        # R2-4: the insight is LLM-authored: non-privileged role, trust capped.
         return await self.reflect(
             content,
             evidence_ids,
             namespace=namespace,
             actor="system",
             source=SourceInfo(
-                role="system", channel="reflection", message_id=f"reflected:{session_key}"
+                role="assistant", channel="reflection", message_id=f"reflected:{session_key}"
             ),
         )
 
@@ -3598,7 +3797,7 @@ class Engine:
             record_id,
             cues,
             namespace=namespace,
-            source=SourceInfo(role="system", channel="anticipation"),
+            source=SourceInfo(role="assistant", channel="anticipation"),
             actor="system",
             extra_tags=[f"anticipated:{session_key}"],
         )
@@ -3637,15 +3836,22 @@ class Engine:
         storage = self._require_started()
         ns = validate_namespace(namespace)
         sources = [r for r in [await storage.get_record(p) for p in parents] if r is not None]
+        tags = ["atomic_fact", f"mined:{session_key}"]
+        if sources and all("assistant_claim" in r.tags for r in sources):
+            # R2-11: a fact mined only from assistant turns stays an assistant claim.
+            tags.append("assistant_claim")
         record = MemoryRecord(
             namespace=ns,
             memory_type="semantic",
             content=text,
-            source=SourceInfo(role="system", channel="mining", parents=list(parents)),
+            # R2-4: LLM-authored, so the non-privileged "assistant" role: the
+            # protected-key, size and instruction checks apply (a "system" role
+            # skipped them, and could even corroborate quarantined records).
+            source=SourceInfo(role="assistant", channel="mining", parents=list(parents)),
             entity=entity,
             attribute=attribute,
             valid_from=valid_from,
-            tags=["atomic_fact", f"mined:{session_key}"],
+            tags=tags,
         )
         cap = [min(r.trust for r in sources)] if sources else None
         integrity_cap = await self._parent_trust_cap(ns, parents)

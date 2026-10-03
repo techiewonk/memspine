@@ -334,7 +334,16 @@ async def test_b0_omitted_parents_cannot_launder() -> None:
         )
         assert seed.record_id in note.source.parents
         assert note.trust == pytest.approx(seen.trust)  # capped at what it saw
-        # turn mode: the ledger was consumed; an unrelated write is uncapped
+        # R4-1: the session-less ledger is fail-closed: a second write is still
+        # capped, and only end_session() clears it
+        again = await eng.write(
+            "note two",
+            namespace="b",
+            memory_type="episodic",
+            source=SourceInfo(role="assistant"),
+        )
+        assert seed.record_id in again.source.parents
+        eng.end_session("b")
         clean = await eng.write(
             "lunch is at noon",
             namespace="b",
