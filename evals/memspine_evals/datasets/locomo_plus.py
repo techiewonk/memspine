@@ -173,9 +173,17 @@ class LoCoMoPlusDataset:
                         gold_turn_ids=tuple(t.turn_id for t in cue),
                         type_label=str(plus.get("relation_type", "")) or None,
                         meta={
+                            "benchmark": "locomo_plus",
                             "time_gap": plus.get("time_gap"),
                             "query_time": query_time.strftime("%Y-%m-%d %H:%M"),
+                            "question_date": query_time.strftime("%Y-%m-%d %H:%M"),
                             "base_conversation": sample.get("sample_id"),
+                            # the official judge's evidence: cue turns, speaker and text
+                            # joined by a full-width colon
+                            # (``unified_input._cue_dialogue_to_evidence``)
+                            "judge_evidence": "\n".join(
+                                f"{t.speaker}\uff1a{t.text.strip()}" for t in cue if t.text
+                            ),
                         },
                     ),
                 ),

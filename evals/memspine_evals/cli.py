@@ -18,8 +18,37 @@ import sys
 from pathlib import Path
 
 from .contracts import DatasetAdapter
-from .experiments import C01Config, comparison_table, run_c0_1
+from .experiments import JUDGE_CHOICES, PROTOCOL_PRESETS, C01Config, comparison_table, run_c0_1
 from .results import append_score_matrix_rows
+
+
+def parse_categories(value: str | None) -> tuple[int, ...] | None:
+    """``"1,2,3,4"`` -> (1, 2, 3, 4); ``"all"`` -> None (every category)."""
+    if value is None or value.strip().lower() == "all":
+        return None
+    try:
+        cats = tuple(sorted({int(part) for part in value.split(",") if part.strip()}))
+    except ValueError as exc:
+        raise SystemExit(f"--categories takes ints like 1,2,3,4 or 'all', got {value!r}") from exc
+    if not cats or any(c not in (1, 2, 3, 4, 5) for c in cats):
+        raise SystemExit(f"LoCoMo categories are 1-5, got {value!r}")
+    return cats
+
+
+def resolve_categories(args: argparse.Namespace) -> tuple[int, ...] | None:
+    """R3-1: a LoCoMo run states its categories, directly or through a preset."""
+    preset = PROTOCOL_PRESETS.get(getattr(args, "protocol", None) or "", {}).get("categories")
+    given = getattr(args, "categories", None)
+    if given is None:
+        if preset is not None:
+            return tuple(preset)
+        if getattr(args, "command", None) == "c0-1" and getattr(args, "dataset", None) == "locomo":
+            raise SystemExit(
+                "--categories is required for LoCoMo (e.g. 1,2,3,4, or 'all' to include the "
+                "cat-5 abstention questions, graded against a refusal)"
+            )
+        return None
+    return parse_categories(given)
 
 DEFAULT_OUT = Path(__file__).resolve().parents[1] / "runs"
 
@@ -34,7 +63,9 @@ def _dataset(args: argparse.Namespace) -> DatasetAdapter:
     if args.dataset == "locomo":
         from .datasets import LoCoMoDataset
 
-        return LoCoMoDataset(args.path, revision_id=args.revision)
+        return LoCoMoDataset(
+            args.path, revision_id=args.revision, categories=resolve_categories(args)
+        )
     if args.dataset == "convomem":
         from .datasets import ConvoMemDataset
 
@@ -100,6 +131,9 @@ def cmd_c0_1(args: argparse.Namespace) -> int:
         judge_prompt=args.judge_prompt,
         only_systems=tuple(args.only_systems.split(",")) if args.only_systems else None,
         item_ids=tuple(args.item_ids.split(",")) if args.item_ids else None,
+        categories=resolve_categories(args) if args.dataset == "locomo" else None,
+        naive_dense_same_embedder=args.naive_dense_same_embedder,
+        matched_budget_tokens=args.matched_budget_tokens,
     )
     if args.protocol:
         from .experiments import apply_protocol_preset
@@ -226,15 +260,36 @@ def build_parser() -> argparse.ArgumentParser:
     )
     c01.add_argument(
         "--judge-prompt",
-        choices=("rubric", "constraint", "alias"),
+        choices=JUDGE_CHOICES,
         default="rubric",
-        help="Qwen3-protocol judge: rubric (QA) or constraint (LoCoMo-Plus)",
+        help=(
+            "QA judge on every endpoint: rubric (QA; abstention-aware), constraint "
+            "(LoCoMo-Plus), alias, locomo-plus-v2 (official LoCoMo-Plus prompts), longmemeval "
+            "(anscheck templates by type), omnimemeval (placeholder: refuses to run)"
+        ),
     )
     c01.add_argument(
         "--qa-prompt",
-        choices=("default", "dated", "abstain", "converse", "mab_fc"),
+        choices=("default", "dated", "abstain", "converse", "mab_fc", "question_dated"),
         default="default",
-        help="QA prompt variant for every arm (H7/H12)",
+        help="QA prompt variant for every arm (H7/H12); question_dated shows the question date",
+    )
+    c01.add_argument(
+        "--categories",
+        default=None,
+        help="LoCoMo categories, e.g. 1,2,3,4 or 'all' (required for LoCoMo unless a preset "
+        "sets them)",
+    )
+    c01.add_argument(
+        "--naive-dense-same-embedder",
+        action="store_true",
+        help="add a naive-RAG arm on memspine's own (fastembed) embedder (R4-6)",
+    )
+    c01.add_argument(
+        "--matched-budget-tokens",
+        type=int,
+        default=None,
+        help="add a naive-RAG arm capped at this context size, e.g. memspine's mean (R4-6)",
     )
     c01.add_argument("--item-ids", default=None, help="comma list of item ids (resume a run)")
     c01.add_argument(

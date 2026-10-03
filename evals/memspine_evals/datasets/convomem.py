@@ -24,6 +24,7 @@ can be published.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import random
 from collections.abc import Iterator
@@ -53,7 +54,10 @@ class ConvoMemDataset:
         self.per_stratum, self.filler, self.seed = per_stratum, filler, seed
         self.evidence_types = evidence_types
         self.licence = licence
+        # R3-11: identify the exact files read (relative path + bytes, in read order).
+        self._digest = hashlib.sha256()
         self._items = list(self._build())
+        self._sha = self._digest.hexdigest()
 
     def info(self) -> DatasetInfo:
         return DatasetInfo(
@@ -61,7 +65,7 @@ class ConvoMemDataset:
             revision_id=self.revision_id,
             licence=self.licence,
             source_path=str(self.root),
-            content_sha256="",
+            content_sha256=self._sha,
             n_items=len(self._items),
             n_queries=len(self._items),
             subset=f"per_stratum={self.per_stratum},filler={self.filler},seed={self.seed}",
@@ -78,7 +82,10 @@ class ConvoMemDataset:
             for k_dir in sorted(p for p in type_dir.iterdir() if p.is_dir()):
                 taken = 0
                 for f in sorted(k_dir.glob("*.json")):
-                    data = json.loads(f.read_text(encoding="utf-8"))
+                    raw = f.read_bytes()
+                    self._digest.update(f.relative_to(self.root).as_posix().encode() + b"\0")
+                    self._digest.update(raw)
+                    data = json.loads(raw.decode("utf-8"))
                     for item in data.get("evidence_items") or []:
                         if taken >= self.per_stratum:
                             break

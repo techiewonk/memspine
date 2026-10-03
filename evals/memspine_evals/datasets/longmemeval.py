@@ -129,8 +129,11 @@ class LongMemEvalDataset:
                 gold_turn_ids=tuple(gold_turn_ids),
                 type_label=q_type or None,
                 meta={
+                    "benchmark": "longmemeval",
                     "question_date": sample.get("question_date"),
-                    "abstention": q_type.endswith("_abs"),
+                    # LongMemEval marks abstention questions by a ``_abs`` suffix on the
+                    # question id; their question_type is an ordinary type.
+                    "abstention": question_id.endswith("_abs"),
                 },
             )
             yield EvalItem(

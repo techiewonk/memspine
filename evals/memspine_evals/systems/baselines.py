@@ -23,7 +23,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from ..contracts import DepositResult, Evidence, RetrievedContext, Turn
+from ..contracts import DepositResult, Evidence, RetrievedContext, Turn, visible_evidence
 from ..tokens import HeuristicTokenCounter, TokenCounter, truncate_to_budget
 from .retrievers import BM25Retriever, Retriever, Unit
 
@@ -168,11 +168,15 @@ class VerbatimSystem:
 class NaiveRAGSystem:
     """Fixed-size chunking over the running transcript, then top-k.
 
-    The pending tail chunk is flushed into the index at query time, so the most
-    recent turns are retrievable. Without that, every recency question in the
-    benchmark would fail for a reason that has nothing to do with retrieval
-    quality.
+    The pending tail chunk is indexed at query time, so the most recent turns are
+    retrievable. Without that, every recency question in the benchmark would fail
+    for a reason that has nothing to do with retrieval quality. It is **one**
+    pending unit, replaced in place on each query and removed when the real chunk
+    closes (R3-2): re-adding it per query left ~200 copies of the tail in the index,
+    crowding top-k and handicapping the baseline.
     """
+
+    PENDING_ID = "chunk-pending"
 
     def __init__(
         self,
@@ -209,40 +213,49 @@ class NaiveRAGSystem:
         self._chunks = 0
         self._pending_id = None
 
-    def _flush(self, final: bool) -> str | None:
+    def _unit(self, unit_id: str, final: bool) -> Unit:
+        lines = [_format(turn) for turn in self._buffer]
+        spans: dict[str, tuple[int, int]] = {}
+        offset = 0
+        for turn, line in zip(self._buffer, lines, strict=True):
+            spans[turn.turn_id] = (offset, offset + len(line))
+            offset += len(line) + 1
+        return Unit(
+            unit_id=unit_id,
+            text="\n".join(lines),
+            turn_ids=tuple(turn.turn_id for turn in self._buffer),
+            meta={"final": final, "turn_spans": spans},
+        )
+
+    def _drop_pending(self) -> None:
+        if self._pending_id is not None:
+            self._retriever.remove(self._pending_id)
+            self._pending_id = None
+
+    def _flush(self) -> str | None:
         if not self._buffer:
             return None
-        text = "\n".join(_format(turn) for turn in self._buffer)
+        self._drop_pending()
         unit_id = f"chunk-{self._chunks:04d}"
-        self._retriever.add(
-            Unit(
-                unit_id=unit_id,
-                text=text,
-                turn_ids=tuple(turn.turn_id for turn in self._buffer),
-                meta={"final": final},
-            )
-        )
+        self._retriever.add(self._unit(unit_id, final=False))
         self._chunks += 1
-        keep_overlap = self.overlap_turns and not final
-        self._buffer = self._buffer[-self.overlap_turns :] if keep_overlap else []
+        self._buffer = self._buffer[-self.overlap_turns :] if self.overlap_turns else []
         return unit_id
 
     async def insert(self, turn: Turn) -> DepositResult:
         self._buffer.append(turn)
         size = sum(len(_format(t)) + 1 for t in self._buffer)
         if size >= self.chunk_chars:
-            unit_id = self._flush(final=False)
-            self._pending_id = None
+            unit_id = self._flush()
             return DepositResult(n_records=1, record_ids=(unit_id,) if unit_id else ())
         return DepositResult(n_records=0, meta={"buffered": len(self._buffer)})
 
     async def query(self, text: str, budget_tokens: int, top_k: int) -> RetrievedContext:
         if self._buffer:
-            # Index the tail so recent turns are reachable, then keep it in the
-            # buffer: re-indexing the same turns would double-count them.
-            pending = list(self._buffer)
-            self._flush(final=True)
-            self._buffer = pending
+            # Index the tail as the single pending unit, replacing the previous one.
+            self._drop_pending()
+            self._retriever.add(self._unit(self.PENDING_ID, final=True))
+            self._pending_id = self.PENDING_ID
         hits = self._retriever.search(text, top_k)
         return _pack(hits, budget_tokens, self._counter)
 
@@ -251,14 +264,58 @@ class NaiveRAGSystem:
         self._buffer = []
 
 
+class BudgetCappedSystem:
+    """Wraps a system and caps its context budget below the protocol's (R4-6).
+
+    The matched-token-budget arm: a naive baseline given the tokens memspine actually
+    used (e.g. its mean context size), not the full protocol budget, so an accuracy
+    gap cannot be a token-count gap. The cap is declared in ``describe()`` and the
+    system id, so the arm cannot pass as the uncapped one.
+    """
+
+    def __init__(self, inner: Any, budget_tokens: int, system_id: str | None = None) -> None:
+        if budget_tokens <= 0:
+            raise ValueError("matched budget must be positive")
+        self.inner = inner
+        self.budget_tokens = budget_tokens
+        self.system_id = system_id or f"{inner.system_id}-matched{budget_tokens}"
+
+    def describe(self) -> Mapping[str, Any]:
+        return {
+            "system_id": self.system_id,
+            "version": "1.0",
+            "kind": "baseline",
+            "matched_budget_tokens": self.budget_tokens,
+            "inner": dict(self.inner.describe()),
+        }
+
+    async def reset(self, item_id: str) -> None:
+        await self.inner.reset(item_id)
+
+    async def insert(self, turn: Turn) -> DepositResult:
+        return await self.inner.insert(turn)
+
+    async def query(self, text: str, budget_tokens: int, top_k: int) -> RetrievedContext:
+        return await self.inner.query(text, min(budget_tokens, self.budget_tokens), top_k)
+
+    async def close(self) -> None:
+        await self.inner.close()
+
+
 def _pack(
     hits: Sequence[tuple[Unit, float]], budget_tokens: int, counter: TokenCounter
 ) -> RetrievedContext:
-    """Join ranked hits under budget, keeping the ranking order."""
+    """Join ranked hits under budget, keeping the ranking order.
+
+    Each evidence row names its unit (``unit_id``, so R@k counts units) and its
+    character span in the context (``span``, so evidence cut by truncation is dropped;
+    turn-level spans when the unit records them).
+    """
     kept: list[str] = []
     evidence: list[Evidence] = []
     tokens = 0
     truncated = False
+    offset = 0
     for unit, score in hits:
         cost = counter.count(unit.text) + 1
         if tokens + cost > budget_tokens and kept:
@@ -266,14 +323,23 @@ def _pack(
             break
         kept.append(unit.text)
         tokens += cost
+        spans = (unit.meta or {}).get("turn_spans") or {}
         for turn_id in unit.turn_ids:
-            evidence.append(Evidence(turn_id=turn_id, score=score))
+            start, end = spans.get(turn_id, (0, len(unit.text)))
+            evidence.append(
+                Evidence(
+                    turn_id=turn_id,
+                    score=score,
+                    meta={"unit_id": unit.unit_id, "span": (offset + start, offset + end)},
+                )
+            )
+        offset += len(unit.text) + 1
     body = "\n".join(kept)
     body, tokens, cut = truncate_to_budget(body, budget_tokens, counter) if body else ("", 0, False)
     return RetrievedContext(
         text=body,
         tokens=tokens,
-        evidence=tuple(evidence),
+        evidence=visible_evidence(evidence, len(body)) if cut else tuple(evidence),
         truncated=truncated or cut or len(kept) < len(hits),
         meta={"ranked": True, "n_units": len(kept)},
     )

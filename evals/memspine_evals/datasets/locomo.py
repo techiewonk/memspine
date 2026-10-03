@@ -12,6 +12,8 @@ therefore surfaced rather than smoothed over:
 * ``category`` 5 is the *adversarial* class, where the correct answer is a
   refusal. Pooling it with the factual categories changes a headline; the
   harness keeps it as ``type_label`` so any run can be re-read per category.
+  Its gold is the refusal (``ABSTENTION_GOLD``), never the file's
+  ``adversarial_answer``, which is the distractor a fooled system gives (R3-1).
 * ``evidence`` gives real retrieval ground truth, so R@k is computable here —
   which is what makes LoCoMo the place to test whether MemPalace's verbatim
   advantage transfers (their own LoCoMo figure is 60.3% R@10 against 96.6% on
@@ -28,8 +30,32 @@ from pathlib import Path
 from typing import Any
 
 from ..contracts import DatasetInfo, EvalItem, Query, Turn
+from ..judge import ABSTENTION_GOLD
 
 _SESSION = re.compile(r"^session_(\d+)$")
+_DIA = re.compile(r"^D(\d+):(\d+)$")
+
+#: Recorded in every manifest, so runs before and after R3-1 cannot be confused.
+CAT5_PROTOCOL_NOTE = (
+    "cat5-gold=abstention-v1: cat 5 gold is the refusal "
+    f"{ABSTENTION_GOLD!r}, never adversarial_answer; cat 5 has no R@k gold"
+)
+
+
+def _evidence_text(conversation: dict[str, Any], evidence: list[str]) -> str:
+    """Evidence ids -> one ``Speaker`` + full-width colon + ``text`` line each, as
+    LoCoMo-Plus's ``_evidence_to_text`` builds the judge's evidence (raw text, no caption)."""
+    lines = []
+    for evid in (part.strip() for e in evidence for part in e.split(";")):
+        match = _DIA.match(evid)
+        turns = (conversation.get(f"session_{match.group(1)}") or []) if match else []
+        index = int(match.group(2)) - 1 if match else -1
+        if 0 <= index < len(turns):
+            turn = turns[index]
+            lines.append(f"{turn.get('speaker', 'Unknown')}\uff1a{turn.get('text', '')}")
+        elif evid:
+            lines.append(f"[{evid}] [Missing turn]")
+    return "\n".join(lines)
 
 
 def file_sha256(path: Path) -> str:
@@ -84,6 +110,7 @@ class LoCoMoDataset:
             subset=self.subset
             if self.categories is None
             else f"{self.subset}+cat{'/'.join(map(str, self.categories))}",
+            notes=CAT5_PROTOCOL_NOTE,
         )
 
     def items(self) -> Iterator[EvalItem]:
@@ -125,16 +152,36 @@ class LoCoMoDataset:
                 category = qa.get("category")
                 if self.categories is not None and category not in self.categories:
                     continue
-                answer = qa.get("answer", qa.get("adversarial_answer"))
-                evidence = qa.get("evidence") or []
+                evidence = [str(e) for e in qa.get("evidence") or []]
+                adversarial = category == 5
+                meta: dict[str, Any] = {
+                    "benchmark": "locomo",
+                    "category": category,
+                    "adversarial": adversarial,
+                    "abstention": adversarial,
+                    "judge_evidence": _evidence_text(conversation, evidence),
+                }
+                if adversarial:
+                    # R3-1: cat 5 is unanswerable by construction. Its
+                    # ``adversarial_answer`` is the distractor a fooled system gives,
+                    # so it is kept for analysis only and never used as gold; nor is
+                    # its evidence (the turn the distractor came from) gold for R@k.
+                    meta["adversarial_answer"] = qa.get("adversarial_answer")
+                    meta["distractor_evidence"] = evidence
+                    gold: str | None = ABSTENTION_GOLD
+                    gold_turns: tuple[str, ...] = ()
+                else:
+                    answer = qa.get("answer")
+                    gold = None if answer is None else str(answer)
+                    gold_turns = tuple(evidence)
                 queries.append(
                     Query(
                         query_id=f"{index}-{q_index}",
                         text=str(qa.get("question", "")),
-                        gold=None if answer is None else str(answer),
-                        gold_turn_ids=tuple(str(e) for e in evidence),
+                        gold=gold,
+                        gold_turn_ids=gold_turns,
                         type_label=f"cat{category}" if category is not None else None,
-                        meta={"adversarial": category == 5},
+                        meta=meta,
                     )
                 )
             if queries:
