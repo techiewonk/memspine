@@ -95,6 +95,7 @@ print(engine.describe())   # enabled types, services, event-log mode, projectors
 | `voice` | rolling+zstd event log; tighter working window (`page_size: 8`) |
 | `multi_agent` | + shared |
 | `regulated_financial` | full audit log, strict PII, no forgetting |
+| `assistant` | long multi-session chat: relative dates resolved, time order for ordering questions, relevance-first scoring, relative floor (LoCoMo 70.7 → 78.3%, measured) |
 
 ---
 
@@ -397,7 +398,7 @@ in the schema — or if the schema gains a key not documented here.
 <!-- CONFIG-KEYS-TABLE:START -->
 | Key | Default | Notes |
 |-----|---------|-------|
-| `profile` | `simple` | Behavior profile; templates set it (base/coding/personal/voice/multi_agent/regulated_financial). |
+| `profile` | `simple` | Behavior profile; templates set it (base/coding/personal/voice/multi_agent/regulated_financial/assistant). |
 | `strict_services` | `true` | Missing service hard-fails naming the extra (D-10); `false` starts degraded. |
 | `event_log.mode` | `full` | `full` \| `rolling` (bounded window) \| `ephemeral` (nothing persisted — no rebuild/audit) (D-45). |
 | `event_log.retention_days` | `30` | Rolling-window retention floor; never prunes past a projector high-water mark. |

@@ -1,0 +1,32 @@
+# Conversational-assistant profile: long multi-session chat memory, tuned on LoCoMo.
+#
+# Every setting below is one a paid ablation measured (LoCoMo cats 1-4, 1,540 q,
+# Qwen3-32B reader and judge, 2026-10-03; paper_spine/evaluation/LOCOMO_RESULTS_*):
+#   memspine-base 70.7%  ->  this template ("combo-A") 78.3% (+/- 0.26, 3 runs),
+#   at the same ~1.6K-token context. All rules, no extra model calls.
+# For the best measured accuracy (80.6%) add a reranker, e.g. Cohere Rerank 3.5 on
+# Bedrock (uncomment the three rerank lines; needs the full model ARN and AWS creds).
+# Read with Engine.read(mode="replay") for chat transcripts; the dated QA prompt the
+# ablation used belongs to the caller's answer step, not to the engine.
+extends: base
+profile: assistant
+
+read:
+  record_access: false          # a read must not boost recency for the next question
+  resolve_relative_dates: true  # H1: "last Friday" -> [= 2023-05-12]  (+5.9 alone)
+  order_by_time_for_ordering: true  # H16: first/latest/before -> time order (+1.1)
+  scoring:                      # relevance-first: recency/importance demote the best
+    recency_weight: 0.0         # match on a static transcript (C0 note)
+    importance_weight: 0.0
+    utility_weight: 0.0
+  assembly:
+    relative_floor: 0.3         # H4: drop candidates far below the best (+0.7)
+  # rerank: litellm
+  # rerank_model: bedrock/arn:aws:bedrock:us-east-1::foundation-model/cohere.rerank-v3-5:0
+  # candidate_pool: 3
+
+memories:
+  episodic:
+    enabled: true
+  semantic:
+    enabled: true

@@ -227,6 +227,7 @@ Construct with `Engine(template="...")`. Each template is a partial overlay on t
 | `voice` | rolling+zstd event log; larger working window | high-volume voice transcripts |
 | `multi_agent` | + shared; **DBOS** durable workers | namespace grants across agents (R2), server-grade durability |
 | `regulated_financial` | full audit log, strict PII, no forgetting; **DBOS** durable workers | audited / compliant deployments |
+| `assistant` | multi-session chat memory: relative dates resolved, time-ordered answers for ordering questions, relevance-first scoring (LoCoMo 70.7 → 78.3% measured; 80.6% with Cohere rerank) | chat assistants |
 
 > Server profiles (`multi_agent`, `regulated_financial`) pin `workers.runner: dbos` at the **template** layer (A4/ADR-005) — DBOS defaults to a colocated SQLite system database, so this needs only `memspine[dbos]`, no external infra. Embedded profiles stay `inline`.
 
