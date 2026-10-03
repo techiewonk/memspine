@@ -14,6 +14,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from memspine.clients.sqlite import SQLiteClient
+from memspine.config import constants
 from memspine.config.loader import load_config
 from memspine.core.events import EventKind, MemoryEvent
 from memspine.core.records import MemoryRecord, RecordStatus
@@ -105,6 +106,9 @@ async def test_reorganize_writes_summary_parent_and_membership_links(
     assert stats == {"status": "ok", "communities": 1, "parents": 1, "superseded": 0}
     [parent] = await parents_of(ctx)
     assert parent.status is RecordStatus.ACTIVATED
+    # N2: a derived summary parent is never privileged, and never out-trusts a member.
+    assert parent.source.role == constants.DERIVED_ROLE
+    assert parent.trust <= min(m.trust for m in members)
     community_edges = [
         edge for edge in await graph.edges_of(parent.record_id) if edge.rel_type == "community"
     ]

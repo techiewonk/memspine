@@ -19,6 +19,8 @@ def make_persona_record(namespace: str, text: str) -> MemoryRecord:
         namespace=namespace,
         memory_type="working",
         content=text,
+        # Operator-authored, so it keeps the privileged "system" role
+        # (constants.DERIVED_ROLE states the rule for derived content).
         source=SourceInfo(role="system", channel=PERSONA_CHANNEL),
         scoring=ScoringState(importance=1.0),  # persona always survives scoring
     )

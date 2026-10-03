@@ -12,6 +12,10 @@ LLM when configured, no separate mechanism needed.
 Edge records carry ``channel="write_pipeline"`` provenance; the memory guards on
 it so an edge record never re-triggers the pipeline (bounded, depth-1 recursion).
 E1: a derived edge fact never out-trusts its source and keeps injection framing.
+N2: edge facts are LLM-authored, so they carry the non-privileged
+``DERIVED_ROLE`` and name their source as a parent; the memory screens each one
+through the engine's firewall before the ladder. An instruction-flagged source
+yields no edges.
 
 The whole stage is off unless the engine injects a pipeline (policy ``graph`` +
 an ``extract_edges`` LLM role), so ``profile="simple"`` is byte-identical.
@@ -22,12 +26,20 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from typing import Protocol
 
+from memspine.config.constants import DERIVED_ROLE
 from memspine.core.firewall import instruction_shaped
 from memspine.core.records import MemoryRecord, SourceInfo
 from memspine.observability.logging import get_logger
 from memspine.prompts.models import ExtractedEdge
 
-__all__ = ["EDGE_CHANNEL", "ExtractEdges", "GraphWritePipeline", "ResolveEntity", "WritePipeline"]
+__all__ = [
+    "EDGE_CHANNEL",
+    "ExtractEdges",
+    "GraphWritePipeline",
+    "ResolveEntity",
+    "ScreenDerived",
+    "WritePipeline",
+]
 
 _log = get_logger(__name__)
 
@@ -41,6 +53,9 @@ ExtractEdges = Callable[[str], Awaitable[list[ExtractedEdge]]]
 ResolveEntity = Callable[[str], Awaitable[str]]
 #: The memory's own write-a-fact entry point (``SemanticMemory._write_locked``).
 WriteFact = Callable[[MemoryRecord], Awaitable[object]]
+#: N2: the engine's firewall for derived records written outside its door:
+#: (record, parent trust cap) -> (stamped record, quarantine reasons or []).
+ScreenDerived = Callable[[MemoryRecord, list[float]], Awaitable[tuple[MemoryRecord, list[str]]]]
 
 
 class WritePipeline(Protocol):
@@ -63,6 +78,8 @@ class GraphWritePipeline:
         self._min_confidence = min_confidence
 
     async def run(self, record: MemoryRecord, write_fact: WriteFact) -> int:
+        if record.instruction_flag or record.quarantined:
+            return 0  # N2: held or instruction-shaped content is not a fact source
         try:
             edges = await self._extract_edges(record.content)
         except Exception as exc:  # the LLM is an enhancer, never a gate (N6)
@@ -90,7 +107,12 @@ class GraphWritePipeline:
                 # injection framing stays flagged.
                 trust=record.trust,
                 instruction_flag=instruction_shaped(edge.fact),
-                source=SourceInfo(role="system", channel=EDGE_CHANNEL, message_id=record.record_id),
+                source=SourceInfo(
+                    role=DERIVED_ROLE,
+                    channel=EDGE_CHANNEL,
+                    message_id=record.record_id,
+                    parents=[record.record_id],
+                ),
             )
             await write_fact(fact)  # full M5 dedup + M4 ladder (invalidate_edges)
             written += 1

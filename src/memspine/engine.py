@@ -511,6 +511,7 @@ class Engine:
                 merge_reinforcement_gate=(
                     config.integrity.enabled and config.integrity.merge_reinforcement_gate
                 ),
+                screen_derived=self._screen_derived,
             )
         # Memory Firewall (E1/M17): trust matrix binds from the semantic
         # policy block (D-14 channel); the gate itself covers every type.
@@ -1394,6 +1395,50 @@ class Engine:
         actor: str,
         trust_cap: list[float] | None = None,
     ) -> tuple[MemoryRecord, str]:
+        record, verdict = await self._screen_write(record, trust_cap)
+        if verdict.quarantine:
+            # Quarantined content is stored inert: no dedup merging, no
+            # conflict-ladder participation, no retrieval surface — but the
+            # write IS recorded (audit + later corroboration need it).
+            await self._append_and_project(
+                MemoryEvent(
+                    kind=EventKind.WRITE,
+                    namespace=ns,
+                    actor=actor,
+                    payload={
+                        "record": record.model_dump(mode="json"),
+                        "firewall": {"reasons": verdict.reasons},
+                    },
+                )
+            )
+            _log.warning(
+                "memory.quarantined",
+                namespace=ns,
+                record_id=record.record_id,
+                reasons=verdict.reasons,
+            )
+            return record, "quarantined"
+        return await self._write_screened(storage, ns, record, memory_type, actor)
+
+    async def _screen_derived(
+        self, record: MemoryRecord, trust_cap: list[float]
+    ) -> tuple[MemoryRecord, list[str]]:
+        """N2: the write-door firewall for derived content written outside the door.
+
+        ``extract_graph`` and the C3 write pipeline append their own WRITE events
+        (their provenance and ladder semantics differ from a caller write), but
+        the record passes the same screening first: redaction, trust matrix,
+        instruction/anomaly/size/protected-key checks, the parent trust cap and
+        principal reputation. Returns the stamped record and, when it is
+        quarantined, the firewall reasons (empty otherwise).
+        """
+        screened, verdict = await self._screen_write(record, trust_cap)
+        return screened, (verdict.reasons if verdict.quarantine else [])
+
+    async def _screen_write(
+        self, record: MemoryRecord, trust_cap: list[float] | None
+    ) -> tuple[MemoryRecord, FirewallVerdict]:
+        """The firewall half of the write door: the stamped record and its verdict."""
         fw = self._config().firewall
         if fw.redact_secrets:
             cleaned, kinds = redact(record.content)
@@ -1404,7 +1449,7 @@ class Engine:
                         "content_fingerprint": fingerprint_payload({"content": cleaned}),
                     }
                 )
-                _log.warning("memory.redacted", namespace=ns, kinds=kinds)
+                _log.warning("memory.redacted", namespace=record.namespace, kinds=kinds)
         # Memory Firewall gate (E1/M17): every write of every type passes the
         # deterministic trust/anomaly/instruction assessment BEFORE the door.
         if fw.enabled:
@@ -1447,29 +1492,17 @@ class Engine:
             factor = await self.principal_reputation(record.source.principal)
             if factor < 1.0:
                 record = record.model_copy(update={"trust": record.trust * factor})
-        if verdict.quarantine:
-            # Quarantined content is stored inert: no dedup merging, no
-            # conflict-ladder participation, no retrieval surface — but the
-            # write IS recorded (audit + later corroboration need it).
-            await self._append_and_project(
-                MemoryEvent(
-                    kind=EventKind.WRITE,
-                    namespace=ns,
-                    actor=actor,
-                    payload={
-                        "record": record.model_dump(mode="json"),
-                        "firewall": {"reasons": verdict.reasons},
-                    },
-                )
-            )
-            _log.warning(
-                "memory.quarantined",
-                namespace=ns,
-                record_id=record.record_id,
-                reasons=verdict.reasons,
-            )
-            return record, "quarantined"
+        return record, verdict
 
+    async def _write_screened(
+        self,
+        storage: SqlStorage,
+        ns: str,
+        record: MemoryRecord,
+        memory_type: str,
+        actor: str,
+    ) -> tuple[MemoryRecord, str]:
+        """The door after an admitting firewall verdict: cue, semantic or plain WRITE."""
         if CUE_TAG in record.tags:
             # R2-1: a cue is a retrieval key, not a fact. It skips dedup, entity
             # extraction and the M4 ladder (an extracted key would let the cue
@@ -2725,7 +2758,7 @@ class Engine:
                 valid_from=old.valid_from,
                 valid_to=old.valid_to,
                 source=SourceInfo(
-                    role="system",
+                    role=constants.DERIVED_ROLE,  # N2: a derived summary is never privileged
                     channel="consolidation",
                     message_id=old.source.message_id,
                     parents=[m.record_id for m in clean],
@@ -3884,6 +3917,7 @@ class Engine:
             deposit_cues=self._deposit_anticipated_cues,
             reflect=self._build_reflector(),
             deposit_reflection=self._deposit_profile_reflection,
+            screen=self._screen_derived,
             # Only when associative projects it (ADR-015): an explicit-config
             # graph store without the projector would reorganize a stale graph.
             graph=self._graph if self._associative is not None else None,
