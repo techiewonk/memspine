@@ -312,6 +312,7 @@ async def scripted_propagation(
     audit: bool = False,
     seed_via_principal: float | None = None,
     benign_seed: bool = False,
+    enforcement: str = "harness",
 ) -> PropagationReport:
     """Worst-case (attacker-friendly) agents: every agent that admits tainted
     content re-deposits a paraphrase each round, naming *everything* it
@@ -328,9 +329,22 @@ async def scripted_propagation(
     principal namespace, granted to the origin agent with attenuation kappa_u,
     instead of directly into the origin. ``benign_seed`` adds an operator fact at
     the origin whose lineage is tracked separately (benign reach, Cor. 1).
+
+    ``enforcement="engine"`` (R4-1) moves both A1/A2 duties into the engine:
+    each agent reads with its own ``session_id``, writes declare NO
+    ``derived_from`` (``parent_mode`` is ignored), and the harness applies no
+    trust filter, so the context is exactly what the engine returns (minus
+    ``shared`` bookkeeping). Integrity runs with ``implicit_parents="session"``
+    and ``live_reevaluation=True`` (``integrity_extra`` may override either).
+    The default ``"harness"`` is unchanged: declared parents, harness filter.
     """
     if parent_mode not in {"all", "max_trust", "none"}:
         raise ValueError(f"unknown parent_mode {parent_mode!r}")
+    if enforcement not in {"harness", "engine"}:
+        raise ValueError(f"unknown enforcement {enforcement!r}")
+    engine_mode = enforcement == "engine"
+    if engine_mode and not integrity_on:
+        raise ValueError("enforcement='engine' needs integrity_on=True")
     from memspine.core.records import SourceInfo
 
     rounds = rounds or n_agents
@@ -343,6 +357,7 @@ async def scripted_propagation(
             "enabled": True,
             "kappa": kappa,
             "admission_threshold": theta,
+            **({"implicit_parents": "session", "live_reevaluation": True} if engine_mode else {}),
             **(integrity_extra or {}),
         }
         if seed_via_principal is not None:
@@ -414,16 +429,24 @@ async def scripted_propagation(
         benign_exposed: set[int] = set()
         for rnd in range(rounds):
             for i, name in enumerate(names):
+                # Engine mode: one session per agent, so the engine's read ledger
+                # (not the harness) supplies the parents of this agent's writes.
+                session = f"{name}/session" if engine_mode else None
                 # Own-namespace search also returns grant bookkeeping records
                 # (memory_type "shared"); they are not context, so over-fetch by
                 # the number of grants and drop them before taking top_k.
-                hits = await engine.shared_search(
-                    VICTIM_TERM, namespace=name, top_k=top_k + len(edges)
-                )
+                if engine_mode:
+                    hits = await engine.shared_search(
+                        VICTIM_TERM, namespace=name, top_k=top_k + len(edges), session_id=session
+                    )
+                else:
+                    hits = await engine.shared_search(
+                        VICTIM_TERM, namespace=name, top_k=top_k + len(edges)
+                    )
                 context = [
                     record
                     for record, _ in hits
-                    if record.memory_type != "shared" and record.trust >= theta
+                    if record.memory_type != "shared" and (engine_mode or record.trust >= theta)
                 ][:top_k]
                 good = [record for record in context if record.record_id in benign_tainted]
                 if good:
@@ -434,7 +457,10 @@ async def scripted_propagation(
                         memory_type="episodic",
                         source=SourceInfo(role="assistant", channel="internal"),
                         actor="assistant",
-                        derived_from=[record.record_id for record in context],
+                        derived_from=(
+                            None if engine_mode else [record.record_id for record in context]
+                        ),
+                        session_id=session,
                     )
                     if record_is_live(benign_note):
                         benign_tainted.add(benign_note.record_id)
@@ -452,16 +478,19 @@ async def scripted_propagation(
                     source=SourceInfo(role="assistant", channel="internal"),
                     actor="assistant",
                     derived_from=(
-                        [record.record_id for record in context]
+                        None  # engine mode: the session's reads are the parents
+                        if engine_mode
+                        else [record.record_id for record in context]
                         if parent_mode == "all"
                         else [max(context, key=lambda record: record.trust).record_id]
                         if parent_mode == "max_trust"
                         else None  # "none": the writer declares nothing (laundering)
                     ),
+                    session_id=session,
                 )
                 report.deposits += 1
                 tainted.add(redeposit.record_id)
-                if integrity_on and parent_mode == "all":
+                if integrity_on and (parent_mode == "all" or engine_mode):
                     ceiling = min([0.5, *(record.trust for record in context)])
                     if redeposit.trust > ceiling + 1e-9:
                         report.mti_violations += 1
