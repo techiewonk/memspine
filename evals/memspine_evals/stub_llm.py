@@ -59,6 +59,8 @@ class StubLiteLLM:
         self.think_unless_no_think = think_unless_no_think
         self.calls: Counter[str] = Counter()
         self.embeddings = 0
+        #: completions whose last user message lacked /no_think (Qwen3 would think)
+        self.thinking_calls = 0
 
     # -- completion ------------------------------------------------------------
 
@@ -156,8 +158,10 @@ class StubLiteLLM:
         last_user = next(
             (str(m.get("content", "")) for m in reversed(messages) if m.get("role") == "user"), ""
         )
-        if self.think_unless_no_think and not last_user.rstrip().endswith("/no_think"):
-            text = _THINK + text
+        if not last_user.rstrip().endswith("/no_think"):
+            self.thinking_calls += 1
+            if self.think_unless_no_think:
+                text = _THINK + text
         prompt_tokens = sum(_tokens(str(m.get("content", ""))) for m in messages)
         return SimpleNamespace(
             choices=[
