@@ -1125,7 +1125,7 @@ class Engine:
                 continue
             if record.valid_to is not None:
                 text = (
-                    f"HISTORY (superseded): {record.valid_from:%Y-%m-%d} to "
+                    f"{constants.HISTORY_MARKER} {record.valid_from:%Y-%m-%d} to "
                     f"{record.valid_to:%Y-%m-%d}: {record.content}"
                 )
                 if "disputed" in record.tags:
@@ -1148,7 +1148,9 @@ class Engine:
                 shown = await self._history_view(past_fact)
                 if shown is not None:
                     history.append(shown)
-            text = f"CURRENT (since {record.valid_from:%Y-%m-%d}): {record.content}"
+            text = (
+                f"{constants.CURRENT_STATE_MARKER}{record.valid_from:%Y-%m-%d}): {record.content}"
+            )
             if "disputed" in record.tags:
                 text += " [DISPUTED: another source of equal standing states a different value]"
             if history:
@@ -1157,7 +1159,7 @@ class Engine:
                     for h in history
                     if h.valid_to is not None
                 )
-                text += f"\nHISTORY (superseded): {past}"
+                text += f"\n{constants.HISTORY_MARKER} {past}"
             out.append((record.model_copy(update={"content": text}), score))
         return out
 

@@ -6,7 +6,7 @@
 | | |
 |---|---|
 | **Milestone** | ✅ v0.1 Release Hardening done (bar the infra-gated live check) · ✅ **v0.2 landed** · 🟡 **v0.3 in planning (lock: no code yet)** · 🧪 **integrity (MTI) opt-in: implemented on a branch, ADR-029 *proposed*** |
-| **Tests** | **920** in `tests/` (904 passed, 16 skipped, 0 failed; 2026-10-02) + **104** in `evals/tests` |
+| **Tests** | **998** in `tests/` (982 passed, 16 skipped, 0 failed; 2026-10-03) + **143** in `evals/tests` |
 | **ADRs** | **29** (ADR-001 … ADR-029; ADR-029 *proposed*) + template · decision register through **D-56** |
 | **Version** | `pyproject` still `0.0.1` (pre-alpha; not bumped despite v0.2) |
 | **Latest commit** | `1216e36`: feat(integrity): opt-in monotone trust invariant for shared memory (branch `feat/integrity-mti`) |
