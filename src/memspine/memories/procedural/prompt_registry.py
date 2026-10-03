@@ -63,6 +63,8 @@ def prompt_version_records(
                 version=prompt.version,
                 skill_stage=SkillStage.ACTIVE,
                 status=RecordStatus.ACTIVATED,
+                # Config-driven, so it keeps the privileged "system" role
+                # (constants.DERIVED_ROLE states the rule for derived content).
                 source=SourceInfo(
                     role="system",
                     channel="prompts",

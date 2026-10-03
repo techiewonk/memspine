@@ -90,11 +90,16 @@ are to `src/memspine/engine.py` and `src/memspine/core/integrity.py` at the time
 
 - **Revocation.** Revoking a grant (`Engine.revoke`) archives the grant record. Later reads
   (`shared_search` goes through `grant_allows`) and later derivations (`_parent_trust_cap` counts a
-  parent outside every grant as 0.0) are cut off. Draining the *existing* descendants would need
-  `live_reevaluation`, but **the code does not do it**: `effective_trust` walks parents by record id
-  and applies κ for the parent's namespace without checking that the grant still exists. A
-  descendant derived before the revocation keeps its trust. Treat "revocation drains descendants" as
-  not implemented; the fix is a grant check in `effective_trust`.
+  parent outside every grant as 0.0) are cut off. Existing descendants are drained only with
+  `live_reevaluation` on (gap N6, 2026-10-03). Then `effective_trust` re-checks the grant edge of
+  every parent with `grant_allows`. A parent in another namespace that the record's writer can no
+  longer read (grant revoked, or scope narrowed to exclude the parent's memory type) contributes
+  0.0. For a `send` message, the reader of the parents is the sender, and the message itself
+  counts 0.0 once the sender → receiver grant is gone. The walk takes the min over all ancestors,
+  so every record derived through the revoked edge, at any depth, drops to 0 and fails any θ > 0.
+  The C4′ HISTORY view applies the same check to its parents. With `live_reevaluation` off, grants
+  are not consulted and a descendant derived before the revocation keeps its stored trust.
+  Re-granting the edge restores the descendants' effective trust. Nothing is rewritten.
 - **Ancestor quarantine with re-evaluation off.** Trust is capped once, at write time. When an
   ancestor is quarantined or rolled back later, and `live_reevaluation` is off, descendants keep their
   stored (now stale) trust and stay admissible. With `live_reevaluation` on, `effective_trust` gives a

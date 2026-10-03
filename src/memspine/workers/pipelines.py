@@ -20,7 +20,7 @@ from typing import Protocol
 from memspine.config import constants
 from memspine.config.schema import MemspineConfig
 from memspine.core.events import EventKind, EventLogMode, MemoryEvent, fingerprint_payload
-from memspine.core.firewall import instruction_shaped
+from memspine.core.firewall import Firewall, FirewallVerdict, instruction_shaped
 from memspine.core.policies.community import CommunityOptions, CommunityPolicy
 from memspine.core.policies.compression import CompressionPolicy
 from memspine.core.policies.consolidation import (
@@ -30,12 +30,14 @@ from memspine.core.policies.consolidation import (
 )
 from memspine.core.policies.decay import DecayPolicy
 from memspine.core.policies.retention import RetentionPolicy
+from memspine.core.policies.trust import TrustPolicy
 from memspine.core.records import MemoryRecord, RecordStatus, SourceInfo
 from memspine.exceptions import ConflictError
 from memspine.memories.associative.communities import communities_available, detect_communities
 from memspine.memories.associative.links import assert_within_budget, link_event
 from memspine.memories.episodic.sessions import Session, detect_sessions
 from memspine.memories.prospective.triggers import due_watches, invalidation_watches
+from memspine.memories.semantic.write_pipeline import ScreenDerived
 from memspine.observability.logging import get_logger
 from memspine.prompts.models import AnticipatedCue, ExtractedEdge, ExtractedFact
 from memspine.services.graph.base import GraphStore
@@ -154,6 +156,10 @@ class PipelineContext:
     deposit_reflection: DepositReflection | None = None
     deposit_cues: DepositCues | None = None
     deposit_fact: DepositFact | None = None
+    #: N2: the engine's write-door firewall for derived records this module
+    #: appends itself (extract_graph facts). None (bare contexts): a local,
+    #: context-free firewall from the config's trust policy screens instead.
+    screen: ScreenDerived | None = None
     #: One incremental log index shared by the derived stages of a cycle.
     session_index: SessionIndex = field(default_factory=lambda: SessionIndex())
 
@@ -319,7 +325,11 @@ async def _consolidate_session(
         content=summary_text,
         valid_from=session.start,
         valid_to=session.end,
-        source=SourceInfo(role="system", channel="consolidation", message_id=session.session_key),
+        # N2: derived (and, with a summarize role, LLM-authored) content is
+        # never privileged — constants.DERIVED_ROLE states the rule.
+        source=SourceInfo(
+            role=constants.DERIVED_ROLE, channel="consolidation", message_id=session.session_key
+        ),
         # E1: a summary is DERIVED content — never more trusted than its
         # least-trusted member, and injection framing echoed into the summary
         # text (an LLM summarizing a poisoned episode) keeps the inert flag.
@@ -785,7 +795,7 @@ async def _reorganize_community(
             namespace=namespace,
             memory_type="semantic",
             content=summary_text,
-            source=SourceInfo(role="system", channel="reorganize", message_id=key),
+            source=SourceInfo(role=constants.DERIVED_ROLE, channel="reorganize", message_id=key),
             # E1/D-47 §5: derived content is never more trusted than its
             # least-trusted member, and echoed injection framing stays flagged.
             trust=min(member.trust for member in members),
@@ -859,7 +869,13 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
     record, so a re-run skips already-written edges; LINK upserts are replay
     -deterministic. Derived trust never exceeds the source's (E1/D-47 §5), and
     the ``asserted`` rel is non-reserved so the M13.6 link budget applies — a
-    saturated source keeps the fact record but skips the extra edge (logged)."""
+    saturated source keeps the fact record but skips the extra edge (logged).
+
+    N2: a fact is LLM-authored, so it carries the non-privileged
+    ``DERIVED_ROLE`` with its source as parent, and passes the write-door
+    firewall (``ctx.screen``) before it is appended. A quarantined fact is
+    recorded inert and gets no LINK; an instruction-flagged source is never
+    sent to the extractor."""
     if ctx.append_event is None:
         return {"status": "skipped", "reason": "read-only context (no write door)"}
     if ctx.extract_edges is None:
@@ -870,7 +886,9 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
     written = 0
     linked = 0
     skipped = 0
+    quarantined = 0
     errors: list[str] = []
+    screen = ctx.screen or _local_screen(ctx)
     for namespace in await ctx.storage.list_namespaces():
         async with ctx.lock(namespace):
             existing: set[str] = set()
@@ -883,7 +901,12 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
                         continue  # never re-extract from our own output (no feedback loop)
                     if constants.CUE_TAG in record.tags:
                         continue  # a cue is a retrieval key, never a fact source (R2-1)
-                    if record.status is RecordStatus.ACTIVATED and not record.quarantined:
+                    if (
+                        record.status is RecordStatus.ACTIVATED
+                        and not record.quarantined
+                        # N2: injection framing must not be laundered into "facts".
+                        and not record.instruction_flag
+                    ):
                         sources.append(record)
             for record in sources:
                 try:
@@ -909,21 +932,39 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
                         entity=edge.src_entity,
                         attribute=edge.rel,
                         valid_from=_edge_valid_from(edge, record.valid_from),
-                        source=SourceInfo(role="system", channel="extract_graph", message_id=key),
-                        trust=record.trust,  # derived trust never exceeds the source (E1)
-                        instruction_flag=instruction_shaped(edge.fact),
+                        source=SourceInfo(
+                            role=constants.DERIVED_ROLE,
+                            channel="extract_graph",
+                            message_id=key,
+                            parents=[record.record_id],
+                        ),
                     )
+                    # Derived trust never exceeds the source (E1): the cap rides
+                    # the same firewall screening as every other derived write.
+                    fact, reasons = await screen(fact, [record.trust])
+                    payload: dict[str, object] = {
+                        "record": fact.model_dump(mode="json"),
+                        "extract_graph": {"source_record_id": record.record_id},
+                    }
+                    if reasons:
+                        payload["firewall"] = {"reasons": reasons}
                     await ctx.append_event(
                         MemoryEvent(
                             kind=EventKind.WRITE,
                             namespace=namespace,
                             actor="system",
-                            payload={
-                                "record": fact.model_dump(mode="json"),
-                                "extract_graph": {"source_record_id": record.record_id},
-                            },
+                            payload=payload,
                         )
                     )
+                    if reasons:
+                        quarantined += 1  # held content gains no graph reach (E1)
+                        _log.warning(
+                            "memory.quarantined",
+                            namespace=namespace,
+                            record_id=fact.record_id,
+                            reasons=reasons,
+                        )
+                        continue
                     written += 1
                     # Associate the fact with its source (non-reserved rel: budget
                     # applies). A saturated source keeps the record, skips the link.
@@ -952,10 +993,37 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
         "edges_written": written,
         "links": linked,
         "skipped_existing": skipped,
+        "quarantined": quarantined,
     }
     if errors:
         stats["errors"] = errors
     return stats
+
+
+def _local_screen(ctx: PipelineContext) -> ScreenDerived:
+    """The context-free firewall for bare pipeline contexts (no engine).
+
+    Same trust matrix, instruction check and quarantine rule as the engine's
+    door, without the namespace anomaly context; with ``firewall.enabled`` off
+    it scores trust only, like the engine's ablation arm. The parent cap is the
+    plain minimum (integrity's derivation decay is the engine's concern).
+    """
+    firewall = Firewall(TrustPolicy.bind(_policy_options(ctx, "semantic", "trust")))
+    enabled = ctx.config.firewall.enabled
+
+    async def screen(
+        record: MemoryRecord, trust_cap: list[float]
+    ) -> tuple[MemoryRecord, list[str]]:
+        verdict = (
+            firewall.assess(record)
+            if enabled
+            else FirewallVerdict(trust=firewall.policy.trust_at_write(record.source))
+        )
+        stamped = verdict.apply(record)
+        stamped = stamped.model_copy(update={"trust": min([stamped.trust, *trust_cap])})
+        return stamped, (verdict.reasons if verdict.quarantine else [])
+
+    return screen
 
 
 def _fact_date(value: str | None, latest: datetime | None = None) -> datetime | None:

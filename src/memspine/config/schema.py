@@ -438,8 +438,9 @@ class IntegrityConfig(BaseModel):
     #: an untrusted-data wrapper (data, not instructions). 0.0 = off.
     untrusted_wrap_below: float = Field(default=0.0, ge=0.0, le=1.0)
     #: B4': re-check each candidate's trust against its CURRENT parents at read
-    #: time (quarantine / rollback of an ancestor propagates; grant revocation does not,
-    #: ADR-029 edge cases; radii can only shrink). Costs extra storage reads per candidate.
+    #: time. Ancestor quarantine or rollback propagates, and so does grant revocation:
+    #: a parent behind a revoked grant counts 0 (N6, ADR-029 edge cases). Radii can
+    #: only shrink. Costs extra storage reads per candidate.
     live_reevaluation: bool = False
     #: B7: per-principal reputation. A principal whose records were quarantined,
     #: or whose record was the SEED of a taint rollback, has its later writes'

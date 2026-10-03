@@ -25,7 +25,7 @@ from memspine.core.policies.dedup import DedupPolicy
 from memspine.core.records import MemoryRecord, RecordStatus
 from memspine.memories.base import BaseMemory
 from memspine.memories.semantic.entities import EntityExtractor
-from memspine.memories.semantic.write_pipeline import EDGE_CHANNEL, WritePipeline
+from memspine.memories.semantic.write_pipeline import EDGE_CHANNEL, ScreenDerived, WritePipeline
 from memspine.observability.logging import EVENT_CONFLICT, EVENT_MERGE, get_logger
 from memspine.services.embedding.base import EmbeddingService
 from memspine.services.storage.base import StorageService
@@ -62,6 +62,7 @@ class SemanticMemory(BaseMemory):
         extractor: EntityExtractor | None = None,
         write_pipeline: WritePipeline | None = None,
         merge_reinforcement_gate: bool = False,
+        screen_derived: ScreenDerived | None = None,
     ) -> None:
         self._storage = storage
         # MTI (integrity.merge_reinforcement_gate): a less-trusted duplicate must
@@ -75,6 +76,8 @@ class SemanticMemory(BaseMemory):
         # C3: optional synchronous graphiti-style edge extraction (ADR-026).
         # None => single-pass write (default), byte-identical to v0.1.
         self._write_pipeline = write_pipeline
+        # N2: the engine's firewall for the pipeline's edge facts (None: unscreened).
+        self._screen_derived = screen_derived
         # Stage-1 LSH index per namespace, built lazily from stored signatures.
         self._indexes: dict[str, MinHashLSH] = {}
         # Per-namespace write serialization (read-modify-write on fact keys).
@@ -130,8 +133,39 @@ class SemanticMemory(BaseMemory):
         # same content and write each through this door (guarded by channel so
         # an edge record never recurses). Off unless a pipeline is injected.
         if self._write_pipeline is not None and record.source.channel != EDGE_CHANNEL:
-            await self._write_pipeline.run(record, self._write_locked)
+            await self._write_pipeline.run(record, self._write_edge_fact)
         return result
+
+    async def _write_edge_fact(self, fact: MemoryRecord) -> object:
+        """C3 edge fact: firewall screening (N2), then this door's ladder.
+
+        A quarantined fact is stored inert like any quarantined write: recorded
+        for audit, never a dedup or ladder participant.
+        """
+        if self._screen_derived is not None:
+            parents = [await self._storage.get_record(p) for p in fact.source.parents]
+            cap = [p.trust for p in parents if p is not None] or [fact.trust]
+            fact, reasons = await self._screen_derived(fact, cap)
+            if reasons:
+                await self._append_event(
+                    MemoryEvent(
+                        kind=EventKind.WRITE,
+                        namespace=fact.namespace,
+                        actor=fact.source.role,
+                        payload={
+                            "record": fact.model_dump(mode="json"),
+                            "firewall": {"reasons": reasons},
+                        },
+                    )
+                )
+                _log.warning(
+                    "memory.quarantined",
+                    namespace=fact.namespace,
+                    record_id=fact.record_id,
+                    reasons=reasons,
+                )
+                return fact
+        return await self._write_locked(fact)
 
     async def _write_primary(self, record: MemoryRecord) -> SemanticWriteResult:
         # Sketch computation (minhash over tokens) is CPU-bound — off the loop.

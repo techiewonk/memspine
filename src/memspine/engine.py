@@ -271,6 +271,16 @@ def _as_options_dict(raw: Any) -> dict[str, object] | None:
     return dict(raw) if isinstance(raw, dict) else None
 
 
+def _message_sender(record: MemoryRecord) -> str | None:
+    """B5: the sender namespace of a :meth:`Engine.send` message, else None."""
+    if record.source.channel != "message":
+        return None
+    for tag in record.tags:
+        if tag.startswith("from:") and tag[5:] != record.namespace:
+            return tag[5:]
+    return None
+
+
 def _static_prefilter(
     query: str, candidates: list[tuple[MemoryRecord, float]]
 ) -> list[tuple[MemoryRecord, float]]:
@@ -520,6 +530,7 @@ class Engine:
                 merge_reinforcement_gate=(
                     config.integrity.enabled and config.integrity.merge_reinforcement_gate
                 ),
+                screen_derived=self._screen_derived,
             )
         # Memory Firewall (E1/M17): trust matrix binds from the semantic
         # policy block (D-14 channel); the gate itself covers every type.
@@ -1039,9 +1050,19 @@ class Engine:
         deleted contributes 0 (fail closed). Parents recorded before integrity
         was enabled are ignored if unknown to storage only when integrity is off.
         Memoised per call; cycles are impossible (parents predate children).
+
+        N6: under ``integrity.live_reevaluation`` the grant edge is re-checked
+        too. A parent the record's writer could only read through a grant that
+        is now revoked (or no longer covers the parent's memory type) counts as
+        0, and so does a message whose sender grant is gone. Because the walk
+        takes the min over every ancestor, revocation drains the whole derived
+        chain. With re-evaluation off, grants are not consulted.
         """
         storage = self._require_started()
         memo: dict[str, float] = {}
+        grants_cache: dict[str, Mapping[str, frozenset[str] | None]] = {}
+        policy = self._integrity()
+        check_grants = policy.enabled and policy.live_reevaluation
 
         async def walk(rid: str) -> float:
             if rid in memo:
@@ -1055,19 +1076,47 @@ class Engine:
                 memo[rid] = 0.0
                 return 0.0
             value = record.trust
-            policy = self._integrity()
             if not policy.enabled:
                 memo[rid] = value  # pre-MTI: stored trust, held records still fail closed
                 return value
+            reader = record.namespace
+            if check_grants:
+                sender = _message_sender(record)
+                if sender is not None:
+                    # B5: a message crossed sender -> receiver, and its parents
+                    # were read by the sender.
+                    if sender not in await self._grants_cached(record.namespace, grants_cache):
+                        memo[rid] = 0.0
+                        return 0.0
+                    reader = sender
             for parent_id in record.source.parents:
                 parent = await storage.get_record(parent_id)
                 parent_ns = parent.namespace if parent is not None else record.namespace
                 view = policy.view_trust(await walk(parent_id), parent_ns, record.namespace)
+                if (
+                    check_grants
+                    and parent is not None
+                    and not grant_allows(
+                        reader,
+                        parent.namespace,
+                        parent.memory_type,
+                        await self._grants_cached(reader, grants_cache),
+                    )
+                ):
+                    view = 0.0  # N6: the grant that carried this parent is gone
                 value = min(value, view * policy.derivation_decay)
             memo[rid] = value
             return value
 
         return await walk(record_id)
+
+    async def _grants_cached(
+        self, reader: str, cache: dict[str, Mapping[str, frozenset[str] | None]]
+    ) -> Mapping[str, frozenset[str] | None]:
+        """``reader``'s live grants, read once per caller-held ``cache``."""
+        if reader not in cache:
+            cache[reader] = await self._shared.grants_to(reader) if self._shared is not None else {}
+        return cache[reader]
 
     async def _metadata_legs(self, ns: str, query: str, fetch_k: int) -> list[list[LegHit]]:
         """C3': the non-empty temporal / metadata legs for this query (opt-in)."""
@@ -1193,12 +1242,20 @@ class Engine:
             trust = record.trust
             if integrity.live_reevaluation:
                 storage = self._require_started()
+                grants_cache: dict[str, Mapping[str, frozenset[str] | None]] = {}
                 for parent_id in record.source.parents:
                     parent = await storage.get_record(parent_id)
                     parent_ns = parent.namespace if parent is not None else record.namespace
                     view = integrity.view_trust(
                         await self.effective_trust(parent_id), parent_ns, record.namespace
                     )
+                    if parent is not None and not grant_allows(
+                        record.namespace,
+                        parent.namespace,
+                        parent.memory_type,
+                        await self._grants_cached(record.namespace, grants_cache),
+                    ):
+                        view = 0.0  # N6: the grant that carried this parent is gone
                     trust = min(trust, view * integrity.derivation_decay)
             if not integrity.admits(trust):
                 return None
@@ -1409,6 +1466,50 @@ class Engine:
         actor: str,
         trust_cap: list[float] | None = None,
     ) -> tuple[MemoryRecord, str]:
+        record, verdict = await self._screen_write(record, trust_cap)
+        if verdict.quarantine:
+            # Quarantined content is stored inert: no dedup merging, no
+            # conflict-ladder participation, no retrieval surface — but the
+            # write IS recorded (audit + later corroboration need it).
+            await self._append_and_project(
+                MemoryEvent(
+                    kind=EventKind.WRITE,
+                    namespace=ns,
+                    actor=actor,
+                    payload={
+                        "record": record.model_dump(mode="json"),
+                        "firewall": {"reasons": verdict.reasons},
+                    },
+                )
+            )
+            _log.warning(
+                "memory.quarantined",
+                namespace=ns,
+                record_id=record.record_id,
+                reasons=verdict.reasons,
+            )
+            return record, "quarantined"
+        return await self._write_screened(storage, ns, record, memory_type, actor)
+
+    async def _screen_derived(
+        self, record: MemoryRecord, trust_cap: list[float]
+    ) -> tuple[MemoryRecord, list[str]]:
+        """N2: the write-door firewall for derived content written outside the door.
+
+        ``extract_graph`` and the C3 write pipeline append their own WRITE events
+        (their provenance and ladder semantics differ from a caller write), but
+        the record passes the same screening first: redaction, trust matrix,
+        instruction/anomaly/size/protected-key checks, the parent trust cap and
+        principal reputation. Returns the stamped record and, when it is
+        quarantined, the firewall reasons (empty otherwise).
+        """
+        screened, verdict = await self._screen_write(record, trust_cap)
+        return screened, (verdict.reasons if verdict.quarantine else [])
+
+    async def _screen_write(
+        self, record: MemoryRecord, trust_cap: list[float] | None
+    ) -> tuple[MemoryRecord, FirewallVerdict]:
+        """The firewall half of the write door: the stamped record and its verdict."""
         fw = self._config().firewall
         if fw.redact_secrets:
             cleaned, kinds = redact(record.content)
@@ -1419,7 +1520,7 @@ class Engine:
                         "content_fingerprint": fingerprint_payload({"content": cleaned}),
                     }
                 )
-                _log.warning("memory.redacted", namespace=ns, kinds=kinds)
+                _log.warning("memory.redacted", namespace=record.namespace, kinds=kinds)
         # Memory Firewall gate (E1/M17): every write of every type passes the
         # deterministic trust/anomaly/instruction assessment BEFORE the door.
         if fw.enabled:
@@ -1462,29 +1563,17 @@ class Engine:
             factor = await self.principal_reputation(record.source.principal)
             if factor < 1.0:
                 record = record.model_copy(update={"trust": record.trust * factor})
-        if verdict.quarantine:
-            # Quarantined content is stored inert: no dedup merging, no
-            # conflict-ladder participation, no retrieval surface — but the
-            # write IS recorded (audit + later corroboration need it).
-            await self._append_and_project(
-                MemoryEvent(
-                    kind=EventKind.WRITE,
-                    namespace=ns,
-                    actor=actor,
-                    payload={
-                        "record": record.model_dump(mode="json"),
-                        "firewall": {"reasons": verdict.reasons},
-                    },
-                )
-            )
-            _log.warning(
-                "memory.quarantined",
-                namespace=ns,
-                record_id=record.record_id,
-                reasons=verdict.reasons,
-            )
-            return record, "quarantined"
+        return record, verdict
 
+    async def _write_screened(
+        self,
+        storage: SqlStorage,
+        ns: str,
+        record: MemoryRecord,
+        memory_type: str,
+        actor: str,
+    ) -> tuple[MemoryRecord, str]:
+        """The door after an admitting firewall verdict: cue, semantic or plain WRITE."""
         if CUE_TAG in record.tags:
             # R2-1: a cue is a retrieval key, not a fact. It skips dedup, entity
             # extraction and the M4 ladder (an extracted key would let the cue
@@ -2771,7 +2860,7 @@ class Engine:
                 valid_from=old.valid_from,
                 valid_to=old.valid_to,
                 source=SourceInfo(
-                    role="system",
+                    role=constants.DERIVED_ROLE,  # N2: a derived summary is never privileged
                     channel="consolidation",
                     message_id=old.source.message_id,
                     parents=[m.record_id for m in clean],
@@ -3930,6 +4019,7 @@ class Engine:
             deposit_cues=self._deposit_anticipated_cues,
             reflect=self._build_reflector(),
             deposit_reflection=self._deposit_profile_reflection,
+            screen=self._screen_derived,
             # Only when associative projects it (ADR-015): an explicit-config
             # graph store without the projector would reorganize a stale graph.
             graph=self._graph if self._associative is not None else None,
