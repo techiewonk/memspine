@@ -44,3 +44,25 @@ def test_repeats_get_distinct_run_ids_and_seeds() -> None:
     )
     assert one[one.index("--run-id") + 1] != two[two.index("--run-id") + 1]
     assert one[one.index("--seed") + 1] == "1"
+
+
+def test_every_arm_names_systems_the_harness_builds() -> None:
+    """--only-systems must match real system ids, or the arm silently runs nothing."""
+    from memspine_evals.experiments import C01Config, build_systems
+
+    plan = json.loads(plan_commands.PLAN.read_text(encoding="utf-8"))
+    parser = build_parser()
+    for arm in plan["arms"]:
+        cmd = plan_commands.arm_command(
+            plan, arm, path="data/locomo10.json", prices=[], max_usd=None,
+            max_calls=10, repeat=None,
+        )  # fmt: skip
+        args = parser.parse_args(cmd[3:])
+        config = C01Config(
+            include_memspine="memspine" in arm["systems"],
+            naive_dense_same_embedder=bool(args.naive_dense_same_embedder),
+            matched_budget_tokens=args.matched_budget_tokens,
+        )
+        built = {s.system_id for s in build_systems(config)}
+        missing = set(arm["systems"]) - built
+        assert not missing, f"{arm['id']}: {sorted(missing)} not in {sorted(built)}"

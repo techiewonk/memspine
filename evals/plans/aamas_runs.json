@@ -370,7 +370,7 @@
       "id": "dense-naive",
       "hypothesis": "R4-6",
       "systems": [
-        "naive-rag-fastembed"
+        "naive-rag-dense-memspine-embedder"
       ],
       "dense": true,
       "notes": "dense naive RAG on fastembed bge-small. The harness refuses a cloud (Cohere) embedder for a baseline (its calls are not budgeted), so this is not yet 'the same embedder as memspine'"
