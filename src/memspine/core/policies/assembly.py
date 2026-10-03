@@ -17,7 +17,7 @@ from memspine.core.policies.base import BindablePolicy, PolicyOptions
 from memspine.core.policies.compression import CompressionPolicy
 from memspine.core.records import MemoryRecord
 
-__all__ = ["AssembledContext", "AssemblyPolicy"]
+__all__ = ["AssembledContext", "AssemblyPolicy", "estimate_tokens"]
 
 # E2 stability order: lower = more stable = earlier in the prompt prefix.
 _PLACEMENT_RANK = {
@@ -34,7 +34,7 @@ _PLACEMENT_RANK = {
 _STABLE_RANKS = {0, 1, 2}
 
 
-def _estimate_tokens(text: str) -> int:
+def estimate_tokens(text: str) -> int:
     return len(text) // 4 + 1
 
 
@@ -155,7 +155,7 @@ class AssemblyPolicy(BindablePolicy):
                 records=personas,
                 boundary_index=len(personas) if options.cache_aware_placement else 0,
                 abstained=True,
-                tokens_used=sum(_estimate_tokens(record.content) for record in personas),
+                tokens_used=sum(estimate_tokens(record.content) for record in personas),
             )
         scored = self.apply_floor(scored)
 
@@ -180,7 +180,7 @@ class AssemblyPolicy(BindablePolicy):
                 ):
                     remaining.remove(pair)  # H23 applies to the guaranteed slots too
                     continue
-                cost = _estimate_tokens(pair[0].content)
+                cost = estimate_tokens(pair[0].content)
                 if selected and tokens_used + cost > budget_tokens:
                     break
                 remaining.remove(pair)
@@ -202,7 +202,7 @@ class AssemblyPolicy(BindablePolicy):
                 _jaccard(candidate, chosen) >= options.dedupe_jaccard for chosen, _ in selected
             ):
                 continue
-            cost = _estimate_tokens(candidate.content)
+            cost = estimate_tokens(candidate.content)
             # E5 on: admit everything in MMR order — the compression stage
             # fits the selection to the budget afterwards (D-51). Otherwise,
             # over budget: stop — unless nothing is selected yet, in which
@@ -216,8 +216,8 @@ class AssemblyPolicy(BindablePolicy):
 
         if fit_stage:
             assert compression is not None
-            selected = compression.fit_assembly(selected, budget_tokens, _estimate_tokens)
-            tokens_used = sum(_estimate_tokens(record.content) for record, _ in selected)
+            selected = compression.fit_assembly(selected, budget_tokens, estimate_tokens)
+            tokens_used = sum(estimate_tokens(record.content) for record, _ in selected)
 
         # E2 placement: stability rank first; within a rank, score descending.
         # The stable-prefix promise only holds when placement actually sorted —

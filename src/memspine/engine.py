@@ -39,7 +39,7 @@ from memspine.core.events import EventKind, EventLogMode, MemoryEvent, fingerpri
 from memspine.core.firewall import Firewall, FirewallVerdict
 from memspine.core.integrity import IntegrityPolicy
 from memspine.core.namespace import grant_allows, validate_namespace
-from memspine.core.policies.assembly import AssembledContext, AssemblyPolicy
+from memspine.core.policies.assembly import AssembledContext, AssemblyPolicy, estimate_tokens
 from memspine.core.policies.compression import CompressionPolicy
 from memspine.core.policies.conflict import ConflictPolicy
 from memspine.core.policies.dedup import DedupPolicy
@@ -173,11 +173,20 @@ def _looks_like_recall(content: str) -> bool:
     return any(marker in content for marker in _RECALL_MARKERS)
 
 
+#: N3: tag stamped on a record archived by a taint rollback or repair, so the
+#: C4' history filter still recognises it when the log no longer holds the event
+#: (``event_log.mode: ephemeral`` or a rolling prune).
+_TAINT_ARCHIVED_TAG = "taint_archived"
+
+
 def _taint_archive_delta(record: MemoryRecord) -> dict[str, object]:
     """Rollback/repair archive patch. An open interval is closed at its start, so
     an archived poison never stays the M4 incumbent (``find_active_fact`` keys
-    on ``valid_to IS NULL``) and never reads as "current" (R2-9)."""
+    on ``valid_to IS NULL``) and never reads as "current" (R2-9). The record is
+    also tagged :data:`_TAINT_ARCHIVED_TAG` (N3)."""
     change: dict[str, object] = {"status": RecordStatus.ARCHIVED.value}
+    if _TAINT_ARCHIVED_TAG not in record.tags:  # N3: durable, outlives the log
+        change["tags"] = [*record.tags, _TAINT_ARCHIVED_TAG]
     if record.valid_to is None:
         change["valid_to"] = record.valid_from.isoformat()
     return change
@@ -1166,6 +1175,10 @@ class Engine:
     async def _history_view(self, record: MemoryRecord) -> MemoryRecord | None:
         """C4': one HISTORY entry as the model sees it, or None when it may not be shown.
 
+        A record archived by a taint rollback or repair is never shown: the
+        durable :data:`_TAINT_ARCHIVED_TAG` covers logs that no longer hold the
+        event (:meth:`_taint_archived_ids` covers records archived before the tag).
+
         Admission uses the stored trust, capped under live re-evaluation by the
         current view of each parent (an archived record's own effective trust is 0 by
         definition, so it cannot be used). The entry is inflated, dated against its
@@ -1173,6 +1186,8 @@ class Engine:
         """
         if record.memory_type == "shared" or CUE_TAG in record.tags:
             return None
+        if record.status is RecordStatus.ARCHIVED and _TAINT_ARCHIVED_TAG in record.tags:
+            return None  # N3: rolled back, even when the log no longer says so
         integrity = self._integrity()
         if integrity.enabled:
             trust = record.trust
@@ -1834,15 +1849,16 @@ class Engine:
         """
         if self._assembly is None:
             raise MemspineError("assembly policy not bound — engine not started?")
+        budget = self._reply_budget(budget_tokens)
         assembled = await self._assemble_core(
             query,
             validate_namespace(namespace),
-            self._reply_budget(budget_tokens),
+            budget,
             top_k,
             shared=shared,
             session_id=session_id,
         )
-        return self._render(query, assembled)
+        return self._render(query, assembled, budget)
 
     async def _assemble_core(
         self,
@@ -1920,39 +1936,67 @@ class Engine:
         # view trust, never as instructions (spotlighting, trust-graded).
         return [(self._wrap_untrusted(record), score) for record, score in scored]
 
-    def _render(self, query: str, assembled: AssembledContext) -> AssembledContext:
+    def _render(
+        self, query: str, assembled: AssembledContext, budget_tokens: int | None = None
+    ) -> AssembledContext:
         """The final presentation step shared by every read mode.
 
         H16 time order for ordering questions, H5 dated render and H22 gap
         markers. A gap marker goes on a record whose chronological predecessor in
         the volatile part is at least a day older, whatever the placement order.
+
+        N4: the dated render adds text after selection, so ``tokens_used`` is
+        recounted on the rendered content with the assembly counter. With
+        ``budget_tokens``, volatile records are dropped lowest priority first (the
+        input order is the priority order) until the rendered context fits, never
+        below one record. The plain render changes nothing.
         """
         read_cfg = self._config().read
         boundary = assembled.boundary_index
+        stable = assembled.records[:boundary]
+        volatile = assembled.records[boundary:]
+        priority = list(volatile)
         if read_cfg.order_by_time_for_ordering and is_ordering(query):
-            volatile = sorted(
-                assembled.records[boundary:], key=lambda r: (r.valid_from, r.record_id)
-            )
-            assembled.records = [*assembled.records[:boundary], *volatile]
-        if read_cfg.render == "dated":
-            volatile = assembled.records[boundary:]
-            rendered = [self._render_dated(r) for r in volatile]
-            if read_cfg.gap_markers:
-                # H22 (Mastra): mark long silences between chronologically
-                # consecutive dated records.
-                order = sorted(
-                    range(len(volatile)),
-                    key=lambda i: (volatile[i].valid_from, volatile[i].record_id),
-                )
-                for prev, cur in itertools.pairwise(order):
-                    gap = volatile[cur].valid_from - volatile[prev].valid_from
-                    marker = _gap_marker(gap.days)
-                    if marker:
-                        rendered[cur] = rendered[cur].model_copy(
-                            update={"content": f"{marker} {rendered[cur].content}"}
-                        )
-            assembled.records = [*assembled.records[:boundary], *rendered]
+            volatile = sorted(volatile, key=lambda r: (r.valid_from, r.record_id))
+        if read_cfg.render != "dated":
+            assembled.records = [*stable, *volatile]
+            return assembled
+        while True:
+            rendered = self._render_volatile(volatile, gap_markers=read_cfg.gap_markers)
+            used = sum(estimate_tokens(r.content) for r in [*stable, *rendered])
+            if (
+                budget_tokens is None
+                or used <= budget_tokens
+                or not volatile
+                or len(stable) + len(volatile) <= 1
+            ):
+                break
+            dropped = priority.pop()
+            volatile = [r for r in volatile if r is not dropped]
+        assembled.records = [*stable, *rendered]
+        assembled.tokens_used = used
         return assembled
+
+    def _render_volatile(
+        self, volatile: list[MemoryRecord], *, gap_markers: bool
+    ) -> list[MemoryRecord]:
+        """H5 dated render of the volatile part, with H22 gap markers when enabled."""
+        rendered = [self._render_dated(r) for r in volatile]
+        if gap_markers:
+            # H22 (Mastra): mark long silences between chronologically
+            # consecutive dated records.
+            order = sorted(
+                range(len(volatile)),
+                key=lambda i: (volatile[i].valid_from, volatile[i].record_id),
+            )
+            for prev, cur in itertools.pairwise(order):
+                gap = volatile[cur].valid_from - volatile[prev].valid_from
+                marker = _gap_marker(gap.days)
+                if marker:
+                    rendered[cur] = rendered[cur].model_copy(
+                        update={"content": f"{marker} {rendered[cur].content}"}
+                    )
+        return rendered
 
     async def read(
         self,
@@ -2007,12 +2051,13 @@ class Engine:
             live.sort(key=lambda r: (r.valid_from, r.record_id))
             decorated = await self._decorate(ns, [(r, 0.0) for r in self._inflate_all(live, ns)])
             records = [r for r, _ in decorated]
-            cost = sum(len(r.content) // 4 + 1 for r in records)
+            cost = sum(estimate_tokens(r.content) for r in records)
             if records and cost <= budget_tokens:
-                return ReadResult(
-                    "full",
-                    self._render(query, AssembledContext(records=records, tokens_used=cost)),
-                )
+                # N4: judged again on the rendered text; a full read that the dated
+                # render pushes over budget falls back rather than being cut.
+                full = self._render(query, AssembledContext(records=records, tokens_used=cost))
+                if full.tokens_used <= budget_tokens:
+                    return ReadResult("full", full)
             if mode == "full":
                 mode = "retrieve"
         if mode == "auto" and self._config().read.planner == "decision":
@@ -2028,7 +2073,7 @@ class Engine:
             if source is not None and all(source.record_id != h.record_id for h in episodic_hits):
                 episodic_hits.append(source)
         if mode == "retrieve" or self._episodic is None or not episodic_hits:
-            return ReadResult("retrieve", self._render(query, base))
+            return ReadResult("retrieve", self._render(query, base, budget_tokens))
         sessions = await self._episodic.sessions(ns, constants.SESSION_GAP_MINUTES)
         where = {rid: s for s in sessions for rid in s.record_ids}
         segment_of: dict[str, list[str]] = {}
@@ -2088,6 +2133,7 @@ class Engine:
                     abstained=base.abstained,
                     tokens_used=used,
                 ),
+                budget_tokens,
             ),
         )
 
@@ -2191,7 +2237,7 @@ class Engine:
         chosen.sort(key=lambda r: (r.valid_from, r.record_id))
         return ReadResult(
             "compose",
-            self._render(query, AssembledContext(records=chosen, tokens_used=used)),
+            self._render(query, AssembledContext(records=chosen, tokens_used=used), budget_tokens),
         )
 
     def _context_eligible(self, record: MemoryRecord) -> bool:

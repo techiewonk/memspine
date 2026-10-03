@@ -54,6 +54,7 @@ _DELTA_MUTABLE = frozenset(
         "skill_stage",
         "memory_type",  # working -> episodic page-out (M13.1)
         "version",
+        "tags",  # N3: the durable taint-archived mark (rollback/repair)
     }
 )
 
