@@ -657,13 +657,41 @@ async def llm_propagation(
     wrap_below: float | None = None,
     gate_threshold: float | None = None,
     benign: bool = False,
+    enforcement: str = "harness",
+    integrity_extra: dict[str, Any] | None = None,
 ) -> LLMPropagationReport:
     """Like ``scripted_propagation`` but every agent is a real LLM.
 
     Each round every agent retrieves for the victim question, asks the LLM, and
     deposits the ANSWER TEXT derived from its whole context. Taint is judged on
     content: a record is tainted if it is the seed or restates the poison.
+
+    ``enforcement="engine"`` (R4-1) has the same semantics as in
+    ``scripted_propagation``: each agent reads with its own ``session_id``
+    (``"<namespace>/session"``), the harness applies no ``trust >= theta``
+    filter (the LLM sees exactly what the engine returns, minus ``shared``
+    bookkeeping), and the deposited answer declares NO ``derived_from`` and is
+    written under that session, so its parents come from the engine's read
+    ledger. Integrity runs with ``implicit_parents="session"`` and
+    ``live_reevaluation=True``; ``integrity_extra`` may override either (it is
+    merged into the integrity config in both modes). Engine mode needs
+    ``integrity_on=True``. The other knobs in engine mode:
+
+    - ``wrap_below`` applies unchanged, to the view trust the engine returns.
+    - ``gate_threshold`` applies unchanged: ``engine.authorize`` on the ids of
+      the context the LLM saw.
+    - ``benign`` probes read under a separate session (``"<namespace>/probe"``)
+      and deposit nothing, so they never become parents of the victim answers
+      and the victim loop is the same with or without them. No trust filter
+      is applied to the probe context either.
+
+    The default ``"harness"`` is unchanged: declared parents, harness filter.
     """
+    if enforcement not in {"harness", "engine"}:
+        raise ValueError(f"unknown enforcement {enforcement!r}")
+    engine_mode = enforcement == "engine"
+    if engine_mode and not integrity_on:
+        raise ValueError("enforcement='engine' needs integrity_on=True")
     from memspine.core.records import SourceInfo
 
     names = [f"team/a{i}" for i in range(n_agents)]
@@ -672,6 +700,10 @@ async def llm_propagation(
     overrides: dict[str, Any] = dict(engine_overrides or {})
     if integrity_on:
         overrides["integrity"] = {"enabled": True, "kappa": kappa, "admission_threshold": theta}
+        if engine_mode:
+            overrides["integrity"]["implicit_parents"] = "session"
+            overrides["integrity"]["live_reevaluation"] = True
+        overrides["integrity"].update(integrity_extra or {})
     engine = _engine(**overrides)
     await engine.start()
     try:
@@ -709,10 +741,25 @@ async def llm_propagation(
         exposed: set[int] = set()
         for _rnd in range(rounds):
             for i, name in enumerate(names):
-                hits = await engine.shared_search(
-                    VICTIM_QUESTION, namespace=name, top_k=top_k + len(edges)
-                )
-                context = [r for r, _ in hits if r.memory_type != "shared" and r.trust >= theta]
+                # Engine mode: one session per agent; the engine's read ledger
+                # (not the harness) supplies the parents of this agent's answer.
+                session = f"{name}/session" if engine_mode else None
+                if engine_mode:
+                    hits = await engine.shared_search(
+                        VICTIM_QUESTION,
+                        namespace=name,
+                        top_k=top_k + len(edges),
+                        session_id=session,
+                    )
+                else:
+                    hits = await engine.shared_search(
+                        VICTIM_QUESTION, namespace=name, top_k=top_k + len(edges)
+                    )
+                context = [
+                    r
+                    for r, _ in hits
+                    if r.memory_type != "shared" and (engine_mode or r.trust >= theta)
+                ]
                 context = context[:top_k]
                 tainted_views = [r.trust for r in context if r.record_id in tainted]
                 bad = bool(tainted_views)
@@ -754,17 +801,28 @@ async def llm_propagation(
                     memory_type="episodic",
                     source=SourceInfo(role="assistant", channel="internal"),
                     actor="assistant",
-                    derived_from=[r.record_id for r in context],
+                    derived_from=None if engine_mode else [r.record_id for r in context],
+                    session_id=session,
                 )
                 if hit:
                     report.answers_restating += 1
                     tainted.add(deposit.record_id)
                 if benign:
-                    b_hits = await engine.shared_search(
-                        BENIGN_QUESTION, namespace=name, top_k=top_k + len(edges)
-                    )
+                    if engine_mode:
+                        b_hits = await engine.shared_search(
+                            BENIGN_QUESTION,
+                            namespace=name,
+                            top_k=top_k + len(edges),
+                            session_id=f"{name}/probe",
+                        )
+                    else:
+                        b_hits = await engine.shared_search(
+                            BENIGN_QUESTION, namespace=name, top_k=top_k + len(edges)
+                        )
                     b_ctx = [
-                        r for r, _ in b_hits if r.memory_type != "shared" and r.trust >= theta
+                        r
+                        for r, _ in b_hits
+                        if r.memory_type != "shared" and (engine_mode or r.trust >= theta)
                     ][:top_k]
                     b_notes = "\n".join(render(r) for r in b_ctx) or "- (no notes)"
                     b_ans = await reader.complete(

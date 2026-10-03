@@ -14,6 +14,8 @@ pytest.importorskip("memspine")
 
 from memspine_evals.multiagent.constructions import (
     laundering_chain,
+    llm_propagation,
+    predicted_radius,
     scripted_propagation,
     sybil_promotion,
 )
@@ -145,3 +147,80 @@ def test_engine_enforcement_requires_integrity() -> None:
         asyncio.run(scripted_propagation(**_ENGINE_CHAIN, integrity_on=False))
     with pytest.raises(ValueError, match="enforcement"):
         asyncio.run(scripted_propagation("chain", enforcement="bogus"))
+
+
+# ── R4-1 for the LLM study: llm_propagation(enforcement="engine") ─────────────
+
+
+class _Answer:
+    def __init__(self, text: str) -> None:
+        self.text = text
+
+
+class _EchoReader:
+    """Stub LLM (no network): answers by echoing the team notes it was shown, so
+    an agent restates the poison exactly when the poison is in its context."""
+
+    def __init__(self) -> None:
+        self.prompts: list[str] = []
+
+    async def complete(self, prompt: str) -> _Answer:
+        self.prompts.append(prompt)
+        notes = prompt.split("Team notes:\n", 1)[1].split("\n\nQuestion:", 1)[0]
+        return _Answer(notes)
+
+
+_LLM_CHAIN = {
+    "topology": "chain",
+    "n_agents": 5,
+    "kappa": 0.5,
+    "theta": 0.2,
+    "seed_role": "assistant",
+    "seed_channel": "internal",
+    "rounds": 2,
+}
+
+
+def test_llm_engine_enforcement_holds_the_radius_without_declared_parents() -> None:
+    report = asyncio.run(llm_propagation(reader=_EchoReader(), **_LLM_CHAIN, enforcement="engine"))
+    radius = predicted_radius(report.seed_trust, report.kappa, report.theta)
+    assert radius == 1  # 0.5*0.5 >= 0.2 > 0.5*0.25
+    assert report.depth == radius
+    assert report.exposed == [0, 1]
+
+
+def test_llm_harness_mode_is_unchanged() -> None:
+    """Default and explicit ``harness`` give the same run, and it matches the
+    declared-parents bound that the published results rest on."""
+    default = asyncio.run(llm_propagation(reader=_EchoReader(), **_LLM_CHAIN))
+    explicit = asyncio.run(
+        llm_propagation(reader=_EchoReader(), **_LLM_CHAIN, enforcement="harness")
+    )
+    assert default.as_dict() == explicit.as_dict()
+    assert default.depth == 1 and default.exposed == [0, 1]
+
+
+def test_llm_engine_mode_without_implicit_parents_launders() -> None:
+    """Control: switch the engine's read ledger off and the same echo agents
+    carry the poison down the whole chain."""
+    report = asyncio.run(
+        llm_propagation(
+            reader=_EchoReader(),
+            **_LLM_CHAIN,
+            enforcement="engine",
+            integrity_extra={"implicit_parents": "off"},
+        )
+    )
+    assert report.depth == 4
+    assert report.reach == 1.0
+
+
+def test_llm_engine_enforcement_requires_integrity() -> None:
+    with pytest.raises(ValueError, match="integrity_on"):
+        asyncio.run(
+            llm_propagation(
+                reader=_EchoReader(), **_LLM_CHAIN, enforcement="engine", integrity_on=False
+            )
+        )
+    with pytest.raises(ValueError, match="enforcement"):
+        asyncio.run(llm_propagation("chain", _EchoReader(), enforcement="bogus"))
