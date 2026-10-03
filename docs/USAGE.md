@@ -429,6 +429,7 @@ in the schema — or if the schema gains a key not documented here.
 | `llm.roles.*.api_key` | `null` | API key (secrets-resolved). |
 | `llm.roles.*.aws_region` | `null` | Bedrock region. |
 | `llm.roles.*.timeout_seconds` | `60.0` | Per-call timeout. |
+| `llm.roles.*.no_think` | `null` | Qwen3 thinking switch: `true` appends ` /no_think` to the last user message; `null` = on for model ids containing `qwen3`, off otherwise. `<think>…</think>` blocks are always stripped from replies. |
 | `read.scoring` | `{}` | Options for `ScoringPolicy.bind` (M1 composite). |
 | `read.assembly` | `{}` | Options for `AssemblyPolicy.bind` (E2 placement / MMR). |
 | `read.rerank` | `off` | `off` \| `fastembed` \| `flashrank` `[rerank]` \| `litellm` — E8 cross-encoder (D-51). |

@@ -139,6 +139,11 @@ class LLMRoleConfig(BaseModel):
     api_key: str | None = None
     aws_region: str | None = None  # bedrock
     timeout_seconds: float = 60.0
+    #: Qwen3 thinking control: ``true`` appends the ``/no_think`` soft switch to the
+    #: last user message; ``None`` turns it on for model ids containing ``qwen3``
+    #: (Qwen3 thinks by default, which costs tokens and breaks structured parsing).
+    #: ``<think>...</think>`` blocks are stripped from every reply regardless.
+    no_think: bool | None = None
 
 
 class LLMConfig(BaseModel):

@@ -4,6 +4,10 @@ All notable changes to memspine are documented here. Format: [Keep a Changelog](
 
 ## [Unreleased]
 
+### Added — paid-run readiness for Bedrock Qwen3 (engine + harness)
+- **Qwen3 thinking control (`llm.roles.<role>.no_think`, default `null`):** the LiteLLM adapter appends Qwen's ` /no_think` soft switch to the last user message, on by default for model ids containing `qwen3` (`true`/`false` force it). `<think>…</think>` blocks are stripped from every reply, for every model, so structured roles parse. Other models are unchanged.
+- **Engine token ledger:** `LLMRouter.token_counts()` (provider-reported usage for LiteLLM, a chars/4 estimate otherwise) and `Engine.model_usage()` → `{role: {model, calls, prompt, completion}}`.
+
 ### Fixed — five-reviewer gap pass (2026-10-02/03; `REVIEW_GAPS_2026-10-02.md` in the research repo)
 - **`Engine.quarantine(record_id, namespace, reason)`:** public operator quarantine through the event door (namespace-scoped, idempotent); under `live_reevaluation` descendants drop to effective trust 0.
 - **`conflict.contest_lower_trust` (opt-in):** a less-trusted same-key write contests instead of superseding or retracting the current fact; closes the supersession availability vector measured in the edge cells.

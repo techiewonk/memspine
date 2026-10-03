@@ -21,6 +21,8 @@ ROLE_EXTRACT = "extract"
 ROLE_JUDGE = "judge"
 ROLE_CHAT = "chat"
 
+_CHARS_PER_TOKEN = 4
+
 
 @runtime_checkable
 class LLMService(Protocol):
@@ -44,10 +46,17 @@ class _Counted:
     stage, and the write path (mining, anticipation, reflection) calls models.
     """
 
-    def __init__(self, inner: LLMService, role: str, counts: dict[str, int]) -> None:
+    def __init__(
+        self,
+        inner: LLMService,
+        role: str,
+        counts: dict[str, int],
+        estimates: dict[str, list[int]] | None = None,
+    ) -> None:
         self._inner = inner
         self._role = role
         self._counts = counts
+        self._estimates = estimates if estimates is not None else {}
 
     @property
     def provider_id(self) -> str:
@@ -55,7 +64,12 @@ class _Counted:
 
     async def chat(self, messages: list[dict[str, str]], **options: Any) -> str:
         self._counts[self._role] = self._counts.get(self._role, 0) + 1
-        return await self._inner.chat(messages, **options)
+        reply = await self._inner.chat(messages, **options)
+        # Chars/4 estimate, used only for providers that report no usage of their own.
+        acc = self._estimates.setdefault(self._role, [0, 0])
+        acc[0] += sum(len(str(m.get("content", ""))) for m in messages) // _CHARS_PER_TOKEN
+        acc[1] += len(reply) // _CHARS_PER_TOKEN
+        return reply
 
     def __getattr__(self, name: str) -> Any:
         # ``__getattr__`` only runs for names not found normally. During copy/pickle the
@@ -76,6 +90,7 @@ class LLMRouter:
     def __init__(self, providers: dict[str, LLMService]) -> None:
         self._providers = providers
         self._counts: dict[str, int] = {}
+        self._estimates: dict[str, list[int]] = {}
 
     @property
     def roles(self) -> list[str]:
@@ -93,8 +108,31 @@ class LLMRouter:
 
     def for_role(self, role: str) -> LLMService:
         """The provider for ``role``, counting every call (see ``call_counts``)."""
-        return _Counted(self.provider(role), role, self._counts)
+        return _Counted(self.provider(role), role, self._counts, self._estimates)
 
     def call_counts(self) -> dict[str, int]:
         """Model calls made so far, per role."""
         return dict(self._counts)
+
+    def token_counts(self) -> dict[str, dict[str, int]]:
+        """Tokens spent so far, per role: ``{"prompt": n, "completion": n}``.
+
+        A provider that reports its own usage (``usage_totals``, e.g. LiteLLM) is
+        read directly; any other provider is estimated at four characters per
+        token from the counted calls' messages and replies.
+        """
+        out: dict[str, dict[str, int]] = {}
+        for role, provider in self._providers.items():
+            totals = getattr(provider, "usage_totals", None)
+            if not (isinstance(totals, list) and len(totals) == 2):
+                totals = self._estimates.get(role)
+            if totals and (totals[0] or totals[1]):
+                out[role] = {"prompt": int(totals[0]), "completion": int(totals[1])}
+        return out
+
+    def models(self) -> dict[str, str]:
+        """The model id bound to each role (its ``model`` attribute, else provider id)."""
+        return {
+            role: str(getattr(provider, "model", None) or provider.provider_id)
+            for role, provider in self._providers.items()
+        }
