@@ -11,7 +11,6 @@ EVALS = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(EVALS))
 
 import plan_commands  # noqa: E402
-
 from memspine_evals.cli import build_parser  # noqa: E402
 
 

@@ -21,7 +21,7 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from memspine_evals.rehearsal import deep_merge  # noqa: E402
+from memspine_evals.rehearsal import deep_merge
 
 PLAN = Path(__file__).resolve().parent / "plans" / "aamas_runs.json"
 
