@@ -383,6 +383,128 @@
       ],
       "matched_budget_tokens": 1500,
       "notes": "naive RAG capped at memspine's ~1.5K mean context tokens"
+    },
+    {
+      "id": "combo-A",
+      "hypothesis": "H1+H12+H16+H4",
+      "systems": [
+        "memspine"
+      ],
+      "qa_prompt": "dated",
+      "config_delta": {
+        "read": {
+          "resolve_relative_dates": true,
+          "order_by_time_for_ordering": true,
+          "assembly": {
+            "relative_floor": 0.3
+          }
+        }
+      },
+      "notes": "read-side winners from the single-change arms (2026-10-03): H1 +5.9, H12-dated +3.2, H16 +1.1, H4 +0.7"
+    },
+    {
+      "id": "combo-B",
+      "hypothesis": "combo-A + H2+H6 + H8 + H14",
+      "systems": [
+        "memspine"
+      ],
+      "qa_prompt": "dated",
+      "build_sleep": true,
+      "config_delta": {
+        "read": {
+          "resolve_relative_dates": true,
+          "order_by_time_for_ordering": true,
+          "assembly": {
+            "relative_floor": 0.3
+          },
+          "anticipatory_cues": true
+        },
+        "memories": {
+          "episodic": {
+            "policies": {
+              "consolidation": {
+                "mine_facts": true,
+                "anticipate": true,
+                "reflect_profile": true
+              }
+            }
+          },
+          "reflective": {
+            "enabled": true
+          }
+        }
+      },
+      "expect_roles": [
+        "extract",
+        "anticipate",
+        "reflect"
+      ],
+      "notes": "adds the write-time winners: H2+H6 +1.9, H8 +1.4, H14 +1.0"
+    },
+    {
+      "id": "combo-A-pool",
+      "hypothesis": "combo-A + candidate_pool 3 (no rerank): control for R-bge / R-cohere",
+      "systems": [
+        "memspine"
+      ],
+      "qa_prompt": "dated",
+      "config_delta": {
+        "read": {
+          "resolve_relative_dates": true,
+          "order_by_time_for_ordering": true,
+          "assembly": {
+            "relative_floor": 0.3
+          },
+          "candidate_pool": 3
+        }
+      },
+      "notes": "isolates the reranker: R-* = combo-A-pool + rerank"
+    },
+    {
+      "id": "R-bge",
+      "hypothesis": "combo-A + local cross-encoder",
+      "systems": [
+        "memspine"
+      ],
+      "qa_prompt": "dated",
+      "config_delta": {
+        "read": {
+          "resolve_relative_dates": true,
+          "order_by_time_for_ordering": true,
+          "assembly": {
+            "relative_floor": 0.3
+          },
+          "rerank": "fastembed",
+          "rerank_model": "BAAI/bge-reranker-base",
+          "candidate_pool": 3,
+          "rerank_date_prefix": true,
+          "skip_rerank_for_ordering": true
+        }
+      },
+      "notes": "fastembed BAAI/bge-reranker-base (MIT, CPU), pool 3x, [Date:] prefix, skip for ordering questions"
+    },
+    {
+      "id": "R-cohere",
+      "hypothesis": "combo-A + Cohere Rerank 3.5 (Bedrock)",
+      "systems": [
+        "memspine"
+      ],
+      "qa_prompt": "dated",
+      "config_delta": {
+        "read": {
+          "resolve_relative_dates": true,
+          "order_by_time_for_ordering": true,
+          "assembly": {
+            "relative_floor": 0.3
+          },
+          "rerank": "litellm",
+          "rerank_model": "bedrock/arn:aws:bedrock:us-east-1::foundation-model/cohere.rerank-v3-5:0",
+          "candidate_pool": 3,
+          "rerank_date_prefix": true,
+          "skip_rerank_for_ordering": true
+        }
+      },
+      "notes": "Cohere Rerank 3.5 via Bedrock (needs the full ARN as model id); rerank calls are NOT in the dollar meter (~$2 per 1,000 queries, verify)"
     }
   ]
 }
