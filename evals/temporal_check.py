@@ -13,14 +13,20 @@ against the turn's session date. Reported (R4-4):
 The check is partly circular (gold ranges for relative golds are resolved with the same
 resolver), so overlap agreement is an upper bound and exact-day the stricter number.
 
-    python temporal_check.py --data data/locomo10.json
+With ``--run`` (repeatable), each QA run's recorded cat-2 verdicts are split by those
+groups (covered / exact-day hit / not covered), no model calls and no re-judging: does the
+reader do better where the resolver agrees with the gold?
+
+    python temporal_check.py --data data/locomo10.json [--run RUN_DIR ...]
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import re
 from datetime import date
+from pathlib import Path
 from typing import Any
 
 from memspine_evals.datasets import LoCoMoDataset
@@ -131,12 +137,14 @@ def evaluate(ds: LoCoMoDataset, show: int = 0) -> dict[str, Any]:
     """
     n = parsed = covered = agree = single = exact = exact_range = 0
     misses = []
+    groups: dict[str, set[tuple[str, str]]] = {"covered": set(), "exact_day": set(), "all": set()}
     for item in ds.items():
         turns = {t.turn_id: t for t in item.history}
         for q in item.queries:
             if q.type_label != "cat2":
                 continue
             n += 1
+            groups["all"].add((item.item_id, q.query_id))
             g = gold_range(str(q.gold))
             if g is None:
                 continue
@@ -150,6 +158,7 @@ def evaluate(ds: LoCoMoDataset, show: int = 0) -> dict[str, Any]:
             if not res:
                 continue
             covered += 1
+            groups["covered"].add((item.item_id, q.query_id))
             if any(r.first <= g[1] and g[0] <= r.last for r, _ in res):
                 agree += 1
             elif len(misses) < show:
@@ -160,6 +169,7 @@ def evaluate(ds: LoCoMoDataset, show: int = 0) -> dict[str, Any]:
                 single += 1
                 if any(r.first == r.last == g[0] for r, _ in res):
                     exact += 1
+                    groups["exact_day"].add((item.item_id, q.query_id))
     return {
         "n_cat2": n,
         "gold_parsed": parsed,
@@ -173,13 +183,34 @@ def evaluate(ds: LoCoMoDataset, show: int = 0) -> dict[str, Any]:
         "agree_exact_range": exact_range,
         "agree_exact_range_rate": exact_range / covered if covered else 0.0,
         "misses": misses,
+        "groups": groups,
     }
+
+
+def run_split(run: Path, groups: dict[str, set[tuple[str, str]]]) -> dict[str, tuple[float, int]]:
+    """A QA run's recorded cat-2 accuracy on resolver-covered, exact-day and uncovered questions."""
+    scores: dict[tuple[str, str], float] = {}
+    for line in (run / "results.jsonl").read_text("utf-8").splitlines():
+        row = json.loads(line)
+        if row.get("kind") == "result" and row.get("status") in ("completed", "truncated"):
+            scores[(row["item_id"], row["query_id"])] = float(row["score"])
+    split = {
+        "covered": groups["covered"],
+        "exact_day": groups["exact_day"],
+        "not_covered": groups["all"] - groups["covered"],
+    }
+    out = {}
+    for name, keys in split.items():
+        vals = [scores[k] for k in keys if k in scores]
+        out[name] = (sum(vals) / len(vals) if vals else 0.0, len(vals))
+    return out
 
 
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--data", required=True)
     ap.add_argument("--show", type=int, default=0, help="print N disagreements")
+    ap.add_argument("--run", action="append", default=[], help="QA run dir (repeatable)")
     args = ap.parse_args()
     r = evaluate(LoCoMoDataset(args.data, revision_id="auto"), show=args.show)
     print(
@@ -193,6 +224,10 @@ def main() -> None:
     )
     for q, gold, rs in r["misses"]:
         print(f"  Q: {q[:70]} | gold: {gold} | resolved: {rs}")
+    for run in args.run:
+        split = run_split(Path(run), r["groups"])
+        cells = "; ".join(f"{k} {100 * a:.1f}% (n={n})" for k, (a, n) in split.items())
+        print(f"{Path(run).name}: cat-2 accuracy {cells}")
 
 
 if __name__ == "__main__":
