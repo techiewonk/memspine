@@ -4,7 +4,12 @@
   "dataset": {
     "name": "locomo",
     "revision": "3eb6f2c-locomo10",
-    "categories": [1, 2, 3, 4],
+    "categories": [
+      1,
+      2,
+      3,
+      4
+    ],
     "n_questions": 1540,
     "n_conversations": 10
   },
@@ -23,7 +28,11 @@
     "config": {
       "read": {
         "record_access": false,
-        "scoring": {"recency_weight": 0.0, "importance_weight": 0.0, "utility_weight": 0.0}
+        "scoring": {
+          "recency_weight": 0.0,
+          "importance_weight": 0.0,
+          "utility_weight": 0.0
+        }
       },
       "embedding": {
         "provider": "litellm",
@@ -69,28 +78,42 @@
     {
       "id": "baselines",
       "hypothesis": "C0-1",
-      "systems": ["no-memory", "full-context", "naive-rag-bm25", "verbatim-bm25"],
-      "notes": "the four model-free arms; reader + judge only"
+      "systems": [
+        "no-memory",
+        "full-context",
+        "verbatim-bm25"
+      ],
+      "notes": "the four model-free arms; reader + judge only; naive-rag-bm25 is NOT re-run (decision 2026-10-03): reuse c0-locomo-qa-full--naive-rag-bm25 (30 Sept), re-scored offline on cats 1-4 in C0_REANALYSIS_2026-10-03.md. Caveat: that run predates the tail-duplication fix, so its score is a lower bound."
     },
     {
       "id": "memspine-base",
       "hypothesis": "baseline",
-      "systems": ["memspine"],
+      "systems": [
+        "memspine"
+      ],
       "notes": "replay read, relevance-only scoring, record_access off, Cohere v4; every engine role bound to Qwen3 (--memspine-llm bedrock-qwen3)"
     },
     {
       "id": "H1",
       "hypothesis": "H1",
       "benchmark": "LoCoMo cat 2",
-      "systems": ["memspine"],
-      "config_delta": {"read": {"resolve_relative_dates": true}},
+      "systems": [
+        "memspine"
+      ],
+      "config_delta": {
+        "read": {
+          "resolve_relative_dates": true
+        }
+      },
       "notes": "default QA prompt, NOT --qa-prompt dated"
     },
     {
       "id": "H12-dated",
       "hypothesis": "H12",
       "benchmark": "LoCoMo cat 2",
-      "systems": ["memspine"],
+      "systems": [
+        "memspine"
+      ],
       "qa_prompt": "dated",
       "notes": "prompt only, no config delta; separate from H1"
     },
@@ -98,137 +121,257 @@
       "id": "H3",
       "hypothesis": "H3",
       "benchmark": "LoCoMo cat 1",
-      "systems": ["memspine"],
+      "systems": [
+        "memspine"
+      ],
       "read_mode": "auto",
       "notes": "aggregation questions routed to compose"
     },
     {
       "id": "H11",
       "hypothesis": "H11",
-      "systems": ["memspine"],
-      "config_delta": {"read": {"candidate_pool": 3}}
+      "systems": [
+        "memspine"
+      ],
+      "config_delta": {
+        "read": {
+          "candidate_pool": 3
+        }
+      }
     },
     {
       "id": "H4",
       "hypothesis": "H4",
-      "systems": ["memspine"],
-      "config_delta": {"read": {"assembly": {"relative_floor": 0.3}}}
+      "systems": [
+        "memspine"
+      ],
+      "config_delta": {
+        "read": {
+          "assembly": {
+            "relative_floor": 0.3
+          }
+        }
+      }
     },
     {
       "id": "H5",
       "hypothesis": "H5",
       "benchmark": "LoCoMo cat 2",
-      "systems": ["memspine"],
-      "config_delta": {"read": {"render": "dated"}}
+      "systems": [
+        "memspine"
+      ],
+      "config_delta": {
+        "read": {
+          "render": "dated"
+        }
+      }
     },
     {
       "id": "H16",
       "hypothesis": "H16",
       "benchmark": "LoCoMo cat 2",
-      "systems": ["memspine"],
-      "config_delta": {"read": {"order_by_time_for_ordering": true}}
+      "systems": [
+        "memspine"
+      ],
+      "config_delta": {
+        "read": {
+          "order_by_time_for_ordering": true
+        }
+      }
     },
     {
       "id": "H2",
       "hypothesis": "H2",
-      "systems": ["memspine"],
+      "systems": [
+        "memspine"
+      ],
       "read_mode": null,
       "build_sleep": true,
       "config_delta": {
-        "memories": {"episodic": {"policies": {"consolidation": {"mine_facts": true}}}}
+        "memories": {
+          "episodic": {
+            "policies": {
+              "consolidation": {
+                "mine_facts": true
+              }
+            }
+          }
+        }
       },
-      "expect_roles": ["extract"],
+      "expect_roles": [
+        "extract"
+      ],
       "notes": "H6 (fact -> source-turn replay) has no switch: it acts on the replay read path whenever mined facts exist. H2 alone is therefore measured on the assemble path (read_mode null); H2+H6 is the same deposit on the baseline replay path. Report build tokens."
     },
     {
       "id": "H2+H6",
       "hypothesis": "H2+H6",
-      "systems": ["memspine"],
+      "systems": [
+        "memspine"
+      ],
       "build_sleep": true,
       "config_delta": {
-        "memories": {"episodic": {"policies": {"consolidation": {"mine_facts": true}}}}
+        "memories": {
+          "episodic": {
+            "policies": {
+              "consolidation": {
+                "mine_facts": true
+              }
+            }
+          }
+        }
       },
-      "expect_roles": ["extract"],
+      "expect_roles": [
+        "extract"
+      ],
       "notes": "report as an increment over H2, never alone"
     },
     {
       "id": "H8",
       "hypothesis": "H8",
       "benchmark": "LoCoMo-Plus (--dataset locomo_plus --qa-prompt converse --judge-prompt constraint); rehearsed on LoCoMo",
-      "systems": ["memspine"],
+      "systems": [
+        "memspine"
+      ],
       "build_sleep": true,
       "config_delta": {
-        "memories": {"episodic": {"policies": {"consolidation": {"anticipate": true}}}},
-        "read": {"anticipatory_cues": true}
+        "memories": {
+          "episodic": {
+            "policies": {
+              "consolidation": {
+                "anticipate": true
+              }
+            }
+          }
+        },
+        "read": {
+          "anticipatory_cues": true
+        }
       },
-      "expect_roles": ["anticipate"]
+      "expect_roles": [
+        "anticipate"
+      ]
     },
     {
       "id": "H14",
       "hypothesis": "H14",
-      "systems": ["memspine"],
+      "systems": [
+        "memspine"
+      ],
       "build_sleep": true,
       "config_delta": {
         "memories": {
-          "episodic": {"policies": {"consolidation": {"reflect_profile": true}}},
-          "reflective": {"enabled": true}
+          "episodic": {
+            "policies": {
+              "consolidation": {
+                "reflect_profile": true
+              }
+            }
+          },
+          "reflective": {
+            "enabled": true
+          }
         }
       },
-      "expect_roles": ["reflect"],
+      "expect_roles": [
+        "reflect"
+      ],
       "notes": "reflect_profile needs reflective memory enabled (off in the base template)"
     },
     {
       "id": "H17",
       "hypothesis": "H17",
-      "systems": ["memspine"],
-      "config_delta": {"read": {"relevance_filter": true}},
-      "expect_roles": ["relevance"]
+      "systems": [
+        "memspine"
+      ],
+      "config_delta": {
+        "read": {
+          "relevance_filter": true
+        }
+      },
+      "expect_roles": [
+        "relevance"
+      ]
     },
     {
       "id": "P4",
       "hypothesis": "P4",
-      "systems": ["memspine"],
+      "systems": [
+        "memspine"
+      ],
       "read_mode": "auto",
-      "config_delta": {"read": {"compose_rewrites": true}},
-      "expect_roles": ["query_rewrite"],
+      "config_delta": {
+        "read": {
+          "compose_rewrites": true
+        }
+      },
+      "expect_roles": [
+        "query_rewrite"
+      ],
       "notes": "compose rewrites act only on the compose read, so P4 rides H3's auto routing (aggregation questions); compare with H3"
     },
     {
       "id": "H15",
       "hypothesis": "H15",
-      "systems": ["memspine"],
-      "config_delta": {"read": {"replay_topic_segments": true}}
+      "systems": [
+        "memspine"
+      ],
+      "config_delta": {
+        "read": {
+          "replay_topic_segments": true
+        }
+      }
     },
     {
       "id": "H21",
       "hypothesis": "H21",
       "benchmark": "LoCoMo (assistant-claim turns)",
-      "systems": ["memspine"],
+      "systems": [
+        "memspine"
+      ],
       "config_delta": {
-        "firewall": {"skip_injected_recall": true, "skip_message_roles": ["system", "tool"]}
+        "firewall": {
+          "skip_injected_recall": true,
+          "skip_message_roles": [
+            "system",
+            "tool"
+          ]
+        }
       }
     },
     {
       "id": "firewall-on",
       "hypothesis": "R4-6 / R4-11",
-      "systems": ["memspine"],
+      "systems": [
+        "memspine"
+      ],
       "config_delta": {
-        "firewall": {"enabled": true},
-        "integrity": {"enabled": true, "implicit_parents": "turn", "live_reevaluation": true}
+        "firewall": {
+          "enabled": true
+        },
+        "integrity": {
+          "enabled": true,
+          "implicit_parents": "turn",
+          "live_reevaluation": true
+        }
       },
       "notes": "integrity (engine enforcement: implicit parents + live re-evaluation) and firewall on, otherwise the baseline arm; utility cost of the defence"
     },
     {
       "id": "dense-naive",
       "hypothesis": "R4-6",
-      "systems": ["naive-rag-fastembed"],
+      "systems": [
+        "naive-rag-fastembed"
+      ],
       "dense": true,
       "notes": "dense naive RAG on fastembed bge-small. The harness refuses a cloud (Cohere) embedder for a baseline (its calls are not budgeted), so this is not yet 'the same embedder as memspine'"
     },
     {
       "id": "matched-budget",
       "hypothesis": "R4-6",
-      "systems": ["naive-rag-bm25-matched1500"],
+      "systems": [
+        "naive-rag-bm25-matched1500"
+      ],
       "matched_budget_tokens": 1500,
       "notes": "naive RAG capped at memspine's ~1.5K mean context tokens"
     }
