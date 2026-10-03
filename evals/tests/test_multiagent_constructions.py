@@ -92,3 +92,56 @@ def test_b0_implicit_parents_restore_the_radius_when_writers_declare_nothing() -
     )
     assert laundered.depth == 4  # no declared parents, no bound
     assert enforced.depth == enforced.predicted_radius == 1
+
+
+# ── R4-1 / N7: engine enforcement (no declared parents, no harness filter) ────
+
+
+_ENGINE_CHAIN = {
+    "topology": "chain",
+    "n_agents": 5,
+    "seed_role": "assistant",
+    "seed_channel": "internal",
+    "enforcement": "engine",
+}
+
+
+@pytest.mark.parametrize(("kappa", "theta"), [(0.5, 0.2), (0.8, 0.3)])
+def test_engine_enforcement_holds_the_radius_without_declared_parents(
+    kappa: float, theta: float
+) -> None:
+    """The writer declares nothing and the harness filters nothing: the engine's
+    session read ledger (implicit parents) and its own admission gate alone
+    keep the chain depth at the predicted radius."""
+    report = asyncio.run(scripted_propagation(**_ENGINE_CHAIN, kappa=kappa, theta=theta))
+    assert report.predicted_radius is not None
+    assert report.depth == report.predicted_radius
+    assert report.mti_violations == 0
+
+
+def test_engine_enforcement_matches_harness_mode_on_a_chain() -> None:
+    common = {**_ENGINE_CHAIN, "kappa": 0.5, "theta": 0.2}
+    engine = asyncio.run(scripted_propagation(**common))
+    harness = asyncio.run(scripted_propagation(**{**common, "enforcement": "harness"}))
+    assert (engine.depth, engine.exposed) == (harness.depth, harness.exposed)
+
+
+def test_engine_mode_without_implicit_parents_launders() -> None:
+    """Control: the same agents with the engine's read ledger switched off reach
+    the whole chain, so the bound above is the engine's doing."""
+    report = asyncio.run(
+        scripted_propagation(
+            **_ENGINE_CHAIN,
+            kappa=0.5,
+            theta=0.2,
+            integrity_extra={"implicit_parents": "off"},
+        )
+    )
+    assert report.depth == 4
+
+
+def test_engine_enforcement_requires_integrity() -> None:
+    with pytest.raises(ValueError, match="integrity_on"):
+        asyncio.run(scripted_propagation(**_ENGINE_CHAIN, integrity_on=False))
+    with pytest.raises(ValueError, match="enforcement"):
+        asyncio.run(scripted_propagation("chain", enforcement="bogus"))
