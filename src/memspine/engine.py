@@ -449,6 +449,7 @@ class Engine:
                 "enable it or remove the graph block"
             )
         self._llm = await self._build_llm_router(config)
+        self._check_decision_provider(config)
         self._scoring = ScoringPolicy.bind(config.read.scoring)
         self._assembly = AssemblyPolicy.bind(config.read.assembly)
         # E5 assembly-stage compression binding (D-51): master switch defaults
@@ -3225,7 +3226,12 @@ class Engine:
         return self._llm.call_counts() if self._llm is not None else {}
 
     def llm(self, role: str) -> LLMService:
-        """The provider bound to a role (D-07/D-22): extract / judge / chat."""
+        """The provider bound to a role (D-07/D-22): extract / judge / chat.
+
+        Returns a counting wrapper, not the bare provider: every ``chat`` call made
+        through it is added to :meth:`model_calls` under ``role``. Other attributes are
+        delegated to the bound provider.
+        """
         if self._llm is None:
             raise MemspineError("Engine not started — call start() first")
         return self._llm.for_role(role)
@@ -3459,10 +3465,35 @@ class Engine:
         "retrieve": "the question asks for one specific fact",
     }
 
+    def _check_decision_provider(self, config: MemspineConfig) -> None:
+        """H24, at ``start()``: a configured gliner2 provider must be importable (D-10).
+
+        Missing gliner2 raises ``MissingServiceError(extra="ner")``; with
+        ``strict_services: false`` it logs once and the provider stays off.
+        """
+        self._decision_off = False
+        if config.decision.provider == "off":
+            return
+        from memspine.services.decision.gliner2_decision import gliner2_class
+
+        try:
+            gliner2_class()
+        except MissingServiceError:
+            if config.strict_services:
+                raise
+            self._decision_off = True
+            _log.warning(
+                "service.missing_ignored",
+                detail="strict_services=false: decision provider off, read planner uses rules",
+                service="gliner2 decision provider",
+                extra="ner",
+            )
+
     def _decision_provider(self) -> Any:
-        """H24: the configured decision provider, built lazily; None when off."""
+        """H24: the configured decision provider, built lazily; None when off (or when
+        gliner2 was missing at start under ``strict_services: false``)."""
         cfg = self._config().decision
-        if cfg.provider == "off":
+        if cfg.provider == "off" or getattr(self, "_decision_off", False):
             return None
         if getattr(self, "_decision", None) is None:
             from memspine.services.decision.gliner2_decision import GLiNER2Decision

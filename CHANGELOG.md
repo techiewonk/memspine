@@ -5,6 +5,8 @@ All notable changes to memspine are documented here. Format: [Keep a Changelog](
 ## [Unreleased]
 
 ### Added — integrity enforcement and read path (v0.3 research track; all opt-in, `profile="simple"` unchanged)
+- **Measured model calls (ADR-031 *proposed*, D-57):** `LLMRouter.for_role()` returns a counting wrapper, so every `chat` call through it is counted per role. `Engine.model_calls()` returns those counts since `start()`, for the read and write paths and the sleep cycle alike; `Engine.llm(role)` returns the same counting wrapper. The wrapper survives `copy.deepcopy` and `pickle`.
+- **Harness build hook:** `c0-1 --memspine-build-sleep` runs `Engine.sleep()` once after a conversation's history is ingested and before its tail queries, so write-time stages (`mine_facts`, `anticipate`, `reflect_profile`) take part in a run. Its model calls go to the synthesise (K) stage of the cost ledger; the memspine adapter now measures write and query calls from `model_calls()` instead of reporting 0.
 - **Decision port (H24):** `services/decision` (`DecisionProvider.choose(text, options)` returns label and confidence) with a GLiNER2 adapter behind the `[ner]` extra (`decision.provider: gliner2`, `decision.model`). Its first consumer is `read.planner: decision`, which lets the provider route `read(mode="auto")` to compose, replay or retrieve; any provider failure falls back to the rules.
 - **Enforced provenance (B0):** `integrity.implicit_parents: turn|session` records what a session reads (`search`/`shared_search(..., session_id=)`) and uses it as the parents of that session's next writes. Omitting `derived_from` can no longer launder trust. `end_session()` clears the ledger.
 - **Live re-evaluation (B4′):** `integrity.live_reevaluation` re-checks each candidate against its current parents at read time. Quarantining, rolling back or revoking an ancestor propagates to its descendants.
@@ -19,7 +21,7 @@ All notable changes to memspine are documented here. Format: [Keep a Changelog](
 - **Mode-routed `read()` (C7′):** full context when it fits, else session replay of neighbouring raw turns, else retrieve. The same erasure, taint and admission gates apply.
 - **Anticipatory cues (C8′):** `add_cues(record_id, cues)` stores question-shaped retrieval keys. Cues are firewall-screened, their trust is capped at the target's, they are ignored below `read.cue_min_trust`, and they are never content.
 - **Embeddings:** `embedding.request_dimensions` (e.g. Cohere embed-v4 at 1024) and asymmetric `query_input_type` / `document_input_type`, with a query-side cache.
-- **Profile reflection stage (H14):** `consolidation.reflect_profile` adds a sleep stage that asks the `reflect` role, once per session, for profile insights (preferences, habits, goals) with evidence. They are stored through `Engine.reflect` (trust capped at the evidence, depth-capped, lineage in the log), idempotent per session.
+- **Profile reflection stage (H14):** `consolidation.reflect_profile` adds a sleep stage that asks the `reflect` role, once per session, for profile insights (preferences, habits, goals) with evidence. They are stored through `Engine.reflect` (trust capped at the evidence, depth-capped, lineage in the log), idempotent per session. It reuses the generic `reflect.yaml` prompt (the one `Engine.reflect` callers use); there is no profile-specific prompt variant.
 - **LLM query rewrites for compose (P4):** `read.compose_rewrites` wires the `query_rewrite` role (new `@compose` prompt variant: answer-free alternative queries, at most 2) into `read(mode="compose")`.
 - **Read-path knobs from the SOTA audit:** `read.rrf_k` (RRF rank constant), `read.reply_reserve_tokens` (ContextPipe), `read.rerank_date_prefix` (Hindsight `[Date:]` inputs), `read.skip_rerank_for_ordering` (Agent Zero), and `read.gap_markers` (Mastra-style `[3 weeks later]` with dated render, H22). All off by default.
 - **3-way relevance filter (H17):** `read.relevance_filter`. The new `relevance` LLM role labels candidates relevant / related / irrelevant, and only "irrelevant" ones are dropped; the `relevance_safety_net` best-scored candidates are always kept (Hindsight-style). Off, or with no role bound: unchanged.
@@ -49,6 +51,8 @@ All notable changes to memspine are documented here. Format: [Keep a Changelog](
 - `integrity.verification_bonus` exists for baseline emulation only (it breaks the invariant on purpose).
 
 ### Fixed
+- **GLiNER2 decision provider:** imports `GLiNER2` (as the NER adapter and graphiti do; `AutoExtractor` is a fallback name) and defaults to the `fastino/gliner2-base-v1` checkpoint, which the NER adapter now uses too. `Engine.start()` raises `MissingServiceError(extra="ner")` when `decision.provider: gliner2` is set without gliner2 installed, or logs once and turns the provider off under `strict_services: false`. The model loads under a lock, and a load failure is cached instead of being retried on every read.
+- **Call-counting wrapper:** `copy.deepcopy` / `pickle` of a counted provider no longer recurse through `__getattr__`.
 - **`search` no longer returns grant/subscription bookkeeping** (`memory_type="shared"`) from the reader's own namespace. These records took top-k slots; `shared_search` already hid foreign ones.
 
 ### Added — evaluation harness (`evals/`, outside the wheel per D-35)

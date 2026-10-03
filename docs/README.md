@@ -36,7 +36,7 @@ The blueprint and evidence base for the engine. **The structure plan is authorit
 | [`UNIMEM_V2_REWORK_PROPOSAL.md`](./UNIMEM_V2_REWORK_PROPOSAL.md) | Architecture rationale — from storage facade to cognitive engine — with the code-level evidence base. |
 | [`DEPENDENCY_ANALYSIS.md`](./DEPENDENCY_ANALYSIS.md) | Code-level scan of the memory-engine ecosystem: why each dependency was chosen, adoption signal, D-26…D-42 reasoning. *(Manifest scan 2026-07-07; pass #3 stage/package cross-ref 2026-07-10 — §3.12 + ARCHITECTURE_FLOWS §8.)* |
 | [`PACKAGE_CATALOG.md`](./PACKAGE_CATALOG.md) | Every candidate package (564 scanned), grouped by function, with "does what". **Cross-ref:** package adoption rationale in [`ECOSYSTEM_COMPARISON.md`](./ECOSYSTEM_COMPARISON.md) §3.12. |
-| [`adr/`](./adr/) | Architecture Decision Records — one file per decision (ADR-001 … ADR-021). |
+| [`adr/`](./adr/) | Architecture Decision Records — one file per decision (ADR-001 … ADR-031). |
 
 ## Reading order
 
