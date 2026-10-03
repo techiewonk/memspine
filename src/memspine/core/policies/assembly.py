@@ -72,9 +72,59 @@ class AssembledContext:
     tokens_used: int = 0
 
 
+def _is_persona(record: MemoryRecord) -> bool:
+    return record.source.channel == "persona"
+
+
+def _words(record: MemoryRecord) -> set[str]:
+    return set(record.content.lower().split())
+
+
+def _jaccard_sets(ta: set[str], tb: set[str]) -> float:
+    if not ta or not tb:
+        return 0.0
+    return len(ta & tb) / len(ta | tb)
+
+
 class AssemblyPolicy(BindablePolicy):
     name: ClassVar[str] = "assembly"
     Options: ClassVar[type[PolicyOptions]] = AssemblyOptions
+
+    def _opts(self) -> AssemblyOptions:
+        options = self.options
+        assert isinstance(options, AssemblyOptions)
+        return options
+
+    def abstains(self, scored: list[tuple[MemoryRecord, float]]) -> bool:
+        """M12: True when no evidence scores at least ``theta_abstain``.
+
+        The pinned persona is not evidence: it is context for every query, so
+        it never keeps an off-topic query from abstaining.
+        """
+        evidence = [score for record, score in scored if not _is_persona(record)]
+        return not evidence or max(evidence) < self._opts().theta_abstain
+
+    def apply_floor(
+        self, scored: list[tuple[MemoryRecord, float]]
+    ) -> list[tuple[MemoryRecord, float]]:
+        """H4: drop evidence below ``relative_floor x`` the best evidence score.
+
+        The best is taken over non-persona records, and the persona is never dropped.
+        """
+        floor = self._opts().relative_floor
+        evidence = [score for record, score in scored if not _is_persona(record)]
+        if floor <= 0.0 or not evidence:
+            return scored
+        best = max(evidence)
+        return [(r, s) for r, s in scored if _is_persona(r) or s >= floor * best]
+
+    def is_near_duplicate(self, candidate: MemoryRecord, chosen: list[MemoryRecord]) -> bool:
+        """H23: True when ``candidate`` overlaps a chosen record at ``dedupe_jaccard`` or more."""
+        threshold = self._opts().dedupe_jaccard
+        if threshold >= 1.0:
+            return False
+        words = _words(candidate)
+        return any(_jaccard_sets(words, _words(other)) >= threshold for other in chosen)
 
     def assemble(
         self,
@@ -84,8 +134,9 @@ class AssemblyPolicy(BindablePolicy):
     ) -> AssembledContext:
         """Select by MMR under a token budget, then place by E2 stability order.
 
-        Abstains (θ_abstain, M12) when the best candidate scores below the
-        threshold — an honest "I don't know" beats confidently stale context.
+        Abstains (θ_abstain, M12) when the best candidate other than the pinned
+        persona scores below the threshold — an honest "I don't know" beats
+        confidently stale context.
 
         With an E5-enabled ``compression`` policy (D-51, config opt-in), MMR
         orders the full candidate set and the compression fallbacks
@@ -96,11 +147,17 @@ class AssemblyPolicy(BindablePolicy):
         assert isinstance(options, AssemblyOptions)
         fit_stage = compression is not None and compression.assembly_enabled()
 
-        if not scored or max(score for _, score in scored) < options.theta_abstain:
-            return AssembledContext(abstained=True)
-        if options.relative_floor > 0.0:
-            best = max(score for _, score in scored)
-            scored = [(r, s) for r, s in scored if s >= options.relative_floor * best]
+        if self.abstains(scored):
+            # No evidence: abstain, but the pinned persona stays (it is the stable
+            # prefix of every turn, not an answer to this query).
+            personas = [record for record, _ in scored if _is_persona(record)]
+            return AssembledContext(
+                records=personas,
+                boundary_index=len(personas) if options.cache_aware_placement else 0,
+                abstained=True,
+                tokens_used=sum(_estimate_tokens(record.content) for record in personas),
+            )
+        scored = self.apply_floor(scored)
 
         # Greedy MMR selection under the token budget. Token sets are computed
         # once per record — jaccard over pre-split sets, not raw strings.
@@ -118,6 +175,11 @@ class AssemblyPolicy(BindablePolicy):
         if options.latest_slots > 0:
             newest = sorted(remaining, key=lambda pair: pair[0].valid_from, reverse=True)
             for pair in newest[: options.latest_slots]:
+                if options.dedupe_jaccard < 1.0 and any(
+                    _jaccard(pair[0], chosen) >= options.dedupe_jaccard for chosen, _ in selected
+                ):
+                    remaining.remove(pair)  # H23 applies to the guaranteed slots too
+                    continue
                 cost = _estimate_tokens(pair[0].content)
                 if selected and tokens_used + cost > budget_tokens:
                     break
