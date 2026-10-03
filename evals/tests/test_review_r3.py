@@ -746,7 +746,7 @@ def test_r3_12_feature_audit_has_behavioural_checks(monkeypatch: pytest.MonkeyPa
 
     assert feature_audit.SRC.exists()
     assert len(feature_audit.BEHAVIOURAL) >= 6
-    assert feature_audit.check_relative_dates() and feature_audit.check_qa_prompts()
+    assert asyncio.run(feature_audit.check_h1_relative_dates()) and feature_audit.check_qa_prompts()
     monkeypatch.setattr(
         feature_audit, "BEHAVIOURAL", [("X", "broken", lambda: 1 / 0)]  # type: ignore[arg-type]
     )
@@ -836,3 +836,36 @@ def test_r4_6_arms_are_declared_in_the_manifest(tmp_path: Path) -> None:
     assert "naive-rag-bm25-matched200" in manifest["labels"]["arms"]
     assert manifest["labels"]["matched_budget_tokens"] == 200
     assert "harness-protocol=r3-2026-10-02" in manifest["protocol"]["notes"]
+
+
+#: N5: at most this many features may stay identifier-only (none today; the slack is for a
+#: feature added before its behavioural check lands).
+MAX_IDENTIFIER_ONLY = 2
+
+
+def test_n5_every_feature_behaves_offline(capsys: pytest.CaptureFixture[str]) -> None:
+    """N5 (R3-12): the full behavioural audit, offline (hash embedder, stub LLM providers)."""
+    import feature_audit
+
+    statuses = feature_audit.audit()
+    capsys.readouterr()
+    failed = [fid for fid, s in statuses.items() if s == "behaviour-fail"]
+    missing = [fid for fid, s in statuses.items() if s == "identifier-missing"]
+    only = [fid for fid, s in statuses.items() if s == "identifier-only"]
+    assert not failed, f"behaviour-fail: {failed}"
+    assert not missing, f"identifier-missing: {missing}"
+    assert len(only) <= MAX_IDENTIFIER_ONLY, f"identifier-only: {only}"
+    assert set(statuses) == {fid for fid, *_ in feature_audit.FEATURES}
+    # every behavioural check names a real feature
+    assert {fid for fid, _, _ in feature_audit.BEHAVIOURAL} <= set(statuses)
+
+
+def test_n5_statuses_classify_fail_and_identifier_only(monkeypatch: pytest.MonkeyPatch) -> None:
+    import feature_audit
+
+    monkeypatch.setattr(
+        feature_audit, "BEHAVIOURAL", [("B0", "x", lambda: True), ("B1", "y", lambda: False)]
+    )
+    statuses = feature_audit.feature_statuses(["B1"])
+    assert statuses["B0"] == "behaviour-ok" and statuses["B1"] == "behaviour-fail"
+    assert statuses["B2"] == "identifier-only"
