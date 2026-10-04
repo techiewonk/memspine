@@ -378,8 +378,9 @@ class RoutedLLMJudge:
             route = "default"
         return self.prompts[route]
 
-    async def _grade(self, prompt: JudgePrompt, question: str, gold: str, answer: str,
-                     evidence: str) -> Verdict:
+    async def _grade(
+        self, prompt: JudgePrompt, question: str, gold: str, answer: str, evidence: str
+    ) -> Verdict:
         started = time.perf_counter()
         rendered = prompt.render(question, gold, answer, evidence)
         if prompt.system is not None:

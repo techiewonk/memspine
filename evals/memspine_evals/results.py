@@ -23,7 +23,7 @@ from .metrics import Ledger, summarise_floats
 from .provenance import RunManifest
 
 
-class RowStatus(str, Enum):
+class RowStatus(str, Enum):  # noqa: UP042 - str() must stay the member name in logs
     """Per-question completion status (`EVALUATION_PLAN_2026-09.md` §5).
 
     ``UNATTEMPTED`` is the one that matters and the one harnesses usually lack.
@@ -227,9 +227,7 @@ def aggregate(
             "scored": len(subset),
             "errors": n_failed,
             "unattempted": sum(
-                1
-                for r in rows
-                if r.type_label == label and r.status == RowStatus.UNATTEMPTED.value
+                1 for r in rows if r.type_label == label and r.status == RowStatus.UNATTEMPTED.value
             ),
         }
         if denominator:

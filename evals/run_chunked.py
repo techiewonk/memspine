@@ -86,9 +86,7 @@ def done_items(runs: Path, run_prefix: str, system: str) -> set[str]:
             if row.get("kind") == "result":
                 statuses.setdefault(str(row["item_id"]), []).append(str(row.get("status")))
         latest.update(statuses)
-    return {
-        item for item, statuses in latest.items() if all(s in DONE_STATUSES for s in statuses)
-    }
+    return {item for item, statuses in latest.items() if all(s in DONE_STATUSES for s in statuses)}
 
 
 def spent_calls(runs: Path, run_id: str, system: str) -> int:
@@ -101,7 +99,11 @@ def spent_calls(runs: Path, run_id: str, system: str) -> int:
 
 
 def chunk_command(
-    rest: Sequence[str], system: str, chunk: Sequence[str], run_id: str, runs: Path,
+    rest: Sequence[str],
+    system: str,
+    chunk: Sequence[str],
+    run_id: str,
+    runs: Path,
     cap: int | None,
 ) -> list[str]:
     args = [a for a in rest if a != "--"]

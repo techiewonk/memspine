@@ -206,7 +206,10 @@ def test_r3_1_string_judge_cannot_grade_abstention(tmp_path: Path, locomo_path: 
         asyncio.run(run_c0_1(dataset, C01Config(mode="retrieval", top_k=3), tmp_path))
     # and in the runner itself: an ERROR row, never a scored one
     runner = EvalRunner(
-        dataset, VerbatimSystem(), ContextOnlyReader(), ContainsJudge(),
+        dataset,
+        VerbatimSystem(),
+        ContextOnlyReader(),
+        ContainsJudge(),
         _config(tmp_path, expect_model_calls=False),
     )
     asyncio.run(runner.run())
@@ -263,9 +266,15 @@ def test_r3_3_two_arms_cap_4_each_arm_gets_its_own_budget(tmp_path: Path) -> Non
     systems = [VerbatimSystem(system_id="arm1"), VerbatimSystem(system_id="arm2")]
     summaries = asyncio.run(
         run_matrix(
-            dataset, systems, CountingReader(), ExactMatchJudge(), _config(tmp_path),
-            reader_judge_factory=lambda: (CountingReader(CallBudget(max_calls=4)),
-                                          ExactMatchJudge()),
+            dataset,
+            systems,
+            CountingReader(),
+            ExactMatchJudge(),
+            _config(tmp_path),
+            reader_judge_factory=lambda: (
+                CountingReader(CallBudget(max_calls=4)),
+                ExactMatchJudge(),
+            ),
         )
     )
     assert [s.n_errors for s in summaries] == [0, 0]
@@ -280,9 +289,15 @@ def test_r3_3_exhausted_budget_gives_unattempted_rows_and_later_arms_run(tmp_pat
     with pytest.raises(ModelCallBudgetExceeded):
         asyncio.run(
             run_matrix(
-                dataset, systems, CountingReader(), ExactMatchJudge(), _config(tmp_path),
-                reader_judge_factory=lambda: (CountingReader(CallBudget(max_calls=3)),
-                                              ExactMatchJudge()),
+                dataset,
+                systems,
+                CountingReader(),
+                ExactMatchJudge(),
+                _config(tmp_path),
+                reader_judge_factory=lambda: (
+                    CountingReader(CallBudget(max_calls=3)),
+                    ExactMatchJudge(),
+                ),
             )
         )
     for arm in ("arm1", "arm2"):
@@ -348,9 +363,7 @@ def test_r3_5_locomo_plus_prompts_are_verbatim() -> None:
 
     cognitive = JUDGE_PROMPTS["locomo_plus/Cognitive"]
     assert cognitive.status is PromptStatus.OFFICIAL
-    assert cognitive.sha256 == (
-        "83875348ab831a4f2932457bc951d37654db9f77ecaf50e7a8aacf5ff566a08b"
-    )
+    assert cognitive.sha256 == ("83875348ab831a4f2932457bc951d37654db9f77ecaf50e7a8aacf5ff566a08b")
     if LOCOMO_PLUS_PROMPT.exists():
         official = runpy.run_path(str(LOCOMO_PLUS_PROMPT))["PROMPT_TEMPLATES"]
         assert official == LOCOMO_PLUS_TEMPLATES
@@ -419,8 +432,13 @@ def test_n12_omnimemeval_judge_is_ported_verbatim() -> None:
     verdict = asyncio.run(judge.score("Where?", "In Paris.", "Paris"))
     assert verdict.score == 1.0 and calls[0][1] == OMNIMEMEVAL_JUDGE_SYSTEM
     _, judge2, _ = build_reader_and_judge(
-        C01Config(mode="qa", judge_prompt="omnimemeval", reader_model="m", judge_model="m",
-                  base_url="http://localhost:1/v1")
+        C01Config(
+            mode="qa",
+            judge_prompt="omnimemeval",
+            reader_model="m",
+            judge_model="m",
+            base_url="http://localhost:1/v1",
+        )
     )
     assert judge2.spec.prompt_id == "suite:omnimemeval"
 
@@ -467,7 +485,8 @@ def test_r3_5_locomo_plus_v2_grades_with_partial_credit() -> None:
 
     seen: list[str] = []
     judge = RoutedLLMJudge(
-        _fake_chat(['{"label": "partial", "reason": "x"}'], seen), model="m",
+        _fake_chat(['{"label": "partial", "reason": "x"}'], seen),
+        model="m",
         suite="locomo-plus-v2",
     )
     query = next(LoCoMoDataset_fixture().items()).queries[0]
@@ -516,8 +535,12 @@ class FixedContextSystem:
         return DepositResult()
 
     async def query(self, text: str, budget_tokens: int, top_k: int) -> RetrievedContext:
-        return RetrievedContext(text=self._text, tokens=len(self._text) // 4,
-                                evidence=self._evidence, meta={"ranked": True})
+        return RetrievedContext(
+            text=self._text,
+            tokens=len(self._text) // 4,
+            evidence=self._evidence,
+            meta={"ranked": True},
+        )
 
     async def close(self) -> None: ...
 
@@ -529,7 +552,9 @@ def _recall_run(tmp_path: Path, system: Any, gold: tuple[str, ...], budget: int 
         queries=(Query("q", "q?", gold="x", gold_turn_ids=gold),),
     )
     config = RunConfig(
-        run_id="rec", out_dir=tmp_path, expect_model_calls=False,
+        run_id="rec",
+        out_dir=tmp_path,
+        expect_model_calls=False,
         protocol=RunProtocol(protocol_id="r", budget_tokens=budget, top_k=5, seed=1),
     )
     runner = EvalRunner(ListDataset([item]), system, ContextOnlyReader(), ContainsJudge(), config)
@@ -586,12 +611,23 @@ def test_r3_8_by_type_counts_errors_at_the_failure_score(tmp_path: Path) -> None
     from memspine_evals.results import ResultRow, aggregate
 
     manifest = RunManifest.build(
-        run_id="m", dataset=ListDataset([]).info(), system=SystemSpec("s"),
-        reader=ReaderSpec("r", "m", False), judge=JudgeSpec("j", JudgeScale.BINARY),
-        protocol=PROTOCOL, token_counter={},
+        run_id="m",
+        dataset=ListDataset([]).info(),
+        system=SystemSpec("s"),
+        reader=ReaderSpec("r", "m", False),
+        judge=JudgeSpec("j", JudgeScale.BINARY),
+        protocol=PROTOCOL,
+        token_counter={},
     )
-    base = {"run_id": "m", "item_id": "i", "question": "q", "gold": "g", "answer": "a",
-            "scale": "binary", "type_label": "x"}
+    base = {
+        "run_id": "m",
+        "item_id": "i",
+        "question": "q",
+        "gold": "g",
+        "answer": "a",
+        "scale": "binary",
+        "type_label": "x",
+    }
     rows = [
         ResultRow(query_id="1", score=1.0, **base),
         ResultRow(query_id="2", score=0.0, status=RowStatus.ERROR.value, error="boom", **base),
@@ -618,9 +654,16 @@ def _write_run(runs: Path, run_id: str, rows: list[tuple[str, str]], calls: int 
 def test_r3_9_unattempted_or_error_items_are_not_done(tmp_path: Path) -> None:
     import run_chunked
 
-    _write_run(tmp_path, "job-chunk00--memspine", [
-        ("a", "completed"), ("b", "unattempted"), ("c", "completed"), ("c", "error"),
-    ])
+    _write_run(
+        tmp_path,
+        "job-chunk00--memspine",
+        [
+            ("a", "completed"),
+            ("b", "unattempted"),
+            ("c", "completed"),
+            ("c", "error"),
+        ],
+    )
     assert run_chunked.done_items(tmp_path, "job", "memspine") == {"a"}
 
 
@@ -660,7 +703,10 @@ def test_r3_10_uncountable_sleep_marks_k_unknown(tmp_path: Path) -> None:
             return result
 
     runner = EvalRunner(
-        ListDataset([_item("a")]), BuildSystem(), ContextOnlyReader(), ContainsJudge(),
+        ListDataset([_item("a")]),
+        BuildSystem(),
+        ContextOnlyReader(),
+        ContainsJudge(),
         _config(tmp_path, expect_model_calls=False),
     )
     summary = asyncio.run(runner.run())
@@ -699,7 +745,10 @@ def test_r3_10_runner_passes_the_remaining_budget(tmp_path: Path) -> None:
             return DepositResult()
 
     runner = EvalRunner(
-        ListDataset([_item("a")]), Bounded(), CountingReader(), ExactMatchJudge(),
+        ListDataset([_item("a")]),
+        Bounded(),
+        CountingReader(),
+        ExactMatchJudge(),
         _config(tmp_path, max_model_calls=10),
     )
     asyncio.run(runner.run())
@@ -718,8 +767,11 @@ def test_r3_11_manifest_records_version_limits_and_judge_params(tmp_path: Path) 
     assert judge.spec.params["temperature"] == 0.0
     assert judge.spec.params["routes"]["default"]["status"] == "memspine"
     runner = EvalRunner(
-        SyntheticDataset(n_items=1, turns_per_item=4), VerbatimSystem(), ContextOnlyReader(),
-        ContainsJudge(), _config(tmp_path, max_items=1, expect_model_calls=False),
+        SyntheticDataset(n_items=1, turns_per_item=4),
+        VerbatimSystem(),
+        ContextOnlyReader(),
+        ContainsJudge(),
+        _config(tmp_path, max_items=1, expect_model_calls=False),
     )
     limits = runner.build_manifest().to_dict()["limits"]
     assert limits["max_items"] == 1 and limits["expect_model_calls"] is False
@@ -730,10 +782,23 @@ def test_r3_11_convomem_records_a_content_hash(tmp_path: Path) -> None:
 
     d = tmp_path / "core_benchmark" / "evidence_questions" / "user" / "1_evidence"
     d.mkdir(parents=True)
-    (d / "p.json").write_text(json.dumps({"evidence_items": [{
-        "question": "q", "answer": "a", "message_evidences": [{"text": "hi"}],
-        "conversations": [{"id": "c1", "messages": [{"speaker": "u", "text": "hi"}]}],
-    }]}), encoding="utf-8")
+    (d / "p.json").write_text(
+        json.dumps(
+            {
+                "evidence_items": [
+                    {
+                        "question": "q",
+                        "answer": "a",
+                        "message_evidences": [{"text": "hi"}],
+                        "conversations": [
+                            {"id": "c1", "messages": [{"speaker": "u", "text": "hi"}]}
+                        ],
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
     info = ConvoMemDataset(tmp_path, revision_id="r").info()
     assert len(info.content_sha256) == 64
 
@@ -748,7 +813,9 @@ def test_r3_12_feature_audit_has_behavioural_checks(monkeypatch: pytest.MonkeyPa
     assert len(feature_audit.BEHAVIOURAL) >= 6
     assert asyncio.run(feature_audit.check_h1_relative_dates()) and feature_audit.check_qa_prompts()
     monkeypatch.setattr(
-        feature_audit, "BEHAVIOURAL", [("X", "broken", lambda: 1 / 0)]  # type: ignore[arg-type]
+        feature_audit,
+        "BEHAVIOURAL",
+        [("X", "broken", lambda: 1 / 0)],  # type: ignore[arg-type]
     )
     assert feature_audit.behavioural_audit() == ["X"]
 
@@ -759,19 +826,29 @@ def test_r3_12_feature_audit_has_behavioural_checks(monkeypatch: pytest.MonkeyPa
 def test_r4_4_temporal_check_reports_exact_day_and_coverage(tmp_path: Path) -> None:
     import temporal_check
 
-    sample = [{
-        "sample_id": "c",
-        "conversation": {
-            "speaker_a": "A", "speaker_b": "B",
-            "session_1_date_time": "2:00 pm on 15 July, 2023",
-            "session_1": [{"speaker": "A", "dia_id": "D1:1", "text": "I ran a race last Friday."}],
-        },
-        "qa": [
-            {"question": "When?", "answer": "14 July 2023", "evidence": ["D1:1"], "category": 2},
-            {"question": "When?", "answer": "July 2023", "evidence": ["D1:1"], "category": 2},
-            {"question": "When?", "answer": "sometime", "evidence": [], "category": 2},
-        ],
-    }]
+    sample = [
+        {
+            "sample_id": "c",
+            "conversation": {
+                "speaker_a": "A",
+                "speaker_b": "B",
+                "session_1_date_time": "2:00 pm on 15 July, 2023",
+                "session_1": [
+                    {"speaker": "A", "dia_id": "D1:1", "text": "I ran a race last Friday."}
+                ],
+            },
+            "qa": [
+                {
+                    "question": "When?",
+                    "answer": "14 July 2023",
+                    "evidence": ["D1:1"],
+                    "category": 2,
+                },
+                {"question": "When?", "answer": "July 2023", "evidence": ["D1:1"], "category": 2},
+                {"question": "When?", "answer": "sometime", "evidence": [], "category": 2},
+            ],
+        }
+    ]
     path = tmp_path / "l.json"
     path.write_text(json.dumps(sample), encoding="utf-8")
     r = temporal_check.evaluate(LoCoMoDataset(path, revision_id="t"))
@@ -795,7 +872,8 @@ def test_r4_6_dense_same_embedder_and_matched_budget_arms(
 
     monkeypatch.setattr(retrievers, "FastEmbedRetriever", FakeEmbed)
     cfg = experiments.C01Config(
-        naive_dense_same_embedder=True, matched_budget_tokens=900,
+        naive_dense_same_embedder=True,
+        matched_budget_tokens=900,
         memspine_config={"embedding": {"provider": "fastembed", "model": "BAAI/x"}},
     )
     systems = experiments.build_systems(cfg)
@@ -828,10 +906,14 @@ def test_r4_6_matched_budget_arm_caps_the_context() -> None:
 def test_r4_6_arms_are_declared_in_the_manifest(tmp_path: Path) -> None:
     from memspine_evals.experiments import C01Config, run_c0_1
 
-    summaries = asyncio.run(run_c0_1(
-        SyntheticDataset(n_items=1, turns_per_item=6), C01Config(matched_budget_tokens=200),
-        tmp_path, run_id="arms",
-    ))
+    summaries = asyncio.run(
+        run_c0_1(
+            SyntheticDataset(n_items=1, turns_per_item=6),
+            C01Config(matched_budget_tokens=200),
+            tmp_path,
+            run_id="arms",
+        )
+    )
     manifest, _, _ = read_run(tmp_path / summaries[0].run_id / "results.jsonl")
     assert "naive-rag-bm25-matched200" in manifest["labels"]["arms"]
     assert manifest["labels"]["matched_budget_tokens"] == 200

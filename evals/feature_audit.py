@@ -1732,6 +1732,7 @@ BEHAVIOURAL: list[tuple[str, str, Callable[[], bool]]] = [
     ("MODEL-CALLS", "model_calls() equals what the stub providers saw", _run(check_model_calls)),
 ]
 
+
 def behavioural_audit() -> list[str]:
     """Run every behavioural check; print one line each; return the ids that failed."""
     failed = []

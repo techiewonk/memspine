@@ -25,7 +25,7 @@ from typing import Any, Protocol, runtime_checkable
 from .contracts import sha256_text
 
 
-class JudgeScale(str, Enum):
+class JudgeScale(str, Enum):  # noqa: UP042 - str() must stay the member name in logs
     """The score space a judge emits. Never inferred, never defaulted."""
 
     BINARY = "binary"  # {0, 1} correctness

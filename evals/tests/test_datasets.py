@@ -152,7 +152,7 @@ def test_auto_revision_identifies_the_bytes(locomo_path: Path) -> None:
 
 
 def test_missing_file_says_where_to_get_it(tmp_path: Path) -> None:
-    with pytest.raises(FileNotFoundError, match="evals/README.md"):
+    with pytest.raises(FileNotFoundError, match=r"evals/README\.md"):
         LoCoMoDataset(tmp_path / "nope.json", revision_id="x")
 
 

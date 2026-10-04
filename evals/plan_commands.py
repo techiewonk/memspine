@@ -5,7 +5,8 @@ runs: ``rehearse.py`` checks it offline, and this script turns it into the
 commands to run, so a handoff document can never drift from what was rehearsed.
 
     python plan_commands.py --path data/locomo10.json \
-        --price bedrock/converse/qwen.qwen3-32b-v1:0=0.15,0.60 --max-usd 2 [--arms H1,H5] [--repeat 3]
+        --price bedrock/converse/qwen.qwen3-32b-v1:0=0.15,0.60 --max-usd 2 \
+        [--arms H1,H5] [--repeat 3]
 
 Prints one command per arm (and per repeat). Nothing is executed.
 """

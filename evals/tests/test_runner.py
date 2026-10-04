@@ -51,7 +51,7 @@ def run(system, reader, judge, tmp_path: Path, **config_kwargs):
 
 def test_full_run_produces_a_provenanced_result_file(tmp_path: Path) -> None:
     dataset = SyntheticDataset(n_items=2, turns_per_item=12, facts_per_item=2)
-    summary, runner, config = run(
+    summary, _runner, _config = run(
         VerbatimSystem(), scripted_from(dataset), ExactMatchJudge(), tmp_path
     )
     manifest, rows, written_summary = read_run(tmp_path / "test-run" / "results.jsonl")
@@ -160,7 +160,7 @@ def test_trace_carries_the_loop_tuple(tmp_path: Path) -> None:
 
 def test_summary_file_holds_the_score_matrix_row(tmp_path: Path) -> None:
     dataset = SyntheticDataset(n_items=1, turns_per_item=8, facts_per_item=1)
-    _, runner, _ = run(
+    _, _runner, _ = run(
         VerbatimSystem(), scripted_from(dataset), ExactMatchJudge(), tmp_path, run_id="row-run"
     )
     payload = json.loads((tmp_path / "row-run" / "summary.json").read_text(encoding="utf-8"))

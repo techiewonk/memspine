@@ -19,7 +19,10 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-_DIR = re.compile(r"^(?P<prefix>.+?)--(?P<arm>.+?)(?P<resume>-resume)?(?:--r(?P<rep>\d+))?--(?P<system>[^-].*)$")
+_DIR = re.compile(
+    r"^(?P<prefix>.+?)--(?P<arm>.+?)(?P<resume>-resume)?"
+    r"(?:--r(?P<rep>\d+))?--(?P<system>[^-].*)$"
+)
 
 
 def _rows(run_dir: Path) -> list[dict[str, Any]]:
@@ -95,8 +98,9 @@ def main(argv: list[str] | None = None) -> int:
         delta = f"{v['acc'] - base['acc']:+.1f}" if base and system == "memspine" else ""
         flag = "" if v["complete"] and v["n"] == args.n else " (partial)"
         name = arm + (f" r{rep}" if rep else "")
-        cells = [name + flag, system, f"{v['acc']:.1f}", delta,
-                 *(f"{v['by'].get(c, 0):.1f}" for c in cats), str(v["ctx"]), f"{v['usd']:.2f}", str(v["n"])]  # fmt: skip
+        by_cat = (f"{v['by'].get(c, 0):.1f}" for c in cats)
+        cells = [name + flag, system, f"{v['acc']:.1f}", delta, *by_cat,
+                 str(v["ctx"]), f"{v['usd']:.2f}", str(v["n"])]  # fmt: skip
         print("| " + " | ".join(cells) + " |")
     reps: dict[tuple[str, str], list[float]] = defaultdict(list)
     for (arm, system, _rep), v in table.items():
@@ -106,7 +110,8 @@ def main(argv: list[str] | None = None) -> int:
     if multi:
         print()
         for (arm, system), accs in sorted(multi.items()):
-            print(f"- {arm} / {system}: mean {statistics.mean(accs):.2f} ± {statistics.stdev(accs):.2f} "
+            mean, sd = statistics.mean(accs), statistics.stdev(accs)
+            print(f"- {arm} / {system}: mean {mean:.2f} ± {sd:.2f} "
                   f"over {len(accs)} runs ({', '.join(f'{a:.1f}' for a in accs)})")  # fmt: skip
     total = sum(v["usd"] for v in table.values())
     print(f"\nTotal metered spend for these runs: ${total:.2f}")
