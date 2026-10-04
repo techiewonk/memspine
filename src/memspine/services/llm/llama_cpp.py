@@ -28,8 +28,12 @@ class LlamaCppLLM:
         return f"llama_cpp:{self._model_path}"
 
     async def chat(self, messages: list[dict[str, str]], **options: Any) -> str:
+        # llama-cpp types ``messages`` as role-specific TypedDicts; ours are the plain
+        # role/content dicts every provider port takes, so hand them over untyped.
+        chat_messages: Any = messages
+
         def _run() -> Any:
-            return self._llama.create_chat_completion(messages=messages, **options)
+            return self._llama.create_chat_completion(messages=chat_messages, **options)
 
         data = await asyncio.to_thread(_run)
         try:

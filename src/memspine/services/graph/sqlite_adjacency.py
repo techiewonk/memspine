@@ -30,11 +30,11 @@ def _props(raw: bytes) -> dict[str, object]:
     return loaded
 
 
-def _node(row: Row[tuple[str, bytes, bytes]]) -> GraphNode:
+def _node(row: Row[str, bytes, bytes]) -> GraphNode:
     return GraphNode(node_id=row[0], labels=tuple(orjson.loads(row[1])), properties=_props(row[2]))
 
 
-def _edge(row: Row[tuple[str, str, str, bytes]]) -> GraphEdge:
+def _edge(row: Row[str, str, str, bytes]) -> GraphEdge:
     return GraphEdge(src=row[0], dst=row[1], rel_type=row[2], properties=_props(row[3]))
 
 
@@ -149,7 +149,7 @@ class SQLiteAdjacencyGraph:
         """No-op: the injected SQLiteClient owns the connection (D-24)."""
 
     @staticmethod
-    def _edge_select() -> Select[tuple[str, str, str, bytes]]:
+    def _edge_select() -> Select[str, str, str, bytes]:
         return select(
             graph_edges.c.src,
             graph_edges.c.dst,
@@ -157,6 +157,6 @@ class SQLiteAdjacencyGraph:
             graph_edges.c.properties,
         )
 
-    async def _count(self, stmt: Select[tuple[int]]) -> int:
+    async def _count(self, stmt: Select[int]) -> int:
         async with self._client.engine.connect() as conn:
             return int((await conn.execute(stmt)).scalar_one())
