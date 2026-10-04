@@ -35,7 +35,7 @@ from memspine.core.records import MemoryRecord, RecordStatus, SourceInfo
 from memspine.exceptions import ConflictError
 from memspine.memories.associative.communities import communities_available, detect_communities
 from memspine.memories.associative.links import assert_within_budget, link_event
-from memspine.memories.episodic.sessions import Session, detect_sessions
+from memspine.memories.episodic.sessions import Session, detect_sessions, topic_segments
 from memspine.memories.prospective.triggers import due_watches, invalidation_watches
 from memspine.memories.semantic.write_pipeline import ScreenDerived
 from memspine.observability.logging import get_logger
@@ -1271,30 +1271,38 @@ async def mine_facts(ctx: PipelineContext) -> dict[str, object]:
     if ctx.mine_facts is None or ctx.deposit_fact is None:
         return {"status": "skipped", "reason": "no extract LLM role bound"}
     miner, deposit = ctx.mine_facts, ctx.deposit_fact
+    by_topic = bool(getattr(options, "mine_by_topic", False))
 
     async def work(namespace: str, key: str, members: list[MemoryRecord]) -> tuple[int, list[str]]:
-        transcript = "\n".join(f"[{m.valid_from:%Y-%m-%d}] {m.content}" for m in members)
-        mined = await miner(transcript)
-        start, latest = members[0].valid_from, members[-1].valid_from
+        # H15: one call per topic segment. Every call runs before any deposit, so a
+        # failed call retries the whole session next cycle without duplicates.
+        segments = topic_segments(members) if by_topic else [members]
+        batches = []
+        for segment in segments:
+            transcript = "\n".join(f"[{m.valid_from:%Y-%m-%d}] {m.content}" for m in segment)
+            batches.append((segment, await miner(transcript)))
         written = 0
         errors: list[str] = []
-        for fact in mined:
-            text = f"{fact.entity} {fact.attribute}: {fact.value}"
-            when = _fact_date(getattr(fact, "date", None), latest) or start
-            try:
-                await deposit(
-                    namespace,
-                    text,
-                    fact.entity or None,
-                    fact.attribute or None,
-                    [m.record_id for m in members],
-                    when,
-                    key,
-                )
-            except Exception as exc:  # one bad fact must not lose the rest
-                errors.append(f"{namespace}:{key}: deposit failed: {exc}")
-                continue
-            written += 1
+        for segment, mined in batches:
+            start, latest = segment[0].valid_from, segment[-1].valid_from
+            parents = [m.record_id for m in segment]
+            for fact in mined:
+                text = f"{fact.entity} {fact.attribute}: {fact.value}"
+                when = _fact_date(getattr(fact, "date", None), latest) or start
+                try:
+                    await deposit(
+                        namespace,
+                        text,
+                        fact.entity or None,
+                        fact.attribute or None,
+                        parents,
+                        when,
+                        key,
+                    )
+                except Exception as exc:  # one bad fact must not lose the rest
+                    errors.append(f"{namespace}:{key}: deposit failed: {exc}")
+                    continue
+                written += 1
         return written, errors
 
     legacy = _legacy_tag_check(ctx, "semantic", lambda r, key: f"mined:{key}" in r.tags)

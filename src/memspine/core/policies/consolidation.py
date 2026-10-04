@@ -43,6 +43,12 @@ class ConsolidationOptions(PolicyOptions):
     #: an ``extract`` LLM role). Facts are dated with the session start, carry
     #: the session records as parents, and go through the engine's write door.
     mine_facts: bool = False
+    #: H15: mine each topic segment of a session in its own call (lexical-cohesion
+    #: boundaries, no model; ``sessions.topic_segments``), so the miner reads one
+    #: topic at a time. A mined fact's parents are its segment's turns: the call
+    #: saw nothing else, so the parent set still covers its whole context (A2).
+    #: Costs one call per segment instead of one per session.
+    mine_by_topic: bool = False
     #: H8: after consolidating a session, ask the ``anticipate`` role (falls back to
     #: ``extract``) for likely future questions and store them as firewall-governed
     #: retrieval cues on the turns that answer them (``Engine.add_cues``), once.

@@ -157,3 +157,66 @@ def test_session_prompt_variant_is_selected() -> None:
     reg = PromptRegistry()
     assert reg.select("extract", condition="session").id == "extract@session"
     assert reg.select("extract").id == "extract"
+
+
+async def test_mine_by_topic_calls_the_miner_once_per_segment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """H15: two topics in one session are mined in two calls; each fact's parents
+    are only the turns of the segment the call saw."""
+    eng = Engine(
+        template="base",
+        dotenv_path=None,
+        storage={"path": ":memory:"},
+        embedding={"provider": "hash"},
+        memories={
+            "episodic": {
+                "enabled": True,
+                "policies": {"consolidation": {"mine_facts": True, "mine_by_topic": True}},
+            },
+            "semantic": {"enabled": True},
+        },
+    )
+    seen: list[str] = []
+
+    async def fake_mine(text: str) -> list[ExtractedFact]:
+        seen.append(text)
+        topic = "garden" if "tomatoes" in text else "car"
+        return [ExtractedFact(entity="caroline", attribute=topic, value=f"talked about {topic}")]
+
+    monkeypatch.setattr(eng, "_build_fact_miner", lambda: fake_mine)
+    garden = [
+        "Caroline: my tomatoes are growing tall in the garden this summer",
+        "Melanie: tomatoes need sun, does your garden get sun",
+        "Caroline: the garden gets sun all day, the tomatoes love it",
+        "Melanie: water the tomatoes early, garden soil dries fast",
+    ]
+    car = [
+        "Caroline: the car broke down on the highway yesterday",
+        "Melanie: oh no, was the car engine overheating",
+        "Caroline: the mechanic said the car engine needs a new radiator",
+        "Melanie: a radiator for that car engine is expensive",
+    ]
+    t0 = datetime(2023, 5, 8, 13, 0, tzinfo=UTC)
+    msgs = [
+        {"role": "user", "content": c, "timestamp": (t0 + timedelta(minutes=i)).isoformat()}
+        for i, c in enumerate(garden + car)
+    ]
+    await eng.start()
+    try:
+        await eng.write_messages(msgs, namespace="a", session_id="s1", group_id="s1")
+        report = await eng.sleep()
+        assert report["mine_facts"]["sessions"] == 1
+        assert len(seen) == 2  # one call per topic segment
+        assert "tomatoes" in seen[0] and "radiator" not in seen[0]
+        assert "radiator" in seen[1] and "tomatoes" not in seen[1]
+        facts = [
+            r
+            for r in await eng.retrieve(namespace="a", memory_type="semantic")
+            if "atomic_fact" in r.tags
+        ]
+        assert sorted(f.attribute or "" for f in facts) == ["car", "garden"]
+        assert all(len(f.source.parents) == 4 for f in facts)  # its segment only
+        assert (await eng.sleep())["mine_facts"]["facts"] == 0  # still idempotent
+    finally:
+        await eng.stop()

@@ -31,22 +31,35 @@ def _d(month: int, day: int = 1) -> datetime:
 
 async def _caroline_facts(eng: Engine, *, external: bool = False) -> None:
     await eng.write(
-        "Caroline city: Boston", namespace="a", entity="Caroline", attribute="city",
+        "Caroline city: Boston",
+        namespace="a",
+        entity="Caroline",
+        attribute="city",
         valid_from=_d(1, 5),
-    )  # fmt: skip
+    )
     await eng.write(
-        "Caroline city: Seattle", namespace="a", entity="Caroline", attribute="city",
+        "Caroline city: Seattle",
+        namespace="a",
+        entity="Caroline",
+        attribute="city",
         valid_from=_d(6),
-    )  # fmt: skip
+    )
     await eng.write(
-        "Caroline hobby: started pottery classes", namespace="a", entity="Caroline",
-        attribute="hobby", valid_from=_d(3, 10),
-    )  # fmt: skip
+        "Caroline hobby: started pottery classes",
+        namespace="a",
+        entity="Caroline",
+        attribute="hobby",
+        valid_from=_d(3, 10),
+    )
     if external:
         await eng.write(
-            "Caroline pet: a parrot named Zorg", namespace="a", entity="Caroline",
-            attribute="pet", valid_from=_d(4), source=SourceInfo(role="tool", channel="external"),
-        )  # fmt: skip
+            "Caroline pet: a parrot named Zorg",
+            namespace="a",
+            entity="Caroline",
+            attribute="pet",
+            valid_from=_d(4),
+            source=SourceInfo(role="tool", channel="external"),
+        )
 
 
 def _lead(records: list[MemoryRecord]) -> list[MemoryRecord]:
@@ -67,9 +80,11 @@ def test_standing_cues_match_requests_not_past_habits() -> None:
 
 
 def test_timeline_line_strips_the_entity_and_shows_the_end_date() -> None:
-    record = MemoryRecord(namespace="a", memory_type="semantic", content="Caroline city: Boston",
-                          valid_from=_d(1, 5))  # fmt: skip
-    assert timeline_line(record, "caroline", _d(6)) == "- 2023-01-05: city: Boston (until 2023-06-01)"
+    record = MemoryRecord(
+        namespace="a", memory_type="semantic", content="Caroline city: Boston", valid_from=_d(1, 5)
+    )
+    expected = "- 2023-01-05: city: Boston (until 2023-06-01)"
+    assert timeline_line(record, "caroline", _d(6)) == expected
     block = render_timeline("Caroline", ["- x", "- y"])
     assert block.startswith(f"{constants.TIMELINE_MARKER} Caroline")
 
