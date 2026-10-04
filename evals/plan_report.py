@@ -58,7 +58,7 @@ def collect(runs: Path, prefix: str) -> dict[tuple[str, str, str], dict[str, Any
     for key, dirs in groups.items():
         merged: dict[str, dict[str, Any]] = {}
         # originals first, resumes last, so a resume row replaces the original's
-        for d in sorted(dirs, key=lambda p: p.name.endswith("-resume--" + key[1])):
+        for d in sorted(dirs, key=lambda p: "-resume--" in p.name):
             for row in _rows(d):
                 merged[row["query_id"]] = row
         by: dict[str, list[float]] = defaultdict(list)
