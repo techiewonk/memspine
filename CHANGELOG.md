@@ -10,10 +10,10 @@ All notable changes to memspine are documented here. Format: [Keep a Changelog](
 - **H15 segmentation before mining (opt-in, `consolidation.mine_by_topic`):** with `mine_facts`, each lexical-cohesion topic segment of a session is mined in its own call; a fact's parents are its segment's turns (the whole context of that call, A2). All calls run before any deposit, so a failed call retries the session without duplicates.
 
 ### Fixed — fresh-install and POSIX defects (2026-10-04)
-- **xxhash 4 (the locked version) rejects `str`:** the hash embedder and the SimHash near-duplicate LSH raised `TypeError` on every write in a fresh environment. Tokens are UTF-8 encoded first, which gives the digests xxhash 3 produced, so stored fingerprints and vectors are unchanged.
+- **xxhash 4 rejects `str`:** `uv.lock` is not tracked, so a fresh clone (CI included) resolves xxhash 4 under `xxhash>=3.5`, and the hash embedder and the SimHash near-duplicate LSH raised `TypeError` on every write. Tokens are UTF-8 encoded first, which gives the digests xxhash 3 produced, so stored fingerprints and vectors are unchanged.
 - **DBOS system database on Linux/macOS:** `default_system_database_url` produced `sqlite:///tmp/…`, which SQLAlchemy resolves relative to the working directory, so the durable runner could not launch outside Windows. It now emits `sqlite:///<absolute posix path>` and no longer percent-encodes spaces.
 - **Retries:** an expired or invalid credential is never retried, even when litellm reports it as `APIConnectionError`.
-- **Types and lint:** `mypy --strict` clean against the locked SQLAlchemy 2.1 (variadic `Row`/`Select`) and llama-cpp-python 0.3.36; `ruff` 0.16 clean and formatted across `src`, `tests` and `evals`.
+- **Types and lint:** `mypy --strict` clean under both SQLAlchemy 2.0 and 2.1 (2.1 made `Row`/`Select` variadic; the SQLite graph adapter now types rows loosely) and with llama-cpp-python 0.3.36; `ruff` 0.16 clean and formatted across `src`, `tests` and `evals`.
 
 ### Added — paid-run readiness for Bedrock Qwen3 (engine + harness)
 - **Qwen3 thinking control (`llm.roles.<role>.no_think`, default `null`):** the LiteLLM adapter appends Qwen's ` /no_think` soft switch to the last user message, on by default for model ids containing `qwen3` (`true`/`false` force it). `<think>…</think>` blocks are stripped from every reply, for every model, so structured roles parse. Other models are unchanged.

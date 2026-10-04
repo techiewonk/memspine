@@ -12,9 +12,10 @@ opens a connection itself.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from typing import Any
 
 import orjson
-from sqlalchemy import Row, Select, delete, func, or_, select
+from sqlalchemy import Select, delete, func, or_, select
 
 from memspine.clients.sqlite import SQLiteClient
 from memspine.services.graph.base import GraphEdge, GraphNode, walk_neighbors
@@ -30,11 +31,13 @@ def _props(raw: bytes) -> dict[str, object]:
     return loaded
 
 
-def _node(row: Row[str, bytes, bytes]) -> GraphNode:
+# Rows and statements are typed loosely: SQLAlchemy 2.0 and 2.1 spell their generics
+# differently (tuple[...] vs variadic), and both are supported (``sqlalchemy>=2.0``).
+def _node(row: Any) -> GraphNode:
     return GraphNode(node_id=row[0], labels=tuple(orjson.loads(row[1])), properties=_props(row[2]))
 
 
-def _edge(row: Row[str, str, str, bytes]) -> GraphEdge:
+def _edge(row: Any) -> GraphEdge:
     return GraphEdge(src=row[0], dst=row[1], rel_type=row[2], properties=_props(row[3]))
 
 
@@ -149,7 +152,7 @@ class SQLiteAdjacencyGraph:
         """No-op: the injected SQLiteClient owns the connection (D-24)."""
 
     @staticmethod
-    def _edge_select() -> Select[str, str, str, bytes]:
+    def _edge_select() -> Any:
         return select(
             graph_edges.c.src,
             graph_edges.c.dst,
@@ -157,6 +160,6 @@ class SQLiteAdjacencyGraph:
             graph_edges.c.properties,
         )
 
-    async def _count(self, stmt: Select[int]) -> int:
+    async def _count(self, stmt: Select[Any]) -> int:
         async with self._client.engine.connect() as conn:
             return int((await conn.execute(stmt)).scalar_one())
