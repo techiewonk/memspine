@@ -136,12 +136,22 @@ def default_system_database_url(storage_path: str) -> str:
     """
     if storage_path == ":memory:":
         scratch = Path(tempfile.gettempdir()) / f"memspine-dbos-{uuid.uuid4().hex}.sqlite"
-        return scratch.as_uri().replace("file://", "sqlite://", 1)
+        return _sqlite_url(scratch.resolve())
     sys_path = Path(storage_path).resolve()
     sys_path = sys_path.with_name(sys_path.name + ".dbos.sqlite")
-    # SQLAlchemy sqlite URLs want forward slashes even on Windows; as_uri()
-    # already produces them (``file:///C:/...``) — just swap the scheme.
-    return sys_path.as_uri().replace("file://", "sqlite://", 1)
+    return _sqlite_url(sys_path)
+
+
+def _sqlite_url(path: Path) -> str:
+    """SQLAlchemy URL for an absolute SQLite file path.
+
+    ``sqlite:///`` is followed by the path itself, so a POSIX path keeps its
+    leading slash (``sqlite:////tmp/x``); with three slashes alone SQLAlchemy
+    reads it relative to the working directory. Windows paths become
+    ``sqlite:///C:/...``. ``Path.as_uri()`` is avoided because it
+    percent-encodes characters such as spaces, which SQLite does not decode.
+    """
+    return f"sqlite:///{path.as_posix()}"
 
 
 class DBOSRunner:
