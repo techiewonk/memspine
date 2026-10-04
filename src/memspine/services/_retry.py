@@ -37,7 +37,22 @@ TRANSIENT_ERRORS = frozenset(
 )
 
 
+#: Message fragments that mark a permanent failure even under a transient class name
+#: (litellm wraps an expired-credential 403 in APIConnectionError).
+_PERMANENT_HINTS = (
+    "token included in the request is expired",
+    "expiredtoken",
+    "unrecognizedclient",
+    "invalidsignature",
+    "accessdenied",
+    "403 forbidden",
+)
+
+
 def _is_transient(exc: BaseException) -> bool:
+    text = str(exc).lower()
+    if any(hint in text for hint in _PERMANENT_HINTS):
+        return False
     return any(cls.__name__ in TRANSIENT_ERRORS for cls in type(exc).__mro__)
 
 

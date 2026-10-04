@@ -54,3 +54,18 @@ async def test_gives_up_after_the_last_attempt(monkeypatch: pytest.MonkeyPatch) 
 
     with pytest.raises(APIConnectionError):
         await retry_transient(down, what="t", attempts=3)
+
+async def test_expired_credentials_are_not_retried() -> None:
+    # litellm wraps an expired-token 403 in APIConnectionError; retrying only burns time.
+    calls = 0
+
+    async def expired() -> str:
+        nonlocal calls
+        calls += 1
+        raise APIConnectionError(
+            "403 Forbidden: The security token included in the request is expired"
+        )
+
+    with pytest.raises(APIConnectionError):
+        await retry_transient(expired, what="t")
+    assert calls == 1
