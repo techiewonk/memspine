@@ -40,6 +40,7 @@
       "current_state_view": false,
       "gap_markers": false,
       "hybrid": true,
+      "lead_budget_tokens": 400,
       "lexical_provider": "tantivy",
       "metadata_leg": false,
       "order_by_time_for_ordering": false,
@@ -58,9 +59,14 @@
       "rrf_k": null,
       "scoring": {},
       "skip_rerank_for_ordering": false,
+      "standing_instructions": false,
+      "standing_min_trust": 0.7,
       "static_embedding_prefilter": false,
       "static_prefilter": false,
-      "temporal_leg": false
+      "temporal_leg": false,
+      "timeline_entities": 3,
+      "timeline_items": 8,
+      "topic_timelines": false
     }
   },
   "policy_options": {

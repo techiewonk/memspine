@@ -228,6 +228,14 @@ CURRENT_STATE_MARKER = "CURRENT (since "
 HISTORY_MARKER = "HISTORY (superseded):"
 DISPUTED_MARKER = "[DISPUTED:"
 INSTRUCTION_FLAG_MARKER = INSTRUCTION_FLAG_WRAP.split("{content}", 1)[0].strip()
+# H22: headers of the lead section (``read.topic_timelines`` /
+# ``read.standing_instructions``). The section is a read-time projection, never
+# stored; LEAD_TAG marks its synthetic records so render keeps them first.
+TIMELINE_MARKER = "TIMELINE:"
+STANDING_MARKER = "USER-STATED PREFERENCES"
+LEAD_TAG = "lead_section"
+# H22: at most this many stated preferences in the standing block (newest kept).
+LEAD_STANDING_MAX = 5
 
 # H2/R2-7: a mined fact's LLM-stated date is kept only inside [this year, the
 # session's last turn + the slack]; outside it the session start is used, so a

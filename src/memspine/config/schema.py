@@ -320,6 +320,24 @@ class ReadConfig(BaseModel):
     #: ``[2023-05-08 Mon]``, after the stable prefix. ``plain`` = unchanged.
     render: Literal["plain", "dated"] = "plain"
     cue_min_trust: float = 0.5
+    #: H22 (Mnemon): open the volatile context with a dated timeline per topic
+    #: entity of the retrieved keyed facts: every live fact on that entity plus its
+    #: superseded history, oldest first. Built at read time from the stored facts
+    #: (no model, nothing stored); entries pass the same gates as any context record.
+    topic_timelines: bool = False
+    #: H22: how many entities get a timeline (best-scored first).
+    timeline_entities: int = Field(default=3, ge=1)
+    #: H22: the newest entries kept per timeline.
+    timeline_items: int = Field(default=8, ge=2)
+    #: H22: lead the context, right after the pinned persona, with preferences and
+    #: standing requests the user stated ("from now on ...", "please always ...").
+    #: Only user-role records at or above ``standing_min_trust``; shown as data the
+    #: user stated, never as system instructions. Deterministic cue rules.
+    standing_instructions: bool = False
+    standing_min_trust: float = Field(default=0.7, ge=0.0, le=1.0)
+    #: H22: the token sub-budget of the lead section (standing preferences, then
+    #: timelines), taken out of the assembly budget.
+    lead_budget_tokens: int = Field(default=400, ge=0)
 
 
 class MemoryTypeConfig(BaseModel):

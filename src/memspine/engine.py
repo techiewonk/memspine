@@ -38,6 +38,12 @@ from memspine.core.erasure import payload_retains_content
 from memspine.core.events import EventKind, EventLogMode, MemoryEvent, fingerprint_payload
 from memspine.core.firewall import Firewall, FirewallVerdict
 from memspine.core.integrity import IntegrityPolicy
+from memspine.core.lead import (
+    is_standing_instruction,
+    render_standing,
+    render_timeline,
+    timeline_line,
+)
 from memspine.core.namespace import grant_allows, validate_namespace
 from memspine.core.policies.assembly import AssembledContext, AssemblyPolicy, estimate_tokens
 from memspine.core.policies.compression import CompressionPolicy
@@ -153,6 +159,8 @@ _RECALL_MARKERS = (
     constants.HISTORY_MARKER,
     constants.DISPUTED_MARKER,
     constants.INSTRUCTION_FLAG_MARKER,
+    constants.TIMELINE_MARKER,
+    constants.STANDING_MARKER,
 )
 
 
@@ -1221,6 +1229,155 @@ class Engine:
             out.append((record.model_copy(update={"content": text}), score))
         return out
 
+    def _lead_clean(self, record: MemoryRecord) -> bool:
+        """H22: an entry may enter the lead section only unwrapped: not instruction
+        flagged and not below the untrusted-note threshold (those records still
+        reach the context through retrieval, wrapped)."""
+        integrity = self._integrity()
+        wrap_below = integrity.untrusted_wrap_below if integrity.enabled else 0.0
+        return not record.instruction_flag and record.trust >= wrap_below
+
+    def _lead_record(self, ns: str, content: str, parts: list[MemoryRecord]) -> MemoryRecord:
+        """A synthetic, never-stored context record for one lead block.
+
+        Its trust is the least of its entries' (a block is never more trusted than
+        what it shows) and its parents are the entries, so the provenance of every
+        line stays visible to the caller.
+        """
+        return MemoryRecord(
+            namespace=ns,
+            memory_type="semantic",
+            content=content,
+            tags=[constants.LEAD_TAG],
+            valid_from=max(p.valid_from for p in parts),
+            trust=min(p.trust for p in parts),
+            source=SourceInfo(role="system", channel="lead", parents=[p.record_id for p in parts]),
+        )
+
+    async def _standing_block(self, ns: str) -> tuple[MemoryRecord, list[MemoryRecord]] | None:
+        """H22: the user's stated preferences and standing requests, newest wins a slot.
+
+        Candidates are user-role episodic turns and semantic facts that match the
+        standing cue rules, at or above ``read.standing_min_trust``, and pass the
+        context gates (status, quarantine, admission, live re-evaluation). An
+        external document or tool output never qualifies, whatever it says. The
+        E1 instruction flag does not exclude a user's own request (it is the point
+        of the block), but a quarantined one never shows.
+        """
+        read_cfg = self._config().read
+        storage = self._require_started()
+        found: list[MemoryRecord] = []
+        for memory_type in ("episodic", "semantic"):
+            for record in await storage.list_records(ns, memory_type):
+                if record.source.role != "user" or "atomic_fact" in record.tags:
+                    continue
+                # Cheap test first: the cue rules on the (inflated) text, then the
+                # gates, which can cost an effective-trust walk under live re-eval.
+                inflated = self._inflate_all([record], ns)
+                if not inflated or not is_standing_instruction(inflated[0].content):
+                    continue
+                view = await self._live_view(record)
+                if view is None or view.trust < read_cfg.standing_min_trust:
+                    continue
+                shown = inflated[0].model_copy(update={"trust": view.trust})
+                # A standing request is imperative by nature, so the E1 flag is
+                # expected here; the block labels it as the user's words, not as
+                # system instructions. The untrusted-note threshold still applies.
+                if self._lead_clean(shown.model_copy(update={"instruction_flag": False})):
+                    found.append(shown)
+        if not found:
+            return None
+        found.sort(key=lambda r: (r.valid_from, r.record_id))
+        kept = found[-constants.LEAD_STANDING_MAX :]
+        return self._lead_record(ns, render_standing(kept), kept), kept
+
+    async def _timeline_blocks(
+        self, ns: str, scored: list[tuple[MemoryRecord, float]]
+    ) -> list[MemoryRecord]:
+        """H22: one dated timeline per topic entity of the retrieved keyed facts.
+
+        Entities come from the best-scored keyed semantic candidates. Each timeline
+        lists every live fact on the entity (any attribute) and its superseded
+        history, oldest first, keeping the newest ``read.timeline_items``. An entry
+        passes the same gates as a context record (live view for current facts, the
+        C4' history view for superseded ones; taint rollbacks and retractions never
+        show) and must be clean (:meth:`_lead_clean`). An entity with fewer than two
+        entries gets no timeline: retrieval already shows a single fact.
+        """
+        read_cfg = self._config().read
+        entities: list[str] = []
+        for record, _ in sorted(scored, key=lambda pair: pair[1], reverse=True):
+            if record.memory_type != "semantic" or not record.entity:
+                continue
+            if record.entity.lower() not in (e.lower() for e in entities):
+                entities.append(record.entity)
+            if len(entities) >= read_cfg.timeline_entities:
+                break
+        if not entities:
+            return []
+        storage = self._require_started()
+        tainted = await self._taint_archived_ids()
+        by_entity: dict[str, list[MemoryRecord]] = {}
+        for record in await storage.list_records(ns, "semantic"):
+            if record.entity and CUE_TAG not in record.tags:
+                by_entity.setdefault(record.entity.lower(), []).append(record)
+        blocks: list[MemoryRecord] = []
+        for entity in entities:
+            entries: list[tuple[MemoryRecord, datetime | None]] = []
+            for record in by_entity.get(entity.lower(), []):
+                if record.quarantined or record.record_id in tainted or "retract" in record.tags:
+                    continue
+                if record.status is RecordStatus.ACTIVATED:
+                    view = await self._live_view(record)
+                    inflated = self._inflate_all([view], ns) if view is not None else []
+                    shown = inflated[0] if inflated else None
+                elif record.status is RecordStatus.ARCHIVED and record.valid_to is not None:
+                    shown = await self._history_view(record)
+                else:
+                    continue
+                if shown is None or not self._lead_clean(shown):
+                    continue
+                entries.append((shown, record.valid_to))
+            if len(entries) < 2:
+                continue
+            entries.sort(key=lambda e: (e[0].valid_from, e[0].record_id))
+            entries = entries[-read_cfg.timeline_items :]
+            lines = [timeline_line(r, entity, until) for r, until in entries]
+            blocks.append(
+                self._lead_record(ns, render_timeline(entity, lines), [r for r, _ in entries])
+            )
+        return blocks
+
+    async def _lead_section(
+        self, ns: str, scored: list[tuple[MemoryRecord, float]], budget_tokens: int
+    ) -> tuple[list[MemoryRecord], list[MemoryRecord]]:
+        """H22: (standing preferences, timelines) within the lead sub-budget.
+
+        Standing preferences are filled first, then timelines in entity order; a
+        block that does not fit is skipped. Each block passes the untrusted-note
+        wrapper (its trust is its weakest entry's), like any context record.
+        """
+        read_cfg = self._config().read
+        allowance = min(read_cfg.lead_budget_tokens, budget_tokens // 2)
+        standing: list[MemoryRecord] = []
+        timelines: list[MemoryRecord] = []
+        used = 0
+        candidates: list[tuple[list[MemoryRecord], MemoryRecord]] = []
+        if read_cfg.standing_instructions:
+            block = await self._standing_block(ns)
+            if block is not None:
+                candidates.append((standing, block[0]))
+        if read_cfg.topic_timelines:
+            candidates.extend((timelines, b) for b in await self._timeline_blocks(ns, scored))
+        for target, record in candidates:
+            wrapped = self._wrap_untrusted(record)
+            cost = estimate_tokens(wrapped.content)
+            if used + cost > allowance:
+                continue
+            target.append(wrapped)
+            used += cost
+        return standing, timelines
+
     async def _history_view(self, record: MemoryRecord) -> MemoryRecord | None:
         """C4': one HISTORY entry as the model sees it, or None when it may not be shown.
 
@@ -1995,12 +2152,48 @@ class Engine:
                 inflated = self._inflate_all([live], ns)
                 if inflated:
                     scored.append((inflated[0], 1.0))
+        read_cfg = self._config().read
+        standing: list[MemoryRecord] = []
+        timelines: list[MemoryRecord] = []
+        if not shared and (read_cfg.topic_timelines or read_cfg.standing_instructions):
+            standing, timelines = await self._lead_section(ns, scored, budget_tokens)
+        lead_cost = sum(estimate_tokens(r.content) for r in [*standing, *timelines])
         scored = await self._decorate(ns, scored)
         # E5 (D-51): the compression policy's own master switch decides whether
         # the fit stage runs; with the default options this is a no-op.
-        return self._assembly.assemble(
-            scored, budget_tokens=budget_tokens, compression=self._assembly_compression
+        assembled = self._assembly.assemble(
+            scored,
+            budget_tokens=max(1, budget_tokens - lead_cost),
+            compression=self._assembly_compression,
         )
+        if standing or timelines:
+            assembled = self._place_lead(assembled, standing, timelines)
+        return assembled
+
+    @staticmethod
+    def _place_lead(
+        assembled: AssembledContext,
+        standing: list[MemoryRecord],
+        timelines: list[MemoryRecord],
+    ) -> AssembledContext:
+        """H22: standing preferences right after the pinned persona (stable prefix,
+        they change only when the user states a new one); timelines open the
+        volatile part (they depend on the query). An abstained assembly keeps the
+        standing block but gets no timelines (they came from weak candidates)."""
+        records = list(assembled.records)
+        boundary = assembled.boundary_index
+        personas = 0
+        while personas < boundary and records[personas].source.channel == "persona":
+            personas += 1
+        if assembled.abstained:
+            timelines = []
+        records[personas:personas] = standing
+        boundary += len(standing)
+        records[boundary:boundary] = timelines
+        assembled.records = records
+        assembled.boundary_index = boundary
+        assembled.tokens_used += sum(estimate_tokens(r.content) for r in [*standing, *timelines])
+        return assembled
 
     async def _decorate(
         self, ns: str, scored: list[tuple[MemoryRecord, float]]
@@ -2044,6 +2237,11 @@ class Engine:
         boundary = assembled.boundary_index
         stable = assembled.records[:boundary]
         volatile = assembled.records[boundary:]
+        # H22: timelines lead the volatile part as they are: never re-dated,
+        # re-ordered or dropped by the fit below (their cost came out of the budget).
+        lead = [r for r in volatile if constants.LEAD_TAG in r.tags]
+        volatile = [r for r in volatile if constants.LEAD_TAG not in r.tags]
+        stable = [*stable, *lead]
         priority = list(volatile)
         if read_cfg.order_by_time_for_ordering and is_ordering(query):
             volatile = sorted(volatile, key=lambda r: (r.valid_from, r.record_id))
