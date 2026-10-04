@@ -72,7 +72,7 @@ class DedupPolicy(BindablePolicy):
         """
         weights = [0] * 64
         for token in _tokens(text):
-            digest = xxhash.xxh64_intdigest(token)
+            digest = xxhash.xxh64_intdigest(token.encode("utf-8"))
             for bit in range(64):
                 weights[bit] += 1 if (digest >> bit) & 1 else -1
         value = 0
