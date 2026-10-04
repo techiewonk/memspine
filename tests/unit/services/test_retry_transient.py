@@ -70,3 +70,16 @@ async def test_expired_credentials_are_not_retried() -> None:
     with pytest.raises(APIConnectionError):
         await retry_transient(expired, what="t")
     assert calls == 1
+
+
+async def test_expired_credentials_are_not_retried() -> None:
+    calls = 0
+
+    async def expired() -> str:
+        nonlocal calls
+        calls += 1
+        raise APIConnectionError('{"message":"The security token included in the request is expired"}')
+
+    with pytest.raises(APIConnectionError):
+        await retry_transient(expired, what="t")
+    assert calls == 1
