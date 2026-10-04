@@ -161,6 +161,7 @@ _RECALL_MARKERS = (
     constants.INSTRUCTION_FLAG_MARKER,
     constants.TIMELINE_MARKER,
     constants.STANDING_MARKER,
+    constants.CLAIM_MARKER,
 )
 
 
@@ -2195,16 +2196,73 @@ class Engine:
         assembled.tokens_used += sum(estimate_tokens(r.content) for r in [*standing, *timelines])
         return assembled
 
+    async def _claims_only(
+        self, ns: str, scored: list[tuple[MemoryRecord, float]], *, expand: bool
+    ) -> list[tuple[MemoryRecord, float]]:
+        """B9 facts-only: low-trust raw records leave; their mined facts may stand in.
+
+        A record below ``integrity.claims_only_below`` (view trust) that is not
+        itself a mined fact, the pinned persona or a lead block is removed. With
+        ``expand``, each live, unflagged atomic fact mined from it takes its place
+        once, prefixed :data:`constants.CLAIM_MARKER` and scored like the record it
+        replaces. Facts already in the list are not repeated.
+        """
+        threshold = self._integrity().claims_only_below
+        keep_as_is = ("atomic_fact", constants.LEAD_TAG)
+
+        def exempt(record: MemoryRecord) -> bool:
+            return (
+                record.trust >= threshold
+                or record.source.channel == "persona"
+                or any(tag in record.tags for tag in keep_as_is)
+            )
+
+        if all(exempt(record) for record, _ in scored):
+            return scored
+        mined: dict[str, list[MemoryRecord]] = {}
+        if expand:
+            for fact in await self._require_started().list_records(ns, "semantic"):
+                if "atomic_fact" in fact.tags:
+                    for parent in fact.source.parents:
+                        mined.setdefault(parent, []).append(fact)
+        seen = {record.record_id for record, _ in scored}
+        out: list[tuple[MemoryRecord, float]] = []
+        for record, score in scored:
+            if exempt(record):
+                out.append((record, score))
+                continue
+            for fact in mined.get(record.record_id, []):
+                if fact.record_id in seen:
+                    continue
+                view = await self._live_view(fact)
+                inflated = self._inflate_all([view], ns) if view is not None else []
+                if not inflated or inflated[0].instruction_flag:
+                    continue
+                seen.add(fact.record_id)
+                claim = inflated[0].model_copy(
+                    update={"content": f"{constants.CLAIM_MARKER} {inflated[0].content}"}
+                )
+                out.append((claim, score))
+        return out
+
     async def _decorate(
-        self, ns: str, scored: list[tuple[MemoryRecord, float]]
+        self,
+        ns: str,
+        scored: list[tuple[MemoryRecord, float]],
+        *,
+        expand_claims: bool = True,
     ) -> list[tuple[MemoryRecord, float]]:
         """The context-entry transforms shared by every read mode (projection only).
 
-        H1 relative dates (each record against its own event time), the E1
-        instruction-flag wrapper, the C4' current-state view, then the B6
-        untrusted-note wrapper.
+        B9 facts-only (low-trust raw records replaced by their mined claims, or
+        dropped when ``expand_claims`` is off), H1 relative dates (each record
+        against its own event time), the E1 instruction-flag wrapper, the C4'
+        current-state view, then the B6 untrusted-note wrapper.
         """
         read_cfg = self._config().read
+        integrity = self._integrity()
+        if integrity.enabled and integrity.claims_only_below > 0.0:
+            scored = await self._claims_only(ns, scored, expand=expand_claims)
         if read_cfg.resolve_relative_dates:
             scored = [(self._annotate_dates(record), score) for record, score in scored]
         # E1: instruction-shaped content enters a context window WRAPPED — the
@@ -2431,8 +2489,8 @@ class Engine:
         inflated = self._inflate_all([view], ns) if view is not None else []
         if not inflated:
             return None
-        [(record, _)] = await self._decorate(ns, [(inflated[0], 0.0)])
-        return record
+        decorated = await self._decorate(ns, [(inflated[0], 0.0)], expand_claims=False)
+        return decorated[0][0] if decorated else None
 
     async def _best_source_turn(self, fact: MemoryRecord) -> MemoryRecord | None:
         """H6: the eligible parent turn sharing the most words with ``fact``."""
@@ -2455,8 +2513,8 @@ class Engine:
         inflated = self._inflate_all([best[1]], fact.namespace)
         if not inflated:
             return None
-        [(record, _)] = await self._decorate(fact.namespace, [(inflated[0], 0.0)])
-        return record
+        decorated = await self._decorate(fact.namespace, [(inflated[0], 0.0)], expand_claims=False)
+        return decorated[0][0] if decorated else None
 
     async def _compose(
         self, query: str, ns: str, budget_tokens: int, top_k: int, pool: int
@@ -2486,9 +2544,14 @@ class Engine:
         kept = {r.record_id for r, _ in self._assembly.apply_floor(pooled)}
         decorated = {
             r.record_id: r
-            for r, _ in await self._decorate(ns, [(records[rid], 0.0) for rid in records])
+            for r, _ in await self._decorate(
+                ns, [(records[rid], 0.0) for rid in records], expand_claims=False
+            )
         }
-        ranked = sorted((rid for rid in fused if rid in kept), key=lambda rid: (-fused[rid], rid))
+        ranked = sorted(
+            (rid for rid in fused if rid in kept and rid in decorated),
+            key=lambda rid: (-fused[rid], rid),
+        )
         sessions: dict[str, list[str]] = {}
         if self._episodic is not None:
             for s in await self._episodic.sessions(ns, constants.SESSION_GAP_MINUTES):

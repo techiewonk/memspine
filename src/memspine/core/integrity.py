@@ -29,6 +29,7 @@ class IntegrityPolicy:
     merge_reinforcement_gate: bool = True
     implicit_parents: str = "off"
     untrusted_wrap_below: float = 0.0
+    claims_only_below: float = 0.0
     live_reevaluation: bool = False
     principal_reputation: bool = False
 

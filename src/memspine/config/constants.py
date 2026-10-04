@@ -234,6 +234,9 @@ INSTRUCTION_FLAG_MARKER = INSTRUCTION_FLAG_WRAP.split("{content}", 1)[0].strip()
 TIMELINE_MARKER = "TIMELINE:"
 STANDING_MARKER = "USER-STATED PREFERENCES"
 LEAD_TAG = "lead_section"
+# B9 facts-only (``integrity.claims_only_below``): the prefix of a mined fact shown
+# in place of the low-trust raw record it was mined from.
+CLAIM_MARKER = "[CLAIM from a low-trust source, unverified]"
 # H22: at most this many stated preferences in the standing block (newest kept).
 LEAD_STANDING_MAX = 5
 

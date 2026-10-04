@@ -460,6 +460,13 @@ class IntegrityConfig(BaseModel):
     #: B6: assembled records whose view trust is below this are rendered inside
     #: an untrusted-data wrapper (data, not instructions). 0.0 = off.
     untrusted_wrap_below: float = Field(default=0.0, ge=0.0, le=1.0)
+    #: B9 facts-only: a context record whose view trust is below this never enters
+    #: a context window as raw text. It is replaced by the live atomic facts mined
+    #: from it (H2), shown as unverified claims; with none, it is left out. Mined
+    #: facts are themselves kept (they are claims already). Raw low-trust text is
+    #: where instruction framing survives, so this trades recall for containment.
+    #: 0.0 = off.
+    claims_only_below: float = Field(default=0.0, ge=0.0, le=1.0)
     #: B4': re-check each candidate's trust against its CURRENT parents at read
     #: time. Ancestor quarantine or rollback propagates, and so does grant revocation:
     #: a parent behind a revoked grant counts 0 (N6, ADR-029 edge cases). Radii can
