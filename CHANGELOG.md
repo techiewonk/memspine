@@ -4,6 +4,16 @@ All notable changes to memspine are documented here. Format: [Keep a Changelog](
 
 ## [Unreleased]
 
+### Added — remaining read/write enhancements (2026-10-04)
+- **H22 lead section (opt-in, `read.topic_timelines` / `read.standing_instructions`):** timelines open the volatile context with one dated timeline per topic entity of the retrieved keyed facts (every live fact on the entity plus its superseded history, oldest first); the standing block places the preferences and requests the user stated ("from now on …", "please always …", "I'd prefer …"; user role, trust ≥ `read.standing_min_trust`) right after the pinned persona, labelled as the user's words. Read-time projections (no model, nothing stored) under `read.lead_budget_tokens`, with `timeline_entities` / `timeline_items` caps; entries pass the context gates and the untrusted-note threshold; the `TIMELINE:` and `USER-STATED PREFERENCES` markers join the H21 recall filter. Not applied to shared reads. The standing block is a poisoning surface for user-role writers (MINJA regime): leave it off for agents that serve untrusted users.
+- **H15 segmentation before mining (opt-in, `consolidation.mine_by_topic`):** with `mine_facts`, each lexical-cohesion topic segment of a session is mined in its own call; a fact's parents are its segment's turns (the whole context of that call, A2). All calls run before any deposit, so a failed call retries the session without duplicates.
+
+### Fixed — fresh-install and POSIX defects (2026-10-04)
+- **xxhash 4 (the locked version) rejects `str`:** the hash embedder and the SimHash near-duplicate LSH raised `TypeError` on every write in a fresh environment. Tokens are UTF-8 encoded first, which gives the digests xxhash 3 produced, so stored fingerprints and vectors are unchanged.
+- **DBOS system database on Linux/macOS:** `default_system_database_url` produced `sqlite:///tmp/…`, which SQLAlchemy resolves relative to the working directory, so the durable runner could not launch outside Windows. It now emits `sqlite:///<absolute posix path>` and no longer percent-encodes spaces.
+- **Retries:** an expired or invalid credential is never retried, even when litellm reports it as `APIConnectionError`.
+- **Types and lint:** `mypy --strict` clean against the locked SQLAlchemy 2.1 (variadic `Row`/`Select`) and llama-cpp-python 0.3.36; `ruff` 0.16 clean and formatted across `src`, `tests` and `evals`.
+
 ### Added — paid-run readiness for Bedrock Qwen3 (engine + harness)
 - **Qwen3 thinking control (`llm.roles.<role>.no_think`, default `null`):** the LiteLLM adapter appends Qwen's ` /no_think` soft switch to the last user message, on by default for model ids containing `qwen3` (`true`/`false` force it). `<think>…</think>` blocks are stripped from every reply, for every model, so structured roles parse. Other models are unchanged.
 - **Engine token ledger:** `LLMRouter.token_counts()` (provider-reported usage for LiteLLM, a chars/4 estimate otherwise) and `Engine.model_usage()` → `{role: {model, calls, prompt, completion}}`.
