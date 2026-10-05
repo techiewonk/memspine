@@ -91,6 +91,32 @@ def _merge_carriers(node: dict[str, Any], record_id: str) -> list[_Carrier]:
     return []
 
 
+def _group_siblings(items: list[Any], record_id: str) -> list[_Carrier]:
+    """The other entries of every ``group`` an entry of ``record_id`` belongs to.
+
+    A list of record-shaped entries sharing a ``group`` index is ONE fact keyed
+    by several records (an ``entity_resolved`` decision citing several turns):
+    each entry repeats the same names, so erasing any member record must erase
+    every entry of the group, not only the member's own."""
+    groups = [
+        item["group"]
+        for item in items
+        if isinstance(item, dict)
+        and item.get("record_id") == record_id
+        and item.get("group") is not None
+    ]
+    if not groups:
+        return []
+    return [
+        (item, _SNAPSHOT_SCRUB)
+        for item in items
+        if isinstance(item, dict)
+        and item.get("record_id") != record_id
+        and item.get("group") is not None
+        and item.get("group") in groups
+    ]
+
+
 def redact_record(node: Any, record_id: str) -> bool:
     """Recursively erase every identifying field of every snapshot/delta of
     ``record_id`` (see ``_SNAPSHOT_SCRUB``). Returns True if anything was
@@ -103,6 +129,8 @@ def redact_record(node: Any, record_id: str) -> bool:
         for value in node.values():
             changed |= redact_record(value, record_id)
     elif isinstance(node, list):
+        for carrier, scrub in _group_siblings(node, record_id):
+            changed |= _scrub(carrier, scrub)
         for item in node:
             changed |= redact_record(item, record_id)
     return changed
@@ -148,6 +176,8 @@ def retained_fields(node: Any, record_id: str) -> set[str]:
         for value in node.values():
             found |= retained_fields(value, record_id)
     elif isinstance(node, list):
+        for carrier, scrub in _group_siblings(node, record_id):
+            found.update(_identifying(carrier, scrub))
         for item in node:
             found |= retained_fields(item, record_id)
     return found

@@ -237,3 +237,70 @@ async def test_hard_forget_renames_only_orphaned_entity_nodes() -> None:
         assert "alice" not in orjson.dumps(payload).decode().lower()
     finally:
         await eng.stop()
+
+
+# ── grouped marker entries (entity_resolved, one decision per cited turn) ───
+
+
+def _decisions(first: str, second: str, solo: str) -> list[dict[str, Any]]:
+    """The ``entity_resolved`` decision shape: one record-shaped entry per cited
+    turn, the entries of one decision sharing a ``group`` index."""
+    entry = {"namespace": "a", "entity": "Mel", "attribute": "Melanie", "method": "minhash"}
+    return [
+        {**entry, "record_id": first, "group": 0},
+        {**entry, "record_id": second, "group": 0},
+        {**entry, "record_id": solo, "entity": "Car", "attribute": "Caroline", "group": 1},
+    ]
+
+
+def test_redacting_one_member_redacts_its_whole_group() -> None:
+    from memspine.core.erasure import redact_record, retained_fields
+
+    payload = {"marker": "entity_resolved", "decisions": _decisions("t1", "t2", "t3")}
+    assert retained_fields(payload, "t1") == {"entity", "attribute"}
+    assert redact_record(payload, "t1")
+    first, second, solo = payload["decisions"]
+    assert first["entity"] is None and second["entity"] is None  # the sibling too
+    assert second["attribute"] is None and second["record_id"] == "t2"
+    assert solo["entity"] == "Car" and solo["attribute"] == "Caroline"  # other group kept
+    assert retained_fields(payload, "t1") == set()
+
+
+def test_retained_fields_reports_an_intact_sibling() -> None:
+    from memspine.core.erasure import retained_fields
+
+    payload = {"decisions": _decisions("t1", "t2", "t3")}
+    payload["decisions"][0].update(entity=None, attribute=None)  # own entry only
+    assert retained_fields(payload, "t1") == {"entity", "attribute"}
+
+
+async def test_hard_forget_redacts_sibling_decision_entries() -> None:
+    eng = await _engine(memories={"episodic": {"enabled": True}}).start()
+    try:
+        turns = [
+            await eng.write(text, namespace="a", memory_type="episodic")
+            for text in ("Mel said hi", "Melanie went hiking", "Car is here")
+        ]
+        await eng._append_and_project(
+            MemoryEvent(
+                kind=EventKind.MARKER,
+                namespace="a",
+                actor="system",
+                payload={
+                    "marker": "entity_resolved",
+                    "decisions": _decisions(*(t.record_id for t in turns)),
+                },
+            )
+        )
+        await eng.forget(turns[0].record_id, namespace="a", hard=True)
+        [marker] = [
+            e.payload
+            for e in await _events(eng)
+            if e.kind is EventKind.MARKER and e.payload.get("marker") == "entity_resolved"
+        ]
+        assert "Melanie" not in orjson.dumps(marker).decode()
+        assert "Caroline" in orjson.dumps(marker).decode()
+        proof = await eng.verify_forget(turns[0].record_id, namespace="a")
+        assert proof["log_redacted"] is True
+    finally:
+        await eng.stop()
