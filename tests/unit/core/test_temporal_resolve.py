@@ -123,3 +123,39 @@ def test_anchored_annotate_and_default_unchanged() -> None:
     assert annotate(text, SAT) == (
         "I ran a few days ago and painted last week [= 2023-07-03..2023-07-09]."
     )
+
+
+# -- #58: relative-week mode (LoCoMo's "the week before <session date>") ----------------
+
+
+@pytest.mark.parametrize(
+    ("text", "calendar", "preceding"),
+    [
+        ("last week", "2023-07-03..2023-07-09", "2023-07-08..2023-07-14"),
+        ("the past week", "2023-07-03..2023-07-09", "2023-07-08..2023-07-14"),
+        ("next week", "2023-07-17..2023-07-23", "2023-07-16..2023-07-22"),
+        ("this week", "2023-07-10..2023-07-16", "2023-07-10..2023-07-16"),
+        ("last weekend", "2023-07-08..2023-07-09", "2023-07-08..2023-07-09"),
+        ("last Friday", "Fri 2023-07-14", "Fri 2023-07-14"),
+        ("last month", "2023-06", "2023-06"),
+    ],
+)
+def test_relative_week_modes(text: str, calendar: str, preceding: str) -> None:
+    [cal] = resolve(text, SAT)
+    [default] = resolve(text, SAT, week="calendar")
+    [pre] = resolve(text, SAT, week="preceding_7_days")
+    assert cal.label == default.label == calendar
+    assert pre.label == preceding
+    assert not pre.relation  # an absolute span, no relation phrase
+
+
+def test_preceding_week_matches_the_locomo_gold_span() -> None:
+    """Gold "The week before 9 June 2023" = 2023-06-02..2023-06-08."""
+    [r] = resolve("Last week", date(2023, 6, 9), week="preceding_7_days")
+    assert (r.first, r.last) == (date(2023, 6, 2), date(2023, 6, 8))
+    assert annotate("I ran last week.", date(2023, 6, 9), week="preceding_7_days") == (
+        "I ran last week [= 2023-06-02..2023-06-08]."
+    )
+    assert annotate("I ran last week.", date(2023, 6, 9)) == (
+        "I ran last week [= 2023-05-29..2023-06-04]."
+    )
