@@ -420,6 +420,13 @@ ENTITY_RESOLVE_JACCARD = 0.9
 ENTITY_RESOLVE_MIN_NAME_CHARS = 6
 ENTITY_RESOLVE_MIN_TOKENS = 2
 ENTITY_RESOLVE_MIN_ENTROPY = 1.5
+# Tokens that tell two otherwise identical names apart (generational suffixes):
+# "michael thompson ii" vs "iii" (or a number, "apollo 11" vs "13") is a near
+# string match but a different entity, so MinHash never merges such a pair; it
+# goes to the LLM step (or stays new in rules mode).
+ENTITY_RESOLVE_GENERATIONAL = frozenset(
+    {"i", "ii", "iii", "iv", "v", "vi", "jr", "sr", "junior", "senior", "2nd", "3rd", "4th"}
+)
 # At most this many unresolved names per batched LLM call.
 ENTITY_RESOLVE_LLM_BATCH = 50
 # A merge needs the source's trust within this distance of the entity's (the most

@@ -68,6 +68,28 @@ async def test_high_entropy_spelling_variant_merges_by_minhash() -> None:
     assert (out.method, out.target) == ("minhash", "Nothing Is Impossible")
 
 
+@pytest.mark.parametrize(
+    ("known", "name"),
+    [
+        ("Michael Thompson II", "Michael Thompson III"),
+        ("John Smith", "John Smith Jr"),
+        ("Christopher William", "Christopher Williams"),
+        ("Apollo 11", "Apollo 13"),
+    ],
+)
+async def test_near_names_that_name_different_people_never_merge_by_minhash(
+    known: str, name: str
+) -> None:
+    """fix/graph-review #4: a generational suffix, a number, or one token
+    differing by a trailing "s" is a different entity as often as not, so the
+    pair never merges deterministically: rules mode keeps it new, llm mode asks."""
+    [out] = await EntityResolver(_known(known), {}).resolve([(name, 1.0)])
+    assert (out.method, out.target) == ("new", None)
+    llm = CountingResolver({name: known})
+    [asked] = await EntityResolver(_known(known), {}, llm=llm).resolve([(name, 1.0)])
+    assert len(llm.calls) == 1 and (asked.method, asked.target) == ("llm", known)
+
+
 async def test_low_entropy_names_skip_minhash_and_go_to_one_batched_call() -> None:
     assert not high_entropy("mel") and not high_entropy("jo")
     llm = CountingResolver({"Mel": "Melanie", "Jo": "Joanna"})
