@@ -625,8 +625,8 @@ async def sleep_compute(ctx: PipelineContext) -> dict[str, object]:
 
 
 async def reorganize(ctx: PipelineContext) -> dict[str, object]:
-    """D-40/D-42 background graph reorganizer: Leiden communities over the
-    association graph → one consolidation-style summary parent per community
+    """D-40/D-42 background graph reorganizer: Leiden communities over each
+    namespace's association graph (KB-9) → one consolidation-style summary parent per community
     of >= REORGANIZE_MIN_COMMUNITY_SIZE members, members linked to the parent
     via LINK events (ADR-015).
 
@@ -650,19 +650,25 @@ async def reorganize(ctx: PipelineContext) -> dict[str, object]:
     inflate = CompressionPolicy.bind()
     community_opts = CommunityPolicy.bind(_policy_options(ctx, "associative", "community")).options
     assert isinstance(community_opts, CommunityOptions)
-    edges = await ctx.graph.edge_list()
-    # Leiden clustering is CPU work — keep it off the event loop (same
-    # pattern as compress()'s zstd call). Knobs ride the associative policy
-    # (v0.2 A6); defaults preserve rebuild determinism (D0.1).
-    communities = await asyncio.to_thread(
-        detect_communities,
-        edges,
-        min_size=community_opts.min_size,
-        resolution=community_opts.resolution,
-        randomness=community_opts.randomness,
-        random_seed=community_opts.random_seed,
-        max_cluster_size=community_opts.max_cluster_size,
-    )
+    # KB-9: Leiden runs per namespace, over that namespace's edges only, so no
+    # community (and no summary parent) ever spans two tenants.
+    communities: list[list[str]] = []
+    for graph_namespace in await ctx.storage.list_namespaces():
+        edges = await ctx.graph.edge_list(graph_namespace)
+        # Leiden clustering is CPU work — keep it off the event loop (same
+        # pattern as compress()'s zstd call). Knobs ride the associative policy
+        # (v0.2 A6); defaults preserve rebuild determinism (D0.1).
+        communities.extend(
+            await asyncio.to_thread(
+                detect_communities,
+                edges,
+                min_size=community_opts.min_size,
+                resolution=community_opts.resolution,
+                randomness=community_opts.randomness,
+                random_seed=community_opts.random_seed,
+                max_cluster_size=community_opts.max_cluster_size,
+            )
+        )
     parents = 0
     superseded = 0
     errors: list[str] = []
