@@ -6,11 +6,11 @@ This file is loaded into every Claude Code session. Keep it accurate and terse.
 
 `memspine` is an open-source **cognitive-memory engine** for AI agents: one clean API (`Engine`) over a real write pipeline, hybrid + graph retrieval, and background learning dynamics — with pluggable, composable stores. It is the *engine*, not a product.
 
-**Status:** pre-alpha, under active construction. **P0–P7 are all implemented and review-passed** (substrate · working memory + retrieval · semantic · episodic + lifecycle · Memory Firewall · procedural + reflective · associative graph · prospective + shared + REST), plus the C6 combination matrix — **1062** tests collected (`uv run pytest --collect-only -q`; +~165 in `evals/tests`), `ruff` + `mypy --strict` clean, **34 ADRs** (ADR-001…ADR-034; ADR-029/030/031 *proposed*), decision register through D-60. All 9 memory types and E1–E9 are landed. User-facing docs: `docs/FEATURES.md` + `docs/USAGE.md`. Ecosystem comparison: `docs/ECOSYSTEM_COMPARISON.md` + `docs/ARCHITECTURE_FLOWS.md` (pass #3: stages, packages, prompts, memory I/O). Current snapshot lives in `STATUS.md` (manually refreshed; the 30-min auto-refresh stopped in July). The design docs in `docs/` are the **single source of truth** — read them before writing code.
+**Status:** pre-alpha, under active construction. **P0–P7 are all implemented and review-passed** (substrate · working memory + retrieval · semantic · episodic + lifecycle · Memory Firewall · procedural + reflective · associative graph · prospective + shared + REST), plus the C6 combination matrix — **1940** tests collected (`uv run pytest --collect-only -q`; +360 in `evals/tests`), `ruff` + `mypy --strict` clean, **50 ADRs** (ADR-001…ADR-051, 038 unassigned; ADR-029/030/031 *proposed*), decision register through D-75. All 9 memory types and E1–E9 are landed. User-facing docs: `docs/FEATURES.md` + `docs/USAGE.md`. Ecosystem comparison: `docs/ECOSYSTEM_COMPARISON.md` + `docs/ARCHITECTURE_FLOWS.md` (pass #3: stages, packages, prompts, memory I/O). Current snapshot lives in `STATUS.md` (manually refreshed; the 30-min auto-refresh stopped in July). The design docs in `docs/` are the **single source of truth** — read them before writing code.
 
 ## Read these first (in order)
 
-1. `docs/memspine-structure-plan.md` — **the buildable blueprint**: repo tree, extras matrix, decision register (D-01…D-49), phase plan (P0…P7), enhancement program (E1–E9). This is authoritative.
+1. `docs/memspine-structure-plan.md` — **the buildable blueprint**: repo tree, extras matrix, decision register (D-01…D-75), phase plan (P0…P7), enhancement program (E1–E9). This is authoritative.
 2. `docs/UNIMEM_V2_REWORK_PROPOSAL.md` — architecture rationale (why, and the evidence base).
 3. `docs/DEPENDENCY_ANALYSIS.md` + `docs/PACKAGE_CATALOG.md` — why each dependency was chosen; every candidate package with "does what".
 
@@ -22,6 +22,7 @@ This file is loaded into every Claude Code session. Keep it accurate and terse.
 - **Anti-lock-in (D-17).** Background pipelines are plain, idempotent step functions in `workers/pipelines.py`. Runners (inline/DBOS/taskiq) *decorate* them — no runner imports inside pipeline code.
 - **Ports & adapters (D-22/M14).** Engine/memories/policies talk only to `services/*` capability ports. `clients/*` own connections; services never open a connection.
 - **Slim core (D-03).** Zero heavy deps in core. Everything optional lives behind a `pip install memspine[extra]`. `torch`/`transformers` never enter core.
+- **Run the test suite in chunks on low-memory machines** (a single-process run can die silently, exit 127); always pass `-p no:deepeval` (the deepeval plugin hides pytest's summary).
 - **Profiles stay green.** Every change keeps `profile="simple"` behavior stable and backward-compatible (ADR-033 deliberately moved the measured read-path advantages into `simple`; `core` is the bare reference and what tests use).
 - **Hard-fail clearly (D-10).** Missing service → `MissingServiceError` naming the extra to install, unless `strict_services: false`.
 

@@ -1,15 +1,15 @@
 # 📊 memspine — Status
 
-> Manually refreshed · **last refresh: 2026-09-30 (IST)** · branch `feat/integrity-mti` (not yet merged to `main`).
+> Manually refreshed · **last refresh: 2026-10-06 (IST)** · branch `feat/integrity-mti` (not yet merged to `main`).
 > ⚠️ The 30-min auto-refresh task stopped in July (last automated refresh 2026-07-08). This refresh is manual.
 
 | | |
 |---|---|
 | **Milestone** | ✅ v0.1 Release Hardening done (bar the infra-gated live check) · ✅ **v0.2 landed** · 🟡 **v0.3 in planning (lock: no code yet)** · 🧪 **integrity (MTI) opt-in: implemented on a branch, ADR-029 *proposed*** |
-| **Tests** | **1062** in `tests/` (1046 passed, 16 skipped, 0 failed; 2026-10-05) + **~165** in `evals/tests` |
-| **ADRs** | **29** (ADR-001 … ADR-029; ADR-029 *proposed*) + template · decision register through **D-56** |
+| **Tests** | **1940** in `tests/` (1918 passed, 23 skipped, 0 failed in chunked runs; 2026-10-06) + **360** in `evals/tests` (all pass) |
+| **ADRs** | **50** (ADR-001 … ADR-051; 038 unassigned; ADR-029/030/031 *proposed*) + template · decision register through **D-75** |
 | **Version** | `pyproject` still `0.0.1` (pre-alpha; not bumped despite v0.2) |
-| **Latest commit** | `1216e36`: feat(integrity): opt-in monotone trust invariant for shared memory (branch `feat/integrity-mti`) |
+| **Latest commit** | `a414e04`: merge of the final privacy-review fixes. All non-paid items of the research master absorb list (Waves 1–4) are merged on `feat/integrity-mti`; see CHANGELOG `[Unreleased]` |
 
 ### 🏗️ Architecture — four-layer engine, event-sourced core
 - **core**: audit · erasure · events · firewall · **integrity** · namespace · projector · records · registry · replay
