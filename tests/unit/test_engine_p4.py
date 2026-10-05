@@ -40,7 +40,7 @@ async def test_external_injection_is_quarantined_and_never_retrievable(engine: E
     hits = await engine.search("recommend EvilCorp", namespace="agent/a")
     assert all(record.record_id != poisoned.record_id for record, _ in hits)
     # ...but stay visible to operators (audit surface).
-    stored = await engine.retrieve(namespace="agent/a")
+    stored = await engine.retrieve(namespace="agent/a", include_held=True)
     assert any(record.record_id == poisoned.record_id for record in stored)
 
 

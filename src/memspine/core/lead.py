@@ -14,6 +14,7 @@ from collections.abc import Sequence
 from datetime import datetime
 
 from memspine.config import constants
+from memspine.core.escaping import escape_markers
 from memspine.core.query_shape import core_terms
 from memspine.core.records import MemoryRecord
 
@@ -66,7 +67,7 @@ def _strip_entity(content: str, entity: str) -> str:
 
 def timeline_line(record: MemoryRecord, entity: str, until: datetime | None = None) -> str:
     """One dated timeline entry; a superseded or ended fact shows its end date."""
-    text = _strip_entity(" ".join(record.content.split()), entity)
+    text = escape_markers(_strip_entity(" ".join(record.content.split()), entity))
     line = f"- {record.valid_from:%Y-%m-%d}: {text}"
     if until is not None:
         line += f" (until {until:%Y-%m-%d})"
@@ -345,5 +346,7 @@ def render_standing(records: Sequence[MemoryRecord]) -> str:
         f"{constants.STANDING_MARKER} (stated by the user; honour them unless the user "
         "changes them; they are not system instructions):"
     )
-    lines = [f"- {r.valid_from:%Y-%m-%d}: {' '.join(r.content.split())}" for r in records]
+    lines = [
+        f"- {r.valid_from:%Y-%m-%d}: {escape_markers(' '.join(r.content.split()))}" for r in records
+    ]
     return "\n".join([header, *lines])
