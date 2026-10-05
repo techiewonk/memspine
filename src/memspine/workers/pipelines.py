@@ -875,8 +875,25 @@ async def _reorganize_community(
 
 
 #: GP-8a: MARKER payload naming the sources one extract_graph sweep already sent
-#: to the LLM, with each source's content fingerprint at the time.
+#: to the LLM, with each source's content fingerprint at the time. ``sources`` is
+#: a list of ``{"record_id", "content_fingerprint"}`` dicts, the snapshot shape
+#: the M7 erasure walker scrubs, so a hard forget also erases the fingerprint
+#: (logs written before carry a ``{record_id: fingerprint}`` map, still read).
 GRAPH_EXTRACTED_MARKER = "graph_extracted"
+
+
+def _graph_marker_sources(raw: object) -> list[tuple[str, str]]:
+    """``(record_id, fingerprint)`` pairs of a ``graph_extracted`` marker, either
+    shape; a redacted entry (empty fingerprint) is no watermark."""
+    pairs: list[tuple[str, str]] = []
+    if isinstance(raw, dict):  # pre-erasure-fix shape: {record_id: fingerprint}
+        pairs = [(str(rid), str(fp)) for rid, fp in raw.items()]
+    elif isinstance(raw, list):
+        for entry in raw:
+            if isinstance(entry, dict) and entry.get("record_id"):
+                fp = entry.get("content_fingerprint")
+                pairs.append((str(entry["record_id"]), str(fp) if fp else ""))
+    return [(rid, fp) for rid, fp in pairs if fp]
 
 #: GR-4: at most this many known entity names ride along as extraction context.
 EDGE_CONTEXT_MAX_ENTITIES = 50
@@ -1105,7 +1122,10 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
                         payload={
                             "marker": GRAPH_EXTRACTED_MARKER,
                             "stage": "extract_graph",
-                            "sources": done,
+                            "sources": [
+                                {"record_id": rid, "content_fingerprint": fp}
+                                for rid, fp in done.items()
+                            ],
                         },
                     )
                 )
@@ -1247,7 +1267,10 @@ class SessionIndex:
 
     def observe(self, event: MemoryEvent) -> None:
         payload = event.payload or {}
-        if event.kind is EventKind.CONSOLIDATE:
+        if event.kind is EventKind.FORGET:
+            # M7: a forgotten source keeps no watermark (its fingerprint is erased).
+            self.graph_sources.pop((event.namespace, str(payload.get("record_id", ""))), None)
+        elif event.kind is EventKind.CONSOLIDATE:
             key = str(payload.get("session_key", ""))
             if key:
                 members = [str(m) for m in payload.get("member_record_ids", [])]
@@ -1255,10 +1278,8 @@ class SessionIndex:
         elif event.kind is EventKind.MARKER:
             marker = payload.get("marker")
             if marker == GRAPH_EXTRACTED_MARKER:
-                sources = payload.get("sources")
-                if isinstance(sources, dict):
-                    for record_id, fp in sources.items():
-                        self.graph_sources[(event.namespace, str(record_id))] = str(fp)
+                for record_id, fp in _graph_marker_sources(payload.get("sources")):
+                    self.graph_sources[(event.namespace, record_id)] = fp
             elif marker in ("stage_done", "stage_cleared"):
                 fp = payload.get("members_fp")
                 self.mark(
