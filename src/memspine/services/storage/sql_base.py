@@ -292,6 +292,7 @@ class SqlStorage(ServiceAdapter):
             "reflection_depth": record.reflection_depth,
             "group_id": record.group_id,
             "tags": orjson.dumps(record.tags),
+            "invalid_at": _iso(record.invalid_at) if record.invalid_at else None,
         }
         stmt = self._insert(memory_records).values(record_id=record.record_id, **values)
         stmt = stmt.on_conflict_do_update(index_elements=["record_id"], set_=values)
@@ -529,5 +530,6 @@ class SqlStorage(ServiceAdapter):
                 "group_id": row["group_id"],
                 # NULL tags (rows written before D2) read back as an empty list.
                 "tags": orjson.loads(row["tags"]) if row["tags"] is not None else [],
+                "invalid_at": row["invalid_at"],
             }
         )

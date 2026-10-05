@@ -19,7 +19,14 @@ from enum import StrEnum
 from typing import Any
 
 from fastuuid import uuid4
-from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    PrivateAttr,
+    SerializerFunctionWrapHandler,
+    model_serializer,
+)
 
 from memspine.config.constants import REFLECTION_DEPTH_CAP, TRUST_DEFAULT
 from memspine.core.events import fingerprint_payload
@@ -145,6 +152,13 @@ class MemoryRecord(BaseModel):
     valid_to: datetime | None = None
     recorded_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     superseded_at: datetime | None = None
+    # #19 interval arithmetic (``conflict.interval_order``): when the fact stopped
+    # being true in the world, set by the conflict ladder from the next statement
+    # on its key. Distinct from ``valid_to``, which also closes zero-length
+    # contenders and archived records the store keeps out of "current". None =
+    # not known (every record written without interval_order); a None value is
+    # left out of serialised payloads, so event logs stay byte-identical.
+    invalid_at: datetime | None = None
 
     # Provenance + versioned lifecycle (D-42).
     source: SourceInfo = Field(default_factory=SourceInfo)
@@ -195,6 +209,13 @@ class MemoryRecord(BaseModel):
     # profile headers). Private: it is never serialised and no payload, tag or
     # field a caller controls can set it, so stored text cannot claim to be one.
     _engine_block: bool = PrivateAttr(default=False)
+
+    @model_serializer(mode="wrap")
+    def _omit_unknown_invalid_at(self, handler: SerializerFunctionWrapHandler) -> Any:
+        data = handler(self)
+        if self.invalid_at is None and isinstance(data, dict):
+            data.pop("invalid_at", None)
+        return data
 
     def model_post_init(self, _context: Any) -> None:
         if not self.content_fingerprint:

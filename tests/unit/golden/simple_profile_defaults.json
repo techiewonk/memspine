@@ -175,6 +175,7 @@
       "contest_ties": false,
       "contest_trust_margin": 0.05,
       "contest_window_seconds": 0.0,
+      "interval_order": false,
       "trust_margin": 0.3
     },
     "consolidation": {

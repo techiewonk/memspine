@@ -314,7 +314,14 @@ class SemanticMemory(BaseMemory):
         never materializes in any projection, and E1 taint analysis must be
         able to recover its content and provenance from the log alone.
         """
+        interval = bool(getattr(self._conflict, "interval_order", False))
+        # #19 candidate split: the same edge restated (same key and endpoints) is a
+        # duplicate of the current fact, never a contradiction of it.
+        if interval and self._conflict.same_endpoints(incoming, existing):
+            return await self._merge(existing, incoming)
         verdict = self._conflict.resolve(incoming, existing)
+        #: #19: the world-time end a superseded/retracted fact gets (None = off).
+        ended = {"invalid_at": incoming.valid_from} if interval else {}
         result: SemanticWriteResult
         if verdict is ConflictVerdict.NOOP:
             result = SemanticWriteResult(record=existing, action="rejected")
@@ -326,6 +333,7 @@ class SemanticMemory(BaseMemory):
                     "status": RecordStatus.ARCHIVED,
                     "evolve_to": incoming.record_id,
                     "tags": _without_disputed(existing.tags),
+                    **ended,
                 }
             )
             await self._write_event(closed)
@@ -342,6 +350,7 @@ class SemanticMemory(BaseMemory):
                     "superseded_at": incoming.recorded_at,
                     "status": RecordStatus.ARCHIVED,
                     "tags": _without_disputed(existing.tags),
+                    **ended,
                 }
             )
             await self._write_event(invalidated)
@@ -374,15 +383,18 @@ class SemanticMemory(BaseMemory):
             # on it. True backfill (older incoming) closes at the current
             # fact's start; a bias-rejected newer statement (bias="oldest")
             # is recorded with a zero-length interval — kept, never current.
-            backfilled = incoming.model_copy(
-                update={
-                    "valid_to": (
-                        existing.valid_from
-                        if incoming.valid_from < existing.valid_from
-                        else incoming.valid_from
-                    )
-                }
-            )
+            if interval and incoming.valid_from < existing.valid_from:
+                backfilled = await self._interval_backfill(incoming, existing)
+            else:
+                backfilled = incoming.model_copy(
+                    update={
+                        "valid_to": (
+                            existing.valid_from
+                            if incoming.valid_from < existing.valid_from
+                            else incoming.valid_from
+                        )
+                    }
+                )
             await self._write_through(index, backfilled)
             result = SemanticWriteResult(record=backfilled, action="added")
 
@@ -408,6 +420,49 @@ class SemanticMemory(BaseMemory):
             attribute=incoming.attribute,
         )
         return result
+
+    async def _interval_backfill(
+        self, incoming: MemoryRecord, existing: MemoryRecord
+    ) -> MemoryRecord:
+        """#19: an older-arriving statement on ``existing``'s key, placed in world time.
+
+        It ends where the next statement on the key begins (the earliest later
+        ``valid_from`` among the key's history and the current fact), so it is
+        history, never current. The history entry it lands inside (the latest
+        earlier statement whose interval covers its start) is closed at its start:
+        that statement stopped being true when the incoming one began. Both get
+        ``invalid_at`` = ``valid_to``. Zero-length entries (contenders,
+        bias-rejected statements) and held or erased records are not history.
+        Returns the incoming record with its interval; the caller writes it.
+        """
+        key = (incoming.entity, incoming.attribute)
+        history = [
+            r
+            for r in await self._storage.list_records(incoming.namespace, "semantic")
+            if (r.entity, r.attribute) == key
+            and r.record_id != incoming.record_id
+            and r.status is not RecordStatus.DELETED
+            and not r.quarantined
+            and CUE_TAG not in r.tags
+            and (r.valid_to is None or r.valid_to > r.valid_from)
+        ]
+        later = [r.valid_from for r in history if r.valid_from > incoming.valid_from]
+        end = min([existing.valid_from, *later])
+        covering = [
+            r
+            for r in history
+            if r.valid_from < incoming.valid_from
+            and r.valid_to is not None
+            and r.valid_to > incoming.valid_from
+        ]
+        if covering:
+            previous = max(covering, key=lambda r: (r.valid_from, r.record_id))
+            await self._write_event(
+                previous.model_copy(
+                    update={"valid_to": incoming.valid_from, "invalid_at": incoming.valid_from}
+                )
+            )
+        return incoming.model_copy(update={"valid_to": end, "invalid_at": end})
 
     async def _clear_dispute(self, existing: MemoryRecord, keep: set[str]) -> None:
         """R2-3: an UPDATE or INVALIDATE resolves a contest on the key.

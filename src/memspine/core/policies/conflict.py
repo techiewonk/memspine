@@ -20,6 +20,14 @@ Ladder (evaluated on two records sharing a fact key):
                  store closes its validity at existing.valid_from). With the
                  Graphiti overlap rule, a closed interval that ended before the
                  current fact began never displaces it (also ADD).
+
+#19 interval arithmetic (opt-in, ``interval_order``): the verdicts are unchanged;
+the store applies them with world-time intervals. A superseded or retracted fact
+gets ``invalid_at`` = the next statement's ``valid_from``; an older-arriving
+contradiction is stored as history ending at the next statement on its key (not
+always the current fact) and closes the history entry it lands inside. Candidate
+split first: a statement with the same endpoints as the current fact (same key,
+same ``dst:`` tag) is a duplicate, merged, never a contradiction.
 """
 
 from __future__ import annotations
@@ -54,11 +62,35 @@ class ConflictOptions(PolicyOptions):
     #: cannot silently archive a higher-trust fact (the supersession availability
     #: cell, `paper_aamas27/results/edge_cells.md`). Off by default.
     contest_lower_trust: bool = False
+    #: #19: world-time interval arithmetic for out-of-order statements on one key
+    #: (``invalid_at``, history re-closing, same-endpoint duplicates). Off = the
+    #: plain R4 backfill (closed at the current fact's start, no ``invalid_at``).
+    interval_order: bool = False
 
 
 class ConflictPolicy(BindablePolicy):
     name: ClassVar[str] = "conflict"
     Options: ClassVar[type[PolicyOptions]] = ConflictOptions
+
+    @property
+    def interval_order(self) -> bool:
+        """#19: whether the store applies verdicts with world-time intervals."""
+        options = self.options
+        assert isinstance(options, ConflictOptions)
+        return options.interval_order
+
+    @staticmethod
+    def same_endpoints(incoming: MemoryRecord, existing: MemoryRecord) -> bool:
+        """#19 candidate split: two keyed statements naming the same destination
+        (``dst:`` tag, written on every edge fact) state the same edge, so they are
+        a duplicate pair, not a contradiction. Records without a ``dst:`` tag never
+        match (a plain keyed fact has no endpoint to compare)."""
+        if incoming.entity is None or incoming.attribute is None:
+            return False
+        if (incoming.entity, incoming.attribute) != (existing.entity, existing.attribute):
+            return False
+        mine = {t for t in incoming.tags if t.startswith("dst:")}
+        return bool(mine) and mine == {t for t in existing.tags if t.startswith("dst:")}
 
     def resolve(self, incoming: MemoryRecord, existing: MemoryRecord) -> ConflictVerdict:
         options = self.options
