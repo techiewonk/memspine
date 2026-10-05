@@ -1190,9 +1190,16 @@ async def check_h16_time_order() -> bool:
         )
         await eng.start()
         try:
+            # distinct relevance, so score order (20, 3, 11) is NOT time order: equal
+            # scores now tie-break by event time, which would hide the feature
+            texts = {
+                20: "What is the latest book Melanie read: the latest book Melanie read",
+                3: "Melanie read a new book",
+                11: "Melanie went hiking",
+            }
             for day in (20, 3, 11):
                 await eng.write(
-                    f"Melanie read a new book on day {day}",
+                    texts[day],
                     namespace="a",
                     memory_type="episodic",
                     valid_from=datetime(2023, 5, day, tzinfo=UTC),

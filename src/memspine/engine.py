@@ -54,7 +54,12 @@ from memspine.core.lead import (
     timeline_line,
 )
 from memspine.core.namespace import grant_allows, validate_namespace
-from memspine.core.policies.assembly import AssembledContext, AssemblyPolicy, estimate_tokens
+from memspine.core.policies.assembly import (
+    AssembledContext,
+    AssemblyPolicy,
+    estimate_tokens,
+)
+from memspine.core.policies.assembly import ranked as rank_pairs
 from memspine.core.policies.compression import CompressionPolicy
 from memspine.core.policies.conflict import ConflictPolicy
 from memspine.core.policies.dedup import DedupPolicy
@@ -1339,7 +1344,7 @@ class Engine:
         """
         read_cfg = self._config().read
         entities: list[str] = []
-        for record, _ in sorted(scored, key=lambda pair: pair[1], reverse=True):
+        for record, _ in rank_pairs(scored):
             if record.memory_type != "semantic" or not record.entity:
                 continue
             if record.entity.lower() not in (e.lower() for e in entities):
@@ -2151,7 +2156,7 @@ class Engine:
                 for record, score in scored
                 if integrity.admits(record.trust)
             ]
-        scored.sort(key=lambda pair: pair[1], reverse=True)
+        scored = rank_pairs(scored)
         if reranked and read_cfg.rerank_keep is not None and read_cfg.candidate_pool > 1:
             # G5b: the wider pool fed the reranker; only its best few go on.
             scored = scored[: read_cfg.rerank_keep]
@@ -4475,7 +4480,7 @@ class Engine:
                     error=str(exc),
                     exc_info=True,
                 )
-        results.sort(key=lambda pair: pair[1], reverse=True)
+        results = rank_pairs(results)
         # COR-2/ADR-018: the per-grantor loop appended up to top_k EACH — a final
         # truncation keeps the contract that shared_search returns at most top_k.
         results = results[:top_k]

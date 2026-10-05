@@ -9,6 +9,7 @@ prefix cache stays warm across turns.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import ClassVar
 
@@ -32,6 +33,16 @@ _PLACEMENT_RANK = {
     "working": 5,
 }
 _STABLE_RANKS = {0, 1, 2}
+
+
+def ranked(pairs: Iterable[tuple[MemoryRecord, float]]) -> list[tuple[MemoryRecord, float]]:
+    """Score descending with a CONTENT-based tie-break (event time, then content
+    fingerprint), so equal scores order the same way in every run. Record ids are
+    random and set iteration is hash-randomised, which made ties nondeterministic."""
+    return sorted(
+        pairs,
+        key=lambda pair: (-pair[1], pair[0].valid_from, pair[0].content_fingerprint),
+    )
 
 
 def estimate_tokens(text: str) -> int:
@@ -169,11 +180,15 @@ class AssemblyPolicy(BindablePolicy):
                 return 0.0
             return len(ta & tb) / len(ta | tb)
 
-        remaining = sorted(scored, key=lambda pair: pair[1], reverse=True)
+        remaining = ranked(scored)
         selected: list[tuple[MemoryRecord, float]] = []
         tokens_used = 0
         if options.latest_slots > 0:
-            newest = sorted(remaining, key=lambda pair: pair[0].valid_from, reverse=True)
+            newest = sorted(
+                remaining,
+                key=lambda pair: (pair[0].valid_from, pair[0].content_fingerprint),
+                reverse=True,
+            )
             for pair in newest[: options.latest_slots]:
                 if options.dedupe_jaccard < 1.0 and any(
                     _jaccard(pair[0], chosen) >= options.dedupe_jaccard for chosen, _ in selected
@@ -223,7 +238,14 @@ class AssemblyPolicy(BindablePolicy):
         # The stable-prefix promise only holds when placement actually sorted —
         # with placement off, boundary_index is 0 (no cacheable prefix claimed).
         if options.cache_aware_placement:
-            selected.sort(key=lambda pair: (_rank(pair[0]), -pair[1]))
+            selected.sort(
+                key=lambda pair: (
+                    _rank(pair[0]),
+                    -pair[1],
+                    pair[0].valid_from,
+                    pair[0].content_fingerprint,
+                )
+            )
             boundary = sum(1 for record, _ in selected if _rank(record) in _STABLE_RANKS)
         else:
             boundary = 0
