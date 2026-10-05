@@ -14,7 +14,7 @@ All notable changes to memspine are documented here. Format: [Keep a Changelog](
 - **#59:** harness tests confirm `--qa-prompt dated_infer` (and `dated3`) apply to every LoCoMo category.
 
 ### Fixed
-- **#31 attribute guards on mined facts (default):** `ExtractedFacts` drops a fact whose entity, attribute or value is reasoning text ("Let me ...", `<think>`) or an invented placeholder ("unknown", "N/A", `<value>`), or whose entity / attribute exceeds 250 characters; a value over 250 characters is cut at a word boundary. Valid facts are unchanged.
+- **#31 attribute guards on mined facts (default):** `ExtractedFacts` drops a fact whose entity or attribute opens like reasoning text ("Let me ...", `<think>`) or is an invented placeholder ("unknown", "N/A", `<value>`), whose value is reasoning as a whole ("Let me think ...", `<think>`, "Step 1:") or a placeholder ("N/A", "TBD", `<value>`; "none" and "unknown" are real answers and kept), or whose entity / attribute exceeds 250 characters; a value over 250 characters is cut at a word boundary. Valid facts are unchanged.
 
 ### Added — SOTA-gap enhancements (2026-10-05)
 - **G1b cards header (opt-in, `read.cards: header`):** every read mode and `assemble` open the volatile context with a `FACTS` block of the mined atomic facts relevant to the query, one `[YYYY-MM-DD] Entity: fact` line each, within `read.cards_budget_share` of the budget (`read.cards_top_k` candidates). The facts come from the hybrid search restricted to `atomic_fact` records, so every search gate applies; the normal read gets the remaining budget and leaves mined facts out. `tokens_used` counts the header; the `FACTS` marker joins the H21 recall filter.
