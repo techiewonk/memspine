@@ -17,6 +17,7 @@ import itertools
 import os
 import re
 import threading
+import unicodedata
 from collections.abc import AsyncIterator, Callable, Coroutine, Mapping, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -224,6 +225,18 @@ def _screen_text(text: str, fw: FirewallConfig) -> tuple[str, list[str]]:
 
 def _looks_like_recall(content: str) -> bool:
     return any(marker in content for marker in _RECALL_MARKERS)
+
+
+#: #3: tag on a held record an operator rejected (archived, never releasable).
+_QUARANTINE_REJECTED_TAG = "quarantine_rejected"
+
+_FACT_VALUE_STRIP = re.compile(r"[\W_]+")
+
+
+def _fact_value(content: str) -> str:
+    """#3: a fact's value for corroboration: NFKC-folded, case-folded, with
+    punctuation and spacing differences removed. Paraphrases do not match."""
+    return _FACT_VALUE_STRIP.sub(" ", unicodedata.normalize("NFKC", content).casefold()).strip()
 
 
 #: N3: tag stamped on a record archived by a taint rollback or repair, so the
@@ -4038,12 +4051,16 @@ class Engine:
             # B-1: an attribute-less record (a mined event fact) has no key, so
             # only a content-fingerprint match corroborates it; otherwise any
             # trusted write about the same person would count (None == None).
+            # #3: a key match alone is not agreement. Two writes on the same key
+            # with different values contradict each other; only a write that
+            # states the same VALUE corroborates.
             same_fact = (
                 held.memory_type == incoming.memory_type
                 and held.entity is not None
                 and held.attribute is not None
                 and held.entity == incoming.entity
                 and held.attribute == incoming.attribute
+                and _fact_value(held.content) == _fact_value(incoming.content)
             )
             if not (same_content or same_fact):
                 continue
@@ -4056,37 +4073,7 @@ class Engine:
                 held.model_copy(update={"corroborations": count})
             )
             if promoted:
-                change["quarantined"] = False
-                if held.memory_type == "procedural" and held.skill_stage is not None:
-                    # M13.4: corroboration only lifts the quarantine — it must
-                    # never skip the ladder. The record resumes the status its
-                    # stage implies (RESOLVING pre-active), and still has to be
-                    # promoted through verified + the dry-run gate to surface.
-                    change["status"] = stage_status(held.skill_stage).value
-                elif held.memory_type == "semantic":
-                    # If the corroborators themselves established an active fact
-                    # on the same key, the promoted record joins the history as
-                    # its corroborated predecessor — never a second active fact.
-                    incumbent = None
-                    if held.entity is not None and held.attribute is not None:
-                        incumbent = await storage.find_active_fact(
-                            namespace, held.entity, held.attribute
-                        )
-                    if incumbent is not None and incumbent.record_id != held.record_id:
-                        change["status"] = RecordStatus.ARCHIVED.value
-                        change["evolve_to"] = incumbent.record_id
-                        # Clamp so a held record newer than the incumbent never
-                        # gets an inverted (valid_to < valid_from) interval.
-                        close_at = max(held.valid_from, incumbent.valid_from)
-                        change["valid_to"] = close_at.isoformat()
-                    else:
-                        change["status"] = RecordStatus.ACTIVATED.value
-                else:
-                    # Non-fact types (episodic, prospective watches, …): the
-                    # single-active-fact invariant is semantic-only (ADR-016) —
-                    # a semantic incumbent must never archive e.g. a watch that
-                    # merely reuses the key columns as its watched target.
-                    change["status"] = RecordStatus.ACTIVATED.value
+                change.update(await self._release_change(namespace, held))
             payload: dict[str, object] = {
                 "record_id": held.record_id,
                 "set": change,
@@ -4111,6 +4098,144 @@ class Engine:
                 record_id=held.record_id,
                 corroborations=count,
             )
+
+    async def _release_change(self, namespace: str, held: MemoryRecord) -> dict[str, object]:
+        """The lifecycle delta that lifts ``held`` out of quarantine (corroboration
+        promotion or an operator approval)."""
+        storage = self._require_started()
+        change: dict[str, object] = {"quarantined": False}
+        if held.memory_type == "procedural" and held.skill_stage is not None:
+            # M13.4: release only lifts the quarantine; it must never skip the
+            # ladder. The record resumes the status its stage implies (RESOLVING
+            # pre-active), and still has to be promoted through verified + the
+            # dry-run gate to surface.
+            change["status"] = stage_status(held.skill_stage).value
+        elif held.memory_type == "semantic":
+            # If the corroborators themselves established an active fact on the
+            # same key, the released record joins the history as its corroborated
+            # predecessor, never a second active fact.
+            incumbent = None
+            if held.entity is not None and held.attribute is not None:
+                incumbent = await storage.find_active_fact(namespace, held.entity, held.attribute)
+            if incumbent is not None and incumbent.record_id != held.record_id:
+                change["status"] = RecordStatus.ARCHIVED.value
+                change["evolve_to"] = incumbent.record_id
+                # Clamp so a held record newer than the incumbent never gets an
+                # inverted (valid_to < valid_from) interval.
+                close_at = max(held.valid_from, incumbent.valid_from)
+                change["valid_to"] = close_at.isoformat()
+            else:
+                change["status"] = RecordStatus.ACTIVATED.value
+        else:
+            # Non-fact types (episodic, prospective watches, ...): the
+            # single-active-fact invariant is semantic-only (ADR-016); a semantic
+            # incumbent must never archive e.g. a watch that merely reuses the key
+            # columns as its watched target.
+            change["status"] = RecordStatus.ACTIVATED.value
+        return change
+
+    async def list_quarantined(self, namespace: str = "default") -> list[MemoryRecord]:
+        """#3: the records of ``namespace`` the firewall (or an operator) is holding,
+        oldest first: the review queue for :meth:`approve_quarantined` and
+        :meth:`reject_quarantined`."""
+        storage = self._require_started()
+        ns = validate_namespace(namespace)
+        held = [
+            r for r in await storage.list_quarantined(ns) if r.status is RecordStatus.QUARANTINED
+        ]
+        held.sort(key=lambda r: (r.recorded_at, r.record_id))
+        return self._inflate_all(held, ns)
+
+    async def _held_record(self, ns: str, record_id: str) -> MemoryRecord:
+        """A record of ``ns`` currently held in quarantine, or the anti-oracle error."""
+        record = await self._require_started().get_record(record_id)
+        if (
+            record is None
+            or record.namespace != ns
+            or not record.quarantined
+            or record.status is not RecordStatus.QUARANTINED
+        ):
+            raise ConflictError(f"no quarantined record {record_id!r} in namespace {ns!r}")
+        return record
+
+    async def approve_quarantined(
+        self,
+        record_id: str,
+        namespace: str = "default",
+        actor: str = "operator",
+        reason: str = "operator_approved",
+    ) -> MemoryRecord:
+        """#3: release a held record after review, as ``actor`` (logged on the event).
+
+        The record leaves quarantine the way corroboration would release it: a
+        semantic fact whose key already has another active fact becomes that
+        fact's predecessor; a procedural skill resumes its ladder stage. A
+        missing, foreign or not-held id raises ``ConflictError``."""
+        ns = validate_namespace(namespace)
+        async with self._write_locks.setdefault(ns, asyncio.Lock()):
+            held = await self._held_record(ns, record_id)
+            change = await self._release_change(ns, held)
+            await self._append_and_project(
+                MemoryEvent(
+                    kind=EventKind.DECAY_TRANSITION,
+                    namespace=ns,
+                    actor=actor,
+                    payload={
+                        "record_id": record_id,
+                        "set": change,
+                        "transition": "quarantined->released",
+                        "reason": reason,
+                    },
+                )
+            )
+            _log.warning(
+                "memory.quarantine_approved", namespace=ns, record_id=record_id, actor=actor
+            )
+            updated = await self._require_started().get_record(record_id)
+            assert updated is not None
+            return updated
+
+    async def reject_quarantined(
+        self,
+        record_id: str,
+        namespace: str = "default",
+        actor: str = "operator",
+        reason: str = "operator_rejected",
+    ) -> MemoryRecord:
+        """#3: reject a held record after review, as ``actor`` (logged on the event).
+
+        The record is archived, stays flagged ``quarantined`` and is tagged
+        ``quarantine_rejected``, so no later corroboration can release it and the
+        audit trail keeps it; ``forget(hard=True)`` erases it. A missing, foreign
+        or not-held id raises ``ConflictError``."""
+        ns = validate_namespace(namespace)
+        async with self._write_locks.setdefault(ns, asyncio.Lock()):
+            held = await self._held_record(ns, record_id)
+            change: dict[str, object] = {
+                "status": RecordStatus.ARCHIVED.value,
+                "tags_add": [_QUARANTINE_REJECTED_TAG],
+            }
+            if held.valid_to is None:
+                change["valid_to"] = held.valid_from.isoformat()
+            await self._append_and_project(
+                MemoryEvent(
+                    kind=EventKind.DECAY_TRANSITION,
+                    namespace=ns,
+                    actor=actor,
+                    payload={
+                        "record_id": record_id,
+                        "set": change,
+                        "transition": "quarantined->rejected",
+                        "reason": reason,
+                    },
+                )
+            )
+            _log.warning(
+                "memory.quarantine_rejected", namespace=ns, record_id=record_id, actor=actor
+            )
+            updated = await self._require_started().get_record(record_id)
+            assert updated is not None
+            return updated
 
     def _config(self) -> MemspineConfig:
         assert self._resolved is not None

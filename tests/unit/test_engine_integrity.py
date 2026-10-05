@@ -145,7 +145,7 @@ async def _plant_and_corroborate(engine: Engine, principals: list[str | None]) -
     assert held.quarantined
     for i, principal in enumerate(principals):
         await engine.write(
-            f"note {i}: contractor accounts MFA policy was discussed",
+            POISON,  # #3: same value as the held record, or it does not corroborate
             namespace="a",
             memory_type="episodic",
             source=SourceInfo(role="user", message_id=f"m{i}", principal=principal),

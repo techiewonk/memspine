@@ -44,6 +44,7 @@ from memspine.protocols.rest.models import (
     GrantView,
     PlanRequest,
     PromoteRequest,
+    QuarantineDecision,
     ReflectRequest,
     RetrieveRequest,
     ScoredRecord,
@@ -189,6 +190,36 @@ def build_app(engine: Engine) -> FastAPI:
     async def forget(record_id: str, ns: Namespace, hard: bool = False) -> dict[str, Any]:
         await engine.forget(record_id, namespace=ns, hard=hard)
         return {"record_id": record_id, "forgotten": True, "hard": hard}
+
+    # ── quarantine review (#3) ───────────────────────────────────────────────
+
+    @app.get("/quarantine")
+    async def list_quarantined(ns: Namespace) -> list[MemoryRecord]:
+        return await engine.list_quarantined(namespace=ns)
+
+    @app.post("/quarantine/{record_id}/approve")
+    async def approve_quarantined(
+        record_id: str, ns: Namespace, body: QuarantineDecision | None = None
+    ) -> MemoryRecord:
+        decision = body or QuarantineDecision()
+        return await engine.approve_quarantined(
+            record_id,
+            namespace=ns,
+            actor=decision.actor,
+            reason=decision.reason or "operator_approved",
+        )
+
+    @app.post("/quarantine/{record_id}/reject")
+    async def reject_quarantined(
+        record_id: str, ns: Namespace, body: QuarantineDecision | None = None
+    ) -> MemoryRecord:
+        decision = body or QuarantineDecision()
+        return await engine.reject_quarantined(
+            record_id,
+            namespace=ns,
+            actor=decision.actor,
+            reason=decision.reason or "operator_rejected",
+        )
 
     @app.get("/describe")
     async def describe() -> dict[str, Any]:
