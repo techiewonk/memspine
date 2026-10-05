@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from memspine.core.erasure import payload_retains_content, redact_record
+from memspine.core.erasure import payload_retains_content, redact_record, retained_fields
 
 
 def _snapshot(record_id: str, content: str, history: list[dict] | None = None) -> dict:
@@ -30,7 +30,7 @@ def test_history_entries_are_scrubbed_and_detected() -> None:
     }
     assert redact_record(payload, "r1")
     assert payload["record"]["content"] == ""
-    assert payload["record"]["history"][0]["content"] == ""
+    assert payload["record"]["history"] == []  # #2: archived versions go whole
     assert not payload_retains_content(payload, "r1")
 
 
@@ -57,7 +57,7 @@ def test_merge_absorbed_duplicate_is_scrubbed_including_history() -> None:
     assert payload_retains_content(payload, "r1")
     assert redact_record(payload, "r1")
     assert payload["dropped_record"]["content"] == ""
-    assert payload["dropped_record"]["history"][0]["content"] == ""
+    assert payload["dropped_record"]["history"] == []
     assert not payload_retains_content(payload, "r1")
 
 
@@ -77,3 +77,55 @@ def test_other_records_are_untouched() -> None:
     assert not payload_retains_content(payload, "r1")
     assert not redact_record(payload, "r1")
     assert payload["record"]["content"] == "not yours"
+
+
+def test_every_identifying_field_is_scrubbed_and_reported() -> None:
+    """#2: the fact key, tags, fingerprint and dedup sketches identify the
+    subject as surely as the content does."""
+    payload = {
+        "record": {
+            "record_id": "r1",
+            "namespace": "ns",
+            "content": "Alice lives in Paris",
+            "content_fingerprint": "abc123",
+            "entity": "Alice",
+            "attribute": "home_city",
+            "tags": ["person:alice"],
+            "history": [{"version": 1, "content": "Alice lived in Rome"}],
+            "simhash": 12345,
+            "minhash_sig": "AAAA",
+            "trust": 0.9,
+        }
+    }
+    assert retained_fields(payload, "r1") == {
+        "content",
+        "content_fingerprint",
+        "entity",
+        "attribute",
+        "tags",
+        "history",
+        "simhash",
+        "minhash_sig",
+    }
+    assert redact_record(payload, "r1")
+    record = payload["record"]
+    assert record["content"] == ""
+    assert record["content_fingerprint"] == ""
+    assert record["entity"] is None and record["attribute"] is None
+    assert record["tags"] == [] and record["history"] == []
+    assert record["simhash"] is None and record["minhash_sig"] is None
+    assert record["trust"] == 0.9  # non-identifying fields stay
+    assert retained_fields(payload, "r1") == set()
+
+
+def test_verify_detects_a_surviving_fact_key() -> None:
+    payload = {"record": {"record_id": "r1", "namespace": "ns", "content": "", "entity": "Alice"}}
+    assert retained_fields(payload, "r1") == {"entity"}
+    assert payload_retains_content(payload, "r1")
+
+
+def test_tag_patch_delta_is_scrubbed() -> None:
+    payload = {"record_id": "r1", "set": {"tags_add": ["alice-cue"], "status": "archived"}}
+    assert retained_fields(payload, "r1") == {"tags_add"}
+    assert redact_record(payload, "r1")
+    assert payload["set"] == {"tags_add": [], "status": "archived"}

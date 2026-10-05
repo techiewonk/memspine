@@ -34,7 +34,7 @@ from memspine.config import constants
 from memspine.config.loader import ResolvedConfig, default_template, load_config
 from memspine.config.schema import FirewallConfig, MemspineConfig
 from memspine.core.audit import IntegrityReport, TaintReport, trace_taint, verify_events
-from memspine.core.erasure import payload_retains_content
+from memspine.core.erasure import retained_fields
 from memspine.core.events import EventKind, EventLogMode, MemoryEvent, fingerprint_payload
 from memspine.core.firewall import Firewall, FirewallVerdict
 from memspine.core.integrity import IntegrityPolicy
@@ -392,6 +392,8 @@ class Engine:
         self._ladybug: LadybugClient | None = None
         # Phase 2: one shared KV cache + the optional clients backing it.
         self._cache: KVCache | None = None
+        #: #43: the extraction cache, kept so erasure can purge an erased text's entry.
+        self._cached_extractor: CachedExtractor | None = None
         self._cashews: CashewsClient | None = None  # [cache]: disk/redis/valkey
         self._storage: SqlStorage | None = None
         self._projectors: list[Projector] = []
@@ -3290,15 +3292,29 @@ class Engine:
         _log.info(EVENT_WRITE, namespace=ns, record_id=record.record_id, persona=True)
         return record
 
-    async def forget(self, record_id: str, namespace: str = "default", hard: bool = False) -> None:
+    async def forget(
+        self,
+        record_id: str,
+        namespace: str = "default",
+        hard: bool = False,
+        cascade: bool | None = None,
+    ) -> None:
         """Forget one memory (M7).
 
         Soft (default): FORGET event → status=DELETED in the read model,
         vector row removed; the log keeps the history.
 
         Hard (``hard=True``, the P4 cascade): the row leaves the read model
-        entirely AND every log payload carrying its content is redacted —
-        GDPR-erasure semantics in an append-only design. Legal holds block it.
+        entirely AND every log payload carrying its identifying data is
+        redacted — GDPR-erasure semantics in an append-only design. Legal holds
+        block it. The erased text's embedding and extraction cache entries are
+        purged and a SQLite WAL is checkpointed (#43).
+
+        ``cascade`` (default: the value of ``hard``) also forgets, the same way,
+        every record of the namespace derived from this one through
+        ``source.parents`` (mined facts, cues, reflections), transitively. A
+        derived record repeats the erased content, so erasure is not complete
+        without it (#43).
         """
         storage = self._require_started()
         ns = validate_namespace(namespace)
@@ -3306,11 +3322,92 @@ class Engine:
         # redact sequence must not interleave with a concurrent write or its
         # corroboration read-modify-write on the same record.
         async with self._write_locks.setdefault(ns, asyncio.Lock()):
-            await self._forget_locked(storage, ns, record_id, hard)
+            ids = [record_id]
+            if hard if cascade is None else cascade:
+                ids.extend(await self._descendants(storage, ns, [record_id]))
+            await self._forget_many(storage, ns, ids, hard)
 
-    async def _forget_locked(
-        self, storage: SqlStorage, ns: str, record_id: str, hard: bool
+    async def erase_subject(self, subject: str, namespace: str = "default") -> list[str]:
+        """#43 per-subject erasure: hard-forget every record of ``namespace``
+        about ``subject``, with its descendants.
+
+        A record is about the subject when its fact key's ``entity`` equals
+        ``subject`` (case-insensitive) or its ``source.principal`` is
+        ``subject``. Returns the erased record ids."""
+        storage = self._require_started()
+        ns = validate_namespace(namespace)
+        wanted = subject.casefold()
+        async with self._write_locks.setdefault(ns, asyncio.Lock()):
+            seeds = [
+                r.record_id
+                for r in await storage.list_records(ns)
+                if (r.entity is not None and r.entity.casefold() == wanted)
+                or r.source.principal == subject
+            ]
+            ids = [*seeds, *await self._descendants(storage, ns, seeds)]
+            await self._forget_many(storage, ns, ids, hard=True)
+        return ids
+
+    async def erase_namespace(self, namespace: str) -> list[str]:
+        """#43 per-namespace erasure: hard-forget every record of ``namespace``
+        (any type and status) in one log pass. A legal hold on the namespace
+        refuses the whole call before anything is touched. Returns the ids."""
+        storage = self._require_started()
+        ns = validate_namespace(namespace)
+        async with self._write_locks.setdefault(ns, asyncio.Lock()):
+            ids = [r.record_id for r in await storage.list_records(ns)]
+            await self._forget_many(storage, ns, ids, hard=True)
+        return ids
+
+    async def _descendants(self, storage: SqlStorage, ns: str, seeds: Sequence[str]) -> list[str]:
+        """Every record of ``ns`` derived from ``seeds`` through ``source.parents``,
+        transitively, in discovery order (seeds excluded)."""
+        seen = set(seeds)
+        found: list[str] = []
+        frontier = list(seeds)
+        while frontier:
+            children = await storage.list_children(ns, frontier)
+            frontier = [c.record_id for c in children if c.record_id not in seen]
+            seen.update(frontier)
+            found.extend(frontier)
+        return found
+
+    async def _forget_many(
+        self, storage: SqlStorage, ns: str, record_ids: Sequence[str], hard: bool
     ) -> None:
+        """Forget ``record_ids`` (lock held). Hard: every legal hold is checked
+        before the first FORGET, the log is redacted for all ids in one pass, then
+        caches are purged and the WAL checkpointed."""
+        ids = list(dict.fromkeys(record_ids))
+        if not ids:
+            return
+        records: list[MemoryRecord | None] = []
+        for rid in ids:
+            records.append(await self._forget_target(storage, ns, rid, hard))
+        texts = [t for r in records if r is not None for t in self._erasable_texts(r)]
+        for rid in ids:
+            await self._forget_locked(storage, ns, rid, hard, redact=False)
+        if not hard:
+            return
+        redacted = await storage.redact_event_payloads(ids)
+        # D-18: the hard-delete cascade escalates to alert severity.
+        _log.error(
+            EVENT_FORGET,
+            namespace=ns,
+            record_id=ids[0],
+            hard=True,
+            cascaded=len(ids) - 1,
+            redacted=len(redacted),
+        )
+        await self._purge_caches(texts)
+        if self._client is not None:
+            await self._client.checkpoint()
+
+    async def _forget_target(
+        self, storage: SqlStorage, ns: str, record_id: str, hard: bool
+    ) -> MemoryRecord | None:
+        """The record to forget after the scope and legal-hold checks; None when
+        a hard forget finds no row (an idempotent retry of the log redaction)."""
         record = await storage.get_record(record_id)
         # SEC-C2/ADR-018: forget is scoped to the caller's namespace. A grantee
         # who learned a foreign record_id via shared_search must not be able to
@@ -3329,9 +3426,10 @@ class Engine:
         if record is None:
             if not hard:
                 raise ConflictError(f"no such record {record_id!r} in namespace {ns!r}")
-        elif record.namespace != ns:
+            return None
+        if record.namespace != ns:
             raise ConflictError(f"no such record {record_id!r} in namespace {ns!r}")
-        if hard and record is not None:
+        if hard:
             retention = RetentionPolicy.bind(
                 _as_options_dict(
                     self._memory_policy(self._config(), record.memory_type).get("retention")
@@ -3341,6 +3439,33 @@ class Engine:
                 raise MemspineError(
                     f"record {record_id} is under legal hold — hard delete refused (M7)"
                 )
+        return record
+
+    def _erasable_texts(self, record: MemoryRecord) -> list[str]:
+        """The texts of ``record`` a cache may be keyed on: its (inflated) content
+        and every archived version."""
+        texts = [h.content for h in record.history if h.content]
+        try:
+            texts.append(self._inflate.inflate(record).content)
+        except StorageError:
+            texts.append(record.content)
+        return [t for t in dict.fromkeys(texts) if t]
+
+    async def _purge_caches(self, texts: Sequence[str]) -> None:
+        """#43: drop the embedding and extraction cache entries of erased texts."""
+        forget_embedding = getattr(self._embedder, "forget", None)
+        for text in texts:
+            if callable(forget_embedding):
+                await forget_embedding(text)
+            if self._cached_extractor is not None:
+                await self._cached_extractor.forget(text)
+
+    async def _forget_locked(
+        self, storage: SqlStorage, ns: str, record_id: str, hard: bool, *, redact: bool = True
+    ) -> None:
+        """Forget one record (lock held): FORGET event, log redaction when
+        ``redact`` and hard, and the memory types' delete hooks."""
+        await self._forget_target(storage, ns, record_id, hard)
         await self._append_and_project(
             MemoryEvent(
                 kind=EventKind.FORGET,
@@ -3349,7 +3474,7 @@ class Engine:
                 payload={"record_id": record_id, "hard": hard},
             )
         )
-        if hard:
+        if hard and redact:
             redacted = await storage.redact_event_payloads(record_id)
             # D-18: the hard-delete cascade escalates to alert severity.
             _log.error(
@@ -3375,10 +3500,14 @@ class Engine:
     async def verify_forget(self, record_id: str, namespace: str = "default") -> dict[str, object]:
         """M7 ``forget --verify``: prove erasure across every store we own.
 
-        Uses the SAME payload walker as the redactor (``payload_retains_content``
-        ↔ ``redact_record``) so the proof cannot share a blind spot with the
-        erasure. An unverifiable vector backend and an ephemeral (unpersisted)
-        log are reported as *unproven*, never silently as clean.
+        Uses the SAME payload walker as the redactor (``retained_fields`` ↔
+        ``redact_record``) so the proof cannot share a blind spot with the
+        erasure. Every identifying field counts (#2): content, fingerprint, fact
+        key, tags, history and dedup sketches; ``log_retained_fields`` names
+        those still found. A record derived from this one (``source.parents``)
+        that is still in the read model also keeps ``clean`` false. An
+        unverifiable vector backend and an ephemeral (unpersisted) log are
+        reported as *unproven*, never silently as clean.
 
         SEC-C2/ADR-018: scoped to ``namespace``. A record that still exists in
         another namespace raises the anti-oracle error — a caller must not probe
@@ -3400,22 +3529,27 @@ class Engine:
         lexical_absent: bool | None = None
         if self._lexical is not None:
             lexical_absent = not await self._lexical.exists(record_id)
+        descendants = [
+            r.record_id
+            for r in await storage.list_children(validate_namespace(namespace), [record_id])
+        ]
         log_verifiable = storage.can_rebuild  # ephemeral persists nothing to prove
-        log_clean = True
+        retained: set[str] = set()
         after = 0
         while log_verifiable:
             batch = await storage.read_events(after_seq=after)
             if not batch:
                 break
             for event in batch:
-                if payload_retains_content(event.payload, record_id):
-                    log_clean = False
+                retained |= retained_fields(event.payload, record_id)
             assert batch[-1].seq is not None
             after = batch[-1].seq
+        log_clean = not retained
         clean = (
             record_absent
             and log_verifiable
             and log_clean
+            and not descendants
             and vector_absent is True
             and lexical_absent is not False  # True (absent) or None (no store) both pass
         )
@@ -3426,6 +3560,8 @@ class Engine:
             "lexical_absent": lexical_absent,  # None => no lexical store owned
             "log_verifiable": log_verifiable,
             "log_redacted": log_clean,
+            "log_retained_fields": sorted(retained),
+            "descendants_remaining": descendants,
             "clean": clean,
         }
 
@@ -5369,12 +5505,13 @@ class Engine:
             # E3 extraction cache: keyed by (prompt version x content hash), so
             # a prompt upgrade cleanly invalidates (N7).
             assert self._cache is not None  # built in _start_inner before extractors
-            return CachedExtractor(
+            self._cached_extractor = CachedExtractor(
                 LLMEntityExtractor(
                     self._llm.for_role("extract"), self._prompts.for_role("extract")
                 ),
                 self._cache,
             )
+            return self._cached_extractor
         if mode == "gliner":
             from memspine.memories.semantic.entities import GlinerEntityExtractor
 

@@ -33,6 +33,9 @@ _PRAGMAS = (
     "PRAGMA synchronous=NORMAL",
     "PRAGMA foreign_keys=ON",
     "PRAGMA busy_timeout=5000",
+    # #43: deleted and overwritten rows are zeroed on disk, not left in free
+    # pages, so a hard forget leaves no recoverable bytes in the database file.
+    "PRAGMA secure_delete=ON",
 )
 
 _memory_db_counter = itertools.count(1)
@@ -95,6 +98,15 @@ class SQLiteClient(Client):
                 await engine.dispose()
                 raise
         self._engine = engine
+
+    async def checkpoint(self) -> None:
+        """#43: fold the WAL into the database and truncate it, so the pre-erasure
+        page images a hard forget superseded do not survive in the ``-wal`` file.
+        A no-op for ``:memory:`` (no WAL) and before ``connect()``."""
+        if self._engine is None or self.is_memory:
+            return
+        async with self._engine.connect() as conn:
+            await conn.exec_driver_sql("PRAGMA wal_checkpoint(TRUNCATE)")
 
     async def close(self) -> None:
         if self._anchor is not None:

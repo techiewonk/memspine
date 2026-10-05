@@ -414,11 +414,35 @@ class SqlStorage(ServiceAdapter):
                 delete(memory_records).where(memory_records.c.record_id == record_id)
             )
 
-    async def redact_event_payloads(self, record_id: str) -> list[int]:
+    async def list_children(self, namespace: str, parent_ids: Sequence[str]) -> list[MemoryRecord]:
+        """#43: records of ``namespace`` whose ``source.parents`` name any of
+        ``parent_ids`` (derived records: mined facts, cues, reflections, edges).
+
+        Scans the namespace's ``source`` column only, and loads full rows for
+        the matches (an erasure-time call, not a hot path)."""
+        wanted = set(parent_ids)
+        if not wanted:
+            return []
+        stmt = select(memory_records.c.record_id, memory_records.c.source).where(
+            memory_records.c.namespace == namespace
+        )
+        async with self._client.engine.connect() as conn:
+            rows = (await conn.execute(stmt)).all()
+        hits: list[str] = []
+        for record_id, raw in rows:
+            parents = orjson.loads(raw).get("parents") or []
+            if wanted & set(map(str, parents)):
+                hits.append(str(record_id))
+        records = [await self.get_record(record_id) for record_id in hits]
+        return [record for record in records if record is not None]
+
+    async def redact_event_payloads(self, record_id: str | Sequence[str]) -> list[int]:
         """M7 erasure: the ONE sanctioned mutation of the log.
 
-        Rewrites every event payload carrying a snapshot of ``record_id`` so
-        its ``content``/``content_zstd`` are emptied and a ``redacted`` marker
+        Rewrites every event payload carrying a snapshot of ``record_id`` (one
+        id or several, in one pass over the log) so its identifying fields
+        (content, fingerprint, fact key, tags, history; see
+        :mod:`memspine.core.erasure`) are emptied and a ``redacted`` marker
         is set — the event's seq, kind, and fingerprint (of the ORIGINAL
         payload) stay, so ordering and audit chains survive while the erased
         content is unrecoverable (GDPR erasure in an append-only design).
@@ -427,6 +451,7 @@ class SqlStorage(ServiceAdapter):
         """
         if self._mode is EventLogMode.EPHEMERAL:
             return []
+        record_ids = [record_id] if isinstance(record_id, str) else list(record_id)
         redacted: list[int] = []
         async with self._client.engine.begin() as conn:
             rows = (await conn.execute(select(memory_events))).all()
@@ -438,7 +463,10 @@ class SqlStorage(ServiceAdapter):
                 payload = orjson.loads(raw)
                 # Scrub EVERY snapshot/delta of this record, wherever it hides
                 # (record / incoming_record / dropped_record / compress delta).
-                if not redact_record(payload, record_id):
+                changed = False
+                for rid in record_ids:
+                    changed |= redact_record(payload, rid)
+                if not changed:
                     continue
                 payload["redacted"] = True
                 encoded = canonical_payload(payload)

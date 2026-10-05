@@ -55,6 +55,11 @@ class CachedEmbedding:
     def _key(self, text: str, prefix: str = "emb") -> str:
         return f"{prefix}:{self._inner.embedder_id}:{xxhash.xxh64_hexdigest(text.encode())}"
 
+    async def forget(self, text: str) -> None:
+        """#43 erasure: drop the cached document and query vectors of ``text``."""
+        for prefix in ("emb", "embq"):
+            await self._kv.delete(self._key(text, prefix))
+
     async def embed_queries(self, texts: list[str]) -> list[list[float]]:
         """Query path for asymmetric embedders; cached under its own keys so a
         query vector is never served as a document vector (or vice versa)."""
@@ -114,6 +119,12 @@ class CachedExtractor:
 
     def _key(self, content: str) -> str:
         return f"ext:{self.prompt_version}:{xxhash.xxh64_hexdigest(content.encode())}"
+
+    async def forget(self, content: str) -> None:
+        """#43 erasure: drop the cached extraction of ``content`` (it holds the
+        entities and facts read from the erased text)."""
+        if self.prompt_version is not None:
+            await self._kv.delete(self._key(content))
 
     async def extract(self, content: str) -> list[ExtractedFact]:
         if self.prompt_version is None:
