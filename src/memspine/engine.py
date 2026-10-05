@@ -4492,16 +4492,27 @@ class Engine:
         namespace: str = "default",
         actor: str = "operator",
         reason: str = "operator_approved",
+        principal: str | None = None,
     ) -> MemoryRecord:
         """#3: release a held record after review, as ``actor`` (logged on the event).
 
         The record leaves quarantine the way corroboration would release it: a
         semantic fact whose key already has another active fact becomes that
         fact's predecessor; a procedural skill resumes its ladder stage. A
-        missing, foreign or not-held id raises ``ConflictError``."""
+        missing, foreign or not-held id raises ``ConflictError``.
+
+        ``principal`` is the reviewer's authenticated identity when the caller
+        knows it. A reviewer whose principal (or actor) is the held record's
+        ``source.principal`` is refused with ``ConflictError``: an author cannot
+        release its own held write."""
         ns = validate_namespace(namespace)
         async with self._write_locks.setdefault(ns, asyncio.Lock()):
             held = await self._held_record(ns, record_id)
+            author = held.source.principal
+            if author is not None and author in (principal, actor):
+                raise ConflictError(
+                    f"record {record_id!r} was written by {author!r}, who cannot approve it"
+                )
             change = await self._release_change(ns, held)
             await self._append_and_project(
                 MemoryEvent(
