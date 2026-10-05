@@ -15,3 +15,24 @@ def test_variants_format_and_differ() -> None:
     assert "Not mentioned" in rendered["abstain"]
     assert "computed from the line's date" in rendered["dated"]
     assert "larger serial number is newer" in rendered["mab_fc"]
+
+
+def test_dated_infer_is_dated_plus_the_inference_rule() -> None:
+    """G10: same as ``dated`` except the refusal clause, which now asks for an inference."""
+    from memspine_evals.readers import DATED_QA_PROMPT, INFER_RULE
+
+    infer = QA_PROMPTS["dated_infer"]
+    assert INFER_RULE in infer and "Likely yes, because" in infer
+    assert infer.replace(INFER_RULE, "") == DATED_QA_PROMPT.replace(
+        "If the context does not contain the answer, say you do not know.", ""
+    )
+    assert "would, might, or is likely to" not in QA_PROMPTS["dated"]
+
+
+def test_cli_accepts_every_qa_prompt() -> None:
+    from memspine_evals.cli import build_parser
+
+    parser = build_parser()
+    for name in QA_PROMPTS:
+        args = parser.parse_args(["c0-1", "--dataset", "locomo", "--qa-prompt", name])
+        assert args.qa_prompt == name
