@@ -198,5 +198,45 @@ def forget_cmd(
         raise typer.Exit(code=1)
 
 
+@app.command("export")
+def export_cmd(
+    out: Annotated[Path, typer.Option("--out", "-o", help="JSONL file to write")],
+    db: DbOpt = Path("./memspine.db"),
+    namespace: Annotated[str, typer.Option("--namespace", "-n")] = "default",
+    subject: Annotated[
+        str | None, typer.Option("--subject", help="Only records about this subject")
+    ] = None,
+    history: Annotated[
+        bool, typer.Option("--history/--no-history", help="Keep archived versions")
+    ] = True,
+    events: Annotated[
+        bool, typer.Option("--events/--no-events", help="Add the namespace's log events")
+    ] = False,
+) -> None:
+    """Subject-access export (#46): a namespace's records (and events) as JSONL."""
+    import asyncio
+
+    from memspine import Engine
+
+    async def _inner() -> list[str]:
+        engine = Engine(
+            template="base",
+            dotenv_path=None,
+            storage={"path": str(db)},
+            embedding={"provider": "hash"},
+        )
+        await engine.start()
+        try:
+            return await engine.export(
+                namespace, subject=subject, include_history=history, include_events=events
+            )
+        finally:
+            await engine.stop()
+
+    lines = asyncio.run(_inner())
+    out.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    typer.echo(f"exported {len(lines) - 1} lines to {out}")
+
+
 if __name__ == "__main__":  # pragma: no cover
     app()

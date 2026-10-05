@@ -95,3 +95,34 @@ def test_resolve_annotates_sources() -> None:
     assert "# source: template:voice" in result.output
     assert "# source: default" in result.output
     assert "event_log.mode" in result.output
+
+
+def test_export_writes_jsonl(tmp_path: Path) -> None:
+    """#46: ``memspine export --namespace ... --out file.jsonl``."""
+    import asyncio
+    import json
+
+    from memspine import Engine
+
+    db = tmp_path / "mem.db"
+
+    async def seed() -> str:
+        eng = Engine(
+            template="core",
+            dotenv_path=None,
+            storage={"path": str(db)},
+            embedding={"provider": "hash"},
+        )
+        await eng.start()
+        record = await eng.write("Ana likes green tea", namespace="user/ana")
+        await eng.stop()
+        return record.record_id
+
+    record_id = asyncio.run(seed())
+    out = tmp_path / "ana.jsonl"
+    args = ["export", "--db", str(db), "--namespace", "user/ana", "--out", str(out)]
+    result = runner.invoke(app, args)
+    assert result.exit_code == 0, result.output
+    lines = [json.loads(line) for line in out.read_text(encoding="utf-8").splitlines()]
+    assert lines[0]["type"] == "export"
+    assert [line["record"]["record_id"] for line in lines[1:]] == [record_id]
