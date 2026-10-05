@@ -219,6 +219,18 @@ TASKIQ_CLAIM_MIN_IDLE_MS = 60_000
 # they are buffered — a cheap DoS guard (the REST app ships with no authn, so
 # the deployer's boundary owns the rest; this caps the trivially-abusable path).
 REST_MAX_BODY_BYTES = 1_048_576  # 1 MiB
+#: ADR-041 addendum: failed authentications per client address, a token bucket
+#: (burst, then this many per second) checked BEFORE credentials are verified,
+#: so repeated bad keys or tokens get 429 instead of an unbounded run of 401s.
+#: ``rest.rate_limit``, when set, replaces both values.
+REST_AUTH_FAILURE_BURST = 10
+REST_AUTH_FAILURE_PER_SECOND = 0.1
+#: ADR-041 addendum: at most one JWKS refetch for an unknown ``kid`` per this many
+#: seconds (a token naming a fresh kid otherwise makes every request fetch JWKS).
+REST_JWKS_MISS_BACKOFF_SECONDS = 60.0
+#: ADR-041 addendum: a rate limiter holding more buckets than this drops the ones
+#: that have refilled (they carry no state), so spoofed keys cannot grow it forever.
+REST_RATE_LIMIT_MAX_KEYS = 10_000
 
 # E8 rerank (D-42 §5/D-51): default fastembed ONNX cross-encoder model.
 RERANK_FASTEMBED_MODEL = "Xenova/ms-marco-MiniLM-L-6-v2"

@@ -89,6 +89,8 @@ from memspine.core.privacy import (
     current_purpose,
     export_line,
     export_record,
+    inherited_consent,
+    inherited_pii,
     matching_class,
     payload_mentions,
     pii_rank,
@@ -137,7 +139,12 @@ from memspine.exceptions import (
     RollbackUnavailableError,
     StorageError,
 )
-from memspine.memories.associative.entities import EntityPolicy
+from memspine.memories.associative.entities import (
+    ENTITY_PREFIX,
+    EntityPolicy,
+    canonical_entity,
+    entity_node_id,
+)
 from memspine.memories.associative.evolution import propose_links
 from memspine.memories.associative.projector import GraphProjector
 from memspine.memories.associative.resolution import ResolveBatch
@@ -204,7 +211,7 @@ from memspine.services.lexical.base import LexicalHit, LexicalStore, rrf_fuse
 from memspine.services.lexical.projector import LexicalProjector
 from memspine.services.llm.base import LLMRouter, LLMService
 from memspine.services.llm.structured import structured_call
-from memspine.services.llm.tier_gate import TierGatedLLM, is_local_provider
+from memspine.services.llm.tier_gate import WITHHELD_MARKER, TierGatedLLM, is_local_provider
 from memspine.services.query_encoder import CueQueryEncoder, NoopQueryEncoder, QueryEncoder
 from memspine.services.rerank.base import Reranker, concat_background
 from memspine.services.rerank.factory import RerankSettings, build_reranker, rerank_modes
@@ -217,7 +224,12 @@ from memspine.services.storage.sqlite.engine import SQLiteStorage
 from memspine.services.vector.base import VectorHit, VectorStore
 from memspine.services.vector.projector import VectorProjector
 from memspine.workers.inline import InlineRunner
-from memspine.workers.list_cards import LIST_CARD_KEY_PREFIX, LabelClasses, ListCard
+from memspine.workers.list_cards import (
+    LIST_CARD_KEY_PREFIX,
+    LabelClasses,
+    ListCard,
+    fact_statement,
+)
 from memspine.workers.pipelines import (
     DERIVED_STAGES,
     PIPELINES,
@@ -524,6 +536,14 @@ def _passive_scoped[**P, R](
             _PASSIVE_SCOPE.reset(token)
 
     return wrapper
+
+
+def _without_entity(text: str, entity: str) -> str:
+    """``text`` without a leading ``entity`` name (as timelines render a fact)."""
+    normal = " ".join(text.split())
+    if normal[: len(entity)].casefold() == entity.casefold():
+        return normal[len(entity) :].lstrip(" :")
+    return normal
 
 
 def _passive_hidden(record: MemoryRecord, group_id: str | None = None) -> bool:
@@ -1632,7 +1652,9 @@ class Engine:
         ``integrity.enabled`` also never one below the admission threshold (stored
         trust; the read gates re-judge the leg's hits on live trust). ``history``
         (the facts block) also admits superseded (ARCHIVED) facts, to show their
-        validity range; the read leg admits only live records."""
+        validity range; the read leg admits only live records. A passive-session
+        record the read did not ask for, or one the read's purpose may not see
+        (#50), is never admitted."""
         floor = self._config().read.graph_min_trust
         integrity = self._integrity()
         statuses = (
@@ -1651,6 +1673,8 @@ class Engine:
                 and _TAINT_ARCHIVED_TAG not in record.tags
                 and record.trust >= floor
                 and (not integrity.enabled or integrity.admits(record.trust))
+                and not _passive_hidden(record)  # #53, as every other read leg
+                and self._consent_ok(record)  # #50: the read's purpose
             )
 
         return admit
@@ -2029,7 +2053,9 @@ class Engine:
 
         Its trust is the least of its entries' (a block is never more trusted than
         what it shows) and its parents are the entries, so the provenance of every
-        line stays visible to the caller.
+        line stays visible to the caller. Its purposes are the intersection of the
+        entries' and its PII tier their highest (#50), so the purpose gate and the
+        remote-LLM gate judge the block as strictly as its strictest entry.
         """
         return MemoryRecord(
             namespace=ns,
@@ -2039,6 +2065,10 @@ class Engine:
             valid_from=max(p.valid_from for p in parts),
             trust=min(p.trust for p in parts),
             source=SourceInfo(role="system", channel="lead", parents=[p.record_id for p in parts]),
+            consent_tags=inherited_consent(
+                (p.consent_tags for p in parts), self._config().consent.untagged
+            ),
+            pii_tier=inherited_pii(p.pii_tier for p in parts),
         ).as_engine_block()
 
     async def _standing_block(self, ns: str) -> tuple[MemoryRecord, list[MemoryRecord]] | None:
@@ -2179,6 +2209,8 @@ class Engine:
         """
         if record.memory_type == "shared" or CUE_TAG in record.tags:
             return None
+        if not self._consent_ok(record):
+            return None  # #50: the read's purpose may not see it
         if record.status is RecordStatus.ARCHIVED and _TAINT_ARCHIVED_TAG in record.tags:
             return None  # N3: rolled back, even when the log no longer says so
         integrity = self._integrity()
@@ -3607,7 +3639,9 @@ class Engine:
             raise MissingServiceError("llm role 'verify_answer'")
         if isinstance(context, AssembledContext):
             context = context.records
-        lines, ids = numbered_context(context if isinstance(context, str) else list(context))
+        if not isinstance(context, str):
+            context = self._remote_view(role, list(context))  # #50: withheld by id
+        lines, ids = numbered_context(context)
         verdict = await structured_call(
             llm_router.for_role(role),
             self._prompts.select("verify_answer"),
@@ -4563,7 +4597,8 @@ class Engine:
         if llm_router is None or role is None or self._prompts is None:
             _log.warning("read.completeness_unbound", role="sufficiency")
             return []
-        notes = "\n".join(f"- {' '.join(r.content.split())}" for r in context.records)
+        shown = self._remote_view(role, context.records)  # #50: withheld by id
+        notes = "\n".join(f"- {' '.join(r.content.split())}" for r in shown)
         values: dict[str, object] = {"question": query, "context": notes}
         llm = llm_router.for_role(role)
         try:
@@ -4634,6 +4669,8 @@ class Engine:
             return False
         if _passive_hidden(record):
             return False  # #53
+        if not self._consent_ok(record):
+            return False  # #50: the read's purpose may not see it
         integrity = self._integrity()
         return not integrity.enabled or integrity.admits(record.trust)
 
@@ -4821,13 +4858,23 @@ class Engine:
             await self._forget_many(storage, ns, ids, hard)
         await self._audit_action("forget", ns, ids, actor=actor, reason=reason, hard=hard)
 
-    async def erase_subject(self, subject: str, namespace: str = "default") -> list[str]:
+    async def erase_subject(
+        self,
+        subject: str,
+        namespace: str = "default",
+        *,
+        actor: str = "user",
+        reason: str | None = None,
+    ) -> list[str]:
         """#43 per-subject erasure: hard-forget every record of ``namespace``
         about ``subject``, with its descendants.
 
         A record is about the subject when its fact key's ``entity`` equals
         ``subject`` (case-insensitive) or its ``source.principal`` is
-        ``subject``. Returns the erased record ids."""
+        ``subject``. The subject's entity node id is also renamed to an opaque
+        id in the community-partition history. ``actor`` and ``reason`` go into a
+        ``memory.audit`` event under ``audit.actions`` (record ids only, never the
+        subject's name). Returns the erased record ids."""
         storage = self._require_started()
         ns = validate_namespace(namespace)
         wanted = subject.casefold()
@@ -4839,18 +4886,24 @@ class Engine:
                 or r.source.principal == subject
             ]
             ids = [*seeds, *await self._descendants(storage, ns, seeds)]
-            await self._forget_many(storage, ns, ids, hard=True)
+            await self._forget_many(storage, ns, ids, hard=True, subject_names=[subject])
+        await self._audit_action("erase_subject", ns, ids, actor=actor, reason=reason)
         return ids
 
-    async def erase_namespace(self, namespace: str) -> list[str]:
+    async def erase_namespace(
+        self, namespace: str, *, actor: str = "user", reason: str | None = None
+    ) -> list[str]:
         """#43 per-namespace erasure: hard-forget every record of ``namespace``
         (any type and status) in one log pass. A legal hold on the namespace
-        refuses the whole call before anything is touched. Returns the ids."""
+        refuses the whole call before anything is touched. ``actor`` and
+        ``reason`` go into a ``memory.audit`` event under ``audit.actions``.
+        Returns the ids."""
         storage = self._require_started()
         ns = validate_namespace(namespace)
         async with self._write_locks.setdefault(ns, asyncio.Lock()):
             ids = [r.record_id for r in await storage.list_records(ns)]
             await self._forget_many(storage, ns, ids, hard=True)
+        await self._audit_action("erase_namespace", ns, ids, actor=actor, reason=reason)
         return ids
 
     async def _descendants(self, storage: SqlStorage, ns: str, seeds: Sequence[str]) -> list[str]:
@@ -4917,11 +4970,19 @@ class Engine:
             after = batch[-1].seq
 
     async def _forget_many(
-        self, storage: SqlStorage, ns: str, record_ids: Sequence[str], hard: bool
+        self,
+        storage: SqlStorage,
+        ns: str,
+        record_ids: Sequence[str],
+        hard: bool,
+        *,
+        subject_names: Sequence[str] = (),
     ) -> None:
         """Forget ``record_ids`` (lock held). Hard: every legal hold is checked
         before the first FORGET, the log is redacted for all ids in one pass, then
-        caches are purged and the WAL checkpointed."""
+        caches are purged and the WAL checkpointed. The same pass renames, in the
+        community-partition markers, the entity node ids of ``subject_names`` and
+        of the erased records' entities that no longer have a graph edge."""
         ids = list(dict.fromkeys(record_ids))
         if not ids:
             return
@@ -4933,7 +4994,13 @@ class Engine:
             await self._forget_locked(storage, ns, rid, hard, redact=False)
         if not hard:
             return
-        redacted = await storage.redact_event_payloads(ids)
+        names = [*subject_names, *(r.entity for r in records if r is not None and r.entity)]
+        renames = await self._erased_entity_nodes(ns, names, forced=subject_names)
+        redacted = (
+            await storage.redact_event_payloads(ids, node_renames=renames)
+            if renames
+            else await storage.redact_event_payloads(ids)
+        )
         # D-18: the hard-delete cascade escalates to alert severity.
         _log.error(
             EVENT_FORGET,
@@ -4952,6 +5019,27 @@ class Engine:
             _log.warning("memory.forget_vector_purge_incomplete", namespace=ns, record_id=ids[0])
         if self._client is not None:
             await self._client.checkpoint()
+
+    async def _erased_entity_nodes(
+        self, ns: str, names: Sequence[str], *, forced: Sequence[str] = ()
+    ) -> dict[str, str]:
+        """Entity node id -> opaque id for the erased ``names`` (KB-12 partition
+        markers store node ids, which spell the name). A name in ``forced`` (the
+        erased subject) is always renamed; another only once its node has no edge
+        left (no live record mentions it). Empty without a graph store."""
+        if self._graph is None:
+            return {}
+        forced_keys = {canonical_entity(n) for n in forced}
+        renames: dict[str, str] = {}
+        for name in dict.fromkeys(names):
+            canonical = canonical_entity(name)
+            node = entity_node_id(ns, canonical)
+            if not canonical or node in renames:
+                continue
+            if canonical not in forced_keys and await self._graph.edges_of(node):
+                continue
+            renames[node] = f"{ENTITY_PREFIX}{ns}:#erased-{secrets.token_hex(8)}"
+        return renames
 
     async def _forget_target(
         self, storage: SqlStorage, ns: str, record_id: str, hard: bool
@@ -5494,6 +5582,8 @@ class Engine:
     async def expire_retention(self, now: datetime | None = None) -> dict[str, object]:
         """#48: hard-forget every record past its retention class's TTL.
 
+        Soft-forgotten records count too: a soft forget keeps the content in the
+        read model and the log, so past the TTL it is hard-erased like any other.
         The age is measured from ``recorded_at``. A record whose type's ``retention``
         policy refuses deletion (legal hold, regulated PII: ``may_delete``) is kept,
         and so is one any of whose descendants would be; the rest go through
@@ -5509,7 +5599,7 @@ class Engine:
         errors: list[str] = []
         for ns in await storage.list_namespaces():
             for record in await storage.list_records(ns):
-                if record.status is RecordStatus.DELETED or record.record_id in expired:
+                if record.record_id in expired:
                     continue
                 cls = matching_class(record, classes)
                 if cls is None or (record.memory_type == "shared" and cls.memory_type is None):
@@ -5562,8 +5652,33 @@ class Engine:
             for record in await self._storage.list_records(ns):
                 if record.status is RecordStatus.DELETED or pii_rank(record.pii_tier) <= cap:
                     continue
-                texts.extend(self._erasable_texts(record))
-        return texts
+                own = self._erasable_texts(record)
+                texts.extend(own)
+                if record.entity:
+                    # The shapes timelines, cards and entity summaries render: the
+                    # text without its leading entity name or fact key.
+                    texts.extend(_without_entity(t, record.entity) for t in own)
+                    texts.append(fact_statement(record))
+        return list(dict.fromkeys(t for t in texts if t))
+
+    def _remote_view(self, role: str, records: Sequence[MemoryRecord]) -> list[MemoryRecord]:
+        """#50: ``records`` as a prompt for ``role`` may carry them. When ``role`` is
+        bound to a remote provider under ``consent.remote_llm_max_tier``, a record
+        above the tier (a lead block or derived record carries its parts' highest
+        tier) shows :data:`WITHHELD_MARKER` instead of its text, before the prompt
+        is rendered; the provider-boundary text match stays as the backstop."""
+        config = self._config()
+        limit = config.consent.remote_llm_max_tier
+        role_config = config.llm.roles.get(role)
+        if limit is None or role_config is None:
+            return list(records)
+        if is_local_provider(role_config.model, role_config.api_base, config.consent.local_hosts):
+            return list(records)
+        cap = pii_rank(limit)
+        return [
+            r.model_copy(update={"content": WITHHELD_MARKER}) if pii_rank(r.pii_tier) > cap else r
+            for r in records
+        ]
 
     async def audit_taint(
         self, record_id: str, namespace: str = "default", cross_namespace: bool = False
@@ -6277,7 +6392,10 @@ class Engine:
             )
             updated = await self._require_started().get_record(record_id)
             assert updated is not None
-            return updated
+        await self._audit_action(
+            "approve_quarantined", ns, [record_id], actor=actor, reason=reason, principal=principal
+        )
+        return updated
 
     async def reject_quarantined(
         self,
@@ -6319,7 +6437,8 @@ class Engine:
             )
             updated = await self._require_started().get_record(record_id)
             assert updated is not None
-            return updated
+        await self._audit_action("reject_quarantined", ns, [record_id], actor=actor, reason=reason)
+        return updated
 
     async def feedback(
         self,
@@ -6367,6 +6486,10 @@ class Engine:
             updated = await storage.get_record(record_id)
         assert updated is not None
         _log.info(EVENT_FEEDBACK, namespace=ns, record_id=record_id, signal=signal)
+        # #49: the signal only; the note stays in the erasable FEEDBACK event.
+        await self._audit_action(
+            "feedback", ns, [record_id], actor=actor, reason=None, signal=signal
+        )
         return updated
 
     def _config(self) -> MemspineConfig:
@@ -6829,23 +6952,40 @@ class Engine:
         # Write lock on the GRANTOR namespace: the read-diff-append unit must
         # not interleave with a concurrent grant/revoke or forget cascade.
         async with self._write_locks.setdefault(grantor, asyncio.Lock()):
-            return await shared.grant(
+            record = await shared.grant(
                 grantor,
                 grantee,
                 memory_types=memory_types,
                 source=SourceInfo(role=actor, channel="grant"),
             )
+        await self._audit_action(
+            "grant",
+            grantor,
+            [record.record_id],
+            actor=actor,
+            reason=None,
+            grantee=grantee,
+            memory_types=sorted(memory_types) if memory_types is not None else None,
+        )
+        return record
 
-    async def revoke(self, to_namespace: str, namespace: str = "default") -> MemoryRecord:
+    async def revoke(
+        self, to_namespace: str, namespace: str = "default", *, actor: str = "user"
+    ) -> MemoryRecord:
         """Revoke ``to_namespace``'s read access to ``namespace`` (R2): the
         grant record is archived via a delta event; raises when no grant is
-        live (a typo'd grantee must not read as success)."""
+        live (a typo'd grantee must not read as success). ``actor`` goes into a
+        ``memory.audit`` event under ``audit.actions``."""
         self._require_started()
         shared = self._require_shared()
         grantor = validate_namespace(namespace)
         grantee = validate_namespace(to_namespace)
         async with self._write_locks.setdefault(grantor, asyncio.Lock()):
-            return await shared.revoke(grantor, grantee)
+            record = await shared.revoke(grantor, grantee)
+        await self._audit_action(
+            "revoke", grantor, [record.record_id], actor=actor, reason=None, grantee=grantee
+        )
+        return record
 
     async def shared_search(
         self,
@@ -7345,6 +7485,7 @@ class Engine:
         the head; set_offset is advance-only, so races cannot regress marks).
         """
         assert self._storage is not None
+        event = await self._inherit_governance(event)
         appended = await self._storage.append_event(event)
         if appended.seq is None:  # pragma: no cover - write door always assigns seq
             raise MemspineError("write door returned an event without seq")
@@ -7378,6 +7519,56 @@ class Engine:
                 != RecordStatus.ACTIVATED.value
             ):
                 self._query_encoder.evict(event.namespace, record_id)
+
+    async def _inherit_governance(self, event: MemoryEvent) -> MemoryEvent:
+        """#50: a derived record's purposes and PII tier follow its parents.
+
+        A WRITE whose record names ``source.parents`` (summaries, mined facts, list
+        cards, entity and community summaries, surprise facts, cues, reflections,
+        graph facts) gets the intersection of its parents' purposes and its own
+        (:func:`inherited_consent`) and the highest of their PII tiers. Only
+        parents in the record's own namespace count (a foreign id is no oracle).
+        The event is returned unchanged when nothing changes, so logs without
+        tagged or PII-tiered parents stay byte-identical."""
+        if event.kind is not EventKind.WRITE or self._storage is None:
+            return event
+        snapshot = event.payload.get("record")
+        if not isinstance(snapshot, dict):
+            return event
+        source = snapshot.get("source")
+        raw_parents = source.get("parents") if isinstance(source, dict) else None
+        if not raw_parents or not isinstance(raw_parents, list):
+            return event
+        own_id = snapshot.get("record_id")
+        parents: list[MemoryRecord] = []
+        for parent_id in dict.fromkeys(str(p) for p in raw_parents):
+            if parent_id == own_id:
+                continue
+            parent = await self._storage.get_record(parent_id)
+            if parent is not None and parent.namespace == snapshot.get("namespace"):
+                parents.append(parent)
+        if not parents:
+            return event
+        own_tags = [str(t) for t in snapshot.get("consent_tags") or []]
+        own_tier = str(snapshot.get("pii_tier") or PiiTier.NONE.value)
+        tag_sets: list[Sequence[str]] = [p.consent_tags for p in parents]
+        if own_tags:
+            tag_sets.append(own_tags)
+        tags = inherited_consent(tag_sets, self._config().consent.untagged)
+        tier = inherited_pii([own_tier, *(p.pii_tier for p in parents)]).value
+        if set(tags) == set(own_tags) and tier == own_tier:
+            return event
+        payload = {
+            **event.payload,
+            "record": {
+                **snapshot,
+                "consent_tags": tags if set(tags) != set(own_tags) else own_tags,
+                "pii_tier": tier,
+            },
+        }
+        return event.model_copy(
+            update={"payload": payload, "fingerprint": fingerprint_payload(payload)}
+        )
 
     @asynccontextmanager
     async def _projection_batch(self) -> AsyncIterator[None]:
@@ -7791,8 +7982,9 @@ class Engine:
         # #10: each note is one JSON object on one line (quotes, newlines and line
         # separators escaped) inside markers carrying a fresh nonce, so stored text
         # can neither start a forged label line nor close the notes block.
+        shown = self._remote_view("relevance", [r for r, _ in candidates])  # #50
         notes = "\n".join(
-            _json_line({"index": i, "text": r.content[:400]}) for i, (r, _) in enumerate(candidates)
+            _json_line({"index": i, "text": r.content[:400]}) for i, r in enumerate(shown)
         )
         try:
             result = await structured_call(

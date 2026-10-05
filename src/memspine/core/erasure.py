@@ -14,9 +14,14 @@ survives under a key the redactor never looked at. One walker, used by both.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
-__all__ = ["redact_record", "retained_fields"]
+__all__ = ["PARTITION_MARKER", "redact_record", "retained_fields", "scrub_partition_nodes"]
+
+#: The MARKER payload (``community_partition``, KB-12) whose node ids
+#: (``ent:<ns>:<canonical name>``) name entities: erasure renames them.
+PARTITION_MARKER = "community_partition"
 
 #: Fields on a record snapshot that identify the subject, with their erased value:
 #: the content (plain and cold-tier), its fingerprint (an xxhash of short content
@@ -86,6 +91,32 @@ def _merge_carriers(node: dict[str, Any], record_id: str) -> list[_Carrier]:
     return []
 
 
+def _group_siblings(items: list[Any], record_id: str) -> list[_Carrier]:
+    """The other entries of every ``group`` an entry of ``record_id`` belongs to.
+
+    A list of record-shaped entries sharing a ``group`` index is ONE fact keyed
+    by several records (an ``entity_resolved`` decision citing several turns):
+    each entry repeats the same names, so erasing any member record must erase
+    every entry of the group, not only the member's own."""
+    groups = [
+        item["group"]
+        for item in items
+        if isinstance(item, dict)
+        and item.get("record_id") == record_id
+        and item.get("group") is not None
+    ]
+    if not groups:
+        return []
+    return [
+        (item, _SNAPSHOT_SCRUB)
+        for item in items
+        if isinstance(item, dict)
+        and item.get("record_id") != record_id
+        and item.get("group") is not None
+        and item.get("group") in groups
+    ]
+
+
 def redact_record(node: Any, record_id: str) -> bool:
     """Recursively erase every identifying field of every snapshot/delta of
     ``record_id`` (see ``_SNAPSHOT_SCRUB``). Returns True if anything was
@@ -98,8 +129,38 @@ def redact_record(node: Any, record_id: str) -> bool:
         for value in node.values():
             changed |= redact_record(value, record_id)
     elif isinstance(node, list):
+        for carrier, scrub in _group_siblings(node, record_id):
+            changed |= _scrub(carrier, scrub)
         for item in node:
             changed |= redact_record(item, record_id)
+    return changed
+
+
+def scrub_partition_nodes(payload: Any, renames: Mapping[str, str]) -> bool:
+    """Rename entity node ids in a ``community_partition`` marker payload: the
+    ``set`` keys and anchors and the ``drop`` entries. A node id names the entity,
+    so an erased subject's name must not survive in the partition history; the
+    rename is consistent within one call, so the partition structure is kept.
+    Returns True if anything changed. Mutates ``payload`` in place."""
+    if not renames or not isinstance(payload, dict):
+        return False
+    if payload.get("marker") != PARTITION_MARKER:
+        return False
+    changed = False
+    current = payload.get("set")
+    if isinstance(current, dict):
+        renamed: dict[str, Any] = {}
+        for node, anchor in current.items():
+            new_node = renames.get(node, node)
+            new_anchor = renames.get(anchor, anchor) if isinstance(anchor, str) else anchor
+            changed |= new_node != node or new_anchor != anchor
+            renamed[new_node] = new_anchor
+        payload["set"] = renamed
+    dropped = payload.get("drop")
+    if isinstance(dropped, list):
+        new_drop = [renames.get(n, n) if isinstance(n, str) else n for n in dropped]
+        changed |= new_drop != dropped
+        payload["drop"] = new_drop
     return changed
 
 
@@ -115,6 +176,8 @@ def retained_fields(node: Any, record_id: str) -> set[str]:
         for value in node.values():
             found |= retained_fields(value, record_id)
     elif isinstance(node, list):
+        for carrier, scrub in _group_siblings(node, record_id):
+            found.update(_identifying(carrier, scrub))
         for item in node:
             found |= retained_fields(item, record_id)
     return found

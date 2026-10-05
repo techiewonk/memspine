@@ -20,6 +20,8 @@ from memspine.exceptions import ConfigError  # noqa: E402
 from memspine.protocols.rest import create_app  # noqa: E402
 from memspine.protocols.rest.auth import RateLimiter  # noqa: E402
 
+_ISS_AUD = {"issuer": "https://issuer.test", "audience": "memspine-test"}
+
 ALICE_KEY = "alice-test-key-0001"
 ADMIN_KEY = "admin-test-key-0002"
 
@@ -159,7 +161,9 @@ def test_oidc_jwt_without_pyjwt_is_a_clear_error(monkeypatch: pytest.MonkeyPatch
     from memspine.protocols.rest.auth import Authenticator
 
     monkeypatch.setitem(sys.modules, "jwt", None)  # import jwt -> ImportError
-    rest = RestConfig.model_validate({"auth": {"mode": "oidc_jwt", "jwt": {"key_env": "K"}}})
+    rest = RestConfig.model_validate(
+        {"auth": {"mode": "oidc_jwt", "jwt": {"key_env": "K", **_ISS_AUD}}}
+    )
     with pytest.raises(ConfigError, match="pyjwt"):
         Authenticator(rest, env={"K": "secret"})
 
@@ -186,7 +190,7 @@ async def test_oidc_jwt_claims_bind_principal(
         {
             "auth": {
                 "mode": "oidc_jwt",
-                "jwt": {"key_env": "MS_TEST_JWT_KEY", "algorithms": ["HS256"]},
+                "jwt": {"key_env": "MS_TEST_JWT_KEY", "algorithms": ["HS256"], **_ISS_AUD},
             }
         }
     )

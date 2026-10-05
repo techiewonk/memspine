@@ -30,12 +30,15 @@ __all__ = [
     "AUDIT_GENESIS",
     "AUDIT_KINDS",
     "PURPOSE_ANY",
+    "PURPOSE_NONE",
     "AuditChainReport",
     "chain_digest",
     "current_principal",
     "current_purpose",
     "export_line",
     "export_record",
+    "inherited_consent",
+    "inherited_pii",
     "matching_class",
     "payload_mentions",
     "pii_rank",
@@ -51,6 +54,9 @@ AUDIT_GENESIS = "memspine-audit-v1"
 AUDIT_KINDS = frozenset({EventKind.READ_AUDIT, EventKind.AUDIT})
 #: A record purpose that allows every read purpose.
 PURPOSE_ANY = "*"
+#: The purpose set of a record derived from parents whose purposes do not
+#: overlap: no read purpose matches it, so the record serves no tagged read.
+PURPOSE_NONE = "!none"
 
 _PII_ORDER = {PiiTier.NONE: 0, PiiTier.LOW: 1, PiiTier.HIGH: 2, PiiTier.REGULATED: 3}
 
@@ -116,7 +122,38 @@ def purpose_allows(record: MemoryRecord, purpose: str | None, consent: ConsentCo
         return consent.untagged == "allow"
     if PURPOSE_ANY in purposes:
         return True
-    return purpose is not None and purpose in purposes
+    return purpose is not None and purpose != PURPOSE_NONE and purpose in purposes
+
+
+def inherited_consent(tag_sets: Iterable[Sequence[str]], untagged: str = "allow") -> list[str]:
+    """The purposes a record derived from parts carrying ``tag_sets`` may serve:
+    the intersection of the parts' purposes, so the derived record is never
+    visible to a read that could not see every part.
+
+    ``*`` is the universal set. An untagged part is universal under
+    ``consent.untagged: allow`` (it passes every read); under ``deny`` it passes
+    none, so a mix of tagged and untagged parts gets :data:`PURPOSE_NONE`. All
+    parts untagged: untagged (``[]``). Disjoint purposes: :data:`PURPOSE_NONE`."""
+    sets = [list(tags) for tags in tag_sets]
+    if not any(sets):
+        return []
+    if untagged == "deny" and any(not tags for tags in sets):
+        return [PURPOSE_NONE]
+    specific = [set(tags) for tags in sets if tags and PURPOSE_ANY not in tags]
+    if not specific:
+        return [PURPOSE_ANY]
+    common = set.intersection(*specific) - {PURPOSE_NONE}
+    return sorted(common) if common else [PURPOSE_NONE]
+
+
+def inherited_pii(tiers: Iterable[PiiTier | str]) -> PiiTier:
+    """The highest of ``tiers`` (``none`` when empty): derived text carries the
+    most sensitive tier of what it was derived from."""
+    best = PiiTier.NONE
+    for tier in tiers:
+        if pii_rank(tier) > pii_rank(best):
+            best = PiiTier(tier)
+    return best
 
 
 # ── audit hash chain ─────────────────────────────────────────────────────────

@@ -18,7 +18,15 @@ revocation lists, multi-replica rate limits and an admin console are out of scop
 Every authenticated request may only address a namespace its principal is allowed
 (the ``X-Memspine-Namespace`` header, default ``default``): others get 403. Admin
 routes (``/sleep``, ``/rebuild``, ``/export``, ``/quarantine...``) need the admin
-flag or role. ``rest.rate_limit`` adds an in-memory token bucket per principal.
+flag or role: a dependency on each of those routes checks it, so a mount prefix or
+``root_path`` cannot route around it. ``rest.rate_limit`` adds an in-memory token
+bucket per principal. Failed authentications are throttled per client address
+before any credential is checked (``rest.rate_limit``, else
+``REST_AUTH_FAILURE_*``), and a JWKS refetch for an unknown ``kid`` happens at
+most once per ``REST_JWKS_MISS_BACKOFF_SECONDS``.
+
+``oidc_jwt`` tokens must carry ``exp``, ``iss`` and ``aud``; the issuer and audience
+are required config and the algorithm family is pinned (see ``RestAuthConfig``).
 """
 
 from __future__ import annotations
@@ -33,6 +41,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
+from memspine.config import constants
 from memspine.config.schema import RestConfig, RestJwtConfig, RestRateLimitConfig
 from memspine.exceptions import ConfigError
 
@@ -43,6 +52,7 @@ __all__ = [
     "Principal",
     "RateLimiter",
     "is_admin_path",
+    "route_path",
 ]
 
 #: Route prefixes that need the admin role once authentication is on.
@@ -52,6 +62,16 @@ ADMIN_PATHS = ("/sleep", "/rebuild", "/export", "/quarantine")
 def is_admin_path(path: str) -> bool:
     """Whether ``path`` is one of the operator-only routes."""
     return any(path == prefix or path.startswith(prefix + "/") for prefix in ADMIN_PATHS)
+
+
+def route_path(scope: Mapping[str, Any]) -> str:
+    """The request path as the app's own routes see it: ``scope["path"]`` without
+    the ``root_path`` a mount or a proxy prefix put in front of it."""
+    path = str(scope.get("path", ""))
+    root = str(scope.get("root_path", "") or "")
+    if root and (path == root or path.startswith(root + "/")):
+        return path[len(root) :] or "/"
+    return path
 
 
 class AuthError(Exception):
@@ -89,8 +109,17 @@ class _KeyEntry:
 class Authenticator:
     """Resolves a request's credentials to a :class:`Principal` (or raises)."""
 
-    def __init__(self, config: RestConfig, env: Mapping[str, str] | None = None) -> None:
+    def __init__(
+        self,
+        config: RestConfig,
+        env: Mapping[str, str] | None = None,
+        clock: Any = time.monotonic,
+    ) -> None:
         self.mode = config.auth.mode
+        self._clock = clock
+        #: kids a JWKS lookup resolved, and when the last lookup missed.
+        self._known_kids: set[str] = set()
+        self._last_jwks_miss: float | None = None
         environ = os.environ if env is None else env
         self._keys: list[_KeyEntry] = []
         self._jwt_config: RestJwtConfig = config.auth.jwt
@@ -148,16 +177,16 @@ class Authenticator:
         jwt = self._jwt
         cfg = self._jwt_config
         key = self._jwt_key
+        if hasattr(key, "get_signing_key_from_jwt"):
+            key = self._jwks_key(key, token)
         try:
-            if hasattr(key, "get_signing_key_from_jwt"):
-                key = key.get_signing_key_from_jwt(token).key
             claims = jwt.decode(
                 token,
                 key,
-                algorithms=cfg.algorithms,
+                algorithms=list(cfg.algorithms),
                 audience=cfg.audience,
                 issuer=cfg.issuer,
-                options={"verify_aud": cfg.audience is not None},
+                options={"require": ["exp", "iss", "aud"], "verify_aud": True},
             )
         except Exception as exc:
             raise AuthError(401, "invalid bearer token") from exc
@@ -169,6 +198,28 @@ class Authenticator:
         raw_roles = claims.get(cfg.roles_claim, [])
         roles = raw_roles.split() if isinstance(raw_roles, str) else [str(r) for r in raw_roles]
         return Principal(subject, tuple(namespaces), cfg.admin_role in roles)
+
+    def _jwks_key(self, client: Any, token: str) -> Any:
+        """The JWKS signing key for ``token``. A ``kid`` no lookup has resolved yet
+        may trigger a JWKS fetch only once per ``REST_JWKS_MISS_BACKOFF_SECONDS``:
+        inside that window after a miss, an unknown kid is refused unfetched."""
+        try:
+            header = self._jwt.get_unverified_header(token)
+            kid = str(header.get("kid") or "") if isinstance(header, dict) else ""
+        except Exception as exc:
+            raise AuthError(401, "invalid bearer token") from exc
+        now = self._clock()
+        last = self._last_jwks_miss
+        backoff = constants.REST_JWKS_MISS_BACKOFF_SECONDS
+        if kid not in self._known_kids and last is not None and now - last < backoff:
+            raise AuthError(401, "invalid bearer token")
+        try:
+            key = client.get_signing_key_from_jwt(token).key
+        except Exception as exc:
+            self._last_jwks_miss = now
+            raise AuthError(401, "invalid bearer token") from exc
+        self._known_kids.add(kid)
+        return key
 
 
 def _bearer(headers: Mapping[str, str]) -> str | None:
@@ -187,14 +238,29 @@ class RateLimiter:
     clock: Any = time.monotonic
     _buckets: dict[str, tuple[float, float]] = field(default_factory=dict)
 
+    def _tokens(self, key: str, now: float) -> float:
+        rate, burst = self.config.requests_per_second, float(self.config.burst)
+        tokens, last = self._buckets.get(key, (burst, now))
+        return min(burst, tokens + (now - last) * rate)
+
+    def peek(self, key: str) -> bool:
+        """Whether ``key``'s bucket holds a token, without taking one."""
+        return self._tokens(key, self.clock()) >= 1.0
+
     def allow(self, key: str) -> bool:
         """Take one token from ``key``'s bucket; False when it is empty."""
         now = self.clock()
-        rate, burst = self.config.requests_per_second, float(self.config.burst)
-        tokens, last = self._buckets.get(key, (burst, now))
-        tokens = min(burst, tokens + (now - last) * rate)
+        tokens = self._tokens(key, now)
+        if key not in self._buckets and len(self._buckets) >= constants.REST_RATE_LIMIT_MAX_KEYS:
+            self._prune(now)
         if tokens < 1.0:
             self._buckets[key] = (tokens, now)
             return False
         self._buckets[key] = (tokens - 1.0, now)
         return True
+
+    def _prune(self, now: float) -> None:
+        """Drop the buckets that have refilled: a full bucket carries no state."""
+        burst = float(self.config.burst)
+        for key in [k for k in self._buckets if self._tokens(k, now) >= burst]:
+            del self._buckets[key]

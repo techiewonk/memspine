@@ -37,7 +37,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
 from fastapi.responses import ORJSONResponse
 
 from memspine.config import constants
-from memspine.config.schema import RestConfig
+from memspine.config.schema import RestConfig, RestRateLimitConfig
 from memspine.core.audit import TaintReport
 from memspine.core.namespace import validate_namespace
 from memspine.core.privacy import principal_scope
@@ -51,6 +51,7 @@ from memspine.protocols.rest.auth import (
     Principal,
     RateLimiter,
     is_admin_path,
+    route_path,
 )
 from memspine.protocols.rest.models import (
     AssembleRequest,
@@ -124,6 +125,8 @@ class _AuthState:
         self._rest = rest
         self.authenticator: Authenticator | None = None
         self.limiter: RateLimiter | None = None
+        #: Failed authentications per client address (only with auth on).
+        self.failures: RateLimiter | None = None
 
     def ready(self) -> Authenticator:
         if self.authenticator is None:
@@ -134,13 +137,48 @@ class _AuthState:
             rest = self._rest if self._rest is not None else self._engine.config.rest
             self.authenticator = Authenticator(rest)
             self.limiter = RateLimiter(rest.rate_limit) if rest.rate_limit else None
+            if self.authenticator.enabled:
+                self.failures = RateLimiter(
+                    rest.rate_limit
+                    or RestRateLimitConfig(
+                        requests_per_second=constants.REST_AUTH_FAILURE_PER_SECOND,
+                        burst=constants.REST_AUTH_FAILURE_BURST,
+                    )
+                )
         return self.authenticator
 
 
-def _actor(request: Request, claimed: str) -> str:
-    """The authenticated principal when auth is on, else the caller's claim."""
+def _principal(request: Request) -> Principal | None:
     principal = getattr(request.state, "principal", None)
-    return principal.name if isinstance(principal, Principal) else claimed
+    return principal if isinstance(principal, Principal) else None
+
+
+def _actor(request: Request, claimed: str) -> str:
+    """The authenticated principal when auth is on, else the caller's claim. A
+    claim that differs from the bound principal is overridden and logged."""
+    principal = _principal(request)
+    if principal is None:
+        return claimed
+    if claimed != principal.name:
+        _log.info("rest.actor_overridden", claimed=claimed, principal=principal.name)
+    return principal.name
+
+
+def _bound_source(request: Request, source: SourceInfo) -> SourceInfo:
+    """``source`` on the ``rest`` channel, with ``source.principal`` set to the
+    authenticated principal when auth is on (a body cannot name another author,
+    nor omit itself to dodge the quarantine author check)."""
+    update: dict[str, object] = {"channel": "rest"}
+    principal = _principal(request)
+    if principal is not None:
+        if source.principal not in (None, principal.name):
+            _log.info(
+                "rest.source_principal_overridden",
+                claimed=source.principal,
+                principal=principal.name,
+            )
+        update["principal"] = principal.name
+    return source.model_copy(update=update)
 
 
 def build_app(engine: Engine, rest: RestConfig | None = None) -> FastAPI:
@@ -149,6 +187,17 @@ def build_app(engine: Engine, rest: RestConfig | None = None) -> FastAPI:
     auth_state = _AuthState(engine, rest)
     if rest is not None or engine.is_started:
         auth_state.ready()  # fail fast on a bad auth config (e.g. pyjwt missing)
+
+    async def require_admin(request: Request) -> None:
+        """ADR-041 addendum: the admin check ON the operator routes themselves, so
+        no mount prefix, ``root_path`` or path spelling reaches them without it."""
+        if not auth_state.ready().enabled:
+            return
+        principal = _principal(request)
+        if principal is None or not principal.admin:
+            raise HTTPException(status_code=403, detail="this route needs the admin role")
+
+    admin_only = [Depends(require_admin)]
     app = FastAPI(
         title="memspine",
         summary="Cognitive-memory engine — REST protocol (D-06). "
@@ -188,20 +237,29 @@ def build_app(engine: Engine, rest: RestConfig | None = None) -> FastAPI:
         if not authenticator.enabled and limiter is None:
             return await call_next(request)
         principal: Principal | None = None
+        client = "ip:" + (request.client.host if request.client else "")
         if authenticator.enabled:
+            failures = auth_state.failures
+            # Throttle by client address BEFORE the credential is checked: a run
+            # of bad keys or tokens ends in 429, not in unbounded 401s.
+            if failures is not None and not failures.peek(client):
+                _log.info("rest.auth_throttled", path=request.url.path)
+                return _error_response(429, AuthError(429, "too many failed authentications"))
             try:
                 principal = authenticator.authenticate(request.headers)
-                if is_admin_path(request.url.path) and not principal.admin:
+                if is_admin_path(route_path(request.scope)) and not principal.admin:
                     raise AuthError(403, "this route needs the admin role")
                 namespace = request.headers.get("x-memspine-namespace", "default")
                 if not principal.may_use(namespace):
                     raise AuthError(403, f"principal may not use namespace {namespace!r}")
             except AuthError as exc:
+                if exc.status == 401 and failures is not None:
+                    failures.allow(client)  # one failure taken from the address
                 _log.info("rest.auth_denied", status=exc.status, path=request.url.path)
                 return _error_response(exc.status, exc)
             request.state.principal = principal
         if limiter is not None:
-            key = principal.name if principal else (request.client.host if request.client else "")
+            key = f"principal:{principal.name}" if principal else client
             if not limiter.allow(key):
                 return _error_response(429, AuthError(429, "rate limit exceeded"))
         with principal_scope(principal.name if principal else None):
@@ -236,21 +294,21 @@ def build_app(engine: Engine, rest: RestConfig | None = None) -> FastAPI:
     # ── core verbs ───────────────────────────────────────────────────────────
 
     @app.post("/write")
-    async def write(body: WriteRequest, ns: Namespace) -> MemoryRecord:
+    async def write(body: WriteRequest, ns: Namespace, request: Request) -> MemoryRecord:
         # SEC-C1/ADR-018: REST is untrusted external input. Force the write onto
         # the "rest" channel (in TrustPolicy._EXTERNAL_CHANNELS) so TrustPolicy
         # caps trust at TRUST_RETRIEVED_CAP REGARDLESS of the caller-supplied
         # role — a caller cannot claim role="operator" to escalate trust or dodge
         # the firewall. The role is preserved for provenance only.
-        source = body.source or SourceInfo(role=body.actor)
-        source = source.model_copy(update={"channel": "rest"})
+        # Under auth, source.principal and the actor are the bound principal.
+        source = _bound_source(request, body.source or SourceInfo(role=body.actor))
         return await engine.write(
             body.content,
             namespace=ns,
             memory_type=body.memory_type,
             source=source,
             pii_tier=body.pii_tier,
-            actor=body.actor,
+            actor=_actor(request, body.actor),
             entity=body.entity,
             attribute=body.attribute,
             group_id=body.group_id,
@@ -259,14 +317,17 @@ def build_app(engine: Engine, rest: RestConfig | None = None) -> FastAPI:
         )
 
     @app.post("/write_messages")
-    async def write_messages(body: WriteMessagesRequest, ns: Namespace) -> list[MemoryRecord]:
+    async def write_messages(
+        body: WriteMessagesRequest, ns: Namespace, request: Request
+    ) -> list[MemoryRecord]:
         # C4: chat-transcript ingestion. Force channel="rest" (SEC-C1, same as
         # /write) so TrustPolicy caps each turn's trust regardless of the claimed
         # role — the per-turn role is preserved for provenance only.
         turns = [{"role": turn.role, "content": turn.content} for turn in body.messages]
+        actor = _actor(request, body.actor)
         if body.as_episode:
-            return await engine.write_episode(turns, namespace=ns, actor=body.actor, channel="rest")
-        return await engine.write_messages(turns, namespace=ns, actor=body.actor, channel="rest")
+            return await engine.write_episode(turns, namespace=ns, actor=actor, channel="rest")
+        return await engine.write_messages(turns, namespace=ns, actor=actor, channel="rest")
 
     @app.post("/search")
     async def search(body: SearchRequest, ns: Namespace) -> list[ScoredRecord]:
@@ -308,10 +369,14 @@ def build_app(engine: Engine, rest: RestConfig | None = None) -> FastAPI:
         )
 
     @app.post("/feedback")
-    async def feedback(body: FeedbackRequest, ns: Namespace) -> MemoryRecord:
+    async def feedback(body: FeedbackRequest, ns: Namespace, request: Request) -> MemoryRecord:
         # #54: counts only; the bounded utility transform caps what a caller can move.
         return await engine.feedback(
-            body.record_id, body.signal, note=body.note, actor=body.actor, namespace=ns
+            body.record_id,
+            body.signal,
+            note=body.note,
+            actor=_actor(request, body.actor),
+            namespace=ns,
         )
 
     @app.delete("/records/{record_id}")
@@ -344,19 +409,19 @@ def build_app(engine: Engine, rest: RestConfig | None = None) -> FastAPI:
             actor=actor,
             reason=body.reason,
             namespace=ns,
-            source=SourceInfo(role=body.actor, channel="rest"),
+            source=_bound_source(request, SourceInfo(role=body.actor)),
         )
 
     # ── quarantine review (#3) ───────────────────────────────────────────────
 
-    @app.get("/quarantine")
+    @app.get("/quarantine", dependencies=admin_only)
     async def list_quarantined(ns: Namespace) -> list[MemoryRecord]:
         return await engine.list_quarantined(namespace=ns)
 
     # The decisions are operator-only (resolve_operator): the namespace header
     # is the tenant, and a tenant could otherwise release its own poison.
 
-    @app.post("/quarantine/{record_id}/approve")
+    @app.post("/quarantine/{record_id}/approve", dependencies=admin_only)
     async def approve_quarantined(
         record_id: str,
         ns: Namespace,
@@ -372,7 +437,7 @@ def build_app(engine: Engine, rest: RestConfig | None = None) -> FastAPI:
             reason=decision.reason or "operator_approved",
         )
 
-    @app.post("/quarantine/{record_id}/reject")
+    @app.post("/quarantine/{record_id}/reject", dependencies=admin_only)
     async def reject_quarantined(
         record_id: str,
         ns: Namespace,
@@ -452,14 +517,17 @@ def build_app(engine: Engine, rest: RestConfig | None = None) -> FastAPI:
     # ── shared (R2) ──────────────────────────────────────────────────────────
 
     @app.post("/grants")
-    async def grant(body: GrantRequest, ns: Namespace) -> MemoryRecord:
+    async def grant(body: GrantRequest, ns: Namespace, request: Request) -> MemoryRecord:
         return await engine.grant(
-            body.to_namespace, namespace=ns, memory_types=body.memory_types, actor=body.actor
+            body.to_namespace,
+            namespace=ns,
+            memory_types=body.memory_types,
+            actor=_actor(request, body.actor),
         )
 
     @app.delete("/grants")
-    async def revoke(to_namespace: str, ns: Namespace) -> MemoryRecord:
-        return await engine.revoke(to_namespace, namespace=ns)
+    async def revoke(to_namespace: str, ns: Namespace, request: Request) -> MemoryRecord:
+        return await engine.revoke(to_namespace, namespace=ns, actor=_actor(request, "user"))
 
     @app.get("/shared_search")
     async def shared_search(
@@ -496,15 +564,15 @@ def build_app(engine: Engine, rest: RestConfig | None = None) -> FastAPI:
     # cross-cutting. Behind the no-authn seam they MUST sit on an internal-only
     # network boundary — never expose them to tenant callers.
 
-    @app.post("/sleep")
+    @app.post("/sleep", dependencies=admin_only)
     async def sleep() -> dict[str, dict[str, Any]]:
         return await engine.sleep()
 
-    @app.post("/rebuild")
+    @app.post("/rebuild", dependencies=admin_only)
     async def rebuild() -> dict[str, int]:
         return await engine.rebuild()
 
-    @app.get("/export")
+    @app.get("/export", dependencies=admin_only)
     async def export(
         ns: Namespace,
         subject: str | None = None,
