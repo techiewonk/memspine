@@ -135,30 +135,88 @@ _NOT_NAMES = frozenset(
         "by",
         "from",
         "with",
+        # Imperatives and openers (A-6): "Tell me what Caroline likes" names Caroline only.
+        "tell",
+        "give",
+        "show",
+        "list",
+        "name",
+        "describe",
+        "explain",
+        "find",
+        "remind",
+        "recall",
+        "remember",
+        "summarise",
+        "summarize",
+        "please",
+        "let",
+        "say",
+        "yes",
+        "no",
+        "ok",
+        "okay",
+        "hey",
+        "hi",
+        "hello",
+        "thanks",
+        "so",
+        "but",
+        "also",
+        "now",
+        "then",
+        "i'm",
+        "i've",
+        "i'd",
+        "i'll",
+        "im",
+        "my",
+        "me",
+        "we",
+        "you",
+        "your",
+        "our",
+        "he",
+        "she",
+        "it",
+        "they",
+        "this",
+        "that",
+        "these",
+        "those",
     ]
 )
 
 
 def query_names(query: str) -> list[str]:
-    """G3b: the capitalised words of a question that may name someone ("Caroline's")."""
-    names: list[str] = []
+    """G3b: the capitalised words of a question that may name someone ("Caroline's").
+
+    The first word is capitalised by grammar, not because it is a name, so it counts
+    only when it appears capitalised again later in the query.
+    """
+    words: list[str] = []
     for raw in query.split():
         word = raw.strip('.,;:!?"()[]')
         if word.endswith(("'s", "\u2019s")):
             word = word[:-2]
+        words.append(word)
+    names: list[str] = []
+    for index, word in enumerate(words):
         if (
             len(word) > 1
             and word[0].isupper()
-            and word.lower() not in _NOT_NAMES
+            and word.lower().replace("\u2019", "'") not in _NOT_NAMES
             and word not in names
+            and (index > 0 or word in words[1:])
         ):
             names.append(word)
     return names
 
 
 def mentions_any(text: str, names: Sequence[str]) -> bool:
-    """True when ``text`` names one of ``names`` as a whole word (case-insensitive)."""
-    return any(re.search(rf"\b{re.escape(n)}\b", text, re.IGNORECASE) for n in names)
+    """True when ``text`` names one of ``names`` as a whole word (case-sensitive:
+    a name is capitalised, "Will" is not "will")."""
+    return any(re.search(rf"\b{re.escape(n)}\b", text) for n in names)
 
 
 def render_profile(names: Sequence[str], records: Sequence[MemoryRecord]) -> str:
