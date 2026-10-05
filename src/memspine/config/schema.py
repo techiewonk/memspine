@@ -304,6 +304,10 @@ class ReadConfig(BaseModel):
     #: returns a ReadPlan; lookup/replay read by replay, aggregate by compose with
     #: the plan's subqueries as extra probes). Rules on any failure.
     planner: Literal["rules", "decision", "llm"] = "rules"
+    #: G2c: compose results get the same +-``replay_window`` neighbour expansion as
+    #: replay mode (nearest first, within the budget), so routing an aggregation
+    #: question to compose no longer loses the turns around each hit.
+    compose_replay: bool = False
     relevance_safety_net: int = Field(default=10, ge=0)
     #: C8': resolve search hits on anticipatory cues (``Engine.add_cues``) to
     #: their target records. A cue below ``cue_min_trust`` is ignored, so cues

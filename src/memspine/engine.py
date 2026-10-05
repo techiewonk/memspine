@@ -2487,6 +2487,7 @@ class Engine:
                 compose_pool,
                 drop_facts=drop_facts,
                 extra_probes=probes,
+                replay_window=replay_window,
             )
         base = await self._assemble_core(query, ns, budget_tokens, top_k, drop_facts=drop_facts)
         episodic_hits = [r for r in base.records if r.memory_type == "episodic"]
@@ -2655,6 +2656,7 @@ class Engine:
         *,
         drop_facts: bool = False,
         extra_probes: Sequence[str] = (),
+        replay_window: int = 2,
     ) -> ReadResult:
         """H3: session-diverse, wider-recall read for aggregation questions.
 
@@ -2698,10 +2700,12 @@ class Engine:
             key=lambda rid: (-fused[rid], rid),
         )
         sessions: dict[str, list[str]] = {}
+        session_ids: dict[str, list[str]] = {}
         if self._episodic is not None:
             for s in await self._episodic.sessions(ns, constants.SESSION_GAP_MINUTES):
                 for rid in s.record_ids:
                     sessions.setdefault(rid, []).append(s.session_key)
+                    session_ids.setdefault(rid, s.record_ids)
         queues: dict[str, list[str]] = {}
         order: list[str] = []
         for rid in ranked:
@@ -2729,11 +2733,52 @@ class Engine:
                 chosen.append(record)
                 chosen_raw.append(records[rid])
                 used += cost
+        if self._config().read.compose_replay and replay_window > 0:
+            used = await self._expand_neighbours(
+                ns, chosen, session_ids, replay_window, budget_tokens, used
+            )
         chosen.sort(key=lambda r: (r.valid_from, r.record_id))
         return ReadResult(
             "compose",
             self._render(query, AssembledContext(records=chosen, tokens_used=used), budget_tokens),
         )
+
+    async def _expand_neighbours(
+        self,
+        ns: str,
+        chosen: list[MemoryRecord],
+        session_ids: dict[str, list[str]],
+        window: int,
+        budget_tokens: int,
+        used: int,
+    ) -> int:
+        """G2c: add each chosen turn's +-``window`` session neighbours, in place.
+
+        Hits are expanded in selection order, neighbours nearest first (older on a
+        tie). A neighbour passes the same gates and decoration as in replay mode;
+        one that does not fit the budget is skipped. Returns the new token count.
+        """
+        seen = {r.record_id for r in chosen}
+        for hit in list(chosen):
+            ids = session_ids.get(hit.record_id)
+            if not ids:
+                continue
+            at = ids.index(hit.record_id)
+            span = range(max(0, at - window), min(len(ids), at + window + 1))
+            for index in sorted(span, key=lambda i: (abs(i - at), i)):
+                rid = ids[index]
+                if rid in seen:
+                    continue
+                turn = await self._replay_neighbour(rid, ns)
+                if turn is None:
+                    continue
+                cost = len(turn.content) // 4 + 1
+                if used + cost > budget_tokens:
+                    continue
+                chosen.append(turn)
+                seen.add(rid)
+                used += cost
+        return used
 
     def _context_eligible(self, record: MemoryRecord) -> bool:
         """C7': the search-time gates, for records reached without a search (stored trust)."""
