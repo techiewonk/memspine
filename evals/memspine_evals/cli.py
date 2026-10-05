@@ -138,6 +138,7 @@ def cmd_c0_1(args: argparse.Namespace) -> int:
         memspine_config=json.loads(args.memspine_config) if args.memspine_config else None,
         memspine_read_mode=args.memspine_read_mode,
         memspine_build_sleep=args.memspine_build_sleep,
+        memspine_batch_turns=args.memspine_batch_turns,
         qa_prompt=args.qa_prompt,
         judge_prompt=args.judge_prompt,
         only_systems=tuple(args.only_systems.split(",")) if args.only_systems else None,
@@ -321,6 +322,14 @@ def build_parser() -> argparse.ArgumentParser:
         "--memspine-build-sleep",
         action="store_true",
         help="run Engine.sleep() after ingestion so write-time stages take part (H2/H8/H14)",
+    )
+    c01.add_argument(
+        "--memspine-batch-turns",
+        type=int,
+        default=1,
+        metavar="N",
+        help="memspine arm: write up to N turns of one session per write_messages call "
+        "(one batched embedding); flushed before every query and at session boundaries (G9)",
     )
     c01.add_argument(
         "--memspine-read-mode",

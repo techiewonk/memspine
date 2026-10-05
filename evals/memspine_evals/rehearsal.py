@@ -133,6 +133,7 @@ def arm_config(
         memspine_config=arm_engine_config(plan, arm),
         memspine_read_mode=read_mode if memspine else None,
         memspine_build_sleep=bool(arm.get("build_sleep", base.get("build_sleep", False))),
+        memspine_batch_turns=int(arm.get("batch_turns", base.get("batch_turns", 1))),
         memspine_llm=protocol.get("memspine_llm", "none") if memspine else "none",
         dense=bool(arm.get("dense", False)),
         matched_budget_tokens=arm.get("matched_budget_tokens"),

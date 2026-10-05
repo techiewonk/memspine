@@ -28,6 +28,7 @@ from typing import Any
 
 from .contracts import (
     DatasetAdapter,
+    DepositResult,
     EvalItem,
     Query,
     Reader,
@@ -359,9 +360,16 @@ class EvalRunner:
         try:
             for t, turn in enumerate(item.history):
                 await self._insert(item.item_id, t, turn, tracer)
+                if turn.turn_id in pending:
+                    # G9: a system that buffers turns writes them before a
+                    # query pinned here, so the query sees the whole prefix.
+                    await self._flush(item.item_id, t, turn, tracer)
                 for query in pending.get(turn.turn_id, ()):
                     rows.append(await self._answer(item, query, t, tracer))
                     done.add(query.query_id)
+            if item.history:
+                last = len(item.history) - 1
+                await self._flush(item.item_id, last, item.history[last], tracer)
             await self._build(item.item_id)
             for i, query in enumerate(tail):
                 rows.append(await self._answer(item, query, len(item.history) + i, tracer))
@@ -380,6 +388,31 @@ class EvalRunner:
         started = time.perf_counter()
         deposit = await self.system.insert(turn)
         latency = (time.perf_counter() - started) * 1000
+        self._record_deposit(item_id, t, turn, deposit, latency, tracer)
+
+    async def _flush(self, item_id: str, t: int, turn: Turn, tracer: TraceWriter) -> None:
+        """Optional adapter hook (G9): write turns the system has buffered. Its
+        cost is deposit (D), traced under the turn that triggered the flush."""
+        flush = getattr(self.system, "flush", None)
+        if flush is None:
+            return
+        self._check_spend(f"{self.system.system_id}.flush")
+        started = time.perf_counter()
+        deposit = await flush()
+        if not deposit.n_records and not deposit.model_calls and not deposit.meta:
+            return  # nothing was buffered
+        latency = (time.perf_counter() - started) * 1000
+        self._record_deposit(item_id, t, turn, deposit, latency, tracer)
+
+    def _record_deposit(
+        self,
+        item_id: str,
+        t: int,
+        turn: Turn,
+        deposit: DepositResult,
+        latency: float,
+        tracer: TraceWriter,
+    ) -> None:
         self._charge_engine(Stage.DEPOSIT, deposit.meta)
         self._account_model_calls(deposit.model_calls, f"{self.system.system_id}.insert")
         self.ledger.add(

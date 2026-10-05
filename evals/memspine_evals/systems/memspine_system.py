@@ -82,6 +82,7 @@ class MemspineSystem:
         read_mode: str | None = None,
         build_sleep: bool = False,
         sleep_calls_per_session: int = 1,
+        batch_turns: int = 1,
     ) -> None:
         self.system_id = system_id
         # ``template`` names a config template (base, personal, coding, ...);
@@ -110,6 +111,10 @@ class MemspineSystem:
         self._version = engine_version()
         # record_id -> turn_id, so retrieved records map back to gold units.
         self._origin: dict[str, str] = {}
+        #: G9: up to this many turns of one session go into one ``write_messages``
+        #: call (one batched embedding). 1 = one call per turn, the original path.
+        self.batch_turns = max(1, int(batch_turns))
+        self._buffer: list[Turn] = []
 
     def describe(self) -> Mapping[str, Any]:
         return {
@@ -124,6 +129,8 @@ class MemspineSystem:
             "read_mode": self._read_mode or "assemble",
             "build_sleep": self._build_sleep,
             "sleep_calls_per_session": self.sleep_calls_per_session,
+            # Listed only when on, so default runs keep their config hash.
+            **({"batch_turns": self.batch_turns} if self.batch_turns > 1 else {}),
             "token_counter": dict(self._counter.describe()),
         }
 
@@ -178,30 +185,76 @@ class MemspineSystem:
         await self.close()
         self._origin = {}
         self._sessions = set()
+        self._buffer = []
         self._engine = await self._build_engine()
 
     async def insert(self, turn: Turn) -> DepositResult:
         if self._engine is None:
             self._engine = await self._build_engine()
+        self._sessions.add(turn.session_id)
+        if self.batch_turns <= 1:
+            return await self._deposit([turn])
+        # G9 batching: a session boundary flushes the previous session first, so
+        # one write_messages call never mixes session ids, group ids or episodes.
+        results: list[DepositResult] = []
+        if self._buffer and self._buffer[0].session_id != turn.session_id:
+            results.append(await self.flush())
+        self._buffer.append(turn)
+        if len(self._buffer) >= self.batch_turns:
+            results.append(await self.flush())
+        if not results:
+            return DepositResult(meta={"buffered": len(self._buffer)})
+        return _merge_deposits(results)
+
+    async def flush(self) -> DepositResult:
+        """Write the buffered turns (G9). The runner calls it before every query
+        and before ``build``; ``query`` and ``build`` also call it themselves, so
+        no read ever sees a history that is missing buffered turns."""
+        if not self._buffer or self._engine is None:
+            return DepositResult()
+        turns, self._buffer = self._buffer, []
+        return await self._deposit(turns)
+
+    async def _deposit(self, turns: list[Turn]) -> DepositResult:
+        """One ``write_messages`` call for turns of ONE session."""
         # The speaker NAME is content ("Caroline: ..."), not a provenance role:
         # passing it as the role dropped names from the stored text and gave
         # every speaker an unknown-role trust. The session stamp becomes the
         # record's event time (valid_from), so dated questions are answerable.
-        self._sessions.add(turn.session_id)
+        session_id = turns[0].session_id
+        texts = [f"{turn.speaker}: {turn.text}" for turn in turns]
         before = self._calls()
         usage_before = self._usage()
-        records = await self._engine.write_messages(
-            [{"role": "user", "content": f"{turn.speaker}: {turn.text}"}],
-            namespace=self.namespace,
-            session_id=turn.session_id,
-            group_id=turn.session_id,
-            valid_from=parse_turn_time(turn.timestamp),
-        )
+        if len(turns) == 1:
+            records = await self._engine.write_messages(
+                [{"role": "user", "content": texts[0]}],
+                namespace=self.namespace,
+                session_id=session_id,
+                group_id=session_id,
+                valid_from=parse_turn_time(turns[0].timestamp),
+            )
+        else:
+            messages: list[dict[str, Any]] = []
+            for turn, text in zip(turns, texts, strict=True):
+                message: dict[str, Any] = {"role": "user", "content": text}
+                stamp = parse_turn_time(turn.timestamp)
+                if stamp is not None:
+                    message["timestamp"] = stamp
+                messages.append(message)
+            records = await self._engine.write_messages(
+                messages,
+                namespace=self.namespace,
+                session_id=session_id,
+                group_id=session_id,
+            )
         ids: list[str] = []
-        for record in records:
+        for record, turn_id in _align(records, turns, texts):
             record_id = str(record.record_id)
-            self._origin[record_id] = turn.turn_id
+            self._origin[record_id] = turn_id
             ids.append(record_id)
+        meta: dict[str, Any] = {}
+        if len(turns) > 1:
+            meta["batched_turns"] = [turn.turn_id for turn in turns]
         after = self._calls()
         if before is None or after is None:
             # An engine without ``model_calls()`` cannot report write cost; the
@@ -211,16 +264,19 @@ class MemspineSystem:
                 record_ids=tuple(ids),
                 model_calls=0,
                 meta={
+                    **meta,
                     "cost_observable": False,
                     "cost_unknown_reason": "engine does not expose model_calls()",
                 },
             )
         engine_llm = self._usage_delta(usage_before, self._usage())
+        if engine_llm:
+            meta["engine_llm"] = engine_llm
         return DepositResult(
             n_records=len(ids),
             record_ids=tuple(ids),
             model_calls=after - before,
-            meta={"engine_llm": engine_llm} if engine_llm else {},
+            meta=meta,
         )
 
     async def build(self) -> DepositResult:
@@ -229,8 +285,9 @@ class MemspineSystem:
         Its model calls (one per session per LLM stage) are measured and land in
         the synthesise (K) bucket; queries pinned mid-stream run before it.
         """
+        flushed = await self.flush()
         if not self._build_sleep or self._engine is None:
-            return DepositResult()
+            return flushed
         estimate = self.sleep_calls_per_session * max(len(self._sessions), 1)
         if self.remaining_model_calls is not None and estimate > self.remaining_model_calls:
             from ..runner import ModelCallBudgetExceeded
@@ -252,11 +309,14 @@ class MemspineSystem:
             meta["cost_observable"] = False
             meta["cost_unknown_reason"] = "engine does not expose model_calls()"
             return DepositResult(model_calls=0, meta=meta)
-        return DepositResult(model_calls=after - before, meta=meta)
+        return DepositResult(model_calls=after - before + flushed.model_calls, meta=meta)
 
     async def query(self, text: str, budget_tokens: int, top_k: int) -> RetrievedContext:
         if self._engine is None:
             raise RuntimeError("query before reset/insert — no engine started")
+        # A no-op when the runner already flushed; otherwise its write cost is
+        # carried in this query's cost so the run total stays complete.
+        flushed = await self.flush()
         before = self._calls()
         usage_before = self._usage()
         if self._read_mode:
@@ -299,7 +359,7 @@ class MemspineSystem:
             offset += len(line) + 1
         body = "\n".join(lines)
         cost: dict[str, Any] = (
-            {"model_calls": after - before}
+            {"model_calls": after - before + flushed.model_calls}
             if before is not None and after is not None
             else {
                 "model_calls": 0,
@@ -318,6 +378,7 @@ class MemspineSystem:
                 "n_records": len(evidence),
                 "read_mode": self._read_mode or "assemble",
                 "ranked": self._read_mode is None,
+                **({"flushed_records": flushed.n_records} if flushed.n_records else {}),
                 # query-side calls (rewrites, relevance filter, planner LLMs)
                 **cost,
                 **({"engine_llm": engine_llm} if engine_llm else {}),
@@ -328,3 +389,55 @@ class MemspineSystem:
         if self._engine is not None:
             await self._engine.stop()
             self._engine = None
+
+
+def _align(records: list[Any], turns: list[Turn], texts: list[str]) -> list[tuple[Any, str]]:
+    """Pair each written record with the turn it came from.
+
+    ``write_messages`` returns records in message order, one per turn unless the
+    engine skipped a turn (role or recalled-memory filters). Equal counts zip.
+    Otherwise each record is matched, in order, to the next turn with identical
+    content; a record that matches none (its content was redacted) takes the
+    next unmatched turn.
+    """
+    if len(records) == len(turns):
+        return [(record, turn.turn_id) for record, turn in zip(records, turns, strict=True)]
+    pairs: list[tuple[Any, str]] = []
+    cursor = 0
+    for record in records:
+        content = getattr(record, "content", None)
+        match = next((i for i in range(cursor, len(turns)) if texts[i] == content), None)
+        index = cursor if match is None else match
+        if index >= len(turns):
+            break
+        pairs.append((record, turns[index].turn_id))
+        cursor = index + 1
+    return pairs
+
+
+def _merge_deposits(results: list[DepositResult]) -> DepositResult:
+    """One insert's view of the flushes it triggered (a session boundary and a
+    full buffer can both happen on the same turn)."""
+    if len(results) == 1:
+        return results[0]
+    meta: dict[str, Any] = {}
+    for result in results:
+        for key, value in result.meta.items():
+            if key == "batched_turns":
+                meta.setdefault(key, []).extend(value)
+            elif key == "engine_llm":
+                merged = meta.setdefault(key, {})
+                for role, usage in value.items():
+                    slot = merged.setdefault(
+                        role, {"model": usage.get("model", ""), **dict.fromkeys(_USAGE_KEYS, 0)}
+                    )
+                    for usage_key in _USAGE_KEYS:
+                        slot[usage_key] += int(usage.get(usage_key, 0))
+            else:
+                meta[key] = value
+    return DepositResult(
+        n_records=sum(r.n_records for r in results),
+        record_ids=tuple(i for r in results for i in r.record_ids),
+        model_calls=sum(r.model_calls for r in results),
+        meta=meta,
+    )

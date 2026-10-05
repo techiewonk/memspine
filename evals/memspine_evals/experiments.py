@@ -89,6 +89,8 @@ class C01Config:
     memspine_read_mode: str | None = None
     #: run the engine's sleep cycle after ingestion (write-time stages: H2, H8, H14)
     memspine_build_sleep: bool = False
+    #: G9: turns of one session per write_messages call (1 = one call per turn)
+    memspine_batch_turns: int = 1
     #: H7/H12: QA prompt variant for EVERY arm (default | dated | abstain), recorded
     #: in the reader manifest via its prompt hash.
     qa_prompt: str = "default"
@@ -308,6 +310,7 @@ def build_systems(config: C01Config) -> list[SystemAdapter]:
                 config=memspine_engine_config(config),
                 read_mode=config.memspine_read_mode,
                 build_sleep=config.memspine_build_sleep,
+                batch_turns=config.memspine_batch_turns,
             )
         )
     if config.only_systems:
