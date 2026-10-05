@@ -27,6 +27,14 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
+    # #52: a caller that must open the database itself (SQLCipher: the connection
+    # needs its key first) hands Alembic a live connection instead of a URL.
+    given = config.attributes.get("connection")
+    if given is not None:
+        context.configure(connection=given, target_metadata=target_metadata)
+        with context.begin_transaction():
+            context.run_migrations()
+        return
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",

@@ -7,6 +7,7 @@ the REST layer adds no second record schema.
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -17,6 +18,7 @@ __all__ = [
     "AssembleRequest",
     "AssembleResponse",
     "CorrectRequest",
+    "FeedbackRequest",
     "GrantRequest",
     "GrantView",
     "PlanRequest",
@@ -83,6 +85,14 @@ class SearchRequest(_Request):
     query: str = Field(max_length=constants.MAX_LEXICAL_QUERY_CHARS)
     top_k: int = Field(default=constants.SEARCH_TOP_K, ge=1)
     purpose: str | None = None  # #50
+    #: #37: date filters (``*_after`` inclusive, ``*_before`` exclusive), see Engine.search.
+    valid_from_after: datetime | None = None
+    valid_from_before: datetime | None = None
+    valid_to_after: datetime | None = None
+    valid_to_before: datetime | None = None
+    recorded_after: datetime | None = None
+    recorded_before: datetime | None = None
+    date_filter_mode: Literal["and", "or"] = "and"
 
 
 class AssembleRequest(_Request):
@@ -90,6 +100,15 @@ class AssembleRequest(_Request):
     budget_tokens: int = Field(default=constants.ASSEMBLE_BUDGET_TOKENS, ge=1)
     top_k: int = Field(default=constants.ASSEMBLE_TOP_K, ge=1)
     purpose: str | None = None  # #50
+
+
+class FeedbackRequest(_Request):
+    """#54: a like / dislike / note on one record of the caller's namespace."""
+
+    record_id: str
+    signal: Literal["like", "dislike", "note"]
+    note: str | None = Field(default=None, max_length=constants.FEEDBACK_NOTE_MAX_CHARS)
+    actor: str = "user"
 
 
 class RetrieveRequest(_Request):

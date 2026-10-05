@@ -183,6 +183,7 @@ def arm_config(
         item_ids=item_ids,
         max_queries_per_item=max_queries,
         max_model_calls=max_model_calls,
+        verify_answer=bool(arm.get("verify_answer", protocol.get("verify_answer", False))),
         prices_per_mtok=tuple((m, p[0], p[1]) for m, p in prices.items()),
     )
 

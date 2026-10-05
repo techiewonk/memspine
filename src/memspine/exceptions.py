@@ -14,6 +14,7 @@ __all__ = [
     "MissingServiceError",
     "NamespaceError",
     "RebuildUnavailableError",
+    "RollbackUnavailableError",
     "StorageError",
 ]
 
@@ -60,4 +61,14 @@ class RebuildUnavailableError(MemspineError):
 
     Raised when ``event_log.mode`` is ``ephemeral`` (no events persisted) or when
     a ``rolling`` window no longer contains the events required for a full rebuild.
+    """
+
+
+class RollbackUnavailableError(RebuildUnavailableError):
+    """A taint rollback/repair asked for history the event log no longer holds (#64).
+
+    Raised only with ``strict=True``: the seed's origin WRITE is not in the log
+    (``event_log.mode: ephemeral`` persists none; a ``rolling`` window pruned it), so
+    its descendants cannot be traced. Without ``strict`` the engine warns and falls
+    back to archiving the seed alone, closing its ``valid_to``.
     """

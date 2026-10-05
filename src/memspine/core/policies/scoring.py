@@ -6,14 +6,32 @@ no I/O, deterministic, so retrieval ranking is unit-testable and reproducible.
 
 from __future__ import annotations
 
+import math
 from datetime import UTC, datetime
 from typing import ClassVar
 
 from memspine.config import constants
 from memspine.core.policies.base import BindablePolicy, PolicyOptions
-from memspine.core.records import MemoryRecord
+from memspine.core.records import MemoryRecord, ScoringState
 
-__all__ = ["ScoringPolicy"]
+__all__ = ["ScoringPolicy", "feedback_utility", "utility_of"]
+
+
+def feedback_utility(scoring: ScoringState) -> float:
+    """#54: the bounded feedback term, ``tanh((likes - dislikes) / scale)`` in (-1, 1).
+
+    Zero with no feedback, so records nobody rated score exactly as before. Each
+    further like moves the term less (a spammed like count cannot grow it past 1)."""
+    net = scoring.likes - scoring.dislikes
+    if net == 0:
+        return 0.0
+    return math.tanh(net / constants.FEEDBACK_UTILITY_SCALE)
+
+
+def utility_of(record: MemoryRecord) -> float:
+    """The utility signal ``utility_weight`` multiplies: reinforcement-on-read (M1/A5)
+    plus the user-feedback term (#54)."""
+    return record.scoring.utility + feedback_utility(record.scoring)
 
 
 class ScoringOptions(PolicyOptions):
@@ -45,7 +63,9 @@ class ScoringPolicy(BindablePolicy):
 
         The three base signals are each in [0, 1]; the utility modifier
         (reinforcement signal, M1) adds ``utility_weight * utility`` on top so
-        proven-useful memories can outrank fresher ones.
+        proven-useful memories can outrank fresher ones. Utility includes the
+        bounded user-feedback term (#54, :func:`feedback_utility`), zero for a record
+        with no feedback.
         """
         options = self.options
         assert isinstance(options, ScoringOptions)
@@ -66,7 +86,7 @@ class ScoringPolicy(BindablePolicy):
                 if other_sum > 0.0
                 else 0.0
             )
-            nudge = (other + options.utility_weight * record.scoring.utility) / (
+            nudge = (other + options.utility_weight * utility_of(record)) / (
                 1.0 + options.utility_weight
             )
             return relevance + options.tie_break_weight * nudge
@@ -79,4 +99,4 @@ class ScoringPolicy(BindablePolicy):
                 + options.relevance_weight * relevance
                 + options.importance_weight * record.scoring.importance
             ) / weight_sum
-        return base + options.utility_weight * record.scoring.utility
+        return base + options.utility_weight * utility_of(record)

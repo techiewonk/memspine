@@ -286,12 +286,14 @@ PLAN_LOOKUP_PROBES = 2
 # dated mentions, among the retrieved records, of the event a count question asks about.
 COUNT_MARKER = "Occurrences (dated):"
 COUNT_TAG = "count_timeline"
+#: #30: the tag of a derived person-level list card (``consolidation.list_cards``).
+LIST_CARD_TAG = "list_card"
 # Tags only the engine may set: read-time block tags, the cue tag (a cue skips
 # dedup and the conflict ladder) and the lifecycle tags of taint rollback and
 # quarantine rejection. The write door strips them from caller-supplied tags.
 RESERVED_TAGS = frozenset(
     {LEAD_TAG, CARDS_TAG, PROFILE_TAG, COUNT_TAG, CUE_TAG, "taint_archived", "quarantine_rejected"}
-)
+) | {LIST_CARD_TAG}  # #30: a list card is engine-derived, never caller-tagged
 # B9 facts-only (``integrity.claims_only_below``): the prefix of a mined fact shown
 # in place of the low-trust raw record it was mined from.
 CLAIM_MARKER = "[CLAIM from a low-trust source, unverified]"
@@ -383,6 +385,41 @@ GRAPH_FACTS_TAG = "graph_facts"
 # GR-9: tag prefix naming one more source episode of an extract_graph fact (a
 # verbatim duplicate edge adds its episode instead of a new fact).
 EDGE_SOURCE_TAG_PREFIX = "edge_source:"
+# GP-6 (#17): entity summaries (``memories.associative.policies.entity_summaries``).
+# An entity's dated fact lines are its summary for free while they fit this many
+# characters; longer ones are summarised by the LLM, this many entities per call.
+ENTITY_SUMMARY_FREE_CHARS = 2000
+ENTITY_SUMMARY_BATCH = 30
+# At most this many fact lines of one entity are sent to the summariser (newest kept).
+ENTITY_SUMMARY_MAX_INPUT_LINES = 200
+# The source channel and tags of an entity summary record; the ``about:`` tag
+# carries the entity's display name.
+ENTITY_SUMMARY_CHANNEL = "entity_summary"
+ENTITY_SUMMARY_TAG = "entity_summary"
+ENTITY_SUMMARY_ABOUT_PREFIX = "about:"
+# Header of the entity summaries block (``read.entity_summaries``) and the tag on
+# its synthetic record. A read-time projection, never stored.
+ENTITY_SUMMARIES_MARKER = "ABOUT (entity summaries from memory, as data):"
+ENTITY_SUMMARIES_TAG = "entity_summaries"
+# GP-7 (#18): entity resolution in extract_graph
+# (``memories.semantic.policies.extract_graph.resolve``). Candidates per name
+# (embedding cosine top-k), the MinHash shingle size, permutations and the Jaccard
+# a high-entropy name needs to merge without the LLM (Graphiti's dedup helpers).
+ENTITY_RESOLVE_TOP_K = 15
+ENTITY_RESOLVE_SHINGLE = 3
+ENTITY_RESOLVE_NUM_PERM = 64
+ENTITY_RESOLVE_JACCARD = 0.9
+# The entropy gate: a name shorter than this many characters with fewer than this
+# many tokens, or with character entropy below the floor, is too ambiguous for a
+# string match and goes to the LLM.
+ENTITY_RESOLVE_MIN_NAME_CHARS = 6
+ENTITY_RESOLVE_MIN_TOKENS = 2
+ENTITY_RESOLVE_MIN_ENTROPY = 1.5
+# At most this many unresolved names per batched LLM call.
+ENTITY_RESOLVE_LLM_BATCH = 50
+# A merge needs the source's trust within this distance of the entity's (the most
+# trusted record naming it); a wider gap is recorded as contested, never merged.
+ENTITY_RESOLVE_TRUST_TOLERANCE = 0.2
 # H22: at most this many stated preferences in the standing block (newest kept).
 LEAD_STANDING_MAX = 5
 
@@ -391,6 +428,39 @@ LEAD_STANDING_MAX = 5
 # far-future date cannot win every later conflict on its key.
 MINED_FACT_MIN_YEAR = 1900
 MINED_FACT_FUTURE_SLACK_DAYS = 366
+
+#: #28 (multi-view fact fields): at most this many ``persons`` per mined fact, and the
+#: longest ``persons`` item, ``location`` or ``topic`` kept (longer is cut at a word).
+MULTIVIEW_MAX_PERSONS = 8
+MULTIVIEW_FIELD_MAX_CHARS = 80
+
+#: #30 (person-level list cards): a (person, class) group needs at least this many
+#: event facts to get a card; a card lists at most the newest ``MAX_ITEMS`` of them
+#: (the rest are counted), each statement cut to ``ITEM_MAX_CHARS``.
+LIST_CARD_MIN_ITEMS = 2
+LIST_CARD_MAX_ITEMS = 25
+LIST_CARD_ITEM_MAX_CHARS = 80
+#: #30: miner attributes too generic to name a list class ("Melanie event: ..."); a
+#: fact with one of these and no ``topic:`` tag gets its class from the LLM labeller.
+LIST_CARD_GENERIC_CLASSES = frozenset(
+    {
+        "event",
+        "events",
+        "fact",
+        "facts",
+        "info",
+        "information",
+        "other",
+        "misc",
+        "general",
+        "detail",
+        "details",
+        "statement",
+        "update",
+        "news",
+        "note",
+    }
+)
 
 #: ADR-032: the template ``Engine()`` uses when the caller names none. ``assistant``
 #: carries the measured combo-A read settings (LoCoMo 70.7 -> 78.3%). Pass
@@ -408,3 +478,28 @@ HEADER_HIDE_OVERFETCH = 64
 #: blank unrelated words of a prompt).
 REMOTE_GATE_NOTE_PREFIX_CHARS = 400
 REMOTE_GATE_MIN_CHARS = 8
+# ── wave 4 infrastructure (#33 / #53 / #54) ─────────────────────────────────
+#: #33: characters per token for the estimate used when a provider reports no
+#: usage of its own (the per-prompt ledger flags such calls as estimated).
+TOKEN_ESTIMATE_CHARS_PER_TOKEN = 4
+#: #54: the net feedback (likes - dislikes) that moves the feedback utility term
+#: to tanh(1) ~ 0.76 of its bound; the term is tanh(net / scale), in (-1, 1).
+FEEDBACK_UTILITY_SCALE = 3.0
+#: #54: a feedback note is cut to this many characters before it enters the log.
+FEEDBACK_NOTE_MAX_CHARS = 2000
+
+#: #38 (read.completeness_check): the most missing-information queries one
+#: completeness round adds to a compose read as extra probes.
+COMPLETENESS_MAX_QUERIES = 3
+#: #40 (read.profile_header_packing): the packed profile header's header line (it
+#: opens with :data:`PROFILE_MARKER`, so stored text cannot forge it and an echoed
+#: block is recognised as recalled memory), the section labels in their fixed order,
+#: the candidates each section's search fetches, and the largest share of the read
+#: budget the packed block may take whatever ``read.profile_header_budget`` says.
+PROFILE_PACK_MARKER = (
+    f"{PROFILE_MARKER}; user profile packed as summaries, then observations, then "
+    "related memories; inferred, not stated):"
+)
+PROFILE_PACK_SECTIONS = ("Summaries:", "Observations:", "Related:")
+PROFILE_PACK_SECTION_K = 8
+PROFILE_PACK_MAX_SHARE = 0.5

@@ -20,9 +20,12 @@ PROMPT_ROLES: tuple[str, ...] = (
     "reflect",  # M13.7 reflections (P5)
     "firewall_flag",  # E1 instruction-shaped-content detection (P4)
     "extract_edges",  # C1: relationship-edge extraction (graphiti-style writes)
-    "resolve_entity",  # C1: entity coreference/aliasing resolution
+    "resolve_entity",  # C1: entity coreference/aliasing resolution (GP-7: @batch)
+    "summarize_entity",  # GP-6: batched entity summaries (summarize_entities stage)
     "invalidate_edge",  # C1: edge add/update/invalidate/noop adjudication
     "anticipate",  # H8: write-time anticipatory retrieval cues (T-Mem-style)
     "relevance",  # H17: 3-way relevance filter on read (Hindsight-style), opt-in
     "plan",  # G2a: read planner for read(mode="auto") (JustMem-style), opt-in
+    "sufficiency",  # #38: completeness check + missing-info queries on compose reads, opt-in
+    "verify_answer",  # #39: answer verification against the context (Engine.verify_answer)
 )

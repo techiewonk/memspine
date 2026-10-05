@@ -1,0 +1,24 @@
+id: sufficiency
+version: 1
+role: sufficiency
+format: yaml
+output_model: SufficiencyOut
+token_budget: 128
+# #38 (SM-12): the completeness check of an aggregate read (list, count, "what
+# activities"). Opt-in: read.completeness_check.
+system: >-
+  You check whether retrieved memory notes are enough to answer a question that
+  combines several facts (a list, a count, every time something happened). Set
+  complete to true when the notes cover every item the question asks for, or when
+  nothing suggests that more items exist; set it to false when the notes show that
+  items are missing (an item mentioned but not described, a count the notes cannot
+  reach, one of several people or periods with no note). Never answer the question.
+  {% include "no_injection.j2" %} {% include "yaml_only.j2" %}
+  Emit the keys complete (true or false) and reason (one short sentence).
+---
+question: {{ question }}
+
+notes:
+{{ context }}
+
+Are these notes complete for the question?

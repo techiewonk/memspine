@@ -136,6 +136,33 @@ for record, score in await engine.search("where do we deploy?", namespace="ops",
 `(record, score)` pairs sorted by the M1 composite score (recency · relevance ·
 importance · utility), not raw cosine.
 
+**Date filters (#37).** `search()` and `read()` take keyword-only bounds on the three
+time columns: `valid_from_after` / `valid_from_before` (event time),
+`valid_to_after` / `valid_to_before` (when a fact stopped holding; an open
+`valid_to` counts as later than any date) and `recorded_after` / `recorded_before`
+(when memspine stored it), as datetimes, dates or ISO text. `*_after` is inclusive and
+`*_before` exclusive, so May 2023 is `valid_from_after="2023-05-01",
+valid_from_before="2023-06-01"`. `date_filter_mode="and"` (default) keeps records that
+meet every bound, `"or"` those that meet any. The filter restricts every retrieval leg
+before fusion and the `top_k` cut (each leg looks over the whole namespace), so it never
+costs recall; in `read()` it also applies to the headers' searches, a `full` read's
+listing and replayed neighbours (the pinned persona and the lead section are not
+filtered). `POST /search` takes the same fields.
+```python
+may = await engine.search(
+    "what did Melanie do", namespace="ops",
+    valid_from_after="2023-05-01", valid_from_before="2023-06-01",
+)
+```
+
+**Answer verification (#39).** `await engine.verify_answer(question, answer, context)`
+checks an answer against a read's context (an `AssembledContext`, its records, or text)
+with one call to the `verify_answer` LLM role (the `chat` role when that one is not
+bound) and returns `{"supported": bool, "evidence_ids": [...], "revised_answer": str |
+None}`: the record ids (`L<n>` for a text context) of the supporting lines, and a
+corrected answer when the given one is not supported but the context supports another.
+No read path calls it; the eval harness exposes it as `--verify-answer`.
+
 ### Working — persona + assembly
 ```python
 await engine.set_persona("agent/demo", "You are a concise coding assistant.")
@@ -156,6 +183,23 @@ await engine.write("build started", namespace="dev", memory_type="episodic")
 events = await engine.timeline(namespace="dev")
 sessions = await engine.sessions(namespace="dev", gap_minutes=30)
 ```
+
+**Session lifecycle (#53, opt-in).** Conversations idle longer than
+`memories.episodic.policies.sessions.passive_after` (seconds, or `"30d"`, `"12h"`;
+default `null` = off) are marked PASSIVE by the `session_lifecycle` sleep stage:
+```yaml
+memories:
+  episodic:
+    enabled: true
+    policies:
+      sessions:
+        passive_after: 30d
+```
+A session is the `session_id` you pass to `write_messages` / `write_episode`. Its
+records stay stored, but `search` / `assemble` / `read` / `retrieve` leave them out
+unless you pass `include_passive=True`, name the session (`session_id="..."`) or its
+`group_id`. A new write to the session reopens it. Each change is a `memory.session`
+event, so `rebuild()` reproduces the same passive set (ADR-037).
 
 ### Resource — ingest *(needs `memspine[ingest]`)*
 ```python
@@ -190,6 +234,11 @@ neighbours = await engine.related(a.record_id, namespace="dev", k=10)   # person
 With `memories.associative.policies.entity_nodes: true`, records also link to the entities
 they name, and `read.graph_leg` / `read.cards_include_edges` read the graph from the
 entities a query names (see the config-key reference). `related()` ignores entity edges.
+`policies.entity_summaries` adds a per-entity summary (sleep stage `summarize_entities`),
+shown as `About <Name>: …` with `read.entity_summaries`; `read.graph_communities` lets a
+community summary into a read only when an entity the query names belongs to it; and
+`semantic.policies.extract_graph.resolve` merges name variants ("Mel" ≡ "Melanie") before
+extracted facts are written.
 
 ### Prospective — watches
 ```python
@@ -273,6 +322,44 @@ assert await engine.audit_chain_ok()     # audit.reads / audit.actions hash chai
   the principal recorded by the read audit outside REST.
 - The FORGET event itself still records `actor: user`; under `audit.actions` the
   chained `memory.audit` event carries the real actor and reason.
+`rollback_taint` / `repair_taint` walk the event log from the seed's origin WRITE. With
+`event_log.mode: ephemeral` (no events kept, not even in memory) or a `rolling` window
+that pruned the origin, they cannot trace descendants: by default they log
+`memory.rollback_beyond_window`, archive the seed alone (closing its `valid_to`) and
+return `"untraced": [seed]`; pass `strict=True` to get `RollbackUnavailableError`
+instead and change nothing (ADR-011 addendum, #64).
+
+### Feedback — like / dislike / note (#54)
+```python
+await engine.feedback(record_id, "like", namespace="ops")
+await engine.feedback(record_id, "dislike", note="moved to Lyon in May", namespace="ops")
+rec = await engine.feedback(record_id, "note", note="check with Ana", namespace="ops")
+rec.scoring.likes, rec.scoring.dislikes, rec.scoring.notes   # (1, 1, 2)
+```
+Each call appends one `memory.feedback` event; the record projector keeps the counts.
+They affect ranking only through `read.scoring.utility_weight` (0 in the `base`
+template): utility then adds `tanh((likes - dislikes) / 3)`, bounded in (-1, 1). Notes
+are screened like messages, capped at 2000 characters, kept in the log only, and
+erased by a hard forget of the record (ADR-036). REST: `POST /feedback`.
+
+### Cost accounting — per role and per prompt (#33)
+```python
+engine.model_calls()      # {"extract": 3, ...}            calls per LLM role
+engine.model_usage()      # {"extract": {"model", "calls", "prompt", "completion"}}
+engine.usage()            # {"extract@2": {"prompt_id": "extract", "roles": ["extract"],
+                          #   "calls": 3, "input_tokens": 912, "output_tokens": 140,
+                          #   "estimated_calls": 0, "estimated": False}, ...}
+engine.usage(reset=True)  # snapshot, then clear the per-prompt counters
+```
+Every internal LLM call renders a named, versioned prompt (D-43), so `usage()` keys
+its counters by `prompt_version` (`<id>@<version>`; `"<unnamed>"` for messages you
+send yourself through `engine.llm(role)`). Tokens are the provider's own report when
+it gives one (LiteLLM); otherwise a characters/4 estimate, counted in
+`estimated_calls`. Each call also logs an `llm.usage` event at DEBUG level. The
+counters live in the process only (never persisted). The evals harness reads them
+into each result's `meta["engine_prompts"]` and the run summary's
+`engine_prompt_usage` (per loop stage, per prompt), which is how cost per cycle is
+attributed to stages.
 
 ---
 
@@ -326,10 +413,12 @@ missing.
 
 | Method & path | Verb |
 |---------------|------|
-| `POST /write` · `POST /search` · `POST /assemble` · `POST /retrieve` | core read/write |
+| `POST /write` · `POST /search` · `POST /assemble` · `POST /retrieve` | core read/write (`/search` takes the #37 date-filter fields) |
 | `DELETE /records/{id}?hard=&reason=` · `GET /describe` | forget · introspect |
 | `POST /correct` | #47 correction by `record_id` or `entity` + `attribute` (never contested) |
 | `GET /export?subject=&include_history=&include_events=` | #46 subject-access export, `application/x-ndjson` (admin under auth) |
+| `DELETE /records/{id}?hard=` · `GET /describe` | forget · introspect |
+| `POST /feedback` | like / dislike / note on a record (#54) |
 | `POST /skills` · `POST /skills/{id}/promote` · `DELETE /skills/{id}` | procedural |
 | `POST /plans` · `GET /plans/recall` | plan cache (E6) |
 | `POST /reflect` | reflective |
@@ -401,6 +490,21 @@ Never expose this app to an untrusted network without filling the auth seam.
 ---
 
 ## Swap a backend (config alone)
+
+### Encrypt the SQLite file at rest *(needs `memspine[encrypt]`)*
+```yaml
+storage:
+  path: ./memspine.db
+  encryption:
+    mode: sqlcipher
+    key_env: MEMSPINE_DB_KEY     # the NAME of the variable, never the key itself
+```
+Every connection (and the schema migration) is opened through SQLCipher and keyed
+from `$MEMSPINE_DB_KEY`; a wrong key fails `start()` with `StorageError`, and a
+missing driver with `MissingServiceError` naming `[encrypt]`. Only the SQLite file is
+encrypted: LanceDB vectors, the Tantivy lexical index (it holds record text), disk
+caches and a DBOS system database are separate files; protect them with volume
+encryption (ADR-035). A lost key is a lost database.
 
 Every store is a port; you pick the adapter by config, and the event-sourced core
 stays the single source of truth. Nothing below changes the API you call — only
@@ -492,13 +596,15 @@ in the schema — or if the schema gains a key not documented here.
 |-----|---------|-------|
 | `profile` | `simple` | Behavior profile; templates set it (base→simple/core/coding/personal/voice/multi_agent/regulated_financial/assistant). |
 | `strict_services` | `true` | Missing service hard-fails naming the extra (D-10); `false` starts degraded. |
-| `event_log.mode` | `full` | `full` \| `rolling` (bounded window) \| `ephemeral` (nothing persisted — no rebuild/audit) (D-45). |
+| `event_log.mode` | `full` | `full` \| `rolling` (bounded window) \| `ephemeral` (nothing persisted — no rebuild/audit; taint rollback falls back to archiving the seed alone, `strict=True` raises) (D-45, #64). |
 | `event_log.retention_days` | `30` | Rolling-window retention floor; never prunes past a projector high-water mark. |
 | `event_log.compress` | `false` | zstd-compress event payloads at rest. |
 | `storage.backend` | `sqlite` | `sqlite` \| `postgres` (ADR-025). |
 | `storage.path` | `./memspine.db` | SQLite db file, or `:memory:` for ephemeral. |
 | `storage.url` | `null` | Postgres DSN (secrets-resolved); required when `backend: postgres`. |
 | `storage.data_dir` | `null` | Base dir for file-backed projections (LanceDB/Tantivy); required for postgres. |
+| `storage.encryption.mode` | `none` | `none` \| `sqlcipher` (#52, ADR-035): SQLCipher encryption of the SQLite file, `[encrypt]` extra; sqlite backend only, not `:memory:`. Vectors, the lexical index and disk caches are not covered. |
+| `storage.encryption.key_env` | `null` | **Name** of the environment variable holding the SQLCipher key; required with `sqlcipher`. The key is read only from it and never logged. |
 | `embedding.provider` | `fastembed` | `fastembed` (ONNX/CPU) \| `hash` (deterministic, tests) \| `static` (model2vec `[static]`) \| `litellm` (cloud). |
 | `embedding.model` | `BAAI/bge-small-en-v1.5` | Embedder model id. |
 | `embedding.dim` | `null` | **Required** when `provider: litellm` — a cloud embedder's output dim. |
@@ -545,7 +651,9 @@ in the schema — or if the schema gains a key not documented here.
 | `decision.model` | `fastino/gliner2-base-v1` | H24: the GLiNER2 checkpoint (Hugging Face id; `-large-v1` and `-multi-v1` also exist). |
 | `read.planner` | `rules` | H24/G2a: how `read(mode="auto")` picks a mode once full context does not fit. `rules` = deterministic cues; `decision` = the decision provider chooses (falls back to rules on any failure); `llm` = one call to the `plan` LLM role returns a `ReadPlan` (`lookup` / `replay` read by replay, `aggregate` by compose with the plan's up to three subqueries as extra probes, rank-fused with `read.rrf_k`). An unbound role, a failed call or an invalid plan falls back to the rules with a warning. One counted call per auto read. |
 | `read.planner_min_confidence` | `0.0` | G2b: with `planner: decision`, a choice below this confidence does not route the read; it keeps the default `replay` (retrieve when no hit is episodic). A choice of unknown confidence (a bare GLiNER2 label) is below any gate above 0. `0.0` = every choice routes. |
-| `read.planner_version` | `v1` | #35: with `planner: llm`, `v2` selects the `plan@v2` prompt, which also writes one or two evidence-seeking subqueries for lookup questions ("Is X religious?" → "X church", "X faith"); the lookup read fuses each as an extra vector (+ BM25 under hybrid) leg by RRF. `v1`: unchanged. |
+| `read.planner_version` | `v1` | #35: with `planner: llm`, `v2` selects the `plan@v2` prompt, which also writes one or two evidence-seeking subqueries for lookup questions ("Is X religious?" → "X church", "X faith"); the lookup read fuses each as an extra vector (+ BM25 under hybrid) leg by RRF. #36: `v3` selects `plan@v3`, which is v2 plus `persons` (the people the question names) and `time_expr` (its date or period words, verbatim); the routed read fuses the persons / time leg (`read.person_time_leg_k`). Still one plan call. `v1`: unchanged. |
+| `read.person_time_leg_k` | `10` | #36: with `planner_version: v3`, the most records of the persons / time leg. `time_expr` becomes a date span by the H1 rules (an absolute date, month or year first; else a relative phrase, `read.relative_week` applying, anchored on the namespace's newest record); the leg holds the live records whose `valid_from` lies in the span and/or that are about a planned person (a `person:<name>` tag when the record has any, else its `entity` naming the person as a whole word), both first, then closest to the span's middle, else newest. Fused by RRF into the lookup or compose read; every search gate still applies. |
+| `read.completeness_check` | `false` | #38: for reads routed to compose whose plan is `aggregate` or whose question is a list or count question (`query_shape.is_aggregation` / `is_count`), ask the `sufficiency` LLM role (else `plan`) whether the composed context holds every item the question needs (+1 call, prompt `sufficiency`); when it does not, ask for up to three missing-information queries (+1 call, `sufficiency@missing`) and run the compose read once more with them as extra probes. One round at most; an abstained read, a complete verdict, an unbound role or any failure keeps the first read. Other reads make no extra call. Off: byte-identical. |
 | `read.compose_replay` | `false` | G2c: compose results get the same ±`replay_window` neighbour expansion as replay mode (nearest first, gated and decorated like replayed turns, within the budget), so routing to compose no longer loses the surrounding turns. |
 | `read.aggregate_top_k` | `null` | G11: the `top_k` of a read that `read(mode="auto")` routes to compose (the LLM planner's `aggregate`, the decision planner's or the rules' compose), so list and count questions whose evidence spans sessions pool more candidates; the budget still caps the context. An explicit `mode="compose"` keeps the caller's `top_k`. `null` = unchanged. |
 | `read.compose_rewrites` | `false` | P4 (JustMem COMPOSE): `read(mode="compose")` adds up to two answer-free query rewrites from the `query_rewrite` LLM role (`@compose` prompt variant). |
@@ -578,6 +686,8 @@ in the schema — or if the schema gains a key not documented here.
 | `read.cards_event_date` | `false` | #29: a card whose mined fact carries a happened date (`consolidation.mine_event_dates`) different from the day it was said renders `[said d1 · happened d2]`. Off: byte-identical. |
 | `read.profile_header` | `false` | G3b: after the cards header, a `PROFILE NOTES` block of the H14 profile insights (records `consolidation.reflect_profile` deposits) on the people the query names, or the most relevant insights when none matches, one dated line each. They come from the search restricted to reflective records (every gate applies), and the routed read leaves the shown insights out. Shown only when its own hits pass M12 abstention; names are the capitalised words of the query other than a sentence-initial word (unless repeated), question words and common imperatives (`Tell`, `Give`, `Yes`, `I'm`, ...), matched case-sensitively. |
 | `read.profile_budget_share` | `0.15` | G3b: the share of the budget the profile header may use. |
+| `read.profile_header_packing` | `false` | #40: the profile header (in place of the G3b block, independent of `profile_header`) packs, following the `[USER PROFILE]` pattern of memory servers, three sections in a fixed order: `Summaries:` (session summaries from consolidation), `Observations:` (the H14 profile insights) and `Related:` (the other best hits for the query; no mined fact while the cards header shows them). Each section comes from its own gated search and is used only when its hits pass M12 abstention; summaries are packed first, then observations, then hits, each best first, while the block fits `profile_header_budget`. Lines are `- [YYYY-MM-DD] text`, escaped and wrapped like any context record, whitespace collapsed, shown oldest first within a section; the header opens with `PROFILE NOTES (`, so stored text cannot forge it. The routed read leaves the packed records out. Off: byte-identical. |
+| `read.profile_header_budget` | `300` | #40: the packed profile header's token budget, never more than half the read budget. |
 | `read.count_timeline` | `false` | E3: for count questions (`how many times …`, `how many <things> …`, `how often …`; not durations such as `how many days ago`, see `query_shape.is_count`), every read mode and `assemble` lead the volatile context with an `Occurrences (dated):` block: one `- [said YYYY-MM-DD] <mention>` line per distinct occurrence of the counted event among the episodic records the read retrieved, oldest first. The event is the query's core terms without names and count words; a record mentions it when it shares at least half of them. Same-day mentions in one session, or same-day mentions sharing at least half their words, count once. Mined facts, lead blocks and wrapped (instruction-flagged or untrusted) records are left out; the mentions stay in the context. Off: byte-identical. |
 | `read.count_budget_share` | `0.1` | E3: the share of the budget kept for the occurrences block (the read gets the rest; lines are kept oldest first while the block fits). Counts toward the header-share check: active `cards_budget_share + profile_budget_share + count_budget_share` must be below 1. |
 | `read.count_dedupe` | `false` | #60: with `count_timeline`, a mention's event day is the single day its relative phrase names ("yesterday", "last Friday"), else the day it was said; two mentions on the same event day with at least half their words shared are one occurrence, even when said on different days. Off: byte-identical. |
@@ -588,6 +698,8 @@ in the schema — or if the schema gains a key not documented here.
 | `read.cards_include_edges` | `false` | GP-5 (#15): after the cards header, a `GRAPH FACTS` block of the edge facts (`rel:`-tagged records) the graph walk reaches from the entities the query names, live and superseded, one `[2023-05-01 → present] Melanie read "X" (sources: 2)` line each (a superseded fact shows its end date; `sources` counts the live episodes stating it). Shares `cards_budget_share` with the cards header and counts toward the header-share check; the shown facts are left out of the read below. Off: byte-identical. |
 | `read.graph_rerank` | `off` | #22 (GP-4/KB-4/GR-19): rerank the gated candidates, before the `top_k` cut, by graph proximity to the graph leg's seeds (the entities the query names, else those of the best hits): `distance` = 1 / entity hops of the seed walk, `ppr` = local push-PPR restarted at the seeds over their `subgraph()` (normalised to the best record). Facts restated by more episodes (`edge_source:` provenance, GR-9) get an episode-mentions boost `log(1+n)/log(1+n_max)`. Same GP-10 trust caps as the graph leg; needs associative memory with `entity_nodes` for the graph part. `off` = byte-identical. |
 | `read.graph_rerank_weight` | `0.2` | #22: the weight `w` of each `graph_rerank` boost: relevance `r` becomes `r + w * b * (1 - r)` for a boost `b` in [0, 1], so an unboosted candidate keeps its score. `0.0` = no effect. |
+| `read.entity_summaries` | `false` | GP-6 (#17): after the cards header and the graph facts, an `ABOUT` block with one `About <Name>: …` line per entity the query names (the graph leg's seeds) that has a live entity summary (`memories.associative.policies.entity_summaries`). Summaries pass the graph admission gate (status, quarantine, `graph_min_trust`, integrity) and the context wrappers. Shares `cards_budget_share` and counts toward the header-share check; the shown summaries are left out of the read below. Off: byte-identical. |
+| `read.graph_communities` | `false` | GP-9 (#23): community summaries (`reorganize` parents) are read only when a seed entity of the graph leg is a member of the community, that is, when one of the records the entity mentions is a member (communities are built over association edges, `mentions` excluded). Every other community summary is dropped from search results; with `graph_leg` on, the admitted ones join the graph leg. Seeds as for `graph_leg` (query names, else the entities of the best 3 hits). Off: byte-identical. |
 | `firewall.enabled` | `true` | `false` keeps trust scoring but disables flagging, anomaly checks and quarantine: the N1 ablation arm only. |
 | `firewall.skip_message_roles` | `[]` | H21: `write_messages` never deposits turns with these roles (e.g. `["system", "tool"]`). |
 | `firewall.skip_injected_recall` | `false` | H21: never re-deposit a turn carrying memspine's own assembly markers (recalled memory echoed back into the conversation). |
@@ -638,7 +750,7 @@ in the schema — or if the schema gains a key not documented here.
 | `prompts.partials` | `{}` | Override fragments for shared Jinja `{% include %}` partials (anti-injection block, output footer); `<name>` → replacement text, consulted before the shipped `_partials/` dir (B1). |
 | `prompts.selection` | `{}` | Per-role default scenario selectors: `<role>` → map of optional `memory_type`/`condition`, merged into every `select(role)` query so a deployment can pin a prompt variant without code (B2). Shipped `chat` conditions: `dated` (H12, `chat@dated`), `dated2` (G12, `chat@dated2`: `chat@dated` plus "a line's leading date is when it was said, `[= …]` is when the event happened; answer *when* questions with the happened date"), `infer` (G10, `chat@infer`), `dated3` (#34, `chat@dated3`: brief reasoning then a final `Answer:` line, which `Engine.final_answer()` extracts; quote the specific detail; dates in the granularity asked; "a date in brackets is when it was said; the event may be earlier"; merge repeated mentions before counting; "Not mentioned" only when nothing bears on the question). `plan` condition `v2` is selected by `read.planner_version`; `extract` conditions `session3` / `dates` by the consolidation options. |
 | `memories.*.enabled` | `false` | Enable a memory type (`working`/`episodic`/`semantic`/…); C1b auto-enables prerequisites. |
-| `memories.*.policies` | `{}` | Per-type policy overrides (conflict/dedup/trust/entity_extraction/page_size/…). `semantic.policies.extract_graph` (`{max_rounds, min_confidence}`) opts into C2 graphiti-style writes: with an `extract_edges` LLM role, the background `extract_graph` sleep stage writes edge facts + `asserted` links. `semantic.policies.write_pipeline: graph` opts into the C3 synchronous variant — edges extracted at write time and written through the M4/M5 ladder (ADR-026). |
+| `memories.*.policies` | `{}` | Per-type policy overrides (conflict/dedup/trust/entity_extraction/page_size/…). `semantic.policies.extract_graph` (`{max_rounds, min_confidence}`) opts into C2 graphiti-style writes: with an `extract_edges` LLM role, the background `extract_graph` sleep stage writes edge facts + `asserted` links. `semantic.policies.write_pipeline: graph` opts into the C3 synchronous variant — edges extracted at write time and written through the M4/M5 ladder (ADR-026). `episodic.policies.sessions.passive_after` (seconds or `"30d"`; default off) opts into the #53 session lifecycle: idle sessions go PASSIVE, out of default reads (ADR-037). |
 | `namespaces.*.policies` | `{}` | Per-namespace policy overrides (D-14). |
 <!-- CONFIG-KEYS-TABLE:END -->
 
@@ -658,6 +770,7 @@ unchanged; `tests/unit/test_simple_profile_golden.py` pins their defaults.
 | `memories.semantic.policies.conflict.contest_ties` | `false` | H9: when neither event time nor trust decides between two values of one fact key, keep both (verdict CONTEST). The contender is tagged `disputed`; the current fact stays the single active one. |
 | `memories.semantic.policies.conflict.contest_window_seconds` | `0.0` | H9: two event times at most this many seconds apart count as a tie. `0.0` = only identical event times. |
 | `memories.semantic.policies.conflict.contest_trust_margin` | `0.05` | H9: two trusts at most this far apart count as a tie. |
+| `memories.semantic.policies.write.reflexion` | `true` | #32 (GR-16): run the extra edge-extraction rounds (`extract_graph.max_rounds` > 1) of the C2/C3 graph write paths. `false` makes every extraction a single call (one call per source fewer for each extra round), the ablation Graphiti ran before removing reflexion. With the default `max_rounds: 1` there is no extra round, so nothing changes. |
 | `memories.semantic.policies.conflict.contest_lower_trust` | `false` | A same-key write less trusted than the current fact (but within `trust_margin`) CONTESTs it instead of superseding or retracting it, so a lower-trust source cannot archive a higher-trust fact (ADR-029, supersession). |
 | `memories.semantic.policies.conflict.interval_order` | `false` | #19 interval arithmetic: a superseded or retracted fact gets `invalid_at` (when it stopped being true in the world) = the next statement's `valid_from`. An older-arriving statement that contradicts the current fact is stored as history ending where the next statement on its key begins, and the history entry it lands inside is closed at its start, so facts arriving out of order end with the correct current fact and non-overlapping intervals. A statement with the same key and endpoints (`dst:` tag) as the current fact is merged as a duplicate, not a contradiction. Off = the plain R4 backfill, and no `invalid_at` is ever written. |
 | `memories.semantic.policies.extract_graph.granularity` | `record` | #20: `session` sends each consolidated session to the `extract_edges` role in ONE call (`extract_edges@session`: turns numbered `[n] [YYYY-MM-DD]`); each edge cites its turns in `episode_indices`, and those turns become the fact's parents and get its `asserted` links (no citation = the whole session). With a decision provider (`decision.provider: gliner2`) the entities it finds in the session are the prompt's allowed-entity list. A per-session `stage_done` marker (stage `extract_graph`) plus the per-turn watermarks keep a second sweep from calling again. Records outside any session stay per record. `record` = one call per source record. |
@@ -669,6 +782,8 @@ unchanged; `tests/unit/test_simple_profile_golden.py` pins their defaults.
 | `memories.episodic.policies.consolidation.mine_evidence_turns` | `false` | #29: number the miner's transcript lines (`[n] [YYYY-MM-DD] …`); a fact that cites valid lines in `turns` gets those turns as parents instead of the whole session (segment). |
 | `memories.episodic.policies.consolidation.mine_event_dates` | `false` | #29: tag each mined fact `happened:<date>`: the H1 resolution of a relative phrase in the fact or its cited turns (each against its own date; `read.relative_week` applies), else the miner's `date`. A rule-resolved date also becomes the fact's `valid_from`. |
 | `memories.episodic.policies.consolidation.mine_event_dates_llm` | `false` | #29: with `mine_event_dates`, one batched `extract@dates` call per mined batch dates the facts still undated. Needs the `extract` role. |
+| `memories.episodic.policies.consolidation.mine_multiview` | `false` | #28: store each mined fact's multi-view fields as tags, `person:<name>`, `loc:<place>` and `topic:<class>` (NFKC, case-folded, whitespace collapsed), so read legs can prefilter; the statement is stored as mined. The fields pass the #31 guards (placeholders and reasoning dropped, at most 8 persons, 80 chars each). With the default `mine_prompt` the miner uses `extract@session4`, which asks for them; `mine_prompt: session4` selects that prompt without the tags. |
+| `memories.episodic.policies.consolidation.list_cards` | `false` | #30: after `mine_facts`, keep one person-level list card per (person, class) of live event facts, e.g. `Melanie — activities: pottery class (2023-05), camping (2023-07)`. Person = `person:` tags, else the entity; class = `topic:` tag, else a non-generic miner attribute, else one `extract@classes` call per person batch (cached in the log). Groups of at least 2 facts; at most 25 items, newest kept. Parents = the facts (a hard forget cascades), trust capped at the least trusted fact; re-derived (old card archived) only when its members or text change. Cards are `atomic_fact` records, so `read.cards: header` shows them whole within `cards_budget_share`. |
 | `memories.episodic.policies.consolidation.anticipate` | `false` | H8: a sleep stage asks the `anticipate` role (falls back to `extract`) once per session for likely future questions and stores them as cues via `add_cues`. |
 | `memories.associative.policies.community.algorithm` | `auto` | KB-12 (ADR-043): `auto` and `leiden` run graspologic-native Leiden (canonical edge order, seeded, warm-started from the previous partition) then LPA refinement, and stay a no-op without the `[community]` extra; `lpa` runs the built-in label propagation without the extra, with a collapse guard (largest community > 50% of >= 100 nodes keeps the previous partition and logs a warning). |
 | `memories.associative.policies.community.refine_passes` | `10` | LPA passes that refine a Leiden result (stops early when nothing moves). `0` = pure Leiden. |
@@ -679,6 +794,8 @@ unchanged; `tests/unit/test_simple_profile_golden.py` pins their defaults.
 | `memories.associative.policies.community.summary_keep_jaccard` | `1.0` | #84: a community whose membership Jaccard against the member set its summary was written from is at least this keeps that summary (its membership links follow the community) instead of a rewrite, unless a newcomer is less trusted than the summary. `1.0` = off; `0.8` is the KB-12 recommendation. |
 | `memories.episodic.policies.consolidation.reflect_profile` | `false` | H14: a sleep stage asks the `reflect` role (generic `reflect.yaml` prompt) once per session for profile insights, stored through `Engine.reflect`. Needs reflective memory enabled. |
 | `memories.associative.policies.entity_nodes` | `false` | GP-2 (#13): the graph projector adds an `ent:<namespace>:<canonical>` node per entity a record names (its `entity` field and `dst:` tags; canonical = NFKC, casefolded, whitespace collapsed) and a `mentions` edge record -> entity weighted by the record's trust. `true` uses the default blocklist (pronouns, day words, "luck"); a map takes `blocklist` (replaces it) and `allowed` (only these names). Rebuild == incremental; forgetting a record removes its mentions and any entity left without one. `mentions` is a reserved rel. Change it, then `engine.rebuild()`. |
+| `memories.associative.policies.entity_summaries` | `false` | GP-6 (#17): the `summarize_entities` sleep stage (after `extract_graph`, before `reorganize`) writes one summary record per entity node whose membership (the live records with a `mentions` edge to it) changed since the last sweep; unchanged entities cost nothing (watermark: `entity_summarized` MARKER events, erased with the summary). The dated fact lines are the summary for free while they fit `free_chars` (2000); longer ones go to the `summarize_entity` role (else `summarize`; prompt `summarize_entity.yaml`: facts only, dates kept, no meta-language), `batch_size` (30) entities per call; without a role, the newest lines that fit. The record is derived (channel `entity_summary`, tags `entity_summary` + `about:<Name>`): parents = the members (a member's hard forget cascades to it), trust = the least member trust, firewall-screened. Drift supersedes it (archived); a soft-forgotten member is dropped at the next sweep. `true` or a map with `free_chars`, `batch_size`. Needs `entity_nodes`. Read with `read.entity_summaries`. |
+| `memories.semantic.policies.extract_graph.resolve` | `off` | GP-7 (#18): entity resolution in `extract_graph` before facts are written: `rules` = exact canonical name, then the alias table (earlier decisions), then candidates (embedding cosine top 15 among the namespace's entities), an entropy gate (short low-entropy names such as "Mel" skip string matching) and MinHash shingle Jaccard ≥ 0.9; `llm` adds one batched `resolve_entity@batch` call per sweep for the names still ambiguous (needs a `resolve_entity` role; without one it acts as `rules`). A merged name is written as the known entity's spelling ("Mel" → "Melanie"). A match whose source trust differs from the entity's (the most trusted record naming it) by more than 0.2 is `contested` and not merged. Decisions are `entity_resolved` MARKER events (keyed by the source record, erased with it), so rebuilds and later sweeps reuse them without a call. Names new in the same sweep are not resolved against each other; write-time records are not resolved. |
 
 ---
 

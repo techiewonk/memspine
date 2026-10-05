@@ -91,6 +91,9 @@ class LiteLLMLLM:
         #: Provider-reported tokens over this adapter's lifetime: prompt, completion.
         #: Read by the router's token ledger (``LLMRouter.token_counts``).
         self.usage_totals: list[int] = [0, 0]
+        #: #33: the last call's provider-reported (prompt, completion) tokens, None
+        #: when the response carried no usage. Read by the per-prompt ledger.
+        self.last_usage: tuple[int, int] | None = None
 
     @property
     def provider_id(self) -> str:
@@ -123,8 +126,11 @@ class LiteLLMLLM:
         except Exception as exc:
             raise LLMError(f"litellm chat failed for model {self._model!r}: {exc}") from exc
         usage = getattr(response, "usage", None)
-        self.usage_totals[0] += int(getattr(usage, "prompt_tokens", 0) or 0)
-        self.usage_totals[1] += int(getattr(usage, "completion_tokens", 0) or 0)
+        prompt_tokens = int(getattr(usage, "prompt_tokens", 0) or 0)
+        completion_tokens = int(getattr(usage, "completion_tokens", 0) or 0)
+        self.usage_totals[0] += prompt_tokens
+        self.usage_totals[1] += completion_tokens
+        self.last_usage = (prompt_tokens, completion_tokens) if usage is not None else None
         if content is None:
             raise LLMError(f"litellm returned empty content for model {self._model!r}")
         lenient = self.no_think or default_no_think(self._model)

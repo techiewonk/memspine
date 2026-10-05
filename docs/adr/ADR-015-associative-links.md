@@ -231,7 +231,9 @@ above is reversed.
   `decision.provider: gliner2` the entities it finds form the prompt's
   allowed-entity list. Watermark: a `stage_done` marker per session (stage
   `extract_graph`, membership fingerprint) plus the per-turn `graph_extracted`
-  watermarks. Records outside any session stay per record.
+  watermarks. Records outside any session stay per record. Session edges pass
+  the GP-7 resolution pass (`extract_graph.resolve`) with the record edges before
+  any write; the resolver judges each by its least trusted cited turn.
 - **Interval order (#19, `memories.semantic.policies.conflict.interval_order`).**
   Records gain an optional `invalid_at` (world time the fact stopped being true;
   migration 0004 projects it; omitted from payloads when unset, so logs written
@@ -242,3 +244,54 @@ above is reversed.
   so out-of-order arrival ends in the same intervals as in-order arrival. The
   candidate split runs first: a statement with the same key and `dst:` endpoint
   as the current fact merges as a duplicate. The ladder's verdicts are unchanged.
+
+## Amendment (2026-10-06): entity summaries, entity resolution, community gate
+
+Opt-in throughout (absorb-list rows #17, #18, #23; GRAPH_REASONING_PLAN #6, #7,
+#9). With every flag off the engine is byte-identical: the new stage skips, the
+`read` defaults are in the simple-profile golden at `false`, and
+`tests/unit/test_graph_leg_off_golden.py` is unchanged. Nothing above is
+reversed: summaries and resolution decisions ride the log, so D0.1 and rebuild
+parity hold.
+
+- **Entity summaries (GP-6, `memories.associative.policies.entity_summaries`,
+  read with `read.entity_summaries`).** A sleep stage `summarize_entities`
+  (after `extract_graph`, before `reorganize`) writes one derived semantic record
+  per entity node whose membership changed: the live records with a live
+  `mentions` edge to it, fingerprinted by id and content fingerprint. The
+  watermark is an `entity_summarized` MARKER whose entries use the record-snapshot
+  keys (`record_id` = the summary, `namespace`, `entity`, `content_fingerprint`),
+  so the M7 walker erases an entry with its summary. The dated fact lines are the
+  summary for free up to 2,000 characters; longer entities are summarised by the
+  `summarize_entity` role, at most 30 per call (`summarize_entity.yaml`: facts
+  only, dates kept, no meta-language), with the newest lines as the no-LLM
+  fallback (N6). The record carries no `entity` field, so it adds no `mentions`
+  edge and is never partition input; its parents are the members (a hard forget
+  cascades, ADR-039), its trust is the least member trust (D-47 §5), and it passes
+  the derived-record firewall. Drift supersedes it (archived, like community
+  parents); an entity with no live member loses it. It is not an `extract_graph`
+  source. At read, an `ABOUT` lead block shows `About <Name>: …` for the seeded
+  entities, inside the cards allowance, through the graph admission gate.
+- **Entity resolution (GP-7, `memories.semantic.policies.extract_graph.resolve:
+  off | rules | llm`).** `extract_graph` now extracts every pending source first,
+  resolves the edge names in one pass, then writes. Ladder: exact canonical name →
+  alias table → embedding top-15 candidates → entropy gate → MinHash shingle
+  Jaccard ≥ 0.9 (`datasketch`, already a core dependency) → one batched
+  `resolve_entity@batch` call for the rest (`llm`). A merged name is rewritten to
+  the known entity's spelling before the fact record is built, so the projector
+  stays a pure projection of WRITE payloads. **Trust guard:** a match whose source
+  trust differs from the target's (its most trusted naming record) by more than
+  `ENTITY_RESOLVE_TRUST_TOLERANCE` (0.2) is recorded as `contested` and not
+  merged: a low-trust source cannot graft an alias onto a trusted entity and gain
+  its graph reach. Decisions are `entity_resolved` MARKER events keyed by the
+  source record (record-snapshot keys again, so they are erased with the source);
+  `SessionIndex` folds merge decisions into the alias table, so a rebuild or a
+  later sweep reuses them with no call. The write-time C3 pipeline and direct
+  `write(entity=...)` calls are not resolved.
+- **Community gate (GP-9, `read.graph_communities`).** Communities stay built over
+  association edges with `mentions` excluded (ADR-043), so an entity belongs to a
+  community through the records it mentions. With the flag on, `_search` drops
+  every `reorganize` parent except those of the communities a seed entity of the
+  graph leg (query names, else the entities of the best 3 hits) belongs to;
+  admitted parents pass the graph admission gate and, with `graph_leg` on, join the
+  graph leg. The gate covers search-based reads; `related()` is unchanged.

@@ -50,5 +50,6 @@ class SQLiteStorage(SqlStorage):
             async with self._sqlite.engine.begin() as conn:
                 await conn.run_sync(metadata.create_all)
         else:
-            await asyncio.to_thread(ensure_schema, self._sqlite.path)
+            # #52: an encrypted client supplies a keyed connection for Alembic.
+            await asyncio.to_thread(ensure_schema, self._sqlite.path, self._sqlite.sync_creator)
         self._started = True

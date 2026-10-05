@@ -222,6 +222,30 @@ def test_engine_calls_are_charged_and_capped(tmp_path: Path) -> None:
     assert summary["manifest"]["labels"]["engine_llm_models"] == [QWEN3_32B]
 
 
+def test_engine_prompt_usage_is_attributed_per_stage(tmp_path: Path) -> None:
+    """#33: the summary splits the engine's LLM use per loop stage AND per prompt
+    version, read from ``Engine.usage()``; its calls match the per-role tally."""
+    dataset = SyntheticDataset(n_items=1, turns_per_item=8, facts_per_item=2)
+    config = C01Config(
+        mode="retrieval",
+        include_memspine=True,
+        only_systems=("memspine",),
+        memspine_llm="bedrock-qwen3",
+        memspine_config=MINING,
+        memspine_build_sleep=True,
+        max_model_calls=1000,
+    )
+    with install_stub_litellm():
+        asyncio.run(run_c0_1(dataset, config, tmp_path, run_id="cpc"))
+    summary = _summary(tmp_path, "cpc--memspine")
+    prompts = summary["engine_prompt_usage"]["K"]
+    assert any(key.startswith("extract@") for key in prompts)
+    assert all(entry["prompt_id"] for entry in prompts.values())
+    by_prompt = sum(entry["calls"] for entry in prompts.values())
+    by_role = sum(u["calls"] for u in summary["engine_llm_usage"]["K"].values())
+    assert by_prompt == by_role
+
+
 def test_engine_calls_count_against_the_call_cap(tmp_path: Path) -> None:
     dataset = SyntheticDataset(n_items=1, turns_per_item=8, facts_per_item=2)
     config = C01Config(

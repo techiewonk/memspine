@@ -28,6 +28,8 @@ _DATE_FORMATS = (
     "%Y-%m-%d",
 )
 _USAGE_KEYS = ("calls", "prompt", "completion")
+#: #33: the counters of one ``Engine.usage()`` entry (per named prompt).
+_PROMPT_USAGE_KEYS = ("calls", "input_tokens", "output_tokens", "estimated_calls")
 
 
 def engine_version() -> str:
@@ -204,6 +206,25 @@ class MemspineSystem:
                 delta[role] = {"model": now.get("model", ""), **diff}
         return delta
 
+    def _prompt_usage(self) -> dict[str, dict[str, Any]]:
+        """#33: per-prompt engine LLM use so far (``Engine.usage``), {} when unavailable."""
+        usage = getattr(self._engine, "usage", None)
+        return dict(usage()) if callable(usage) else {}
+
+    @staticmethod
+    def _prompt_delta(
+        before: Mapping[str, Mapping[str, Any]], after: Mapping[str, Mapping[str, Any]]
+    ) -> dict[str, dict[str, Any]]:
+        """#33: per-prompt calls and tokens spent between two ``_prompt_usage`` snapshots,
+        so cost per cycle can be attributed to the loop stage each prompt serves."""
+        delta: dict[str, dict[str, Any]] = {}
+        for key, now in after.items():
+            then = before.get(key, {})
+            diff = {k: int(now.get(k, 0)) - int(then.get(k, 0)) for k in _PROMPT_USAGE_KEYS}
+            if any(diff.values()):
+                delta[key] = {"prompt_id": now.get("prompt_id"), "roles": now.get("roles"), **diff}
+        return delta
+
     async def reset(self, item_id: str) -> None:
         await self.close()
         self._origin = {}
@@ -248,6 +269,7 @@ class MemspineSystem:
         texts = [f"{turn.speaker}: {turn.text}" for turn in turns]
         before = self._calls()
         usage_before = self._usage()
+        prompts_before = self._prompt_usage()
         if len(turns) == 1:
             records = await self._engine.write_messages(
                 [{"role": "user", "content": texts[0]}],
@@ -298,6 +320,9 @@ class MemspineSystem:
         engine_llm = self._usage_delta(usage_before, self._usage())
         if engine_llm:
             meta["engine_llm"] = engine_llm
+        engine_prompts = self._prompt_delta(prompts_before, self._prompt_usage())
+        if engine_prompts:
+            meta["engine_prompts"] = engine_prompts
         return DepositResult(
             n_records=len(ids),
             record_ids=tuple(ids),
@@ -324,12 +349,16 @@ class MemspineSystem:
             )
         before = self._calls()
         usage_before = self._usage()
+        prompts_before = self._prompt_usage()
         stats = await self._engine.sleep()
         after = self._calls()
         meta: dict[str, Any] = {"sleep": {name: dict(stage) for name, stage in stats.items()}}
         engine_llm = self._usage_delta(usage_before, self._usage())
         if engine_llm:
             meta["engine_llm"] = engine_llm
+        engine_prompts = self._prompt_delta(prompts_before, self._prompt_usage())
+        if engine_prompts:
+            meta["engine_prompts"] = engine_prompts
         if before is None or after is None:
             # R3-10: unknown is not zero; the ledger must not report a free sleep.
             meta["cost_observable"] = False
@@ -345,6 +374,7 @@ class MemspineSystem:
         flushed = await self.flush()
         before = self._calls()
         usage_before = self._usage()
+        prompts_before = self._prompt_usage()
         rerank_before = self._rerank_stats()
         if self._read_mode:
             result = await self._engine.read(
@@ -361,6 +391,7 @@ class MemspineSystem:
             )
         after = self._calls()
         engine_llm = self._usage_delta(usage_before, self._usage())
+        engine_prompts = self._prompt_delta(prompts_before, self._prompt_usage())
         rerank_meta = self._rerank_meta(rerank_before, self._rerank_stats())
         services = self._embed_services([text])
         if rerank_meta.get("rerank_calls") and self._rerank_model() is not None:
@@ -413,6 +444,7 @@ class MemspineSystem:
                 # query-side calls (rewrites, relevance filter, planner LLMs)
                 **cost,
                 **({"engine_llm": engine_llm} if engine_llm else {}),
+                **({"engine_prompts": engine_prompts} if engine_prompts else {}),
                 **rerank_meta,
                 **({"engine_services": services} if services else {}),
             },

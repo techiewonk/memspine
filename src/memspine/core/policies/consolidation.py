@@ -66,6 +66,17 @@ class ConsolidationOptions(PolicyOptions):
     #: #29: with ``mine_event_dates``, one batched ``extract@dates`` call per mined
     #: batch fills the facts that still have no date (needs the ``extract`` role).
     mine_event_dates_llm: bool = False
+    #: #28: store each mined fact's multi-view fields as tags (``person:<name>``,
+    #: ``loc:<place>``, ``topic:<class>``, normalised) for read-leg prefilters. With
+    #: the default ``mine_prompt`` the miner switches to ``extract@session4``, which
+    #: asks for them; the statement itself is stored as the miner wrote it.
+    mine_multiview: bool = False
+    #: #30: after mining, derive one person-level list card per (person, class) of
+    #: event facts ("Melanie - activities: pottery (2023-05), camping (2023-07)"):
+    #: parents = the facts (erasure cascades), trust = their minimum, re-derived only
+    #: when the membership or text changes. An ``extract@classes`` call per person
+    #: classes the facts with no topic and a generic attribute.
+    list_cards: bool = False
     #: H8: after consolidating a session, ask the ``anticipate`` role (falls back to
     #: ``extract``) for likely future questions and store them as firewall-governed
     #: retrieval cues on the turns that answer them (``Engine.add_cues``), once.

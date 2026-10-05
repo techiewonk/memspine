@@ -25,6 +25,11 @@ A protected ``src.rel`` key keeps its attribute whatever the extractor called it
 Every edge fact is tagged ``kind:<kind>``, ``rel:<rel>`` and ``dst:<dst_entity>``,
 so the destination entity survives on the record.
 
+#32 (GR-16): ``max_rounds`` > 1 re-asks the extractor and merges the rounds (the
+reflexion pass). ``memories.semantic.policies.write.reflexion: false`` drops those
+extra rounds (one call per source), for the ablation Graphiti ran when it removed
+reflexion; the default ``true`` keeps today's behaviour. See :func:`extraction_rounds`.
+
 The whole stage is off unless the engine injects a pipeline (policy ``graph`` +
 an ``extract_edges`` LLM role), so ``profile="simple"`` is byte-identical.
 """
@@ -34,7 +39,9 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable, Collection, Sequence
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Protocol
+from typing import Any, Protocol
+
+from pydantic import BaseModel
 
 from memspine.config.constants import DERIVED_ROLE
 from memspine.core.firewall import instruction_shaped
@@ -49,8 +56,10 @@ __all__ = [
     "GraphWritePipeline",
     "ResolveEntity",
     "ScreenDerived",
+    "SemanticWriteOptions",
     "WritePipeline",
     "edge_fact_key",
+    "extraction_rounds",
 ]
 
 _log = get_logger(__name__)
@@ -80,6 +89,27 @@ class EdgeContext:
     #: #20: session-level extraction with a decision provider (GLiNER2): the entity
     #: names it found in the session, the only names the extractor may use.
     allowed_entities: Sequence[str] = ()
+
+
+class SemanticWriteOptions(BaseModel):
+    """``memories.semantic.policies.write``: semantic write-path switches."""
+
+    #: #32: run the reflexion rounds (``extract_graph.max_rounds`` > 1). ``false``
+    #: makes every edge extraction a single call.
+    reflexion: bool = True
+
+
+def extraction_rounds(policies: dict[str, Any]) -> int:
+    """#32: the edge-extraction calls per source for a semantic policy map.
+
+    ``extract_graph.max_rounds`` (default 1, at least 1), or 1 when
+    ``write.reflexion`` is false.
+    """
+    write = policies.get("write")
+    options = SemanticWriteOptions.model_validate(write if isinstance(write, dict) else {})
+    graph = policies.get("extract_graph")
+    rounds = int(graph.get("max_rounds", 1)) if isinstance(graph, dict) else 1
+    return max(1, rounds) if options.reflexion else 1
 
 
 class ExtractEdges(Protocol):

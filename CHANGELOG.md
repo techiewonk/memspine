@@ -12,6 +12,26 @@ All notable changes to memspine are documented here. Format: [Keep a Changelog](
 ### Changed — Wave 2b (2026-10-06)
 - **#24 perf gap:** the `sqlite_adjacency` walk seeks the `(namespace, src|dst, weight)` indexes on every step instead of scanning all edges; identical results. 100K edges: BFS d1 p95 1106 -> 2.4 ms, d3 p95 925 -> 35.7 ms.
 
+### Added — Wave 4 infrastructure (2026-10-06)
+- **#33 per-prompt token tracking:** `Engine.usage(reset=False)` returns calls and input/output tokens per prompt id and version (provider-reported where available, else a chars/4 estimate flagged `estimated`); the evals harness records `engine_prompt_usage` per stage.
+- **#52 encryption at rest (option, ADR-035):** `storage.encryption.mode: sqlcipher` + `key_env`; `[encrypt]` extra; the key never appears in logs or reprs.
+- **#54 feedback verb (ADR-036):** `Engine.feedback()` and REST `POST /feedback`; counts feed `utility_weight` (0 in `base`; `core` keeps 0.5, so feedback reorders `core` engines when used).
+- **#53 session lifecycle (ADR-037):** `episodic.policies.sessions.passive_after`; `include_passive` on `search`/`assemble`/`read`/`retrieve`; `session_lifecycle` sleep stage (skipped by default).
+- **#64 rollback beyond the retained log:** `rollback_taint`/`repair_taint` gain `strict`; `RollbackUnavailableError`; ADR-011 addendum.
+
+### Added — Wave 2b entities (2026-10-06)
+- **#17 entity summaries (opt-in, `memories.associative.policies.entity_summaries`, read with `read.entity_summaries`):** sleep stage `summarize_entities` writes one derived summary per entity whose membership changed (fact lines free up to 2,000 chars, else the new `summarize_entity` prompt, ≤30 entities per call); trust = least member trust, parents = members (erasure cascades), firewall-screened, superseded on drift. `About <Name>: …` block for the entities a query names.
+- **#18 entity resolution (opt-in, `memories.semantic.policies.extract_graph.resolve: off|rules|llm`):** exact → alias table → embedding top-15 → entropy gate → MinHash → one batched `resolve_entity@batch` call; "Mel" ≡ "Melanie". Different-trust matches stay contested. Decisions are `entity_resolved` MARKER events.
+- **#23 community gate (opt-in, `read.graph_communities`):** community summaries are read only when a seed entity of the graph leg is a member (through the records it mentions).
+
+### Added — Wave 3 read path (2026-10-06, ADR-046, ADR-047; all opt-in)
+- **#37 search date filters:** `search()` / `read()` take `valid_from_after/_before`, `valid_to_after/_before`, `recorded_after/_before` and `date_filter_mode: and|or` (`*_after` inclusive, `*_before` exclusive, open `valid_to` = later than any date). Applied to every leg before fusion, with leg windows covering the namespace, so a filter never costs recall. `POST /search` takes the same fields.
+- **#36 persons / time leg (`read.planner_version: v3`, `read.person_time_leg_k` 10):** `plan@v3` adds `persons` and `time_expr` to the `ReadPlan`; `time_expr` is resolved by the H1 rules to a date span and a structured leg (records in the span and/or about the persons; `person:` tags, else the entity) is fused by RRF. Still one plan call.
+- **#38 completeness check (`read.completeness_check`):** aggregate / list / count compose reads ask the `sufficiency` role whether the context is complete (+1 call) and, if not, for up to three missing-information queries (`sufficiency@missing`, +1 call), then re-compose once. Other reads: no call.
+- **#39 `Engine.verify_answer(question, answer, context)`:** one `verify_answer` call (prompt `verify_answer`) returns `{supported, evidence_ids, revised_answer}`; harness flag `--verify-answer` (off by default).
+- **#40 profile-header packing (`read.profile_header_packing`, `read.profile_header_budget` 300):** summaries, then observations, then hits packed within the budget (at most half the read budget), escaped, in a fixed order.
+- Golden `tests/unit/golden/wave3_read_off.json`: `read()` / `search()` byte-identical with every new flag off.
+
 ### Added — Wave 2 graph core (2026-10-05)
 - **#13 entity layer (opt-in, `memories.associative.policies.entity_nodes`):** the graph projector adds `ent:<namespace>:<canonical>` nodes and `mentions` edges (record -> entity, weight = record trust) from WRITE payloads (`entity`, `dst:` tags). Junk-name blocklist, optional `allowed` list, no self-edges; forget removes mentions and orphaned entities; rebuild == incremental. `mentions` is a reserved rel; `related()` and Leiden ignore it (ADR-015 amendment).
 - **#14 graph read leg (opt-in, `read.graph_leg`, `read.graph_depth` 2 (max 3), `read.graph_leg_k` 10):** query-named entities (or the entities of the top 3 hits) seed a walk to edge facts and their source turns, fused as an extra RRF leg. Off: byte-identical (golden `graph_leg_off_read.json`).

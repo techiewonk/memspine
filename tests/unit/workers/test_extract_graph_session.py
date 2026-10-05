@@ -246,3 +246,74 @@ async def test_engine_rejects_an_unknown_granularity() -> None:
             await eng.start()  # type: ignore[attr-defined]
     finally:
         await eng.stop()  # type: ignore[attr-defined]
+
+
+async def test_session_granularity_with_rules_resolution_uses_resolved_names() -> None:
+    """#20 x #18: session-extracted edges pass GP-7 resolution before they are
+    written; the fact carries the known entity's spelling and its cited turns."""
+    ctx, harness, _graph = await _make(
+        [], semantic_policies={"extract_graph": {"granularity": "session", "resolve": "rules"}}
+    )
+    known = MemoryRecord(
+        namespace="agent/a",
+        memory_type="semantic",
+        content="Nothing Is Impossible is a novel",
+        entity="Nothing Is Impossible",
+        attribute="genre",
+    )
+    await harness.append(
+        MemoryEvent(
+            kind=EventKind.WRITE,
+            namespace="agent/a",
+            actor="user",
+            payload={"record": known.model_dump(mode="json")},
+        )
+    )
+    turns = []
+    for i, text in enumerate(["morning!", "Melanie is reading Nothing is impossible! now"]):
+        turn = MemoryRecord(
+            namespace="agent/a",
+            memory_type="episodic",
+            content=text,
+            valid_from=T0 + timedelta(minutes=i),
+        )
+        await harness.append(
+            MemoryEvent(
+                kind=EventKind.WRITE,
+                namespace="agent/a",
+                actor="user",
+                payload={"record": turn.model_dump(mode="json")},
+            )
+        )
+        turns.append(turn)
+    await harness.append(
+        MemoryEvent(
+            kind=EventKind.CONSOLIDATE,
+            namespace="agent/a",
+            actor="system",
+            payload={"session_key": "s1", "member_record_ids": [t.record_id for t in turns]},
+        )
+    )
+    calls: list[str] = []
+
+    async def session_extract(
+        content: str, _context: EdgeContext | None = None
+    ) -> list[ExtractedEdge]:
+        calls.append(content)
+        return [
+            ExtractedEdge(
+                src_entity="Melanie",
+                rel="read",
+                dst_entity="Nothing is impossible!",
+                fact="Melanie read Nothing Is Impossible",
+                episode_indices=[2],
+            )
+        ]
+
+    ctx.extract_session_edges = session_extract
+    stats = await extract_graph(ctx)
+    assert len(calls) == 1
+    assert stats["resolved"] >= 1
+    [fact] = (await _facts(harness)).values()
+    assert "dst:Nothing Is Impossible" in fact.tags  # the resolved spelling
+    assert fact.source.parents == [turns[1].record_id]  # the cited turn

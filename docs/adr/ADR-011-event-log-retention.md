@@ -29,3 +29,34 @@ Plus `event_log.compress`: zstd (level 3) payload compression at rest, reusing t
 
 - **A boolean `event_log: on|off`** — collapses three distinct trade-offs into a foot-gun; "off" would silently destroy rebuildability.
 - **External log shipping (S3/Kafka) before pruning** — real, but a post-v0.1 concern; the port leaves room.
+
+## Addendum (2026-10-05, #64): rollback and undo beyond the retained log
+
+Taint rollback (`Engine.rollback_taint`) and counterfactual repair (`Engine.repair_taint`)
+are log walks: they start from the seed's origin WRITE and follow every derivation
+event after it. What each mode can undo:
+
+- **`full`**: everything. The walk sees the whole history.
+- **`rolling`**: only seeds whose origin WRITE is still inside the window. Pruning
+  removes a prefix of the log, so once the origin is gone the derivations recorded
+  after it may survive, but the walk cannot link them to the seed.
+- **`ephemeral`**: nothing. There is **no in-memory event window**: an ephemeral log
+  keeps only a sequence counter and the projector offsets in memory; every event is
+  applied to the projections and dropped. No descendant of any record can be traced.
+
+Behaviour when the origin WRITE is not in the log (the seed exists in the read model
+but `TaintReport.origin_seq` is `None`):
+
+- Default: the call logs `memory.rollback_beyond_window` (with `event_log_mode`) and
+  **falls back to `valid_to`**: the seed alone is archived, its open validity interval
+  closed at `valid_from` and tagged `taint_archived` (N3), so it stops being the
+  current fact and leaves every read. Derived records (merges, summaries, mined facts,
+  links) are untouched. The result carries `"untraced": [seed_id]`.
+- `strict=True`: nothing is changed and `RollbackUnavailableError` (a subclass of
+  `RebuildUnavailableError`) is raised, naming the mode.
+
+Deployments that need provable rollback keep `full` (the `regulated_financial`
+template pins it), or `rolling` with a `retention_days` longer than their incident
+detection time. Bounding an undo window in memory for `ephemeral` was considered and
+rejected: it would hold record content in process memory that the mode promises not to
+keep, and it would not survive a restart.

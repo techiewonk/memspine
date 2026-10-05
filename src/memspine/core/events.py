@@ -79,6 +79,16 @@ class EventKind(StrEnum):
     #: expiry and export with ``{"action", "actor", "reason", "record_ids", "at",
     #: "chain"}``. Both audit kinds share one hash chain (``chain.prev``/``chain.hash``).
     AUDIT = "memory.audit"
+    #: #54 user feedback on one record. Payload: ``{"record_id", "signal"}``
+    #: (``like`` / ``dislike`` / ``note``) plus ``"content"`` holding the note text
+    #: when one was given (the key erasure scrubs, so a hard forget of the record
+    #: also erases the note). The record projector keeps per-record counts.
+    FEEDBACK = "memory.feedback"
+    #: #53 session lifecycle. Payload: ``{"session_id", "state", "record_ids",
+    #: "reason"}`` with ``state`` ``passive`` (idle past the configured horizon,
+    #: left out of default reads) or ``active`` (reopened). The record projector
+    #: sets ``scoring.passive`` on each listed record, so a rebuild replays it.
+    SESSION = "memory.session"
 
 
 def new_event_id() -> str:

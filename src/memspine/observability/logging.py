@@ -24,6 +24,7 @@ __all__ = [
     "EVENT_CONSOLIDATE",
     "EVENT_DECAY_TRANSITION",
     "EVENT_EXPOSE",
+    "EVENT_FEEDBACK",
     "EVENT_FORGET",
     "EVENT_LINK",
     "EVENT_MARKER",
@@ -31,6 +32,7 @@ __all__ = [
     "EVENT_READ_AUDIT",
     "EVENT_REBUILD",
     "EVENT_RETRIEVE",
+    "EVENT_SESSION",
     "EVENT_WRITE",
     "configure_logging",
     "get_logger",
@@ -53,6 +55,8 @@ EVENT_EXPOSE = EventKind.EXPOSE.value
 EVENT_MARKER = EventKind.MARKER.value
 EVENT_READ_AUDIT = EventKind.READ_AUDIT.value
 EVENT_AUDIT = EventKind.AUDIT.value
+EVENT_FEEDBACK = EventKind.FEEDBACK.value
+EVENT_SESSION = EventKind.SESSION.value
 
 
 #: Log fields that carry exception or error text (third-party messages can echo

@@ -102,8 +102,19 @@ class SourceInfo(BaseModel):
     parents: list[str] = Field(default_factory=list)
 
 
+#: ScoringState fields added after v0.2, left out of a dump while at their default,
+#: so records that never use them serialize (and fingerprint) exactly as before.
+_SCORING_SPARSE: dict[str, object] = {"likes": 0, "dislikes": 0, "notes": 0, "passive": False}
+
+
 class ScoringState(BaseModel):
-    """M1 scoring state; the utility modifier composes with the three base scores."""
+    """M1 scoring state; the utility modifier composes with the three base scores.
+
+    ``likes`` / ``dislikes`` / ``notes`` count user feedback (#54, ``Engine.feedback``)
+    and feed the utility term through a bounded transform. ``passive`` marks a record
+    of a session the session lifecycle (#53) archived: left out of default reads.
+    All four are omitted from a dump while at their defaults.
+    """
 
     recency: float = 1.0
     relevance: float = 0.0
@@ -111,6 +122,18 @@ class ScoringState(BaseModel):
     utility: float = 0.0
     access_count: int = 0
     last_accessed_at: datetime | None = None
+    likes: int = Field(default=0, ge=0)
+    dislikes: int = Field(default=0, ge=0)
+    notes: int = Field(default=0, ge=0)
+    passive: bool = False
+
+    @model_serializer(mode="wrap")
+    def _omit_unused(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        data: dict[str, Any] = handler(self)
+        for key, default in _SCORING_SPARSE.items():
+            if key in data and data[key] == default:
+                del data[key]
+        return data
 
 
 class ArchivedVersion(BaseModel):
