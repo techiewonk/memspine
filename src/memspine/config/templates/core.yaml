@@ -1,0 +1,21 @@
+# memspine core template: the bare configuration (the pre-ADR-033 "base").
+# No read-path enhancements: auto read mode, composite scoring with recency,
+# access recording, the base chat prompt. Used by the test suite and by the
+# eval harness's reference arms so published results stay reproducible.
+profile: core
+strict_services: true
+
+event_log:
+  mode: full          # append-only source of truth (D0.1); see D-45 for rolling/ephemeral
+  compress: false
+
+storage:
+  path: ./memspine.db
+
+memories:
+  working:
+    enabled: true
+  episodic:
+    enabled: true
+  semantic:
+    enabled: true

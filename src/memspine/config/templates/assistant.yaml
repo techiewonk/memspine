@@ -1,42 +1,9 @@
-# Conversational-assistant profile: long multi-session chat memory, tuned on LoCoMo.
+# Conversational-assistant profile: long multi-session chat memory.
 #
-# Every setting below is one a paid ablation measured (LoCoMo cats 1-4, 1,540 q,
-# Qwen3-32B reader and judge, 2026-10-03; paper_spine/evaluation/LOCOMO_RESULTS_*):
-#   memspine-base 70.7%  ->  this template ("combo-A") 78.3% (+/- 0.26, 3 runs),
-#   at the same ~1.6K-token context. All rules, no extra model calls.
-# Reranking is OFF by default and opt-in per requirement (decision 2026-10-05). The
-# reranker code stays available: fastembed / flashrank (local), qwen3 ([st]), litellm
-# (cloud, e.g. Cohere). Enable it only where a deployment needs it (see below).
-# Everything combo-A used is pinned here: Engine.read() defaults to replay, and
-# Engine.chat_messages() renders the dated answer prompt (chat@dated, H12) for the
-# caller's own model call.
+# Since ADR-033 the measured read-path advantages (combo-A: replay reads, relative
+# dates resolved, time order for ordering questions, relative floor, relevance-first
+# scoring, no access recording, the dated answer prompt) live in `base`, so every
+# template has them. `assistant` names that configuration for chat workloads and is
+# the default for Engine() with no template (ADR-032). Reranking stays opt-in.
 extends: base
 profile: assistant
-
-read:
-  default_mode: replay          # combo-A read path (auto's compose routing measured -2.1)
-  record_access: false          # a read must not boost recency for the next question
-  resolve_relative_dates: true  # H1: "last Friday" -> [= 2023-05-12]  (+5.9 alone)
-  order_by_time_for_ordering: true  # H16: first/latest/before -> time order (+1.1)
-  scoring:                      # relevance-first: recency/importance demote the best
-    recency_weight: 0.0         # match on a static transcript (C0 note)
-    importance_weight: 0.0
-    utility_weight: 0.0
-  assembly:
-    relative_floor: 0.3         # H4: drop candidates far below the best (+0.7)
-  rerank: "off"                 # opt-in only; to enable, e.g.:
-  # rerank: fastembed           # local cross-encoder (or flashrank | qwen3 | litellm)
-  # rerank_model: BAAI/bge-reranker-base
-  # candidate_pool: 3           # rerank a wider pool ...
-  # rerank_keep: 10             # ... then keep the best 10
-
-prompts:
-  selection:
-    chat:
-      condition: dated          # H12: chat@dated answer prompt (+3.2 alone)
-
-memories:
-  episodic:
-    enabled: true
-  semantic:
-    enabled: true

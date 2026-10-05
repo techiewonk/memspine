@@ -15,7 +15,7 @@ T0 = datetime(2023, 5, 7, 10, 0, tzinfo=UTC)
 def _engine(read: dict[str, Any] | None = None, **extra: Any) -> Engine:
     memories = extra.pop("memories", {"semantic": {"enabled": True}, "episodic": {"enabled": True}})
     return Engine(
-        template="base",
+        template="core",
         dotenv_path=None,
         storage={"path": ":memory:"},
         embedding={"provider": "hash"},

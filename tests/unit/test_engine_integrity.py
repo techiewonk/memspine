@@ -597,7 +597,7 @@ async def test_principal_reputation_lowers_trust_after_rollback() -> None:
     from memspine.core.records import SourceInfo
 
     eng = Engine(
-        template="base",
+        template="core",
         dotenv_path=None,
         storage={"path": ":memory:"},
         embedding={"provider": "hash"},
@@ -642,7 +642,7 @@ async def test_principal_reputation_off_by_default() -> None:
     from memspine.core.records import SourceInfo
 
     eng = Engine(
-        template="base",
+        template="core",
         dotenv_path=None,
         storage={"path": ":memory:"},
         embedding={"provider": "hash"},

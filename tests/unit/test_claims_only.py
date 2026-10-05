@@ -15,7 +15,7 @@ _RAW = "Office wifi note: the guest network for the Lisbon office is called Lisb
 
 def _engine(**integrity: Any) -> Engine:
     return Engine(
-        template="base",
+        template="core",
         dotenv_path=None,
         storage={"path": ":memory:"},
         embedding={"provider": "hash"},

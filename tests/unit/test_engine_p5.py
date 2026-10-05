@@ -14,7 +14,7 @@ from memspine.exceptions import ConflictError, MemspineError
 @pytest.fixture
 async def engine() -> AsyncIterator[Engine]:
     eng = Engine(
-        template="base",
+        template="core",
         dotenv_path=None,
         storage={"path": ":memory:"},
         embedding={"provider": "hash"},
@@ -278,7 +278,7 @@ async def test_skill_ladder_survives_rebuild(engine: Engine) -> None:
 
 async def test_verbs_fail_loudly_when_types_disabled() -> None:
     eng = Engine(
-        template="base",
+        template="core",
         dotenv_path=None,
         storage={"path": ":memory:"},
         embedding={"provider": "hash"},

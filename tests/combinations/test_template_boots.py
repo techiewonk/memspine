@@ -7,7 +7,8 @@ and ``test_kitchen_sink``; here we only prove the profiles start and describe
 themselves.
 
 Template-count note: the plan (§6) says "5 templates"; six ship today
-(``base`` + the five profiles); ``assistant`` (2026-10-03) makes seven. We boot
+(``base`` + the five profiles); ``assistant`` (2026-10-03) makes seven and ``core`` (ADR-033, the bare
+configuration) eight. We boot
 all of them and pin the count.
 """
 
@@ -24,6 +25,7 @@ import pytest
 TEMPLATES: dict[str, tuple[str, frozenset[str], str]] = {
     "assistant": ("assistant", frozenset({"working", "episodic", "semantic"}), "inline"),
     "base": ("simple", frozenset({"working", "episodic", "semantic"}), "inline"),
+    "core": ("core", frozenset({"working", "episodic", "semantic"}), "inline"),
     "coding": ("coding", frozenset({"working", "episodic", "semantic", "procedural"}), "inline"),
     "multi_agent": (
         "multi_agent",
@@ -68,7 +70,7 @@ def test_all_shipped_templates_are_in_the_matrix() -> None:
 
     shipped = {p.stem for p in template_dir().glob("*.yaml")}
     assert shipped == set(TEMPLATES), f"matrix out of sync with shipped templates: {shipped}"
-    assert len(TEMPLATES) == 7
+    assert len(TEMPLATES) == 8
 
 
 @pytest.mark.parametrize("template", sorted(TEMPLATES))

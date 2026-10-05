@@ -32,7 +32,7 @@ class _FakeEmbedder:
 
 def make_engine(**read: object) -> Engine:
     return Engine(
-        template="base",
+        template="core",
         dotenv_path=None,
         storage={"path": ":memory:"},
         embedding={"provider": "hash"},
@@ -96,7 +96,7 @@ async def test_default_engine_rescore_inactive() -> None:
 @pytest.fixture
 async def int8_engine() -> AsyncIterator[Engine]:
     eng = Engine(
-        template="base",
+        template="core",
         dotenv_path=None,
         storage={"path": ":memory:"},
         embedding={"provider": "hash"},

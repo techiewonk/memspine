@@ -13,7 +13,7 @@ from memspine.prompts.models import AnticipatedCue
 def _engine(on: bool) -> Engine:
     policies = {"consolidation": {"anticipate": True}} if on else {}
     return Engine(
-        template="base",
+        template="core",
         dotenv_path=None,
         storage={"path": ":memory:"},
         embedding={"provider": "hash"},

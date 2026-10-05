@@ -42,7 +42,7 @@ def test_lower_trust_write_contests_instead_of_superseding() -> None:
 
 def _engine(**extra: object) -> Engine:
     return Engine(
-        template="base",
+        template="core",
         dotenv_path=None,
         storage={"path": ":memory:"},
         embedding={"provider": "hash"},

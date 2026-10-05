@@ -78,7 +78,7 @@ async def test_missing_graph_service_hard_fails_naming_the_extra(
     # A stub graph provider fires MissingServiceError deterministically,
     # independent of what happens to be installed in this env.
     engine = make_engine(
-        template="base",
+        template="core",
         memories={"associative": {"enabled": True}},
         graph={"provider": provider},
     )
@@ -96,7 +96,7 @@ async def test_missing_ladybug_package_hard_fails_naming_the_graph_extra(
     # on whether [graph] happens to be installed in this environment.
     monkeypatch.setitem(sys.modules, "ladybug", None)
     engine = make_engine(
-        template="base",
+        template="core",
         memories={"associative": {"enabled": True}},
         graph={"provider": "ladybug"},
     )
@@ -108,7 +108,7 @@ async def test_missing_ladybug_package_hard_fails_naming_the_graph_extra(
 
 async def test_strict_services_is_the_gate_default(make_engine) -> None:
     # The hard-fail above depends on strict_services (D-10); base pins it true.
-    engine = make_engine(template="base")
+    engine = make_engine(template="core")
     await engine.start()
     try:
         assert engine.describe()["strict_services"] is True
@@ -122,14 +122,14 @@ async def test_strict_services_is_the_gate_default(make_engine) -> None:
 def test_per_namespace_type_enablement_is_reserved() -> None:
     with pytest.raises(ConfigError, match=r"reserved for v0\.2"):
         load_config(
-            template="base",
+            template="core",
             overrides={"namespaces": {"default": {"memories": {"working": {"enabled": True}}}}},
         )
 
 
 async def test_reserved_key_surfaces_through_engine_start(make_engine) -> None:
     engine = make_engine(
-        template="base",
+        template="core",
         namespaces={"tenant-a": {"memories": {"semantic": {"enabled": True}}}},
     )
     with pytest.raises(ConfigError, match=r"reserved for v0\.2"):
@@ -138,7 +138,7 @@ async def test_reserved_key_surfaces_through_engine_start(make_engine) -> None:
 
 def test_unknown_memory_type_is_rejected() -> None:
     with pytest.raises(ConfigError, match="unknown memory type"):
-        load_config(template="base", overrides={"memories": {"telepathic": {"enabled": True}}})
+        load_config(template="core", overrides={"memories": {"telepathic": {"enabled": True}}})
 
 
 # ── (d) extends: cycle detection ──────────────────────────────────────────────

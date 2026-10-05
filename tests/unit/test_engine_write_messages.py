@@ -14,7 +14,7 @@ from memspine.engine import Engine
 
 async def _engine() -> Engine:
     engine = Engine(
-        template="base",
+        template="core",
         dotenv_path=None,
         storage={"path": ":memory:"},
         embedding={"provider": "hash"},

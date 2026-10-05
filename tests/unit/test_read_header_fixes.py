@@ -19,7 +19,7 @@ QUERY = "weather football Ana talked"
 
 def _engine(read: dict[str, Any], **kw: Any) -> Engine:
     return Engine(
-        template="base",
+        template="core",
         dotenv_path=None,
         storage={"path": ":memory:"},
         embedding={"provider": "hash"},

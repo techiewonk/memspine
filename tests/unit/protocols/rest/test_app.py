@@ -21,7 +21,7 @@ NOW = datetime.now(UTC)
 @pytest.fixture
 async def engine() -> AsyncIterator[Engine]:
     eng = Engine(
-        template="base",
+        template="core",
         dotenv_path=None,
         storage={"path": ":memory:"},
         embedding={"provider": "hash"},

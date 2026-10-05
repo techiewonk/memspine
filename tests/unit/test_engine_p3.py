@@ -14,7 +14,7 @@ from memspine.exceptions import ConfigError, MemspineError, MissingServiceError
 @pytest.fixture
 async def engine() -> AsyncIterator[Engine]:
     eng = Engine(
-        template="base",
+        template="core",
         dotenv_path=None,
         storage={"path": ":memory:"},
         embedding={"provider": "hash"},
@@ -83,7 +83,7 @@ async def test_describe_reports_p3_surface(engine: Engine) -> None:
 
 async def test_verbs_fail_loudly_when_type_disabled() -> None:
     eng = Engine(
-        template="base",
+        template="core",
         dotenv_path=None,
         storage={"path": ":memory:"},
         embedding={"provider": "hash"},
@@ -203,7 +203,7 @@ async def test_sessions_gap_override_and_timeline_window(engine: Engine) -> None
 
 async def test_unknown_runner_is_config_error() -> None:
     eng = Engine(
-        template="base",
+        template="core",
         dotenv_path=None,
         storage={"path": ":memory:"},
         embedding={"provider": "hash"},
@@ -221,7 +221,7 @@ async def test_dbos_runner_names_its_extra_when_missing() -> None:
     except ImportError:
         pass
     eng = Engine(
-        template="base",
+        template="core",
         dotenv_path=None,
         storage={"path": ":memory:"},
         embedding={"provider": "hash"},

@@ -1,5 +1,10 @@
-# memspine base template — the "simple" working brain.
-# Every other template extends this one (D-12).
+# memspine base template: the "simple" working brain, with the measured read-path
+# advantages on by default (ADR-033). Every other template extends this one (D-12).
+#
+# The read settings below are combo-A from the paid LoCoMo ablations (cats 1-4,
+# 1,540 q, Qwen3-32B reader and judge; paper_spine/evaluation/LOCOMO_RESULTS_*):
+# 70.7% -> 78.3% (+/- 0.26, 3 runs) at the same ~1.6K-token context. All rules, no
+# extra model calls. The bare configuration is the `core` template.
 profile: simple
 strict_services: true
 
@@ -9,6 +14,28 @@ event_log:
 
 storage:
   path: ./memspine.db
+
+read:
+  default_mode: replay          # combo-A read path (auto's compose routing measured -2.1)
+  record_access: false          # a read must not boost recency for the next question
+  resolve_relative_dates: true  # H1: "last Friday" -> [= 2023-05-12]  (+5.8 alone)
+  order_by_time_for_ordering: true  # H16: first/latest/before -> time order
+  scoring:                      # relevance-first: recency/importance demoted the best
+    recency_weight: 0.0         # match on stored transcripts
+    importance_weight: 0.0
+    utility_weight: 0.0
+  assembly:
+    relative_floor: 0.3         # H4: drop candidates far below the best
+  rerank: "off"                 # reranking is opt-in per requirement; to enable, e.g.:
+  # rerank: fastembed           # local cross-encoder (or flashrank | qwen3 | litellm)
+  # rerank_model: BAAI/bge-reranker-base
+  # candidate_pool: 3           # rerank a wider pool ...
+  # rerank_keep: 10             # ... then keep the best 10
+
+prompts:
+  selection:
+    chat:
+      condition: dated          # H12: chat@dated answer prompt (+3.2 alone)
 
 memories:
   working:

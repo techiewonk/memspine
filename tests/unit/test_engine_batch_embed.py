@@ -52,7 +52,7 @@ async def _engine(
 
     monkeypatch.setattr(Engine, "_build_embedder", build)
     engine = Engine(
-        template="base",
+        template="core",
         dotenv_path=None,
         storage={"path": ":memory:"},
         embedding={"provider": "hash", **(embedding or {})},

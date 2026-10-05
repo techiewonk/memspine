@@ -28,7 +28,7 @@ async def main() -> None:
     from memspine import Engine
 
     engine = Engine(
-        template="base",
+        template="core",
         dotenv_path=None,  # never feed the whole .env into config layering
         storage={"path": ":memory:"},
         memories={

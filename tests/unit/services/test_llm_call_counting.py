@@ -70,7 +70,7 @@ async def test_model_calls_after_write_read_sleep(monkeypatch: pytest.MonkeyPatc
 
     monkeypatch.setattr(Engine, "_build_llm_router", router)
     eng = Engine(
-        template="base",
+        template="core",
         dotenv_path=None,
         storage={"path": ":memory:"},
         embedding={"provider": "hash"},

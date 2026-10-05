@@ -15,7 +15,7 @@ from memspine.engine import Engine
 async def _engine(interval: float | None, path: str = ":memory:") -> Engine:
     workers = {"sleep_interval_seconds": interval} if interval is not None else {}
     engine = Engine(
-        template="base",
+        template="core",
         dotenv_path=None,
         storage={"path": path},
         embedding={"provider": "hash"},

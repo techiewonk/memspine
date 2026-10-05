@@ -14,7 +14,7 @@ from memspine.prompts.models import ExtractedFact
 def _engine(mine: bool) -> Engine:
     policies = {"consolidation": {"mine_facts": True}} if mine else {}
     return Engine(
-        template="base",
+        template="core",
         dotenv_path=None,
         storage={"path": ":memory:"},
         embedding={"provider": "hash"},
@@ -165,7 +165,7 @@ async def test_mine_by_topic_calls_the_miner_once_per_segment(
     """H15: two topics in one session are mined in two calls; each fact's parents
     are only the turns of the segment the call saw."""
     eng = Engine(
-        template="base",
+        template="core",
         dotenv_path=None,
         storage={"path": ":memory:"},
         embedding={"provider": "hash"},

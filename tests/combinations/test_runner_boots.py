@@ -17,7 +17,7 @@ from memspine.exceptions import ConfigError, MissingServiceError
 
 
 async def test_inline_runner_boots_and_flushes_on_exit(make_engine) -> None:
-    engine = make_engine(template="base", workers={"runner": "inline"})
+    engine = make_engine(template="core", workers={"runner": "inline"})
     await engine.start()
     try:
         assert engine.describe()["runner"] == "inline"
@@ -39,7 +39,7 @@ async def test_optional_runner_constructs_or_names_its_extra(
     runner: str, modules: tuple[str, ...], extra: str, make_engine
 ) -> None:
     installed = all(importlib.util.find_spec(m) is not None for m in modules)
-    engine = make_engine(template="base", workers={"runner": runner})
+    engine = make_engine(template="core", workers={"runner": runner})
     if installed:  # pragma: no cover - env-dependent
         await engine.start()
         try:
@@ -54,6 +54,6 @@ async def test_optional_runner_constructs_or_names_its_extra(
 
 
 async def test_unknown_runner_is_a_config_error(make_engine) -> None:
-    engine = make_engine(template="base", workers={"runner": "bogus"})
+    engine = make_engine(template="core", workers={"runner": "bogus"})
     with pytest.raises(ConfigError, match=r"unknown workers\.runner"):
         await engine.start()

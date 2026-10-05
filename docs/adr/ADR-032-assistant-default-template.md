@@ -1,6 +1,6 @@
 # ADR-032: `assistant` is the default template for `Engine()`
 
-- **Status:** accepted (maintainer request, 2026-10-05)
+- **Status:** accepted (maintainer request, 2026-10-05); **amended by ADR-033**: the combo-A settings now live in `base`, so `assistant` = `base`, and `core` is the bare configuration
 - **Date:** 2026-10-05
 - **Decision id:** D-58 (amends D-12 template layering; keeps D-11 config layering)
 

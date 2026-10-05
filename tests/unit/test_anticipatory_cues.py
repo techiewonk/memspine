@@ -14,7 +14,7 @@ FILLER = [f"note {i}: routine standup about ticket backlog" for i in range(15)]
 
 def _engine(**read: Any) -> Engine:
     return Engine(
-        template="base",
+        template="core",
         dotenv_path=None,
         storage={"path": ":memory:"},
         embedding={"provider": "hash"},

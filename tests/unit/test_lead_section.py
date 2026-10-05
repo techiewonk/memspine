@@ -15,7 +15,7 @@ from memspine.engine import _RECALL_MARKERS
 def _engine(**extra: Any) -> Engine:
     read = extra.pop("read", {})
     return Engine(
-        template="base",
+        template="core",
         dotenv_path=None,
         storage={"path": ":memory:"},
         embedding={"provider": "hash"},

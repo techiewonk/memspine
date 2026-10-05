@@ -14,7 +14,7 @@ from memspine.exceptions import MemspineError, RebuildUnavailableError
 @pytest.fixture
 async def engine() -> AsyncIterator[Engine]:
     eng = Engine(
-        template="base",
+        template="core",
         dotenv_path=None,
         storage={"path": ":memory:"},
         embedding={"provider": "hash"},
@@ -45,7 +45,7 @@ async def test_rebuild_reproduces_identical_read_model(engine: Engine) -> None:
 
 async def test_describe_reports_effective_world(engine: Engine) -> None:
     world = engine.describe()
-    assert world["profile"] == "simple"
+    assert world["profile"] == "core"
     assert set(world["memories"]["enabled"]) == {"working", "episodic", "semantic"}
     assert world["event_log"] == {
         "mode": "full",
@@ -81,7 +81,7 @@ async def test_personal_template_auto_enables_dependencies() -> None:
 
 async def test_ephemeral_engine_writes_but_cannot_rebuild() -> None:
     eng = Engine(
-        template="base",
+        template="core",
         dotenv_path=None,
         storage={"path": ":memory:"},
         event_log={"mode": "ephemeral"},
@@ -120,7 +120,7 @@ async def test_assemble_places_persona_first_and_marks_boundary(engine: Engine) 
 
 async def test_working_memory_pages_out_to_episodic() -> None:
     eng = Engine(
-        template="base",
+        template="core",
         dotenv_path=None,
         storage={"path": ":memory:"},
         embedding={"provider": "hash"},
@@ -204,7 +204,7 @@ async def test_search_updates_access_stats_through_the_log(engine: Engine) -> No
 async def test_failed_start_leaks_nothing() -> None:
     """Regression: a mid-start ConfigError used to leak connected clients."""
     eng = Engine(
-        template="base",
+        template="core",
         dotenv_path=None,
         storage={"path": ":memory:"},
         # A mid-start ConfigError (unknown embedder) fires AFTER the storage
@@ -262,7 +262,7 @@ async def test_forget_then_near_duplicate_is_added_not_merged(engine: Engine) ->
 
 async def test_prompt_override_flows_through_engine() -> None:
     eng = Engine(
-        template="base",
+        template="core",
         dotenv_path=None,
         storage={"path": ":memory:"},
         embedding={"provider": "hash"},
@@ -308,7 +308,7 @@ async def test_semantic_pipeline_survives_rebuild(engine: Engine) -> None:
 
 
 async def test_verbs_require_start() -> None:
-    eng = Engine(template="base", dotenv_path=None)
+    eng = Engine(template="core", dotenv_path=None)
     with pytest.raises(MemspineError, match="not started"):
         await eng.write("x")
     with pytest.raises(MemspineError, match="not started"):
@@ -317,7 +317,7 @@ async def test_verbs_require_start() -> None:
 
 def test_sync_wrappers_round_trip() -> None:
     eng = Engine(
-        template="base",
+        template="core",
         dotenv_path=None,
         storage={"path": ":memory:"},
         embedding={"provider": "hash"},
@@ -333,7 +333,7 @@ def test_sync_wrappers_round_trip() -> None:
 async def test_sync_wrapper_refuses_running_loop() -> None:
     """asyncio.run-style wrappers must fail loudly inside a live event loop."""
     eng = Engine(
-        template="base",
+        template="core",
         dotenv_path=None,
         storage={"path": ":memory:"},
         embedding={"provider": "hash"},
@@ -345,13 +345,13 @@ async def test_sync_wrapper_refuses_running_loop() -> None:
 async def test_describe_requires_started_even_after_stop() -> None:
     """Regression: describe() used to report a healthy world after stop()."""
     eng = Engine(
-        template="base",
+        template="core",
         dotenv_path=None,
         storage={"path": ":memory:"},
         embedding={"provider": "hash"},
     )
     await eng.start()
-    assert eng.describe()["profile"] == "simple"
+    assert eng.describe()["profile"] == "core"
     await eng.stop()
     with pytest.raises(MemspineError, match="not started"):
         eng.describe()
@@ -378,11 +378,11 @@ async def test_strict_services_hard_fails_with_extra_name(monkeypatch: pytest.Mo
         "embedding": {"provider": "hash"},
     }
 
-    strict = Engine(template="base", dotenv_path=None, user_config=cfg)
+    strict = Engine(template="core", dotenv_path=None, user_config=cfg)
     with pytest.raises(MissingServiceError, match=r"memspine\[graph\]"):
         await strict.start()
 
-    lax = Engine(template="base", dotenv_path=None, user_config=cfg, strict_services=False)
+    lax = Engine(template="core", dotenv_path=None, user_config=cfg, strict_services=False)
     await lax.start()  # degrades with a warning instead
     try:
         assert "associative" in lax.describe()["memories"]["enabled"]
@@ -400,7 +400,7 @@ async def test_rolling_engine_prunes_on_start(tmp_path: object) -> None:
         "event_log": {"mode": "rolling", "retention_days": 1},
         "embedding": {"provider": "hash"},
     }
-    eng = Engine(template="base", dotenv_path=None, user_config=cfg)
+    eng = Engine(template="core", dotenv_path=None, user_config=cfg)
     await eng.start()
     await eng.write("old fact", namespace="agent/roll")
     await eng.stop()
@@ -413,7 +413,7 @@ async def test_rolling_engine_prunes_on_start(tmp_path: object) -> None:
     with sqlite3.connect(db) as conn:
         conn.execute("UPDATE memory_events SET ts = ?", (old,))
 
-    eng2 = Engine(template="base", dotenv_path=None, user_config=cfg)
+    eng2 = Engine(template="core", dotenv_path=None, user_config=cfg)
     await eng2.start()  # boot-time prune fires
     try:
         import sqlite3 as s3

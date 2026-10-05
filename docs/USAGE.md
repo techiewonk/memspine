@@ -89,13 +89,14 @@ print(engine.describe())   # enabled types, services, event-log mode, projectors
 
 | Template | Enables |
 |----------|---------|
-| `base` | working + episodic + semantic |
+| `base` (profile `simple`) | working + episodic + semantic, **with the measured read-path advantages on** (ADR-033): replay reads, relative dates resolved, time order for ordering questions, relative floor, relevance-first scoring, no access recording, dated answer prompt |
+| `core` | the bare configuration (pre-ADR-033 `base`): auto read mode, composite scoring, access recording, base chat prompt |
 | `coding` | + procedural (`conflict_bias: newest`) |
 | `personal` | + reflective + prospective |
 | `voice` | rolling+zstd event log; tighter working window (`page_size: 8`) |
 | `multi_agent` | + shared |
 | `regulated_financial` | full audit log, strict PII, no forgetting |
-| `assistant` (**default**, ADR-032) | long multi-session chat: relative dates resolved, time order for ordering questions, relevance-first scoring, relative floor (LoCoMo 70.7 → 78.3%, measured) |
+| `assistant` (**default**, ADR-032) | = `base` (since ADR-033 the advantages live in `base`); the name for chat workloads (LoCoMo 70.7 → 78.3%, measured) |
 
 > **Default template (ADR-032).** `Engine()` with no `template` loads `assistant`. Pass `template="base"` for the plain `simple` profile (the previous behaviour). A caller that names a `profile` but no template (`Engine(profile="simple")`, or `profile:` in the user config) gets `base`, never the assistant settings. The CLI `audit taint` / `forget` commands always run on `base`.
 
@@ -400,7 +401,7 @@ in the schema — or if the schema gains a key not documented here.
 <!-- CONFIG-KEYS-TABLE:START -->
 | Key | Default | Notes |
 |-----|---------|-------|
-| `profile` | `simple` | Behavior profile; templates set it (base/coding/personal/voice/multi_agent/regulated_financial/assistant). |
+| `profile` | `simple` | Behavior profile; templates set it (base→simple/core/coding/personal/voice/multi_agent/regulated_financial/assistant). |
 | `strict_services` | `true` | Missing service hard-fails naming the extra (D-10); `false` starts degraded. |
 | `event_log.mode` | `full` | `full` \| `rolling` (bounded window) \| `ephemeral` (nothing persisted — no rebuild/audit) (D-45). |
 | `event_log.retention_days` | `30` | Rolling-window retention floor; never prunes past a projector high-water mark. |

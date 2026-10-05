@@ -6,7 +6,7 @@ This file is loaded into every Claude Code session. Keep it accurate and terse.
 
 `memspine` is an open-source **cognitive-memory engine** for AI agents: one clean API (`Engine`) over a real write pipeline, hybrid + graph retrieval, and background learning dynamics — with pluggable, composable stores. It is the *engine*, not a product.
 
-**Status:** pre-alpha, under active construction. **P0–P7 are all implemented and review-passed** (substrate · working memory + retrieval · semantic · episodic + lifecycle · Memory Firewall · procedural + reflective · associative graph · prospective + shared + REST), plus the C6 combination matrix — **1062** tests collected (`uv run pytest --collect-only -q`; +~165 in `evals/tests`), `ruff` + `mypy --strict` clean, **32 ADRs** (ADR-001…ADR-032; ADR-029/030/031 *proposed*), decision register through D-58. All 9 memory types and E1–E9 are landed. User-facing docs: `docs/FEATURES.md` + `docs/USAGE.md`. Ecosystem comparison: `docs/ECOSYSTEM_COMPARISON.md` + `docs/ARCHITECTURE_FLOWS.md` (pass #3: stages, packages, prompts, memory I/O). Current snapshot lives in `STATUS.md` (manually refreshed; the 30-min auto-refresh stopped in July). The design docs in `docs/` are the **single source of truth** — read them before writing code.
+**Status:** pre-alpha, under active construction. **P0–P7 are all implemented and review-passed** (substrate · working memory + retrieval · semantic · episodic + lifecycle · Memory Firewall · procedural + reflective · associative graph · prospective + shared + REST), plus the C6 combination matrix — **1062** tests collected (`uv run pytest --collect-only -q`; +~165 in `evals/tests`), `ruff` + `mypy --strict` clean, **33 ADRs** (ADR-001…ADR-033; ADR-029/030/031 *proposed*), decision register through D-59. All 9 memory types and E1–E9 are landed. User-facing docs: `docs/FEATURES.md` + `docs/USAGE.md`. Ecosystem comparison: `docs/ECOSYSTEM_COMPARISON.md` + `docs/ARCHITECTURE_FLOWS.md` (pass #3: stages, packages, prompts, memory I/O). Current snapshot lives in `STATUS.md` (manually refreshed; the 30-min auto-refresh stopped in July). The design docs in `docs/` are the **single source of truth** — read them before writing code.
 
 ## Read these first (in order)
 
@@ -22,7 +22,7 @@ This file is loaded into every Claude Code session. Keep it accurate and terse.
 - **Anti-lock-in (D-17).** Background pipelines are plain, idempotent step functions in `workers/pipelines.py`. Runners (inline/DBOS/taskiq) *decorate* them — no runner imports inside pipeline code.
 - **Ports & adapters (D-22/M14).** Engine/memories/policies talk only to `services/*` capability ports. `clients/*` own connections; services never open a connection.
 - **Slim core (D-03).** Zero heavy deps in core. Everything optional lives behind a `pip install memspine[extra]`. `torch`/`transformers` never enter core.
-- **Profiles stay green.** Every change keeps `profile="simple"` behavior stable and backward-compatible.
+- **Profiles stay green.** Every change keeps `profile="simple"` behavior stable and backward-compatible (ADR-033 deliberately moved the measured read-path advantages into `simple`; `core` is the bare reference and what tests use).
 - **Hard-fail clearly (D-10).** Missing service → `MissingServiceError` naming the extra to install, unless `strict_services: false`.
 
 ## Locked defaults (decision register — see plan for D-01…D-49)
@@ -30,7 +30,7 @@ This file is loaded into every Claude Code session. Keep it accurate and terse.
 | Area | Default | Notes |
 |------|---------|-------|
 | Language / tooling | **Python 3.13**, uv, ruff, pytest, mkdocs-material | D-02/D-04 |
-| Facade | `memspine.Engine` | async-first, thin sync wrappers (D-01); default template `assistant` (D-58/ADR-032), `template="base"` = `simple` |
+| Facade | `memspine.Engine` | async-first, thin sync wrappers (D-01); default template `assistant` (D-58/ADR-032); the measured read-path advantages live in `base`/`simple` (D-59/ADR-033); `template="core"` = bare |
 | Storage | **SQLite** via **SQLAlchemy Core + Alembic**, async engine (**aiosqlite**) | not full ORM; sqlmodel rejected (D-36/D-44) |
 | Event log | `event_log.mode`: **full** (default) / **rolling** / **ephemeral** + optional zstd payload compression | storage-cost control; pruning never passes projector high-water marks (D-45) |
 | Vector | **LanceDB** (+ Tantivy FTS) | D-09 |

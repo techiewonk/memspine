@@ -54,14 +54,24 @@ async def test_assistant_reads_replay_and_answers_with_the_dated_prompt() -> Non
         await eng.stop()
 
 
-async def test_base_template_is_unchanged() -> None:
-    eng = _engine("base")
-    await eng.start()
+async def test_core_template_is_bare_and_base_has_the_advantages() -> None:
+    """ADR-033: `core` is the bare configuration; `base` (profile simple) carries combo-A."""
+    core = _engine("core")
+    await core.start()
     try:
-        assert eng._config().read.default_mode == "auto"
-        assert "computed from" not in eng.chat_messages("hi")[0]["content"]
+        assert core._config().read.default_mode == "auto"
+        assert "computed from" not in core.chat_messages("hi")[0]["content"]
     finally:
-        await eng.stop()
+        await core.stop()
+    base = _engine("base")
+    await base.start()
+    try:
+        read = base._config().read
+        assert base.describe()["profile"] == "simple"
+        assert read.default_mode == "replay" and read.resolve_relative_dates
+        assert "computed from the line's own date" in base.chat_messages("hi")[0]["content"]
+    finally:
+        await base.stop()
 
 
 @pytest.mark.shipped_default

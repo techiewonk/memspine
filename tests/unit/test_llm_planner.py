@@ -42,7 +42,7 @@ def _engine(monkeypatch: pytest.MonkeyPatch, stub: _Plan | None, **read: Any) ->
 
     monkeypatch.setattr(Engine, "_build_llm_router", router)
     return Engine(
-        template="base",
+        template="core",
         dotenv_path=None,
         storage={"path": ":memory:"},
         embedding={"provider": "hash"},

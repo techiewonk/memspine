@@ -17,7 +17,7 @@ from memspine.exceptions import ConfigError, MissingServiceError
 
 def _engine(**overrides: object) -> Engine:
     return Engine(
-        template="base",
+        template="core",
         dotenv_path=None,
         storage={"path": ":memory:"},
         embedding={"provider": "hash"},

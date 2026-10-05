@@ -73,7 +73,7 @@ class RaisingLexical:
 
 def make_engine(hybrid: bool = False) -> Engine:
     return Engine(
-        template="base",
+        template="core",
         dotenv_path=None,
         storage={"path": ":memory:"},
         embedding={"provider": "hash"},
@@ -139,7 +139,7 @@ async def test_hybrid_lexical_projector_is_registered(hybrid_engine: Engine) -> 
 async def test_hybrid_enabled_via_config_layer_not_just_kwargs() -> None:
     """The user-config (YAML) layer drives read.hybrid, not only **overrides."""
     eng = Engine(
-        template="base",
+        template="core",
         dotenv_path=None,
         user_config={"read": {"hybrid": True}},
         storage={"path": ":memory:"},

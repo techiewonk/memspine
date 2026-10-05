@@ -17,7 +17,7 @@ T0 = datetime(2023, 5, 7, 10, 0, tzinfo=UTC)
 
 def _engine(**read: Any) -> Engine:
     return Engine(
-        template="base",
+        template="core",
         dotenv_path=None,
         storage={"path": ":memory:"},
         embedding={"provider": "hash"},

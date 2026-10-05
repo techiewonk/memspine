@@ -12,7 +12,7 @@ from memspine import Engine
 def _engine(on: bool) -> Engine:
     policies = {"consolidation": {"reflect_profile": True}} if on else {}
     return Engine(
-        template="base",
+        template="core",
         dotenv_path=None,
         storage={"path": ":memory:"},
         embedding={"provider": "hash"},

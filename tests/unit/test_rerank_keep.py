@@ -25,7 +25,7 @@ class _Reranker:
 
 def _engine(**read: Any) -> Engine:
     return Engine(
-        template="base",
+        template="core",
         dotenv_path=None,
         storage={"path": ":memory:"},
         embedding={"provider": "hash"},

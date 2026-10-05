@@ -11,7 +11,7 @@ from memspine.core.records import RecordStatus, SourceInfo
 
 def _engine(**extra: Any) -> Engine:
     return Engine(
-        template="base",
+        template="core",
         dotenv_path=None,
         storage={"path": ":memory:"},
         embedding={"provider": "hash"},
@@ -210,7 +210,7 @@ async def test_contested_fact_keeps_one_current_and_shows_the_dispute() -> None:
     """H9: two equal-standing statements on one key at the same event time are both kept;
     exactly one stays current; the current-state view flags the dispute."""
     eng = Engine(
-        template="base",
+        template="core",
         dotenv_path=None,
         storage={"path": ":memory:"},
         embedding={"provider": "hash"},

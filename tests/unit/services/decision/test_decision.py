@@ -155,7 +155,7 @@ def test_load_is_serialised_by_a_lock(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def _engine(**extra: Any) -> Engine:
     return Engine(
-        template="base",
+        template="core",
         dotenv_path=None,
         storage={"path": ":memory:"},
         embedding={"provider": "hash"},
@@ -264,7 +264,7 @@ async def test_confidence_gate_keeps_the_default_mode(
     """G2b: below ``read.planner_min_confidence`` the choice does not route."""
     _fake_gliner2(monkeypatch, _FakeModel)
     eng = Engine(
-        template="base",
+        template="core",
         dotenv_path=None,
         storage={"path": ":memory:"},
         embedding={"provider": "hash"},
@@ -298,7 +298,7 @@ async def test_bare_label_confidence_is_unknown_not_sure(
     """A-8: a bare-label result (no confidence) does not pass a positive gate."""
     _fake_gliner2(monkeypatch, _FakeModel)
     eng = Engine(
-        template="base",
+        template="core",
         dotenv_path=None,
         storage={"path": ":memory:"},
         embedding={"provider": "hash"},

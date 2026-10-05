@@ -69,7 +69,7 @@ def test_forget_hard_verify_exit_codes(tmp_path: Path) -> None:
 
     async def seed() -> str:
         eng = Engine(
-            template="base",
+            template="core",
             dotenv_path=None,
             storage={"path": str(db)},
             embedding={"provider": "hash"},

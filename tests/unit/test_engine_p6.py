@@ -17,7 +17,7 @@ from memspine.exceptions import ConflictError, MemspineError
 @pytest.fixture
 async def engine() -> AsyncIterator[Engine]:
     eng = Engine(
-        template="base",
+        template="core",
         dotenv_path=None,
         storage={"path": ":memory:"},
         embedding={"provider": "hash"},
@@ -94,7 +94,7 @@ async def test_forget_cascades_node_deletion(engine: Engine) -> None:
 
 async def test_verbs_fail_loudly_when_associative_disabled() -> None:
     eng = Engine(
-        template="base",
+        template="core",
         dotenv_path=None,
         storage={"path": ":memory:"},
         embedding={"provider": "hash"},
@@ -122,7 +122,7 @@ async def test_reorganize_reports_skipped_without_the_extra(engine: Engine) -> N
 
 async def test_reorganize_reports_skipped_without_a_graph() -> None:
     eng = Engine(
-        template="base",
+        template="core",
         dotenv_path=None,
         storage={"path": ":memory:"},
         embedding={"provider": "hash"},
@@ -172,7 +172,7 @@ async def test_evolution_failure_never_fails_the_write(
     """T2: a broken graph store must not fail write() — evolution is
     best-effort and loud (warning carries the error kind, L1)."""
     eng = Engine(
-        template="base",
+        template="core",
         dotenv_path=None,
         storage={"path": ":memory:"},
         embedding={"provider": "hash"},

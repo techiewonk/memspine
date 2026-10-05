@@ -19,7 +19,7 @@ NOW = datetime.now(UTC)
 @pytest.fixture
 async def engine() -> AsyncIterator[Engine]:
     eng = Engine(
-        template="base",
+        template="core",
         dotenv_path=None,
         storage={"path": ":memory:"},
         embedding={"provider": "hash"},
@@ -418,7 +418,7 @@ async def test_ephemeral_invalidation_watch_warns_once() -> None:
     import structlog
 
     eng = Engine(
-        template="base",
+        template="core",
         dotenv_path=None,
         storage={"path": ":memory:"},
         embedding={"provider": "hash"},
@@ -440,7 +440,7 @@ async def test_ephemeral_invalidation_watch_warns_once() -> None:
 
 async def test_verbs_fail_loudly_when_types_disabled() -> None:
     eng = Engine(
-        template="base",
+        template="core",
         dotenv_path=None,
         storage={"path": ":memory:"},
         embedding={"provider": "hash"},

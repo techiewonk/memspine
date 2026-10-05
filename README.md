@@ -227,9 +227,10 @@ Construct with `Engine(template="...")`. Each template is a partial overlay on t
 | `voice` | rolling+zstd event log; larger working window | high-volume voice transcripts |
 | `multi_agent` | + shared; **DBOS** durable workers | namespace grants across agents (R2), server-grade durability |
 | `regulated_financial` | full audit log, strict PII, no forgetting; **DBOS** durable workers | audited / compliant deployments |
-| `assistant` (**default**) | multi-session chat memory: relative dates resolved, time-ordered answers for ordering questions, relevance-first scoring (LoCoMo 70.7 → 78.3% measured; reranker opt-in) | chat assistants |
+| `assistant` (**default**) | = `base`: the measured read-path advantages (relative dates resolved, time-ordered answers for ordering questions, relevance-first scoring; LoCoMo 70.7 → 78.3%; reranker opt-in) | chat assistants |
+| `core` | the bare configuration (no read-path enhancements) | tests, baselines |
 
-> `Engine()` with no template uses **`assistant`** (ADR-032); `template="base"` gives the plain `simple` profile.
+> `Engine()` with no template uses **`assistant`** (ADR-032). Since ADR-033 the read-path advantages are in **`base`** (`profile="simple"`), so every template has them; `template="core"` gives the bare configuration.
 
 > Server profiles (`multi_agent`, `regulated_financial`) pin `workers.runner: dbos` at the **template** layer (A4/ADR-005) — DBOS defaults to a colocated SQLite system database, so this needs only `memspine[dbos]`, no external infra. Embedded profiles stay `inline`.
 

@@ -14,7 +14,7 @@ from memspine.prompts.models import RelevanceLabel, RelevanceLabels
 
 def _engine(**read: object) -> Engine:
     return Engine(
-        template="base",
+        template="core",
         dotenv_path=None,
         storage={"path": ":memory:"},
         embedding={"provider": "hash"},
