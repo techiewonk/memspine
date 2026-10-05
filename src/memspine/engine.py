@@ -4782,7 +4782,8 @@ class Engine:
         if label not in self._READ_MODES:
             return None
         gate = self._config().read.planner_min_confidence
-        if confidence < gate:
+        # A bare label carries no confidence (None): below any positive gate.
+        if (confidence is None and gate > 0) or (confidence is not None and confidence < gate):
             # G2b: an unsure choice does not route; keep the default replay read.
             _log.info("read.planner_unsure", label=label, confidence=confidence, gate=gate)
             return "replay"

@@ -17,8 +17,12 @@ __all__ = ["DecisionProvider"]
 
 @runtime_checkable
 class DecisionProvider(Protocol):
-    """``choose`` returns ``(label, confidence)`` for the option that best fits ``text``."""
+    """``choose`` returns ``(label, confidence)`` for the option that best fits ``text``.
+
+    ``confidence`` is ``None`` when the provider cannot say how sure it is; consumers
+    with a confidence gate treat that as below any positive gate.
+    """
 
     provider_id: str
 
-    async def choose(self, text: str, options: Mapping[str, str]) -> tuple[str, float]: ...
+    async def choose(self, text: str, options: Mapping[str, str]) -> tuple[str, float | None]: ...

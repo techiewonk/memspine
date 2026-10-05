@@ -78,7 +78,7 @@ class GLiNER2Decision:
                 raise
             return self._extractor
 
-    def _choose_sync(self, text: str, options: Mapping[str, str]) -> tuple[str, float]:
+    def _choose_sync(self, text: str, options: Mapping[str, str]) -> tuple[str, float | None]:
         extractor = self._load()
         described = dict(options)
         if hasattr(extractor, "create_schema") and hasattr(extractor, "extract"):
@@ -94,23 +94,27 @@ class GLiNER2Decision:
                 result = extractor.classify_text(text, {_FIELD: list(described)})
         return parse_choice(result, options)
 
-    async def choose(self, text: str, options: Mapping[str, str]) -> tuple[str, float]:
+    async def choose(self, text: str, options: Mapping[str, str]) -> tuple[str, float | None]:
         return await asyncio.to_thread(self._choose_sync, text, options)
 
 
-def parse_choice(result: Any, options: Mapping[str, str]) -> tuple[str, float]:
+def parse_choice(result: Any, options: Mapping[str, str]) -> tuple[str, float | None]:
     """``{'choice': {'label': x, 'confidence': p}}`` or ``{'choice': x}`` -> (label, p).
 
+    A bare label (no confidence, e.g. a build without ``include_confidence``) gives
+    ``None``: the confidence is unknown, so a confidence gate must not treat it as sure.
     A result outside ``options`` (a gliner2 shape change) raises loudly rather than
     routing on a guess.
     """
     value = result.get(_FIELD) if isinstance(result, Mapping) else None
     if isinstance(value, list) and value:
         value = value[0]
+    confidence: float | None = None
     if isinstance(value, Mapping):
-        label, confidence = value.get("label"), float(value.get("confidence", 0.0))
+        label, raw = value.get("label"), value.get("confidence")
+        confidence = None if raw is None else float(raw)
     else:
-        label, confidence = value, 1.0
+        label = value
     if label not in options:
         raise ValueError(f"gliner2 returned an unrecognised choice: {result!r}")
     return str(label), confidence
