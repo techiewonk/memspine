@@ -241,6 +241,13 @@ await engine.sleep()      # run consolidate -> decay -> compress -> prune now
 await engine.rebuild()    # replay every projector from seq 0
 ```
 
+`rollback_taint` / `repair_taint` walk the event log from the seed's origin WRITE. With
+`event_log.mode: ephemeral` (no events kept, not even in memory) or a `rolling` window
+that pruned the origin, they cannot trace descendants: by default they log
+`memory.rollback_beyond_window`, archive the seed alone (closing its `valid_to`) and
+return `"untraced": [seed]`; pass `strict=True` to get `RollbackUnavailableError`
+instead and change nothing (ADR-011 addendum, #64).
+
 ### Feedback — like / dislike / note (#54)
 ```python
 await engine.feedback(record_id, "like", namespace="ops")
@@ -468,7 +475,7 @@ in the schema — or if the schema gains a key not documented here.
 |-----|---------|-------|
 | `profile` | `simple` | Behavior profile; templates set it (base→simple/core/coding/personal/voice/multi_agent/regulated_financial/assistant). |
 | `strict_services` | `true` | Missing service hard-fails naming the extra (D-10); `false` starts degraded. |
-| `event_log.mode` | `full` | `full` \| `rolling` (bounded window) \| `ephemeral` (nothing persisted — no rebuild/audit) (D-45). |
+| `event_log.mode` | `full` | `full` \| `rolling` (bounded window) \| `ephemeral` (nothing persisted — no rebuild/audit; taint rollback falls back to archiving the seed alone, `strict=True` raises) (D-45, #64). |
 | `event_log.retention_days` | `30` | Rolling-window retention floor; never prunes past a projector high-water mark. |
 | `event_log.compress` | `false` | zstd-compress event payloads at rest. |
 | `storage.backend` | `sqlite` | `sqlite` \| `postgres` (ADR-025). |

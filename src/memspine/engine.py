@@ -103,6 +103,7 @@ from memspine.exceptions import (
     ConflictError,
     MemspineError,
     MissingServiceError,
+    RollbackUnavailableError,
     StorageError,
 )
 from memspine.memories.associative.evolution import propose_links
@@ -4022,7 +4023,12 @@ class Engine:
             return updated
 
     async def rollback_taint(
-        self, record_id: str, namespace: str = "default", actor: str = "operator"
+        self,
+        record_id: str,
+        namespace: str = "default",
+        actor: str = "operator",
+        *,
+        strict: bool = False,
     ) -> dict[str, list[str]]:
         """MG-9 repair: archive a poison seed and every content-tainted descendant.
 
@@ -4036,9 +4042,17 @@ class Engine:
         restored as the current fact when nothing else holds its key now, and a
         contest the poison opened no longer marks the survivors ``disputed``.
         Restored ids are returned under ``"restored"``.
+
+        #64: the walk needs the seed's origin WRITE in the log. When the log no longer
+        holds it (``event_log.mode: ephemeral``, or a ``rolling`` window that pruned
+        it), descendants cannot be traced: ``strict=True`` raises
+        :class:`RollbackUnavailableError`; otherwise the call logs
+        ``memory.rollback_beyond_window``, archives the seed alone (its ``valid_to``
+        closed) and returns its id under ``"untraced"``.
         """
         storage = self._require_started()
         report = await self.audit_taint(record_id, namespace, cross_namespace=True)
+        untraced = await self._lineage_window(report, "rollback_taint", strict)
         archived: list[str] = []
         review: list[str] = []
         targets = [(record_id, "seed"), *report.descendants.items()]
@@ -4074,7 +4088,38 @@ class Engine:
             restored=len(restored),
             review=len(review),
         )
-        return {"archived": archived, "restored": restored, "review": review}
+        result = {"archived": archived, "restored": restored, "review": review}
+        if untraced:
+            result["untraced"] = [record_id]
+        return result
+
+    async def _lineage_window(self, report: TaintReport, verb: str, strict: bool) -> bool:
+        """#64: True when the log no longer holds the seed's origin WRITE, so the
+        taint walk saw none of its descendants. Raises with ``strict``; else warns."""
+        if report.origin_seq is not None:
+            return False
+        storage = self._require_started()
+        mode = storage.mode.value
+        detail = (
+            "the event log does not hold this record's origin WRITE "
+            f"(event_log.mode={mode}: "
+            + (
+                "events are never persisted"
+                if storage.mode is EventLogMode.EPHEMERAL
+                else "pruned or never logged"
+            )
+            + "); its descendants cannot be traced (D-45, ADR-011)"
+        )
+        if strict:
+            raise RollbackUnavailableError(f"{verb} {report.record_id!r}: {detail}")
+        _log.warning(
+            "memory.rollback_beyond_window",
+            verb=verb,
+            record_id=report.record_id,
+            event_log_mode=mode,
+            detail=detail + "; falling back to archiving the seed alone (valid_to closed)",
+        )
+        return True
 
     async def _undo_displacement(
         self, seed: str, report: TaintReport, removed: Sequence[str], actor: str
@@ -4182,7 +4227,12 @@ class Engine:
         return verify_events(events, view, key=key, expected_head=expected_head)
 
     async def repair_taint(
-        self, record_id: str, namespace: str = "default", actor: str = "operator"
+        self,
+        record_id: str,
+        namespace: str = "default",
+        actor: str = "operator",
+        *,
+        strict: bool = False,
     ) -> dict[str, list[str]]:
         """B3: counterfactual repair (rollback that keeps benign knowledge).
 
@@ -4192,11 +4242,16 @@ class Engine:
         extractive summariser, so the result is exactly what consolidation would
         have produced had the seed never been written (tested). Summaries with
         no untainted member left are archived. Merge survivors go to review.
+
+        #64: like :meth:`rollback_taint`, a seed whose origin WRITE the log no longer
+        holds raises :class:`RollbackUnavailableError` with ``strict=True``, else is
+        archived alone and returned under ``"untraced"``.
         """
         from memspine.core.policies.consolidation import ConsolidationPolicy
 
         storage = self._require_started()
         report = await self.audit_taint(record_id, namespace, cross_namespace=True)
+        untraced = await self._lineage_window(report, "repair_taint", strict)
         tainted = {record_id, *report.descendants}
         members_of: dict[str, list[str]] = {}
         sessions_of_tainted: set[tuple[str, str]] = set()
@@ -4328,12 +4383,15 @@ class Engine:
             restored=len(restored),
             review=len(review),
         )
-        return {
+        result = {
             "archived": archived,
             "rebuilt": rebuilt,
             "restored": restored,
             "review": review,
         }
+        if untraced:
+            result["untraced"] = [record_id]
+        return result
 
     async def _assess_write(self, record: MemoryRecord) -> FirewallVerdict:
         """Gather the firewall's namespace context: nearest-neighbour
