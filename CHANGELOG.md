@@ -4,6 +4,10 @@ All notable changes to memspine are documented here. Format: [Keep a Changelog](
 
 ## [Unreleased]
 
+### Fixed — real-model checks (2026-10-06)
+- **`[ner]` extra:** now `gliner2[local]>=1.2,<2`. gliner2 keeps torch/transformers/peft in its `local` extra and 2.0 dropped peft from the base install, so a fresh `memspine[ner]` resolved gliner2 2.0.0 with no local inference stack. 2.x `[local]` needs transformers<5 (and so huggingface-hub<1), which this lock does not resolve; checked against the real `fastino/gliner2-base-v1` on gliner2 1.3.2.
+- **GLiNER2 decision provider:** `gliner2_class()` now raises `MissingServiceError(extra="ner")` when gliner2's lazy class lookup fails with ImportError (gliner2>=2.0 base install). Before, a raw `ModuleNotFoundError: peft` escaped `Engine.start()`, even with `strict_services: false`.
+
 ### Fixed — read/write review (2026-10-06)
 - **Harness provenance:** a reader with `extract_answer` set (`--qa-prompt dated3`, OpenAI-compatible and Bedrock/LiteLLM paths) now records `answer_extractor: "v2"` in `describe()`, so a run manifest names the `final_answer` version (rewritten in Wave 1). Every other reader's `describe()` is byte-identical. `dated3` was introduced in Wave 1 and has no published runs, so no published manifest changes.
 - **Pre-Wave-1 golden:** `tests/unit/test_pre_wave1_read_golden.py` (recorded on d6dccc5) pins every read mode, `search()` and a direct `assemble()` over happened-tagged mined facts, cards off: the `core` defaults are byte-identical to the pre-Wave-1 build. **Not reproducible:** with `read.resolve_relative_dates` on (the `base` template, and so `read.cards: header` + `resolve_relative_dates`), Wave 1's #29 said-anchor fix intentionally changes outputs: a happened-tagged fact is resolved against its `said:` day, and one with no `said:` tag whose `valid_from` is its happened day is not resolved (e.g. `yesterday [= Thu 2023-06-08]` is no longer rendered on it). The golden pins that this is the only difference.
