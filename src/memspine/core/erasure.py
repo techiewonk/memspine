@@ -7,7 +7,7 @@ dedup sketches all point back at the subject (#2).
 
 The conflict ladder embeds full snapshots under ``incoming_record``, dedup
 merges under ``dropped_record``, and future event kinds may nest them deeper.
-Erasure (``redact_record``) and its proof (``payload_retains_content``) MUST
+Erasure (``redact_record``) and its proof (``retained_fields``) MUST
 walk the same structure, or a hard delete can report success while the content
 survives under a key the redactor never looked at. One walker, used by both.
 """
@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from typing import Any
 
-__all__ = ["payload_retains_content", "redact_record", "retained_fields"]
+__all__ = ["redact_record", "retained_fields"]
 
 #: Fields on a record snapshot that identify the subject, with their erased value:
 #: the content (plain and cold-tier), its fingerprint (an xxhash of short content
@@ -118,9 +118,3 @@ def retained_fields(node: Any, record_id: str) -> set[str]:
         for item in node:
             found |= retained_fields(item, record_id)
     return found
-
-
-def payload_retains_content(node: Any, record_id: str) -> bool:
-    """True if any snapshot/delta of ``record_id`` anywhere in ``node`` still
-    carries identifying data — the erasure-proof predicate."""
-    return bool(retained_fields(node, record_id))

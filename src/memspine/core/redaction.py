@@ -59,6 +59,23 @@ def _luhn_ok(text: str) -> bool:
     return total % 10 == 0
 
 
+#: ISO 13616 IBAN length per country: a candidate is cut to its country's
+#: length before the mod-97 check, so a word after the IBAN is never swallowed.
+_IBAN_LENGTHS: dict[str, int] = {
+    "AD": 24, "AE": 23, "AL": 28, "AT": 20, "AZ": 28, "BA": 20, "BE": 16, "BG": 22,
+    "BH": 22, "BI": 27, "BR": 29, "BY": 28, "CH": 21, "CR": 22, "CY": 28, "CZ": 24,
+    "DE": 22, "DJ": 27, "DK": 18, "DO": 28, "EE": 20, "EG": 29, "ES": 24, "FI": 18,
+    "FK": 18, "FO": 18, "FR": 27, "GB": 22, "GE": 22, "GI": 23, "GL": 18, "GR": 27,
+    "GT": 28, "HR": 21, "HU": 28, "IE": 22, "IL": 23, "IQ": 23, "IS": 26, "IT": 27,
+    "JO": 30, "KW": 30, "KZ": 20, "LB": 28, "LC": 32, "LI": 21, "LT": 20, "LU": 20,
+    "LV": 21, "LY": 25, "MC": 27, "MD": 24, "ME": 22, "MK": 19, "MN": 20, "MR": 27,
+    "MT": 31, "MU": 30, "NI": 28, "NL": 18, "NO": 15, "OM": 23, "PK": 24, "PL": 28,
+    "PS": 29, "PT": 25, "QA": 29, "RO": 24, "RS": 22, "RU": 33, "SA": 24, "SC": 31,
+    "SD": 18, "SE": 24, "SI": 19, "SK": 24, "SM": 27, "SO": 23, "ST": 25, "SV": 28,
+    "TL": 23, "TN": 24, "TR": 26, "UA": 29, "VA": 22, "VG": 24, "XK": 20, "YE": 30,
+}  # fmt: skip
+
+
 def _iban_ok(text: str) -> bool:
     compact = re.sub(r"\s", "", text).upper()
     if not 15 <= len(compact) <= 34:
@@ -66,6 +83,23 @@ def _iban_ok(text: str) -> bool:
     rotated = compact[4:] + compact[:4]
     numeric = "".join(str(int(ch, 36)) for ch in rotated)
     return int(numeric) % 97 == 1
+
+
+def _iban_span(match: re.Match[str]) -> tuple[int, int] | None:
+    """The IBAN at the start of ``match``: its country's length of characters
+    when the country is known, else the longest prefix (shrinking from the end)
+    that passes mod-97."""
+    text = match.group(0)
+    ends = [i + 1 for i, ch in enumerate(text) if not ch.isspace()]
+    known = _IBAN_LENGTHS.get(text[:2].upper())
+    if known is not None:
+        candidates = [ends[known - 1]] if len(ends) >= known else []
+    else:
+        candidates = [end for count, end in enumerate(ends, 1) if count >= 15][::-1]
+    for end in candidates:
+        if _iban_ok(text[:end]):
+            return match.start(), match.start() + end
+    return None
 
 
 def _phone_ok(text: str) -> bool:
@@ -80,8 +114,27 @@ def _ipv4_ok(text: str) -> bool:
     return True
 
 
+#: A version cue right before a dotted quad ("version 1.2.3.4", "v10.0.0.1").
+_VERSION_CUE = re.compile(r"(?i)(?:\bv|\bver\.?|\bversion|\brelease|\bbuild)\s*:?\s*$")
+
+
+def _ipv4_span(match: re.Match[str]) -> tuple[int, int] | None:
+    """A dotted quad is an address unless a version cue precedes it."""
+    if not _ipv4_ok(match.group(0)):
+        return None
+    if _VERSION_CUE.search(match.string[max(0, match.start() - 12) : match.start()]):
+        return None
+    return match.span()
+
+
 def _ipv6_ok(text: str) -> bool:
-    if text.count(":") < 2 or not any(ch.isalnum() for ch in text):
+    """An IPv6 address, not a hex-ish word pair: a compressed form (``::``)
+    needs three groups or one full-width (4-digit) group, so ``fe80::1`` and
+    ``2001:db8::1`` count while ``ab::cd`` and ``1::2`` do not."""
+    groups = [group for group in text.split(":") if group]
+    if "::" in text and len(groups) < 3 and not any(len(group) == 4 for group in groups):
+        return False
+    if len(groups) < 2:
         return False
     try:
         ipaddress.IPv6Address(text)
@@ -90,42 +143,82 @@ def _ipv6_ok(text: str) -> bool:
     return True
 
 
+Validator = Callable[[re.Match[str]], tuple[int, int] | None]
+
+
+def _whole(check: Callable[[str], bool]) -> Validator:
+    """A validator that redacts the whole match (or the ``pii`` group) when
+    ``check`` accepts its text."""
+
+    def validate(match: re.Match[str]) -> tuple[int, int] | None:
+        group = "pii" if "pii" in match.re.groupindex else 0
+        return match.span(group) if check(match.group(group)) else None
+
+    return validate
+
+
+_SEP = r"[\s.-]"
 #: (kind, pattern, validator). Order matters: the checksummed and most specific
-#: kinds run first, so a card number is not also counted as a phone number.
-PII_PATTERNS: tuple[tuple[str, re.Pattern[str], Callable[[str], bool] | None], ...] = (
-    ("iban", re.compile(r"\b[A-Z]{2}\d{2}(?: ?[A-Z0-9]){11,30}\b"), _iban_ok),
-    ("payment_card", re.compile(r"(?<![\d-])\d(?:[ -]?\d){12,18}(?![\d-])"), _luhn_ok),
+#: kinds run first, so a card number is not also counted as a phone number. A
+#: kind may have several patterns. The validator returns the span to redact.
+PII_PATTERNS: tuple[tuple[str, re.Pattern[str], Validator | None], ...] = (
+    ("iban", re.compile(r"(?i)\b[A-Z]{2}\d{2}(?: ?[A-Z0-9]){11,30}\b"), _iban_span),
+    ("payment_card", re.compile(r"(?<![\d-])\d(?:[ -]?\d){12,18}(?![\d-])"), _whole(_luhn_ok)),
     ("us_ssn", re.compile(r"\b(?!000|666|9\d\d)\d{3}-(?!00)\d{2}-(?!0000)\d{4}\b"), None),
     (
         "ipv6",
         re.compile(r"(?<![\w:])(?:[0-9A-Fa-f]{0,4}:){2,7}[0-9A-Fa-f]{0,4}(?![\w:])"),
-        _ipv6_ok,
+        _whole(_ipv6_ok),
     ),
-    ("ipv4", re.compile(r"(?<![\d.])(?:\d{1,3}\.){3}\d{1,3}(?![\d.])"), _ipv4_ok),
+    ("ipv4", re.compile(r"(?<![\d.])(?:\d{1,3}\.){3}\d{1,3}(?![\d.])"), _ipv4_span),
+    # E.164 / international: a leading + (separators optional: +14155552671).
+    (
+        "phone",
+        re.compile(rf"(?<![\w+])\+\d{{1,3}}(?:{_SEP}?\(\d{{1,4}}\)|{_SEP}?\d{{1,4}}){{1,5}}(?!\w)"),
+        _whole(_phone_ok),
+    ),
+    # A phone cue ("tel", "phone", "call" ...) makes any digit grouping a phone.
     (
         "phone",
         re.compile(
-            r"(?<![\w+])(?:\+\d{1,3}[\s.-]?)?(?:\(\d{1,4}\)[\s.-]?|\d{2,4}[\s.-])"
-            r"\d{2,4}[\s.-]?\d{3,4}(?![\w])"
+            r"(?i)\b(?:tel|phone|mobile|cell|fax|call|text|whatsapp)\b\.?:?\s*(?:me\s+at\s+|at\s+)?"
+            r"(?P<pii>\(?\d[\d\s().-]{6,}\d)(?!\w)"
         ),
-        _phone_ok,
+        _whole(_phone_ok),
     ),
+    # A parenthesised area code: (415) 555-0123.
+    (
+        "phone",
+        re.compile(rf"(?<!\w)\(\d{{2,4}}\){_SEP}?\d{{3,4}}{_SEP}?\d{{3,4}}(?!\w)"),
+        _whole(_phone_ok),
+    ),
+    # A phone-shaped grouping: 3 digits, then 3-4, then 4 (415-555-0123, 020 7946 0958).
+    (
+        "phone",
+        re.compile(rf"(?<![\w+.-])\d{{3}}{_SEP}\d{{3,4}}{_SEP}\d{{4}}(?![\w]|[.-]\d)"),
+        _whole(_phone_ok),
+    ),
+    # A bare NANP number (area and exchange codes start 2-9): 4155552671.
+    ("phone", re.compile(r"(?<![\w+.-])1?[2-9]\d{2}[2-9]\d{6}(?![\w]|[.-]\d)"), _whole(_phone_ok)),
 )
 
 
 def _sub_pii(
-    text: str, kind: str, pattern: re.Pattern[str], valid: Callable[[str], bool] | None
+    text: str, kind: str, pattern: re.Pattern[str], valid: Validator | None
 ) -> tuple[str, int]:
     count = 0
-
-    def replace(match: re.Match[str]) -> str:
-        nonlocal count
-        if valid is not None and not valid(match.group(0)):
-            return match.group(0)
+    out: list[str] = []
+    cursor = 0
+    for match in pattern.finditer(text):
+        span = match.span() if valid is None else valid(match)
+        if span is None or span[0] < cursor:
+            continue
+        out.append(text[cursor : span[0]])
+        out.append(f"[REDACTED:{kind}]")
+        cursor = span[1]
         count += 1
-        return f"[REDACTED:{kind}]"
-
-    return pattern.sub(replace, text), count
+    out.append(text[cursor:])
+    return "".join(out), count
 
 
 def find_pii(text: str) -> list[str]:
@@ -147,6 +240,6 @@ def redact(text: str, *, secrets: bool = True, pii: bool = False) -> tuple[str, 
     if pii:
         for kind, pattern, valid in PII_PATTERNS:
             text, count = _sub_pii(text, kind, pattern, valid)
-            if count:
+            if count and kind not in found:
                 found.append(kind)
     return text, found

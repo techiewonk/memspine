@@ -47,3 +47,48 @@ def test_near_misses_are_left_alone(text: str) -> None:
 
 def test_default_redact_is_secrets_only() -> None:
     assert redact("call +1 415-555-0123") == ("call +1 415-555-0123", [])
+
+
+@pytest.mark.parametrize(
+    ("text", "kind"),
+    [
+        ("call me on 4155552671 today", "phone"),
+        ("whatsapp +14155552671", "phone"),
+        ("reach me at +442079460958", "phone"),
+        ("uk office 020 7946 0958", "phone"),
+        ("tel: 2024 1005 1234", "phone"),
+        ("iban gb82west12345698765432", "iban"),
+        ("iban gb82 west 1234 5698 7654 32", "iban"),
+        ("host 10.0.0.1 is up", "ipv4"),
+        ("ping 1.2.3.4 now", "ipv4"),
+        ("link-local fe80::1 on eth0", "ipv6"),
+        ("prefix 2001:db8::1 routed", "ipv6"),
+    ],
+)
+def test_pii_variants_are_found(text: str, kind: str) -> None:
+    redacted, kinds = redact(text, secrets=False, pii=True)
+    assert kinds == [kind], redacted
+    assert f"[REDACTED:{kind}]" in redacted
+
+
+def test_spaced_iban_followed_by_a_word_redacts_the_whole_iban() -> None:
+    redacted, kinds = redact("pay GB82 WEST 1234 5698 7654 32 NOW please", secrets=False, pii=True)
+    assert kinds == ["iban"]
+    assert redacted == "pay [REDACTED:iban] NOW please"
+    assert "WEST" not in redacted
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "version 1.2.3.4 shipped",
+        "upgrade to v10.0.0.1 today",
+        "release 2.0.0.1 notes",
+        "the C++ scope ab::cd resolves",
+        "ratio 1::2 in the recipe",
+        "order 2024 1005 1234 shipped",
+        "invoice 1700000000 settled",
+    ],
+)
+def test_pii_false_positives_are_left_alone(text: str) -> None:
+    assert redact(text, secrets=False, pii=True) == (text, [])

@@ -27,7 +27,7 @@ from collections.abc import Awaitable, Callable
 from datetime import datetime
 from typing import Annotated, Any
 
-from fastapi import Depends, FastAPI, Header, Request, Response
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
 from fastapi.responses import ORJSONResponse
 
 from memspine.config import constants
@@ -56,7 +56,7 @@ from memspine.protocols.rest.models import (
     WriteRequest,
 )
 
-__all__ = ["build_app", "resolve_namespace"]
+__all__ = ["build_app", "resolve_namespace", "resolve_operator"]
 
 _log = get_logger(__name__)
 
@@ -70,6 +70,25 @@ async def resolve_namespace(
 
 
 Namespace = Annotated[str, Depends(resolve_namespace)]
+
+
+async def resolve_operator() -> str:
+    """The operator seam for quarantine review (#3): who may release or reject a
+    held record. A tenant caller must not review its own namespace's holds, so
+    the default refuses every request (403); deployers override this dependency
+    with their auth layer's operator identity::
+
+        app.dependency_overrides[resolve_operator] = my_authenticated_operator
+
+    The returned identity is the decision's actor and principal: a request body
+    cannot name its own reviewer."""
+    raise HTTPException(
+        status_code=403,
+        detail="quarantine review needs an operator: override resolve_operator (ADR-018)",
+    )
+
+
+Operator = Annotated[str, Depends(resolve_operator)]
 
 
 def _error_response(status: int, exc: Exception) -> ORJSONResponse:
@@ -197,27 +216,37 @@ def build_app(engine: Engine) -> FastAPI:
     async def list_quarantined(ns: Namespace) -> list[MemoryRecord]:
         return await engine.list_quarantined(namespace=ns)
 
+    # The decisions are operator-only (resolve_operator): the namespace header
+    # is the tenant, and a tenant could otherwise release its own poison.
+
     @app.post("/quarantine/{record_id}/approve")
     async def approve_quarantined(
-        record_id: str, ns: Namespace, body: QuarantineDecision | None = None
+        record_id: str,
+        ns: Namespace,
+        operator: Operator,
+        body: QuarantineDecision | None = None,
     ) -> MemoryRecord:
         decision = body or QuarantineDecision()
         return await engine.approve_quarantined(
             record_id,
             namespace=ns,
-            actor=decision.actor,
+            actor=operator,
+            principal=operator,
             reason=decision.reason or "operator_approved",
         )
 
     @app.post("/quarantine/{record_id}/reject")
     async def reject_quarantined(
-        record_id: str, ns: Namespace, body: QuarantineDecision | None = None
+        record_id: str,
+        ns: Namespace,
+        operator: Operator,
+        body: QuarantineDecision | None = None,
     ) -> MemoryRecord:
         decision = body or QuarantineDecision()
         return await engine.reject_quarantined(
             record_id,
             namespace=ns,
-            actor=decision.actor,
+            actor=operator,
             reason=decision.reason or "operator_rejected",
         )
 

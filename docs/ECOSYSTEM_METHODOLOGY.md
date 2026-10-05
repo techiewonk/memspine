@@ -194,7 +194,7 @@ Entry `Engine.write` (`engine.py:522`) → per-namespace `asyncio.Lock` → `_wr
 - **Hard** (`hard=True`, GDPR cascade): FORGET event + `storage.redact_event_payloads(record_id)` redacts every log payload carrying the content; escalated to `_log.error`. **Legal hold** (`RetentionPolicy.on_legal_hold`) blocks hard delete.
 - **Anti-oracle scoping** (SEC-C2/ADR-018): a record in another namespace always raises the same "no such record" error; soft-delete of an absent record raises it too; hard-delete of an absent record is an idempotent no-op (retryable erasure).
 - **Delete hooks**: every enabled memory calls `on_forget` (e.g. semantic drops its LSH cache).
-- **Proof**: `verify_forget` (`engine.py:1051`) walks the SAME `payload_retains_content` walker as the redactor across record/vector/lexical/log; unverifiable vector backend or ephemeral log reported as *unproven*, never silently clean.
+- **Proof**: `verify_forget` (`engine.py:1051`) walks the SAME `retained_fields` walker as the redactor across record/vector/lexical/log; unverifiable vector backend or ephemeral log reported as *unproven*, never silently clean.
 - **Blast radius**: `audit_taint` (`engine.py:1108`) → `core/audit.py:trace_taint` reconstructs origin + derivations from the log.
 
 #### Retrieve / rank / assemble

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import re
+from datetime import timedelta
 from typing import Any
 
 from memspine.clients.lancedb import LanceDBClient
@@ -80,7 +81,12 @@ class LanceDBVectorStore:
         # Ids present in an exclusive table (None: not exclusive, always merge).
         self._ids: set[str] | None = set() if exclusive else None
         self._table: Any = None
+        # Guards table creation and every write this store makes to the table, so
+        # the erasure purge never interleaves with this process's own upserts.
         self._lock = asyncio.Lock()
+        # Ids deleted since the last successful purge: their vectors may still
+        # sit in older table versions and in rewritten-but-unreclaimed files.
+        self._unpurged: set[str] = set()
         # ANN index lifecycle (built lazily on first active search_rescore).
         self._index_lock = asyncio.Lock()
         self._index_ready = False  # a usable vector ANN index is confirmed present
@@ -129,20 +135,21 @@ class LanceDBVectorStore:
     ) -> None:
         table = await self._ensure_table()
         row = [{"record_id": record_id, "namespace": namespace, "vector": vector}]
-        if self._ids is not None and record_id not in self._ids:
-            # Exclusive table, unseen id: the merge would take its insert branch.
-            await asyncio.to_thread(table.add, row)
-            self._ids.add(record_id)
-        else:
-            await asyncio.to_thread(
-                lambda: (
-                    table.merge_insert("record_id")
-                    .when_matched_update_all()
-                    .when_not_matched_insert_all()
-                    .execute(row)
+        async with self._lock:
+            if self._ids is not None and record_id not in self._ids:
+                # Exclusive table, unseen id: the merge would take its insert branch.
+                await asyncio.to_thread(table.add, row)
+                self._ids.add(record_id)
+            else:
+                await asyncio.to_thread(
+                    lambda: (
+                        table.merge_insert("record_id")
+                        .when_matched_update_all()
+                        .when_not_matched_insert_all()
+                        .execute(row)
+                    )
                 )
-            )
-        await self._maybe_compact(table)
+            await self._maybe_compact(table)
 
     async def _maybe_compact(self, table: Any) -> None:
         """Merge fragments every ``compact_every`` upserts (see ``__init__``)."""
@@ -324,15 +331,84 @@ class LanceDBVectorStore:
 
     async def delete(self, record_id: str) -> None:
         table = await self._ensure_table()
-        await asyncio.to_thread(table.delete, f"record_id = '{record_id}'")
-        if self._ids is not None:
-            self._ids.discard(record_id)
+        escaped = record_id.replace("'", "''")
+        async with self._lock:
+            await asyncio.to_thread(table.delete, f"record_id = '{escaped}'")
+            self._unpurged.add(record_id)
+            if self._ids is not None:
+                self._ids.discard(record_id)
 
     async def delete_all(self) -> None:
         table = await self._ensure_table()
-        await asyncio.to_thread(table.delete, "record_id IS NOT NULL")
-        if self._ids is not None:
-            self._ids.clear()
+        async with self._lock:
+            await asyncio.to_thread(table.delete, "record_id IS NOT NULL")
+            if self._ids is not None:
+                self._ids.clear()
+
+    async def purge_deleted(self) -> bool:
+        """M7 erasure: physically remove the vectors of deleted rows.
+
+        A LanceDB delete only writes a deletion file: the row's bytes stay in its
+        data file, and every older table version still returns it on checkout.
+        This rewrites every live row (a no-op update, so each old fragment ends
+        fully deleted and is dropped) and then removes every version but the
+        latest with the files only they referenced. Rows, ids and vectors are
+        unchanged; the cost is one pass over the table.
+
+        Runs under the store's write lock, so no write of this process
+        interleaves. Another engine writing the same file-backed table can make
+        the rewrite fail on a commit conflict; files of its in-flight commit are
+        kept (``delete_unverified`` stays off). Returns False when the purge did
+        not complete; :meth:`history_absent` then keeps reporting residue."""
+        if not self._unpurged:
+            return True
+        table = await self._ensure_table()
+        async with self._lock:
+            pending = set(self._unpurged)
+
+            def _purge() -> None:
+                if int(table.count_rows()) > 0:
+                    table.update(
+                        where="record_id IS NOT NULL", values_sql={"namespace": "namespace"}
+                    )
+                table.optimize(cleanup_older_than=timedelta(0))
+
+            try:
+                await asyncio.to_thread(_purge)
+            except Exception as exc:
+                _log.warning("vector.lance_purge_failed", error=str(exc), pending=len(pending))
+                return False
+            self._unpurged -= pending
+        return True
+
+    async def history_absent(self, record_id: str) -> bool | None:
+        """M7 ``forget --verify``: True when no retained table version holds a row
+        for ``record_id``; False when one does, or when this process deleted the
+        row and has not purged since; None when there are too many versions to
+        scan (``LANCE_VERIFY_MAX_VERSIONS``), which the engine reports unproven.
+
+        Not covered: a deleted row whose pre-delete versions were removed by a
+        routine cleanup in an earlier process without a purge; its bytes can
+        stay in a data file until compaction rewrites that fragment."""
+        if record_id in self._unpurged:
+            return False
+        await self._ensure_table()
+        escaped = record_id.replace("'", "''")
+        name = _table_name(self._embedder.embedder_id)
+
+        def _scan() -> bool | None:
+            # A separate handle: checkout() would pin the shared one to the past.
+            handle = self._client.db.open_table(name)
+            versions = handle.list_versions()
+            if len(versions) > constants.LANCE_VERIFY_MAX_VERSIONS:
+                return None
+            for version in versions:
+                handle.checkout(version["version"])
+                if int(handle.count_rows(f"record_id = '{escaped}'")) > 0:
+                    return False
+            return True
+
+        return await asyncio.to_thread(_scan)
 
     async def exists(self, record_id: str) -> bool:
         """M7 ``forget --verify`` support: is a row still present? Without this

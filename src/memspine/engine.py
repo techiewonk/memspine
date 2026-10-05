@@ -252,13 +252,43 @@ def _looks_like_recall(content: str) -> bool:
 #: #3: tag on a held record an operator rejected (archived, never releasable).
 _QUARANTINE_REJECTED_TAG = "quarantine_rejected"
 
-_FACT_VALUE_STRIP = re.compile(r"[\W_]+")
+
+def _caller_tags(tags: Sequence[str] | None, ns: str) -> list[str]:
+    """Caller-supplied tags without the engine-only ones (``RESERVED_TAGS``): a
+    caller must not mark its text as a lead block, a cue or a rolled-back record."""
+    kept = [tag for tag in tags or [] if tag not in constants.RESERVED_TAGS]
+    if len(kept) != len(tags or []):
+        dropped = sorted({tag for tag in tags or [] if tag in constants.RESERVED_TAGS})
+        _log.warning("memory.reserved_tags_dropped", namespace=ns, tags=dropped)
+    return kept
+
+
+#: A thousands separator between digit groups ("1,000", "1_000").
+_FACT_THOUSANDS = re.compile(r"(?<=\d)[,_](?=\d{3}(?!\d))")
+#: Tokens of a fact value: a number (sign and decimal point kept, the sign only
+#: where no word precedes it), a word, or any other single character.
+_FACT_TOKEN = re.compile(r"(?<![^\W_])[-+]?\d+(?:\.\d+)*|[^\W_]+|\S")
+#: Symbols that change a value's meaning and so stay as tokens.
+_FACT_SYMBOLS = frozenset("%+#")
 
 
 def _fact_value(content: str) -> str:
-    """#3: a fact's value for corroboration: NFKC-folded, case-folded, with
-    punctuation and spacing differences removed. Paraphrases do not match."""
-    return _FACT_VALUE_STRIP.sub(" ", unicodedata.normalize("NFKC", content).casefold()).strip()
+    """#3: a fact's value for corroboration: NFKC-folded, case-folded and
+    whitespace-normalised, with thousands separators dropped and plain
+    punctuation ignored. Signs, decimal points, percent, currency symbols and
+    ``+``/``#`` are kept, so "-500" differs from "500", "C++" from "C", "$100"
+    from "€100" and "3.5" from "3 5". Paraphrases do not match."""
+    text = unicodedata.normalize("NFKC", content).casefold().replace("\u2212", "-")
+    text = _FACT_THOUSANDS.sub("", text)
+    tokens = [
+        token
+        for token in _FACT_TOKEN.findall(text)
+        if len(token) > 1
+        or token.isalnum()
+        or token in _FACT_SYMBOLS
+        or unicodedata.category(token) == "Sc"
+    ]
+    return " ".join(tokens)
 
 
 #: N3: tag stamped on a record archived by a taint rollback or repair, so the
@@ -860,6 +890,7 @@ class Engine:
         if memory_type == "shared":
             raise ConflictError("memory_type 'shared' is engine-internal — use grant()/subscribe()")
         source = source or SourceInfo(role=actor)
+        tags = _caller_tags(tags, ns)
         implicit = self._consume_reads(ns, session_id)
         parents = list(dict.fromkeys([*(derived_from or []), *implicit]))
         if parents:
@@ -1414,7 +1445,7 @@ class Engine:
             valid_from=max(p.valid_from for p in parts),
             trust=min(p.trust for p in parts),
             source=SourceInfo(role="system", channel="lead", parents=[p.record_id for p in parts]),
-        )
+        ).as_engine_block()
 
     async def _standing_block(self, ns: str) -> tuple[MemoryRecord, list[MemoryRecord]] | None:
         """H22: the user's stated preferences and standing requests, newest wins a slot.
@@ -3452,9 +3483,11 @@ class Engine:
         #11: every stored record passes here on its way into a context, so this is
         also where the engine's own markers inside stored text are defanged
         (:func:`memspine.core.escaping.escape_markers`), before any wrapper or
-        label is added. Engine-built lead blocks are left alone, and a B9 claim
-        keeps its ``CLAIM`` prefix (only the mined text after it is escaped)."""
-        if constants.LEAD_TAG in record.tags:
+        label is added. Engine-built lead blocks (marked by
+        :attr:`MemoryRecord.is_engine_block`, which no stored record or tag can
+        set) are left alone, and a B9 claim keeps its ``CLAIM`` prefix (only the
+        mined text after it is escaped)."""
+        if record.is_engine_block:
             return record
         content = record.content
         claim = f"{constants.CLAIM_MARKER} "
@@ -3608,17 +3641,67 @@ class Engine:
         return ids
 
     async def _descendants(self, storage: SqlStorage, ns: str, seeds: Sequence[str]) -> list[str]:
-        """Every record of ``ns`` derived from ``seeds`` through ``source.parents``,
-        transitively, in discovery order (seeds excluded)."""
+        """Every record of ``ns`` derived from ``seeds``, transitively, in discovery
+        order (seeds excluded), that is still in the read model.
+
+        Derivation is read from ``source.parents`` and, for summaries written
+        before they carried parents, from the ``member_record_ids`` their WRITE
+        (``consolidation``/``reflection``) and CONSOLIDATE events name. A summary
+        of a forgotten member is forgotten with it (cascade), never re-derived."""
+        members_of = await self._log_derivations(storage, ns)
         seen = set(seeds)
         found: list[str] = []
         frontier = list(seeds)
         while frontier:
-            children = await storage.list_children(ns, frontier)
-            frontier = [c.record_id for c in children if c.record_id not in seen]
+            children = [c.record_id for c in await storage.list_children(ns, frontier)]
+            children += [child for parent in frontier for child in members_of.get(parent, ())]
+            frontier = [c for c in dict.fromkeys(children) if c not in seen]
             seen.update(frontier)
             found.extend(frontier)
-        return found
+        present: list[str] = []
+        for record_id in found:
+            record = await storage.get_record(record_id)
+            if record is not None and record.namespace == ns:
+                present.append(record_id)
+        return present
+
+    @staticmethod
+    async def _log_derivations(storage: SqlStorage, ns: str) -> dict[str, list[str]]:
+        """parent id -> ids of the records of ``ns`` whose log events name it: in
+        a WRITE snapshot's ``source.parents`` or a ``member_record_ids`` list
+        (one pass over the log)."""
+        children: dict[str, list[str]] = {}
+
+        def link(members: object, child: object) -> None:
+            if isinstance(members, list) and isinstance(child, str) and child:
+                for member in members:
+                    children.setdefault(str(member), []).append(child)
+
+        after = 0
+        while True:
+            batch = await storage.read_events(after_seq=after)
+            if not batch:
+                return children
+            for event in batch:
+                if event.namespace != ns:
+                    continue
+                payload = event.payload or {}
+                if event.kind is EventKind.WRITE:
+                    snapshot = payload.get("record")
+                    child = snapshot.get("record_id") if isinstance(snapshot, dict) else None
+                    source = snapshot.get("source") if isinstance(snapshot, dict) else None
+                    if isinstance(source, dict):
+                        # The log keeps lineage after the row is gone, so the walk
+                        # crosses an already-erased intermediate record.
+                        link(source.get("parents"), child)
+                    for key in ("consolidation", "reflection"):
+                        derivation = payload.get(key)
+                        if isinstance(derivation, dict):
+                            link(derivation.get("member_record_ids"), child)
+                elif event.kind is EventKind.CONSOLIDATE:
+                    link(payload.get("member_record_ids"), payload.get("summary_record_id"))
+            assert batch[-1].seq is not None
+            after = batch[-1].seq
 
     async def _forget_many(
         self, storage: SqlStorage, ns: str, record_ids: Sequence[str], hard: bool
@@ -3648,6 +3731,12 @@ class Engine:
             redacted=len(redacted),
         )
         await self._purge_caches(texts)
+        # The vector delete only marks rows deleted; the purge drops their bytes
+        # and the older table versions that still return them (verify_forget
+        # reports vector history unproven when it did not run).
+        purge = getattr(self._vector, "purge_deleted", None)
+        if callable(purge) and not await purge():
+            _log.warning("memory.forget_vector_purge_incomplete", namespace=ns, record_id=ids[0])
         if self._client is not None:
             await self._client.checkpoint()
 
@@ -3753,9 +3842,12 @@ class Engine:
         erasure. Every identifying field counts (#2): content, fingerprint, fact
         key, tags, history and dedup sketches; ``log_retained_fields`` names
         those still found. A record derived from this one (``source.parents``)
-        that is still in the read model also keeps ``clean`` false. An
-        unverifiable vector backend and an ephemeral (unpersisted) log are
-        reported as *unproven*, never silently as clean.
+        that is still in the read model (found transitively, see
+        :meth:`_descendants`) also keeps ``clean`` false. An unverifiable vector
+        backend, a vector table whose older versions were not purged, and an
+        ephemeral (unpersisted) log are reported as *unproven*, never silently as
+        clean. ``residual_risks`` names what the proof cannot cover (deleted
+        terms in an unmerged Tantivy segment).
 
         SEC-C2/ADR-018: scoped to ``namespace``. A record that still exists in
         another namespace raises the anti-oracle error — a caller must not probe
@@ -3771,16 +3863,19 @@ class Engine:
         exists = getattr(self._vector, "exists", None)
         if callable(exists):
             vector_absent = not await exists(record_id)
+        # A deleted vector can survive in older table versions until purged.
+        # None => the backend cannot prove its history clean (unproven).
+        vector_history_absent: bool | None = None
+        history_absent = getattr(self._vector, "history_absent", None)
+        if callable(history_absent):
+            vector_history_absent = await history_absent(record_id)
         # The Tantivy lexical index holds raw content when hybrid is on, so
         # erasure is not proven until it too is inspected. None => no lexical store
         # is owned (hybrid off) — nothing to erase, so it cannot block ``clean``.
         lexical_absent: bool | None = None
         if self._lexical is not None:
             lexical_absent = not await self._lexical.exists(record_id)
-        descendants = [
-            r.record_id
-            for r in await storage.list_children(validate_namespace(namespace), [record_id])
-        ]
+        descendants = await self._descendants(storage, validate_namespace(namespace), [record_id])
         log_verifiable = storage.can_rebuild  # ephemeral persists nothing to prove
         retained: set[str] = set()
         after = 0
@@ -3799,13 +3894,21 @@ class Engine:
             and log_clean
             and not descendants
             and vector_absent is True
+            and vector_history_absent is True
             and lexical_absent is not False  # True (absent) or None (no store) both pass
         )
         return {
             "record_id": record_id,
             "record_absent": record_absent,
             "vector_absent": vector_absent,  # None => backend cannot prove it
+            "vector_history_absent": vector_history_absent,  # None => unproven
             "lexical_absent": lexical_absent,  # None => no lexical store owned
+            # Tantivy drops a deleted document's terms from its inverted index only
+            # when its segment is merged, which the engine cannot force: the
+            # document (and its id) is gone, but its terms can linger on disk.
+            "residual_risks": ["lexical_terms_until_segment_merge"]
+            if self._lexical is not None
+            else [],
             "log_verifiable": log_verifiable,
             "log_redacted": log_clean,
             "log_retained_fields": sorted(retained),
@@ -4422,16 +4525,27 @@ class Engine:
         namespace: str = "default",
         actor: str = "operator",
         reason: str = "operator_approved",
+        principal: str | None = None,
     ) -> MemoryRecord:
         """#3: release a held record after review, as ``actor`` (logged on the event).
 
         The record leaves quarantine the way corroboration would release it: a
         semantic fact whose key already has another active fact becomes that
         fact's predecessor; a procedural skill resumes its ladder stage. A
-        missing, foreign or not-held id raises ``ConflictError``."""
+        missing, foreign or not-held id raises ``ConflictError``.
+
+        ``principal`` is the reviewer's authenticated identity when the caller
+        knows it. A reviewer whose principal (or actor) is the held record's
+        ``source.principal`` is refused with ``ConflictError``: an author cannot
+        release its own held write."""
         ns = validate_namespace(namespace)
         async with self._write_locks.setdefault(ns, asyncio.Lock()):
             held = await self._held_record(ns, record_id)
+            author = held.source.principal
+            if author is not None and author in (principal, actor):
+                raise ConflictError(
+                    f"record {record_id!r} was written by {author!r}, who cannot approve it"
+                )
             change = await self._release_change(ns, held)
             await self._append_and_project(
                 MemoryEvent(
@@ -5324,6 +5438,11 @@ class Engine:
         }
         if self._semantic is not None:
             self._semantic.invalidate_index()  # LSH state rebuilt from fresh rows
+        # Replay re-deletes forgotten rows, and the pre-rebuild table lives on in
+        # older versions: purge both, as the hard forget did (M7).
+        purge = getattr(self._vector, "purge_deleted", None)
+        if callable(purge):
+            await purge()
         _log.info(EVENT_REBUILD, counts=counts)
         return counts
 

@@ -206,6 +206,9 @@ LANCE_COMPACT_EVERY = 20
 # native "search the compressed index, re-rank the oversampled window by exact
 # vector distance" flow.
 LANCE_NPROBES = 20
+# M7 erasure proof: ``forget --verify`` scans at most this many retained Lance
+# table versions for an erased row; a longer history is reported unproven.
+LANCE_VERIFY_MAX_VERSIONS = 512
 
 # E4 static-embedding prefilter (model2vec, [static], plan Part B §E4): the cheap
 # static-cosine gate keeps this multiple of ``top_k`` candidates before the
@@ -252,6 +255,12 @@ PLAN_LOOKUP_PROBES = 2
 # dated mentions, among the retrieved records, of the event a count question asks about.
 COUNT_MARKER = "Occurrences (dated):"
 COUNT_TAG = "count_timeline"
+# Tags only the engine may set: read-time block tags, the cue tag (a cue skips
+# dedup and the conflict ladder) and the lifecycle tags of taint rollback and
+# quarantine rejection. The write door strips them from caller-supplied tags.
+RESERVED_TAGS = frozenset(
+    {LEAD_TAG, CARDS_TAG, PROFILE_TAG, COUNT_TAG, CUE_TAG, "taint_archived", "quarantine_rejected"}
+)
 # B9 facts-only (``integrity.claims_only_below``): the prefix of a mined fact shown
 # in place of the low-trust raw record it was mined from.
 CLAIM_MARKER = "[CLAIM from a low-trust source, unverified]"

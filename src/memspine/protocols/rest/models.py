@@ -91,7 +91,8 @@ class PromoteRequest(_Request):
 
 
 class QuarantineDecision(_Request):
-    """#3: an operator's review decision on a held record (actor is logged)."""
+    """#3: an operator's review decision on a held record. ``actor`` is ignored
+    by the REST routes: the reviewer is the ``resolve_operator`` identity."""
 
     actor: str = "operator"
     reason: str | None = None
