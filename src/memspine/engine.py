@@ -32,7 +32,7 @@ from memspine.clients.postgres import PostgresClient
 from memspine.clients.sqlite import SQLiteClient
 from memspine.config import constants
 from memspine.config.loader import ResolvedConfig, default_template, load_config
-from memspine.config.schema import MemspineConfig
+from memspine.config.schema import FirewallConfig, MemspineConfig
 from memspine.core.audit import IntegrityReport, TaintReport, trace_taint, verify_events
 from memspine.core.erasure import payload_retains_content
 from memspine.core.events import EventKind, EventLogMode, MemoryEvent, fingerprint_payload
@@ -81,7 +81,7 @@ from memspine.core.records import (
     SourceInfo,
     new_record_id,
 )
-from memspine.core.redaction import redact
+from memspine.core.redaction import find_pii, redact
 from memspine.core.registry import SERVICE_EXTRAS, dependency_closure, missing_services
 from memspine.core.replay import catch_up
 from memspine.core.replay import rebuild as replay_rebuild
@@ -210,6 +210,16 @@ _RENDER_PREFIX = re.compile(
 def _unrendered(content: str) -> str:
     """A rendered context record's content without its gap marker and date prefix."""
     return _RENDER_PREFIX.sub("", content, count=1)
+
+
+#: #44: ordering of PII tiers, least to most sensitive.
+_PII_RANK = {PiiTier.NONE: 0, PiiTier.LOW: 1, PiiTier.HIGH: 2, PiiTier.REGULATED: 3}
+
+
+def _screen_text(text: str, fw: FirewallConfig) -> tuple[str, list[str]]:
+    """``text`` as the write door stores it: secrets masked under ``redact_secrets``,
+    PII masked under ``pii: redact``; unchanged when both are off."""
+    return redact(text, secrets=fw.redact_secrets, pii=fw.pii == "redact")
 
 
 def _looks_like_recall(content: str) -> bool:
@@ -1651,7 +1661,7 @@ class Engine:
                 continue
             if fw.skip_injected_recall and _looks_like_recall(content):
                 continue
-            contents.append(redact(content)[0] if fw.redact_secrets else content)
+            contents.append(_screen_text(content, fw)[0])
         return contents
 
     async def _prewarm_embeddings(self, texts: Sequence[str]) -> None:
@@ -1760,16 +1770,7 @@ class Engine:
     ) -> tuple[MemoryRecord, FirewallVerdict]:
         """The firewall half of the write door: the stamped record and its verdict."""
         fw = self._config().firewall
-        if fw.redact_secrets:
-            cleaned, kinds = redact(record.content)
-            if kinds:
-                record = record.model_copy(
-                    update={
-                        "content": cleaned,
-                        "content_fingerprint": fingerprint_payload({"content": cleaned}),
-                    }
-                )
-                _log.warning("memory.redacted", namespace=record.namespace, kinds=kinds)
+        record = self._redact_fields(record, fw)
         # Memory Firewall gate (E1/M17): every write of every type passes the
         # deterministic trust/anomaly/instruction assessment BEFORE the door.
         if fw.enabled:
@@ -1813,6 +1814,61 @@ class Engine:
             if factor < 1.0:
                 record = record.model_copy(update={"trust": record.trust * factor})
         return record, verdict
+
+    def _redact_fields(self, record: MemoryRecord, fw: FirewallConfig) -> MemoryRecord:
+        """B8 secrets + #44 PII pack over every text field, and the PII tier.
+
+        Content, entity, attribute and tags are masked when ``redact_secrets`` or
+        ``pii: redact`` is on. ``pii: tag`` leaves the text and adds a
+        ``pii:<kind>`` tag per kind found, raising ``pii_tier`` to at least
+        ``high``. A record written with no tier takes its memory type's
+        ``pii_default_tier`` policy, when one is configured."""
+        update: dict[str, object] = {}
+        kinds: list[str] = []
+        if fw.redact_secrets or fw.pii == "redact":
+            content, found = _screen_text(record.content, fw)
+            if found:
+                update["content"] = content
+                update["content_fingerprint"] = fingerprint_payload({"content": content})
+                kinds.extend(found)
+            for name in ("entity", "attribute"):
+                value = getattr(record, name)
+                if value:
+                    cleaned, found = _screen_text(value, fw)
+                    if found:
+                        update[name] = cleaned
+                        kinds.extend(found)
+            tags: list[str] = []
+            for tag in record.tags:
+                cleaned, found = _screen_text(tag, fw)
+                tags.append(cleaned)
+                kinds.extend(found)
+            if tags != record.tags:
+                update["tags"] = tags
+        if kinds:
+            _log.warning(
+                "memory.redacted", namespace=record.namespace, kinds=list(dict.fromkeys(kinds))
+            )
+            record = record.model_copy(update=update)
+        update = {}
+        tier = record.pii_tier
+        if fw.pii == "tag":
+            fields = [record.content, record.entity or "", record.attribute or "", *record.tags]
+            found_pii = list(dict.fromkeys(k for text in fields for k in find_pii(text)))
+            if found_pii:
+                marks = [f"pii:{kind}" for kind in found_pii]
+                update["tags"] = [*record.tags, *(m for m in marks if m not in record.tags)]
+                tier = max(tier, PiiTier.HIGH, key=_PII_RANK.__getitem__)
+                _log.warning("memory.pii_tagged", namespace=record.namespace, kinds=found_pii)
+        if tier is PiiTier.NONE:
+            default = self._memory_policy(self._config(), record.memory_type).get(
+                "pii_default_tier"
+            )
+            if default:
+                tier = PiiTier(str(default))
+        if tier is not record.pii_tier:
+            update["pii_tier"] = tier
+        return record.model_copy(update=update) if update else record
 
     async def _write_screened(
         self,
