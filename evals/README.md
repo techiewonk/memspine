@@ -111,6 +111,52 @@ The harness **never downloads data**. Put files under `evals/data/` (git-ignored
 | LongMemEval | `xiaowu0162/LongMemEval` → `longmemeval_s.json` | cleaned release is MIT — **verify the file you hold** |
 | LoCoMo-Plus | upstream repo | **no LICENSE file** as of the last check — clear terms before use |
 
+| ConvoMem | HF `Salesforce/ConvoMem` @ `e3e9b39` → `data/convomem/core_benchmark/...` | **CC BY-NC 4.0** (data), Apache-2.0 (code); research only |
+| HaluMem | HF `IAAR-Shanghai/HaluMem` @ `cb04336` → `data/halumem/HaluMem-Medium.jsonl` | **CC BY-NC-ND 4.0**; research only, never redistribute |
+| MemoryAgentBench | HF `ai-hyz/MemoryAgentBench` @ `7ea0669` → `data/mab/Conflict_Resolution.parquet` | MIT |
+| StateMemBench | arXiv 2608.19652 | **unreleased** (registry entry only; no adapter) |
+
+Download commands (run them yourself; the harness and its tests never fetch anything):
+
+```bash
+# ConvoMem: only the evidence_questions tree is used (the full repo is ~27 GB)
+huggingface-cli download Salesforce/ConvoMem --repo-type dataset --revision e3e9b39115b02346824c70d349350de738f8be41     --include "core_benchmark/evidence_questions/*" --local-dir evals/data/convomem
+# HaluMem (Medium; HaluMem-Long.jsonl is 107 MB)
+huggingface-cli download IAAR-Shanghai/HaluMem HaluMem-Medium.jsonl --repo-type dataset     --revision cb04336aa1b732d4b24f5186c552456b4099806e --local-dir evals/data/halumem
+# MemoryAgentBench, Conflict_Resolution split (FactConsolidation)
+huggingface-cli download ai-hyz/MemoryAgentBench data/Conflict_Resolution-00000-of-00001.parquet --repo-type dataset     --revision 7ea066982b140a19337e17e60d45d4076e042faf --local-dir evals/data/mab
+```
+
+The MemoryAgentBench file lands at `evals/data/mab/data/Conflict_Resolution-00000-of-00001.parquet`
+(the name in the HF repo's `data/` listing); move it to `evals/data/mab/Conflict_Resolution.parquet`.
+
+Scoring, as each benchmark defines it:
+
+- **HaluMem** (Memory QA only): an LLM judge labels each answer `Correct`, `Hallucination` or
+  `Omission` against the reference answer and the key memory points (`query.meta["key_memory_points"]`);
+  the official code takes the judge model from `OPENAI_MODEL`, so a run must declare it. The
+  extraction and updating tasks need a system's extracted memory list and are not adapted.
+  There is no turn-level retrieval gold.
+- **ConvoMem**: exact match for user, assistant and changing facts; semantic match for preference
+  and implicit-connection questions (`query.meta["official_metric"]`). The semantic judge is not
+  reproduced here.
+- **MemoryAgentBench FC**: substring match against the answer aliases (`AliasContainsJudge`).
+
+`memspine_evals.datasets.registry` lists every dataset with its source, licence and status;
+`registry.load("statemembench", ...)` raises `DatasetUnavailable`.
+
+## Pre-registered sweeps
+
+`evals/prereg/` holds pre-registrations, committed before their run. G8a
+(`G8a_wrapper_threshold.md`) fixes the grid, metrics and decision rule for
+`integrity.untrusted_wrap_below`; the offline arm is
+
+```bash
+python evals/sweep_wrapper_threshold.py --locomo evals/data/locomo10.json     --out evals/prereg/G8a_wrapper_threshold_results.md
+```
+
+Its paid QA and ASR arms are listed in the pre-registration and are not run without approval.
+
 `--revision auto` labels a file by its own content hash. That is a weaker label than a release name
 and a stronger identifier than the nothing most papers record.
 

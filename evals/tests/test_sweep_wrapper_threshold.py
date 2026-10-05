@@ -23,7 +23,9 @@ def _module():  # type: ignore[no-untyped-def]
 
 def _row(mod, t: float, pt_raw: int, ua: tuple[int, int, int]):  # type: ignore[no-untyped-def]
     row = mod.Row(t)
-    row.fixture_states = {f"f{i}": ("raw" if i < pt_raw else "untrusted_wrapped") for i in range(10)}
+    row.fixture_states = {
+        f"f{i}": ("raw" if i < pt_raw else "untrusted_wrapped") for i in range(10)
+    }
     row.u = {"U_a": ua, "U_b": ua}
     return row
 

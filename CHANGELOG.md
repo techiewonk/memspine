@@ -4,6 +4,9 @@ All notable changes to memspine are documented here. Format: [Keep a Changelog](
 
 ## [Unreleased]
 
+### Added — Wave 4 evals (2026-10-05)
+- **evals only (#65 offline, #71, #73):** HaluMem Memory-QA adapter, ConvoMem `official_metric` tags and a fixture test, a dataset registry listing StateMemBench as unreleased, an offline MemoryAgentBench FactConsolidation smoke run, and the G8a pre-registered `untrusted_wrap_below` sweep (`evals/prereg/`, `evals/sweep_wrapper_threshold.py`). No engine change.
+
 ### Added — Wave 1 read path and prompt levers (2026-10-05)
 - **#58 relative-week mode (opt-in, `read.relative_week: preceding_7_days`):** with `resolve_relative_dates`, "last/past week" and "next week" resolve to the seven days before / after the record's own day (LoCoMo's "the week before <session date>") instead of the calendar week; every other phrase is unchanged. `calendar` stays the default.
 - **#29 happened dates on mined facts (opt-in):** `consolidation.mine_evidence_turns` numbers the miner's transcript lines and makes a fact's parents the turns it cites (`ExtractedFact.turns`); `consolidation.mine_event_dates` tags each fact `happened:<date>` from the H1 resolution of a relative phrase in the fact or its cited turns (else the miner's `date`); `consolidation.mine_event_dates_llm` adds one batched `extract@dates` call for facts still undated. `read.cards_event_date` renders such a card `[said d1 · happened d2]` when the two differ.
