@@ -38,10 +38,12 @@ __all__ = [
 AppendEvent = Callable[[MemoryEvent], Awaitable[None]]
 
 #: Relation types reserved for system-written links (ADR-015 §2): provenance
-#: (``derived_from``) and reorganize community membership (``community``).
+#: (``derived_from``), reorganize community membership (``community``) and
+#: entity mentions (``mentions``).
 #: Budget-exempt, never prunable — and therefore refused from callers, or the
 #: exemption becomes a forgeable unbounded-fan-out bypass.
-RESERVED_RELS = frozenset({"derived_from", "community"})
+#: GP-2 adds ``mentions`` (record -> entity node, projected from WRITE payloads).
+RESERVED_RELS = frozenset({"derived_from", "community", "mentions"})
 
 
 def live_links(edges: list[GraphEdge]) -> list[GraphEdge]:

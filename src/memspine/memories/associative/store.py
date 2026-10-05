@@ -9,7 +9,8 @@ projection this module reads, never writes directly.
 from __future__ import annotations
 
 import math
-from collections.abc import Awaitable, Callable
+import re
+from collections.abc import Awaitable, Callable, Sequence
 from typing import Any, ClassVar, Protocol
 
 from memspine.config.constants import LINK_BUDGET, SEARCH_TOP_K
@@ -17,11 +18,17 @@ from memspine.core.events import EventKind, MemoryEvent
 from memspine.core.records import MemoryRecord, RecordStatus
 from memspine.exceptions import ConfigError, ConflictError
 from memspine.memories.associative import links as link_rules
+from memspine.memories.associative.entities import (
+    MENTIONS_REL,
+    canonical_entity,
+    is_entity_node,
+    parse_entity_node,
+)
 from memspine.memories.associative.ppr import personalized_pagerank
 from memspine.memories.base import BaseMemory
 from memspine.observability.logging import EVENT_LINK, EVENT_RETRIEVE, get_logger
 from memspine.services.embedding.base import EmbeddingService
-from memspine.services.graph.base import GraphEdge, GraphStore
+from memspine.services.graph.base import GraphEdge, GraphStore, capped_neighbors
 from memspine.services.lexical.base import LexicalHit, rrf_fuse
 from memspine.services.vector.base import VectorStore
 
@@ -33,6 +40,23 @@ AppendEvent = Callable[[MemoryEvent], Awaitable[None]]
 
 #: E1 traversal strategies for ``related`` (amends D-49).
 _STRATEGIES = frozenset({"ppr", "bfs", "rrf"})
+
+#: GP-3: may a graph walk enter this record node? (trust caps, GP-10)
+Admit = Callable[[MemoryRecord], bool]
+
+_WORD = re.compile(r"\w+")
+
+
+def match_key(text: str) -> str:
+    """The form entity names and query n-grams are compared in: the canonical
+    name's words, punctuation dropped ("Charlotte's Web" -> "charlotte s web")."""
+    return " ".join(_WORD.findall(canonical_entity(text)))
+
+
+def _without_mentions(edges: list[GraphEdge]) -> list[GraphEdge]:
+    """GP-2 entity edges are not associations: ``related`` and the reorganizer
+    see exactly the graph they saw before the entity layer."""
+    return [edge for edge in edges if edge.rel_type != MENTIONS_REL]
 
 
 class AssociativeStore(Protocol):
@@ -194,19 +218,22 @@ class AssociativeMemory(BaseMemory):
         depth = int(policy.get("depth", 2))
         # KB-1: PPR and BFS stay inside the seed's namespace — another tenant's
         # edges are never scanned, let alone walked.
-        graph_ids = [
-            rid
-            for rid, _ in personalized_pagerank(await self._graph.edge_list(namespace), {record_id})
-        ]
+        raw = await self._graph.edge_list(namespace)
+        edges = _without_mentions(raw)
+        graph_ids = [rid for rid, _ in personalized_pagerank(edges, {record_id})]
         if strategy == "ppr":
             return graph_ids
         if strategy == "bfs":
             raw_degree = policy.get("max_degree")
+            max_degree = int(raw_degree) if raw_degree is not None else None
+            if len(edges) != len(raw):
+                # GP-2: walk the association edges only, as before the entity layer.
+                return _bfs(edges, record_id, max(1, depth), max_degree)
             nodes = await self._graph.neighbors(
                 record_id,
                 depth=max(1, depth),
                 namespace=namespace,
-                max_degree=int(raw_degree) if raw_degree is not None else None,
+                max_degree=max_degree,
             )
             return [node.node_id for node in nodes]
         # rrf: fuse the graph rank with a vector-similarity rank of the seed.
@@ -225,6 +252,102 @@ class AssociativeMemory(BaseMemory):
         # The seed is its own nearest vector neighbor — never return it (PPR/BFS
         # already exclude it, so this keeps rrf consistent).
         return [rid for rid, _ in fused if rid != record_id]
+
+    # -- GP-2/GP-3: the entity layer, read side ---------------------------------
+
+    async def entity_index(self, namespace: str) -> dict[str, list[str]]:
+        """``match_key(name)`` -> the entity node ids that a live ``mentions`` edge
+        in ``namespace`` points at."""
+        index: dict[str, list[str]] = {}
+        for edge in await self._graph.edge_list(namespace):
+            if edge.rel_type != MENTIONS_REL or edge.weight <= 0:
+                continue
+            parsed = parse_entity_node(edge.dst)
+            if parsed is None or parsed[0] != namespace:
+                continue
+            nodes = index.setdefault(match_key(parsed[1]), [])
+            if edge.dst not in nodes:
+                nodes.append(edge.dst)
+        return index
+
+    async def entities_of(self, namespace: str, record_ids: Sequence[str]) -> list[str]:
+        """The entity nodes the records mention (live edges), in record order."""
+        found: list[str] = []
+        for record_id in record_ids:
+            for edge in await self._graph.edges_of(record_id):
+                if (
+                    edge.rel_type == MENTIONS_REL
+                    and edge.src == record_id
+                    and edge.weight > 0
+                    and _entity_in(edge.dst, namespace)
+                    and edge.dst not in found
+                ):
+                    found.append(edge.dst)
+        return found
+
+    async def seed_expand(
+        self,
+        namespace: str,
+        seeds: Sequence[str],
+        *,
+        depth: int,
+        admit: Admit,
+        max_degree: int | None = None,
+    ) -> list[tuple[MemoryRecord, int]]:
+        """GP-3: the records a walk from entity ``seeds`` reaches, nearest first.
+
+        ``depth`` counts entity hops (entity -> record -> entity is one), so the
+        graph walk goes ``2 x depth - 1`` edges: depth 1 is the seeds' own records,
+        depth 2 adds the records of the entities those records name. Returned with
+        their graph hop count, in BFS order (per node, strongest edge first, then
+        id, capped at ``max_degree``).
+
+        GP-10: the walk stays in ``namespace``, never follows a tombstoned edge,
+        and never enters a record ``admit`` refuses (quarantined, erased, below the
+        trust floor): such a node is a dead end, so nothing behind it is reached
+        through it. Entity nodes of another namespace are never entered either.
+        """
+        hops_total = 2 * max(1, depth) - 1
+        starts = [s for s in dict.fromkeys(seeds) if _entity_in(s, namespace)]
+        if not starts:
+            return []
+        edges = await self._graph.subgraph(starts, hops_total, namespace=namespace)
+        adjacency: dict[str, list[GraphEdge]] = {}
+        for edge in edges:
+            if edge.weight <= 0 or edge.src == edge.dst:
+                continue
+            adjacency.setdefault(edge.src, []).append(edge)
+            adjacency.setdefault(edge.dst, []).append(edge)
+        records: dict[str, MemoryRecord | None] = {}
+
+        async def enterable(node_id: str) -> bool:
+            if is_entity_node(node_id):
+                return _entity_in(node_id, namespace)
+            if node_id not in records:
+                record = await self._storage.get_record(node_id)
+                ok = record is not None and record.namespace == namespace and admit(record)
+                records[node_id] = record if ok else None
+            return records[node_id] is not None
+
+        seen = set(starts)
+        frontier = starts
+        reached: list[tuple[MemoryRecord, int]] = []
+        for hop in range(1, hops_total + 1):
+            next_frontier: list[str] = []
+            for node in frontier:
+                live = [e for e in adjacency.get(node, []) if await enterable(_other(e, node))]
+                for other in capped_neighbors(live, node, max_degree):
+                    if other in seen:
+                        continue
+                    seen.add(other)
+                    next_frontier.append(other)
+                    record = records.get(other)
+                    if record is not None:
+                        reached.append((record, hop))
+            if not next_frontier:
+                break
+            frontier = next_frontier
+        return reached
 
     async def prune_weakest(self, namespace: str, record_id: str) -> GraphEdge | None:
         """Free one budget slot on ``record_id`` (weakest live link retired
@@ -265,3 +388,38 @@ class AssociativeMemory(BaseMemory):
             if edge.rel_type == rel and {edge.src, edge.dst} == {src_id, dst_id}:
                 return edge
         return None
+
+
+def _other(edge: GraphEdge, node: str) -> str:
+    return edge.dst if edge.src == node else edge.src
+
+
+def _entity_in(node_id: str, namespace: str) -> bool:
+    parsed = parse_entity_node(node_id)
+    return parsed is not None and parsed[0] == namespace
+
+
+def _bfs(edges: list[GraphEdge], start: str, depth: int, max_degree: int | None) -> list[str]:
+    """Breadth-first over ``edges`` (live, undirected): nearest first, then by id
+    within a hop, each node following its ``max_degree`` strongest neighbours,
+    the rule every adapter's ``neighbors`` implements."""
+    adjacency: dict[str, list[GraphEdge]] = {}
+    for edge in edges:
+        adjacency.setdefault(edge.src, []).append(edge)
+        adjacency.setdefault(edge.dst, []).append(edge)
+    seen = {start}
+    frontier = [start]
+    found: list[str] = []
+    for _ in range(depth):
+        level: set[str] = set()
+        for node in frontier:
+            for other in capped_neighbors(adjacency.get(node, []), node, max_degree):
+                if other not in seen:
+                    level.add(other)
+        if not level:
+            break
+        ordered = sorted(level)
+        seen.update(ordered)
+        found.extend(ordered)
+        frontier = ordered
+    return found
