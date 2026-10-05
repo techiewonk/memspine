@@ -295,3 +295,23 @@ parity hold.
   graph leg (query names, else the entities of the best 3 hits) belongs to;
   admitted parents pass the graph admission gate and, with `graph_leg` on, join the
   graph leg. The gate covers search-based reads; `related()` is unchanged.
+
+## Amendment (2026-10-06): review fixes (fix/graph-review)
+
+- **Collapse guard judges growth; a collapse never locks incremental mode.** A
+  full Leiden run is not collapse-guarded, so it can legitimately produce a
+  community above `COMMUNITY_COLLAPSE_SHARE` (a dense core). With a previous
+  partition the guard now also requires the largest community to exceed the
+  previous largest (over live nodes) by more than `COMMUNITY_COLLAPSE_GROWTH`
+  (0.25) of it. A collapsed incremental run falls through to a full run, and a
+  collapsed run still records its `community_partition` marker (no membership
+  change, sleeps + 1), so `refresh_every` always fires.
+- **Resolution decisions are keyed by every cited record.** A session-level
+  fact cites several turns (#20); its `entity_resolved` decision was keyed only
+  by the least trusted cited turn, so hard-forgetting the turn that actually
+  named the entity left the alias (rebuilt on replay) while `verify_forget`
+  reported clean. Each decision is now one record-shaped entry per cited turn
+  sharing a `group` index, and `SessionIndex` folds the alias only while every
+  entry of the group is intact: erasing any cited turn erases the decision.
+  Logs written before the change fold as before (an entry without a group is
+  its own decision).

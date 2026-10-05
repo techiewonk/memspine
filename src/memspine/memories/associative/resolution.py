@@ -16,7 +16,10 @@ entities the namespace already knows before its fact is written, so "Mel" and
    a string match and skips step 5.
 5. **MinHash**: a high-entropy name whose character-shingle Jaccard with a
    candidate reaches :data:`~memspine.config.constants.ENTITY_RESOLVE_JACCARD`
-   is that candidate (spelling variants).
+   is that candidate (spelling variants) — unless the two names differ only by
+   a generational suffix or a number ("Thompson II" / "III") or in one token by
+   a trailing "s" ("William" / "Williams"): such a pair is a different entity
+   as often as not and is left to step 6.
 6. **LLM** (``resolve: llm`` only): the names still unresolved go to the
    ``resolve_entity@batch`` prompt in one call (chunks of
    :data:`~memspine.config.constants.ENTITY_RESOLVE_LLM_BATCH`), each with its
@@ -128,6 +131,23 @@ def name_jaccard(a: str, b: str) -> float:
     return float(_minhash(a).jaccard(_minhash(b)))
 
 
+def _distinct_variants(a: str, b: str) -> bool:
+    """Two canonical names a string match must not merge: their token sets
+    differ only by generational suffixes or numbers, or by one token each that
+    differ only by a trailing "s" (near surnames)."""
+    ta = {t.strip(".,") for t in a.split()} - {""}
+    tb = {t.strip(".,") for t in b.split()} - {""}
+    only_a, only_b = ta - tb, tb - ta
+    if not only_a and not only_b:
+        return False
+    if all(t in constants.ENTITY_RESOLVE_GENERATIONAL or t.isdigit() for t in only_a | only_b):
+        return True
+    if len(only_a) == 1 and len(only_b) == 1:
+        [x], [y] = only_a, only_b
+        return x + "s" == y or y + "s" == x
+    return False
+
+
 def _exact_jaccard(a: str, b: str) -> float:
     sa, sb = _shingles(a), _shingles(b)
     union = sa | sb
@@ -181,9 +201,10 @@ class EntityResolver:
             if not candidates:
                 results[i] = Resolution(name, None, "new")
                 continue
-            if high_entropy(canonical):
+            mergeable = [c for c in candidates if not _distinct_variants(canonical, c.canonical)]
+            if high_entropy(canonical) and mergeable:
                 best = max(
-                    candidates, key=lambda c: (name_jaccard(canonical, c.canonical), c.display)
+                    mergeable, key=lambda c: (name_jaccard(canonical, c.canonical), c.display)
                 )
                 if name_jaccard(canonical, best.canonical) >= constants.ENTITY_RESOLVE_JACCARD:
                     results[i] = self._guard(name, trust, best, "minhash")

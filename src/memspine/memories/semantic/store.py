@@ -316,8 +316,15 @@ class SemanticMemory(BaseMemory):
         """
         interval = bool(getattr(self._conflict, "interval_order", False))
         # #19 candidate split: the same edge restated (same key and endpoints) is a
-        # duplicate of the current fact, never a contradiction of it.
-        if interval and self._conflict.same_endpoints(incoming, existing):
+        # duplicate of the current fact, never a contradiction of it. The R1
+        # trust gate applies first: a markedly less trusted restatement is a
+        # rejected write (NOOP below), never a merge that reinforces the fact
+        # or widens its governance tags.
+        if (
+            interval
+            and self._conflict.same_endpoints(incoming, existing)
+            and not self._conflict.trust_gated(incoming, existing)
+        ):
             return await self._merge(existing, incoming)
         verdict = self._conflict.resolve(incoming, existing)
         #: #19: the world-time end a superseded/retracted fact gets (None = off).

@@ -68,6 +68,28 @@ async def test_high_entropy_spelling_variant_merges_by_minhash() -> None:
     assert (out.method, out.target) == ("minhash", "Nothing Is Impossible")
 
 
+@pytest.mark.parametrize(
+    ("known", "name"),
+    [
+        ("Michael Thompson II", "Michael Thompson III"),
+        ("John Smith", "John Smith Jr"),
+        ("Christopher William", "Christopher Williams"),
+        ("Apollo 11", "Apollo 13"),
+    ],
+)
+async def test_near_names_that_name_different_people_never_merge_by_minhash(
+    known: str, name: str
+) -> None:
+    """fix/graph-review #4: a generational suffix, a number, or one token
+    differing by a trailing "s" is a different entity as often as not, so the
+    pair never merges deterministically: rules mode keeps it new, llm mode asks."""
+    [out] = await EntityResolver(_known(known), {}).resolve([(name, 1.0)])
+    assert (out.method, out.target) == ("new", None)
+    llm = CountingResolver({name: known})
+    [asked] = await EntityResolver(_known(known), {}, llm=llm).resolve([(name, 1.0)])
+    assert len(llm.calls) == 1 and (asked.method, asked.target) == ("llm", known)
+
+
 async def test_low_entropy_names_skip_minhash_and_go_to_one_batched_call() -> None:
     assert not high_entropy("mel") and not high_entropy("jo")
     llm = CountingResolver({"Mel": "Melanie", "Jo": "Joanna"})
@@ -368,5 +390,77 @@ async def test_engine_binds_the_batched_prompts() -> None:
         out = await ctx.summarize_entities([("Melanie", ["[2023-05-01] Melanie read Dune"])])
         assert out == {1: "Melanie read Dune."}
         assert "[1] Melanie\n- [2023-05-01] Melanie read Dune" in summary_llm.seen[0][-1]["content"]
+    finally:
+        await eng.stop()
+
+
+# ── erasure of session-level decisions (fix/graph-review #2) ──────────────────
+
+
+@pytest.mark.parametrize("forget", ["lowest", "highest"])
+async def test_forgetting_any_cited_turn_erases_a_session_decision(forget: str) -> None:
+    """A session-level edge cites several turns; its ``entity_resolved`` decision
+    is keyed by every cited turn, so hard-forgetting ANY of them (not just the
+    least trusted "owner") erases the decision: the alias is gone after a
+    rebuild and ``verify_forget`` is clean."""
+    from memspine.core.events import EventKind, MemoryEvent
+
+    eng = Engine(
+        template="core",
+        dotenv_path=None,
+        storage={"path": ":memory:"},
+        embedding={"provider": "hash"},
+        memories={
+            "semantic": {
+                "enabled": True,
+                "policies": {"extract_graph": {"resolve": "llm", "granularity": "session"}},
+            },
+            "episodic": {"enabled": True},
+            "associative": {"enabled": True, "policies": {"entity_nodes": True}},
+        },
+    )
+    await eng.start()
+    try:
+        await _melanie(eng)
+        turns = [
+            await eng.write(
+                text, namespace="a", memory_type="episodic", valid_from=T0 + timedelta(i + 1)
+            )
+            for i, text in enumerate(["we talked about her weekend", "Mel went hiking"])
+        ]
+        ctx = eng._pipeline_ctx()
+        assert ctx.append_event is not None
+        await ctx.append_event(
+            MemoryEvent(
+                kind=EventKind.CONSOLIDATE,
+                namespace="a",
+                actor="system",
+                payload={"session_key": "s1", "member_record_ids": [t.record_id for t in turns]},
+            )
+        )
+
+        async def session_extract(_content: str, _context: object = None) -> list[ExtractedEdge]:
+            edge = _edge("Mel", "went", "hiking trip", "Mel went hiking")
+            return [edge.model_copy(update={"episode_indices": [1, 2]})]
+
+        ctx.extract_session_edges = session_extract
+        ctx.extract_edges = _edges({})
+        ctx.resolve_entities = CountingResolver({"Mel": "Melanie"})
+        stats = await extract_graph(ctx)
+        assert stats["resolved"] == 1, stats
+        storage = eng._require_started()
+        index = SessionIndex()
+        await index.refresh(storage)
+        assert index.entity_aliases["a"] == {"mel": "melanie"}
+
+        ids = sorted(t.record_id for t in turns)
+        victim = ids[0] if forget == "lowest" else ids[-1]
+        await eng.forget(victim, namespace="a", hard=True)
+        await eng.rebuild()
+        index = SessionIndex()
+        await index.refresh(storage)
+        assert index.entity_aliases.get("a", {}) == {}
+        report = await eng.verify_forget(victim, namespace="a")
+        assert report["log_retained_fields"] == [] and report["clean"] is True
     finally:
         await eng.stop()

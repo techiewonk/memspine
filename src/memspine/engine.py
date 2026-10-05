@@ -1767,7 +1767,7 @@ class Engine:
         else those of the best ``GRAPH_LEG_FALLBACK_HITS`` candidates) through
         :meth:`AssociativeMemory.graph_proximity` (``distance`` or ``ppr``). The
         episode-mentions boost is ``log(1 + n) / log(1 + n_max)`` over the
-        candidates' ``edge_source:`` provenance counts ``n`` (GR-9). Each boost
+        candidates' admitted ``edge_source:`` provenance counts ``n`` (GR-9). Each boost
         ``b`` in [0, 1] lifts relevance ``r`` to ``r + w * b * (1 - r)``, so a
         candidate with no boost keeps its score; the stable re-sort keeps ties in
         their fused order. Failures leave the candidates as they were (an
@@ -1793,9 +1793,8 @@ class Engine:
             except Exception as exc:  # an enhancer, never a gate
                 _log.warning("read.graph_rerank_failed", namespace=ns, error=str(exc))
                 proximity = {}
-        prefix = constants.EDGE_SOURCE_TAG_PREFIX
         mentions = {
-            record.record_id: sum(1 for tag in record.tags if tag.startswith(prefix))
+            record.record_id: await self._admitted_edge_sources(ns, record)
             for record, _ in candidates
         }
         top = max(mentions.values(), default=0)
@@ -1915,6 +1914,24 @@ class Engine:
         lines: Mapping[str, tuple[MemoryRecord, str]],
     ) -> list[tuple[MemoryRecord, str]]:
         return sorted(lines.values(), key=lambda v: chrono_key(v[0]))
+
+    async def _admitted_edge_sources(self, ns: str, fact: MemoryRecord) -> int:
+        """#22: the ``edge_source:`` episodes of ``fact`` a graph walk may enter
+        (:meth:`_graph_admit`: live, unquarantined, at least
+        ``read.graph_min_trust``). A forgotten, quarantined or low-trust source
+        lends the rerank's episode-mentions boost nothing."""
+        prefix = constants.EDGE_SOURCE_TAG_PREFIX
+        ids = [t[len(prefix) :] for t in fact.tags if t.startswith(prefix)]
+        if not ids:
+            return 0
+        storage = self._require_started()
+        admit = self._graph_admit(ns)
+        count = 0
+        for record_id in dict.fromkeys(ids):
+            source = await storage.get_record(record_id)
+            if source is not None and admit(source):
+                count += 1
+        return count
 
     async def _edge_sources(self, storage: SqlStorage, fact: MemoryRecord) -> int:
         """GR-9: the live episodes stating ``fact``: its parents and the episodes
