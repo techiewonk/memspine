@@ -53,35 +53,58 @@ _ITEM = re.compile(r"^\s*-\s+([A-Za-z_][\w-]*):\s?(.*)$")
 _FIELD = re.compile(r"^\s+([A-Za-z_][\w-]*):\s?(.*)$")
 
 
-def _scalar(value: str) -> str:
+#: Plain YAML scalars that mean null (an unquoted empty value included).
+_NULLS = frozenset({"", "~", "null", "Null", "NULL"})
+
+
+def _scalar(value: str) -> str | None:
+    """A field value: quotes removed, YAML's null spellings mapped to ``None``
+    (a quoted ``"null"`` stays the string)."""
     value = value.strip()
     if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
-        value = value[1:-1]
-    return value
+        return value[1:-1]
+    return None if value in _NULLS else value
 
 
-def _lenient_yaml_items(text: str) -> dict[str, list[dict[str, str]]] | None:
+def _indent(line: str) -> int:
+    return len(line) - len(line.lstrip())
+
+
+def _lenient_yaml_items(text: str) -> dict[str, list[dict[str, str | None]]] | None:
     """Salvage the ``key:`` + list-of-flat-mappings shape every structured prompt
-    answers in (``facts:``, ``cues:``, ``labels:`` ...). Values stay strings and
-    pydantic coerces them. Returns None for any other shape."""
-    out: dict[str, list[dict[str, str]]] = {}
+    answers in (``facts:``, ``cues:``, ``labels:`` ...). Values stay strings (or
+    ``None`` for YAML nulls) and pydantic coerces them.
+
+    Returns None for any other shape, including a nested list or mapping under
+    a field (a line deeper than the item's fields that opens a ``- `` entry or a
+    ``key:``), so the caller falls through to json-repair instead of folding
+    the structure into text."""
+    out: dict[str, list[dict[str, str | None]]] = {}
     key: str | None = None
-    item: dict[str, str] | None = None
+    item: dict[str, str | None] | None = None
+    field_indent = 0
     for line in text.splitlines():
         if not line.strip() or line.lstrip().startswith("#"):
             continue
+        depth = _indent(line)
+        nested = item is not None and depth > field_indent
         if m := _TOP.match(line):
             key = m.group(1)
             out[key] = []
             item = None
+        elif nested and (line.lstrip().startswith("- ") or _FIELD.match(line)):
+            return None  # B-4: structure under a field, not a flat mapping
         elif (m := _ITEM.match(line)) and key is not None:
             item = {m.group(1): _scalar(m.group(2))}
+            field_indent = m.start(1)
             out[key].append(item)
         elif (m := _FIELD.match(line)) and item is not None:
             item[m.group(1)] = _scalar(m.group(2))
         elif item is not None and line.startswith((" ", "\t")):
             last = next(reversed(item))  # continuation of a wrapped value
-            item[last] = f"{item[last]} {_scalar(line)}".strip()
+            if item[last] is None:
+                return None  # a block value under an empty field
+            item[last] = f"{item[last]} {line.strip()}".strip()
         else:
             return None
     return out or None

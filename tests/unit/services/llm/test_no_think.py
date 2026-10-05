@@ -89,8 +89,33 @@ async def test_no_think_explicit_override(monkeypatch: pytest.MonkeyPatch) -> No
         ("  plain reply  ", "  plain reply  "),  # untouched without think tags
     ],
 )
-def test_strip_think(raw: str, clean: str) -> None:
-    assert strip_think(raw) == clean
+def test_strip_think_lenient(raw: str, clean: str) -> None:
+    assert strip_think(raw, lenient=True) == clean
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "use the <think> tag to open a block",
+        "close it with </think> at the end",
+        "x <think>b</think> y",
+    ],
+)
+def test_strip_think_keeps_quoted_tags(raw: str) -> None:
+    """B-3: outside thinking models only a leading block is reasoning."""
+    assert strip_think(raw) == raw
+
+
+def test_strip_think_strips_leading_block_for_any_model() -> None:
+    assert strip_think("  <think>a</think>\nanswer") == "answer"
+
+
+async def test_quoted_think_tag_survives_non_thinking_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    reply = "Write </think> to end a block."
+    _capture(monkeypatch, reply)
+    assert await LiteLLMLLM("openai/gpt-4o").chat([{"role": "user", "content": "q"}]) == reply
 
 
 async def test_think_block_stripped_for_every_model(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -161,3 +186,76 @@ async def test_engine_binds_no_think_from_config(monkeypatch: pytest.MonkeyPatch
         }
     finally:
         await eng.stop()
+
+
+def _fake_llama(monkeypatch: pytest.MonkeyPatch, reply: str) -> list[list[dict[str, str]]]:
+    import sys
+    import types
+
+    seen: list[list[dict[str, str]]] = []
+
+    class Llama:
+        def __init__(self, **kwargs: Any) -> None:
+            pass
+
+        def create_chat_completion(self, messages: Any, **options: Any) -> dict[str, Any]:
+            seen.append(messages)
+            return {"choices": [{"message": {"content": reply}}]}
+
+    module = types.ModuleType("llama_cpp")
+    module.Llama = Llama  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "llama_cpp", module)
+    return seen
+
+
+async def test_llama_cpp_strips_think_and_parses(monkeypatch: pytest.MonkeyPatch) -> None:
+    """B-7: the in-process provider strips a think block like the LiteLLM one."""
+    from memspine.services.llm.llama_cpp import LlamaCppLLM
+
+    _fake_llama(monkeypatch, "<think>x</think>facts: []")
+    reply = await LlamaCppLLM(model_path="m.gguf").chat([{"role": "user", "content": "q"}])
+    assert reply == "facts: []"
+    parsed = ExtractedFacts.model_validate(_parse_payload(reply, PromptFormat.YAML))
+    assert parsed.facts == []
+
+
+async def test_llama_cpp_honours_no_think(monkeypatch: pytest.MonkeyPatch) -> None:
+    from memspine.services.llm.llama_cpp import LlamaCppLLM
+
+    seen = _fake_llama(monkeypatch, "ok")
+    await LlamaCppLLM(model_path="Qwen3-8B-Q4.gguf").chat([{"role": "user", "content": "q"}])
+    await LlamaCppLLM(model_path="m.gguf", no_think=True).chat([{"role": "user", "content": "q"}])
+    await LlamaCppLLM(model_path="m.gguf").chat([{"role": "user", "content": "q"}])
+    assert [s[-1]["content"] for s in seen] == ["q /no_think", "q /no_think", "q"]
+
+
+def test_lenient_yaml_maps_nulls_to_none() -> None:
+    """B-4: ``null``, ``~`` and empty values salvage as None, not strings."""
+    from memspine.services.llm.structured import _lenient_yaml_items
+
+    text = (
+        "facts:\n"
+        "  - entity: ana\n"
+        "    attribute: null\n"
+        "    value: met at 10: 30\n"
+        "  - entity: bo\n"
+        "    attribute: ~\n"
+        "    when:\n"
+        "    note: 'null'\n"
+    )
+    assert _lenient_yaml_items(text) == {
+        "facts": [
+            {"entity": "ana", "attribute": None, "value": "met at 10: 30"},
+            {"entity": "bo", "attribute": None, "when": None, "note": "null"},
+        ]
+    }
+
+
+def test_lenient_yaml_refuses_nested_lists() -> None:
+    """B-4: structure under a field is not folded into text; salvage gives up."""
+    from memspine.services.llm.structured import _lenient_yaml_items
+
+    text = "facts:\n  - entity: ana\n    aliases:\n      - Annie\n      - A\n"
+    assert _lenient_yaml_items(text) is None
+    mapping = "facts:\n  - entity: ana\n    meta:\n      source: chat\n"
+    assert _lenient_yaml_items(mapping) is None

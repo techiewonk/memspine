@@ -5346,7 +5346,9 @@ class Engine:
             if model.startswith("llamacpp/"):
                 from memspine.services.llm.llama_cpp import LlamaCppLLM
 
-                providers[role] = LlamaCppLLM(model_path=model[len("llamacpp/") :])
+                providers[role] = LlamaCppLLM(
+                    model_path=model[len("llamacpp/") :], no_think=role_config.no_think
+                )
             elif model:
                 from memspine.services.llm.litellm_llm import LiteLLMLLM
 
