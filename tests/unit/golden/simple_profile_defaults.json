@@ -7,6 +7,7 @@
     "firewall": {
       "enabled": true,
       "max_content_chars": null,
+      "pii": "off",
       "protected_keys": [],
       "redact_secrets": false,
       "skip_injected_recall": false,

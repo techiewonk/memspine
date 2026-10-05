@@ -487,7 +487,9 @@ class FirewallConfig(BaseModel):
     - ``enabled``: ``false`` keeps trust scoring but disables flagging, anomaly
       checks and quarantine: the N1 ablation arm. Never use it in production.
     - ``redact_secrets``: replace cloud keys, tokens, JWTs, private keys,
-      ``key=value`` credentials and emails with ``[REDACTED:<kind>]`` at write.
+      ``key=value`` credentials and emails with ``[REDACTED:<kind>]`` at write,
+      in content, entity, attribute and tags.
+    - ``pii``: the PII pack, ``off`` | ``redact`` | ``tag`` (see the field).
     - ``max_content_chars``: a non-privileged write longer than this is
       quarantined (size anomaly, a common bulk-injection signature).
     - ``protected_keys``: fact keys (``entity`` or ``entity.attribute``) only an
@@ -498,6 +500,11 @@ class FirewallConfig(BaseModel):
 
     enabled: bool = True
     redact_secrets: bool = False
+    #: #44 PII pack (phone, Luhn-checked card, US SSN, mod-97 IBAN, IPv4/IPv6) over
+    #: content, entity, attribute and tags. ``redact`` replaces each match with
+    #: ``[REDACTED:<kind>]``; ``tag`` keeps the text, adds ``pii:<kind>`` tags and
+    #: raises the record's ``pii_tier`` to at least ``high``; ``off`` does neither.
+    pii: Literal["off", "redact", "tag"] = "off"
     max_content_chars: int | None = Field(default=None, ge=1)
     protected_keys: list[str] = Field(default_factory=list)
     #: H21 (G->D self-contamination): ``write_messages`` never deposits turns whose role

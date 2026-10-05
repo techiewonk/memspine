@@ -20,6 +20,7 @@ __all__ = [
     "GrantView",
     "PlanRequest",
     "PromoteRequest",
+    "QuarantineDecision",
     "ReflectRequest",
     "RetrieveRequest",
     "ScoredRecord",
@@ -87,6 +88,13 @@ class SkillRequest(_Request):
 
 class PromoteRequest(_Request):
     dry_run_passed: bool = False
+
+
+class QuarantineDecision(_Request):
+    """#3: an operator's review decision on a held record (actor is logged)."""
+
+    actor: str = "operator"
+    reason: str | None = None
 
 
 class PlanRequest(_Request):

@@ -16,7 +16,11 @@ CANONICAL_CONTEXTS: dict[str, dict[str, Any]] = {
         "content": "Alice lives in Berlin and works at Acme.",
         "facts": "[1] Alice moved to Berlin",
     },
-    "relevance": {"question": "Where does Alice live?", "notes": "[0] Alice lives in Berlin"},
+    "relevance": {
+        "question": "Where does Alice live?",
+        "notes": '{"index":0,"text":"Alice lives in Berlin"}',
+        "nonce": "0a1b2c3d4e5f",
+    },
     "anticipate": {"content": "[1] [2026-01-02] Alice: I found out I am allergic to nuts"},
     "judge": {
         "existing_content": "Alice lives in Berlin",

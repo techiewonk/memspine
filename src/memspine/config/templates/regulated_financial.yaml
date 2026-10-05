@@ -19,3 +19,13 @@ memories:
     enabled: true
     policies:
       pii_default_tier: regulated
+
+# Secure defaults (#45): trust-horizon gate, write-door redaction of secrets and
+# PII (phone, card, SSN, IBAN, IP), and the untrusted-data wrapper are on.
+integrity:
+  enabled: true
+  untrusted_wrap_below: 0.5
+
+firewall:
+  redact_secrets: true
+  pii: redact

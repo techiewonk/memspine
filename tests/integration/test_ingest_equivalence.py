@@ -187,7 +187,7 @@ async def _observe_engine(template: str, storage_path: str) -> dict[str, Any]:
             for key in _VOLATILE_EVENT_KEYS:
                 row.pop(key, None)
             event_rows.append(norm(row))
-        records = await engine.retrieve(namespace="conv")
+        records = await engine.retrieve(namespace="conv", include_held=True)
         record_rows = sorted(
             (norm(record.model_dump(mode="json")) for record in records),
             key=lambda row: row["record_id"],
