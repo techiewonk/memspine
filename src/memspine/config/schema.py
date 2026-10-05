@@ -316,6 +316,11 @@ class ReadConfig(BaseModel):
     #: does not route the read: it keeps the default ``replay`` (retrieve when no
     #: hit is episodic). 0.0 = every choice routes (unchanged).
     planner_min_confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    #: #35: with ``planner: llm``, ``v2`` selects the ``plan@v2`` prompt, which also
+    #: writes one or two evidence-seeking subqueries for lookup questions ("Is X
+    #: religious?" -> "church", "faith"); the lookup read then fuses them by RRF as
+    #: extra search legs. ``v1``: unchanged.
+    planner_version: Literal["v1", "v2"] = "v1"
     #: G2c: compose results get the same +-``replay_window`` neighbour expansion as
     #: replay mode (nearest first, within the budget), so routing an aggregation
     #: question to compose no longer loses the turns around each hit.
@@ -342,6 +347,12 @@ class ReadConfig(BaseModel):
     #: "[= a few days before <day>]". Months, years and days are unchanged. Off:
     #: byte-identical.
     relative_dates_anchored: bool = False
+    #: #58: with ``resolve_relative_dates``, the span of "last/past week" and "next
+    #: week": ``calendar`` (the previous / next Monday-to-Sunday week, unchanged) or
+    #: ``preceding_7_days`` (the seven days before / after the record's own day,
+    #: LoCoMo's "the week before <session date>"). Also used by
+    #: ``consolidation.mine_event_dates``.
+    relative_week: Literal["calendar", "preceding_7_days"] = "calendar"
     #: H11: assembly draws from ``candidate_pool x top_k`` search candidates, so
     #: the token budget, not a fixed K, decides how much evidence enters (LoCoMo:
     #: top-10 filled ~400 of 4,096 tokens). 1 = unchanged. Pair with
@@ -385,6 +396,10 @@ class ReadConfig(BaseModel):
     #: cost temporal questions -16; skip the cards header for date questions
     #: (``query_shape.is_temporal``) so the H1-resolved raw turns answer them.
     cards_skip_temporal: bool = False
+    #: #29: a card whose mined fact carries a happened date
+    #: (``consolidation.mine_event_dates``) that differs from the day it was said
+    #: renders ``[said d1 · happened d2]``. Off: byte-identical.
+    cards_event_date: bool = False
     #: G3b: after the cards header, an "about" block of the H14 profile insights
     #: (``consolidation.reflect_profile`` records) on the people the query names, or
     #: the most relevant insights when none matches, within ``profile_budget_share``
@@ -398,6 +413,12 @@ class ReadConfig(BaseModel):
     #: budget, which the read gives up for it. Off: byte-identical.
     count_timeline: bool = False
     count_budget_share: float = Field(default=0.1, gt=0.0, le=1.0)
+    #: #60: with ``count_timeline``, mentions of one event are merged before they are
+    #: listed: a mention's day is the event day its single-day relative phrase names
+    #: ("yesterday", "last Friday", H1 rules), else the day it was said, and two
+    #: mentions on the same event day with high word overlap are one occurrence, even
+    #: when said on different days. Off: byte-identical.
+    count_dedupe: bool = False
 
     @model_validator(mode="after")
     def _header_shares_leave_room(self) -> ReadConfig:

@@ -9,6 +9,7 @@ backbone alone moving a headline by 10.64 points.
 
 from __future__ import annotations
 
+import re
 import time
 from collections.abc import Mapping
 from typing import Any
@@ -94,6 +95,30 @@ DATED2_QA_PROMPT = DATED_QA_PROMPT.replace(
     "Answer in one short sentence.", f"{SAID_HAPPENED_RULE} Answer in one short sentence."
 )
 
+#: #34 (SM-13): brief reasoning, then a final "Answer:" line the reader keeps
+#: (:func:`final_answer`). Mirrors the engine's ``chat@dated3``: quote the specific detail
+#: (48 of combo-A's cat-4 wrong answers paraphrased a gold phrase), dates in the granularity
+#: asked, said vs happened (#29), merge repeated mentions before counting (#60), and no
+#: blanket refusal clause ("Not mentioned" only when nothing bears on the question).
+DATED3_QA_PROMPT = (
+    "Answer the question using only the context below. Each line starts with the date it "
+    'was said, and phrases like "last Friday [= Fri 2023-07-14]" show the absolute date. '
+    "A date in brackets is when it was said; the event may be earlier. A bracketed [= ...] "
+    'after a relative phrase, or the "happened" date of a [said ... \u00b7 happened ...] '
+    "line, is when the event happened: when a question asks when something happened, give "
+    "that date, computed from the line's date, not the date of the conversation. Answer a "
+    'date in the style the question asks: a year for "which year", a month for "which '
+    "month\", a day otherwise; relative to the line's date when the context gives no more "
+    '("the week before 2023-06-09"). Use the specific detail from the context, quoting its '
+    'words (a name, a title, a phrase such as "magical") rather than paraphrasing it. For a '
+    '"how many" question, merge repeated mentions of the same event (the same thing on the '
+    "same date) and count distinct events. First write one or two short sentences of "
+    "reasoning that point at the context lines you use. Then write a final line that starts "
+    'with "Answer:" followed by the short answer only. If nothing in the context bears on '
+    'the question, answer "Not mentioned".\n\n'
+    "Context:\n{context}\n\nQuestion: {question}\nReasoning:"
+)
+
 QA_PROMPTS = {
     "mab_fc": MAB_FC_QA_PROMPT,
     "question_dated": QUESTION_DATED_QA_PROMPT,
@@ -101,9 +126,40 @@ QA_PROMPTS = {
     "dated": DATED_QA_PROMPT,
     "dated2": DATED2_QA_PROMPT,
     "dated_infer": DATED_INFER_QA_PROMPT,
+    "dated3": DATED3_QA_PROMPT,
     "abstain": ABSTAIN_QA_PROMPT,
     "converse": CONVERSE_QA_PROMPT,
 }
+
+#: #34: prompts whose reply reasons first; the reader keeps only the final answer and
+#: gets :data:`REASONING_MAX_TOKENS` so the reasoning cannot truncate the answer.
+REASONING_QA_PROMPTS = frozenset({"dated3"})
+REASONING_MAX_TOKENS = 512
+
+_THINK = re.compile(r"<think>.*?</think>", re.S | re.I)
+_MARKER = re.compile(
+    r"(?:^|(?<=[\s*>#_(\[]))\**\s*(?:final\s+|short\s+)?answer\s*\**\s*[:\uff1a]\s*\**",
+    re.I,
+)
+
+
+def final_answer(text: str) -> str:
+    """#34: the text after the last ``Answer:`` marker, ``<think>`` blocks dropped; a reply
+    without the marker comes back whole (stripped), and only dangling markers give the
+    reply before the first one. Same rules as ``memspine.core.answer.final_answer`` (kept
+    here so the harness core stays stdlib-only)."""
+    cleaned = _THINK.sub("", text)
+    if "</think>" in cleaned.lower():
+        cleaned = re.split(r"</think>", cleaned, flags=re.I)[-1]
+    cleaned = cleaned.strip()
+    matches = list(_MARKER.finditer(cleaned))
+    for match in reversed(matches):
+        answer = cleaned[match.end() :].strip().strip("*").strip()
+        if answer:
+            return answer
+    if matches:
+        return cleaned[: matches[0].start()].strip() or cleaned
+    return cleaned
 
 
 class ContextOnlyReader:
@@ -190,6 +246,7 @@ class OpenAICompatReader:
         timeout: float = 120.0,
         prompt: str = DEFAULT_QA_PROMPT,
         reader_id: str | None = None,
+        extract_answer: bool = False,
     ) -> None:
         try:
             import httpx
@@ -203,6 +260,8 @@ class OpenAICompatReader:
         self.max_tokens = max_tokens
         self.timeout = timeout
         self.prompt = prompt
+        #: #34: keep only the final answer of a reasoning prompt (:func:`final_answer`).
+        self.extract_answer = extract_answer
         self._headers = {"Authorization": f"Bearer {api_key}"}
 
     def describe(self) -> Mapping[str, Any]:
@@ -213,6 +272,7 @@ class OpenAICompatReader:
             "temperature": self.temperature,
             "max_tokens": self.max_tokens,
             "prompt_sha256": __import__("hashlib").sha256(self.prompt.encode()).hexdigest(),
+            **({"extract_answer": True} if self.extract_answer else {}),
         }
 
     async def answer(
@@ -244,8 +304,9 @@ class OpenAICompatReader:
         usage = body.get("usage") or {}
         choice = body["choices"][0]
         finish = str(choice.get("finish_reason") or "")
+        text = choice["message"]["content"].strip()
         return ReaderAnswer(
-            text=choice["message"]["content"].strip(),
+            text=final_answer(text) if self.extract_answer else text,
             prompt_tokens=int(usage.get("prompt_tokens", 0)),
             completion_tokens=int(usage.get("completion_tokens", 0)),
             latency_ms=latency,

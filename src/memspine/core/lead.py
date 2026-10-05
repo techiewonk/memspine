@@ -10,17 +10,19 @@ quarantine, admission, trust); this module only recognises and renders.
 from __future__ import annotations
 
 import re
-from collections.abc import Sequence
-from datetime import datetime
+from collections.abc import Mapping, Sequence
+from datetime import date, datetime
 
 from memspine.config import constants
 from memspine.core.query_shape import core_terms
 from memspine.core.records import MemoryRecord
+from memspine.core.temporal_resolve import WeekMode, resolve
 
 __all__ = [
     "card_line",
     "count_terms",
     "distinct_occurrences",
+    "event_day",
     "is_standing_instruction",
     "mentions_any",
     "mentions_event",
@@ -73,8 +75,17 @@ def timeline_line(record: MemoryRecord, entity: str, until: datetime | None = No
     return line
 
 
-def card_line(record: MemoryRecord, said: datetime | None = None, *, claim: bool = False) -> str:
+def card_line(
+    record: MemoryRecord,
+    said: datetime | None = None,
+    *,
+    claim: bool = False,
+    happened: str | None = None,
+) -> str:
     """G1b: one card, ``[said YYYY-MM-DD] Entity: fact``.
+
+    #29: ``happened`` (a mined fact's happened date, ``read.cards_event_date``) that
+    is not the day it was said renders ``[said YYYY-MM-DD · happened <date>]``.
 
     A mined fact is stored as ``"<entity> <attribute>: <statement>"``; the card
     keeps the entity and the statement. Content without that shape (a wrapped
@@ -94,6 +105,8 @@ def card_line(record: MemoryRecord, said: datetime | None = None, *, claim: bool
     if said is not None:
         # The date the fact was SAID (its earliest source turn): the miner's event
         # date is unreliable, and the source turn carries the resolved event date.
+        if happened and happened != f"{said:%Y-%m-%d}":
+            return f"[said {said:%Y-%m-%d} · happened {happened}] {text}"
         return f"[said {said:%Y-%m-%d}] {text}"
     return text
 
@@ -300,8 +313,20 @@ def _overlap(a: str, b: str) -> float:
     return len(wa & wb) / (len(wa | wb) or 1)
 
 
+def event_day(text: str, said: datetime, week: WeekMode = "calendar") -> date:
+    """#60: the day a mention's event happened: the one single day its relative
+    phrases name ("yesterday", "last Friday"; H1 rules, approximate ones ignored),
+    else the day it was said."""
+    days = {
+        r.first for r in resolve(text, said, week=week) if r.first == r.last and not r.approximate
+    }
+    return next(iter(days)) if len(days) == 1 else said.date()
+
+
 def distinct_occurrences(
     mentions: Sequence[tuple[MemoryRecord, str]],
+    *,
+    event_days: Mapping[str, date] | None = None,
 ) -> list[tuple[MemoryRecord, str]]:
     """E3: one mention per occurrence, oldest first.
 
@@ -310,6 +335,11 @@ def distinct_occurrences(
     their words: a conversation goes on about the same event across turns, and a
     restatement on the same day is the same event. Mentions on different days are
     different occurrences.
+
+    #60 (``read.count_dedupe``): with ``event_days`` (record id -> :func:`event_day`),
+    a mention also repeats a kept one whose EVENT day is the same at that word
+    overlap, even when the two were said on different days ("I went hiking
+    yesterday" on the 15th and "the hike on Friday" on the 20th).
     """
     kept: list[tuple[MemoryRecord, str]] = []
     for record, text in sorted(mentions, key=lambda m: (m[0].valid_from, m[0].record_id)):
@@ -323,6 +353,14 @@ def distinct_occurrences(
             for other, other_text in kept
         ):
             continue
+        if event_days is not None:
+            when = event_days.get(record.record_id, day)
+            if any(
+                event_days.get(other.record_id, other.valid_from.date()) == when
+                and _overlap(text, other_text) >= OCCURRENCE_OVERLAP
+                for other, other_text in kept
+            ):
+                continue
         kept.append((record, text))
     return kept
 

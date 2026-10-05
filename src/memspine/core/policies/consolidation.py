@@ -49,6 +49,23 @@ class ConsolidationOptions(PolicyOptions):
     #: saw nothing else, so the parent set still covers its whole context (A2).
     #: Costs one call per segment instead of one per session.
     mine_by_topic: bool = False
+    #: #27: the ``extract`` prompt condition the miner selects: ``session``
+    #: (``extract@session``, unchanged) or ``session3`` (``extract@session3``: a
+    #: worked example, a complete-coverage rule and a larger output cap, sent as
+    #: the call's ``max_tokens``).
+    mine_prompt: str = "session"
+    #: #29: number the transcript lines (``[n] [YYYY-MM-DD] ...``) so the miner can
+    #: cite the lines a fact comes from (``turns``); a fact that cites valid lines
+    #: gets those turns as parents instead of the whole session (segment).
+    mine_evidence_turns: bool = False
+    #: #29: give each mined fact a happened (event) date, tagged
+    #: ``happened:<date>``: the H1 resolution of a relative phrase in the fact or in
+    #: its cited turns (each against its own date), else the miner's ``date``. A
+    #: deterministic resolution also becomes the fact's event time (``valid_from``).
+    mine_event_dates: bool = False
+    #: #29: with ``mine_event_dates``, one batched ``extract@dates`` call per mined
+    #: batch fills the facts that still have no date (needs the ``extract`` role).
+    mine_event_dates_llm: bool = False
     #: H8: after consolidating a session, ask the ``anticipate`` role (falls back to
     #: ``extract``) for likely future questions and store them as firewall-governed
     #: retrieval cues on the turns that answer them (``Engine.add_cues``), once.

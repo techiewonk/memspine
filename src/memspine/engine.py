@@ -33,8 +33,10 @@ from memspine.clients.sqlite import SQLiteClient
 from memspine.config import constants
 from memspine.config.loader import ResolvedConfig, default_template, load_config
 from memspine.config.schema import MemspineConfig
+from memspine.core.answer import final_answer
 from memspine.core.audit import IntegrityReport, TaintReport, trace_taint, verify_events
 from memspine.core.erasure import payload_retains_content
+from memspine.core.event_date import happened_of, happened_tag
 from memspine.core.events import EventKind, EventLogMode, MemoryEvent, fingerprint_payload
 from memspine.core.firewall import Firewall, FirewallVerdict
 from memspine.core.integrity import IntegrityPolicy
@@ -42,6 +44,7 @@ from memspine.core.lead import (
     card_line,
     count_terms,
     distinct_occurrences,
+    event_day,
     is_standing_instruction,
     mentions_any,
     mentions_event,
@@ -134,6 +137,7 @@ from memspine.prompts.models import (
     ExtractedEdges,
     ExtractedFact,
     ExtractedFacts,
+    FactDates,
     Insights,
     ReadPlan,
     RelevanceLabels,
@@ -1157,6 +1161,19 @@ class Engine:
             cache[reader] = await self._shared.grants_to(reader) if self._shared is not None else {}
         return cache[reader]
 
+    async def _probe_legs(
+        self, ns: str, text: str, vector: list[float], fetch_k: int, lexical: bool
+    ) -> list[list[LegHit]]:
+        """#35: one probe's legs: its vector leg, plus its BM25 leg under hybrid."""
+        legs = [[LegHit(h.record_id, h.score) for h in await self._vector_leg(ns, vector, fetch_k)]]
+        if lexical and self._lexical is not None:
+            try:
+                hits = await self._lexical.search(ns, text, top_k=fetch_k)
+                legs.append([LegHit(h.record_id, 1.0) for h in hits])
+            except Exception as exc:  # an enhancer, never a gate
+                _log.warning("read.probe_leg_failed", namespace=ns, error=str(exc))
+        return [leg for leg in legs if leg]
+
     async def _metadata_legs(self, ns: str, query: str, fetch_k: int) -> list[list[LegHit]]:
         """C3': the non-empty temporal / metadata legs for this query (opt-in)."""
         read = self._config().read
@@ -2032,9 +2049,13 @@ class Engine:
         keep_k: int,
         memory_type: str | None = None,
         hide: Callable[[MemoryRecord], bool] | None = None,
+        probes: Sequence[str] = (),
     ) -> list[tuple[MemoryRecord, float]]:
         """:meth:`search` with ``keep_k``: how many results the caller finally keeps
         (assembly fetches ``candidate_pool x top_k``); the H18 rerank gate uses it.
+
+        ``probes`` (#35, the LLM planner v2's lookup subqueries): each adds a vector
+        leg (and a lexical leg under hybrid) to the RRF fusion. Empty: unchanged.
 
         ``hide`` (G1b/G3b): records a read header already shows leave with the gates,
         before the cut, the rerank, the ``rerank_keep`` cut, the RETRIEVE event and the
@@ -2050,6 +2071,12 @@ class Engine:
         ns = validate_namespace(namespace)
         [query_vector] = await embed_queries(self._embedder, [query])
         use_hybrid = self._config().read.hybrid and self._lexical is not None
+        probe_texts = list(
+            dict.fromkeys(
+                p.strip() for p in probes if p.strip() and p.strip().lower() != query.lower()
+            )
+        )
+        probe_vectors = await embed_queries(self._embedder, probe_texts) if probe_texts else []
         # Hybrid recall (E8/D-25): fetch a wider candidate window per leg so a
         # record ranked just outside a single leg's top_k, but strong when the two
         # legs combine, can still enter the fused top_k.
@@ -2076,6 +2103,8 @@ class Engine:
             else:
                 lexical_hits = []
             extra_legs = await self._metadata_legs(ns, query, fetch_k)
+            for text, vector in zip(probe_texts, probe_vectors, strict=True):
+                extra_legs += await self._probe_legs(ns, text, vector, fetch_k, use_hybrid)
             if use_hybrid or extra_legs:
                 rrf_k = self._config().read.rrf_k or constants.RRF_K
                 fused = rrf_fuse(vector_hits, lexical_hits, k=rrf_k, extra=extra_legs)
@@ -2242,11 +2271,13 @@ class Engine:
         shared: bool = False,
         session_id: str | None = None,
         hide: Callable[[MemoryRecord], bool] | None = None,
+        probes: Sequence[str] = (),
     ) -> AssembledContext:
         """:meth:`assemble` without the reply reserve and the final render (callers
         apply both once, so the replay read can extend the context first).
 
-        ``hide`` (G1b/G3b): candidates a read header already carries leave."""
+        ``hide`` (G1b/G3b): candidates a read header already carries leave.
+        ``probes`` (#35): extra search texts fused into the search as RRF legs."""
         if self._assembly is None:
             raise MemspineError("assembly policy not bound — engine not started?")
         want = top_k * self._config().read.candidate_pool
@@ -2261,7 +2292,7 @@ class Engine:
             # can outrank most raw turns. They leave inside the one search, before the
             # rerank and its ``rerank_keep`` cut, which widen until ``want`` survive.
             scored = await self._search(
-                query, ns, want, session_id=session_id, keep_k=top_k, hide=hide
+                query, ns, want, session_id=session_id, keep_k=top_k, hide=hide, probes=probes
             )
         integrity = self._integrity()
         if integrity.enabled and integrity.trust_weighted_ranking and scored:
@@ -2501,6 +2532,13 @@ class Engine:
         prompt = self._prompts.select("chat", condition=condition)
         return prompt.render({"context": context, "message": message})
 
+    @staticmethod
+    def final_answer(reply: str) -> str:
+        """#34: the short answer of a reply to a reasoning chat prompt (``chat@dated3``):
+        the text after its last ``Answer:`` line, ``<think>`` blocks dropped; a reply
+        without the marker comes back whole (stripped)."""
+        return final_answer(reply)
+
     async def read(
         self,
         query: str,
@@ -2623,6 +2661,7 @@ class Engine:
         planner = read_cfg.planner
         routed = mode == "auto"
         probes: list[str] = []
+        lookup_probes: list[str] = []
         if mode == "auto" and planner == "decision":
             mode = await self._plan_read_mode(query) or mode
         elif mode == "auto" and planner == "llm":
@@ -2631,6 +2670,9 @@ class Engine:
                 # G2a: lookup and replay both read by replay; aggregate by compose.
                 mode = "compose" if plan.mode == "aggregate" else "replay"
                 probes = list(plan.subqueries) if plan.mode == "aggregate" else []
+                if plan.mode != "aggregate" and read_cfg.planner_version == "v2":
+                    # #35: a lookup's subqueries join its search as extra RRF legs.
+                    lookup_probes = list(plan.subqueries[: constants.PLAN_LOOKUP_PROBES])
         if mode == "compose" or (mode == "auto" and is_aggregation(query)):
             # G11: a routed aggregation read pools more candidates (budget-capped).
             k = read_cfg.aggregate_top_k if routed and read_cfg.aggregate_top_k else top_k
@@ -2646,7 +2688,7 @@ class Engine:
                 session_id=session_id,
             )
         base = await self._assemble_core(
-            query, ns, budget_tokens, top_k, session_id=session_id, hide=hide
+            query, ns, budget_tokens, top_k, session_id=session_id, hide=hide, probes=lookup_probes
         )
         episodic_hits = [r for r in base.records if r.memory_type == "episodic"]
         # H6: a mined atomic fact replays the source turn it best matches (its
@@ -2778,14 +2820,17 @@ class Engine:
         kept: list[MemoryRecord] = []
         for record, _ in hits:
             trial = [*kept, self._wrap_for_context(record)]
-            if estimate_tokens(self._cards_text(trial, said, claims)) <= allowance:
+            text = self._cards_text(trial, said, claims, read_cfg.cards_event_date)
+            if estimate_tokens(text) <= allowance:
                 kept = trial
         if not kept:
             return None
         kept.sort(
             key=lambda r: (r.record_id in said, said.get(r.record_id, r.valid_from), r.record_id)
         )
-        block = self._lead_record(ns, self._cards_text(kept, said, claims), kept)
+        block = self._lead_record(
+            ns, self._cards_text(kept, said, claims, read_cfg.cards_event_date), kept
+        )
         return block.model_copy(update={"tags": [constants.LEAD_TAG, constants.CARDS_TAG]})
 
     async def _from_low_trust(self, parents: list[MemoryRecord], threshold: float) -> bool:
@@ -2804,10 +2849,20 @@ class Engine:
         cards: list[MemoryRecord],
         said: dict[str, datetime] | None = None,
         claims: set[str] | None = None,
+        event_dates: bool = False,
     ) -> str:
         dates = said or {}
         flagged = claims or set()
-        lines = (card_line(r, dates.get(r.record_id), claim=r.record_id in flagged) for r in cards)
+        lines = (
+            card_line(
+                r,
+                dates.get(r.record_id),
+                claim=r.record_id in flagged,
+                # #29 (read.cards_event_date): the fact's happened date, when tagged.
+                happened=happened_of(r) if event_dates else None,
+            )
+            for r in cards
+        )
         return "\n".join([constants.CARDS_MARKER, *lines])
 
     async def _profile_section(
@@ -2904,8 +2959,13 @@ class Engine:
             and self._lead_clean(record)
         ]
         found = [(r, text) for r, text in mentions if mentions_event(text, terms)]
+        read_cfg = self._config().read
+        days = None
+        if read_cfg.count_dedupe:  # #60: merge mentions of one event said on other days
+            week = read_cfg.relative_week
+            days = {r.record_id: event_day(text, r.valid_from, week) for r, text in found}
         kept: list[tuple[MemoryRecord, str]] = []
-        for occurrence in distinct_occurrences(found):
+        for occurrence in distinct_occurrences(found, event_days=days):
             trial = [*kept, occurrence]
             if estimate_tokens(render_occurrences(trial)) <= allowance:
                 kept = trial
@@ -3155,8 +3215,13 @@ class Engine:
 
     def _annotate_dates(self, record: MemoryRecord) -> MemoryRecord:
         """H1: ``[= absolute date]`` after each relative-time phrase (projection only)."""
-        anchored = self._config().read.relative_dates_anchored
-        annotated = annotate_relative_dates(record.content, record.valid_from, anchored=anchored)
+        read_cfg = self._config().read
+        annotated = annotate_relative_dates(
+            record.content,
+            record.valid_from,
+            anchored=read_cfg.relative_dates_anchored,
+            week=read_cfg.relative_week,
+        )
         if annotated == record.content:
             return record
         return record.model_copy(update={"content": annotated})
@@ -4926,6 +4991,7 @@ class Engine:
             summarize=self._summarize,
             extract_edges=self._extract_edges,
             mine_facts=self._build_fact_miner(),
+            date_facts=self._build_fact_dater(),
             deposit_fact=self._deposit_mined_fact,
             anticipate=self._build_anticipator(),
             deposit_cues=self._deposit_anticipated_cues,
@@ -5048,9 +5114,11 @@ class Engine:
             _log.warning("read.planner_unbound", planner="llm", role="plan")
             return None
         try:
+            v2 = self._config().read.planner_version == "v2"
             return await structured_call(
                 self._llm.for_role("plan"),
-                self._prompts.select("plan"),
+                # #35: plan@v2 also writes evidence-seeking subqueries for lookups.
+                self._prompts.select("plan", condition="v2" if v2 else None),
                 {"query": query},
                 ReadPlan,
             )
@@ -5186,14 +5254,49 @@ class Engine:
             return None
         llm = self._llm.for_role("extract")
         # H2: the session variant (no pronouns, absolute dates, one fact each) when
-        # shipped; the base extract prompt otherwise.
-        prompt = self._prompts.select("extract", condition="session")
+        # shipped; the base extract prompt otherwise. #27: ``consolidation.mine_prompt``
+        # picks another session variant, whose token budget becomes the output cap.
+        variant = str(self._consolidation_option("mine_prompt", "session"))
+        prompt = self._prompts.select("extract", condition=variant)
+        options: dict[str, Any] = {}
+        if variant != "session" and prompt.token_budget:
+            options["max_tokens"] = prompt.token_budget
 
         async def mine(content: str) -> list[ExtractedFact]:
-            result = await structured_call(llm, prompt, {"content": content}, ExtractedFacts)
+            result = await structured_call(
+                llm, prompt, {"content": content}, ExtractedFacts, **options
+            )
             return list(result.facts)
 
         return mine
+
+    def _consolidation_option(self, name: str, default: Any) -> Any:
+        """One ``memories.episodic.policies.consolidation`` option as configured."""
+        options = self._memory_policy(self._config(), "episodic").get("consolidation")
+        return options.get(name, default) if isinstance(options, dict) else default
+
+    def _build_fact_dater(self) -> Any:
+        """#29: the batched ``extract@dates`` call for mined facts with no date, only
+        when ``consolidation.mine_event_dates_llm`` is on and an ``extract`` role is
+        bound. Returns ``{fact index: date}`` for the facts the model could date."""
+        if (
+            not self._consolidation_option("mine_event_dates_llm", False)
+            or self._llm is None
+            or self._prompts is None
+            or "extract" not in self._llm.roles
+        ):
+            return None
+        llm = self._llm.for_role("extract")
+        prompt = self._prompts.select("extract", condition="dates")
+
+        async def date_facts(transcript: str, facts: list[str]) -> dict[int, str]:
+            numbered = "\n".join(f"[{i}] {fact}" for i, fact in enumerate(facts, 1))
+            result = await structured_call(
+                llm, prompt, {"content": transcript, "facts": numbered}, FactDates
+            )
+            return {d.index: d.date for d in result.dates if d.date}
+
+        return date_facts
 
     async def _deposit_mined_fact(
         self,
@@ -5206,8 +5309,11 @@ class Engine:
         session_key: str,
         *,
         kind: str | None = None,
+        happened: str | None = None,
     ) -> MemoryRecord:
         """C6': one mined fact through the write door (firewall, ladder, MTI).
+
+        #29: ``happened`` (the fact's happened date) is tagged ``happened:<date>``.
 
         G1a: ``kind="event"`` drops the attribute, so the fact is ADDed beside the
         person's other events instead of superseding them; ``kind="state"`` keeps
@@ -5222,6 +5328,8 @@ class Engine:
         ns = validate_namespace(namespace)
         sources = [r for r in [await storage.get_record(p) for p in parents] if r is not None]
         tags = ["atomic_fact", f"mined:{session_key}"]
+        if happened:
+            tags.append(happened_tag(happened))
         if kind is not None:
             tags.append(f"kind:{kind}")
             protected = self._config().firewall.protected_keys

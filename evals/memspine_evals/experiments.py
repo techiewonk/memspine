@@ -398,11 +398,13 @@ def build_reader_and_judge(config: C01Config) -> tuple[Reader, Judge, bool]:
         # No generation: "was the answer retrievable at all". This is what R@k
         # and MemPalace's 96.6 measure, and it costs nothing to run.
         return ContextOnlyReader(), ContainsJudge(), False
-    from .readers import QA_PROMPTS
+    from .readers import QA_PROMPTS, REASONING_MAX_TOKENS, REASONING_QA_PROMPTS
 
     if config.qa_prompt not in QA_PROMPTS:
         raise ValueError(f"unknown qa prompt {config.qa_prompt!r}; known: {sorted(QA_PROMPTS)}")
     qa_prompt = QA_PROMPTS[config.qa_prompt]
+    # #34: a reasoning prompt's reader keeps the final answer and gets room to reason.
+    reasoning = config.qa_prompt in REASONING_QA_PROMPTS
     if config.bedrock:
         from .bedrock import CallBudget, LiteLLMReader, litellm_chat
 
@@ -415,7 +417,12 @@ def build_reader_and_judge(config: C01Config) -> tuple[Reader, Judge, bool]:
             service_prices=service_price_table(config),
         )
         bedrock_reader = LiteLLMReader(
-            budget, model=QWEN3_32B, temperature=0.0, max_tokens=256, prompt=qa_prompt
+            budget,
+            model=QWEN3_32B,
+            temperature=0.0,
+            max_tokens=REASONING_MAX_TOKENS if reasoning else 256,
+            prompt=qa_prompt,
+            extract_answer=reasoning,
         )
         judge = build_judge(
             config,
@@ -430,7 +437,11 @@ def build_reader_and_judge(config: C01Config) -> tuple[Reader, Judge, bool]:
     # OmniMemEval preset) read it from the process environment, never from .env.
     api_key = os.environ.get("OPENAI_API_KEY", "not-needed")
     reader = OpenAICompatReader(
-        model=config.reader_model, base_url=config.base_url, api_key=api_key, prompt=qa_prompt
+        model=config.reader_model,
+        base_url=config.base_url,
+        api_key=api_key,
+        prompt=qa_prompt,
+        extract_answer=reasoning,
     )
     judge = build_judge(
         config,

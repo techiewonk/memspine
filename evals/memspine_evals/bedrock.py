@@ -20,12 +20,12 @@ import os
 import re
 import time
 from collections.abc import Awaitable, Callable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
 from .contracts import ReaderAnswer
-from .readers import DEFAULT_QA_PROMPT
+from .readers import DEFAULT_QA_PROMPT, final_answer
 from .runner import ModelCallBudgetExceeded
 
 __all__ = [
@@ -404,8 +404,12 @@ class LiteLLMReader:
         no_think: bool | None = None,
         retry_attempts: int = 5,
         retry_base_delay: float = 1.0,
+        extract_answer: bool = False,
     ) -> None:
         import litellm
+
+        #: #34: ``answer`` keeps only the final answer of a reasoning prompt.
+        self.extract_answer = extract_answer
 
         self.retry_attempts = max(1, int(retry_attempts))
         self.retry_base_delay = retry_base_delay
@@ -431,6 +435,7 @@ class LiteLLMReader:
             "max_tokens": self.max_tokens,
             "no_think": self.no_think,
             "prompt_sha256": hashlib.sha256(self.prompt.encode()).hexdigest(),
+            **({"extract_answer": True} if self.extract_answer else {}),
         }
 
     async def complete(self, content: str, system: str | None = None) -> ReaderAnswer:
@@ -480,11 +485,14 @@ class LiteLLMReader:
     async def answer(
         self, question: str, context: str, question_date: str | None = None
     ) -> ReaderAnswer:
-        return await self.complete(
+        reply = await self.complete(
             self.prompt.format(
                 context=context, question=question, question_date=question_date or "unknown"
             )
         )
+        if not self.extract_answer:
+            return reply
+        return replace(reply, text=final_answer(reply.text))
 
 
 def litellm_chat(

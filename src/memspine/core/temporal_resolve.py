@@ -35,6 +35,12 @@ anchor day and gives the span it denotes:
 
 Months, years, seasons and single days are calendar units in the gold too, so they are
 rendered as without ``anchored``.
+
+#58, ``week="preceding_7_days"`` (``read.relative_week``): only the span of ``last/past
+week`` and ``next week`` changes, to the seven days before (after) the anchor day; the label
+stays an absolute span (``[= 2023-06-02..2023-06-08]``) with no relation phrase, and every
+other phrase is resolved as in the default ``calendar`` mode. ``this week`` stays the
+calendar week. Anchored mode already uses these spans.
 """
 
 from __future__ import annotations
@@ -42,8 +48,12 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
+from typing import Literal
 
-__all__ = ["Resolution", "annotate", "resolve"]
+__all__ = ["Resolution", "WeekMode", "annotate", "resolve"]
+
+#: #58: how ``last/next week`` resolve (see the module docstring).
+WeekMode = Literal["calendar", "preceding_7_days"]
 
 _WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
 _NUMBERS = {
@@ -151,7 +161,9 @@ def _week_start(d: date) -> date:
     return d - timedelta(days=d.weekday())
 
 
-def _span(name: str, m: re.Match[str], d: date) -> tuple[date, date, bool] | None:
+def _span(
+    name: str, m: re.Match[str], d: date, week: WeekMode = "calendar"
+) -> tuple[date, date, bool] | None:
     if name == "yesterday" or name == "last_night":
         x = d - timedelta(days=1)
         return x, x, False
@@ -199,6 +211,10 @@ def _span(name: str, m: re.Match[str], d: date) -> tuple[date, date, bool] | Non
         unit = m["unit"].lower()
         step = {"last": -1, "past": -1, "this": 0, "next": 1}[rel]
         if unit == "week":
+            if week == "preceding_7_days" and step < 0:
+                return d - timedelta(days=7), d - timedelta(days=1), False
+            if week == "preceding_7_days" and step > 0:
+                return d + timedelta(days=1), d + timedelta(days=7), False
             start = _week_start(d) + timedelta(days=7 * step)
             return start, start + timedelta(days=6), False
         if unit == "weekend":
@@ -266,11 +282,19 @@ def _relate(
     return "", first, last, True
 
 
-def resolve(text: str, anchor: datetime | date, *, anchored: bool = False) -> list[Resolution]:
+def resolve(
+    text: str,
+    anchor: datetime | date,
+    *,
+    anchored: bool = False,
+    week: WeekMode = "calendar",
+) -> list[Resolution]:
     """All non-overlapping relative-time phrases in ``text``, resolved against ``anchor``.
 
     ``anchored`` (G13) states week-level phrases relative to the anchor day, LoCoMo's
-    convention (see the module docstring); off, the output is unchanged.
+    convention (see the module docstring); off, the output is unchanged. ``week`` (#58)
+    picks the span of ``last/next week``: the calendar week (default) or the seven days
+    before / after the anchor day.
     """
     d = anchor.date() if isinstance(anchor, datetime) else anchor
     found: list[Resolution] = []
@@ -281,7 +305,7 @@ def resolve(text: str, anchor: datetime | date, *, anchored: bool = False) -> li
         for m in rx.finditer(text):
             if any(m.start() < e and s < m.end() for s, e in taken):
                 continue
-            span = _span(name, m, d)
+            span = _span(name, m, d, week)
             if span is None:
                 continue
             first, last, approx = span
@@ -295,10 +319,16 @@ def resolve(text: str, anchor: datetime | date, *, anchored: bool = False) -> li
     return sorted(found, key=lambda r: r.start)
 
 
-def annotate(text: str, anchor: datetime | date, *, anchored: bool = False) -> str:
+def annotate(
+    text: str,
+    anchor: datetime | date,
+    *,
+    anchored: bool = False,
+    week: WeekMode = "calendar",
+) -> str:
     """``text`` with ``[= <absolute date>]`` after every resolved relative phrase."""
     out, pos = [], 0
-    for r in resolve(text, anchor, anchored=anchored):
+    for r in resolve(text, anchor, anchored=anchored, week=week):
         out.append(text[pos : r.end])
         out.append(f" [= {r.label}]")
         pos = r.end

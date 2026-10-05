@@ -12,7 +12,10 @@ from typing import Any
 #: One plausible, fully-populated context per role — every StrictUndefined var a
 #: shipped prompt (base or variant) of that role references must appear here.
 CANONICAL_CONTEXTS: dict[str, dict[str, Any]] = {
-    "extract": {"content": "Alice lives in Berlin and works at Acme."},
+    "extract": {
+        "content": "Alice lives in Berlin and works at Acme.",
+        "facts": "[1] Alice moved to Berlin",
+    },
     "relevance": {"question": "Where does Alice live?", "notes": "[0] Alice lives in Berlin"},
     "anticipate": {"content": "[1] [2026-01-02] Alice: I found out I am allergic to nuts"},
     "judge": {
@@ -78,6 +81,7 @@ SAMPLE_PAYLOADS: dict[str, dict[str, Any]] = {
             }
         ]
     },
+    "FactDates": {"dates": [{"index": 1, "date": "2026-01-02"}]},
     "EntityResolutionOut": {
         "same_entity": True,
         "canonical": "Robert Smith",

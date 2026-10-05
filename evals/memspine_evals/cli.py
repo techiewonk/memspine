@@ -337,6 +337,7 @@ def build_parser() -> argparse.ArgumentParser:
             "dated",
             "dated2",
             "dated_infer",
+            "dated3",
             "abstain",
             "converse",
             "mab_fc",
