@@ -14,7 +14,12 @@ from memspine.core.policies.conflict import ConflictPolicy
 from memspine.core.policies.dedup import DedupPolicy
 from memspine.core.records import MemoryRecord
 from memspine.memories.semantic.store import SemanticMemory
-from memspine.memories.semantic.write_pipeline import EDGE_CHANNEL, GraphWritePipeline
+from memspine.memories.semantic.write_pipeline import (
+    EDGE_CHANNEL,
+    EdgeContext,
+    GraphWritePipeline,
+    edge_fact_key,
+)
 from memspine.prompts.models import ExtractedEdge
 from memspine.services.embedding.hash_local import HashEmbedding
 from memspine.services.storage.projector import RecordProjector
@@ -36,7 +41,7 @@ async def _memory(edges: list[ExtractedEdge] | None):
 
     calls: list[str] = []
 
-    async def fake_extract(content: str) -> list[ExtractedEdge]:
+    async def fake_extract(content: str, _context: object = None) -> list[ExtractedEdge]:
         calls.append(content)
         return list(edges or [])
 
@@ -66,6 +71,7 @@ async def test_graph_mode_writes_edge_facts_through_the_door() -> None:
     edge = ExtractedEdge(
         src_entity="Alice",
         rel="works_at",
+        kind="state",
         dst_entity="Acme",
         fact="Alice works at Acme",
         confidence=0.9,
@@ -87,6 +93,7 @@ async def test_edge_record_does_not_recurse() -> None:
     edge = ExtractedEdge(
         src_entity="Alice",
         rel="works_at",
+        kind="state",
         dst_entity="Acme",
         fact="Alice works at Acme",
         confidence=0.9,
@@ -105,6 +112,7 @@ async def test_edge_fact_climbs_the_conflict_ladder() -> None:
     first = ExtractedEdge(
         src_entity="Alice",
         rel="works_at",
+        kind="state",
         dst_entity="Acme",
         fact="Alice works at Acme",
         confidence=0.9,
@@ -116,11 +124,12 @@ async def test_edge_fact_climbs_the_conflict_ladder() -> None:
     second = ExtractedEdge(
         src_entity="Alice",
         rel="works_at",
+        kind="state",
         dst_entity="Globex",
         fact="Alice works at Globex",
         confidence=0.9,
     )
-    mem._write_pipeline = GraphWritePipeline(lambda _c: _async([second]))  # type: ignore[assignment]
+    mem._write_pipeline = GraphWritePipeline(lambda _c, _x=None: _async([second]))  # type: ignore[assignment]
     await mem.write(
         MemoryRecord(namespace="a", memory_type="semantic", content="Alice moved to Globex")
     )
@@ -138,3 +147,108 @@ async def test_edge_fact_climbs_the_conflict_ladder() -> None:
 
 async def _async(edges: list[ExtractedEdge]):
     return edges
+
+
+def _read(title: str, kind: str = "event") -> ExtractedEdge:
+    return ExtractedEdge(
+        src_entity="Melanie",
+        rel="read",
+        dst_entity=title,
+        fact=f"Melanie read {title}",
+        kind=kind,
+        confidence=0.9,
+    )
+
+
+def _active_edges(records: list[MemoryRecord]) -> list[MemoryRecord]:
+    return [
+        r for r in records if r.source.channel == EDGE_CHANNEL and r.status.value == "activated"
+    ]
+
+
+async def test_event_edges_with_the_same_relation_both_stay_active() -> None:
+    """GP-1: "read X" then "read Y" are two events, not a superseding update."""
+    mem, storage, _calls = await _memory([_read("Charlotte's Web")])
+    await mem.write(MemoryRecord(namespace="a", memory_type="semantic", content="Mel read CW"))
+    mem._write_pipeline = GraphWritePipeline(
+        lambda _c, _x=None: _async([_read("Nothing Is Impossible")])  # type: ignore[arg-type]
+    )
+    await mem.write(MemoryRecord(namespace="a", memory_type="semantic", content="Mel read NII"))
+
+    active = _active_edges(await storage.list_records("a", "semantic"))
+    assert sorted(r.content for r in active) == [
+        "Melanie read Charlotte's Web",
+        "Melanie read Nothing Is Impossible",
+    ]
+    for record in active:
+        # An event is add-only: no attribute key for the ladder to supersede on;
+        # kind, relation and destination entity persist as tags.
+        assert record.entity == "Melanie" and record.attribute is None
+        assert "kind:event" in record.tags and "rel:read" in record.tags
+    assert {t for r in active for t in r.tags if t.startswith("dst:")} == {
+        "dst:Charlotte's Web",
+        "dst:Nothing Is Impossible",
+    }
+
+
+async def test_state_edge_still_supersedes_after_the_kind_split() -> None:
+    def lives(city: str) -> ExtractedEdge:
+        return ExtractedEdge(
+            src_entity="Melanie",
+            rel="lives_in",
+            dst_entity=city,
+            fact=f"Melanie lives in {city}",
+            kind="state",
+            confidence=0.9,
+        )
+
+    mem, storage, _calls = await _memory([lives("Boston")])
+    await mem.write(MemoryRecord(namespace="a", memory_type="semantic", content="Mel in Boston"))
+    mem._write_pipeline = GraphWritePipeline(lambda _c, _x=None: _async([lives("Denver")]))  # type: ignore[arg-type]
+    await mem.write(MemoryRecord(namespace="a", memory_type="semantic", content="Mel in Denver"))
+
+    active = _active_edges(await storage.list_records("a", "semantic"))
+    assert [r.content for r in active] == ["Melanie lives in Denver"]
+    assert active[0].attribute == "lives_in"
+    assert "dst:Denver" in active[0].tags and "kind:state" in active[0].tags
+
+
+def test_edge_fact_key_keeps_a_protected_attribute_for_an_event() -> None:
+    """An extractor calling a protected key an "event" must not dodge the check."""
+    edge = ExtractedEdge(
+        src_entity="user", rel="lives_in", dst_entity="Mars", fact="user lives on Mars"
+    )
+    assert edge.kind == "event"  # missing kind defaults to event (G1a rule)
+    assert edge_fact_key(edge, "user")[0] is None
+    assert edge_fact_key(edge, "user", {"user.lives_in"})[0] == "lives_in"
+
+
+def test_unknown_edge_kind_is_an_event() -> None:
+    edge = ExtractedEdge.model_validate(
+        {"src_entity": "a", "rel": "r", "dst_entity": "b", "fact": "a r b", "kind": "Sometimes"}
+    )
+    assert edge.kind == "event"
+    state = ExtractedEdge.model_validate(
+        {"src_entity": "a", "rel": "r", "dst_entity": "b", "fact": "a r b", "kind": " STATE "}
+    )
+    assert state.kind == "state"
+
+
+async def test_write_time_extraction_gets_the_record_time_as_reference() -> None:
+    """GR-4: the C3 pass hands the extractor the record's event time and key."""
+    seen: list[EdgeContext | None] = []
+
+    async def extract(content: str, context: EdgeContext | None = None) -> list[ExtractedEdge]:
+        seen.append(context)
+        return []
+
+    mem, _storage, _calls = await _memory([])
+    mem._write_pipeline = GraphWritePipeline(extract)
+    record = MemoryRecord(
+        namespace="a", memory_type="semantic", content="Mel likes tea", entity="Melanie"
+    )
+    await mem.write(record)
+    [context] = seen
+    assert context is not None
+    assert context.reference_time == record.valid_from
+    assert list(context.entities) == ["Melanie"]

@@ -1,20 +1,37 @@
 id: extract_edges
-version: 1
+version: 2
 role: extract_edges
 format: yaml
 output_model: ExtractedEdges
-token_budget: 768
+token_budget: 1024
 system: >-
   You extract relationship edges between entities from text for a knowledge
   graph. Each edge has: src_entity, rel (a short verb-phrase slug like
   works_at or located_in), dst_entity, fact (the sentence that states it),
-  valid_from (ISO date only if the text states one, else omit), confidence
-  (0-1). Extract only relationships explicitly stated; never invent edges.
-  {% include "no_injection.j2" %} {% include "yaml_only.j2" %}
+  kind, valid_from (ISO date only if the text states one or it follows from
+  the reference time, else omit), confidence (0-1). kind is `state` for a
+  single-valued, current relation where a newer value replaces the old one
+  (lives_in, works_at, married_to, a pet's name) and `event` for something that
+  happened or one of many that hold at once (read, visited, attended, bought,
+  likes); when unsure, use `event`. Be specific: keep the exact names the text
+  uses and never generalise ("Gamecube" stays "Gamecube", not "console"; "Charlotte's
+  Web" stays the title, not "a book"). A more detailed restatement of something
+  already known is a new edge, not a duplicate. Resolve pronouns and relative
+  dates using the reference time and the earlier episodes, but extract edges
+  only from the content. Extract only relationships explicitly stated; never
+  invent edges. {% include "no_injection.j2" %} {% include "yaml_only.j2" %}
   Emit a YAML list under the key `edges`.
 ---
 Extract the relationship edges from the following content.
-
+{% if reference_time is defined and reference_time %}
+REFERENCE_TIME: {{ reference_time }}
+{% endif %}{% if previous_episodes is defined and previous_episodes %}
+earlier episodes (context only; do not extract edges from these):
+{% for episode in previous_episodes %}  - {{ episode }}
+{% endfor %}{% endif %}{% if entities is defined and entities %}
+known entities (reuse these exact names when the content refers to them):
+{% for name in entities %}  - {{ name }}
+{% endfor %}{% endif %}
 content: |
   {{ content }}
 
@@ -23,4 +40,5 @@ edges:
     rel: ...
     dst_entity: ...
     fact: ...
+    kind: ...
     confidence: ...

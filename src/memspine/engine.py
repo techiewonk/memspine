@@ -110,7 +110,11 @@ from memspine.memories.reflective.reflections import ReflectiveMemory
 from memspine.memories.resource.store import ResourceMemory
 from memspine.memories.semantic.entities import EntityExtractor, LLMEntityExtractor
 from memspine.memories.semantic.store import SemanticMemory
-from memspine.memories.semantic.write_pipeline import GraphWritePipeline, WritePipeline
+from memspine.memories.semantic.write_pipeline import (
+    EdgeContext,
+    GraphWritePipeline,
+    WritePipeline,
+)
 from memspine.memories.shared.grants import Grant, SharedMemory
 from memspine.memories.shared.subscriptions import make_subscription_record
 from memspine.memories.working.manager import DEFAULT_PAGE_SIZE, WorkingMemory
@@ -5256,10 +5260,21 @@ class Engine:
         prompt = self._prompts.for_role("extract_edges")
         rounds = max(1, max_rounds)
 
-        async def extract_edges(content: str) -> list[ExtractedEdge]:
+        async def extract_edges(
+            content: str, context: EdgeContext | None = None, /
+        ) -> list[ExtractedEdge]:
+            # GR-4: reference time, earlier episodes and known entity names ride
+            # along; every key is always supplied (the prompt renders strictly).
+            ctx = context or EdgeContext()
+            variables: dict[str, object] = {
+                "content": content,
+                "reference_time": ctx.reference_time.isoformat() if ctx.reference_time else "",
+                "previous_episodes": list(ctx.previous),
+                "entities": list(ctx.entities),
+            }
             merged: dict[tuple[str, str, str], ExtractedEdge] = {}
             for _ in range(rounds):
-                result = await structured_call(llm, prompt, {"content": content}, ExtractedEdges)
+                result = await structured_call(llm, prompt, variables, ExtractedEdges)
                 for edge in result.edges:
                     merged[(edge.src_entity, edge.rel, edge.dst_entity)] = edge
             return list(merged.values())
@@ -5296,7 +5311,10 @@ class Engine:
         graph_opts = sem.get("extract_graph")
         if isinstance(graph_opts, dict):
             rounds = int(graph_opts.get("max_rounds", 1))
-        return GraphWritePipeline(self._edge_extract_callable(rounds))
+        return GraphWritePipeline(
+            self._edge_extract_callable(rounds),
+            protected_keys=config.firewall.protected_keys,
+        )
 
     @staticmethod
     def _memory_policy(config: MemspineConfig, memory_type: str) -> dict[str, Any]:

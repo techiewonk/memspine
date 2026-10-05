@@ -43,11 +43,13 @@ def _engine(**extra: Any) -> Engine:
 
 
 def _edge(fact: str, src: str = "alice", rel: str = "works_at", dst: str = "acme") -> ExtractedEdge:
-    return ExtractedEdge(src_entity=src, rel=rel, dst_entity=dst, fact=fact, confidence=0.9)
+    return ExtractedEdge(
+        src_entity=src, rel=rel, dst_entity=dst, fact=fact, confidence=0.9, kind="state"
+    )
 
 
 def _extractor(edges: list[ExtractedEdge], seen: list[str] | None = None) -> Any:
-    async def extract(content: str) -> list[ExtractedEdge]:
+    async def extract(content: str, _context: object = None) -> list[ExtractedEdge]:
         if seen is not None:
             seen.append(content)
         return list(edges)

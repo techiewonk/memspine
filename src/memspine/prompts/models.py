@@ -124,8 +124,20 @@ class ExtractedEdge(BaseModel):
     fact: str  # the sentence asserting the edge (provenance for the context window)
     valid_from: str | None = None  # ISO date if the text states one
     confidence: float = 1.0
+    #: GP-1: a ``state`` edge is single-valued and current (lives_in, works_at), so
+    #: a newer ``(src, rel)`` edge supersedes it; an ``event`` edge (read, visited,
+    #: attended) is one of many that hold at once, keyed ``(src, rel, dst)`` and
+    #: add-only. Missing or unknown => ``event``, mirroring ``ExtractedFact`` (G1a).
+    kind: Literal["state", "event"] = "event"
 
     _valid_from_as_text = field_validator("valid_from", mode="before")(_as_text)
+
+    @field_validator("kind", mode="before")
+    @classmethod
+    def _kind_or_event(cls, value: Any) -> Any:
+        """Tolerate a missing, blank or unknown ``kind`` from the extractor: it is an event."""
+        text = str(value).strip().lower() if value is not None else ""
+        return text if text in ("state", "event") else "event"
 
 
 class ExtractedEdges(BaseModel):

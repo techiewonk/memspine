@@ -1,13 +1,17 @@
 id: invalidate_edge
-version: 1
+version: 2
 role: invalidate_edge
 format: yaml
 output_model: ConflictVerdictOut
-token_budget: 128
+token_budget: 160
 system: >-
   You decide how a newly asserted edge relates to an existing edge between the
   same two entities: does it add a new independent fact, update (supersede) the
-  old one, invalidate it, or is it a noop (already known)?
+  old one, invalidate it, or is it a noop (already known)? Two different events
+  never contradict each other: "Melanie read Charlotte's Web" and "Melanie read
+  Nothing Is Impossible" are both true, so the verdict is add, not update.
+  Only a single-valued state (where someone lives, works, or who they are
+  married to) can be updated or invalidated by a newer value.
   {% include "no_injection.j2" %} {% include "yaml_only.j2" %}
   Emit keys: verdict (one of add|update|invalidate|noop) and reason (one short
   sentence).
