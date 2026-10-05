@@ -36,7 +36,16 @@ class LanceDBVectorStore:
         quantization: str | None = None,
         matryoshka_dim: int | None = None,
         oversample: int = constants.RESCORE_OVERSAMPLE,
+        compact_every: int | None = None,
     ) -> None:
+        """``compact_every``: merge the table's fragments after that many
+        upserts. Each single-row upsert adds a fragment, and a flat query opens
+        every fragment, so without compaction each write makes the next query
+        slower. Compaction keeps the rows and their order, so results do not
+        change. It is skipped when quantization or Matryoshka is active, where
+        it would also fold new rows into the ANN index and change which rows
+        are searched exactly. ``None`` never compacts: the engine passes it for
+        a table other engines may write concurrently."""
         if quantization not in (None, "int8", "binary"):
             raise ValueError(f"unknown quantization {quantization!r} (valid: int8, binary, None)")
         self._client = client
@@ -52,6 +61,8 @@ class LanceDBVectorStore:
         self._quantization = quantization
         self._matryoshka_dim = matryoshka_dim
         self._oversample = max(1, oversample)
+        self._compact_every = compact_every if compact_every and compact_every > 0 else None
+        self._upserts_since_compact = 0
         self._table: Any = None
         self._lock = asyncio.Lock()
         # ANN index lifecycle (built lazily on first active search_rescore).
@@ -106,6 +117,22 @@ class LanceDBVectorStore:
                 .execute([{"record_id": record_id, "namespace": namespace, "vector": vector}])
             )
         )
+        await self._maybe_compact(table)
+
+    async def _maybe_compact(self, table: Any) -> None:
+        """Merge fragments every ``compact_every`` upserts (see ``__init__``)."""
+        if self._compact_every is None or self._rescore_active:
+            return
+        self._upserts_since_compact += 1
+        if self._upserts_since_compact < self._compact_every:
+            return
+        self._upserts_since_compact = 0
+        try:
+            await asyncio.to_thread(table.optimize)
+        except Exception as exc:
+            # Compaction is an optimisation only: a failure leaves the rows
+            # exactly as they were, so it must never fail the write.
+            _log.warning("vector.lance_compact_failed", error=str(exc))
 
     async def query(
         self, namespace: str, vector: list[float], embedder_id: str, top_k: int = 8

@@ -198,6 +198,9 @@ RESCORE_OVERSAMPLE = 4
 # PQ", so the store falls back to a flat exact query and skip-logs once until the
 # corpus grows past the threshold.
 LANCE_ANN_MIN_ROWS = 256
+# In-memory Lance tables merge their fragments after this many upserts: every
+# single-row upsert adds a fragment, and a flat query opens each one.
+LANCE_COMPACT_EVERY = 20
 # Partitions probed per ANN query: higher recall (covers more IVF cells) at more
 # read cost. Combined with ``refine_factor = RESCORE_OVERSAMPLE`` this is Lance's
 # native "search the compressed index, re-rank the oversampled window by exact
