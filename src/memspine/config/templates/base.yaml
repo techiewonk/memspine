@@ -44,3 +44,9 @@ memories:
     enabled: true
   semantic:
     enabled: true
+    policies:
+      conflict:
+        # A less-trusted same-key write CONTESTs the current fact instead of
+        # superseding or retracting it (closes the supersession availability vector,
+        # edge_cells.md). Offline check 2026-10-05: no QA change on LoCoMo combo-A.
+        contest_lower_trust: true

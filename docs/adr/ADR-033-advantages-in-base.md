@@ -25,7 +25,8 @@ The maintainer asked that `simple` and `assistant` be the same, with the advanta
 - `read.assembly.relative_floor: 0.3`;
 - relevance-first scoring (recency, importance and utility weights 0);
 - `read.record_access: false`;
-- `prompts.selection.chat: {condition: dated}` (the `chat@dated` answer prompt).
+- `prompts.selection.chat: {condition: dated}` (the `chat@dated` answer prompt);
+- `memories.semantic.policies.conflict.contest_lower_trust: true`. A less-trusted same-key write contests the current fact instead of superseding it. An offline check (2026-10-05, conv-26, hash embedder) found no QA change: 124/152 identical contexts flag-on vs flag-off, against a 120/152 off-vs-off control.
 
 The other templates change as follows:
 

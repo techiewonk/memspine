@@ -70,6 +70,8 @@ async def test_core_template_is_bare_and_base_has_the_advantages() -> None:
         assert base.describe()["profile"] == "simple"
         assert read.default_mode == "replay" and read.resolve_relative_dates
         assert "computed from the line's own date" in base.chat_messages("hi")[0]["content"]
+        conflict = base._config().memories["semantic"].policies["conflict"]
+        assert conflict["contest_lower_trust"] is True
     finally:
         await base.stop()
 
