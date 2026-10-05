@@ -28,6 +28,10 @@ when the embedding or BM25 leg ranks it; nothing maps the query onto the cue set
    above `read.cue_min_trust`) and adds the targets as one extra RRF leg. The targets then pass
    every read gate (status, quarantine, consent, passive sessions, filters). An encoder error
    degrades to no leg.
+4. **Eviction** (2026-10-06 review). The index holds cue text in process memory, so a cue that
+   is forgotten (soft, hard or by cascade), quarantined or archived is evicted when the engine
+   appends that event (`QueryEncoder.evict`), and the per-namespace load indexes only live,
+   unquarantined cues. Erased text never stays in the index or in `expansions`.
 
 ## Future work: a trained encoder
 

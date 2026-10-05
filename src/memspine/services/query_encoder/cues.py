@@ -16,13 +16,23 @@ from collections.abc import Awaitable, Callable
 
 from memspine.config import constants
 from memspine.core.query_shape import content_words
-from memspine.core.records import MemoryRecord
+from memspine.core.records import MemoryRecord, RecordStatus
 from memspine.services.query_encoder.base import CueMatch, EncodedQuery
 
 __all__ = ["CueQueryEncoder"]
 
 #: namespace -> its cue records (the engine lists them from storage).
 LoadCues = Callable[[str], Awaitable[list[MemoryRecord]]]
+
+
+def _indexable(record: MemoryRecord) -> bool:
+    """A live, unquarantined cue with a target (forgotten or held cues stay out)."""
+    return (
+        constants.CUE_TAG in record.tags
+        and bool(record.source.parents)
+        and record.status is RecordStatus.ACTIVATED
+        and not record.quarantined
+    )
 
 
 class _Entry:
@@ -55,11 +65,18 @@ class CueQueryEncoder:
     def observe(self, record: MemoryRecord) -> None:
         """Index a cue record as it is written (no-op for anything else, or for a
         namespace not loaded yet: its first ``encode`` loads every cue)."""
-        if constants.CUE_TAG not in record.tags or not record.source.parents:
+        if not _indexable(record):
             return
         entries = self._index.get(record.namespace)
         if entries is not None:
             entries[record.record_id] = _Entry(record)
+
+    def evict(self, namespace: str, record_id: str) -> None:
+        """Drop a cue that was forgotten, quarantined or archived (no-op otherwise),
+        so its text leaves the index and every later ``expansions``."""
+        entries = self._index.get(namespace)
+        if entries is not None:
+            entries.pop(record_id, None)
 
     async def _entries(self, namespace: str) -> dict[str, _Entry]:
         entries = self._index.get(namespace)
@@ -67,7 +84,7 @@ class CueQueryEncoder:
             entries = {
                 r.record_id: _Entry(r)
                 for r in await self._load(namespace)
-                if constants.CUE_TAG in r.tags and r.source.parents
+                if _indexable(r)
             }
             self._index[namespace] = entries
         return entries

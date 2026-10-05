@@ -7306,6 +7306,26 @@ class Engine:
                 batch[projector.name] = appended.seq  # checkpointed at the flush
             else:
                 await self._storage.set_offset(projector.name, appended.seq)
+        if self._query_encoder is not None:
+            self._evict_from_encoder(event)
+
+    def _evict_from_encoder(self, event: MemoryEvent) -> None:
+        """#61: a forgotten, quarantined or archived record leaves the query
+        encoder's in-process index (its text must not outlive the erasure)."""
+        assert self._query_encoder is not None
+        record_id = event.payload.get("record_id")
+        if not isinstance(record_id, str):
+            return
+        if event.kind is EventKind.FORGET:
+            self._query_encoder.evict(event.namespace, record_id)
+        elif event.kind is EventKind.DECAY_TRANSITION:
+            changes = event.payload.get("set")
+            if isinstance(changes, dict) and (
+                changes.get("quarantined") is True
+                or changes.get("status", RecordStatus.ACTIVATED.value)
+                != RecordStatus.ACTIVATED.value
+            ):
+                self._query_encoder.evict(event.namespace, record_id)
 
     @asynccontextmanager
     async def _projection_batch(self) -> AsyncIterator[None]:

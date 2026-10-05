@@ -159,3 +159,60 @@ async def test_cue_encoder_unit_overlap_threshold() -> None:
     assert (await encoder.encode("a", "Alice birthday party snacks")).matches
     assert not (await encoder.encode("a", "Alice's favourite colour")).matches
     assert not (await encoder.encode("a", "what is it")).matches  # no content words
+
+
+# -- review fix: forgotten / quarantined cues leave the in-process index ---------------
+
+
+async def _cue_index(eng: Engine) -> dict[str, Any]:
+    encoder = eng._encoder()
+    assert isinstance(encoder, CueQueryEncoder)
+    await encoder.encode("a", QUERY)  # loads the namespace
+    return encoder._index["a"]
+
+
+@pytest.mark.parametrize("how", ["forget", "hard_forget", "forget_target", "quarantine"])
+async def test_an_erased_or_held_cue_leaves_the_encoder(how: str) -> None:
+    eng = _engine("cues")
+    await eng.start()
+    try:
+        target_id = await _populate(eng)
+        index = await _cue_index(eng)
+        [cue_id] = list(index)
+        assert (await eng._encoder().encode("a", QUERY)).expansions == (CUE,)
+        if how == "forget":
+            await eng.forget(cue_id, namespace="a")
+        elif how == "hard_forget":
+            await eng.forget(cue_id, namespace="a", hard=True)
+        elif how == "forget_target":  # erasure cascades from the target to its cue
+            await eng.forget(target_id, namespace="a", hard=True)
+        else:
+            await eng.quarantine(cue_id, namespace="a")
+        assert cue_id not in index
+        encoded = await eng._encoder().encode("a", QUERY)
+        assert encoded.expansions == () and encoded.matches == ()
+    finally:
+        await eng.stop()
+
+
+async def test_a_forgotten_cue_is_not_reloaded_after_a_restart() -> None:
+    """The per-namespace load skips cues that are not live (a fresh encoder)."""
+    from memspine.config import constants
+    from memspine.core.records import RecordStatus
+
+    async def load(_ns: str) -> list[MemoryRecord]:
+        live = MemoryRecord(
+            namespace="a",
+            memory_type="semantic",
+            content=CUE,
+            tags=[constants.CUE_TAG],
+            source=SourceInfo(role="system", parents=["t1"]),
+        )
+        gone = live.model_copy(update={"record_id": "gone", "status": RecordStatus.DELETED})
+        held = live.model_copy(update={"record_id": "held", "quarantined": True})
+        return [live, gone, held]
+
+    encoder = CueQueryEncoder(load)
+    assert len((await encoder.encode("a", QUERY)).matches) == 1
+    assert len(encoder._index["a"]) == 1
+    assert "gone" not in encoder._index["a"] and "held" not in encoder._index["a"]
