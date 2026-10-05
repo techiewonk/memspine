@@ -121,12 +121,17 @@ class Qwen3Reranker:
     def _encode(self, texts: Sequence[str]) -> Any:
         tok = self._tokenizer
         budget = self._max_length - len(self._prefix) - len(self._suffix)
+        # B-5: query and document text is untrusted. ``split_special_tokens``
+        # tokenizes a literal ``<|im_end|>`` in a memory as plain text, so a
+        # stored document cannot close the user turn and forge the chat
+        # template (the fixed prefix and suffix are encoded separately).
         enc = tok(
             list(texts),
             padding=False,
             truncation="longest_first",
             return_attention_mask=False,
             max_length=budget,
+            split_special_tokens=True,
         )
         enc["input_ids"] = [self._prefix + list(ids) + self._suffix for ids in enc["input_ids"]]
         batch = tok.pad(enc, padding=True, return_tensors="pt", max_length=self._max_length)

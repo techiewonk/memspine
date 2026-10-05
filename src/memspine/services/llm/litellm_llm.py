@@ -11,8 +11,9 @@ with no LLM role never pays its multi-second import cost.
 Qwen3 thinks by default and emits a ``<think>...</think>`` block before its
 answer: the block costs output tokens and breaks YAML/JSON parsing of the
 structured roles. The adapter appends Qwen's documented ``/no_think`` soft
-switch to the last user message (on by default for ``qwen3`` model ids) and
-strips think blocks from every reply, whatever the model.
+switch to the last user message (on by default for ``qwen3`` model ids). A
+think block that leads a reply is stripped for every model; the repair rules
+for unclosed or stray tags apply only to thinking models (see ``strip_think``).
 """
 
 from __future__ import annotations
@@ -26,6 +27,7 @@ from memspine.services._retry import retry_transient
 __all__ = ["LiteLLMLLM", "default_no_think", "strip_think"]
 
 _THINK_BLOCK = re.compile(r"<think>.*?</think>", re.S)
+_LEADING_THINK = re.compile(r"^\s*<think>.*?</think>", re.S)
 _NO_THINK = "/no_think"
 
 
@@ -34,19 +36,26 @@ def default_no_think(model: str) -> bool:
     return "qwen3" in model.lower()
 
 
-def strip_think(text: str) -> str:
+def strip_think(text: str, *, lenient: bool = False) -> str:
     """Remove reasoning blocks from a reply.
 
-    Closed ``<think>...</think>`` blocks are dropped. An unclosed ``<think>`` (a
-    reply cut off mid-reasoning) drops everything after it; a stray ``</think>``
-    with no opening tag (templates that open the block themselves) keeps only
-    what follows it.
+    Always: a closed ``<think>...</think>`` block that *leads* the reply is
+    dropped. A ``<think>`` tag elsewhere is content (an answer may quote the
+    tag) and is left alone.
+
+    ``lenient`` (a thinking model: ``no_think`` active or a ``qwen3`` id) adds
+    the repair rules: every closed block is dropped, an unclosed ``<think>`` (a
+    reply cut off mid-reasoning) drops everything after it, and a stray
+    ``</think>`` with no opening tag (templates that open the block themselves)
+    keeps only what follows it.
     """
-    cleaned = _THINK_BLOCK.sub("", text)
-    if "</think>" in cleaned:
-        cleaned = cleaned.rsplit("</think>", 1)[1]
-    if "<think>" in cleaned:
-        cleaned = cleaned.split("<think>", 1)[0]
+    cleaned = _LEADING_THINK.sub("", text, count=1)
+    if lenient:
+        cleaned = _THINK_BLOCK.sub("", cleaned)
+        if "</think>" in cleaned:
+            cleaned = cleaned.rsplit("</think>", 1)[1]
+        if "<think>" in cleaned:
+            cleaned = cleaned.split("<think>", 1)[0]
     return cleaned.strip() if cleaned != text else text
 
 
@@ -118,4 +127,5 @@ class LiteLLMLLM:
         self.usage_totals[1] += int(getattr(usage, "completion_tokens", 0) or 0)
         if content is None:
             raise LLMError(f"litellm returned empty content for model {self._model!r}")
-        return strip_think(str(content))
+        lenient = self.no_think or default_no_think(self._model)
+        return strip_think(str(content), lenient=lenient)

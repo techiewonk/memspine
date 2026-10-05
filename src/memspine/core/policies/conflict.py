@@ -68,8 +68,11 @@ class ConflictPolicy(BindablePolicy):
         if incoming.content_fingerprint == existing.content_fingerprint:
             return ConflictVerdict.NOOP
 
+        # B-1: an attribute-less record has no (entity, attribute) key, so two
+        # such records about one entity are independent facts, not a conflict.
         same_key = (
             incoming.entity is not None
+            and incoming.attribute is not None
             and incoming.entity == existing.entity
             and incoming.attribute == existing.attribute
         )
