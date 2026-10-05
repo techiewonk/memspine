@@ -7,9 +7,9 @@ and ``test_kitchen_sink``; here we only prove the profiles start and describe
 themselves.
 
 Template-count note: the plan (§6) says "5 templates"; six ship today
-(``base`` + the five profiles); ``assistant`` (2026-10-03) makes seven and ``core`` (ADR-033, the bare
-configuration) eight. We boot
-all of them and pin the count.
+(``base`` + the five profiles); ``assistant`` (2026-10-03) makes seven and
+``core`` (ADR-033, the bare configuration) eight. We boot all of them and pin
+the count.
 """
 
 from __future__ import annotations
