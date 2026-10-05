@@ -17,6 +17,7 @@ from memspine.config import constants
 from memspine.core.records import MemoryRecord
 
 __all__ = [
+    "card_line",
     "is_standing_instruction",
     "render_standing",
     "render_timeline",
@@ -61,6 +62,21 @@ def timeline_line(record: MemoryRecord, entity: str, until: datetime | None = No
     if until is not None:
         line += f" (until {until:%Y-%m-%d})"
     return line
+
+
+def card_line(record: MemoryRecord) -> str:
+    """G1b: one card, ``[YYYY-MM-DD] Entity: fact``.
+
+    A mined fact is stored as ``"<entity> <attribute>: <statement>"``; the card
+    keeps the entity and the statement. Content without that shape (a wrapped
+    low-trust or instruction-flagged fact) is shown whole.
+    """
+    text = " ".join(record.content.split())
+    if record.entity:
+        rest = _strip_entity(text, record.entity)
+        if rest != text and ": " in rest:
+            text = f"{record.entity}: {rest.split(': ', 1)[1]}"
+    return f"[{record.valid_from:%Y-%m-%d}] {text}"
 
 
 def render_timeline(entity: str, lines: Sequence[str]) -> str:

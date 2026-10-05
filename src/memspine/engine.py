@@ -39,6 +39,7 @@ from memspine.core.events import EventKind, EventLogMode, MemoryEvent, fingerpri
 from memspine.core.firewall import Firewall, FirewallVerdict
 from memspine.core.integrity import IntegrityPolicy
 from memspine.core.lead import (
+    card_line,
     is_standing_instruction,
     render_standing,
     render_timeline,
@@ -162,6 +163,7 @@ _RECALL_MARKERS = (
     constants.TIMELINE_MARKER,
     constants.STANDING_MARKER,
     constants.CLAIM_MARKER,
+    constants.CARDS_MARKER,
 )
 
 
@@ -2097,15 +2099,19 @@ class Engine:
         if self._assembly is None:
             raise MemspineError("assembly policy not bound — engine not started?")
         budget = self._reply_budget(budget_tokens)
+        ns = validate_namespace(namespace)
+        cards = None if shared else await self._cards_section(ns, query, budget)
+        inner = budget - self._cards_cost(cards)
         assembled = await self._assemble_core(
             query,
-            validate_namespace(namespace),
-            budget,
+            ns,
+            inner,
             top_k,
             shared=shared,
             session_id=session_id,
+            drop_facts=cards is not None,
         )
-        return self._render(query, assembled, budget)
+        return self._attach_cards(self._render(query, assembled, inner), cards)
 
     async def _assemble_core(
         self,
@@ -2116,9 +2122,13 @@ class Engine:
         *,
         shared: bool = False,
         session_id: str | None = None,
+        drop_facts: bool = False,
     ) -> AssembledContext:
         """:meth:`assemble` without the reply reserve and the final render (callers
-        apply both once, so the replay read can extend the context first)."""
+        apply both once, so the replay read can extend the context first).
+
+        ``drop_facts`` (G1b): mined facts leave the candidates, the cards header
+        carries them."""
         if self._assembly is None:
             raise MemspineError("assembly policy not bound — engine not started?")
         fetch_k = top_k * self._config().read.candidate_pool
@@ -2128,6 +2138,8 @@ class Engine:
             )
         else:
             scored = await self._search(query, ns, fetch_k, session_id=session_id, keep_k=top_k)
+        if drop_facts:
+            scored = [pair for pair in scored if "atomic_fact" not in pair[0].tags]
         integrity = self._integrity()
         if integrity.enabled and integrity.trust_weighted_ranking and scored:
             # Scores are composite x view trust. Abstention (theta_abstain) judges
@@ -2403,12 +2415,43 @@ class Engine:
             mode = self._config().read.default_mode  # "auto" unless a template pins one
         if mode not in ("auto", "full", "replay", "retrieve", "compose"):
             raise ValueError(f"unknown read mode {mode!r}")
-        storage = self._require_started()
+        self._require_started()
         ns = validate_namespace(namespace)
         budget_tokens = self._reply_budget(budget_tokens)
+        # G1b: the cards header takes its share first; the routed read gets the rest
+        # and leaves mined facts out, so no fact appears twice.
+        cards = await self._cards_section(ns, query, budget_tokens)
+        result = await self._read_routed(
+            query,
+            ns,
+            mode,
+            budget_tokens - self._cards_cost(cards),
+            top_k,
+            replay_window,
+            compose_pool,
+            drop_facts=cards is not None,
+        )
+        return ReadResult(result.mode, self._attach_cards(result.context, cards))
+
+    async def _read_routed(
+        self,
+        query: str,
+        ns: str,
+        mode: str,
+        budget_tokens: int,
+        top_k: int,
+        replay_window: int,
+        compose_pool: int,
+        *,
+        drop_facts: bool = False,
+    ) -> ReadResult:
+        """:meth:`read` after the reply reserve and the cards header: route and read."""
+        storage = self._require_started()
         if mode in ("auto", "full"):
             live = []
             for record in await storage.list_records(ns):
+                if drop_facts and "atomic_fact" in record.tags:
+                    continue
                 view = await self._live_view(record)
                 if view is not None:
                     live.append(view)
@@ -2427,8 +2470,10 @@ class Engine:
         if mode == "auto" and self._config().read.planner == "decision":
             mode = await self._plan_read_mode(query) or mode
         if mode == "compose" or (mode == "auto" and is_aggregation(query)):
-            return await self._compose(query, ns, budget_tokens, top_k, compose_pool)
-        base = await self._assemble_core(query, ns, budget_tokens, top_k)
+            return await self._compose(
+                query, ns, budget_tokens, top_k, compose_pool, drop_facts=drop_facts
+            )
+        base = await self._assemble_core(query, ns, budget_tokens, top_k, drop_facts=drop_facts)
         episodic_hits = [r for r in base.records if r.memory_type == "episodic"]
         # H6: a mined atomic fact replays the source turn it best matches (its
         # derived_from lists the whole session, which would not fit the budget).
@@ -2511,6 +2556,56 @@ class Engine:
         decorated = await self._decorate(ns, [(inflated[0], 0.0)], expand_claims=False)
         return decorated[0][0] if decorated else None
 
+    async def _cards_section(self, ns: str, query: str, budget_tokens: int) -> MemoryRecord | None:
+        """G1b: the cards header, or None (``read.cards: off``, or no fact to show).
+
+        The namespace's mined facts relevant to ``query`` come from the same hybrid
+        search, restricted to ``atomic_fact`` records, so they pass every search
+        gate (status, quarantine, admission, live re-evaluation). Each gets the
+        per-record wrappers, then one ``[YYYY-MM-DD] Entity: fact`` line, best
+        first while the block fits ``read.cards_budget_share x budget_tokens``;
+        the kept lines are shown oldest first.
+        """
+        read_cfg = self._config().read
+        if read_cfg.cards != "header":
+            return None
+        allowance = int(budget_tokens * read_cfg.cards_budget_share)
+        if allowance <= estimate_tokens(constants.CARDS_MARKER):
+            return None
+        k = read_cfg.cards_top_k
+        hits = await self._search(query, ns, k, tags=["atomic_fact"], keep_k=k)
+        kept: list[MemoryRecord] = []
+        for record, _ in hits:
+            trial = [*kept, self._wrap_for_context(record)]
+            if estimate_tokens(self._cards_text(trial)) <= allowance:
+                kept = trial
+        if not kept:
+            return None
+        kept.sort(key=lambda r: (r.valid_from, r.record_id))
+        block = self._lead_record(ns, self._cards_text(kept), kept)
+        return block.model_copy(update={"tags": [constants.LEAD_TAG, constants.CARDS_TAG]})
+
+    @staticmethod
+    def _cards_text(cards: list[MemoryRecord]) -> str:
+        return "\n".join([constants.CARDS_MARKER, *(card_line(r) for r in cards)])
+
+    @staticmethod
+    def _cards_cost(cards: MemoryRecord | None) -> int:
+        return estimate_tokens(cards.content) if cards is not None else 0
+
+    def _attach_cards(
+        self, assembled: AssembledContext, cards: MemoryRecord | None
+    ) -> AssembledContext:
+        """G1b: the cards header opens the volatile part (after the stable prefix).
+        An abstained read gets none, like the H22 timelines."""
+        if cards is None or assembled.abstained:
+            return assembled
+        records = list(assembled.records)
+        records.insert(min(assembled.boundary_index, len(records)), cards)
+        assembled.records = records
+        assembled.tokens_used += self._cards_cost(cards)
+        return assembled
+
     async def _best_source_turn(self, fact: MemoryRecord) -> MemoryRecord | None:
         """H6: the eligible parent turn sharing the most words with ``fact``."""
         storage = self._require_started()
@@ -2536,7 +2631,14 @@ class Engine:
         return decorated[0][0] if decorated else None
 
     async def _compose(
-        self, query: str, ns: str, budget_tokens: int, top_k: int, pool: int
+        self,
+        query: str,
+        ns: str,
+        budget_tokens: int,
+        top_k: int,
+        pool: int,
+        *,
+        drop_facts: bool = False,
     ) -> ReadResult:
         """H3: session-diverse, wider-recall read for aggregation questions."""
         assert self._assembly is not None
@@ -2551,6 +2653,8 @@ class Engine:
         best_score: dict[str, float] = {}
         for probe in probes:
             hits = await self.search(probe, namespace=ns, top_k=max(1, top_k * pool))
+            if drop_facts:
+                hits = [pair for pair in hits if "atomic_fact" not in pair[0].tags]
             for rank, (record, score) in enumerate(hits, start=1):
                 rid = record.record_id
                 fused[rid] = fused.get(rid, 0.0) + 1.0 / (rrf_k + rank)

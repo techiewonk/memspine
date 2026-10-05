@@ -342,6 +342,15 @@ class ReadConfig(BaseModel):
     #: H22: the token sub-budget of the lead section (standing preferences, then
     #: timelines), taken out of the assembly budget.
     lead_budget_tokens: int = Field(default=400, ge=0)
+    #: G1b (JustMem cards): ``header`` opens the volatile context with the mined
+    #: atomic facts relevant to the query, one dated line each, retrieved by the same
+    #: hybrid search restricted to ``atomic_fact`` records and gated like any record.
+    #: The block stays within ``cards_budget_share`` of the budget; the rest goes to
+    #: the normal read, which then leaves mined facts out (no fact twice). ``off``:
+    #: byte-identical.
+    cards: Literal["off", "header"] = "off"
+    cards_budget_share: float = Field(default=0.25, gt=0.0, le=1.0)
+    cards_top_k: int = Field(default=10, ge=1)
 
 
 class MemoryTypeConfig(BaseModel):
