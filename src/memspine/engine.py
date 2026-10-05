@@ -44,6 +44,7 @@ from memspine.core.erasure import redact_record, retained_fields
 from memspine.core.escaping import escape_markers
 from memspine.core.event_date import SAID_PREFIX, date_anchor, happened_of, happened_tag
 from memspine.core.events import EventKind, EventLogMode, MemoryEvent, fingerprint_payload
+from memspine.core.fact_views import view_tags
 from memspine.core.firewall import Firewall, FirewallVerdict
 from memspine.core.integrity import IntegrityPolicy
 from memspine.core.lead import (
@@ -142,6 +143,7 @@ from memspine.memories.semantic.write_pipeline import (
     EdgeContext,
     GraphWritePipeline,
     WritePipeline,
+    extraction_rounds,
 )
 from memspine.memories.shared.grants import Grant, SharedMemory
 from memspine.memories.shared.subscriptions import make_subscription_record
@@ -163,6 +165,7 @@ from memspine.prompts.models import (
     ExtractedEdges,
     ExtractedFact,
     ExtractedFacts,
+    FactClasses,
     FactDates,
     Insights,
     ReadPlan,
@@ -190,6 +193,7 @@ from memspine.services.storage.sqlite.engine import SQLiteStorage
 from memspine.services.vector.base import VectorHit, VectorStore
 from memspine.services.vector.projector import VectorProjector
 from memspine.workers.inline import InlineRunner
+from memspine.workers.list_cards import LIST_CARD_KEY_PREFIX, LabelClasses, ListCard
 from memspine.workers.pipelines import (
     DERIVED_STAGES,
     PIPELINES,
@@ -436,6 +440,13 @@ class _NeighbourBatch:
 #: #63: the neighbour batch of the ``write_messages`` call running in this task.
 _NEIGHBOUR_BATCH: ContextVar[_NeighbourBatch | None] = ContextVar(
     "memspine_neighbour_batch", default=None
+)
+
+#: #30: contents of the engine's own list cards a re-derived card replaces. A new card
+#: repeats its predecessor's prefix by construction, so those (and only those) are
+#: left out of the MINJA bridge-prefix comparison of that one write.
+_REPLACED_CONTENTS: ContextVar[frozenset[str]] = ContextVar(
+    "memspine_replaced_contents", default=frozenset()
 )
 
 
@@ -5125,6 +5136,9 @@ class Engine:
             neighbour_sims = [hit.score for hit in hits if hit.record_id not in held][:wanted]
         # The 50 most recently recorded live contents, oldest first.
         recent_contents = await storage.recent_contents(record.namespace, 50)
+        replaced = _REPLACED_CONTENTS.get()
+        if replaced:
+            recent_contents = [c for c in recent_contents if c not in replaced]
         return self._firewall.assess(
             record, neighbour_similarities=neighbour_sims, recent_contents=recent_contents
         )
@@ -6420,6 +6434,8 @@ class Engine:
             mine_facts=self._build_fact_miner(),
             date_facts=self._build_fact_dater(),
             deposit_fact=self._deposit_mined_fact,
+            deposit_list_card=self._deposit_list_card,
+            label_classes=self._build_class_labeller(),
             anticipate=self._build_anticipator(),
             deposit_cues=self._deposit_anticipated_cues,
             reflect=self._build_reflector(),
@@ -6691,6 +6707,8 @@ class Engine:
         # shipped; the base extract prompt otherwise. #27: ``consolidation.mine_prompt``
         # picks another session variant, whose token budget becomes the output cap.
         variant = str(self._consolidation_option("mine_prompt", "session"))
+        if variant == "session" and self._consolidation_option("mine_multiview", False):
+            variant = "session4"  # #28: the default prompt asks for no view fields
         prompt = self._prompts.select("extract", condition=variant)
         options: dict[str, Any] = {}
         if variant != "session" and prompt.token_budget:
@@ -6745,8 +6763,15 @@ class Engine:
         kind: str | None = None,
         happened: str | None = None,
         said: str | None = None,
+        persons: list[str] | None = None,
+        location: str | None = None,
+        topic: str | None = None,
     ) -> MemoryRecord:
         """C6': one mined fact through the write door (firewall, ladder, MTI).
+
+        #28: ``persons`` / ``location`` / ``topic`` (``consolidation.mine_multiview``)
+        are tagged ``person:<name>``, ``loc:<place>``, ``topic:<class>`` (normalised,
+        :func:`~memspine.core.fact_views.view_tags`); the statement is kept as mined.
 
         #29: ``happened`` (the fact's happened date) is tagged ``happened:<date>``,
         and ``said`` (the day its relative phrases were resolved against) ``said:<date>``,
@@ -6769,6 +6794,7 @@ class Engine:
             tags.append(happened_tag(happened))
             if said:
                 tags.append(f"{SAID_PREFIX}{said}")
+        tags.extend(t for t in view_tags(persons or [], location, topic) if t not in tags)
         if kind is not None:
             tags.append(f"kind:{kind}")
             protected = self._config().firewall.protected_keys
@@ -6798,6 +6824,107 @@ class Engine:
             cap = [*(cap or []), *integrity_cap]
         async with self._write_locks.setdefault(ns, asyncio.Lock()):
             return await self._write_locked(storage, ns, record, "semantic", "system", cap)
+
+    def _build_class_labeller(self) -> LabelClasses | None:
+        """#30: the per-person ``extract@classes`` call of the list-card step, only
+        when ``consolidation.list_cards`` is on and an ``extract`` role is bound."""
+        if (
+            not self._consolidation_option("list_cards", False)
+            or self._llm is None
+            or self._prompts is None
+            or "extract" not in self._llm.roles
+        ):
+            return None
+        llm = self._llm.for_role("extract")
+        prompt = self._prompts.select("extract", condition="classes")
+
+        async def label_classes(person: str, facts: list[str]) -> dict[int, str]:
+            numbered = "\n".join(f"[{i}] {fact}" for i, fact in enumerate(facts, 1))
+            result = await structured_call(llm, prompt, {"facts": numbered}, FactClasses)
+            return {c.index: c.label for c in result.classes if c.label}
+
+        return label_classes
+
+    async def _deposit_list_card(
+        self, namespace: str, card: ListCard | None, replaces: list[str]
+    ) -> MemoryRecord | None:
+        """#30: archive the cards ``card`` replaces, then write it through the door.
+
+        Under the namespace lock, a card whose facts are no longer all live (a forget
+        raced the step) is not written and nothing is archived: the next cycle
+        re-derives it. The card is LLM-free derived content with the non-privileged
+        ``assistant`` role, its trust capped at its least trusted fact (E1) and, under
+        integrity, at the facts' view trust. ``card=None`` only archives.
+        """
+        storage = self._require_started()
+        ns = validate_namespace(namespace)
+        async with self._write_locks.setdefault(ns, asyncio.Lock()):
+            sources: list[MemoryRecord] = []
+            if card is not None:
+                for parent_id in card.parents:
+                    parent = await storage.get_record(parent_id)
+                    if (
+                        parent is None
+                        or parent.namespace != ns
+                        or parent.status is not RecordStatus.ACTIVATED
+                        or parent.quarantined
+                    ):
+                        return None
+                    sources.append(parent)
+            for record_id in replaces:
+                old = await storage.get_record(record_id)
+                if (
+                    old is None
+                    or constants.LIST_CARD_TAG not in old.tags
+                    or old.status is not RecordStatus.ACTIVATED
+                ):
+                    continue
+                await self._append_and_project(
+                    MemoryEvent(
+                        kind=EventKind.DECAY_TRANSITION,
+                        namespace=ns,
+                        actor="system",
+                        payload={
+                            "record_id": record_id,
+                            "set": {
+                                "status": RecordStatus.ARCHIVED.value,
+                                "superseded_at": datetime.now(UTC).isoformat(),
+                            },
+                            "transition": "list_card->superseded",
+                            "reason": "list_card_rederived",
+                        },
+                    )
+                )
+            if card is None:
+                return None
+            record = MemoryRecord(
+                namespace=ns,
+                memory_type="semantic",
+                content=card.text,
+                source=SourceInfo(
+                    role="assistant", channel="list_card", parents=list(card.parents)
+                ),
+                entity=card.person,
+                attribute=None,
+                valid_from=card.valid_from,
+                tags=list(card.tags),
+            )
+            cap = [min(r.trust for r in sources)] if sources else None
+            integrity_cap = await self._parent_trust_cap(ns, card.parents)
+            if integrity_cap:
+                cap = [*(cap or []), *integrity_cap]
+            # Every earlier version of this group's card (any status) repeats its prefix.
+            group = {t for t in card.tags if t.startswith(LIST_CARD_KEY_PREFIX)}
+            replaced = frozenset(
+                r.content
+                for r in await storage.list_records(ns, "semantic")
+                if constants.LIST_CARD_TAG in r.tags and group & set(r.tags)
+            )
+            token = _REPLACED_CONTENTS.set(replaced)
+            try:
+                return await self._write_locked(storage, ns, record, "semantic", "system", cap)
+            finally:
+                _REPLACED_CONTENTS.reset(token)
 
     async def _write_extracted_fact(
         self, record: MemoryRecord, trust_cap: list[float]
@@ -6855,8 +6982,10 @@ class Engine:
             return None
         if self._llm is None or self._prompts is None or "extract_edges" not in self._llm.roles:
             return None
-        opts = policy if isinstance(policy, dict) else {}
-        return self._edge_extract_callable(int(opts.get("max_rounds", 1)))
+        # #32: write.reflexion=false drops the extra rounds (one call per source).
+        return self._edge_extract_callable(
+            extraction_rounds(self._memory_policy(config, "semantic"))
+        )
 
     def _build_write_pipeline(self, config: MemspineConfig) -> WritePipeline | None:
         """C3 synchronous graphiti write pipeline for the semantic door.
@@ -6870,12 +6999,8 @@ class Engine:
             return None
         if self._llm is None or self._prompts is None or "extract_edges" not in self._llm.roles:
             return None
-        rounds = 1
-        graph_opts = sem.get("extract_graph")
-        if isinstance(graph_opts, dict):
-            rounds = int(graph_opts.get("max_rounds", 1))
         return GraphWritePipeline(
-            self._edge_extract_callable(rounds),
+            self._edge_extract_callable(extraction_rounds(sem)),
             protected_keys=config.firewall.protected_keys,
         )
 
