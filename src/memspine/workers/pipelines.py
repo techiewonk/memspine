@@ -14,11 +14,17 @@ import asyncio
 from collections.abc import Awaitable, Callable
 from contextlib import AbstractAsyncContextManager, nullcontext
 from dataclasses import dataclass, field
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, time, timedelta
 from typing import Protocol
 
 from memspine.config import constants
 from memspine.config.schema import MemspineConfig
+from memspine.core.event_date import (
+    cited_turns,
+    happened_label,
+    normalise_label,
+    resolve_happened,
+)
 from memspine.core.events import EventKind, EventLogMode, MemoryEvent, fingerprint_payload
 from memspine.core.firewall import Firewall, FirewallVerdict, instruction_shaped
 from memspine.core.policies.community import CommunityOptions, CommunityPolicy
@@ -32,6 +38,7 @@ from memspine.core.policies.decay import DecayPolicy
 from memspine.core.policies.retention import RetentionPolicy
 from memspine.core.policies.trust import TrustPolicy
 from memspine.core.records import MemoryRecord, RecordStatus, SourceInfo
+from memspine.core.temporal_resolve import WeekMode
 from memspine.exceptions import ConflictError
 from memspine.memories.associative.communities import communities_available, detect_communities
 from memspine.memories.associative.links import assert_within_budget, link_event
@@ -110,6 +117,9 @@ Anticipate = Callable[[str], Awaitable[list[AnticipatedCue]]]
 DepositCues = Callable[[str, str, list[str], str], Awaitable[object]]
 #: C6': LLM fact miner (``extract`` role): session text -> atomic facts.
 MineFacts = Callable[[str], Awaitable[list[ExtractedFact]]]
+#: #29: (transcript, fact statements) -> {1-based fact index: date} for the facts the
+#: model could date (one batched call).
+DateFacts = Callable[[str, list[str]], Awaitable[dict[int, str]]]
 
 
 class DepositFact(Protocol):
@@ -128,6 +138,7 @@ class DepositFact(Protocol):
         session_key: str,
         *,
         kind: str | None = None,
+        happened: str | None = None,
     ) -> Awaitable[object]: ...
 
 
@@ -165,6 +176,8 @@ class PipelineContext:
     extract_edges: ExtractEdges | None = None
     #: C6' atomic-fact mining. Both None => the mine_facts stage self-skips.
     mine_facts: MineFacts | None = None
+    #: #29: the batched LLM date fill (``consolidation.mine_event_dates_llm``).
+    date_facts: DateFacts | None = None
     #: H8 anticipatory cues. Both None => the anticipate stage self-skips.
     anticipate: Anticipate | None = None
     #: H14 profile reflection. Both None => the reflect_profile stage self-skips.
@@ -1272,6 +1285,62 @@ def _legacy_tag_check(
     return done
 
 
+def _mining_transcript(segment: list[MemoryRecord], numbered: bool) -> str:
+    """The miner's transcript: ``[YYYY-MM-DD] turn`` lines, numbered ``[n]`` (1-based)
+    when the miner may cite its evidence turns (#29)."""
+    lines = [f"[{m.valid_from:%Y-%m-%d}] {m.content}" for m in segment]
+    if not numbered:
+        return "\n".join(lines)
+    return "\n".join(f"[{n}] {line}" for n, line in enumerate(lines, 1))
+
+
+@dataclass
+class _Happened:
+    """#29: one mined fact's happened date: the label, and the event time a
+    deterministic resolution gives (None: keep the H2 event time)."""
+
+    label: str | None = None
+    start: datetime | None = None
+
+
+def _happened(
+    fact: ExtractedFact, segment: list[MemoryRecord], numbered: bool, week: WeekMode
+) -> _Happened:
+    """#29: deterministic first. A relative phrase in the fact's statement (resolved
+    against its first cited turn, or the segment's day when it has only one), else in
+    its cited turns (each against its own date); else the miner's own ``date``."""
+    cited = cited_turns(segment, getattr(fact, "turns", [])) if numbered else []
+    days = {m.valid_from.date() for m in segment}
+    anchor = cited[0].valid_from if cited else (segment[0].valid_from if len(days) == 1 else None)
+    span = resolve_happened([(fact.value, anchor)], week=week) if anchor is not None else None
+    if span is None and cited:
+        span = resolve_happened(((m.content, m.valid_from) for m in cited), week=week)
+    if span is not None:
+        return _Happened(happened_label(*span), datetime.combine(span[0], time(), tzinfo=UTC))
+    label = normalise_label(getattr(fact, "date", None))
+    if label is not None and _fact_date(label.split("..", 1)[0], segment[-1].valid_from) is None:
+        label = None  # R2-7: out of range, as for the event time
+    return _Happened(label)
+
+
+async def _fill_dates(
+    dater: DateFacts, transcript: str, mined: list[ExtractedFact], happened: list[_Happened]
+) -> None:
+    """#29: one call dates the facts no rule or miner did; a failure leaves them undated."""
+    missing = [i for i, h in enumerate(happened) if h.label is None]
+    if not missing:
+        return
+    try:
+        dates = await dater(transcript, [mined[i].value for i in missing])
+    except Exception as exc:  # an enhancer, never a gate
+        _log.warning("mine_facts.date_fill_failed", error=str(exc))
+        return
+    for position, index in enumerate(missing, 1):
+        label = normalise_label(dates.get(position))
+        if label is not None and _fact_date(label.split("..", 1)[0]) is not None:
+            happened[index].label = label
+
+
 async def mine_facts(ctx: PipelineContext) -> dict[str, object]:
     """C6': mine atomic, dated facts from each consolidated session, once.
 
@@ -1288,6 +1357,10 @@ async def mine_facts(ctx: PipelineContext) -> dict[str, object]:
         return {"status": "skipped", "reason": "no extract LLM role bound"}
     miner, deposit = ctx.mine_facts, ctx.deposit_fact
     by_topic = bool(getattr(options, "mine_by_topic", False))
+    numbered = bool(getattr(options, "mine_evidence_turns", False))
+    event_dates = bool(getattr(options, "mine_event_dates", False))
+    dater = ctx.date_facts if getattr(options, "mine_event_dates_llm", False) else None
+    week = ctx.config.read.relative_week
 
     async def work(namespace: str, key: str, members: list[MemoryRecord]) -> tuple[int, list[str]]:
         # H15: one call per topic segment. Every call runs before any deposit, so a
@@ -1295,19 +1368,31 @@ async def mine_facts(ctx: PipelineContext) -> dict[str, object]:
         segments = topic_segments(members) if by_topic else [members]
         batches = []
         for segment in segments:
-            transcript = "\n".join(f"[{m.valid_from:%Y-%m-%d}] {m.content}" for m in segment)
-            batches.append((segment, await miner(transcript)))
+            transcript = _mining_transcript(segment, numbered)
+            mined = await miner(transcript)
+            happened: list[_Happened] = []
+            if event_dates:
+                happened = [_happened(fact, segment, numbered, week) for fact in mined]
+                if dater is not None:  # #29: one batched call fills the undated facts
+                    await _fill_dates(dater, transcript, mined, happened)
+            batches.append((segment, mined, happened))
         written = 0
         errors: list[str] = []
-        for segment, mined in batches:
+        for segment, mined, happened in batches:
             start, latest = segment[0].valid_from, segment[-1].valid_from
-            parents = [m.record_id for m in segment]
-            for fact in mined:
+            for index, fact in enumerate(mined):
                 text = f"{fact.entity} {fact.attribute}: {fact.value}"
                 when = _fact_date(getattr(fact, "date", None), latest) or start
+                # #29: a cited fact's parents are its evidence turns, not the segment.
+                cited = cited_turns(segment, getattr(fact, "turns", [])) if numbered else []
+                parents = [m.record_id for m in (cited or segment)]
                 # G1a: only a state is keyed by (entity, attribute) and may supersede;
                 # the deposit drops an event's attribute, so the ladder ADDs it.
                 kind = getattr(fact, "kind", "event") or "event"
+                extra: dict[str, str] = {}
+                if happened and happened[index].label:
+                    extra["happened"] = str(happened[index].label)
+                    when = happened[index].start or when
                 try:
                     await deposit(
                         namespace,
@@ -1318,6 +1403,7 @@ async def mine_facts(ctx: PipelineContext) -> dict[str, object]:
                         when,
                         key,
                         kind=kind,
+                        **extra,
                     )
                 except Exception as exc:  # one bad fact must not lose the rest
                     errors.append(f"{namespace}:{key}: deposit failed: {exc}")

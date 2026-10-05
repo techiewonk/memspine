@@ -246,6 +246,8 @@ CARDS_TAG = "cards_header"
 PROFILE_MARKER = "PROFILE NOTES (reflected from earlier conversations"
 PROFILE_TAG = "profile_header"
 PROFILE_HEADER_TOP_K = 8
+# #35 (SM-8): the most planner-v2 lookup subqueries a lookup read fuses as extra legs.
+PLAN_LOOKUP_PROBES = 2
 # E3: header of the occurrences block (``read.count_timeline``) and its tag: the distinct
 # dated mentions, among the retrieved records, of the event a count question asks about.
 COUNT_MARKER = "Occurrences (dated):"
