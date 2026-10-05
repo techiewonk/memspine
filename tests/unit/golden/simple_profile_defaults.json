@@ -1,5 +1,15 @@
 {
   "config": {
+    "audit": {
+      "actions": false,
+      "reads": false
+    },
+    "consent": {
+      "enforce": false,
+      "local_hosts": [],
+      "remote_llm_max_tier": null,
+      "untagged": "allow"
+    },
     "decision": {
       "model": "fastino/gliner2-base-v1",
       "provider": "off"
@@ -87,6 +97,29 @@
       "timeline_entities": 3,
       "timeline_items": 8,
       "topic_timelines": false
+    },
+    "rest": {
+      "auth": {
+        "api_keys": [],
+        "jwt": {
+          "admin_role": "memspine-admin",
+          "algorithms": [
+            "RS256"
+          ],
+          "audience": null,
+          "issuer": null,
+          "jwks_url": null,
+          "key_env": null,
+          "namespaces_claim": "memspine_namespaces",
+          "principal_claim": "sub",
+          "roles_claim": "roles"
+        },
+        "mode": "none"
+      },
+      "rate_limit": null
+    },
+    "retention": {
+      "classes": []
     }
   },
   "policy_options": {

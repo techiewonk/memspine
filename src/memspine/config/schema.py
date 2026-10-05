@@ -17,7 +17,9 @@ from memspine.core.registry import validate_types
 from memspine.exceptions import ConfigError
 
 __all__ = [
+    "AuditConfig",
     "CacheConfig",
+    "ConsentConfig",
     "EmbeddingConfig",
     "EventLogConfig",
     "GraphConfig",
@@ -28,6 +30,10 @@ __all__ = [
     "NamespaceConfig",
     "PromptsConfig",
     "ReadConfig",
+    "RestAuthConfig",
+    "RestConfig",
+    "RetentionClassConfig",
+    "RetentionConfig",
     "StorageConfig",
     "VectorConfig",
 ]
@@ -616,6 +622,131 @@ class DecisionConfig(BaseModel):
     model: str = "fastino/gliner2-base-v1"
 
 
+class RetentionClassConfig(BaseModel):
+    """#48: one retention class. Records of a namespace matching ``namespace`` (a
+    glob, ``*`` = any) and of ``memory_type`` (None = any type) expire ``ttl_days``
+    after they were recorded."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    namespace: str = "*"
+    memory_type: str | None = None
+    ttl_days: float = Field(gt=0.0)
+
+
+class RetentionConfig(BaseModel):
+    """#48 retention classes (storage limitation). ``classes`` is checked in order;
+    the first class that matches a record sets its TTL. A sleep-cycle stage
+    hard-forgets expired records through the ordinary forget path, so legal holds
+    and the per-type ``retention`` policy's ``may_delete`` are respected. Empty
+    (default): no stage runs and nothing expires."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    classes: list[RetentionClassConfig] = Field(default_factory=list)
+
+
+class AuditConfig(BaseModel):
+    """#49 durable audit, opt-in.
+
+    - ``reads``: every ``search`` / ``assemble`` / ``read`` / ``retrieve`` /
+      ``shared_search`` / ``export`` appends a ``memory.read_audit`` event (principal,
+      namespace, returned record ids, purpose, time).
+    - ``actions``: ``forget``, ``correct``, retention expiry and export append a
+      ``memory.audit`` event with the actor and the reason.
+
+    Both kinds carry a hash chain (each event stores the previous event's hash);
+    ``Engine.audit_chain_ok()`` validates it. No projector reads them.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    reads: bool = False
+    actions: bool = False
+
+
+class ConsentConfig(BaseModel):
+    """#50 purpose limitation and the remote-LLM gate, opt-in.
+
+    - ``enforce``: a read returns only records whose purpose set (``consent_tags``,
+      set by ``write(..., purposes=[...])``) allows the read's ``purpose``. A record
+      with ``*`` allows every purpose. A read without a purpose sees only untagged
+      records.
+    - ``untagged``: whether records with no purpose are visible to every read
+      (``allow``) or to none (``deny``) while ``enforce`` is on.
+    - ``remote_llm_max_tier``: text of records whose ``pii_tier`` is above this tier
+      is withheld from every prompt sent to a remote LLM provider. None = off.
+    - ``local_hosts``: extra ``api_base`` host names that count as local.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    enforce: bool = False
+    untagged: Literal["allow", "deny"] = "allow"
+    remote_llm_max_tier: Literal["none", "low", "high", "regulated"] | None = None
+    local_hosts: list[str] = Field(default_factory=list)
+
+
+class RestApiKeyConfig(BaseModel):
+    """#51: one API key of the reference REST auth middleware. The key itself is
+    read from the environment variable ``key_env`` (or given in ``key``, which the
+    loader can resolve from a secret reference); it is never logged or echoed."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    key_env: str | None = None
+    key: str | None = Field(default=None, repr=False)
+    principal: str
+    namespaces: list[str] = Field(default_factory=list)
+    admin: bool = False
+
+
+class RestJwtConfig(BaseModel):
+    """#51: OIDC/JWT bearer verification (needs ``pyjwt``). The verification key
+    comes from ``jwks_url`` (asymmetric, fetched by PyJWT) or the environment
+    variable ``key_env`` (a PEM public key or an HMAC secret)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    issuer: str | None = None
+    audience: str | None = None
+    algorithms: list[str] = Field(default_factory=lambda: ["RS256"])
+    jwks_url: str | None = None
+    key_env: str | None = None
+    principal_claim: str = "sub"
+    namespaces_claim: str = "memspine_namespaces"
+    roles_claim: str = "roles"
+    admin_role: str = "memspine-admin"
+
+
+class RestRateLimitConfig(BaseModel):
+    """#51: in-memory token bucket per principal (per client address without auth)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    requests_per_second: float = Field(gt=0.0)
+    burst: int = Field(default=10, ge=1)
+
+
+class RestAuthConfig(BaseModel):
+    """#51 reference auth middleware (not a production auth plane, ADR-037)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    mode: Literal["none", "api_key", "oidc_jwt"] = "none"
+    api_keys: list[RestApiKeyConfig] = Field(default_factory=list)
+    jwt: RestJwtConfig = Field(default_factory=RestJwtConfig)
+
+
+class RestConfig(BaseModel):
+    """#51 REST protocol options. Defaults keep the unauthenticated v0.1 app."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    auth: RestAuthConfig = Field(default_factory=RestAuthConfig)
+    rate_limit: RestRateLimitConfig | None = None
+
+
 class MemspineConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -633,6 +764,10 @@ class MemspineConfig(BaseModel):
     integrity: IntegrityConfig = Field(default_factory=IntegrityConfig)
     firewall: FirewallConfig = Field(default_factory=FirewallConfig)
     workers: WorkersConfig = Field(default_factory=WorkersConfig)
+    retention: RetentionConfig = Field(default_factory=RetentionConfig)
+    audit: AuditConfig = Field(default_factory=AuditConfig)
+    consent: ConsentConfig = Field(default_factory=ConsentConfig)
+    rest: RestConfig = Field(default_factory=RestConfig)
     prompts: PromptsConfig = Field(default_factory=PromptsConfig)
     memories: dict[str, MemoryTypeConfig] = Field(default_factory=dict)
     namespaces: dict[str, NamespaceConfig] = Field(default_factory=dict)
