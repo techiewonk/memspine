@@ -1,6 +1,6 @@
 """Hard forget reaches consolidation/reorganize summaries (also ones written
 before they carried parents), verify walks descendants transitively, and the
-vector table keeps no erased row in older versions (ADR-037)."""
+vector table keeps no erased row in older versions (ADR-039)."""
 
 from __future__ import annotations
 

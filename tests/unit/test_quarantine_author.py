@@ -1,4 +1,4 @@
-"""An author cannot release its own held write (ADR-038)."""
+"""An author cannot release its own held write (ADR-040)."""
 
 from __future__ import annotations
 

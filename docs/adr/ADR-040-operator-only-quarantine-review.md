@@ -1,4 +1,4 @@
-# ADR-038: Quarantine review is operator-only, and an author cannot release its own write
+# ADR-040: Quarantine review is operator-only, and an author cannot release its own write
 
 - **Status:** accepted (Wave 1 trust review fixes, 2026-10-05)
 - **Date:** 2026-10-05

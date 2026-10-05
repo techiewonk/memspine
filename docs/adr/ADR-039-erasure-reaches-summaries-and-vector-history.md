@@ -1,4 +1,4 @@
-# ADR-037: Hard forget reaches summaries and the vector table's history
+# ADR-039: Hard forget reaches summaries and the vector table's history
 
 - **Status:** accepted (Wave 1 trust review fixes, 2026-10-05)
 - **Date:** 2026-10-05
