@@ -50,7 +50,7 @@ async def _make(
     graph = SQLiteAdjacencyGraph(client)
     harness = Harness(storage, graph)
 
-    async def fake_extract(content: str) -> list[ExtractedEdge]:
+    async def fake_extract(content: str, _context: object = None) -> list[ExtractedEdge]:
         if calls is not None:
             calls.append(content)
         return list(edges)
@@ -92,6 +92,7 @@ async def test_edge_becomes_a_fact_record_and_asserted_link() -> None:
     edge = ExtractedEdge(
         src_entity="Alice",
         rel="works_at",
+        kind="state",
         dst_entity="Acme",
         fact="Alice works at Acme",
         confidence=0.9,
@@ -123,6 +124,7 @@ async def test_rerun_is_idempotent() -> None:
     edge = ExtractedEdge(
         src_entity="Alice",
         rel="works_at",
+        kind="state",
         dst_entity="Acme",
         fact="Alice works at Acme",
         confidence=0.9,
@@ -132,10 +134,13 @@ async def test_rerun_is_idempotent() -> None:
 
     first = await extract_graph(ctx)
     assert first["edges_written"] == 1
+    # A new source restating the same edge: the (src, rel, dst) key already
+    # exists -> nothing new written (the first source is watermarked, GP-8a).
+    await _seed(harness, "Alice still works at Acme.")
     second = await extract_graph(ctx)
-    # The (src, rel, dst) key already exists -> nothing new written.
     assert second["edges_written"] == 0
-    assert second["skipped_existing"] >= 1
+    assert second["skipped_existing"] == 1
+    assert second["skipped_sources"] == 1
     facts = [
         r
         for r in await harness.storage.list_records("agent/a", "semantic")
@@ -149,6 +154,7 @@ async def test_never_extracts_from_its_own_output() -> None:
     edge = ExtractedEdge(
         src_entity="Alice",
         rel="works_at",
+        kind="state",
         dst_entity="Acme",
         fact="Alice works at Acme",
         confidence=0.9,
@@ -198,7 +204,11 @@ async def test_bare_context_screens_facts_with_the_local_firewall() -> None:
             confidence=0.9,
         ),
         ExtractedEdge(
-            src_entity="Alice", rel="works_at", dst_entity="Acme", fact="Alice works at Acme"
+            src_entity="Alice",
+            rel="works_at",
+            dst_entity="Acme",
+            fact="Alice works at Acme",
+            kind="state",
         ),
     ]
     ctx, harness, graph = await _make(edges)
@@ -207,7 +217,7 @@ async def test_bare_context_screens_facts_with_the_local_firewall() -> None:
     result = await extract_graph(ctx)
     assert result["edges_written"] == 1 and result["quarantined"] == 1 and result["links"] == 1
     facts = {
-        r.attribute: r
+        next(t.removeprefix("rel:") for t in r.tags if t.startswith("rel:")): r
         for r in await harness.storage.list_records("agent/a", "semantic")
         if r.source.channel == "extract_graph"
     }
@@ -216,3 +226,115 @@ async def test_bare_context_screens_facts_with_the_local_firewall() -> None:
     assert all(f.trust <= source.trust for f in facts.values())
     linked = {e.dst for e in await graph.edges_of(source.record_id) if e.rel_type == "asserted"}
     assert linked == {facts["works_at"].record_id}
+
+
+async def test_second_sweep_without_new_records_makes_no_llm_calls() -> None:
+    """GP-8a: a source already sent to the extractor is watermarked."""
+    calls: list[str] = []
+    ctx, harness, _graph = await _make([], calls=calls)
+    await _seed(harness, "Alice works at Acme.")
+    await _seed(harness, "Alice read Dune.")
+
+    first = await extract_graph(ctx)
+    assert len(calls) == 2 and first["skipped_sources"] == 0
+    second = await extract_graph(ctx)
+    assert len(calls) == 2  # no new records -> zero extractor calls
+    assert second["skipped_sources"] == 2
+
+    # A fresh context (new sleep cycle) reads the watermark back from the log.
+    from memspine.workers.pipelines import SessionIndex
+
+    ctx.session_index = SessionIndex()
+    await extract_graph(ctx)
+    assert len(calls) == 2
+
+    # Only the new record is sent on the next sweep.
+    await _seed(harness, "Alice visited Rome.")
+    await extract_graph(ctx)
+    assert calls[2:] == ["Alice visited Rome."]
+
+
+async def test_failed_extraction_is_not_watermarked() -> None:
+    calls: list[str] = []
+    ctx, harness, _graph = await _make([], calls=calls)
+    await _seed(harness, "Alice works at Acme.")
+
+    async def broken(content: str, _context: object = None) -> list[ExtractedEdge]:
+        calls.append(content)
+        raise RuntimeError("model down")
+
+    healthy = ctx.extract_edges
+    ctx.extract_edges = broken
+    assert (await extract_graph(ctx))["status"] == "partial"
+    ctx.extract_edges = healthy
+    await extract_graph(ctx)
+    assert len(calls) == 2  # retried on the next sweep
+
+
+async def test_event_edges_keep_dst_and_are_not_keyed_on_the_relation() -> None:
+    """GP-1 on the C2 path: two `read` events are two add-only facts."""
+    edges = [
+        ExtractedEdge(src_entity="Mel", rel="read", dst_entity="Dune", fact="Mel read Dune"),
+        ExtractedEdge(src_entity="Mel", rel="read", dst_entity="Emma", fact="Mel read Emma"),
+    ]
+    ctx, harness, _graph = await _make(edges)
+    await _seed(harness, "Mel read Dune and Emma.")
+    assert (await extract_graph(ctx))["edges_written"] == 2
+    facts = [
+        r
+        for r in await harness.storage.list_records("agent/a", "semantic")
+        if r.source.channel == "extract_graph"
+    ]
+    assert all(r.attribute is None and "kind:event" in r.tags for r in facts)
+    assert {t for r in facts for t in r.tags if t.startswith("dst:")} == {"dst:Dune", "dst:Emma"}
+
+
+async def test_extractor_sees_reference_time_previous_episodes_and_entities() -> None:
+    """GR-4: each source gets its own time, <=10 earlier episodes and known names."""
+    from datetime import timedelta
+
+    from memspine.memories.semantic.write_pipeline import EdgeContext
+
+    seen: dict[str, EdgeContext | None] = {}
+    ctx, harness, _graph = await _make([])
+
+    async def extract(content: str, context: EdgeContext | None = None) -> list[ExtractedEdge]:
+        seen[content] = context
+        return []
+
+    ctx.extract_edges = extract
+    base = datetime(2026, 3, 1, tzinfo=UTC)
+    for i in range(12):
+        record = MemoryRecord(
+            namespace="agent/a",
+            memory_type="episodic",
+            content=f"turn {i}",
+            valid_from=base + timedelta(minutes=i),
+        )
+        await harness.append(
+            MemoryEvent(
+                kind=EventKind.WRITE,
+                namespace="agent/a",
+                actor="user",
+                payload={"record": record.model_dump(mode="json")},
+            )
+        )
+    known = MemoryRecord(
+        namespace="agent/a", memory_type="semantic", content="Mel likes tea", entity="Melanie"
+    )
+    await harness.append(
+        MemoryEvent(
+            kind=EventKind.WRITE,
+            namespace="agent/a",
+            actor="user",
+            payload={"record": known.model_dump(mode="json")},
+        )
+    )
+
+    await extract_graph(ctx)
+    first, last = seen["turn 0"], seen["turn 11"]
+    assert first is not None and last is not None
+    assert list(first.previous) == []
+    assert list(last.previous) == [f"turn {i}" for i in range(1, 11)]  # the 10 just before
+    assert last.reference_time == base + timedelta(minutes=11)
+    assert list(last.entities) == ["Melanie"]

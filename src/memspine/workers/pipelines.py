@@ -37,7 +37,13 @@ from memspine.memories.associative.communities import communities_available, det
 from memspine.memories.associative.links import assert_within_budget, link_event
 from memspine.memories.episodic.sessions import Session, detect_sessions, topic_segments
 from memspine.memories.prospective.triggers import due_watches, invalidation_watches
-from memspine.memories.semantic.write_pipeline import ScreenDerived
+from memspine.memories.semantic.write_pipeline import (
+    MAX_PREVIOUS_EPISODES,
+    EdgeContext,
+    ExtractEdges,
+    ScreenDerived,
+    edge_fact_key,
+)
 from memspine.observability.logging import get_logger
 from memspine.prompts.models import AnticipatedCue, ExtractedEdge, ExtractedFact
 from memspine.services.graph.base import GraphStore
@@ -96,10 +102,10 @@ class PipelineStorage(Protocol):
 
 AppendEvent = Callable[[MemoryEvent], Awaitable[None]]
 Summarize = Callable[[str], Awaitable[str]]
-#: LLM edge extraction for the graphiti-style write path (C2). Takes source
-#: text, returns the (reflexion-merged) relationship edges. None => the
-#: extract_graph pipeline self-skips — no LLM role or the feature is off.
-ExtractEdges = Callable[[str], Awaitable[list[ExtractedEdge]]]
+# ``ExtractEdges`` (re-exported): LLM edge extraction for the graphiti-style
+# write path (C2). Takes source text plus an optional :class:`EdgeContext`,
+# returns the (reflexion-merged) relationship edges. None on the context => the
+# extract_graph pipeline self-skips — no LLM role or the feature is off.
 #: H14: reflector (``reflect`` role): session turns -> (insight, evidence indices).
 Reflect = Callable[[list[str]], Awaitable[list[tuple[str, list[int]]]]]
 #: H14: engine-side reflection deposit (namespace, insight, evidence record ids, key).
@@ -849,6 +855,51 @@ async def _reorganize_community(
     return 1, key, namespace
 
 
+#: GP-8a: MARKER payload naming the sources one extract_graph sweep already sent
+#: to the LLM, with each source's content fingerprint at the time.
+GRAPH_EXTRACTED_MARKER = "graph_extracted"
+
+#: GR-4: at most this many known entity names ride along as extraction context.
+EDGE_CONTEXT_MAX_ENTITIES = 50
+
+
+def _one_line(text: str, limit: int = 400) -> str:
+    """An episode squeezed onto one prompt line (GR-4 context, never a source)."""
+    flat = " ".join(text.split())
+    return flat if len(flat) <= limit else flat[: limit - 1] + "..."
+
+
+def _edge_contexts(sources: list[MemoryRecord], known: list[MemoryRecord]) -> list[EdgeContext]:
+    """GR-4: per source, its event time, the episodes just before it (same
+    group, at most ``MAX_PREVIOUS_EPISODES``) and the entity names already
+    known in the namespace (most recent first)."""
+    entities: list[str] = []
+    for record in sorted(known, key=lambda r: r.recorded_at, reverse=True):
+        if record.entity and record.entity not in entities:
+            entities.append(record.entity)
+    entities = entities[:EDGE_CONTEXT_MAX_ENTITIES]
+    episodes = sorted(
+        (r for r in sources if r.memory_type == "episodic"),
+        key=lambda r: (r.valid_from, r.record_id),
+    )
+    contexts: list[EdgeContext] = []
+    for record in sources:
+        previous = [
+            e
+            for e in episodes
+            if e.group_id == record.group_id
+            and (e.valid_from, e.record_id) < (record.valid_from, record.record_id)
+        ][-MAX_PREVIOUS_EPISODES:]
+        contexts.append(
+            EdgeContext(
+                reference_time=record.valid_from,
+                previous=[_one_line(e.content) for e in previous],
+                entities=entities,
+            )
+        )
+    return contexts
+
+
 def _edge_key(namespace: str, edge: ExtractedEdge) -> str:
     """Idempotency key for an extracted edge: same (src, rel, dst) in a
     namespace fingerprints to the same record, so a re-run never duplicates."""
@@ -905,12 +956,20 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
     quarantined = 0
     errors: list[str] = []
     screen = ctx.screen or _local_screen(ctx)
+    protected = ctx.config.firewall.protected_keys
+    # GP-8a: a source already sent to the LLM (same content) is not sent again.
+    index = ctx.session_index
+    await index.refresh(ctx.storage)
+    already = 0
     for namespace in await ctx.storage.list_namespaces():
         async with ctx.lock(namespace):
             existing: set[str] = set()
             sources: list[MemoryRecord] = []
+            known: list[MemoryRecord] = []
             for mtype in ("episodic", "semantic"):
                 for record in await ctx.storage.list_records(namespace, mtype):
+                    if mtype == "semantic" and record.status is RecordStatus.ACTIVATED:
+                        known.append(record)
                     if record.source.channel == "extract_graph":
                         if record.source.message_id:
                             existing.add(record.source.message_id)
@@ -924,15 +983,23 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
                         and not record.instruction_flag
                     ):
                         sources.append(record)
-            for record in sources:
+            done: dict[str, str] = {}
+            for record, edge_context in zip(sources, _edge_contexts(sources, known), strict=True):
+                if (
+                    index.graph_sources.get((namespace, record.record_id))
+                    == record.content_fingerprint
+                ):
+                    already += 1
+                    continue
                 try:
-                    edges = await ctx.extract_edges(record.content)
+                    edges = await ctx.extract_edges(record.content, edge_context)
                 except Exception as exc:  # the LLM is an enhancer, never a gate (N6)
                     errors.append(f"{record.record_id}: {exc}")
                     _log.warning(
                         "extract_graph.extract_failed", record_id=record.record_id, error=str(exc)
                     )
-                    continue
+                    continue  # no watermark: retried next sweep
+                done[record.record_id] = record.content_fingerprint
                 for edge in edges:
                     if edge.confidence < min_conf:
                         continue
@@ -941,12 +1008,16 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
                         skipped += 1
                         continue
                     existing.add(key)
+                    # GP-1: an event edge drops its attribute (add-only, never
+                    # superseded); kind, rel and dst persist as tags.
+                    attribute, tags = edge_fact_key(edge, edge.src_entity, protected)
                     fact = MemoryRecord(
                         namespace=namespace,
                         memory_type="semantic",
                         content=edge.fact,
                         entity=edge.src_entity,
-                        attribute=edge.rel,
+                        attribute=attribute,
+                        tags=tags,
                         valid_from=_edge_valid_from(edge, record.valid_from),
                         source=SourceInfo(
                             role=constants.DERIVED_ROLE,
@@ -1004,11 +1075,29 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
                         )
                     )
                     linked += 1
+            if done:
+                # GP-8a: one watermark marker per namespace per sweep, appended
+                # after the facts, so a crash mid-sweep re-extracts idempotently.
+                await ctx.append_event(
+                    MemoryEvent(
+                        kind=EventKind.MARKER,
+                        namespace=namespace,
+                        actor="system",
+                        payload={
+                            "marker": GRAPH_EXTRACTED_MARKER,
+                            "stage": "extract_graph",
+                            "sources": done,
+                        },
+                    )
+                )
+                for record_id, fp in done.items():
+                    index.graph_sources[(namespace, record_id)] = fp
     stats: dict[str, object] = {
         "status": "ok" if not errors else "partial",
         "edges_written": written,
         "links": linked,
         "skipped_existing": skipped,
+        "skipped_sources": already,
         "quarantined": quarantined,
     }
     if errors:
@@ -1124,6 +1213,9 @@ class SessionIndex:
     key_fp: dict[tuple[str, str, str], str] = field(default_factory=dict)
     #: (stage, namespace, fingerprint) -> session keys done with that membership.
     done_fp: dict[tuple[str, str, str], set[str]] = field(default_factory=dict)
+    #: GP-8a: (namespace, source record id) -> content fingerprint the
+    #: extract_graph stage already sent to the LLM (``graph_extracted`` markers).
+    graph_sources: dict[tuple[str, str], str] = field(default_factory=dict)
 
     async def refresh(self, storage: PipelineStorage) -> None:
         while True:
@@ -1143,7 +1235,12 @@ class SessionIndex:
                 self.sessions[(event.namespace, key)] = members
         elif event.kind is EventKind.MARKER:
             marker = payload.get("marker")
-            if marker in ("stage_done", "stage_cleared"):
+            if marker == GRAPH_EXTRACTED_MARKER:
+                sources = payload.get("sources")
+                if isinstance(sources, dict):
+                    for record_id, fp in sources.items():
+                        self.graph_sources[(event.namespace, str(record_id))] = str(fp)
+            elif marker in ("stage_done", "stage_cleared"):
                 fp = payload.get("members_fp")
                 self.mark(
                     str(payload.get("stage", "")),
