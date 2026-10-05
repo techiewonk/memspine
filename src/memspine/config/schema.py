@@ -833,6 +833,29 @@ class RestAuthConfig(BaseModel):
     api_keys: list[RestApiKeyConfig] = Field(default_factory=list)
     jwt: RestJwtConfig = Field(default_factory=RestJwtConfig)
 
+    @model_validator(mode="after")
+    def _jwt_is_pinned(self) -> RestAuthConfig:
+        """ADR-041 addendum: ``oidc_jwt`` needs an issuer and an audience (a token
+        minted for another app or by another issuer is refused), and a pinned
+        algorithm family: never ``none``, never HMAC next to an asymmetric family
+        (key confusion), never HMAC with a JWKS URL (a public key used as a secret)."""
+        if self.mode != "oidc_jwt":
+            return self
+        cfg = self.jwt
+        if not cfg.issuer or not cfg.audience:
+            raise ValueError("rest.auth.mode=oidc_jwt needs rest.auth.jwt.issuer and audience")
+        algorithms = [a.strip() for a in cfg.algorithms]
+        if not algorithms:
+            raise ValueError("rest.auth.jwt.algorithms must name at least one algorithm")
+        if any(a.lower() == "none" or not a for a in algorithms):
+            raise ValueError("rest.auth.jwt.algorithms may not include 'none'")
+        families = {a[:2].upper() for a in algorithms}
+        if "HS" in families and len(families) > 1:
+            raise ValueError("rest.auth.jwt.algorithms may not mix HMAC (HS*) with others")
+        if "HS" in families and cfg.jwks_url:
+            raise ValueError("rest.auth.jwt.jwks_url needs asymmetric algorithms, not HS*")
+        return self
+
 
 class RestConfig(BaseModel):
     """#51 REST protocol options. Defaults keep the unauthenticated v0.1 app."""
