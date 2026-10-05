@@ -136,6 +136,33 @@ for record, score in await engine.search("where do we deploy?", namespace="ops",
 `(record, score)` pairs sorted by the M1 composite score (recency · relevance ·
 importance · utility), not raw cosine.
 
+**Date filters (#37).** `search()` and `read()` take keyword-only bounds on the three
+time columns: `valid_from_after` / `valid_from_before` (event time),
+`valid_to_after` / `valid_to_before` (when a fact stopped holding; an open
+`valid_to` counts as later than any date) and `recorded_after` / `recorded_before`
+(when memspine stored it), as datetimes, dates or ISO text. `*_after` is inclusive and
+`*_before` exclusive, so May 2023 is `valid_from_after="2023-05-01",
+valid_from_before="2023-06-01"`. `date_filter_mode="and"` (default) keeps records that
+meet every bound, `"or"` those that meet any. The filter restricts every retrieval leg
+before fusion and the `top_k` cut (each leg looks over the whole namespace), so it never
+costs recall; in `read()` it also applies to the headers' searches, a `full` read's
+listing and replayed neighbours (the pinned persona and the lead section are not
+filtered). `POST /search` takes the same fields.
+```python
+may = await engine.search(
+    "what did Melanie do", namespace="ops",
+    valid_from_after="2023-05-01", valid_from_before="2023-06-01",
+)
+```
+
+**Answer verification (#39).** `await engine.verify_answer(question, answer, context)`
+checks an answer against a read's context (an `AssembledContext`, its records, or text)
+with one call to the `verify_answer` LLM role (the `chat` role when that one is not
+bound) and returns `{"supported": bool, "evidence_ids": [...], "revised_answer": str |
+None}`: the record ids (`L<n>` for a text context) of the supporting lines, and a
+corrected answer when the given one is not supported but the context supports another.
+No read path calls it; the eval harness exposes it as `--verify-answer`.
+
 ### Working — persona + assembly
 ```python
 await engine.set_persona("agent/demo", "You are a concise coding assistant.")
@@ -326,7 +353,7 @@ missing.
 
 | Method & path | Verb |
 |---------------|------|
-| `POST /write` · `POST /search` · `POST /assemble` · `POST /retrieve` | core read/write |
+| `POST /write` · `POST /search` · `POST /assemble` · `POST /retrieve` | core read/write (`/search` takes the #37 date-filter fields) |
 | `DELETE /records/{id}?hard=&reason=` · `GET /describe` | forget · introspect |
 | `POST /correct` | #47 correction by `record_id` or `entity` + `attribute` (never contested) |
 | `GET /export?subject=&include_history=&include_events=` | #46 subject-access export, `application/x-ndjson` (admin under auth) |
@@ -545,7 +572,9 @@ in the schema — or if the schema gains a key not documented here.
 | `decision.model` | `fastino/gliner2-base-v1` | H24: the GLiNER2 checkpoint (Hugging Face id; `-large-v1` and `-multi-v1` also exist). |
 | `read.planner` | `rules` | H24/G2a: how `read(mode="auto")` picks a mode once full context does not fit. `rules` = deterministic cues; `decision` = the decision provider chooses (falls back to rules on any failure); `llm` = one call to the `plan` LLM role returns a `ReadPlan` (`lookup` / `replay` read by replay, `aggregate` by compose with the plan's up to three subqueries as extra probes, rank-fused with `read.rrf_k`). An unbound role, a failed call or an invalid plan falls back to the rules with a warning. One counted call per auto read. |
 | `read.planner_min_confidence` | `0.0` | G2b: with `planner: decision`, a choice below this confidence does not route the read; it keeps the default `replay` (retrieve when no hit is episodic). A choice of unknown confidence (a bare GLiNER2 label) is below any gate above 0. `0.0` = every choice routes. |
-| `read.planner_version` | `v1` | #35: with `planner: llm`, `v2` selects the `plan@v2` prompt, which also writes one or two evidence-seeking subqueries for lookup questions ("Is X religious?" → "X church", "X faith"); the lookup read fuses each as an extra vector (+ BM25 under hybrid) leg by RRF. `v1`: unchanged. |
+| `read.planner_version` | `v1` | #35: with `planner: llm`, `v2` selects the `plan@v2` prompt, which also writes one or two evidence-seeking subqueries for lookup questions ("Is X religious?" → "X church", "X faith"); the lookup read fuses each as an extra vector (+ BM25 under hybrid) leg by RRF. #36: `v3` selects `plan@v3`, which is v2 plus `persons` (the people the question names) and `time_expr` (its date or period words, verbatim); the routed read fuses the persons / time leg (`read.person_time_leg_k`). Still one plan call. `v1`: unchanged. |
+| `read.person_time_leg_k` | `10` | #36: with `planner_version: v3`, the most records of the persons / time leg. `time_expr` becomes a date span by the H1 rules (an absolute date, month or year first; else a relative phrase, `read.relative_week` applying, anchored on the namespace's newest record); the leg holds the live records whose `valid_from` lies in the span and/or that are about a planned person (a `person:<name>` tag when the record has any, else its `entity` naming the person as a whole word), both first, then closest to the span's middle, else newest. Fused by RRF into the lookup or compose read; every search gate still applies. |
+| `read.completeness_check` | `false` | #38: for reads routed to compose whose plan is `aggregate` or whose question is a list or count question (`query_shape.is_aggregation` / `is_count`), ask the `sufficiency` LLM role (else `plan`) whether the composed context holds every item the question needs (+1 call, prompt `sufficiency`); when it does not, ask for up to three missing-information queries (+1 call, `sufficiency@missing`) and run the compose read once more with them as extra probes. One round at most; an abstained read, a complete verdict, an unbound role or any failure keeps the first read. Other reads make no extra call. Off: byte-identical. |
 | `read.compose_replay` | `false` | G2c: compose results get the same ±`replay_window` neighbour expansion as replay mode (nearest first, gated and decorated like replayed turns, within the budget), so routing to compose no longer loses the surrounding turns. |
 | `read.aggregate_top_k` | `null` | G11: the `top_k` of a read that `read(mode="auto")` routes to compose (the LLM planner's `aggregate`, the decision planner's or the rules' compose), so list and count questions whose evidence spans sessions pool more candidates; the budget still caps the context. An explicit `mode="compose"` keeps the caller's `top_k`. `null` = unchanged. |
 | `read.compose_rewrites` | `false` | P4 (JustMem COMPOSE): `read(mode="compose")` adds up to two answer-free query rewrites from the `query_rewrite` LLM role (`@compose` prompt variant). |
@@ -578,6 +607,8 @@ in the schema — or if the schema gains a key not documented here.
 | `read.cards_event_date` | `false` | #29: a card whose mined fact carries a happened date (`consolidation.mine_event_dates`) different from the day it was said renders `[said d1 · happened d2]`. Off: byte-identical. |
 | `read.profile_header` | `false` | G3b: after the cards header, a `PROFILE NOTES` block of the H14 profile insights (records `consolidation.reflect_profile` deposits) on the people the query names, or the most relevant insights when none matches, one dated line each. They come from the search restricted to reflective records (every gate applies), and the routed read leaves the shown insights out. Shown only when its own hits pass M12 abstention; names are the capitalised words of the query other than a sentence-initial word (unless repeated), question words and common imperatives (`Tell`, `Give`, `Yes`, `I'm`, ...), matched case-sensitively. |
 | `read.profile_budget_share` | `0.15` | G3b: the share of the budget the profile header may use. |
+| `read.profile_header_packing` | `false` | #40: the profile header (in place of the G3b block, independent of `profile_header`) packs, following the `[USER PROFILE]` pattern of memory servers, three sections in a fixed order: `Summaries:` (session summaries from consolidation), `Observations:` (the H14 profile insights) and `Related:` (the other best hits for the query; no mined fact while the cards header shows them). Each section comes from its own gated search and is used only when its hits pass M12 abstention; summaries are packed first, then observations, then hits, each best first, while the block fits `profile_header_budget`. Lines are `- [YYYY-MM-DD] text`, escaped and wrapped like any context record, whitespace collapsed, shown oldest first within a section; the header opens with `PROFILE NOTES (`, so stored text cannot forge it. The routed read leaves the packed records out. Off: byte-identical. |
+| `read.profile_header_budget` | `300` | #40: the packed profile header's token budget, never more than half the read budget. |
 | `read.count_timeline` | `false` | E3: for count questions (`how many times …`, `how many <things> …`, `how often …`; not durations such as `how many days ago`, see `query_shape.is_count`), every read mode and `assemble` lead the volatile context with an `Occurrences (dated):` block: one `- [said YYYY-MM-DD] <mention>` line per distinct occurrence of the counted event among the episodic records the read retrieved, oldest first. The event is the query's core terms without names and count words; a record mentions it when it shares at least half of them. Same-day mentions in one session, or same-day mentions sharing at least half their words, count once. Mined facts, lead blocks and wrapped (instruction-flagged or untrusted) records are left out; the mentions stay in the context. Off: byte-identical. |
 | `read.count_budget_share` | `0.1` | E3: the share of the budget kept for the occurrences block (the read gets the rest; lines are kept oldest first while the block fits). Counts toward the header-share check: active `cards_budget_share + profile_budget_share + count_budget_share` must be below 1. |
 | `read.count_dedupe` | `false` | #60: with `count_timeline`, a mention's event day is the single day its relative phrase names ("yesterday", "last Friday"), else the day it was said; two mentions on the same event day with at least half their words shared are one occurrence, even when said on different days. Off: byte-identical. |
