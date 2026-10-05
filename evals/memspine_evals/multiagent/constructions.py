@@ -159,7 +159,9 @@ INSTRUCTION_POISON = (
 )
 
 
-async def sybil_promotion(same_session: bool = True, memory_type: str = "episodic") -> SybilReport:
+async def sybil_promotion(
+    same_session: bool = True, memory_type: str = "episodic", restate_payload: bool = False
+) -> SybilReport:
     """One user principal releases its own externally planted, quarantined payload.
 
     The payload enters via ``web`` and is quarantined (instruction-shaped,
@@ -171,6 +173,11 @@ async def sybil_promotion(same_session: bool = True, memory_type: str = "episodi
     ``memory_type`` matters: for ``semantic`` the corroborators become the
     active fact and the promoted payload is archived as history; for other
     types the payload itself is re-activated, instruction text intact.
+
+    ``restate_payload``: the corroborators repeat the payload text itself instead
+    of writing innocuous notes on its key. Since #3 (value-matched corroboration),
+    key-only notes no longer corroborate; restating the payload still does, so
+    Prop. 4(c) holds until principal-bound corroboration (G5) is on.
     """
     from memspine.core.records import SourceInfo
 
@@ -186,10 +193,14 @@ async def sybil_promotion(same_session: bool = True, memory_type: str = "episodi
             entity="contractor-accounts",
             attribute="mfa-policy",
         )
-        writes = [
-            "note: contractor accounts MFA policy was discussed today",
-            "reminder: follow up on contractor accounts MFA policy",
-        ]
+        writes = (
+            [INSTRUCTION_POISON, INSTRUCTION_POISON]
+            if restate_payload
+            else [
+                "note: contractor accounts MFA policy was discussed today",
+                "reminder: follow up on contractor accounts MFA policy",
+            ]
+        )
         for i, text in enumerate(writes):
             message_id = "attacker-session-1" if same_session else f"attacker-session-{i + 1}"
             await engine.write(

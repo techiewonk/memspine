@@ -60,20 +60,30 @@ def test_conservative_parents_are_necessary() -> None:
 
 
 @pytest.mark.parametrize("same_session", [True, False])
-def test_single_principal_reactivates_its_own_quarantined_payload(same_session: bool) -> None:
+def test_key_only_notes_no_longer_release_the_payload(same_session: bool) -> None:
+    # #3 (value-matched corroboration): innocuous notes on the payload's key state
+    # a different value, so they contradict it rather than corroborate it.
     report = asyncio.run(sybil_promotion(same_session=same_session, memory_type="episodic"))
     assert report.held_quarantined_at_write
+    assert not report.promoted and report.final_status == "quarantined"
+
+
+@pytest.mark.parametrize("same_session", [True, False])
+def test_single_principal_reactivates_its_own_quarantined_payload(same_session: bool) -> None:
+    report = asyncio.run(
+        sybil_promotion(same_session=same_session, memory_type="episodic", restate_payload=True)
+    )
+    assert report.held_quarantined_at_write
     assert report.distinct_principals == 1
-    # Prop. 4(c): holds today; must be False after G5.
+    # Prop. 4(c): still holds when the corroborators restate the payload; must be
+    # False after G5 (principal-bound corroboration).
     assert report.promoted and report.final_status == "activated"
 
 
-def test_semantic_promotion_archives_rather_than_activates() -> None:
-    # The semantic conflict ladder blunts the attack: corroborators become the
-    # active fact and the payload joins history. Reported, not hidden.
+def test_semantic_key_only_notes_no_longer_release_the_payload() -> None:
     report = asyncio.run(sybil_promotion(same_session=True, memory_type="semantic"))
     assert report.held_quarantined_at_write
-    assert report.promoted and report.final_status == "archived"
+    assert not report.promoted
 
 
 def test_b0_implicit_parents_restore_the_radius_when_writers_declare_nothing() -> None:
