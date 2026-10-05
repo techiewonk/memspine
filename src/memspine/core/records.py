@@ -19,7 +19,7 @@ from enum import StrEnum
 from typing import Any
 
 from fastuuid import uuid4
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
 from memspine.config.constants import REFLECTION_DEPTH_CAP, TRUST_DEFAULT
 from memspine.core.events import fingerprint_payload
@@ -191,6 +191,22 @@ class MemoryRecord(BaseModel):
     # fail loudly even if it never went through guards.reflection_depth_for.
     reflection_depth: int = Field(default=0, ge=0, le=REFLECTION_DEPTH_CAP)
 
+    # A context block the engine built at read time (lead section, cards and
+    # profile headers). Private: it is never serialised and no payload, tag or
+    # field a caller controls can set it, so stored text cannot claim to be one.
+    _engine_block: bool = PrivateAttr(default=False)
+
     def model_post_init(self, _context: Any) -> None:
         if not self.content_fingerprint:
             self.content_fingerprint = fingerprint_payload({"content": self.content})
+
+    @property
+    def is_engine_block(self) -> bool:
+        """True only for a read-time block the engine built (see ``_engine_block``)."""
+        return self._engine_block
+
+    def as_engine_block(self) -> MemoryRecord:
+        """A copy marked as an engine-built read-time block. Engine use only."""
+        block = self.model_copy()
+        block._engine_block = True
+        return block

@@ -252,6 +252,17 @@ def _looks_like_recall(content: str) -> bool:
 #: #3: tag on a held record an operator rejected (archived, never releasable).
 _QUARANTINE_REJECTED_TAG = "quarantine_rejected"
 
+
+def _caller_tags(tags: Sequence[str] | None, ns: str) -> list[str]:
+    """Caller-supplied tags without the engine-only ones (``RESERVED_TAGS``): a
+    caller must not mark its text as a lead block, a cue or a rolled-back record."""
+    kept = [tag for tag in tags or [] if tag not in constants.RESERVED_TAGS]
+    if len(kept) != len(tags or []):
+        dropped = sorted({tag for tag in tags or [] if tag in constants.RESERVED_TAGS})
+        _log.warning("memory.reserved_tags_dropped", namespace=ns, tags=dropped)
+    return kept
+
+
 _FACT_VALUE_STRIP = re.compile(r"[\W_]+")
 
 
@@ -860,6 +871,7 @@ class Engine:
         if memory_type == "shared":
             raise ConflictError("memory_type 'shared' is engine-internal — use grant()/subscribe()")
         source = source or SourceInfo(role=actor)
+        tags = _caller_tags(tags, ns)
         implicit = self._consume_reads(ns, session_id)
         parents = list(dict.fromkeys([*(derived_from or []), *implicit]))
         if parents:
@@ -1414,7 +1426,7 @@ class Engine:
             valid_from=max(p.valid_from for p in parts),
             trust=min(p.trust for p in parts),
             source=SourceInfo(role="system", channel="lead", parents=[p.record_id for p in parts]),
-        )
+        ).as_engine_block()
 
     async def _standing_block(self, ns: str) -> tuple[MemoryRecord, list[MemoryRecord]] | None:
         """H22: the user's stated preferences and standing requests, newest wins a slot.
@@ -3452,9 +3464,11 @@ class Engine:
         #11: every stored record passes here on its way into a context, so this is
         also where the engine's own markers inside stored text are defanged
         (:func:`memspine.core.escaping.escape_markers`), before any wrapper or
-        label is added. Engine-built lead blocks are left alone, and a B9 claim
-        keeps its ``CLAIM`` prefix (only the mined text after it is escaped)."""
-        if constants.LEAD_TAG in record.tags:
+        label is added. Engine-built lead blocks (marked by
+        :attr:`MemoryRecord.is_engine_block`, which no stored record or tag can
+        set) are left alone, and a B9 claim keeps its ``CLAIM`` prefix (only the
+        mined text after it is escaped)."""
+        if record.is_engine_block:
             return record
         content = record.content
         claim = f"{constants.CLAIM_MARKER} "

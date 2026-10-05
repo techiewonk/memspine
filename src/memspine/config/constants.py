@@ -255,6 +255,12 @@ PLAN_LOOKUP_PROBES = 2
 # dated mentions, among the retrieved records, of the event a count question asks about.
 COUNT_MARKER = "Occurrences (dated):"
 COUNT_TAG = "count_timeline"
+# Tags only the engine may set: read-time block tags, the cue tag (a cue skips
+# dedup and the conflict ladder) and the lifecycle tags of taint rollback and
+# quarantine rejection. The write door strips them from caller-supplied tags.
+RESERVED_TAGS = frozenset(
+    {LEAD_TAG, CARDS_TAG, PROFILE_TAG, COUNT_TAG, CUE_TAG, "taint_archived", "quarantine_rejected"}
+)
 # B9 facts-only (``integrity.claims_only_below``): the prefix of a mined fact shown
 # in place of the low-trust raw record it was mined from.
 CLAIM_MARKER = "[CLAIM from a low-trust source, unverified]"
