@@ -246,6 +246,34 @@ await engine.sleep()      # run consolidate -> decay -> compress -> prune now
 await engine.rebuild()    # replay every projector from seq 0
 ```
 
+### Data-subject rights and audit (#46-#51, all opt-in)
+```python
+lines = await engine.export("user/ana", subject="ana", include_events=True)  # JSONL lines
+new = await engine.correct(("ana", "city"), "Ana lives in Nice",
+                           actor="ana", reason="moved", namespace="user/ana")
+await engine.forget(record_id, namespace="user/ana", hard=True, actor="ana", reason="art. 17")
+await engine.write("ticket #42 ...", namespace="user/ana", purposes=["support"])
+hits = await engine.search("ticket", namespace="user/ana", purpose="support")
+await engine.expire_retention()          # retention.classes, also a sleep-cycle stage
+assert await engine.audit_chain_ok()     # audit.reads / audit.actions hash chain
+```
+
+- **Export** (#46): a header line, then one line per live, archived or held record
+  (soft-forgotten ones are left out) in `(recorded_at, record_id)` order, with
+  provenance and, by default, archived versions; `include_events=True` adds the
+  namespace's log events as stored (hard-erased content is already redacted; the
+  content of soft-forgotten records is scrubbed). Same data, same bytes.
+- **Correct** (#47): user-direct supersession by record id or `(entity, attribute)`.
+  The conflict ladder does not run, so a correction is never CONTESTed under
+  `contest_lower_trust` (the `base` template); the firewall still screens the new
+  value. The new record's WRITE event carries `correction: {supersedes, actor, reason}`.
+- **Read audit / hash chain** (#49), **purposes / remote-LLM gate** (#50) and
+  **retention classes** (#48): see `audit.*`, `consent.*` and `retention.classes`
+  in the config-key reference. `memspine.core.privacy.principal_scope(name)` binds
+  the principal recorded by the read audit outside REST.
+- The FORGET event itself still records `actor: user`; under `audit.actions` the
+  chained `memory.audit` event carries the real actor and reason.
+
 ---
 
 ## CLI
@@ -267,6 +295,8 @@ memspine prompts resolve                           # id@version # source: defaul
 memspine audit taint <record_id> --db ./memspine.db -n <namespace>
 memspine forget <record_id> --db ./memspine.db -n <namespace>
 memspine forget <record_id> --hard --verify        # provable erasure; exits 1 if not clean
+memspine export --db ./memspine.db -n user/ana --out ana.jsonl   # subject-access export (#46)
+memspine export -n user/ana --subject ana --events --no-history --out ana.jsonl
 ```
 
 `config`/`prompts` commands accept `-t/--template` and `-c/--config`.
@@ -297,7 +327,9 @@ missing.
 | Method & path | Verb |
 |---------------|------|
 | `POST /write` · `POST /search` · `POST /assemble` · `POST /retrieve` | core read/write |
-| `DELETE /records/{id}?hard=` · `GET /describe` | forget · introspect |
+| `DELETE /records/{id}?hard=&reason=` · `GET /describe` | forget · introspect |
+| `POST /correct` | #47 correction by `record_id` or `entity` + `attribute` (never contested) |
+| `GET /export?subject=&include_history=&include_events=` | #46 subject-access export, `application/x-ndjson` (admin under auth) |
 | `POST /skills` · `POST /skills/{id}/promote` · `DELETE /skills/{id}` | procedural |
 | `POST /plans` · `GET /plans/recall` | plan cache (E6) |
 | `POST /reflect` | reflective |
@@ -310,9 +342,37 @@ Errors map cleanly: `ConflictError`→409, `MissingServiceError`→501,
 `MemspineError`→400, anything else →500 with a generic body (no stack traces
 leak). Request bodies over 1 MiB are rejected with 413.
 
+### Reference auth middleware (#51, ADR-041)
+
+`rest.auth.mode: api_key` or `oidc_jwt` turns on a reference middleware that binds
+an authenticated principal and its allowed namespaces to each request:
+
+```yaml
+rest:
+  auth:
+    mode: api_key
+    api_keys:
+      - {key_env: MEMSPINE_KEY_SUPPORT, principal: support-bot, namespaces: ["tenant-a/*"]}
+      - {key_env: MEMSPINE_KEY_OPS, principal: ops, namespaces: ["*"], admin: true}
+  rate_limit: {requests_per_second: 5, burst: 20}
+```
+
+- No or bad credentials → 401; a namespace outside the principal's globs → 403;
+  `/sleep`, `/rebuild`, `/export`, `/quarantine…` without the admin role → 403;
+  over the rate limit → 429.
+- The principal replaces the caller-claimed `actor` on `/correct` and forget, and is
+  the `actor` of `memory.read_audit` events.
+- `oidc_jwt` needs `pyjwt` (a clear `ConfigError` otherwise) and reads the principal,
+  namespaces and roles from configurable claims; keys come from `jwks_url` or an env var.
+- `create_app(engine, rest=RestConfig(...))` overrides the engine's `rest` block.
+
+It is a **reference, not a production auth plane**: no key rotation, revocation,
+per-route scopes or cross-replica rate limiting. With the default `mode: none` the
+rest of this section applies unchanged.
+
 ### ⚠️ Authentication is the deployer's job (ADR-017 / ADR-018)
 
-**The v0.1 REST app has no authentication.** The caller's namespace comes from
+**The REST app has no authentication by default.** The caller's namespace comes from
 the `X-Memspine-Namespace` header (default `"default"`) and is **trusted
 verbatim** — whoever can reach the app can read and write every namespace.
 
@@ -552,6 +612,25 @@ in the schema — or if the schema gains a key not documented here.
 | `workers.runner` | `inline` | `inline` \| `dbos` `[dbos]` \| `taskiq` `[taskiq]` (D-16). |
 | `workers.broker_url` | `redis://localhost:6379/0` | taskiq broker endpoint (ignored by other runners). |
 | `workers.dbos_system_database_url` | `null` | DBOS system db; `null` derives a SQLite file beside `storage.path`. |
+| `retention.classes` | `[]` | #48: retention classes, checked in order, first match wins: `{namespace: <glob>, memory_type: <type or null>, ttl_days: <days>}`. A sleep-cycle stage (`retention_expire`, run first, only when this list is non-empty) hard-forgets records whose `recorded_at` is older than the TTL through the ordinary forget path (cascading to derived records). Records whose type's `retention` policy refuses deletion (legal hold, `regulated` PII) are kept, and so are records with such a descendant. Empty: nothing expires and the sleep cycle is unchanged. `Engine.expire_retention(now=None)` runs it on demand. |
+| `audit.reads` | `false` | #49: every `search` / `assemble` / `read` / `retrieve` / `shared_search` / `export` appends one `memory.read_audit` event: principal (`event.actor`, from the REST auth binding or `principal_scope`, else `anonymous`), namespace, returned record ids, purpose and time. A verb that calls another public read verb audits once. Hash-chained (see `audit.actions`). No projector reads it. |
+| `audit.actions` | `false` | #49: `forget` (with `actor=` / `reason=`), `correct`, retention expiry and `export` append a `memory.audit` event with the actor, principal, reason and record ids. Both audit kinds share one SHA-256 hash chain (`payload.chain.prev` / `.hash`); `Engine.verify_audit_chain()` / `audit_chain_ok()` validate it (a rolling log anchors at its oldest surviving audit event). |
+| `consent.enforce` | `false` | #50 purpose limitation: records carry purposes (`write(..., purposes=[...])`, stored as `consent_tags`; `*` = any purpose) and reads pass `purpose=`. On, a read returns only records whose purposes include the read's purpose; a read without a purpose sees only untagged and `*` records. Applied in the search gates and to every returned list or assembled context. |
+| `consent.untagged` | `allow` | #50: with `enforce`, whether records with no purpose are visible to every read (`allow`) or to none (`deny`). |
+| `consent.remote_llm_max_tier` | `null` | #50 remote-LLM gate: `none` \| `low` \| `high` \| `regulated`. Every LLM role bound to a remote provider is wrapped so that, before each call, the text of any record whose `pii_tier` is above this tier (content, archived versions, the 400-char relevance-note prefix and their JSON-escaped forms) is replaced by `[WITHHELD: above the remote-LLM PII tier]`. Local = `llamacpp/…`, an `ollama/…` model without `api_base`, or an `api_base` on `localhost`/`127.0.0.1`/`::1`/`*.local`/`consent.local_hosts`. Textual gate: a paraphrase of the content is not caught. `null`: off. |
+| `consent.local_hosts` | `[]` | #50: extra `api_base` host names that count as local for the remote-LLM gate. |
+| `rest.auth.mode` | `none` | #51 reference auth middleware (ADR-041; not a production auth plane): `none` (unauthenticated, v0.1) \| `api_key` \| `oidc_jwt` (needs `pyjwt`). Binds a principal and its namespaces to each request: another namespace gets 403; `/sleep`, `/rebuild`, `/export`, `/quarantine…` need the admin role. |
+| `rest.auth.api_keys` | `[]` | #51 `api_key` mode: list of `{key_env: <ENV VAR>, principal, namespaces: [<glob>], admin: false}` (or `key:` instead of `key_env`). Sent as `Authorization: Bearer <key>` or `X-API-Key`. Only SHA-256 digests are kept; keys are never logged or echoed. |
+| `rest.auth.jwt.issuer` | `null` | #51 `oidc_jwt`: required `iss` (null = not checked). |
+| `rest.auth.jwt.audience` | `null` | #51 `oidc_jwt`: required `aud` (null = not checked). |
+| `rest.auth.jwt.algorithms` | `["RS256"]` | #51 `oidc_jwt`: accepted signing algorithms. |
+| `rest.auth.jwt.jwks_url` | `null` | #51 `oidc_jwt`: JWKS endpoint for the signing keys (PyJWT `PyJWKClient`). |
+| `rest.auth.jwt.key_env` | `null` | #51 `oidc_jwt`: env var holding a PEM public key or HMAC secret (when no `jwks_url`). |
+| `rest.auth.jwt.principal_claim` | `sub` | #51 `oidc_jwt`: claim naming the principal. |
+| `rest.auth.jwt.namespaces_claim` | `memspine_namespaces` | #51 `oidc_jwt`: claim listing the allowed namespace globs (list or space-separated). |
+| `rest.auth.jwt.roles_claim` | `roles` | #51 `oidc_jwt`: claim listing roles (list or space-separated). |
+| `rest.auth.jwt.admin_role` | `memspine-admin` | #51 `oidc_jwt`: the role that unlocks the admin routes. |
+| `rest.rate_limit` | `null` | #51: `{requests_per_second, burst: 10}` in-memory token bucket per principal (per client address without auth); over the limit → 429. One process only. |
 | `workers.sleep_interval_seconds` | `null` | D1: when set (seconds), the engine runs the full sleep cycle on that interval autonomously; `null` keeps v0.1 behavior (cycle runs only on `Engine.sleep()`). |
 | `prompts.overrides` | `{}` | Per-prompt overrides (body/system/format/version/output_model/token_budget) (D-43). |
 | `prompts.partials` | `{}` | Override fragments for shared Jinja `{% include %}` partials (anti-injection block, output footer); `<name>` → replacement text, consulted before the shipped `_partials/` dir (B1). |

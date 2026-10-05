@@ -14,20 +14,24 @@ from memspine.exceptions import MissingServiceError
 if TYPE_CHECKING:
     from fastapi import FastAPI
 
+    from memspine.config.schema import RestConfig
     from memspine.engine import Engine
 
 __all__ = ["create_app"]
 
 
-def create_app(engine: Engine) -> FastAPI:
+def create_app(engine: Engine, rest: RestConfig | None = None) -> FastAPI:
     """Wrap ONE engine (D-06) in a FastAPI app.
 
     The engine's lifecycle is owned by the CALLER: start it before serving,
     stop it after (see ``examples/04``). Raises :class:`MissingServiceError`
     naming the ``rest`` extra when fastapi is not installed (D-10).
+
+    ``rest`` (#51) overrides the engine's ``rest`` config (auth mode, API keys,
+    rate limit); None reads it from the engine once it is started.
     """
     try:
         from memspine.protocols.rest.app import build_app
     except ImportError as exc:
         raise MissingServiceError("protocols.rest", extra="rest") from exc
-    return build_app(engine)
+    return build_app(engine, rest)

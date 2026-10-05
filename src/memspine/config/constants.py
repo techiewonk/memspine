@@ -395,3 +395,9 @@ DEFAULT_TEMPLATE: str | None = "assistant"
 #: widens (x4 steps) up to this factor of its wanted size until enough visible
 #: records survive (smoke 2026-10-05: hiding after one cut left 1-5 raw turns).
 HEADER_HIDE_OVERFETCH = 64
+
+#: #50 remote-LLM gate: the per-note prefix the relevance filter sends (also withheld
+#: on its own), and the shortest record text the gate matches (shorter texts would
+#: blank unrelated words of a prompt).
+REMOTE_GATE_NOTE_PREFIX_CHARS = 400
+REMOTE_GATE_MIN_CHARS = 8

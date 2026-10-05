@@ -82,7 +82,8 @@ PIPELINE_PRIORITIES: dict[str, int] = {
     "decay_sweep": 7,
     "compress": 8,
     "sleep_compute": 9,
-    "event_log_prune": 10,
+    "retention_expire": 10,  # #48: expiry is housekeeping, never urgent
+    "event_log_prune": 11,
 }
 
 #: Labels outside the known pipeline set (deployment-registered pipelines,

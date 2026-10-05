@@ -72,6 +72,13 @@ class EventKind(StrEnum):
     #: session even when a session yields nothing (it survives rebuild because it
     #: is in the log); ``recall_skipped`` traces a message the H21 filter dropped.
     MARKER = "memory.marker"
+    #: #49 durable read audit (``audit.reads``, audit-only, no projector reads it).
+    #: Payload: ``{"verb", "principal", "purpose", "record_ids", "at", "chain"}``.
+    READ_AUDIT = "memory.read_audit"
+    #: #49 action audit (``audit.actions``, audit-only): forget, correct, retention
+    #: expiry and export with ``{"action", "actor", "reason", "record_ids", "at",
+    #: "chain"}``. Both audit kinds share one hash chain (``chain.prev``/``chain.hash``).
+    AUDIT = "memory.audit"
 
 
 def new_event_id() -> str:

@@ -1,6 +1,12 @@
 """FastAPI app over ONE Engine (D-06, ``[rest]``).
 
-⚠️  NO AUTHENTICATION IN v0.1 (ADR-017 / ADR-016 open question 2, answered
+#51: ``rest.auth.mode`` (``api_key`` | ``oidc_jwt``) turns on the reference auth
+middleware in :mod:`memspine.protocols.rest.auth` (ADR-041): it binds a principal
+and its allowed namespaces to each request and guards the admin routes. It is a
+reference, not a production auth plane. The rest of this note describes the
+default, ``mode: none``.
+
+⚠️  NO AUTHENTICATION BY DEFAULT (ADR-017 / ADR-016 open question 2, answered
 "out of scope"). The caller's namespace comes from the ``X-Memspine-Namespace``
 header (default ``"default"``) and is trusted verbatim: whoever can reach this
 app can read and write EVERY namespace. Binding caller → namespace is the
@@ -31,15 +37,25 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
 from fastapi.responses import ORJSONResponse
 
 from memspine.config import constants
+from memspine.config.schema import RestConfig
 from memspine.core.audit import TaintReport
 from memspine.core.namespace import validate_namespace
+from memspine.core.privacy import principal_scope
 from memspine.core.records import MemoryRecord, SourceInfo
 from memspine.engine import Engine
 from memspine.exceptions import ConflictError, MemspineError, MissingServiceError
 from memspine.observability.logging import get_logger
+from memspine.protocols.rest.auth import (
+    Authenticator,
+    AuthError,
+    Principal,
+    RateLimiter,
+    is_admin_path,
+)
 from memspine.protocols.rest.models import (
     AssembleRequest,
     AssembleResponse,
+    CorrectRequest,
     GrantRequest,
     GrantView,
     PlanRequest,
@@ -98,7 +114,40 @@ def _error_response(status: int, exc: Exception) -> ORJSONResponse:
     )
 
 
-def build_app(engine: Engine) -> FastAPI:
+class _AuthState:
+    """#51: the auth middleware's authenticator and rate limiter, built from
+    ``rest`` config once the engine is started (or from an explicit config)."""
+
+    def __init__(self, engine: Engine, rest: RestConfig | None) -> None:
+        self._engine = engine
+        self._rest = rest
+        self.authenticator: Authenticator | None = None
+        self.limiter: RateLimiter | None = None
+
+    def ready(self) -> Authenticator:
+        if self.authenticator is None:
+            if self._rest is None and not self._engine.is_started:
+                # Not started yet: no config to read. Pass through for now (the
+                # verbs themselves refuse an unstarted engine); decide on start.
+                return Authenticator(RestConfig())
+            rest = self._rest if self._rest is not None else self._engine.config.rest
+            self.authenticator = Authenticator(rest)
+            self.limiter = RateLimiter(rest.rate_limit) if rest.rate_limit else None
+        return self.authenticator
+
+
+def _actor(request: Request, claimed: str) -> str:
+    """The authenticated principal when auth is on, else the caller's claim."""
+    principal = getattr(request.state, "principal", None)
+    return principal.name if isinstance(principal, Principal) else claimed
+
+
+def build_app(engine: Engine, rest: RestConfig | None = None) -> FastAPI:
+    """The app over ``engine``. ``rest`` overrides the engine's ``rest`` config
+    (auth mode, API keys, rate limit); None reads it from the started engine."""
+    auth_state = _AuthState(engine, rest)
+    if rest is not None or engine.is_started:
+        auth_state.ready()  # fail fast on a bad auth config (e.g. pyjwt missing)
     app = FastAPI(
         title="memspine",
         summary="Cognitive-memory engine — REST protocol (D-06). "
@@ -123,6 +172,39 @@ def build_app(engine: Engine) -> FastAPI:
         if len(body) > cap:
             return _error_response(413, MemspineError(f"request body exceeds {cap} bytes"))
         return await call_next(request)
+
+    # ── #51 reference auth middleware (ADR-041) ──────────────────────────────
+    # Registered after the body cap, so it runs first: unauthenticated callers
+    # never get their body buffered. ``mode: none`` without a rate limit passes
+    # every request through untouched (the default app is unchanged).
+
+    @app.middleware("http")
+    async def _authenticate(
+        request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
+        authenticator = auth_state.ready()
+        limiter = auth_state.limiter
+        if not authenticator.enabled and limiter is None:
+            return await call_next(request)
+        principal: Principal | None = None
+        if authenticator.enabled:
+            try:
+                principal = authenticator.authenticate(request.headers)
+                if is_admin_path(request.url.path) and not principal.admin:
+                    raise AuthError(403, "this route needs the admin role")
+                namespace = request.headers.get("x-memspine-namespace", "default")
+                if not principal.may_use(namespace):
+                    raise AuthError(403, f"principal may not use namespace {namespace!r}")
+            except AuthError as exc:
+                _log.info("rest.auth_denied", status=exc.status, path=request.url.path)
+                return _error_response(exc.status, exc)
+            request.state.principal = principal
+        if limiter is not None:
+            key = principal.name if principal else (request.client.host if request.client else "")
+            if not limiter.allow(key):
+                return _error_response(429, AuthError(429, "rate limit exceeded"))
+        with principal_scope(principal.name if principal else None):
+            return await call_next(request)
 
     # ── error mapping (never leak stack traces) ──────────────────────────────
 
@@ -172,6 +254,7 @@ def build_app(engine: Engine) -> FastAPI:
             attribute=body.attribute,
             group_id=body.group_id,
             tags=body.tags,
+            purposes=body.purposes or None,
         )
 
     @app.post("/write_messages")
@@ -186,13 +269,19 @@ def build_app(engine: Engine) -> FastAPI:
 
     @app.post("/search")
     async def search(body: SearchRequest, ns: Namespace) -> list[ScoredRecord]:
-        scored = await engine.search(body.query, namespace=ns, top_k=body.top_k)
+        scored = await engine.search(
+            body.query, namespace=ns, top_k=body.top_k, purpose=body.purpose
+        )
         return [ScoredRecord(record=record, score=score) for record, score in scored]
 
     @app.post("/assemble")
     async def assemble(body: AssembleRequest, ns: Namespace) -> AssembleResponse:
         context = await engine.assemble(
-            body.query, namespace=ns, budget_tokens=body.budget_tokens, top_k=body.top_k
+            body.query,
+            namespace=ns,
+            budget_tokens=body.budget_tokens,
+            top_k=body.top_k,
+            purpose=body.purpose,
         )
         return AssembleResponse(
             records=context.records,
@@ -203,12 +292,42 @@ def build_app(engine: Engine) -> FastAPI:
 
     @app.post("/retrieve")
     async def retrieve(body: RetrieveRequest, ns: Namespace) -> list[MemoryRecord]:
-        return await engine.retrieve(namespace=ns, memory_type=body.memory_type)
+        return await engine.retrieve(
+            namespace=ns, memory_type=body.memory_type, purpose=body.purpose
+        )
 
     @app.delete("/records/{record_id}")
-    async def forget(record_id: str, ns: Namespace, hard: bool = False) -> dict[str, Any]:
-        await engine.forget(record_id, namespace=ns, hard=hard)
+    async def forget(
+        record_id: str,
+        ns: Namespace,
+        request: Request,
+        hard: bool = False,
+        reason: str | None = None,
+    ) -> dict[str, Any]:
+        await engine.forget(
+            record_id, namespace=ns, hard=hard, actor=_actor(request, "user"), reason=reason
+        )
         return {"record_id": record_id, "forgotten": True, "hard": hard}
+
+    @app.post("/correct")
+    async def correct(body: CorrectRequest, ns: Namespace, request: Request) -> MemoryRecord:
+        # #47 rectification: user-direct supersession, never CONTESTed. The new value
+        # rides the "rest" channel like /write (SEC-C1): its trust stays capped.
+        if body.record_id is not None:
+            target: str | tuple[str, str] = body.record_id
+        elif body.entity is not None and body.attribute is not None:
+            target = (body.entity, body.attribute)
+        else:
+            raise MemspineError("correct needs record_id or entity + attribute")
+        actor = _actor(request, body.actor)
+        return await engine.correct(
+            target,
+            body.new_value,
+            actor=actor,
+            reason=body.reason,
+            namespace=ns,
+            source=SourceInfo(role=body.actor, channel="rest"),
+        )
 
     # ── quarantine review (#3) ───────────────────────────────────────────────
 
@@ -366,6 +485,19 @@ def build_app(engine: Engine) -> FastAPI:
     @app.post("/rebuild")
     async def rebuild() -> dict[str, int]:
         return await engine.rebuild()
+
+    @app.get("/export")
+    async def export(
+        ns: Namespace,
+        subject: str | None = None,
+        include_history: bool = True,
+        include_events: bool = False,
+    ) -> Response:
+        # #46 subject-access export (JSONL). Operator route: admin role under auth.
+        lines = await engine.export(
+            ns, subject=subject, include_history=include_history, include_events=include_events
+        )
+        return Response(content="\n".join(lines) + "\n", media_type="application/x-ndjson")
 
     @app.get("/audit/taint/{record_id}")
     async def audit_taint(record_id: str, ns: Namespace) -> TaintReport:

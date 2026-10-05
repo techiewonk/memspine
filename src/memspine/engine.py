@@ -23,7 +23,7 @@ from collections.abc import AsyncIterator, Callable, Coroutine, Mapping, Sequenc
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, ClassVar, Self, TypeVar, cast
 
@@ -40,7 +40,7 @@ from memspine.config.loader import ResolvedConfig, default_template, load_config
 from memspine.config.schema import FirewallConfig, MemspineConfig
 from memspine.core.answer import final_answer
 from memspine.core.audit import IntegrityReport, TaintReport, trace_taint, verify_events
-from memspine.core.erasure import retained_fields
+from memspine.core.erasure import redact_record, retained_fields
 from memspine.core.escaping import escape_markers
 from memspine.core.event_date import SAID_PREFIX, date_anchor, happened_of, happened_tag
 from memspine.core.events import EventKind, EventLogMode, MemoryEvent, fingerprint_payload
@@ -76,6 +76,22 @@ from memspine.core.policies.dedup import DedupPolicy
 from memspine.core.policies.retention import RetentionPolicy
 from memspine.core.policies.scoring import ScoringPolicy
 from memspine.core.policies.trust import TrustPolicy
+from memspine.core.privacy import (
+    AUDIT_GENESIS,
+    AUDIT_KINDS,
+    AuditChainReport,
+    chain_digest,
+    current_principal,
+    current_purpose,
+    export_line,
+    export_record,
+    matching_class,
+    payload_mentions,
+    pii_rank,
+    purpose_allows,
+    read_scope,
+    verify_audit_chain,
+)
 from memspine.core.projector import Projector
 from memspine.core.query_shape import (
     core_terms,
@@ -162,6 +178,7 @@ from memspine.services.lexical.base import LexicalHit, LexicalStore, rrf_fuse
 from memspine.services.lexical.projector import LexicalProjector
 from memspine.services.llm.base import LLMRouter, LLMService
 from memspine.services.llm.structured import structured_call
+from memspine.services.llm.tier_gate import TierGatedLLM, is_local_provider
 from memspine.services.rerank.base import Reranker, concat_background
 from memspine.services.rerank.factory import RerankSettings, build_reranker, rerank_modes
 from memspine.services.secrets.base import SecretsService
@@ -591,6 +608,11 @@ class Engine:
         self._ledger_written: set[tuple[str, str]] = set()
         self._sync_loop: asyncio.AbstractEventLoop | None = None
         self._sync_thread: threading.Thread | None = None
+        #: #49: the audit hash chain head (None = not loaded from the log yet).
+        self._audit_head: str | None = None
+        self._audit_lock = asyncio.Lock()
+        #: #48: the retention clock (tests swap in a fake one).
+        self._clock: Callable[[], datetime] = lambda: datetime.now(UTC)
 
     # ── lifecycle ────────────────────────────────────────────────────────────
 
@@ -866,6 +888,7 @@ class Engine:
         valid_from: datetime | None = None,
         session_id: str | None = None,
         parent_weights: Mapping[str, float] | None = None,
+        purposes: Sequence[str] | None = None,
     ) -> MemoryRecord:
         """Append a WRITE event through the single door; projection materializes it.
 
@@ -884,6 +907,9 @@ class Engine:
         ``valid_from`` sets the record's EVENT time (when the content was true or
         said), distinct from ``recorded_at`` (when the engine learned it). Default
         is "now", which keeps every existing caller unchanged.
+
+        ``purposes`` (#50) are the read purposes the record may serve, stored as its
+        ``consent_tags`` (``*`` = any); enforced only under ``consent.enforce``.
         """
         storage = self._require_started()
         ns = validate_namespace(namespace)
@@ -911,6 +937,7 @@ class Engine:
             attribute=attribute,
             group_id=group_id,
             tags=tags or [],
+            consent_tags=list(dict.fromkeys(purposes or [])),
         )
         if valid_from is not None:
             stamp = valid_from if valid_from.tzinfo else valid_from.replace(tzinfo=UTC)
@@ -2353,6 +2380,7 @@ class Engine:
         group_id: str | None = None,
         tags: list[str] | None = None,
         include_held: bool = False,
+        purpose: str | None = None,
     ) -> list[MemoryRecord]:
         """P0 read path: relational listing. ``group_id``/``tags`` (D2) narrow to
         a sub-scope within the namespace; tags match records carrying ALL of the
@@ -2360,17 +2388,22 @@ class Engine:
 
         #11: records the firewall holds (quarantined) are left out unless
         ``include_held=True``, the operator's audit view; :meth:`list_quarantined`
-        is the review queue."""
+        is the review queue.
+
+        ``purpose`` (#50): the read's purpose, checked under ``consent.enforce``."""
         storage = self._require_started()
         ns = validate_namespace(namespace)
-        listed = await storage.list_records(ns, memory_type, group_id)
-        if not include_held:
-            listed = [r for r in listed if not r.quarantined]
-        records = self._inflate_all(listed, ns)
-        if tags:
-            wanted = set(tags)
-            records = [r for r in records if wanted.issubset(r.tags)]
-        _log.info(EVENT_RETRIEVE, namespace=ns, memory_type=memory_type, count=len(records))
+        with read_scope(purpose) as outer:
+            listed = await storage.list_records(ns, memory_type, group_id)
+            if not include_held:
+                listed = [r for r in listed if not r.quarantined]
+            records = [r for r in self._inflate_all(listed, ns) if self._consent_ok(r)]
+            if tags:
+                wanted = set(tags)
+                records = [r for r in records if wanted.issubset(r.tags)]
+            _log.info(EVENT_RETRIEVE, namespace=ns, memory_type=memory_type, count=len(records))
+            if outer:
+                await self._audit_read("retrieve", ns, [r.record_id for r in records])
         return records
 
     async def search(
@@ -2381,6 +2414,7 @@ class Engine:
         group_id: str | None = None,
         tags: list[str] | None = None,
         session_id: str | None = None,
+        purpose: str | None = None,
     ) -> list[tuple[MemoryRecord, float]]:
         """Semantic retrieval (P1 + E8 opt-in stages, D-51):
         ``[static_prefilter?] → vector/hybrid → [rerank?] → score`` (MMR and
@@ -2408,16 +2442,22 @@ class Engine:
         appends one RETRIEVE event so access stats (reinforcement, M1) update
         through the write door like every other mutation. Both E8 stages are
         off by default: results are bit-identical to the plain pipeline.
+
+        ``purpose`` (#50): the read's purpose, checked under ``consent.enforce``.
         """
-        return await self._search(
-            query,
-            namespace,
-            top_k,
-            group_id=group_id,
-            tags=tags,
-            session_id=session_id,
-            keep_k=top_k,
-        )
+        with read_scope(purpose) as outer:
+            scored = await self._search(
+                query,
+                namespace,
+                top_k,
+                group_id=group_id,
+                tags=tags,
+                session_id=session_id,
+                keep_k=top_k,
+            )
+            if outer:
+                await self._audit_read("search", namespace, [r.record_id for r, _ in scored])
+        return scored
 
     async def _vector_leg(
         self, ns: str, query_vector: list[float], fetch_k: int
@@ -2463,6 +2503,8 @@ class Engine:
                 continue
             if record.quarantined:
                 continue  # defense in depth: quarantined never reaches assembly
+            if not self._consent_ok(record):
+                continue  # #50: the record's purposes do not allow this read
             if record.memory_type == "shared":
                 # EI-1: grant/subscription bookkeeping is authorization state, not
                 # memory content — it must never occupy retrieval slots (shared_search
@@ -2481,6 +2523,7 @@ class Engine:
                     target is None
                     or target.status is not RecordStatus.ACTIVATED
                     or target.quarantined
+                    or not self._consent_ok(target)
                 ):
                     continue
                 record = target
@@ -2702,6 +2745,7 @@ class Engine:
         top_k: int = constants.ASSEMBLE_TOP_K,
         shared: bool = False,
         session_id: str | None = None,
+        purpose: str | None = None,
     ) -> AssembledContext:
         """Retrieval + M12/E2 assembly: MMR-selected, cache-aware-ordered context.
 
@@ -2711,7 +2755,30 @@ class Engine:
         ``shared=True`` (G9) assembles over own + granted records via
         ``shared_search``, so a multi-agent turn sees exactly what its grants allow
         (trust-capped, and under ``integrity.*`` attenuated and admitted at theta).
+
+        ``purpose`` (#50): the read's purpose, checked under ``consent.enforce``.
         """
+        with read_scope(purpose) as outer:
+            context = await self._assemble(
+                query, namespace, budget_tokens, top_k, shared=shared, session_id=session_id
+            )
+            context = self._consent_context(context)
+            if outer:
+                ids = [r.record_id for r in context.records]
+                await self._audit_read("assemble", namespace, ids)
+        return context
+
+    async def _assemble(
+        self,
+        query: str,
+        namespace: str,
+        budget_tokens: int,
+        top_k: int,
+        *,
+        shared: bool,
+        session_id: str | None,
+    ) -> AssembledContext:
+        """:meth:`assemble` without the purpose scope and the read audit."""
         if self._assembly is None:
             raise MemspineError("assembly policy not bound — engine not started?")
         budget = self._reply_budget(budget_tokens)
@@ -3020,6 +3087,7 @@ class Engine:
         replay_window: int = 2,
         compose_pool: int = 3,
         session_id: str | None = None,
+        purpose: str | None = None,
     ) -> ReadResult:
         """C7': mode-routed read. Rules decide; no model on the read path.
 
@@ -3054,7 +3122,38 @@ class Engine:
 
         ``session_id`` keys the B0 read ledger (as in :meth:`assemble`), for the read
         headers and the routed read alike.
+
+        ``purpose`` (#50): the read's purpose, checked under ``consent.enforce``.
         """
+        with read_scope(purpose) as outer:
+            result = await self._read(
+                query,
+                namespace,
+                mode,
+                budget_tokens,
+                top_k,
+                replay_window,
+                compose_pool,
+                session_id,
+            )
+            result = ReadResult(result.mode, self._consent_context(result.context))
+            if outer:
+                ids = [r.record_id for r in result.context.records]
+                await self._audit_read("read", namespace, ids)
+        return result
+
+    async def _read(
+        self,
+        query: str,
+        namespace: str,
+        mode: str | None,
+        budget_tokens: int,
+        top_k: int,
+        replay_window: int,
+        compose_pool: int,
+        session_id: str | None,
+    ) -> ReadResult:
+        """:meth:`read` without the purpose scope and the read audit."""
         if mode is None:
             mode = self._config().read.default_mode  # "auto" unless a template pins one
         if mode not in ("auto", "full", "replay", "retrieve", "compose"):
@@ -3816,6 +3915,9 @@ class Engine:
         namespace: str = "default",
         hard: bool = False,
         cascade: bool | None = None,
+        *,
+        actor: str = "user",
+        reason: str | None = None,
     ) -> None:
         """Forget one memory (M7).
 
@@ -3833,6 +3935,9 @@ class Engine:
         ``source.parents`` (mined facts, cues, reflections), transitively. A
         derived record repeats the erased content, so erasure is not complete
         without it (#43).
+
+        ``actor`` and ``reason`` (#49) are recorded in a ``memory.audit`` event
+        under ``audit.actions``.
         """
         storage = self._require_started()
         ns = validate_namespace(namespace)
@@ -3844,6 +3949,7 @@ class Engine:
             if hard if cascade is None else cascade:
                 ids.extend(await self._descendants(storage, ns, [record_id]))
             await self._forget_many(storage, ns, ids, hard)
+        await self._audit_action("forget", ns, ids, actor=actor, reason=reason, hard=hard)
 
     async def erase_subject(self, subject: str, namespace: str = "default") -> list[str]:
         """#43 per-subject erasure: hard-forget every record of ``namespace``
@@ -4152,6 +4258,442 @@ class Engine:
             "descendants_remaining": descendants,
             "clean": clean,
         }
+
+    # ── data-subject rights + audit (#46-#50) ─────────────────────────────────
+
+    @property
+    def is_started(self) -> bool:
+        """Whether :meth:`start` has completed (and :meth:`stop` has not run)."""
+        return self._started
+
+    @property
+    def config(self) -> MemspineConfig:
+        """The effective configuration of a started engine (read-only by convention)."""
+        self._require_started()
+        return self._config()
+
+    def _consent_ok(self, record: MemoryRecord) -> bool:
+        """#50: whether the current read's purpose may see ``record``."""
+        return purpose_allows(record, current_purpose(), self._config().consent)
+
+    def _consent_context(self, context: AssembledContext) -> AssembledContext:
+        """#50: drop records an assembled context may not carry for this purpose.
+
+        The gates already keep them out of every search leg; this catches the
+        records assembly adds from elsewhere (persona, full-mode listing)."""
+        if not self._config().consent.enforce:
+            return context
+        kept: list[MemoryRecord] = []
+        boundary = context.boundary_index
+        tokens = context.tokens_used
+        for index, record in enumerate(context.records):
+            if self._consent_ok(record):
+                kept.append(record)
+                continue
+            tokens -= estimate_tokens(record.content)
+            if index < context.boundary_index:
+                boundary -= 1
+        if len(kept) == len(context.records):
+            return context
+        return AssembledContext(
+            records=kept,
+            boundary_index=boundary,
+            abstained=context.abstained or not kept,
+            tokens_used=max(0, tokens),
+        )
+
+    async def _audit_head_hash(self) -> str:
+        """The current chain head, loaded once from the log (the last audit event)."""
+        if self._audit_head is None:
+            storage = self._require_started()
+            head = AUDIT_GENESIS
+            after = 0
+            while True:
+                batch = await storage.read_events(after_seq=after, limit=1000)
+                if not batch:
+                    break
+                for event in batch:
+                    chain = event.payload.get("chain")
+                    if event.kind in AUDIT_KINDS and isinstance(chain, dict):
+                        head = str(chain.get("hash", head))
+                after = max(e.seq for e in batch if e.seq is not None)
+            self._audit_head = head
+        return self._audit_head
+
+    async def _append_audit(
+        self, kind: EventKind, ns: str, actor: str, body: dict[str, object]
+    ) -> None:
+        """#49: append one chained audit event (serialized, so the chain is linear)."""
+        async with self._audit_lock:
+            prev = await self._audit_head_hash()
+            payload: dict[str, object] = {**body, "at": self._clock().isoformat()}
+            digest = chain_digest(prev, kind.value, ns, actor, payload)
+            payload["chain"] = {"prev": prev, "hash": digest}
+            await self._append_and_project(
+                MemoryEvent(kind=kind, namespace=ns, actor=actor, payload=payload)
+            )
+            self._audit_head = digest
+
+    async def _audit_read(self, verb: str, namespace: str, record_ids: Sequence[str]) -> None:
+        """#49: a READ_AUDIT event for one read verb (``audit.reads`` only)."""
+        if not self._config().audit.reads:
+            return
+        principal = current_principal() or "anonymous"
+        await self._append_audit(
+            EventKind.READ_AUDIT,
+            validate_namespace(namespace),
+            principal,
+            {
+                "verb": verb,
+                "principal": principal,
+                "purpose": current_purpose(),
+                "record_ids": list(record_ids),
+            },
+        )
+
+    async def _audit_action(
+        self,
+        action: str,
+        ns: str,
+        record_ids: Sequence[str],
+        *,
+        actor: str,
+        reason: str | None,
+        **extra: object,
+    ) -> None:
+        """#49: an AUDIT event for a governance action (``audit.actions`` only)."""
+        if not self._config().audit.actions:
+            return
+        await self._append_audit(
+            EventKind.AUDIT,
+            ns,
+            actor,
+            {
+                "action": action,
+                "actor": actor,
+                "principal": current_principal(),
+                "reason": reason,
+                "record_ids": list(record_ids),
+                **extra,
+            },
+        )
+
+    async def verify_audit_chain(self) -> AuditChainReport:
+        """#49: validate the hash chain over the persisted audit events.
+
+        Each ``memory.read_audit`` / ``memory.audit`` event stores the previous
+        event's hash; an edited, inserted or removed audit event breaks a link.
+        A rolling log anchors at its oldest surviving audit event; an ephemeral
+        log persists nothing, so its report covers no events."""
+        storage = self._require_started()
+        events: list[MemoryEvent] = []
+        after = 0
+        while True:
+            batch = await storage.read_events(after_seq=after, limit=1000)
+            if not batch:
+                break
+            events.extend(e for e in batch if e.kind in AUDIT_KINDS)
+            after = max(e.seq for e in batch if e.seq is not None)
+        anchored = self._config().event_log.mode is EventLogMode.FULL
+        return verify_audit_chain(events, anchored=anchored)
+
+    async def audit_chain_ok(self) -> bool:
+        """#49: True when the audit hash chain verifies (see :meth:`verify_audit_chain`)."""
+        return (await self.verify_audit_chain()).ok
+
+    async def export(
+        self,
+        namespace: str = "default",
+        *,
+        subject: str | None = None,
+        include_history: bool = True,
+        include_events: bool = False,
+    ) -> list[str]:
+        """#46 subject-access export: the namespace's data as JSONL lines.
+
+        Line 1 is a header (``type: export``); then one ``type: record`` line per
+        live, archived or held record (soft-forgotten records are left out), sorted
+        by ``(recorded_at, record_id)``, with content inflated and provenance
+        (``source``) kept; ``include_history`` keeps archived versions. With
+        ``subject``, only records about it (fact-key ``entity`` equal, case-folded,
+        or ``source.principal`` equal, as in :meth:`erase_subject`) and the records
+        derived from them. ``include_events`` adds the namespace's log events in seq
+        order (only those that mention an exported record when ``subject`` is set),
+        as stored, so hard-erased content is already redacted; the content of
+        soft-forgotten records is scrubbed from them too. Same data, same bytes.
+        """
+        storage = self._require_started()
+        ns = validate_namespace(namespace)
+        listed = await storage.list_records(ns)
+        forgotten = [r.record_id for r in listed if r.status is RecordStatus.DELETED]
+        records = [r for r in listed if r.status is not RecordStatus.DELETED]
+        if subject is not None:
+            wanted = subject.casefold()
+            seeds = [
+                r.record_id
+                for r in records
+                if (r.entity is not None and r.entity.casefold() == wanted)
+                or r.source.principal == subject
+            ]
+            keep = {*seeds, *await self._descendants(storage, ns, seeds)}
+            records = [r for r in records if r.record_id in keep]
+        inflated: list[MemoryRecord] = []
+        for record in records:
+            try:
+                inflated.append(self._inflate.inflate(record))
+            except StorageError:
+                _log.warning("export.inflate_failed", namespace=ns, record_id=record.record_id)
+                inflated.append(record)
+        inflated.sort(key=lambda r: (r.recorded_at, r.record_id))
+        ids = {r.record_id for r in inflated}
+        lines = [
+            export_line(
+                "export",
+                {
+                    "format": 1,
+                    "namespace": ns,
+                    "subject": subject,
+                    "records": len(inflated),
+                    "include_history": include_history,
+                    "include_events": include_events,
+                },
+            )
+        ]
+        lines.extend(
+            export_line("record", {"record": export_record(r, include_history=include_history)})
+            for r in inflated
+        )
+        if include_events:
+            after = 0
+            while True:
+                batch = await storage.read_events(after_seq=after, limit=1000)
+                if not batch:
+                    break
+                for event in batch:
+                    if event.namespace != ns:
+                        continue
+                    if subject is not None and not payload_mentions(event.payload, ids):
+                        continue
+                    payload = orjson.loads(orjson.dumps(event.payload))
+                    for record_id in forgotten:
+                        redact_record(payload, record_id)
+                    lines.append(
+                        export_line(
+                            "event",
+                            {
+                                "seq": event.seq,
+                                "kind": event.kind.value,
+                                "ts": event.ts.isoformat(),
+                                "actor": event.actor,
+                                "payload": payload,
+                            },
+                        )
+                    )
+                after = max(e.seq for e in batch if e.seq is not None)
+        with read_scope(None) as outer:
+            if outer:
+                await self._audit_read("export", ns, [r.record_id for r in inflated])
+        await self._audit_action(
+            "export",
+            ns,
+            [r.record_id for r in inflated],
+            actor=current_principal() or "operator",
+            reason=None,
+            subject=subject,
+        )
+        return lines
+
+    async def correct(
+        self,
+        target: str | tuple[str, str],
+        new_value: str,
+        *,
+        actor: str = "user",
+        reason: str = "",
+        namespace: str = "default",
+        source: SourceInfo | None = None,
+    ) -> MemoryRecord:
+        """#47 user-direct correction (rectification): supersede a live record.
+
+        ``target`` is a record id or an ``(entity, attribute)`` fact key (its current
+        fact). The old record is archived with ``evolve_to`` pointing at the new one,
+        and the new record's WRITE event carries ``correction: {supersedes, actor,
+        reason}``. Unlike :meth:`write`, the conflict ladder does not run: an
+        explicit correction is never CONTESTed or rejected as lower-trust
+        (``contest_lower_trust``). The firewall still screens the new value
+        (redaction, instruction flags); a quarantined correction supersedes nothing.
+        Disputes on the key are cleared. Returns the new record.
+        """
+        storage = self._require_started()
+        ns = validate_namespace(namespace)
+        async with self._write_locks.setdefault(ns, asyncio.Lock()):
+            if isinstance(target, tuple):
+                entity, attribute = target
+                existing = await storage.find_active_fact(ns, entity, attribute)
+                if existing is None:
+                    raise ConflictError(f"no current fact {entity}.{attribute} in namespace {ns!r}")
+            else:
+                existing = await storage.get_record(target)
+                if existing is None or existing.namespace != ns:
+                    raise ConflictError(f"no such record {target!r} in namespace {ns!r}")
+            if existing.status is not RecordStatus.ACTIVATED or existing.quarantined:
+                raise ConflictError(f"record {existing.record_id} is not live — nothing to correct")
+            if existing.memory_type == "shared":
+                raise ConflictError("memory_type 'shared' is engine-internal — use grant()")
+            now = self._clock()
+            src = source or SourceInfo(role=actor, channel="correction")
+            incoming = MemoryRecord(
+                namespace=ns,
+                memory_type=existing.memory_type,
+                content=new_value,
+                source=src,
+                entity=existing.entity,
+                attribute=existing.attribute,
+                group_id=existing.group_id,
+                tags=[t for t in existing.tags if t != "disputed"],
+                pii_tier=existing.pii_tier,
+                consent_tags=list(existing.consent_tags),
+                valid_from=now,
+                recorded_at=now,
+            )
+            incoming, verdict = await self._screen_write(incoming, None)
+            correction = {"supersedes": existing.record_id, "actor": actor, "reason": reason}
+            if verdict.quarantine:
+                await self._append_and_project(
+                    MemoryEvent(
+                        kind=EventKind.WRITE,
+                        namespace=ns,
+                        actor=actor,
+                        payload={
+                            "record": incoming.model_dump(mode="json"),
+                            "firewall": {"reasons": verdict.reasons},
+                            "correction": correction,
+                        },
+                    )
+                )
+                _log.warning(
+                    "memory.correction_quarantined",
+                    namespace=ns,
+                    record_id=incoming.record_id,
+                    reasons=verdict.reasons,
+                )
+                return incoming
+            closed = existing.model_copy(
+                update={
+                    "valid_to": now,
+                    "superseded_at": now,
+                    "status": RecordStatus.ARCHIVED,
+                    "evolve_to": incoming.record_id,
+                    "tags": [t for t in existing.tags if t != "disputed"],
+                }
+            )
+            await self._append_and_project(
+                MemoryEvent(
+                    kind=EventKind.WRITE,
+                    namespace=ns,
+                    actor=actor,
+                    payload={"record": closed.model_dump(mode="json"), "correction": correction},
+                )
+            )
+            await self._append_and_project(
+                MemoryEvent(
+                    kind=EventKind.WRITE,
+                    namespace=ns,
+                    actor=actor,
+                    payload={"record": incoming.model_dump(mode="json"), "correction": correction},
+                )
+            )
+            if self._semantic is not None and existing.memory_type == "semantic":
+                await self._semantic._clear_dispute(existing, keep={existing.record_id})
+                self._semantic.invalidate_index(ns)
+        _log.info(
+            EVENT_WRITE,
+            namespace=ns,
+            record_id=incoming.record_id,
+            corrected=existing.record_id,
+        )
+        await self._audit_action(
+            "correct",
+            ns,
+            [existing.record_id, incoming.record_id],
+            actor=actor,
+            reason=reason or None,
+        )
+        return incoming
+
+    async def expire_retention(self, now: datetime | None = None) -> dict[str, object]:
+        """#48: hard-forget every record past its retention class's TTL.
+
+        The age is measured from ``recorded_at``. A record whose type's ``retention``
+        policy refuses deletion (legal hold, regulated PII: ``may_delete``) is kept,
+        and so is one any of whose descendants would be; the rest go through
+        :meth:`forget` (``hard=True``, cascading), each with an audit reason naming
+        the class. No classes configured: nothing runs."""
+        storage = self._require_started()
+        classes = self._config().retention.classes
+        if not classes:
+            return {"status": "skipped", "reason": "no retention.classes"}
+        clock = now or self._clock()
+        expired: list[str] = []
+        held = 0
+        errors: list[str] = []
+        for ns in await storage.list_namespaces():
+            for record in await storage.list_records(ns):
+                if record.status is RecordStatus.DELETED or record.record_id in expired:
+                    continue
+                cls = matching_class(record, classes)
+                if cls is None or (record.memory_type == "shared" and cls.memory_type is None):
+                    continue
+                if clock - record.recorded_at < timedelta(days=cls.ttl_days):
+                    continue
+                group = [record]
+                for child_id in await self._descendants(storage, ns, [record.record_id]):
+                    child = await storage.get_record(child_id)
+                    if child is not None:
+                        group.append(child)
+                if not all(self._retention(r).may_delete(r) for r in group):
+                    held += 1
+                    continue
+                try:
+                    await self.forget(
+                        record.record_id,
+                        namespace=ns,
+                        hard=True,
+                        actor="system",
+                        reason=f"retention:{cls.namespace}/{cls.memory_type or '*'}"
+                        f"/{cls.ttl_days:g}d",
+                    )
+                except (MemspineError, ConflictError) as exc:
+                    errors.append(f"{record.record_id}: {exc}")
+                    continue
+                expired.extend(r.record_id for r in group)
+        stats: dict[str, object] = {"status": "partial" if errors else "ok"}
+        stats.update({"expired": len(expired), "held": held})
+        if errors:
+            stats["errors"] = errors
+        return stats
+
+    def _retention(self, record: MemoryRecord) -> RetentionPolicy:
+        """The ``retention`` policy bound for ``record``'s memory type."""
+        return RetentionPolicy.bind(
+            _as_options_dict(
+                self._memory_policy(self._config(), record.memory_type).get("retention")
+            )
+        )
+
+    async def _withheld_texts(self) -> list[str]:
+        """#50: texts of records above ``consent.remote_llm_max_tier`` (every namespace)."""
+        limit = self._config().consent.remote_llm_max_tier
+        if limit is None or self._storage is None:
+            return []
+        cap = pii_rank(limit)
+        texts: list[str] = []
+        for ns in await self._storage.list_namespaces():
+            for record in await self._storage.list_records(ns):
+                if record.status is RecordStatus.DELETED or pii_rank(record.pii_tier) <= cap:
+                    continue
+                texts.extend(self._erasable_texts(record))
+        return texts
 
     async def audit_taint(
         self, record_id: str, namespace: str = "default", cross_namespace: bool = False
@@ -5330,6 +5872,26 @@ class Engine:
         namespace: str = "default",
         top_k: int = constants.SEARCH_TOP_K,
         session_id: str | None = None,
+        purpose: str | None = None,
+    ) -> list[tuple[MemoryRecord, float]]:
+        """Own-namespace search plus granted foreign results (see :meth:`_shared_search`).
+
+        ``purpose`` (#50): the read's purpose, checked under ``consent.enforce``
+        for own and foreign records alike."""
+        with read_scope(purpose) as outer:
+            results = await self._shared_search(query, namespace, top_k, session_id)
+            results = [pair for pair in results if self._consent_ok(pair[0])]
+            if outer:
+                ids = [r.record_id for r, _ in results]
+                await self._audit_read("shared_search", namespace, ids)
+        return results
+
+    async def _shared_search(
+        self,
+        query: str,
+        namespace: str = "default",
+        top_k: int = constants.SEARCH_TOP_K,
+        session_id: str | None = None,
     ) -> list[tuple[MemoryRecord, float]]:
         """Own-namespace search plus granted foreign results (R2/E1).
 
@@ -5868,6 +6430,7 @@ class Engine:
             # graph store without the projector would reorganize a stale graph.
             graph=self._graph if self._associative is not None else None,
             lock=self._namespace_lock,
+            expire_retention=self.expire_retention,
         )
 
     def _build_runner(self, config: MemspineConfig) -> TaskRunner:
@@ -6627,4 +7190,12 @@ class Engine:
                     f"llm.roles.{role}.model is required — a LiteLLM model id "
                     "(e.g. openai/gpt-4o, ollama/llama3, bedrock/...) or llamacpp/<path>"
                 )
+        consent = config.consent
+        if consent.remote_llm_max_tier is not None:
+            # #50: a remote provider never sees text of records above the tier.
+            for role, role_config in config.llm.roles.items():
+                if not is_local_provider(
+                    role_config.model, role_config.api_base, consent.local_hosts
+                ):
+                    providers[role] = TierGatedLLM(providers[role], self._withheld_texts)
         return LLMRouter(providers)

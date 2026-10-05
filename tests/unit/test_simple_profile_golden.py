@@ -33,7 +33,7 @@ GOLDEN = Path(__file__).parent / "golden" / "simple_profile_defaults.json"
 # Read at import: the autouse conftest fixture scrubs MEMSPINE_* before each test.
 _UPDATE = os.environ.get("MEMSPINE_UPDATE_GOLDENS") == "1"
 
-_SECTIONS = ("read", "firewall", "decision", "integrity")
+_SECTIONS = ("read", "firewall", "decision", "integrity", "retention", "audit", "consent", "rest")
 _OPTIONS = {
     "assembly": AssemblyOptions,
     "community": CommunityOptions,

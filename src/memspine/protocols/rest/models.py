@@ -16,6 +16,7 @@ from memspine.core.records import MemoryRecord, PiiTier, SourceInfo
 __all__ = [
     "AssembleRequest",
     "AssembleResponse",
+    "CorrectRequest",
     "GrantRequest",
     "GrantView",
     "PlanRequest",
@@ -46,6 +47,19 @@ class WriteRequest(_Request):
     source: SourceInfo | None = None
     group_id: str | None = None  # D2 sub-scoping facet
     tags: list[str] = Field(default_factory=list)
+    #: #50: read purposes the record may serve (``*`` = any).
+    purposes: list[str] = Field(default_factory=list)
+
+
+class CorrectRequest(_Request):
+    """#47: a user-direct correction of one record, by id or by fact key."""
+
+    new_value: str
+    record_id: str | None = None
+    entity: str | None = None
+    attribute: str | None = None
+    reason: str = ""
+    actor: str = "user"
 
 
 class Turn(_Request):
@@ -68,16 +82,19 @@ class SearchRequest(_Request):
     # matching the store's own cap, MAX_LEXICAL_QUERY_CHARS — E8/D-25).
     query: str = Field(max_length=constants.MAX_LEXICAL_QUERY_CHARS)
     top_k: int = Field(default=constants.SEARCH_TOP_K, ge=1)
+    purpose: str | None = None  # #50
 
 
 class AssembleRequest(_Request):
     query: str = Field(max_length=constants.MAX_LEXICAL_QUERY_CHARS)
     budget_tokens: int = Field(default=constants.ASSEMBLE_BUDGET_TOKENS, ge=1)
     top_k: int = Field(default=constants.ASSEMBLE_TOP_K, ge=1)
+    purpose: str | None = None  # #50
 
 
 class RetrieveRequest(_Request):
     memory_type: str | None = None
+    purpose: str | None = None  # #50
 
 
 class SkillRequest(_Request):

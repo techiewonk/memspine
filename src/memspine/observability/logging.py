@@ -19,6 +19,7 @@ from memspine.core.events import EventKind
 from memspine.core.redaction import redact
 
 __all__ = [
+    "EVENT_AUDIT",
     "EVENT_CONFLICT",
     "EVENT_CONSOLIDATE",
     "EVENT_DECAY_TRANSITION",
@@ -27,6 +28,7 @@ __all__ = [
     "EVENT_LINK",
     "EVENT_MARKER",
     "EVENT_MERGE",
+    "EVENT_READ_AUDIT",
     "EVENT_REBUILD",
     "EVENT_RETRIEVE",
     "EVENT_WRITE",
@@ -49,6 +51,8 @@ EVENT_FORGET = EventKind.FORGET.value
 EVENT_REBUILD = EventKind.REBUILD.value
 EVENT_EXPOSE = EventKind.EXPOSE.value
 EVENT_MARKER = EventKind.MARKER.value
+EVENT_READ_AUDIT = EventKind.READ_AUDIT.value
+EVENT_AUDIT = EventKind.AUDIT.value
 
 
 #: Log fields that carry exception or error text (third-party messages can echo
