@@ -288,6 +288,9 @@ COUNT_MARKER = "Occurrences (dated):"
 COUNT_TAG = "count_timeline"
 #: #30: the tag of a derived person-level list card (``consolidation.list_cards``).
 LIST_CARD_TAG = "list_card"
+#: B9 for a card: how many mined-fact levels the low-trust check follows to reach
+#: source turns (a #30 list card -> its facts -> their turns).
+CLAIM_PARENT_DEPTH = 2
 # Tags only the engine may set: read-time block tags, the cue tag (a cue skips
 # dedup and the conflict ladder) and the lifecycle tags of taint rollback and
 # quarantine rejection. The write door strips them from caller-supplied tags.

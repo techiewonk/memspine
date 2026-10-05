@@ -436,3 +436,90 @@ async def test_every_rederivation_stays_live_not_quarantined(
             assert not card.quarantined and card.content.count("(2023-") == n
     finally:
         await eng.stop()
+
+
+# -- review fixes: claim status of a list card ------------------------------------------
+
+
+def _claim_engine(**top: Any) -> Engine:
+    return Engine(
+        template="core",
+        dotenv_path=None,
+        storage={"path": ":memory:"},
+        embedding={"provider": "hash"},
+        read={
+            "hybrid": False,
+            "record_access": False,
+            "cards": "header",
+            "assembly": {"theta_abstain": 0.0},
+        },
+        memories={
+            "episodic": {
+                "enabled": True,
+                "policies": {"consolidation": {"mine_facts": True, "list_cards": True}},
+            },
+            "semantic": {"enabled": True},
+        },
+        **top,
+    )
+
+
+async def test_a_list_card_over_assistant_only_facts_is_an_assistant_claim(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """R2-11 for #30: every fact of the card is an assistant claim, so the card is one."""
+    eng = _claim_engine(firewall={"tag_assistant_claims": True})
+    monkeypatch.setattr(eng, "_build_fact_miner", _mine(_activities()))
+    await eng.start()
+    try:
+        msgs = [
+            {"role": "assistant", "content": c, "timestamp": (T0 + timedelta(minutes=i)).isoformat()}
+            for i, c in enumerate(TURNS)
+        ]
+        await eng.write_messages(msgs, namespace="a", session_id="s1", group_id="s1")
+        await eng.sleep()
+        records = await _semantic(eng)
+        facts = [r for r in records if "kind:event" in r.tags]
+        assert facts and all("assistant_claim" in f.tags for f in facts)
+        [card] = _live_cards(records)
+        assert "assistant_claim" in card.tags
+    finally:
+        await eng.stop()
+
+
+async def test_a_list_card_over_user_facts_is_not_an_assistant_claim(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    eng = _claim_engine(firewall={"tag_assistant_claims": True})
+    monkeypatch.setattr(eng, "_build_fact_miner", _mine(_activities()))
+    await eng.start()
+    try:
+        await _write_session(eng)
+        await eng.sleep()
+        [card] = _live_cards(await _semantic(eng))
+        assert "assistant_claim" not in card.tags
+    finally:
+        await eng.stop()
+
+
+@pytest.mark.parametrize("claims_only_below", [0.0, 0.99])
+async def test_a_list_card_from_low_trust_turns_is_claim_marked(
+    monkeypatch: pytest.MonkeyPatch, claims_only_below: float
+) -> None:
+    """B9: a card is a claim when any of its facts would be, judged on each fact's own
+    source turns (the card's parents are facts, which the turn check skipped)."""
+    integrity = {"enabled": True, "claims_only_below": claims_only_below, "admission_threshold": 0.0}
+    eng = _claim_engine(integrity=integrity)
+    monkeypatch.setattr(eng, "_build_fact_miner", _mine(_activities()))
+    await eng.start()
+    try:
+        await _write_session(eng)
+        await eng.sleep()
+        out = await eng.read(
+            "What activities does Melanie do?", namespace="a", mode="retrieve", budget_tokens=4000
+        )
+        [header] = [r for r in out.context.records if constants.CARDS_TAG in r.tags]
+        line = next(x for x in header.content.splitlines() if "Melanie — " in x)
+        assert (constants.CLAIM_MARKER in line) is (claims_only_below > 0.0)
+    finally:
+        await eng.stop()
