@@ -66,3 +66,16 @@ def test_every_arm_names_systems_the_harness_builds() -> None:
         built = {s.system_id for s in build_systems(config)}
         missing = set(arm["systems"]) - built
         assert not missing, f"{arm['id']}: {sorted(missing)} not in {sorted(built)}"
+
+
+def test_rehearsal_builds_the_same_systems_as_the_command() -> None:
+    """The rehearsal's C01Config must build every system the arm names (naive-dated)."""
+    from memspine_evals.experiments import build_systems
+    from memspine_evals.rehearsal import arm_config
+
+    plan = json.loads(plan_commands.PLAN.read_text(encoding="utf-8"))
+    for arm in plan["arms"]:
+        config = arm_config(plan, arm, item_ids=None, max_queries=None, prices={})
+        built = {s.system_id for s in build_systems(config)}
+        missing = set(arm["systems"]) - built
+        assert not missing, f"{arm['id']}: {sorted(missing)} not in {sorted(built)}"
