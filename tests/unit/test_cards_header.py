@@ -80,7 +80,7 @@ async def test_header_opens_the_context_within_its_share(mode: str) -> None:
         [header] = _header(out.context.records)
         assert out.context.records[out.context.boundary_index] is header
         assert header.content.startswith(constants.CARDS_MARKER)
-        assert "[2023-05-07] Ana: Ana adopted a grey cat named Miso" in header.content
+        assert "[said 2023-05-07] Ana: Ana adopted a grey cat named Miso" in header.content
         assert estimate_tokens(header.content) <= int(budget * 0.25)
         assert out.context.tokens_used >= estimate_tokens(header.content)
         # No fact twice: mined facts only appear inside the header.
@@ -159,5 +159,27 @@ async def test_quarantined_fact_never_reaches_the_header() -> None:
             "what pet does Ana have", namespace="a", mode="retrieve", budget_tokens=400
         )
         assert all("Miso" not in h.content for h in _header(out.context.records))
+    finally:
+        await eng.stop()
+
+
+async def test_routed_read_keeps_top_k_raw_turns_when_facts_are_hidden() -> None:
+    """Smoke 2026-10-05: facts hidden from the routed read AFTER its top_k cut left
+    fewer raw turns than top_k. With many facts outranking the turns, the routed
+    retrieve must still return top_k raw turns."""
+    eng = _engine(cards="header", cards_budget_share=0.25)
+    await eng.start()
+    try:
+        ids = await _seed(eng)
+        for n in range(8):  # facts that match the query better than most turns
+            await eng._deposit_mined_fact(
+                "a", f"Ana event: Ana talked about the weather and football {n}", "Ana",
+                "event", ids, T0 + timedelta(hours=n + 2), "s1", kind="event",
+            )  # fmt: skip
+        out = await eng.read(
+            "weather football Ana", namespace="a", mode="retrieve", top_k=3, budget_tokens=4000
+        )
+        raw = [r for r in out.context.records if r.memory_type == "episodic"]
+        assert len(raw) >= 3  # before the fix: 1
     finally:
         await eng.stop()

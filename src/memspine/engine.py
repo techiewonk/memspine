@@ -2187,15 +2187,29 @@ class Engine:
         ``hide`` (G1b/G3b): candidates a read header already carries leave."""
         if self._assembly is None:
             raise MemspineError("assembly policy not bound — engine not started?")
-        fetch_k = top_k * self._config().read.candidate_pool
-        if shared:
-            scored = await self.shared_search(
-                query, namespace=ns, top_k=fetch_k, session_id=session_id
-            )
-        else:
-            scored = await self._search(query, ns, fetch_k, session_id=session_id, keep_k=top_k)
-        if hide is not None:
+        want = top_k * self._config().read.candidate_pool
+        fetch_k = want
+        while True:
+            if shared:
+                scored = await self.shared_search(
+                    query, namespace=ns, top_k=fetch_k, session_id=session_id
+                )
+            else:
+                scored = await self._search(query, ns, fetch_k, session_id=session_id, keep_k=top_k)
+            if hide is None:
+                break
+            found = len(scored)
             scored = [pair for pair in scored if not hide(pair[0])]
+            # Smoke 2026-10-05: records a header already shows (mined facts) can
+            # outrank most raw turns; hiding them after one top_k cut left 1-5 turns.
+            # Widen, like the search gates do, until ``want`` visible ones survive.
+            if (
+                len(scored) >= want
+                or found < fetch_k
+                or fetch_k >= want * constants.HEADER_HIDE_OVERFETCH
+            ):
+                break
+            fetch_k *= 4
         integrity = self._integrity()
         if integrity.enabled and integrity.trust_weighted_ranking and scored:
             # Scores are composite x view trust. Abstention (theta_abstain) judges
@@ -2657,12 +2671,27 @@ class Engine:
         if not kept:
             return None
         kept.sort(key=lambda r: (r.valid_from, r.record_id))
-        block = self._lead_record(ns, self._cards_text(kept), kept)
+        # Smoke 2026-10-05: the miner's event date is often the session date, and the
+        # reader trusted it over the H1-resolved raw turn. Label each card with the
+        # date it was SAID (its earliest source turn); the raw turns carry event dates.
+        storage = self._require_started()
+        said: dict[str, datetime] = {}
+        for card in kept:
+            dates = [
+                p.valid_from
+                for p in [await storage.get_record(pid) for pid in card.source.parents]
+                if p is not None
+            ]
+            if dates:
+                said[card.record_id] = min(dates)
+        block = self._lead_record(ns, self._cards_text(kept, said), kept)
         return block.model_copy(update={"tags": [constants.LEAD_TAG, constants.CARDS_TAG]})
 
     @staticmethod
-    def _cards_text(cards: list[MemoryRecord]) -> str:
-        return "\n".join([constants.CARDS_MARKER, *(card_line(r) for r in cards)])
+    def _cards_text(cards: list[MemoryRecord], said: dict[str, datetime] | None = None) -> str:
+        dates = said or {}
+        lines = (card_line(r, dates.get(r.record_id)) for r in cards)
+        return "\n".join([constants.CARDS_MARKER, *lines])
 
     async def _profile_section(
         self, ns: str, query: str, budget_tokens: int
@@ -2793,7 +2822,8 @@ class Engine:
         records: dict[str, MemoryRecord] = {}
         best_score: dict[str, float] = {}
         for probe in probes:
-            hits = await self.search(probe, namespace=ns, top_k=max(1, top_k * pool))
+            fetch = max(1, top_k * pool) * (4 if hide else 1)  # headers hide facts
+            hits = await self.search(probe, namespace=ns, top_k=fetch)
             if hide is not None:
                 hits = [pair for pair in hits if not hide(pair[0])]
             for rank, (record, score) in enumerate(hits, start=1):

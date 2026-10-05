@@ -236,7 +236,7 @@ STANDING_MARKER = "USER-STATED PREFERENCES"
 LEAD_TAG = "lead_section"
 # G1b: header of the cards block (``read.cards: header``), and the tag on its
 # synthetic record. A read-time projection over mined facts, never stored.
-CARDS_MARKER = "FACTS (mined from earlier conversations, dated):"
+CARDS_MARKER = "FACTS (mined from earlier conversations; date = when it was said):"
 CARDS_TAG = "cards_header"
 # G3b: header of the profile block (``read.profile_header``), its tag, and how many
 # reflective candidates its search fetches.
@@ -260,3 +260,8 @@ MINED_FACT_FUTURE_SLACK_DAYS = 366
 #: ``template="base"`` for the unchanged ``simple`` profile; ``MemspineConfig()``
 #: schema defaults are not affected.
 DEFAULT_TEMPLATE: str | None = "assistant"
+
+#: G1b/G3b: when read headers hide records from the routed read, the routed search
+#: widens (x4 steps) up to this factor of its wanted size until enough visible
+#: records survive (smoke 2026-10-05: hiding after one cut left 1-5 raw turns).
+HEADER_HIDE_OVERFETCH = 64

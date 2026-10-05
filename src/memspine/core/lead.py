@@ -67,7 +67,7 @@ def timeline_line(record: MemoryRecord, entity: str, until: datetime | None = No
     return line
 
 
-def card_line(record: MemoryRecord) -> str:
+def card_line(record: MemoryRecord, said: datetime | None = None) -> str:
     """G1b: one card, ``[YYYY-MM-DD] Entity: fact``.
 
     A mined fact is stored as ``"<entity> <attribute>: <statement>"``; the card
@@ -79,6 +79,10 @@ def card_line(record: MemoryRecord) -> str:
         rest = _strip_entity(text, record.entity)
         if rest != text and ": " in rest:
             text = f"{record.entity}: {rest.split(': ', 1)[1]}"
+    if said is not None:
+        # The date the fact was SAID (its earliest source turn): the miner's event
+        # date is unreliable, and the source turn carries the resolved event date.
+        return f"[said {said:%Y-%m-%d}] {text}"
     return f"[{record.valid_from:%Y-%m-%d}] {text}"
 
 
