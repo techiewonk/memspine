@@ -164,6 +164,31 @@ async def test_resolve_relative_dates_annotates_assembled_records() -> None:
             await eng.stop()
 
 
+async def test_relative_dates_anchored_renders_the_week_before_the_record_day() -> None:
+    """G13: ``read.relative_dates_anchored`` states "last week" as the week before the
+    record's own day (LoCoMo's gold convention); off keeps the calendar week."""
+    expected = {
+        True: "Evan had a health scare last week [= the week before 2023-06-06 "
+        "(2023-05-30..2023-06-05)]",
+        False: "Evan had a health scare last week [= 2023-05-29..2023-06-04]",
+    }
+    for anchored, line_expected in expected.items():
+        read = {"resolve_relative_dates": True, "relative_dates_anchored": anchored}
+        eng = _engine(read={**read, "hybrid": False})
+        await eng.start()
+        try:
+            rec = await eng.write(
+                "Evan had a health scare last week",
+                namespace="a",
+                valid_from=datetime(2023, 6, 6, tzinfo=UTC),
+            )
+            ctx = await eng.assemble("health scare", namespace="a")
+            [line] = [r.content for r in ctx.records if r.record_id == rec.record_id]
+            assert line == line_expected
+        finally:
+            await eng.stop()
+
+
 async def test_candidate_pool_and_relative_floor() -> None:
     """H11/H4: a wider candidate pool lets the budget, not K, decide how much enters;
     the relative floor then removes weak candidates. Defaults are unchanged."""

@@ -57,6 +57,7 @@
       "profile_budget_share": 0.15,
       "profile_header": false,
       "record_access": true,
+      "relative_dates_anchored": false,
       "relevance_filter": false,
       "relevance_safety_net": 10,
       "render": "plain",

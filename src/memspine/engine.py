@@ -3055,7 +3055,8 @@ class Engine:
 
     def _annotate_dates(self, record: MemoryRecord) -> MemoryRecord:
         """H1: ``[= absolute date]`` after each relative-time phrase (projection only)."""
-        annotated = annotate_relative_dates(record.content, record.valid_from)
+        anchored = self._config().read.relative_dates_anchored
+        annotated = annotate_relative_dates(record.content, record.valid_from, anchored=anchored)
         if annotated == record.content:
             return record
         return record.model_copy(update={"content": annotated})

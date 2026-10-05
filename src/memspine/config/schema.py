@@ -335,6 +335,13 @@ class ReadConfig(BaseModel):
     #: "last Friday" -> "last Friday [= Fri 2023-07-14]". Deterministic rules, no model;
     #: stored content is never changed. Off: byte-identical.
     resolve_relative_dates: bool = False
+    #: G13: with ``resolve_relative_dates``, state week-level phrases relative to the
+    #: record's own day, LoCoMo's convention: "last week [= the week before 2023-06-09
+    #: (2023-06-02..2023-06-08)]" instead of the previous calendar week; "last weekend",
+    #: "last Friday", "N weeks ago" name the relation too, and "a few days ago" gets
+    #: "[= a few days before <day>]". Months, years and days are unchanged. Off:
+    #: byte-identical.
+    relative_dates_anchored: bool = False
     #: H11: assembly draws from ``candidate_pool x top_k`` search candidates, so
     #: the token budget, not a fixed K, decides how much evidence enters (LoCoMo:
     #: top-10 filled ~400 of 4,096 tokens). 1 = unchanged. Pair with

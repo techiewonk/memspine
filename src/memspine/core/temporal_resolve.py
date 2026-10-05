@@ -17,6 +17,24 @@ Conventions (stated, not inferred):
 - ``N weeks ago``: the anchor minus 7N days. ``N months/years ago``: the month or year only,
   marked approximate (``≈``).
 - Seasons (northern hemisphere, meteorological): summer = Jun-Aug, and so on; marked ``≈``.
+
+G13, ``anchored=True`` (``read.relative_dates_anchored``): LoCoMo's gold labels state week-
+level phrases relative to the day they were said ("The week before 9 June 2023", "The
+weekend before 17 July 2023", "A few days before 24 May 2023"), and the calendar week of
+"last week" misses that span by up to six days. Anchored mode names the relation to the
+anchor day and gives the span it denotes:
+
+- ``last/past week``: ``the week before <d>``, the seven days before the anchor day;
+  ``next week``: ``the week after <d>``, the seven days after it; ``this week``: ``the week
+  of <d>`` (the calendar week, unchanged).
+- ``last/this/next weekend``: ``the weekend before / of / after <d>`` (spans unchanged).
+- ``last/next <weekday>``: ``the Friday before / Saturday after <d>`` (day unchanged).
+- ``N weeks ago``: ``N weeks before <d>`` (day unchanged, ``≈``).
+- ``a few days ago`` (left alone otherwise): ``a few days before <d>``, with no span:
+  restating the relation is not a guess at a day.
+
+Months, years, seasons and single days are calendar units in the gold too, so they are
+rendered as without ``anchored``.
 """
 
 from __future__ import annotations
@@ -59,6 +77,7 @@ _PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = tuple(
         ("day_before_yesterday", r"\bthe day before yesterday\b"),
         ("day_after_tomorrow", r"\bthe day after tomorrow\b"),
         ("ago", rf"\b{_NUM} (?P<unit>day|week|month|year)s? ago\b"),
+        ("few_days_ago", r"\b(?:a )?few days ago\b"),  # anchored mode only
         ("rel_weekday", rf"\b(?P<rel>last|this|next|past) (?P<wd>{'|'.join(_WEEKDAYS)})\b"),
         ("rel_span", r"\b(?P<rel>last|this|next|past) (?P<unit>week|weekend|month|year)\b"),
         (
@@ -75,7 +94,12 @@ _PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = tuple(
 
 @dataclass(frozen=True, slots=True)
 class Resolution:
-    """One resolved phrase: character span in the text, inclusive date range, label."""
+    """One resolved phrase: character span in the text, inclusive date range, label.
+
+    ``relation`` (G13 anchored mode) names the phrase relative to its anchor day ("the
+    week before 2023-06-09"); the label is then the relation, followed by the span in
+    parentheses unless ``bounded`` is false (the span is only a rough reading).
+    """
 
     start: int
     end: int
@@ -83,9 +107,20 @@ class Resolution:
     first: date
     last: date
     approximate: bool = False
+    relation: str = ""
+    bounded: bool = True
 
     @property
     def label(self) -> str:
+        if not self.relation:
+            return self.span_label
+        if not self.bounded:
+            return self.relation
+        return f"{self.relation} ({self.span_label})"
+
+    @property
+    def span_label(self) -> str:
+        """The absolute span alone: a day, a month, a year or ``first..last``."""
         mark = "≈ " if self.approximate else ""
         if self.first == self.last:
             return f"{mark}{self.first:%a %Y-%m-%d}"
@@ -131,6 +166,8 @@ def _span(name: str, m: re.Match[str], d: date) -> tuple[date, date, bool] | Non
     if name == "day_after_tomorrow":
         x = d + timedelta(days=2)
         return x, x, False
+    if name == "few_days_ago":  # a rough reading; anchored mode shows the relation only
+        return d - timedelta(days=6), d - timedelta(days=1), True
     if name == "ago":
         n = _NUMBERS.get(m["n"].lower()) if not m["n"].isdigit() else int(m["n"])
         if n is None:
@@ -199,12 +236,48 @@ def _span(name: str, m: re.Match[str], d: date) -> tuple[date, date, bool] | Non
     return None
 
 
-def resolve(text: str, anchor: datetime | date) -> list[Resolution]:
-    """All non-overlapping relative-time phrases in ``text``, resolved against ``anchor``."""
+def _relate(
+    name: str, m: re.Match[str], d: date, first: date, last: date
+) -> tuple[str, date, date, bool]:
+    """G13: ``(relation, first, last, bounded)`` of one phrase in anchored mode.
+
+    ``relation`` is empty for the phrases anchored mode leaves as they are (days,
+    months, years, seasons, ``this <weekday>``).
+    """
+    on = f"{d:%Y-%m-%d}"
+    rel = m["rel"].lower() if "rel" in m.re.groupindex else ""
+    word = {"last": "before", "past": "before", "this": "of", "next": "after"}.get(rel, "")
+    if name == "few_days_ago":
+        return f"a few days before {on}", first, last, False
+    if name == "ago" and m["unit"].lower() == "week":
+        n = m["n"].lower()
+        unit = "week" if n in ("a", "an", "one", "1") else "weeks"
+        return f"{n} {unit} before {on}", first, last, True
+    if name == "rel_span" and m["unit"].lower() == "week":
+        if word == "before":
+            return f"the week before {on}", d - timedelta(days=7), d - timedelta(days=1), True
+        if word == "after":
+            return f"the week after {on}", d + timedelta(days=1), d + timedelta(days=7), True
+        return f"the week of {on}", first, last, True
+    if name == "rel_span" and m["unit"].lower() == "weekend":
+        return f"the weekend {word} {on}", first, last, True
+    if name == "rel_weekday" and word in ("before", "after"):
+        return f"the {m['wd'].capitalize()} {word} {on}", first, last, True
+    return "", first, last, True
+
+
+def resolve(text: str, anchor: datetime | date, *, anchored: bool = False) -> list[Resolution]:
+    """All non-overlapping relative-time phrases in ``text``, resolved against ``anchor``.
+
+    ``anchored`` (G13) states week-level phrases relative to the anchor day, LoCoMo's
+    convention (see the module docstring); off, the output is unchanged.
+    """
     d = anchor.date() if isinstance(anchor, datetime) else anchor
     found: list[Resolution] = []
     taken: list[tuple[int, int]] = []
     for name, rx in _PATTERNS:  # ordered most specific first
+        if name == "few_days_ago" and not anchored:
+            continue  # vague: left alone unless the relation itself is what is shown
         for m in rx.finditer(text):
             if any(m.start() < e and s < m.end() for s, e in taken):
                 continue
@@ -212,15 +285,20 @@ def resolve(text: str, anchor: datetime | date) -> list[Resolution]:
             if span is None:
                 continue
             first, last, approx = span
-            found.append(Resolution(m.start(), m.end(), m.group(0), first, last, approx))
+            relation, bounded = "", True
+            if anchored:
+                relation, first, last, bounded = _relate(name, m, d, first, last)
+            found.append(
+                Resolution(m.start(), m.end(), m.group(0), first, last, approx, relation, bounded)
+            )
             taken.append((m.start(), m.end()))
     return sorted(found, key=lambda r: r.start)
 
 
-def annotate(text: str, anchor: datetime | date) -> str:
+def annotate(text: str, anchor: datetime | date, *, anchored: bool = False) -> str:
     """``text`` with ``[= <absolute date>]`` after every resolved relative phrase."""
     out, pos = [], 0
-    for r in resolve(text, anchor):
+    for r in resolve(text, anchor, anchored=anchored):
         out.append(text[pos : r.end])
         out.append(f" [= {r.label}]")
         pos = r.end

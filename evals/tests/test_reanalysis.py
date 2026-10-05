@@ -178,3 +178,31 @@ def test_n10_temporal_check_splits_a_run_by_resolver_coverage(tmp_path: Path) ->
     split = temporal_check.run_split(run, r["groups"])
     assert split["covered"] == (1.0, 1) and split["exact_day"] == (1.0, 1)
     assert split["not_covered"] == (0.0, 1)
+
+
+def test_g13_gold_phrasing_needs_the_anchored_relation() -> None:
+    """G13: a relative gold's relation and anchor day are matched by an anchored
+    resolution of the evidence; calendar resolutions state no relation."""
+    from datetime import date
+
+    from memspine.core.temporal_resolve import resolve
+
+    assert temporal_check.relation_key("The week before 9 June 2023") == (
+        "week before",
+        date(2023, 6, 9),
+    )
+    assert temporal_check.relation_key("A few days before May 24, 2023.") == (
+        "few days before",
+        date(2023, 5, 24),
+    )
+    assert temporal_check.relation_key("Last week before 13 October 2022.") == (
+        "week before",
+        date(2022, 10, 13),
+    )
+    assert temporal_check.relation_key("7 May 2023") is None
+    said = date(2023, 6, 9)
+    anchored = resolve("I went there last week", said, anchored=True)
+    calendar = resolve("I went there last week", said)
+    assert temporal_check.has_gold_phrasing("The week before 9 June 2023", anchored)
+    assert not temporal_check.has_gold_phrasing("The week before 9 June 2023", calendar)
+    assert not temporal_check.has_gold_phrasing("The week before 10 June 2023", anchored)
