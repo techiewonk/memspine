@@ -7642,10 +7642,11 @@ class Engine:
         llm = self._llm.for_role(role)
         prompt = self._prompts.select("calibrate")
 
-        async def calibrate(prediction: str, content: str) -> list[ExtractedFact]:
-            result = await structured_call(
-                llm, prompt, {"prediction": prediction, "content": content}, ExtractedFacts
-            )
+        async def calibrate(
+            prediction: str, content: str, knowledge: list[str]
+        ) -> list[ExtractedFact]:
+            context = {"prediction": prediction, "content": content, "knowledge": knowledge}
+            result = await structured_call(llm, prompt, context, ExtractedFacts)
             return list(result.facts)
 
         return calibrate

@@ -44,6 +44,7 @@ CANONICAL_CONTEXTS: dict[str, dict[str, Any]] = {
     "calibrate": {
         "prediction": "Alice works at Acme\nAlice lives in Berlin",
         "content": "[2026-01-02] Alice: I got promoted to team lead at Acme",
+        "knowledge": ["Alice lives in Berlin", "Alice works at Acme"],
     },
     "subcluster": {"members": ["ocean currents", "tidal patterns"]},
     "query_rewrite": {"query": "coffee preference"},
