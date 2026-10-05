@@ -21,7 +21,7 @@ from collections.abc import Callable, Sequence
 
 from memspine.config import constants
 from memspine.core.policies.assembly import estimate_tokens
-from memspine.core.records import MemoryRecord
+from memspine.core.records import MemoryRecord, chrono_key
 
 __all__ = ["pack_profile", "packed_line", "render_packed_profile"]
 
@@ -39,7 +39,7 @@ def render_packed_profile(sections: Sequence[Sequence[MemoryRecord]]) -> str:
         if not records:
             continue
         lines.append(label)
-        ordered = sorted(records, key=lambda r: (r.valid_from, r.record_id))
+        ordered = sorted(records, key=chrono_key)
         lines.extend(packed_line(r) for r in ordered)
     return "\n".join(lines)
 

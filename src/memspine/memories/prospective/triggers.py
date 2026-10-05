@@ -26,7 +26,7 @@ from collections.abc import Iterable
 from datetime import datetime
 
 from memspine.core.events import EventKind, MemoryEvent
-from memspine.core.records import MemoryRecord, RecordStatus
+from memspine.core.records import MemoryRecord, RecordStatus, chrono_key
 
 __all__ = ["due_watches", "fired_watches", "invalidation_watches"]
 
@@ -46,7 +46,7 @@ def _live_watch(record: MemoryRecord) -> bool:
 
 def _ordered(fired: list[MemoryRecord]) -> list[MemoryRecord]:
     """Deterministic firing order: earliest relevance first, id tie-break."""
-    return sorted(fired, key=lambda record: (record.valid_from, record.record_id))
+    return sorted(fired, key=chrono_key)
 
 
 def due_watches(records: Iterable[MemoryRecord], now: datetime) -> list[MemoryRecord]:

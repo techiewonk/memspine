@@ -17,7 +17,7 @@ from memspine.config import constants
 from memspine.core.escaping import escape_markers
 from memspine.core.event_date import date_anchor, happened_of, label_start
 from memspine.core.query_shape import core_terms
-from memspine.core.records import MemoryRecord
+from memspine.core.records import MemoryRecord, chrono_key
 from memspine.core.temporal_resolve import WeekMode, resolve
 
 __all__ = [
@@ -370,7 +370,7 @@ def distinct_occurrences(
     yesterday" on the 15th and "the hike on Friday" on the 20th).
     """
     kept: list[tuple[MemoryRecord, str]] = []
-    for record, text in sorted(mentions, key=lambda m: (m[0].valid_from, m[0].record_id)):
+    for record, text in sorted(mentions, key=lambda m: chrono_key(m[0])):
         day = record.valid_from.date()
         if any(
             other.valid_from.date() == day

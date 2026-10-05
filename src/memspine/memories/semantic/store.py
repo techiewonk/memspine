@@ -22,7 +22,7 @@ from memspine.config.constants import CUE_TAG
 from memspine.core.events import EventKind, MemoryEvent
 from memspine.core.policies.conflict import ConflictPolicy, ConflictVerdict
 from memspine.core.policies.dedup import DedupPolicy
-from memspine.core.records import MemoryRecord, RecordStatus
+from memspine.core.records import MemoryRecord, RecordStatus, chrono_key
 from memspine.memories.base import BaseMemory
 from memspine.memories.semantic.entities import EntityExtractor
 from memspine.memories.semantic.write_pipeline import EDGE_CHANNEL, ScreenDerived, WritePipeline
@@ -456,7 +456,7 @@ class SemanticMemory(BaseMemory):
             and r.valid_to > incoming.valid_from
         ]
         if covering:
-            previous = max(covering, key=lambda r: (r.valid_from, r.record_id))
+            previous = max(covering, key=chrono_key)
             await self._write_event(
                 previous.model_copy(
                     update={"valid_to": incoming.valid_from, "invalid_at": incoming.valid_from}

@@ -87,12 +87,25 @@ def rrf_fuse(
 
     Each list contributes ``1 / (k + rank)`` per record (1-based rank in that
     list); a record present in both legs sums both contributions. Returns
-    ``(record_id, fused_score)`` sorted by score descending, breaking ties by
-    ``record_id`` ascending so the ranking is fully deterministic (two records
-    that surface at identical ranks must not reorder run-to-run).
+    ``(record_id, fused_score)`` sorted by score descending. Ties break on the
+    record's ranks leg by leg (vector leg first; absent from a leg ranks last in
+    it), so the order is a function of the legs alone (a record a leg lists twice
+    keeps both contributions and its best rank there).
+
+    #87: ties used to break on ``record_id``. Record ids are random uuid4s, so
+    two records with equal fused scores (rank 3 + rank 5 against rank 5 + rank 3
+    is common) swapped places from one run to the next, and at the ``top_k`` cut
+    a different record got in. No two records share a rank within one leg, so
+    the rank tuple never ties.
     """
+    legs = (vector_hits, lexical_hits, *extra)
     fused: dict[str, float] = {}
-    for hits in (vector_hits, lexical_hits, *extra):
+    ranks: dict[str, list[int]] = {}
+    absent = 1 + max((len(hits) for hits in legs), default=0)
+    for leg, hits in enumerate(legs):
         for rank, hit in enumerate(hits, start=1):
-            fused[hit.record_id] = fused.get(hit.record_id, 0.0) + 1.0 / (k + rank)
-    return sorted(fused.items(), key=lambda item: (-item[1], item[0]))
+            rid = hit.record_id
+            slots = ranks.setdefault(rid, [absent] * len(legs))
+            slots[leg] = min(slots[leg], rank)
+            fused[rid] = fused.get(rid, 0.0) + 1.0 / (k + rank)
+    return sorted(fused.items(), key=lambda item: (-item[1], ranks[item[0]]))

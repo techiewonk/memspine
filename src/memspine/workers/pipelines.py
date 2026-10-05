@@ -41,7 +41,7 @@ from memspine.core.policies.decay import DecayPolicy
 from memspine.core.policies.retention import RetentionPolicy
 from memspine.core.policies.trust import TrustPolicy
 from memspine.core.query_shape import content_words
-from memspine.core.records import MemoryRecord, RecordStatus, SourceInfo
+from memspine.core.records import MemoryRecord, RecordStatus, SourceInfo, chrono_key
 from memspine.core.temporal_resolve import WeekMode
 from memspine.exceptions import ConfigError, ConflictError
 from memspine.memories.associative.communities import (
@@ -1450,7 +1450,7 @@ async def _reorganize_community(
             keeper.claimed.add(match.record_id)
             await _keep_summary(ctx, community, match)
             return 0, str(match.source.message_id)
-        ordered = sorted(members, key=lambda member: (member.valid_from, member.record_id))
+        ordered = sorted(members, key=chrono_key)
         summary_text = extractive_summary(
             [member.content for member in ordered], constants.CONSOLIDATION_SUMMARY_MAX_CHARS
         )
@@ -1714,15 +1714,14 @@ def _edge_contexts(sources: list[MemoryRecord], known: list[MemoryRecord]) -> li
     entities = _context_entities(known)
     episodes = sorted(
         (r for r in sources if r.memory_type == "episodic"),
-        key=lambda r: (r.valid_from, r.record_id),
+        key=chrono_key,
     )
     contexts: list[EdgeContext] = []
     for record in sources:
         previous = [
             e
             for e in episodes
-            if e.group_id == record.group_id
-            and (e.valid_from, e.record_id) < (record.valid_from, record.record_id)
+            if e.group_id == record.group_id and chrono_key(e) < chrono_key(record)
         ][-MAX_PREVIOUS_EPISODES:]
         contexts.append(
             EdgeContext(
@@ -1860,7 +1859,7 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
                         grouped.setdefault(owner_key, []).append(record)
                 names = _context_entities(known)
                 for session_key, members in grouped.items():
-                    members.sort(key=lambda m: (m.valid_from, m.record_id))
+                    members.sort(key=chrono_key)
                     members_fp = _members_fp([m.record_id for m in members])
                     if index.membership_done(
                         EXTRACT_GRAPH_SESSION_STAGE, namespace, members_fp
@@ -2135,7 +2134,7 @@ def _display_name(canonical: str, members: list[MemoryRecord]) -> str:
 
 
 def _fact_lines(members: list[MemoryRecord]) -> list[str]:
-    ordered = sorted(members, key=lambda m: (m.valid_from, m.record_id))
+    ordered = sorted(members, key=chrono_key)
     return [f"[{m.valid_from:%Y-%m-%d}] {' '.join(m.content.split())}" for m in ordered]
 
 
@@ -2667,7 +2666,7 @@ async def _live_members(ctx: PipelineContext, member_ids: list[str]) -> list[Mem
         if record is None or record.status is not RecordStatus.ACTIVATED or record.quarantined:
             continue
         members.append(inflate.inflate(record))
-    members.sort(key=lambda m: (m.valid_from, m.record_id))
+    members.sort(key=chrono_key)
     return members
 
 

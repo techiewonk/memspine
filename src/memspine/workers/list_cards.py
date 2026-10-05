@@ -37,7 +37,7 @@ from memspine.core.fact_views import (
     tag_values,
     view_tags,
 )
-from memspine.core.records import MemoryRecord, RecordStatus
+from memspine.core.records import MemoryRecord, RecordStatus, chrono_key
 from memspine.observability.logging import get_logger
 
 if TYPE_CHECKING:
@@ -160,7 +160,7 @@ def render_list_card(person: str, label: str, members: list[MemoryRecord]) -> st
     """
     items: list[tuple[str, str]] = []
     seen: set[tuple[str, str]] = set()
-    for record in sorted(members, key=lambda r: (_month(r), r.valid_from, r.record_id)):
+    for record in sorted(members, key=lambda r: (_month(r), chrono_key(r))):
         statement = _cut(fact_statement(record), constants.LIST_CARD_ITEM_MAX_CHARS)
         month = _month(record)
         if (statement.casefold(), month) in seen:

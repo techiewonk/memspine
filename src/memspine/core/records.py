@@ -14,7 +14,8 @@ later phases never need a breaking schema change for:
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+import threading
+from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from typing import Any
 
@@ -39,8 +40,30 @@ __all__ = [
     "ScoringState",
     "SkillStage",
     "SourceInfo",
+    "chrono_key",
     "new_record_id",
+    "record_time",
 ]
+
+
+_clock_lock = threading.Lock()
+_last_record_time = datetime.min.replace(tzinfo=UTC)
+
+
+def record_time() -> datetime:
+    """#87: the default ``recorded_at``, strictly increasing within the process.
+
+    Two records built in the same clock tick (a batched ``write_messages``) would
+    otherwise share a record time, and their order would fall to the random
+    ``record_id``. A tie is bumped by one microsecond, so record time follows
+    construction order and identical inputs give identical orderings."""
+    global _last_record_time
+    now = datetime.now(UTC)
+    with _clock_lock:
+        if now <= _last_record_time:
+            now = _last_record_time + timedelta(microseconds=1)
+        _last_record_time = now
+    return now
 
 
 def new_record_id() -> str:
@@ -173,7 +196,7 @@ class MemoryRecord(BaseModel):
     # Bi-temporal columns (M4): event time vs. record time.
     valid_from: datetime = Field(default_factory=lambda: datetime.now(UTC))
     valid_to: datetime | None = None
-    recorded_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    recorded_at: datetime = Field(default_factory=record_time)
     superseded_at: datetime | None = None
     # #19 interval arithmetic (``conflict.interval_order``): when the fact stopped
     # being true in the world, set by the conflict ladder from the next statement
@@ -254,3 +277,14 @@ class MemoryRecord(BaseModel):
         block = self.model_copy()
         block._engine_block = True
         return block
+
+
+def chrono_key(record: MemoryRecord) -> tuple[datetime, datetime, str, str]:
+    """#87: the deterministic chronological order of records.
+
+    Event time first, then record time (strictly increasing in write order, see
+    :func:`record_time`), then the content fingerprint. ``record_id`` comes last
+    and only separates true duplicates: it is a random uuid4, so ordering by it
+    before anything else made equal-time records (every turn of one session)
+    come out in a different order on every run."""
+    return (record.valid_from, record.recorded_at, record.content_fingerprint, record.record_id)

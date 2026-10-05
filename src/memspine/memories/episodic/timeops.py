@@ -8,14 +8,15 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from memspine.core.records import MemoryRecord
+from memspine.core.records import MemoryRecord, chrono_key
 
 __all__ = ["sort_timeline", "within"]
 
 
 def sort_timeline(records: list[MemoryRecord]) -> list[MemoryRecord]:
-    """Chronological event-time order; record time breaks ties stably."""
-    return sorted(records, key=lambda record: (record.valid_from, record.recorded_at))
+    """Chronological event-time order; record time, then content, breaks ties
+    (:func:`chrono_key`, #87)."""
+    return sorted(records, key=chrono_key)
 
 
 def within(

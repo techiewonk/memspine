@@ -19,7 +19,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
-from memspine.core.records import MemoryRecord
+from memspine.core.records import MemoryRecord, chrono_key
 
 __all__ = ["LegHit", "metadata_leg", "query_interval", "temporal_leg"]
 
@@ -82,7 +82,7 @@ def temporal_leg(query: str, records: Iterable[MemoryRecord], top_k: int) -> lis
     start, end = span
     mid = start + (end - start) / 2
     inside = [r for r in records if start <= _aware(r.valid_from) < end]
-    inside.sort(key=lambda r: (abs((_aware(r.valid_from) - mid).total_seconds()), r.record_id))
+    inside.sort(key=lambda r: (abs((_aware(r.valid_from) - mid).total_seconds()), chrono_key(r)))
     return [LegHit(r.record_id, 1.0) for r in inside[:top_k]]
 
 
@@ -94,5 +94,5 @@ def metadata_leg(query: str, records: Iterable[MemoryRecord], top_k: int) -> lis
         for r in records
         if r.entity and re.search(rf"(?<!\w){re.escape(r.entity.lower())}(?!\w)", text)
     ]
-    named.sort(key=lambda r: (-_aware(r.valid_from).timestamp(), r.record_id))
+    named.sort(key=lambda r: (-_aware(r.valid_from).timestamp(), chrono_key(r)))
     return [LegHit(r.record_id, 1.0) for r in named[:top_k]]
