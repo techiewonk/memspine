@@ -110,11 +110,12 @@ async def test_verbs_fail_loudly_when_associative_disabled() -> None:
         await eng.stop()
 
 
-async def test_reorganize_reports_skipped_without_the_extra(engine: Engine) -> None:
-    from memspine.memories.associative.communities import communities_available
+async def test_reorganize_reports_skipped_without_the_extra(
+    engine: Engine, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from memspine.workers import pipelines
 
-    if communities_available():
-        pytest.skip("leidenalg installed — the skipped path is not reachable")
+    monkeypatch.setattr(pipelines, "communities_available", lambda: False)
     stats = await engine.sleep()
     assert stats["reorganize"]["status"] == "skipped"
     assert "community" in str(stats["reorganize"]["reason"])

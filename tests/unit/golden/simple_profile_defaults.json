@@ -99,11 +99,18 @@
       "theta_abstain": 0.25
     },
     "community": {
+      "algorithm": "auto",
+      "incremental": false,
+      "incremental_passes": 3,
       "max_cluster_size": 1000,
       "min_size": 3,
       "random_seed": 1,
       "randomness": 0.001,
-      "resolution": 1.0
+      "refine_passes": 10,
+      "refresh_every": 5,
+      "refresh_fraction": 0.1,
+      "resolution": 1.0,
+      "summary_keep_jaccard": 1.0
     },
     "compression": {
       "assembly": false,
