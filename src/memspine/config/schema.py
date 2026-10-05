@@ -274,6 +274,11 @@ class ReadConfig(BaseModel):
     #: most when few of many candidates are kept, and can hurt abstention when
     #: many are). None = always rerank when a reranker is configured.
     rerank_max_top_k: int | None = Field(default=None, ge=1)
+    #: G5b: with a reranker and ``candidate_pool > 1``, keep only the best
+    #: ``rerank_keep`` candidates after reranking, before assembly fills the budget,
+    #: so a wider pool sharpens the ranking instead of growing the context.
+    #: None = keep the whole pool (unchanged).
+    rerank_keep: int | None = Field(default=None, ge=1)
     #: H15: replay windows stay inside the hit's topic segment (lexical-cohesion
     #: boundaries within a session), so neighbours from another topic are not replayed.
     replay_topic_segments: bool = False

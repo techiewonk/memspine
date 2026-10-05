@@ -62,6 +62,7 @@
       "reply_reserve_tokens": 0,
       "rerank": "off",
       "rerank_date_prefix": false,
+      "rerank_keep": null,
       "rerank_max_top_k": null,
       "rerank_model": null,
       "resolve_relative_dates": false,

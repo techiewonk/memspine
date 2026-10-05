@@ -2030,6 +2030,7 @@ class Engine:
         read_cfg = self._config().read
         if read_cfg.skip_rerank_for_ordering and is_ordering(query):
             reranker = None  # Agent Zero: a relevance reranker scrambles temporal order
+        reranked = False
         if reranker is not None and candidates:
             documents = [concat_background(record) for record, _ in candidates]
             if read_cfg.rerank_date_prefix:
@@ -2045,6 +2046,7 @@ class Engine:
                     (record, relevance)
                     for (record, _), relevance in zip(candidates, relevances, strict=True)
                 ]
+                reranked = True
             except Exception as exc:
                 _log.warning(
                     "rerank.failed", namespace=ns, reranker=reranker.reranker_id, error=str(exc)
@@ -2068,6 +2070,9 @@ class Engine:
                 if integrity.admits(record.trust)
             ]
         scored.sort(key=lambda pair: pair[1], reverse=True)
+        if reranked and read_cfg.rerank_keep is not None and read_cfg.candidate_pool > 1:
+            # G5b: the wider pool fed the reranker; only its best few go on.
+            scored = scored[: read_cfg.rerank_keep]
         if scored and self._config().read.record_access:
             # Reinforcement stats via the log (M1): last_accessed_at + access_count.
             await self._append_and_project(
