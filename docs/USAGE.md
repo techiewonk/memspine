@@ -94,8 +94,8 @@ print(engine.describe())   # enabled types, services, event-log mode, projectors
 | `coding` | + procedural (`conflict_bias: newest`) |
 | `personal` | + reflective + prospective |
 | `voice` | rolling+zstd event log; tighter working window (`page_size: 8`) |
-| `multi_agent` | + shared |
-| `regulated_financial` | full audit log, strict PII, no forgetting |
+| `multi_agent` | + shared; secure defaults: `integrity.enabled`, `untrusted_wrap_below: 0.5`, `redact_secrets`, `pii: redact` |
+| `regulated_financial` | full audit log, strict PII, no forgetting; the same secure defaults as `multi_agent` |
 | `assistant` (**default**, ADR-032) | = `base` (since ADR-033 the advantages live in `base`); the name for chat workloads (LoCoMo 70.7 → 78.3%, measured) |
 
 > **Default template (ADR-032).** `Engine()` with no `template` loads `assistant`. Pass `template="base"` for the plain `simple` profile (the previous behaviour). A caller that names a `profile` but no template (`Engine(profile="simple")`, or `profile:` in the user config) gets `base`, never the assistant settings. The CLI `audit taint` / `forget` commands always run on `base`.

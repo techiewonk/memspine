@@ -225,8 +225,8 @@ Construct with `Engine(template="...")`. Each template is a partial overlay on t
 | `coding` | + procedural | coding agents with reusable skills; `conflict_bias: newest` |
 | `personal` | + reflective + prospective | personal assistants (reflective auto-enables episodic) |
 | `voice` | rolling+zstd event log; larger working window | high-volume voice transcripts |
-| `multi_agent` | + shared; **DBOS** durable workers | namespace grants across agents (R2), server-grade durability |
-| `regulated_financial` | full audit log, strict PII, no forgetting; **DBOS** durable workers | audited / compliant deployments |
+| `multi_agent` | + shared; **DBOS** durable workers; secure defaults (integrity gate, secret + PII redaction, untrusted-data wrapper) | namespace grants across agents (R2), server-grade durability |
+| `regulated_financial` | full audit log, strict PII, no forgetting; **DBOS** durable workers; secure defaults (integrity gate, secret + PII redaction, untrusted-data wrapper) | audited / compliant deployments |
 | `assistant` (**default**) | = `base`: the measured read-path advantages (relative dates resolved, time-ordered answers for ordering questions, relevance-first scoring; LoCoMo 70.7 → 78.3%; reranker opt-in) | chat assistants |
 | `core` | the bare configuration (no read-path enhancements) | tests, baselines |
 

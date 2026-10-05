@@ -13,3 +13,15 @@ memories:
     enabled: true      # needs >=1 of semantic|episodic (C1b); base enables both
   working:
     enabled: true
+
+# Secure defaults (#45): agents share memory here, so the trust-horizon gate,
+# write-door redaction and the untrusted-data wrapper are on. A record below
+# trust 0.5 (tool/web input, or another agent's record seen through a grant)
+# reaches a context window inside a nonce-closed UNTRUSTED NOTE wrapper.
+integrity:
+  enabled: true
+  untrusted_wrap_below: 0.5
+
+firewall:
+  redact_secrets: true
+  pii: redact
