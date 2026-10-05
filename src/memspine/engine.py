@@ -3608,17 +3608,67 @@ class Engine:
         return ids
 
     async def _descendants(self, storage: SqlStorage, ns: str, seeds: Sequence[str]) -> list[str]:
-        """Every record of ``ns`` derived from ``seeds`` through ``source.parents``,
-        transitively, in discovery order (seeds excluded)."""
+        """Every record of ``ns`` derived from ``seeds``, transitively, in discovery
+        order (seeds excluded), that is still in the read model.
+
+        Derivation is read from ``source.parents`` and, for summaries written
+        before they carried parents, from the ``member_record_ids`` their WRITE
+        (``consolidation``/``reflection``) and CONSOLIDATE events name. A summary
+        of a forgotten member is forgotten with it (cascade), never re-derived."""
+        members_of = await self._log_derivations(storage, ns)
         seen = set(seeds)
         found: list[str] = []
         frontier = list(seeds)
         while frontier:
-            children = await storage.list_children(ns, frontier)
-            frontier = [c.record_id for c in children if c.record_id not in seen]
+            children = [c.record_id for c in await storage.list_children(ns, frontier)]
+            children += [child for parent in frontier for child in members_of.get(parent, ())]
+            frontier = [c for c in dict.fromkeys(children) if c not in seen]
             seen.update(frontier)
             found.extend(frontier)
-        return found
+        present: list[str] = []
+        for record_id in found:
+            record = await storage.get_record(record_id)
+            if record is not None and record.namespace == ns:
+                present.append(record_id)
+        return present
+
+    @staticmethod
+    async def _log_derivations(storage: SqlStorage, ns: str) -> dict[str, list[str]]:
+        """parent id -> ids of the records of ``ns`` whose log events name it: in
+        a WRITE snapshot's ``source.parents`` or a ``member_record_ids`` list
+        (one pass over the log)."""
+        children: dict[str, list[str]] = {}
+
+        def link(members: object, child: object) -> None:
+            if isinstance(members, list) and isinstance(child, str) and child:
+                for member in members:
+                    children.setdefault(str(member), []).append(child)
+
+        after = 0
+        while True:
+            batch = await storage.read_events(after_seq=after)
+            if not batch:
+                return children
+            for event in batch:
+                if event.namespace != ns:
+                    continue
+                payload = event.payload or {}
+                if event.kind is EventKind.WRITE:
+                    snapshot = payload.get("record")
+                    child = snapshot.get("record_id") if isinstance(snapshot, dict) else None
+                    source = snapshot.get("source") if isinstance(snapshot, dict) else None
+                    if isinstance(source, dict):
+                        # The log keeps lineage after the row is gone, so the walk
+                        # crosses an already-erased intermediate record.
+                        link(source.get("parents"), child)
+                    for key in ("consolidation", "reflection"):
+                        derivation = payload.get(key)
+                        if isinstance(derivation, dict):
+                            link(derivation.get("member_record_ids"), child)
+                elif event.kind is EventKind.CONSOLIDATE:
+                    link(payload.get("member_record_ids"), payload.get("summary_record_id"))
+            assert batch[-1].seq is not None
+            after = batch[-1].seq
 
     async def _forget_many(
         self, storage: SqlStorage, ns: str, record_ids: Sequence[str], hard: bool
@@ -3648,6 +3698,12 @@ class Engine:
             redacted=len(redacted),
         )
         await self._purge_caches(texts)
+        # The vector delete only marks rows deleted; the purge drops their bytes
+        # and the older table versions that still return them (verify_forget
+        # reports vector history unproven when it did not run).
+        purge = getattr(self._vector, "purge_deleted", None)
+        if callable(purge) and not await purge():
+            _log.warning("memory.forget_vector_purge_incomplete", namespace=ns, record_id=ids[0])
         if self._client is not None:
             await self._client.checkpoint()
 
@@ -3753,9 +3809,12 @@ class Engine:
         erasure. Every identifying field counts (#2): content, fingerprint, fact
         key, tags, history and dedup sketches; ``log_retained_fields`` names
         those still found. A record derived from this one (``source.parents``)
-        that is still in the read model also keeps ``clean`` false. An
-        unverifiable vector backend and an ephemeral (unpersisted) log are
-        reported as *unproven*, never silently as clean.
+        that is still in the read model (found transitively, see
+        :meth:`_descendants`) also keeps ``clean`` false. An unverifiable vector
+        backend, a vector table whose older versions were not purged, and an
+        ephemeral (unpersisted) log are reported as *unproven*, never silently as
+        clean. ``residual_risks`` names what the proof cannot cover (deleted
+        terms in an unmerged Tantivy segment).
 
         SEC-C2/ADR-018: scoped to ``namespace``. A record that still exists in
         another namespace raises the anti-oracle error — a caller must not probe
@@ -3771,16 +3830,19 @@ class Engine:
         exists = getattr(self._vector, "exists", None)
         if callable(exists):
             vector_absent = not await exists(record_id)
+        # A deleted vector can survive in older table versions until purged.
+        # None => the backend cannot prove its history clean (unproven).
+        vector_history_absent: bool | None = None
+        history_absent = getattr(self._vector, "history_absent", None)
+        if callable(history_absent):
+            vector_history_absent = await history_absent(record_id)
         # The Tantivy lexical index holds raw content when hybrid is on, so
         # erasure is not proven until it too is inspected. None => no lexical store
         # is owned (hybrid off) — nothing to erase, so it cannot block ``clean``.
         lexical_absent: bool | None = None
         if self._lexical is not None:
             lexical_absent = not await self._lexical.exists(record_id)
-        descendants = [
-            r.record_id
-            for r in await storage.list_children(validate_namespace(namespace), [record_id])
-        ]
+        descendants = await self._descendants(storage, validate_namespace(namespace), [record_id])
         log_verifiable = storage.can_rebuild  # ephemeral persists nothing to prove
         retained: set[str] = set()
         after = 0
@@ -3799,13 +3861,21 @@ class Engine:
             and log_clean
             and not descendants
             and vector_absent is True
+            and vector_history_absent is True
             and lexical_absent is not False  # True (absent) or None (no store) both pass
         )
         return {
             "record_id": record_id,
             "record_absent": record_absent,
             "vector_absent": vector_absent,  # None => backend cannot prove it
+            "vector_history_absent": vector_history_absent,  # None => unproven
             "lexical_absent": lexical_absent,  # None => no lexical store owned
+            # Tantivy drops a deleted document's terms from its inverted index only
+            # when its segment is merged, which the engine cannot force: the
+            # document (and its id) is gone, but its terms can linger on disk.
+            "residual_risks": ["lexical_terms_until_segment_merge"]
+            if self._lexical is not None
+            else [],
             "log_verifiable": log_verifiable,
             "log_redacted": log_clean,
             "log_retained_fields": sorted(retained),
@@ -5324,6 +5394,11 @@ class Engine:
         }
         if self._semantic is not None:
             self._semantic.invalidate_index()  # LSH state rebuilt from fresh rows
+        # Replay re-deletes forgotten rows, and the pre-rebuild table lives on in
+        # older versions: purge both, as the hard forget did (M7).
+        purge = getattr(self._vector, "purge_deleted", None)
+        if callable(purge):
+            await purge()
         _log.info(EVENT_REBUILD, counts=counts)
         return counts
 

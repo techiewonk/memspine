@@ -206,6 +206,9 @@ LANCE_COMPACT_EVERY = 20
 # native "search the compressed index, re-rank the oversampled window by exact
 # vector distance" flow.
 LANCE_NPROBES = 20
+# M7 erasure proof: ``forget --verify`` scans at most this many retained Lance
+# table versions for an erased row; a longer history is reported unproven.
+LANCE_VERIFY_MAX_VERSIONS = 512
 
 # E4 static-embedding prefilter (model2vec, [static], plan Part B §E4): the cheap
 # static-cosine gate keeps this multiple of ``top_k`` candidates before the

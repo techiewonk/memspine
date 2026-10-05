@@ -362,8 +362,13 @@ async def _consolidate_session(
         valid_to=session.end,
         # N2: derived (and, with a summarize role, LLM-authored) content is
         # never privileged — constants.DERIVED_ROLE states the rule.
+        # The members are the summary's parents: erasure of a member cascades to
+        # the summary (forget-by-cascade), and the MTI walk sees the lineage.
         source=SourceInfo(
-            role=constants.DERIVED_ROLE, channel="consolidation", message_id=session.session_key
+            role=constants.DERIVED_ROLE,
+            channel="consolidation",
+            message_id=session.session_key,
+            parents=list(session.record_ids),
         ),
         # E1: a summary is DERIVED content — never more trusted than its
         # least-trusted member, and injection framing echoed into the summary
@@ -836,7 +841,12 @@ async def _reorganize_community(
             namespace=namespace,
             memory_type="semantic",
             content=summary_text,
-            source=SourceInfo(role=constants.DERIVED_ROLE, channel="reorganize", message_id=key),
+            source=SourceInfo(
+                role=constants.DERIVED_ROLE,
+                channel="reorganize",
+                message_id=key,
+                parents=member_ids,
+            ),
             # E1/D-47 §5: derived content is never more trusted than its
             # least-trusted member, and echoed injection framing stays flagged.
             trust=min(member.trust for member in members),
