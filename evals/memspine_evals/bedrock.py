@@ -66,7 +66,7 @@ TITAN_V2_DIM = 1024
 #: Every LLM role the engine binds through ``Engine.llm`` / ``LLMRouter.for_role``:
 #: fact mining and LLM entity extraction, graph edges, consolidation summaries,
 #: profile reflection, anticipatory cues, the H17 relevance filter, P4 compose
-#: rewrites, conflict adjudication, and chat.
+#: rewrites, the G2a read planner, conflict adjudication, and chat.
 ENGINE_LLM_ROLES: tuple[str, ...] = (
     "extract",
     "extract_edges",
@@ -75,6 +75,7 @@ ENGINE_LLM_ROLES: tuple[str, ...] = (
     "anticipate",
     "relevance",
     "query_rewrite",
+    "plan",
     "judge",
     "chat",
 )

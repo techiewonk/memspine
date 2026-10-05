@@ -24,4 +24,5 @@ PROMPT_ROLES: tuple[str, ...] = (
     "invalidate_edge",  # C1: edge add/update/invalidate/noop adjudication
     "anticipate",  # H8: write-time anticipatory retrieval cues (T-Mem-style)
     "relevance",  # H17: 3-way relevance filter on read (Hindsight-style), opt-in
+    "plan",  # G2a: read planner for read(mode="auto") (JustMem-style), opt-in
 )

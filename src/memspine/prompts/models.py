@@ -27,6 +27,7 @@ __all__ = [
     "Insight",
     "Insights",
     "InstructionFlagOut",
+    "ReadPlan",
     "RelevanceLabel",
     "RelevanceLabels",
 ]
@@ -149,6 +150,39 @@ class DuplicateVerdictOut(BaseModel):
     reason: str = ""
 
 
+class ReadPlan(BaseModel):
+    """G2a (JustMem planner): how ``read(mode="auto")`` should read for one question.
+
+    ``lookup`` (one fact) and ``replay`` (the surrounding conversation) both read
+    by replay; ``aggregate`` reads by compose, with ``subqueries`` as extra probes.
+    """
+
+    mode: Literal["lookup", "aggregate", "replay"]
+    temporal: bool = False
+    entities: list[str] = Field(default_factory=list)
+    #: At most three; a longer list is cut, blank entries dropped.
+    subqueries: list[str] = Field(default_factory=list)
+
+    @field_validator("mode", mode="before")
+    @classmethod
+    def _mode_lower(cls, value: Any) -> Any:
+        return value.strip().lower() if isinstance(value, str) else value
+
+    @field_validator("entities", "subqueries", mode="before")
+    @classmethod
+    def _text_list(cls, value: Any) -> Any:
+        if value is None:
+            return []
+        if isinstance(value, str):
+            value = [value]
+        return [str(_as_text(v)).strip() for v in value if v is not None and str(v).strip()]
+
+    @field_validator("subqueries")
+    @classmethod
+    def _at_most_three(cls, value: list[str]) -> list[str]:
+        return value[:3]
+
+
 class InstructionFlagOut(BaseModel):
     instruction_shaped: bool
     reason: str = ""
@@ -165,4 +199,5 @@ OUTPUT_MODELS: dict[str, type[BaseModel]] = {
     "InstructionFlagOut": InstructionFlagOut,
     "AnticipatedCues": AnticipatedCues,
     "RelevanceLabels": RelevanceLabels,
+    "ReadPlan": ReadPlan,
 }

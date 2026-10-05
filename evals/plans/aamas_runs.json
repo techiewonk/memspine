@@ -57,6 +57,7 @@
       "anticipate": 400,
       "relevance": 120,
       "query_rewrite": 30,
+      "plan": 40,
       "judge_engine": 30,
       "chat": 100
     },
@@ -70,6 +71,7 @@
       "anticipate": 1024,
       "relevance": 512,
       "query_rewrite": 128,
+      "plan": 256,
       "judge_engine": 128,
       "chat": 512
     }

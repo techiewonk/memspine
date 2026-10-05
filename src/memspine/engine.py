@@ -113,6 +113,7 @@ from memspine.prompts.models import (
     ExtractedFact,
     ExtractedFacts,
     Insights,
+    ReadPlan,
     RelevanceLabels,
 )
 from memspine.prompts.registry import PromptRegistry
@@ -2467,11 +2468,25 @@ class Engine:
                     return ReadResult("full", full)
             if mode == "full":
                 mode = "retrieve"
-        if mode == "auto" and self._config().read.planner == "decision":
+        planner = self._config().read.planner
+        probes: list[str] = []
+        if mode == "auto" and planner == "decision":
             mode = await self._plan_read_mode(query) or mode
+        elif mode == "auto" and planner == "llm":
+            plan = await self._llm_read_plan(query)
+            if plan is not None:
+                # G2a: lookup and replay both read by replay; aggregate by compose.
+                mode = "compose" if plan.mode == "aggregate" else "replay"
+                probes = list(plan.subqueries) if plan.mode == "aggregate" else []
         if mode == "compose" or (mode == "auto" and is_aggregation(query)):
             return await self._compose(
-                query, ns, budget_tokens, top_k, compose_pool, drop_facts=drop_facts
+                query,
+                ns,
+                budget_tokens,
+                top_k,
+                compose_pool,
+                drop_facts=drop_facts,
+                extra_probes=probes,
             )
         base = await self._assemble_core(query, ns, budget_tokens, top_k, drop_facts=drop_facts)
         episodic_hits = [r for r in base.records if r.memory_type == "episodic"]
@@ -2639,14 +2654,21 @@ class Engine:
         pool: int,
         *,
         drop_facts: bool = False,
+        extra_probes: Sequence[str] = (),
     ) -> ReadResult:
-        """H3: session-diverse, wider-recall read for aggregation questions."""
+        """H3: session-diverse, wider-recall read for aggregation questions.
+
+        ``extra_probes`` (G2a: the LLM planner's subqueries) join the query, its
+        core terms and the P4 rewrites; every probe's hits are rank-fused."""
         assert self._assembly is not None
         probes = [query]
         terms = core_terms(query)
         if terms and terms.lower() != query.lower():
             probes.append(terms)
         probes += await self._query_rewrite_probes(query)
+        for probe in extra_probes:
+            if probe.strip() and probe.strip().lower() not in (p.lower() for p in probes):
+                probes.append(probe.strip())
         rrf_k = self._config().read.rrf_k or constants.RRF_K
         fused: dict[str, float] = {}
         records: dict[str, MemoryRecord] = {}
@@ -4564,6 +4586,26 @@ class Engine:
             _log.warning("read.planner_failed", error=str(exc))
             return None
         return label if label in self._READ_MODES else None
+
+    async def _llm_read_plan(self, query: str) -> ReadPlan | None:
+        """G2a: one ``plan`` role call (counted by the router), or None (rules).
+
+        None when the role is not bound, the call fails, or the reply is not a
+        valid :class:`ReadPlan`; each case logs a warning (an enhancer, never a gate).
+        """
+        if self._llm is None or self._prompts is None or "plan" not in self._llm.roles:
+            _log.warning("read.planner_unbound", planner="llm", role="plan")
+            return None
+        try:
+            return await structured_call(
+                self._llm.for_role("plan"),
+                self._prompts.select("plan"),
+                {"query": query},
+                ReadPlan,
+            )
+        except Exception as exc:
+            _log.warning("read.planner_failed", planner="llm", error=str(exc))
+            return None
 
     async def _query_rewrite_probes(self, query: str) -> list[str]:
         """P4 (JustMem COMPOSE): up to two answer-free rewrites from the ``query_rewrite``

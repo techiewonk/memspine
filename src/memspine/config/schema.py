@@ -299,9 +299,11 @@ class ReadConfig(BaseModel):
     #: from the ``query_rewrite`` LLM role (``@compose`` prompt). Needs the role bound.
     compose_rewrites: bool = False
     #: H24: how ``read(mode="auto")`` picks a mode once full context does not fit:
-    #: ``rules`` (deterministic cues) or ``decision`` (the decision provider chooses
-    #: among compose / replay / retrieve; rules on any failure).
-    planner: Literal["rules", "decision"] = "rules"
+    #: ``rules`` (deterministic cues), ``decision`` (the decision provider chooses
+    #: among compose / replay / retrieve) or ``llm`` (G2a: one ``plan`` role call
+    #: returns a ReadPlan; lookup/replay read by replay, aggregate by compose with
+    #: the plan's subqueries as extra probes). Rules on any failure.
+    planner: Literal["rules", "decision", "llm"] = "rules"
     relevance_safety_net: int = Field(default=10, ge=0)
     #: C8': resolve search hits on anticipatory cues (``Engine.add_cues``) to
     #: their target records. A cue below ``cue_min_trust`` is ignored, so cues
