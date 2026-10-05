@@ -184,6 +184,40 @@ class LanceDBVectorStore:
             for row in rows
         ]
 
+    async def query_many(
+        self, namespace: str, vectors: list[list[float]], embedder_id: str, top_k: int = 8
+    ) -> list[list[VectorHit]]:
+        """#63: :meth:`query` for many vectors in one flat scan.
+
+        LanceDB runs a multi-vector search as one pass, tagging each row with its
+        ``query_index``; the hits of each query are returned in that query's slot,
+        best first, exactly as :meth:`query` ranks them."""
+        if not vectors:
+            return []
+        table = await self._ensure_table()
+
+        def _search() -> list[dict[str, Any]]:
+            # namespace grammar (core.namespace) admits no quotes — safe filter.
+            result: list[dict[str, Any]] = (
+                table.search(vectors if len(vectors) > 1 else vectors[0])
+                .where(f"namespace = '{namespace}'", prefilter=True)
+                .metric("cosine")
+                .limit(top_k)
+                .to_list()
+            )
+            return result
+
+        rows = await asyncio.to_thread(_search)
+        out: list[list[VectorHit]] = [[] for _ in vectors]
+        for row in rows:
+            index = int(row.get("query_index") or 0)
+            out[index].append(
+                VectorHit(record_id=row["record_id"], score=1.0 - float(row["_distance"]))
+            )
+        for hits in out:
+            hits.sort(key=lambda hit: -hit.score)  # stable: LanceDB order kept on ties
+        return out
+
     def _create_index(self, table: Any) -> None:
         """Build the native ANN index whose compressed sub-index realizes E4.
 

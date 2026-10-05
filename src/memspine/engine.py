@@ -21,6 +21,7 @@ import threading
 import unicodedata
 from collections.abc import AsyncIterator, Callable, Coroutine, Mapping, Sequence
 from contextlib import asynccontextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -307,6 +308,79 @@ class WriteOutcome:
 _log = get_logger(__name__)
 
 
+class _NeighbourBatch:
+    """#63: the firewall's nearest-neighbour context for one ``write_messages`` call.
+
+    ``prefetched`` holds, per content, the top-k hits of ONE batched vector query
+    made before the first turn is written. Every WRITE or FORGET the namespace
+    sees while the batch is open is observed (whatever task made it), so
+    :meth:`neighbours` ranks those prefetched hits together with the rows written
+    since, exactly the set a per-turn query would rank.
+    """
+
+    def __init__(self, namespace: str, prefetched: dict[str, list[VectorHit]]) -> None:
+        self.namespace = namespace
+        self.prefetched = prefetched
+        self.written: dict[str, str] = {}  # record_id -> content, in write order
+        self.forgotten: set[str] = set()
+        self._ids: list[str] = []
+        self._matrix: Any = None  # unit rows of the written vectors (float32)
+
+    def observe(self, event: MemoryEvent) -> None:
+        if event.kind is EventKind.WRITE:
+            snapshot = event.payload.get("record")
+            if isinstance(snapshot, dict) and snapshot.get("record_id") is not None:
+                record_id = str(snapshot["record_id"])
+                if record_id in self.written:
+                    self._matrix = None  # a replaced row invalidates the cached rows
+                self.written[record_id] = str(snapshot.get("content") or "")
+                self.forgotten.discard(record_id)
+        elif event.kind is EventKind.FORGET:
+            record_id = str(event.payload.get("record_id"))
+            self.forgotten.add(record_id)
+            self.written.pop(record_id, None)
+            self._matrix = None
+
+    async def neighbours(
+        self, content: str, vector: list[float], embedder: EmbeddingService, top_k: int
+    ) -> list[VectorHit]:
+        """Top-k cosine neighbours of ``vector`` over the prefetched and written rows."""
+        written = [rid for rid in self.written if rid not in self.forgotten]
+        hits = [
+            hit
+            for hit in self.prefetched[content]
+            if hit.record_id not in self.written and hit.record_id not in self.forgotten
+        ]
+        if written:
+            import numpy as np  # lancedb's own dependency; loaded only for batched ingest
+
+            if self._matrix is None or written[: len(self._ids)] != self._ids:
+                self._matrix, self._ids = np.zeros((0, len(vector)), dtype=np.float32), []
+            fresh = written[len(self._ids) :]
+            if fresh:  # rows are appended as turns are written: embed only the new ones
+                rows = np.asarray(
+                    await embedder.embed([self.written[rid] for rid in fresh]), dtype=np.float32
+                )
+                norms = np.linalg.norm(rows, axis=1, keepdims=True)
+                self._matrix = np.vstack([self._matrix, rows / np.where(norms == 0, 1, norms)])
+                self._ids = written
+            query = np.asarray(vector, dtype=np.float32)
+            norm = float(np.linalg.norm(query)) or 1.0
+            scores = self._matrix @ (query / norm)
+            hits.extend(
+                VectorHit(record_id=rid, score=float(score))
+                for rid, score in zip(written, scores, strict=True)
+            )
+        hits.sort(key=lambda hit: -hit.score)
+        return hits[:top_k]
+
+
+#: #63: the neighbour batch of the ``write_messages`` call running in this task.
+_NEIGHBOUR_BATCH: ContextVar[_NeighbourBatch | None] = ContextVar(
+    "memspine_neighbour_batch", default=None
+)
+
+
 @dataclass(frozen=True, slots=True)
 class ReadResult:
     """C7': what :meth:`Engine.read` chose (``full``/``replay``/``retrieve``) and the context."""
@@ -466,6 +540,8 @@ class Engine:
         self._scheduler: SleepScheduler | None = None  # D1: autonomous sleep loop
         self._started = False
         self._write_locks: dict[str, asyncio.Lock] = {}
+        #: #63: open neighbour batches per namespace (they observe every write).
+        self._neighbour_batches: dict[str, list[_NeighbourBatch]] = {}
         self._last_write_action: str = "added"  # G8: read by write_ex()
         #: B0 read ledger: (namespace, session) -> {record_id: view trust at read}
         self._read_ledger: dict[tuple[str, str], dict[str, float]] = {}
@@ -1600,11 +1676,62 @@ class Engine:
         The turns share one projection batch (:meth:`_projection_batch`): the
         lexical index commits and the projector checkpoints happen once per
         call instead of once per turn."""
-        await self._prewarm_embeddings(self._depositable_contents(messages))
-        async with self._projection_batch():
-            return await self._write_turns(
-                messages, namespace, actor, session_id, channel, group_id, tags, valid_from
+        contents = self._depositable_contents(messages)
+        await self._prewarm_embeddings(contents)
+        batch = await self._prefetch_neighbours(validate_namespace(namespace), contents)
+        if batch is None:
+            async with self._projection_batch():
+                return await self._write_turns(
+                    messages, namespace, actor, session_id, channel, group_id, tags, valid_from
+                )
+        open_batches = self._neighbour_batches.setdefault(batch.namespace, [])
+        open_batches.append(batch)
+        token = _NEIGHBOUR_BATCH.set(batch)
+        try:
+            async with self._projection_batch():
+                return await self._write_turns(
+                    messages, namespace, actor, session_id, channel, group_id, tags, valid_from
+                )
+        finally:
+            _NEIGHBOUR_BATCH.reset(token)
+            open_batches.remove(batch)
+            if not open_batches:
+                del self._neighbour_batches[batch.namespace]
+
+    async def _prefetch_neighbours(
+        self, ns: str, contents: Sequence[str]
+    ) -> _NeighbourBatch | None:
+        """#63: the firewall's neighbour query for every turn, as one batched
+        vector search (in chunks of ``embedding.batch_size``) before the first
+        write. None (per-turn queries) below two distinct contents, with the
+        firewall off, or when the vector store has no batched query."""
+        query_many = getattr(self._vector, "query_many", None)
+        unique = list(dict.fromkeys(contents))
+        if (
+            len(unique) < 2
+            or self._embedder is None
+            or not callable(query_many)
+            or not self._config().firewall.enabled
+        ):
+            return None
+        prefetched: dict[str, list[VectorHit]] = {}
+        # Enough rows that the nearest non-held ones are always among them (rows
+        # held later in the batch are written ones, which are scored separately).
+        top_k = constants.ANOMALY_MIN_NEIGHBOURS + await self._require_started().count_quarantined(
+            ns
+        )
+        size = self._config().embedding.batch_size
+        for start in range(0, len(unique), size):
+            chunk = unique[start : start + size]
+            vectors = await self._embedder.embed(chunk)
+            results = await query_many(
+                ns,
+                vectors,
+                embedder_id=self._embedder.embedder_id,
+                top_k=top_k,
             )
+            prefetched.update(zip(chunk, results, strict=True))
+        return _NeighbourBatch(ns, prefetched)
 
     async def _write_turns(
         self,
@@ -4009,19 +4136,42 @@ class Engine:
         Quarantined rows are EXCLUDED from both signals: a cluster of similar
         poison writes must not dampen each other's outlier score or supply the
         MINJA bridge prefixes (they are held content, not namespace truth).
+
+        The neighbour signal is the ``ANOMALY_MIN_NEIGHBOURS`` nearest NON-held
+        rows: when the plain top-k holds a held row, the query is widened by the
+        namespace's held count and the held rows dropped (#63). Filtering after a
+        plain top-k let held rows shrink the count, and which equal-score row fell
+        inside the cut depended on the vector store's tie order; this way neither
+        the count nor the scores do.
         """
         storage = self._require_started()
         neighbour_sims: list[float] | None = None
         if self._embedder is not None and self._vector is not None:
             [vector] = await self._embedder.embed([record.content])
-            hits = await self._vector.query(
-                record.namespace,
-                vector,
-                embedder_id=self._embedder.embedder_id,
-                top_k=constants.ANOMALY_MIN_NEIGHBOURS,
-            )
+            wanted = constants.ANOMALY_MIN_NEIGHBOURS
+            batch = _NEIGHBOUR_BATCH.get()
+            if not (
+                batch is not None
+                and batch.namespace == record.namespace
+                and record.content in batch.prefetched
+            ):
+                batch = None
+            embedder = self._embedder
+            vector_store = self._vector
+
+            async def nearest(top_k: int) -> list[VectorHit]:
+                if batch is not None:  # #63: the batched prefetch plus the rows written since
+                    return await batch.neighbours(record.content, vector, embedder, top_k)
+                return await vector_store.query(
+                    record.namespace, vector, embedder_id=embedder.embedder_id, top_k=top_k
+                )
+
+            hits = await nearest(wanted)
             held = await storage.quarantined_ids([hit.record_id for hit in hits])
-            neighbour_sims = [hit.score for hit in hits if hit.record_id not in held]
+            if held:  # widen past the held rows, so `wanted` live ones remain
+                hits = await nearest(wanted + await storage.count_quarantined(record.namespace))
+                held = await storage.quarantined_ids([hit.record_id for hit in hits])
+            neighbour_sims = [hit.score for hit in hits if hit.record_id not in held][:wanted]
         # The 50 most recently recorded live contents, oldest first.
         recent_contents = await storage.recent_contents(record.namespace, 50)
         return self._firewall.assess(
@@ -5215,6 +5365,9 @@ class Engine:
         appended = await self._storage.append_event(event)
         if appended.seq is None:  # pragma: no cover - write door always assigns seq
             raise MemspineError("write door returned an event without seq")
+        if self._neighbour_batches and event.kind in (EventKind.WRITE, EventKind.FORGET):
+            for neighbour_batch in self._neighbour_batches.get(event.namespace, ()):
+                neighbour_batch.observe(appended)  # #63: rows the vector store gains or loses
         batch = self._batch_offsets
         for projector in self._projectors:
             await projector.apply(appended)

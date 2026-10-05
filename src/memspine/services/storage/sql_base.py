@@ -361,6 +361,20 @@ class SqlStorage(ServiceAdapter):
         live.sort(key=lambda pair: pair[0])
         return [content for _, content in live[-limit:]] if limit > 0 else []
 
+    async def count_quarantined(self, namespace: str) -> int:
+        """How many rows of ``namespace`` carry the quarantine flag (#63: the
+        firewall oversamples its neighbour query by this much)."""
+        stmt = (
+            select(func.count())
+            .select_from(memory_records)
+            .where(
+                memory_records.c.namespace == namespace,
+                memory_records.c.quarantined.is_(True),
+            )
+        )
+        async with self._client.engine.connect() as conn:
+            return int((await conn.execute(stmt)).scalar_one())
+
     async def list_quarantined(self, namespace: str) -> list[MemoryRecord]:
         """:meth:`list_records` narrowed to rows whose quarantine flag is set,
         in the same relative order (the corroboration scan only visits those)."""
