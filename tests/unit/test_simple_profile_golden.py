@@ -28,6 +28,7 @@ from memspine.core.policies.dedup import DedupOptions
 from memspine.core.policies.retention import RetentionOptions
 from memspine.core.policies.scoring import ScoringOptions
 from memspine.core.policies.trust import TrustOptions
+from memspine.memories.semantic.write_pipeline import SemanticWriteOptions
 
 GOLDEN = Path(__file__).parent / "golden" / "simple_profile_defaults.json"
 # Read at import: the autouse conftest fixture scrubs MEMSPINE_* before each test.
@@ -44,6 +45,8 @@ _OPTIONS = {
     "dedup": DedupOptions,
     "retention": RetentionOptions,
     "scoring": ScoringOptions,
+    # #32: ``memories.semantic.policies.write`` (reflexion on by default).
+    "semantic_write": SemanticWriteOptions,
     "trust": TrustOptions,
 }
 

@@ -86,6 +86,7 @@ SAMPLE_PAYLOADS: dict[str, dict[str, Any]] = {
         ]
     },
     "FactDates": {"dates": [{"index": 1, "date": "2026-01-02"}]},
+    "FactClasses": {"classes": [{"index": 1, "label": "places lived"}]},
     "EntityResolutionOut": {
         "same_entity": True,
         "canonical": "Robert Smith",
