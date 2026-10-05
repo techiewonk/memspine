@@ -437,3 +437,55 @@ async def test_incremental_refresh_fraction_triggers_a_full_build() -> None:
     )
     # 1 placed node out of 4 > 10%: the incremental run is replaced by a refresh.
     assert (await reorganize(ctx))["modes"] == {"agent/a": "full"}
+
+
+async def test_collapsed_incremental_run_falls_through_to_a_full_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """fix/graph-review #1: a collapsed incremental run must not lock the
+    namespace — it falls through to a full run, which records a marker."""
+    ctx, harness, _graph = await make_ctx()
+    a = [await write(harness, f"group a fact {i}. detail") for i in range(4)]
+    await clique(harness, a)
+    with_community(ctx, algorithm="lpa", incremental=True, refresh_every=5)
+    await reorganize(ctx)  # full build: incremental state exists from now on
+    real = pipelines.partition_graph
+    calls: list[str] = []
+
+    def collapsing_incremental(edges: object, **knobs: object) -> PartitionResult:
+        calls.append(str(knobs["mode"]))
+        if knobs["mode"] == "incremental":
+            return PartitionResult(labels={}, mode="incremental", collapsed=True)
+        return real(edges, **knobs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(pipelines, "partition_graph", collapsing_incremental)
+    stats = await reorganize(ctx)
+    assert calls == ["incremental", "full"]
+    assert stats["modes"] == {"agent/a": "full"}
+
+
+async def test_collapsed_runs_still_advance_the_sleep_counter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Even when every run collapses, the sleep counter advances, so
+    ``refresh_every`` still fires (no permanent lock)."""
+    ctx, harness, _graph = await make_ctx()
+    a = [await write(harness, f"group a fact {i}. detail") for i in range(4)]
+    await clique(harness, a)
+    with_community(ctx, algorithm="lpa", incremental=True, refresh_every=5)
+    await reorganize(ctx)
+    await ctx.session_index.refresh(ctx.storage)
+    anchors = dict(ctx.session_index.communities["agent/a"].anchors)
+
+    def always_collapsed(edges: object, **knobs: object) -> PartitionResult:
+        return PartitionResult(
+            labels={}, mode=knobs["mode"], collapsed=True  # type: ignore[arg-type]
+        )
+
+    monkeypatch.setattr(pipelines, "partition_graph", always_collapsed)
+    await reorganize(ctx)
+    await reorganize(ctx)
+    await ctx.session_index.refresh(ctx.storage)
+    state = ctx.session_index.communities["agent/a"]
+    assert state.sleeps == 2
+    assert state.anchors == anchors  # a collapse changes no membership

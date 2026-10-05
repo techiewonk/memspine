@@ -183,11 +183,22 @@ def _warm_start(adj: Adjacency, previous: Mapping[str, int]) -> tuple[dict[str, 
     return labels, new_nodes
 
 
-def _collapsed(labels: Mapping[str, int]) -> bool:
-    """LPA's failure mode (KB-12): one label swallowing most of a real graph."""
+def _collapsed(labels: Mapping[str, int], baseline: int = 0) -> bool:
+    """LPA's failure mode (KB-12): one label swallowing most of a real graph.
+
+    ``baseline`` is the previous partition's largest community (over the live
+    nodes). A legitimately dense core can already hold more than the share
+    (Leiden is not guarded), so with a baseline the guard judges *growth*: the
+    largest community must also exceed the baseline by more than
+    ``COMMUNITY_COLLAPSE_GROWTH`` of itself — otherwise the guard would fire
+    on every run after such a partition and lock it (ADR-015 amendment).
+    """
     if len(labels) < constants.COMMUNITY_COLLAPSE_MIN_NODES:
         return False
-    return max(_sizes(labels).values()) > constants.COMMUNITY_COLLAPSE_SHARE * len(labels)
+    largest = max(_sizes(labels).values())
+    if largest <= constants.COMMUNITY_COLLAPSE_SHARE * len(labels):
+        return False
+    return largest > baseline * (1.0 + constants.COMMUNITY_COLLAPSE_GROWTH)
 
 
 def _leiden(
@@ -313,7 +324,9 @@ def _guarded(
     moved: int,
     new_nodes: list[str],
 ) -> PartitionResult:
-    if _collapsed(labels):
+    live_previous = {node: previous[node] for node in adj if node in previous}
+    baseline = max(_sizes(live_previous).values(), default=0)
+    if _collapsed(labels, baseline):
         _log.warning(
             "communities.collapse_guard",
             nodes=len(labels),

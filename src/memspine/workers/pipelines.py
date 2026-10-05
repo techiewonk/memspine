@@ -1257,11 +1257,16 @@ async def _partition_namespace(
     if state is not None and previous and state.sleeps + 1 < options.refresh_every:
         result = await asyncio.to_thread(run, mode="incremental")
         drifted = state.placed + result.placed > options.refresh_fraction * len(result.labels)
-        if drifted and not result.collapsed:
-            result = None  # refresh trigger: too much was placed incrementally
+        if drifted or result.collapsed:
+            # Refresh trigger: too much was placed incrementally, or the
+            # incremental step collapsed — a full run decides instead (a
+            # collapsed incremental run must never lock the namespace).
+            result = None
     if result is None:
         result = await asyncio.to_thread(run, mode="full")
-    if options.incremental and not result.collapsed:
+    if options.incremental and (state is not None or not result.collapsed):
+        # A collapse is recorded too (no membership change, sleeps + 1), so the
+        # sleep counter keeps advancing and ``refresh_every`` still fires.
         await _record_partition(ctx, namespace, state, result)
     return result
 
@@ -1274,9 +1279,12 @@ async def _record_partition(
 ) -> None:
     """Append the partition delta + refresh counters as a MARKER event."""
     assert ctx.append_event is not None
-    anchors = _anchors(result.labels)
     before = state.anchors if state is not None else {}
-    if result.mode == "incremental" and state is not None:
+    # A collapsed run changes no membership: its marker only advances counters.
+    anchors = dict(before) if result.collapsed else _anchors(result.labels)
+    if result.collapsed and state is not None:
+        sleeps, placed = state.sleeps + 1, state.placed
+    elif result.mode == "incremental" and state is not None:
         sleeps, placed = state.sleeps + 1, state.placed + result.placed
     else:
         sleeps, placed = 0, 0

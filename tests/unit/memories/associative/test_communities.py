@@ -295,3 +295,45 @@ def test_partition_result_communities_are_sorted_and_filtered() -> None:
     )
     assert result.communities() == [["a", "b"], ["c", "d", "e"], ["z"]]
     assert result.communities(3) == [["c", "d", "e"]]
+
+
+def _dense_core() -> tuple[list[GraphEdge], dict[str, int]]:
+    """A 70-node clique plus eight 5-node groups (110 nodes): a legitimate
+    partition whose largest community already holds > 50% of the graph."""
+    core = [f"core{i:02d}" for i in range(70)]
+    edges = [GraphEdge(a, b, "related", {"weight": 1.0}) for i, a in enumerate(core) for b in core[i + 1 :]]
+    previous = {node: 0 for node in core}
+    for g in range(8):
+        group = [f"g{g}n{i}" for i in range(5)]
+        edges += [
+            GraphEdge(a, b, "related", {"weight": 1.0}) for i, a in enumerate(group) for b in group[i + 1 :]
+        ]
+        previous.update({node: g + 1 for node in group})
+    return edges, previous
+
+
+def test_incremental_guard_judges_growth_not_an_absolute_share() -> None:
+    """A dense core above 50% is not a collapse when it did not grow: placing
+    one new node into a small group must not trip the guard (fix/graph-review #1)."""
+    edges, previous = _dense_core()
+    newcomer = [GraphEdge("zz-new", "g0n0", "related", {"weight": 1.0})]
+    result = communities.partition_graph(
+        edges + newcomer, algorithm="lpa", mode="incremental", previous=previous
+    )
+    assert not result.collapsed
+    assert result.placed == 1 and result.labels["zz-new"] == result.labels["g0n0"]
+
+
+def test_incremental_guard_still_fires_when_the_largest_community_balloons() -> None:
+    """Growth far past the previous largest community is still a collapse."""
+    edges, _ = _dense_core()
+    core = [f"core{i:02d}" for i in range(70)]
+    # The clique was previously split into 14 groups of 5: LPA merges them.
+    previous = {node: i // 5 for i, node in enumerate(core)}
+    previous.update({f"g{g}n{i}": 20 + g for g in range(8) for i in range(5)})
+    bridged = edges + [GraphEdge("zz-new", node, "related", {"weight": 1.0}) for node in core]
+    grown = communities.partition_graph(
+        bridged, algorithm="lpa", mode="incremental", previous=previous
+    )
+    assert grown.collapsed
+    assert grown.labels == communities._canonical_labels(previous)

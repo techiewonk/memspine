@@ -90,6 +90,11 @@ COMMUNITY_LPA_MAX_PASSES = 30
 # and the previous partition kept (LPA alone collapsed at mu >= 0.5, KB-12).
 COMMUNITY_COLLAPSE_SHARE = 0.5
 COMMUNITY_COLLAPSE_MIN_NODES = 100
+# With a previous partition the guard judges growth: the largest community
+# must also exceed the previous largest (over live nodes) by more than this
+# share of it. A Leiden partition with a legitimate dense core above the share
+# would otherwise trip the guard on every later run (fix/graph-review #1).
+COMMUNITY_COLLAPSE_GROWTH = 0.25
 # Incremental mode: a warm Leiden refresh runs once incrementally placed nodes
 # exceed this share of the graph, or every COMMUNITY_REFRESH_EVERY sleeps.
 COMMUNITY_REFRESH_FRACTION = 0.10
