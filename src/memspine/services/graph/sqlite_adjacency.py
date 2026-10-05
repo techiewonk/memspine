@@ -54,37 +54,65 @@ def _edge(row: Any) -> GraphEdge:
     return GraphEdge(src=row[0], dst=row[1], rel_type=row[2], properties=_props(row[3]))
 
 
+def _live(alias: str, namespace: str | None, rel_type: str | None) -> str:
+    """The live-edge predicate on one ``graph_edges`` alias (``weight > 0``, no
+    self-loops, optionally one namespace and one relation)."""
+    where = [f"{alias}.weight > 0", f"{alias}.src != {alias}.dst"]
+    if namespace is not None:
+        where.append(f"{alias}.namespace = :namespace")
+    if rel_type is not None:
+        where.append(f"{alias}.rel_type = :rel_type")
+    return " AND ".join(where)
+
+
 def _walk_sql(namespace: str | None, rel_type: str | None, max_degree: int | None) -> str:
     """The recursive-CTE BFS prefix: ``walk(node, depth)`` from the ``:seeds`` json
     array and ``hops(node, hops)``, the hop count from the nearest seed; callers
     append the final ``SELECT``.
+
+    The undirected step is two recursive selects, one per edge direction, each
+    joining ``graph_edges`` on the frontier node so every step is an index seek
+    on ``(namespace, src|dst, weight)`` (the primary key / ``dst`` index when no
+    namespace is given). An earlier form joined a ``UNION ALL`` view of both
+    directions, which SQLite materialised by scanning every edge on each step
+    (~1 s per call at 100K edges, #24).
+
+    With ``max_degree`` each node expands to its strongest neighbours only: the
+    correlated scalar subquery ranks the node's incident live edges (both
+    directions, ``MAX(weight) DESC, other``) and ``json_each`` unpacks the top
+    ``k`` -- exactly the rule of :func:`~memspine.services.graph.base.capped_neighbors`.
 
     ``UNION`` deduplicates ``(node, depth)`` rows, so the walk is bounded by
     ``nodes x depth``. A node re-expanded at a deeper level follows the same
     capped neighbour set (the cap is a property of the node, not the path), so
     the reachable set equals a level-by-level BFS with per-node caps.
     """
-    where = ["weight > 0"]
-    if namespace is not None:
-        where.append("namespace = :namespace")
-    if rel_type is not None:
-        where.append("rel_type = :rel_type")
-    live = " AND ".join(where)
-    cap = ""
     if max_degree is not None:
-        cap = (
-            " AND a.other IN (SELECT b.other FROM adj b WHERE b.node = w.node"
-            " GROUP BY b.other ORDER BY MAX(b.weight) DESC, b.other LIMIT :max_degree)"
+        ranked = (
+            "SELECT json_group_array(other) FROM ("
+            "SELECT other FROM ("
+            f"SELECT c.dst AS other, c.weight AS weight FROM graph_edges c "
+            f"WHERE c.src = w.node AND {_live('c', namespace, rel_type)} "
+            f"UNION ALL SELECT c.src, c.weight FROM graph_edges c "
+            f"WHERE c.dst = w.node AND {_live('c', namespace, rel_type)}) "
+            "GROUP BY other ORDER BY MAX(weight) DESC, other LIMIT :max_degree)"
+        )
+        steps = (
+            f"SELECT j.value, w.depth + 1 FROM walk w, json_each(({ranked})) j "
+            "WHERE w.depth < :depth"
+        )
+    else:
+        # CROSS JOIN pins the frontier as the outer loop: without ANALYZE
+        # statistics the planner may otherwise scan the namespace's edges.
+        steps = " UNION ".join(
+            f"SELECT e.{far}, w.depth + 1 FROM walk w CROSS JOIN graph_edges e "
+            f"ON e.{near} = w.node WHERE w.depth < :depth AND {_live('e', namespace, rel_type)}"
+            for near, far in (("src", "dst"), ("dst", "src"))
         )
     return (
         "WITH RECURSIVE "
-        f"adj(node, other, weight) AS ("
-        f"SELECT src, dst, weight FROM graph_edges WHERE {live} AND src != dst "
-        f"UNION ALL SELECT dst, src, weight FROM graph_edges WHERE {live} AND src != dst), "
         "walk(node, depth) AS ("
-        "SELECT value, 0 FROM json_each(:seeds) "
-        "UNION SELECT a.other, w.depth + 1 FROM walk w JOIN adj a ON a.node = w.node "
-        f"WHERE w.depth < :depth{cap}), "
+        f"SELECT value, 0 FROM json_each(:seeds) UNION {steps}), "
         "hops(node, hops) AS (SELECT node, MIN(depth) FROM walk GROUP BY node) "
     )
 
