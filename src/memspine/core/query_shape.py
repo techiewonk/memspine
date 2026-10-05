@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import re
 
-__all__ = ["core_terms", "is_aggregation", "is_ordering"]
+__all__ = ["core_terms", "is_aggregation", "is_count", "is_ordering", "is_temporal"]
 
 #: Time words after which "every" / "each" describe a habit ("every morning"), not a set.
 _HABIT = (
@@ -130,6 +130,18 @@ _TEMPORAL = re.compile(
 def is_temporal(query: str) -> bool:
     """True when the question asks for a date or a time span ("when did ...")."""
     return bool(_TEMPORAL.search(query))
+
+
+#: Units after "how many" that ask for a duration ("how many days ago ..."), not a count.
+_DURATION_UNITS = r"(?:seconds|minutes|hours|days|weeks|weekends|months|years|decades)"
+_COUNT = re.compile(rf"\bhow (?:many|often)\b(?! {_DURATION_UNITS}\b)", re.I)
+
+
+def is_count(query: str) -> bool:
+    """True when the question asks how many times something happened or how many there
+    are ("how many times ...", "how many pets ...", "how often ..."); a duration ("how
+    many days ago ...") is a date question, not a count."""
+    return bool(_COUNT.search(query))
 
 
 def is_aggregation(query: str) -> bool:

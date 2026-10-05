@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import itertools
 import os
+import re
 import shutil
 import tempfile
 import threading
@@ -40,9 +41,13 @@ from memspine.core.firewall import Firewall, FirewallVerdict
 from memspine.core.integrity import IntegrityPolicy
 from memspine.core.lead import (
     card_line,
+    count_terms,
+    distinct_occurrences,
     is_standing_instruction,
     mentions_any,
+    mentions_event,
     query_names,
+    render_occurrences,
     render_profile,
     render_standing,
     render_timeline,
@@ -57,7 +62,13 @@ from memspine.core.policies.retention import RetentionPolicy
 from memspine.core.policies.scoring import ScoringPolicy
 from memspine.core.policies.trust import TrustPolicy
 from memspine.core.projector import Projector
-from memspine.core.query_shape import core_terms, is_aggregation, is_ordering, is_temporal
+from memspine.core.query_shape import (
+    core_terms,
+    is_aggregation,
+    is_count,
+    is_ordering,
+    is_temporal,
+)
 from memspine.core.records import (
     ArchivedVersion,
     MemoryRecord,
@@ -169,6 +180,7 @@ _RECALL_MARKERS = (
     constants.CLAIM_MARKER,
     constants.CARDS_MARKER,
     constants.PROFILE_MARKER,
+    constants.COUNT_MARKER,
 )
 
 
@@ -183,6 +195,17 @@ def _gap_marker(days: int) -> str:
     if days == 1:
         return "[1 day later]"
     return ""
+
+
+#: What the H5 dated render and the H22 gap markers put before a record's content.
+_RENDER_PREFIX = re.compile(
+    r"^(?:\[\d+ (?:day|days|weeks|months) later\] )?\[\d{4}-\d{2}-\d{2} [A-Z][a-z]{2}\] "
+)
+
+
+def _unrendered(content: str) -> str:
+    """A rendered context record's content without its gap marker and date prefix."""
+    return _RENDER_PREFIX.sub("", content, count=1)
 
 
 def _looks_like_recall(content: str) -> bool:
@@ -2174,7 +2197,8 @@ class Engine:
         budget = self._reply_budget(budget_tokens)
         ns = validate_namespace(namespace)
         headers = [] if shared else await self._read_headers(ns, query, budget, session_id)
-        inner = budget - self._headers_cost(headers)
+        count_share = 0 if shared else self._count_allowance(query, budget)
+        inner = budget - self._headers_cost(headers) - count_share
         assembled = await self._assemble_core(
             query,
             ns,
@@ -2184,7 +2208,9 @@ class Engine:
             session_id=session_id,
             hide=self._header_hide(headers),
         )
-        return self._attach_headers(self._render(query, assembled, inner), headers)
+        rendered = self._render(query, assembled, inner)
+        headers = self._count_section(ns, query, rendered, count_share, headers)
+        return self._attach_headers(rendered, headers)
 
     async def _assemble_core(
         self,
@@ -2510,11 +2536,14 @@ class Engine:
         # G1b/G3b: the read headers take their shares first; the routed read gets the
         # rest and leaves out what they carry, so nothing appears twice.
         headers = await self._read_headers(ns, query, budget_tokens, session_id)
+        # E3: a count question keeps room for the occurrences block, built afterwards
+        # from what the routed read retrieved.
+        count_share = self._count_allowance(query, budget_tokens)
         result = await self._read_routed(
             query,
             ns,
             mode,
-            budget_tokens - self._headers_cost(headers),
+            budget_tokens - self._headers_cost(headers) - count_share,
             top_k,
             replay_window,
             compose_pool,
@@ -2522,6 +2551,7 @@ class Engine:
             full_hide=self._header_hide(headers, all_facts=False),
             session_id=session_id,
         )
+        headers = self._count_section(ns, query, result.context, count_share, headers)
         return ReadResult(result.mode, self._attach_headers(result.context, headers))
 
     async def _read_routed(
@@ -2814,6 +2844,56 @@ class Engine:
             if header is not None:
                 headers.append(header)
         return headers
+
+    def _count_allowance(self, query: str, budget_tokens: int) -> int:
+        """E3: the tokens kept for the occurrences block; 0 when ``read.count_timeline``
+        is off, the query is not a count question, or the share fits no line."""
+        read_cfg = self._config().read
+        if not read_cfg.count_timeline or not is_count(query) or not count_terms(query):
+            return 0
+        allowance = int(budget_tokens * read_cfg.count_budget_share)
+        return allowance if allowance > estimate_tokens(constants.COUNT_MARKER) else 0
+
+    def _count_section(
+        self,
+        ns: str,
+        query: str,
+        assembled: AssembledContext,
+        allowance: int,
+        headers: list[MemoryRecord],
+    ) -> list[MemoryRecord]:
+        """E3: ``headers`` led by the occurrences block when there is one.
+
+        Its lines are the distinct dated mentions of the counted event
+        (:func:`count_terms`, :func:`mentions_event`) among the episodic records the
+        read put in the volatile context, so every read gate already applied; mined
+        facts, lead blocks and wrapped records (instruction-flagged or untrusted, which
+        stay in the context wrapped) are left out. Same-day mentions of one event count
+        once (:func:`distinct_occurrences`). Lines are kept oldest first while the block
+        fits ``allowance``. The mentions stay in the context: the block points at them.
+        """
+        if allowance <= 0:
+            return headers
+        terms = count_terms(query)
+        mentions = [
+            (record, _unrendered(record.content))
+            for record in assembled.records[assembled.boundary_index :]
+            if record.memory_type == "episodic"
+            and constants.LEAD_TAG not in record.tags
+            and "atomic_fact" not in record.tags
+            and self._lead_clean(record)
+        ]
+        found = [(r, text) for r, text in mentions if mentions_event(text, terms)]
+        kept: list[tuple[MemoryRecord, str]] = []
+        for occurrence in distinct_occurrences(found):
+            trial = [*kept, occurrence]
+            if estimate_tokens(render_occurrences(trial)) <= allowance:
+                kept = trial
+        if not kept:
+            return headers
+        block = self._lead_record(ns, render_occurrences(kept), [r for r, _ in kept])
+        tags = [constants.LEAD_TAG, constants.COUNT_TAG]
+        return [block.model_copy(update={"tags": tags}), *headers]
 
     @staticmethod
     def _headers_cost(headers: list[MemoryRecord]) -> int:

@@ -391,17 +391,27 @@ class ReadConfig(BaseModel):
     #: of the budget. Gated like any record. Off: byte-identical.
     profile_header: bool = False
     profile_budget_share: float = Field(default=0.15, gt=0.0, le=1.0)
+    #: E3: for count questions ("how many times ...", ``query_shape.is_count``), lead
+    #: the context with an "Occurrences (dated):" block: the distinct dated mentions of
+    #: the counted event among the episodic records the read retrieved, one line each
+    #: (same-day mentions of one event count once), within ``count_budget_share`` of the
+    #: budget, which the read gives up for it. Off: byte-identical.
+    count_timeline: bool = False
+    count_budget_share: float = Field(default=0.1, gt=0.0, le=1.0)
 
     @model_validator(mode="after")
     def _header_shares_leave_room(self) -> ReadConfig:
         """A-9: the active read headers' shares must leave budget for the read itself."""
-        shares = (self.cards_budget_share if self.cards == "header" else 0.0) + (
-            self.profile_budget_share if self.profile_header else 0.0
+        shares = (
+            (self.cards_budget_share if self.cards == "header" else 0.0)
+            + (self.profile_budget_share if self.profile_header else 0.0)
+            + (self.count_budget_share if self.count_timeline else 0.0)
         )
         if shares >= 1.0:
             raise ConfigError(
                 "the active read header shares (read.cards_budget_share, "
-                f"read.profile_budget_share) must sum to < 1, got {shares:g}"
+                "read.profile_budget_share, read.count_budget_share) must sum to < 1, "
+                f"got {shares:g}"
             )
         return self
 

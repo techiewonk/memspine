@@ -14,13 +14,19 @@ from collections.abc import Sequence
 from datetime import datetime
 
 from memspine.config import constants
+from memspine.core.query_shape import core_terms
 from memspine.core.records import MemoryRecord
 
 __all__ = [
     "card_line",
+    "count_terms",
+    "distinct_occurrences",
     "is_standing_instruction",
     "mentions_any",
+    "mentions_event",
+    "occurrence_line",
     "query_names",
+    "render_occurrences",
     "render_profile",
     "render_standing",
     "render_timeline",
@@ -237,6 +243,100 @@ def render_timeline(entity: str, lines: Sequence[str]) -> str:
     """The timeline block for one entity: header, then the entries oldest first."""
     header = f"{constants.TIMELINE_MARKER} {entity} (dated facts, oldest first)"
     return "\n".join([header, *lines])
+
+
+#: E3: words of a count question that name the counting, not the counted event.
+_COUNT_WORDS = frozenset(
+    ["times", "time", "many", "often", "number", "total", "altogether", "far", "ever", "so"]
+)
+_TEXT_WORD = re.compile(r"[a-z0-9]+")
+#: E3: two same-day mentions in different sessions are one occurrence at this word overlap.
+OCCURRENCE_OVERLAP = 0.5
+#: E3: the words of a mention shown on its occurrence line.
+OCCURRENCE_WORDS = 30
+
+
+def _stem(word: str) -> str:
+    return word[:5]
+
+
+def _text_words(text: str) -> set[str]:
+    return set(_TEXT_WORD.findall(text.lower()))
+
+
+def count_terms(query: str) -> list[str]:
+    """E3: the words naming the event a count question counts.
+
+    The query's core terms (:func:`memspine.core.query_shape.core_terms`) without the
+    people it names (:func:`query_names`), numbers, count words ("times", "often") and
+    words under three letters, lowercased, in order, once each.
+    """
+    names = {n.lower() for n in query_names(query)}
+    terms: list[str] = []
+    for raw in core_terms(query).split():
+        word = raw.lower().replace("\u2019", "'")
+        if word.endswith("'s"):
+            word = word[:-2]
+        word = word.strip("'")
+        if len(word) < 3 or word.isdigit() or word in names or word in _COUNT_WORDS:
+            continue
+        if word not in terms:
+            terms.append(word)
+    return terms
+
+
+def mentions_event(text: str, terms: Sequence[str]) -> bool:
+    """E3: ``text`` names at least half of ``terms`` (at least one), matched on a
+    five-letter prefix so "beaches" counts for "beach"."""
+    if not terms:
+        return False
+    stems = {_stem(w) for w in _text_words(text)}
+    hits = sum(1 for t in terms if _stem(t) in stems)
+    return hits >= max(1, (len(terms) + 1) // 2)
+
+
+def _overlap(a: str, b: str) -> float:
+    wa, wb = _text_words(a), _text_words(b)
+    return len(wa & wb) / (len(wa | wb) or 1)
+
+
+def distinct_occurrences(
+    mentions: Sequence[tuple[MemoryRecord, str]],
+) -> list[tuple[MemoryRecord, str]]:
+    """E3: one mention per occurrence, oldest first.
+
+    A mention repeats a kept one when both fall on the same day (``valid_from``) and
+    they share a session (``group_id``) or at least :data:`OCCURRENCE_OVERLAP` of
+    their words: a conversation goes on about the same event across turns, and a
+    restatement on the same day is the same event. Mentions on different days are
+    different occurrences.
+    """
+    kept: list[tuple[MemoryRecord, str]] = []
+    for record, text in sorted(mentions, key=lambda m: (m[0].valid_from, m[0].record_id)):
+        day = record.valid_from.date()
+        if any(
+            other.valid_from.date() == day
+            and (
+                (record.group_id is not None and record.group_id == other.group_id)
+                or _overlap(text, other_text) >= OCCURRENCE_OVERLAP
+            )
+            for other, other_text in kept
+        ):
+            continue
+        kept.append((record, text))
+    return kept
+
+
+def occurrence_line(record: MemoryRecord, text: str) -> str:
+    """E3: ``- [said YYYY-MM-DD] <the mention, at most OCCURRENCE_WORDS words>``."""
+    words = text.split()
+    shown = " ".join(words[:OCCURRENCE_WORDS]) + (" ..." if len(words) > OCCURRENCE_WORDS else "")
+    return f"- [said {record.valid_from:%Y-%m-%d}] {shown}"
+
+
+def render_occurrences(occurrences: Sequence[tuple[MemoryRecord, str]]) -> str:
+    """E3: the occurrences block: the marker, then one line per occurrence, oldest first."""
+    return "\n".join([constants.COUNT_MARKER, *(occurrence_line(r, t) for r, t in occurrences)])
 
 
 def render_standing(records: Sequence[MemoryRecord]) -> str:

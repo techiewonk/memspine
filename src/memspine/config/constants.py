@@ -243,6 +243,10 @@ CARDS_TAG = "cards_header"
 PROFILE_MARKER = "PROFILE NOTES (reflected from earlier conversations"
 PROFILE_TAG = "profile_header"
 PROFILE_HEADER_TOP_K = 8
+# E3: header of the occurrences block (``read.count_timeline``) and its tag: the distinct
+# dated mentions, among the retrieved records, of the event a count question asks about.
+COUNT_MARKER = "Occurrences (dated):"
+COUNT_TAG = "count_timeline"
 # B9 facts-only (``integrity.claims_only_below``): the prefix of a mined fact shown
 # in place of the low-trust raw record it was mined from.
 CLAIM_MARKER = "[CLAIM from a low-trust source, unverified]"

@@ -43,6 +43,8 @@
       "compose_rewrites": false,
       "compression": {},
       "core_terms_leg": false,
+      "count_budget_share": 0.1,
+      "count_timeline": false,
       "cue_min_trust": 0.5,
       "current_state_view": false,
       "default_mode": "auto",
