@@ -70,12 +70,16 @@ class EdgeContext:
     ``reference_time`` anchors relative dates ("yesterday", "last week");
     ``previous`` holds up to :data:`MAX_PREVIOUS_EPISODES` earlier episodes
     (context for pronouns, never a source of edges); ``entities`` lists names
-    already known in the namespace so the extractor reuses them verbatim.
+    already known in the namespace so the extractor reuses them verbatim;
+    ``allowed_entities`` (#20, session extraction) restricts the names it may use.
     """
 
     reference_time: datetime | None = None
     previous: Sequence[str] = ()
     entities: Sequence[str] = ()
+    #: #20: session-level extraction with a decision provider (GLiNER2): the entity
+    #: names it found in the session, the only names the extractor may use.
+    allowed_entities: Sequence[str] = ()
 
 
 class ExtractEdges(Protocol):

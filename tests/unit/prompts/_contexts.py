@@ -42,6 +42,7 @@ CANONICAL_CONTEXTS: dict[str, dict[str, Any]] = {
         "reference_time": "2026-03-01T10:00:00+00:00",
         "previous_episodes": ["Alice moved to Berlin last spring."],
         "entities": ["Alice", "Acme"],
+        "allowed_entities": ["Alice", "Acme", "Berlin"],
     },
     "resolve_entity": {"mention_a": "Bob Smith", "mention_b": "Robert Smith"},
     "invalidate_edge": {

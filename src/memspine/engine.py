@@ -195,6 +195,7 @@ from memspine.workers.pipelines import (
     DERIVED_STAGES,
     PIPELINES,
     ExtractEdges,
+    FindEntities,
     PipelineContext,
     Summarize,
     stage_marker,
@@ -595,6 +596,7 @@ class Engine:
         self._firewall: Firewall = Firewall()
         self._summarize: Summarize | None = None
         self._extract_edges: ExtractEdges | None = None
+        self._extract_session_edges: ExtractEdges | None = None
         self._runner: TaskRunner | None = None
         self._scheduler: SleepScheduler | None = None  # D1: autonomous sleep loop
         self._started = False
@@ -790,6 +792,7 @@ class Engine:
             self._shared = SharedMemory(self._storage, self._append_and_project)
         self._summarize = self._build_summarize()
         self._extract_edges = self._build_edge_extractor(config)
+        self._extract_session_edges = self._build_session_edge_extractor(config)
         self._projectors = [
             RecordProjector(self._storage),
             VectorProjector(self._vector, self._embedder),
@@ -6476,6 +6479,10 @@ class Engine:
             append_event=self._append_and_project,
             summarize=self._summarize,
             extract_edges=self._extract_edges,
+            extract_session_edges=self._extract_session_edges,
+            find_entities=(
+                self._entity_finder() if self._extract_session_edges is not None else None
+            ),
             mine_facts=self._build_fact_miner(),
             date_facts=self._build_fact_dater(),
             deposit_fact=self._deposit_mined_fact,
@@ -6874,12 +6881,20 @@ class Engine:
             storage, record.namespace, record, "semantic", "system", cap
         )
 
-    def _edge_extract_callable(self, max_rounds: int) -> ExtractEdges:
+    def _edge_extract_callable(self, max_rounds: int, condition: str | None = None) -> ExtractEdges:
         """The shared reflexion-merged ``extract_edges`` callable (C2 async +
-        C3 sync). Caller guarantees the ``extract_edges`` role is bound."""
+        C3 sync). Caller guarantees the ``extract_edges`` role is bound.
+
+        ``condition="session"`` (#20) selects ``extract_edges@session``: the content
+        is a numbered session transcript, the context may carry the allowed entity
+        names, and the rounds merge each edge's ``episode_indices``."""
         assert self._llm is not None and self._prompts is not None
         llm = self._llm.for_role("extract_edges")
-        prompt = self._prompts.for_role("extract_edges")
+        prompt = (
+            self._prompts.for_role("extract_edges")
+            if condition is None
+            else self._prompts.select("extract_edges", condition=condition)
+        )
         rounds = max(1, max_rounds)
 
         async def extract_edges(
@@ -6894,11 +6909,19 @@ class Engine:
                 "previous_episodes": list(ctx.previous),
                 "entities": list(ctx.entities),
             }
+            if condition is not None:
+                variables["allowed_entities"] = list(ctx.allowed_entities)
             merged: dict[tuple[str, str, str], ExtractedEdge] = {}
             for _ in range(rounds):
                 result = await structured_call(llm, prompt, variables, ExtractedEdges)
                 for edge in result.edges:
-                    merged[(edge.src_entity, edge.rel, edge.dst_entity)] = edge
+                    key = (edge.src_entity, edge.rel, edge.dst_entity)
+                    if key in merged and condition is not None:
+                        cited = [*merged[key].episode_indices, *edge.episode_indices]
+                        edge = edge.model_copy(
+                            update={"episode_indices": list(dict.fromkeys(cited))}
+                        )
+                    merged[key] = edge
             return list(merged.values())
 
         return extract_edges
@@ -6916,6 +6939,30 @@ class Engine:
             return None
         opts = policy if isinstance(policy, dict) else {}
         return self._edge_extract_callable(int(opts.get("max_rounds", 1)))
+
+    def _build_session_edge_extractor(self, config: MemspineConfig) -> ExtractEdges | None:
+        """#20: the session-level extractor for ``extract_graph.granularity: session``.
+
+        Built only when that option is set on an active extract_graph policy (an
+        ``extract_edges`` role bound); otherwise None and extraction stays per
+        record. An unknown granularity is a config error."""
+        policy = self._memory_policy(config, "semantic").get("extract_graph")
+        opts = policy if isinstance(policy, dict) else {}
+        granularity = opts.get("granularity", "record")
+        if granularity not in ("record", "session"):
+            raise ConfigError(
+                "memories.semantic.policies.extract_graph.granularity must be "
+                f"record|session, got {granularity!r}"
+            )
+        if granularity != "session" or self._build_edge_extractor(config) is None:
+            return None
+        return self._edge_extract_callable(int(opts.get("max_rounds", 1)), condition="session")
+
+    def _entity_finder(self) -> FindEntities | None:
+        """#20: the decision provider's ``entities`` hook (GLiNER2), or None."""
+        provider = self._decision_provider()
+        hook = getattr(provider, "entities", None) if provider is not None else None
+        return hook if callable(hook) else None
 
     def _build_write_pipeline(self, config: MemspineConfig) -> WritePipeline | None:
         """C3 synchronous graphiti write pipeline for the semantic door.
