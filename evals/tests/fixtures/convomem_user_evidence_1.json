@@ -1,0 +1,125 @@
+{
+ "evidence_items": [
+  {
+   "question": "Where does my sister live?",
+   "answer": "Porto",
+   "message_evidences": [
+    {
+     "speaker": "User",
+     "text": "My sister's name is Rosa and she lives in Porto."
+    }
+   ],
+   "conversations": [
+    {
+     "id": "synthetic-conv-0",
+     "containsEvidence": true,
+     "model_name": null,
+     "messages": [
+      {
+       "speaker": "Assistant",
+       "text": "Hello, how is your day?"
+      },
+      {
+       "speaker": "User",
+       "text": "The weather was mild today."
+      },
+      {
+       "speaker": "User",
+       "text": "My sister's name is Rosa and she lives in Porto."
+      },
+      {
+       "speaker": "Assistant",
+       "text": "Noted."
+      }
+     ]
+    }
+   ],
+   "category": "Personal Life",
+   "scenario_description": "SYNTHETIC FIXTURE. Not ConvoMem data.",
+   "personId": "synthetic-person",
+   "use_case_model_name": null,
+   "core_model_name": null
+  },
+  {
+   "question": "What colour is my car?",
+   "answer": "Blue",
+   "message_evidences": [
+    {
+     "speaker": "User",
+     "text": "I drive a blue 2012 hatchback."
+    }
+   ],
+   "conversations": [
+    {
+     "id": "synthetic-conv-1",
+     "containsEvidence": true,
+     "model_name": null,
+     "messages": [
+      {
+       "speaker": "Assistant",
+       "text": "Hello, how is your day?"
+      },
+      {
+       "speaker": "User",
+       "text": "I watched a documentary about owls."
+      },
+      {
+       "speaker": "User",
+       "text": "I drive a blue 2012 hatchback."
+      },
+      {
+       "speaker": "Assistant",
+       "text": "Noted."
+      }
+     ]
+    }
+   ],
+   "category": "Personal Life",
+   "scenario_description": "SYNTHETIC FIXTURE. Not ConvoMem data.",
+   "personId": "synthetic-person",
+   "use_case_model_name": null,
+   "core_model_name": null
+  },
+  {
+   "question": "When is my dentist appointment?",
+   "answer": "The 14th",
+   "message_evidences": [
+    {
+     "speaker": "User",
+     "text": "My dentist appointment is on the 14th."
+    }
+   ],
+   "conversations": [
+    {
+     "id": "synthetic-conv-2",
+     "containsEvidence": true,
+     "model_name": null,
+     "messages": [
+      {
+       "speaker": "Assistant",
+       "text": "Hello, how is your day?"
+      },
+      {
+       "speaker": "User",
+       "text": "Lunch was a lentil soup."
+      },
+      {
+       "speaker": "User",
+       "text": "My dentist appointment is on the 14th."
+      },
+      {
+       "speaker": "Assistant",
+       "text": "Noted."
+      }
+     ]
+    }
+   ],
+   "category": "Personal Life",
+   "scenario_description": "SYNTHETIC FIXTURE. Not ConvoMem data.",
+   "personId": "synthetic-person",
+   "use_case_model_name": null,
+   "core_model_name": null
+  }
+ ],
+ "checkpoint": null
+}
