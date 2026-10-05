@@ -157,6 +157,14 @@ python evals/sweep_wrapper_threshold.py --locomo evals/data/locomo10.json     --
 
 Its paid QA and ASR arms are listed in the pre-registration and are not run without approval.
 
+G24 (`G24_gliner2_planner.md`) tunes the GLiNER2 decision planner's options against a frozen,
+rule-labelled set of 100 LoCoMo questions (`G24_gliner2_planner_set.json`). It runs locally on
+CPU and needs the `[ner]` extra and a cached checkpoint:
+
+```bash
+HF_HOME=... python evals/gliner2_planner_eval.py run --split both     --out evals/prereg/G24_gliner2_planner_results.md
+```
+
 `--revision auto` labels a file by its own content hash. That is a weaker label than a release name
 and a stronger identifier than the nothing most papers record.
 
