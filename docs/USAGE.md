@@ -26,7 +26,7 @@ just check        # ruff + mypy --strict + pytest
 
 Common extras: `kuzu` (graph), `ingest` (markitdown+chonkie), `ner` (gliner2),
 `structured` (instructor), `compress` (llmlingua, E5), `rerank` (flashrank, E8),
-`community` (leidenalg), `rest` (FastAPI), `dbos`/`taskiq` (durable/brokered workers). See the
+`community` (graspologic-native), `rest` (FastAPI), `dbos`/`taskiq` (durable/brokered workers). See the
 [README extras table](../README.md#-install--extras) for the full set.
 
 > A feature that needs a missing extra raises `MissingServiceError` naming the
@@ -553,6 +553,13 @@ unchanged; `tests/unit/test_simple_profile_golden.py` pins their defaults.
 | `memories.episodic.policies.consolidation.mine_event_dates` | `false` | #29: tag each mined fact `happened:<date>`: the H1 resolution of a relative phrase in the fact or its cited turns (each against its own date; `read.relative_week` applies), else the miner's `date`. A rule-resolved date also becomes the fact's `valid_from`. |
 | `memories.episodic.policies.consolidation.mine_event_dates_llm` | `false` | #29: with `mine_event_dates`, one batched `extract@dates` call per mined batch dates the facts still undated. Needs the `extract` role. |
 | `memories.episodic.policies.consolidation.anticipate` | `false` | H8: a sleep stage asks the `anticipate` role (falls back to `extract`) once per session for likely future questions and stores them as cues via `add_cues`. |
+| `memories.associative.policies.community.algorithm` | `auto` | KB-12 (ADR-036): `auto` and `leiden` run graspologic-native Leiden (canonical edge order, seeded, warm-started from the previous partition) then LPA refinement, and stay a no-op without the `[community]` extra; `lpa` runs the built-in label propagation without the extra, with a collapse guard (largest community > 50% of >= 100 nodes keeps the previous partition and logs a warning). |
+| `memories.associative.policies.community.refine_passes` | `10` | LPA passes that refine a Leiden result (stops early when nothing moves). `0` = pure Leiden. |
+| `memories.associative.policies.community.incremental` | `false` | KB-12/#84: per sleep, new nodes take their neighbours' majority community and at most `incremental_passes` LPA passes run over the touched nodes; a warm full rebuild runs on the refresh triggers. State is kept as `community_partition` MARKER events. |
+| `memories.associative.policies.community.incremental_passes` | `3` | LPA passes per incremental sleep. |
+| `memories.associative.policies.community.refresh_fraction` | `0.1` | With `incremental`: a full rebuild runs once incrementally placed nodes exceed this share of the graph. |
+| `memories.associative.policies.community.refresh_every` | `5` | With `incremental`: a full rebuild runs at least every this many sleeps. |
+| `memories.associative.policies.community.summary_keep_jaccard` | `1.0` | #84: a community whose membership Jaccard against the member set its summary was written from is at least this keeps that summary (its membership links follow the community) instead of a rewrite, unless a newcomer is less trusted than the summary. `1.0` = off; `0.8` is the KB-12 recommendation. |
 | `memories.episodic.policies.consolidation.reflect_profile` | `false` | H14: a sleep stage asks the `reflect` role (generic `reflect.yaml` prompt) once per session for profile insights, stored through `Engine.reflect`. Needs reflective memory enabled. |
 
 ---
@@ -564,6 +571,6 @@ unchanged; `tests/unit/test_simple_profile_golden.py` pins their defaults.
 - [`memspine-structure-plan.md`](./memspine-structure-plan.md) — the authoritative blueprint.
 - [`adr/`](./adr/) — architecture decision records (ADR-001 … ADR-031); the newest cover
   the multi-call write pipeline (ADR-026), record group tags (ADR-027), Leiden community
-  detection (ADR-028), the trust-horizon invariant (ADR-029, proposed), relevance-first
+  detection (ADR-028, amended by ADR-036), the trust-horizon invariant (ADR-029, proposed), relevance-first
   scoring (ADR-030, proposed), and the decision port with call accounting (ADR-031,
   proposed).

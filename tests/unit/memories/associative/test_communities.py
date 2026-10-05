@@ -1,4 +1,4 @@
-"""Community detection (D-40, ADR-028, ADR-035 — graspologic-native): a clean,
+"""Community detection (D-40, ADR-028, ADR-036 — graspologic-native): a clean,
 logged no-op without ``[community]``, correct Leiden clusters with it, and the
 built-in label propagation (KB-12)."""
 
@@ -235,7 +235,7 @@ def test_incremental_without_a_previous_partition_is_a_full_build() -> None:
     assert result.mode == "full"
 
 
-# -- Leiden (graspologic-native, ADR-035) ----------------------------------------
+# -- Leiden (graspologic-native, ADR-036) ----------------------------------------
 
 
 def _need_extra() -> None:

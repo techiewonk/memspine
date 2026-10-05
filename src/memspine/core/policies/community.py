@@ -1,4 +1,4 @@
-"""Community-detection policy (D-40 + v0.2 A6, ADR-028, ADR-035): the background
+"""Community-detection policy (D-40 + v0.2 A6, ADR-028, ADR-036): the background
 reorganizer's community knobs, surfaced as config.
 
 Pure options carrier — the clustering itself lives in

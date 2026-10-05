@@ -755,7 +755,7 @@ async def reorganize(ctx: PipelineContext) -> dict[str, object]:
     parent per community of >= REORGANIZE_MIN_COMMUNITY_SIZE members, members
     linked to the parent via LINK events (ADR-015).
 
-    The partition is the KB-12 hybrid (ADR-035): Leiden warm-started from the
+    The partition is the KB-12 hybrid (ADR-036): Leiden warm-started from the
     previous partition, then LPA refinement; with ``community.incremental`` a
     sleep only places new nodes until a refresh trigger fires. Summary parents
     and their ``community`` links are not partition input, so a summary never

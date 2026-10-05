@@ -60,7 +60,7 @@ EVOLUTION_MAX_LINKS_PER_WRITE = 4
 # worth a summary-parent record (mirrors CONSOLIDATION_MIN_SESSION_RECORDS).
 REORGANIZE_MIN_COMMUNITY_SIZE = 3
 
-# Leiden community-detection knobs (D-40/v0.2 A6, ADR-028, ADR-035): Leiden
+# Leiden community-detection knobs (D-40/v0.2 A6, ADR-028, ADR-036): Leiden
 # defaults + the hierarchical ``max_cluster_size`` bound, surfaced as
 # ``memories.associative.policies.community.*`` so a deployment can tune
 # community granularity without a code change. The seed is fixed so the same
@@ -70,12 +70,12 @@ LEIDEN_RANDOM_SEED = 1
 LEIDEN_RESOLUTION = 1.0
 LEIDEN_RANDOMNESS = 0.001
 LEIDEN_MAX_CLUSTER_SIZE = 1000
-# graspologic-native Leiden cycles per run (ADR-035): ``iterations=10`` matched
+# graspologic-native Leiden cycles per run (ADR-036): ``iterations=10`` matched
 # leidenalg's run-to-convergence accuracy in the KB-12 benchmark. Resolution 2.0
 # scored higher on synthetic graphs but stays a calibration candidate (#24).
 LEIDEN_ITERATIONS = 10
 
-# Hybrid community algorithm (KB-12, ADR-035). ``auto`` = Leiden when the
+# Hybrid community algorithm (KB-12, ADR-036). ``auto`` = Leiden when the
 # ``[community]`` extra is installed, else reorganize stays a no-op; ``lpa``
 # opts into the built-in label propagation without the extra.
 COMMUNITY_ALGORITHM: Literal["auto", "leiden", "lpa"] = "auto"
