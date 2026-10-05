@@ -6,7 +6,7 @@ This file is loaded into every Claude Code session. Keep it accurate and terse.
 
 `memspine` is an open-source **cognitive-memory engine** for AI agents: one clean API (`Engine`) over a real write pipeline, hybrid + graph retrieval, and background learning dynamics — with pluggable, composable stores. It is the *engine*, not a product.
 
-**Status:** pre-alpha, under active construction. **P0–P7 are all implemented and review-passed** (substrate · working memory + retrieval · semantic · episodic + lifecycle · Memory Firewall · procedural + reflective · associative graph · prospective + shared + REST), plus the C6 combination matrix — **1062** tests collected (`uv run pytest --collect-only -q`; +~165 in `evals/tests`), `ruff` + `mypy --strict` clean, **33 ADRs** (ADR-001…ADR-033; ADR-029/030/031 *proposed*), decision register through D-59. All 9 memory types and E1–E9 are landed. User-facing docs: `docs/FEATURES.md` + `docs/USAGE.md`. Ecosystem comparison: `docs/ECOSYSTEM_COMPARISON.md` + `docs/ARCHITECTURE_FLOWS.md` (pass #3: stages, packages, prompts, memory I/O). Current snapshot lives in `STATUS.md` (manually refreshed; the 30-min auto-refresh stopped in July). The design docs in `docs/` are the **single source of truth** — read them before writing code.
+**Status:** pre-alpha, under active construction. **P0–P7 are all implemented and review-passed** (substrate · working memory + retrieval · semantic · episodic + lifecycle · Memory Firewall · procedural + reflective · associative graph · prospective + shared + REST), plus the C6 combination matrix — **1062** tests collected (`uv run pytest --collect-only -q`; +~165 in `evals/tests`), `ruff` + `mypy --strict` clean, **34 ADRs** (ADR-001…ADR-034; ADR-029/030/031 *proposed*), decision register through D-60. All 9 memory types and E1–E9 are landed. User-facing docs: `docs/FEATURES.md` + `docs/USAGE.md`. Ecosystem comparison: `docs/ECOSYSTEM_COMPARISON.md` + `docs/ARCHITECTURE_FLOWS.md` (pass #3: stages, packages, prompts, memory I/O). Current snapshot lives in `STATUS.md` (manually refreshed; the 30-min auto-refresh stopped in July). The design docs in `docs/` are the **single source of truth** — read them before writing code.
 
 ## Read these first (in order)
 
@@ -34,7 +34,7 @@ This file is loaded into every Claude Code session. Keep it accurate and terse.
 | Storage | **SQLite** via **SQLAlchemy Core + Alembic**, async engine (**aiosqlite**) | not full ORM; sqlmodel rejected (D-36/D-44) |
 | Event log | `event_log.mode`: **full** (default) / **rolling** / **ephemeral** + optional zstd payload compression | storage-cost control; pruning never passes projector high-water marks (D-45) |
 | Vector | **LanceDB** (+ Tantivy FTS) | D-09 |
-| Graph | **sqlite_adjacency** default (D-26 amended by D-49; ladybugdb reserved, kuzu `[kuzu]` alt) | D-26/D-49 |
+| Graph | **sqlite_adjacency** default; **LadybugDB** `[graph]` is the graph engine (ADR-034); kuzu a deprecated alias | D-26/D-49/D-60 |
 | Cache/KV | **LMDB** | D-09 |
 | Lexical | **FTS5 / Tantivy** BM25, RRF fusion | D-25; **CJK dropped** (D-34) |
 | Embedder | **fastembed** (ONNX, CPU) | torch behind `[st]` only (D-08) |
