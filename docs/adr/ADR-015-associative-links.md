@@ -194,3 +194,51 @@ edges are a projection of WRITE payloads, so D0.1 and rebuild parity hold.
   through an add-only lifecycle delta instead of a new fact; no model call.
   Background `extract_graph` facts now go through the semantic write door
   (firewall, dedup, conflict ladder), so a `state` edge supersedes there too.
+
+## Amendment (2026-10-06): walk performance, graph rerank, session extraction, interval order
+
+Opt-in throughout except the walk rewrite, which changes no result. No decision
+above is reversed.
+
+- **SQLite walk is index-driven (#24 perf gap).** `sqlite_adjacency`'s recursive
+  CTE no longer joins a `UNION ALL` view of both edge directions (SQLite
+  materialised it by scanning every edge on every step: ~1 s per BFS at 100K
+  edges). The undirected step is two recursive selects, one per direction, each
+  a `CROSS JOIN` from the frontier into `graph_edges`, so every step seeks
+  `(namespace, src|dst, weight)` (the primary key / `dst` index without a
+  namespace) whatever the planner's statistics. The `max_degree` cap is a
+  correlated scalar subquery that ranks the node's incident live edges and is
+  unpacked with `json_each`. Results are identical (parity suite, reference
+  walks, and a hash comparison of every walk variant at 10K and 100K edges);
+  no migration was needed. Measured with `evals/bench_graph.py` (SQLite, 30
+  seeds): 100K edges BFS d1 p50/p95 757/1106 ms -> 1.3/2.4 ms, d3 734/925 ms
+  -> 14.8/35.7 ms, inside the #24 target (d3 p95 < 100 ms).
+- **Graph rerank (#22, `read.graph_rerank: off|distance|ppr`,
+  `read.graph_rerank_weight` 0.2).** Before the `top_k` cut, the gated
+  candidates are boosted by proximity to the graph leg's seeds: `distance` =
+  1 / entity hops of `seed_expand`, `ppr` = local push-PPR
+  (`ppr.local_push_ppr`, Andersen-Chung-Lang, deterministic FIFO) restarted at
+  the seeds over their `subgraph()`, restricted to what `seed_expand` may enter
+  (GP-10 caps hold). An episode-mentions boost `log(1+n)/log(1+n_max)` over the
+  `edge_source:` counts lifts restated facts. Each boost `b` maps relevance `r`
+  to `r + w*b*(1-r)`; unboosted candidates keep their score. `off` is
+  byte-identical (the graph-leg-off golden runs with the explicit off values).
+- **Session-level extraction (#20, `extract_graph.granularity: record|session`).**
+  `session` sends each consolidated session's live turns in one
+  `extract_edges@session` call (numbered `[n] [date]` lines); edges cite
+  `episode_indices`, and the cited turns (else the whole session) become the
+  fact's parents, trust cap and `asserted` link sources. With
+  `decision.provider: gliner2` the entities it finds form the prompt's
+  allowed-entity list. Watermark: a `stage_done` marker per session (stage
+  `extract_graph`, membership fingerprint) plus the per-turn `graph_extracted`
+  watermarks. Records outside any session stay per record.
+- **Interval order (#19, `memories.semantic.policies.conflict.interval_order`).**
+  Records gain an optional `invalid_at` (world time the fact stopped being true;
+  migration 0004 projects it; omitted from payloads when unset, so logs written
+  without the option are byte-identical and old payloads load). With the option
+  on, a superseded or retracted fact gets `invalid_at` = the next statement's
+  `valid_from`; an older-arriving contradiction is stored as history ending at
+  the next statement on its key and closes the history entry it lands inside,
+  so out-of-order arrival ends in the same intervals as in-order arrival. The
+  candidate split runs first: a statement with the same key and `dst:` endpoint
+  as the current fact merges as a duplicate. The ladder's verdicts are unchanged.
