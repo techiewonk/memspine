@@ -63,3 +63,31 @@ All opt-in; `MemspineConfig()` and every template behave as before.
   never redacted.
 - **Per-call-site LLM gating** — every prompt builder would need to know about tiers; one wrapper at
   the provider boundary covers them all.
+
+## Addendum (2026-10-06): privacy review fixes
+
+- **Purpose gate on every read block**: `_context_eligible` (and so `_live_view`),
+  `_history_view` and the graph admission check the read's purpose; graph admission also
+  applies the passive-session gate. A lead block (standing requests, timelines, cards,
+  profile, entity summaries) carries the intersection of its entries' purposes and their
+  highest PII tier, so the final purpose filter drops a block an entry could not show. The
+  "synthetic block is untagged" consequence above no longer holds.
+- **Derived records inherit**: the write door gives any WRITE whose record names
+  same-namespace `source.parents` the intersection of the parents' purposes (`*` and, under
+  `untagged: allow`, untagged parents are universal; disjoint purposes give `!none`, which no
+  read matches) and the highest parent PII tier. One central rule covers summaries, mined
+  facts, list cards, entity/community summaries, surprise facts, cues, reflections and graph
+  facts. Foreign-namespace parents are ignored (no oracle). Unchanged events stay
+  byte-identical.
+- **Remote-LLM gate**: the text match is a word pattern (any whitespace, JSON escapes, case),
+  and also covers the entity-stripped and fact-key-stripped forms builders render; the
+  `sufficiency`, `verify_answer` and relevance builders replace a record above the tier by
+  the marker before rendering. The text match stays as the backstop.
+- **Audit and erasure**: `audit.actions` also covers `erase_subject`, `erase_namespace`,
+  quarantine approve/reject, `feedback` (signal only) and `grant`/`revoke` (ids only).
+  `expire_retention` hard-erases soft-forgotten records past their TTL (holds still win).
+  Community-partition markers store `ent:<ns>:<name>` node ids; erasure renames the erased
+  subject's (and orphaned erased entities') node ids to consistent opaque ids in the same log
+  redaction pass. Grouped marker entries (an `entity_resolved` decision citing several turns,
+  one entry per turn sharing a `group`) are redacted as a whole when any member is erased,
+  and `retained_fields` reports them until they are.

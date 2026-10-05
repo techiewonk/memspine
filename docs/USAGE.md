@@ -322,6 +322,21 @@ assert await engine.audit_chain_ok()     # audit.reads / audit.actions hash chai
   the principal recorded by the read audit outside REST.
 - The FORGET event itself still records `actor: user`; under `audit.actions` the
   chained `memory.audit` event carries the real actor and reason.
+- `erase_subject(subject, namespace, *, actor=, reason=)`,
+  `erase_namespace(namespace, *, actor=, reason=)` and `revoke(..., *, actor=)`
+  take the actor recorded in that event. Erasure also renames the erased subject's
+  entity node id (`ent:<ns>:<name>`) in the community-partition history, and a
+  hard forget does the same for an erased record's entity once no record mentions
+  it. Redacting one turn cited by an `entity_resolved` decision redacts every entry
+  of that decision (its `group`).
+- **Derived records inherit governance**: a record written with `source.parents`
+  in its own namespace (summaries, mined facts, list cards, entity and community
+  summaries, surprise facts, cues, reflections, graph facts) gets the intersection
+  of its parents' purposes and the highest of their PII tiers. Parents with no
+  common purpose give `!none`, which no read purpose matches. Read lead blocks
+  (standing requests, timelines, cards, profile, entity summaries) and graph blocks
+  pass the purpose gate per entry, and each block carries its entries' common
+  purposes and highest tier.
 `rollback_taint` / `repair_taint` walk the event log from the seed's origin WRITE. With
 `event_log.mode: ephemeral` (no events kept, not even in memory) or a `rolling` window
 that pruned the origin, they cannot trace descendants: by default they log
@@ -448,11 +463,24 @@ rest:
 
 - No or bad credentials → 401; a namespace outside the principal's globs → 403;
   `/sleep`, `/rebuild`, `/export`, `/quarantine…` without the admin role → 403;
-  over the rate limit → 429.
-- The principal replaces the caller-claimed `actor` on `/correct` and forget, and is
-  the `actor` of `memory.read_audit` events.
+  over the rate limit → 429. The admin check is a dependency on those routes
+  themselves, so it holds when the app is mounted under a prefix
+  (`outer.mount("/api", create_app(engine))`) or served with a `root_path`.
+- Failed authentications are throttled per client address **before** the credential
+  is checked: after `rest.rate_limit.burst` failures (10 without `rest.rate_limit`,
+  refilling at 0.1/s) the address gets 429 until its bucket refills.
+- The principal replaces the caller-claimed `actor` on `/write`, `/write_messages`,
+  `/feedback`, `/correct`, `/grants` and forget, and `source.principal` on `/write`
+  and `/correct` (a differing claim is overridden and logged), so a writer cannot
+  omit itself to approve its own quarantined write. It is also the `actor` of
+  `memory.read_audit` events.
 - `oidc_jwt` needs `pyjwt` (a clear `ConfigError` otherwise) and reads the principal,
   namespaces and roles from configurable claims; keys come from `jwks_url` or an env var.
+  `rest.auth.jwt.issuer` and `audience` are **required** in this mode (config
+  validation error otherwise), every token must carry `exp`, `iss` and `aud`, and the
+  algorithms are pinned: no `none`, no HMAC (`HS*`) next to an asymmetric family, no
+  HMAC with a `jwks_url`. A token naming an unknown `kid` triggers at most one JWKS
+  refetch per 60 s.
 - `create_app(engine, rest=RestConfig(...))` overrides the engine's `rest` block.
 
 It is a **reference, not a production auth plane**: no key rotation, revocation,
@@ -727,25 +755,25 @@ in the schema — or if the schema gains a key not documented here.
 | `workers.runner` | `inline` | `inline` \| `dbos` `[dbos]` \| `taskiq` `[taskiq]` (D-16). |
 | `workers.broker_url` | `redis://localhost:6379/0` | taskiq broker endpoint (ignored by other runners). |
 | `workers.dbos_system_database_url` | `null` | DBOS system db; `null` derives a SQLite file beside `storage.path`. |
-| `retention.classes` | `[]` | #48: retention classes, checked in order, first match wins: `{namespace: <glob>, memory_type: <type or null>, ttl_days: <days>}`. A sleep-cycle stage (`retention_expire`, run first, only when this list is non-empty) hard-forgets records whose `recorded_at` is older than the TTL through the ordinary forget path (cascading to derived records). Records whose type's `retention` policy refuses deletion (legal hold, `regulated` PII) are kept, and so are records with such a descendant. Empty: nothing expires and the sleep cycle is unchanged. `Engine.expire_retention(now=None)` runs it on demand. |
+| `retention.classes` | `[]` | #48: retention classes, checked in order, first match wins: `{namespace: <glob>, memory_type: <type or null>, ttl_days: <days>}`. A sleep-cycle stage (`retention_expire`, run first, only when this list is non-empty) hard-forgets records whose `recorded_at` is older than the TTL through the ordinary forget path (cascading to derived records). Soft-forgotten records past the TTL are hard-erased too (a soft forget keeps the content). Records whose type's `retention` policy refuses deletion (legal hold, `regulated` PII) are kept, and so are records with such a descendant. Empty: nothing expires and the sleep cycle is unchanged. `Engine.expire_retention(now=None)` runs it on demand. |
 | `audit.reads` | `false` | #49: every `search` / `assemble` / `read` / `retrieve` / `shared_search` / `export` appends one `memory.read_audit` event: principal (`event.actor`, from the REST auth binding or `principal_scope`, else `anonymous`), namespace, returned record ids, purpose and time. A verb that calls another public read verb audits once. Hash-chained (see `audit.actions`). No projector reads it. |
-| `audit.actions` | `false` | #49: `forget` (with `actor=` / `reason=`), `correct`, retention expiry and `export` append a `memory.audit` event with the actor, principal, reason and record ids. Both audit kinds share one SHA-256 hash chain (`payload.chain.prev` / `.hash`); `Engine.verify_audit_chain()` / `audit_chain_ok()` validate it (a rolling log anchors at its oldest surviving audit event). |
+| `audit.actions` | `false` | #49: `forget` (with `actor=` / `reason=`), `correct`, retention expiry, `export`, `erase_subject`, `erase_namespace`, `approve_quarantined`, `reject_quarantined`, `feedback` (the signal, never the note), `grant` and `revoke` append a `memory.audit` event with the actor, principal, reason and record ids. Both audit kinds share one SHA-256 hash chain (`payload.chain.prev` / `.hash`); `Engine.verify_audit_chain()` / `audit_chain_ok()` validate it (a rolling log anchors at its oldest surviving audit event). |
 | `consent.enforce` | `false` | #50 purpose limitation: records carry purposes (`write(..., purposes=[...])`, stored as `consent_tags`; `*` = any purpose) and reads pass `purpose=`. On, a read returns only records whose purposes include the read's purpose; a read without a purpose sees only untagged and `*` records. Applied in the search gates and to every returned list or assembled context. |
 | `consent.untagged` | `allow` | #50: with `enforce`, whether records with no purpose are visible to every read (`allow`) or to none (`deny`). |
-| `consent.remote_llm_max_tier` | `null` | #50 remote-LLM gate: `none` \| `low` \| `high` \| `regulated`. Every LLM role bound to a remote provider is wrapped so that, before each call, the text of any record whose `pii_tier` is above this tier (content, archived versions, the 400-char relevance-note prefix and their JSON-escaped forms) is replaced by `[WITHHELD: above the remote-LLM PII tier]`. Local = `llamacpp/…`, an `ollama/…` model without `api_base`, or an `api_base` on `localhost`/`127.0.0.1`/`::1`/`*.local`/`consent.local_hosts`. Textual gate: a paraphrase of the content is not caught. `null`: off. |
+| `consent.remote_llm_max_tier` | `null` | #50 remote-LLM gate: `none` \| `low` \| `high` \| `regulated`. Every LLM role bound to a remote provider is wrapped so that, before each call, the text of any record whose `pii_tier` is above this tier (content, archived versions, the 400-char relevance-note prefix, the text without its leading entity name or fact key, in any whitespace, case or JSON escaping) is replaced by `[WITHHELD: above the remote-LLM PII tier]`; the `sufficiency`, `verify_answer` and relevance prompts also replace a context record above the tier (by its own tier, which a derived record or lead block inherits) before rendering. Local = `llamacpp/…`, an `ollama/…` model without `api_base`, or an `api_base` on `localhost`/`127.0.0.1`/`::1`/`*.local`/`consent.local_hosts`. Textual gate: a paraphrase of the content is not caught. `null`: off. |
 | `consent.local_hosts` | `[]` | #50: extra `api_base` host names that count as local for the remote-LLM gate. |
 | `rest.auth.mode` | `none` | #51 reference auth middleware (ADR-041; not a production auth plane): `none` (unauthenticated, v0.1) \| `api_key` \| `oidc_jwt` (needs `pyjwt`). Binds a principal and its namespaces to each request: another namespace gets 403; `/sleep`, `/rebuild`, `/export`, `/quarantine…` need the admin role. |
 | `rest.auth.api_keys` | `[]` | #51 `api_key` mode: list of `{key_env: <ENV VAR>, principal, namespaces: [<glob>], admin: false}` (or `key:` instead of `key_env`). Sent as `Authorization: Bearer <key>` or `X-API-Key`. Only SHA-256 digests are kept; keys are never logged or echoed. |
-| `rest.auth.jwt.issuer` | `null` | #51 `oidc_jwt`: required `iss` (null = not checked). |
-| `rest.auth.jwt.audience` | `null` | #51 `oidc_jwt`: required `aud` (null = not checked). |
-| `rest.auth.jwt.algorithms` | `["RS256"]` | #51 `oidc_jwt`: accepted signing algorithms. |
+| `rest.auth.jwt.issuer` | `null` | #51 `oidc_jwt`: required `iss`; must be set in `oidc_jwt` mode (config validation error otherwise). |
+| `rest.auth.jwt.audience` | `null` | #51 `oidc_jwt`: required `aud`; must be set in `oidc_jwt` mode (config validation error otherwise). |
+| `rest.auth.jwt.algorithms` | `["RS256"]` | #51 `oidc_jwt`: accepted signing algorithms; never `none`, never `HS*` mixed with another family or with `jwks_url`. Tokens must carry `exp`, `iss` and `aud`. |
 | `rest.auth.jwt.jwks_url` | `null` | #51 `oidc_jwt`: JWKS endpoint for the signing keys (PyJWT `PyJWKClient`). |
 | `rest.auth.jwt.key_env` | `null` | #51 `oidc_jwt`: env var holding a PEM public key or HMAC secret (when no `jwks_url`). |
 | `rest.auth.jwt.principal_claim` | `sub` | #51 `oidc_jwt`: claim naming the principal. |
 | `rest.auth.jwt.namespaces_claim` | `memspine_namespaces` | #51 `oidc_jwt`: claim listing the allowed namespace globs (list or space-separated). |
 | `rest.auth.jwt.roles_claim` | `roles` | #51 `oidc_jwt`: claim listing roles (list or space-separated). |
 | `rest.auth.jwt.admin_role` | `memspine-admin` | #51 `oidc_jwt`: the role that unlocks the admin routes. |
-| `rest.rate_limit` | `null` | #51: `{requests_per_second, burst: 10}` in-memory token bucket per principal (per client address without auth); over the limit → 429. One process only. |
+| `rest.rate_limit` | `null` | #51: `{requests_per_second, burst: 10}` in-memory token bucket per principal (per client address without auth); over the limit → 429. One process only. With auth on, it also sizes the per-address bucket of failed authentications (default burst 10, 0.1/s). |
 | `workers.sleep_interval_seconds` | `null` | D1: when set (seconds), the engine runs the full sleep cycle on that interval autonomously; `null` keeps v0.1 behavior (cycle runs only on `Engine.sleep()`). |
 | `prompts.overrides` | `{}` | Per-prompt overrides (body/system/format/version/output_model/token_budget) (D-43). |
 | `prompts.partials` | `{}` | Override fragments for shared Jinja `{% include %}` partials (anti-injection block, output footer); `<name>` → replacement text, consulted before the shipped `_partials/` dir (B1). |

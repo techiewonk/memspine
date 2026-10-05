@@ -53,3 +53,20 @@ Ship a small reference middleware in `memspine.protocols.rest.auth`, selected by
   inside the engine for auditing.
 - **A hard dependency on PyJWT / an OIDC client** — the core stays slim (D-03); JWT support is
   activated only when the package is installed.
+
+## Addendum (2026-10-06): privacy review hardening
+
+- **Admin routes**: the admin check is a FastAPI dependency on `/sleep`, `/rebuild`,
+  `/export` and `/quarantine…`; the middleware's path check uses the route path (the scope
+  path without `root_path`). Before, `request.url.path` included a mount prefix, so
+  `outer.mount("/api", create_app(engine))` let a non-admin key reach `/api/export`.
+- **Failed logins**: a per-address token bucket of authentication failures is checked before
+  any credential (`rest.rate_limit`, else burst 10 at 0.1/s); 401s used to bypass the limiter.
+  A JWKS refetch for an unknown `kid` happens at most once per 60 s. Limiter buckets are
+  pruned past 10 000 keys.
+- **JWT**: `oidc_jwt` requires `issuer` and `audience` (config validation), every token must
+  carry `exp`, `iss` and `aud` (`options={"require": [...]}`), and the algorithm family is
+  pinned (no `none`, no HMAC mixed with an asymmetric family, no HMAC with a JWKS URL).
+- **Bound author**: under auth, the principal overrides the caller-claimed actor on every write
+  verb and `source.principal` on `/write` and `/correct` (logged when they differ). The
+  quarantine author check can no longer be dodged by omitting `source.principal`.
