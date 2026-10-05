@@ -1,0 +1,813 @@
+{
+ "description": "G24 GLiNER2 planner set; labels by evals/gliner2_planner_eval.py:label",
+ "source": "LoCoMo-10 (locomo10.json)",
+ "source_sha256": "79fa87e90f04081343b8c8debecb80a9a6842b76a7aa537dc9fdf651ea698ff4",
+ "seed": 20261006,
+ "pool_sizes": {
+  "compose": 148,
+  "replay": 322,
+  "retrieve": 1504
+ },
+ "items": [
+  {
+   "id": "conv-26#114",
+   "question": "What do sunflowers represent according to Caroline?",
+   "category": 4,
+   "mode": "retrieve",
+   "rule": "default",
+   "split": "tune"
+  },
+  {
+   "id": "conv-26#155",
+   "question": "Why did Melanie choose the adoption agency?",
+   "category": 5,
+   "mode": "replay",
+   "rule": "replay_cue",
+   "split": "heldout"
+  },
+  {
+   "id": "conv-26#164",
+   "question": "What kind of counseling workshop did Melanie attend recently?",
+   "category": 5,
+   "mode": "replay",
+   "rule": "is_ordering",
+   "split": "tune"
+  },
+  {
+   "id": "conv-26#174",
+   "question": "How often does Caroline go to the beach with her kids?",
+   "category": 5,
+   "mode": "compose",
+   "rule": "is_count",
+   "split": "tune"
+  },
+  {
+   "id": "conv-26#179",
+   "question": "Where did Oscar hide his bone once?",
+   "category": 5,
+   "mode": "retrieve",
+   "rule": "default",
+   "split": "tune"
+  },
+  {
+   "id": "conv-26#191",
+   "question": "What happened to Caroline's son on their road trip?",
+   "category": 5,
+   "mode": "retrieve",
+   "rule": "default",
+   "split": "tune"
+  },
+  {
+   "id": "conv-26#196",
+   "question": "What was Caroline's reaction to her children enjoying the Grand Canyon?",
+   "category": 5,
+   "mode": "replay",
+   "rule": "replay_cue",
+   "split": "tune"
+  },
+  {
+   "id": "conv-26#198",
+   "question": "What does Caroline love most about camping with her family?",
+   "category": 5,
+   "mode": "retrieve",
+   "rule": "default",
+   "split": "heldout"
+  },
+  {
+   "id": "conv-26#23",
+   "question": "What books has Melanie read?",
+   "category": 1,
+   "mode": "compose",
+   "rule": "is_aggregation",
+   "split": "tune"
+  },
+  {
+   "id": "conv-26#34",
+   "question": "What events has Caroline participated in to help children?",
+   "category": 1,
+   "mode": "compose",
+   "rule": "is_aggregation",
+   "split": "heldout"
+  },
+  {
+   "id": "conv-26#37",
+   "question": "What did Melanie paint recently?",
+   "category": 1,
+   "mode": "replay",
+   "rule": "is_ordering",
+   "split": "tune"
+  },
+  {
+   "id": "conv-26#38",
+   "question": "What activities has Melanie done with her family?",
+   "category": 1,
+   "mode": "compose",
+   "rule": "is_aggregation",
+   "split": "tune"
+  },
+  {
+   "id": "conv-26#52",
+   "question": "What are Melanie's pets' names?",
+   "category": 1,
+   "mode": "compose",
+   "rule": "is_aggregation",
+   "split": "heldout"
+  },
+  {
+   "id": "conv-26#60",
+   "question": "What instruments does Melanie play?",
+   "category": 1,
+   "mode": "compose",
+   "rule": "is_aggregation",
+   "split": "heldout"
+  },
+  {
+   "id": "conv-26#75",
+   "question": "How many children does Melanie have?",
+   "category": 1,
+   "mode": "compose",
+   "rule": "is_count",
+   "split": "heldout"
+  },
+  {
+   "id": "conv-26#82",
+   "question": "What did the charity race raise awareness for?",
+   "category": 4,
+   "mode": "retrieve",
+   "rule": "default",
+   "split": "tune"
+  },
+  {
+   "id": "conv-30#102",
+   "question": "What did Jon make a limited edition line of?",
+   "category": 5,
+   "mode": "retrieve",
+   "rule": "default",
+   "split": "tune"
+  },
+  {
+   "id": "conv-30#24",
+   "question": "Which events has Jon participated in to promote his business venture?",
+   "category": 1,
+   "mode": "compose",
+   "rule": "is_aggregation",
+   "split": "tune"
+  },
+  {
+   "id": "conv-30#84",
+   "question": "What kind of dance piece did Jon's team perform to win first place?",
+   "category": 5,
+   "mode": "replay",
+   "rule": "is_ordering",
+   "split": "tune"
+  },
+  {
+   "id": "conv-30#85",
+   "question": "What is Gina's attitude towards participating in the dance festival?",
+   "category": 5,
+   "mode": "retrieve",
+   "rule": "default",
+   "split": "tune"
+  },
+  {
+   "id": "conv-30#87",
+   "question": "What did Jon find for his clothing store on 1 February, 2023?",
+   "category": 5,
+   "mode": "retrieve",
+   "rule": "default",
+   "split": "tune"
+  },
+  {
+   "id": "conv-30#89",
+   "question": "What did Jon want his customers to feel in her store?",
+   "category": 5,
+   "mode": "replay",
+   "rule": "replay_cue",
+   "split": "heldout"
+  },
+  {
+   "id": "conv-41#103",
+   "question": "What was the name of the pet that John had to say goodbye to on 3 June, 2023?",
+   "category": 4,
+   "mode": "replay",
+   "rule": "replay_cue",
+   "split": "heldout"
+  },
+  {
+   "id": "conv-41#124",
+   "question": "What kind of activities did Maria do at the picnic with her church friends?",
+   "category": 4,
+   "mode": "retrieve",
+   "rule": "default",
+   "split": "tune"
+  },
+  {
+   "id": "conv-41#173",
+   "question": "What did Maria say it was like being at the desert in Oregon?",
+   "category": 5,
+   "mode": "replay",
+   "rule": "replay_cue",
+   "split": "heldout"
+  },
+  {
+   "id": "conv-41#183",
+   "question": "How did Maria describe her kids' reaction at the military memorial?",
+   "category": 5,
+   "mode": "replay",
+   "rule": "replay_cue",
+   "split": "heldout"
+  },
+  {
+   "id": "conv-41#19",
+   "question": "What damages have happened to John's car?",
+   "category": 1,
+   "mode": "compose",
+   "rule": "is_aggregation",
+   "split": "heldout"
+  },
+  {
+   "id": "conv-41#191",
+   "question": "What is the name of Maria's second kitten?",
+   "category": 5,
+   "mode": "retrieve",
+   "rule": "default",
+   "split": "tune"
+  },
+  {
+   "id": "conv-41#2",
+   "question": "What martial arts has John done?",
+   "category": 1,
+   "mode": "retrieve",
+   "rule": "default",
+   "split": "tune"
+  },
+  {
+   "id": "conv-41#33",
+   "question": "What types of yoga has Maria practiced?",
+   "category": 1,
+   "mode": "compose",
+   "rule": "is_aggregation",
+   "split": "tune"
+  },
+  {
+   "id": "conv-41#36",
+   "question": "What music events has John attended?",
+   "category": 1,
+   "mode": "compose",
+   "rule": "is_aggregation",
+   "split": "heldout"
+  },
+  {
+   "id": "conv-41#51",
+   "question": "When did Maria start volunteering at the homeless shelter?",
+   "category": 2,
+   "mode": "retrieve",
+   "rule": "temporal_fact",
+   "split": "heldout"
+  },
+  {
+   "id": "conv-41#7",
+   "question": "What items des John mention having as a child?",
+   "category": 1,
+   "mode": "compose",
+   "rule": "is_aggregation",
+   "split": "heldout"
+  },
+  {
+   "id": "conv-41#83",
+   "question": "What areas is John particularly interested in for policymaking?",
+   "category": 4,
+   "mode": "retrieve",
+   "rule": "default",
+   "split": "tune"
+  },
+  {
+   "id": "conv-41#88",
+   "question": "What topic has John been blogging about recently?",
+   "category": 4,
+   "mode": "replay",
+   "rule": "is_ordering",
+   "split": "heldout"
+  },
+  {
+   "id": "conv-42#10",
+   "question": "What emotions is Joanna feeling about  the screenplay she submitted?",
+   "category": 1,
+   "mode": "replay",
+   "rule": "replay_cue",
+   "split": "heldout"
+  },
+  {
+   "id": "conv-42#121",
+   "question": "Who invited Nate to join her on the trails sometime?",
+   "category": 4,
+   "mode": "retrieve",
+   "rule": "default",
+   "split": "heldout"
+  },
+  {
+   "id": "conv-42#143",
+   "question": "How did Joanna feel when someone wrote her a letter after reading her blog post?",
+   "category": 4,
+   "mode": "replay",
+   "rule": "replay_cue",
+   "split": "tune"
+  },
+  {
+   "id": "conv-42#155",
+   "question": "What is Nate's favorite dish from the cooking show he hosted?",
+   "category": 4,
+   "mode": "retrieve",
+   "rule": "default",
+   "split": "heldout"
+  },
+  {
+   "id": "conv-42#172",
+   "question": "How does Nate feel about Joanna's ability to bounce back from setbacks?",
+   "category": 4,
+   "mode": "replay",
+   "rule": "replay_cue",
+   "split": "tune"
+  },
+  {
+   "id": "conv-42#223",
+   "question": "Where did Nate go for a road trip for research?",
+   "category": 5,
+   "mode": "retrieve",
+   "rule": "default",
+   "split": "heldout"
+  },
+  {
+   "id": "conv-42#226",
+   "question": "How did Nate feel when someone wrote him a letter after reading his blog post?",
+   "category": 5,
+   "mode": "replay",
+   "rule": "replay_cue",
+   "split": "heldout"
+  },
+  {
+   "id": "conv-42#52",
+   "question": "How many of Joanna's writing have made it to the big screen?",
+   "category": 1,
+   "mode": "compose",
+   "rule": "is_count",
+   "split": "heldout"
+  },
+  {
+   "id": "conv-42#55",
+   "question": "What is Joanna inspired by?",
+   "category": 1,
+   "mode": "replay",
+   "rule": "replay_cue",
+   "split": "tune"
+  },
+  {
+   "id": "conv-42#67",
+   "question": "What pets does Nate have?",
+   "category": 1,
+   "mode": "compose",
+   "rule": "is_aggregation",
+   "split": "heldout"
+  },
+  {
+   "id": "conv-42#70",
+   "question": "What activities does Nate do with his turtles?",
+   "category": 1,
+   "mode": "compose",
+   "rule": "is_aggregation",
+   "split": "tune"
+  },
+  {
+   "id": "conv-42#74",
+   "question": "What recommendations has Nate received from Joanna?",
+   "category": 1,
+   "mode": "compose",
+   "rule": "is_aggregation",
+   "split": "tune"
+  },
+  {
+   "id": "conv-42#78",
+   "question": "How many video game tournaments has Nate participated in?",
+   "category": 1,
+   "mode": "compose",
+   "rule": "is_count",
+   "split": "tune"
+  },
+  {
+   "id": "conv-42#81",
+   "question": "What recipes has Joanna made?",
+   "category": 1,
+   "mode": "compose",
+   "rule": "is_aggregation",
+   "split": "heldout"
+  },
+  {
+   "id": "conv-42#83",
+   "question": "What are the skills that Nate has helped others learn?",
+   "category": 1,
+   "mode": "compose",
+   "rule": "is_aggregation",
+   "split": "heldout"
+  },
+  {
+   "id": "conv-43#0",
+   "question": "what are John's goals with regards to his basketball career?",
+   "category": 1,
+   "mode": "compose",
+   "rule": "is_aggregation",
+   "split": "tune"
+  },
+  {
+   "id": "conv-43#102",
+   "question": "What did John say about NYC, enticing Tim to visit?",
+   "category": 4,
+   "mode": "replay",
+   "rule": "replay_cue",
+   "split": "tune"
+  },
+  {
+   "id": "conv-43#134",
+   "question": "What is one of Tim's favorite fantasy TV shows, as mentioned on November 11, 2023?",
+   "category": 4,
+   "mode": "replay",
+   "rule": "replay_cue",
+   "split": "tune"
+  },
+  {
+   "id": "conv-43#155",
+   "question": "How did John feel after being able to jog without pain?",
+   "category": 4,
+   "mode": "replay",
+   "rule": "replay_cue",
+   "split": "heldout"
+  },
+  {
+   "id": "conv-43#207",
+   "question": "How does Tim say his team handles tough opponents?",
+   "category": 5,
+   "mode": "replay",
+   "rule": "replay_cue",
+   "split": "heldout"
+  },
+  {
+   "id": "conv-43#57",
+   "question": "What instruments does Tim play?",
+   "category": 1,
+   "mode": "compose",
+   "rule": "is_aggregation",
+   "split": "heldout"
+  },
+  {
+   "id": "conv-43#79",
+   "question": "What kind of deals did John sign with Nike and Gatorade?",
+   "category": 4,
+   "mode": "retrieve",
+   "rule": "default",
+   "split": "heldout"
+  },
+  {
+   "id": "conv-44#156",
+   "question": "Which type of pizza did Audrey suggest trying first to someone new to Italian cuisine?",
+   "category": 5,
+   "mode": "replay",
+   "rule": "is_ordering",
+   "split": "tune"
+  },
+  {
+   "id": "conv-44#17",
+   "question": "How many times did Audrey and Andew plan to hike together?",
+   "category": 1,
+   "mode": "compose",
+   "rule": "is_count",
+   "split": "heldout"
+  },
+  {
+   "id": "conv-44#22",
+   "question": "Where did Andrew go during the first weekend of August 2023?",
+   "category": 2,
+   "mode": "replay",
+   "rule": "is_ordering",
+   "split": "tune"
+  },
+  {
+   "id": "conv-44#46",
+   "question": "How many pets did Andrew have, as of September 2023?",
+   "category": 2,
+   "mode": "compose",
+   "rule": "is_count",
+   "split": "tune"
+  },
+  {
+   "id": "conv-44#51",
+   "question": "What items has Audrey bought or made for her dogs?",
+   "category": 1,
+   "mode": "compose",
+   "rule": "is_aggregation",
+   "split": "tune"
+  },
+  {
+   "id": "conv-44#68",
+   "question": "Why did Audrey sign up for a workshop about bonding with pets?",
+   "category": 4,
+   "mode": "replay",
+   "rule": "replay_cue",
+   "split": "tune"
+  },
+  {
+   "id": "conv-47#110",
+   "question": "What game genre did John start exploring instead of shooters?",
+   "category": 4,
+   "mode": "retrieve",
+   "rule": "default",
+   "split": "heldout"
+  },
+  {
+   "id": "conv-47#116",
+   "question": "What type of beer does John not like?",
+   "category": 4,
+   "mode": "retrieve",
+   "rule": "default",
+   "split": "heldout"
+  },
+  {
+   "id": "conv-47#117",
+   "question": "What were some difficulties James faced during the development of his game?",
+   "category": 4,
+   "mode": "compose",
+   "rule": "is_aggregation",
+   "split": "heldout"
+  },
+  {
+   "id": "conv-47#128",
+   "question": "What kind of dream did James have recently?",
+   "category": 4,
+   "mode": "replay",
+   "rule": "is_ordering",
+   "split": "heldout"
+  },
+  {
+   "id": "conv-47#159",
+   "question": "Who does James support in cricket matches?",
+   "category": 5,
+   "mode": "retrieve",
+   "rule": "default",
+   "split": "tune"
+  },
+  {
+   "id": "conv-47#180",
+   "question": "What does James feel about starting the journey as a programming mentor for game developers?",
+   "category": 5,
+   "mode": "replay",
+   "rule": "replay_cue",
+   "split": "tune"
+  },
+  {
+   "id": "conv-47#185",
+   "question": "Where did John and Samantha decide to live together on 31 October, 2022?",
+   "category": 5,
+   "mode": "retrieve",
+   "rule": "default",
+   "split": "heldout"
+  },
+  {
+   "id": "conv-47#68",
+   "question": "What type of mobile application does James plan to build with John?",
+   "category": 4,
+   "mode": "retrieve",
+   "rule": "default",
+   "split": "heldout"
+  },
+  {
+   "id": "conv-48#121",
+   "question": "What did Jolene ask Deb to help with on 13 March, 2023?",
+   "category": 4,
+   "mode": "retrieve",
+   "rule": "default",
+   "split": "heldout"
+  },
+  {
+   "id": "conv-48#163",
+   "question": "How did Deborah get Luna, one of her cats?",
+   "category": 4,
+   "mode": "retrieve",
+   "rule": "default",
+   "split": "heldout"
+  },
+  {
+   "id": "conv-48#177",
+   "question": "How did Jolene feel about her progress in practicing mindfulness and gratitude?",
+   "category": 4,
+   "mode": "replay",
+   "rule": "replay_cue",
+   "split": "heldout"
+  },
+  {
+   "id": "conv-48#179",
+   "question": "What did Jolene recently play that she described to Deb?",
+   "category": 4,
+   "mode": "replay",
+   "rule": "is_ordering",
+   "split": "heldout"
+  },
+  {
+   "id": "conv-48#199",
+   "question": "What cool stuff did Deborah accomplish at the retreat on 9 February, 2023?",
+   "category": 5,
+   "mode": "retrieve",
+   "rule": "default",
+   "split": "tune"
+  },
+  {
+   "id": "conv-48#212",
+   "question": "How does Deborah feel when spending time with Seraphim?",
+   "category": 5,
+   "mode": "replay",
+   "rule": "replay_cue",
+   "split": "heldout"
+  },
+  {
+   "id": "conv-48#213",
+   "question": "What made being part of the running group easy for Jolene to stay motivated?",
+   "category": 5,
+   "mode": "replay",
+   "rule": "replay_cue",
+   "split": "tune"
+  },
+  {
+   "id": "conv-48#3",
+   "question": "When did Jolene`s mother pass away?",
+   "category": 2,
+   "mode": "retrieve",
+   "rule": "temporal_fact",
+   "split": "heldout"
+  },
+  {
+   "id": "conv-48#33",
+   "question": "How long have Jolene and her partner been together?",
+   "category": 4,
+   "mode": "retrieve",
+   "rule": "default",
+   "split": "tune"
+  },
+  {
+   "id": "conv-48#35",
+   "question": "When did Deborah go for her first morning jog in a nearby park?",
+   "category": 2,
+   "mode": "replay",
+   "rule": "is_ordering",
+   "split": "heldout"
+  },
+  {
+   "id": "conv-48#78",
+   "question": "Where did Jolene and her partner spend most of September 2023?",
+   "category": 2,
+   "mode": "retrieve",
+   "rule": "default",
+   "split": "heldout"
+  },
+  {
+   "id": "conv-48#88",
+   "question": "What activities does Deborah pursue besides practicing and teaching yoga?",
+   "category": 1,
+   "mode": "compose",
+   "rule": "is_aggregation",
+   "split": "tune"
+  },
+  {
+   "id": "conv-49#11",
+   "question": "What health issue did Sam face that motivated him to change his lifestyle?",
+   "category": 1,
+   "mode": "replay",
+   "rule": "replay_cue",
+   "split": "tune"
+  },
+  {
+   "id": "conv-49#123",
+   "question": "What adventurous theme is emerging in Evan's life as mentioned by Sam?",
+   "category": 4,
+   "mode": "replay",
+   "rule": "replay_cue",
+   "split": "tune"
+  },
+  {
+   "id": "conv-49#133",
+   "question": "What news did Evan share with Sam on 9th December 2023?",
+   "category": 4,
+   "mode": "compose",
+   "rule": "is_aggregation",
+   "split": "tune"
+  },
+  {
+   "id": "conv-49#155",
+   "question": "How does Evan describe being out on the water while kayaking and watching the sunset?",
+   "category": 4,
+   "mode": "retrieve",
+   "rule": "default",
+   "split": "tune"
+  },
+  {
+   "id": "conv-49#18",
+   "question": "What kind of healthy food suggestions has Evan given to Sam?",
+   "category": 1,
+   "mode": "retrieve",
+   "rule": "default",
+   "split": "tune"
+  },
+  {
+   "id": "conv-49#31",
+   "question": "How might Evan and Sam's experiences with health and lifestyle changes influence their approach to stress and challenges?",
+   "category": 3,
+   "mode": "retrieve",
+   "rule": "default",
+   "split": "heldout"
+  },
+  {
+   "id": "conv-49#34",
+   "question": "What accidents has Evan's son faced lately?",
+   "category": 1,
+   "mode": "compose",
+   "rule": "is_aggregation",
+   "split": "tune"
+  },
+  {
+   "id": "conv-49#69",
+   "question": "Which two significant life events occur in Evan's life in December 2023 with his partner?",
+   "category": 1,
+   "mode": "retrieve",
+   "rule": "default",
+   "split": "tune"
+  },
+  {
+   "id": "conv-49#95",
+   "question": "What does the smartwatch help Evan with?",
+   "category": 4,
+   "mode": "retrieve",
+   "rule": "default",
+   "split": "heldout"
+  },
+  {
+   "id": "conv-50#1",
+   "question": "What items did Calvin buy in March 2023?",
+   "category": 1,
+   "mode": "compose",
+   "rule": "is_aggregation",
+   "split": "tune"
+  },
+  {
+   "id": "conv-50#107",
+   "question": "What emotion does Dave mention feeling when he sees the relief of someone whose car he fixed?",
+   "category": 4,
+   "mode": "replay",
+   "rule": "replay_cue",
+   "split": "tune"
+  },
+  {
+   "id": "conv-50#152",
+   "question": "What new item did Dave buy recently?",
+   "category": 4,
+   "mode": "replay",
+   "rule": "is_ordering",
+   "split": "heldout"
+  },
+  {
+   "id": "conv-50#18",
+   "question": "How many times has Calvin had to deal with insurance paperwork?",
+   "category": 1,
+   "mode": "compose",
+   "rule": "is_count",
+   "split": "heldout"
+  },
+  {
+   "id": "conv-50#45",
+   "question": "What shared activities do Dave and Calvin have?",
+   "category": 1,
+   "mode": "compose",
+   "rule": "is_aggregation",
+   "split": "tune"
+  },
+  {
+   "id": "conv-50#5",
+   "question": "What are Dave's dreams?",
+   "category": 1,
+   "mode": "compose",
+   "rule": "is_aggregation",
+   "split": "heldout"
+  },
+  {
+   "id": "conv-50#64",
+   "question": "What activities has Dave participated in with his friends?",
+   "category": 1,
+   "mode": "compose",
+   "rule": "is_aggregation",
+   "split": "heldout"
+  },
+  {
+   "id": "conv-50#66",
+   "question": "Do all of Dave's car restoration projects go smoothly?",
+   "category": 1,
+   "mode": "compose",
+   "rule": "is_aggregation",
+   "split": "tune"
+  }
+ ]
+}
