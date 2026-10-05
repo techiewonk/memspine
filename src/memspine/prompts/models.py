@@ -6,6 +6,7 @@ structured-output helper validates the (repaired) response against it.
 
 from __future__ import annotations
 
+import re
 from datetime import date as _date
 from typing import Any, Literal
 
@@ -24,6 +25,8 @@ __all__ = [
     "ExtractedEdges",
     "ExtractedFact",
     "ExtractedFacts",
+    "FactDate",
+    "FactDates",
     "Insight",
     "Insights",
     "InstructionFlagOut",
@@ -43,6 +46,93 @@ def _as_text(value: Any) -> Any:
     return value
 
 
+#: #31 (Graphiti attribute guards): the longest entity / attribute / value a mined fact
+#: may carry. A longer entity or attribute is not a key but leaked prose, so the fact
+#: is dropped; a longer value is cut at a word boundary.
+FACT_FIELD_MAX_CHARS = 250
+
+#: #31: a field that opens like model reasoning, not like a fact.
+_REASONING = re.compile(
+    r"^\s*(?:<think>|let me\b|let's\b|i think\b|i need to\b|i will\b|i'll\b|"
+    r"i should\b|hmm\b|okay,|ok,|wait,|first,? i\b|step \d|reasoning:|thought:|"
+    r"analysis:|the user (?:says|said|mentions|mentioned|is asking)\b)",
+    re.IGNORECASE,
+)
+
+#: #31: placeholder values a model invents when it has nothing to say.
+_PLACEHOLDERS = frozenset(
+    [
+        "",
+        "-",
+        "?",
+        "...",
+        "…",
+        "n/a",
+        "na",
+        "none",
+        "null",
+        "nil",
+        "unknown",
+        "not mentioned",
+        "not specified",
+        "not stated",
+        "not provided",
+        "not available",
+        "unspecified",
+        "tbd",
+        "todo",
+        "placeholder",
+        "value",
+        "entity",
+        "attribute",
+        "example",
+    ]
+)
+
+
+def _is_placeholder(text: str) -> bool:
+    """``"Unknown"``, ``"N/A"``, ``"<value>"``, ``"[name]"``, ``"{entity}"``."""
+    stripped = text.strip()
+    if stripped.lower().strip(" .") in _PLACEHOLDERS:
+        return True
+    return len(stripped) > 1 and stripped[0] + stripped[-1] in ("<>", "[]", "{}")
+
+
+def _cap_words(text: str, limit: int) -> str:
+    """``text`` cut to at most ``limit`` characters, at a word boundary when one exists."""
+    if len(text) <= limit:
+        return text
+    cut = text[:limit]
+    space = cut.rfind(" ")
+    return (cut[:space] if space > limit // 2 else cut).rstrip(" ,;:")
+
+
+def fact_guard(item: Any) -> Any | None:
+    """#31: one raw mined fact after the attribute guards, or None to drop it.
+
+    Dropped: an entity, attribute or value that is reasoning text ("Let me ...",
+    ``<think>``) or an invented placeholder ("unknown", "N/A", ``<value>``), and an
+    entity or attribute over :data:`FACT_FIELD_MAX_CHARS`. A value over the cap is cut
+    at a word boundary. Items that are not mappings pass through for the model to
+    reject, as before.
+    """
+    if not isinstance(item, dict):
+        return item
+    fields = {k: _as_text(item.get(k)) for k in ("entity", "attribute", "value")}
+    if not all(isinstance(v, str) for v in fields.values()):
+        return item  # a missing or non-text field fails validation as before
+    texts: dict[str, str] = {k: str(v) for k, v in fields.items()}
+    for text in texts.values():
+        if _is_placeholder(text) or _REASONING.match(text) or "</think>" in text:
+            return None
+    if any(len(texts[k].strip()) > FACT_FIELD_MAX_CHARS for k in ("entity", "attribute")):
+        return None
+    value = " ".join(texts["value"].split())
+    if len(value) > FACT_FIELD_MAX_CHARS:
+        return {**item, "value": _cap_words(value, FACT_FIELD_MAX_CHARS)}
+    return item
+
+
 class ExtractedFact(BaseModel):
     entity: str
     attribute: str
@@ -56,6 +146,9 @@ class ExtractedFact(BaseModel):
     #: ``event`` (something that happened, a preference, hobby or plan) is one of
     #: many that hold at once and is never superseded. Missing => ``event``.
     kind: Literal["state", "event"] = "event"
+    #: #29: the 1-based transcript lines the fact comes from, when the miner was
+    #: shown numbered lines (``consolidation.mine_evidence_turns``); empty otherwise.
+    turns: list[int] = Field(default_factory=list)
 
     _scalars_as_text = field_validator("entity", "attribute", "value", "date", mode="before")(
         _as_text
@@ -68,9 +161,46 @@ class ExtractedFact(BaseModel):
         text = str(value).strip().lower() if value is not None else ""
         return text if text in ("state", "event") else "event"
 
+    @field_validator("turns", mode="before")
+    @classmethod
+    def _line_numbers(cls, value: Any) -> Any:
+        """Tolerate ``3``, ``"3, 4"``, ``["[3]", 4]`` and junk: keep the positive ints."""
+        if value is None:
+            return []
+        items = re.findall(r"-?\d+", value) if isinstance(value, str) else value
+        if not isinstance(items, list | tuple):
+            items = [items]
+        out: list[int] = []
+        for item in items:
+            digits = re.findall(r"-?\d+", str(item))
+            if digits and int(digits[0]) > 0 and int(digits[0]) not in out:
+                out.append(int(digits[0]))
+        return out
+
 
 class ExtractedFacts(BaseModel):
     facts: list[ExtractedFact] = Field(default_factory=list)
+
+    @field_validator("facts", mode="before")
+    @classmethod
+    def _guarded(cls, value: Any) -> Any:
+        """#31: drop the facts the attribute guards reject (:func:`fact_guard`)."""
+        if not isinstance(value, list):
+            return value
+        return [kept for kept in (fact_guard(item) for item in value) if kept is not None]
+
+
+class FactDate(BaseModel):
+    """#29: the date one numbered mined fact happened (``extract@dates``)."""
+
+    index: int
+    date: str | None = None
+
+    _date_as_text = field_validator("date", mode="before")(_as_text)
+
+
+class FactDates(BaseModel):
+    dates: list[FactDate] = Field(default_factory=list)
 
 
 class RelevanceLabel(BaseModel):
@@ -190,6 +320,7 @@ class InstructionFlagOut(BaseModel):
 
 OUTPUT_MODELS: dict[str, type[BaseModel]] = {
     "ExtractedFacts": ExtractedFacts,
+    "FactDates": FactDates,
     "ExtractedEdges": ExtractedEdges,
     "ConsolidatedFacts": ConsolidatedFacts,
     "Insights": Insights,
