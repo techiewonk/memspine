@@ -169,6 +169,7 @@ def cmd_c0_1(args: argparse.Namespace) -> int:
         prices_per_mtok=parse_prices(args.price),
         service_prices=parse_service_prices(args.price),
         max_usd=args.max_usd,
+        verify_answer=args.verify_answer,
     )
     if args.protocol:
         from .experiments import apply_protocol_preset
@@ -345,6 +346,12 @@ def build_parser() -> argparse.ArgumentParser:
         ),
         default="default",
         help="QA prompt variant for every arm (H7/H12); question_dated shows the question date",
+    )
+    c01.add_argument(
+        "--verify-answer",
+        action="store_true",
+        help="#39: verify each QA answer against its context (memspine verify_answer prompt, "
+        "+1 call per question on the judge backend); off by default",
     )
     c01.add_argument(
         "--categories",

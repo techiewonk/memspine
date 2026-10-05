@@ -27,7 +27,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, ClassVar, Self, TypeVar, cast
+from typing import Any, ClassVar, Self, TypedDict, TypeVar, cast
 
 import orjson
 
@@ -40,7 +40,7 @@ from memspine.clients.sqlite import SQLiteClient
 from memspine.config import constants
 from memspine.config.loader import ResolvedConfig, default_template, load_config
 from memspine.config.schema import FirewallConfig, MemspineConfig
-from memspine.core.answer import final_answer
+from memspine.core.answer import final_answer, numbered_context, verification
 from memspine.core.audit import IntegrityReport, TaintReport, trace_taint, verify_events
 from memspine.core.erasure import redact_record, retained_fields
 from memspine.core.escaping import escape_markers
@@ -95,6 +95,7 @@ from memspine.core.privacy import (
     read_scope,
     verify_audit_chain,
 )
+from memspine.core.profile_pack import pack_profile, render_packed_profile
 from memspine.core.projector import Projector
 from memspine.core.query_shape import (
     core_terms,
@@ -102,6 +103,14 @@ from memspine.core.query_shape import (
     is_count,
     is_ordering,
     is_temporal,
+)
+from memspine.core.read_filters import (
+    DateBound,
+    DateFilter,
+    active_date_filter,
+    date_filter_scope,
+    person_time_leg,
+    time_expr_span,
 )
 from memspine.core.records import (
     ArchivedVersion,
@@ -165,6 +174,7 @@ from memspine.observability.logging import (
     redact_error,
 )
 from memspine.prompts.models import (
+    AnswerVerdictOut,
     AnticipatedCue,
     AnticipatedCues,
     EntityMatches,
@@ -176,8 +186,10 @@ from memspine.prompts.models import (
     FactClasses,
     FactDates,
     Insights,
+    MissingInfoOut,
     ReadPlan,
     RelevanceLabels,
+    SufficiencyOut,
 )
 from memspine.prompts.registry import PromptRegistry
 from memspine.services.cache.base import KVCache, MemoryKV
@@ -518,6 +530,16 @@ def _passive_hidden(record: MemoryRecord, group_id: str | None = None) -> bool:
     if scope is None:
         return True
     return not (scope.include_all or session_of(record) in scope.sessions)
+
+
+class AnswerVerification(TypedDict):
+    """#39: :meth:`Engine.verify_answer`'s verdict on one answer."""
+
+    supported: bool
+    #: Record ids of the supporting context lines (``L<n>`` line numbers for a text context).
+    evidence_ids: list[str]
+    #: A corrected answer the context supports, when the given one is not supported.
+    revised_answer: str | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -1513,6 +1535,33 @@ class Engine:
             _log.warning("read.metadata_legs_failed", namespace=ns, error=str(exc))
             return []
         return [leg for leg in legs if leg]
+
+    async def _person_time_leg(self, ns: str, plan: ReadPlan) -> list[LegHit]:
+        """#36: the ``plan@v3`` structured leg: live records whose ``valid_from`` lies in
+        the span the plan's ``time_expr`` names and/or that are about its ``persons``.
+
+        The span comes from the H1 rules (an absolute date first, else a relative phrase
+        resolved with ``read.relative_week``) anchored on the namespace's newest record
+        (the conversation's "now"; the clock when the namespace is empty). At most
+        ``read.person_time_leg_k`` hits; the search gates still judge each one."""
+        read_cfg = self._config().read
+        if not plan.persons and not (plan.time_expr or "").strip():
+            return []
+        try:
+            live = [
+                r
+                for r in await self._require_started().list_records(ns)
+                if r.status is RecordStatus.ACTIVATED
+                and not r.quarantined
+                and r.memory_type != "shared"
+                and CUE_TAG not in r.tags
+            ]
+        except Exception as exc:  # an enhancer, never a gate
+            _log.warning("read.person_time_leg_failed", namespace=ns, error=str(exc))
+            return []
+        anchor = max((r.valid_from for r in live), default=datetime.now(UTC))
+        span = time_expr_span(plan.time_expr, anchor, week=read_cfg.relative_week)
+        return person_time_leg(live, plan.persons, span, read_cfg.person_time_leg_k)
 
     def _graph_admit(self, ns: str, *, history: bool = False) -> Callable[[MemoryRecord], bool]:
         """GP-10: may a graph walk enter (and return) this record?
@@ -2594,6 +2643,14 @@ class Engine:
         session_id: str | None = None,
         purpose: str | None = None,
         include_passive: bool = False,
+        *,
+        valid_from_after: DateBound | None = None,
+        valid_from_before: DateBound | None = None,
+        valid_to_after: DateBound | None = None,
+        valid_to_before: DateBound | None = None,
+        recorded_after: DateBound | None = None,
+        recorded_before: DateBound | None = None,
+        date_filter_mode: str = "and",
     ) -> list[tuple[MemoryRecord, float]]:
         """Semantic retrieval (P1 + E8 opt-in stages, D-51):
         ``[static_prefilter?] → vector/hybrid → [rerank?] → score`` (MMR and
@@ -2626,8 +2683,25 @@ class Engine:
         #53: records of PASSIVE sessions (session lifecycle) are left out unless
         ``include_passive=True``, ``session_id`` names their session, or ``group_id``
         names their group. With the lifecycle off no record is passive.
+
+        Date filters (#37, :class:`~memspine.core.read_filters.DateFilter`): bounds on
+        ``valid_from`` / ``valid_to`` / ``recorded_at`` (``*_after`` inclusive,
+        ``*_before`` exclusive; datetimes, dates or ISO text; an open ``valid_to`` is
+        later than any date), combined by ``date_filter_mode`` (``and``: every bound,
+        ``or``: any). They restrict every leg to the matching records BEFORE fusion and
+        the ``top_k`` cut (each leg looks over the whole namespace), so a filter never
+        costs recall. No bound: unchanged.
         """
-        with read_scope(purpose) as outer:
+        date_filter = DateFilter.build(
+            valid_from_after=valid_from_after,
+            valid_from_before=valid_from_before,
+            valid_to_after=valid_to_after,
+            valid_to_before=valid_to_before,
+            recorded_after=recorded_after,
+            recorded_before=recorded_before,
+            mode=date_filter_mode,
+        )
+        with read_scope(purpose) as outer, date_filter_scope(date_filter):
             scored = await self._search(
                 query,
                 namespace,
@@ -2640,6 +2714,19 @@ class Engine:
             if outer:
                 await self._audit_read("search", namespace, [r.record_id for r, _ in scored])
         return scored
+
+    async def _date_allowed(self, ns: str) -> tuple[set[str], int] | None:
+        """#37: under an active date filter, the ids a search leg may return, and how
+        many records the namespace holds (the leg window that reaches all of them).
+
+        The ids are the records that match the filter plus every cue record: a cue is a
+        key whose target is judged after the gates resolve it. None: no filter."""
+        date_filter = active_date_filter()
+        if date_filter is None:
+            return None
+        listed = await self._require_started().list_records(ns)
+        allowed = {r.record_id for r in listed if CUE_TAG in r.tags or date_filter.matches(r)}
+        return allowed, len(listed)
 
     async def _vector_leg(
         self, ns: str, query_vector: list[float], fetch_k: int
@@ -2740,6 +2827,7 @@ class Engine:
         memory_type: str | None = None,
         hide: Callable[[MemoryRecord], bool] | None = None,
         probes: Sequence[str] = (),
+        fused_legs: Sequence[list[LegHit]] = (),
     ) -> list[tuple[MemoryRecord, float]]:
         """:meth:`search` with ``keep_k``: how many results the caller finally keeps
         (assembly fetches ``candidate_pool x top_k``); the H18 rerank gate uses it.
@@ -2750,7 +2838,14 @@ class Engine:
         ``hide`` (G1b/G3b): records a read header already shows leave with the gates,
         before the cut, the rerank, the ``rerank_keep`` cut, the RETRIEVE event and the
         B0 ledger. The legs widen until ``top_k`` visible candidates survive, so a
-        header that hides most of the best hits never leaves the read short."""
+        header that hides most of the best hits never leaves the read short.
+
+        ``fused_legs`` (#36): precomputed ranked legs (the persons / time leg) fused by RRF
+        like the C3' legs. Empty: unchanged.
+
+        The active date filter (#37, :func:`active_date_filter`) keeps only matching
+        records in every leg, before fusion; each leg then looks over the whole
+        namespace so no matching record is cut by a leg window."""
         if self._embedder is None or self._vector is None or self._scoring is None:
             raise MemspineError("retrieval services not constructed — engine not started?")
         if top_k < 1:
@@ -2771,6 +2866,12 @@ class Engine:
         # record ranked just outside a single leg's top_k, but strong when the two
         # legs combine, can still enter the fused top_k.
         base_fetch = top_k * constants.LEXICAL_FETCH_MULTIPLIER if use_hybrid else top_k
+        allowed = await self._date_allowed(ns)
+        if allowed is not None:
+            if not allowed[0]:
+                _log.info(EVENT_RETRIEVE, namespace=ns, query=True, count=0)
+                return []
+            base_fetch = max(base_fetch, allowed[1])
         widen = 1
         # A header can hide most of the best hits (mined facts outrank raw turns), so
         # a hiding search may look further down the legs than the gates alone would.
@@ -2812,6 +2913,14 @@ class Engine:
                     graph_leg += [LegHit(pid, 1.0) for pid in community_gate if pid not in in_leg]
             if graph_leg:
                 extra_legs = [*extra_legs, graph_leg]
+            extra_legs += [list(leg) for leg in fused_legs if leg]
+            if allowed is not None:
+                vector_hits = [h for h in vector_hits if h.record_id in allowed[0]]
+                lexical_hits = [h for h in lexical_hits if h.record_id in allowed[0]]
+                ids = allowed[0]
+                extra_legs = [
+                    kept for leg in extra_legs if (kept := [h for h in leg if h.record_id in ids])
+                ]
             if use_hybrid or extra_legs:
                 rrf_k = self._config().read.rrf_k or constants.RRF_K
                 fused = rrf_fuse(vector_hits, lexical_hits, k=rrf_k, extra=extra_legs)
@@ -2836,6 +2945,11 @@ class Engine:
                     for pair in candidates
                     if pair[0].source.channel != "reorganize" or pair[0].record_id in admitted
                 ]
+            if allowed is not None:
+                # A cue passed the leg filter as a key; its resolved target is judged here.
+                date_filter = active_date_filter()
+                assert date_filter is not None
+                candidates = [pair for pair in candidates if date_filter.matches(pair[0])]
             if hide is not None:
                 candidates = [pair for pair in candidates if not hide(pair[0])]
             # Exhaustion is judged on the legs (before any gate or cut).
@@ -3015,12 +3129,14 @@ class Engine:
         session_id: str | None = None,
         hide: Callable[[MemoryRecord], bool] | None = None,
         probes: Sequence[str] = (),
+        legs: Sequence[list[LegHit]] = (),
     ) -> AssembledContext:
         """:meth:`assemble` without the reply reserve and the final render (callers
         apply both once, so the replay read can extend the context first).
 
         ``hide`` (G1b/G3b): candidates a read header already carries leave.
-        ``probes`` (#35): extra search texts fused into the search as RRF legs."""
+        ``probes`` (#35): extra search texts fused into the search as RRF legs.
+        ``legs`` (#36): precomputed ranked legs fused into the search by RRF."""
         if self._assembly is None:
             raise MemspineError("assembly policy not bound — engine not started?")
         want = top_k * self._config().read.candidate_pool
@@ -3035,7 +3151,14 @@ class Engine:
             # can outrank most raw turns. They leave inside the one search, before the
             # rerank and its ``rerank_keep`` cut, which widen until ``want`` survive.
             scored = await self._search(
-                query, ns, want, session_id=session_id, keep_k=top_k, hide=hide, probes=probes
+                query,
+                ns,
+                want,
+                session_id=session_id,
+                keep_k=top_k,
+                hide=hide,
+                probes=probes,
+                fused_legs=legs,
             )
         integrity = self._integrity()
         if integrity.enabled and integrity.trust_weighted_ranking and scored:
@@ -3282,6 +3405,49 @@ class Engine:
         without the marker comes back whole (stripped)."""
         return final_answer(reply)
 
+    async def verify_answer(
+        self,
+        question: str,
+        answer: str,
+        context: AssembledContext | Sequence[MemoryRecord] | str,
+    ) -> AnswerVerification:
+        """#39: is ``answer`` supported by ``context``? One ``verify_answer`` role call
+        (the ``chat`` role when that one is not bound), prompt ``verify_answer``.
+
+        ``context`` is a read's :class:`AssembledContext`, its records, or plain text;
+        the prompt sees it as numbered lines (one per record, whitespace collapsed, or
+        one per non-empty text line). Returns ``supported``, the ``evidence_ids`` of the
+        supporting lines (record ids, or ``L<n>`` for a text context) and, when the
+        answer is not supported but the context supports another, ``revised_answer``
+        (else None). Raises :class:`MissingServiceError` when neither role is bound and
+        :class:`~memspine.exceptions.LLMError` when the reply is unusable. Nothing is
+        read or written; no read path calls it."""
+        self._require_started()
+        llm_router = self._llm
+        role = next(
+            (
+                r
+                for r in ("verify_answer", "chat")
+                if llm_router is not None and r in llm_router.roles
+            ),
+            None,
+        )
+        if llm_router is None or role is None or self._prompts is None:
+            raise MissingServiceError("llm role 'verify_answer'")
+        if isinstance(context, AssembledContext):
+            context = context.records
+        lines, ids = numbered_context(context if isinstance(context, str) else list(context))
+        verdict = await structured_call(
+            llm_router.for_role(role),
+            self._prompts.select("verify_answer"),
+            {"question": question, "answer": answer, "context": "\n".join(lines)},
+            AnswerVerdictOut,
+        )
+        return cast(
+            AnswerVerification,
+            verification(verdict.supported, verdict.evidence, verdict.revised_answer, ids, answer),
+        )
+
     @_passive_scoped
     async def read(
         self,
@@ -3295,6 +3461,14 @@ class Engine:
         session_id: str | None = None,
         purpose: str | None = None,
         include_passive: bool = False,
+        *,
+        valid_from_after: DateBound | None = None,
+        valid_from_before: DateBound | None = None,
+        valid_to_after: DateBound | None = None,
+        valid_to_before: DateBound | None = None,
+        recorded_after: DateBound | None = None,
+        recorded_before: DateBound | None = None,
+        date_filter_mode: str = "and",
     ) -> ReadResult:
         """C7': mode-routed read. Rules decide; no model on the read path.
 
@@ -3333,8 +3507,22 @@ class Engine:
         ``purpose`` (#50): the read's purpose, checked under ``consent.enforce``.
         #53: PASSIVE-session records enter only with ``include_passive=True`` or when
         ``session_id`` names their session (see :meth:`search`).
+
+        Date filters (#37): as in :meth:`search`, for every search of the read (the
+        headers' included), the records a ``full`` read lists and the neighbours a
+        replay or compose read adds. The pinned persona and the lead section are not
+        dated evidence and are not filtered. No bound: unchanged.
         """
-        with read_scope(purpose) as outer:
+        date_filter = DateFilter.build(
+            valid_from_after=valid_from_after,
+            valid_from_before=valid_from_before,
+            valid_to_after=valid_to_after,
+            valid_to_before=valid_to_before,
+            recorded_after=recorded_after,
+            recorded_before=recorded_before,
+            mode=date_filter_mode,
+        )
+        with read_scope(purpose) as outer, date_filter_scope(date_filter):
             result = await self._read(
                 query,
                 namespace,
@@ -3416,8 +3604,11 @@ class Engine:
             full_hide = hide
         if mode in ("auto", "full"):
             live = []
+            date_filter = active_date_filter()
             for record in await storage.list_records(ns):
                 if full_hide is not None and full_hide(record):
+                    continue
+                if date_filter is not None and not date_filter.matches(record):
                     continue
                 view = await self._live_view(record)
                 if view is not None:
@@ -3441,6 +3632,8 @@ class Engine:
         routed = mode == "auto"
         probes: list[str] = []
         lookup_probes: list[str] = []
+        plan: ReadPlan | None = None
+        legs: list[list[LegHit]] = []
         if mode == "auto" and planner == "decision":
             mode = await self._plan_read_mode(query) or mode
         elif mode == "auto" and planner == "llm":
@@ -3449,12 +3642,31 @@ class Engine:
                 # G2a: lookup and replay both read by replay; aggregate by compose.
                 mode = "compose" if plan.mode == "aggregate" else "replay"
                 probes = list(plan.subqueries) if plan.mode == "aggregate" else []
-                if plan.mode != "aggregate" and read_cfg.planner_version == "v2":
+                if plan.mode != "aggregate" and read_cfg.planner_version in ("v2", "v3"):
                     # #35: a lookup's subqueries join its search as extra RRF legs.
                     lookup_probes = list(plan.subqueries[: constants.PLAN_LOOKUP_PROBES])
+                if read_cfg.planner_version == "v3":
+                    # #36: the plan's persons / time expression become a structured leg.
+                    legs = [await self._person_time_leg(ns, plan)]
         if mode == "compose" or (mode == "auto" and is_aggregation(query)):
             # G11: a routed aggregation read pools more candidates (budget-capped).
             k = read_cfg.aggregate_top_k if routed and read_cfg.aggregate_top_k else top_k
+            aggregate = (plan is not None and plan.mode == "aggregate") or (
+                is_aggregation(query) or is_count(query)
+            )
+            if read_cfg.completeness_check and aggregate:
+                return await self._compose_checked(
+                    query,
+                    ns,
+                    budget_tokens,
+                    k,
+                    compose_pool,
+                    hide=hide,
+                    extra_probes=probes,
+                    replay_window=replay_window,
+                    session_id=session_id,
+                    legs=legs,
+                )
             return await self._compose(
                 query,
                 ns,
@@ -3465,9 +3677,17 @@ class Engine:
                 extra_probes=probes,
                 replay_window=replay_window,
                 session_id=session_id,
+                legs=legs,
             )
         base = await self._assemble_core(
-            query, ns, budget_tokens, top_k, session_id=session_id, hide=hide, probes=lookup_probes
+            query,
+            ns,
+            budget_tokens,
+            top_k,
+            session_id=session_id,
+            hide=hide,
+            probes=lookup_probes,
+            legs=legs,
         )
         episodic_hits = [r for r in base.records if r.memory_type == "episodic"]
         # H6: a mined atomic fact replays the source turn it best matches (its
@@ -3542,8 +3762,13 @@ class Engine:
         )
 
     async def _replay_neighbour(self, record_id: str, ns: str) -> MemoryRecord | None:
-        """C7': a replayed neighbour turn, gated, inflated and decorated; None if not shown."""
+        """C7': a replayed neighbour turn, gated, inflated and decorated; None if not shown.
+
+        #37: a neighbour outside the active date filter is not shown."""
         raw = await self._require_started().get_record(record_id)
+        date_filter = active_date_filter()
+        if raw is not None and date_filter is not None and not date_filter.matches(raw):
+            return None
         view = await self._live_view(raw) if raw is not None else None
         inflated = self._inflate_all([view], ns) if view is not None else []
         if not inflated:
@@ -3655,8 +3880,13 @@ class Engine:
         that name a person in the query come first; when none does, the most
         relevant insights are used. Lines are kept best first while the block fits
         ``read.profile_budget_share x budget_tokens``.
+
+        #40: under ``read.profile_header_packing`` the packed block replaces it
+        (:meth:`_packed_profile_section`).
         """
         read_cfg = self._config().read
+        if read_cfg.profile_header_packing:
+            return await self._packed_profile_section(ns, query, budget_tokens, session_id)
         if not read_cfg.profile_header:
             return None
         allowance = int(budget_tokens * read_cfg.profile_budget_share)
@@ -3684,6 +3914,70 @@ class Engine:
         if not kept:
             return None
         block = self._lead_record(ns, render_profile(names if about else [], kept), kept)
+        return block.model_copy(update={"tags": [constants.LEAD_TAG, constants.PROFILE_TAG]})
+
+    async def _packed_profile_section(
+        self, ns: str, query: str, budget_tokens: int, session_id: str | None = None
+    ) -> MemoryRecord | None:
+        """#40: the packed profile header, or None (nothing relevant fits).
+
+        Three searches, each gated like any search and each shown only when its hits
+        pass M12 abstention: the session summaries (semantic, ``consolidation``
+        channel), the H14 profile observations (reflective ``reflected:`` insights) and
+        the other hits (neither, and no mined fact while the cards header shows them).
+        Each candidate gets the per-record wrappers (marker escaping, instruction and
+        untrusted-note wrappers, H1 dates), then :func:`pack_profile` keeps summaries,
+        then observations, then hits while the block fits ``read.profile_header_budget``
+        tokens, never more than :data:`constants.PROFILE_PACK_MAX_SHARE` of the budget.
+        The routed read then leaves the packed records out (they are the block's parents).
+        """
+        read_cfg = self._config().read
+        allowance = min(
+            read_cfg.profile_header_budget,
+            int(budget_tokens * constants.PROFILE_PACK_MAX_SHARE),
+        )
+        if allowance <= estimate_tokens(constants.PROFILE_PACK_MARKER):
+            return None
+
+        def is_summary(r: MemoryRecord) -> bool:
+            return r.memory_type == "semantic" and r.source.channel == "consolidation"
+
+        def is_insight(r: MemoryRecord) -> bool:
+            return (
+                r.memory_type == "reflective"
+                and r.source.channel == "reflection"
+                and (r.source.message_id or "").startswith("reflected:")
+            )
+
+        cards_on = read_cfg.cards == "header"
+
+        def is_other(r: MemoryRecord) -> bool:
+            return not (is_summary(r) or is_insight(r) or (cards_on and "atomic_fact" in r.tags))
+
+        k = constants.PROFILE_PACK_SECTION_K
+        candidates: list[list[MemoryRecord]] = []
+        for memory_type, wanted in (
+            ("semantic", is_summary),
+            ("reflective", is_insight),
+            (None, is_other),
+        ):
+            hits = await self._search(
+                query,
+                ns,
+                k,
+                memory_type=memory_type,
+                keep_k=k,
+                session_id=session_id,
+                hide=lambda r, wanted=wanted: not wanted(r),  # type: ignore[misc]
+            )
+            if self._header_abstains(hits):
+                hits = []
+            candidates.append([self._wrap_for_context(r) for r, _ in hits])
+        kept = pack_profile(candidates, allowance)
+        parts = [r for section in kept for r in section]
+        if not parts:
+            return None
+        block = self._lead_record(ns, render_packed_profile(kept), parts)
         return block.model_copy(update={"tags": [constants.LEAD_TAG, constants.PROFILE_TAG]})
 
     async def _read_headers(
@@ -3916,17 +4210,21 @@ class Engine:
         extra_probes: Sequence[str] = (),
         replay_window: int = 2,
         session_id: str | None = None,
+        legs: Sequence[list[LegHit]] = (),
+        rewrites: Sequence[str] | None = None,
     ) -> ReadResult:
         """H3: session-diverse, wider-recall read for aggregation questions.
 
         ``extra_probes`` (G2a: the LLM planner's subqueries) join the query, its
-        core terms and the P4 rewrites; every probe's hits are rank-fused."""
+        core terms and the P4 rewrites; every probe's hits are rank-fused.
+        ``legs`` (#36) are fused into the query's own search. ``rewrites`` (#38): the
+        P4 rewrites already fetched for this query (None: fetch them here)."""
         assert self._assembly is not None
         probes = [query]
         terms = core_terms(query)
         if terms and terms.lower() != query.lower():
             probes.append(terms)
-        probes += await self._query_rewrite_probes(query)
+        probes += await self._query_rewrite_probes(query) if rewrites is None else list(rewrites)
         for probe in extra_probes:
             if probe.strip() and probe.strip().lower() not in (p.lower() for p in probes):
                 probes.append(probe.strip())
@@ -3939,7 +4237,13 @@ class Engine:
             # A-1: what the headers show leaves inside the search, before the rerank
             # and its ``rerank_keep`` cut (the legs widen until ``fetch`` survive).
             hits = await self._search(
-                probe, ns, fetch, session_id=session_id, keep_k=fetch, hide=hide
+                probe,
+                ns,
+                fetch,
+                session_id=session_id,
+                keep_k=fetch,
+                hide=hide,
+                fused_legs=legs if probe is query else (),
             )
             for rank, (record, score) in enumerate(hits, start=1):
                 rid = record.record_id
@@ -4004,6 +4308,101 @@ class Engine:
             "compose",
             self._render(query, AssembledContext(records=chosen, tokens_used=used), budget_tokens),
         )
+
+    async def _compose_checked(
+        self,
+        query: str,
+        ns: str,
+        budget_tokens: int,
+        top_k: int,
+        pool: int,
+        *,
+        hide: Callable[[MemoryRecord], bool] | None,
+        extra_probes: Sequence[str],
+        replay_window: int,
+        session_id: str | None,
+        legs: Sequence[list[LegHit]],
+    ) -> ReadResult:
+        """#38: a compose read, checked once for completeness (``read.completeness_check``).
+
+        The first compose result goes to the ``sufficiency`` role (+1 call); when it is
+        judged incomplete, ``sufficiency@missing`` writes up to
+        :data:`constants.COMPLETENESS_MAX_QUERIES` missing-information queries (+1 call)
+        and the compose read runs once more with them as extra probes. One round at most;
+        an abstained read, a complete verdict, no query or any failure keeps the first
+        result. The P4 rewrites are fetched once for both reads."""
+        rewrites = await self._query_rewrite_probes(query)
+        first = await self._compose(
+            query,
+            ns,
+            budget_tokens,
+            top_k,
+            pool,
+            hide=hide,
+            extra_probes=extra_probes,
+            replay_window=replay_window,
+            session_id=session_id,
+            legs=legs,
+            rewrites=rewrites,
+        )
+        if first.context.abstained or not first.context.records:
+            return first
+        missing = await self._missing_info_queries(query, first.context)
+        if not missing:
+            return first
+        return await self._compose(
+            query,
+            ns,
+            budget_tokens,
+            top_k,
+            pool,
+            hide=hide,
+            extra_probes=[*extra_probes, *missing],
+            replay_window=replay_window,
+            session_id=session_id,
+            legs=legs,
+            rewrites=rewrites,
+        )
+
+    async def _missing_info_queries(self, query: str, context: AssembledContext) -> list[str]:
+        """#38: the completeness verdict on ``context``, then (only when incomplete) the
+        missing-information queries; [] when complete, unbound or on any failure.
+
+        The ``sufficiency`` role answers, else the ``plan`` role. The notes are the
+        context's records one line each, as the read rendered them (escaped, wrapped)."""
+        llm_router = self._llm
+        role = next(
+            (r for r in ("sufficiency", "plan") if llm_router and r in llm_router.roles),
+            None,
+        )
+        if llm_router is None or role is None or self._prompts is None:
+            _log.warning("read.completeness_unbound", role="sufficiency")
+            return []
+        notes = "\n".join(f"- {' '.join(r.content.split())}" for r in context.records)
+        values: dict[str, object] = {"question": query, "context": notes}
+        llm = llm_router.for_role(role)
+        try:
+            verdict = await structured_call(
+                llm, self._prompts.select("sufficiency"), values, SufficiencyOut
+            )
+            if verdict.complete:
+                return []
+            wanted = await structured_call(
+                llm,
+                self._prompts.select("sufficiency", condition="missing"),
+                values,
+                MissingInfoOut,
+            )
+        except Exception as exc:  # an enhancer, never a gate
+            _log.warning("read.completeness_failed", error=str(exc))
+            return []
+        seen = {query.strip().lower()}
+        queries: list[str] = []
+        for text in wanted.queries:
+            if text.strip().lower() not in seen:
+                seen.add(text.strip().lower())
+                queries.append(text.strip())
+        return queries[: constants.COMPLETENESS_MAX_QUERIES]
 
     async def _expand_neighbours(
         self,
@@ -7006,11 +7405,12 @@ class Engine:
             _log.warning("read.planner_unbound", planner="llm", role="plan")
             return None
         try:
-            v2 = self._config().read.planner_version == "v2"
+            version = self._config().read.planner_version
             return await structured_call(
                 self._llm.for_role("plan"),
-                # #35: plan@v2 also writes evidence-seeking subqueries for lookups.
-                self._prompts.select("plan", condition="v2" if v2 else None),
+                # #35: plan@v2 also writes evidence-seeking subqueries for lookups;
+                # #36: plan@v3 also names the persons and the time expression.
+                self._prompts.select("plan", condition=None if version == "v1" else version),
                 {"query": query},
                 ReadPlan,
             )

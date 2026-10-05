@@ -11,8 +11,12 @@ skips the reasoning still yields its answer. Pure function, no model.
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
+from typing import Any
 
-__all__ = ["final_answer"]
+from memspine.core.records import MemoryRecord
+
+__all__ = ["final_answer", "numbered_context", "verification"]
 
 _THINK = re.compile(r"<think>.*?</think>", re.S | re.I)
 #: ``Answer:``, ``**Answer:**``, ``Final answer:``, a fullwidth colon ... after a boundary.
@@ -58,3 +62,34 @@ def final_answer(text: str) -> str:
     if matches:  # only dangling markers: the reply before the first one
         return cleaned[: matches[0].start()].strip()
     return cleaned
+
+
+def numbered_context(context: Sequence[MemoryRecord] | str) -> tuple[list[str], list[str]]:
+    """#39: ``context`` as numbered prompt lines ``[n] text``, and the id behind each line:
+    a record id (one line per record, whitespace collapsed), or ``L<n>`` for a plain-text
+    context (one line per non-empty text line)."""
+    if isinstance(context, str):
+        texts = [line.strip() for line in context.splitlines() if line.strip()]
+        ids = [f"L{n}" for n in range(1, len(texts) + 1)]
+    else:
+        texts = [" ".join(r.content.split()) for r in context]
+        ids = [r.record_id for r in context]
+    return [f"[{n}] {text}" for n, text in enumerate(texts, start=1)], ids
+
+
+def verification(
+    supported: bool,
+    evidence: Sequence[int],
+    revised_answer: str | None,
+    ids: Sequence[str],
+    answer: str,
+) -> dict[str, Any]:
+    """#39: a verify-answer verdict as ``{supported, evidence_ids, revised_answer}``.
+
+    Evidence numbers outside the context are dropped (and repeats); a revision is kept
+    only for an unsupported answer and only when it differs from the answer."""
+    evidence_ids = [ids[n - 1] for n in dict.fromkeys(evidence) if 1 <= n <= len(ids)]
+    revised = revised_answer
+    if supported or revised is None or revised.strip() == answer.strip():
+        revised = None
+    return {"supported": supported, "evidence_ids": evidence_ids, "revised_answer": revised}

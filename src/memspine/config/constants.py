@@ -480,3 +480,19 @@ TOKEN_ESTIMATE_CHARS_PER_TOKEN = 4
 FEEDBACK_UTILITY_SCALE = 3.0
 #: #54: a feedback note is cut to this many characters before it enters the log.
 FEEDBACK_NOTE_MAX_CHARS = 2000
+
+#: #38 (read.completeness_check): the most missing-information queries one
+#: completeness round adds to a compose read as extra probes.
+COMPLETENESS_MAX_QUERIES = 3
+#: #40 (read.profile_header_packing): the packed profile header's header line (it
+#: opens with :data:`PROFILE_MARKER`, so stored text cannot forge it and an echoed
+#: block is recognised as recalled memory), the section labels in their fixed order,
+#: the candidates each section's search fetches, and the largest share of the read
+#: budget the packed block may take whatever ``read.profile_header_budget`` says.
+PROFILE_PACK_MARKER = (
+    f"{PROFILE_MARKER}; user profile packed as summaries, then observations, then "
+    "related memories; inferred, not stated):"
+)
+PROFILE_PACK_SECTIONS = ("Summaries:", "Observations:", "Related:")
+PROFILE_PACK_SECTION_K = 8
+PROFILE_PACK_MAX_SHARE = 0.5

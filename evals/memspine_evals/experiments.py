@@ -122,6 +122,10 @@ class C01Config:
     service_prices: tuple[tuple[str, str, float], ...] = ()
     #: questions per item (rehearsals: the first N of a conversation). None = all.
     max_queries_per_item: int | None = None
+    #: #39 (SM-18): check each QA answer against its context with memspine's
+    #: ``verify_answer`` prompt on the judge's backend (+1 call per question); an
+    #: unsupported answer the context contradicts is replaced. Off: readers unchanged.
+    verify_answer: bool = False
 
 
 #: H25: declared protocol presets. OmniMemEval (MemTensor/OmniMemEval @ 0b1ea8d) is the
@@ -430,6 +434,14 @@ def build_reader_and_judge(config: C01Config) -> tuple[Reader, Judge, bool]:
             QWEN3_32B,
             judge_id=f"qwen3-32b-{config.judge_prompt}",
         )
+        if config.verify_answer:
+            return (
+                with_verifier(
+                    bedrock_reader, litellm_chat(budget, model=QWEN3_32B, max_tokens=192)
+                ),
+                judge,
+                True,
+            )
         return bedrock_reader, judge, True
     import os
 
@@ -448,7 +460,18 @@ def build_reader_and_judge(config: C01Config) -> tuple[Reader, Judge, bool]:
         openai_compat_chat(config.judge_model, base_url=config.base_url, api_key=api_key),
         config.judge_model,
     )
+    if config.verify_answer:
+        chat = openai_compat_chat(config.judge_model, base_url=config.base_url, api_key=api_key)
+        return with_verifier(reader, chat), judge, True
     return reader, judge, True
+
+
+def with_verifier(reader: Any, chat: Any) -> Any:
+    """#39: ``reader`` wrapped so each answer is verified against its context."""
+    from .verify import VerifyingReader, chat_verifier
+
+    verify, prompt_version = chat_verifier(chat)
+    return VerifyingReader(reader, verify, prompt_version)
 
 
 def _abstention_queries(dataset: DatasetAdapter) -> int:
@@ -514,6 +537,7 @@ async def run_c0_1(
             "hybrid": config.hybrid,
             "categories": list(config.categories) if config.categories is not None else "all",
             "qa_prompt": config.qa_prompt if config.mode == "qa" else None,
+            **({"verify_answer": True} if config.verify_answer else {}),
             "judge_prompt": config.judge_prompt if config.mode == "qa" else None,
             "arms": [s.system_id for s in systems],
             "naive_dense_same_embedder": config.naive_dense_same_embedder,

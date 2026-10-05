@@ -85,6 +85,14 @@ class SearchRequest(_Request):
     query: str = Field(max_length=constants.MAX_LEXICAL_QUERY_CHARS)
     top_k: int = Field(default=constants.SEARCH_TOP_K, ge=1)
     purpose: str | None = None  # #50
+    #: #37: date filters (``*_after`` inclusive, ``*_before`` exclusive), see Engine.search.
+    valid_from_after: datetime | None = None
+    valid_from_before: datetime | None = None
+    valid_to_after: datetime | None = None
+    valid_to_before: datetime | None = None
+    recorded_after: datetime | None = None
+    recorded_before: datetime | None = None
+    date_filter_mode: Literal["and", "or"] = "and"
 
 
 class AssembleRequest(_Request):

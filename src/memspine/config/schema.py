@@ -354,8 +354,10 @@ class ReadConfig(BaseModel):
     #: #35: with ``planner: llm``, ``v2`` selects the ``plan@v2`` prompt, which also
     #: writes one or two evidence-seeking subqueries for lookup questions ("Is X
     #: religious?" -> "church", "faith"); the lookup read then fuses them by RRF as
-    #: extra search legs. ``v1``: unchanged.
-    planner_version: Literal["v1", "v2"] = "v1"
+    #: extra search legs. ``v3`` (#36) selects ``plan@v3``: v2 plus the people the
+    #: question is about (``persons``) and its time expression (``time_expr``), which
+    #: feed the persons / time leg (``person_time_leg_k``). ``v1``: unchanged.
+    planner_version: Literal["v1", "v2", "v3"] = "v1"
     #: G2c: compose results get the same +-``replay_window`` neighbour expansion as
     #: replay mode (nearest first, within the budget), so routing an aggregation
     #: question to compose no longer loses the turns around each hit.
@@ -479,6 +481,24 @@ class ReadConfig(BaseModel):
     #: belongs to the community. Others never reach the context; with
     #: ``graph_leg`` on, the admitted ones join the graph leg. Off: byte-identical.
     graph_communities: bool = False
+    #: #36: with ``planner: llm`` and ``planner_version: v3``, the routed read fuses a
+    #: structured leg by RRF: records whose ``valid_from`` lies in the span the plan's
+    #: ``time_expr`` names (H1 rules) and/or that are about the plan's ``persons``
+    #: (``person:`` tags, else the record's entity), at most this many.
+    person_time_leg_k: int = Field(default=10, ge=1)
+    #: #38: for aggregate / list / count reads routed to compose, ask the ``sufficiency``
+    #: role (else ``plan``) whether the context is complete (+1 call) and, when it is
+    #: not, for up to three missing-information queries (+1 call, ``sufficiency@missing``);
+    #: the compose read then runs once more with them as extra probes. One round at most.
+    #: Off: no call, byte-identical.
+    completeness_check: bool = False
+    #: #40: the profile header packs, within ``profile_header_budget`` tokens (at most
+    #: half the read budget), the session summaries, then the profile observations
+    #: (H14 insights), then the best other hits for the query, one dated, escaped line
+    #: each, in a fixed section order. Independent of ``profile_header``. Off:
+    #: byte-identical.
+    profile_header_packing: bool = False
+    profile_header_budget: int = Field(default=300, ge=1)
 
     @model_validator(mode="after")
     def _header_shares_leave_room(self) -> ReadConfig:
