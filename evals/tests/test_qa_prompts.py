@@ -182,3 +182,32 @@ def test_qa_prompt_is_selectable_for_every_category(qa_prompt: str, categories: 
     )
     assert args.qa_prompt == qa_prompt
     assert parse_categories(args.categories) in (None, *[(c,) for c in range(1, 6)], (1, 2, 3, 4))
+
+
+@pytest.mark.parametrize("bedrock", [False, True])
+@pytest.mark.parametrize("qa_prompt", sorted(QA_PROMPTS))
+def test_describe_records_the_answer_extractor_only_when_extracting(
+    monkeypatch: pytest.MonkeyPatch, bedrock: bool, qa_prompt: str
+) -> None:
+    """A run manifest names the ``final_answer`` version whenever a reader extracts, and
+    every non-extracting reader's ``describe()`` keeps exactly its old keys (published
+    runs stay comparable)."""
+    import sys
+    from types import SimpleNamespace
+
+    from memspine_evals.experiments import C01Config, build_reader_and_judge
+
+    monkeypatch.setitem(sys.modules, "litellm", SimpleNamespace())
+    config = C01Config(
+        mode="qa", bedrock=bedrock, max_model_calls=5, qa_prompt=qa_prompt, categories=(1, 2, 3, 4)
+    )
+    reader, _, _ = build_reader_and_judge(config)
+    described = dict(reader.describe())
+    old_keys = {"reader_id", "model", "temperature", "max_tokens", "prompt_sha256"}
+    old_keys |= {"no_think"} if bedrock else {"base_url"}
+    if reader.extract_answer:  # type: ignore[attr-defined]
+        assert described["extract_answer"] is True
+        assert described["answer_extractor"] == "v2"
+        assert set(described) == old_keys | {"extract_answer", "answer_extractor"}
+    else:
+        assert set(described) == old_keys

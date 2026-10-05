@@ -137,6 +137,11 @@ REASONING_QA_PROMPTS = frozenset({"dated3"})
 REASONING_MAX_TOKENS = 512
 
 _THINK = re.compile(r"<think>.*?</think>", re.S | re.I)
+#: Version of :func:`final_answer` recorded in ``describe()`` when ``extract_answer`` is
+#: set. "v2" is the Wave 1 rewrite (``<think>`` handling, dangling markers, first line
+#: after the last marker); bump it whenever ``final_answer``'s output can change.
+ANSWER_EXTRACTOR_VERSION = "v2"
+
 _MARKER = re.compile(
     r"(?:^|(?<=[\s*>#_(\[]))\**\s*(?:final\s+|short\s+)?answer\s*\**\s*[:\uff1a]\s*\**",
     re.I,
@@ -289,7 +294,11 @@ class OpenAICompatReader:
             "temperature": self.temperature,
             "max_tokens": self.max_tokens,
             "prompt_sha256": __import__("hashlib").sha256(self.prompt.encode()).hexdigest(),
-            **({"extract_answer": True} if self.extract_answer else {}),
+            **(
+                {"extract_answer": True, "answer_extractor": ANSWER_EXTRACTOR_VERSION}
+                if self.extract_answer
+                else {}
+            ),
         }
 
     async def answer(

@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import Any
 
 from .contracts import ReaderAnswer
-from .readers import DEFAULT_QA_PROMPT, final_answer
+from .readers import ANSWER_EXTRACTOR_VERSION, DEFAULT_QA_PROMPT, final_answer
 from .runner import ModelCallBudgetExceeded
 
 __all__ = [
@@ -435,7 +435,11 @@ class LiteLLMReader:
             "max_tokens": self.max_tokens,
             "no_think": self.no_think,
             "prompt_sha256": hashlib.sha256(self.prompt.encode()).hexdigest(),
-            **({"extract_answer": True} if self.extract_answer else {}),
+            **(
+                {"extract_answer": True, "answer_extractor": ANSWER_EXTRACTOR_VERSION}
+                if self.extract_answer
+                else {}
+            ),
         }
 
     async def complete(self, content: str, system: str | None = None) -> ReaderAnswer:

@@ -4,6 +4,9 @@ All notable changes to memspine are documented here. Format: [Keep a Changelog](
 
 ## [Unreleased]
 
+### Fixed — read/write review (2026-10-06)
+- **Harness provenance:** a reader with `extract_answer` set (`--qa-prompt dated3`, OpenAI-compatible and Bedrock/LiteLLM paths) now records `answer_extractor: "v2"` in `describe()`, so a run manifest names the `final_answer` version (rewritten in Wave 1). Every other reader's `describe()` is byte-identical. `dated3` was introduced in Wave 1 and has no published runs, so no published manifest changes.
+
 ### Added — Wave 2b graph intervals and rerank (2026-10-06)
 - **#19 interval arithmetic (opt-in, `memories.semantic.policies.conflict.interval_order`):** records gain an optional `invalid_at` (migration 0004; omitted from payloads when unset). Superseded/retracted facts get `invalid_at`; an older-arriving contradiction is stored as history ending at the next statement and re-closes the history entry it lands in; same key + same `dst:` endpoint merges as a duplicate. Off: unchanged.
 - **#20 session-level extraction (opt-in, `extract_graph.granularity: session`):** one `extract_edges@session` call per consolidated session, per-fact turn attribution via `episode_indices` (parents + links), GLiNER2 entities as the allowed list, per-session watermark.
