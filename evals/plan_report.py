@@ -2,11 +2,13 @@
 
     python plan_report.py --runs runs --prefix aamas27-locomo-qwen3 [--base memspine-base]
 
-For every ``<prefix>--<arm>[-resume|--rN]--<system>`` run directory it reads
-``results.jsonl`` (rows keyed by query_id, a resume row replacing the original),
+For every ``<prefix>--<arm>[-resume|-chunkNN|--rN]--<system>`` run directory it reads
+``results.jsonl`` (rows keyed by query_id, a chunk or resume row replacing the original),
 and prints accuracy, per-category accuracy, mean context tokens, cost (``spend.usd``
 of every contributing run) and the delta against ``--base``. Repeats (``--rN``)
-are reported as their own rows plus a mean ± sd line per arm.
+are reported as their own rows plus a mean ± sd line per arm. An arm is flagged
+``(partial)`` when it is short of ``--n`` questions, when no part of it finished cleanly
+(an aborted run's summary says ``aborted``), or when any merged row is an error.
 """
 
 from __future__ import annotations
@@ -19,10 +21,35 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
+#: ``<prefix>--<arm>[-resume|-chunkNN][--rN][-resume|-chunkNN]--<system>``. A
+#: ``-chunkNN`` part (``run_chunked.py``) or a ``-resume`` run is a part of the same
+#: replicate as the original, after it, whichever side of the repeat tag it sits.
 _DIR = re.compile(
-    r"^(?P<prefix>.+?)--(?P<arm>.+?)(?P<resume>-resume)?"
-    r"(?:--r(?P<rep>\d+))?--(?P<system>[^-].*)$"
+    r"^(?P<prefix>.+?)--(?P<arm>.+?)(?P<resume>-resume|-chunk\d+)?"
+    r"(?:--r(?P<rep>\d+))?(?P<part>-resume|-chunk\d+)?--(?P<system>[^-].*)$"
 )
+
+
+def part_order(name: str) -> tuple[int, int]:
+    """Merge order of a run directory within its replicate: the original first, then
+    ``-chunkNN`` parts in number order, then ``-resume`` runs (later rows win)."""
+    m = _DIR.match(name)
+    kind = (m["resume"] or m["part"]) if m else None
+    if not kind:
+        return (0, 0)
+    if kind.startswith("-chunk"):
+        return (1, int(kind[len("-chunk") :]))
+    return (2, 0)
+
+
+def _summary(run_dir: Path) -> dict[str, Any] | None:
+    path = run_dir / "summary.json"
+    if not path.exists():
+        return None
+    try:
+        return dict(json.loads(path.read_text(encoding="utf-8")))
+    except (OSError, ValueError):
+        return None
 
 
 def _rows(run_dir: Path) -> list[dict[str, Any]]:
@@ -38,11 +65,14 @@ def _rows(run_dir: Path) -> list[dict[str, Any]]:
 
 
 def _spend(run_dir: Path) -> float:
-    summary = run_dir / "summary.json"
-    if not summary.exists():
+    """Metered dollars of one run, clean or aborted (an aborted run writes its summary)."""
+    data = _summary(run_dir)
+    if data is None:
         return 0.0
-    data = json.loads(summary.read_text(encoding="utf-8"))
-    return float((data.get("spend") or {}).get("usd") or data["summary"].get("cost_usd") or 0.0)
+    usd = (data.get("spend") or {}).get("usd")
+    if usd is None:
+        usd = (data.get("summary") or {}).get("cost_usd")
+    return float(usd or 0.0)
 
 
 def collect(runs: Path, prefix: str) -> dict[tuple[str, str, str], dict[str, Any]]:
@@ -58,25 +88,31 @@ def collect(runs: Path, prefix: str) -> dict[tuple[str, str, str], dict[str, Any
     for key, dirs in groups.items():
         merged: dict[str, dict[str, Any]] = {}
         # originals first, resumes last, so a resume row replaces the original's
-        for d in sorted(dirs, key=lambda p: "-resume--" in p.name):
+        for d in sorted(dirs, key=lambda p: part_order(p.name)):
             for row in _rows(d):
                 merged[row["query_id"]] = row
         by: dict[str, list[float]] = defaultdict(list)
         ctx = 0
+        errors = 0
         for row in merged.values():
             ok = row.get("status") in ("completed", "truncated") and row.get("score") is not None
+            errors += 0 if ok else 1
             by[row.get("type_label") or "?"].append(float(row["score"]) if ok else 0.0)
             ctx += int(row.get("context_tokens") or 0)
         values = [v for vs in by.values() for v in vs]
-        # a crashed run has no summary, but its resume completes the arm: judge by rows
-        complete = any((d / "summary.json").exists() for d in dirs)
+        # A crashed run's summary is marked aborted, and a resume completes the arm:
+        # complete = some part finished cleanly and no merged row is an error.
+        summaries = [_summary(d) for d in dirs]
+        finished = any(s is not None and not s.get("aborted") for s in summaries)
         table[key] = {
             "n": len(merged),
             "acc": 100 * sum(values) / max(1, len(values)),
             "by": {k: 100 * sum(v) / len(v) for k, v in sorted(by.items())},
             "ctx": ctx // max(1, len(merged)),
             "usd": sum(_spend(d) for d in dirs),
-            "complete": complete,
+            "errors": errors,
+            "aborted": any(s is not None and s.get("aborted") for s in summaries),
+            "complete": finished and errors == 0,
         }
     return table
 
@@ -97,6 +133,8 @@ def main(argv: list[str] | None = None) -> int:
     for (arm, system, rep), v in sorted(table.items(), key=lambda kv: -kv[1]["acc"]):
         delta = f"{v['acc'] - base['acc']:+.1f}" if base and system == "memspine" else ""
         flag = "" if v["complete"] and v["n"] == args.n else " (partial)"
+        if v["errors"]:
+            flag += f" [{v['errors']} error rows, scored 0]"
         name = arm + (f" r{rep}" if rep else "")
         by_cat = (f"{v['by'].get(c, 0):.1f}" for c in cats)
         cells = [name + flag, system, f"{v['acc']:.1f}", delta, *by_cat,

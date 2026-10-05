@@ -70,6 +70,10 @@ def arm_command(
             cmd += ["--memspine-read-mode", read_mode]
         if arm.get("build_sleep", base.get("build_sleep")):
             cmd.append("--memspine-build-sleep")
+        # C-8: the rehearsal reads batch_turns the same way (rehearsal.arm_config)
+        batch_turns = int(arm.get("batch_turns", base.get("batch_turns", 1)))
+        if batch_turns > 1:
+            cmd += ["--memspine-batch-turns", str(batch_turns)]
         if proto.get("memspine_llm"):
             cmd += ["--memspine-llm", proto["memspine_llm"]]
     cmd += ["--only-systems", ",".join(systems)]

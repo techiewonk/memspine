@@ -96,3 +96,23 @@ def test_disabled_arms_run_only_when_named(capsys: object) -> None:
     with redirect_stdout(out):
         plan_commands.main(["--arms", "R-cohere"])
     assert "--run-id aamas27-locomo-qwen3--R-cohere " in out.getvalue()
+
+
+def test_batch_turns_reaches_the_command() -> None:
+    """C-8: an arm's batch_turns is emitted, as the rehearsal applies it."""
+    from memspine_evals.rehearsal import arm_config
+
+    plan = json.loads(plan_commands.PLAN.read_text(encoding="utf-8"))
+    arm = {"id": "batched", "systems": ["memspine"], "batch_turns": 8}
+    cmd = plan_commands.arm_command(
+        plan, arm, path="data/locomo10.json", prices=[], max_usd=None, max_calls=10, repeat=None
+    )
+    assert cmd[cmd.index("--memspine-batch-turns") + 1] == "8"
+    args = build_parser().parse_args(cmd[3:])
+    rehearsed = arm_config(plan, arm, item_ids=None, max_queries=None, prices={})
+    assert args.memspine_batch_turns == rehearsed.memspine_batch_turns == 8
+    plain = plan_commands.arm_command(
+        plan, {"id": "p", "systems": ["memspine"]}, path="x", prices=[], max_usd=None,
+        max_calls=10, repeat=None,
+    )  # fmt: skip
+    assert "--memspine-batch-turns" not in plain

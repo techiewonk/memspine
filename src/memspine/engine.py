@@ -381,6 +381,8 @@ class Engine:
         self._assembly_compression: CompressionPolicy | None = None
         self._reranker: Reranker | None = None
         self._rerank_unavailable = False
+        self._rerank_calls = 0  # E8 attempts / failures, read by rerank_stats()
+        self._rerank_failures = 0
         # E4 (ADR-020): whether the vector leg runs the two-stage quantized
         # rescore (manifest-driven + vector.quantization override). Off => the
         # exact query() path, byte-identical to the pre-E4 pipeline.
@@ -2095,6 +2097,7 @@ class Engine:
                     for (record, _), doc in zip(candidates, documents, strict=True)
                 ]
             try:
+                self._rerank_calls += 1
                 raw_scores = await reranker.rerank(query, documents)
                 relevances = _minmax_normalize(raw_scores)
                 candidates = [
@@ -2103,6 +2106,7 @@ class Engine:
                 ]
                 reranked = True
             except Exception as exc:
+                self._rerank_failures += 1
                 _log.warning(
                     "rerank.failed", namespace=ns, reranker=reranker.reranker_id, error=str(exc)
                 )
@@ -4564,6 +4568,19 @@ class Engine:
         """LLM calls this engine has made since ``start()``, per role (read and
         write path alike). Empty when no LLM is configured."""
         return self._llm.call_counts() if self._llm is not None else {}
+
+    def rerank_stats(self) -> dict[str, Any]:
+        """E8 reranker use since construction: ``{"mode", "calls", "failures",
+        "unavailable"}``. ``calls`` counts rerank attempts, ``failures`` those that
+        raised (retrieval fell back to vector order), ``unavailable`` that the adapter
+        could not be built and the stage disabled itself. Read-only."""
+        mode = self._resolved.config.read.rerank if self._resolved is not None else None
+        return {
+            "mode": mode,
+            "calls": self._rerank_calls,
+            "failures": self._rerank_failures,
+            "unavailable": self._rerank_unavailable,
+        }
 
     def model_usage(self) -> dict[str, dict[str, Any]]:
         """Per-role LLM spend since ``start()``: ``{"model", "calls", "prompt", "completion"}``.

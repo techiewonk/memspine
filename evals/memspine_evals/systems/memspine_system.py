@@ -163,6 +163,29 @@ class MemspineSystem:
         counts = getattr(self._engine, "model_calls", None)
         return sum(counts().values()) if callable(counts) else None
 
+    def _rerank_stats(self) -> dict[str, Any] | None:
+        """``Engine.rerank_stats()`` (C-5), None for an engine without it."""
+        stats = getattr(self._engine, "rerank_stats", None)
+        return dict(stats()) if callable(stats) else None
+
+    def _embed_model(self) -> str | None:
+        """C-6: the paid (LiteLLM) embedder's model id, None for a local one."""
+        embedding = dict(self.config.get("embedding") or {})
+        return str(embedding.get("model")) if embedding.get("provider") == "litellm" else None
+
+    def _rerank_model(self) -> str | None:
+        """C-6: the paid (LiteLLM) reranker's model id, None for a local one or none."""
+        read = dict(self.config.get("read") or {})
+        return str(read.get("rerank_model")) if read.get("rerank") == "litellm" else None
+
+    def _embed_services(self, texts: list[str]) -> dict[str, float]:
+        """C-6: estimated embedding tokens for ``texts`` (the harness token counter; the
+        engine does not report its embedder's usage), keyed ``embed:<model>``."""
+        model = self._embed_model()
+        if model is None or not texts:
+            return {}
+        return {f"embed:{model}": float(sum(self._counter.count(t) for t in texts))}
+
     def _usage(self) -> dict[str, dict[str, Any]]:
         """Per-role engine LLM use so far (``Engine.model_usage``), {} when unavailable."""
         usage = getattr(self._engine, "model_usage", None)
@@ -255,6 +278,9 @@ class MemspineSystem:
         meta: dict[str, Any] = {}
         if len(turns) > 1:
             meta["batched_turns"] = [turn.turn_id for turn in turns]
+        services = self._embed_services(texts)
+        if services:
+            meta["engine_services"] = services
         after = self._calls()
         if before is None or after is None:
             # An engine without ``model_calls()`` cannot report write cost; the
@@ -319,6 +345,7 @@ class MemspineSystem:
         flushed = await self.flush()
         before = self._calls()
         usage_before = self._usage()
+        rerank_before = self._rerank_stats()
         if self._read_mode:
             result = await self._engine.read(
                 text,
@@ -334,6 +361,10 @@ class MemspineSystem:
             )
         after = self._calls()
         engine_llm = self._usage_delta(usage_before, self._usage())
+        rerank_meta = self._rerank_meta(rerank_before, self._rerank_stats())
+        services = self._embed_services([text])
+        if rerank_meta.get("rerank_calls") and self._rerank_model() is not None:
+            services[f"rerank:{self._rerank_model()}"] = float(rerank_meta["rerank_calls"])
         lines: list[str] = []
         evidence: list[Evidence] = []
         offset = 0
@@ -382,8 +413,28 @@ class MemspineSystem:
                 # query-side calls (rewrites, relevance filter, planner LLMs)
                 **cost,
                 **({"engine_llm": engine_llm} if engine_llm else {}),
+                **rerank_meta,
+                **({"engine_services": services} if services else {}),
             },
         )
+
+    @staticmethod
+    def _rerank_meta(
+        before: Mapping[str, Any] | None, after: Mapping[str, Any] | None
+    ) -> dict[str, Any]:
+        """C-5: this query's rerank audit: the configured mode, whether a rerank returned
+        scores (``reranked``), and its attempts and failures. {} without the counters."""
+        if before is None or after is None:
+            return {}
+        calls = int(after.get("calls", 0)) - int(before.get("calls", 0))
+        failures = int(after.get("failures", 0)) - int(before.get("failures", 0))
+        return {
+            "rerank_mode": after.get("mode"),
+            "reranked": calls - failures > 0,
+            "rerank_calls": calls,
+            "rerank_failures": failures,
+            **({"rerank_unavailable": True} if after.get("unavailable") else {}),
+        }
 
     async def close(self) -> None:
         if self._engine is not None:
@@ -425,6 +476,10 @@ def _merge_deposits(results: list[DepositResult]) -> DepositResult:
         for key, value in result.meta.items():
             if key == "batched_turns":
                 meta.setdefault(key, []).extend(value)
+            elif key == "engine_services":
+                services = meta.setdefault(key, {})
+                for name, units in value.items():
+                    services[name] = services.get(name, 0.0) + float(units)
             elif key == "engine_llm":
                 merged = meta.setdefault(key, {})
                 for role, usage in value.items():

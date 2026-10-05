@@ -52,13 +52,32 @@ def resolve_categories(args: argparse.Namespace) -> tuple[int, ...] | None:
 
 
 def parse_prices(specs: list[str] | None) -> tuple[tuple[str, float, float], ...]:
-    """Repeated ``--price model=IN,OUT`` flags -> ``(model, in, out)`` triples."""
-    from .bedrock import parse_price
+    """Repeated ``--price model=IN,OUT`` flags -> ``(model, in, out)`` triples.
+
+    ``embed:`` / ``rerank:`` prices (C-6) are skipped here; see ``parse_service_prices``.
+    """
+    from .bedrock import parse_price, parse_service_price
 
     try:
-        return tuple(parse_price(spec) for spec in specs or ())
+        return tuple(parse_price(spec) for spec in specs or () if parse_service_price(spec) is None)
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
+
+
+def parse_service_prices(specs: list[str] | None) -> tuple[tuple[str, str, float], ...]:
+    """C-6: ``--price embed:MODEL=USD_PER_MTOK`` / ``--price rerank:MODEL=USD_PER_1K``
+    flags -> ``(kind, model, price)`` triples."""
+    from .bedrock import parse_service_price
+
+    out: list[tuple[str, str, float]] = []
+    try:
+        for spec in specs or ():
+            parsed = parse_service_price(spec)
+            if parsed is not None:
+                out.append(parsed)
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
+    return tuple(out)
 
 
 DEFAULT_OUT = Path(__file__).resolve().parents[1] / "runs"
@@ -148,23 +167,40 @@ def cmd_c0_1(args: argparse.Namespace) -> int:
         matched_budget_tokens=args.matched_budget_tokens,
         memspine_llm=args.memspine_llm,
         prices_per_mtok=parse_prices(args.price),
+        service_prices=parse_service_prices(args.price),
         max_usd=args.max_usd,
     )
     if args.protocol:
         from .experiments import apply_protocol_preset
 
         config = apply_protocol_preset(config, args.protocol)
-    from .experiments import check_dollar_cap
+    from .experiments import check_dollar_cap, unpriced_services
 
     try:
         check_dollar_cap(config)
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
+    for kind, model in unpriced_services(config):
+        # C-6: without --max-usd an unpriced paid service is allowed, but not silently
+        print(
+            f"WARNING: the memspine arm's {kind} model {model!r} is a paid cloud service "
+            f"with no --price {kind}:{model}=...; its cost is NOT in the metered spend",
+            file=sys.stderr,
+            flush=True,
+        )
     if config.bedrock or (config.include_memspine and config.memspine_llm != "none"):
         from .bedrock import load_aws_credentials
 
         # AWS keys + region ONLY; nothing else in the repo .env is read.
         load_aws_credentials(Path(__file__).resolve().parents[2] / ".env")
+        if not args.skip_preflight:
+            from .credentials import CredentialsInvalid, estimate_run_seconds, preflight_aws
+
+            # C-3: before any spend, the credentials must work and should outlive the run.
+            try:
+                preflight_aws(expected_seconds=estimate_run_seconds(args.max_model_calls))
+            except CredentialsInvalid as exc:
+                raise SystemExit(str(exc)) from exc
     if config.include_memspine and config.memspine_llm != "none" and args.max_model_calls is None:
         raise SystemExit(
             "--memspine-llm binds the engine's LLM roles to a paid model — pass "
@@ -359,7 +395,14 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         metavar="MODEL=IN,OUT",
         help="USD per 1M input,output tokens for a model id (repeatable); overrides the "
-        "built-in table. Take it from the AWS Bedrock pricing page",
+        "built-in table. Also embed:MODEL=USD_PER_1M_TOKENS for a paid embedder and "
+        "rerank:MODEL=USD_PER_1K_SEARCHES for a paid reranker (C-6). Take them from the "
+        "AWS Bedrock pricing page",
+    )
+    c01.add_argument(
+        "--skip-preflight",
+        action="store_true",
+        help="do not check the AWS credentials with STS before a paid run (C-3)",
     )
     c01.add_argument(
         "--max-usd",
