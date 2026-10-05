@@ -20,7 +20,11 @@ __all__ = [
     "ConsolidatedFact",
     "ConsolidatedFacts",
     "DuplicateVerdictOut",
+    "EntityMatch",
+    "EntityMatches",
     "EntityResolutionOut",
+    "EntitySummaries",
+    "EntitySummary",
     "ExtractedEdge",
     "ExtractedEdges",
     "ExtractedFact",
@@ -353,6 +357,33 @@ class InstructionFlagOut(BaseModel):
     reason: str = ""
 
 
+class EntitySummary(BaseModel):
+    """GP-6 (#17): the summary of one numbered entity (``summarize_entity``)."""
+
+    index: int
+    summary: str = ""
+
+    _summary_as_text = field_validator("summary", mode="before")(_as_text)
+
+
+class EntitySummaries(BaseModel):
+    summaries: list[EntitySummary] = Field(default_factory=list)
+
+
+class EntityMatch(BaseModel):
+    """GP-7 (#18): the known entity one numbered name refers to, or empty for a
+    new entity (``resolve_entity@batch``)."""
+
+    index: int
+    match: str = ""
+
+    _match_as_text = field_validator("match", mode="before")(_as_text)
+
+
+class EntityMatches(BaseModel):
+    matches: list[EntityMatch] = Field(default_factory=list)
+
+
 OUTPUT_MODELS: dict[str, type[BaseModel]] = {
     "ExtractedFacts": ExtractedFacts,
     "FactDates": FactDates,
@@ -362,6 +393,8 @@ OUTPUT_MODELS: dict[str, type[BaseModel]] = {
     "ConflictVerdictOut": ConflictVerdictOut,
     "DuplicateVerdictOut": DuplicateVerdictOut,
     "EntityResolutionOut": EntityResolutionOut,
+    "EntityMatches": EntityMatches,
+    "EntitySummaries": EntitySummaries,
     "InstructionFlagOut": InstructionFlagOut,
     "AnticipatedCues": AnticipatedCues,
     "RelevanceLabels": RelevanceLabels,

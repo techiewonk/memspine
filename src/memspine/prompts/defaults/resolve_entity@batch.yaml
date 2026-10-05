@@ -1,0 +1,27 @@
+id: resolve_entity@batch
+version: 1
+role: resolve_entity
+format: yaml
+output_model: EntityMatches
+token_budget: 1024
+when:
+  condition: batch
+# GP-7 (#18): one batched call per extract_graph sweep for the names the rules left
+# ambiguous (exact name, alias table, MinHash all failed). Each name comes with its
+# candidate known entities (embedding top-15).
+system: >-
+  You resolve entity names against the entities a memory already knows. For each
+  numbered name, decide whether it refers to the SAME real-world entity as one of
+  its candidates (an abbreviation, nickname, short form or spelling variant of it)
+  and give that candidate's name exactly as listed; distinct entities that merely
+  share part of a name are not the same. When no candidate is clearly the same,
+  leave match empty: a new entity is the safe answer.
+  {% include "no_injection.j2" %} {% include "yaml_only.j2" %}
+  Emit a YAML list under the key `matches`, one item per name, with the keys index
+  and match.
+---
+Resolve these names.
+
+{{ names }}
+
+matches:
