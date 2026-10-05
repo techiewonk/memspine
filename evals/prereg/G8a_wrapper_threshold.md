@@ -114,3 +114,16 @@ approval.
   The proxy is about the wrapper, which acts after retrieval, so it is used as a relative
   measure across t, not as an absolute recall figure.
 - Fixtures are the repository's own defensive strings; no adaptive attacker is modelled.
+
+## Amendment 1 (2026-10-06, after the first offline run)
+
+- **Process isolation.** Running all twelve utility cells in one process ran the host out
+  of native memory. Each cell now runs in a child process with a result cache and up to
+  three attempts. Measurement unchanged.
+- **Retrieval is not run-to-run deterministic** in this configuration: two runs of the same
+  cell (LoCoMo conv-26, t = 0.0, user/messages) delivered 110 and 111 gold pairs, differing
+  in 3 pairs, with no wrapping involved (also with `PYTHONHASHSEED=0`). U(t) as registered
+  compares two separate retrievals, so it carries noise of a few pairs (about ±3%). The
+  results file therefore also reports a **wrap-only share** (among the pairs delivered at t,
+  the share delivered unwrapped). It is reported only; the decision rule in section 5 is
+  applied as registered, to U_a. The source of the nondeterminism is not investigated here.

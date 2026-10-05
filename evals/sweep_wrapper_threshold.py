@@ -270,6 +270,8 @@ class Row:
     threshold: float
     fixture_states: dict[str, str] = field(default_factory=dict)
     u: dict[str, tuple[int, int, int]] = field(default_factory=dict)  # kept, delivered, base
+    #: amendment 1 (not decisional): (unwrapped, delivered) among pairs delivered at t
+    wrap_only: dict[str, tuple[int, int]] = field(default_factory=dict)
 
     @property
     def pass_through(self) -> float:
@@ -308,17 +310,40 @@ async def _isolated(
     return await asyncio.to_thread(_run_cell, threshold, channel, locomo)
 
 
+#: set by ``--cache-dir``: finished cells are kept there, so a run killed by the machine
+#: running out of memory resumes instead of starting again
+CACHE_DIR: Path | None = None
+CELL_ATTEMPTS = 3
+CELL_TIMEOUT_S = 900
+
+
 def _run_cell(threshold: float, channel: str, locomo: Path | None) -> dict[tuple[str, str], bool]:
     import subprocess
     import tempfile
+    import time
 
     with tempfile.TemporaryDirectory() as tmp:
-        out = Path(tmp) / "cell.json"
+        folder = CACHE_DIR or Path(tmp)
+        folder.mkdir(parents=True, exist_ok=True)
+        out = folder / f"cell_{channel}_{threshold:.2f}.json"
         cmd = [sys.executable, str(Path(__file__).resolve()), "--cell", channel, str(threshold)]
         cmd += ["--cell-out", str(out)]
         if locomo is not None:
             cmd += ["--locomo", str(locomo)]
-        subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL)
+        for attempt in range(CELL_ATTEMPTS):
+            if out.exists():
+                break
+            try:
+                done = subprocess.run(
+                    cmd, check=False, stdout=subprocess.DEVNULL, timeout=CELL_TIMEOUT_S
+                )
+            except subprocess.TimeoutExpired:  # a child can hang after a MemoryError
+                done = None
+            if done is not None and done.returncode == 0:
+                break
+            if attempt == CELL_ATTEMPTS - 1:
+                raise RuntimeError(f"cell {channel}@{threshold} failed {CELL_ATTEMPTS} times")
+            time.sleep(30)  # memory pressure on the host: wait, then retry the cell
         rows = json.loads(out.read_text(encoding="utf-8"))
     return {(q, t): bool(u) for q, t, u in rows}
 
@@ -347,6 +372,7 @@ async def sweep(
             )
             kept = sum(1 for key in baseline if got.get(key, False))
             row.u[cond] = (kept, len(got), len(baseline))
+            row.wrap_only[cond] = (sum(got.values()), len(got))
     meta = {
         "utility_source": source,
         "n_queries_with_gold": sum(1 for q in item.queries if q.gold_turn_ids),
@@ -407,6 +433,22 @@ def render(rows: Sequence[Row], meta: dict[str, Any]) -> str:
     chosen, why = decide(rows)
     lines += [
         "",
+        "Amendment 1 (added after the first run, not decisional): retrieval in this "
+        "configuration is not run-to-run deterministic, so U compares two separate "
+        "retrievals and moves by a few pairs with no wrapping involved. The wrap-only "
+        "share below counts, among the pairs delivered at t, those delivered unwrapped.",
+        "",
+        "| t | U_a wrap-only | U_b wrap-only |",
+        "|---|---|---|",
+    ]
+    for r in rows:
+        cells = []
+        for cond in ("U_a", "U_b"):
+            ok, n = r.wrap_only.get(cond, (0, 0))
+            cells.append(f"{ok / n:.3f} ({ok}/{n})" if n else "n/a")
+        lines.append(f"| {r.threshold:.1f} | {cells[0]} | {cells[1]} |")
+    lines += [
+        "",
         f"**Decision rule outcome:** t* = {chosen if chosen is not None else 'none'} ({why}).",
         "",
         "## Per-fixture state (RAW = delivered unwrapped, wrap = untrusted-note wrapper, "
@@ -435,7 +477,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--cell", nargs=2, metavar=("CHANNEL", "T"), help=argparse.SUPPRESS)
     parser.add_argument("--cell-out", type=Path, help=argparse.SUPPRESS)
     parser.add_argument("--in-process", action="store_true", help="no child process per cell")
+    parser.add_argument("--cache-dir", type=Path, default=None, help="keep finished cells here")
     args = parser.parse_args(argv)
+    global CACHE_DIR
+    CACHE_DIR = args.cache_dir
     from memspine_evals.stub_llm import install_stub_litellm
 
     if args.cell:
