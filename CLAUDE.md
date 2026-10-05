@@ -47,7 +47,7 @@ This file is loaded into every Claude Code session. Keep it accurate and terse.
 | Compression | **zstandard** cold-tier + **llmlingua** assembly `[compress]` | D-32/E5 |
 | Hashing/IDs | **xxhash** fingerprints + **fastuuid** ids | D-37 |
 | Serialization | **pydantic** models + **orjson** hot-path | D-38 |
-| Graph communities | **leidenalg** `[community]` (Leiden) | D-40/ADR-028 |
+| Graph communities | **graspologic-native** `[community]` (Leiden → LPA hybrid; built-in LPA without the extra) | D-40/ADR-028/ADR-043 |
 | Prompts | customizable subsystem: YAML pack + registry + config layering + output-model pairing | D-43 |
 | Firewall | Memory Firewall (trust/quarantine/anomaly) — OWASP ASI06 | E1 |
 

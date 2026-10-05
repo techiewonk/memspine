@@ -17,6 +17,19 @@ All notable changes to memspine are documented here. Format: [Keep a Changelog](
 - **SQLite graph walk** joins reached nodes in SQL instead of binding an `IN (...)` list (no "too many SQL variables" on large walks; one query per walk).
 - **Migration 0003** gives a bare endpoint node its incident edge's namespace, matching a rebuild.
 
+### Changed — Wave 2 communities (2026-10-05, ADR-043)
+- **#83 `[community]` = `graspologic-native>=1.3,<1.4` (MIT)** instead of `leidenalg` + `igraph` (GPL). `hierarchical_leiden` (10 iterations) replaces the `_split_oversized` recursion; `randomness` is now wired. Needs numpy + scipy.
+- **#85 hybrid algorithm:** `community.algorithm: auto|leiden|lpa` (default `auto`: Leiden when the extra is installed, else the usual no-op). Leiden is warm-started from the previous partition and refined by up to `refine_passes` (10) LPA passes. Opt-in `community.incremental` places only new nodes per sleep (`incremental_passes`, `refresh_fraction`, `refresh_every`), with state in `community_partition` MARKER events.
+- **#82 built-in LPA** (`algorithm: lpa`, no extra needed), deterministic, with a collapse guard (largest community > 50% of >= 100 nodes keeps the previous partition and warns).
+- **#84 summary economy (opt-in, `community.summary_keep_jaccard`, 0.8 recommended):** a community close to its summarised member set keeps its summary; only its membership links move.
+
+### Fixed
+- **#86:** the community partition no longer depends on the store's edge order (edges are put in canonical order first).
+- `reorganize` no longer feeds summary parents and their `community` edges back into the partition, so an unchanged community is no longer re-summarised and superseded on every sweep.
+
+### Added
+- **#24 `evals/bench_graph.py`:** BFS depth 1–3 p50/p95 on `sqlite_adjacency` and LadybugDB, PPR, and community detection time, modularity and order-independence on synthetic 10K/100K (1M with `--million`) edge graphs.
+
 ### Added — Wave 1 read path and prompt levers (2026-10-05)
 - **#58 relative-week mode (opt-in, `read.relative_week: preceding_7_days`):** with `resolve_relative_dates`, "last/past week" and "next week" resolve to the seven days before / after the record's own day (LoCoMo's "the week before <session date>") instead of the calendar week; every other phrase is unchanged. `calendar` stays the default.
 - **#29 happened dates on mined facts (opt-in):** `consolidation.mine_evidence_turns` numbers the miner's transcript lines and makes a fact's parents the turns it cites (`ExtractedFact.turns`); `consolidation.mine_event_dates` tags each fact `happened:<date>` from the H1 resolution of a relative phrase in the fact or its cited turns (else the miner's `date`), resolved against the cited turn holding the phrase (else the latest cited turn), plus `said:<date>`, the anchor read-time H1 annotation and #60 `event_day` use instead of the moved `valid_from` (no double shift); `valid_from` moves to the event day only when it is on or before the said day, so a plan ("next month") never becomes a future `valid_from`; `consolidation.mine_event_dates_llm` adds one batched `extract@dates` call for facts still undated. `read.cards_event_date` renders such a card `[said d1 · happened d2]` when the two differ.

@@ -47,7 +47,7 @@ cache      = ["cashews[redis,diskcache]>=7.0"]       # unified disk + redis/valk
 ingest     = ["markitdown>=0.1", "chonkie>=1.0"]    # multi-format ingest + chunking (D-29)
 structured = ["instructor>=1.9"]                    # schema-validated LLM output (D-31)
 ner        = ["gliner2>=1.2"]                        # local CPU entity extraction (D-28)
-community  = ["leidenalg>=0.10"]                    # graph community detection — Leiden (D-40, ADR-028; no numpy pin)
+community  = ["graspologic-native>=1.3,<1.4"]        # graph community detection — Rust Leiden, MIT (D-40, ADR-043; needs numpy+scipy, no numpy ceiling)
 compress   = ["llmlingua>=0.2"]                     # assembly-time context compression (E5)
 llmlocal   = ["llama-cpp-python>=0.3"]              # in-proc open-weight inference (D-39)
 opensearch = ["opensearch-py>=2.6"]                 # server-scale lexical/BM25 leg (D-25); embedded default is core tantivy
@@ -66,7 +66,7 @@ neo4j      = ["neo4j>=5.26"]
 # Convenience bundles
 local      = ["memspine[graph,cache,dbos,ingest,ner]"]
 prod-aws   = ["memspine[aws,taskiq,rest]"]
-# `community` (leidenalg) declares no numpy pin (ADR-028), so it no longer conflicts
+# `community` (graspologic-native) declares no numpy ceiling (ADR-028/035), so it does not conflict
 # with `ingest` (numpy>=2.1) and is included in `all` — `--all-extras` is unblocked.
 all        = ["memspine[graph,cache,ingest,structured,ner,community,compress,llmlocal,opensearch,dbos,taskiq,rest,rerank,static,aws,postgres,weaviate,neo4j]"]
 
@@ -153,10 +153,8 @@ module = [
     "markitdown.*",
     "chonkie",
     "chonkie.*",
-    "leidenalg",
-    "leidenalg.*",
-    "igraph",
-    "igraph.*",
+    "graspologic_native",
+    "graspologic_native.*",
     "taskiq",
     "taskiq.*",
     "taskiq_redis",

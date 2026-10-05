@@ -179,7 +179,7 @@ pip install "memspine[ner]"                    # gliner2 CPU entity extraction
 pip install "memspine[structured]"             # instructor — schema-validated LLM output
 pip install "memspine[compress]"               # llmlingua-2 — assembly compression
 pip install "memspine[rerank]"                 # flashrank — E8 cross-encoder rerank
-pip install "memspine[community]"              # leidenalg — Leiden graph community detection
+pip install "memspine[community]"              # graspologic-native — Leiden graph community detection (MIT)
 pip install "memspine[cache]"                  # cashews — disk / redis / valkey cache backends
 pip install "memspine[rest]"                   # FastAPI + uvicorn — REST protocol
 pip install "memspine[opensearch]"             # server-scale lexical (OpenSearch / Elasticsearch)
@@ -199,7 +199,7 @@ pip install "memspine[llmlocal]"               # llama-cpp-python in-proc infere
 | `compress` | assembly-time context compression (llmlingua-2, E5/D-32) |
 | `rerank` | E8 cross-encoder rerank alternative (flashrank) |
 | `static` | E4 model2vec static-embedding prefilter (ADR-020) |
-| `community` | Leiden graph community detection (leidenalg, D-40/ADR-028 — no numpy pin) |
+| `community` | Leiden graph community detection (graspologic-native, MIT, D-40/ADR-043 — needs numpy + scipy, no numpy ceiling) |
 | `opensearch` | server-scale lexical backend for hybrid (OpenSearch / Elasticsearch, D-25) |
 | `dbos` / `taskiq` | durable / brokered worker runners (D-16) |
 | `rest` | REST protocol (FastAPI, D-06) |
@@ -296,7 +296,7 @@ alt = await engine.related(a.record_id, namespace="dev", k=10, strategy="bfs")  
 
 **Community detection — background reorganize** *(needs `memspine[community]`)*
 ```python
-# Leiden (leidenalg) clusters the link graph and writes one summary-parent record
+# Leiden (graspologic-native, then LPA refinement) clusters the link graph and writes one summary-parent record
 # per community; it runs inside the sleep cycle's `reorganize` stage.
 stats = await engine.sleep()          # consolidate → extract_graph → reorganize → decay → …
 print(stats["reorganize"])            # {'status': 'ok', 'communities': 2, 'parents': 2, 'superseded': 0}

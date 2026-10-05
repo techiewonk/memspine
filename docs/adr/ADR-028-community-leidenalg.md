@@ -1,6 +1,7 @@
 # ADR-028 — Community detection: `leidenalg` replaces `graspologic` (D-40)
 
-- **Status:** accepted
+- **Status:** accepted; library choice and algorithm superseded by
+  [ADR-043](ADR-043-community-graspologic-hybrid.md) (2026-10-05)
 - **Date:** 2026-07-11
 - **Decision id:** D-55 (amends D-40)
 - **Phase:** v0.2 (post-hardening) · **Tier:** RG (optional `[community]` extra)
