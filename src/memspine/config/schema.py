@@ -729,7 +729,7 @@ class RestRateLimitConfig(BaseModel):
 
 
 class RestAuthConfig(BaseModel):
-    """#51 reference auth middleware (not a production auth plane, ADR-037)."""
+    """#51 reference auth middleware (not a production auth plane, ADR-041)."""
 
     model_config = ConfigDict(extra="forbid")
 

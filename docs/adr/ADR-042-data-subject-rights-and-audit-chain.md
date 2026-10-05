@@ -1,4 +1,4 @@
-# ADR-038: Data-subject verbs, retention classes, purpose gate and a chained audit trail
+# ADR-042: Data-subject verbs, retention classes, purpose gate and a chained audit trail
 
 - **Status:** accepted
 - **Date:** 2026-10-05

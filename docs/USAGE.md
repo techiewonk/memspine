@@ -320,7 +320,7 @@ Errors map cleanly: `ConflictError`→409, `MissingServiceError`→501,
 `MemspineError`→400, anything else →500 with a generic body (no stack traces
 leak). Request bodies over 1 MiB are rejected with 413.
 
-### Reference auth middleware (#51, ADR-037)
+### Reference auth middleware (#51, ADR-041)
 
 `rest.auth.mode: api_key` or `oidc_jwt` turns on a reference middleware that binds
 an authenticated principal and its allowed namespaces to each request:
@@ -585,7 +585,7 @@ in the schema — or if the schema gains a key not documented here.
 | `consent.untagged` | `allow` | #50: with `enforce`, whether records with no purpose are visible to every read (`allow`) or to none (`deny`). |
 | `consent.remote_llm_max_tier` | `null` | #50 remote-LLM gate: `none` \| `low` \| `high` \| `regulated`. Every LLM role bound to a remote provider is wrapped so that, before each call, the text of any record whose `pii_tier` is above this tier (content, archived versions, the 400-char relevance-note prefix and their JSON-escaped forms) is replaced by `[WITHHELD: above the remote-LLM PII tier]`. Local = `llamacpp/…`, an `ollama/…` model without `api_base`, or an `api_base` on `localhost`/`127.0.0.1`/`::1`/`*.local`/`consent.local_hosts`. Textual gate: a paraphrase of the content is not caught. `null`: off. |
 | `consent.local_hosts` | `[]` | #50: extra `api_base` host names that count as local for the remote-LLM gate. |
-| `rest.auth.mode` | `none` | #51 reference auth middleware (ADR-037; not a production auth plane): `none` (unauthenticated, v0.1) \| `api_key` \| `oidc_jwt` (needs `pyjwt`). Binds a principal and its namespaces to each request: another namespace gets 403; `/sleep`, `/rebuild`, `/export`, `/quarantine…` need the admin role. |
+| `rest.auth.mode` | `none` | #51 reference auth middleware (ADR-041; not a production auth plane): `none` (unauthenticated, v0.1) \| `api_key` \| `oidc_jwt` (needs `pyjwt`). Binds a principal and its namespaces to each request: another namespace gets 403; `/sleep`, `/rebuild`, `/export`, `/quarantine…` need the admin role. |
 | `rest.auth.api_keys` | `[]` | #51 `api_key` mode: list of `{key_env: <ENV VAR>, principal, namespaces: [<glob>], admin: false}` (or `key:` instead of `key_env`). Sent as `Authorization: Bearer <key>` or `X-API-Key`. Only SHA-256 digests are kept; keys are never logged or echoed. |
 | `rest.auth.jwt.issuer` | `null` | #51 `oidc_jwt`: required `iss` (null = not checked). |
 | `rest.auth.jwt.audience` | `null` | #51 `oidc_jwt`: required `aud` (null = not checked). |

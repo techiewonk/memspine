@@ -1,4 +1,4 @@
-"""#51 reference auth middleware for the REST app (ADR-037).
+"""#51 reference auth middleware for the REST app (ADR-041).
 
 **Not a production auth plane.** It shows where authentication plugs in and binds
 an authenticated principal and its namespaces to every request; key rotation,

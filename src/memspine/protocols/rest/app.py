@@ -1,7 +1,7 @@
 """FastAPI app over ONE Engine (D-06, ``[rest]``).
 
 #51: ``rest.auth.mode`` (``api_key`` | ``oidc_jwt``) turns on the reference auth
-middleware in :mod:`memspine.protocols.rest.auth` (ADR-037): it binds a principal
+middleware in :mod:`memspine.protocols.rest.auth` (ADR-041): it binds a principal
 and its allowed namespaces to each request and guards the admin routes. It is a
 reference, not a production auth plane. The rest of this note describes the
 default, ``mode: none``.
@@ -154,7 +154,7 @@ def build_app(engine: Engine, rest: RestConfig | None = None) -> FastAPI:
             return _error_response(413, MemspineError(f"request body exceeds {cap} bytes"))
         return await call_next(request)
 
-    # ── #51 reference auth middleware (ADR-037) ──────────────────────────────
+    # ── #51 reference auth middleware (ADR-041) ──────────────────────────────
     # Registered after the body cap, so it runs first: unauthenticated callers
     # never get their body buffered. ``mode: none`` without a rate limit passes
     # every request through untouched (the default app is unchanged).

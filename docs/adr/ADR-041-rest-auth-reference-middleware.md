@@ -1,4 +1,4 @@
-# ADR-037: REST auth reference middleware (not a production auth plane)
+# ADR-041: REST auth reference middleware (not a production auth plane)
 
 - **Status:** accepted
 - **Date:** 2026-10-05
