@@ -2,7 +2,8 @@
 
 Adapters: ``fastembed_rerank`` (ONNX ``TextCrossEncoder``, rides the core
 fastembed dependency when the installed version ships rerankers) and
-``flashrank_rerank`` (``[rerank]`` extra). The engine treats an unavailable
+``flashrank_rerank`` (``[rerank]`` extra), ``litellm_rerank`` (cloud endpoints) and
+``qwen3_rerank`` (Qwen3-Reranker, ``[st]`` extra). The engine treats an unavailable
 adapter as a skipped stage (one info log), never a failed retrieval.
 
 ``concat_background`` is the D-42 §5 strategy-rerank: the text a cross-encoder

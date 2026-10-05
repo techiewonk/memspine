@@ -382,7 +382,7 @@ vector-only pipeline until you opt in).
 read:
   hybrid: true                 # fuse vector + lexical BM25 via RRF (D-25)
   lexical_provider: sqlite_fts5   # sqlite_fts5 (default) | tantivy [tantivy]
-  rerank: fastembed            # off (default) | fastembed | flashrank [rerank] | litellm
+  rerank: fastembed            # off (default) | fastembed | flashrank [rerank] | litellm | qwen3 [st]
   rerank_model: cohere/rerank-english-v3.0   # required only when rerank: litellm
 ```
 
@@ -435,8 +435,8 @@ in the schema — or if the schema gains a key not documented here.
 | `llm.roles.*.no_think` | `null` | Qwen3 thinking switch: `true` appends ` /no_think` to the last user message; `null` = on for model ids containing `qwen3`, off otherwise. `<think>…</think>` blocks are always stripped from replies. |
 | `read.scoring` | `{}` | Options for `ScoringPolicy.bind` (M1 composite). |
 | `read.assembly` | `{}` | Options for `AssemblyPolicy.bind` (E2 placement / MMR). |
-| `read.rerank` | `off` | `off` \| `fastembed` \| `flashrank` `[rerank]` \| `litellm` — E8 cross-encoder (D-51). |
-| `read.rerank_model` | `null` | LiteLLM rerank model id; required when `rerank: litellm`. |
+| `read.rerank` | `off` | `off` \| `fastembed` \| `flashrank` `[rerank]` \| `litellm` \| `qwen3` `[st]` (Qwen3-Reranker, `rerank_model` defaults to `Qwen/Qwen3-Reranker-0.6B`) — E8 cross-encoder (D-51). |
+| `read.rerank_model` | `null` | LiteLLM rerank model id; required when `rerank: litellm`. For `fastembed` / `qwen3` it overrides the default local model. |
 | `read.static_prefilter` | `false` | E8 cheap lexical-overlap gate (post-vector). |
 | `read.static_embedding_prefilter` | `false` | E4 model2vec static-cosine gate `[static]`. |
 | `read.hybrid` | `true` | Fuse the lexical BM25 leg via RRF (D-25; on by default since the v0.2 flip, ADR-019); `false` = vector-only. |

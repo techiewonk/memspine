@@ -74,10 +74,17 @@ def _build_litellm(settings: RerankSettings) -> Reranker:
     )
 
 
+def _build_qwen3(settings: RerankSettings) -> Reranker:
+    from memspine.services.rerank.qwen3_rerank import Qwen3Reranker
+
+    return Qwen3Reranker(settings.model) if settings.model else Qwen3Reranker()
+
+
 _REGISTRY: dict[str, RerankSpec] = {
     "fastembed": _build_fastembed,  # in-core (rides fastembed D-08)
     "flashrank": _build_flashrank,  # [rerank]
     "litellm": _build_litellm,  # [litellm] — Cohere/Voyage/Jina/Bedrock in one adapter
+    "qwen3": _build_qwen3,  # [st] — Qwen3-Reranker (transformers + torch), G5a
 }
 
 
