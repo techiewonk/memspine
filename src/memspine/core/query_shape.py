@@ -17,6 +17,7 @@ __all__ = [
     "is_count",
     "is_ordering",
     "is_temporal",
+    "rule_read_mode",
 ]
 
 #: Time words after which "every" / "each" describe a habit ("every morning"), not a set.
@@ -154,6 +155,20 @@ def is_count(query: str) -> bool:
 def is_aggregation(query: str) -> bool:
     """True when the question asks for a count, a list or several items."""
     return bool(_AGGREGATE.search(query))
+
+
+def rule_read_mode(query: str) -> str | None:
+    """G24: the read mode the rules settle before a decision provider is asked.
+
+    ``compose`` for a count, or for a list / set question that is not a date or duration
+    question; ``replay`` for an ordering question (evidence shown in time order); None
+    when the rules leave the choice open.
+    """
+    if is_count(query) or (is_aggregation(query) and not is_temporal(query)):
+        return "compose"
+    if is_ordering(query):
+        return "replay"
+    return None
 
 
 def core_terms(query: str) -> str:

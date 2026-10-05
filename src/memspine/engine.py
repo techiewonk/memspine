@@ -106,6 +106,7 @@ from memspine.core.query_shape import (
     is_count,
     is_ordering,
     is_temporal,
+    rule_read_mode,
 )
 from memspine.core.read_filters import (
     DateBound,
@@ -7740,10 +7741,19 @@ class Engine:
             f"unknown workers.runner {config.workers.runner!r} (valid: inline, dbos, taskiq)"
         )
 
-    _READ_MODES: ClassVar[dict[str, str]] = {
-        "compose": "the question asks for a count, a list, or several things over time",
-        "replay": "the question needs exact wording or what was said around an event",
-        "retrieve": "the question asks for one specific fact",
+    #: G24: the decision planner's options, label -> (read mode, description). Plain
+    #: labels with cue-word descriptions; tuned offline on a frozen LoCoMo set
+    #: (``evals/prereg/G24_gliner2_planner*.md``, ADR-052).
+    _READ_OPTIONS: ClassVar[dict[str, tuple[str, str]]] = {
+        "count or list": (
+            "compose",
+            "how many times, how often, how many things; what things, which items, all of the",
+        ),
+        "reason or feeling": (
+            "replay",
+            "why, what motivated or inspired, how someone felt or reacted, what someone said",
+        ),
+        "single fact": ("retrieve", "what, where, who, when: one specific thing"),
     }
 
     def _check_decision_provider(self, config: MemspineConfig) -> None:
@@ -7783,16 +7793,24 @@ class Engine:
         return self._decision
 
     async def _plan_read_mode(self, query: str) -> str | None:
-        """H24: the decision provider's read mode, or None (rules) on any failure."""
+        """H24: the decision provider's read mode, or None (rules) on any failure.
+
+        G24: the ``query_shape`` rules go first (counts and sets -> compose, ordering ->
+        replay, not gated by confidence); the provider chooses only what they leave open.
+        """
         provider = self._decision_provider()
         if provider is None:
             return None
+        ruled = rule_read_mode(query)
+        if ruled is not None:
+            return ruled
+        options = {label: desc for label, (_mode, desc) in self._READ_OPTIONS.items()}
         try:
-            label, confidence = await provider.choose(query, self._READ_MODES)
+            label, confidence = await provider.choose(query, options)
         except Exception as exc:  # an enhancer, never a gate
             _log.warning("read.planner_failed", error=str(exc))
             return None
-        if label not in self._READ_MODES:
+        if label not in self._READ_OPTIONS:
             return None
         gate = self._config().read.planner_min_confidence
         # A bare label carries no confidence (None): below any positive gate.
@@ -7800,7 +7818,7 @@ class Engine:
             # G2b: an unsure choice does not route; keep the default replay read.
             _log.info("read.planner_unsure", label=label, confidence=confidence, gate=gate)
             return "replay"
-        return str(label)
+        return self._READ_OPTIONS[label][0]
 
     async def _llm_read_plan(self, query: str) -> ReadPlan | None:
         """G2a: one ``plan`` role call (counted by the router), or None (rules).

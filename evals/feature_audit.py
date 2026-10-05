@@ -1423,7 +1423,7 @@ class _FakeDecision:
 async def check_h24_decision_planner() -> bool:
     modes = []
     for use in (True, False):
-        fake = _FakeDecision("compose")
+        fake = _FakeDecision("count or list")  # G24: a planner option label
         eng = _engine_kw(
             memories={"episodic": {"enabled": True}},
             read={"hybrid": False, "record_access": False, "planner": "decision"},

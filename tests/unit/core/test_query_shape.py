@@ -74,3 +74,22 @@ def test_is_temporal(query: str, expected: bool) -> None:
     from memspine.core.query_shape import is_temporal
 
     assert is_temporal(query) is expected
+
+
+@pytest.mark.parametrize(
+    ("q", "expected"),
+    [
+        ("How many times has Melanie gone to the beach in 2023?", "compose"),
+        ("What books has Melanie read?", "compose"),
+        ("How many months passed between the two trips?", None),
+        ("What was the first concert Caroline went to?", "replay"),
+        ("When did Caroline go to the LGBTQ support group?", None),
+        ("Why did Jon open a dance studio?", None),
+        ("Where did Melanie move from?", None),
+    ],
+)
+def test_rule_read_mode(q: str, expected: str | None) -> None:
+    """G24: the rules the decision planner applies before asking its provider."""
+    from memspine.core.query_shape import rule_read_mode
+
+    assert rule_read_mode(q) == expected

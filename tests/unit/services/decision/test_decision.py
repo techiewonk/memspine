@@ -217,7 +217,7 @@ async def test_planner_routes_read_auto(monkeypatch: pytest.MonkeyPatch) -> None
     eng = _engine(memories={"episodic": {"enabled": True}})
     await eng.start()
     try:
-        fake = _Fake("compose")
+        fake = _Fake("count or list")
         monkeypatch.setattr(eng, "_decision_provider", lambda: fake)
         for i in range(30):
             await eng.write(
@@ -291,7 +291,7 @@ async def test_confidence_gate_keeps_the_default_mode(
     )
     await eng.start()
     try:
-        monkeypatch.setattr(eng, "_decision_provider", lambda: _Scored("compose", confidence))
+        monkeypatch.setattr(eng, "_decision_provider", lambda: _Scored("count or list", confidence))
         assert await eng._plan_read_mode("where does Ana live") == expected
         for i in range(30):
             await eng.write(
@@ -327,11 +327,91 @@ async def test_bare_label_confidence_is_unknown_not_sure(
 
         class _BareModel(_ClassifyOnly):
             def classify_text(self, text: str, tasks: Mapping[str, Any]) -> dict[str, Any]:
-                return {"choice": "compose"}
+                return {"choice": "count or list"}
 
         bare = GLiNER2Decision()
         _fake_gliner2(monkeypatch, _BareModel)
         monkeypatch.setattr(eng, "_decision_provider", lambda: bare)
         assert await eng._plan_read_mode("where does Ana live") == expected
+    finally:
+        await eng.stop()
+
+
+# ── G24: rules first, then the provider's labelled options ────────────────────
+
+
+class _Recording:
+    provider_id = "recording"
+
+    def __init__(self, label: str, confidence: float | None = 0.9) -> None:
+        self.label, self.confidence = label, confidence
+        self.options: list[dict[str, str]] = []
+
+    async def choose(self, text: str, options: Mapping[str, str]) -> tuple[str, float | None]:
+        self.options.append(dict(options))
+        return self.label, self.confidence
+
+
+@pytest.mark.parametrize(
+    ("query", "expected"),
+    [
+        ("How many times has Ana been to Lisbon?", "compose"),
+        ("What books has Ana read?", "compose"),
+        ("What was the first book Ana read?", "replay"),
+    ],
+)
+async def test_rules_route_before_the_provider(
+    monkeypatch: pytest.MonkeyPatch, query: str, expected: str
+) -> None:
+    """G24: questions the query_shape rules settle never reach the provider, and a rule
+    choice is not subject to the confidence gate."""
+    _fake_gliner2(monkeypatch, _FakeModel)
+    eng = Engine(
+        template="core",
+        dotenv_path=None,
+        storage={"path": ":memory:"},
+        embedding={"provider": "hash"},
+        read={"hybrid": False, "planner": "decision", "planner_min_confidence": 0.99},
+        decision={"provider": "gliner2"},
+    )
+    await eng.start()
+    try:
+        fake = _Recording("single fact", 0.1)
+        monkeypatch.setattr(eng, "_decision_provider", lambda: fake)
+        assert await eng._plan_read_mode(query) == expected
+        assert fake.options == []
+    finally:
+        await eng.stop()
+
+
+@pytest.mark.parametrize(
+    ("label", "expected"),
+    [("count or list", "compose"), ("reason or feeling", "replay"), ("single fact", "retrieve")],
+)
+async def test_provider_labels_map_to_read_modes(
+    monkeypatch: pytest.MonkeyPatch, label: str, expected: str
+) -> None:
+    _fake_gliner2(monkeypatch, _FakeModel)
+    eng = _engine()
+    await eng.start()
+    try:
+        fake = _Recording(label)
+        monkeypatch.setattr(eng, "_decision_provider", lambda: fake)
+        assert await eng._plan_read_mode("Why did Ana move to Lisbon?") == expected
+        assert list(fake.options[0]) == ["count or list", "reason or feeling", "single fact"]
+        assert all(desc for desc in fake.options[0].values())
+    finally:
+        await eng.stop()
+
+
+async def test_unknown_provider_label_falls_back_to_rules(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _fake_gliner2(monkeypatch, _FakeModel)
+    eng = _engine()
+    await eng.start()
+    try:
+        monkeypatch.setattr(eng, "_decision_provider", lambda: _Recording("compose"))
+        assert await eng._plan_read_mode("Where does Ana live?") is None
     finally:
         await eng.stop()
