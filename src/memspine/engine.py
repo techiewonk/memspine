@@ -4930,7 +4930,11 @@ class Engine:
             return
         names = [*subject_names, *(r.entity for r in records if r is not None and r.entity)]
         renames = await self._erased_entity_nodes(ns, names, forced=subject_names)
-        redacted = await storage.redact_event_payloads(ids, node_renames=renames)
+        redacted = (
+            await storage.redact_event_payloads(ids, node_renames=renames)
+            if renames
+            else await storage.redact_event_payloads(ids)
+        )
         # D-18: the hard-delete cascade escalates to alert severity.
         _log.error(
             EVENT_FORGET,
