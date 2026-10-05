@@ -220,6 +220,24 @@ report = await engine.audit_taint(record_id, namespace="ops")   # origin + blast
 await engine.forget(record_id, namespace="ops")                 # soft: status=DELETED
 await engine.forget(record_id, namespace="ops", hard=True)      # hard: row + log payloads redacted
 proof = await engine.verify_forget(record_id, namespace="ops")  # {"clean": True, ...}
+await engine.approve_quarantined(held_id, namespace="ops", actor="ops:lee", principal="ops:lee")
+```
+
+A hard forget cascades to every record derived from the forgotten one: mined
+facts, cues, reflections, and the consolidation and reorganize summaries whose
+members include it (a summary of an erased member is erased, never re-derived).
+It also rewrites the LanceDB vector table and drops its older versions, so the
+erased vector cannot be checked out again; `verify_forget` reports
+`vector_history_absent` and stays unproven (`clean: False`) when that purge did
+not run. `residual_risks` names what the proof cannot cover: a Tantivy segment
+keeps a deleted document's terms until it is merged.
+
+Caller tags never include the engine-only tags (`constants.RESERVED_TAGS`:
+lead-section and header tags, the cue tag, `taint_archived`,
+`quarantine_rejected`); the write door drops them. `approve_quarantined` refuses
+a reviewer whose `principal` or `actor` is the held record's `source.principal`.
+
+```python
 await engine.sleep()      # run consolidate -> decay -> compress -> prune now
 await engine.rebuild()    # replay every projector from seq 0
 ```
@@ -306,6 +324,13 @@ verbatim** — whoever can reach the app can read and write every namespace.
 - `/sleep`, `/rebuild`, `/audit/taint` are engine-global or cross-cutting —
   keep them on an internal-only network boundary, never exposed to tenant
   callers.
+- `/quarantine/{id}/approve` and `/quarantine/{id}/reject` are operator-only:
+  they return 403 until you override the operator seam, and the identity it
+  returns is the decision's actor (the request body cannot name the reviewer):
+  ```python
+  from memspine.protocols.rest.app import resolve_operator
+  app.dependency_overrides[resolve_operator] = my_authenticated_operator
+  ```
 
 Never expose this app to an untrusted network without filling the auth seam.
 
