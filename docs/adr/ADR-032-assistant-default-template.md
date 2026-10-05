@@ -24,6 +24,15 @@ which are the weakest measured configuration for conversational memory.
   `config/constants.DEFAULT_TEMPLATE`. The `memspine` CLI resolves config the same way.
 - **`profile="simple"` is unchanged.** `Engine(template="base")` gives exactly the previous
   behaviour.
+- **Resolution rule** (`config.loader.default_template`, used by `Engine` and the CLI):
+  1. a named `template` is used as given;
+  2. else, when the kwargs overrides or the user config (dict, or YAML file) set `profile`, the
+     template is **`base`**, so `Engine(profile="simple")` equals `Engine(template="base")` and never
+     inherits the assistant read settings;
+  3. else `constants.DEFAULT_TEMPLATE` (`assistant`).
+
+  The environment layer does not take part. The CLI engine operations on a user database
+  (`memspine audit taint`, `memspine forget`) always pin `template="base"`.
 - **The schema defaults are unchanged.** `MemspineConfig()` is still `simple`, and the golden guard
   `tests/unit/test_simple_profile_golden.py` still pins them.
 - What `assistant` sets:

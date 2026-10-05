@@ -9,7 +9,7 @@ import pytest
 
 from memspine import Engine
 from memspine.config import constants
-from memspine.core.lead import query_names
+from memspine.core.lead import mentions_any, query_names
 from memspine.core.policies.assembly import estimate_tokens
 
 T0 = datetime(2023, 5, 7, 10, 0, tzinfo=UTC)
@@ -61,6 +61,30 @@ def test_query_names() -> None:
     assert query_names("Would Caroline be considered religious?") == ["Caroline"]
     assert query_names("What might John's financial status be?") == ["John"]
     assert query_names("what does she like") == []
+
+
+@pytest.mark.parametrize(
+    ("query", "expected"),
+    [
+        ("Tell me what Caroline likes", ["Caroline"]),
+        ("Give me Melanie's hobbies", ["Melanie"]),
+        ("Yes, and what about Jon?", ["Jon"]),
+        ("No. When did Gina move?", ["Gina"]),
+        ("I'm curious what Caroline paints", ["Caroline"]),
+        ("Please list what Dave bought", ["Dave"]),
+        ("Caroline said what to Caroline's sister?", ["Caroline"]),
+        ("Summarize everything", []),
+        ("Describe the trip", []),
+    ],
+)
+def test_query_names_skips_imperatives_and_openers(query: str, expected: list[str]) -> None:
+    """A-6: a capitalised opener is grammar, not a name."""
+    assert query_names(query) == expected
+
+
+def test_mentions_any_is_case_sensitive() -> None:
+    assert mentions_any("Will moved to Paris", ["Will"])
+    assert not mentions_any("she will move soon", ["Will"])
 
 
 @pytest.mark.parametrize("mode", ["retrieve", "replay", "compose"])

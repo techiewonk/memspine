@@ -26,7 +26,8 @@ OPTS = {"a": "first", "b": "second"}
 
 def test_parse_choice_shapes() -> None:
     assert parse_choice({"choice": {"label": "b", "confidence": 0.8}}, OPTS) == ("b", 0.8)
-    assert parse_choice({"choice": "a"}, OPTS) == ("a", 1.0)
+    assert parse_choice({"choice": "a"}, OPTS) == ("a", None)
+    assert parse_choice({"choice": {"label": "a"}}, OPTS) == ("a", None)
     with pytest.raises(ValueError):
         parse_choice({"choice": "zzz"}, OPTS)
 
@@ -100,7 +101,7 @@ async def test_adapter_falls_back_to_autoextractor_and_classify_text(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _fake_gliner2(monkeypatch, _ClassifyOnly, name="AutoExtractor")
-    assert await GLiNER2Decision().choose("q", OPTS) == ("a", 1.0)
+    assert await GLiNER2Decision().choose("q", OPTS) == ("a", None)
 
 
 def test_gliner2_class_missing_names_the_extra(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -286,5 +287,34 @@ async def test_confidence_gate_keeps_the_default_mode(
             "where does Ana live", namespace="a", mode="auto", budget_tokens=200, top_k=3
         )
         assert out.mode == expected
+    finally:
+        await eng.stop()
+
+
+@pytest.mark.parametrize(("gate", "expected"), [(0.9, "replay"), (0.0, "compose")])
+async def test_bare_label_confidence_is_unknown_not_sure(
+    monkeypatch: pytest.MonkeyPatch, gate: float, expected: str
+) -> None:
+    """A-8: a bare-label result (no confidence) does not pass a positive gate."""
+    _fake_gliner2(monkeypatch, _FakeModel)
+    eng = Engine(
+        template="base",
+        dotenv_path=None,
+        storage={"path": ":memory:"},
+        embedding={"provider": "hash"},
+        read={"hybrid": False, "planner": "decision", "planner_min_confidence": gate},
+        decision={"provider": "gliner2"},
+    )
+    await eng.start()
+    try:
+
+        class _BareModel(_ClassifyOnly):
+            def classify_text(self, text: str, tasks: Mapping[str, Any]) -> dict[str, Any]:
+                return {"choice": "compose"}
+
+        bare = GLiNER2Decision()
+        _fake_gliner2(monkeypatch, _BareModel)
+        monkeypatch.setattr(eng, "_decision_provider", lambda: bare)
+        assert await eng._plan_read_mode("where does Ana live") == expected
     finally:
         await eng.stop()

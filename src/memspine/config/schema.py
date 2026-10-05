@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from memspine.config import constants
 from memspine.core.events import EventLogMode
@@ -384,6 +384,19 @@ class ReadConfig(BaseModel):
     #: of the budget. Gated like any record. Off: byte-identical.
     profile_header: bool = False
     profile_budget_share: float = Field(default=0.15, gt=0.0, le=1.0)
+
+    @model_validator(mode="after")
+    def _header_shares_leave_room(self) -> ReadConfig:
+        """A-9: the active read headers' shares must leave budget for the read itself."""
+        shares = (self.cards_budget_share if self.cards == "header" else 0.0) + (
+            self.profile_budget_share if self.profile_header else 0.0
+        )
+        if shares >= 1.0:
+            raise ConfigError(
+                "the active read header shares (read.cards_budget_share, "
+                f"read.profile_budget_share) must sum to < 1, got {shares:g}"
+            )
+        return self
 
 
 class MemoryTypeConfig(BaseModel):

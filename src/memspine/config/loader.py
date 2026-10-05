@@ -20,10 +20,17 @@ from typing import Any
 
 import yaml
 
+from memspine.config import constants
 from memspine.config.schema import MemspineConfig
 from memspine.exceptions import ConfigError
 
-__all__ = ["ResolvedConfig", "flatten_dotted", "load_config", "template_dir"]
+__all__ = [
+    "ResolvedConfig",
+    "default_template",
+    "flatten_dotted",
+    "load_config",
+    "template_dir",
+]
 
 _SECRET_REF = re.compile(r"\$\{secret:([A-Za-z0-9_.-]+)\}")
 _ENV_PREFIX = "MEMSPINE_"
@@ -161,6 +168,32 @@ def _resolve_secrets(data: Any, resolver: SecretResolver | None) -> Any:
 
         return _SECRET_REF.sub(_sub, data)
     return data
+
+
+def default_template(
+    template: str | None,
+    user_config: str | Path | dict[str, Any] | None = None,
+    overrides: Mapping[str, Any] | None = None,
+) -> str | None:
+    """ADR-032: the template a caller gets.
+
+    A named ``template`` wins. Otherwise a caller that names a ``profile`` (in the
+    overrides or the user config) gets the ``base`` template, which every profile
+    extends, so ``Engine(profile="simple")`` keeps meaning the simple profile and
+    never picks up the assistant settings. Otherwise the shipped
+    :data:`constants.DEFAULT_TEMPLATE`.
+    """
+    if template is not None:
+        return template
+    if overrides and "profile" in overrides:
+        return "base"
+    if isinstance(user_config, dict):
+        names_profile = "profile" in user_config
+    elif user_config is not None and Path(user_config).is_file():
+        names_profile = "profile" in _read_yaml(Path(user_config))
+    else:
+        names_profile = False
+    return "base" if names_profile else constants.DEFAULT_TEMPLATE
 
 
 def load_config(

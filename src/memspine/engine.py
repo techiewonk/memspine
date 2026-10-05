@@ -31,7 +31,7 @@ from memspine.clients.lancedb import LanceDBClient
 from memspine.clients.postgres import PostgresClient
 from memspine.clients.sqlite import SQLiteClient
 from memspine.config import constants
-from memspine.config.loader import ResolvedConfig, load_config
+from memspine.config.loader import ResolvedConfig, default_template, load_config
 from memspine.config.schema import MemspineConfig
 from memspine.core.audit import IntegrityReport, TaintReport, trace_taint, verify_events
 from memspine.core.erasure import payload_retains_content
@@ -445,7 +445,7 @@ class Engine:
         # 1. secrets, then config (D-22 two-phase).
         secrets = self._build_secrets()
         self._resolved = load_config(
-            template=self._template if self._template is not None else constants.DEFAULT_TEMPLATE,
+            template=default_template(self._template, self._user_config, self._overrides),
             user_config=self._user_config,
             env=os.environ,
             overrides=self._overrides,
@@ -1986,9 +1986,15 @@ class Engine:
         session_id: str | None = None,
         keep_k: int,
         memory_type: str | None = None,
+        hide: Callable[[MemoryRecord], bool] | None = None,
     ) -> list[tuple[MemoryRecord, float]]:
         """:meth:`search` with ``keep_k``: how many results the caller finally keeps
-        (assembly fetches ``candidate_pool x top_k``); the H18 rerank gate uses it."""
+        (assembly fetches ``candidate_pool x top_k``); the H18 rerank gate uses it.
+
+        ``hide`` (G1b/G3b): records a read header already shows leave with the gates,
+        before the cut, the rerank, the ``rerank_keep`` cut, the RETRIEVE event and the
+        B0 ledger. The legs widen until ``top_k`` visible candidates survive, so a
+        header that hides most of the best hits never leaves the read short."""
         if self._embedder is None or self._vector is None or self._scoring is None:
             raise MemspineError("retrieval services not constructed — engine not started?")
         if top_k < 1:
@@ -2004,6 +2010,9 @@ class Engine:
         # legs combine, can still enter the fused top_k.
         base_fetch = top_k * constants.LEXICAL_FETCH_MULTIPLIER if use_hybrid else top_k
         widen = 1
+        # A header can hide most of the best hits (mined facts outrank raw turns), so
+        # a hiding search may look further down the legs than the gates alone would.
+        max_widen = _SEARCH_MAX_WIDEN * (constants.HEADER_HIDE_OVERFETCH if hide else 1)
         while True:
             fetch_k = base_fetch * widen
             vector_hits = await self._vector_leg(ns, query_vector, fetch_k)
@@ -2038,8 +2047,11 @@ class Engine:
             else:
                 ranked = [(hit.record_id, hit.score) for hit in vector_hits]
             candidates = await self._gate_hits(ns, ranked, group_id, tags, memory_type)
+            if hide is not None:
+                candidates = [pair for pair in candidates if not hide(pair[0])]
+            # Exhaustion is judged on the legs (before any gate or cut).
             exhausted = len(vector_hits) < fetch_k and len(lexical_hits) < fetch_k
-            if len(candidates) >= top_k or exhausted or widen >= _SEARCH_MAX_WIDEN:
+            if len(candidates) >= top_k or exhausted or widen >= max_widen:
                 break
             widen *= 4  # the gates removed too many: look further down the legs
         if self._config().read.anticipatory_cues and candidates:
@@ -2157,7 +2169,7 @@ class Engine:
             raise MemspineError("assembly policy not bound — engine not started?")
         budget = self._reply_budget(budget_tokens)
         ns = validate_namespace(namespace)
-        headers = [] if shared else await self._read_headers(ns, query, budget)
+        headers = [] if shared else await self._read_headers(ns, query, budget, session_id)
         inner = budget - self._headers_cost(headers)
         assembled = await self._assemble_core(
             query,
@@ -2188,28 +2200,19 @@ class Engine:
         if self._assembly is None:
             raise MemspineError("assembly policy not bound — engine not started?")
         want = top_k * self._config().read.candidate_pool
-        fetch_k = want
-        while True:
-            if shared:
-                scored = await self.shared_search(
-                    query, namespace=ns, top_k=fetch_k, session_id=session_id
-                )
-            else:
-                scored = await self._search(query, ns, fetch_k, session_id=session_id, keep_k=top_k)
-            if hide is None:
-                break
-            found = len(scored)
-            scored = [pair for pair in scored if not hide(pair[0])]
-            # Smoke 2026-10-05: records a header already shows (mined facts) can
-            # outrank most raw turns; hiding them after one top_k cut left 1-5 turns.
-            # Widen, like the search gates do, until ``want`` visible ones survive.
-            if (
-                len(scored) >= want
-                or found < fetch_k
-                or fetch_k >= want * constants.HEADER_HIDE_OVERFETCH
-            ):
-                break
-            fetch_k *= 4
+        if shared:
+            scored = await self.shared_search(
+                query, namespace=ns, top_k=want, session_id=session_id
+            )
+            if hide is not None:
+                scored = [pair for pair in scored if not hide(pair[0])]
+        else:
+            # Smoke 2026-10-05 / A-1, A-2: records a header already shows (mined facts)
+            # can outrank most raw turns. They leave inside the one search, before the
+            # rerank and its ``rerank_keep`` cut, which widen until ``want`` survive.
+            scored = await self._search(
+                query, ns, want, session_id=session_id, keep_k=top_k, hide=hide
+            )
         integrity = self._integrity()
         if integrity.enabled and integrity.trust_weighted_ranking and scored:
             # Scores are composite x view trust. Abstention (theta_abstain) judges
@@ -2241,7 +2244,7 @@ class Engine:
         if not shared and (read_cfg.topic_timelines or read_cfg.standing_instructions):
             standing, timelines = await self._lead_section(ns, scored, budget_tokens)
         lead_cost = sum(estimate_tokens(r.content) for r in [*standing, *timelines])
-        scored = await self._decorate(ns, scored)
+        scored = await self._decorate(ns, scored, hide=hide)
         # E5 (D-51): the compression policy's own master switch decides whether
         # the fit stage runs; with the default options this is a no-op.
         assembled = self._assembly.assemble(
@@ -2279,7 +2282,12 @@ class Engine:
         return assembled
 
     async def _claims_only(
-        self, ns: str, scored: list[tuple[MemoryRecord, float]], *, expand: bool
+        self,
+        ns: str,
+        scored: list[tuple[MemoryRecord, float]],
+        *,
+        expand: bool,
+        hide: Callable[[MemoryRecord], bool] | None = None,
     ) -> list[tuple[MemoryRecord, float]]:
         """B9 facts-only: low-trust raw records leave; their mined facts may stand in.
 
@@ -2287,7 +2295,8 @@ class Engine:
         itself a mined fact, the pinned persona or a lead block is removed. With
         ``expand``, each live, unflagged atomic fact mined from it takes its place
         once, prefixed :data:`constants.CLAIM_MARKER` and scored like the record it
-        replaces. Facts already in the list are not repeated.
+        replaces. Facts already in the list are not repeated, and facts ``hide``
+        leaves out (a read header shows them, labelled there) do not stand in.
         """
         threshold = self._integrity().claims_only_below
         keep_as_is = ("atomic_fact", constants.LEAD_TAG)
@@ -2314,7 +2323,7 @@ class Engine:
                 out.append((record, score))
                 continue
             for fact in mined.get(record.record_id, []):
-                if fact.record_id in seen:
+                if fact.record_id in seen or (hide is not None and hide(fact)):
                     continue
                 view = await self._live_view(fact)
                 inflated = self._inflate_all([view], ns) if view is not None else []
@@ -2333,18 +2342,20 @@ class Engine:
         scored: list[tuple[MemoryRecord, float]],
         *,
         expand_claims: bool = True,
+        hide: Callable[[MemoryRecord], bool] | None = None,
     ) -> list[tuple[MemoryRecord, float]]:
         """The context-entry transforms shared by every read mode (projection only).
 
         B9 facts-only (low-trust raw records replaced by their mined claims, or
         dropped when ``expand_claims`` is off), H1 relative dates (each record
         against its own event time), the E1 instruction-flag wrapper, the C4'
-        current-state view, then the B6 untrusted-note wrapper.
+        current-state view, then the B6 untrusted-note wrapper. ``hide`` keeps
+        B9 from putting back a fact a read header already shows.
         """
         read_cfg = self._config().read
         integrity = self._integrity()
         if integrity.enabled and integrity.claims_only_below > 0.0:
-            scored = await self._claims_only(ns, scored, expand=expand_claims)
+            scored = await self._claims_only(ns, scored, expand=expand_claims, hide=hide)
         if read_cfg.resolve_relative_dates:
             scored = [(self._annotate_dates(record), score) for record, score in scored]
         # E1: instruction-shaped content enters a context window WRAPPED — the
@@ -2449,6 +2460,7 @@ class Engine:
         top_k: int = constants.ASSEMBLE_TOP_K,
         replay_window: int = 2,
         compose_pool: int = 3,
+        session_id: str | None = None,
     ) -> ReadResult:
         """C7': mode-routed read. Rules decide; no model on the read path.
 
@@ -2480,6 +2492,9 @@ class Engine:
         ``integrity.enabled`` nothing below the admission threshold does (with
         live re-evaluation, judged on the effective trust); the instruction-flag
         and untrusted-note wrappers apply as in assembly.
+
+        ``session_id`` keys the B0 read ledger (as in :meth:`assemble`), for the read
+        headers and the routed read alike.
         """
         if mode is None:
             mode = self._config().read.default_mode  # "auto" unless a template pins one
@@ -2490,7 +2505,7 @@ class Engine:
         budget_tokens = self._reply_budget(budget_tokens)
         # G1b/G3b: the read headers take their shares first; the routed read gets the
         # rest and leaves out what they carry, so nothing appears twice.
-        headers = await self._read_headers(ns, query, budget_tokens)
+        headers = await self._read_headers(ns, query, budget_tokens, session_id)
         result = await self._read_routed(
             query,
             ns,
@@ -2500,6 +2515,8 @@ class Engine:
             replay_window,
             compose_pool,
             hide=self._header_hide(headers),
+            full_hide=self._header_hide(headers, all_facts=False),
+            session_id=session_id,
         )
         return ReadResult(result.mode, self._attach_headers(result.context, headers))
 
@@ -2514,19 +2531,30 @@ class Engine:
         compose_pool: int,
         *,
         hide: Callable[[MemoryRecord], bool] | None = None,
+        full_hide: Callable[[MemoryRecord], bool] | None = None,
+        session_id: str | None = None,
     ) -> ReadResult:
-        """:meth:`read` after the reply reserve and the read headers: route and read."""
+        """:meth:`read` after the reply reserve and the read headers: route and read.
+
+        ``hide`` leaves out what the headers carry (with the cards header, every mined
+        fact). ``full_hide`` (default ``hide``) is the narrower rule of a ``full`` read:
+        it holds every live record, so only the records a header actually shows leave
+        (A-4: the header shows ``cards_top_k`` facts, not all of them)."""
         storage = self._require_started()
+        if full_hide is None:
+            full_hide = hide
         if mode in ("auto", "full"):
             live = []
             for record in await storage.list_records(ns):
-                if hide is not None and hide(record):
+                if full_hide is not None and full_hide(record):
                     continue
                 view = await self._live_view(record)
                 if view is not None:
                     live.append(view)
             live.sort(key=lambda r: (r.valid_from, r.record_id))
-            decorated = await self._decorate(ns, [(r, 0.0) for r in self._inflate_all(live, ns)])
+            decorated = await self._decorate(
+                ns, [(r, 0.0) for r in self._inflate_all(live, ns)], hide=full_hide
+            )
             records = [r for r, _ in decorated]
             cost = sum(estimate_tokens(r.content) for r in records)
             if records and cost <= budget_tokens:
@@ -2561,8 +2589,11 @@ class Engine:
                 hide=hide,
                 extra_probes=probes,
                 replay_window=replay_window,
+                session_id=session_id,
             )
-        base = await self._assemble_core(query, ns, budget_tokens, top_k, hide=hide)
+        base = await self._assemble_core(
+            query, ns, budget_tokens, top_k, session_id=session_id, hide=hide
+        )
         episodic_hits = [r for r in base.records if r.memory_type == "episodic"]
         # H6: a mined atomic fact replays the source turn it best matches (its
         # derived_from lists the whole session, which would not fit the budget).
@@ -2645,15 +2676,20 @@ class Engine:
         decorated = await self._decorate(ns, [(inflated[0], 0.0)], expand_claims=False)
         return decorated[0][0] if decorated else None
 
-    async def _cards_section(self, ns: str, query: str, budget_tokens: int) -> MemoryRecord | None:
+    async def _cards_section(
+        self, ns: str, query: str, budget_tokens: int, session_id: str | None = None
+    ) -> MemoryRecord | None:
         """G1b: the cards header, or None (``read.cards: off``, or no fact to show).
 
         The namespace's mined facts relevant to ``query`` come from the same hybrid
         search, restricted to ``atomic_fact`` records, so they pass every search
         gate (status, quarantine, admission, live re-evaluation). Each gets the
-        per-record wrappers, then one ``[YYYY-MM-DD] Entity: fact`` line, best
-        first while the block fits ``read.cards_budget_share x budget_tokens``;
-        the kept lines are shown oldest first.
+        per-record wrappers, then one ``[said YYYY-MM-DD] Entity: fact`` line (the
+        date it was said: its earliest source turn; no date without one), best
+        first while the block, rendered exactly so, fits ``read.cards_budget_share x
+        budget_tokens``; the kept lines are shown in said order. Under B9 a card
+        whose source turns sit below ``integrity.claims_only_below`` carries
+        :data:`constants.CLAIM_MARKER`, as its claim would in the routed read.
         """
         read_cfg = self._config().read
         if read_cfg.cards != "header":
@@ -2664,39 +2700,64 @@ class Engine:
         if allowance <= estimate_tokens(constants.CARDS_MARKER):
             return None
         k = read_cfg.cards_top_k
-        hits = await self._search(query, ns, k, tags=["atomic_fact"], keep_k=k)
-        kept: list[MemoryRecord] = []
-        for record, _ in hits:
-            trial = [*kept, self._wrap_for_context(record)]
-            if estimate_tokens(self._cards_text(trial)) <= allowance:
-                kept = trial
-        if not kept:
+        hits = await self._search(
+            query, ns, k, tags=["atomic_fact"], keep_k=k, session_id=session_id
+        )
+        if self._header_abstains(hits):
             return None
-        kept.sort(key=lambda r: (r.valid_from, r.record_id))
         # Smoke 2026-10-05: the miner's event date is often the session date, and the
         # reader trusted it over the H1-resolved raw turn. Label each card with the
         # date it was SAID (its earliest source turn); the raw turns carry event dates.
+        # A-7: the labels are known before the fit, so the fit measures the real lines.
         storage = self._require_started()
+        integrity = self._integrity()
+        claim_below = integrity.claims_only_below if integrity.enabled else 0.0
         said: dict[str, datetime] = {}
-        for card in kept:
-            dates = [
-                p.valid_from
-                for p in [await storage.get_record(pid) for pid in card.source.parents]
-                if p is not None
-            ]
-            if dates:
-                said[card.record_id] = min(dates)
-        block = self._lead_record(ns, self._cards_text(kept, said), kept)
+        claims: set[str] = set()
+        for record, _ in hits:
+            parents = [await storage.get_record(pid) for pid in record.source.parents]
+            found = [p for p in parents if p is not None]
+            if found:
+                said[record.record_id] = min(p.valid_from for p in found)
+            if claim_below > 0.0 and await self._from_low_trust(found, claim_below):
+                claims.add(record.record_id)
+        kept: list[MemoryRecord] = []
+        for record, _ in hits:
+            trial = [*kept, self._wrap_for_context(record)]
+            if estimate_tokens(self._cards_text(trial, said, claims)) <= allowance:
+                kept = trial
+        if not kept:
+            return None
+        kept.sort(
+            key=lambda r: (r.record_id in said, said.get(r.record_id, r.valid_from), r.record_id)
+        )
+        block = self._lead_record(ns, self._cards_text(kept, said, claims), kept)
         return block.model_copy(update={"tags": [constants.LEAD_TAG, constants.CARDS_TAG]})
 
+    async def _from_low_trust(self, parents: list[MemoryRecord], threshold: float) -> bool:
+        """B9 for a card: a source turn below ``threshold`` (view trust) makes it a claim."""
+        live = self._integrity().live_reevaluation
+        for parent in parents:
+            if parent.source.channel == "persona" or "atomic_fact" in parent.tags:
+                continue
+            trust = await self.effective_trust(parent.record_id) if live else parent.trust
+            if trust < threshold:
+                return True
+        return False
+
     @staticmethod
-    def _cards_text(cards: list[MemoryRecord], said: dict[str, datetime] | None = None) -> str:
+    def _cards_text(
+        cards: list[MemoryRecord],
+        said: dict[str, datetime] | None = None,
+        claims: set[str] | None = None,
+    ) -> str:
         dates = said or {}
-        lines = (card_line(r, dates.get(r.record_id)) for r in cards)
+        flagged = claims or set()
+        lines = (card_line(r, dates.get(r.record_id), claim=r.record_id in flagged) for r in cards)
         return "\n".join([constants.CARDS_MARKER, *lines])
 
     async def _profile_section(
-        self, ns: str, query: str, budget_tokens: int
+        self, ns: str, query: str, budget_tokens: int, session_id: str | None = None
     ) -> MemoryRecord | None:
         """G3b: the profile header, or None (``read.profile_header`` off, or nothing).
 
@@ -2715,7 +2776,11 @@ class Engine:
         if allowance <= estimate_tokens(render_profile(names, [])):
             return None
         k = constants.PROFILE_HEADER_TOP_K
-        hits = await self._search(query, ns, k, memory_type="reflective", keep_k=k)
+        hits = await self._search(
+            query, ns, k, memory_type="reflective", keep_k=k, session_id=session_id
+        )
+        if self._header_abstains(hits):
+            return None
         insights = [
             r
             for r, _ in hits
@@ -2733,11 +2798,15 @@ class Engine:
         block = self._lead_record(ns, render_profile(names if about else [], kept), kept)
         return block.model_copy(update={"tags": [constants.LEAD_TAG, constants.PROFILE_TAG]})
 
-    async def _read_headers(self, ns: str, query: str, budget_tokens: int) -> list[MemoryRecord]:
-        """G1b/G3b: the cards header, then the profile header (each optional)."""
+    async def _read_headers(
+        self, ns: str, query: str, budget_tokens: int, session_id: str | None = None
+    ) -> list[MemoryRecord]:
+        """G1b/G3b: the cards header, then the profile header (each optional).
+
+        ``session_id`` keys their searches in the B0 read ledger, like the read's own."""
         headers = []
         for section in (self._cards_section, self._profile_section):
-            header = await section(ns, query, budget_tokens)
+            header = await section(ns, query, budget_tokens, session_id)
             if header is not None:
                 headers.append(header)
         return headers
@@ -2747,22 +2816,35 @@ class Engine:
         return sum(estimate_tokens(h.content) for h in headers)
 
     @staticmethod
-    def _header_hide(headers: list[MemoryRecord]) -> Callable[[MemoryRecord], bool] | None:
+    def _header_hide(
+        headers: list[MemoryRecord], *, all_facts: bool = True
+    ) -> Callable[[MemoryRecord], bool] | None:
         """What the routed read leaves out: every record a header shows, and with
-        the cards header every mined fact (facts reach the context through it)."""
+        the cards header every mined fact (facts reach the context through it).
+        ``all_facts=False`` (a ``full`` read) leaves out only the shown records."""
         if not headers:
             return None
         shown = {pid for h in headers for pid in h.source.parents}
-        facts = any(constants.CARDS_TAG in h.tags for h in headers)
+        facts = all_facts and any(constants.CARDS_TAG in h.tags for h in headers)
         return lambda r: r.record_id in shown or (facts and "atomic_fact" in r.tags)
+
+    def _header_abstains(self, hits: list[tuple[MemoryRecord, float]]) -> bool:
+        """A header is evidence: it is shown only when its own hits pass M12 abstention."""
+        return self._assembly is not None and self._assembly.abstains(hits)
 
     def _attach_headers(
         self, assembled: AssembledContext, headers: list[MemoryRecord]
     ) -> AssembledContext:
         """G1b/G3b: the headers open the volatile part (after the stable prefix),
-        cards first. An abstained read gets none, like the H22 timelines."""
-        if not headers or assembled.abstained:
+        cards first.
+
+        Each header passed M12 abstention on its own hits, so it is evidence: when
+        the routed read abstained because the headers carry what it would have
+        shown (A-1/A-3: mined facts hidden, or B9 dropping their low-trust source
+        turns), the headers still go in and the read no longer abstains."""
+        if not headers:
             return assembled
+        assembled.abstained = False
         records = list(assembled.records)
         at = min(assembled.boundary_index, len(records))
         records[at:at] = headers
@@ -2805,6 +2887,7 @@ class Engine:
         hide: Callable[[MemoryRecord], bool] | None = None,
         extra_probes: Sequence[str] = (),
         replay_window: int = 2,
+        session_id: str | None = None,
     ) -> ReadResult:
         """H3: session-diverse, wider-recall read for aggregation questions.
 
@@ -2824,10 +2907,12 @@ class Engine:
         records: dict[str, MemoryRecord] = {}
         best_score: dict[str, float] = {}
         for probe in probes:
-            fetch = max(1, top_k * pool) * (4 if hide else 1)  # headers hide facts
-            hits = await self.search(probe, namespace=ns, top_k=fetch)
-            if hide is not None:
-                hits = [pair for pair in hits if not hide(pair[0])]
+            fetch = max(1, top_k * pool)
+            # A-1: what the headers show leaves inside the search, before the rerank
+            # and its ``rerank_keep`` cut (the legs widen until ``fetch`` survive).
+            hits = await self._search(
+                probe, ns, fetch, session_id=session_id, keep_k=fetch, hide=hide
+            )
             for rank, (record, score) in enumerate(hits, start=1):
                 rid = record.record_id
                 fused[rid] = fused.get(rid, 0.0) + 1.0 / (rrf_k + rank)
@@ -4792,7 +4877,8 @@ class Engine:
         if label not in self._READ_MODES:
             return None
         gate = self._config().read.planner_min_confidence
-        if confidence < gate:
+        # A bare label carries no confidence (None): below any positive gate.
+        if (confidence is None and gate > 0) or (confidence is not None and confidence < gate):
             # G2b: an unsure choice does not route; keep the default replay read.
             _log.info("read.planner_unsure", label=label, confidence=confidence, gate=gate)
             return "replay"

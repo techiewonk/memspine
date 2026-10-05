@@ -10,8 +10,7 @@ from typing import Annotated
 import typer
 import yaml
 
-from memspine.config import constants
-from memspine.config.loader import ResolvedConfig, flatten_dotted, load_config
+from memspine.config.loader import ResolvedConfig, default_template, flatten_dotted, load_config
 from memspine.core.registry import dependency_closure
 from memspine.exceptions import ConfigError
 from memspine.prompts.registry import PromptRegistry
@@ -32,7 +31,7 @@ FileOpt = Annotated[Path | None, typer.Option("--config", "-c", help="User confi
 def _load(template: str | None, config_file: Path | None) -> ResolvedConfig:
     secrets = EnvSecrets(dotenv_path=".env")
     return load_config(
-        template=template if template is not None else constants.DEFAULT_TEMPLATE,  # ADR-032
+        template=default_template(template, config_file),  # ADR-032
         user_config=config_file,
         env=os.environ,
         secret_resolver=secrets.get,
@@ -134,7 +133,14 @@ def _run_engine_op(db: Path, op: str, **kwargs: object) -> dict[str, object]:
     from memspine import Engine
 
     async def _inner() -> dict[str, object]:
-        engine = Engine(dotenv_path=None, storage={"path": str(db)}, embedding={"provider": "hash"})
+        # ADR-032: an audit/forget op on a user database must not pick up the
+        # assistant read settings (e.g. record_access off); it runs on ``base``.
+        engine = Engine(
+            template="base",
+            dotenv_path=None,
+            storage={"path": str(db)},
+            embedding={"provider": "hash"},
+        )
         await engine.start()
         try:
             if op == "taint":

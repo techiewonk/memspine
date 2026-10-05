@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Any
 
 import pytest
 
@@ -79,3 +80,45 @@ async def test_engine_without_a_template_uses_assistant() -> None:
         assert simple.describe()["profile"] == "simple"
     finally:
         await simple.stop()
+
+
+@pytest.mark.shipped_default
+@pytest.mark.parametrize("where", ["kwargs", "user_config"])
+async def test_profile_simple_without_a_template_is_base(where: str) -> None:
+    """ADR-032 (A-5): naming a profile but no template resolves to ``base``, so
+    ``Engine(profile="simple")`` never picks up the assistant settings."""
+    from memspine.config.loader import load_config
+
+    common = {"storage": {"path": ":memory:"}, "embedding": {"provider": "hash"}}
+    if where == "kwargs":
+        eng = Engine(dotenv_path=None, profile="simple", **common)
+    else:
+        eng = Engine(dotenv_path=None, user_config={"profile": "simple"}, **common)
+    await eng.start()
+    try:
+        expected = load_config(template="base", overrides=common).config
+        got = eng._config()
+        assert got.read == expected.read
+        assert got.memories == expected.memories
+        assert got.prompts == expected.prompts
+        assert eng.describe()["profile"] == "simple"
+    finally:
+        await eng.stop()
+
+
+@pytest.mark.shipped_default
+def test_cli_engine_ops_run_on_base(tmp_path: Any, monkeypatch: pytest.MonkeyPatch) -> None:
+    """ADR-032 (A-5): ``memspine audit taint`` / ``forget`` boot their engine on ``base``."""
+    from memspine import cli
+
+    seen: dict[str, Any] = {}
+    real_init = Engine.__init__
+
+    def spy(self: Engine, *args: Any, **kwargs: Any) -> None:
+        seen.update(kwargs)
+        real_init(self, *args, **kwargs)
+
+    monkeypatch.setattr(Engine, "__init__", spy)
+    with pytest.raises(Exception):  # noqa: B017 - the unknown record is irrelevant here
+        cli._run_engine_op(tmp_path / "m.db", "taint", record_id="nope", namespace="default")
+    assert seen.get("template") == "base"
