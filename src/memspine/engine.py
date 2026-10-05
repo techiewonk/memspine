@@ -204,7 +204,7 @@ from memspine.services.lexical.base import LexicalHit, LexicalStore, rrf_fuse
 from memspine.services.lexical.projector import LexicalProjector
 from memspine.services.llm.base import LLMRouter, LLMService
 from memspine.services.llm.structured import structured_call
-from memspine.services.llm.tier_gate import TierGatedLLM, is_local_provider
+from memspine.services.llm.tier_gate import WITHHELD_MARKER, TierGatedLLM, is_local_provider
 from memspine.services.query_encoder import CueQueryEncoder, NoopQueryEncoder, QueryEncoder
 from memspine.services.rerank.base import Reranker, concat_background
 from memspine.services.rerank.factory import RerankSettings, build_reranker, rerank_modes
@@ -217,7 +217,12 @@ from memspine.services.storage.sqlite.engine import SQLiteStorage
 from memspine.services.vector.base import VectorHit, VectorStore
 from memspine.services.vector.projector import VectorProjector
 from memspine.workers.inline import InlineRunner
-from memspine.workers.list_cards import LIST_CARD_KEY_PREFIX, LabelClasses, ListCard
+from memspine.workers.list_cards import (
+    LIST_CARD_KEY_PREFIX,
+    LabelClasses,
+    ListCard,
+    fact_statement,
+)
 from memspine.workers.pipelines import (
     DERIVED_STAGES,
     PIPELINES,
@@ -524,6 +529,14 @@ def _passive_scoped[**P, R](
             _PASSIVE_SCOPE.reset(token)
 
     return wrapper
+
+
+def _without_entity(text: str, entity: str) -> str:
+    """``text`` without a leading ``entity`` name (as timelines render a fact)."""
+    normal = " ".join(text.split())
+    if normal[: len(entity)].casefold() == entity.casefold():
+        return normal[len(entity) :].lstrip(" :")
+    return normal
 
 
 def _passive_hidden(record: MemoryRecord, group_id: str | None = None) -> bool:
@@ -3569,7 +3582,9 @@ class Engine:
             raise MissingServiceError("llm role 'verify_answer'")
         if isinstance(context, AssembledContext):
             context = context.records
-        lines, ids = numbered_context(context if isinstance(context, str) else list(context))
+        if not isinstance(context, str):
+            context = self._remote_view(role, list(context))  # #50: withheld by id
+        lines, ids = numbered_context(context)
         verdict = await structured_call(
             llm_router.for_role(role),
             self._prompts.select("verify_answer"),
@@ -4511,7 +4526,8 @@ class Engine:
         if llm_router is None or role is None or self._prompts is None:
             _log.warning("read.completeness_unbound", role="sufficiency")
             return []
-        notes = "\n".join(f"- {' '.join(r.content.split())}" for r in context.records)
+        shown = self._remote_view(role, context.records)  # #50: withheld by id
+        notes = "\n".join(f"- {' '.join(r.content.split())}" for r in shown)
         values: dict[str, object] = {"question": query, "context": notes}
         llm = llm_router.for_role(role)
         try:
@@ -5512,8 +5528,33 @@ class Engine:
             for record in await self._storage.list_records(ns):
                 if record.status is RecordStatus.DELETED or pii_rank(record.pii_tier) <= cap:
                     continue
-                texts.extend(self._erasable_texts(record))
-        return texts
+                own = self._erasable_texts(record)
+                texts.extend(own)
+                if record.entity:
+                    # The shapes timelines, cards and entity summaries render: the
+                    # text without its leading entity name or fact key.
+                    texts.extend(_without_entity(t, record.entity) for t in own)
+                    texts.append(fact_statement(record))
+        return list(dict.fromkeys(t for t in texts if t))
+
+    def _remote_view(self, role: str, records: Sequence[MemoryRecord]) -> list[MemoryRecord]:
+        """#50: ``records`` as a prompt for ``role`` may carry them. When ``role`` is
+        bound to a remote provider under ``consent.remote_llm_max_tier``, a record
+        above the tier (a lead block or derived record carries its parts' highest
+        tier) shows :data:`WITHHELD_MARKER` instead of its text, before the prompt
+        is rendered; the provider-boundary text match stays as the backstop."""
+        config = self._config()
+        limit = config.consent.remote_llm_max_tier
+        role_config = config.llm.roles.get(role)
+        if limit is None or role_config is None:
+            return list(records)
+        if is_local_provider(role_config.model, role_config.api_base, config.consent.local_hosts):
+            return list(records)
+        cap = pii_rank(limit)
+        return [
+            r.model_copy(update={"content": WITHHELD_MARKER}) if pii_rank(r.pii_tier) > cap else r
+            for r in records
+        ]
 
     async def audit_taint(
         self, record_id: str, namespace: str = "default", cross_namespace: bool = False
@@ -7767,8 +7808,9 @@ class Engine:
         # #10: each note is one JSON object on one line (quotes, newlines and line
         # separators escaped) inside markers carrying a fresh nonce, so stored text
         # can neither start a forged label line nor close the notes block.
+        shown = self._remote_view("relevance", [r for r, _ in candidates])  # #50
         notes = "\n".join(
-            _json_line({"index": i, "text": r.content[:400]}) for i, (r, _) in enumerate(candidates)
+            _json_line({"index": i, "text": r.content[:400]}) for i, r in enumerate(shown)
         )
         try:
             result = await structured_call(
