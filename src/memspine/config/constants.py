@@ -6,6 +6,8 @@ can override per profile (D-11/D-14).
 
 from __future__ import annotations
 
+from typing import Literal
+
 # Hybrid retrieval fusion (D-25): reciprocal-rank-fusion constant.
 RRF_K = 60
 
@@ -58,8 +60,8 @@ EVOLUTION_MAX_LINKS_PER_WRITE = 4
 # worth a summary-parent record (mirrors CONSOLIDATION_MIN_SESSION_RECORDS).
 REORGANIZE_MIN_COMMUNITY_SIZE = 3
 
-# Leiden community-detection knobs (D-40/v0.2 A6, ADR-028): leidenalg
-# ``find_partition`` defaults + recursive ``max_cluster_size`` bound, surfaced as
+# Leiden community-detection knobs (D-40/v0.2 A6, ADR-028, ADR-035): Leiden
+# defaults + the hierarchical ``max_cluster_size`` bound, surfaced as
 # ``memories.associative.policies.community.*`` so a deployment can tune
 # community granularity without a code change. The seed is fixed so the same
 # graph yields the same communities (rebuild determinism, D0.1) — override it
@@ -68,6 +70,35 @@ LEIDEN_RANDOM_SEED = 1
 LEIDEN_RESOLUTION = 1.0
 LEIDEN_RANDOMNESS = 0.001
 LEIDEN_MAX_CLUSTER_SIZE = 1000
+# graspologic-native Leiden cycles per run (ADR-035): ``iterations=10`` matched
+# leidenalg's run-to-convergence accuracy in the KB-12 benchmark. Resolution 2.0
+# scored higher on synthetic graphs but stays a calibration candidate (#24).
+LEIDEN_ITERATIONS = 10
+
+# Hybrid community algorithm (KB-12, ADR-035). ``auto`` = Leiden when the
+# ``[community]`` extra is installed, else reorganize stays a no-op; ``lpa``
+# opts into the built-in label propagation without the extra.
+COMMUNITY_ALGORITHM: Literal["auto", "leiden", "lpa"] = "auto"
+# LPA passes that refine a Leiden result (boundary nodes only; stops early).
+COMMUNITY_REFINE_PASSES = 10
+# LPA passes over the touched nodes in an incremental (per-sleep) run.
+COMMUNITY_INCREMENTAL_PASSES = 3
+# Pass cap for LPA alone (``algorithm: lpa`` full build).
+COMMUNITY_LPA_MAX_PASSES = 30
+# Collapse guard: an LPA result whose largest community holds more than this
+# share of a graph of at least COMMUNITY_COLLAPSE_MIN_NODES nodes is rejected
+# and the previous partition kept (LPA alone collapsed at mu >= 0.5, KB-12).
+COMMUNITY_COLLAPSE_SHARE = 0.5
+COMMUNITY_COLLAPSE_MIN_NODES = 100
+# Incremental mode: a warm Leiden refresh runs once incrementally placed nodes
+# exceed this share of the graph, or every COMMUNITY_REFRESH_EVERY sleeps.
+COMMUNITY_REFRESH_FRACTION = 0.10
+COMMUNITY_REFRESH_EVERY = 5
+# Summary economy (#84): a community whose membership Jaccard against its
+# summarised member set is at least this keeps its summary parent. 1.0 = off
+# (only an identical membership keeps it, the pre-#84 behaviour); 0.8 is the
+# KB-12 recommendation.
+COMMUNITY_SUMMARY_KEEP_JACCARD = 1.0
 
 # Reflective memory (M13.7): maximum reflection-on-reflection depth.
 REFLECTION_DEPTH_CAP = 2
