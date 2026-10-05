@@ -36,6 +36,7 @@ from .contracts import (
     Turn,
     visible_evidence,
 )
+from .credentials import is_auth_error
 from .judge import Judge, recall_over_units, unit_ranking
 from .metrics import CostModel, Ledger, Stage
 from .provenance import ReaderSpec, RunManifest, RunProtocol, SystemSpec
@@ -50,6 +51,15 @@ class ModelCallBudgetExceeded(RuntimeError):
 
 class UnexpectedModelCall(RuntimeError):
     """Raised when a run declared offline makes a model call anyway."""
+
+
+class ProviderCredentialError(RuntimeError):
+    """C-3: a provider rejected the credentials (expired, invalid, unauthorised).
+
+    Fatal for the run: every later call would fail the same way, so the runner stops
+    cleanly (UNATTEMPTED rows for the rest, the summary written) instead of recording
+    each remaining question as an ERROR row.
+    """
 
 
 class _Abort(Exception):
@@ -92,6 +102,9 @@ class RunConfig:
     #: USD per 1M (input, output) tokens by model id, for the meter the runner builds
     #: when the reader brings none.
     prices_per_mtok: Mapping[str, tuple[float, float]] | None = None
+    #: C-6: ``"embed:<model>"`` (USD per 1M tokens) / ``"rerank:<model>"`` (USD per
+    #: 1,000 searches) for the engine's paid services, charged as their use is observed.
+    service_prices: Mapping[str, float] | None = None
 
     def limits(self) -> dict[str, Any]:
         return {
@@ -129,6 +142,16 @@ class EvalRunner:
         self._rng = random.Random(config.protocol.seed)
         #: per loop stage, per engine role: {"model", "calls", "prompt", "completion"}
         self.engine_llm: dict[str, dict[str, dict[str, Any]]] = {}
+        #: C-5: per-query rerank audit (``meta["reranked"]`` and the engine's counters)
+        self.rerank: dict[str, Any] = {
+            "mode": None,
+            "queries": 0,
+            "reranked": 0,
+            "calls": 0,
+            "failures": 0,
+        }
+        #: C-6: engine services observed (``meta["engine_services"]``), priced or not
+        self.engine_services: dict[str, float] = {}
         self._meter, self._own_meter = self._spend_meter()
         try:
             params = inspect.signature(reader.answer).parameters
@@ -173,8 +196,14 @@ class EvalRunner:
         if budget is not None and callable(getattr(budget, "charge", None)):
             if self.config.max_usd is not None and getattr(budget, "max_usd", None) is None:
                 budget.max_usd = self.config.max_usd
+            if self.config.service_prices and not getattr(budget, "service_prices", None):
+                budget.service_prices = dict(self.config.service_prices)
             return budget, False
-        if self.config.max_usd is None and not self.config.prices_per_mtok:
+        if (
+            self.config.max_usd is None
+            and not self.config.prices_per_mtok
+            and not self.config.service_prices
+        ):
             return None, False
         from .bedrock import CallBudget
 
@@ -182,8 +211,49 @@ class EvalRunner:
             max_calls=2**62,  # the call cap is the runner's own (max_model_calls)
             prices_per_mtok=dict(self.config.prices_per_mtok or {}),
             max_usd=self.config.max_usd,
+            service_prices=dict(self.config.service_prices or {}),
         )
         return meter, True
+
+    def _spent(self) -> float | None:
+        """Dollars metered so far (None without a meter)."""
+        return float(self._meter.spent_usd()) if self._meter is not None else None
+
+    def _charge_services(self, meta: Mapping[str, Any]) -> None:
+        """C-6: charge the engine's observed paid-service use (``meta["engine_services"]``:
+        ``{"embed:<model>": tokens, "rerank:<model>": searches}``) to the meter."""
+        services = meta.get("engine_services")
+        if not services:
+            return
+        for key, units in services.items():
+            kind, _, model = str(key).partition(":")
+            self.engine_services[key] = self.engine_services.get(key, 0.0) + float(units or 0)
+            charge = getattr(self._meter, "charge_service", None)
+            if callable(charge):
+                charge(kind, model, float(units or 0))
+
+    def _audit_rerank(self, meta: Mapping[str, Any]) -> None:
+        """C-5: count, per query, whether the system's reranker ran and how often it failed."""
+        if "reranked" not in meta and "rerank_mode" not in meta:
+            return
+        audit = self.rerank
+        if meta.get("rerank_mode") is not None:
+            audit["mode"] = meta.get("rerank_mode")
+        audit["queries"] += 1
+        audit["reranked"] += 1 if meta.get("reranked") else 0
+        audit["calls"] += int(meta.get("rerank_calls", 0) or 0)
+        audit["failures"] += int(meta.get("rerank_failures", 0) or 0)
+
+    def rerank_summary(self) -> dict[str, Any]:
+        """The C-5 audit block of ``summary.json``. ``rerank_unavailable``: a reranker is
+        configured, questions ran, and it never once returned scores."""
+        audit = dict(self.rerank)
+        configured = audit["mode"] not in (None, "off")
+        audit["configured"] = configured
+        audit["rerank_unavailable"] = bool(
+            configured and audit["queries"] > 0 and audit["calls"] - audit["failures"] <= 0
+        )
+        return audit
 
     def _check_spend(self, what: str) -> None:
         """Stop before ``what`` once observed spend has reached the dollar cap."""
@@ -240,6 +310,8 @@ class EvalRunner:
 
         rows: list[ResultRow] = []
         aborted: BaseException | None = None
+        crashed: BaseException | None = None
+        self.summary_path = out_dir / "summary.json"
         with (
             ResultWriter(results_path, manifest) as writer,
             TraceWriter(trace_path, self.config.include_trace_content) as tracer,
@@ -279,13 +351,32 @@ class EvalRunner:
                         writer.write(row)
                         rows.append(row)
                 aborted = abort.cause
-            summary = aggregate(manifest, rows, self.ledger)
-            writer.write_summary(summary)
-        self.summary_path = out_dir / "summary.json"
-        self._write_summary_file(manifest, summary)
+            except BaseException as exc:
+                # C-2: a crash (an adapter error at insert, a kill signal) still owes the
+                # spend record; it is written below, marked aborted, and re-raised.
+                crashed = exc
+                raise
+            finally:
+                try:
+                    summary = aggregate(manifest, rows, self.ledger)
+                    writer.write_summary(summary)
+                    self._write_summary_file(manifest, summary, aborted=crashed or aborted)
+                except Exception:
+                    if crashed is None:
+                        raise
+                    # the original crash matters more than a failed summary
         if aborted is not None:
             raise aborted
         return summary
+
+    def _row_spend(self, before: float | None) -> dict[str, float]:
+        """C-2: per-row spend for the result row: this question's metered dollars
+        (retrieval, reader, judge) and the run's running total, so a run killed before
+        its summary can still be costed from its rows."""
+        now = self._spent()
+        if now is None or before is None:
+            return {}
+        return {"spend_usd": round(now - before, 8), "spend_usd_run": round(now, 8)}
 
     def _unattempted(self, item: EvalItem, query: Query) -> ResultRow:
         return self._blank_row(
@@ -316,10 +407,19 @@ class EvalRunner:
             error=error,
         )
 
-    def _write_summary_file(self, manifest: RunManifest, summary: RunSummary) -> None:
+    def _write_summary_file(
+        self,
+        manifest: RunManifest,
+        summary: RunSummary,
+        aborted: BaseException | None = None,
+    ) -> None:
         import json
 
         payload = {
+            # C-2: written on every exit; an aborted run says so and why
+            "aborted": aborted is not None,
+            "abort_reason": type(aborted).__name__ if aborted is not None else None,
+            "abort_message": str(aborted)[:500] if aborted is not None else None,
             "manifest": manifest.to_dict(),
             "summary": summary.to_dict(),
             "score_matrix_row": manifest.score_matrix_row(summary.score_mean, summary.n_queries),
@@ -327,6 +427,11 @@ class EvalRunner:
             "loop_model_calls": self._model_calls - self._judge_calls,
             # per loop stage (D / K / R), per engine LLM role: calls and tokens
             "engine_llm_usage": self.engine_llm,
+            # C-6: embedding tokens / rerank searches the engine reported
+            "engine_services": self.engine_services,
+            # C-5: did the configured reranker run (per query), and how often did it fail
+            "rerank": self.rerank_summary(),
+            "rerank_unavailable": self.rerank_summary()["rerank_unavailable"],
             "spend": self._meter.summary() if self._meter is not None else None,
         }
         self.summary_path.parent.mkdir(parents=True, exist_ok=True)
@@ -374,7 +479,7 @@ class EvalRunner:
             for i, query in enumerate(tail):
                 rows.append(await self._answer(item, query, len(item.history) + i, tracer))
                 done.add(query.query_id)
-        except (ModelCallBudgetExceeded, UnexpectedModelCall) as exc:
+        except (ModelCallBudgetExceeded, UnexpectedModelCall, ProviderCredentialError) as exc:
             raise _Abort(
                 cause=exc,
                 item=item,
@@ -383,10 +488,25 @@ class EvalRunner:
             ) from exc
         return rows
 
+    async def _guard_auth(self, what: str, call: Callable[[], Any]) -> Any:
+        """Await ``call()``; a credential failure becomes ``ProviderCredentialError`` (C-3)."""
+        try:
+            return await call()
+        except (ModelCallBudgetExceeded, UnexpectedModelCall, ProviderCredentialError):
+            raise
+        except Exception as exc:
+            if is_auth_error(exc):
+                raise ProviderCredentialError(
+                    f"{what}: credentials rejected ({type(exc).__name__}: {str(exc)[:300]})"
+                ) from exc
+            raise
+
     async def _insert(self, item_id: str, t: int, turn: Turn, tracer: TraceWriter) -> None:
         self._check_spend(f"{self.system.system_id}.insert")
         started = time.perf_counter()
-        deposit = await self.system.insert(turn)
+        deposit = await self._guard_auth(
+            f"{self.system.system_id}.insert", lambda: self.system.insert(turn)
+        )
         latency = (time.perf_counter() - started) * 1000
         self._record_deposit(item_id, t, turn, deposit, latency, tracer)
 
@@ -398,7 +518,7 @@ class EvalRunner:
             return
         self._check_spend(f"{self.system.system_id}.flush")
         started = time.perf_counter()
-        deposit = await flush()
+        deposit = await self._guard_auth(f"{self.system.system_id}.flush", flush)
         if not deposit.n_records and not deposit.model_calls and not deposit.meta:
             return  # nothing was buffered
         latency = (time.perf_counter() - started) * 1000
@@ -414,6 +534,7 @@ class EvalRunner:
         tracer: TraceWriter,
     ) -> None:
         self._charge_engine(Stage.DEPOSIT, deposit.meta)
+        self._charge_services(deposit.meta)
         self._account_model_calls(deposit.model_calls, f"{self.system.system_id}.insert")
         self.ledger.add(
             Stage.DEPOSIT,
@@ -455,8 +576,9 @@ class EvalRunner:
             )
         self._check_spend(f"{self.system.system_id}.build")
         started = time.perf_counter()
-        result = await build()
+        result = await self._guard_auth(f"{self.system.system_id}.build", build)
         self._charge_engine(Stage.SYNTHESISE, result.meta)
+        self._charge_services(result.meta)
         self._account_model_calls(result.model_calls, f"{self.system.system_id}.build")
         self.ledger.add(
             Stage.SYNTHESISE,
@@ -471,12 +593,15 @@ class EvalRunner:
 
     async def _answer(self, item: EvalItem, query: Query, t: int, tracer: TraceWriter) -> ResultRow:
         protocol = self.config.protocol
+        spend_before = self._spent()
         try:
             self._check_spend(f"{self.system.system_id}.query")
             started = time.perf_counter()
             context = await self.system.query(query.text, protocol.budget_tokens, protocol.top_k)
             latency_retrieve = (time.perf_counter() - started) * 1000
             self._charge_engine(Stage.RETRIEVE, context.meta)
+            self._charge_services(context.meta)
+            self._audit_rerank(context.meta)
 
             # The protocol owns the budget, not the system: truncate here even
             # when the system says it already did.
@@ -623,11 +748,22 @@ class EvalRunner:
                         if verdict.meta.get("prompt_id")
                         else {}
                     ),
+                    **(
+                        {"reranked": context.meta["reranked"]} if "reranked" in context.meta else {}
+                    ),
+                    **self._row_spend(spend_before),
                 },
             )
-        except (ModelCallBudgetExceeded, UnexpectedModelCall):
+        except (ModelCallBudgetExceeded, UnexpectedModelCall, ProviderCredentialError):
             raise
         except Exception as exc:
+            if is_auth_error(exc):
+                # C-3: an expired / invalid credential fails every later call too; stop
+                # the run (UNATTEMPTED rest) instead of writing ERROR rows until the end.
+                raise ProviderCredentialError(
+                    f"{self.system.system_id}.answer: credentials rejected "
+                    f"({type(exc).__name__}: {str(exc)[:300]})"
+                ) from exc
             if self.config.fail_fast:
                 raise
             # A failed question stays in the file and in the denominator. It is
@@ -680,6 +816,7 @@ async def run_matrix(
             labels=config.labels,
             max_usd=config.max_usd,
             prices_per_mtok=config.prices_per_mtok,
+            service_prices=config.service_prices,
             extra_limits={
                 **dict(config.extra_limits),
                 "model_call_cap_scope": "per-arm",

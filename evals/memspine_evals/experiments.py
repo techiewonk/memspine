@@ -117,6 +117,9 @@ class C01Config:
     prices_per_mtok: tuple[tuple[str, float, float], ...] = ()
     #: G3: dollar cap per arm (reader + judge + engine). None = no dollar cap.
     max_usd: float | None = None
+    #: C-6: ``(kind, model, price)`` for paid engine services: ``embed`` in USD per 1M
+    #: input tokens, ``rerank`` in USD per 1,000 searches (``--price embed:M=X``).
+    service_prices: tuple[tuple[str, str, float], ...] = ()
     #: questions per item (rehearsals: the first N of a conversation). None = all.
     max_queries_per_item: int | None = None
 
@@ -251,8 +254,36 @@ def engine_llm_models(config: C01Config) -> set[str]:
     return {str(binding.get("model", "")) for binding in roles.values() if binding.get("model")}
 
 
+def paid_services(config: C01Config) -> list[tuple[str, str]]:
+    """C-6: the memspine arm's paid cloud services, as ``(kind, model)``: a LiteLLM
+    embedder (``embed``) and a LiteLLM reranker (``rerank``). Local ones are free."""
+    if not config.include_memspine:
+        return []
+    engine = memspine_engine_config(config) or {}
+    out: list[tuple[str, str]] = []
+    embedding = dict(engine.get("embedding") or {})
+    if embedding.get("provider") == "litellm":
+        out.append(("embed", str(embedding.get("model") or "")))
+    read = dict(engine.get("read") or {})
+    if read.get("rerank") == "litellm":
+        out.append(("rerank", str(read.get("rerank_model") or "")))
+    return out
+
+
+def service_price_table(config: C01Config) -> dict[str, float]:
+    """``"embed:<model>"`` / ``"rerank:<model>"`` -> price, from ``--price`` (C-6)."""
+    return {f"{kind}:{model}": price for kind, model, price in config.service_prices}
+
+
+def unpriced_services(config: C01Config) -> list[tuple[str, str]]:
+    """Paid services of the run with no ``--price`` (C-6)."""
+    table = service_price_table(config)
+    return [(k, m) for k, m in paid_services(config) if f"{k}:{m}" not in table]
+
+
 def check_dollar_cap(config: C01Config) -> None:
-    """A dollar cap is only a cap if every paid model in the run has a price (G3)."""
+    """A dollar cap is only a cap if every paid model in the run has a price (G3), the
+    engine's paid embedder and reranker included (C-6)."""
     if config.max_usd is None:
         return
     if config.max_usd <= 0:
@@ -271,6 +302,13 @@ def check_dollar_cap(config: C01Config) -> None:
     missing = sorted(m for m in paid if m not in table)
     if missing:
         raise ValueError(f"--max-usd needs a --price for every paid model; missing: {missing}")
+    services = unpriced_services(config)
+    if services:
+        flags = ", ".join(f"--price {kind}:{model}=..." for kind, model in services)
+        raise ValueError(
+            "--max-usd needs a price for every paid cloud service of the memspine arm "
+            f"(embed: USD per 1M tokens, rerank: USD per 1,000 searches); missing: {flags}"
+        )
 
 
 def build_systems(config: C01Config) -> list[SystemAdapter]:
@@ -374,6 +412,7 @@ def build_reader_and_judge(config: C01Config) -> tuple[Reader, Judge, bool]:
             max_calls=config.max_model_calls,
             prices_per_mtok=price_table(config),
             max_usd=config.max_usd,
+            service_prices=service_price_table(config),
         )
         bedrock_reader = LiteLLMReader(
             budget, model=QWEN3_32B, temperature=0.0, max_tokens=256, prompt=qa_prompt
@@ -455,6 +494,7 @@ async def run_c0_1(
         expect_model_calls=calls or bool(engine_models),
         max_usd=config.max_usd,
         prices_per_mtok=prices,
+        service_prices=service_price_table(config),
         labels={
             "experiment": "C0-1",
             "question": "does verbatim storage beat extraction on our own harness",
@@ -470,6 +510,8 @@ async def run_c0_1(
             "memspine_llm": config.memspine_llm,
             "engine_llm_models": sorted(engine_models),
             "prices_per_mtok": {m: list(p) for m, p in sorted(prices.items())},
+            "service_prices": service_price_table(config),
+            "paid_services": [f"{k}:{m}" for k, m in paid_services(config)],
         },
         extra_limits={"item_ids": list(config.item_ids) if config.item_ids else None},
     )

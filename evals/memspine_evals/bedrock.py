@@ -19,7 +19,7 @@ import hashlib
 import os
 import re
 import time
-from collections.abc import Mapping
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -49,6 +49,7 @@ __all__ = [
     "load_aws_credentials",
     "merge_engine_llm_roles",
     "parse_price",
+    "parse_service_price",
 ]
 
 #: LiteLLM model ids, verified on-demand in us-east-1 on 2026-09-30.
@@ -173,6 +174,29 @@ def parse_price(spec: str) -> tuple[str, float, float]:
     return model.strip(), p_in, p_out
 
 
+#: C-6: the billing unit of each priced service: embeddings per 1M input tokens,
+#: reranking per 1,000 searches.
+SERVICE_UNITS: dict[str, float] = {"embed": 1e6, "rerank": 1e3}
+
+
+def parse_service_price(spec: str) -> tuple[str, str, float] | None:
+    """``"embed:MODEL=USD_PER_MTOK"`` or ``"rerank:MODEL=USD_PER_1K_SEARCHES"`` ->
+    (kind, model, price); None when ``spec`` is an ordinary ``model=IN,OUT`` price."""
+    kind, sep, rest = spec.partition(":")
+    if not sep or kind not in SERVICE_UNITS:
+        return None
+    model, eq, price = rest.rpartition("=")
+    if not eq or not model.strip():
+        raise ValueError(f"--price takes {kind}:MODEL=PRICE, got {spec!r}")
+    try:
+        value = float(price)
+    except ValueError as exc:
+        raise ValueError(f"--price {kind} price must be one number, got {spec!r}") from exc
+    if value < 0:
+        raise ValueError(f"--price prices must be >= 0, got {spec!r}")
+    return kind, model.strip(), value
+
+
 def estimate_prompt_tokens(messages: list[dict[str, str]]) -> int:
     """A conservative prompt-size estimate for the pre-call dollar check.
 
@@ -239,6 +263,11 @@ class CallBudget:
     engine_calls: int = 0
     tokens: dict[str, list[int]] = field(default_factory=dict)  # model -> [in, out]
     cached: dict[str, int] = field(default_factory=dict)  # C9': model -> cache-read input
+    #: C-6: ``"embed:<model>"`` -> USD per 1M input tokens, ``"rerank:<model>"`` -> USD
+    #: per 1,000 searches (one rerank request is one search)
+    service_prices: Mapping[str, float] | None = None
+    #: C-6: ``"embed:<model>"`` -> tokens, ``"rerank:<model>"`` -> searches, as charged
+    services: dict[str, float] = field(default_factory=dict)
 
     def price(self, model: str) -> tuple[float, float]:
         return (self.prices_per_mtok or {}).get(model, (0.0, 0.0))
@@ -247,8 +276,25 @@ class CallBudget:
         p_in, p_out = self.price(model)
         return prompt_tokens / 1e6 * p_in + completion_tokens / 1e6 * p_out
 
+    def service_usd(self) -> float:
+        """Dollars of the embedding and rerank units charged so far."""
+        prices = self.service_prices or {}
+        return sum(
+            units / SERVICE_UNITS[key.split(":", 1)[0]] * prices.get(key, 0.0)
+            for key, units in self.services.items()
+        )
+
     def spent_usd(self) -> float:
-        return sum(self.estimate_usd(m, t[0], t[1]) for m, t in self.tokens.items())
+        tokens = sum(self.estimate_usd(m, t[0], t[1]) for m, t in self.tokens.items())
+        return tokens + self.service_usd()
+
+    def charge_service(self, kind: str, model: str, units: float) -> None:
+        """C-6: charge observed embedding tokens or rerank searches. Never raises."""
+        if kind not in SERVICE_UNITS:
+            raise ValueError(f"unknown service kind {kind!r}; known: {sorted(SERVICE_UNITS)}")
+        if units:
+            key = f"{kind}:{model}"
+            self.services[key] = self.services.get(key, 0.0) + float(units)
 
     def check_usd(self, estimate: float = 0.0, what: str = "the next call") -> None:
         """Raise ``BudgetExceeded`` if spending ``estimate`` more would cross ``max_usd``."""
@@ -290,7 +336,7 @@ class CallBudget:
             self.cached[model] = self.cached.get(model, 0) + cached_tokens
 
     def usd(self) -> float | None:
-        if self.prices_per_mtok is None:
+        if self.prices_per_mtok is None and not self.service_prices:
             return None
         return self.spent_usd()
 
@@ -302,8 +348,26 @@ class CallBudget:
             "max_usd": self.max_usd,
             "tokens": self.tokens,
             "cached_input_tokens": self.cached,
+            "services": dict(self.services),
+            "services_usd": self.service_usd(),
             "usd": self.usd(),
         }
+
+
+async def _retry_transient(
+    call: Callable[[], Awaitable[Any]],
+    *,
+    what: str,
+    attempts: int = 5,
+    base_delay: float = 1.0,
+) -> Any:
+    """The engine's transient-error retry (``memspine.services._retry``), or one plain
+    attempt when the engine is not installed."""
+    try:
+        from memspine.services._retry import retry_transient
+    except ImportError:  # pragma: no cover - bare harness environment
+        return await call()
+    return await retry_transient(call, what=what, attempts=attempts, base_delay=base_delay)
 
 
 def cached_prompt_tokens(usage: Any) -> int:
@@ -338,8 +402,13 @@ class LiteLLMReader:
         prompt: str = DEFAULT_QA_PROMPT,
         reader_id: str | None = None,
         no_think: bool | None = None,
+        retry_attempts: int = 5,
+        retry_base_delay: float = 1.0,
     ) -> None:
         import litellm
+
+        self.retry_attempts = max(1, int(retry_attempts))
+        self.retry_base_delay = retry_base_delay
 
         litellm.suppress_debug_info = True
         self._litellm = litellm
@@ -374,11 +443,19 @@ class LiteLLMReader:
         # G3: refused before the call if its worst case (prompt + max_tokens) crosses the cap.
         self.budget.reserve(self.model, estimate_prompt_tokens(messages), self.max_tokens)
         started = time.perf_counter()
-        response = await self._litellm.acompletion(
-            model=self.model,
-            messages=messages,
-            temperature=self.temperature,
-            max_tokens=self.max_tokens,
+        # C-3: a dropped connection or throttling is retried with backoff (one budget
+        # reservation covers the retries: a failed attempt returned no tokens); an
+        # expired or invalid credential is not, and the runner stops the run on it.
+        response = await _retry_transient(
+            lambda: self._litellm.acompletion(
+                model=self.model,
+                messages=messages,
+                temperature=self.temperature,
+                max_tokens=self.max_tokens,
+            ),
+            what=f"{self.reader_id}.complete",
+            attempts=self.retry_attempts,
+            base_delay=self.retry_base_delay,
         )
         latency = (time.perf_counter() - started) * 1000
         usage = getattr(response, "usage", None)
