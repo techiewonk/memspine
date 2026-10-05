@@ -5463,13 +5463,14 @@ class Engine:
             # A scratch directory on disk gave the same results but cost a new
             # fragment and version file per write (and minutes to delete).
             lance_path = "memory://vectors"
-            compact_every: int | None = constants.LANCE_COMPACT_EVERY
+            exclusive = True  # no other engine can reach this table
         else:
             # sqlite: <path>.lance beside the db; postgres: <data_dir>/memspine.lance
             lance_path = f"{self._derived_base(config)}.lance"
-            # A file-backed table may be shared with concurrent engines (D-45);
-            # compacting it could conflict with their writes, so it is left alone.
-            compact_every = None
+            # A file-backed table may be shared with concurrent engines (D-45):
+            # compacting it could conflict with their writes, and only a merge
+            # knows whether an id is already there, so it keeps the plain path.
+            exclusive = False
         self._lance = LanceDBClient(lance_path)
         await self._lance.connect()
         return LanceDBVectorStore(
@@ -5478,7 +5479,8 @@ class Engine:
             quantization=quantization,
             matryoshka_dim=matryoshka_dim,
             oversample=constants.RESCORE_OVERSAMPLE,
-            compact_every=compact_every,
+            compact_every=constants.LANCE_COMPACT_EVERY if exclusive else None,
+            exclusive=exclusive,
         )
 
     def _build_lexical_store(self, config: MemspineConfig) -> LexicalStore:
