@@ -18,7 +18,7 @@ import os
 import shutil
 import tempfile
 import threading
-from collections.abc import Coroutine, Mapping, Sequence
+from collections.abc import Callable, Coroutine, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -41,6 +41,9 @@ from memspine.core.integrity import IntegrityPolicy
 from memspine.core.lead import (
     card_line,
     is_standing_instruction,
+    mentions_any,
+    query_names,
+    render_profile,
     render_standing,
     render_timeline,
     timeline_line,
@@ -165,6 +168,7 @@ _RECALL_MARKERS = (
     constants.STANDING_MARKER,
     constants.CLAIM_MARKER,
     constants.CARDS_MARKER,
+    constants.PROFILE_MARKER,
 )
 
 
@@ -1877,6 +1881,7 @@ class Engine:
         ranked: list[tuple[str, float]],
         group_id: str | None,
         tags: list[str] | None,
+        memory_type: str | None = None,
     ) -> list[tuple[MemoryRecord, float]]:
         """The E1 / EI-1 / C8' / D2 gates of :meth:`search`, in ranked order."""
         storage = self._require_started()
@@ -1916,6 +1921,8 @@ class Engine:
                 continue
             if tags and not set(tags).issubset(record.tags):
                 continue
+            if memory_type is not None and record.memory_type != memory_type:
+                continue
             try:
                 record = self._inflate.inflate(record)  # cold-tier content restored (M6)
             except StorageError:
@@ -1935,6 +1942,7 @@ class Engine:
         tags: list[str] | None = None,
         session_id: str | None = None,
         keep_k: int,
+        memory_type: str | None = None,
     ) -> list[tuple[MemoryRecord, float]]:
         """:meth:`search` with ``keep_k``: how many results the caller finally keeps
         (assembly fetches ``candidate_pool x top_k``); the H18 rerank gate uses it."""
@@ -1986,7 +1994,7 @@ class Engine:
                 ranked: list[tuple[str, float]] = [(rid, score / rrf_max) for rid, score in fused]
             else:
                 ranked = [(hit.record_id, hit.score) for hit in vector_hits]
-            candidates = await self._gate_hits(ns, ranked, group_id, tags)
+            candidates = await self._gate_hits(ns, ranked, group_id, tags, memory_type)
             exhausted = len(vector_hits) < fetch_k and len(lexical_hits) < fetch_k
             if len(candidates) >= top_k or exhausted or widen >= _SEARCH_MAX_WIDEN:
                 break
@@ -2101,8 +2109,8 @@ class Engine:
             raise MemspineError("assembly policy not bound — engine not started?")
         budget = self._reply_budget(budget_tokens)
         ns = validate_namespace(namespace)
-        cards = None if shared else await self._cards_section(ns, query, budget)
-        inner = budget - self._cards_cost(cards)
+        headers = [] if shared else await self._read_headers(ns, query, budget)
+        inner = budget - self._headers_cost(headers)
         assembled = await self._assemble_core(
             query,
             ns,
@@ -2110,9 +2118,9 @@ class Engine:
             top_k,
             shared=shared,
             session_id=session_id,
-            drop_facts=cards is not None,
+            hide=self._header_hide(headers),
         )
-        return self._attach_cards(self._render(query, assembled, inner), cards)
+        return self._attach_headers(self._render(query, assembled, inner), headers)
 
     async def _assemble_core(
         self,
@@ -2123,13 +2131,12 @@ class Engine:
         *,
         shared: bool = False,
         session_id: str | None = None,
-        drop_facts: bool = False,
+        hide: Callable[[MemoryRecord], bool] | None = None,
     ) -> AssembledContext:
         """:meth:`assemble` without the reply reserve and the final render (callers
         apply both once, so the replay read can extend the context first).
 
-        ``drop_facts`` (G1b): mined facts leave the candidates, the cards header
-        carries them."""
+        ``hide`` (G1b/G3b): candidates a read header already carries leave."""
         if self._assembly is None:
             raise MemspineError("assembly policy not bound — engine not started?")
         fetch_k = top_k * self._config().read.candidate_pool
@@ -2139,8 +2146,8 @@ class Engine:
             )
         else:
             scored = await self._search(query, ns, fetch_k, session_id=session_id, keep_k=top_k)
-        if drop_facts:
-            scored = [pair for pair in scored if "atomic_fact" not in pair[0].tags]
+        if hide is not None:
+            scored = [pair for pair in scored if not hide(pair[0])]
         integrity = self._integrity()
         if integrity.enabled and integrity.trust_weighted_ranking and scored:
             # Scores are composite x view trust. Abstention (theta_abstain) judges
@@ -2419,20 +2426,20 @@ class Engine:
         self._require_started()
         ns = validate_namespace(namespace)
         budget_tokens = self._reply_budget(budget_tokens)
-        # G1b: the cards header takes its share first; the routed read gets the rest
-        # and leaves mined facts out, so no fact appears twice.
-        cards = await self._cards_section(ns, query, budget_tokens)
+        # G1b/G3b: the read headers take their shares first; the routed read gets the
+        # rest and leaves out what they carry, so nothing appears twice.
+        headers = await self._read_headers(ns, query, budget_tokens)
         result = await self._read_routed(
             query,
             ns,
             mode,
-            budget_tokens - self._cards_cost(cards),
+            budget_tokens - self._headers_cost(headers),
             top_k,
             replay_window,
             compose_pool,
-            drop_facts=cards is not None,
+            hide=self._header_hide(headers),
         )
-        return ReadResult(result.mode, self._attach_cards(result.context, cards))
+        return ReadResult(result.mode, self._attach_headers(result.context, headers))
 
     async def _read_routed(
         self,
@@ -2444,14 +2451,14 @@ class Engine:
         replay_window: int,
         compose_pool: int,
         *,
-        drop_facts: bool = False,
+        hide: Callable[[MemoryRecord], bool] | None = None,
     ) -> ReadResult:
-        """:meth:`read` after the reply reserve and the cards header: route and read."""
+        """:meth:`read` after the reply reserve and the read headers: route and read."""
         storage = self._require_started()
         if mode in ("auto", "full"):
             live = []
             for record in await storage.list_records(ns):
-                if drop_facts and "atomic_fact" in record.tags:
+                if hide is not None and hide(record):
                     continue
                 view = await self._live_view(record)
                 if view is not None:
@@ -2485,11 +2492,11 @@ class Engine:
                 budget_tokens,
                 top_k,
                 compose_pool,
-                drop_facts=drop_facts,
+                hide=hide,
                 extra_probes=probes,
                 replay_window=replay_window,
             )
-        base = await self._assemble_core(query, ns, budget_tokens, top_k, drop_facts=drop_facts)
+        base = await self._assemble_core(query, ns, budget_tokens, top_k, hide=hide)
         episodic_hits = [r for r in base.records if r.memory_type == "episodic"]
         # H6: a mined atomic fact replays the source turn it best matches (its
         # derived_from lists the whole session, which would not fit the budget).
@@ -2605,21 +2612,79 @@ class Engine:
     def _cards_text(cards: list[MemoryRecord]) -> str:
         return "\n".join([constants.CARDS_MARKER, *(card_line(r) for r in cards)])
 
-    @staticmethod
-    def _cards_cost(cards: MemoryRecord | None) -> int:
-        return estimate_tokens(cards.content) if cards is not None else 0
+    async def _profile_section(
+        self, ns: str, query: str, budget_tokens: int
+    ) -> MemoryRecord | None:
+        """G3b: the profile header, or None (``read.profile_header`` off, or nothing).
 
-    def _attach_cards(
-        self, assembled: AssembledContext, cards: MemoryRecord | None
+        Candidates are the H14 profile insights (``reflect_profile`` deposits:
+        reflective records from the ``reflection`` channel) from the same search,
+        restricted to reflective records, so every search gate applies. Insights
+        that name a person in the query come first; when none does, the most
+        relevant insights are used. Lines are kept best first while the block fits
+        ``read.profile_budget_share x budget_tokens``.
+        """
+        read_cfg = self._config().read
+        if not read_cfg.profile_header:
+            return None
+        allowance = int(budget_tokens * read_cfg.profile_budget_share)
+        names = query_names(query)
+        if allowance <= estimate_tokens(render_profile(names, [])):
+            return None
+        k = constants.PROFILE_HEADER_TOP_K
+        hits = await self._search(query, ns, k, memory_type="reflective", keep_k=k)
+        insights = [
+            r
+            for r, _ in hits
+            if r.source.channel == "reflection"
+            and (r.source.message_id or "").startswith("reflected:")
+        ]
+        about = [r for r in insights if mentions_any(r.content, names)]
+        kept: list[MemoryRecord] = []
+        for record in about or insights:
+            trial = [*kept, self._wrap_for_context(record)]
+            if estimate_tokens(render_profile(names if about else [], trial)) <= allowance:
+                kept = trial
+        if not kept:
+            return None
+        block = self._lead_record(ns, render_profile(names if about else [], kept), kept)
+        return block.model_copy(update={"tags": [constants.LEAD_TAG, constants.PROFILE_TAG]})
+
+    async def _read_headers(self, ns: str, query: str, budget_tokens: int) -> list[MemoryRecord]:
+        """G1b/G3b: the cards header, then the profile header (each optional)."""
+        headers = []
+        for section in (self._cards_section, self._profile_section):
+            header = await section(ns, query, budget_tokens)
+            if header is not None:
+                headers.append(header)
+        return headers
+
+    @staticmethod
+    def _headers_cost(headers: list[MemoryRecord]) -> int:
+        return sum(estimate_tokens(h.content) for h in headers)
+
+    @staticmethod
+    def _header_hide(headers: list[MemoryRecord]) -> Callable[[MemoryRecord], bool] | None:
+        """What the routed read leaves out: every record a header shows, and with
+        the cards header every mined fact (facts reach the context through it)."""
+        if not headers:
+            return None
+        shown = {pid for h in headers for pid in h.source.parents}
+        facts = any(constants.CARDS_TAG in h.tags for h in headers)
+        return lambda r: r.record_id in shown or (facts and "atomic_fact" in r.tags)
+
+    def _attach_headers(
+        self, assembled: AssembledContext, headers: list[MemoryRecord]
     ) -> AssembledContext:
-        """G1b: the cards header opens the volatile part (after the stable prefix).
-        An abstained read gets none, like the H22 timelines."""
-        if cards is None or assembled.abstained:
+        """G1b/G3b: the headers open the volatile part (after the stable prefix),
+        cards first. An abstained read gets none, like the H22 timelines."""
+        if not headers or assembled.abstained:
             return assembled
         records = list(assembled.records)
-        records.insert(min(assembled.boundary_index, len(records)), cards)
+        at = min(assembled.boundary_index, len(records))
+        records[at:at] = headers
         assembled.records = records
-        assembled.tokens_used += self._cards_cost(cards)
+        assembled.tokens_used += self._headers_cost(headers)
         return assembled
 
     async def _best_source_turn(self, fact: MemoryRecord) -> MemoryRecord | None:
@@ -2654,7 +2719,7 @@ class Engine:
         top_k: int,
         pool: int,
         *,
-        drop_facts: bool = False,
+        hide: Callable[[MemoryRecord], bool] | None = None,
         extra_probes: Sequence[str] = (),
         replay_window: int = 2,
     ) -> ReadResult:
@@ -2677,8 +2742,8 @@ class Engine:
         best_score: dict[str, float] = {}
         for probe in probes:
             hits = await self.search(probe, namespace=ns, top_k=max(1, top_k * pool))
-            if drop_facts:
-                hits = [pair for pair in hits if "atomic_fact" not in pair[0].tags]
+            if hide is not None:
+                hits = [pair for pair in hits if not hide(pair[0])]
             for rank, (record, score) in enumerate(hits, start=1):
                 rid = record.record_id
                 fused[rid] = fused.get(rid, 0.0) + 1.0 / (rrf_k + rank)

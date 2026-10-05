@@ -52,6 +52,8 @@
       "order_by_time_for_ordering": false,
       "planner": "rules",
       "planner_min_confidence": 0.0,
+      "profile_budget_share": 0.15,
+      "profile_header": false,
       "record_access": true,
       "relevance_filter": false,
       "relevance_safety_net": 10,

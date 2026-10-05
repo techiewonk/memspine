@@ -238,6 +238,11 @@ LEAD_TAG = "lead_section"
 # synthetic record. A read-time projection over mined facts, never stored.
 CARDS_MARKER = "FACTS (mined from earlier conversations, dated):"
 CARDS_TAG = "cards_header"
+# G3b: header of the profile block (``read.profile_header``), its tag, and how many
+# reflective candidates its search fetches.
+PROFILE_MARKER = "PROFILE NOTES (reflected from earlier conversations"
+PROFILE_TAG = "profile_header"
+PROFILE_HEADER_TOP_K = 8
 # B9 facts-only (``integrity.claims_only_below``): the prefix of a mined fact shown
 # in place of the low-trust raw record it was mined from.
 CLAIM_MARKER = "[CLAIM from a low-trust source, unverified]"

@@ -19,6 +19,9 @@ from memspine.core.records import MemoryRecord
 __all__ = [
     "card_line",
     "is_standing_instruction",
+    "mentions_any",
+    "query_names",
+    "render_profile",
     "render_standing",
     "render_timeline",
     "timeline_line",
@@ -77,6 +80,89 @@ def card_line(record: MemoryRecord) -> str:
         if rest != text and ": " in rest:
             text = f"{record.entity}: {rest.split(': ', 1)[1]}"
     return f"[{record.valid_from:%Y-%m-%d}] {text}"
+
+
+#: Capitalised words that open or join a question, never a person's name.
+_NOT_NAMES = frozenset(
+    [
+        "what",
+        "when",
+        "where",
+        "who",
+        "whom",
+        "whose",
+        "why",
+        "how",
+        "which",
+        "would",
+        "could",
+        "should",
+        "might",
+        "will",
+        "is",
+        "are",
+        "was",
+        "were",
+        "did",
+        "does",
+        "do",
+        "has",
+        "have",
+        "had",
+        "can",
+        "may",
+        "i",
+        "in",
+        "on",
+        "at",
+        "the",
+        "a",
+        "an",
+        "and",
+        "or",
+        "if",
+        "to",
+        "of",
+        "for",
+        "after",
+        "before",
+        "during",
+        "since",
+        "by",
+        "from",
+        "with",
+    ]
+)
+
+
+def query_names(query: str) -> list[str]:
+    """G3b: the capitalised words of a question that may name someone ("Caroline's")."""
+    names: list[str] = []
+    for raw in query.split():
+        word = raw.strip('.,;:!?"()[]')
+        if word.endswith(("'s", "\u2019s")):
+            word = word[:-2]
+        if (
+            len(word) > 1
+            and word[0].isupper()
+            and word.lower() not in _NOT_NAMES
+            and word not in names
+        ):
+            names.append(word)
+    return names
+
+
+def mentions_any(text: str, names: Sequence[str]) -> bool:
+    """True when ``text`` names one of ``names`` as a whole word (case-insensitive)."""
+    return any(re.search(rf"\b{re.escape(n)}\b", text, re.IGNORECASE) for n in names)
+
+
+def render_profile(names: Sequence[str], records: Sequence[MemoryRecord]) -> str:
+    """G3b: the profile block: header (naming who it is about), one dated insight a line."""
+    about = f" about {', '.join(names)}" if names else ""
+    header = f"{constants.PROFILE_MARKER}{about}; inferred, not stated):"
+    lines = [f"- [{r.valid_from:%Y-%m-%d}] {' '.join(r.content.split())}" for r in records]
+    return "\n".join([header, *lines])
 
 
 def render_timeline(entity: str, lines: Sequence[str]) -> str:
