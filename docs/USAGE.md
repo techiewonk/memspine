@@ -157,6 +157,23 @@ events = await engine.timeline(namespace="dev")
 sessions = await engine.sessions(namespace="dev", gap_minutes=30)
 ```
 
+**Session lifecycle (#53, opt-in).** Conversations idle longer than
+`memories.episodic.policies.sessions.passive_after` (seconds, or `"30d"`, `"12h"`;
+default `null` = off) are marked PASSIVE by the `session_lifecycle` sleep stage:
+```yaml
+memories:
+  episodic:
+    enabled: true
+    policies:
+      sessions:
+        passive_after: 30d
+```
+A session is the `session_id` you pass to `write_messages` / `write_episode`. Its
+records stay stored, but `search` / `assemble` / `read` / `retrieve` leave them out
+unless you pass `include_passive=True`, name the session (`session_id="..."`) or its
+`group_id`. A new write to the session reopens it. Each change is a `memory.session`
+event, so `rebuild()` reproduces the same passive set (ADR-037).
+
 ### Resource — ingest *(needs `memspine[ingest]`)*
 ```python
 chunks = await engine.ingest("docs/runbook.md", namespace="ops")
@@ -573,7 +590,7 @@ in the schema — or if the schema gains a key not documented here.
 | `prompts.partials` | `{}` | Override fragments for shared Jinja `{% include %}` partials (anti-injection block, output footer); `<name>` → replacement text, consulted before the shipped `_partials/` dir (B1). |
 | `prompts.selection` | `{}` | Per-role default scenario selectors: `<role>` → map of optional `memory_type`/`condition`, merged into every `select(role)` query so a deployment can pin a prompt variant without code (B2). Shipped `chat` conditions: `dated` (H12, `chat@dated`), `dated2` (G12, `chat@dated2`: `chat@dated` plus "a line's leading date is when it was said, `[= …]` is when the event happened; answer *when* questions with the happened date"), `infer` (G10, `chat@infer`), `dated3` (#34, `chat@dated3`: brief reasoning then a final `Answer:` line, which `Engine.final_answer()` extracts; quote the specific detail; dates in the granularity asked; "a date in brackets is when it was said; the event may be earlier"; merge repeated mentions before counting; "Not mentioned" only when nothing bears on the question). `plan` condition `v2` is selected by `read.planner_version`; `extract` conditions `session3` / `dates` by the consolidation options. |
 | `memories.*.enabled` | `false` | Enable a memory type (`working`/`episodic`/`semantic`/…); C1b auto-enables prerequisites. |
-| `memories.*.policies` | `{}` | Per-type policy overrides (conflict/dedup/trust/entity_extraction/page_size/…). `semantic.policies.extract_graph` (`{max_rounds, min_confidence}`) opts into C2 graphiti-style writes: with an `extract_edges` LLM role, the background `extract_graph` sleep stage writes edge facts + `asserted` links. `semantic.policies.write_pipeline: graph` opts into the C3 synchronous variant — edges extracted at write time and written through the M4/M5 ladder (ADR-026). |
+| `memories.*.policies` | `{}` | Per-type policy overrides (conflict/dedup/trust/entity_extraction/page_size/…). `semantic.policies.extract_graph` (`{max_rounds, min_confidence}`) opts into C2 graphiti-style writes: with an `extract_edges` LLM role, the background `extract_graph` sleep stage writes edge facts + `asserted` links. `semantic.policies.write_pipeline: graph` opts into the C3 synchronous variant — edges extracted at write time and written through the M4/M5 ladder (ADR-026). `episodic.policies.sessions.passive_after` (seconds or `"30d"`; default off) opts into the #53 session lifecycle: idle sessions go PASSIVE, out of default reads (ADR-037). |
 | `namespaces.*.policies` | `{}` | Per-namespace policy overrides (D-14). |
 <!-- CONFIG-KEYS-TABLE:END -->
 

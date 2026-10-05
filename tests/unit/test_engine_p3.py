@@ -57,6 +57,7 @@ async def test_sleep_cycle_runs_all_stages_in_order(engine: Engine) -> None:
         "extract_graph",  # C2 optional stage: skipped without an extract_edges role
         "reorganize",  # D-42 optional stage (P6): skipped without a graph
         "check_watches",  # M13.8 read-only fired-count report (P7/ADR-016)
+        "session_lifecycle",  # #53 optional stage: skipped without passive_after
         "decay_sweep",
         "compress",
         "sleep_compute",
@@ -67,6 +68,7 @@ async def test_sleep_cycle_runs_all_stages_in_order(engine: Engine) -> None:
     assert stats["extract_graph"]["status"] == "skipped"
     assert stats["reorganize"]["status"] == "skipped"
     assert stats["check_watches"]["status"] == "ok"
+    assert stats["session_lifecycle"]["status"] == "skipped"
     assert stats["decay_sweep"]["status"] == "ok"
     assert stats["compress"]["status"] == "ok"
     assert stats["sleep_compute"] == {"status": "noop", "hook": "E7"}

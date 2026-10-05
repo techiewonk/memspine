@@ -13,17 +13,19 @@ Startup follows plan §4 (Phase-0 scope — runners join in Phase 1):
 from __future__ import annotations
 
 import asyncio
+import functools
+import inspect
 import itertools
 import os
 import re
 import secrets
 import threading
 import unicodedata
-from collections.abc import AsyncIterator, Callable, Coroutine, Mapping, Sequence
+from collections.abc import AsyncIterator, Awaitable, Callable, Coroutine, Mapping, Sequence
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, ClassVar, Self, TypeVar, cast
 
@@ -106,6 +108,7 @@ from memspine.exceptions import (
 from memspine.memories.associative.evolution import propose_links
 from memspine.memories.associative.projector import GraphProjector
 from memspine.memories.associative.store import AssociativeMemory
+from memspine.memories.episodic.lifecycle import passive_after, session_of
 from memspine.memories.episodic.sessions import Session, topic_segments
 from memspine.memories.episodic.store import EpisodicMemory
 from memspine.memories.procedural.prompt_registry import prompt_version_records
@@ -391,6 +394,62 @@ _NEIGHBOUR_BATCH: ContextVar[_NeighbourBatch | None] = ContextVar(
 
 
 @dataclass(frozen=True, slots=True)
+class _PassiveScope:
+    """#53: which PASSIVE-session records the running read may see."""
+
+    include_all: bool = False
+    sessions: frozenset[str] = frozenset()
+
+
+#: #53: the passive-session scope of the read running in this task (None: default).
+_PASSIVE_SCOPE: ContextVar[_PassiveScope | None] = ContextVar(
+    "memspine_passive_scope", default=None
+)
+
+
+def _passive_scoped[**P, R](fn: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]:
+    """#53: run a public read with its ``include_passive`` / ``session_id`` arguments
+    widening the passive-session scope for every search it makes (nested reads
+    only widen it, never narrow it)."""
+    signature = inspect.signature(fn)
+
+    @functools.wraps(fn)
+    async def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+        bound = signature.bind_partial(*args, **kwargs).arguments
+        include = bool(bound.get("include_passive", False))
+        session = bound.get("session_id")
+        outer = _PASSIVE_SCOPE.get()
+        if not include and not session:
+            return await fn(*args, **kwargs)
+        scope = _PassiveScope(
+            include_all=include or (outer is not None and outer.include_all),
+            sessions=(outer.sessions if outer is not None else frozenset())
+            | ({str(session)} if session else frozenset()),
+        )
+        token = _PASSIVE_SCOPE.set(scope)
+        try:
+            return await fn(*args, **kwargs)
+        finally:
+            _PASSIVE_SCOPE.reset(token)
+
+    return wrapper
+
+
+def _passive_hidden(record: MemoryRecord, group_id: str | None = None) -> bool:
+    """#53: whether a PASSIVE-session record stays out of this read. A read that
+    asks for passive records, names the session (``session_id``) or filters on the
+    record's ``group_id`` sees it; every other read does not."""
+    if not record.scoring.passive:
+        return False
+    if group_id is not None and record.group_id == group_id:
+        return False
+    scope = _PASSIVE_SCOPE.get()
+    if scope is None:
+        return True
+    return not (scope.include_all or session_of(record) in scope.sessions)
+
+
+@dataclass(frozen=True, slots=True)
 class ReadResult:
     """C7': what :meth:`Engine.read` chose (``full``/``replay``/``retrieve``) and the context."""
 
@@ -559,6 +618,10 @@ class Engine:
         self._ledger_written: set[tuple[str, str]] = set()
         self._sync_loop: asyncio.AbstractEventLoop | None = None
         self._sync_thread: threading.Thread | None = None
+        #: #53: ``episodic.policies.sessions.passive_after`` (None: lifecycle off) and,
+        #: per namespace, the PASSIVE session ids (loaded lazily, dropped after a sleep).
+        self._sessions_horizon: timedelta | None = None
+        self._passive_sessions: dict[str, set[str]] = {}
 
     # ── lifecycle ────────────────────────────────────────────────────────────
 
@@ -704,6 +767,8 @@ class Engine:
         )
         if "episodic" in self._enabled:
             self._episodic = EpisodicMemory(self._storage)
+        # #53: validated at start, so a bad duration fails here, not at the first sleep.
+        self._sessions_horizon = passive_after(self._memory_policy(config, "episodic"))
         if "resource" in self._enabled:
             self._resource = ResourceMemory(
                 self._append_and_project,
@@ -779,7 +844,9 @@ class Engine:
 
                 async def _tick() -> object:
                     assert self._runner is not None  # set above; loop only runs while started
-                    return await run_sleep_cycle(self._runner, self._pipeline_ctx())
+                    stats = await run_sleep_cycle(self._runner, self._pipeline_ctx())
+                    self._passive_sessions.clear()  # #53
+                    return stats
 
                 self._scheduler = SleepScheduler(interval, _tick)
                 self._scheduler.start()
@@ -901,7 +968,50 @@ class Engine:
                 storage, ns, record, memory_type, actor, trust_cap=trust_cap
             )
         self._last_write_action = action
+        if self._sessions_horizon is not None and memory_type == "episodic":
+            await self._reopen_session(storage, ns, session_of(record))
         return written
+
+    async def _reopen_session(self, storage: SqlStorage, ns: str, session: str | None) -> None:
+        """#53: a write to a PASSIVE session reopens it (one SESSION ``active`` event
+        listing its members), so the whole conversation is back in default reads."""
+        if session is None:
+            return
+        async with self._write_locks.setdefault(ns, asyncio.Lock()):
+            passive = self._passive_sessions.get(ns)
+            records: list[MemoryRecord] | None = None
+            if passive is None:  # first episodic write here since start or a sleep
+                records = await storage.list_records(ns, "episodic")
+                passive = {
+                    sid
+                    for r in records
+                    if r.scoring.passive and (sid := session_of(r)) is not None
+                }
+                self._passive_sessions[ns] = passive
+            if session not in passive:
+                return
+            if records is None:
+                records = await storage.list_records(ns, "episodic")
+            members = sorted(
+                r.record_id
+                for r in records
+                if session_of(r) == session and r.status is not RecordStatus.DELETED
+            )
+            await self._append_and_project(
+                MemoryEvent(
+                    kind=EventKind.SESSION,
+                    namespace=ns,
+                    actor="system",
+                    payload={
+                        "session_id": session,
+                        "state": "active",
+                        "record_ids": members,
+                        "reason": "new_write",
+                    },
+                )
+            )
+            passive.discard(session)
+        _log.info("memory.session_reopened", namespace=ns, session_id=session)
 
     async def write_ex(self, content: str, **kwargs: Any) -> WriteOutcome:
         """``write`` that also reports what happened (G8).
@@ -2103,6 +2213,7 @@ class Engine:
             await self._working.enforce(ns, active)
         return record, "added"
 
+    @_passive_scoped
     async def retrieve(
         self,
         namespace: str = "default",
@@ -2110,6 +2221,7 @@ class Engine:
         group_id: str | None = None,
         tags: list[str] | None = None,
         include_held: bool = False,
+        include_passive: bool = False,
     ) -> list[MemoryRecord]:
         """P0 read path: relational listing. ``group_id``/``tags`` (D2) narrow to
         a sub-scope within the namespace; tags match records carrying ALL of the
@@ -2117,12 +2229,16 @@ class Engine:
 
         #11: records the firewall holds (quarantined) are left out unless
         ``include_held=True``, the operator's audit view; :meth:`list_quarantined`
-        is the review queue."""
+        is the review queue.
+
+        #53: records of PASSIVE sessions are left out unless ``include_passive=True``
+        or ``group_id`` names their group."""
         storage = self._require_started()
         ns = validate_namespace(namespace)
         listed = await storage.list_records(ns, memory_type, group_id)
         if not include_held:
             listed = [r for r in listed if not r.quarantined]
+        listed = [r for r in listed if not _passive_hidden(r, group_id)]
         records = self._inflate_all(listed, ns)
         if tags:
             wanted = set(tags)
@@ -2130,6 +2246,7 @@ class Engine:
         _log.info(EVENT_RETRIEVE, namespace=ns, memory_type=memory_type, count=len(records))
         return records
 
+    @_passive_scoped
     async def search(
         self,
         query: str,
@@ -2138,6 +2255,7 @@ class Engine:
         group_id: str | None = None,
         tags: list[str] | None = None,
         session_id: str | None = None,
+        include_passive: bool = False,
     ) -> list[tuple[MemoryRecord, float]]:
         """Semantic retrieval (P1 + E8 opt-in stages, D-51):
         ``[static_prefilter?] → vector/hybrid → [rerank?] → score`` (MMR and
@@ -2165,6 +2283,10 @@ class Engine:
         appends one RETRIEVE event so access stats (reinforcement, M1) update
         through the write door like every other mutation. Both E8 stages are
         off by default: results are bit-identical to the plain pipeline.
+
+        #53: records of PASSIVE sessions (session lifecycle) are left out unless
+        ``include_passive=True``, ``session_id`` names their session, or ``group_id``
+        names their group. With the lifecycle off no record is passive.
         """
         return await self._search(
             query,
@@ -2244,6 +2366,8 @@ class Engine:
             # D2 sub-scoping gate: narrow to a group and/or records carrying all tags.
             if group_id is not None and record.group_id != group_id:
                 continue
+            if _passive_hidden(record, group_id):
+                continue  # #53: an archived (PASSIVE) session stays out of default reads
             if tags and not set(tags).issubset(record.tags):
                 continue
             if memory_type is not None and record.memory_type != memory_type:
@@ -2443,6 +2567,7 @@ class Engine:
         reserve = self._config().read.reply_reserve_tokens
         return max(1, budget_tokens - reserve) if reserve else budget_tokens
 
+    @_passive_scoped
     async def assemble(
         self,
         query: str,
@@ -2451,6 +2576,7 @@ class Engine:
         top_k: int = constants.ASSEMBLE_TOP_K,
         shared: bool = False,
         session_id: str | None = None,
+        include_passive: bool = False,
     ) -> AssembledContext:
         """Retrieval + M12/E2 assembly: MMR-selected, cache-aware-ordered context.
 
@@ -2460,6 +2586,9 @@ class Engine:
         ``shared=True`` (G9) assembles over own + granted records via
         ``shared_search``, so a multi-agent turn sees exactly what its grants allow
         (trust-capped, and under ``integrity.*`` attenuated and admitted at theta).
+
+        #53: PASSIVE-session records enter only with ``include_passive=True`` or when
+        ``session_id`` names their session (see :meth:`search`).
         """
         if self._assembly is None:
             raise MemspineError("assembly policy not bound — engine not started?")
@@ -2759,6 +2888,7 @@ class Engine:
         without the marker comes back whole (stripped)."""
         return final_answer(reply)
 
+    @_passive_scoped
     async def read(
         self,
         query: str,
@@ -2769,6 +2899,7 @@ class Engine:
         replay_window: int = 2,
         compose_pool: int = 3,
         session_id: str | None = None,
+        include_passive: bool = False,
     ) -> ReadResult:
         """C7': mode-routed read. Rules decide; no model on the read path.
 
@@ -2803,6 +2934,9 @@ class Engine:
 
         ``session_id`` keys the B0 read ledger (as in :meth:`assemble`), for the read
         headers and the routed read alike.
+
+        #53: PASSIVE-session records enter only with ``include_passive=True`` or when
+        ``session_id`` names their session (see :meth:`search`).
         """
         if mode is None:
             mode = self._config().read.default_mode  # "auto" unless a template pins one
@@ -3404,6 +3538,8 @@ class Engine:
             return False
         if record.memory_type == "shared" or CUE_TAG in record.tags:
             return False
+        if _passive_hidden(record):
+            return False  # #53
         integrity = self._integrity()
         return not integrity.enabled or integrity.admits(record.trust)
 
@@ -5350,6 +5486,7 @@ class Engine:
         self._require_started()
         assert self._runner is not None
         stats = await run_sleep_cycle(self._runner, self._pipeline_ctx())
+        self._passive_sessions.clear()  # #53: the cycle may have passivated sessions
         degraded = {
             name: stage
             for name, stage in stats.items()
@@ -5390,6 +5527,7 @@ class Engine:
         }
         if self._semantic is not None:
             self._semantic.invalidate_index()  # LSH state rebuilt from fresh rows
+        self._passive_sessions.clear()  # #53: passive flags were replayed
         _log.info(EVENT_REBUILD, counts=counts)
         return counts
 
