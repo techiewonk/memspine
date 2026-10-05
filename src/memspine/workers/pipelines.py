@@ -11,6 +11,7 @@ decay only emits on a tier *change*, compression skips already-compressed rows.
 from __future__ import annotations
 
 import asyncio
+from collections import Counter
 from collections.abc import Awaitable, Callable
 from contextlib import AbstractAsyncContextManager, nullcontext
 from dataclasses import dataclass, field
@@ -41,13 +42,27 @@ from memspine.core.policies.retention import RetentionPolicy
 from memspine.core.policies.trust import TrustPolicy
 from memspine.core.records import MemoryRecord, RecordStatus, SourceInfo
 from memspine.core.temporal_resolve import WeekMode
-from memspine.exceptions import ConflictError
+from memspine.exceptions import ConfigError, ConflictError
 from memspine.memories.associative.communities import (
     PartitionResult,
     communities_available,
     partition_graph,
 )
+from memspine.memories.associative.entities import (
+    MENTIONS_REL,
+    EntityPolicy,
+    canonical_entity,
+    entity_node_id,
+    parse_entity_node,
+)
 from memspine.memories.associative.links import assert_within_budget, link_event
+from memspine.memories.associative.resolution import (
+    MERGE_METHODS,
+    Embed,
+    EntityResolver,
+    KnownEntity,
+    ResolveBatch,
+)
 from memspine.memories.episodic.sessions import Session, detect_sessions, topic_segments
 from memspine.memories.prospective.triggers import due_watches, invalidation_watches
 from memspine.memories.semantic.write_pipeline import (
@@ -74,13 +89,17 @@ __all__ = [
     "compress",
     "consolidate",
     "decay_sweep",
+    "entity_summary_name",
+    "entity_summary_node",
     "event_log_prune",
     "extract_graph",
     "mine_facts",
     "reflect_profile",
     "reorganize",
+    "resolve_mode",
     "sleep_compute",
     "stage_marker",
+    "summarize_entities",
 ]
 
 _log = get_logger(__name__)
@@ -138,6 +157,9 @@ MineFacts = Callable[[str], Awaitable[list[ExtractedFact]]]
 DateFacts = Callable[[str, list[str]], Awaitable[dict[int, str]]]
 #: #48: run the engine's retention expiry; returns the stage stats.
 ExpireRetention = Callable[[], Awaitable[dict[str, object]]]
+#: GP-6 (#17): ``[(entity name, dated fact lines)]`` -> {1-based index: summary}
+#: (one batched LLM call, at most ``ENTITY_SUMMARY_BATCH`` entities).
+SummarizeEntities = Callable[[list[tuple[str, list[str]]]], Awaitable[dict[int, str]]]
 
 
 class DepositFact(Protocol):
@@ -218,6 +240,13 @@ class PipelineContext:
     #: #48: the engine's retention expiry (hard forget through its forget path).
     #: None => the retention_expire stage reports "skipped".
     expire_retention: ExpireRetention | None = None
+    #: GP-6 (#17): the batched entity summariser (``summarize_entity`` role).
+    #: None => entities over the free length get an extractive summary.
+    summarize_entities: SummarizeEntities | None = None
+    #: GP-7 (#18): the batched entity resolver (``resolve_entity@batch``) and the
+    #: embedder that ranks candidates. None => ``resolve: llm`` acts as ``rules``.
+    resolve_entities: ResolveBatch | None = None
+    embed: Embed | None = None
 
 
 Pipeline = Callable[[PipelineContext], Awaitable[dict[str, object]]]
@@ -1243,6 +1272,145 @@ def _graph_marker_sources(raw: object) -> list[tuple[str, str]]:
     return [(rid, fp) for rid, fp in pairs if fp]
 
 
+#: GP-7 (#18): MARKER payload carrying one extract_graph sweep's entity-resolution
+#: decisions. ``decisions`` is a list of ``{"record_id", "namespace", "entity",
+#: "attribute", "method"}`` dicts: the name (``entity``), the entity it resolved to
+#: or, for ``contested``, the one it was kept apart from (``attribute``), keyed by
+#: the source record that named it. These are the record-snapshot keys the M7
+#: erasure walker scrubs, so erasing the source erases the decision too.
+ENTITY_RESOLVED_MARKER = "entity_resolved"
+#: GP-6 (#17): MARKER payload naming the entities one summarize_entities sweep
+#: summarised. ``entities`` is a list of ``{"record_id", "namespace", "entity",
+#: "content_fingerprint"}`` dicts: the summary record, the entity node and the
+#: membership fingerprint it was written from. Erasing the summary (a member's
+#: hard forget cascades to it) scrubs the entry, so the entity is summarised again.
+ENTITY_SUMMARIZED_MARKER = "entity_summarized"
+
+
+def _erasable_entries(raw: object) -> list[dict[str, Any]]:
+    return [entry for entry in raw if isinstance(entry, dict)] if isinstance(raw, list) else []
+
+
+_RESOLVE_MODES = ("off", "rules", "llm")
+
+
+def resolve_mode(opts: dict[str, object]) -> str:
+    mode = str(opts.get("resolve", "off") or "off")
+    if mode not in _RESOLVE_MODES:
+        raise ConfigError(
+            f"memories.semantic.policies.extract_graph.resolve must be one of "
+            f"{list(_RESOLVE_MODES)}, got {mode!r}"
+        )
+    return mode
+
+
+def _record_names(record: MemoryRecord) -> list[str]:
+    """The raw entity names a record carries: its ``entity`` and ``dst:`` tags."""
+    names = [record.entity] if record.entity else []
+    names.extend(tag[4:] for tag in record.tags if tag.startswith("dst:"))
+    return [name for name in names if name.strip()]
+
+
+def _known_entities(records: list[MemoryRecord]) -> dict[str, KnownEntity]:
+    """GP-7: the entities live, unquarantined records name: canonical -> its most
+    frequent spelling and the trust of the most trusted record naming it."""
+    policy = EntityPolicy(blocklist=constants.ENTITY_NODE_BLOCKLIST)
+    spellings: dict[str, Counter[str]] = {}
+    trust: dict[str, float] = {}
+    for record in records:
+        if record.status is not RecordStatus.ACTIVATED or record.quarantined:
+            continue
+        for name in _record_names(record):
+            canonical = canonical_entity(name)
+            if not policy.accepts(canonical):
+                continue
+            spellings.setdefault(canonical, Counter())[name.strip()] += 1
+            trust[canonical] = max(trust.get(canonical, 0.0), record.trust)
+    return {
+        c: KnownEntity(c, min(counts, key=lambda n: (-counts[n], n)), trust[c])
+        for c, counts in spellings.items()
+    }
+
+
+async def _resolve_edges(
+    ctx: PipelineContext,
+    namespace: str,
+    mode: str,
+    known: list[MemoryRecord],
+    extracted: list[tuple[MemoryRecord, list[ExtractedEdge]]],
+) -> tuple[list[tuple[MemoryRecord, list[ExtractedEdge]]], dict[str, int]]:
+    """GP-7: resolve every edge's names, rewrite merged ones to the known entity's
+    spelling, and append the decisions as one ``entity_resolved`` MARKER."""
+    assert ctx.append_event is not None
+    requests: list[tuple[str, float]] = []
+    owners: list[str] = []
+    for record, edges in extracted:
+        for edge in edges:
+            for name in (edge.src_entity, edge.dst_entity):
+                requests.append((name, record.trust))
+                owners.append(record.record_id)
+    resolver = EntityResolver(
+        _known_entities(known),
+        dict(ctx.session_index.entity_aliases.get(namespace, {})),
+        embed=ctx.embed,
+        llm=ctx.resolve_entities if mode == "llm" else None,
+    )
+    try:
+        outcomes = await resolver.resolve(requests)
+    except Exception as exc:  # the LLM is an enhancer, never a gate (N6)
+        _log.warning("extract_graph.resolve_failed", namespace=namespace, error=str(exc))
+        return extracted, {"resolve_errors": 1}
+    rewrite: dict[tuple[str, str], str] = {}
+    decisions: list[dict[str, object]] = []
+    seen: set[tuple[str, str, str]] = set()
+    counts: dict[str, int] = {"resolved": 0, "contested": 0}
+    for (name, _trust), owner, outcome in zip(requests, owners, outcomes, strict=True):
+        if outcome.target is not None:
+            rewrite[(owner, name)] = outcome.target
+        if outcome.method not in (*MERGE_METHODS, "contested"):
+            continue
+        other = outcome.target if outcome.target is not None else outcome.candidate
+        key = (canonical_entity(name), outcome.method, owner)
+        if key in seen:
+            continue
+        seen.add(key)
+        counts["resolved" if outcome.target is not None else "contested"] += 1
+        decisions.append(
+            {
+                "record_id": owner,
+                "namespace": namespace,
+                "entity": name,
+                "attribute": other,
+                "method": outcome.method,
+            }
+        )
+    counts["resolve_llm_calls"] = resolver.llm_calls
+    if decisions:
+        event = MemoryEvent(
+            kind=EventKind.MARKER,
+            namespace=namespace,
+            actor="system",
+            payload={
+                "marker": ENTITY_RESOLVED_MARKER,
+                "stage": "extract_graph",
+                "decisions": decisions,
+            },
+        )
+        await ctx.append_event(event)
+        ctx.session_index.observe(event)
+    resolved: list[tuple[MemoryRecord, list[ExtractedEdge]]] = []
+    for record, edges in extracted:
+        out = []
+        for edge in edges:
+            src = rewrite.get((record.record_id, edge.src_entity), edge.src_entity)
+            dst = rewrite.get((record.record_id, edge.dst_entity), edge.dst_entity)
+            if (src, dst) != (edge.src_entity, edge.dst_entity):
+                edge = edge.model_copy(update={"src_entity": src, "dst_entity": dst})
+            out.append(edge)
+        resolved.append((record, out))
+    return resolved, counts
+
+
 #: GR-4: at most this many known entity names ride along as extraction context.
 EDGE_CONTEXT_MAX_ENTITIES = 50
 
@@ -1334,6 +1502,8 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
     opts = _policy_options(ctx, "semantic", "extract_graph") or {}
     raw_conf = opts.get("min_confidence", 0.0)
     min_conf = float(raw_conf) if isinstance(raw_conf, (int, float, str)) else 0.0
+    resolving = resolve_mode(opts)
+    resolution: dict[str, int] = {}
     written = 0
     linked = 0
     skipped = 0
@@ -1367,6 +1537,8 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
                         continue  # never re-extract from our own output (no feedback loop)
                     if constants.CUE_TAG in record.tags:
                         continue  # a cue is a retrieval key, never a fact source (R2-1)
+                    if record.source.channel == constants.ENTITY_SUMMARY_CHANNEL:
+                        continue  # GP-6: a summary of facts is not a new fact source
                     if (
                         record.status is RecordStatus.ACTIVATED
                         and not record.quarantined
@@ -1375,6 +1547,7 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
                     ):
                         sources.append(record)
             done: dict[str, str] = {}
+            extracted: list[tuple[MemoryRecord, list[ExtractedEdge]]] = []
             for record, edge_context in zip(sources, _edge_contexts(sources, known), strict=True):
                 if (
                     index.graph_sources.get((namespace, record.record_id))
@@ -1391,6 +1564,15 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
                     )
                     continue  # no watermark: retried next sweep
                 done[record.record_id] = record.content_fingerprint
+                extracted.append((record, [e for e in edges if e.confidence >= min_conf]))
+            if resolving != "off" and any(edges for _, edges in extracted):
+                # GP-7: one resolution pass (at most one batched LLM call) per sweep.
+                extracted, counts = await _resolve_edges(
+                    ctx, namespace, resolving, [*known, *sources], extracted
+                )
+                for name, count in counts.items():
+                    resolution[name] = resolution.get(name, 0) + count
+            for record, edges in extracted:
                 for edge in edges:
                     if edge.confidence < min_conf:
                         continue
@@ -1515,9 +1697,315 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
         "quarantined": quarantined,
         "provenance_added": provenance,
     }
+    if resolving != "off":
+        stats.update(resolution)
     if errors:
         stats["errors"] = errors
     return stats
+
+
+def _entity_summary_options(ctx: PipelineContext) -> dict[str, object] | None:
+    """``memories.associative.policies.entity_summaries``: None when off, else
+    its options (``true`` = defaults)."""
+    mem = ctx.config.memories.get("associative")
+    raw = mem.policies.get("entity_summaries") if mem is not None else None
+    if not raw:
+        return None
+    return dict(raw) if isinstance(raw, dict) else {}
+
+
+def _int_option(opts: dict[str, object], key: str, default: int) -> int:
+    raw = opts.get(key, default)
+    value = int(raw) if isinstance(raw, (int, float, str)) else default
+    if value < 1:
+        raise ConfigError(f"memories.associative.policies.entity_summaries.{key} must be >= 1")
+    return value
+
+
+def entity_summary_node(record: MemoryRecord) -> str | None:
+    """The entity node an entity summary record is about (its ``about:`` tag)."""
+    prefix = constants.ENTITY_SUMMARY_ABOUT_PREFIX
+    for tag in record.tags:
+        if tag.startswith(prefix) and tag[len(prefix) :].strip():
+            return entity_node_id(record.namespace, canonical_entity(tag[len(prefix) :]))
+    return None
+
+
+def entity_summary_name(record: MemoryRecord) -> str:
+    """The display name an entity summary record is about."""
+    prefix = constants.ENTITY_SUMMARY_ABOUT_PREFIX
+    return next((t[len(prefix) :] for t in record.tags if t.startswith(prefix)), "")
+
+
+def _display_name(canonical: str, members: list[MemoryRecord]) -> str:
+    """The most frequent spelling the members give the entity (ties: lowest)."""
+    counts: Counter[str] = Counter()
+    for member in members:
+        for name in _record_names(member):
+            if canonical_entity(name) == canonical:
+                counts[" ".join(name.split())] += 1
+    return min(counts, key=lambda n: (-counts[n], n)) if counts else canonical
+
+
+def _fact_lines(members: list[MemoryRecord]) -> list[str]:
+    ordered = sorted(members, key=lambda m: (m.valid_from, m.record_id))
+    return [f"[{m.valid_from:%Y-%m-%d}] {' '.join(m.content.split())}" for m in ordered]
+
+
+def _newest_lines(lines: list[str], max_chars: int) -> str:
+    """The newest lines that fit ``max_chars``, in date order (no-LLM fallback)."""
+    kept: list[str] = []
+    size = 0
+    for line in reversed(lines):
+        if size + len(line) + (1 if kept else 0) > max_chars:
+            break
+        kept.append(line)
+        size += len(line) + (1 if len(kept) > 1 else 0)
+    if not kept and lines:
+        return lines[-1][:max_chars].rstrip()
+    return "\n".join(reversed(kept))
+
+
+@dataclass
+class _EntityWork:
+    node: str
+    display: str
+    members: list[MemoryRecord]
+    fingerprint: str
+    old: list[MemoryRecord]
+    lines: list[str]
+    text: str = ""
+
+
+async def summarize_entities(ctx: PipelineContext) -> dict[str, object]:
+    """GP-6 (#17): one summary record per entity node whose membership changed.
+
+    For each ``ent:`` node in a namespace, the members are the live (active,
+    unquarantined) records with a live ``mentions`` edge to it. An entity whose
+    membership fingerprint (member ids and content fingerprints) matches the last
+    sweep's watermark (``entity_summarized`` markers) and still has its summary is
+    skipped: no LLM call. Otherwise its dated fact lines are the summary for free
+    while they fit ``free_chars`` (2,000); longer ones are summarised by the
+    ``summarize_entity`` role, ``batch_size`` (30) entities per call, or, without
+    the role or on a failed call, cut to the newest lines that fit.
+
+    The summary is a derived record (channel ``entity_summary``, tags
+    ``entity_summary`` and ``about:<Name>``): its parents are the members, so a
+    hard forget of a member cascades to it (ADR-039); its trust is the least
+    member trust; it passes the derived-record firewall. A changed membership
+    supersedes the old summary (archived); an entity with no live member left
+    loses its summary; a soft-forgotten member changes the membership, so the next
+    sweep re-derives the summary without it. Off by default
+    (``memories.associative.policies.entity_summaries``); needs the entity layer.
+    """
+    if ctx.append_event is None:
+        return {"status": "skipped", "reason": "read-only context (no write door)"}
+    opts = _entity_summary_options(ctx)
+    if opts is None:
+        return {"status": "skipped", "reason": "associative.policies.entity_summaries is off"}
+    if ctx.graph is None:
+        return {"status": "skipped", "reason": "no graph store (associative memory disabled)"}
+    free_chars = _int_option(opts, "free_chars", constants.ENTITY_SUMMARY_FREE_CHARS)
+    batch = _int_option(opts, "batch_size", constants.ENTITY_SUMMARY_BATCH)
+    screen = ctx.screen or _local_screen(ctx)
+    inflate = CompressionPolicy.bind()
+    index = ctx.session_index
+    await index.refresh(ctx.storage)
+    counts = {"summarized": 0, "free": 0, "llm_calls": 0, "unchanged": 0, "superseded": 0}
+    quarantined = 0
+    errors: list[str] = []
+    for namespace in await ctx.storage.list_namespaces():
+        async with ctx.lock(namespace):
+            members_of: dict[str, set[str]] = {}
+            for edge in await ctx.graph.edge_list(namespace):
+                if edge.rel_type != MENTIONS_REL or edge.weight <= 0:
+                    continue
+                parsed = parse_entity_node(edge.dst)
+                if parsed is not None and parsed[0] == namespace:
+                    members_of.setdefault(edge.dst, set()).add(edge.src)
+            live: dict[str, list[MemoryRecord]] = {}
+            for record in await ctx.storage.list_records(namespace, "semantic"):
+                if (
+                    record.source.channel != constants.ENTITY_SUMMARY_CHANNEL
+                    or record.status
+                    not in (
+                        RecordStatus.ACTIVATED,
+                        RecordStatus.QUARANTINED,
+                    )
+                ):
+                    continue
+                node = entity_summary_node(record)
+                if node is not None:
+                    live.setdefault(node, []).append(record)
+            work: list[_EntityWork] = []
+            for node in sorted(members_of):
+                members: list[MemoryRecord] = []
+                for record_id in sorted(members_of[node]):
+                    member = await ctx.storage.get_record(record_id)
+                    if (
+                        member is not None
+                        and member.namespace == namespace
+                        and member.status is RecordStatus.ACTIVATED
+                        and not member.quarantined
+                        and member.source.channel != constants.ENTITY_SUMMARY_CHANNEL
+                    ):
+                        members.append(inflate.inflate(member))
+                if not members:
+                    continue
+                fp = fingerprint_payload(
+                    {
+                        "entity_members": sorted(
+                            f"{m.record_id}:{m.content_fingerprint}" for m in members
+                        )
+                    }
+                )
+                old = live.pop(node, [])
+                key = fingerprint_payload({"entity_summary": [node, fp]})
+                if old and (
+                    index.entity_summaries.get((namespace, node)) == fp
+                    or any(r.source.message_id == key for r in old)
+                ):
+                    counts["unchanged"] += 1
+                    continue
+                parsed = parse_entity_node(node)
+                assert parsed is not None
+                lines = _fact_lines(members)
+                work.append(
+                    _EntityWork(node, _display_name(parsed[1], members), members, fp, old, lines)
+                )
+            # Free first: the lines themselves, while they fit.
+            costly: list[_EntityWork] = []
+            for item in work:
+                joined = "\n".join(item.lines)
+                if len(joined) <= free_chars:
+                    item.text = joined
+                    counts["free"] += 1
+                else:
+                    costly.append(item)
+            for start in range(0, len(costly), batch):
+                chunk = costly[start : start + batch]
+                answers: dict[int, str] = {}
+                if ctx.summarize_entities is not None:
+                    counts["llm_calls"] += 1
+                    try:
+                        answers = await ctx.summarize_entities(
+                            [
+                                (
+                                    item.display,
+                                    item.lines[-constants.ENTITY_SUMMARY_MAX_INPUT_LINES :],
+                                )
+                                for item in chunk
+                            ]
+                        )
+                    except Exception as exc:  # the LLM is an enhancer, never a gate (N6)
+                        errors.append(f"{namespace}: summarize_entity failed: {exc}")
+                        _log.warning(
+                            "summarize_entities.llm_failed", namespace=namespace, error=str(exc)
+                        )
+                for offset, item in enumerate(chunk, start=1):
+                    text = " ".join(str(answers.get(offset, "")).split())
+                    item.text = text if text else _newest_lines(item.lines, free_chars)
+            written: list[dict[str, object]] = []
+            for item in work:
+                summary, reasons = await _write_entity_summary(ctx, namespace, item, screen)
+                counts["summarized"] += 1
+                quarantined += int(bool(reasons))
+                counts["superseded"] += await _archive_summaries(
+                    ctx, namespace, item.old, "membership_drift"
+                )
+                written.append(
+                    {
+                        "record_id": summary.record_id,
+                        "namespace": namespace,
+                        "entity": item.node,
+                        "content_fingerprint": item.fingerprint,
+                    }
+                )
+            # An entity with no live member left keeps no summary.
+            for old in live.values():
+                counts["superseded"] += await _archive_summaries(ctx, namespace, old, "entity_gone")
+            if written:
+                event = MemoryEvent(
+                    kind=EventKind.MARKER,
+                    namespace=namespace,
+                    actor="system",
+                    payload={
+                        "marker": ENTITY_SUMMARIZED_MARKER,
+                        "stage": "summarize_entities",
+                        "entities": written,
+                    },
+                )
+                await ctx.append_event(event)
+                index.observe(event)
+    stats: dict[str, object] = {"status": "ok" if not errors else "partial", **counts}
+    stats["quarantined"] = quarantined
+    if errors:
+        stats["errors"] = errors
+    return stats
+
+
+async def _write_entity_summary(
+    ctx: PipelineContext, namespace: str, item: _EntityWork, screen: ScreenDerived
+) -> tuple[MemoryRecord, list[str]]:
+    """Append one entity summary record (firewall-screened, trust-capped)."""
+    assert ctx.append_event is not None
+    member_ids = sorted(m.record_id for m in item.members)
+    trust = min(m.trust for m in item.members)
+    summary = MemoryRecord(
+        namespace=namespace,
+        memory_type="semantic",
+        content=item.text,
+        tags=[
+            constants.ENTITY_SUMMARY_TAG,
+            f"{constants.ENTITY_SUMMARY_ABOUT_PREFIX}{item.display}",
+        ],
+        valid_from=max(m.valid_from for m in item.members),
+        source=SourceInfo(
+            role=constants.DERIVED_ROLE,
+            channel=constants.ENTITY_SUMMARY_CHANNEL,
+            message_id=fingerprint_payload({"entity_summary": [item.node, item.fingerprint]}),
+            parents=member_ids,
+        ),
+        trust=trust,
+        # Echoed injection framing stays flagged (as consolidation summaries do).
+        instruction_flag=instruction_shaped(item.text)
+        or any(m.instruction_flag for m in item.members),
+    )
+    summary, reasons = await screen(summary, [trust])
+    payload: dict[str, object] = {"record": summary.model_dump(mode="json")}
+    if reasons:
+        payload["firewall"] = {"reasons": reasons}
+        _log.warning(
+            "memory.quarantined", namespace=namespace, record_id=summary.record_id, reasons=reasons
+        )
+    await ctx.append_event(
+        MemoryEvent(kind=EventKind.WRITE, namespace=namespace, actor="system", payload=payload)
+    )
+    return summary, reasons
+
+
+async def _archive_summaries(
+    ctx: PipelineContext, namespace: str, old: list[MemoryRecord], reason: str
+) -> int:
+    assert ctx.append_event is not None
+    for record in old:
+        await ctx.append_event(
+            MemoryEvent(
+                kind=EventKind.DECAY_TRANSITION,
+                namespace=namespace,
+                actor="system",
+                payload={
+                    "record_id": record.record_id,
+                    "set": {
+                        "status": RecordStatus.ARCHIVED.value,
+                        "superseded_at": datetime.now(UTC).isoformat(),
+                    },
+                    "transition": "entity_summary->superseded",
+                    "reason": reason,
+                },
+            )
+        )
+    return len(old)
 
 
 async def _add_edge_provenance(
@@ -1680,6 +2168,12 @@ class SessionIndex:
     #: KB-12: namespace -> community partition + refresh counters, folded from
     #: ``community_partition`` markers (``community.incremental``).
     communities: dict[str, CommunityState] = field(default_factory=dict)
+    #: GP-7 (#18): namespace -> {alias canonical: target canonical}, folded from
+    #: the merge decisions of ``entity_resolved`` markers.
+    entity_aliases: dict[str, dict[str, str]] = field(default_factory=dict)
+    #: GP-6 (#17): (namespace, entity node id) -> membership fingerprint the
+    #: ``summarize_entities`` stage last summarised (``entity_summarized`` markers).
+    entity_summaries: dict[tuple[str, str], str] = field(default_factory=dict)
 
     async def refresh(self, storage: PipelineStorage) -> None:
         while True:
@@ -1707,6 +2201,13 @@ class SessionIndex:
                     self.graph_sources[(event.namespace, record_id)] = source_fp
             elif marker == COMMUNITY_PARTITION_MARKER:
                 self._fold_partition(event.namespace, payload)
+            elif marker == ENTITY_RESOLVED_MARKER:
+                self._fold_resolutions(event.namespace, payload.get("decisions"))
+            elif marker == ENTITY_SUMMARIZED_MARKER:
+                for entry in _erasable_entries(payload.get("entities")):
+                    entity, fp = entry.get("entity"), entry.get("content_fingerprint")
+                    if entity and fp:  # a redacted entry (erased summary) is no watermark
+                        self.entity_summaries[(event.namespace, str(entity))] = str(fp)
             elif marker in ("stage_done", "stage_cleared"):
                 fp = payload.get("members_fp")
                 self.mark(
@@ -1716,6 +2217,13 @@ class SessionIndex:
                     done=marker == "stage_done",
                     members_fp=str(fp) if fp else None,
                 )
+
+    def _fold_resolutions(self, namespace: str, raw: object) -> None:
+        aliases = self.entity_aliases.setdefault(namespace, {})
+        for entry in _erasable_entries(raw):
+            name, target = entry.get("entity"), entry.get("attribute")
+            if entry.get("method") in MERGE_METHODS and name and target:
+                aliases[canonical_entity(str(name))] = canonical_entity(str(target))
 
     def _fold_partition(self, namespace: str, payload: dict[str, Any]) -> None:
         state = self.communities.setdefault(namespace, CommunityState())
@@ -2079,6 +2587,7 @@ PIPELINES: dict[str, Pipeline] = {
     "consolidate": consolidate,
     "reorganize": reorganize,
     "extract_graph": extract_graph,
+    "summarize_entities": summarize_entities,
     "mine_facts": mine_facts,
     "anticipate": anticipate,
     "reflect_profile": reflect_profile,

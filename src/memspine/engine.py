@@ -124,6 +124,7 @@ from memspine.exceptions import (
 from memspine.memories.associative.entities import EntityPolicy
 from memspine.memories.associative.evolution import propose_links
 from memspine.memories.associative.projector import GraphProjector
+from memspine.memories.associative.resolution import ResolveBatch
 from memspine.memories.associative.store import AssociativeMemory, match_key
 from memspine.memories.episodic.sessions import Session, topic_segments
 from memspine.memories.episodic.store import EpisodicMemory
@@ -159,6 +160,8 @@ from memspine.observability.logging import (
 from memspine.prompts.models import (
     AnticipatedCue,
     AnticipatedCues,
+    EntityMatches,
+    EntitySummaries,
     ExtractedEdge,
     ExtractedEdges,
     ExtractedFact,
@@ -196,6 +199,10 @@ from memspine.workers.pipelines import (
     ExtractEdges,
     PipelineContext,
     Summarize,
+    SummarizeEntities,
+    entity_summary_name,
+    entity_summary_node,
+    resolve_mode,
     stage_marker,
 )
 from memspine.workers.runner import TaskRunner
@@ -1518,6 +1525,48 @@ class Engine:
             return []
         return [LegHit(rid, 1.0) for rid in ids]
 
+    async def _community_gate(
+        self,
+        ns: str,
+        query: str,
+        vector_hits: Sequence[VectorHit],
+        lexical_hits: Sequence[LexicalHit],
+        extra_legs: list[list[LegHit]],
+        use_hybrid: bool,
+    ) -> list[str]:
+        """GP-9 (``read.graph_communities``): the community summaries this query may read.
+
+        The live ``reorganize`` parents of the communities a seed entity of the graph
+        leg belongs to: a community counts when one of the records the entity
+        mentions is a member (communities are built over association edges, so
+        membership goes through the mentioned records). Seeds as for the graph leg.
+        Parents pass the graph admission gate. Failures admit none (the gate
+        stays shut)."""
+        if self._associative is None:
+            return []
+        try:
+            if use_hybrid or extra_legs:
+                prelim = [
+                    rid
+                    for rid, _ in rrf_fuse(list(vector_hits), list(lexical_hits), extra=extra_legs)
+                ]
+            else:
+                prelim = [hit.record_id for hit in vector_hits]
+            seeds = await self._graph_seeds(ns, query, prelim[: constants.GRAPH_LEG_FALLBACK_HITS])
+            if not seeds:
+                return []
+            storage = self._require_started()
+            admit = self._graph_admit(ns)
+            allowed: list[str] = []
+            for parent_id in await self._associative.entity_communities(ns, seeds):
+                parent = await storage.get_record(parent_id)
+                if parent is not None and parent.source.channel == "reorganize" and admit(parent):
+                    allowed.append(parent_id)
+            return allowed
+        except Exception as exc:
+            _log.warning("read.graph_communities_failed", namespace=ns, error=str(exc))
+            return []
+
     async def _graph_facts_section(
         self, ns: str, query: str, allowance: int
     ) -> MemoryRecord | None:
@@ -2593,6 +2642,8 @@ class Engine:
         max_widen = _SEARCH_MAX_WIDEN * (constants.HEADER_HIDE_OVERFETCH if hide else 1)
         # GP-3 (read.graph_leg): computed once, from the first widen's legs.
         graph_leg: list[LegHit] | None = None if self._config().read.graph_leg else []
+        # GP-9 (read.graph_communities): community summaries this query may read.
+        community_gate: list[str] | None = None
         while True:
             fetch_k = base_fetch * widen
             vector_hits = await self._vector_leg(ns, query_vector, fetch_k)
@@ -2613,10 +2664,17 @@ class Engine:
             extra_legs = await self._metadata_legs(ns, query, fetch_k)
             for text, vector in zip(probe_texts, probe_vectors, strict=True):
                 extra_legs += await self._probe_legs(ns, text, vector, fetch_k, use_hybrid)
+            if community_gate is None and self._config().read.graph_communities:
+                community_gate = await self._community_gate(
+                    ns, query, vector_hits, lexical_hits, extra_legs, use_hybrid
+                )
             if graph_leg is None:
                 graph_leg = await self._graph_leg(
                     ns, query, vector_hits, lexical_hits, extra_legs, use_hybrid
                 )
+                if community_gate:
+                    in_leg = {hit.record_id for hit in graph_leg}
+                    graph_leg += [LegHit(pid, 1.0) for pid in community_gate if pid not in in_leg]
             if graph_leg:
                 extra_legs = [*extra_legs, graph_leg]
             if use_hybrid or extra_legs:
@@ -2635,6 +2693,14 @@ class Engine:
             else:
                 ranked = [(hit.record_id, hit.score) for hit in vector_hits]
             candidates = await self._gate_hits(ns, ranked, group_id, tags, memory_type)
+            if community_gate is not None:
+                # GP-9: a community summary no seed entity belongs to is never read.
+                admitted = set(community_gate)
+                candidates = [
+                    pair
+                    for pair in candidates
+                    if pair[0].source.channel != "reorganize" or pair[0].record_id in admitted
+                ]
             if hide is not None:
                 candidates = [pair for pair in candidates if not hide(pair[0])]
             # Exhaustion is judged on the legs (before any gate or cut).
@@ -3498,7 +3564,82 @@ class Engine:
             )
             if facts is not None:
                 headers.insert(len(cards), facts)
+        if read_cfg.entity_summaries:
+            # GP-6: the "About" block shares the cards allowance, after cards and facts.
+            shared = [
+                h
+                for h in headers
+                if constants.CARDS_TAG in h.tags or constants.GRAPH_FACTS_TAG in h.tags
+            ]
+            allowance = int(budget_tokens * read_cfg.cards_budget_share)
+            about = await self._entity_summary_section(
+                ns, query, allowance - self._headers_cost(shared)
+            )
+            if about is not None:
+                headers.insert(len(shared), about)
         return headers
+
+    async def _entity_summary_section(
+        self, ns: str, query: str, allowance: int
+    ) -> MemoryRecord | None:
+        """GP-6 (``read.entity_summaries``): the "About" block, or None.
+
+        One ``About <Name>: …`` line per entity the query names (the graph leg's
+        seeds) that has a live entity summary (``summarize_entities`` stage), in
+        seed order, while the block fits ``allowance``. A summary passes the graph
+        admission gate (status, quarantine, trust floor, integrity) and the
+        per-record context wrappers; the block's parents are the summaries shown,
+        so the read below leaves them out."""
+        if self._associative is None or allowance <= estimate_tokens(
+            constants.ENTITY_SUMMARIES_MARKER
+        ):
+            return None
+        try:
+            seeds = await self._graph_seeds(ns, query)
+            if not seeds:
+                return None
+            admit = self._graph_admit(ns)
+            found: dict[str, MemoryRecord] = {}
+            for record in await self._require_started().list_records(ns, "semantic"):
+                if record.source.channel != constants.ENTITY_SUMMARY_CHANNEL or not admit(record):
+                    continue
+                node = entity_summary_node(record)
+                if node in seeds and (
+                    node not in found
+                    or (record.valid_from, record.record_id)
+                    > (found[node].valid_from, found[node].record_id)
+                ):
+                    found[node] = record
+        except Exception as exc:  # an enhancer, never a gate
+            _log.warning("read.entity_summaries_failed", namespace=ns, error=str(exc))
+            return None
+        integrity = self._integrity()
+        live = integrity.enabled and integrity.live_reevaluation
+        lines: list[str] = []
+        kept: list[MemoryRecord] = []
+        for node in seeds:
+            summary = found.get(node)
+            if summary is None:
+                continue
+            record = summary
+            if live:
+                effective = await self.effective_trust(record.record_id)
+                if not integrity.admits(effective):
+                    continue
+                record = record.model_copy(update={"trust": effective})
+            shown = self._wrap_for_context(record)
+            name = escape_markers(entity_summary_name(record))
+            line = f"About {name}: {' '.join(shown.content.split())}"
+            trial = [*lines, line]
+            if estimate_tokens("\n".join([constants.ENTITY_SUMMARIES_MARKER, *trial])) <= allowance:
+                lines = trial
+                kept.append(shown)
+        if not kept:
+            return None
+        block = self._lead_record(ns, "\n".join([constants.ENTITY_SUMMARIES_MARKER, *lines]), kept)
+        return block.model_copy(
+            update={"tags": [constants.LEAD_TAG, constants.ENTITY_SUMMARIES_TAG]}
+        )
 
     def _count_allowance(self, query: str, budget_tokens: int) -> int:
         """E3: the tokens kept for the occurrences block; 0 when ``read.count_timeline``
@@ -6431,7 +6572,59 @@ class Engine:
             graph=self._graph if self._associative is not None else None,
             lock=self._namespace_lock,
             expire_retention=self.expire_retention,
+            summarize_entities=self._build_entity_summarizer(),
+            resolve_entities=self._build_entity_resolver(),
+            embed=self._embedder.embed if self._embedder is not None else None,
         )
+
+    def _build_entity_summarizer(self) -> SummarizeEntities | None:
+        """GP-6 (#17): the batched entity summariser, when a ``summarize_entity``
+        (else ``summarize``) LLM role is bound and entity summaries are on."""
+        if self._llm is None or self._prompts is None or self._associative is None:
+            return None
+        policies = self._memory_policy(self._config(), "associative")
+        if not policies.get("entity_summaries"):
+            return None
+        role = next((r for r in ("summarize_entity", "summarize") if r in self._llm.roles), None)
+        if role is None:
+            return None
+        llm = self._llm.for_role(role)
+        prompt = self._prompts.for_role("summarize_entity")
+
+        async def summarize(items: list[tuple[str, list[str]]]) -> dict[int, str]:
+            blocks = []
+            for i, (name, lines) in enumerate(items, start=1):
+                body = "\n".join(f"- {escape_markers(line)}" for line in lines)
+                blocks.append(f"[{i}] {escape_markers(name)}\n{body}")
+            result = await structured_call(
+                llm, prompt, {"entities": "\n".join(blocks)}, EntitySummaries
+            )
+            return {s.index: s.summary for s in result.summaries if s.summary.strip()}
+
+        return summarize
+
+    def _build_entity_resolver(self) -> ResolveBatch | None:
+        """GP-7 (#18): the batched resolver (``resolve_entity@batch``), when a
+        ``resolve_entity`` LLM role is bound and ``extract_graph.resolve: llm``."""
+        if self._llm is None or self._prompts is None or "resolve_entity" not in self._llm.roles:
+            return None
+        policy = self._memory_policy(self._config(), "semantic").get("extract_graph")
+        if not isinstance(policy, dict) or policy.get("resolve") != "llm":
+            return None
+        llm = self._llm.for_role("resolve_entity")
+        prompt = self._prompts.select("resolve_entity", condition="batch")
+
+        async def resolve(items: list[tuple[str, list[str]]]) -> dict[int, str]:
+            lines = [
+                f"[{i}] {escape_markers(name)} (candidates: "
+                + "; ".join(escape_markers(c) for c in candidates)
+                + ")"
+                for i, (name, candidates) in enumerate(items, start=1)
+            ]
+            result = await structured_call(llm, prompt, {"names": "\n".join(lines)}, EntityMatches)
+            return {m.index: m.match for m in result.matches}
+
+        return resolve
 
     def _build_runner(self, config: MemspineConfig) -> TaskRunner:
         if config.workers.runner == "inline":
@@ -6853,6 +7046,8 @@ class Engine:
         policy = self._memory_policy(config, "semantic").get("extract_graph")
         if not policy:
             return None
+        if isinstance(policy, dict):
+            resolve_mode(policy)  # GP-7: an unknown ``resolve`` fails at start, not mid-sweep
         if self._llm is None or self._prompts is None or "extract_edges" not in self._llm.roles:
             return None
         opts = policy if isinstance(policy, dict) else {}

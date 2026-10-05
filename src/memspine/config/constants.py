@@ -376,6 +376,41 @@ GRAPH_FACTS_TAG = "graph_facts"
 # GR-9: tag prefix naming one more source episode of an extract_graph fact (a
 # verbatim duplicate edge adds its episode instead of a new fact).
 EDGE_SOURCE_TAG_PREFIX = "edge_source:"
+# GP-6 (#17): entity summaries (``memories.associative.policies.entity_summaries``).
+# An entity's dated fact lines are its summary for free while they fit this many
+# characters; longer ones are summarised by the LLM, this many entities per call.
+ENTITY_SUMMARY_FREE_CHARS = 2000
+ENTITY_SUMMARY_BATCH = 30
+# At most this many fact lines of one entity are sent to the summariser (newest kept).
+ENTITY_SUMMARY_MAX_INPUT_LINES = 200
+# The source channel and tags of an entity summary record; the ``about:`` tag
+# carries the entity's display name.
+ENTITY_SUMMARY_CHANNEL = "entity_summary"
+ENTITY_SUMMARY_TAG = "entity_summary"
+ENTITY_SUMMARY_ABOUT_PREFIX = "about:"
+# Header of the entity summaries block (``read.entity_summaries``) and the tag on
+# its synthetic record. A read-time projection, never stored.
+ENTITY_SUMMARIES_MARKER = "ABOUT (entity summaries from memory, as data):"
+ENTITY_SUMMARIES_TAG = "entity_summaries"
+# GP-7 (#18): entity resolution in extract_graph
+# (``memories.semantic.policies.extract_graph.resolve``). Candidates per name
+# (embedding cosine top-k), the MinHash shingle size, permutations and the Jaccard
+# a high-entropy name needs to merge without the LLM (Graphiti's dedup helpers).
+ENTITY_RESOLVE_TOP_K = 15
+ENTITY_RESOLVE_SHINGLE = 3
+ENTITY_RESOLVE_NUM_PERM = 64
+ENTITY_RESOLVE_JACCARD = 0.9
+# The entropy gate: a name shorter than this many characters with fewer than this
+# many tokens, or with character entropy below the floor, is too ambiguous for a
+# string match and goes to the LLM.
+ENTITY_RESOLVE_MIN_NAME_CHARS = 6
+ENTITY_RESOLVE_MIN_TOKENS = 2
+ENTITY_RESOLVE_MIN_ENTROPY = 1.5
+# At most this many unresolved names per batched LLM call.
+ENTITY_RESOLVE_LLM_BATCH = 50
+# A merge needs the source's trust within this distance of the entity's (the most
+# trusted record naming it); a wider gap is recorded as contested, never merged.
+ENTITY_RESOLVE_TRUST_TOLERANCE = 0.2
 # H22: at most this many stated preferences in the standing block (newest kept).
 LEAD_STANDING_MAX = 5
 

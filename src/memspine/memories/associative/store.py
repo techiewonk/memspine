@@ -285,6 +285,38 @@ class AssociativeMemory(BaseMemory):
                     found.append(edge.dst)
         return found
 
+    async def entity_communities(self, namespace: str, entities: Sequence[str]) -> list[str]:
+        """GP-9 (#23): the community summary parents the ``entities`` belong to.
+
+        Communities are built over association edges (``mentions`` excluded,
+        ADR-043), so an entity is a member through the records it mentions: the
+        parents of every live member -> parent ``community`` link of a record with
+        a live ``mentions`` edge to one of ``entities`` (in ``namespace``), in
+        first-seen order. Unfiltered: the caller gates the parent records."""
+        mentioned: list[str] = []
+        for entity in dict.fromkeys(entities):
+            if not _entity_in(entity, namespace):
+                continue
+            for edge in await self._graph.edges_of(entity):
+                if (
+                    edge.rel_type == MENTIONS_REL
+                    and edge.dst == entity
+                    and edge.weight > 0
+                    and edge.src not in mentioned
+                ):
+                    mentioned.append(edge.src)
+        parents: list[str] = []
+        for record_id in mentioned:
+            for edge in await self._graph.edges_of(record_id):
+                if (
+                    edge.rel_type == "community"
+                    and edge.src == record_id
+                    and edge.weight > 0
+                    and edge.dst not in parents
+                ):
+                    parents.append(edge.dst)
+        return parents
+
     async def seed_expand(
         self,
         namespace: str,
