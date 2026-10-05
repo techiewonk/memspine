@@ -17,6 +17,13 @@ Mapping:
   (the README says evidence appears exactly once);
 - ``type_label`` = ``"<evidence_type>/<k>"``.
 
+Scoring (official README, github SalesforceAIResearch/ConvoMem, Apache-2.0 code): *exact
+match* for factual questions (user, assistant and changing facts) and *semantic match* for
+preference and implicit-connection questions. Each query carries the declared metric in
+``meta["official_metric"]``; abstention is not named in the README and is marked
+``"unspecified"``. Gap: the judge implementation (Scala ``Evaluate*Evidence*``) was not
+inspected, so the semantic-match judge model and prompt are not reproduced here.
+
 Sampling is stratified: the first ``per_stratum`` items (by item order within files sorted by
 name) of each (evidence type, k) stratum, so a run's question set is reproducible and its ids
 can be published.
@@ -33,7 +40,21 @@ from typing import Any
 
 from ..contracts import DatasetInfo, EvalItem, Query, Turn
 
-__all__ = ["ConvoMemDataset"]
+__all__ = ["CONVOMEM_OFFICIAL_METRIC", "ConvoMemDataset", "official_metric"]
+
+#: Evidence-type directory -> the metric the official README declares for it.
+CONVOMEM_OFFICIAL_METRIC = {
+    "user_evidence": "exact_match",
+    "assistant_facts_evidence": "exact_match",
+    "changing_evidence": "exact_match",
+    "preference_evidence": "semantic_match",
+    "implicit_connection_evidence": "semantic_match",
+}
+
+
+def official_metric(evidence_type: str) -> str:
+    """The README's metric for an evidence type; ``"unspecified"`` when it names none."""
+    return CONVOMEM_OFFICIAL_METRIC.get(evidence_type, "unspecified")
 
 
 class ConvoMemDataset:
@@ -137,6 +158,7 @@ class ConvoMemDataset:
                         gold=str(item.get("answer", "")),
                         gold_turn_ids=tuple(gold_ids),
                         type_label=f"{etype}/{k}",
+                        meta={"benchmark": "convomem", "official_metric": official_metric(etype)},
                     ),
                 ),
                 meta={"filler": len(chosen), "person": item.get("personId")},
