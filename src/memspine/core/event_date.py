@@ -21,7 +21,10 @@ from memspine.core.temporal_resolve import WeekMode, resolve
 
 __all__ = [
     "HAPPENED_PREFIX",
+    "SAID_PREFIX",
+    "anchor_turn",
     "cited_turns",
+    "date_anchor",
     "happened_label",
     "happened_of",
     "happened_tag",
@@ -29,10 +32,14 @@ __all__ = [
     "normalise_label",
     "resolve_happened",
     "said_differs",
+    "said_tag",
 ]
 
 #: The tag prefix of a mined fact's happened date.
 HAPPENED_PREFIX = "happened:"
+#: The tag prefix of the day a happened-tagged fact was said: the anchor its relative
+#: phrases were resolved against, so a read resolves them against the same day.
+SAID_PREFIX = "said:"
 
 _LABEL = re.compile(r"^\d{4}(?:-\d{2}(?:-\d{2}(?:\.\.\d{4}-\d{2}-\d{2})?)?)?$")
 
@@ -92,6 +99,34 @@ def happened_tag(label: str) -> str:
     return f"{HAPPENED_PREFIX}{label}"
 
 
+def said_tag(said: date | datetime) -> str:
+    day = said.date() if isinstance(said, datetime) else said
+    return f"{SAID_PREFIX}{day.isoformat()}"
+
+
+def date_anchor(record: MemoryRecord) -> date | datetime | None:
+    """The anchor a read resolves ``record``'s relative phrases against, or None
+    when they must not be resolved at all.
+
+    A happened-tagged fact's ``valid_from`` may have been moved to the event day, so
+    resolving "yesterday" against it would shift the date twice: its ``said:`` tag
+    is the anchor. A happened-tagged fact written before that tag existed, whose
+    ``valid_from`` is its happened day, is not resolved. Anything else: ``valid_from``.
+    """
+    happened = happened_of(record)
+    if happened is None:
+        return record.valid_from
+    for tag in record.tags:
+        if tag.startswith(SAID_PREFIX):
+            try:
+                return date.fromisoformat(tag[len(SAID_PREFIX) :])
+            except ValueError:
+                break
+    if label_start(happened) == record.valid_from.date():
+        return None
+    return record.valid_from
+
+
 def happened_of(record: MemoryRecord) -> str | None:
     """The happened date a mined fact was tagged with, or None."""
     for tag in record.tags:
@@ -104,6 +139,22 @@ def said_differs(said: date | datetime, happened: str) -> bool:
     """True unless ``happened`` is exactly the day ``said``."""
     day = said.date() if isinstance(said, datetime) else said
     return happened != day.isoformat()
+
+
+def anchor_turn(
+    phrases_of: str, cited: Sequence[MemoryRecord], *, week: WeekMode = "calendar"
+) -> MemoryRecord | None:
+    """The cited turn a fact's relative phrases were said in: the latest cited turn
+    containing every phrase of ``phrases_of`` (case-insensitive), else the latest
+    cited turn; None when nothing is cited."""
+    if not cited:
+        return None
+    phrases = [r.phrase.lower() for r in resolve(phrases_of, cited[0].valid_from, week=week)]
+    latest = max(cited, key=lambda m: m.valid_from)
+    if not phrases:
+        return latest
+    holding = [m for m in cited if all(p in m.content.lower() for p in phrases)]
+    return max(holding, key=lambda m: m.valid_from) if holding else latest
 
 
 def cited_turns(members: Sequence[MemoryRecord], turns: Sequence[int]) -> list[MemoryRecord]:

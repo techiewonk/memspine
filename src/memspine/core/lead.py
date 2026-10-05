@@ -15,6 +15,7 @@ from datetime import date, datetime
 
 from memspine.config import constants
 from memspine.core.escaping import escape_markers
+from memspine.core.event_date import date_anchor, happened_of, label_start
 from memspine.core.query_shape import core_terms
 from memspine.core.records import MemoryRecord
 from memspine.core.temporal_resolve import WeekMode, resolve
@@ -314,12 +315,32 @@ def _overlap(a: str, b: str) -> float:
     return len(wa & wb) / (len(wa | wb) or 1)
 
 
-def event_day(text: str, said: datetime, week: WeekMode = "calendar") -> date:
+def event_day(
+    text: str,
+    said: datetime,
+    week: WeekMode = "calendar",
+    *,
+    record: MemoryRecord | None = None,
+) -> date:
     """#60: the day a mention's event happened: the one single day its relative
     phrases name ("yesterday", "last Friday"; H1 rules, approximate ones ignored),
-    else the day it was said."""
+    else the day it was said.
+
+    #29: for a happened-tagged ``record`` the tag is the event day when it is a single
+    day; otherwise phrases are resolved against :func:`date_anchor` (the day it was
+    said, never a ``valid_from`` already moved to the event day).
+    """
+    anchor: date | datetime = said
+    if record is not None and (happened := happened_of(record)) is not None:
+        start = label_start(happened)
+        if start is not None and start.isoformat() == happened:
+            return start
+        found = date_anchor(record)
+        if found is None:
+            return start or said.date()
+        anchor = found
     days = {
-        r.first for r in resolve(text, said, week=week) if r.first == r.last and not r.approximate
+        r.first for r in resolve(text, anchor, week=week) if r.first == r.last and not r.approximate
     }
     return next(iter(days)) if len(days) == 1 else said.date()
 

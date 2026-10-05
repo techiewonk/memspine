@@ -42,7 +42,7 @@ from memspine.core.answer import final_answer
 from memspine.core.audit import IntegrityReport, TaintReport, trace_taint, verify_events
 from memspine.core.erasure import retained_fields
 from memspine.core.escaping import escape_markers
-from memspine.core.event_date import happened_of, happened_tag
+from memspine.core.event_date import SAID_PREFIX, date_anchor, happened_of, happened_tag
 from memspine.core.events import EventKind, EventLogMode, MemoryEvent, fingerprint_payload
 from memspine.core.firewall import Firewall, FirewallVerdict
 from memspine.core.integrity import IntegrityPolicy
@@ -3182,7 +3182,7 @@ class Engine:
         days = None
         if read_cfg.count_dedupe:  # #60: merge mentions of one event said on other days
             week = read_cfg.relative_week
-            days = {r.record_id: event_day(text, r.valid_from, week) for r, text in found}
+            days = {r.record_id: event_day(text, r.valid_from, week, record=r) for r, text in found}
         kept: list[tuple[MemoryRecord, str]] = []
         for occurrence in distinct_occurrences(found, event_days=days):
             trial = [*kept, occurrence]
@@ -3433,11 +3433,17 @@ class Engine:
         )
 
     def _annotate_dates(self, record: MemoryRecord) -> MemoryRecord:
-        """H1: ``[= absolute date]`` after each relative-time phrase (projection only)."""
+        """H1: ``[= absolute date]`` after each relative-time phrase (projection only).
+
+        #29: a happened-tagged fact is resolved against the day it was said
+        (:func:`date_anchor`), never against a ``valid_from`` moved to the event day."""
         read_cfg = self._config().read
+        anchor = date_anchor(record)
+        if anchor is None:
+            return record
         annotated = annotate_relative_dates(
             record.content,
-            record.valid_from,
+            anchor,
             anchored=read_cfg.relative_dates_anchored,
             week=read_cfg.relative_week,
         )
@@ -5824,10 +5830,13 @@ class Engine:
         *,
         kind: str | None = None,
         happened: str | None = None,
+        said: str | None = None,
     ) -> MemoryRecord:
         """C6': one mined fact through the write door (firewall, ladder, MTI).
 
-        #29: ``happened`` (the fact's happened date) is tagged ``happened:<date>``.
+        #29: ``happened`` (the fact's happened date) is tagged ``happened:<date>``,
+        and ``said`` (the day its relative phrases were resolved against) ``said:<date>``,
+        so a read resolves them against that day, not the moved ``valid_from``.
 
         G1a: ``kind="event"`` drops the attribute, so the fact is ADDed beside the
         person's other events instead of superseding them; ``kind="state"`` keeps
@@ -5844,6 +5853,8 @@ class Engine:
         tags = ["atomic_fact", f"mined:{session_key}"]
         if happened:
             tags.append(happened_tag(happened))
+            if said:
+                tags.append(f"{SAID_PREFIX}{said}")
         if kind is not None:
             tags.append(f"kind:{kind}")
             protected = self._config().firewall.protected_keys
