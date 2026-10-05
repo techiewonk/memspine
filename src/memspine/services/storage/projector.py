@@ -54,9 +54,15 @@ _DELTA_MUTABLE = frozenset(
         "skill_stage",
         "memory_type",  # working -> episodic page-out (M13.1)
         "version",
-        "tags",  # N3: the durable taint-archived mark (rollback/repair)
     }
 )
+
+#: Add-only tag keys (B-8). A delta can never replace or drop a record's tags —
+#: the N3 ``taint_archived`` mark must survive any later lifecycle patch — so
+#: tags only grow, as a union. ``tags_add`` is what the engine emits; ``tags``
+#: is what logs written before B-8 carry, and replays with the same union
+#: (those deltas only ever appended the mark, so the outcome is unchanged).
+_DELTA_TAG_UNION = frozenset({"tags_add", "tags"})
 
 
 class RecordStore(Protocol):
@@ -104,6 +110,11 @@ class RecordProjector(Projector):
             )
             return
         delta = dict(payload.get("set") or {})
+        added: list[str] = []
+        for key in _DELTA_TAG_UNION & set(delta):
+            value = delta.pop(key)
+            if isinstance(value, list):
+                added.extend(str(tag) for tag in value)
         # Allow-list gate (E1): a delta is a lifecycle patch, not a general
         # writer — fields like trust/content that only the firewall or a WRITE
         # may set are dropped loudly instead of silently applied.
@@ -119,6 +130,9 @@ class RecordProjector(Projector):
                 delta.pop(key)
         data = record.model_dump(mode="json")
         data.update(delta)
+        if added:
+            new = [t for t in dict.fromkeys(added) if t not in record.tags]
+            data["tags"] = [*record.tags, *new]
         # JSON round-trip so base64-encoded bytes fields (content_zstd)
         # validate the same way they serialize (D-38).
         await self._store.upsert_record(MemoryRecord.model_validate_json(orjson.dumps(data)))

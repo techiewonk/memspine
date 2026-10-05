@@ -94,3 +94,66 @@ async def test_quarantine_drains_descendants_under_live_reevaluation() -> None:
         assert await eng.effective_trust(child.record_id) == 0
     finally:
         await eng.stop()
+
+
+async def test_attribute_less_fact_is_not_corroborated_by_same_entity() -> None:
+    """B-1: two unrelated trusted writes about one person do not promote a held
+    event fact that has no attribute (``None == None`` is not a key match)."""
+    eng = _engine()
+    await eng.start()
+    try:
+        held = await eng.write(
+            "Ana visited Oslo in May",
+            namespace="a",
+            source=SourceInfo(role="tool", channel="internal"),
+            actor="tool",
+            entity="ana",
+        )
+        await eng.quarantine(held.record_id, namespace="a")
+        for text in ("Ana likes tea", "Ana has a cat"):
+            await eng.write(text, namespace="a", entity="ana")
+        stored = await eng._require_started().get_record(held.record_id)
+        assert stored is not None
+        assert stored.quarantined and stored.status is RecordStatus.QUARANTINED
+        assert stored.corroborations == 0
+    finally:
+        await eng.stop()
+
+
+def test_attribute_less_records_do_not_conflict() -> None:
+    """B-1: ConflictPolicy treats attribute-less records as independent."""
+    a = _rec("Ana visited Oslo", 0.7).model_copy(update={"attribute": None})
+    b = _rec("Ana adopted a cat", 0.7).model_copy(update={"attribute": None})
+    assert ConflictPolicy.bind({}).resolve(b, a) is ConflictVerdict.ADD
+
+
+async def test_quarantine_refuses_a_forgotten_record() -> None:
+    """B-2: a DELETED record cannot be moved to QUARANTINED (and so revived)."""
+    eng = _engine()
+    await eng.start()
+    try:
+        rec = await eng.write("the gateway cert rotates on Fridays", namespace="a")
+        await eng.forget(rec.record_id, namespace="a")
+        with pytest.raises(ConflictError, match="no such record"):
+            await eng.quarantine(rec.record_id, namespace="a")
+        stored = await eng._require_started().get_record(rec.record_id)
+        assert stored is not None and stored.status is RecordStatus.DELETED
+        assert not stored.quarantined
+    finally:
+        await eng.stop()
+
+
+async def test_quarantine_refuses_a_taint_archived_record() -> None:
+    """B-2: a rolled-back poison stays archived."""
+    eng = _engine()
+    await eng.start()
+    try:
+        rec = await eng.write("the gateway cert rotates on Fridays", namespace="a")
+        await eng.rollback_taint(rec.record_id, namespace="a")
+        with pytest.raises(ConflictError, match="no such record"):
+            await eng.quarantine(rec.record_id, namespace="a")
+        stored = await eng._require_started().get_record(rec.record_id)
+        assert stored is not None and stored.status is RecordStatus.ARCHIVED
+        assert "taint_archived" in stored.tags
+    finally:
+        await eng.stop()

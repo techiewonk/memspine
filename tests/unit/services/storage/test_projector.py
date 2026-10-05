@@ -70,3 +70,36 @@ async def test_illegal_delta_keys_are_dropped_not_applied() -> None:
     assert patched.trust == 0.3  # illegal keys dropped
     assert patched.entity is None
     assert patched.content == "original"
+
+
+def _transition(record_id: str, change: dict[str, object]) -> MemoryEvent:
+    return MemoryEvent(
+        kind=EventKind.DECAY_TRANSITION,
+        namespace="ns",
+        actor="system",
+        payload={"record_id": record_id, "set": change, "transition": "t", "reason": "r"},
+    )
+
+
+async def test_delta_cannot_drop_the_taint_archived_tag() -> None:
+    """B-8: tags only grow through a delta; an empty list removes nothing."""
+    store = MemoryStore()
+    projector = RecordProjector(store)
+    record = MemoryRecord(namespace="ns", memory_type="semantic", content="x", tags=["a"])
+    store.records[record.record_id] = record
+    await projector.apply(_transition(record.record_id, {"tags_add": ["taint_archived"]}))
+    assert store.records[record.record_id].tags == ["a", "taint_archived"]
+    await projector.apply(_transition(record.record_id, {"tags": []}))
+    assert store.records[record.record_id].tags == ["a", "taint_archived"]
+    await projector.apply(_transition(record.record_id, {"tags_add": ["a", "b"]}))
+    assert store.records[record.record_id].tags == ["a", "taint_archived", "b"]
+
+
+async def test_legacy_tags_delta_replays_as_a_union() -> None:
+    """B-8: a pre-B-8 log carries ``tags`` = old tags + the mark; replay agrees."""
+    store = MemoryStore()
+    projector = RecordProjector(store)
+    record = MemoryRecord(namespace="ns", memory_type="semantic", content="x", tags=["a"])
+    store.records[record.record_id] = record
+    await projector.apply(_transition(record.record_id, {"tags": ["a", "taint_archived"]}))
+    assert store.records[record.record_id].tags == ["a", "taint_archived"]

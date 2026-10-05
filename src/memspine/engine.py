@@ -202,7 +202,7 @@ def _taint_archive_delta(record: MemoryRecord) -> dict[str, object]:
     also tagged :data:`_TAINT_ARCHIVED_TAG` (N3)."""
     change: dict[str, object] = {"status": RecordStatus.ARCHIVED.value}
     if _TAINT_ARCHIVED_TAG not in record.tags:  # N3: durable, outlives the log
-        change["tags"] = [*record.tags, _TAINT_ARCHIVED_TAG]
+        change["tags_add"] = [_TAINT_ARCHIVED_TAG]  # B-8: add-only, never replaces
     if record.valid_to is None:
         change["valid_to"] = record.valid_from.isoformat()
     return change
@@ -3233,8 +3233,14 @@ class Engine:
             record = await storage.get_record(record_id)
             if record is None or record.namespace != ns:
                 raise ConflictError(f"no such record {record_id!r} in namespace {ns!r}")
-            if record.quarantined:
+            if record.quarantined and record.status is RecordStatus.QUARANTINED:
                 return record
+            # B-2: only a live record can be held. A forgotten (DELETED) or
+            # archived (incl. taint-archived) record would otherwise be revived
+            # through quarantine -> corroboration; it raises the same error as a
+            # missing id, so the call is not an existence oracle.
+            if record.status not in (RecordStatus.ACTIVATED, RecordStatus.RESOLVING):
+                raise ConflictError(f"no such record {record_id!r} in namespace {ns!r}")
             await self._append_and_project(
                 MemoryEvent(
                     kind=EventKind.DECAY_TRANSITION,
@@ -3660,9 +3666,13 @@ class Engine:
             # (entity, attribute) keys are only comparable within one memory
             # type — a semantic fact keyed ("release", "skill") must never
             # corroborate a quarantined *procedural* skill of the same name.
+            # B-1: an attribute-less record (a mined event fact) has no key, so
+            # only a content-fingerprint match corroborates it; otherwise any
+            # trusted write about the same person would count (None == None).
             same_fact = (
                 held.memory_type == incoming.memory_type
                 and held.entity is not None
+                and held.attribute is not None
                 and held.entity == incoming.entity
                 and held.attribute == incoming.attribute
             )
