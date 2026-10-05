@@ -224,6 +224,19 @@ await engine.sleep()      # run consolidate -> decay -> compress -> prune now
 await engine.rebuild()    # replay every projector from seq 0
 ```
 
+### Feedback — like / dislike / note (#54)
+```python
+await engine.feedback(record_id, "like", namespace="ops")
+await engine.feedback(record_id, "dislike", note="moved to Lyon in May", namespace="ops")
+rec = await engine.feedback(record_id, "note", note="check with Ana", namespace="ops")
+rec.scoring.likes, rec.scoring.dislikes, rec.scoring.notes   # (1, 1, 2)
+```
+Each call appends one `memory.feedback` event; the record projector keeps the counts.
+They affect ranking only through `read.scoring.utility_weight` (0 in the `base`
+template): utility then adds `tanh((likes - dislikes) / 3)`, bounded in (-1, 1). Notes
+are screened like messages, capped at 2000 characters, kept in the log only, and
+erased by a hard forget of the record (ADR-036). REST: `POST /feedback`.
+
 ### Cost accounting — per role and per prompt (#33)
 ```python
 engine.model_calls()      # {"extract": 3, ...}            calls per LLM role
@@ -295,6 +308,7 @@ missing.
 |---------------|------|
 | `POST /write` · `POST /search` · `POST /assemble` · `POST /retrieve` | core read/write |
 | `DELETE /records/{id}?hard=` · `GET /describe` | forget · introspect |
+| `POST /feedback` | like / dislike / note on a record (#54) |
 | `POST /skills` · `POST /skills/{id}/promote` · `DELETE /skills/{id}` | procedural |
 | `POST /plans` · `GET /plans/recall` | plan cache (E6) |
 | `POST /reflect` | reflective |

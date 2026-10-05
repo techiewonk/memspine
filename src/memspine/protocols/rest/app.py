@@ -40,6 +40,7 @@ from memspine.observability.logging import get_logger
 from memspine.protocols.rest.models import (
     AssembleRequest,
     AssembleResponse,
+    FeedbackRequest,
     GrantRequest,
     GrantView,
     PlanRequest,
@@ -185,6 +186,13 @@ def build_app(engine: Engine) -> FastAPI:
     @app.post("/retrieve")
     async def retrieve(body: RetrieveRequest, ns: Namespace) -> list[MemoryRecord]:
         return await engine.retrieve(namespace=ns, memory_type=body.memory_type)
+
+    @app.post("/feedback")
+    async def feedback(body: FeedbackRequest, ns: Namespace) -> MemoryRecord:
+        # #54: counts only; the bounded utility transform caps what a caller can move.
+        return await engine.feedback(
+            body.record_id, body.signal, note=body.note, actor=body.actor, namespace=ns
+        )
 
     @app.delete("/records/{record_id}")
     async def forget(record_id: str, ns: Namespace, hard: bool = False) -> dict[str, Any]:

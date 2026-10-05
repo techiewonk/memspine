@@ -129,6 +129,7 @@ from memspine.memories.shared.subscriptions import make_subscription_record
 from memspine.memories.working.manager import DEFAULT_PAGE_SIZE, WorkingMemory
 from memspine.memories.working.persona import make_persona_record
 from memspine.observability.logging import (
+    EVENT_FEEDBACK,
     EVENT_FORGET,
     EVENT_LINK,
     EVENT_REBUILD,
@@ -4494,6 +4495,58 @@ class Engine:
             updated = await self._require_started().get_record(record_id)
             assert updated is not None
             return updated
+
+    async def feedback(
+        self,
+        record_id: str,
+        signal: str,
+        *,
+        note: str | None = None,
+        actor: str = "user",
+        namespace: str = "default",
+    ) -> MemoryRecord:
+        """#54: record a user's ``like`` / ``dislike`` / ``note`` on one record.
+
+        Appends one FEEDBACK event through the door; the record projector keeps the
+        per-record counts (``scoring.likes`` / ``dislikes`` / ``notes``). With
+        ``read.scoring.utility_weight > 0`` the ranking's utility term then includes
+        ``tanh((likes - dislikes) / FEEDBACK_UTILITY_SCALE)``, bounded in (-1, 1), so
+        a repeated like cannot dominate relevance. A record with no feedback scores
+        exactly as before.
+
+        ``note`` is optional with a like or dislike and required for ``"note"``. It
+        is screened like message content (``firewall.redact_secrets`` / ``pii``),
+        cut to ``FEEDBACK_NOTE_MAX_CHARS`` and stored in the event only, under
+        ``content``, so a hard forget of the record erases it too. Namespace-scoped
+        like :meth:`quarantine`: a missing, foreign or forgotten id raises the same
+        ``ConflictError``. Returns the record with its updated counts.
+        """
+        if signal not in ("like", "dislike", "note"):
+            raise MemspineError(f"feedback signal must be like, dislike or note, got {signal!r}")
+        text = (note or "").strip()
+        if signal == "note" and not text:
+            raise MemspineError("feedback signal 'note' needs a non-empty note")
+        storage = self._require_started()
+        ns = validate_namespace(namespace)
+        payload: dict[str, object] = {"record_id": record_id, "signal": signal}
+        if text:
+            screened = _screen_text(text, self._config().firewall)[0]
+            payload["content"] = screened[: constants.FEEDBACK_NOTE_MAX_CHARS]
+        async with self._write_locks.setdefault(ns, asyncio.Lock()):
+            record = await storage.get_record(record_id)
+            if (
+                record is None
+                or record.namespace != ns
+                or record.status is RecordStatus.DELETED
+            ):
+                raise ConflictError(f"no such record {record_id!r} in namespace {ns!r}")
+            await self._append_and_project(
+                MemoryEvent(kind=EventKind.FEEDBACK, namespace=ns, actor=actor, payload=payload)
+            )
+            updated = await storage.get_record(record_id)
+        assert updated is not None
+        _log.info(EVENT_FEEDBACK, namespace=ns, record_id=record_id, signal=signal)
+        return updated
 
     def _config(self) -> MemspineConfig:
         assert self._resolved is not None

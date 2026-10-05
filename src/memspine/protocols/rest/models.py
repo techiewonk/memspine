@@ -7,6 +7,7 @@ the REST layer adds no second record schema.
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -16,6 +17,7 @@ from memspine.core.records import MemoryRecord, PiiTier, SourceInfo
 __all__ = [
     "AssembleRequest",
     "AssembleResponse",
+    "FeedbackRequest",
     "GrantRequest",
     "GrantView",
     "PlanRequest",
@@ -74,6 +76,15 @@ class AssembleRequest(_Request):
     query: str = Field(max_length=constants.MAX_LEXICAL_QUERY_CHARS)
     budget_tokens: int = Field(default=constants.ASSEMBLE_BUDGET_TOKENS, ge=1)
     top_k: int = Field(default=constants.ASSEMBLE_TOP_K, ge=1)
+
+
+class FeedbackRequest(_Request):
+    """#54: a like / dislike / note on one record of the caller's namespace."""
+
+    record_id: str
+    signal: Literal["like", "dislike", "note"]
+    note: str | None = Field(default=None, max_length=constants.FEEDBACK_NOTE_MAX_CHARS)
+    actor: str = "user"
 
 
 class RetrieveRequest(_Request):
