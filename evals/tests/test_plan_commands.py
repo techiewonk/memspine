@@ -79,3 +79,20 @@ def test_rehearsal_builds_the_same_systems_as_the_command() -> None:
         built = {s.system_id for s in build_systems(config)}
         missing = set(arm["systems"]) - built
         assert not missing, f"{arm['id']}: {sorted(missing)} not in {sorted(built)}"
+
+
+def test_disabled_arms_run_only_when_named(capsys: object) -> None:
+    import io
+    from contextlib import redirect_stdout
+
+    plan = json.loads(plan_commands.PLAN.read_text(encoding="utf-8"))
+    disabled = [a["id"] for a in plan["arms"] if a.get("disabled")]
+    assert "R-cohere" in disabled
+    out = io.StringIO()
+    with redirect_stdout(out):
+        plan_commands.main([])
+    assert "--run-id aamas27-locomo-qwen3--R-cohere " not in out.getvalue()
+    out = io.StringIO()
+    with redirect_stdout(out):
+        plan_commands.main(["--arms", "R-cohere"])
+    assert "--run-id aamas27-locomo-qwen3--R-cohere " in out.getvalue()

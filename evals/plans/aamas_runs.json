@@ -506,7 +506,8 @@
           "skip_rerank_for_ordering": true
         }
       },
-      "notes": "Cohere Rerank 3.5 via Bedrock (needs the full ARN as model id); rerank calls are NOT in the dollar meter (~$2 per 1,000 queries, verify)"
+      "notes": "Cohere Rerank 3.5 via Bedrock (needs the full ARN as model id); rerank calls are NOT in the dollar meter (~$2 per 1,000 queries, verify); DISABLED 2026-10-05: reranking is opt-in per requirement; run only when named with --arms",
+      "disabled": true
     },
     {
       "id": "H2-kind",
@@ -864,6 +865,72 @@
       "expect_roles": [
         "extract"
       ]
+    },
+    {
+      "id": "cards-header-skipT",
+      "hypothesis": "G1b: combo-A + mining + read.cards header",
+      "systems": [
+        "memspine"
+      ],
+      "qa_prompt": "dated",
+      "build_sleep": true,
+      "config_delta": {
+        "read": {
+          "resolve_relative_dates": true,
+          "order_by_time_for_ordering": true,
+          "assembly": {
+            "relative_floor": 0.3
+          },
+          "cards": "header",
+          "cards_skip_temporal": true
+        },
+        "memories": {
+          "episodic": {
+            "policies": {
+              "consolidation": {
+                "mine_facts": true
+              }
+            }
+          }
+        }
+      },
+      "expect_roles": [
+        "extract"
+      ],
+      "notes": "mined facts as a dated FACTS block within 25% of the budget; the replay read leaves mined facts out; + read.cards_skip_temporal (smoke 2026-10-05: cards cost temporal -13 to -16)"
+    },
+    {
+      "id": "combo-A-infer+cards-skipT",
+      "hypothesis": "G10+G1: combo-A-infer + mining with kind + cards header",
+      "systems": [
+        "memspine"
+      ],
+      "qa_prompt": "dated_infer",
+      "build_sleep": true,
+      "config_delta": {
+        "read": {
+          "resolve_relative_dates": true,
+          "order_by_time_for_ordering": true,
+          "assembly": {
+            "relative_floor": 0.3
+          },
+          "cards": "header",
+          "cards_skip_temporal": true
+        },
+        "memories": {
+          "episodic": {
+            "policies": {
+              "consolidation": {
+                "mine_facts": true
+              }
+            }
+          }
+        }
+      },
+      "expect_roles": [
+        "extract"
+      ],
+      "notes": "+ read.cards_skip_temporal (smoke 2026-10-05: cards cost temporal -13 to -16)"
     }
   ]
 }

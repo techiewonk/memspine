@@ -93,7 +93,13 @@ def main(argv: list[str] | None = None) -> int:
 
     plan = json.loads(Path(args.plan).read_text(encoding="utf-8"))
     wanted = set(args.arms.split(",")) if args.arms else None
-    arms = [a for a in plan["arms"] if wanted is None or a["id"] in wanted]
+    # Arms marked ``disabled`` (e.g. the Cohere reranker, opt-in per requirement since
+    # 2026-10-05) run only when named explicitly with --arms.
+    arms = [
+        a
+        for a in plan["arms"]
+        if (wanted is None and not a.get("disabled")) or (wanted is not None and a["id"] in wanted)
+    ]
     if wanted and len(arms) != len(wanted):
         missing = wanted - {a["id"] for a in arms}
         parser.error(f"unknown arm ids: {sorted(missing)}")

@@ -227,7 +227,7 @@ Construct with `Engine(template="...")`. Each template is a partial overlay on t
 | `voice` | rolling+zstd event log; larger working window | high-volume voice transcripts |
 | `multi_agent` | + shared; **DBOS** durable workers | namespace grants across agents (R2), server-grade durability |
 | `regulated_financial` | full audit log, strict PII, no forgetting; **DBOS** durable workers | audited / compliant deployments |
-| `assistant` (**default**) | multi-session chat memory: relative dates resolved, time-ordered answers for ordering questions, relevance-first scoring (LoCoMo 70.7 → 78.3% measured; 80.6% with Cohere rerank) | chat assistants |
+| `assistant` (**default**) | multi-session chat memory: relative dates resolved, time-ordered answers for ordering questions, relevance-first scoring (LoCoMo 70.7 → 78.3% measured; reranker opt-in) | chat assistants |
 
 > `Engine()` with no template uses **`assistant`** (ADR-032); `template="base"` gives the plain `simple` profile.
 

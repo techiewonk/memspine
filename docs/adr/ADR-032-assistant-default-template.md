@@ -34,8 +34,10 @@ which are the weakest measured configuration for conversational memory.
   - relevance-first scoring (recency, importance and utility weights at 0);
   - `read.record_access: false`;
   - `prompts.selection.chat: {condition: dated}`, which selects the `chat@dated` prompt.
-- Reranking (Cohere Rerank 3.5, 80.5%) is shipped commented out. It needs a cloud service and is
-  not a default.
+- Reranking is **off by default and opt-in per requirement** (`read.rerank: "off"`, decision
+  2026-10-05). All reranker code stays in memspine (fastembed, flashrank, qwen3, litellm incl.
+  Cohere); a deployment enables one only when it needs it. Cohere was measured (80.5%) but is not
+  the default choice.
 
 ## Consequences
 
