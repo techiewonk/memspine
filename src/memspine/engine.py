@@ -16,10 +16,9 @@ import asyncio
 import itertools
 import os
 import re
-import shutil
-import tempfile
 import threading
-from collections.abc import Callable, Coroutine, Mapping, Sequence
+from collections.abc import AsyncIterator, Callable, Coroutine, Mapping, Sequence
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -376,12 +375,9 @@ class Engine:
         self._client: SQLiteClient | None = None  # SQLite storage + FTS5/adjacency projections
         self._pg: PostgresClient | None = None  # Postgres storage backend (Phase 6)
         self._lance: LanceDBClient | None = None
-        # Per-engine scratch dir for the LanceDB table when the event log is
-        # in-memory (storage.path == ":memory:"): a durable on-disk table would
-        # outlive the ephemeral log and accumulate ghost rows across runs
-        # (D0.1). The dir is created in _build_vector_store and removed in
-        # _teardown so the projection shares the log's lifetime.
-        self._lance_scratch: Path | None = None
+        # Inside a projection batch (write_messages): the last seq each
+        # projector applied, checkpointed when the batch flushes. None outside.
+        self._batch_offsets: dict[str, int] | None = None
         self._kuzu: KuzuClient | None = None
         self._ladybug: LadybugClient | None = None
         # Phase 2: one shared KV cache + the optional clients backing it.
@@ -692,13 +688,6 @@ class Engine:
         ):
             if client is not None:
                 await client.close()
-        if self._lance_scratch is not None:
-            # The Lance client is closed above (file handles released), so the
-            # ephemeral :memory: scratch table can be removed now — it shares
-            # the in-memory log's lifetime (D0.1). Best-effort: a lingering OS
-            # handle must never fail stop().
-            shutil.rmtree(self._lance_scratch, ignore_errors=True)
-            self._lance_scratch = None
         self._started = False
 
     # ── public verbs (P0: write / retrieve / rebuild / describe) ─────────────
@@ -1568,10 +1557,32 @@ class Engine:
         in calls of at most ``embedding.batch_size`` texts, which fills the
         embedding cache; the per-record firewall and vector projection then read
         their vectors from it. If that up-front embedding fails, the call raises
-        before any turn is written, so a retry cannot duplicate turns."""
+        before any turn is written, so a retry cannot duplicate turns.
+
+        The turns share one projection batch (:meth:`_projection_batch`): the
+        lexical index commits and the projector checkpoints happen once per
+        call instead of once per turn."""
+        await self._prewarm_embeddings(self._depositable_contents(messages))
+        async with self._projection_batch():
+            return await self._write_turns(
+                messages, namespace, actor, session_id, channel, group_id, tags, valid_from
+            )
+
+    async def _write_turns(
+        self,
+        messages: Sequence[Mapping[str, str]],
+        namespace: str,
+        actor: str,
+        session_id: str | None,
+        channel: str,
+        group_id: str | None,
+        tags: list[str] | None,
+        valid_from: datetime | None,
+    ) -> list[MemoryRecord]:
+        """The per-turn loop of :meth:`write_messages`: each turn goes through
+        the write door on its own, with its own firewall and ladder decisions."""
         records: list[MemoryRecord] = []
         fw = self._config().firewall
-        await self._prewarm_embeddings(self._depositable_contents(messages))
         for i, turn in enumerate(messages):
             try:
                 role = turn["role"]
@@ -3765,19 +3776,10 @@ class Engine:
                 embedder_id=self._embedder.embedder_id,
                 top_k=constants.ANOMALY_MIN_NEIGHBOURS,
             )
-            neighbour_sims = []
-            for hit in hits:
-                neighbour = await storage.get_record(hit.record_id)
-                if neighbour is not None and neighbour.quarantined:
-                    continue
-                neighbour_sims.append(hit.score)
-        recent = [
-            existing
-            for existing in await storage.list_records(record.namespace)
-            if not existing.quarantined
-        ]
-        recent.sort(key=lambda existing: existing.recorded_at)
-        recent_contents = [existing.content for existing in recent[-50:]]
+            held = await storage.quarantined_ids([hit.record_id for hit in hits])
+            neighbour_sims = [hit.score for hit in hits if hit.record_id not in held]
+        # The 50 most recently recorded live contents, oldest first.
+        recent_contents = await storage.recent_contents(record.namespace, 50)
         return self._firewall.assess(
             record, neighbour_similarities=neighbour_sims, recent_contents=recent_contents
         )
@@ -3823,7 +3825,7 @@ class Engine:
             return
         storage = self._require_started()
         integrity = self._integrity()
-        for held in await storage.list_records(namespace):
+        for held in await storage.list_quarantined(namespace):
             if not held.quarantined or held.status is not RecordStatus.QUARANTINED:
                 continue
             # Independence: a record cannot corroborate itself, and neither can
@@ -4857,9 +4859,54 @@ class Engine:
         appended = await self._storage.append_event(event)
         if appended.seq is None:  # pragma: no cover - write door always assigns seq
             raise MemspineError("write door returned an event without seq")
+        batch = self._batch_offsets
         for projector in self._projectors:
             await projector.apply(appended)
-            await self._storage.set_offset(projector.name, appended.seq)
+            if batch is not None:
+                batch[projector.name] = appended.seq  # checkpointed at the flush
+            else:
+                await self._storage.set_offset(projector.name, appended.seq)
+
+    @asynccontextmanager
+    async def _projection_batch(self) -> AsyncIterator[None]:
+        """Group the projection work of many events (one ``write_messages`` call).
+
+        Every event is still appended and applied one at a time, so the log, the
+        records and every read in between are exactly as without the batch.
+        Two costs move to the end: projectors may hold per-event commits (see
+        :meth:`Projector.begin_batch`), and the high-water marks are written
+        once per projector instead of once per event. A mark is written only
+        after that projector's flush succeeds, so a projection is never marked
+        ahead of what it holds; after a crash catch-up re-applies the tail
+        (applies are idempotent). Nested batches join the outermost one."""
+        if self._batch_offsets is not None:
+            yield
+            return
+        self._batch_offsets = {}
+        for projector in self._projectors:
+            projector.begin_batch()
+        try:
+            yield
+        finally:
+            offsets, self._batch_offsets = self._batch_offsets, None
+            await self._flush_projections(offsets)
+
+    async def _flush_projections(self, offsets: Mapping[str, int]) -> None:
+        """Flush each projector, then checkpoint the ones that flushed."""
+        assert self._storage is not None
+        failure: BaseException | None = None
+        for projector in self._projectors:
+            try:
+                await projector.flush()
+            except Exception as exc:
+                # Its mark stays behind, so catch-up re-applies its tail.
+                failure = failure or exc
+                continue
+            seq = offsets.get(projector.name)
+            if seq is not None:
+                await self._storage.set_offset(projector.name, seq)
+        if failure is not None:
+            raise failure
 
     def _namespace_lock(self, namespace: str) -> asyncio.Lock:
         """The same per-namespace lock every write verb holds — handed to
@@ -5415,15 +5462,20 @@ class Engine:
 
         if self._client_is_memory(config):
             # A projection must never outlive its log (D0.1): an in-memory event
-            # log gets a per-engine scratch dir, removed in _teardown, so the
-            # Lance table shares the log's ephemeral lifetime (no ghost rows on
-            # restart). mkdtemp is unique per engine — concurrent :memory:
-            # engines never collide on one directory.
-            self._lance_scratch = Path(tempfile.mkdtemp(prefix="memspine-lance-"))
-            lance_path = str(self._lance_scratch / "vectors.lance")
+            # log gets an in-memory Lance table. LanceDB keeps a ``memory://``
+            # store private to its connection, so concurrent :memory: engines
+            # never share rows and the table is freed when the client closes.
+            # A scratch directory on disk gave the same results but cost a new
+            # fragment and version file per write (and minutes to delete).
+            lance_path = "memory://vectors"
+            exclusive = True  # no other engine can reach this table
         else:
             # sqlite: <path>.lance beside the db; postgres: <data_dir>/memspine.lance
             lance_path = f"{self._derived_base(config)}.lance"
+            # A file-backed table may be shared with concurrent engines (D-45):
+            # compacting it could conflict with their writes, and only a merge
+            # knows whether an id is already there, so it keeps the plain path.
+            exclusive = False
         self._lance = LanceDBClient(lance_path)
         await self._lance.connect()
         return LanceDBVectorStore(
@@ -5432,6 +5484,8 @@ class Engine:
             quantization=quantization,
             matryoshka_dim=matryoshka_dim,
             oversample=constants.RESCORE_OVERSAMPLE,
+            compact_every=constants.LANCE_COMPACT_EVERY if exclusive else None,
+            exclusive=exclusive,
         )
 
     def _build_lexical_store(self, config: MemspineConfig) -> LexicalStore:

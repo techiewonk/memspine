@@ -122,6 +122,10 @@ class TantivyLexical:
         self._index: Any = None
         self._writer: Any = None
         self._lock = asyncio.Lock()
+        # Batched ingest (see defer_commits): added documents wait for one
+        # commit, which every read and flush() performs first.
+        self._deferring = False
+        self._uncommitted = False
 
     async def _ensure(self) -> None:
         """Open the index and its single long-lived writer once, off the loop."""
@@ -166,7 +170,38 @@ class TantivyLexical:
         content = strip_control_chars(record.content)
         rid, ns = record.record_id, record.namespace
         async with self._lock:
-            await asyncio.to_thread(self._commit_index, rid, ns, content)
+            if self._deferring:
+                await asyncio.to_thread(self._add_doc, rid, ns, content)
+                self._uncommitted = True
+            else:
+                await asyncio.to_thread(self._commit_index, rid, ns, content)
+                self._uncommitted = False
+
+    def defer_commits(self) -> None:
+        """Hold the commit of indexed documents until :meth:`flush` or a read.
+
+        A commit (and reload) per document dominates the cost of indexing one
+        turn. Searches and ``exists`` commit pending documents first, and
+        deletes commit them together with the delete in the writer's order,
+        so every read sees exactly what per-document commits would show."""
+        self._deferring = True
+
+    async def flush(self) -> None:
+        """Commit documents held by :meth:`defer_commits` and stop holding."""
+        self._deferring = False
+        await self._commit_pending()
+
+    async def _commit_pending(self) -> None:
+        if not self._uncommitted:
+            return
+        async with self._lock:
+            if self._uncommitted:
+                await asyncio.to_thread(self._commit)
+                self._uncommitted = False
+
+    def _commit(self) -> None:
+        self._writer.commit()
+        self._index.reload()
 
     def _commit_index(self, record_id: str, namespace: str, content: str) -> None:
         self._add_doc(record_id, namespace, content)
@@ -185,6 +220,7 @@ class TantivyLexical:
             return
         async with self._lock:
             await asyncio.to_thread(self._commit_index_many, cleaned)
+            self._uncommitted = False
 
     def _commit_index_many(self, cleaned: list[tuple[str, str, str]]) -> None:
         for rid, ns, content in cleaned:
@@ -198,6 +234,7 @@ class TantivyLexical:
         terms = tokenize_content(strip_control_chars(query)[:MAX_LEXICAL_QUERY_CHARS])
         if not terms:
             return []
+        await self._commit_pending()
         return await asyncio.to_thread(self._search, namespace, terms, top_k)
 
     def _search(self, namespace: str, terms: list[str], top_k: int) -> list[LexicalHit]:
@@ -230,6 +267,7 @@ class TantivyLexical:
         await self._ensure()
         async with self._lock:
             await asyncio.to_thread(self._commit_delete, record_id)
+            self._uncommitted = False
 
     def _commit_delete(self, record_id: str) -> None:
         self._writer.delete_documents_by_term("record_id", record_id)
@@ -240,6 +278,7 @@ class TantivyLexical:
         """M7 ``forget --verify`` support: is this record still indexed? The
         index stores raw content, so erasure is unproven until this is checked."""
         await self._ensure()
+        await self._commit_pending()
         return await asyncio.to_thread(self._exists, record_id)
 
     def _exists(self, record_id: str) -> bool:
@@ -253,6 +292,7 @@ class TantivyLexical:
         await self._ensure()
         async with self._lock:
             await asyncio.to_thread(self._commit_clear)
+            self._uncommitted = False
 
     def _commit_clear(self) -> None:
         self._writer.delete_all_documents()
@@ -265,6 +305,10 @@ class TantivyLexical:
         async with self._lock:
             if self._writer is None:
                 return
+            if self._uncommitted:
+                # Documents held by defer_commits are committed, never dropped.
+                await asyncio.to_thread(self._commit)
+                self._uncommitted = False
             writer, self._writer = self._writer, None
             # Join merge threads so an on-disk index leaves no dangling temp
             # segments (this consumes the writer — the store is done).

@@ -33,3 +33,18 @@ class Projector(ABC):
     @abstractmethod
     async def reset(self) -> None:
         """Drop all projected state so a rebuild can replay from seq 0."""
+
+    def begin_batch(self) -> None:
+        """A run of applies starts that the engine closes with :meth:`flush`.
+
+        A projector may then buffer work that is costly per event (an index
+        commit), provided every read it serves still sees each applied event.
+        The engine holds this projector's high-water mark back until
+        :meth:`flush` returns, so a crash before it only causes a replay.
+        Default: nothing is buffered."""
+        return None
+
+    async def flush(self) -> None:
+        """Make every apply since :meth:`begin_batch` durable and end the batch.
+        Default: applies are durable when they return."""
+        return None

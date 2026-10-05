@@ -33,3 +33,15 @@ class LexicalProjector(Projector):
 
     async def reset(self) -> None:
         await self._store.clear()
+
+    def begin_batch(self) -> None:
+        # Stores that can hold their commit until a read or flush() (Tantivy)
+        # do so for the batch; any other store commits per apply as before.
+        defer = getattr(self._store, "defer_commits", None)
+        if defer is not None:
+            defer()
+
+    async def flush(self) -> None:
+        flush = getattr(self._store, "flush", None)
+        if flush is not None:
+            await flush()

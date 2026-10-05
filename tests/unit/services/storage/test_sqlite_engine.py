@@ -278,3 +278,37 @@ async def test_alembic_migration_builds_same_schema(tmp_path: Path) -> None:
     e1 = await storage.append_event(ev(content="via alembic"))
     assert e1.seq == 1
     await client.close()
+
+
+async def test_narrow_queries_match_list_records() -> None:
+    """``quarantined_ids`` / ``recent_contents`` / ``list_quarantined`` give what
+    the firewall and corroboration used to derive from ``list_records``."""
+    storage = await make_storage()
+    start = datetime(2026, 1, 1, tzinfo=UTC)
+    for i in range(60):
+        await storage.upsert_record(
+            MemoryRecord(
+                record_id=f"r{i:02d}",
+                namespace="ns/a",
+                memory_type="episodic",
+                content=f"turn {i}",
+                # Out of insertion order, so the sort is exercised.
+                recorded_at=start + timedelta(seconds=(i * 37) % 60),
+                quarantined=i % 7 == 0,
+            )
+        )
+    await storage.upsert_record(
+        MemoryRecord(record_id="other", namespace="ns/b", memory_type="episodic", content="x")
+    )
+    everything = await storage.list_records("ns/a")
+
+    live = sorted((r for r in everything if not r.quarantined), key=lambda r: r.recorded_at)
+    assert await storage.recent_contents("ns/a", 50) == [r.content for r in live[-50:]]
+    assert await storage.recent_contents("ns/a", 0) == []
+
+    held = [r.record_id for r in everything if r.quarantined]
+    assert [r.record_id for r in await storage.list_quarantined("ns/a")] == held
+
+    asked = ["r00", "r01", "r07", "missing", "r07"]
+    assert await storage.quarantined_ids(asked) == {"r00", "r07"}
+    assert await storage.quarantined_ids([]) == set()

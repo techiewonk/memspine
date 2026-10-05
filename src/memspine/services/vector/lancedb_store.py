@@ -27,6 +27,14 @@ def _table_name(embedder_id: str) -> str:
     return "memspine_" + re.sub(r"[^a-zA-Z0-9_]", "_", embedder_id)
 
 
+def _record_ids(table: Any) -> set[str]:
+    """Every ``record_id`` in a table (empty for a new in-memory table)."""
+    if int(table.count_rows()) == 0:
+        return set()
+    column = table.to_arrow().column("record_id")
+    return {str(value) for value in column.to_pylist()}
+
+
 class LanceDBVectorStore:
     def __init__(
         self,
@@ -36,7 +44,22 @@ class LanceDBVectorStore:
         quantization: str | None = None,
         matryoshka_dim: int | None = None,
         oversample: int = constants.RESCORE_OVERSAMPLE,
+        compact_every: int | None = None,
+        exclusive: bool = False,
     ) -> None:
+        """``compact_every``: merge the table's fragments after that many
+        upserts. Each single-row upsert adds a fragment, and a flat query opens
+        every fragment, so without compaction each write makes the next query
+        slower. Compaction keeps the rows and their order, so results do not
+        change. It is skipped when quantization or Matryoshka is active, where
+        it would also fold new rows into the ANN index and change which rows
+        are searched exactly. ``None`` never compacts: the engine passes it for
+        a table other engines may write concurrently.
+
+        ``exclusive``: no other writer touches the table (an in-memory table is
+        private to its connection). The store then tracks the ids it holds and
+        appends a new id directly instead of running the merge join, which
+        writes the same row in the same place."""
         if quantization not in (None, "int8", "binary"):
             raise ValueError(f"unknown quantization {quantization!r} (valid: int8, binary, None)")
         self._client = client
@@ -52,6 +75,10 @@ class LanceDBVectorStore:
         self._quantization = quantization
         self._matryoshka_dim = matryoshka_dim
         self._oversample = max(1, oversample)
+        self._compact_every = compact_every if compact_every and compact_every > 0 else None
+        self._upserts_since_compact = 0
+        # Ids present in an exclusive table (None: not exclusive, always merge).
+        self._ids: set[str] | None = set() if exclusive else None
         self._table: Any = None
         self._lock = asyncio.Lock()
         # ANN index lifecycle (built lazily on first active search_rescore).
@@ -89,23 +116,48 @@ class LanceDBVectorStore:
                     # both can observe "absent" and both call create_table,
                     # and the loser raises "Table already exists" instead of
                     # just opening it.
-                    self._table = await asyncio.to_thread(
+                    table = await asyncio.to_thread(
                         db.create_table, name, schema=schema, exist_ok=True
                     )
+                    if self._ids is not None:
+                        self._ids = await asyncio.to_thread(_record_ids, table)
+                    self._table = table
         return self._table
 
     async def upsert(
         self, record_id: str, namespace: str, embedder_id: str, vector: list[float]
     ) -> None:
         table = await self._ensure_table()
-        await asyncio.to_thread(
-            lambda: (
-                table.merge_insert("record_id")
-                .when_matched_update_all()
-                .when_not_matched_insert_all()
-                .execute([{"record_id": record_id, "namespace": namespace, "vector": vector}])
+        row = [{"record_id": record_id, "namespace": namespace, "vector": vector}]
+        if self._ids is not None and record_id not in self._ids:
+            # Exclusive table, unseen id: the merge would take its insert branch.
+            await asyncio.to_thread(table.add, row)
+            self._ids.add(record_id)
+        else:
+            await asyncio.to_thread(
+                lambda: (
+                    table.merge_insert("record_id")
+                    .when_matched_update_all()
+                    .when_not_matched_insert_all()
+                    .execute(row)
+                )
             )
-        )
+        await self._maybe_compact(table)
+
+    async def _maybe_compact(self, table: Any) -> None:
+        """Merge fragments every ``compact_every`` upserts (see ``__init__``)."""
+        if self._compact_every is None or self._rescore_active:
+            return
+        self._upserts_since_compact += 1
+        if self._upserts_since_compact < self._compact_every:
+            return
+        self._upserts_since_compact = 0
+        try:
+            await asyncio.to_thread(table.optimize)
+        except Exception as exc:
+            # Compaction is an optimisation only: a failure leaves the rows
+            # exactly as they were, so it must never fail the write.
+            _log.warning("vector.lance_compact_failed", error=str(exc))
 
     async def query(
         self, namespace: str, vector: list[float], embedder_id: str, top_k: int = 8
@@ -239,10 +291,14 @@ class LanceDBVectorStore:
     async def delete(self, record_id: str) -> None:
         table = await self._ensure_table()
         await asyncio.to_thread(table.delete, f"record_id = '{record_id}'")
+        if self._ids is not None:
+            self._ids.discard(record_id)
 
     async def delete_all(self) -> None:
         table = await self._ensure_table()
         await asyncio.to_thread(table.delete, "record_id IS NOT NULL")
+        if self._ids is not None:
+            self._ids.clear()
 
     async def exists(self, record_id: str) -> bool:
         """M7 ``forget --verify`` support: is a row still present? Without this
