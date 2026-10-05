@@ -17,7 +17,7 @@ from __future__ import annotations
 from memspine.workers.pipelines import PipelineContext
 from memspine.workers.runner import TaskRunner
 
-__all__ = ["SLEEP_CYCLE_ORDER", "run_sleep_cycle"]
+__all__ = ["RETENTION_STAGE", "SLEEP_CYCLE_ORDER", "run_sleep_cycle"]
 
 SLEEP_CYCLE_ORDER: tuple[str, ...] = (
     "consolidate",
@@ -40,5 +40,13 @@ SLEEP_CYCLE_ORDER: tuple[str, ...] = (
 )
 
 
+#: #48: runs first, and only when ``retention.classes`` is configured, so expired
+#: records are gone before consolidation reads them and the default cycle is unchanged.
+RETENTION_STAGE = "retention_expire"
+
+
 async def run_sleep_cycle(runner: TaskRunner, ctx: PipelineContext) -> dict[str, dict[str, object]]:
-    return {name: await runner.run(name, ctx) for name in SLEEP_CYCLE_ORDER}
+    order = SLEEP_CYCLE_ORDER
+    if ctx.config.retention.classes:
+        order = (RETENTION_STAGE, *order)
+    return {name: await runner.run(name, ctx) for name in order}

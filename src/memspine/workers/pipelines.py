@@ -126,6 +126,8 @@ MineFacts = Callable[[str], Awaitable[list[ExtractedFact]]]
 #: #29: (transcript, fact statements) -> {1-based fact index: date} for the facts the
 #: model could date (one batched call).
 DateFacts = Callable[[str, list[str]], Awaitable[dict[int, str]]]
+#: #48: run the engine's retention expiry; returns the stage stats.
+ExpireRetention = Callable[[], Awaitable[dict[str, object]]]
 
 
 class DepositFact(Protocol):
@@ -197,9 +199,21 @@ class PipelineContext:
     screen: ScreenDerived | None = None
     #: One incremental log index shared by the derived stages of a cycle.
     session_index: SessionIndex = field(default_factory=lambda: SessionIndex())
+    #: #48: the engine's retention expiry (hard forget through its forget path).
+    #: None => the retention_expire stage reports "skipped".
+    expire_retention: ExpireRetention | None = None
 
 
 Pipeline = Callable[[PipelineContext], Awaitable[dict[str, object]]]
+
+
+async def retention_expire(ctx: PipelineContext) -> dict[str, object]:
+    """#48: expire records past their ``retention.classes`` TTL (hard forget)."""
+    if not ctx.config.retention.classes:
+        return {"status": "skipped", "reason": "no retention.classes"}
+    if ctx.expire_retention is None:
+        return {"status": "skipped", "reason": "no engine forget path in this context"}
+    return await ctx.expire_retention()
 
 
 def _policy_options(
@@ -1590,6 +1604,7 @@ async def reflect_profile(ctx: PipelineContext) -> dict[str, object]:
 #: Name -> pipeline. Runners register from this table; the M11-adjacent names
 #: are stable identifiers used in schedules and dead-letter reporting.
 PIPELINES: dict[str, Pipeline] = {
+    "retention_expire": retention_expire,
     "consolidate": consolidate,
     "reorganize": reorganize,
     "extract_graph": extract_graph,
