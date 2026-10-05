@@ -931,6 +931,45 @@
         "extract"
       ],
       "notes": "+ read.cards_skip_temporal (smoke 2026-10-05: cards cost temporal -13 to -16)"
+    },
+    {
+      "id": "combo-A-dated2",
+      "hypothesis": "G12: combo-A with the dated2 QA prompt (said vs happened)",
+      "benchmark": "LoCoMo cat 2",
+      "systems": [
+        "memspine"
+      ],
+      "qa_prompt": "dated2",
+      "config_delta": {
+        "read": {
+          "resolve_relative_dates": true,
+          "order_by_time_for_ordering": true,
+          "assembly": {
+            "relative_floor": 0.3
+          }
+        }
+      },
+      "notes": "targets wrong absolute dates that give the session (said) date: 10 of combo-A's 29"
+    },
+    {
+      "id": "combo-A-count",
+      "hypothesis": "E3: combo-A + read.count_timeline",
+      "benchmark": "LoCoMo cat 1 (how many questions)",
+      "systems": [
+        "memspine"
+      ],
+      "qa_prompt": "dated",
+      "config_delta": {
+        "read": {
+          "resolve_relative_dates": true,
+          "order_by_time_for_ordering": true,
+          "assembly": {
+            "relative_floor": 0.3
+          },
+          "count_timeline": true
+        }
+      },
+      "notes": "count questions get an Occurrences (dated) block (10% of the budget) of the distinct dated mentions among the retrieved turns"
     }
   ]
 }
