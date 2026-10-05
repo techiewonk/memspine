@@ -92,6 +92,14 @@ class ConflictPolicy(BindablePolicy):
         mine = {t for t in incoming.tags if t.startswith("dst:")}
         return bool(mine) and mine == {t for t in existing.tags if t.startswith("dst:")}
 
+    def trust_gated(self, incoming: MemoryRecord, existing: MemoryRecord) -> bool:
+        """R1: ``incoming`` is markedly less trusted than ``existing`` (by more
+        than ``trust_margin``), so it may not change the current fact at all —
+        not even as a reinforcing duplicate."""
+        options = self.options
+        assert isinstance(options, ConflictOptions)
+        return incoming.trust < existing.trust - options.trust_margin
+
     def resolve(self, incoming: MemoryRecord, existing: MemoryRecord) -> ConflictVerdict:
         options = self.options
         assert isinstance(options, ConflictOptions)
@@ -113,7 +121,7 @@ class ConflictPolicy(BindablePolicy):
 
         # R1 — trust gate (E1): markedly less-trusted writes cannot displace
         # the current fact; the store records the rejection as a CONFLICT event.
-        if incoming.trust < existing.trust - options.trust_margin:
+        if self.trust_gated(incoming, existing):
             return ConflictVerdict.NOOP
 
         # R1' — lower-trust contest (opt-in): inside the margin, but less trusted

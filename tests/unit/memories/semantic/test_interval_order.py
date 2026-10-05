@@ -15,7 +15,7 @@ from memspine.clients.sqlite import SQLiteClient
 from memspine.core.events import MemoryEvent
 from memspine.core.policies.conflict import ConflictPolicy
 from memspine.core.policies.dedup import DedupPolicy
-from memspine.core.records import MemoryRecord
+from memspine.core.records import MemoryRecord, PiiTier
 from memspine.memories.semantic.store import SemanticMemory
 from memspine.services.embedding.hash_local import HashEmbedding
 from memspine.services.storage.projector import RecordProjector
@@ -158,3 +158,26 @@ async def test_engine_reads_interval_order_from_config() -> None:
 
 def test_off_by_default() -> None:
     assert ConflictPolicy.bind().interval_order is False
+
+
+async def test_a_much_less_trusted_restatement_is_trust_gated_not_merged() -> None:
+    """fix/graph-review #3: the same-endpoint duplicate check must not bypass
+    the R1 trust gate — a markedly less trusted restatement neither reinforces
+    the current fact nor widens its PII tier or consent tags."""
+
+    def edge(label: str, **update: Any) -> MemoryRecord:
+        return _fact(label, tags=["kind:state", "rel:city", "dst:lyon"]).model_copy(update=update)
+
+    on, _ = await _semantic(interval_order=True)
+    trusted = edge("a", trust=0.9)
+    await on.write(trusted)
+    before = await on._storage.find_active_fact("ns", "ana", "city")
+    assert before is not None
+    result = await on.write(edge("b", trust=0.3, pii_tier=PiiTier.HIGH, consent_tags=["ads"]))
+    assert result.action == "rejected"
+    after = await on._storage.find_active_fact("ns", "ana", "city")
+    assert after is not None and after.record_id == before.record_id
+    assert after.scoring == before.scoring
+    assert (after.pii_tier, after.consent_tags) == (before.pii_tier, before.consent_tags)
+    # Inside the margin the restatement is still a duplicate.
+    assert (await on.write(edge("c", trust=0.8))).action == "merged"
