@@ -79,6 +79,9 @@ def test_dated3_reasons_then_answers_without_a_blanket_refusal() -> None:
         ("<think>Answer: no</think>Line 2.\nAnswer: yes", "yes"),
         ("Not mentioned", "Not mentioned"),
         ("Melanie went camping.\nAnswer:", "Melanie went camping."),
+        ("Line 3.\nAnswer: Shadow\n\nExplanation: line 3 names him.", "Shadow"),
+        ("<think>Line 3 says Shadow, so", ""),
+        ("Answer:", ""),
     ],
 )
 def test_final_answer_matches_the_engine_extractor(reply: str, answer: str) -> None:

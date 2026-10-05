@@ -24,8 +24,12 @@ from memspine.core.answer import final_answer
         # Hidden reasoning is dropped, closed or not.
         ("<think>Answer: wrong</think>Line 2 says so.\nAnswer: right", "right"),
         ("thinking... Answer: wrong</think>\nAnswer: right", "right"),
-        # A multi-line answer is kept whole.
-        ("Two lines list them.\nAnswer:\n- pottery\n- camping", "- pottery\n- camping"),
+        # Review fix: only the first non-empty line after the marker is the answer.
+        ("Line 3.\nAnswer: Shadow\n\nExplanation: line 3 names him.", "Shadow"),
+        ("Line 3.\nAnswer:\n\n**Shadow**\nbecause line 3", "Shadow"),
+        # A cut-off <think> block is dropped, unless the answer follows inside it.
+        ("<think>Line 3 says Shadow, so", ""),
+        ("<think>Line 3 names him. Answer: Shadow", "Shadow"),
     ],
 )  # fmt: skip
 def test_extracts_the_text_after_the_last_marker(reply: str, answer: str) -> None:
@@ -47,7 +51,8 @@ def test_marker_must_start_a_word() -> None:
 
 def test_dangling_marker_falls_back_to_the_reasoning() -> None:
     assert final_answer("Melanie went camping.\nAnswer:") == "Melanie went camping."
-    assert final_answer("Answer:") == "Answer:"
+    assert final_answer("Answer:") == ""
+    assert final_answer("  **Answer:**  ") == ""
 
 
 def test_engine_exposes_the_extractor() -> None:

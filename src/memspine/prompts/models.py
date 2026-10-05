@@ -51,7 +51,7 @@ def _as_text(value: Any) -> Any:
 #: is dropped; a longer value is cut at a word boundary.
 FACT_FIELD_MAX_CHARS = 250
 
-#: #31: a field that opens like model reasoning, not like a fact.
+#: #31: an entity or attribute that opens like model reasoning, not like a key.
 _REASONING = re.compile(
     r"^\s*(?:<think>|let me\b|let's\b|i think\b|i need to\b|i will\b|i'll\b|"
     r"i should\b|hmm\b|okay,|ok,|wait,|first,? i\b|step \d|reasoning:|thought:|"
@@ -59,12 +59,24 @@ _REASONING = re.compile(
     re.IGNORECASE,
 )
 
-#: #31: placeholder values a model invents when it has nothing to say.
+#: #31: a VALUE that is reasoning as a whole. A value is free text, so only openings
+#: that are reasoning and nothing else count: "Let Me Love You" (a song), "step 3 of
+#: the adoption process" and "I think therefore I am" are facts.
+_VALUE_REASONING = re.compile(
+    r"^\s*(?:<think>|(?:let me|let's) (?:think|see|check|analy[sz]e|reason|figure|"
+    r"consider|work)\b|step 1:|reasoning:|thought:|analysis:|"
+    r"the user (?:says|said|mentions|mentioned|is asking)\b)",
+    re.IGNORECASE,
+)
+
+#: #31: placeholder entities and attributes a model invents when it has nothing to say.
 _PLACEHOLDERS = frozenset(
     [
         "",
         "-",
         "?",
+        "??",
+        "???",
         "...",
         "…",
         "n/a",
@@ -89,13 +101,17 @@ _PLACEHOLDERS = frozenset(
     ]
 )
 
+#: #31: placeholder values. "none", "nil" and "unknown" are left out: they are real
+#: answers ("pets: none").
+_VALUE_PLACEHOLDERS = _PLACEHOLDERS - {"none", "nil", "unknown"}
 
-def _is_placeholder(text: str) -> bool:
-    """``"Unknown"``, ``"N/A"``, ``"<value>"``, ``"[name]"``, ``"{entity}"``."""
+
+def _is_placeholder(text: str, words: frozenset[str] = _PLACEHOLDERS) -> bool:
+    """``"Unknown"``, ``"N/A"``, ``"<value>"``, ``"{entity}"`` (a ``[...]`` list is data)."""
     stripped = text.strip()
-    if stripped.lower().strip(" .") in _PLACEHOLDERS:
+    if stripped.lower().strip(" .") in words:
         return True
-    return len(stripped) > 1 and stripped[0] + stripped[-1] in ("<>", "[]", "{}")
+    return len(stripped) > 1 and stripped[0] + stripped[-1] in ("<>", "{}")
 
 
 def _cap_words(text: str, limit: int) -> str:
@@ -110,8 +126,10 @@ def _cap_words(text: str, limit: int) -> str:
 def fact_guard(item: Any) -> Any | None:
     """#31: one raw mined fact after the attribute guards, or None to drop it.
 
-    Dropped: an entity, attribute or value that is reasoning text ("Let me ...",
-    ``<think>``) or an invented placeholder ("unknown", "N/A", ``<value>``), and an
+    Dropped: an entity or attribute that opens like reasoning text ("Let me ...",
+    ``<think>``) or is an invented placeholder ("unknown", "N/A", ``<value>``); a value
+    that is reasoning as a whole ("Let me think ...", ``<think>``, any ``</think>``) or
+    a placeholder ("N/A", ``<value>``; not "none" or "unknown", real answers); and an
     entity or attribute over :data:`FACT_FIELD_MAX_CHARS`. A value over the cap is cut
     at a word boundary. Items that are not mappings pass through for the model to
     reject, as before.
@@ -122,8 +140,13 @@ def fact_guard(item: Any) -> Any | None:
     if not all(isinstance(v, str) for v in fields.values()):
         return item  # a missing or non-text field fails validation as before
     texts: dict[str, str] = {k: str(v) for k, v in fields.items()}
-    for text in texts.values():
-        if _is_placeholder(text) or _REASONING.match(text) or "</think>" in text:
+    for key, text in texts.items():
+        if "</think>" in text:
+            return None
+        if key == "value":
+            if _is_placeholder(text, _VALUE_PLACEHOLDERS) or _VALUE_REASONING.match(text):
+                return None
+        elif _is_placeholder(text) or _REASONING.match(text):
             return None
     if any(len(texts[k].strip()) > FACT_FIELD_MAX_CHARS for k in ("entity", "attribute")):
         return None

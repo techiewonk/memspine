@@ -20,6 +20,7 @@ from typing import Protocol
 from memspine.config import constants
 from memspine.config.schema import MemspineConfig
 from memspine.core.event_date import (
+    anchor_turn,
     cited_turns,
     happened_label,
     normalise_label,
@@ -131,7 +132,8 @@ DateFacts = Callable[[str, list[str]], Awaitable[dict[int, str]]]
 class DepositFact(Protocol):
     """C6': engine-side deposit of one mined fact through the write door
     (namespace, text, entity, attribute, parent ids, event time, session key);
-    ``kind`` (G1a) is ``state`` / ``event``, or None for an unclassified fact."""
+    ``kind`` (G1a) is ``state`` / ``event``, or None for an unclassified fact;
+    ``happened`` / ``said`` (#29) the fact's happened date and the day it was said."""
 
     def __call__(
         self,
@@ -145,6 +147,7 @@ class DepositFact(Protocol):
         *,
         kind: str | None = None,
         happened: str | None = None,
+        said: str | None = None,
     ) -> Awaitable[object]: ...
 
 
@@ -1409,9 +1412,11 @@ def _mining_transcript(segment: list[MemoryRecord], numbered: bool) -> str:
 
 @dataclass
 class _Happened:
-    """#29: one mined fact's happened date: the label, and the event time a
-    deterministic resolution gives (None: keep the H2 event time)."""
+    """#29: one mined fact's happened date: the label, the event time a
+    deterministic resolution gives (None: keep the H2 event time), and the time the
+    fact was said (the anchor of its relative phrases; tagged ``said:<date>``)."""
 
+    said: datetime
     label: str | None = None
     start: datetime | None = None
 
@@ -1419,27 +1424,46 @@ class _Happened:
 def _happened(
     fact: ExtractedFact, segment: list[MemoryRecord], numbered: bool, week: WeekMode
 ) -> _Happened:
-    """#29: deterministic first. A relative phrase in the fact's statement (resolved
-    against its first cited turn, or the segment's day when it has only one), else in
-    its cited turns (each against its own date); else the miner's own ``date``."""
+    """#29: deterministic first. A relative phrase in the fact's statement, resolved
+    against the cited turn it was said in (else the latest cited turn), or the
+    segment's day when it has only one; else in its cited turns (each against its own
+    date); else the miner's own ``date``.
+
+    The said time is that anchor, else the latest cited turn, else the segment's last
+    turn. A span starting after the said day is a plan, not an event: it keeps its
+    label but never becomes the event time (a future ``valid_from`` would win every
+    later conflict on its key).
+    """
     cited = cited_turns(segment, getattr(fact, "turns", [])) if numbered else []
     days = {m.valid_from.date() for m in segment}
-    anchor = cited[0].valid_from if cited else (segment[0].valid_from if len(days) == 1 else None)
+    turn = anchor_turn(fact.value, cited, week=week)
+    anchor = (
+        turn.valid_from if turn is not None else (segment[0].valid_from if len(days) == 1 else None)
+    )
+    said = anchor or segment[-1].valid_from
     span = resolve_happened([(fact.value, anchor)], week=week) if anchor is not None else None
     if span is None and cited:
         span = resolve_happened(((m.content, m.valid_from) for m in cited), week=week)
     if span is not None:
-        return _Happened(happened_label(*span), datetime.combine(span[0], time(), tzinfo=UTC))
+        start = datetime.combine(span[0], time(), tzinfo=UTC)
+        past = span[0] <= said.date()
+        return _Happened(said, happened_label(*span), start if past else None)
     label = normalise_label(getattr(fact, "date", None))
     if label is not None and _fact_date(label.split("..", 1)[0], segment[-1].valid_from) is None:
         label = None  # R2-7: out of range, as for the event time
-    return _Happened(label)
+    return _Happened(said, label)
 
 
 async def _fill_dates(
-    dater: DateFacts, transcript: str, mined: list[ExtractedFact], happened: list[_Happened]
+    dater: DateFacts,
+    transcript: str,
+    mined: list[ExtractedFact],
+    happened: list[_Happened],
+    latest: datetime,
 ) -> None:
-    """#29: one call dates the facts no rule or miner did; a failure leaves them undated."""
+    """#29: one call dates the facts no rule or miner did; a failure leaves them undated.
+
+    R2-7: a date past ``latest`` (the session's last turn) plus the slack is dropped."""
     missing = [i for i, h in enumerate(happened) if h.label is None]
     if not missing:
         return
@@ -1450,7 +1474,7 @@ async def _fill_dates(
         return
     for position, index in enumerate(missing, 1):
         label = normalise_label(dates.get(position))
-        if label is not None and _fact_date(label.split("..", 1)[0]) is not None:
+        if label is not None and _fact_date(label.split("..", 1)[0], latest) is not None:
             happened[index].label = label
 
 
@@ -1487,7 +1511,7 @@ async def mine_facts(ctx: PipelineContext) -> dict[str, object]:
             if event_dates:
                 happened = [_happened(fact, segment, numbered, week) for fact in mined]
                 if dater is not None:  # #29: one batched call fills the undated facts
-                    await _fill_dates(dater, transcript, mined, happened)
+                    await _fill_dates(dater, transcript, mined, happened, segment[-1].valid_from)
             batches.append((segment, mined, happened))
         written = 0
         errors: list[str] = []
@@ -1504,8 +1528,12 @@ async def mine_facts(ctx: PipelineContext) -> dict[str, object]:
                 kind = getattr(fact, "kind", "event") or "event"
                 extra: dict[str, str] = {}
                 if happened and happened[index].label:
-                    extra["happened"] = str(happened[index].label)
-                    when = happened[index].start or when
+                    h = happened[index]
+                    extra["happened"] = str(h.label)
+                    extra["said"] = f"{h.said:%Y-%m-%d}"
+                    when = h.start or when
+                    if when.date() > h.said.date():
+                        when = h.said  # a plan is not the newest statement on its key
                 try:
                     await deposit(
                         namespace,

@@ -296,3 +296,129 @@ def test_session3_prompt_is_v3_and_a_variant() -> None:
     assert v2.id == "extract@session" and (v2.token_budget or 0) < 4096
     system = v3.render({"content": "x"})[0]["content"]
     assert "2023-07-14" in system and "complete coverage" in system and "`turns`" in system
+
+
+# -- review fixes: one date shift, plans stay plans, the right anchor turn ----------
+
+
+async def _mine_turns(
+    monkeypatch: pytest.MonkeyPatch,
+    turns: list[tuple[datetime, str]],
+    mined: list[ExtractedFact],
+) -> tuple[Engine, dict[str, Any]]:
+    eng = _engine(mine_evidence_turns=True, mine_event_dates=True)
+
+    async def fake_mine(text: str) -> list[ExtractedFact]:
+        return mined
+
+    monkeypatch.setattr(eng, "_build_fact_miner", lambda: fake_mine)
+    await eng.start()
+    last = turns[-1][0]
+    filler = [(last + timedelta(minutes=n), f"Caro: ok {n}") for n in range(1, 3)]
+    msgs = [
+        {"role": "user", "content": c, "timestamp": t.isoformat()} for t, c in [*turns, *filler]
+    ]
+    await eng.write_messages(msgs, namespace="a", session_id="s1", group_id="s1")
+    await eng.sleep()
+    return eng, await _facts(eng)
+
+
+async def test_happened_fact_is_not_shifted_twice_at_read(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A fact keeping its relative phrase is resolved against the day it was SAID, not
+    against a ``valid_from`` already moved to the event day."""
+    from memspine.core.lead import event_day
+
+    turns = [(T0, "Melanie: I went camping yesterday, and hiked last week")]
+    mined = [
+        ExtractedFact(
+            entity="Mel", attribute="camp", value="Mel went camping yesterday", turns=[1]
+        ),
+        ExtractedFact(entity="Mel", attribute="hike", value="Mel hiked last week", turns=[1]),
+    ]
+    eng, facts = await _mine_turns(monkeypatch, turns, mined)
+    try:
+        camp, hike = facts["Mel camp"], facts["Mel hike"]
+        assert camp.valid_from == datetime(2023, 5, 7, tzinfo=UTC)
+        assert {"happened:2023-05-07", "said:2023-05-08"} <= set(camp.tags)
+        assert "yesterday [= Sun 2023-05-07]" in eng._annotate_dates(camp).content
+        assert hike.valid_from == datetime(2023, 5, 1, tzinfo=UTC)
+        assert "last week [= 2023-05-01..2023-05-07]" in eng._annotate_dates(hike).content
+        assert event_day(camp.content, camp.valid_from, record=camp).isoformat() == "2023-05-07"
+    finally:
+        await eng.stop()
+
+
+def test_legacy_happened_fact_without_said_tag_is_not_resolved() -> None:
+    from memspine.core.event_date import date_anchor
+    from memspine.core.lead import event_day
+    from memspine.core.records import MemoryRecord
+
+    moved = MemoryRecord(
+        namespace="a",
+        memory_type="semantic",
+        content="Mel went camping yesterday",
+        valid_from=datetime(2023, 5, 7, tzinfo=UTC),
+        tags=["atomic_fact", "happened:2023-05-07"],
+    )
+    assert date_anchor(moved) is None
+    assert event_day(moved.content, moved.valid_from, record=moved).isoformat() == "2023-05-07"
+    plain = moved.model_copy(update={"tags": ["atomic_fact"]})
+    assert date_anchor(plain) == plain.valid_from
+
+
+async def test_future_plan_keeps_said_valid_from(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A plan ("next month", "next year") keeps its happened label but never becomes a
+    future ``valid_from`` (the conflict policy keeps the newest one)."""
+    turns = [(T0, "Mel: I will start a new job next month and move next year")]
+    mined = [
+        ExtractedFact(entity="Mel", attribute="job", value="Mel will start a job next month"),
+        ExtractedFact(entity="Mel", attribute="move", value="Mel will move next year"),
+        # The miner's own date, in the future but inside the slack: also clamped.
+        ExtractedFact(entity="Mel", attribute="trip", value="Mel plans a trip", date="2023-09-01"),
+    ]
+    eng, facts = await _mine_turns(monkeypatch, turns, mined)
+    try:
+        job, move, trip = facts["Mel job"], facts["Mel move"], facts["Mel trip"]
+        assert "happened:2023-06" in job.tags and job.valid_from == T0
+        assert "happened:2024" in move.tags and move.valid_from == T0
+        assert "next year [= 2024]" in eng._annotate_dates(move).content
+        assert "happened:2023-09-01" in trip.tags and trip.valid_from == T0
+    finally:
+        await eng.stop()
+
+
+async def test_fact_resolves_against_the_turn_holding_its_phrase(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Cited turns on different days: the phrase is resolved against the turn it is in."""
+    day2 = T0 + timedelta(days=3)  # Thursday 2023-05-11
+    turns = [
+        (T0, "Mel: I love camping"),
+        (day2, "Mel: we went camping yesterday"),
+    ]
+    mined = [
+        ExtractedFact(entity="Mel", attribute="camp", value="Mel camped yesterday", turns=[1, 2]),
+        ExtractedFact(entity="Mel", attribute="love", value="Mel loves camping", turns=[1, 3]),
+    ]
+    eng, facts = await _mine_turns(monkeypatch, turns, mined)
+    try:
+        camp = facts["Mel camp"]
+        assert "happened:2023-05-10" in camp.tags
+        assert camp.valid_from == datetime(2023, 5, 10, tzinfo=UTC)
+        assert "yesterday [= Wed 2023-05-10]" in eng._annotate_dates(camp).content
+    finally:
+        await eng.stop()
+
+
+async def test_fill_dates_ceiling_is_the_sessions_last_turn() -> None:
+    from memspine.workers.pipelines import _fill_dates, _Happened
+
+    async def dater(transcript: str, facts: list[str]) -> dict[int, str]:
+        return {1: "2023-05-01", 2: "2025-01-01"}  # the second is far past the session
+
+    mined = [ExtractedFact(entity="a", attribute="b", value=v) for v in ("x", "y")]
+    happened = [_Happened(T0), _Happened(T0)]
+    await _fill_dates(dater, "", mined, happened, T0)
+    assert [h.label for h in happened] == ["2023-05-01", None]

@@ -143,22 +143,39 @@ _MARKER = re.compile(
 )
 
 
+_OPEN_THINK = re.compile(r"<think>", re.I)
+
+
+def _first_line(text: str) -> str:
+    """The first non-empty line of ``text``, Markdown bold stripped."""
+    for line in text.splitlines():
+        stripped = line.strip().strip("*").strip()
+        if stripped:
+            return stripped
+    return ""
+
+
 def final_answer(text: str) -> str:
-    """#34: the text after the last ``Answer:`` marker, ``<think>`` blocks dropped; a reply
-    without the marker comes back whole (stripped), and only dangling markers give the
-    reply before the first one. Same rules as ``memspine.core.answer.final_answer`` (kept
-    here so the harness core stays stdlib-only)."""
+    """#34: the first non-empty line after the last ``Answer:`` marker, ``<think>``
+    blocks (closed or cut off) dropped; a reply without the marker comes back whole
+    (stripped), only dangling markers give the reply before the first one, and a lone
+    marker gives "". Same code as ``memspine.core.answer.final_answer`` (kept here so the
+    harness core stays stdlib-only)."""
     cleaned = _THINK.sub("", text)
-    if "</think>" in cleaned.lower():
+    if "</think>" in cleaned.lower():  # an unclosed block: keep what follows its end
         cleaned = re.split(r"</think>", cleaned, flags=re.I)[-1]
+    opened = _OPEN_THINK.search(cleaned)
+    if opened is not None:  # a block never closed (cut off): dropped unless it holds a marker
+        rest = cleaned[opened.end() :]
+        cleaned = cleaned[: opened.start()] + (rest if _MARKER.search(rest) else "")
     cleaned = cleaned.strip()
     matches = list(_MARKER.finditer(cleaned))
     for match in reversed(matches):
-        answer = cleaned[match.end() :].strip().strip("*").strip()
+        answer = _first_line(cleaned[match.end() :])
         if answer:
             return answer
-    if matches:
-        return cleaned[: matches[0].start()].strip() or cleaned
+    if matches:  # only dangling markers: the reply before the first one
+        return cleaned[: matches[0].start()].strip()
     return cleaned
 
 
