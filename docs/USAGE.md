@@ -332,6 +332,21 @@ Never expose this app to an untrusted network without filling the auth seam.
 
 ## Swap a backend (config alone)
 
+### Encrypt the SQLite file at rest *(needs `memspine[encrypt]`)*
+```yaml
+storage:
+  path: ./memspine.db
+  encryption:
+    mode: sqlcipher
+    key_env: MEMSPINE_DB_KEY     # the NAME of the variable, never the key itself
+```
+Every connection (and the schema migration) is opened through SQLCipher and keyed
+from `$MEMSPINE_DB_KEY`; a wrong key fails `start()` with `StorageError`, and a
+missing driver with `MissingServiceError` naming `[encrypt]`. Only the SQLite file is
+encrypted: LanceDB vectors, the Tantivy lexical index (it holds record text), disk
+caches and a DBOS system database are separate files; protect them with volume
+encryption (ADR-035). A lost key is a lost database.
+
 Every store is a port; you pick the adapter by config, and the event-sourced core
 stays the single source of truth. Nothing below changes the API you call — only
 which backend the same verbs run against. Each swap is a small config diff.
@@ -429,6 +444,8 @@ in the schema — or if the schema gains a key not documented here.
 | `storage.path` | `./memspine.db` | SQLite db file, or `:memory:` for ephemeral. |
 | `storage.url` | `null` | Postgres DSN (secrets-resolved); required when `backend: postgres`. |
 | `storage.data_dir` | `null` | Base dir for file-backed projections (LanceDB/Tantivy); required for postgres. |
+| `storage.encryption.mode` | `none` | `none` \| `sqlcipher` (#52, ADR-035): SQLCipher encryption of the SQLite file, `[encrypt]` extra; sqlite backend only, not `:memory:`. Vectors, the lexical index and disk caches are not covered. |
+| `storage.encryption.key_env` | `null` | **Name** of the environment variable holding the SQLCipher key; required with `sqlcipher`. The key is read only from it and never logged. |
 | `embedding.provider` | `fastembed` | `fastembed` (ONNX/CPU) \| `hash` (deterministic, tests) \| `static` (model2vec `[static]`) \| `litellm` (cloud). |
 | `embedding.model` | `BAAI/bge-small-en-v1.5` | Embedder model id. |
 | `embedding.dim` | `null` | **Required** when `provider: litellm` — a cloud embedder's output dim. |

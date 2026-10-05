@@ -6054,9 +6054,25 @@ class Engine:
         backend = config.storage.backend
         mode = config.event_log.mode
         compress = config.event_log.compress
+        encryption = config.storage.encryption
+        if encryption.mode == "sqlcipher" and backend != "sqlite":
+            raise ConfigError(
+                "storage.encryption.mode=sqlcipher applies to the sqlite backend only "
+                f"(storage.backend={backend!r}; use the database's own encryption at rest)"
+            )
         if backend == "sqlite":
-            self._client = SQLiteClient(config.storage.path)
+            cipher_env = encryption.key_env if encryption.mode == "sqlcipher" else None
+            self._client = SQLiteClient(config.storage.path, cipher_key_env=cipher_env)
             await self._client.connect()
+            if cipher_env is not None:
+                # #52/ADR-035: name what the option does NOT cover; never the key.
+                _log.warning(
+                    "storage.encryption_partial",
+                    detail="SQLCipher encrypts the SQLite event log and read model only; "
+                    "LanceDB vectors, the Tantivy lexical index, disk caches and a DBOS "
+                    "system database are separate files and are not encrypted",
+                    key_env=cipher_env,
+                )
             return SQLiteStorage(self._client, mode=mode, compress=compress)
         if backend == "postgres":
             if not config.storage.url:
