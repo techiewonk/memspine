@@ -108,6 +108,10 @@ class PipelineStorage(Protocol):
 
 
 AppendEvent = Callable[[MemoryEvent], Awaitable[None]]
+#: The engine's semantic write door for one extract_graph fact, called with the
+#: namespace lock held: (unscreened record, parent trust cap) -> the stored record
+#: (firewall screening, M5 dedup and the M4 conflict ladder all apply).
+WriteDerivedFact = Callable[[MemoryRecord, list[float]], Awaitable[MemoryRecord]]
 Summarize = Callable[[str], Awaitable[str]]
 # ``ExtractEdges`` (re-exported): LLM edge extraction for the graphiti-style
 # write path (C2). Takes source text plus an optional :class:`EdgeContext`,
@@ -195,6 +199,10 @@ class PipelineContext:
     #: appends itself (extract_graph facts). None (bare contexts): a local,
     #: context-free firewall from the config's trust policy screens instead.
     screen: ScreenDerived | None = None
+    #: The engine's semantic write door for extract_graph facts (lock held), so a
+    #: background ``state`` edge supersedes through the ladder like a write-time
+    #: one (GP-1). None (bare contexts): the fact is screened and appended raw.
+    write_fact: WriteDerivedFact | None = None
     #: One incremental log index shared by the derived stages of a cycle.
     session_index: SessionIndex = field(default_factory=lambda: SessionIndex())
 
@@ -990,6 +998,7 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
     linked = 0
     skipped = 0
     quarantined = 0
+    provenance = 0
     errors: list[str] = []
     screen = ctx.screen or _local_screen(ctx)
     protected = ctx.config.firewall.protected_keys
@@ -999,7 +1008,8 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
     already = 0
     for namespace in await ctx.storage.list_namespaces():
         async with ctx.lock(namespace):
-            existing: set[str] = set()
+            # (src, rel, dst) key -> the fact record already written for it (GR-9).
+            existing: dict[str, MemoryRecord] = {}
             sources: list[MemoryRecord] = []
             known: list[MemoryRecord] = []
             for mtype in ("episodic", "semantic"):
@@ -1007,8 +1017,13 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
                     if mtype == "semantic" and record.status is RecordStatus.ACTIVATED:
                         known.append(record)
                     if record.source.channel == "extract_graph":
-                        if record.source.message_id:
-                            existing.add(record.source.message_id)
+                        key = record.source.message_id
+                        if key and (
+                            key not in existing
+                            or record.status is RecordStatus.ACTIVATED
+                            or existing[key].status is not RecordStatus.ACTIVATED
+                        ):
+                            existing[key] = record
                         continue  # never re-extract from our own output (no feedback loop)
                     if constants.CUE_TAG in record.tags:
                         continue  # a cue is a retrieval key, never a fact source (R2-1)
@@ -1042,8 +1057,11 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
                     key = _edge_key(namespace, edge)
                     if key in existing:
                         skipped += 1
+                        # GR-9: a verbatim duplicate (same src, rel, dst and kind) adds
+                        # its source episode to the fact's provenance; no LLM call.
+                        if await _add_edge_provenance(ctx, existing[key], edge, record):
+                            provenance += 1
                         continue
-                    existing.add(key)
                     # GP-1: an event edge drops its attribute (add-only, never
                     # superseded); kind, rel and dst persist as tags.
                     attribute, tags = edge_fact_key(edge, edge.src_entity, protected)
@@ -1062,32 +1080,47 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
                             parents=[record.record_id],
                         ),
                     )
-                    # Derived trust never exceeds the source (E1): the cap rides
-                    # the same firewall screening as every other derived write.
-                    fact, reasons = await screen(fact, [record.trust])
-                    payload: dict[str, object] = {
-                        "record": fact.model_dump(mode="json"),
-                        "extract_graph": {"source_record_id": record.record_id},
-                    }
-                    if reasons:
-                        payload["firewall"] = {"reasons": reasons}
-                    await ctx.append_event(
-                        MemoryEvent(
-                            kind=EventKind.WRITE,
-                            namespace=namespace,
-                            actor="system",
-                            payload=payload,
+                    if ctx.write_fact is not None:
+                        # The semantic door: firewall (N2, cap = the source's trust),
+                        # M5 dedup and the M4 ladder, so a state edge supersedes the
+                        # older value; event edges carry no attribute and are ADDed.
+                        stored = await ctx.write_fact(fact, [record.trust])
+                        existing[key] = stored
+                        if stored.quarantined:
+                            quarantined += 1  # held content gains no graph reach (E1)
+                            continue
+                        if stored.record_id != fact.record_id:
+                            skipped += 1  # merged into / rejected by an existing fact
+                            continue
+                        fact = stored
+                    else:
+                        # Derived trust never exceeds the source (E1): the cap rides
+                        # the same firewall screening as every other derived write.
+                        fact, reasons = await screen(fact, [record.trust])
+                        payload: dict[str, object] = {
+                            "record": fact.model_dump(mode="json"),
+                            "extract_graph": {"source_record_id": record.record_id},
+                        }
+                        if reasons:
+                            payload["firewall"] = {"reasons": reasons}
+                        await ctx.append_event(
+                            MemoryEvent(
+                                kind=EventKind.WRITE,
+                                namespace=namespace,
+                                actor="system",
+                                payload=payload,
+                            )
                         )
-                    )
-                    if reasons:
-                        quarantined += 1  # held content gains no graph reach (E1)
-                        _log.warning(
-                            "memory.quarantined",
-                            namespace=namespace,
-                            record_id=fact.record_id,
-                            reasons=reasons,
-                        )
-                        continue
+                        existing[key] = fact
+                        if reasons:
+                            quarantined += 1  # held content gains no graph reach (E1)
+                            _log.warning(
+                                "memory.quarantined",
+                                namespace=namespace,
+                                record_id=fact.record_id,
+                                reasons=reasons,
+                            )
+                            continue
                     written += 1
                     # Associate the fact with its source (non-reserved rel: budget
                     # applies). A saturated source keeps the record, skips the link.
@@ -1105,7 +1138,11 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
                             record.record_id,
                             fact.record_id,
                             "asserted",
-                            weight=max(0.0, min(1.0, edge.confidence)),
+                            # GP-10: an edge is never stronger than its
+                            # confidence or the trust of what it links.
+                            weight=max(
+                                0.0, min(1.0, edge.confidence, record.trust, fact.trust)
+                            ),
                             reason="extract_graph",
                             actor="system",
                         )
@@ -1138,10 +1175,45 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
         "skipped_existing": skipped,
         "skipped_sources": already,
         "quarantined": quarantined,
+        "provenance_added": provenance,
     }
     if errors:
         stats["errors"] = errors
     return stats
+
+
+async def _add_edge_provenance(
+    ctx: PipelineContext, fact: MemoryRecord, edge: ExtractedEdge, source: MemoryRecord
+) -> bool:
+    """GR-9: record ``source`` as one more episode stating ``fact``'s edge.
+
+    Only a verbatim match counts: the fact's ``kind:`` tag must equal the edge's
+    kind (the (src, rel, dst) part is the key already matched). The episode is
+    added as an ``edge_source:<id>`` tag through an add-only lifecycle delta, so
+    the fact's trust, parents and erasure lineage are unchanged. Returns True when
+    a tag was added (a source already counted adds nothing).
+    """
+    if ctx.append_event is None or f"kind:{edge.kind}" not in fact.tags:
+        return False
+    tag = f"{constants.EDGE_SOURCE_TAG_PREFIX}{source.record_id}"
+    current = await ctx.storage.get_record(fact.record_id)
+    if current is None or current.status is RecordStatus.DELETED:
+        return False
+    if source.record_id in current.source.parents or tag in current.tags:
+        return False
+    await ctx.append_event(
+        MemoryEvent(
+            kind=EventKind.DECAY_TRANSITION,
+            namespace=current.namespace,
+            actor="system",
+            payload={
+                "record_id": current.record_id,
+                "set": {"tags_add": [tag]},
+                "reason": "edge_provenance",
+            },
+        )
+    )
+    return True
 
 
 def _local_screen(ctx: PipelineContext) -> ScreenDerived:

@@ -36,6 +36,10 @@ _log = get_logger(__name__)
 
 AppendEvent = Callable[[MemoryEvent], Awaitable[None]]
 
+#: Channels of derived edge facts (C3 write-time, C2 extract_graph): such a record
+#: never re-triggers the write pipeline (bounded, depth-1 recursion).
+_DERIVED_EDGE_CHANNELS = frozenset({EDGE_CHANNEL, "extract_graph"})
+
 
 @dataclass(frozen=True)
 class SemanticWriteResult:
@@ -132,7 +136,10 @@ class SemanticMemory(BaseMemory):
         # C3: after the primary fact lands, extract relationship edges from the
         # same content and write each through this door (guarded by channel so
         # an edge record never recurses). Off unless a pipeline is injected.
-        if self._write_pipeline is not None and record.source.channel != EDGE_CHANNEL:
+        if (
+            self._write_pipeline is not None
+            and record.source.channel not in _DERIVED_EDGE_CHANNELS
+        ):
             await self._write_pipeline.run(record, self._write_edge_fact)
         return result
 

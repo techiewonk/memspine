@@ -255,6 +255,9 @@ COUNT_TAG = "count_timeline"
 # B9 facts-only (``integrity.claims_only_below``): the prefix of a mined fact shown
 # in place of the low-trust raw record it was mined from.
 CLAIM_MARKER = "[CLAIM from a low-trust source, unverified]"
+# GR-9: tag prefix naming one more source episode of an extract_graph fact (a
+# verbatim duplicate edge adds its episode instead of a new fact).
+EDGE_SOURCE_TAG_PREFIX = "edge_source:"
 # H22: at most this many stated preferences in the standing block (newest kept).
 LEAD_STANDING_MAX = 5
 

@@ -5507,6 +5507,7 @@ class Engine:
             reflect=self._build_reflector(),
             deposit_reflection=self._deposit_profile_reflection,
             screen=self._screen_derived,
+            write_fact=self._write_extracted_fact,
             # Only when associative projects it (ADR-015): an explicit-config
             # graph store without the projector would reorganize a stale graph.
             graph=self._graph if self._associative is not None else None,
@@ -5873,6 +5874,20 @@ class Engine:
             cap = [*(cap or []), *integrity_cap]
         async with self._write_locks.setdefault(ns, asyncio.Lock()):
             return await self._write_locked(storage, ns, record, "semantic", "system", cap)
+
+    async def _write_extracted_fact(
+        self, record: MemoryRecord, trust_cap: list[float]
+    ) -> MemoryRecord:
+        """C2: one ``extract_graph`` fact through the semantic door (lock held by the
+        pipeline): firewall (N2) with the source's trust as cap (plus the MTI parent
+        view under integrity), M5 dedup and the M4 ladder, so a background ``state``
+        edge supersedes the older value exactly like a write-time (C3) one."""
+        storage = self._require_started()
+        cap = list(trust_cap)
+        integrity_cap = await self._parent_trust_cap(record.namespace, record.source.parents)
+        if integrity_cap:
+            cap.extend(integrity_cap)
+        return await self._write_locked(storage, record.namespace, record, "semantic", "system", cap)
 
     def _edge_extract_callable(self, max_rounds: int) -> ExtractEdges:
         """The shared reflexion-merged ``extract_edges`` callable (C2 async +

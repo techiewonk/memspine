@@ -141,6 +141,8 @@ async def test_rerun_is_idempotent() -> None:
     assert second["edges_written"] == 0
     assert second["skipped_existing"] == 1
     assert second["skipped_sources"] == 1
+    # GR-9: the restating source is recorded as one more episode of the fact.
+    assert second["provenance_added"] == 1
     facts = [
         r
         for r in await harness.storage.list_records("agent/a", "semantic")
