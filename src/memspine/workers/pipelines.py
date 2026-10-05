@@ -1924,7 +1924,7 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
                             continue
                         cited = _cited(members, edge.episode_indices)
                         # The resolver's trust guard judges the least trusted turn.
-                        owner = min(cited, key=lambda m: (m.trust, m.record_id))
+                        owner = min(cited, key=lambda m: (m.trust, chrono_key(m)))
                         extracted.append((owner, [edge]))
                         parent_sets.append(cited)
                 sources = loose
