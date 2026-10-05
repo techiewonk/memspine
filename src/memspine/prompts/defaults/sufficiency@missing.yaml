@@ -1,0 +1,26 @@
+id: sufficiency@missing
+version: 1
+role: sufficiency
+format: yaml
+output_model: MissingInfoOut
+token_budget: 160
+when:
+  condition: missing
+# #38 (SM-12): after the check finds the notes incomplete, up to three short searches
+# for the missing information; the compose read runs them once as extra probes.
+system: >-
+  The memory notes below are not enough to answer a question that combines several
+  facts. Write up to three short search queries, each looking for one piece of
+  information the notes lack, in the words the missing memory would likely use (for
+  "What activities does Melanie do?" with notes on pottery only: "Melanie hobby",
+  "Melanie went camping"). Do not repeat what the notes already hold, never answer
+  the question and never guess facts.
+  {% include "no_injection.j2" %} {% include "yaml_only.j2" %}
+  Emit the key queries (a list of strings).
+---
+question: {{ question }}
+
+notes:
+{{ context }}
+
+Which searches would find the missing information?

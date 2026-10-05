@@ -270,7 +270,17 @@ def build_app(engine: Engine, rest: RestConfig | None = None) -> FastAPI:
     @app.post("/search")
     async def search(body: SearchRequest, ns: Namespace) -> list[ScoredRecord]:
         scored = await engine.search(
-            body.query, namespace=ns, top_k=body.top_k, purpose=body.purpose
+            body.query,
+            namespace=ns,
+            top_k=body.top_k,
+            purpose=body.purpose,
+            valid_from_after=body.valid_from_after,
+            valid_from_before=body.valid_from_before,
+            valid_to_after=body.valid_to_after,
+            valid_to_before=body.valid_to_before,
+            recorded_after=body.recorded_after,
+            recorded_before=body.recorded_before,
+            date_filter_mode=body.date_filter_mode,
         )
         return [ScoredRecord(record=record, score=score) for record, score in scored]
 

@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field, field_validator
 
 __all__ = [
     "OUTPUT_MODELS",
+    "AnswerVerdictOut",
     "AnticipatedCue",
     "AnticipatedCues",
     "ConflictVerdictOut",
@@ -30,9 +31,11 @@ __all__ = [
     "Insight",
     "Insights",
     "InstructionFlagOut",
+    "MissingInfoOut",
     "ReadPlan",
     "RelevanceLabel",
     "RelevanceLabels",
+    "SufficiencyOut",
 ]
 
 
@@ -327,13 +330,25 @@ class ReadPlan(BaseModel):
     entities: list[str] = Field(default_factory=list)
     #: At most three; a longer list is cut, blank entries dropped.
     subqueries: list[str] = Field(default_factory=list)
+    #: #36 (``plan@v3``): the people the question is about, and its time expression
+    #: copied verbatim ("in May 2023", "last week"); None when it names no time.
+    persons: list[str] = Field(default_factory=list)
+    time_expr: str | None = None
 
     @field_validator("mode", mode="before")
     @classmethod
     def _mode_lower(cls, value: Any) -> Any:
         return value.strip().lower() if isinstance(value, str) else value
 
-    @field_validator("entities", "subqueries", mode="before")
+    @field_validator("time_expr", mode="before")
+    @classmethod
+    def _time_text(cls, value: Any) -> Any:
+        if value is None:
+            return None
+        text = str(_as_text(value)).strip()
+        return None if text.lower() in ("", "none", "null") else text
+
+    @field_validator("entities", "subqueries", "persons", mode="before")
     @classmethod
     def _text_list(cls, value: Any) -> Any:
         if value is None:
@@ -353,6 +368,67 @@ class InstructionFlagOut(BaseModel):
     reason: str = ""
 
 
+def _query_list(value: Any) -> Any:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        value = [value]
+    return [str(_as_text(v)).strip() for v in value if v is not None and str(v).strip()]
+
+
+class SufficiencyOut(BaseModel):
+    """#38 (``sufficiency``): does the context hold every item an aggregate question needs?"""
+
+    complete: bool
+    reason: str = ""
+
+
+class MissingInfoOut(BaseModel):
+    """#38 (``sufficiency@missing``): searches for the information the context lacks.
+
+    At most three; a longer list is cut, blank entries dropped."""
+
+    queries: list[str] = Field(default_factory=list)
+
+    @field_validator("queries", mode="before")
+    @classmethod
+    def _text_list(cls, value: Any) -> Any:
+        return _query_list(value)
+
+    @field_validator("queries")
+    @classmethod
+    def _at_most_three(cls, value: list[str]) -> list[str]:
+        return value[:3]
+
+
+class AnswerVerdictOut(BaseModel):
+    """#39 (``verify_answer``): is the answer supported by the numbered context lines?
+
+    ``evidence`` lists the 1-based numbers of the supporting lines; ``revised_answer``
+    is a corrected answer when the given one is not supported (None to keep it)."""
+
+    supported: bool
+    evidence: list[int] = Field(default_factory=list)
+    revised_answer: str | None = None
+
+    @field_validator("evidence", mode="before")
+    @classmethod
+    def _numbers(cls, value: Any) -> Any:
+        if value is None:
+            return []
+        if isinstance(value, int | str):
+            value = [value]
+        return [int(n) for v in value for n in re.findall(r"\d+", str(v))]
+
+    @field_validator("revised_answer", mode="before")
+    @classmethod
+    def _revised_text(cls, value: Any) -> Any:
+        if value is None:
+            return None
+        text = str(_as_text(value)).strip()
+        return None if text.lower() in ("", "none", "null") else text
+
+
 OUTPUT_MODELS: dict[str, type[BaseModel]] = {
     "ExtractedFacts": ExtractedFacts,
     "FactDates": FactDates,
@@ -366,4 +442,7 @@ OUTPUT_MODELS: dict[str, type[BaseModel]] = {
     "AnticipatedCues": AnticipatedCues,
     "RelevanceLabels": RelevanceLabels,
     "ReadPlan": ReadPlan,
+    "SufficiencyOut": SufficiencyOut,
+    "MissingInfoOut": MissingInfoOut,
+    "AnswerVerdictOut": AnswerVerdictOut,
 }

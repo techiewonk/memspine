@@ -25,4 +25,6 @@ PROMPT_ROLES: tuple[str, ...] = (
     "anticipate",  # H8: write-time anticipatory retrieval cues (T-Mem-style)
     "relevance",  # H17: 3-way relevance filter on read (Hindsight-style), opt-in
     "plan",  # G2a: read planner for read(mode="auto") (JustMem-style), opt-in
+    "sufficiency",  # #38: completeness check + missing-info queries on compose reads, opt-in
+    "verify_answer",  # #39: answer verification against the context (Engine.verify_answer)
 )
