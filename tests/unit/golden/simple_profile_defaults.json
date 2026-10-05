@@ -31,6 +31,7 @@
       "verification_bonus": 1.0
     },
     "read": {
+      "aggregate_top_k": null,
       "anticipatory_cues": false,
       "assembly": {},
       "candidate_pool": 1,

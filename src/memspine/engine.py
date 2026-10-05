@@ -2480,7 +2480,9 @@ class Engine:
                     return ReadResult("full", full)
             if mode == "full":
                 mode = "retrieve"
-        planner = self._config().read.planner
+        read_cfg = self._config().read
+        planner = read_cfg.planner
+        routed = mode == "auto"
         probes: list[str] = []
         if mode == "auto" and planner == "decision":
             mode = await self._plan_read_mode(query) or mode
@@ -2491,11 +2493,13 @@ class Engine:
                 mode = "compose" if plan.mode == "aggregate" else "replay"
                 probes = list(plan.subqueries) if plan.mode == "aggregate" else []
         if mode == "compose" or (mode == "auto" and is_aggregation(query)):
+            # G11: a routed aggregation read pools more candidates (budget-capped).
+            k = read_cfg.aggregate_top_k if routed and read_cfg.aggregate_top_k else top_k
             return await self._compose(
                 query,
                 ns,
                 budget_tokens,
-                top_k,
+                k,
                 compose_pool,
                 hide=hide,
                 extra_probes=probes,

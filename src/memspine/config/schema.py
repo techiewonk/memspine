@@ -317,6 +317,11 @@ class ReadConfig(BaseModel):
     #: replay mode (nearest first, within the budget), so routing an aggregation
     #: question to compose no longer loses the turns around each hit.
     compose_replay: bool = False
+    #: G11: the ``top_k`` of a read that ``read(mode="auto")`` routes to compose (the
+    #: LLM planner's ``aggregate``, the decision planner's or the rules' compose), so
+    #: list and count questions whose evidence spans sessions pool more candidates.
+    #: The budget still caps the context. None = the caller's ``top_k`` (unchanged).
+    aggregate_top_k: int | None = Field(default=None, ge=1)
     relevance_safety_net: int = Field(default=10, ge=0)
     #: C8': resolve search hits on anticipatory cues (``Engine.add_cues``) to
     #: their target records. A cue below ``cue_min_trust`` is ignored, so cues

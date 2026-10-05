@@ -164,3 +164,66 @@ def test_read_plan_tolerates_sloppy_replies() -> None:
     assert plan.mode == "aggregate"
     assert plan.entities == ["Ana"]
     assert plan.subqueries == ["a", "b", "c"]
+
+
+def _spy_compose(monkeypatch: pytest.MonkeyPatch, eng: Engine) -> list[int]:
+    seen: list[int] = []
+    real = eng._compose
+
+    async def spy(query: str, ns: str, budget: int, top_k: int, pool: int, **kw: Any) -> Any:
+        seen.append(top_k)
+        return await real(query, ns, budget, top_k, pool, **kw)
+
+    monkeypatch.setattr(eng, "_compose", spy)
+    return seen
+
+
+@pytest.mark.parametrize(
+    ("planner", "reply", "query", "expected"),
+    [
+        ("llm", _plan("aggregate"), "what pet does Ana have", [20]),  # planner aggregate
+        ("rules", None, "how many times did Ana go running", [20]),  # rules compose
+        ("llm", _plan("lookup"), "what pet does Ana have", []),  # not aggregation
+    ],
+)
+async def test_aggregate_top_k_widens_routed_compose(
+    monkeypatch: pytest.MonkeyPatch,
+    planner: str,
+    reply: str | None,
+    query: str,
+    expected: list[int],
+) -> None:
+    """G11: a routed aggregation read pools ``aggregate_top_k``, still within budget."""
+    eng = _engine(monkeypatch, _Plan(reply), planner=planner, aggregate_top_k=20)
+    seen = _spy_compose(monkeypatch, eng)
+    await eng.start()
+    try:
+        await _seed(eng)
+        out = await eng.read(query, namespace="a", top_k=2, budget_tokens=150)
+        assert seen == expected
+        assert out.context.tokens_used <= 150
+    finally:
+        await eng.stop()
+
+
+async def test_explicit_compose_and_unset_keep_the_callers_top_k(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    eng = _engine(monkeypatch, _Plan(_plan("aggregate")), aggregate_top_k=20)
+    seen = _spy_compose(monkeypatch, eng)
+    await eng.start()
+    try:
+        await _seed(eng)
+        await eng.read("what pet", namespace="a", mode="compose", top_k=2, budget_tokens=150)
+        assert seen == [2]
+    finally:
+        await eng.stop()
+    eng = _engine(monkeypatch, _Plan(_plan("aggregate")))
+    seen = _spy_compose(monkeypatch, eng)
+    await eng.start()
+    try:
+        await _seed(eng)
+        await eng.read("what pet", namespace="a", top_k=2, budget_tokens=150)
+        assert seen == [2]
+    finally:
+        await eng.stop()
