@@ -44,6 +44,7 @@ __all__ = [
     "deep_merge",
     "load_plan",
     "main",
+    "policy_options",
     "project_arm",
     "rehearse",
     "validate_engine_config",
@@ -100,7 +101,6 @@ def validate_engine_config(config: dict[str, Any]) -> None:
     """
     from memspine.config.schema import MemspineConfig
     from memspine.core.policies.assembly import AssemblyOptions
-    from memspine.core.policies.consolidation import ConsolidationOptions
     from memspine.core.policies.scoring import ScoringOptions
 
     parsed = MemspineConfig.model_validate(config)
@@ -108,11 +108,44 @@ def validate_engine_config(config: dict[str, Any]) -> None:
         ScoringOptions.model_validate(parsed.read.scoring)
     if parsed.read.assembly:
         AssemblyOptions.model_validate(parsed.read.assembly)
-    options = {"consolidation": ConsolidationOptions}
-    for memory in parsed.memories.values():
-        for name, model in options.items():
-            if name in memory.policies:
-                model.model_validate(memory.policies[name])
+    # C-8: every policy block, not only consolidation (conflict, dedup, decay, trust, ...)
+    options = policy_options()
+    blocks = [(f"memories.{n}", m.policies) for n, m in parsed.memories.items()]
+    blocks += [(f"namespaces.{n}", ns.policies) for n, ns in _namespaces(parsed).items()]
+    for where, policies in blocks:
+        for name, raw in policies.items():
+            model = options.get(name)
+            if model is None:
+                raise ValueError(
+                    f"{where}.policies.{name}: unknown policy; known: {sorted(options)}"
+                )
+            model.model_validate(raw or {})
+
+
+def _namespaces(parsed: Any) -> dict[str, Any]:
+    namespaces = getattr(parsed, "namespaces", None)
+    return dict(namespaces) if isinstance(namespaces, dict) else {}
+
+
+def policy_options() -> dict[str, Any]:
+    """Every shipped policy's name -> its ``Options`` model (``BindablePolicy`` subclasses
+    in ``memspine.core.policies``), so a new policy is validated without listing it here."""
+    import importlib
+    import pkgutil
+
+    import memspine.core.policies as package
+    from memspine.core.policies.base import BindablePolicy
+
+    for module in pkgutil.iter_modules(package.__path__):
+        importlib.import_module(f"{package.__name__}.{module.name}")
+    out: dict[str, Any] = {}
+    stack = list(BindablePolicy.__subclasses__())
+    while stack:
+        cls = stack.pop()
+        stack.extend(cls.__subclasses__())
+        if getattr(cls, "name", ""):
+            out[cls.name] = cls.Options
+    return out
 
 
 def arm_config(
@@ -171,6 +204,8 @@ class SystemMeasure:
     #: stage ("D" / "K" / "R") -> role -> {"model", "calls", "prompt", "completion"}
     engine: dict[str, dict[str, dict[str, Any]]]
     context_tokens_mean: float
+    #: C-5: the run's rerank audit (``summary.json["rerank"]``)
+    rerank: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -206,6 +241,7 @@ def _measure(out_dir: Path, run_id: str, system_id: str) -> SystemMeasure:
         judge_prompt=max(total_prompt - reader_prompt - engine_prompt, 0),
         engine=engine,
         context_tokens_mean=float(summary["context_tokens"].get("mean", 0.0) or 0.0),
+        rerank=dict(payload.get("rerank") or {}),
     )
 
 
@@ -247,6 +283,8 @@ async def rehearse_arm(
         report.problems.append(f"run failed: {type(exc).__name__}: {exc}")
         return report
     report.stub_calls = dict(stub.calls)
+    if stub.reranks:
+        report.stub_calls["rerank"] = stub.reranks
     if stub.thinking_calls:
         report.problems.append(f"{stub.thinking_calls} call(s) reached the model without /no_think")
     for system_id in config.only_systems or ():
@@ -261,6 +299,12 @@ async def rehearse_arm(
             report.problems.append(f"{system_id}: rows not completed: {bad}")
         if measure.n_queries == 0:
             report.problems.append(f"{system_id}: no questions ran")
+        if measure.rerank.get("rerank_unavailable"):
+            report.problems.append(
+                f"{system_id}: a reranker is configured ({measure.rerank.get('mode')}) but "
+                f"never returned scores ({measure.rerank.get('calls', 0)} call(s), "
+                f"{measure.rerank.get('failures', 0)} failure(s))"
+            )
         called = _engine_role_calls(measure)
         for role in arm.get("expect_roles", []):
             if not called.get(role):
