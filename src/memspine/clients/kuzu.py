@@ -1,4 +1,7 @@
-"""Kuzu connection client (D-24), ``[kuzu]``.
+"""Kuzu connection client (D-24), ``[kuzu]`` — DEPRECATED (ADR-034).
+
+Kùzu was archived upstream on 2025-10-10; use :class:`~memspine.clients.ladybug.
+LadybugClient` (``[graph]``). Kept for one release behind ``graph.provider: kuzu``.
 
 Owns the embedded ``kuzu.Database`` + ``kuzu.Connection``; the graph service
 receives this client injected and never connects itself (D-22). Import of the

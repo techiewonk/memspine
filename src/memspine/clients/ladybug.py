@@ -1,11 +1,10 @@
 """LadybugDB connection client (D-26/D-24), ``[graph]``.
 
-LadybugDB (PyPI: ``ladybug``, import ``ladybug``) is the actively-maintained,
-MIT-licensed fork of KuzuDB — Kuzu's own development stopped after Apple
-acquired and closed it. The fork kept Kuzu's embedded-Cypher Python API
-byte-for-byte (``Database``/``Connection``, synchronous client, identical DDL
-dialect including ``CREATE NODE/REL TABLE IF NOT EXISTS``), so this client is
-a straight rename of :class:`~memspine.clients.kuzu.KuzuClient`.
+LadybugDB (PyPI: ``ladybug``, import ``ladybug``, pinned ``>=0.21,<0.22``) is
+the maintained, MIT-licensed fork of Kùzu; Kùzu itself was archived upstream on
+2025-10-10. The fork kept Kùzu's embedded-Cypher Python API (``Database``/
+``Connection``, synchronous client, the same DDL dialect), so this client
+mirrors :class:`~memspine.clients.kuzu.KuzuClient` (deprecated, ADR-034).
 
 Owns the embedded ``ladybug.Database`` + ``ladybug.Connection``; the graph
 service receives this client injected and never connects itself (D-22).
