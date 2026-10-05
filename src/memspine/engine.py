@@ -1525,9 +1525,16 @@ class Engine:
         Event time: a message may carry ``"timestamp"`` (ISO-8601 string or
         ``datetime``); otherwise ``valid_from`` applies to the whole batch;
         otherwise "now". This is what lets "when did X happen" be answered from
-        the session date rather than from the ingestion time."""
+        the session date rather than from the ingestion time.
+
+        Embedding (G9): the turns that will reach the door are embedded up front
+        in calls of at most ``embedding.batch_size`` texts, which fills the
+        embedding cache; the per-record firewall and vector projection then read
+        their vectors from it. If that up-front embedding fails, the call raises
+        before any turn is written, so a retry cannot duplicate turns."""
         records: list[MemoryRecord] = []
         fw = self._config().firewall
+        await self._prewarm_embeddings(self._depositable_contents(messages))
         for i, turn in enumerate(messages):
             try:
                 role = turn["role"]
@@ -1577,6 +1584,42 @@ class Engine:
             )
             records.append(record)
         return records
+
+    def _depositable_contents(self, messages: Sequence[Mapping[str, str]]) -> list[str]:
+        """The contents ``write_messages`` will send through the door, as the
+        firewall will see them (role/recall skips applied, secrets redacted).
+
+        Malformed turns are left out here; the write loop raises on them exactly
+        as it did before batching existed."""
+        fw = self._config().firewall
+        contents: list[str] = []
+        for turn in messages:
+            try:
+                role = turn["role"]
+                content = turn["content"]
+            except (KeyError, TypeError):
+                continue
+            if role in fw.skip_message_roles:
+                continue
+            if fw.skip_injected_recall and _looks_like_recall(content):
+                continue
+            contents.append(redact(content)[0] if fw.redact_secrets else content)
+        return contents
+
+    async def _prewarm_embeddings(self, texts: Sequence[str]) -> None:
+        """G9: embed a batch of contents in chunked calls so the per-record
+        write path finds every vector in the embedding cache (E3).
+
+        Below two distinct texts this does nothing, so a single write makes
+        the same embedding calls it always has."""
+        if self._embedder is None or self._vector is None:
+            return
+        unique = list(dict.fromkeys(texts))
+        if len(unique) < 2:
+            return
+        size = self._config().embedding.batch_size
+        for start in range(0, len(unique), size):
+            await self._embedder.embed(unique[start : start + size])
 
     async def write_episode(
         self,

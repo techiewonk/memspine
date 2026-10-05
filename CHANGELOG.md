@@ -5,6 +5,7 @@ All notable changes to memspine are documented here. Format: [Keep a Changelog](
 ## [Unreleased]
 
 ### Changed
+- **G9 batched ingestion embeddings (`embedding.batch_size`, default 32).** `write_messages` embeds the turns that will reach the door up front, in calls of at most `batch_size` texts; the firewall and vector projection then read each vector from the embedding cache, so a write of N turns makes ceil(N/batch_size) embedding calls instead of N. The firewall, conflict ladder, provenance and event log still run per record, and a single `write()` is unchanged. If the up-front embedding fails, the call raises before any turn is written. The eval harness gains `--memspine-batch-turns N` (default 1): it buffers up to N turns of one session per `write_messages` call and flushes before every query, at session boundaries and before `build`.
 - **`assistant` is the default template (ADR-032, D-58).** `Engine()` and the CLI with no template now load `assistant` (LoCoMo 70.7 → 78.3%). `template="base"` keeps the previous `simple` behaviour; `MemspineConfig()` schema defaults are unchanged.
 
 ### Added — remaining read/write enhancements (2026-10-04)
