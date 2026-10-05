@@ -4,6 +4,11 @@ All notable changes to memspine are documented here. Format: [Keep a Changelog](
 
 ## [Unreleased]
 
+### Added — Wave 2b entities (2026-10-06)
+- **#17 entity summaries (opt-in, `memories.associative.policies.entity_summaries`, read with `read.entity_summaries`):** sleep stage `summarize_entities` writes one derived summary per entity whose membership changed (fact lines free up to 2,000 chars, else the new `summarize_entity` prompt, ≤30 entities per call); trust = least member trust, parents = members (erasure cascades), firewall-screened, superseded on drift. `About <Name>: …` block for the entities a query names.
+- **#18 entity resolution (opt-in, `memories.semantic.policies.extract_graph.resolve: off|rules|llm`):** exact → alias table → embedding top-15 → entropy gate → MinHash → one batched `resolve_entity@batch` call; "Mel" ≡ "Melanie". Different-trust matches stay contested. Decisions are `entity_resolved` MARKER events.
+- **#23 community gate (opt-in, `read.graph_communities`):** community summaries are read only when a seed entity of the graph leg is a member (through the records it mentions).
+
 ### Added — Wave 2 graph core (2026-10-05)
 - **#13 entity layer (opt-in, `memories.associative.policies.entity_nodes`):** the graph projector adds `ent:<namespace>:<canonical>` nodes and `mentions` edges (record -> entity, weight = record trust) from WRITE payloads (`entity`, `dst:` tags). Junk-name blocklist, optional `allowed` list, no self-edges; forget removes mentions and orphaned entities; rebuild == incremental. `mentions` is a reserved rel; `related()` and Leiden ignore it (ADR-015 amendment).
 - **#14 graph read leg (opt-in, `read.graph_leg`, `read.graph_depth` 2 (max 3), `read.graph_leg_k` 10):** query-named entities (or the entities of the top 3 hits) seed a walk to edge facts and their source turns, fused as an extra RRF leg. Off: byte-identical (golden `graph_leg_off_read.json`).
