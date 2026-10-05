@@ -111,6 +111,23 @@ def test_gliner2_class_missing_names_the_extra(monkeypatch: pytest.MonkeyPatch) 
     assert info.value.extra == "ner"
 
 
+def test_gliner2_lazy_class_import_error_names_the_extra(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """gliner2>=2.0 base install: ``import gliner2`` works, but resolving ``GLiNER2``
+    imports the absent local stack (peft) and raises ImportError from ``__getattr__``."""
+    module = types.ModuleType("gliner2")
+
+    def _lazy(name: str) -> Any:
+        raise ModuleNotFoundError("No module named 'peft'")
+
+    module.__getattr__ = _lazy  # type: ignore[method-assign]
+    monkeypatch.setitem(sys.modules, "gliner2", module)
+    with pytest.raises(MissingServiceError) as info:
+        gliner2_class()
+    assert info.value.extra == "ner"
+
+
 async def test_load_failure_is_cached(monkeypatch: pytest.MonkeyPatch) -> None:
     calls = {"n": 0}
 

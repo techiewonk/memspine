@@ -49,7 +49,13 @@ def gliner2_class() -> Any:
     except ImportError as exc:
         raise MissingServiceError(_SERVICE, extra="ner") from exc
     for name in _CLASS_NAMES:
-        cls = getattr(module, name, None)
+        try:
+            # gliner2>=2.0 resolves its model classes lazily (module ``__getattr__``):
+            # a base install without the ``[local]`` stack (torch, transformers,
+            # peft) raises ImportError here, not at ``import gliner2``.
+            cls = getattr(module, name, None)
+        except ImportError as exc:
+            raise MissingServiceError(_SERVICE, extra="ner") from exc
         if cls is not None:
             return cls
     raise MissingServiceError(_SERVICE, extra="ner")
