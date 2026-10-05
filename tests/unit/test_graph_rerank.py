@@ -89,7 +89,7 @@ async def test_episode_mentions_lift_restated_facts() -> None:
         assert plain is not None and restated is not None
         prefix = constants.EDGE_SOURCE_TAG_PREFIX
         restated = restated.model_copy(
-            update={"tags": [*restated.tags, f"{prefix}x1", f"{prefix}x2"]}
+            update={"tags": [*restated.tags, f"{prefix}{ids['turn1']}", f"{prefix}{ids['turn4']}"]}
         )
         # A query naming no entity and no graph walk: only the mentions boost acts.
         eng._associative = None
@@ -135,3 +135,37 @@ def test_local_push_ppr_agrees_with_power_iteration_on_order() -> None:
 def test_local_push_ppr_without_live_seeds_is_empty() -> None:
     assert local_push_ppr(_edges(("a", "b", 1.0)), {"zz"}) == {}
     assert local_push_ppr(_edges(("a", "b", 0.0)), {"a"}) == {}
+
+
+async def test_episode_mentions_count_only_admitted_sources() -> None:
+    """fix/graph-review #5: an ``edge_source:`` tag whose episode is forgotten,
+    quarantined, missing or below ``read.graph_min_trust`` lends no lift."""
+    from memspine.core.records import SourceInfo
+
+    eng = await _started(graph_rerank="distance", graph_min_trust=0.75)
+    try:
+        ids = await seed(eng)
+        storage = eng._require_started()
+        plain = await storage.get_record(ids["Caroline lives in Denver"])
+        restated = await storage.get_record(ids["Caroline owns a dog named Biscuit"])
+        assert plain is not None and restated is not None
+        low = await eng.write(
+            "a web page restating the dog",
+            namespace="a",
+            memory_type="episodic",
+            source=SourceInfo(role="tool", channel="web"),
+            actor="tool",
+        )
+        assert not low.quarantined and low.trust < 0.75
+        await eng.forget(ids["turn1"], namespace="a")
+        await eng.quarantine(ids["turn4"], namespace="a")
+        prefix = constants.EDGE_SOURCE_TAG_PREFIX
+        bad = [ids["turn1"], ids["turn4"], low.record_id, "missing-id"]
+        restated = restated.model_copy(
+            update={"tags": [*restated.tags, *(f"{prefix}{rid}" for rid in bad)]}
+        )
+        eng._associative = None
+        ranked = await eng._graph_rerank("a", "anything", [(plain, 0.4), (restated, 0.4)])
+        assert [s for _, s in ranked] == [0.4, 0.4]
+    finally:
+        await eng.stop()
