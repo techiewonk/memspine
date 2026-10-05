@@ -51,6 +51,7 @@
       "metadata_leg": false,
       "order_by_time_for_ordering": false,
       "planner": "rules",
+      "planner_min_confidence": 0.0,
       "record_access": true,
       "relevance_filter": false,
       "relevance_safety_net": 10,

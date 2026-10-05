@@ -4626,11 +4626,18 @@ class Engine:
         if provider is None:
             return None
         try:
-            label, _ = await provider.choose(query, self._READ_MODES)
+            label, confidence = await provider.choose(query, self._READ_MODES)
         except Exception as exc:  # an enhancer, never a gate
             _log.warning("read.planner_failed", error=str(exc))
             return None
-        return label if label in self._READ_MODES else None
+        if label not in self._READ_MODES:
+            return None
+        gate = self._config().read.planner_min_confidence
+        if confidence < gate:
+            # G2b: an unsure choice does not route; keep the default replay read.
+            _log.info("read.planner_unsure", label=label, confidence=confidence, gate=gate)
+            return "replay"
+        return str(label)
 
     async def _llm_read_plan(self, query: str) -> ReadPlan | None:
         """G2a: one ``plan`` role call (counted by the router), or None (rules).

@@ -304,6 +304,10 @@ class ReadConfig(BaseModel):
     #: returns a ReadPlan; lookup/replay read by replay, aggregate by compose with
     #: the plan's subqueries as extra probes). Rules on any failure.
     planner: Literal["rules", "decision", "llm"] = "rules"
+    #: G2b: with ``planner: decision``, a choice whose confidence is below this
+    #: does not route the read: it keeps the default ``replay`` (retrieve when no
+    #: hit is episodic). 0.0 = every choice routes (unchanged).
+    planner_min_confidence: float = Field(default=0.0, ge=0.0, le=1.0)
     #: G2c: compose results get the same +-``replay_window`` neighbour expansion as
     #: replay mode (nearest first, within the budget), so routing an aggregation
     #: question to compose no longer loses the turns around each hit.
