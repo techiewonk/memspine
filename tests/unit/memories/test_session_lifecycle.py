@@ -58,7 +58,14 @@ def _sessions(hits: list[tuple[MemoryRecord, float]] | list[MemoryRecord]) -> se
 
 @pytest.mark.parametrize(
     ("value", "seconds"),
-    [(None, None), (90, 90.0), (0.5, 0.5), ("30d", 30 * 86400.0), ("12h", 43200.0), ("2w", 1209600.0)],
+    [
+        (None, None),
+        (90, 90.0),
+        (0.5, 0.5),
+        ("30d", 30 * 86400.0),
+        ("12h", 43200.0),
+        ("2w", 1209600.0),
+    ],
 )
 def test_parse_duration(value: object, seconds: float | None) -> None:
     parsed = parse_duration(value)
@@ -117,9 +124,9 @@ async def test_idle_session_leaves_default_reads_and_stays_reachable(tmp_path: P
         assert "old" in _sessions(
             await eng.search(query, namespace="a", top_k=10, session_id="old")
         )
-        assert _sessions(
-            await eng.search(query, namespace="a", top_k=10, group_id="old")
-        ) == {"old"}
+        assert _sessions(await eng.search(query, namespace="a", top_k=10, group_id="old")) == {
+            "old"
+        }
         assert "old" in _sessions(
             await eng.retrieve(namespace="a", memory_type="episodic", include_passive=True)
         )

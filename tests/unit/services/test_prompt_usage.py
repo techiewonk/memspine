@@ -112,7 +112,7 @@ async def test_engine_usage_per_prompt_with_stub_llm(monkeypatch: pytest.MonkeyP
         await eng.write("Ana lives in Lyon", namespace="a", memory_type="semantic")
         usage = eng.usage()
         assert len(usage) == 1
-        (key, entry), = usage.items()
+        ((key, entry),) = usage.items()
         assert key.startswith("extract@") and entry["prompt_id"] == "extract"
         assert entry["calls"] == 1 and entry["input_tokens"] == 50
         assert eng.usage(reset=True) == usage

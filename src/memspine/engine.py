@@ -21,7 +21,7 @@ import re
 import secrets
 import threading
 import unicodedata
-from collections.abc import AsyncIterator, Awaitable, Callable, Coroutine, Mapping, Sequence
+from collections.abc import AsyncIterator, Callable, Coroutine, Mapping, Sequence
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -408,7 +408,9 @@ _PASSIVE_SCOPE: ContextVar[_PassiveScope | None] = ContextVar(
 )
 
 
-def _passive_scoped[**P, R](fn: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]:
+def _passive_scoped[**P, R](
+    fn: Callable[P, Coroutine[Any, Any, R]],
+) -> Callable[P, Coroutine[Any, Any, R]]:
     """#53: run a public read with its ``include_passive`` / ``session_id`` arguments
     widening the passive-session scope for every search it makes (nested reads
     only widen it, never narrow it)."""
@@ -984,9 +986,7 @@ class Engine:
             if passive is None:  # first episodic write here since start or a sleep
                 records = await storage.list_records(ns, "episodic")
                 passive = {
-                    sid
-                    for r in records
-                    if r.scoring.passive and (sid := session_of(r)) is not None
+                    sid for r in records if r.scoring.passive and (sid := session_of(r)) is not None
                 }
                 self._passive_sessions[ns] = passive
             if session not in passive:
@@ -4728,11 +4728,7 @@ class Engine:
             payload["content"] = screened[: constants.FEEDBACK_NOTE_MAX_CHARS]
         async with self._write_locks.setdefault(ns, asyncio.Lock()):
             record = await storage.get_record(record_id)
-            if (
-                record is None
-                or record.namespace != ns
-                or record.status is RecordStatus.DELETED
-            ):
+            if record is None or record.namespace != ns or record.status is RecordStatus.DELETED:
                 raise ConflictError(f"no such record {record_id!r} in namespace {ns!r}")
             await self._append_and_project(
                 MemoryEvent(kind=EventKind.FEEDBACK, namespace=ns, actor=actor, payload=payload)

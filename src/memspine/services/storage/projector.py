@@ -20,8 +20,9 @@ Handled kinds (M11):
   at-least-once — a crash between apply and checkpoint may recount a batch —
   which is acceptable by design for an approximate reinforcement signal.
 - ``FEEDBACK`` (#54) — per-record feedback counts in ``scoring``: a ``like`` or
-  ``dislike`` increments its count; any event carrying a note increments ``notes``. At-least-once like RETRIEVE (a crash between
-  apply and checkpoint may recount); the transform that reads them is bounded.
+  ``dislike`` increments its count; any event carrying a note increments
+  ``notes``. At-least-once like RETRIEVE (a crash between apply and checkpoint
+  may recount); the transform that reads them is bounded.
 - ``SESSION`` (#53) — ``scoring.passive`` set (state ``passive``) or cleared
   (``active``) on every record the event lists. Idempotent.
 """

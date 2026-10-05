@@ -14,7 +14,7 @@ import sqlite3
 import sys
 import types
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 import pytest
 from structlog.testing import capture_logs
@@ -34,7 +34,7 @@ _HAS_DRIVER = any(
 
 
 class _Recording(sqlite3.Connection):
-    statements: list[str] = []
+    statements: ClassVar[list[str]] = []
 
     def execute(self, sql: str, *args: Any) -> sqlite3.Cursor:  # type: ignore[override]
         _Recording.statements.append(sql)
