@@ -306,3 +306,12 @@ parity hold.
   (0.25) of it. A collapsed incremental run falls through to a full run, and a
   collapsed run still records its `community_partition` marker (no membership
   change, sleeps + 1), so `refresh_every` always fires.
+- **Resolution decisions are keyed by every cited record.** A session-level
+  fact cites several turns (#20); its `entity_resolved` decision was keyed only
+  by the least trusted cited turn, so hard-forgetting the turn that actually
+  named the entity left the alias (rebuilt on replay) while `verify_forget`
+  reported clean. Each decision is now one record-shaped entry per cited turn
+  sharing a `group` index, and `SessionIndex` folds the alias only while every
+  entry of the group is intact: erasing any cited turn erases the decision.
+  Logs written before the change fold as before (an entry without a group is
+  its own decision).

@@ -1541,7 +1541,10 @@ def _graph_marker_sources(raw: object) -> list[tuple[str, str]]:
 #: "attribute", "method"}`` dicts: the name (``entity``), the entity it resolved to
 #: or, for ``contested``, the one it was kept apart from (``attribute``), keyed by
 #: the source record that named it. These are the record-snapshot keys the M7
-#: erasure walker scrubs, so erasing the source erases the decision too.
+#: erasure walker scrubs, so erasing the source erases the decision too. A
+#: session-level fact cites several turns (#20): its decision is one entry per
+#: cited turn, sharing a ``group`` index, and the alias holds only while every
+#: entry of the group is intact — erasing ANY cited turn erases the decision.
 ENTITY_RESOLVED_MARKER = "entity_resolved"
 #: GP-6 (#17): MARKER payload naming the entities one summarize_entities sweep
 #: summarised. ``entities`` is a list of ``{"record_id", "namespace", "entity",
@@ -1602,17 +1605,26 @@ async def _resolve_edges(
     mode: str,
     known: list[MemoryRecord],
     extracted: list[tuple[MemoryRecord, list[ExtractedEdge]]],
+    parent_sets: list[list[MemoryRecord]] | None = None,
 ) -> tuple[list[tuple[MemoryRecord, list[ExtractedEdge]]], dict[str, int]]:
     """GP-7: resolve every edge's names, rewrite merged ones to the known entity's
-    spelling, and append the decisions as one ``entity_resolved`` MARKER."""
+    spelling, and append the decisions as one ``entity_resolved`` MARKER.
+
+    ``parent_sets`` (parallel to ``extracted``) are the records each entry's
+    facts cite; every decision is keyed by all of them (erasure of any one
+    erases it), not only by the owner the trust guard judges."""
     assert ctx.append_event is not None
     requests: list[tuple[str, float]] = []
     owners: list[str] = []
-    for record, edges in extracted:
+    keyed_by: list[tuple[str, ...]] = []
+    for i, (record, edges) in enumerate(extracted):
+        cited = parent_sets[i] if parent_sets is not None else [record]
+        parent_ids = tuple(sorted({p.record_id for p in cited} | {record.record_id}))
         for edge in edges:
             for name in (edge.src_entity, edge.dst_entity):
                 requests.append((name, record.trust))
                 owners.append(record.record_id)
+                keyed_by.append(parent_ids)
     resolver = EntityResolver(
         _known_entities(known),
         dict(ctx.session_index.entity_aliases.get(namespace, {})),
@@ -1626,28 +1638,34 @@ async def _resolve_edges(
         return extracted, {"resolve_errors": 1}
     rewrite: dict[tuple[str, str], str] = {}
     decisions: list[dict[str, object]] = []
-    seen: set[tuple[str, str, str]] = set()
+    seen: set[tuple[str, str, tuple[str, ...]]] = set()
     counts: dict[str, int] = {"resolved": 0, "contested": 0}
-    for (name, _trust), owner, outcome in zip(requests, owners, outcomes, strict=True):
+    group = 0
+    for (name, _trust), owner, parent_ids, outcome in zip(
+        requests, owners, keyed_by, outcomes, strict=True
+    ):
         if outcome.target is not None:
             rewrite[(owner, name)] = outcome.target
         if outcome.method not in (*MERGE_METHODS, "contested"):
             continue
         other = outcome.target if outcome.target is not None else outcome.candidate
-        key = (canonical_entity(name), outcome.method, owner)
+        key = (canonical_entity(name), outcome.method, parent_ids)
         if key in seen:
             continue
         seen.add(key)
         counts["resolved" if outcome.target is not None else "contested"] += 1
-        decisions.append(
-            {
-                "record_id": owner,
-                "namespace": namespace,
-                "entity": name,
-                "attribute": other,
-                "method": outcome.method,
-            }
-        )
+        for parent_id in parent_ids:
+            decisions.append(
+                {
+                    "record_id": parent_id,
+                    "namespace": namespace,
+                    "entity": name,
+                    "attribute": other,
+                    "method": outcome.method,
+                    "group": group,
+                }
+            )
+        group += 1
     counts["resolve_llm_calls"] = resolver.llm_calls
     if decisions:
         event = MemoryEvent(
@@ -1932,7 +1950,7 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
             if resolving != "off" and any(edges for _, edges in extracted):
                 # GP-7: one resolution pass (at most one batched LLM call) per sweep.
                 extracted, counts = await _resolve_edges(
-                    ctx, namespace, resolving, [*known, *sources], extracted
+                    ctx, namespace, resolving, [*known, *sources], extracted, parent_sets
                 )
                 for name, count in counts.items():
                     resolution[name] = resolution.get(name, 0) + count
@@ -2624,9 +2642,18 @@ class SessionIndex:
 
     def _fold_resolutions(self, namespace: str, raw: object) -> None:
         aliases = self.entity_aliases.setdefault(namespace, {})
-        for entry in _erasable_entries(raw):
-            name, target = entry.get("entity"), entry.get("attribute")
-            if entry.get("method") in MERGE_METHODS and name and target:
+        # Entries sharing a ``group`` are one decision keyed by several cited
+        # records; an entry without one (pre-fix logs) is its own decision.
+        groups: dict[object, list[dict[str, Any]]] = {}
+        for i, entry in enumerate(_erasable_entries(raw)):
+            groups.setdefault(entry.get("group", ("solo", i)), []).append(entry)
+        for entries in groups.values():
+            # Any erased entry (a forgotten cited record) erases the decision.
+            if not all(e.get("entity") and e.get("attribute") for e in entries):
+                continue
+            first = entries[0]
+            name, target = first.get("entity"), first.get("attribute")
+            if first.get("method") in MERGE_METHODS and name and target:
                 aliases[canonical_entity(str(name))] = canonical_entity(str(target))
 
     def _fold_partition(self, namespace: str, payload: dict[str, Any]) -> None:

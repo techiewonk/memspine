@@ -370,3 +370,73 @@ async def test_engine_binds_the_batched_prompts() -> None:
         assert "[1] Melanie\n- [2023-05-01] Melanie read Dune" in summary_llm.seen[0][-1]["content"]
     finally:
         await eng.stop()
+
+
+# ── erasure of session-level decisions (fix/graph-review #2) ──────────────────
+
+
+@pytest.mark.parametrize("forget", ["lowest", "highest"])
+async def test_forgetting_any_cited_turn_erases_a_session_decision(forget: str) -> None:
+    """A session-level edge cites several turns; its ``entity_resolved`` decision
+    is keyed by every cited turn, so hard-forgetting ANY of them (not just the
+    least trusted "owner") erases the decision: the alias is gone after a
+    rebuild and ``verify_forget`` is clean."""
+    from memspine.core.events import EventKind, MemoryEvent
+
+    eng = Engine(
+        template="core",
+        dotenv_path=None,
+        storage={"path": ":memory:"},
+        embedding={"provider": "hash"},
+        memories={
+            "semantic": {
+                "enabled": True,
+                "policies": {"extract_graph": {"resolve": "llm", "granularity": "session"}},
+            },
+            "episodic": {"enabled": True},
+            "associative": {"enabled": True, "policies": {"entity_nodes": True}},
+        },
+    )
+    await eng.start()
+    try:
+        await _melanie(eng)
+        turns = [
+            await eng.write(text, namespace="a", memory_type="episodic", valid_from=T0 + timedelta(i + 1))
+            for i, text in enumerate(["we talked about her weekend", "Mel went hiking"])
+        ]
+        ctx = eng._pipeline_ctx()
+        assert ctx.append_event is not None
+        await ctx.append_event(
+            MemoryEvent(
+                kind=EventKind.CONSOLIDATE,
+                namespace="a",
+                actor="system",
+                payload={"session_key": "s1", "member_record_ids": [t.record_id for t in turns]},
+            )
+        )
+
+        async def session_extract(_content: str, _context: object = None) -> list[ExtractedEdge]:
+            edge = _edge("Mel", "went", "hiking trip", "Mel went hiking")
+            return [edge.model_copy(update={"episode_indices": [1, 2]})]
+
+        ctx.extract_session_edges = session_extract
+        ctx.extract_edges = _edges({})
+        ctx.resolve_entities = CountingResolver({"Mel": "Melanie"})
+        stats = await extract_graph(ctx)
+        assert stats["resolved"] == 1, stats
+        storage = eng._require_started()
+        index = SessionIndex()
+        await index.refresh(storage)
+        assert index.entity_aliases["a"] == {"mel": "melanie"}
+
+        ids = sorted(t.record_id for t in turns)
+        victim = ids[0] if forget == "lowest" else ids[-1]
+        await eng.forget(victim, namespace="a", hard=True)
+        await eng.rebuild()
+        index = SessionIndex()
+        await index.refresh(storage)
+        assert index.entity_aliases.get("a", {}) == {}
+        report = await eng.verify_forget(victim, namespace="a")
+        assert report["log_retained_fields"] == [] and report["clean"] is True
+    finally:
+        await eng.stop()
