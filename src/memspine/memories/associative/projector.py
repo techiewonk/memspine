@@ -3,12 +3,15 @@
 Projected kinds:
 
 - ``WRITE`` — one node per record (labels: ``[memory_type]``, properties kept
-  minimal: ``namespace``). WRITE payloads carrying derivation provenance
-  (``consolidation``/``reflection`` member ids, P3.1/M13.7) also project
-  ``derived_from`` edges from the derived record to each member,
+  minimal: ``namespace``; also the node's ``namespace`` column, KB-1). WRITE
+  payloads carrying derivation provenance (``consolidation``/``reflection``
+  member ids, P3.1/M13.7) also project ``derived_from`` edges from the derived
+  record to each member,
 - ``LINK`` — one edge per event (``rel``/``weight``/``reason`` ride as edge
-  properties). A ``weight: 0.0`` LINK is the budget-prune tombstone (ADR-015):
-  the edge is upserted inert, and every reader treats weight ``<= 0`` as gone,
+  properties; ``kind`` too when the payload carries one), stored under the
+  event's namespace so PPR/BFS/Leiden stay inside one tenant (KB-1). A
+  ``weight: 0.0`` LINK is the budget-prune tombstone (ADR-015): the edge is
+  upserted inert, and every reader treats weight ``<= 0`` as gone,
 - ``FORGET`` — ``delete_node`` cascades every touching edge (M7).
 
 Idempotency: every operation is an upsert or an idempotent delete, so catch-up
@@ -46,6 +49,7 @@ class GraphProjector(Projector):
                 record.record_id,
                 labels=[record.memory_type],
                 properties={"namespace": record.namespace},
+                namespace=record.namespace,
             )
             for key in _DERIVATION_KEYS:
                 derivation = event.payload.get(key)
@@ -76,17 +80,23 @@ class GraphProjector(Projector):
                         str(member),
                         "derived_from",
                         {"weight": 1.0, "reason": key},
+                        namespace=record.namespace,
                     )
         elif event.kind is EventKind.LINK:
             payload = event.payload
+            properties: dict[str, object] = {
+                "weight": float(payload.get("weight", 1.0)),
+                "reason": str(payload.get("reason", "")),
+            }
+            kind = payload.get("kind")
+            if isinstance(kind, str) and kind:
+                properties["kind"] = kind
             await self._store.upsert_edge(
                 str(payload["src"]),
                 str(payload["dst"]),
                 str(payload.get("rel", "related")),
-                {
-                    "weight": float(payload.get("weight", 1.0)),
-                    "reason": str(payload.get("reason", "")),
-                },
+                properties,
+                namespace=event.namespace,
             )
         elif event.kind is EventKind.FORGET:
             # A forgotten memory must stop being reachable (M7): the node and

@@ -10,6 +10,14 @@ community detection consumes ``edge_list()``.
 Edges are stored directed (``src -> dst``) but ``neighbors`` traverses them
 undirected: an associative link expresses relatedness, not order, so recall
 must reach a memory from either endpoint.
+
+Tenancy and traversal (KB-1/KB-2/KB-3): every node and edge carries the
+``namespace`` it was projected in; ``neighbors``/``subgraph``/``edge_list``
+take an optional ``namespace`` filter (None = every namespace) so PPR, BFS and
+Leiden never scan another tenant's edges. ``max_degree`` caps the fan-out per
+node during a walk: from each node only its ``max_degree`` strongest live
+neighbours are followed (weight descending, then node id), the same rule in
+every adapter (:func:`capped_neighbors`).
 """
 
 from __future__ import annotations
@@ -18,7 +26,16 @@ from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Protocol, runtime_checkable
 
-__all__ = ["GraphEdge", "GraphNode", "GraphStore", "edge_weight", "walk_neighbors"]
+__all__ = [
+    "GraphEdge",
+    "GraphNode",
+    "GraphStore",
+    "capped_neighbors",
+    "edge_kind",
+    "edge_namespace",
+    "edge_weight",
+    "walk_neighbors",
+]
 
 
 def edge_weight(properties: Mapping[str, object]) -> float:
@@ -29,6 +46,22 @@ def edge_weight(properties: Mapping[str, object]) -> float:
     if isinstance(raw, bool) or not isinstance(raw, int | float):
         return 1.0
     return float(raw)
+
+
+def edge_kind(properties: Mapping[str, object]) -> str | None:
+    """The optional ``kind`` edge property (``state``/``event`` for fact edges,
+    GP-1), stored in its own column so readers can filter on it."""
+    raw = properties.get("kind")
+    return raw if isinstance(raw, str) and raw else None
+
+
+def edge_namespace(namespace: str | None, properties: Mapping[str, object] | None) -> str:
+    """The namespace a node/edge is stored under: the explicit argument, else a
+    ``namespace`` property (how the projector has always tagged nodes), else ""."""
+    if namespace:
+        return namespace
+    raw = (properties or {}).get("namespace")
+    return raw if isinstance(raw, str) else ""
 
 
 @dataclass(frozen=True)
@@ -58,8 +91,13 @@ class GraphStore(Protocol):
         node_id: str,
         labels: Sequence[str] = (),
         properties: Mapping[str, object] | None = None,
+        *,
+        namespace: str | None = None,
     ) -> None:
-        """Create or fully replace a node's labels + properties (idempotent)."""
+        """Create or fully replace a node's labels + properties (idempotent).
+
+        ``namespace`` defaults to the ``namespace`` property (:func:`edge_namespace`).
+        """
         ...
 
     async def upsert_edge(
@@ -68,22 +106,46 @@ class GraphStore(Protocol):
         dst: str,
         rel_type: str,
         properties: Mapping[str, object] | None = None,
+        *,
+        namespace: str | None = None,
     ) -> None:
         """Create or replace the ``(src, dst, rel_type)`` edge (idempotent).
 
-        Missing endpoint nodes are implicitly created bare, so link replay
-        never depends on node-event ordering.
+        Missing endpoint nodes are implicitly created bare (in the edge's
+        namespace), so link replay never depends on node-event ordering. The
+        ``weight`` and ``kind`` properties are also stored as columns.
         """
         ...
 
     async def neighbors(
-        self, node_id: str, rel_type: str | None = None, depth: int = 1
+        self,
+        node_id: str,
+        rel_type: str | None = None,
+        depth: int = 1,
+        *,
+        namespace: str | None = None,
+        max_degree: int | None = None,
     ) -> list[GraphNode]:
-        """Nodes reachable within ``depth`` undirected hops (start excluded).
+        """Nodes reachable within ``depth`` undirected hops (start excluded),
+        nearest first, then by node id.
 
         Tombstoned edges (weight ``<= 0``, the ADR-015 prune marker) are not
-        traversed — every reader treats them as gone.
+        traversed — every reader treats them as gone. ``namespace`` restricts
+        the walk to that namespace's edges; ``max_degree`` caps the fan-out per
+        node (:func:`capped_neighbors`).
         """
+        ...
+
+    async def subgraph(
+        self,
+        seeds: Sequence[str],
+        depth: int = 1,
+        *,
+        namespace: str | None = None,
+        max_degree: int | None = None,
+    ) -> list[GraphEdge]:
+        """Every live edge between nodes reachable within ``depth`` hops of any
+        seed (seeds included), under the same filters as :meth:`neighbors`."""
         ...
 
     async def edges_of(self, node_id: str) -> list[GraphEdge]:
@@ -94,8 +156,9 @@ class GraphStore(Protocol):
         """Remove the node and cascade every touching edge (M7 forget)."""
         ...
 
-    async def edge_list(self) -> list[GraphEdge]:
-        """Full edge export — the D-40 community-detection input."""
+    async def edge_list(self, namespace: str | None = None) -> list[GraphEdge]:
+        """Edge export — the D-40 community-detection and PPR input. ``namespace``
+        restricts it to one tenant (None = every edge, tombstones included)."""
         ...
 
     async def node_count(self) -> int: ...
@@ -115,6 +178,25 @@ class GraphStore(Protocol):
 
 #: One undirected hop: ``(node_id, rel_type filter) -> adjacent nodes``.
 AdjacencyFn = Callable[[str, str | None], Awaitable[list[GraphNode]]]
+
+
+def capped_neighbors(edges: Sequence[GraphEdge], node_id: str, max_degree: int | None) -> list[str]:
+    """The neighbours a capped walk follows from ``node_id`` (KB-3).
+
+    Live edges only; each neighbour ranks by its strongest edge to ``node_id``
+    (weight descending, then node id), and the first ``max_degree`` are kept
+    (None = all). The SQL and Cypher adapters implement this exact rule.
+    """
+    best: dict[str, float] = {}
+    for edge in edges:
+        if edge.weight <= 0.0 or node_id not in (edge.src, edge.dst):
+            continue
+        other = edge.dst if edge.src == node_id else edge.src
+        if other == node_id:
+            continue
+        best[other] = max(best.get(other, edge.weight), edge.weight)
+    ranked = sorted(best, key=lambda other: (-best[other], other))
+    return ranked if max_degree is None else ranked[: max(max_degree, 0)]
 
 
 async def walk_neighbors(

@@ -126,10 +126,11 @@ class AssociativeMemory(BaseMemory):
         """Records associated with ``record_id`` (plan §5 Phase 6 / D-40), ranked
         by a configurable traversal **strategy** (E1, amends D-49):
 
-        - ``ppr`` (default): personalized PageRank over the whole graph — the
+        - ``ppr`` (default): personalized PageRank over the namespace's graph — the
           v0.1 behavior, byte-identical.
         - ``bfs``: breadth-first neighbors within ``depth`` hops (recency of
-          connection, not global centrality); wires the shared ``walk_neighbors``.
+          connection, not global centrality), inside the namespace; optional
+          ``max_degree`` caps the fan-out per node (KB-3).
         - ``rrf``: reciprocal-rank fusion of the PPR graph rank with a vector
           similarity rank (embed the seed, query the vector store) — surfaces
           records that are both graph-close and semantically similar. Falls back
@@ -191,13 +192,22 @@ class AssociativeMemory(BaseMemory):
         """Ordered candidate ids for a ``related`` query, per E1 strategy.
         Gating/limiting happens in the caller; this only ranks."""
         depth = int(policy.get("depth", 2))
+        # KB-1: PPR and BFS stay inside the seed's namespace — another tenant's
+        # edges are never scanned, let alone walked.
         graph_ids = [
-            rid for rid, _ in personalized_pagerank(await self._graph.edge_list(), {record_id})
+            rid
+            for rid, _ in personalized_pagerank(await self._graph.edge_list(namespace), {record_id})
         ]
         if strategy == "ppr":
             return graph_ids
         if strategy == "bfs":
-            nodes = await self._graph.neighbors(record_id, depth=max(1, depth))
+            raw_degree = policy.get("max_degree")
+            nodes = await self._graph.neighbors(
+                record_id,
+                depth=max(1, depth),
+                namespace=namespace,
+                max_degree=int(raw_degree) if raw_degree is not None else None,
+            )
             return [node.node_id for node in nodes]
         # rrf: fuse the graph rank with a vector-similarity rank of the seed.
         if self._vector is None or self._embedder is None:
