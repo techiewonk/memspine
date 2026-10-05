@@ -77,6 +77,7 @@
       "planner_version": "v1",
       "profile_budget_share": 0.15,
       "profile_header": false,
+      "query_encoder": "none",
       "record_access": true,
       "relative_dates_anchored": false,
       "relative_week": "calendar",
@@ -189,8 +190,13 @@
       "mine_facts": false,
       "mine_multiview": false,
       "mine_prompt": "session",
+      "predict_calibrate": false,
       "reflect_profile": false,
       "session_gap_minutes": 30,
+      "session_summary": {
+        "incremental": false,
+        "rebuild_every": 8
+      },
       "summary_max_chars": 600,
       "triggers": [
         "session_end",
