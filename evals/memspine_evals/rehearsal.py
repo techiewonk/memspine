@@ -29,6 +29,7 @@ import json
 import os
 import sys
 from collections import Counter
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
@@ -75,6 +76,12 @@ def deep_merge(base: dict[str, Any], delta: dict[str, Any]) -> dict[str, Any]:
 
 def _has_memspine(arm: dict[str, Any]) -> bool:
     return "memspine" in arm.get("systems", ["memspine"])
+
+
+def arm_categories(plan: dict[str, Any], arm: dict[str, Any]) -> tuple[int, ...] | None:
+    """The arm's LoCoMo categories: an arm-level ``categories`` (a cat-5 safety arm)
+    overrides the plan's dataset block."""
+    return tuple(arm.get("categories") or plan["dataset"].get("categories") or ()) or None
 
 
 def arm_engine_config(plan: dict[str, Any], arm: dict[str, Any]) -> dict[str, Any] | None:
@@ -128,7 +135,7 @@ def arm_config(
         top_k=int(protocol.get("top_k", 10)),
         judge_prompt=protocol.get("judge_prompt", "rubric"),
         qa_prompt=arm.get("qa_prompt", protocol.get("qa_prompt", "default")),
-        categories=tuple(plan["dataset"].get("categories") or ()) or None,
+        categories=arm_categories(plan, arm),
         include_memspine=memspine,
         memspine_config=arm_engine_config(plan, arm),
         memspine_read_mode=read_mode if memspine else None,
@@ -374,15 +381,26 @@ async def rehearse(
     max_queries: int | None,
     prices: dict[str, tuple[float, float]],
     arm_ids: tuple[str, ...] | None = None,
+    dataset_for: Callable[[tuple[int, ...] | None], Any] | None = None,
 ) -> list[ArmReport]:
-    slice_shape = dataset_shape(dataset, item_ids, max_queries)
-    full_shape = dataset_shape(dataset, None, None)
+    """Rehearse every (selected) arm. ``dataset_for(categories)`` loads the dataset for
+    an arm whose ``categories`` differ from the plan's (e.g. a cat-5 safety arm); without
+    it every arm runs on ``dataset``."""
+    plan_categories = tuple(plan["dataset"].get("categories") or ()) or None
     reports: list[ArmReport] = []
     for arm in plan["arms"]:
         if arm_ids and arm["id"] not in arm_ids:
             continue
+        categories = arm_categories(plan, arm)
+        arm_dataset = (
+            dataset_for(categories)
+            if dataset_for is not None and categories != plan_categories
+            else dataset
+        )
+        slice_shape = dataset_shape(arm_dataset, item_ids, max_queries)
+        full_shape = dataset_shape(arm_dataset, None, None)
         report = await rehearse_arm(
-            dataset,
+            arm_dataset,
             plan,
             arm,
             out_dir,
@@ -463,12 +481,17 @@ def main(argv: list[str] | None = None) -> int:
 
     from .datasets import LoCoMoDataset
 
-    categories = tuple(plan["dataset"].get("categories") or ()) or None
-    dataset = LoCoMoDataset(
-        args.path,
-        revision_id=args.revision or plan["dataset"].get("revision", "auto"),
-        categories=categories,
-    )
+    revision = args.revision or plan["dataset"].get("revision", "auto")
+    loaded: dict[tuple[int, ...] | None, Any] = {}
+
+    def dataset_for(categories: tuple[int, ...] | None) -> Any:
+        if categories not in loaded:
+            loaded[categories] = LoCoMoDataset(
+                args.path, revision_id=revision, categories=categories
+            )
+        return loaded[categories]
+
+    dataset = dataset_for(tuple(plan["dataset"].get("categories") or ()) or None)
     item_ids = tuple(item.item_id for item in dataset.items())[: args.items]
     if args.out:
         out_dir = Path(args.out)
@@ -487,6 +510,7 @@ def main(argv: list[str] | None = None) -> int:
             max_queries=args.first,
             prices=prices,
             arm_ids=arm_ids,
+            dataset_for=dataset_for,
         )
     )
     table = render_table(reports, prices)
