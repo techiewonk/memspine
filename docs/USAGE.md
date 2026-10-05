@@ -224,6 +224,25 @@ await engine.sleep()      # run consolidate -> decay -> compress -> prune now
 await engine.rebuild()    # replay every projector from seq 0
 ```
 
+### Cost accounting — per role and per prompt (#33)
+```python
+engine.model_calls()      # {"extract": 3, ...}            calls per LLM role
+engine.model_usage()      # {"extract": {"model", "calls", "prompt", "completion"}}
+engine.usage()            # {"extract@2": {"prompt_id": "extract", "roles": ["extract"],
+                          #   "calls": 3, "input_tokens": 912, "output_tokens": 140,
+                          #   "estimated_calls": 0, "estimated": False}, ...}
+engine.usage(reset=True)  # snapshot, then clear the per-prompt counters
+```
+Every internal LLM call renders a named, versioned prompt (D-43), so `usage()` keys
+its counters by `prompt_version` (`<id>@<version>`; `"<unnamed>"` for messages you
+send yourself through `engine.llm(role)`). Tokens are the provider's own report when
+it gives one (LiteLLM); otherwise a characters/4 estimate, counted in
+`estimated_calls`. Each call also logs an `llm.usage` event at DEBUG level. The
+counters live in the process only (never persisted). The evals harness reads them
+into each result's `meta["engine_prompts"]` and the run summary's
+`engine_prompt_usage` (per loop stage, per prompt), which is how cost per cycle is
+attributed to stages.
+
 ---
 
 ## CLI

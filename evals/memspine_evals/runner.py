@@ -142,6 +142,8 @@ class EvalRunner:
         self._rng = random.Random(config.protocol.seed)
         #: per loop stage, per engine role: {"model", "calls", "prompt", "completion"}
         self.engine_llm: dict[str, dict[str, dict[str, Any]]] = {}
+        #: #33: per loop stage, per engine prompt version: calls and tokens (CPC by stage)
+        self.engine_prompts: dict[str, dict[str, dict[str, Any]]] = {}
         #: C-5: per-query rerank audit (``meta["reranked"]`` and the engine's counters)
         self.rerank: dict[str, Any] = {
             "mode": None,
@@ -261,7 +263,11 @@ class EvalRunner:
             self._meter.check_usd(what=what)
 
     def _charge_engine(self, stage: Stage, meta: Mapping[str, Any]) -> None:
-        """Charge the engine's observed LLM use (``meta["engine_llm"]``) to the meter."""
+        """Charge the engine's observed LLM use (``meta["engine_llm"]``) to the meter.
+
+        #33: ``meta["engine_prompts"]`` (the same calls, split per prompt version) is
+        tallied per stage for the summary only; the meter is charged once, per role."""
+        self._tally_engine_prompts(stage, meta.get("engine_prompts"))
         usage = meta.get("engine_llm")
         if not usage:
             return
@@ -279,6 +285,25 @@ class EvalRunner:
                     int(used.get("completion", 0) or 0),
                     calls=int(used.get("calls", 0) or 0),
                 )
+
+    def _tally_engine_prompts(self, stage: Stage, prompts: Any) -> None:
+        """#33: add one result's per-prompt engine use to the stage's tally."""
+        if not isinstance(prompts, Mapping):
+            return
+        bucket = self.engine_prompts.setdefault(stage.value, {})
+        for key, used in prompts.items():
+            acc = bucket.setdefault(
+                str(key),
+                {
+                    "prompt_id": used.get("prompt_id"),
+                    "calls": 0,
+                    "input_tokens": 0,
+                    "output_tokens": 0,
+                    "estimated_calls": 0,
+                },
+            )
+            for name in ("calls", "input_tokens", "output_tokens", "estimated_calls"):
+                acc[name] += int(used.get(name, 0) or 0)
 
     # -- guards --------------------------------------------------------------
 
@@ -427,6 +452,8 @@ class EvalRunner:
             "loop_model_calls": self._model_calls - self._judge_calls,
             # per loop stage (D / K / R), per engine LLM role: calls and tokens
             "engine_llm_usage": self.engine_llm,
+            # #33: the same engine calls per loop stage, per prompt version
+            "engine_prompt_usage": self.engine_prompts,
             # C-6: embedding tokens / rerank searches the engine reported
             "engine_services": self.engine_services,
             # C-5: did the configured reranker run (per query), and how often did it fail

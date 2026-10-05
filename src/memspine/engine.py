@@ -5267,6 +5267,19 @@ class Engine:
             }
         return out
 
+    def usage(self, *, reset: bool = False) -> dict[str, dict[str, Any]]:
+        """#33: LLM calls and tokens per named prompt since ``start()`` or the last reset.
+
+        Keyed by ``prompt_version`` (``<id>@<version>``; ``"<unnamed>"`` for a caller's
+        own messages sent through :meth:`llm`). Each entry holds ``prompt_id``,
+        ``prompt_version``, ``roles``, ``calls``, ``input_tokens``, ``output_tokens``,
+        ``estimated_calls`` and ``estimated``. Tokens are the provider's own usage
+        report when it gives one, else a characters/4 estimate, and such calls are
+        counted in ``estimated_calls``. ``reset=True`` clears the counters after the
+        snapshot is taken. In-process only; empty when no LLM role is bound.
+        """
+        return self._llm.prompt_usage(reset=reset) if self._llm is not None else {}
+
     def llm(self, role: str) -> LLMService:
         """The provider bound to a role (D-07/D-22): extract / judge / chat.
 
