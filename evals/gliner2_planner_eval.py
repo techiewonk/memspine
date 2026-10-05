@@ -154,13 +154,12 @@ class Setup:
     labels: Mapping[str, str]
     descriptions: Mapping[str, str]
     task: str = "choice"
-    prompt: str | None = None
     examples: tuple[tuple[str, str], ...] = ()
     rules_first: bool = False
     hints: bool = False
 
 
-#: The engine's options before this change (``Engine._READ_MODES`` at ``f21576b``).
+#: The engine's options before G24 (``Engine._READ_MODES`` at ``f21576b``).
 CURRENT = Setup(
     "current",
     {m: m for m in MODES},
@@ -173,15 +172,12 @@ CURRENT = Setup(
 
 
 def rule_mode(question: str) -> str | None:
-    """The engine-side rules of the hybrid: compose for counts and sets (not durations),
-    replay for ordering questions; None leaves the question to the model."""
-    from memspine.core.query_shape import is_aggregation, is_count, is_ordering, is_temporal
+    """The engine-side rules of the hybrid (``query_shape.rule_read_mode``): compose for
+    counts and sets (not durations), replay for ordering questions; None leaves the
+    question to the model."""
+    from memspine.core.query_shape import rule_read_mode
 
-    if is_count(question) or (is_aggregation(question) and not is_temporal(question)):
-        return "compose"
-    if is_ordering(question):
-        return "replay"
-    return None
+    return rule_read_mode(question)
 
 
 def hint_text(question: str) -> str:
@@ -210,8 +206,6 @@ def gliner2_classifier(setup: Setup, extractor: Any) -> Classifier:
                 return ruled, None
         text = hint_text(question) if setup.hints else question
         kwargs: dict[str, Any] = {}
-        if setup.prompt:
-            kwargs["prompt"] = setup.prompt
         if setup.examples:
             kwargs["examples"] = list(setup.examples)
         schema = extractor.create_schema().classification(
@@ -247,10 +241,17 @@ class Score:
     confusion: dict[str, Counter[str]] = field(default_factory=dict)
     confidences: list[float] = field(default_factory=list)
     ms: list[float] = field(default_factory=list)
+    #: The items the hybrid's rules leave open (``rule_mode`` is None).
+    open_n: int = 0
+    open_correct: int = 0
 
     @property
     def accuracy(self) -> float:
         return self.correct / self.n if self.n else 0.0
+
+    @property
+    def open_accuracy(self) -> float:
+        return self.open_correct / self.open_n if self.open_n else 0.0
 
     def recall(self, mode: str) -> float:
         row = self.confusion.get(mode, Counter())
@@ -275,6 +276,9 @@ def evaluate(
         score.n += 1
         score.correct += got == item["mode"]
         score.confusion[str(item["mode"])][got] += 1
+        if rule_mode(str(item["question"])) is None:
+            score.open_n += 1
+            score.open_correct += got == item["mode"]
         if confidence is not None:
             score.confidences.append(confidence)
     return score
@@ -283,15 +287,16 @@ def evaluate(
 def render_scores(scores: Sequence[Score]) -> str:
     lines = [
         "| setup | split | n | accuracy | recall compose | recall replay | recall retrieve "
-        "| macro recall | median conf |",
-        "|---|---|---|---|---|---|---|---|---|",
+        "| macro recall | accuracy, rule-open items | median conf | p50 ms |",
+        "|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for s in scores:
         conf = f"{statistics.median(s.confidences):.3f}" if s.confidences else "-"
+        ms = f"{statistics.median(s.ms):.0f}" if s.ms else "-"
         lines.append(
             f"| {s.name} | {s.split} | {s.n} | {s.accuracy:.3f} | {s.recall('compose'):.2f} "
             f"| {s.recall('replay'):.2f} | {s.recall('retrieve'):.2f} "
-            f"| {s.macro_recall:.3f} | {conf} |"
+            f"| {s.macro_recall:.3f} | {s.open_accuracy:.3f} ({s.open_n}) | {conf} | {ms} |"
         )
     return "\n".join(lines)
 
@@ -312,16 +317,97 @@ def render_confusion(score: Score) -> str:
 # ---------------------------------------------------------------------------------------
 # Candidate setups (tuned on the tune half only)
 
-#: Setups tried on the tune half; see the results file for the tune table.
-SETUPS: tuple[Setup, ...] = (CURRENT,)
+_SURFACE = {"count or list": "compose", "reason or feeling": "replay", "single fact": "retrieve"}
+_A = {
+    "count or list": "asks how many, or for several things, a list or all items",
+    "reason or feeling": "asks why, how someone felt, or what someone said",
+    "single fact": "asks for one specific fact such as a name, place, object or date",
+}
+_D = {
+    "count or list": "how many times, how often, how many things; what things, which items, "
+    "all of the",
+    "reason or feeling": "why, what motivated or inspired, how someone felt or reacted, "
+    "what someone said",
+    "single fact": "what, where, who, when: one specific thing",
+}
+_E = {
+    "count or list": "asks how many, how often, or for several things: a list, all items, "
+    "what kinds",
+    "reason or feeling": "asks why, what motivated or inspired, how someone felt or reacted, "
+    "or what someone said",
+    "single fact": "asks for one specific fact such as a name, place, object or date",
+}
+_C_LABELS = {
+    "several things": "compose",
+    "reason, feeling or words": "replay",
+    "one fact": "retrieve",
+}
+_C = {
+    "several things": "a count (how many, how often), a list, or all the items of a kind",
+    "reason, feeling or words": "why something happened, how someone felt, or what someone said",
+    "one fact": "one specific fact: a name, a place, an object, a date",
+}
+_B_LABELS = {"aggregation": "compose", "explanation": "replay", "lookup": "retrieve"}
+_B = {
+    "aggregation": "the answer combines several facts: a count, a list, all of something",
+    "explanation": "the answer needs the surrounding conversation: why, feelings, what was said",
+    "lookup": "the answer is one fact: a name, a date, a place, an object",
+}
+#: Hand-written few-shot examples (not LoCoMo questions).
+_EXAMPLES = (
+    ("How many concerts has Priya been to this year?", "count or list"),
+    ("What hobbies does Tom have?", "count or list"),
+    ("Which cities has Ana visited?", "count or list"),
+    ("Why did Leo quit his job at the bakery?", "reason or feeling"),
+    ("How did Mia feel after the marathon?", "reason or feeling"),
+    ("What did Sam say about the new manager?", "reason or feeling"),
+    ("Where does Ravi work?", "single fact"),
+    ("What is the name of Kim's cat?", "single fact"),
+    ("When did Omar move to Lisbon?", "single fact"),
+)
+
+
+def _two(descriptions: Mapping[str, str]) -> dict[str, str]:
+    """Only the replay and retrieve options: the hybrid's rules already decide compose."""
+    return {k: v for k, v in descriptions.items() if _SURFACE.get(k) != "compose"}
+
+
+_SINGLE: tuple[Setup, ...] = (
+    CURRENT,
+    Setup("A", _SURFACE, _A),
+    Setup("A no descriptions", _SURFACE, {k: k for k in _SURFACE}),
+    Setup("A task=question", _SURFACE, _A, task="question"),
+    Setup("A task=the question asks for", _SURFACE, _A, task="the question asks for"),
+    Setup("A task=question type", _SURFACE, _A, task="question type"),
+    Setup("A task=question type + examples", _SURFACE, _A, "question type", _EXAMPLES),
+    Setup("A task=question type + hints", _SURFACE, _A, "question type", hints=True),
+    Setup("B", _B_LABELS, _B, task="question type"),
+    Setup("C", _C_LABELS, _C),
+    Setup("D", _SURFACE, _D),
+    Setup("E", _SURFACE, _E),
+)
+#: Setups tried on the tune half (pre-registration section 3): each single-model setup, then
+#: the same setups as hybrids, then two hybrids whose model sees only replay vs retrieve.
+SETUPS: tuple[Setup, ...] = (
+    *_SINGLE,
+    *(
+        Setup(f"{s.name} + rules first", s.labels, s.descriptions, s.task, s.examples, True)
+        for s in _SINGLE
+        if not s.hints
+    ),
+    Setup("A two-way + rules first", _SURFACE, _two(_A), rules_first=True),
+    Setup("D two-way + rules first", _SURFACE, _two(_D), rules_first=True),
+)
+
+#: The setup shipped as the engine's ``decision`` planner (``Engine._READ_OPTIONS`` and
+#: ``query_shape.rule_read_mode``), after it beat ``current`` on the held-out half.
+SHIPPED = "D + rules first"
 
 
 def select(tune_scores: Sequence[Score]) -> str:
     """The pre-registered selection: best tune accuracy, ties by macro recall, then by the
-    earlier entry in :data:`SETUPS`."""
-    best = max(
-        enumerate(tune_scores), key=lambda p: (p[1].accuracy, p[1].macro_recall, -p[0])
-    )
+    earlier entry."""
+    best = max(enumerate(tune_scores), key=lambda p: (p[1].accuracy, p[1].macro_recall, -p[0]))
     return best[1].name
 
 
@@ -331,22 +417,68 @@ def load_model(model: str) -> Any:
     return gliner2_class().from_pretrained(model)
 
 
-def run(
-    split: str,
-    model: str,
-    setups: Sequence[Setup],
-    items: Sequence[Mapping[str, Any]],
-    extractor: Any = None,
-) -> list[Score]:
-    extractor = extractor if extractor is not None else load_model(model)
-    splits = ("tune", "heldout") if split == "both" else (split,)
-    scores: list[Score] = []
-    for which in splits:
-        scores.append(evaluate("rules (no planner)", rules_baseline, items, which))
-        scores.append(evaluate("constant retrieve", lambda _q: ("retrieve", None), items, which))
-        for setup in setups:
-            scores.append(evaluate(setup.name, gliner2_classifier(setup, extractor), items, which))
-    return scores
+def baselines(items: Sequence[Mapping[str, Any]], split: str) -> list[Score]:
+    return [
+        evaluate("rules (no planner)", rules_baseline, items, split),
+        evaluate("constant retrieve", lambda _q: ("retrieve", None), items, split),
+    ]
+
+
+@dataclass
+class Outcome:
+    tune: list[Score]
+    heldout: list[Score]
+    selected: str
+    best_single: str
+
+    @property
+    def ship(self) -> bool:
+        """Pre-registered rule: the selected setup beats ``current`` on held-out accuracy."""
+        by_name = {s.name: s for s in self.heldout}
+        return by_name[self.selected].accuracy > by_name[CURRENT.name].accuracy
+
+
+def procedure(
+    extractor: Any, items: Sequence[Mapping[str, Any]], setups: Sequence[Setup] = SETUPS
+) -> Outcome:
+    """Tune every setup on ``tune``, select, then score ``current``, the selected setup and
+    the best single-model (non-hybrid) setup once on ``heldout``."""
+    tune = [evaluate(s.name, gliner2_classifier(s, extractor), items, "tune") for s in setups]
+    selected = select(tune)
+    singles = [t for t, s in zip(tune, setups, strict=True) if not s.rules_first]
+    best_single = select(singles)
+    names = dict.fromkeys([CURRENT.name, selected, best_single])
+    by_name = {s.name: s for s in setups}
+    heldout = [
+        evaluate(n, gliner2_classifier(by_name[n], extractor), items, "heldout") for n in names
+    ]
+    tune = baselines(items, "tune") + tune
+    return Outcome(tune, baselines(items, "heldout") + heldout, selected, best_single)
+
+
+def report(outcome: Outcome, model: str, source: str) -> str:
+    heldout = {s.name: s for s in outcome.heldout}
+    parts = [
+        "# G24: GLiNER2 read-planner results",
+        "",
+        f"Generated by `evals/gliner2_planner_eval.py run` on {source}; model `{model}`, CPU.",
+        "Pre-registration: `G24_gliner2_planner.md`. Labels: the frozen rule-derived set.",
+        "",
+        "## Held-out half (read once)",
+        "",
+        render_scores(outcome.heldout),
+        "",
+        f"Selected on tune: **{outcome.selected}**. Best single-model setup: "
+        f"**{outcome.best_single}**.",
+        f"Decision rule (selected beats `current` on held-out accuracy): "
+        f"**{'ship' if outcome.ship else 'do not ship'}** "
+        f"({heldout[outcome.selected].accuracy:.3f} vs {heldout[CURRENT.name].accuracy:.3f}).",
+        "",
+    ]
+    for score in outcome.heldout:
+        parts += [render_confusion(score), ""]
+    parts += ["## Tune half (all setups)", "", render_scores(outcome.tune), ""]
+    return "\n".join(parts)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -356,9 +488,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     b.add_argument("--locomo", type=Path, required=True)
     b.add_argument("--out", type=Path, default=FIXTURE)
     r = sub.add_parser("run")
-    r.add_argument("--split", choices=("tune", "heldout", "both"), default="tune")
+    r.add_argument("--split", choices=("tune", "both"), default="tune")
     r.add_argument("--model", default="fastino/gliner2-base-v1")
-    r.add_argument("--setup", action="append", help="only these setup names")
+    r.add_argument("--setup", action="append", help="tune only: just these setup names")
     r.add_argument("--confusion", action="store_true")
     r.add_argument("--out", type=Path, default=None)
     args = parser.parse_args(argv)
@@ -367,16 +499,23 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(json.dumps({k: v for k, v in fixture.items() if k != "items"}, indent=1))
         print(Counter((it["mode"], it["split"]) for it in fixture["items"]))
         return 0
-    setups = [s for s in SETUPS if not args.setup or s.name in args.setup]
-    scores = run(args.split, args.model, setups, load_fixture())
-    table = render_scores(scores)
-    print(table)
-    if args.confusion:
-        for s in scores:
-            print()
-            print(render_confusion(s))
+    items = load_fixture()
+    extractor = load_model(args.model)
+    if args.split == "tune":
+        setups = [s for s in SETUPS if not args.setup or s.name in args.setup]
+        scores = baselines(items, "tune") + [
+            evaluate(s.name, gliner2_classifier(s, extractor), items, "tune") for s in setups
+        ]
+        print(render_scores(scores))
+        if args.confusion:
+            for score in scores:
+                print()
+                print(render_confusion(score))
+        return 0
+    text = report(procedure(extractor, items), args.model, time.strftime("%Y-%m-%d"))
+    print(text)
     if args.out:
-        args.out.write_text(table + "\n", encoding="utf-8")
+        args.out.write_text(text, encoding="utf-8")
     return 0
 
 
