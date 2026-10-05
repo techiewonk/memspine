@@ -8,12 +8,15 @@ from __future__ import annotations
 
 import io
 import logging
+import re
 import sys
-from typing import TextIO
+from collections.abc import MutableMapping
+from typing import Any, TextIO
 
 import structlog
 
 from memspine.core.events import EventKind
+from memspine.core.redaction import redact
 
 __all__ = [
     "EVENT_CONFLICT",
@@ -29,6 +32,8 @@ __all__ = [
     "EVENT_WRITE",
     "configure_logging",
     "get_logger",
+    "redact_error",
+    "redact_error_fields",
 ]
 
 # M11 vocabulary — derived from EventKind so log names and event kinds
@@ -44,6 +49,36 @@ EVENT_FORGET = EventKind.FORGET.value
 EVENT_REBUILD = EventKind.REBUILD.value
 EVENT_EXPOSE = EventKind.EXPOSE.value
 EVENT_MARKER = EventKind.MARKER.value
+
+
+#: Log fields that carry exception or error text (third-party messages can echo
+#: credentials, DSNs or record content back).
+_ERROR_FIELDS = frozenset({"error", "detail", "exc", "exception"})
+_URL_USERINFO = re.compile(r"([a-z][a-z0-9+.-]*://)[^/\s:@]+:[^/\s@]+@", re.IGNORECASE)
+#: Error text past this many characters is cut: a long message is usually an
+#: echoed payload, not a diagnosis.
+_ERROR_MAX_CHARS = 500
+
+
+def redact_error(value: object) -> str:
+    """Error text safe for a log line: secrets, PII and URL credentials masked
+    (:func:`memspine.core.redaction.redact`), then cut at 500 characters."""
+    text = _URL_USERINFO.sub(r"\1***@", str(value))
+    text = redact(text, pii=True)[0]
+    if len(text) > _ERROR_MAX_CHARS:
+        text = text[:_ERROR_MAX_CHARS] + "...[truncated]"
+    return text
+
+
+def redact_error_fields(
+    _logger: Any, _method: str, event_dict: MutableMapping[str, Any]
+) -> MutableMapping[str, Any]:
+    """structlog processor: :func:`redact_error` on every error-text field."""
+    for key in _ERROR_FIELDS & set(event_dict):
+        value = event_dict[key]
+        if isinstance(value, str | BaseException):
+            event_dict[key] = redact_error(value)
+    return event_dict
 
 
 def _utf8_console_stream() -> TextIO:
@@ -73,6 +108,7 @@ def configure_logging(level: str = "INFO", json_output: bool = False) -> None:
         processors=[
             structlog.contextvars.merge_contextvars,
             structlog.processors.add_log_level,
+            redact_error_fields,
             structlog.processors.TimeStamper(fmt="iso", utc=True),
             renderer,
         ],

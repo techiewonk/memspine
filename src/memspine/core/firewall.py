@@ -20,13 +20,14 @@ so every later consumer — retrieval, consolidation, dedup — reads one row.
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass, field
 
 from memspine.config import constants
 from memspine.core.policies.trust import TrustPolicy
 from memspine.core.records import MemoryRecord, RecordStatus
 
-__all__ = ["Firewall", "FirewallVerdict", "instruction_shaped"]
+__all__ = ["Firewall", "FirewallVerdict", "instruction_shaped", "normalize_for_screening"]
 
 #: Imperative-injection framing (MINJA/ASI06 corpus). Deliberately coarse:
 #: the flag is *inert* metadata + a quarantine input, never a deletion.
@@ -49,9 +50,29 @@ _INSTRUCTION_PATTERNS: tuple[re.Pattern[str], ...] = tuple(
 )
 
 
+#: Format characters that render as nothing but split a word for a regex:
+#: zero-width space/joiners, word joiner, BOM, soft hyphen, Mongolian vowel
+#: separator, and the bidi embedding/isolate controls.
+_INVISIBLE = re.compile("[­᠎​-‏‪-‮⁠-⁤⁦-⁩﻿]")
+
+
+def normalize_for_screening(content: str) -> str:
+    """NFKC fold, then drop invisible format characters.
+
+    NFKC maps compatibility forms (full-width letters, ligatures, styled
+    mathematical letters) to their plain letters, so the full-width form of
+    ``ignore`` reads as ``ignore``; stripping zero-width characters rejoins a
+    word an attacker split to slip past ``\\b`` boundaries. Used only for
+    screening: the stored content is never rewritten."""
+    return _INVISIBLE.sub("", unicodedata.normalize("NFKC", content))
+
+
 def instruction_shaped(content: str) -> bool:
-    """Deterministic instruction-framing detector (E1). Content-only, cheap."""
-    return any(pattern.search(content) for pattern in _INSTRUCTION_PATTERNS)
+    """Deterministic instruction-framing detector (E1). Content-only, cheap.
+
+    The patterns run on :func:`normalize_for_screening` of ``content``."""
+    text = normalize_for_screening(content)
+    return any(pattern.search(text) for pattern in _INSTRUCTION_PATTERNS)
 
 
 @dataclass
