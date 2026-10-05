@@ -126,13 +126,13 @@ async def test_unbound_plan_role_falls_back_to_rules(monkeypatch: pytest.MonkeyP
 async def test_aggregate_subqueries_are_extra_probes(monkeypatch: pytest.MonkeyPatch) -> None:
     eng = _engine(monkeypatch, _Plan(_plan("aggregate", ["Ana pottery classes", "Ana cat"])))
     probes: list[str] = []
-    real_search = Engine.search
+    real_search = Engine._search  # compose probes go through _search (A-1)
 
     async def spy(self: Engine, query: str, *args: Any, **kwargs: Any) -> Any:
         probes.append(query)
         return await real_search(self, query, *args, **kwargs)
 
-    monkeypatch.setattr(Engine, "search", spy)
+    monkeypatch.setattr(Engine, "_search", spy)
     await eng.start()
     try:
         await _seed(eng)
