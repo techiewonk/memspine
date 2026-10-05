@@ -576,7 +576,7 @@ async def _compose_with_rrf_k(monkeypatch: pytest.MonkeyPatch, rrf_k: int | None
             order = "AXYB" if probe == query else "ZWVB"
             return [(recs[n], 0.9) for n in order]
 
-        monkeypatch.setattr(eng, "search", fake_search)
+        monkeypatch.setattr(eng, "_search", fake_search)  # compose reads via _search (A-1)
         out = await eng.read(query, namespace="a", mode="compose", top_k=1, budget_tokens=500)
         return {r.content for r in out.context.records}
     finally:

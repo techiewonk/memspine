@@ -42,7 +42,7 @@ async def _session(eng: Engine, monkeypatch: pytest.MonkeyPatch) -> list[MemoryR
     ) -> list[tuple[MemoryRecord, float]]:
         return [(hit, 0.9)]
 
-    monkeypatch.setattr(eng, "search", fake_search)
+    monkeypatch.setattr(eng, "_search", fake_search)  # compose reads via _search (A-1)
     return turns
 
 

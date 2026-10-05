@@ -67,23 +67,29 @@ def timeline_line(record: MemoryRecord, entity: str, until: datetime | None = No
     return line
 
 
-def card_line(record: MemoryRecord, said: datetime | None = None) -> str:
-    """G1b: one card, ``[YYYY-MM-DD] Entity: fact``.
+def card_line(record: MemoryRecord, said: datetime | None = None, *, claim: bool = False) -> str:
+    """G1b: one card, ``[said YYYY-MM-DD] Entity: fact``.
 
     A mined fact is stored as ``"<entity> <attribute>: <statement>"``; the card
     keeps the entity and the statement. Content without that shape (a wrapped
-    low-trust or instruction-flagged fact) is shown whole.
+    low-trust or instruction-flagged fact) is shown whole. ``said`` is the date the
+    fact was said (its earliest source turn); without one the card has no date,
+    since the block's marker reads every date as "when it was said" and the
+    fact's own ``valid_from`` is the event date. ``claim`` (B9) prefixes
+    :data:`constants.CLAIM_MARKER`.
     """
     text = " ".join(record.content.split())
     if record.entity:
         rest = _strip_entity(text, record.entity)
         if rest != text and ": " in rest:
             text = f"{record.entity}: {rest.split(': ', 1)[1]}"
+    if claim:
+        text = f"{constants.CLAIM_MARKER} {text}"
     if said is not None:
         # The date the fact was SAID (its earliest source turn): the miner's event
         # date is unreliable, and the source turn carries the resolved event date.
         return f"[said {said:%Y-%m-%d}] {text}"
-    return f"[{record.valid_from:%Y-%m-%d}] {text}"
+    return text
 
 
 #: Capitalised words that open or join a question, never a person's name.
