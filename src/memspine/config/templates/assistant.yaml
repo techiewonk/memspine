@@ -6,12 +6,14 @@
 #   at the same ~1.6K-token context. All rules, no extra model calls.
 # For the best measured accuracy (80.6%) add a reranker, e.g. Cohere Rerank 3.5 on
 # Bedrock (uncomment the three rerank lines; needs the full model ARN and AWS creds).
-# Read with Engine.read(mode="replay") for chat transcripts; the dated QA prompt the
-# ablation used belongs to the caller's answer step, not to the engine.
+# Everything combo-A used is pinned here: Engine.read() defaults to replay, and
+# Engine.chat_messages() renders the dated answer prompt (chat@dated, H12) for the
+# caller's own model call.
 extends: base
 profile: assistant
 
 read:
+  default_mode: replay          # combo-A read path (auto's compose routing measured -2.1)
   record_access: false          # a read must not boost recency for the next question
   resolve_relative_dates: true  # H1: "last Friday" -> [= 2023-05-12]  (+5.9 alone)
   order_by_time_for_ordering: true  # H16: first/latest/before -> time order (+1.1)
@@ -24,6 +26,11 @@ read:
   # rerank: litellm
   # rerank_model: bedrock/arn:aws:bedrock:us-east-1::foundation-model/cohere.rerank-v3-5:0
   # candidate_pool: 3
+
+prompts:
+  selection:
+    chat:
+      condition: dated          # H12: chat@dated answer prompt (+3.2 alone)
 
 memories:
   episodic:

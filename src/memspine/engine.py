@@ -2343,17 +2343,34 @@ class Engine:
                     )
         return rendered
 
+    def chat_messages(
+        self, message: str, context: str = "", *, condition: str | None = None
+    ) -> list[dict[str, str]]:
+        """Render the ``chat`` prompt for the caller's own model call.
+
+        memspine does not answer; this hands back the messages to send, with the
+        memory context in place. ``prompts.selection.chat`` picks the variant (the
+        ``assistant`` template selects ``chat@dated``, H12); ``condition`` overrides it
+        per call (``"dated"``, or ``""`` for the base prompt).
+        """
+        if self._prompts is None:
+            raise MemspineError("Engine not started — call start() first")
+        prompt = self._prompts.select("chat", condition=condition)
+        return prompt.render({"context": context, "message": message})
+
     async def read(
         self,
         query: str,
         namespace: str = "default",
-        mode: str = "auto",
+        mode: str | None = None,
         budget_tokens: int = constants.ASSEMBLE_BUDGET_TOKENS,
         top_k: int = constants.ASSEMBLE_TOP_K,
         replay_window: int = 2,
         compose_pool: int = 3,
     ) -> ReadResult:
         """C7': mode-routed read. Rules decide; no model on the read path.
+
+        ``mode=None`` uses ``read.default_mode`` (``auto`` unless a template pins one).
 
         - ``full``: every live, admitted record in the namespace, chronological,
           when it fits ``budget_tokens`` (else falls back to ``retrieve``);
@@ -2382,6 +2399,8 @@ class Engine:
         live re-evaluation, judged on the effective trust); the instruction-flag
         and untrusted-note wrappers apply as in assembly.
         """
+        if mode is None:
+            mode = self._config().read.default_mode  # "auto" unless a template pins one
         if mode not in ("auto", "full", "replay", "retrieve", "compose"):
             raise ValueError(f"unknown read mode {mode!r}")
         storage = self._require_started()

@@ -285,6 +285,10 @@ class ReadConfig(BaseModel):
     rrf_k: int | None = Field(default=None, ge=1)
     #: ContextPipe: tokens kept free for the reply inside the assembly budget.
     reply_reserve_tokens: int = Field(default=0, ge=0)
+    #: The mode ``Engine.read()`` uses when the caller passes none. ``auto`` keeps the
+    #: routed behaviour; the ``assistant`` template pins ``replay`` (combo-A, LoCoMo:
+    #: compose routing measured -2.1, replay is the base of every winning arm).
+    default_mode: Literal["auto", "full", "replay", "retrieve", "compose"] = "auto"
     #: Hindsight: prefix reranker inputs with ``[Date: YYYY-MM-DD]``.
     rerank_date_prefix: bool = False
     #: Agent Zero: skip the reranker for ordering questions (first / latest / ...).

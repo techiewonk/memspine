@@ -39,6 +39,7 @@
       "core_terms_leg": false,
       "cue_min_trust": 0.5,
       "current_state_view": false,
+      "default_mode": "auto",
       "gap_markers": false,
       "hybrid": true,
       "lead_budget_tokens": 400,
