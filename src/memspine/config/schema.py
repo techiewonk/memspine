@@ -111,17 +111,17 @@ class VectorConfig(BaseModel):
 
 
 class GraphConfig(BaseModel):
-    """Graph store selection (D-26). ``sqlite_adjacency`` is the zero-dep v0.1
-    default; ``ladybug`` (the published Kuzu fork, ``[graph]``) is the intended
-    embedded default once a follow-up ADR flips it — until then it is a fully
-    working opt-in; ``kuzu`` is the first-class embedded-Cypher alternative
-    behind ``[kuzu]``. The store is only constructed when associative memory
+    """Graph store selection (D-26). ``sqlite_adjacency`` is the zero-dep
+    default and fallback; ``ladybug`` (the maintained Kùzu fork, ``[graph]``) is
+    the graph engine for graph features (ADR-034); ``kuzu`` is a deprecated alias
+    for one release (Kùzu was archived on 2025-10-10; ``DeprecationWarning``).
+    The store is only constructed when associative memory
     is enabled or this block is set explicitly — ``profile="simple"`` never
     touches it."""
 
     model_config = ConfigDict(extra="forbid")
 
-    provider: str = "sqlite_adjacency"  # sqlite_adjacency | kuzu | ladybug | neo4j
+    provider: str = "sqlite_adjacency"  # sqlite_adjacency | ladybug | kuzu (deprecated) | neo4j
 
 
 class LLMRoleConfig(BaseModel):

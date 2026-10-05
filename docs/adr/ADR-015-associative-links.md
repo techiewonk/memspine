@@ -98,10 +98,10 @@ naming `[graph]`), and **kuzu stayed the first-class alternative** behind
 heavier native dependency in the zero-extra associative path, and
 `sqlite_adjacency` already serves the shallow graphs the link budget allows.
 
-**Update (2026-07-09):** the fork — now published as `ladybug` on PyPI
-(v0.18.0, 2026-07-01; MIT-licensed, actively maintained; Kuzu's own
-development stopped after Apple acquired and closed it) — is real and
-installable. `[graph]` now declares `ladybug>=0.18` and
+**Update (2026-07-09):** the fork — published as `ladybug` on PyPI
+(first release v0.18.0, 2026-07-01; MIT-licensed, actively maintained) — is
+real and installable. `[graph]` declared `ladybug>=0.18` (now pinned
+`>=0.21,<0.22`, ADR-034) and
 `services/graph/ladybug.py` is a genuine adapter (verified against the
 installed package: the fork kept Kuzu's embedded-Cypher Python API and DDL
 dialect — including `CREATE NODE/REL TABLE IF NOT EXISTS` — unchanged, so the
@@ -110,6 +110,15 @@ adapter mirrors `kuzu.py` line-for-line). The config default deliberately
 `profile="simple"` install hard-fail without `[graph]` installed, breaking
 "profiles stay green." Promoting `ladybug` to the config default is left as
 an explicit follow-up decision for a future ADR, not made here.
+
+**Update (2026-10-05, ADR-034):** release history corrected — Kùzu's upstream
+repository was archived on 2025-10-10 (the earlier text gave no date and
+described it only as "closed"); LadybugDB is its maintained fork (0.18.0 on 2026-07-01 through 0.21.2 on
+2026-10-01). ADR-034 makes LadybugDB the graph engine for graph features,
+keeps `sqlite_adjacency` as the zero-dep default and fallback, and turns
+`kuzu` into a deprecated alias for one release. The graph tables gain
+`namespace`/`weight`/`kind` (KB-1), so PPR, BFS and Leiden stay inside one
+namespace.
 
 ## Consequences
 

@@ -205,3 +205,29 @@ async def test_default_context_lock_is_a_noop(monkeypatch: pytest.MonkeyPatch) -
     ctx, _harness, _graph = await make_ctx()
     async with ctx.lock("agent/a"):
         pass  # must not raise, block, or need an event-loop-bound Lock
+
+
+async def test_leiden_runs_per_namespace_over_that_namespace_only(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """KB-9: one detection per namespace, fed only that namespace's edges."""
+    ctx, harness, _graph = await make_ctx()
+    a = [await write(harness, f"a fact {i}. detail") for i in range(2)]
+    b = [await write(harness, f"b fact {i}. detail", ns="agent/b") for i in range(2)]
+    from memspine.memories.associative.links import link_event
+
+    await harness.append(link_event("agent/a", a[0].record_id, a[1].record_id, "related", 1.0, "t"))
+    await harness.append(link_event("agent/b", b[0].record_id, b[1].record_id, "related", 1.0, "t"))
+    monkeypatch.setattr(pipelines, "communities_available", lambda: True)
+    seen: list[set[str]] = []
+
+    def fake_detect(edges: list[object], **_knobs: object) -> list[list[str]]:
+        seen.append({e.src for e in edges} | {e.dst for e in edges})  # type: ignore[attr-defined]
+        return []
+
+    monkeypatch.setattr(pipelines, "detect_communities", fake_detect)
+    await reorganize(ctx)
+    ids_a = {r.record_id for r in a}
+    ids_b = {r.record_id for r in b}
+    assert ids_a in seen and ids_b in seen
+    assert all(not (s & ids_a and s & ids_b) for s in seen)

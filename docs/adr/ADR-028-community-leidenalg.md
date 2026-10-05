@@ -66,6 +66,27 @@ The `randomness` knob (`memories.associative.policies.community.randomness`) is
   `reorganize` calling chain are unchanged; without the extra `detect_communities`
   / `reorganize` remain clean no-ops (logged once at INFO).
 
+## Licence status of `[community]` (added 2026-10-05, KB-10)
+
+`leidenalg` is **GPL-3.0-or-later** and `igraph` (python-igraph) is
+**GPL-2.0-or-later**; memspine is Apache-2.0. The extra stays optional and is
+never imported by core: `communities.py` imports `leidenalg` lazily, and without
+it `reorganize` is a logged no-op. memspine's wheel neither bundles nor depends
+on either package. Anyone who *distributes* a build or image with `[community]`
+installed ships GPL code and takes on its terms; using it locally does not change
+memspine's own licence. `[community]` is in the `all` bundle for development
+convenience only. A permissive replacement (e.g. a Louvain/Leiden
+implementation under MIT/BSD) would remove the caveat; none with the
+determinism guarantee above was found, so this is documented, not changed.
+
+## Per-namespace runs (added 2026-10-05, KB-9)
+
+`reorganize` runs Leiden once per namespace over `edge_list(namespace)`, so no
+community and no summary parent spans two tenants. Single-namespace results are
+unchanged. With several namespaces the partitions can differ from the old
+global run, because the modularity null model depends on the total edge weight
+of the graph it sees.
+
 ## Alternatives rejected
 
 - **Keep graspologic, pin `numpy<2` everywhere** — rejected: it caps the entire

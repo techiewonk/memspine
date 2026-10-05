@@ -156,3 +156,47 @@ async def test_clear_then_replay_reproduces_identical_projection(
     )
     assert after_edges == before_edges
     assert (await store.node_count(), await store.edge_count()) == before_counts
+
+
+async def test_multi_hop_walk_is_one_query(store: SQLiteAdjacencyGraph) -> None:
+    """KB-2: depth-3 BFS is one recursive CTE plus one node fetch, not a query per node."""
+    from sqlalchemy import event
+
+    for i in range(30):
+        await store.upsert_edge(f"n{i}", f"n{i + 1}", "related", {"weight": 0.5})
+    statements: list[str] = []
+
+    def count(*args: object) -> None:
+        statements.append(str(args[2]))
+
+    sync_engine = store._client.engine.sync_engine
+    event.listen(sync_engine, "before_cursor_execute", count)
+    try:
+        found = await store.neighbors("n0", depth=3)
+    finally:
+        event.remove(sync_engine, "before_cursor_execute", count)
+    assert [n.node_id for n in found] == ["n1", "n2", "n3"]
+    assert len(statements) == 2
+    assert "WITH RECURSIVE" in statements[0]
+
+
+async def test_upsert_mirrors_weight_kind_and_namespace_columns(
+    store: SQLiteAdjacencyGraph,
+) -> None:
+    from sqlalchemy import select
+
+    from memspine.services.storage.sqlite.schema import graph_edges, graph_nodes
+
+    await store.upsert_node("r1", labels=["episodic"], properties={"namespace": "ns/a"})
+    await store.upsert_edge("r1", "r2", "read", {"weight": 0.3, "kind": "event"}, namespace="ns/a")
+    async with store._client.engine.connect() as conn:
+        edge = (
+            await conn.execute(
+                select(graph_edges.c.namespace, graph_edges.c.weight, graph_edges.c.kind)
+            )
+        ).one()
+        nodes = dict(
+            (await conn.execute(select(graph_nodes.c.node_id, graph_nodes.c.namespace))).all()
+        )
+    assert tuple(edge) == ("ns/a", 0.3, "event")
+    assert nodes == {"r1": "ns/a", "r2": "ns/a"}  # the bare endpoint inherits the edge's ns

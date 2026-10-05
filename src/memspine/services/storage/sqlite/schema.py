@@ -116,15 +116,24 @@ memory_records = Table(
 )
 
 # Zero-dep graph fallback (P6, D-26): adjacency lists for associative memory,
-# the v0.1 default (ladybugdb is not on PyPI yet). Labels/properties are
-# canonical orjson blobs (D-38). A rebuildable projection like every other
-# derived store (D0.1) — never a second source of truth.
+# the zero-dep default (ladybug is the embedded graph engine, ADR-034). Labels/
+# properties are canonical orjson blobs (D-38). A rebuildable projection like
+# every other derived store (D0.1) — never a second source of truth.
+#
+# KB-1 (migration 0003): ``namespace`` on nodes and edges (tenant isolation:
+# PPR, BFS and Leiden filter on it); ``weight`` as a REAL column (the walk
+# weight, mirrored from the properties blob so the recursive-CTE BFS can rank
+# and drop tombstones in SQL); ``kind`` (node: its memory type; edge: the
+# optional ``kind`` property, e.g. state/event).
 graph_nodes = Table(
     "graph_nodes",
     metadata,
     Column("node_id", String, primary_key=True),
     Column("labels", LargeBinary, nullable=False),
     Column("properties", LargeBinary, nullable=False),
+    Column("namespace", String, nullable=False, server_default=""),
+    Column("kind", String),
+    Index("ix_graph_nodes_namespace", "namespace"),
 )
 
 graph_edges = Table(
@@ -134,9 +143,15 @@ graph_edges = Table(
     Column("dst", String, primary_key=True),
     Column("rel_type", String, primary_key=True),
     Column("properties", LargeBinary, nullable=False),
+    Column("namespace", String, nullable=False, server_default=""),
+    Column("weight", Float, nullable=False, server_default="1.0"),
+    Column("kind", String),
     # src lookups ride the composite PK; dst lookups need their own index for
-    # the undirected traversal neighbors()/edges_of() perform.
+    # the undirected traversal neighbors()/edges_of() perform. The namespace
+    # indexes serve the per-tenant walk, ranked by weight (KB-1).
     Index("ix_graph_edges_dst", "dst"),
+    Index("ix_graph_edges_ns_src_weight", "namespace", "src", "weight"),
+    Index("ix_graph_edges_ns_dst_weight", "namespace", "dst", "weight"),
 )
 
 # NOTE(ADR-021/ADR-025): ``memory_embeddings`` (the removed SQLite brute-force

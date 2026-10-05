@@ -34,13 +34,15 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# NOTE(D-26): ladybug (the actively-maintained, MIT-licensed Kuzu fork — Kuzu's own
-# development stopped after Apple acquired and closed it) published v0.18.0 on PyPI
-# on 2026-07-01. The adapter is real (services/graph/ladybug.py); ``graph.provider``
-# still defaults to sqlite_adjacency (D-03 slim core) — flipping the default is a
-# deliberate follow-up decision for a future ADR, not made here.
-graph      = ["ladybug>=0.18"]                       # default embedded graph adapter (D-26)
-kuzu       = ["kuzu>=0.11"]                         # embedded-Cypher graph alt (D-26)
+# NOTE(ADR-034): ladybug (the maintained, MIT-licensed Kùzu fork; Kùzu itself was
+# archived on 2025-10-10) is the graph engine for graph features. Pinned to one
+# minor: the embedded storage format and Cypher surface move between minors.
+# ``graph.provider`` still defaults to sqlite_adjacency (D-03 slim core).
+graph      = ["ladybug>=0.21,<0.22"]                 # embedded Cypher graph engine (D-26, ADR-034)
+# DEPRECATED (ADR-034): ``graph.provider: kuzu`` works for one more release with a
+# DeprecationWarning. Not in ``all``: kuzu and ladybug register the same native
+# types and cannot be imported into one process.
+kuzu       = ["kuzu>=0.11"]                         # deprecated alias provider (ADR-034)
 cache      = ["cashews[redis,diskcache]>=7.0"]       # unified disk + redis/valkey cache (D-09, ADR-022)
 ingest     = ["markitdown>=0.1", "chonkie>=1.0"]    # multi-format ingest + chunking (D-29)
 structured = ["instructor>=1.9"]                    # schema-validated LLM output (D-31)
@@ -66,7 +68,7 @@ local      = ["memspine[graph,cache,dbos,ingest,ner]"]
 prod-aws   = ["memspine[aws,taskiq,rest]"]
 # `community` (leidenalg) declares no numpy pin (ADR-028), so it no longer conflicts
 # with `ingest` (numpy>=2.1) and is included in `all` — `--all-extras` is unblocked.
-all        = ["memspine[graph,kuzu,cache,ingest,structured,ner,community,compress,llmlocal,opensearch,dbos,taskiq,rest,rerank,static,aws,postgres,weaviate,neo4j]"]
+all        = ["memspine[graph,cache,ingest,structured,ner,community,compress,llmlocal,opensearch,dbos,taskiq,rest,rerank,static,aws,postgres,weaviate,neo4j]"]
 
 dev = [
     "pytest>=8.3",

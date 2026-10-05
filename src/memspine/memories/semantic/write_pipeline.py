@@ -17,13 +17,23 @@ N2: edge facts are LLM-authored, so they carry the non-privileged
 through the engine's firewall before the ladder. An instruction-flagged source
 yields no edges.
 
+GP-1: an edge carries ``kind``. A ``state`` edge (lives_in, works_at) keeps the
+``(entity=src, attribute=rel)`` key and supersedes through the ladder; an ``event``
+edge (read, visited) drops the attribute, so the ladder ADDs it beside the
+person's other events instead of archiving them (the G1a rule, applied to edges).
+A protected ``src.rel`` key keeps its attribute whatever the extractor called it.
+Every edge fact is tagged ``kind:<kind>``, ``rel:<rel>`` and ``dst:<dst_entity>``,
+so the destination entity survives on the record.
+
 The whole stage is off unless the engine injects a pipeline (policy ``graph`` +
 an ``extract_edges`` LLM role), so ``profile="simple"`` is byte-identical.
 """
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Collection, Sequence
+from dataclasses import dataclass
+from datetime import datetime
 from typing import Protocol
 
 from memspine.config.constants import DERIVED_ROLE
@@ -34,11 +44,13 @@ from memspine.prompts.models import ExtractedEdge
 
 __all__ = [
     "EDGE_CHANNEL",
+    "EdgeContext",
     "ExtractEdges",
     "GraphWritePipeline",
     "ResolveEntity",
     "ScreenDerived",
     "WritePipeline",
+    "edge_fact_key",
 ]
 
 _log = get_logger(__name__)
@@ -47,8 +59,50 @@ _log = get_logger(__name__)
 #: the pipeline for these so an edge record never recurses into more extraction.
 EDGE_CHANNEL = "write_pipeline"
 
-#: LLM edge extraction: source text -> reflexion-merged relationship edges.
-ExtractEdges = Callable[[str], Awaitable[list[ExtractedEdge]]]
+#: GR-4: at most this many earlier episodes ride along as extraction context.
+MAX_PREVIOUS_EPISODES = 10
+
+
+@dataclass(frozen=True)
+class EdgeContext:
+    """GR-4: what the edge extractor sees besides the content itself.
+
+    ``reference_time`` anchors relative dates ("yesterday", "last week");
+    ``previous`` holds up to :data:`MAX_PREVIOUS_EPISODES` earlier episodes
+    (context for pronouns, never a source of edges); ``entities`` lists names
+    already known in the namespace so the extractor reuses them verbatim.
+    """
+
+    reference_time: datetime | None = None
+    previous: Sequence[str] = ()
+    entities: Sequence[str] = ()
+
+
+class ExtractEdges(Protocol):
+    """LLM edge extraction: source text (+ optional context) -> reflexion-merged edges."""
+
+    def __call__(
+        self, content: str, context: EdgeContext | None = None, /
+    ) -> Awaitable[list[ExtractedEdge]]: ...
+
+
+def edge_fact_key(
+    edge: ExtractedEdge, entity: str, protected_keys: Collection[str] = ()
+) -> tuple[str | None, list[str]]:
+    """GP-1: the ``(attribute, tags)`` an edge fact record is written with.
+
+    A ``state`` edge keeps ``attribute=rel`` so a newer ``(src, rel)`` edge
+    supersedes it. An ``event`` edge drops the attribute so it is never
+    superseded, unless ``entity.rel`` is a protected key (an extractor calling
+    it an event must not dodge the protected-key check). The tags persist the
+    kind, the relation and the destination entity on the record.
+    """
+    tags = [f"kind:{edge.kind}", f"rel:{edge.rel}", f"dst:{edge.dst_entity}"]
+    if edge.kind == "event" and f"{entity}.{edge.rel}" not in protected_keys:
+        return None, tags
+    return edge.rel, tags
+
+
 #: Optional entity canonicalization: a mention -> its canonical name.
 ResolveEntity = Callable[[str], Awaitable[str]]
 #: The memory's own write-a-fact entry point (``SemanticMemory._write_locked``).
@@ -72,16 +126,24 @@ class GraphWritePipeline:
         extract_edges: ExtractEdges,
         resolve_entity: ResolveEntity | None = None,
         min_confidence: float = 0.0,
+        protected_keys: Collection[str] = (),
     ) -> None:
         self._extract_edges = extract_edges
         self._resolve_entity = resolve_entity
         self._min_confidence = min_confidence
+        self._protected_keys = frozenset(protected_keys)
 
     async def run(self, record: MemoryRecord, write_fact: WriteFact) -> int:
         if record.instruction_flag or record.quarantined:
             return 0  # N2: held or instruction-shaped content is not a fact source
         try:
-            edges = await self._extract_edges(record.content)
+            # GR-4: the write-time pass has the record's own event time and its
+            # fact key; earlier episodes are the sleep-time (C2) pass's context.
+            context = EdgeContext(
+                reference_time=record.valid_from,
+                entities=[record.entity] if record.entity else [],
+            )
+            edges = await self._extract_edges(record.content, context)
         except Exception as exc:  # the LLM is an enhancer, never a gate (N6)
             _log.warning(
                 "write_pipeline.extract_failed", record_id=record.record_id, error=str(exc)
@@ -97,12 +159,14 @@ class GraphWritePipeline:
                     entity = await self._resolve_entity(edge.src_entity) or edge.src_entity
                 except Exception as exc:  # canonicalization is best-effort (N6)
                     _log.warning("write_pipeline.resolve_failed", error=str(exc))
+            attribute, tags = edge_fact_key(edge, entity, self._protected_keys)
             fact = MemoryRecord(
                 namespace=record.namespace,
                 memory_type="semantic",
                 content=edge.fact,
                 entity=entity,
-                attribute=edge.rel,
+                attribute=attribute,
+                tags=tags,
                 # E1/D-47 §5: derived trust never exceeds the source; echoed
                 # injection framing stays flagged.
                 trust=record.trust,
