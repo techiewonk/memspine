@@ -1,7 +1,7 @@
-"""Graph community detection (D-40, ADR-028, ADR-036): a hybrid Leiden → LPA
+"""Graph community detection (D-40, ADR-028, ADR-043): a hybrid Leiden → LPA
 partitioner, Leiden optional behind ``[community]``.
 
-Slim core (D-03): ``graspologic_native`` (MIT, a Rust Leiden; ADR-036 replaces
+Slim core (D-03): ``graspologic_native`` (MIT, a Rust Leiden; ADR-043 replaces
 the GPL ``leidenalg`` + ``igraph``) imports lazily and only here. Without the
 extra the Leiden entry points are clean no-ops, logged at INFO exactly once.
 The built-in label propagation (LPA) is pure Python and always available.
@@ -51,7 +51,7 @@ Mode = Literal["full", "incremental"]
 
 
 def communities_available() -> bool:
-    """Whether the ``[community]`` extra (graspologic-native, ADR-036) is installed."""
+    """Whether the ``[community]`` extra (graspologic-native, ADR-043) is installed."""
     global _absence_logged
     try:
         import graspologic_native  # noqa: F401

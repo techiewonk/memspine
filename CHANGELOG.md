@@ -4,7 +4,7 @@ All notable changes to memspine are documented here. Format: [Keep a Changelog](
 
 ## [Unreleased]
 
-### Changed — Wave 2 communities (2026-10-05, ADR-036)
+### Changed — Wave 2 communities (2026-10-05, ADR-043)
 - **#83 `[community]` = `graspologic-native>=1.3,<1.4` (MIT)** instead of `leidenalg` + `igraph` (GPL). `hierarchical_leiden` (10 iterations) replaces the `_split_oversized` recursion; `randomness` is now wired. Needs numpy + scipy.
 - **#85 hybrid algorithm:** `community.algorithm: auto|leiden|lpa` (default `auto`: Leiden when the extra is installed, else the usual no-op). Leiden is warm-started from the previous partition and refined by up to `refine_passes` (10) LPA passes. Opt-in `community.incremental` places only new nodes per sleep (`incremental_passes`, `refresh_fraction`, `refresh_every`), with state in `community_partition` MARKER events.
 - **#82 built-in LPA** (`algorithm: lpa`, no extra needed), deterministic, with a collapse guard (largest community > 50% of >= 100 nodes keeps the previous partition and warns).

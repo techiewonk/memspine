@@ -1,4 +1,4 @@
-# ADR-036 — Community detection: graspologic-native, hybrid Leiden → LPA, canonical order
+# ADR-043 — Community detection: graspologic-native, hybrid Leiden → LPA, canonical order
 
 - **Status:** accepted
 - **Date:** 2026-10-05

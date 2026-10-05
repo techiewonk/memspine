@@ -199,7 +199,7 @@ pip install "memspine[llmlocal]"               # llama-cpp-python in-proc infere
 | `compress` | assembly-time context compression (llmlingua-2, E5/D-32) |
 | `rerank` | E8 cross-encoder rerank alternative (flashrank) |
 | `static` | E4 model2vec static-embedding prefilter (ADR-020) |
-| `community` | Leiden graph community detection (graspologic-native, MIT, D-40/ADR-036 — needs numpy + scipy, no numpy ceiling) |
+| `community` | Leiden graph community detection (graspologic-native, MIT, D-40/ADR-043 — needs numpy + scipy, no numpy ceiling) |
 | `opensearch` | server-scale lexical backend for hybrid (OpenSearch / Elasticsearch, D-25) |
 | `dbos` / `taskiq` | durable / brokered worker runners (D-16) |
 | `rest` | REST protocol (FastAPI, D-06) |
