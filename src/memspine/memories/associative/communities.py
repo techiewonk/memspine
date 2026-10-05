@@ -25,7 +25,7 @@ from memspine.services.graph.base import GraphEdge
 if TYPE_CHECKING:
     pass
 
-__all__ = ["communities_available", "detect_communities"]
+__all__ = ["canonical_edges", "communities_available", "detect_communities"]
 
 _log = get_logger(__name__)
 
@@ -47,6 +47,25 @@ def communities_available() -> bool:
             _absence_logged = True
         return False
     return True
+
+
+def canonical_edges(edges: list[GraphEdge]) -> list[tuple[str, str, float]]:
+    """The undirected, store-order-independent form of ``edges`` (KB-13).
+
+    Tombstones (weight ``<= 0``, ADR-015) and self-loops are dropped; each pair
+    is keyed ``(min, max)`` and parallel edges (either direction) are summed in
+    sorted weight order, so the float sum is order-independent too. The result
+    is sorted by ``(src, dst)``: the same graph in any edge order yields the
+    same list, hence the same partition (rebuild determinism, D0.1).
+    """
+    weights: dict[tuple[str, str], list[float]] = {}
+    for edge in edges:
+        weight = edge.weight
+        if weight <= 0.0 or edge.src == edge.dst:
+            continue
+        pair = (edge.src, edge.dst) if edge.src < edge.dst else (edge.dst, edge.src)
+        weights.setdefault(pair, []).append(weight)
+    return [(src, dst, sum(sorted(ws))) for (src, dst), ws in sorted(weights.items())]
 
 
 def _split_oversized(
@@ -110,9 +129,10 @@ def detect_communities(
         return []
     import igraph
 
-    # Weighted, undirected, named graph straight from the edge list. Drop tombstone
-    # edges (weight <= 0) and self-loops; TupleList mints one named vertex per id.
-    tuples = [(e.src, e.dst, e.weight) for e in edges if e.weight > 0.0 and e.src != e.dst]
+    # Weighted, undirected, named graph from the canonical edge list (KB-13):
+    # TupleList mints vertices in first-seen order, and Leiden's result depends
+    # on vertex order, so store order must never reach it.
+    tuples = canonical_edges(edges)
     if not tuples:
         return []
     graph = igraph.Graph.TupleList(tuples, weights=True, directed=False)

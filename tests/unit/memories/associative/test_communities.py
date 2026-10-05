@@ -66,3 +66,65 @@ def test_leiden_knobs_are_accepted_and_deterministic() -> None:
     first = communities.detect_communities(_edges(), **kwargs)  # type: ignore[arg-type]
     second = communities.detect_communities(_edges(), **kwargs)  # type: ignore[arg-type]
     assert first == second == [["a", "b", "c"]]
+
+
+def _graph(n_groups: int = 4, size: int = 6) -> list[GraphEdge]:
+    """Dense groups chained by one weak bridge each (several distinct communities)."""
+    edges: list[GraphEdge] = []
+    for g in range(n_groups):
+        ids = [f"g{g}n{i}" for i in range(size)]
+        edges += [
+            GraphEdge(src=a, dst=b, rel_type="related", properties={"weight": 1.0})
+            for i, a in enumerate(ids)
+            for b in ids[i + 1 :]
+        ]
+        if g:
+            edges.append(
+                GraphEdge(
+                    src=f"g{g - 1}n0", dst=f"g{g}n0", rel_type="related", properties={"weight": 0.2}
+                )
+            )
+    return edges
+
+
+def test_canonical_edges_ignore_store_order_and_direction() -> None:
+    """KB-13 (#86): the same graph in any edge order and either direction gives
+    one canonical edge list, so the detector never sees store order."""
+    import random
+
+    edges = _graph()
+    shuffled = list(edges)
+    random.Random(7).shuffle(shuffled)
+    flipped = [
+        GraphEdge(src=e.dst, dst=e.src, rel_type=e.rel_type, properties=e.properties)
+        for e in shuffled
+    ]
+    canonical = communities.canonical_edges(edges)
+    assert (
+        canonical == communities.canonical_edges(shuffled) == communities.canonical_edges(flipped)
+    )
+    assert canonical == sorted(canonical)
+    assert all(src < dst for src, dst, _w in canonical)
+
+
+def test_canonical_edges_drop_tombstones_self_loops_and_sum_parallels() -> None:
+    edges = [
+        GraphEdge(src="b", dst="a", rel_type="related", properties={"weight": 0.5}),
+        GraphEdge(src="a", dst="b", rel_type="asserted", properties={"weight": 0.25}),
+        GraphEdge(src="a", dst="a", rel_type="related", properties={"weight": 1.0}),
+        GraphEdge(src="a", dst="c", rel_type="related", properties={"weight": 0.0}),
+    ]
+    assert communities.canonical_edges(edges) == [("a", "b", 0.75)]
+
+
+def test_shuffled_edges_give_an_identical_partition_when_installed() -> None:
+    if not communities.communities_available():
+        pytest.skip("[community] extra not installed")
+    import random
+
+    edges = _graph(n_groups=8, size=7)
+    expected = communities.detect_communities(edges)
+    for seed in range(5):
+        shuffled = list(edges)
+        random.Random(seed).shuffle(shuffled)
+        assert communities.detect_communities(shuffled) == expected
