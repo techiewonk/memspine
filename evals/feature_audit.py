@@ -1498,7 +1498,8 @@ async def _compose_with_rrf_k(rrf_k: int | None) -> set[str]:
             order = "AXYB" if probe == query else "ZWVB"
             return [(recs[n], 0.9) for n in order]
 
-        eng.search = fake_search
+        # compose fuses its probes through ``_search`` since review round 3 (A-1)
+        eng._search = fake_search  # type: ignore[method-assign]
         out = await eng.read(query, namespace="a", mode="compose", top_k=1, budget_tokens=500)
         return {r.content for r in out.context.records}
     finally:
