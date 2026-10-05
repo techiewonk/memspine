@@ -1,7 +1,8 @@
 """An offline stand-in for LiteLLM's transport, for rehearsals and tests (G5).
 
-``install_stub_litellm()`` replaces ``litellm.acompletion`` and ``litellm.aembedding``
-with deterministic local functions. Everything above the transport runs for real:
+``install_stub_litellm()`` replaces ``litellm.acompletion``, ``litellm.aembedding`` and
+``litellm.arerank`` (C-5: a cloud reranker such as Cohere on Bedrock) with
+deterministic local functions. Everything above the transport runs for real:
 the reader and judge, the call and dollar budgets, the engine's LLM roles with their
 ``/no_think`` switch and think stripping, structured parsing, and the token ledger.
 No request leaves the process.
@@ -59,6 +60,9 @@ class StubLiteLLM:
         self.think_unless_no_think = think_unless_no_think
         self.calls: Counter[str] = Counter()
         self.embeddings = 0
+        #: C-5: rerank requests (and documents sent) that reached the stub
+        self.reranks = 0
+        self.reranked_documents = 0
         #: completions whose last user message lacked /no_think (Qwen3 would think)
         self.thinking_calls = 0
 
@@ -211,6 +215,25 @@ class StubLiteLLM:
         data = [{"embedding": self.vector(str(t), dim), "index": i} for i, t in enumerate(inputs)]
         return SimpleNamespace(data=data, usage=SimpleNamespace(prompt_tokens=0, total_tokens=0))
 
+    # -- rerank ------------------------------------------------------------------
+
+    async def arerank(self, **kwargs: Any) -> Any:
+        """C-5: a cloud rerank (Cohere / Bedrock) stand-in: lexical-overlap relevance."""
+        query = set(_WORD.findall(str(kwargs.get("query") or "").lower()))
+        documents = [str(d) for d in kwargs.get("documents") or []]
+        self.reranks += 1
+        self.reranked_documents += len(documents)
+        results = []
+        for index, doc in enumerate(documents):
+            words = set(_WORD.findall(doc.lower()))
+            overlap = len(query & words) / (len(query) or 1)
+            results.append({"index": index, "relevance_score": round(overlap, 6)})
+        results.sort(key=lambda r: r["relevance_score"], reverse=True)
+        top_n = kwargs.get("top_n")
+        if top_n is not None:
+            results = results[: int(top_n)]
+        return SimpleNamespace(results=results, meta={"billed_units": {"search_units": 1}})
+
 
 @contextmanager
 def install_stub_litellm(stub: StubLiteLLM | None = None) -> Iterator[StubLiteLLM]:
@@ -218,10 +241,11 @@ def install_stub_litellm(stub: StubLiteLLM | None = None) -> Iterator[StubLiteLL
     import litellm
 
     stub = stub or StubLiteLLM()
-    saved = (litellm.acompletion, litellm.aembedding)
+    saved = (litellm.acompletion, litellm.aembedding, litellm.arerank)
     litellm.acompletion = stub.acompletion
     litellm.aembedding = stub.aembedding
+    litellm.arerank = stub.arerank
     try:
         yield stub
     finally:
-        litellm.acompletion, litellm.aembedding = saved
+        litellm.acompletion, litellm.aembedding, litellm.arerank = saved
