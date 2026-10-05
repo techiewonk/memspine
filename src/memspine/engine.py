@@ -4607,8 +4607,15 @@ class Engine:
         parents: list[str],
         valid_from: datetime,
         session_key: str,
+        *,
+        kind: str | None = None,
     ) -> MemoryRecord:
         """C6': one mined fact through the write door (firewall, ladder, MTI).
+
+        G1a: ``kind="event"`` drops the attribute, so the fact is ADDed beside the
+        person's other events instead of superseding them; ``kind="state"`` keeps
+        the (entity, attribute) key. The kind is tagged ``kind:<kind>``. None
+        (an unclassified caller) keeps the attribute as given.
 
         Trust is capped at the least-trusted source turn even with integrity
         off, exactly like a consolidation summary: derived content is never
@@ -4618,6 +4625,13 @@ class Engine:
         ns = validate_namespace(namespace)
         sources = [r for r in [await storage.get_record(p) for p in parents] if r is not None]
         tags = ["atomic_fact", f"mined:{session_key}"]
+        if kind is not None:
+            tags.append(f"kind:{kind}")
+            protected = self._config().firewall.protected_keys
+            if kind != "state" and f"{entity}.{attribute}" not in protected:
+                # A protected (entity, attribute) key keeps its attribute whatever
+                # the miner called it, so "kind: event" cannot dodge the check.
+                attribute = None
         if sources and all("assistant_claim" in r.tags for r in sources):
             # R2-11: a fact mined only from assistant turns stays an assistant claim.
             tags.append("assistant_claim")

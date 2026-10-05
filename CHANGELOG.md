@@ -4,6 +4,9 @@ All notable changes to memspine are documented here. Format: [Keep a Changelog](
 
 ## [Unreleased]
 
+### Fixed — SOTA-gap enhancements (2026-10-05)
+- **G1a mined facts no longer supersede each other:** every mined fact was keyed by `(entity, attribute)`, so the newer "Caroline · event" archived the older one through the conflict ladder and only the latest fact per person and attribute survived. `ExtractedFact` gains `kind: state | event` (default `event`; a missing or unknown value parses as `event`) and `extract@session` v2 classifies each fact. Only a **state** (where someone lives, a job, relationship status, a pet's name) keeps its `(entity, attribute)` key and supersedes; an **event** keeps its entity, drops the attribute and is ADDed. Mined facts are tagged `kind:state` / `kind:event`. A protected `entity.attribute` key keeps its attribute whatever the miner calls it.
+
 ### Changed
 - **`assistant` is the default template (ADR-032, D-58).** `Engine()` and the CLI with no template now load `assistant` (LoCoMo 70.7 → 78.3%). `template="base"` keeps the previous `simple` behaviour; `MemspineConfig()` schema defaults are unchanged.
 

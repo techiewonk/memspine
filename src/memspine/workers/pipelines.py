@@ -110,11 +110,27 @@ Anticipate = Callable[[str], Awaitable[list[AnticipatedCue]]]
 DepositCues = Callable[[str, str, list[str], str], Awaitable[object]]
 #: C6': LLM fact miner (``extract`` role): session text -> atomic facts.
 MineFacts = Callable[[str], Awaitable[list[ExtractedFact]]]
-#: C6': engine-side deposit of one mined fact through the write door
-#: (namespace, text, entity, attribute, parent ids, event time, session key).
-DepositFact = Callable[
-    [str, str, str | None, str | None, list[str], datetime, str], Awaitable[object]
-]
+
+
+class DepositFact(Protocol):
+    """C6': engine-side deposit of one mined fact through the write door
+    (namespace, text, entity, attribute, parent ids, event time, session key);
+    ``kind`` (G1a) is ``state`` / ``event``, or None for an unclassified fact."""
+
+    def __call__(
+        self,
+        namespace: str,
+        text: str,
+        entity: str | None,
+        attribute: str | None,
+        parents: list[str],
+        valid_from: datetime,
+        session_key: str,
+        *,
+        kind: str | None = None,
+    ) -> Awaitable[object]: ...
+
+
 #: Per-namespace write serialization: ``lock(namespace)`` yields the same
 #: async context manager the engine's write verbs hold, so a pipeline's
 #: read-then-write unit cannot interleave with a concurrent forget cascade.
@@ -1289,6 +1305,9 @@ async def mine_facts(ctx: PipelineContext) -> dict[str, object]:
             for fact in mined:
                 text = f"{fact.entity} {fact.attribute}: {fact.value}"
                 when = _fact_date(getattr(fact, "date", None), latest) or start
+                # G1a: only a state is keyed by (entity, attribute) and may supersede;
+                # the deposit drops an event's attribute, so the ladder ADDs it.
+                kind = getattr(fact, "kind", "event") or "event"
                 try:
                     await deposit(
                         namespace,
@@ -1298,6 +1317,7 @@ async def mine_facts(ctx: PipelineContext) -> dict[str, object]:
                         parents,
                         when,
                         key,
+                        kind=kind,
                     )
                 except Exception as exc:  # one bad fact must not lose the rest
                     errors.append(f"{namespace}:{key}: deposit failed: {exc}")

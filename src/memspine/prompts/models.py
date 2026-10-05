@@ -7,7 +7,7 @@ structured-output helper validates the (repaired) response against it.
 from __future__ import annotations
 
 from datetime import date as _date
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -50,10 +50,22 @@ class ExtractedFact(BaseModel):
     #: H2: the date the fact refers to (YYYY-MM-DD, YYYY-MM or YYYY), resolved by the
     #: session-mining prompt from the line's date; None when no time is involved.
     date: str | None = None
+    #: G1a: a ``state`` is single-valued and current (where someone lives, their job,
+    #: relationship status, a pet's name), so a newer value supersedes it; an
+    #: ``event`` (something that happened, a preference, hobby or plan) is one of
+    #: many that hold at once and is never superseded. Missing => ``event``.
+    kind: Literal["state", "event"] = "event"
 
     _scalars_as_text = field_validator("entity", "attribute", "value", "date", mode="before")(
         _as_text
     )
+
+    @field_validator("kind", mode="before")
+    @classmethod
+    def _kind_or_event(cls, value: Any) -> Any:
+        """Tolerate a missing, blank or unknown ``kind`` from the miner: it is an event."""
+        text = str(value).strip().lower() if value is not None else ""
+        return text if text in ("state", "event") else "event"
 
 
 class ExtractedFacts(BaseModel):

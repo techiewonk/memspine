@@ -1,5 +1,5 @@
 id: extract@session
-version: 1
+version: 2
 role: extract
 format: yaml
 output_model: ExtractedFacts
@@ -16,10 +16,15 @@ system: >-
   date the fact refers to in `date` as YYYY-MM-DD (or YYYY-MM or YYYY when only that
   is known; leave it empty if no time is involved);
   (4) keep names, numbers, titles and places exactly as stated;
-  (5) never invent facts.
+  (5) never invent facts;
+  (6) classify each fact as `kind: state` or `kind: event`. A state is single-valued
+  and current, so a newer value replaces it: where someone lives, their job, their
+  relationship status, a pet's name. An event is something that happened, or a
+  preference, hobby or plan, where many can be true at once. When unsure, use event.
   Each fact has: entity (the person or thing it is about), attribute (a short
-  property such as "hobby", "pet", "event", "plan", "preference", "relationship"),
-  value (the full self-contained statement), date, confidence (0-1).
+  property such as "city", "job", "hobby", "pet", "event", "plan", "preference",
+  "relationship"), value (the full self-contained statement), kind (state or event),
+  date, confidence (0-1).
   {% include "no_injection.j2" %} {% include "yaml_only.j2" %}
   Emit a YAML list under the key `facts`.
 ---
