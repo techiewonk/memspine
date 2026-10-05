@@ -187,6 +187,7 @@ from memspine.services.lexical.projector import LexicalProjector
 from memspine.services.llm.base import LLMRouter, LLMService
 from memspine.services.llm.structured import structured_call
 from memspine.services.llm.tier_gate import TierGatedLLM, is_local_provider
+from memspine.services.query_encoder import CueQueryEncoder, NoopQueryEncoder, QueryEncoder
 from memspine.services.rerank.base import Reranker, concat_background
 from memspine.services.rerank.factory import RerankSettings, build_reranker, rerank_modes
 from memspine.services.secrets.base import SecretsService
@@ -202,9 +203,12 @@ from memspine.workers.list_cards import LIST_CARD_KEY_PREFIX, LabelClasses, List
 from memspine.workers.pipelines import (
     DERIVED_STAGES,
     PIPELINES,
+    CalibrateEpisode,
     ExtractEdges,
     PipelineContext,
+    PredictEpisode,
     Summarize,
+    SummarizeIncremental,
     stage_marker,
 )
 from memspine.workers.runner import TaskRunner
@@ -667,6 +671,8 @@ class Engine:
         self._inflate: CompressionPolicy = CompressionPolicy.bind()
         self._firewall: Firewall = Firewall()
         self._summarize: Summarize | None = None
+        #: #61: the read-time query encoder (``read.query_encoder``), built on first use.
+        self._query_encoder: QueryEncoder | None = None
         self._extract_edges: ExtractEdges | None = None
         self._runner: TaskRunner | None = None
         self._scheduler: SleepScheduler | None = None  # D1: autonomous sleep loop
@@ -868,6 +874,7 @@ class Engine:
         if "shared" in self._enabled:
             self._shared = SharedMemory(self._storage, self._append_and_project)
         self._summarize = self._build_summarize()
+        self._query_encoder = None  # #61: rebuilt (and its cue index reloaded) per start
         self._extract_edges = self._build_edge_extractor(config)
         self._projectors = [
             RecordProjector(self._storage),
@@ -1200,6 +1207,9 @@ class Engine:
                 written.append(
                     await self._write_locked(storage, ns, record, "semantic", actor, cap)
                 )
+        if self._config().read.query_encoder != "none":
+            for cue_record in written:
+                self._encoder().observe(cue_record)  # #61: the write-time index
         return written
 
     async def principal_reputation(self, principal: str) -> float:
@@ -1474,6 +1484,51 @@ class Engine:
             except Exception as exc:  # an enhancer, never a gate
                 _log.warning("read.probe_leg_failed", namespace=ns, error=str(exc))
         return [leg for leg in legs if leg]
+
+    def _encoder(self) -> QueryEncoder:
+        """#61: the configured query encoder (``read.query_encoder``), built once."""
+        if self._query_encoder is None:
+            if self._config().read.query_encoder == "cues":
+                storage = self._require_started()
+
+                async def load(ns: str) -> list[MemoryRecord]:
+                    return [
+                        r for r in await storage.list_records(ns, "semantic") if CUE_TAG in r.tags
+                    ]
+
+                self._query_encoder = CueQueryEncoder(load)
+            else:
+                self._query_encoder = NoopQueryEncoder()
+        return self._query_encoder
+
+    async def _encoder_legs(self, ns: str, query: str) -> list[list[LegHit]]:
+        """#61: the query encoder's proposals as one fused leg (none: no leg).
+
+        Each match is re-checked here: the cue must be live, unquarantined, in this
+        namespace and at or above ``read.cue_min_trust``; its target then passes the
+        same read gates as any other hit. An encoder failure degrades to no leg."""
+        try:
+            encoded = await self._encoder().encode(ns, query)
+        except Exception as exc:  # an enhancer, never a gate
+            _log.warning("read.query_encoder_failed", namespace=ns, error=str(exc))
+            return []
+        storage = self._require_started()
+        floor = self._config().read.cue_min_trust
+        leg: list[LegHit] = []
+        for match in encoded.matches:
+            cue = await storage.get_record(match.cue_id)
+            if (
+                cue is None
+                or cue.namespace != ns
+                or cue.status is not RecordStatus.ACTIVATED
+                or cue.quarantined
+                or cue.trust < floor
+                or CUE_TAG not in cue.tags
+                or match.target_id not in cue.source.parents
+            ):
+                continue
+            leg.append(LegHit(match.target_id, match.score))
+        return [leg] if leg else []
 
     async def _metadata_legs(self, ns: str, query: str, fetch_k: int) -> list[list[LegHit]]:
         """C3': the non-empty temporal / metadata legs for this query (opt-in)."""
@@ -2746,6 +2801,8 @@ class Engine:
             else:
                 lexical_hits = []
             extra_legs = await self._metadata_legs(ns, query, fetch_k)
+            if self._config().read.query_encoder != "none":
+                extra_legs += await self._encoder_legs(ns, query)
             for text, vector in zip(probe_texts, probe_vectors, strict=True):
                 extra_legs += await self._probe_legs(ns, text, vector, fetch_k, use_hybrid)
             if graph_leg is None:
@@ -5259,7 +5316,10 @@ class Engine:
         # done markers lets the next sleep cycle derive them again, from the
         # clean members only.
         for session_ns, session_key in sorted(sessions_of_tainted):
-            for stage in DERIVED_STAGES:
+            stages: tuple[str, ...] = DERIVED_STAGES
+            if self._consolidation_option("predict_calibrate", False):
+                stages = (*stages, "predict_calibrate")  # #62: only when it runs
+            for stage in stages:
                 await self._append_and_project(
                     stage_marker(session_ns, stage, session_key, cleared=True)
                 )
@@ -6684,6 +6744,10 @@ class Engine:
             config=self._resolved.config,
             append_event=self._append_and_project,
             summarize=self._summarize,
+            summarize_incremental=self._build_summarize_incremental(),
+            predict_episode=self._build_episode_predictor(),
+            calibrate=self._build_calibrator(),
+            deposit_surprise=self._deposit_surprise_fact,
             extract_edges=self._extract_edges,
             mine_facts=self._build_fact_miner(),
             date_facts=self._build_fact_dater(),
@@ -6857,6 +6921,109 @@ class Engine:
             return await llm.chat(prompt.render({"content": content}))
 
         return summarize
+
+    def _build_summarize_incremental(self) -> SummarizeIncremental | None:
+        """#56: the ``summarize@incremental`` update, only when
+        ``consolidation.session_summary.incremental`` is on and a ``summarize``
+        LLM role is bound (one call: previous summary + only the new turns)."""
+        options = self._consolidation_option("session_summary", None)
+        if not (isinstance(options, dict) and options.get("incremental")):
+            return None
+        if self._llm is None or self._prompts is None or "summarize" not in self._llm.roles:
+            return None
+        llm = self._llm.for_role("summarize")
+        prompt = self._prompts.select("summarize", condition="incremental")
+
+        async def update(previous: str, content: str) -> str:
+            return await llm.chat(prompt.render({"previous": previous, "content": content}))
+
+        return update
+
+    def _predict_calibrate_role(self, role: str) -> str | None:
+        """#62: the LLM role a predict-calibrate call runs on (falls back to
+        ``extract``), only when ``consolidation.predict_calibrate`` is on."""
+        if not self._consolidation_option("predict_calibrate", False):
+            return None
+        if self._llm is None or self._prompts is None:
+            return None
+        return next((r for r in (role, "extract") if r in self._llm.roles), None)
+
+    def _build_episode_predictor(self) -> PredictEpisode | None:
+        """#62: predict an episode's facts from stored memory (``predict_episode``)."""
+        role = self._predict_calibrate_role("predict_episode")
+        if role is None or self._llm is None or self._prompts is None:
+            return None
+        llm = self._llm.for_role(role)
+        prompt = self._prompts.select("predict_episode")
+
+        async def predict(cue: str, date: str, knowledge: list[str]) -> str:
+            return await llm.chat(prompt.render({"cue": cue, "date": date, "knowledge": knowledge}))
+
+        return predict
+
+    def _build_calibrator(self) -> CalibrateEpisode | None:
+        """#62: diff a prediction against the transcript (``calibrate``)."""
+        role = self._predict_calibrate_role("calibrate")
+        if role is None or self._llm is None or self._prompts is None:
+            return None
+        llm = self._llm.for_role(role)
+        prompt = self._prompts.select("calibrate")
+
+        async def calibrate(prediction: str, content: str) -> list[ExtractedFact]:
+            result = await structured_call(
+                llm, prompt, {"prediction": prediction, "content": content}, ExtractedFacts
+            )
+            return list(result.facts)
+
+        return calibrate
+
+    async def _deposit_surprise_fact(
+        self,
+        namespace: str,
+        text: str,
+        entity: str | None,
+        attribute: str | None,
+        parents: list[str],
+        valid_from: datetime,
+        session_key: str,
+        *,
+        kind: str | None = None,
+        **_views: Any,
+    ) -> MemoryRecord:
+        """#62: one predict-calibrate surprise through the write door.
+
+        Like a mined fact (C6'): LLM-authored, so the non-privileged ``assistant``
+        role; trust capped at the least-trusted turn; an event drops its attribute
+        so it is ADDed beside the person's other events. Tagged ``surprise_fact``
+        and ``calibrated:<session key>`` (the stage's legacy done check)."""
+        storage = self._require_started()
+        ns = validate_namespace(namespace)
+        sources = [r for r in [await storage.get_record(p) for p in parents] if r is not None]
+        tags = [constants.SURPRISE_FACT_TAG, f"calibrated:{session_key}"]
+        if kind is not None:
+            tags.append(f"kind:{kind}")
+            if kind != "state" and f"{entity}.{attribute}" not in (
+                self._config().firewall.protected_keys
+            ):
+                attribute = None
+        if sources and all("assistant_claim" in r.tags for r in sources):
+            tags.append("assistant_claim")  # R2-11
+        record = MemoryRecord(
+            namespace=ns,
+            memory_type="semantic",
+            content=text,
+            source=SourceInfo(role="assistant", channel="calibration", parents=list(parents)),
+            entity=entity,
+            attribute=attribute,
+            valid_from=valid_from,
+            tags=tags,
+        )
+        cap = [min(r.trust for r in sources)] if sources else None
+        integrity_cap = await self._parent_trust_cap(ns, parents)
+        if integrity_cap:
+            cap = [*(cap or []), *integrity_cap]
+        async with self._write_locks.setdefault(ns, asyncio.Lock()):
+            return await self._write_locked(storage, ns, record, "semantic", "system", cap)
 
     async def _relevance_filter(
         self, query: str, candidates: list[tuple[MemoryRecord, float]]

@@ -17,7 +17,7 @@ from __future__ import annotations
 from memspine.workers.pipelines import PipelineContext
 from memspine.workers.runner import TaskRunner
 
-__all__ = ["RETENTION_STAGE", "SLEEP_CYCLE_ORDER", "run_sleep_cycle"]
+__all__ = ["PREDICT_CALIBRATE_STAGE", "RETENTION_STAGE", "SLEEP_CYCLE_ORDER", "run_sleep_cycle"]
 
 SLEEP_CYCLE_ORDER: tuple[str, ...] = (
     "consolidate",
@@ -47,8 +47,22 @@ SLEEP_CYCLE_ORDER: tuple[str, ...] = (
 RETENTION_STAGE = "retention_expire"
 
 
+#: #62: runs right after ``mine_facts``, and only when
+#: ``consolidation.predict_calibrate`` is on, so the default cycle is unchanged.
+PREDICT_CALIBRATE_STAGE = "predict_calibrate"
+
+
+def _predict_calibrate_on(ctx: PipelineContext) -> bool:
+    mem = ctx.config.memories.get("episodic")
+    options = mem.policies.get("consolidation") if mem is not None else None
+    return isinstance(options, dict) and bool(options.get("predict_calibrate", False))
+
+
 async def run_sleep_cycle(runner: TaskRunner, ctx: PipelineContext) -> dict[str, dict[str, object]]:
     order = SLEEP_CYCLE_ORDER
+    if _predict_calibrate_on(ctx):
+        at = order.index("mine_facts") + 1
+        order = (*order[:at], PREDICT_CALIBRATE_STAGE, *order[at:])
     if ctx.config.retention.classes:
         order = (RETENTION_STAGE, *order)
     return {name: await runner.run(name, ctx) for name in order}

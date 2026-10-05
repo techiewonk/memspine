@@ -39,6 +39,7 @@ from memspine.core.policies.consolidation import (
 from memspine.core.policies.decay import DecayPolicy
 from memspine.core.policies.retention import RetentionPolicy
 from memspine.core.policies.trust import TrustPolicy
+from memspine.core.query_shape import content_words
 from memspine.core.records import MemoryRecord, RecordStatus, SourceInfo
 from memspine.core.temporal_resolve import WeekMode
 from memspine.exceptions import ConflictError
@@ -84,6 +85,7 @@ __all__ = [
     "event_log_prune",
     "extract_graph",
     "mine_facts",
+    "predict_calibrate",
     "reflect_profile",
     "reorganize",
     "session_lifecycle",
@@ -127,6 +129,12 @@ AppendEvent = Callable[[MemoryEvent], Awaitable[None]]
 #: (firewall screening, M5 dedup and the M4 conflict ladder all apply).
 WriteDerivedFact = Callable[[MemoryRecord, list[float]], Awaitable[MemoryRecord]]
 Summarize = Callable[[str], Awaitable[str]]
+#: #56: (previous summary, new turns) -> the updated summary (``summarize@incremental``).
+SummarizeIncremental = Callable[[str, str], Awaitable[str]]
+#: #62: (opening cue, session date, known statements) -> predicted facts, one per line.
+PredictEpisode = Callable[[str, str, list[str]], Awaitable[str]]
+#: #62: (prediction, dated transcript) -> the facts the prediction missed or got wrong.
+CalibrateEpisode = Callable[[str, str], Awaitable[list[ExtractedFact]]]
 # ``ExtractEdges`` (re-exported): LLM edge extraction for the graphiti-style
 # write path (C2). Takes source text plus an optional :class:`EdgeContext`,
 # returns the (reflexion-merged) relationship edges. None on the context => the
@@ -196,6 +204,14 @@ class PipelineContext:
     #: Optional LLM summarizer (summarize role, D-43). None => deterministic
     #: extractive fallback (N6) — consolidation never *requires* an LLM.
     summarize: Summarize | None = None
+    #: #56: the incremental summary update (``session_summary.incremental``). None
+    #: => every summary is written from all its turns (``summarize`` or extractive).
+    summarize_incremental: SummarizeIncremental | None = None
+    #: #62: the predict and calibrate calls (``consolidation.predict_calibrate``).
+    #: Any of the three None => the predict_calibrate stage self-skips.
+    predict_episode: PredictEpisode | None = None
+    calibrate: CalibrateEpisode | None = None
+    deposit_surprise: DepositFact | None = None
     #: The association graph projection (D-26/P6). None => associative memory
     #: is disabled and the reorganizer reports "skipped".
     graph: GraphStore | None = None
@@ -314,6 +330,7 @@ async def consolidate(ctx: PipelineContext) -> dict[str, object]:
         return {"status": "skipped", "reason": "no active consolidation trigger"}
     inflate = CompressionPolicy.bind()
     gap = policy.session_gap
+    incremental = policy.session_summary.incremental
     now = datetime.now(UTC)
     summaries = 0
     superseded = 0
@@ -335,9 +352,18 @@ async def consolidate(ctx: PipelineContext) -> dict[str, object]:
         ]
         existing_keys = {record.source.message_id for record in active_summaries}
         for session in detect_sessions(episodes, gap):
-            if session.end >= now - gap:
+            still_open = session.end >= now - gap
+            if still_open and not incremental:
                 continue  # session still open — a new record may yet join it
             if session.session_key in existing_keys:
+                if incremental and not still_open:
+                    # #56: a summary written while the session was open is closed
+                    # without a call, so the derived stages now see the session.
+                    closed = await _close_open_summary(
+                        ctx, namespace, session, active_summaries, now
+                    )
+                    summaries += closed
+                    superseded += closed
                 continue  # membership unchanged since last summary (idempotence)
             try:
                 summaries, superseded = await _consolidate_session(
@@ -351,6 +377,7 @@ async def consolidate(ctx: PipelineContext) -> dict[str, object]:
                     now,
                     summaries,
                     superseded,
+                    still_open=still_open,
                 )
             except Exception as exc:  # one bad session must not kill the sweep
                 errors.append(f"{namespace}/{session.session_key}: {exc}")
@@ -378,13 +405,34 @@ async def _consolidate_session(
     now: datetime,
     summaries: int,
     superseded: int,
+    *,
+    still_open: bool = False,
 ) -> tuple[int, int]:
     # Cold-tier members must be inflated before anyone summarizes them.
     members = [inflate.inflate(by_id[record_id]) for record_id in session.record_ids]
     if not policy.worth_summarizing(members):
         return summaries, superseded
+    # Membership drift: archive every prior summary whose window
+    # overlaps this session — the fresh summary supersedes it (D-42).
+    stale = [
+        old
+        for old in active_summaries
+        if old.valid_to is not None
+        and old.valid_from <= session.end
+        and old.valid_to >= session.start
+    ]
     summary_text = policy.fallback_summary(members)
-    if ctx.summarize is not None:
+    tags: list[str] = []
+    mode: str | None = None
+    if policy.session_summary.incremental:
+        # #56 (ADR-048): incremental update or periodic full rebuild.
+        summary_text, mode, since = await _incremental_summary(
+            ctx, policy, namespace, members, stale, summary_text
+        )
+        tags.append(f"{constants.SUMMARY_SINCE_REBUILD_PREFIX}{since}")
+        if still_open:
+            tags.append(constants.SUMMARY_OPEN_TAG)
+    elif ctx.summarize is not None:
         # B9 (F3): sanitise BEFORE compression. A flagged member reaches the
         # summariser wrapped as data, never as raw instructions; cleaning the
         # summary afterwards leaves the influence in (State Contamination).
@@ -398,9 +446,24 @@ async def _consolidate_session(
             summary_text = await ctx.summarize("\n".join(rendered))
         except Exception as exc:  # LLM is an enhancer, never a gate (N6)
             _log.warning("consolidate.summarize_fallback", namespace=namespace, error=str(exc))
+    summary = _summary_record(namespace, session, members, summary_text, tags)
+    extra: dict[str, object] = {}
+    if mode is not None:
+        extra = {"summary_mode": mode, "open_session": still_open}
+    await _append_summary(ctx, namespace, session, summary, stale, now, extra)
+    return summaries + 1, superseded + len(stale)
+
+
+def _summary_record(
+    namespace: str,
+    session: Session,
+    members: list[MemoryRecord],
+    summary_text: str,
+    tags: list[str],
+) -> MemoryRecord:
     # A summary of a closed session is bi-temporally a closed fact:
     # its validity is exactly the session window (M4 semantics).
-    summary = MemoryRecord(
+    return MemoryRecord(
         namespace=namespace,
         memory_type="semantic",
         content=summary_text,
@@ -424,16 +487,20 @@ async def _consolidate_session(
         # re-detection on the summary text alone misses paraphrased framing.
         instruction_flag=instruction_shaped(summary_text)
         or any(member.instruction_flag for member in members),
+        tags=tags,
     )
-    # Membership drift: archive every prior summary whose window
-    # overlaps this session — the fresh summary supersedes it (D-42).
-    stale = [
-        old
-        for old in active_summaries
-        if old.valid_to is not None
-        and old.valid_from <= session.end
-        and old.valid_to >= session.start
-    ]
+
+
+async def _append_summary(
+    ctx: PipelineContext,
+    namespace: str,
+    session: Session,
+    summary: MemoryRecord,
+    stale: list[MemoryRecord],
+    now: datetime,
+    extra: dict[str, object],
+) -> None:
+    """WRITE the summary, archive the summaries it supersedes, then CONSOLIDATE."""
     assert ctx.append_event is not None
     # The WRITE event carries the consolidation provenance too, so even if a
     # crash tears the WRITE/CONSOLIDATE pair, member ids survive in the log.
@@ -469,7 +536,6 @@ async def _consolidate_session(
                 },
             )
         )
-        superseded += 1
     await ctx.append_event(
         MemoryEvent(
             kind=EventKind.CONSOLIDATE,
@@ -481,10 +547,129 @@ async def _consolidate_session(
                 "summary_record_id": summary.record_id,
                 "superseded_summary_ids": [old.record_id for old in stale],
                 "summarizer": "llm" if ctx.summarize is not None else "extractive",
+                **extra,
             },
         )
     )
-    return summaries + 1, superseded
+
+
+def _since_rebuild(summary: MemoryRecord) -> int | None:
+    """#56: turns folded into ``summary`` since its last full rebuild (None: untagged)."""
+    for tag in summary.tags:
+        if tag.startswith(constants.SUMMARY_SINCE_REBUILD_PREFIX):
+            value = tag[len(constants.SUMMARY_SINCE_REBUILD_PREFIX) :]
+            return int(value) if value.isdigit() else None
+    return None
+
+
+def _render_members(members: list[MemoryRecord]) -> str:
+    # B9 (F3): a flagged member reaches the summariser wrapped as data.
+    return "\n".join(
+        constants.INSTRUCTION_FLAG_WRAP.format(content=record.content)
+        if record.instruction_flag
+        else record.content
+        for record in members
+    )
+
+
+async def _incremental_summary(
+    ctx: PipelineContext,
+    policy: ConsolidationPolicy,
+    namespace: str,
+    members: list[MemoryRecord],
+    stale: list[MemoryRecord],
+    fallback: str,
+) -> tuple[str, str, int]:
+    """#56: (summary text, mode, turns folded in since the last full rebuild).
+
+    The previous version is the newest superseded summary whose parents are all
+    still members of the session. Its new turns are folded in with one
+    ``summarize@incremental`` call while fewer than ``rebuild_every`` turns were
+    folded in since the last full rebuild; otherwise (or with no previous version,
+    or when a member left the session) the summary is rebuilt from every turn.
+    Without an LLM the deterministic extractive summary is used (it cannot drift).
+    """
+    if ctx.summarize is None:
+        return fallback, "extractive", 0
+    member_ids = {m.record_id for m in members}
+    previous = [
+        old
+        for old in stale
+        if old.source.parents
+        and set(old.source.parents) <= member_ids
+        and _since_rebuild(old) is not None
+    ]
+    previous.sort(key=lambda r: (r.recorded_at, r.record_id))
+    if previous and ctx.summarize_incremental is not None:
+        prev = previous[-1]
+        covered = set(prev.source.parents)
+        new = [m for m in members if m.record_id not in covered]
+        since = (_since_rebuild(prev) or 0) + len(new)
+        if new and since < policy.session_summary.rebuild_every:
+            text = (
+                constants.INSTRUCTION_FLAG_WRAP.format(content=prev.content)
+                if prev.instruction_flag
+                else prev.content
+            )
+            try:
+                return (
+                    await ctx.summarize_incremental(text, _render_members(new)),
+                    "incremental",
+                    since,
+                )
+            except Exception as exc:  # LLM is an enhancer, never a gate (N6)
+                _log.warning(
+                    "consolidate.incremental_fallback", namespace=namespace, error=str(exc)
+                )
+    try:
+        return await ctx.summarize(_render_members(members)), "rebuild", 0
+    except Exception as exc:  # LLM is an enhancer, never a gate (N6)
+        _log.warning("consolidate.summarize_fallback", namespace=namespace, error=str(exc))
+        return fallback, "extractive", 0
+
+
+async def _close_open_summary(
+    ctx: PipelineContext,
+    namespace: str,
+    session: Session,
+    active_summaries: list[MemoryRecord],
+    now: datetime,
+) -> int:
+    """#56: re-stamp the open-session summary of a now-closed session, no call.
+
+    Same text, parents, trust and flags; the open tag is dropped and the copy
+    supersedes the open version. Returns 1 when a summary was closed, else 0."""
+    open_summary = next(
+        (
+            r
+            for r in active_summaries
+            if r.source.message_id == session.session_key and constants.SUMMARY_OPEN_TAG in r.tags
+        ),
+        None,
+    )
+    if open_summary is None:
+        return 0
+    closed = MemoryRecord(
+        namespace=namespace,
+        memory_type="semantic",
+        content=open_summary.content,
+        valid_from=session.start,
+        valid_to=session.end,
+        source=open_summary.source.model_copy(),
+        trust=open_summary.trust,
+        instruction_flag=open_summary.instruction_flag,
+        tags=[t for t in open_summary.tags if t != constants.SUMMARY_OPEN_TAG],
+    )
+    await _append_summary(
+        ctx,
+        namespace,
+        session,
+        closed,
+        [open_summary],
+        now,
+        {"summary_mode": "close", "open_session": False},
+    )
+    return 1
 
 
 async def session_lifecycle(ctx: PipelineContext) -> dict[str, object]:
@@ -1764,7 +1949,9 @@ class SessionIndex:
             self.list_classes.pop((event.namespace, str(payload.get("record_id", ""))), None)
         elif event.kind is EventKind.CONSOLIDATE:
             key = str(payload.get("session_key", ""))
-            if key:
+            # #56: a summary of a still-open session is not a consolidated
+            # session yet; the derived stages wait for its closing CONSOLIDATE.
+            if key and not payload.get("open_session"):
                 members = [str(m) for m in payload.get("member_record_ids", [])]
                 self.sessions[(event.namespace, key)] = members
         elif event.kind is EventKind.MARKER:
@@ -2151,6 +2338,98 @@ async def reflect_profile(ctx: PipelineContext) -> dict[str, object]:
     return await _run_session_stage(ctx, "reflect_profile", "insights", legacy, work)
 
 
+def _covered(words: frozenset[str], lines: list[frozenset[str]]) -> bool:
+    """#62: are ``words`` covered (at ``PREDICT_CALIBRATE_COVERED``) by one line?"""
+    if not words:
+        return True
+    need = constants.PREDICT_CALIBRATE_COVERED
+    return any(len(words & line) / len(words) >= need for line in lines if line)
+
+
+async def _known_statements(
+    ctx: PipelineContext, namespace: str, members: list[MemoryRecord]
+) -> list[str]:
+    """#62: what memory already holds, for the prediction: live semantic records
+    not derived from this session's turns (no summaries, cues or list cards), the
+    best lexical overlap with the session first, ``PREDICT_CALIBRATE_KNOWLEDGE_K``."""
+    member_ids = {m.record_id for m in members}
+    session_words = content_words(" ".join(m.content for m in members))
+    scored: list[tuple[int, str, str]] = []
+    for record in await ctx.storage.list_records(namespace, "semantic"):
+        if (
+            record.status is not RecordStatus.ACTIVATED
+            or record.quarantined
+            or record.instruction_flag
+            or record.source.channel == "consolidation"
+            or constants.CUE_TAG in record.tags
+            or constants.LIST_CARD_TAG in record.tags
+            or member_ids & set(record.source.parents)
+        ):
+            continue
+        overlap = len(content_words(record.content) & session_words)
+        scored.append((-overlap, record.record_id, record.content))
+    scored.sort()
+    return [content for _, _, content in scored[: constants.PREDICT_CALIBRATE_KNOWLEDGE_K]]
+
+
+async def predict_calibrate(ctx: PipelineContext) -> dict[str, object]:
+    """#62 (Nemori predict-calibrate, research-grade, ADR-049): store only the surprise.
+
+    Per consolidated session, once (done marker): the ``predict_episode`` role
+    predicts the session's facts from what memory already holds plus the session's
+    opening; the ``calibrate`` role diffs that prediction against the transcript and
+    returns the facts the prediction missed or got wrong. A returned fact still
+    covered by one predicted line or one known statement (content-word overlap,
+    ``PREDICT_CALIBRATE_COVERED``) is dropped, so a predictable fact is never
+    re-stored. The rest go through the write door as derived semantic facts whose
+    parents are the session's turns (erasure cascades, trust capped at the turns).
+    """
+    policy = ConsolidationPolicy.bind(_policy_options(ctx, "episodic", "consolidation"))
+    if not getattr(policy.options, "predict_calibrate", False):
+        return {"status": "skipped", "reason": "consolidation.predict_calibrate is off"}
+    if ctx.predict_episode is None or ctx.calibrate is None or ctx.deposit_surprise is None:
+        return {"status": "skipped", "reason": "no predict_episode/calibrate LLM role bound"}
+    predictor, calibrator, deposit = ctx.predict_episode, ctx.calibrate, ctx.deposit_surprise
+
+    async def work(namespace: str, key: str, members: list[MemoryRecord]) -> tuple[int, list[str]]:
+        known = await _known_statements(ctx, namespace, members)
+        opening = members[0]
+        cue = opening.content[: constants.PREDICT_CALIBRATE_CUE_CHARS]
+        prediction = await predictor(cue, f"{opening.valid_from:%Y-%m-%d}", known)
+        transcript = _mining_transcript(members, numbered=False)
+        surprises = await calibrator(prediction, transcript)
+        lines = [content_words(line) for line in prediction.splitlines()]
+        lines += [content_words(statement) for statement in known]
+        parents = [m.record_id for m in members]
+        written = 0
+        errors: list[str] = []
+        for fact in surprises:
+            text = f"{fact.entity} {fact.attribute}: {fact.value}"
+            if not fact.value.strip() or _covered(content_words(fact.value), lines):
+                continue  # predicted (or already known): not a surprise
+            kind = getattr(fact, "kind", "event") or "event"
+            when = _fact_date(getattr(fact, "date", None), members[-1].valid_from)
+            try:
+                await deposit(
+                    namespace,
+                    text,
+                    fact.entity or None,
+                    fact.attribute or None,
+                    parents,
+                    when or opening.valid_from,
+                    key,
+                    kind=kind,
+                )
+            except Exception as exc:  # one bad fact must not lose the rest
+                errors.append(f"{namespace}:{key}: surprise deposit failed: {exc}")
+                continue
+            written += 1
+        return written, errors
+
+    legacy = _legacy_tag_check(ctx, "semantic", lambda r, key: f"calibrated:{key}" in r.tags)
+    return await _run_session_stage(ctx, "predict_calibrate", "surprises", legacy, work)
+
+
 #: Name -> pipeline. Runners register from this table; the M11-adjacent names
 #: are stable identifiers used in schedules and dead-letter reporting.
 PIPELINES: dict[str, Pipeline] = {
@@ -2159,6 +2438,7 @@ PIPELINES: dict[str, Pipeline] = {
     "reorganize": reorganize,
     "extract_graph": extract_graph,
     "mine_facts": mine_facts,
+    "predict_calibrate": predict_calibrate,
     "anticipate": anticipate,
     "reflect_profile": reflect_profile,
     "check_watches": check_watches,
