@@ -24,7 +24,7 @@ from memspine.memories.associative.entities import (
     is_entity_node,
     parse_entity_node,
 )
-from memspine.memories.associative.ppr import personalized_pagerank
+from memspine.memories.associative.ppr import local_push_ppr, personalized_pagerank
 from memspine.memories.base import BaseMemory
 from memspine.observability.logging import EVENT_LINK, EVENT_RETRIEVE, get_logger
 from memspine.services.embedding.base import EmbeddingService
@@ -348,6 +348,48 @@ class AssociativeMemory(BaseMemory):
                 break
             frontier = next_frontier
         return reached
+
+    async def graph_proximity(
+        self,
+        namespace: str,
+        seeds: Sequence[str],
+        *,
+        depth: int,
+        admit: Admit,
+        mode: str,
+        max_degree: int | None = None,
+    ) -> dict[str, float]:
+        """#22: ``record_id -> proximity`` in (0, 1] to the entity ``seeds``.
+
+        ``distance``: 1 / entity hops of :meth:`seed_expand` (a seed's own records
+        score 1, the records one entity further 1/2, ...). ``ppr``: local push-PPR
+        (:func:`~memspine.memories.associative.ppr.local_push_ppr`) restarted at
+        the seeds over their ``subgraph()``, normalised so the best record scores
+        1. Both walk only what :meth:`seed_expand` may enter (GP-10: namespace,
+        live edges, ``admit``); a record the walk does not reach is absent.
+        """
+        reached = await self.seed_expand(
+            namespace, seeds, depth=depth, admit=admit, max_degree=max_degree
+        )
+        if mode == "distance":
+            return {record.record_id: 2.0 / (hops + 1) for record, hops in reached}
+        if mode != "ppr" or not reached:
+            return {}
+        allowed = {record.record_id for record, _hops in reached}
+        starts = [s for s in dict.fromkeys(seeds) if _entity_in(s, namespace)]
+        walked = await self._graph.subgraph(starts, 2 * max(1, depth) - 1, namespace=namespace)
+        edges = [
+            edge
+            for edge in walked
+            if all(_entity_in(n, namespace) or n in allowed for n in (edge.src, edge.dst))
+        ]
+        scores = {
+            node: score
+            for node, score in local_push_ppr(edges, set(starts)).items()
+            if node in allowed
+        }
+        best = max(scores.values(), default=0.0)
+        return {node: score / best for node, score in scores.items()} if best > 0 else {}
 
     async def prune_weakest(self, namespace: str, record_id: str) -> GraphEdge | None:
         """Free one budget slot on ``record_id`` (weakest live link retired

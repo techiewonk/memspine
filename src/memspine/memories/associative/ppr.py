@@ -12,12 +12,19 @@ ranking break on node id, so the same graph always ranks the same.
 
 from __future__ import annotations
 
+from collections import deque
 from collections.abc import Iterable
 
-from memspine.config.constants import PPR_DAMPING, PPR_ITERATIONS
+from memspine.config.constants import (
+    GRAPH_RERANK_PPR_ALPHA,
+    GRAPH_RERANK_PPR_EPSILON,
+    GRAPH_RERANK_PUSH_MAX,
+    PPR_DAMPING,
+    PPR_ITERATIONS,
+)
 from memspine.services.graph.base import GraphEdge
 
-__all__ = ["personalized_pagerank"]
+__all__ = ["local_push_ppr", "personalized_pagerank"]
 
 
 def personalized_pagerank(
@@ -66,3 +73,68 @@ def personalized_pagerank(
         key=lambda pair: (-pair[1], pair[0]),
     )
     return ranked if top_k is None else ranked[:top_k]
+
+
+def _undirected(edges: Iterable[GraphEdge]) -> dict[str, dict[str, float]]:
+    adjacency: dict[str, dict[str, float]] = {}
+    for edge in edges:
+        weight = edge.weight
+        if weight <= 0.0 or edge.src == edge.dst:
+            continue
+        adjacency.setdefault(edge.src, {})
+        adjacency.setdefault(edge.dst, {})
+        adjacency[edge.src][edge.dst] = adjacency[edge.src].get(edge.dst, 0.0) + weight
+        adjacency[edge.dst][edge.src] = adjacency[edge.dst].get(edge.src, 0.0) + weight
+    return adjacency
+
+
+def local_push_ppr(
+    edges: Iterable[GraphEdge],
+    seeds: set[str],
+    *,
+    alpha: float = GRAPH_RERANK_PPR_ALPHA,
+    epsilon: float = GRAPH_RERANK_PPR_EPSILON,
+    max_pushes: int = GRAPH_RERANK_PUSH_MAX,
+) -> dict[str, float]:
+    """#22: approximate personalized PageRank by local push (Andersen, Chung & Lang).
+
+    Only the nodes the push reaches are touched, so the cost follows the
+    neighbourhood of ``seeds`` (the read path passes a ``subgraph()``), never the
+    whole graph. Edges are undirected and weighted like :func:`personalized_pagerank`;
+    tombstones and self-loops never contribute. A node is pushed while its residual
+    exceeds ``epsilon`` x its weighted degree; the lazy-walk push keeps half of the
+    non-restart mass on the node. Deterministic: the queue is FIFO and every node's
+    neighbours are visited in id order. Returns ``{node: score}`` for nodes with a
+    positive estimate, seeds included (the caller drops what it does not rank).
+    """
+    adjacency = _undirected(edges)
+    live = sorted(seeds & set(adjacency))
+    if not live:
+        return {}
+    degree = {node: sum(neighbours.values()) for node, neighbours in adjacency.items()}
+    estimate: dict[str, float] = {}
+    residual = {node: 1.0 / len(live) for node in live}
+    queue = deque(live)
+    queued = set(live)
+    pushes = 0
+    while queue and pushes < max_pushes:
+        node = queue.popleft()
+        queued.discard(node)
+        mass = residual.get(node, 0.0)
+        if mass <= epsilon * degree[node]:
+            continue
+        pushes += 1
+        estimate[node] = estimate.get(node, 0.0) + alpha * mass
+        spread = (1.0 - alpha) * mass / 2.0
+        residual[node] = spread
+        for neighbour in sorted(adjacency[node]):
+            residual[neighbour] = (
+                residual.get(neighbour, 0.0) + spread * adjacency[node][neighbour] / degree[node]
+            )
+            if neighbour not in queued and residual[neighbour] > epsilon * degree[neighbour]:
+                queue.append(neighbour)
+                queued.add(neighbour)
+        if node not in queued and residual[node] > epsilon * degree[node]:
+            queue.append(node)
+            queued.add(node)
+    return {node: score for node, score in estimate.items() if score > 0.0}

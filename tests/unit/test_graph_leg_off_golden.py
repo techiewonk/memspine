@@ -130,7 +130,10 @@ async def test_explicit_off_flags_match_the_golden() -> None:
     """The flags spelled out at their off values change nothing either."""
     if not _has_graph_flags():
         return
-    eng = _engine(graph_leg=False, cards_include_edges=False)
+    flags: dict[str, Any] = {"graph_leg": False, "cards_include_edges": False}
+    if _has_rerank_flags():
+        flags.update(graph_rerank="off", graph_rerank_weight=0.2)
+    eng = _engine(**flags)
     await eng.start()
     try:
         current = await _snapshot(eng)
@@ -143,3 +146,9 @@ def _has_graph_flags() -> bool:
     from memspine.config.schema import ReadConfig
 
     return "graph_leg" in ReadConfig.model_fields
+
+
+def _has_rerank_flags() -> bool:
+    from memspine.config.schema import ReadConfig
+
+    return "graph_rerank" in ReadConfig.model_fields

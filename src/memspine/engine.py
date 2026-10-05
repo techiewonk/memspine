@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import itertools
+import math
 import os
 import re
 import secrets
@@ -1518,6 +1519,61 @@ class Engine:
             return []
         return [LegHit(rid, 1.0) for rid in ids]
 
+    async def _graph_rerank(
+        self, ns: str, query: str, candidates: list[tuple[MemoryRecord, float]]
+    ) -> list[tuple[MemoryRecord, float]]:
+        """#22 (``read.graph_rerank``): lift graph-near and often-restated candidates.
+
+        Proximity comes from the graph leg's seeds (the entities the query names,
+        else those of the best ``GRAPH_LEG_FALLBACK_HITS`` candidates) through
+        :meth:`AssociativeMemory.graph_proximity` (``distance`` or ``ppr``). The
+        episode-mentions boost is ``log(1 + n) / log(1 + n_max)`` over the
+        candidates' ``edge_source:`` provenance counts ``n`` (GR-9). Each boost
+        ``b`` in [0, 1] lifts relevance ``r`` to ``r + w * b * (1 - r)``, so a
+        candidate with no boost keeps its score; the stable re-sort keeps ties in
+        their fused order. Failures leave the candidates as they were (an
+        enhancer, never a gate)."""
+        read_cfg = self._config().read
+        weight = read_cfg.graph_rerank_weight
+        if weight <= 0.0:
+            return candidates
+        proximity: dict[str, float] = {}
+        if self._associative is not None:
+            try:
+                fallback = [r.record_id for r, _ in candidates[: constants.GRAPH_LEG_FALLBACK_HITS]]
+                seeds = await self._graph_seeds(ns, query, fallback)
+                if seeds:
+                    proximity = await self._associative.graph_proximity(
+                        ns,
+                        seeds,
+                        depth=min(read_cfg.graph_depth, constants.GRAPH_LEG_MAX_DEPTH),
+                        admit=self._graph_admit(ns),
+                        mode=read_cfg.graph_rerank,
+                        max_degree=constants.GRAPH_LEG_MAX_DEGREE,
+                    )
+            except Exception as exc:  # an enhancer, never a gate
+                _log.warning("read.graph_rerank_failed", namespace=ns, error=str(exc))
+                proximity = {}
+        prefix = constants.EDGE_SOURCE_TAG_PREFIX
+        mentions = {
+            record.record_id: sum(1 for tag in record.tags if tag.startswith(prefix))
+            for record, _ in candidates
+        }
+        top = max(mentions.values(), default=0)
+
+        def lift(relevance: float, boost: float) -> float:
+            return relevance + weight * boost * (1.0 - relevance) if boost > 0 else relevance
+
+        boosted = []
+        for record, relevance in candidates:
+            relevance = lift(relevance, proximity.get(record.record_id, 0.0))
+            if top > 0:
+                relevance = lift(
+                    relevance, math.log1p(mentions[record.record_id]) / math.log1p(top)
+                )
+            boosted.append((record, relevance))
+        return sorted(boosted, key=lambda pair: pair[1], reverse=True)
+
     async def _graph_facts_section(
         self, ns: str, query: str, allowance: int
     ) -> MemoryRecord | None:
@@ -2649,6 +2705,9 @@ class Engine:
                 if rec.record_id not in best or rel > best[rec.record_id][1]:
                     best[rec.record_id] = (rec, rel)
             candidates = sorted(best.values(), key=lambda pair: pair[1], reverse=True)
+        if candidates and self._config().read.graph_rerank != "off":
+            # #22: graph-proximity and episode-mentions boosts, before the cut.
+            candidates = await self._graph_rerank(ns, query, candidates)
         candidates = candidates[:top_k]
         # E8 stage: static prefilter (opt-in, default off).
         if candidates and self._config().read.static_prefilter:
