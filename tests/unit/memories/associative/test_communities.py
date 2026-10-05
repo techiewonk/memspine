@@ -301,12 +301,18 @@ def _dense_core() -> tuple[list[GraphEdge], dict[str, int]]:
     """A 70-node clique plus eight 5-node groups (110 nodes): a legitimate
     partition whose largest community already holds > 50% of the graph."""
     core = [f"core{i:02d}" for i in range(70)]
-    edges = [GraphEdge(a, b, "related", {"weight": 1.0}) for i, a in enumerate(core) for b in core[i + 1 :]]
+    edges = [
+        GraphEdge(a, b, "related", {"weight": 1.0})
+        for i, a in enumerate(core)
+        for b in core[i + 1 :]
+    ]
     previous = {node: 0 for node in core}
     for g in range(8):
         group = [f"g{g}n{i}" for i in range(5)]
         edges += [
-            GraphEdge(a, b, "related", {"weight": 1.0}) for i, a in enumerate(group) for b in group[i + 1 :]
+            GraphEdge(a, b, "related", {"weight": 1.0})
+            for i, a in enumerate(group)
+            for b in group[i + 1 :]
         ]
         previous.update({node: g + 1 for node in group})
     return edges, previous

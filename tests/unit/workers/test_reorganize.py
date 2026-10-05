@@ -479,7 +479,9 @@ async def test_collapsed_runs_still_advance_the_sleep_counter(
 
     def always_collapsed(edges: object, **knobs: object) -> PartitionResult:
         return PartitionResult(
-            labels={}, mode=knobs["mode"], collapsed=True  # type: ignore[arg-type]
+            labels={},
+            mode=knobs["mode"],
+            collapsed=True,  # type: ignore[arg-type]
         )
 
     monkeypatch.setattr(pipelines, "partition_graph", always_collapsed)

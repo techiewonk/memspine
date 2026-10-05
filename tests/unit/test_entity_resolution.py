@@ -423,7 +423,9 @@ async def test_forgetting_any_cited_turn_erases_a_session_decision(forget: str) 
     try:
         await _melanie(eng)
         turns = [
-            await eng.write(text, namespace="a", memory_type="episodic", valid_from=T0 + timedelta(i + 1))
+            await eng.write(
+                text, namespace="a", memory_type="episodic", valid_from=T0 + timedelta(i + 1)
+            )
             for i, text in enumerate(["we talked about her weekend", "Mel went hiking"])
         ]
         ctx = eng._pipeline_ctx()
