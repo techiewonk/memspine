@@ -1,0 +1,818 @@
+{
+  "core-defaults": {
+    "assemble|How many times did Melanie go camping?": [
+      "Melanie hobby: pottery and painting",
+      "Melanie event: pottery class yesterday",
+      "Melanie: I went camping with the kids last weekend"
+    ],
+    "assemble|What activities does Melanie do?": [
+      "Melanie event: pottery class yesterday",
+      "Melanie hobby: pottery and painting",
+      "Melanie: I went camping with the kids last weekend"
+    ],
+    "assemble|What did Melanie do in May 2023?": [
+      "Melanie hobby: pottery and painting",
+      "Melanie event: pottery class yesterday",
+      "Melanie: we ran a charity race for mental health in May"
+    ],
+    "assemble|When did Caroline join the support group?": [
+      "Caroline event: joined a support group last Tuesday",
+      "Caroline: I joined a support group last Tuesday",
+      "Melanie: the kids loved the pottery class yesterday"
+    ],
+    "assemble|When did Melanie's kids go to the pottery class?": [
+      "Melanie event: pottery class yesterday",
+      "Melanie hobby: pottery and painting",
+      "Melanie: the kids loved the pottery class yesterday"
+    ],
+    "read|auto|How many times did Melanie go camping?": [
+      "full",
+      false,
+      119,
+      [
+        "Melanie: I went camping with the kids last weekend",
+        "Caroline: I started a new painting of a lake sunset",
+        "Melanie: we ran a charity race for mental health in May",
+        "Caroline event: joined a support group last Tuesday",
+        "Caroline: I joined a support group last Tuesday",
+        "Melanie event: pottery class yesterday",
+        "Melanie: the kids loved the pottery class yesterday",
+        "Melanie hobby: pottery and painting",
+        "Caroline: I am researching adoption agencies this month",
+        "Caroline plan: adopt a child"
+      ]
+    ],
+    "read|auto|What activities does Melanie do?": [
+      "full",
+      false,
+      119,
+      [
+        "Melanie: I went camping with the kids last weekend",
+        "Caroline: I started a new painting of a lake sunset",
+        "Melanie: we ran a charity race for mental health in May",
+        "Caroline event: joined a support group last Tuesday",
+        "Caroline: I joined a support group last Tuesday",
+        "Melanie event: pottery class yesterday",
+        "Melanie: the kids loved the pottery class yesterday",
+        "Melanie hobby: pottery and painting",
+        "Caroline: I am researching adoption agencies this month",
+        "Caroline plan: adopt a child"
+      ]
+    ],
+    "read|auto|What did Melanie do in May 2023?": [
+      "full",
+      false,
+      119,
+      [
+        "Melanie: I went camping with the kids last weekend",
+        "Caroline: I started a new painting of a lake sunset",
+        "Melanie: we ran a charity race for mental health in May",
+        "Caroline event: joined a support group last Tuesday",
+        "Caroline: I joined a support group last Tuesday",
+        "Melanie event: pottery class yesterday",
+        "Melanie: the kids loved the pottery class yesterday",
+        "Melanie hobby: pottery and painting",
+        "Caroline: I am researching adoption agencies this month",
+        "Caroline plan: adopt a child"
+      ]
+    ],
+    "read|auto|When did Caroline join the support group?": [
+      "full",
+      false,
+      119,
+      [
+        "Melanie: I went camping with the kids last weekend",
+        "Caroline: I started a new painting of a lake sunset",
+        "Melanie: we ran a charity race for mental health in May",
+        "Caroline event: joined a support group last Tuesday",
+        "Caroline: I joined a support group last Tuesday",
+        "Melanie event: pottery class yesterday",
+        "Melanie: the kids loved the pottery class yesterday",
+        "Melanie hobby: pottery and painting",
+        "Caroline: I am researching adoption agencies this month",
+        "Caroline plan: adopt a child"
+      ]
+    ],
+    "read|auto|When did Melanie's kids go to the pottery class?": [
+      "full",
+      false,
+      119,
+      [
+        "Melanie: I went camping with the kids last weekend",
+        "Caroline: I started a new painting of a lake sunset",
+        "Melanie: we ran a charity race for mental health in May",
+        "Caroline event: joined a support group last Tuesday",
+        "Caroline: I joined a support group last Tuesday",
+        "Melanie event: pottery class yesterday",
+        "Melanie: the kids loved the pottery class yesterday",
+        "Melanie hobby: pottery and painting",
+        "Caroline: I am researching adoption agencies this month",
+        "Caroline plan: adopt a child"
+      ]
+    ],
+    "read|compose|How many times did Melanie go camping?": [
+      "compose",
+      false,
+      72,
+      [
+        "Melanie: I went camping with the kids last weekend",
+        "Melanie: we ran a charity race for mental health in May",
+        "Caroline event: joined a support group last Tuesday",
+        "Melanie event: pottery class yesterday",
+        "Melanie: the kids loved the pottery class yesterday",
+        "Melanie hobby: pottery and painting"
+      ]
+    ],
+    "read|compose|What activities does Melanie do?": [
+      "compose",
+      false,
+      71,
+      [
+        "Melanie: I went camping with the kids last weekend",
+        "Melanie: we ran a charity race for mental health in May",
+        "Caroline: I joined a support group last Tuesday",
+        "Melanie event: pottery class yesterday",
+        "Melanie: the kids loved the pottery class yesterday",
+        "Melanie hobby: pottery and painting"
+      ]
+    ],
+    "read|compose|What did Melanie do in May 2023?": [
+      "compose",
+      false,
+      73,
+      [
+        "Melanie: I went camping with the kids last weekend",
+        "Melanie: we ran a charity race for mental health in May",
+        "Melanie event: pottery class yesterday",
+        "Melanie: the kids loved the pottery class yesterday",
+        "Melanie hobby: pottery and painting",
+        "Caroline: I am researching adoption agencies this month"
+      ]
+    ],
+    "read|compose|When did Caroline join the support group?": [
+      "compose",
+      false,
+      73,
+      [
+        "Caroline: I started a new painting of a lake sunset",
+        "Caroline event: joined a support group last Tuesday",
+        "Caroline: I joined a support group last Tuesday",
+        "Melanie: the kids loved the pottery class yesterday",
+        "Caroline: I am researching adoption agencies this month",
+        "Caroline plan: adopt a child"
+      ]
+    ],
+    "read|compose|When did Melanie's kids go to the pottery class?": [
+      "compose",
+      false,
+      67,
+      [
+        "Melanie: I went camping with the kids last weekend",
+        "Melanie: we ran a charity race for mental health in May",
+        "Melanie event: pottery class yesterday",
+        "Melanie: the kids loved the pottery class yesterday",
+        "Melanie hobby: pottery and painting",
+        "Caroline plan: adopt a child"
+      ]
+    ],
+    "read|full|How many times did Melanie go camping?": [
+      "full",
+      false,
+      119,
+      [
+        "Melanie: I went camping with the kids last weekend",
+        "Caroline: I started a new painting of a lake sunset",
+        "Melanie: we ran a charity race for mental health in May",
+        "Caroline event: joined a support group last Tuesday",
+        "Caroline: I joined a support group last Tuesday",
+        "Melanie event: pottery class yesterday",
+        "Melanie: the kids loved the pottery class yesterday",
+        "Melanie hobby: pottery and painting",
+        "Caroline: I am researching adoption agencies this month",
+        "Caroline plan: adopt a child"
+      ]
+    ],
+    "read|full|What activities does Melanie do?": [
+      "full",
+      false,
+      119,
+      [
+        "Melanie: I went camping with the kids last weekend",
+        "Caroline: I started a new painting of a lake sunset",
+        "Melanie: we ran a charity race for mental health in May",
+        "Caroline event: joined a support group last Tuesday",
+        "Caroline: I joined a support group last Tuesday",
+        "Melanie event: pottery class yesterday",
+        "Melanie: the kids loved the pottery class yesterday",
+        "Melanie hobby: pottery and painting",
+        "Caroline: I am researching adoption agencies this month",
+        "Caroline plan: adopt a child"
+      ]
+    ],
+    "read|full|What did Melanie do in May 2023?": [
+      "full",
+      false,
+      119,
+      [
+        "Melanie: I went camping with the kids last weekend",
+        "Caroline: I started a new painting of a lake sunset",
+        "Melanie: we ran a charity race for mental health in May",
+        "Caroline event: joined a support group last Tuesday",
+        "Caroline: I joined a support group last Tuesday",
+        "Melanie event: pottery class yesterday",
+        "Melanie: the kids loved the pottery class yesterday",
+        "Melanie hobby: pottery and painting",
+        "Caroline: I am researching adoption agencies this month",
+        "Caroline plan: adopt a child"
+      ]
+    ],
+    "read|full|When did Caroline join the support group?": [
+      "full",
+      false,
+      119,
+      [
+        "Melanie: I went camping with the kids last weekend",
+        "Caroline: I started a new painting of a lake sunset",
+        "Melanie: we ran a charity race for mental health in May",
+        "Caroline event: joined a support group last Tuesday",
+        "Caroline: I joined a support group last Tuesday",
+        "Melanie event: pottery class yesterday",
+        "Melanie: the kids loved the pottery class yesterday",
+        "Melanie hobby: pottery and painting",
+        "Caroline: I am researching adoption agencies this month",
+        "Caroline plan: adopt a child"
+      ]
+    ],
+    "read|full|When did Melanie's kids go to the pottery class?": [
+      "full",
+      false,
+      119,
+      [
+        "Melanie: I went camping with the kids last weekend",
+        "Caroline: I started a new painting of a lake sunset",
+        "Melanie: we ran a charity race for mental health in May",
+        "Caroline event: joined a support group last Tuesday",
+        "Caroline: I joined a support group last Tuesday",
+        "Melanie event: pottery class yesterday",
+        "Melanie: the kids loved the pottery class yesterday",
+        "Melanie hobby: pottery and painting",
+        "Caroline: I am researching adoption agencies this month",
+        "Caroline plan: adopt a child"
+      ]
+    ],
+    "read|replay|How many times did Melanie go camping?": [
+      "replay",
+      false,
+      32,
+      [
+        "Melanie hobby: pottery and painting",
+        "Melanie event: pottery class yesterday",
+        "Melanie: I went camping with the kids last weekend"
+      ]
+    ],
+    "read|replay|What activities does Melanie do?": [
+      "replay",
+      false,
+      32,
+      [
+        "Melanie event: pottery class yesterday",
+        "Melanie hobby: pottery and painting",
+        "Melanie: I went camping with the kids last weekend"
+      ]
+    ],
+    "read|replay|What did Melanie do in May 2023?": [
+      "replay",
+      false,
+      33,
+      [
+        "Melanie hobby: pottery and painting",
+        "Melanie event: pottery class yesterday",
+        "Melanie: we ran a charity race for mental health in May"
+      ]
+    ],
+    "read|replay|When did Caroline join the support group?": [
+      "replay",
+      false,
+      38,
+      [
+        "Caroline event: joined a support group last Tuesday",
+        "Caroline: I joined a support group last Tuesday",
+        "Melanie: the kids loved the pottery class yesterday"
+      ]
+    ],
+    "read|replay|When did Melanie's kids go to the pottery class?": [
+      "replay",
+      false,
+      32,
+      [
+        "Melanie event: pottery class yesterday",
+        "Melanie hobby: pottery and painting",
+        "Melanie: the kids loved the pottery class yesterday"
+      ]
+    ],
+    "read|retrieve|How many times did Melanie go camping?": [
+      "retrieve",
+      false,
+      32,
+      [
+        "Melanie hobby: pottery and painting",
+        "Melanie event: pottery class yesterday",
+        "Melanie: I went camping with the kids last weekend"
+      ]
+    ],
+    "read|retrieve|What activities does Melanie do?": [
+      "retrieve",
+      false,
+      32,
+      [
+        "Melanie event: pottery class yesterday",
+        "Melanie hobby: pottery and painting",
+        "Melanie: I went camping with the kids last weekend"
+      ]
+    ],
+    "read|retrieve|What did Melanie do in May 2023?": [
+      "retrieve",
+      false,
+      33,
+      [
+        "Melanie hobby: pottery and painting",
+        "Melanie event: pottery class yesterday",
+        "Melanie: we ran a charity race for mental health in May"
+      ]
+    ],
+    "read|retrieve|When did Caroline join the support group?": [
+      "retrieve",
+      false,
+      38,
+      [
+        "Caroline event: joined a support group last Tuesday",
+        "Caroline: I joined a support group last Tuesday",
+        "Melanie: the kids loved the pottery class yesterday"
+      ]
+    ],
+    "read|retrieve|When did Melanie's kids go to the pottery class?": [
+      "retrieve",
+      false,
+      32,
+      [
+        "Melanie event: pottery class yesterday",
+        "Melanie hobby: pottery and painting",
+        "Melanie: the kids loved the pottery class yesterday"
+      ]
+    ],
+    "search|How many times did Melanie go camping?": [
+      [
+        "Melanie hobby: pottery and painting",
+        0.664
+      ],
+      [
+        "Melanie event: pottery class yesterday",
+        0.6587
+      ],
+      [
+        "Melanie: I went camping with the kids last weekend",
+        0.6517
+      ]
+    ],
+    "search|What activities does Melanie do?": [
+      [
+        "Melanie event: pottery class yesterday",
+        0.6587
+      ],
+      [
+        "Melanie hobby: pottery and painting",
+        0.6452
+      ],
+      [
+        "Melanie: I went camping with the kids last weekend",
+        0.6438
+      ]
+    ],
+    "search|What did Melanie do in May 2023?": [
+      [
+        "Melanie: we ran a charity race for mental health in May",
+        0.6537
+      ],
+      [
+        "Melanie hobby: pottery and painting",
+        0.6487
+      ],
+      [
+        "Melanie event: pottery class yesterday",
+        0.6439
+      ]
+    ],
+    "search|When did Caroline join the support group?": [
+      [
+        "Caroline event: joined a support group last Tuesday",
+        0.664
+      ],
+      [
+        "Caroline: I joined a support group last Tuesday",
+        0.6564
+      ],
+      [
+        "Melanie: the kids loved the pottery class yesterday",
+        0.6561
+      ],
+      [
+        "Caroline: I am researching adoption agencies this month",
+        0.6462
+      ]
+    ],
+    "search|When did Melanie's kids go to the pottery class?": [
+      [
+        "Melanie: the kids loved the pottery class yesterday",
+        0.6667
+      ],
+      [
+        "Melanie event: pottery class yesterday",
+        0.6587
+      ],
+      [
+        "Melanie hobby: pottery and painting",
+        0.6562
+      ],
+      [
+        "Melanie: I went camping with the kids last weekend",
+        0.6487
+      ]
+    ]
+  },
+  "resolve-relative-dates": {
+    "assemble|How many times did Melanie go camping?": [
+      "Melanie hobby: pottery and painting",
+      "Melanie event: pottery class yesterday [= Thu 2023-06-08]",
+      "Melanie: I went camping with the kids last weekend [= 2023-04-29..2023-04-30]"
+    ],
+    "assemble|What activities does Melanie do?": [
+      "Melanie event: pottery class yesterday [= Thu 2023-06-08]",
+      "Melanie hobby: pottery and painting",
+      "Melanie: I went camping with the kids last weekend [= 2023-04-29..2023-04-30]"
+    ],
+    "assemble|What did Melanie do in May 2023?": [
+      "Melanie hobby: pottery and painting",
+      "Melanie event: pottery class yesterday [= Thu 2023-06-08]",
+      "Melanie: we ran a charity race for mental health in May"
+    ],
+    "assemble|When did Caroline join the support group?": [
+      "Caroline event: joined a support group last Tuesday [= Tue 2023-05-30]",
+      "Caroline: I joined a support group last Tuesday [= Tue 2023-05-30]",
+      "Melanie: the kids loved the pottery class yesterday [= Fri 2023-06-09]"
+    ],
+    "assemble|When did Melanie's kids go to the pottery class?": [
+      "Melanie event: pottery class yesterday [= Thu 2023-06-08]",
+      "Melanie hobby: pottery and painting",
+      "Melanie: the kids loved the pottery class yesterday [= Fri 2023-06-09]"
+    ],
+    "read|auto|How many times did Melanie go camping?": [
+      "compose",
+      false,
+      94,
+      [
+        "Melanie: I went camping with the kids last weekend [= 2023-04-29..2023-04-30]",
+        "Melanie: we ran a charity race for mental health in May",
+        "Caroline event: joined a support group last Tuesday [= Tue 2023-05-30]",
+        "Melanie event: pottery class yesterday [= Thu 2023-06-08]",
+        "Melanie: the kids loved the pottery class yesterday [= Fri 2023-06-09]",
+        "Melanie hobby: pottery and painting"
+      ]
+    ],
+    "read|auto|What activities does Melanie do?": [
+      "compose",
+      false,
+      93,
+      [
+        "Melanie: I went camping with the kids last weekend [= 2023-04-29..2023-04-30]",
+        "Melanie: we ran a charity race for mental health in May",
+        "Caroline: I joined a support group last Tuesday [= Tue 2023-05-30]",
+        "Melanie event: pottery class yesterday [= Thu 2023-06-08]",
+        "Melanie: the kids loved the pottery class yesterday [= Fri 2023-06-09]",
+        "Melanie hobby: pottery and painting"
+      ]
+    ],
+    "read|auto|What did Melanie do in May 2023?": [
+      "replay",
+      false,
+      38,
+      [
+        "Melanie hobby: pottery and painting",
+        "Melanie event: pottery class yesterday [= Thu 2023-06-08]",
+        "Melanie: we ran a charity race for mental health in May"
+      ]
+    ],
+    "read|auto|When did Caroline join the support group?": [
+      "replay",
+      false,
+      53,
+      [
+        "Caroline event: joined a support group last Tuesday [= Tue 2023-05-30]",
+        "Caroline: I joined a support group last Tuesday [= Tue 2023-05-30]",
+        "Melanie: the kids loved the pottery class yesterday [= Fri 2023-06-09]"
+      ]
+    ],
+    "read|auto|When did Melanie's kids go to the pottery class?": [
+      "replay",
+      false,
+      42,
+      [
+        "Melanie event: pottery class yesterday [= Thu 2023-06-08]",
+        "Melanie hobby: pottery and painting",
+        "Melanie: the kids loved the pottery class yesterday [= Fri 2023-06-09]"
+      ]
+    ],
+    "read|compose|How many times did Melanie go camping?": [
+      "compose",
+      false,
+      94,
+      [
+        "Melanie: I went camping with the kids last weekend [= 2023-04-29..2023-04-30]",
+        "Melanie: we ran a charity race for mental health in May",
+        "Caroline event: joined a support group last Tuesday [= Tue 2023-05-30]",
+        "Melanie event: pottery class yesterday [= Thu 2023-06-08]",
+        "Melanie: the kids loved the pottery class yesterday [= Fri 2023-06-09]",
+        "Melanie hobby: pottery and painting"
+      ]
+    ],
+    "read|compose|What activities does Melanie do?": [
+      "compose",
+      false,
+      93,
+      [
+        "Melanie: I went camping with the kids last weekend [= 2023-04-29..2023-04-30]",
+        "Melanie: we ran a charity race for mental health in May",
+        "Caroline: I joined a support group last Tuesday [= Tue 2023-05-30]",
+        "Melanie event: pottery class yesterday [= Thu 2023-06-08]",
+        "Melanie: the kids loved the pottery class yesterday [= Fri 2023-06-09]",
+        "Melanie hobby: pottery and painting"
+      ]
+    ],
+    "read|compose|What did Melanie do in May 2023?": [
+      "compose",
+      false,
+      93,
+      [
+        "Melanie: I went camping with the kids last weekend [= 2023-04-29..2023-04-30]",
+        "Melanie: we ran a charity race for mental health in May",
+        "Melanie event: pottery class yesterday [= Thu 2023-06-08]",
+        "Melanie: the kids loved the pottery class yesterday [= Fri 2023-06-09]",
+        "Melanie hobby: pottery and painting",
+        "Caroline: I am researching adoption agencies this month [= 2023-07]"
+      ]
+    ],
+    "read|compose|When did Caroline join the support group?": [
+      "compose",
+      false,
+      91,
+      [
+        "Caroline: I started a new painting of a lake sunset",
+        "Caroline event: joined a support group last Tuesday [= Tue 2023-05-30]",
+        "Caroline: I joined a support group last Tuesday [= Tue 2023-05-30]",
+        "Melanie: the kids loved the pottery class yesterday [= Fri 2023-06-09]",
+        "Caroline: I am researching adoption agencies this month [= 2023-07]",
+        "Caroline plan: adopt a child"
+      ]
+    ],
+    "read|compose|When did Melanie's kids go to the pottery class?": [
+      "compose",
+      false,
+      84,
+      [
+        "Melanie: I went camping with the kids last weekend [= 2023-04-29..2023-04-30]",
+        "Melanie: we ran a charity race for mental health in May",
+        "Melanie event: pottery class yesterday [= Thu 2023-06-08]",
+        "Melanie: the kids loved the pottery class yesterday [= Fri 2023-06-09]",
+        "Melanie hobby: pottery and painting",
+        "Caroline plan: adopt a child"
+      ]
+    ],
+    "read|full|How many times did Melanie go camping?": [
+      "retrieve",
+      false,
+      44,
+      [
+        "Melanie hobby: pottery and painting",
+        "Melanie event: pottery class yesterday [= Thu 2023-06-08]",
+        "Melanie: I went camping with the kids last weekend [= 2023-04-29..2023-04-30]"
+      ]
+    ],
+    "read|full|What activities does Melanie do?": [
+      "retrieve",
+      false,
+      44,
+      [
+        "Melanie event: pottery class yesterday [= Thu 2023-06-08]",
+        "Melanie hobby: pottery and painting",
+        "Melanie: I went camping with the kids last weekend [= 2023-04-29..2023-04-30]"
+      ]
+    ],
+    "read|full|What did Melanie do in May 2023?": [
+      "retrieve",
+      false,
+      38,
+      [
+        "Melanie hobby: pottery and painting",
+        "Melanie event: pottery class yesterday [= Thu 2023-06-08]",
+        "Melanie: we ran a charity race for mental health in May"
+      ]
+    ],
+    "read|full|When did Caroline join the support group?": [
+      "retrieve",
+      false,
+      53,
+      [
+        "Caroline event: joined a support group last Tuesday [= Tue 2023-05-30]",
+        "Caroline: I joined a support group last Tuesday [= Tue 2023-05-30]",
+        "Melanie: the kids loved the pottery class yesterday [= Fri 2023-06-09]"
+      ]
+    ],
+    "read|full|When did Melanie's kids go to the pottery class?": [
+      "retrieve",
+      false,
+      42,
+      [
+        "Melanie event: pottery class yesterday [= Thu 2023-06-08]",
+        "Melanie hobby: pottery and painting",
+        "Melanie: the kids loved the pottery class yesterday [= Fri 2023-06-09]"
+      ]
+    ],
+    "read|replay|How many times did Melanie go camping?": [
+      "replay",
+      false,
+      44,
+      [
+        "Melanie hobby: pottery and painting",
+        "Melanie event: pottery class yesterday [= Thu 2023-06-08]",
+        "Melanie: I went camping with the kids last weekend [= 2023-04-29..2023-04-30]"
+      ]
+    ],
+    "read|replay|What activities does Melanie do?": [
+      "replay",
+      false,
+      44,
+      [
+        "Melanie event: pottery class yesterday [= Thu 2023-06-08]",
+        "Melanie hobby: pottery and painting",
+        "Melanie: I went camping with the kids last weekend [= 2023-04-29..2023-04-30]"
+      ]
+    ],
+    "read|replay|What did Melanie do in May 2023?": [
+      "replay",
+      false,
+      38,
+      [
+        "Melanie hobby: pottery and painting",
+        "Melanie event: pottery class yesterday [= Thu 2023-06-08]",
+        "Melanie: we ran a charity race for mental health in May"
+      ]
+    ],
+    "read|replay|When did Caroline join the support group?": [
+      "replay",
+      false,
+      53,
+      [
+        "Caroline event: joined a support group last Tuesday [= Tue 2023-05-30]",
+        "Caroline: I joined a support group last Tuesday [= Tue 2023-05-30]",
+        "Melanie: the kids loved the pottery class yesterday [= Fri 2023-06-09]"
+      ]
+    ],
+    "read|replay|When did Melanie's kids go to the pottery class?": [
+      "replay",
+      false,
+      42,
+      [
+        "Melanie event: pottery class yesterday [= Thu 2023-06-08]",
+        "Melanie hobby: pottery and painting",
+        "Melanie: the kids loved the pottery class yesterday [= Fri 2023-06-09]"
+      ]
+    ],
+    "read|retrieve|How many times did Melanie go camping?": [
+      "retrieve",
+      false,
+      44,
+      [
+        "Melanie hobby: pottery and painting",
+        "Melanie event: pottery class yesterday [= Thu 2023-06-08]",
+        "Melanie: I went camping with the kids last weekend [= 2023-04-29..2023-04-30]"
+      ]
+    ],
+    "read|retrieve|What activities does Melanie do?": [
+      "retrieve",
+      false,
+      44,
+      [
+        "Melanie event: pottery class yesterday [= Thu 2023-06-08]",
+        "Melanie hobby: pottery and painting",
+        "Melanie: I went camping with the kids last weekend [= 2023-04-29..2023-04-30]"
+      ]
+    ],
+    "read|retrieve|What did Melanie do in May 2023?": [
+      "retrieve",
+      false,
+      38,
+      [
+        "Melanie hobby: pottery and painting",
+        "Melanie event: pottery class yesterday [= Thu 2023-06-08]",
+        "Melanie: we ran a charity race for mental health in May"
+      ]
+    ],
+    "read|retrieve|When did Caroline join the support group?": [
+      "retrieve",
+      false,
+      53,
+      [
+        "Caroline event: joined a support group last Tuesday [= Tue 2023-05-30]",
+        "Caroline: I joined a support group last Tuesday [= Tue 2023-05-30]",
+        "Melanie: the kids loved the pottery class yesterday [= Fri 2023-06-09]"
+      ]
+    ],
+    "read|retrieve|When did Melanie's kids go to the pottery class?": [
+      "retrieve",
+      false,
+      42,
+      [
+        "Melanie event: pottery class yesterday [= Thu 2023-06-08]",
+        "Melanie hobby: pottery and painting",
+        "Melanie: the kids loved the pottery class yesterday [= Fri 2023-06-09]"
+      ]
+    ],
+    "search|How many times did Melanie go camping?": [
+      [
+        "Melanie hobby: pottery and painting",
+        0.664
+      ],
+      [
+        "Melanie event: pottery class yesterday",
+        0.6587
+      ],
+      [
+        "Melanie: I went camping with the kids last weekend",
+        0.6517
+      ]
+    ],
+    "search|What activities does Melanie do?": [
+      [
+        "Melanie event: pottery class yesterday",
+        0.6587
+      ],
+      [
+        "Melanie hobby: pottery and painting",
+        0.6452
+      ],
+      [
+        "Melanie: I went camping with the kids last weekend",
+        0.6438
+      ]
+    ],
+    "search|What did Melanie do in May 2023?": [
+      [
+        "Melanie: we ran a charity race for mental health in May",
+        0.6537
+      ],
+      [
+        "Melanie hobby: pottery and painting",
+        0.6487
+      ],
+      [
+        "Melanie event: pottery class yesterday",
+        0.6439
+      ]
+    ],
+    "search|When did Caroline join the support group?": [
+      [
+        "Caroline event: joined a support group last Tuesday",
+        0.664
+      ],
+      [
+        "Caroline: I joined a support group last Tuesday",
+        0.6564
+      ],
+      [
+        "Melanie: the kids loved the pottery class yesterday",
+        0.6561
+      ],
+      [
+        "Caroline: I am researching adoption agencies this month",
+        0.6462
+      ]
+    ],
+    "search|When did Melanie's kids go to the pottery class?": [
+      [
+        "Melanie: the kids loved the pottery class yesterday",
+        0.6667
+      ],
+      [
+        "Melanie event: pottery class yesterday",
+        0.6587
+      ],
+      [
+        "Melanie hobby: pottery and painting",
+        0.6562
+      ],
+      [
+        "Melanie: I went camping with the kids last weekend",
+        0.6487
+      ]
+    ]
+  }
+}
