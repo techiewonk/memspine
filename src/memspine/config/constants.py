@@ -20,6 +20,13 @@ LEXICAL_CACHE_MAX_ENTRIES = 512
 # but strong when the two legs combine can still enter the fused top_k.
 LEXICAL_FETCH_MULTIPLIER = 3
 
+# #87 replay determinism: a retrieval leg whose top-k cut falls inside a run of
+# equal scores is re-fetched (doubling) until the run is whole, then the run is
+# ordered by record content and time, not by the store's tie order. The re-fetch
+# stops at this multiple of the cut; a run longer than that keeps the store's
+# order past the bound (documented in ADR-051).
+LEG_TIE_FETCH_MAX_FACTOR = 8
+
 # Lexical query DoS guard (E8/D-25): user queries are bounded before they reach
 # the FTS5 parser (one quoted OR-phrase per token → super-linear parse) and
 # before the raw string becomes a cache key. Terms past the cap are dropped;

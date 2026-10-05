@@ -39,7 +39,7 @@ from memspine.core.policies.consolidation import (
 from memspine.core.policies.decay import DecayPolicy
 from memspine.core.policies.retention import RetentionPolicy
 from memspine.core.policies.trust import TrustPolicy
-from memspine.core.records import MemoryRecord, RecordStatus, SourceInfo
+from memspine.core.records import MemoryRecord, RecordStatus, SourceInfo, chrono_key
 from memspine.core.temporal_resolve import WeekMode
 from memspine.exceptions import ConflictError
 from memspine.memories.associative.communities import (
@@ -1327,15 +1327,14 @@ def _edge_contexts(sources: list[MemoryRecord], known: list[MemoryRecord]) -> li
     entities = entities[:EDGE_CONTEXT_MAX_ENTITIES]
     episodes = sorted(
         (r for r in sources if r.memory_type == "episodic"),
-        key=lambda r: (r.valid_from, r.record_id),
+        key=chrono_key,
     )
     contexts: list[EdgeContext] = []
     for record in sources:
         previous = [
             e
             for e in episodes
-            if e.group_id == record.group_id
-            and (e.valid_from, e.record_id) < (record.valid_from, record.record_id)
+            if e.group_id == record.group_id and chrono_key(e) < chrono_key(record)
         ][-MAX_PREVIOUS_EPISODES:]
         contexts.append(
             EdgeContext(
@@ -1833,7 +1832,7 @@ async def _live_members(ctx: PipelineContext, member_ids: list[str]) -> list[Mem
         if record is None or record.status is not RecordStatus.ACTIVATED or record.quarantined:
             continue
         members.append(inflate.inflate(record))
-    members.sort(key=lambda m: (m.valid_from, m.record_id))
+    members.sort(key=chrono_key)
     return members
 
 

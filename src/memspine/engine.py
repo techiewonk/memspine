@@ -109,6 +109,7 @@ from memspine.core.records import (
     PiiTier,
     RecordStatus,
     SourceInfo,
+    chrono_key,
     new_record_id,
 )
 from memspine.core.redaction import find_pii, redact
@@ -117,6 +118,7 @@ from memspine.core.replay import catch_up
 from memspine.core.replay import rebuild as replay_rebuild
 from memspine.core.temporal_query import LegHit, metadata_leg, temporal_leg
 from memspine.core.temporal_resolve import annotate as annotate_relative_dates
+from memspine.core.ties import settle_ties
 from memspine.exceptions import (
     ConfigError,
     ConflictError,
@@ -1469,7 +1471,7 @@ class Engine:
         legs = [[LegHit(h.record_id, h.score) for h in await self._vector_leg(ns, vector, fetch_k)]]
         if lexical and self._lexical is not None:
             try:
-                hits = await self._lexical.search(ns, text, top_k=fetch_k)
+                hits = await self._lexical_leg(ns, text, fetch_k)
                 legs.append([LegHit(h.record_id, 1.0) for h in hits])
             except Exception as exc:  # an enhancer, never a gate
                 _log.warning("read.probe_leg_failed", namespace=ns, error=str(exc))
@@ -1484,7 +1486,7 @@ class Engine:
             terms = core_terms(query)
             if terms and terms.lower() != query.lower():
                 try:
-                    hits = await self._lexical.search(ns, terms, top_k=fetch_k)
+                    hits = await self._lexical_leg(ns, terms, fetch_k)
                     legs.append([LegHit(h.record_id, 1.0) for h in hits])
                 except Exception as exc:  # an enhancer, never a gate
                     _log.warning("read.core_terms_leg_failed", namespace=ns, error=str(exc))
@@ -1700,7 +1702,7 @@ class Engine:
     def _by_time(
         lines: Mapping[str, tuple[MemoryRecord, str]],
     ) -> list[tuple[MemoryRecord, str]]:
-        return sorted(lines.values(), key=lambda v: (v[0].valid_from, v[0].record_id))
+        return sorted(lines.values(), key=lambda v: chrono_key(v[0]))
 
     async def _edge_sources(self, storage: SqlStorage, fact: MemoryRecord) -> int:
         """GR-9: the live episodes stating ``fact``: its parents and the episodes
@@ -1843,7 +1845,7 @@ class Engine:
                     found.append(shown)
         if not found:
             return None
-        found.sort(key=lambda r: (r.valid_from, r.record_id))
+        found.sort(key=chrono_key)
         kept = found[-constants.LEAD_STANDING_MAX :]
         return self._lead_record(ns, render_standing(kept), kept), kept
 
@@ -1896,7 +1898,7 @@ class Engine:
                 entries.append((shown, record.valid_to))
             if len(entries) < 2:
                 continue
-            entries.sort(key=lambda e: (e[0].valid_from, e[0].record_id))
+            entries.sort(key=lambda e: chrono_key(e[0]))
             entries = entries[-read_cfg.timeline_items :]
             lines = [timeline_line(r, entity, until) for r, until in entries]
             blocks.append(
@@ -2602,19 +2604,52 @@ class Engine:
         # vector.quantization override). Off, this is exactly query() — the
         # vector-only pipeline stays byte-identical. Rescore happens here, at the
         # vector leg, BEFORE fusion/gate/rerank compose over the candidates.
+        vector_store = self._vector
+        embedder_id = self._embedder.embedder_id
         if self._rescore_active:
             try:
-                return await self._vector.search_rescore(
-                    ns, query_vector, embedder_id=self._embedder.embedder_id, top_k=fetch_k
+                # #87: ANN (quantized) search is approximate by design; its ties
+                # are settled like the exact path's, its recall is not (ADR-051).
+                return await settle_ties(
+                    lambda n: vector_store.search_rescore(
+                        ns, query_vector, embedder_id=embedder_id, top_k=n
+                    ),
+                    fetch_k,
+                    self._tie_keys,
                 )
             except Exception as exc:
                 # Defense in depth (mirrors the lexical leg below): any residual
                 # rescore error — e.g. a corrupt code row surviving the scheme/dim
                 # guards — degrades to the exact query() path, never crashes search().
                 _log.warning("vector.rescore_failed", namespace=ns, error=str(exc))
-        return await self._vector.query(
-            ns, query_vector, embedder_id=self._embedder.embedder_id, top_k=fetch_k
+        return await settle_ties(
+            lambda n: vector_store.query(ns, query_vector, embedder_id=embedder_id, top_k=n),
+            fetch_k,
+            self._tie_keys,
         )
+
+    async def _lexical_leg(self, ns: str, text: str, fetch_k: int) -> list[LexicalHit]:
+        """One BM25 leg, its equal-score runs in content order (#87). Raises what the
+        lexical store raises; each caller decides how a failed leg degrades."""
+        lexical = self._lexical
+        assert lexical is not None
+        return await settle_ties(
+            lambda n: lexical.search(ns, text, top_k=n), fetch_k, self._tie_keys
+        )
+
+    async def _tie_keys(self, record_ids: list[str]) -> dict[str, Any]:
+        """#87: the order of tied leg hits, by record id: write order (record time,
+        strictly increasing, see :func:`record_time`), then content. Write order is
+        what an exact flat scan of an append-only table yields, so a leg whose
+        store order was already stable keeps it; one whose order was not (segment
+        merges, multi-threaded scans) now gets it too."""
+        storage = self._require_started()
+        keys: dict[str, Any] = {}
+        for rid in dict.fromkeys(record_ids):
+            record = await storage.get_record(rid)
+            if record is not None:
+                keys[rid] = (record.recorded_at, record.content_fingerprint, record.record_id)
+        return keys
 
     async def _gate_hits(
         self,
@@ -2736,7 +2771,7 @@ class Engine:
             if use_hybrid:
                 assert self._lexical is not None  # narrowed by use_hybrid
                 try:
-                    lexical_hits = await self._lexical.search(ns, query, top_k=fetch_k)
+                    lexical_hits = await self._lexical_leg(ns, query, fetch_k)
                 except Exception as exc:
                     # Defense in depth: a broken lexical leg degrades to vector-only
                     # (fusing an empty leg preserves the vector ordering), it never
@@ -3153,7 +3188,7 @@ class Engine:
         stable = [*stable, *lead]
         priority = list(volatile)
         if read_cfg.order_by_time_for_ordering and is_ordering(query):
-            volatile = sorted(volatile, key=lambda r: (r.valid_from, r.record_id))
+            volatile = sorted(volatile, key=chrono_key)
         if read_cfg.render != "dated":
             assembled.records = [*stable, *volatile]
             return assembled
@@ -3183,7 +3218,7 @@ class Engine:
             # consecutive dated records.
             order = sorted(
                 range(len(volatile)),
-                key=lambda i: (volatile[i].valid_from, volatile[i].record_id),
+                key=lambda i: chrono_key(volatile[i]),
             )
             for prev, cur in itertools.pairwise(order):
                 gap = volatile[cur].valid_from - volatile[prev].valid_from
@@ -3356,7 +3391,7 @@ class Engine:
                 view = await self._live_view(record)
                 if view is not None:
                     live.append(view)
-            live.sort(key=lambda r: (r.valid_from, r.record_id))
+            live.sort(key=chrono_key)
             decorated = await self._decorate(
                 ns, [(r, 0.0) for r in self._inflate_all(live, ns)], hide=full_hide
             )
@@ -3459,7 +3494,7 @@ class Engine:
         stable = [r for r in chosen if r.memory_type != "episodic"]
         turns = sorted(
             (r for r in chosen if r.memory_type == "episodic"),
-            key=lambda r: (r.valid_from, r.record_id),
+            key=chrono_key,
         )
         return ReadResult(
             "replay",
@@ -3539,7 +3574,7 @@ class Engine:
         if not kept:
             return None
         kept.sort(
-            key=lambda r: (r.record_id in said, said.get(r.record_id, r.valid_from), r.record_id)
+            key=lambda r: (r.record_id in said, said.get(r.record_id, r.valid_from), chrono_key(r))
         )
         block = self._lead_record(
             ns, self._cards_text(kept, said, claims, read_cfg.cards_event_date), kept
@@ -3818,7 +3853,7 @@ class Engine:
         }
         ranked = sorted(
             (rid for rid in fused if rid in kept and rid in decorated),
-            key=lambda rid: (-fused[rid], rid),
+            key=lambda rid: (-fused[rid], chrono_key(records[rid])),
         )
         sessions: dict[str, list[str]] = {}
         session_ids: dict[str, list[str]] = {}
@@ -3858,7 +3893,7 @@ class Engine:
             used = await self._expand_neighbours(
                 ns, chosen, session_ids, replay_window, budget_tokens, used
             )
-        chosen.sort(key=lambda r: (r.valid_from, r.record_id))
+        chosen.sort(key=chrono_key)
         return ReadResult(
             "compose",
             self._render(query, AssembledContext(records=chosen, tokens_used=used), budget_tokens),

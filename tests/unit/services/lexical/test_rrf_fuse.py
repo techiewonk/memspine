@@ -19,11 +19,15 @@ def test_records_in_both_legs_outrank_single_leg_records() -> None:
     assert scores["c"] == 1.0 / (RRF_K + 2)
 
 
-def test_ties_break_by_record_id_ascending() -> None:
+def test_ties_break_by_leg_ranks_not_record_id() -> None:
     # a and b surface at identical rank 1 in the two legs → equal fused score.
+    # #87: the vector leg's hit comes first whatever the ids (they are random
+    # uuids, so an id tie-break reordered equal records from run to run).
     fused = rrf_fuse([VectorHit("b", 1.0)], [LexicalHit("a", 1.0)])
-    assert [rid for rid, _ in fused] == ["a", "b"]  # deterministic: id asc
+    assert [rid for rid, _ in fused] == ["b", "a"]
     assert fused[0][1] == fused[1][1]
+    swapped = rrf_fuse([VectorHit("a", 1.0)], [LexicalHit("b", 1.0)])
+    assert [rid for rid, _ in swapped] == ["a", "b"]
 
 
 def test_empty_legs_fuse_to_empty() -> None:
