@@ -16,8 +16,6 @@ import asyncio
 import itertools
 import os
 import re
-import shutil
-import tempfile
 import threading
 from collections.abc import Callable, Coroutine, Mapping, Sequence
 from dataclasses import dataclass
@@ -371,12 +369,6 @@ class Engine:
         self._client: SQLiteClient | None = None  # SQLite storage + FTS5/adjacency projections
         self._pg: PostgresClient | None = None  # Postgres storage backend (Phase 6)
         self._lance: LanceDBClient | None = None
-        # Per-engine scratch dir for the LanceDB table when the event log is
-        # in-memory (storage.path == ":memory:"): a durable on-disk table would
-        # outlive the ephemeral log and accumulate ghost rows across runs
-        # (D0.1). The dir is created in _build_vector_store and removed in
-        # _teardown so the projection shares the log's lifetime.
-        self._lance_scratch: Path | None = None
         self._kuzu: KuzuClient | None = None
         self._ladybug: LadybugClient | None = None
         # Phase 2: one shared KV cache + the optional clients backing it.
@@ -687,13 +679,6 @@ class Engine:
         ):
             if client is not None:
                 await client.close()
-        if self._lance_scratch is not None:
-            # The Lance client is closed above (file handles released), so the
-            # ephemeral :memory: scratch table can be removed now — it shares
-            # the in-memory log's lifetime (D0.1). Best-effort: a lingering OS
-            # handle must never fail stop().
-            shutil.rmtree(self._lance_scratch, ignore_errors=True)
-            self._lance_scratch = None
         self._started = False
 
     # ── public verbs (P0: write / retrieve / rebuild / describe) ─────────────
@@ -5410,12 +5395,12 @@ class Engine:
 
         if self._client_is_memory(config):
             # A projection must never outlive its log (D0.1): an in-memory event
-            # log gets a per-engine scratch dir, removed in _teardown, so the
-            # Lance table shares the log's ephemeral lifetime (no ghost rows on
-            # restart). mkdtemp is unique per engine — concurrent :memory:
-            # engines never collide on one directory.
-            self._lance_scratch = Path(tempfile.mkdtemp(prefix="memspine-lance-"))
-            lance_path = str(self._lance_scratch / "vectors.lance")
+            # log gets an in-memory Lance table. LanceDB keeps a ``memory://``
+            # store private to its connection, so concurrent :memory: engines
+            # never share rows and the table is freed when the client closes.
+            # A scratch directory on disk gave the same results but cost a new
+            # fragment and version file per write (and minutes to delete).
+            lance_path = "memory://vectors"
         else:
             # sqlite: <path>.lance beside the db; postgres: <data_dir>/memspine.lance
             lance_path = f"{self._derived_base(config)}.lance"
