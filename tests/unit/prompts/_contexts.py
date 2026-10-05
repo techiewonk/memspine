@@ -31,7 +31,20 @@ CANONICAL_CONTEXTS: dict[str, dict[str, Any]] = {
     "dedupe": {"a": "Alice likes tea", "b": "Alice enjoys tea"},
     "chat": {"context": "Alice lives in Berlin", "message": "Where does Alice live?"},
     "consolidate": {"episodes": ["Alice moved to Berlin", "Alice started at Acme"]},
-    "summarize": {"content": "A long passage about oceans and currents.", "max_sentences": 2},
+    "summarize": {
+        "content": "A long passage about oceans and currents.",
+        "max_sentences": 2,
+        "previous": "Alice described the Gulf Stream.",
+    },
+    "predict_episode": {
+        "knowledge": ["Alice lives in Berlin", "Alice works at Acme"],
+        "date": "2026-01-02",
+        "cue": "Alice: guess what happened at work today",
+    },
+    "calibrate": {
+        "prediction": "Alice works at Acme\nAlice lives in Berlin",
+        "content": "[2026-01-02] Alice: I got promoted to team lead at Acme",
+    },
     "subcluster": {"members": ["ocean currents", "tidal patterns"]},
     "query_rewrite": {"query": "coffee preference"},
     "plan": {"query": "What activities does Alice do?"},

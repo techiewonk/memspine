@@ -25,4 +25,6 @@ PROMPT_ROLES: tuple[str, ...] = (
     "anticipate",  # H8: write-time anticipatory retrieval cues (T-Mem-style)
     "relevance",  # H17: 3-way relevance filter on read (Hindsight-style), opt-in
     "plan",  # G2a: read planner for read(mode="auto") (JustMem-style), opt-in
+    "predict_episode",  # #62: Nemori predict step (episode from stored memory), opt-in
+    "calibrate",  # #62: Nemori calibrate step (prediction vs episode -> surprise), opt-in
 )
