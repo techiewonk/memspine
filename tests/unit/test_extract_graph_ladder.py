@@ -53,9 +53,7 @@ def _edge(src: str, rel: str, dst: str, kind: str, fact: str) -> ExtractedEdge:
 async def _facts(eng: Engine, ns: str = "a") -> list[MemoryRecord]:
     storage = eng._require_started()
     return [
-        r
-        for r in await storage.list_records(ns, "semantic")
-        if r.source.channel == "extract_graph"
+        r for r in await storage.list_records(ns, "semantic") if r.source.channel == "extract_graph"
     ]
 
 

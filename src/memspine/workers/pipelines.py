@@ -675,7 +675,9 @@ async def reorganize(ctx: PipelineContext) -> dict[str, object]:
     # community (and no summary parent) ever spans two tenants.
     communities: list[list[str]] = []
     for graph_namespace in await ctx.storage.list_namespaces():
-        edges = await ctx.graph.edge_list(graph_namespace)
+        # GP-2: entity ``mentions`` edges are not associations; communities stay
+        # over the association graph they were defined on.
+        edges = [e for e in await ctx.graph.edge_list(graph_namespace) if e.rel_type != "mentions"]
         # Leiden clustering is CPU work — keep it off the event loop (same
         # pattern as compress()'s zstd call). Knobs ride the associative policy
         # (v0.2 A6); defaults preserve rebuild determinism (D0.1).
@@ -902,6 +904,7 @@ def _graph_marker_sources(raw: object) -> list[tuple[str, str]]:
                 fp = entry.get("content_fingerprint")
                 pairs.append((str(entry["record_id"]), str(fp) if fp else ""))
     return [(rid, fp) for rid, fp in pairs if fp]
+
 
 #: GR-4: at most this many known entity names ride along as extraction context.
 EDGE_CONTEXT_MAX_ENTITIES = 50
@@ -1140,9 +1143,7 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
                             "asserted",
                             # GP-10: an edge is never stronger than its
                             # confidence or the trust of what it links.
-                            weight=max(
-                                0.0, min(1.0, edge.confidence, record.trust, fact.trust)
-                            ),
+                            weight=max(0.0, min(1.0, edge.confidence, record.trust, fact.trust)),
                             reason="extract_graph",
                             actor="system",
                         )
@@ -1350,8 +1351,8 @@ class SessionIndex:
         elif event.kind is EventKind.MARKER:
             marker = payload.get("marker")
             if marker == GRAPH_EXTRACTED_MARKER:
-                for record_id, fp in _graph_marker_sources(payload.get("sources")):
-                    self.graph_sources[(event.namespace, record_id)] = fp
+                for record_id, source_fp in _graph_marker_sources(payload.get("sources")):
+                    self.graph_sources[(event.namespace, record_id)] = source_fp
             elif marker in ("stage_done", "stage_cleared"):
                 fp = payload.get("members_fp")
                 self.mark(

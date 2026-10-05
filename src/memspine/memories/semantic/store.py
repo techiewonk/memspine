@@ -136,10 +136,7 @@ class SemanticMemory(BaseMemory):
         # C3: after the primary fact lands, extract relationship edges from the
         # same content and write each through this door (guarded by channel so
         # an edge record never recurses). Off unless a pipeline is injected.
-        if (
-            self._write_pipeline is not None
-            and record.source.channel not in _DERIVED_EDGE_CHANNELS
-        ):
+        if self._write_pipeline is not None and record.source.channel not in _DERIVED_EDGE_CHANNELS:
             await self._write_pipeline.run(record, self._write_edge_fact)
         return result
 

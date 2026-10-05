@@ -51,10 +51,12 @@ from memspine.core.lead import (
     count_terms,
     distinct_occurrences,
     event_day,
+    graph_fact_line,
     is_standing_instruction,
     mentions_any,
     mentions_event,
     query_names,
+    render_graph_facts,
     render_occurrences,
     render_profile,
     render_standing,
@@ -103,9 +105,10 @@ from memspine.exceptions import (
     MissingServiceError,
     StorageError,
 )
+from memspine.memories.associative.entities import EntityPolicy
 from memspine.memories.associative.evolution import propose_links
 from memspine.memories.associative.projector import GraphProjector
-from memspine.memories.associative.store import AssociativeMemory
+from memspine.memories.associative.store import AssociativeMemory, match_key
 from memspine.memories.episodic.sessions import Session, topic_segments
 from memspine.memories.episodic.store import EpisodicMemory
 from memspine.memories.procedural.prompt_registry import prompt_version_records
@@ -155,7 +158,7 @@ from memspine.services.cache.semantic import CachedEmbedding, CachedExtractor
 from memspine.services.embedding.base import EmbeddingService, embed_queries
 from memspine.services.graph.base import GraphStore
 from memspine.services.graph.sqlite_adjacency import SQLiteAdjacencyGraph
-from memspine.services.lexical.base import LexicalStore, rrf_fuse
+from memspine.services.lexical.base import LexicalHit, LexicalStore, rrf_fuse
 from memspine.services.lexical.projector import LexicalProjector
 from memspine.services.llm.base import LLMRouter, LLMService
 from memspine.services.llm.structured import structured_call
@@ -746,7 +749,10 @@ class Engine:
             # Registered only when associative is enabled, so rebuild() replays
             # it and profile="simple" never projects a graph (D0.1/ADR-015).
             assert self._graph is not None
-            self._projectors.append(GraphProjector(self._graph))
+            entities = EntityPolicy.from_policy(
+                self._memory_policy(config, "associative").get("entity_nodes")
+            )
+            self._projectors.append(GraphProjector(self._graph, entities))
 
         # Background runner seam (D-16): inline default, dbos durable [dbos].
         self._runner = self._build_runner(config)
@@ -1319,6 +1325,213 @@ class Engine:
             _log.warning("read.metadata_legs_failed", namespace=ns, error=str(exc))
             return []
         return [leg for leg in legs if leg]
+
+    def _graph_admit(self, ns: str, *, history: bool = False) -> Callable[[MemoryRecord], bool]:
+        """GP-10: may a graph walk enter (and return) this record?
+
+        Never a record of another namespace, an erased or quarantined one, a cue or
+        grant, a taint-rolled-back one, or one below ``read.graph_min_trust``; under
+        ``integrity.enabled`` also never one below the admission threshold (stored
+        trust; the read gates re-judge the leg's hits on live trust). ``history``
+        (the facts block) also admits superseded (ARCHIVED) facts, to show their
+        validity range; the read leg admits only live records."""
+        floor = self._config().read.graph_min_trust
+        integrity = self._integrity()
+        statuses = (
+            (RecordStatus.ACTIVATED, RecordStatus.ARCHIVED)
+            if history
+            else (RecordStatus.ACTIVATED,)
+        )
+
+        def admit(record: MemoryRecord) -> bool:
+            return (
+                record.namespace == ns
+                and record.status in statuses
+                and not record.quarantined
+                and record.memory_type != "shared"
+                and CUE_TAG not in record.tags
+                and _TAINT_ARCHIVED_TAG not in record.tags
+                and record.trust >= floor
+                and (not integrity.enabled or integrity.admits(record.trust))
+            )
+
+        return admit
+
+    async def _graph_seeds(
+        self, ns: str, query: str, fallback_ids: Sequence[str] = ()
+    ) -> list[str]:
+        """GP-3: the entity nodes a graph walk starts from.
+
+        The entities the query names: its 1..``GRAPH_SEED_MAX_NGRAM``-word n-grams
+        matched against the namespace's entity names (canonical words, punctuation
+        dropped), plus the names the decision provider's optional ``entities`` hook
+        finds (GLiNER2; never required, failures ignored). When nothing is named,
+        the entities mentioned by ``fallback_ids`` (the best non-graph hits)."""
+        assert self._associative is not None
+        index = await self._associative.entity_index(ns)
+        if not index:
+            return []
+        words = match_key(query).split()
+        seeds: list[str] = []
+        for size in range(min(constants.GRAPH_SEED_MAX_NGRAM, len(words)), 0, -1):
+            for start in range(len(words) - size + 1):
+                for node in index.get(" ".join(words[start : start + size]), []):
+                    if node not in seeds:
+                        seeds.append(node)
+        provider = self._decision_provider()
+        hook = getattr(provider, "entities", None) if provider is not None else None
+        if callable(hook):
+            try:
+                for name in await hook(query):
+                    for node in index.get(match_key(str(name)), []):
+                        if node not in seeds:
+                            seeds.append(node)
+            except Exception as exc:  # an enhancer, never a gate
+                _log.warning("read.graph_seed_ner_failed", namespace=ns, error=str(exc))
+        if not seeds and fallback_ids:
+            seeds = await self._associative.entities_of(ns, fallback_ids)
+        return seeds
+
+    async def _graph_walk(
+        self, ns: str, query: str, fallback_ids: Sequence[str] = (), *, history: bool = False
+    ) -> list[tuple[MemoryRecord, int]]:
+        """GP-3: the records reached from the query's seed entities (nearest first)."""
+        if self._associative is None:
+            return []
+        read_cfg = self._config().read
+        seeds = await self._graph_seeds(ns, query, fallback_ids)
+        if not seeds:
+            return []
+        return await self._associative.seed_expand(
+            ns,
+            seeds,
+            depth=min(read_cfg.graph_depth, constants.GRAPH_LEG_MAX_DEPTH),
+            admit=self._graph_admit(ns, history=history),
+            max_degree=constants.GRAPH_LEG_MAX_DEGREE,
+        )
+
+    async def _graph_leg(
+        self,
+        ns: str,
+        query: str,
+        vector_hits: Sequence[VectorHit],
+        lexical_hits: Sequence[LexicalHit],
+        extra_legs: list[list[LegHit]],
+        use_hybrid: bool,
+    ) -> list[LegHit]:
+        """GP-3 (``read.graph_leg``): one more RRF leg from the association graph.
+
+        Seeds are the entities the query names, else the entities of the best
+        ``GRAPH_LEG_FALLBACK_HITS`` hits of the other legs. The walk
+        (:meth:`AssociativeMemory.seed_expand`, ``read.graph_depth`` entity hops,
+        GP-10 trust caps) yields fact records nearest first; each is followed by
+        its source turns (``source.parents``) that the same gate admits. The first
+        ``read.graph_leg_k`` form the leg. Its hits then pass every search gate
+        (status, quarantine, admission) like any other leg's. Failures degrade to
+        no leg (an enhancer, never a gate)."""
+        if self._associative is None:
+            return []
+        try:
+            if use_hybrid or extra_legs:
+                prelim = [
+                    rid
+                    for rid, _ in rrf_fuse(list(vector_hits), list(lexical_hits), extra=extra_legs)
+                ]
+            else:
+                prelim = [hit.record_id for hit in vector_hits]
+            reached = await self._graph_walk(ns, query, prelim[: constants.GRAPH_LEG_FALLBACK_HITS])
+            storage = self._require_started()
+            admit = self._graph_admit(ns)
+            limit = self._config().read.graph_leg_k
+            ids: list[str] = []
+            for record, _hops in reached:
+                if len(ids) >= limit:
+                    break
+                if record.record_id not in ids:
+                    ids.append(record.record_id)
+                for parent_id in record.source.parents:
+                    if len(ids) >= limit or parent_id in ids:
+                        continue
+                    parent = await storage.get_record(parent_id)
+                    if parent is not None and admit(parent):
+                        ids.append(parent_id)
+        except Exception as exc:  # an enhancer, never a gate
+            _log.warning("read.graph_leg_failed", namespace=ns, error=str(exc))
+            return []
+        return [LegHit(rid, 1.0) for rid in ids]
+
+    async def _graph_facts_section(
+        self, ns: str, query: str, allowance: int
+    ) -> MemoryRecord | None:
+        """GP-5 (``read.cards_include_edges``): the graph facts block, or None.
+
+        The edge facts (records tagged ``rel:``) the graph walk reaches from the
+        entities the query names, live and superseded alike, one line each:
+        ``[2023-05-01 → present] Melanie read "X" (sources: 2)``, a superseded one
+        with its end date. ``sources`` counts the live episodes stating the fact
+        (its parents plus the ``edge_source:`` provenance of duplicates, GR-9). A
+        fact's text goes through the per-record wrappers (marker escaping, the
+        instruction and untrusted-note wrappers); a fact repeated verbatim is shown
+        once. Lines are kept nearest first while the block fits ``allowance``, then
+        shown oldest first. The block's parents are the facts it shows, so the read
+        below leaves them out (no record twice)."""
+        if allowance <= estimate_tokens(constants.GRAPH_FACTS_MARKER):
+            return None
+        try:
+            reached = await self._graph_walk(ns, query, history=True)
+        except Exception as exc:  # an enhancer, never a gate
+            _log.warning("read.graph_facts_failed", namespace=ns, error=str(exc))
+            return None
+        storage = self._require_started()
+        lines: dict[str, tuple[MemoryRecord, str]] = {}
+        kept: list[MemoryRecord] = []
+        integrity = self._integrity()
+        live = integrity.enabled and integrity.live_reevaluation
+        for record, _hops in reached:
+            if not any(tag.startswith("rel:") for tag in record.tags):
+                continue
+            if live:
+                # B4': the block is not a search, so it re-judges admission itself.
+                effective = await self.effective_trust(record.record_id)
+                if not integrity.admits(effective):
+                    continue
+                record = record.model_copy(update={"trust": effective})
+            shown = self._wrap_for_context(record)
+            text = " ".join(shown.content.split())
+            if any(text == other for _, other in lines.values()):
+                continue  # one line per fact, however many records restate it
+            line = graph_fact_line(shown, await self._edge_sources(storage, record))
+            trial = {**lines, record.record_id: (shown, line)}
+            if (
+                estimate_tokens(render_graph_facts([v[1] for v in self._by_time(trial)]))
+                <= allowance
+            ):
+                lines = trial
+                kept.append(shown)
+        if not kept:
+            return None
+        block = self._lead_record(
+            ns, render_graph_facts([v[1] for v in self._by_time(lines)]), kept
+        )
+        return block.model_copy(update={"tags": [constants.LEAD_TAG, constants.GRAPH_FACTS_TAG]})
+
+    @staticmethod
+    def _by_time(
+        lines: Mapping[str, tuple[MemoryRecord, str]],
+    ) -> list[tuple[MemoryRecord, str]]:
+        return sorted(lines.values(), key=lambda v: (v[0].valid_from, v[0].record_id))
+
+    async def _edge_sources(self, storage: SqlStorage, fact: MemoryRecord) -> int:
+        """GR-9: the live episodes stating ``fact``: its parents and the episodes
+        duplicates added (``edge_source:`` tags), erased ones not counted."""
+        prefix = constants.EDGE_SOURCE_TAG_PREFIX
+        ids = [*fact.source.parents, *(t[len(prefix) :] for t in fact.tags if t.startswith(prefix))]
+        count = 0
+        for record_id in dict.fromkeys(ids):
+            source = await storage.get_record(record_id)
+            if source is not None and source.status is not RecordStatus.DELETED:
+                count += 1
+        return max(count, 1)
 
     async def _current_state_view(
         self, ns: str, scored: list[tuple[MemoryRecord, float]]
@@ -2304,6 +2517,8 @@ class Engine:
         # A header can hide most of the best hits (mined facts outrank raw turns), so
         # a hiding search may look further down the legs than the gates alone would.
         max_widen = _SEARCH_MAX_WIDEN * (constants.HEADER_HIDE_OVERFETCH if hide else 1)
+        # GP-3 (read.graph_leg): computed once, from the first widen's legs.
+        graph_leg: list[LegHit] | None = None if self._config().read.graph_leg else []
         while True:
             fetch_k = base_fetch * widen
             vector_hits = await self._vector_leg(ns, query_vector, fetch_k)
@@ -2324,6 +2539,12 @@ class Engine:
             extra_legs = await self._metadata_legs(ns, query, fetch_k)
             for text, vector in zip(probe_texts, probe_vectors, strict=True):
                 extra_legs += await self._probe_legs(ns, text, vector, fetch_k, use_hybrid)
+            if graph_leg is None:
+                graph_leg = await self._graph_leg(
+                    ns, query, vector_hits, lexical_hits, extra_legs, use_hybrid
+                )
+            if graph_leg:
+                extra_legs = [*extra_legs, graph_leg]
             if use_hybrid or extra_legs:
                 rrf_k = self._config().read.rrf_k or constants.RRF_K
                 fused = rrf_fuse(vector_hits, lexical_hits, k=rrf_k, extra=extra_legs)
@@ -3137,6 +3358,16 @@ class Engine:
             header = await section(ns, query, budget_tokens, session_id)
             if header is not None:
                 headers.append(header)
+        read_cfg = self._config().read
+        if read_cfg.cards_include_edges:
+            # GP-5: the graph facts block shares the cards allowance, after the cards.
+            cards = [h for h in headers if constants.CARDS_TAG in h.tags]
+            allowance = int(budget_tokens * read_cfg.cards_budget_share)
+            facts = await self._graph_facts_section(
+                ns, query, allowance - self._headers_cost(cards)
+            )
+            if facts is not None:
+                headers.insert(len(cards), facts)
         return headers
 
     def _count_allowance(self, query: str, budget_tokens: int) -> int:
@@ -5887,7 +6118,9 @@ class Engine:
         integrity_cap = await self._parent_trust_cap(record.namespace, record.source.parents)
         if integrity_cap:
             cap.extend(integrity_cap)
-        return await self._write_locked(storage, record.namespace, record, "semantic", "system", cap)
+        return await self._write_locked(
+            storage, record.namespace, record, "semantic", "system", cap
+        )
 
     def _edge_extract_callable(self, max_rounds: int) -> ExtractEdges:
         """The shared reflexion-merged ``extract_edges`` callable (C2 async +

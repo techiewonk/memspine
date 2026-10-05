@@ -4,6 +4,19 @@ All notable changes to memspine are documented here. Format: [Keep a Changelog](
 
 ## [Unreleased]
 
+### Added — Wave 2 graph core (2026-10-05)
+- **#13 entity layer (opt-in, `memories.associative.policies.entity_nodes`):** the graph projector adds `ent:<namespace>:<canonical>` nodes and `mentions` edges (record -> entity, weight = record trust) from WRITE payloads (`entity`, `dst:` tags). Junk-name blocklist, optional `allowed` list, no self-edges; forget removes mentions and orphaned entities; rebuild == incremental. `mentions` is a reserved rel; `related()` and Leiden ignore it (ADR-015 amendment).
+- **#14 graph read leg (opt-in, `read.graph_leg`, `read.graph_depth` 2 (max 3), `read.graph_leg_k` 10):** query-named entities (or the entities of the top 3 hits) seed a walk to edge facts and their source turns, fused as an extra RRF leg. Off: byte-identical (golden `graph_leg_off_read.json`).
+- **#15 graph facts block (opt-in, `read.cards_include_edges`):** `[2023-05-01 → present] Melanie read "X" (sources: 2)` lines, superseded facts with their end date, within the cards allowance.
+- **#16 trust caps on graph paths (`read.graph_min_trust`, default 0.25):** walks never enter quarantined, erased, taint-archived or low-trust records; `asserted` link weight = min(confidence, source trust, fact trust).
+- **#21 edge provenance:** a verbatim duplicate edge in `extract_graph` adds an `edge_source:<episode>` tag instead of a new fact (no model call); the facts block counts the sources.
+
+### Fixed — Wave 2 graph core (2026-10-05)
+- **Erasure:** the `graph_extracted` watermark marker now stores `{record_id, content_fingerprint}` entries, so a hard forget redacts the fingerprint and `verify_forget` sees it; a FORGET also drops it from the in-memory index. Old `{id: fp}` markers are still read.
+- **`extract_graph` writes facts through the semantic door** (firewall, dedup, conflict ladder): a background `state` edge now supersedes the older value; `event` edges stay add-only.
+- **SQLite graph walk** joins reached nodes in SQL instead of binding an `IN (...)` list (no "too many SQL variables" on large walks; one query per walk).
+- **Migration 0003** gives a bare endpoint node its incident edge's namespace, matching a rebuild.
+
 ### Added — Wave 1 read path and prompt levers (2026-10-05)
 - **#58 relative-week mode (opt-in, `read.relative_week: preceding_7_days`):** with `resolve_relative_dates`, "last/past week" and "next week" resolve to the seven days before / after the record's own day (LoCoMo's "the week before <session date>") instead of the calendar week; every other phrase is unchanged. `calendar` stays the default.
 - **#29 happened dates on mined facts (opt-in):** `consolidation.mine_evidence_turns` numbers the miner's transcript lines and makes a fact's parents the turns it cites (`ExtractedFact.turns`); `consolidation.mine_event_dates` tags each fact `happened:<date>` from the H1 resolution of a relative phrase in the fact or its cited turns (else the miner's `date`); `consolidation.mine_event_dates_llm` adds one batched `extract@dates` call for facts still undated. `read.cards_event_date` renders such a card `[said d1 · happened d2]` when the two differ.

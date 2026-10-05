@@ -37,6 +37,7 @@ MARKER_KEYS: tuple[str, ...] = (
     constants.CARDS_MARKER.split(" from ", 1)[0],  # "FACTS (mined"
     constants.PROFILE_MARKER.split(" (", 1)[0] + " (",  # "PROFILE NOTES ("
     constants.COUNT_MARKER.rstrip(":"),  # "Occurrences (dated)"
+    constants.GRAPH_FACTS_MARKER.split(" (", 1)[0] + " (",  # "GRAPH FACTS ("
 )
 
 _PATTERN = re.compile(r"(?<!\\)(?:" + "|".join(re.escape(key) for key in MARKER_KEYS) + ")")

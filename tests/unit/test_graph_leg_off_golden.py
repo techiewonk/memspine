@@ -39,7 +39,14 @@ TURNS = [
 #: (entity, rel, kind, dst, fact, turn index)
 EDGES = [
     ("Melanie", "read", "event", "Charlotte's Web", 'Melanie read "Charlotte\'s Web"', 0),
-    ("Melanie", "read", "event", "Nothing Is Impossible", 'Melanie read "Nothing Is Impossible"', 2),
+    (
+        "Melanie",
+        "read",
+        "event",
+        "Nothing Is Impossible",
+        'Melanie read "Nothing Is Impossible"',
+        2,
+    ),
     ("Caroline", "lives_in", "state", "Denver", "Caroline lives in Denver", 3),
     ("Caroline", "owns", "event", "Biscuit", "Caroline owns a dog named Biscuit", 5),
 ]

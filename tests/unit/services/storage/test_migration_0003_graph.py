@@ -109,7 +109,9 @@ async def test_upgrade_matches_a_rebuild_for_bare_endpoints(tmp_path: Path) -> N
             ],
         )
         conn.execute(
-            text("INSERT INTO graph_edges (src, dst, rel_type, properties) VALUES (:s, :d, :r, :p)"),
+            text(
+                "INSERT INTO graph_edges (src, dst, rel_type, properties) VALUES (:s, :d, :r, :p)"
+            ),
             {"s": "r1", "d": "bare", "r": "related", "p": b'{"weight":1.0}'},
         )
     engine.dispose()
