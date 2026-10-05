@@ -12,6 +12,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
+from memspine.config import constants
+
 __all__ = [
     "OUTPUT_MODELS",
     "AnticipatedCue",
@@ -25,6 +27,8 @@ __all__ = [
     "ExtractedEdges",
     "ExtractedFact",
     "ExtractedFacts",
+    "FactClass",
+    "FactClasses",
     "FactDate",
     "FactDates",
     "Insight",
@@ -33,6 +37,7 @@ __all__ = [
     "ReadPlan",
     "RelevanceLabel",
     "RelevanceLabels",
+    "view_text",
 ]
 
 
@@ -123,6 +128,22 @@ def _cap_words(text: str, limit: int) -> str:
     return (cut[:space] if space > limit // 2 else cut).rstrip(" ,;:")
 
 
+def view_text(value: Any) -> str | None:
+    """#28: one multi-view field (a person, a location or a topic) after the guards.
+
+    None for a missing, non-text, placeholder ("unknown", "N/A", ``<topic>``) or
+    reasoning-shaped value; whitespace is collapsed and the text is cut at a word
+    boundary to :data:`constants.MULTIVIEW_FIELD_MAX_CHARS`.
+    """
+    value = _as_text(value)
+    if not isinstance(value, str) or "</think>" in value:
+        return None
+    text = " ".join(value.split())
+    if _is_placeholder(text) or _REASONING.match(text):
+        return None
+    return _cap_words(text, constants.MULTIVIEW_FIELD_MAX_CHARS) or None
+
+
 def fact_guard(item: Any) -> Any | None:
     """#31: one raw mined fact after the attribute guards, or None to drop it.
 
@@ -172,10 +193,38 @@ class ExtractedFact(BaseModel):
     #: #29: the 1-based transcript lines the fact comes from, when the miner was
     #: shown numbered lines (``consolidation.mine_evidence_turns``); empty otherwise.
     turns: list[int] = Field(default_factory=list)
+    #: #28 (multi-view fields, ``extract@session4``): the people the fact involves,
+    #: where it happened and its topic or class ("activities", "books read"). Each
+    #: passes the #31 guards (:func:`view_text`); empty when the miner gave none.
+    persons: list[str] = Field(default_factory=list)
+    location: str | None = None
+    topic: str | None = None
 
     _scalars_as_text = field_validator("entity", "attribute", "value", "date", mode="before")(
         _as_text
     )
+
+    @field_validator("persons", mode="before")
+    @classmethod
+    def _person_list(cls, value: Any) -> Any:
+        """#28: ``"Melanie, Caroline"`` or a list; guarded, deduplicated, capped."""
+        if value is None:
+            return []
+        items = value.split(",") if isinstance(value, str) else value
+        if not isinstance(items, list | tuple):
+            items = [items]
+        out: list[str] = []
+        for item in items:
+            text = view_text(item)
+            if text is not None and text.casefold() not in {o.casefold() for o in out}:
+                out.append(text)
+        return out[: constants.MULTIVIEW_MAX_PERSONS]
+
+    @field_validator("location", "topic", mode="before")
+    @classmethod
+    def _view(cls, value: Any) -> Any:
+        """#28: a guarded location or topic; junk becomes None, never a failure."""
+        return view_text(value)
 
     @field_validator("kind", mode="before")
     @classmethod
@@ -224,6 +273,22 @@ class FactDate(BaseModel):
 
 class FactDates(BaseModel):
     dates: list[FactDate] = Field(default_factory=list)
+
+
+class FactClass(BaseModel):
+    """#30: the list class of one numbered event fact (``extract@classes``)."""
+
+    index: int
+    label: str | None = None
+
+    @field_validator("label", mode="before")
+    @classmethod
+    def _guarded(cls, value: Any) -> Any:
+        return view_text(value)
+
+
+class FactClasses(BaseModel):
+    classes: list[FactClass] = Field(default_factory=list)
 
 
 class RelevanceLabel(BaseModel):
@@ -356,6 +421,7 @@ class InstructionFlagOut(BaseModel):
 OUTPUT_MODELS: dict[str, type[BaseModel]] = {
     "ExtractedFacts": ExtractedFacts,
     "FactDates": FactDates,
+    "FactClasses": FactClasses,
     "ExtractedEdges": ExtractedEdges,
     "ConsolidatedFacts": ConsolidatedFacts,
     "Insights": Insights,
