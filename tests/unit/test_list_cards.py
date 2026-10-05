@@ -473,7 +473,11 @@ async def test_a_list_card_over_assistant_only_facts_is_an_assistant_claim(
     await eng.start()
     try:
         msgs = [
-            {"role": "assistant", "content": c, "timestamp": (T0 + timedelta(minutes=i)).isoformat()}
+            {
+                "role": "assistant",
+                "content": c,
+                "timestamp": (T0 + timedelta(minutes=i)).isoformat(),
+            }
             for i, c in enumerate(TURNS)
         ]
         await eng.write_messages(msgs, namespace="a", session_id="s1", group_id="s1")
@@ -508,7 +512,11 @@ async def test_a_list_card_from_low_trust_turns_is_claim_marked(
 ) -> None:
     """B9: a card is a claim when any of its facts would be, judged on each fact's own
     source turns (the card's parents are facts, which the turn check skipped)."""
-    integrity = {"enabled": True, "claims_only_below": claims_only_below, "admission_threshold": 0.0}
+    integrity = {
+        "enabled": True,
+        "claims_only_below": claims_only_below,
+        "admission_threshold": 0.0,
+    }
     eng = _claim_engine(integrity=integrity)
     monkeypatch.setattr(eng, "_build_fact_miner", _mine(_activities()))
     await eng.start()

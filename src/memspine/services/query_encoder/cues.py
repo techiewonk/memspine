@@ -81,11 +81,7 @@ class CueQueryEncoder:
     async def _entries(self, namespace: str) -> dict[str, _Entry]:
         entries = self._index.get(namespace)
         if entries is None:
-            entries = {
-                r.record_id: _Entry(r)
-                for r in await self._load(namespace)
-                if _indexable(r)
-            }
+            entries = {r.record_id: _Entry(r) for r in await self._load(namespace) if _indexable(r)}
             self._index[namespace] = entries
         return entries
 

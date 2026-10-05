@@ -7665,7 +7665,11 @@ class Engine:
         async def calibrate(
             prediction: str, content: str, knowledge: list[str]
         ) -> list[ExtractedFact]:
-            context = {"prediction": prediction, "content": content, "knowledge": knowledge}
+            context: dict[str, object] = {
+                "prediction": prediction,
+                "content": content,
+                "knowledge": knowledge,
+            }
             result = await structured_call(llm, prompt, context, ExtractedFacts)
             return list(result.facts)
 

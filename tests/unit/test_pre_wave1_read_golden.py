@@ -122,9 +122,7 @@ async def _snapshot(read: dict[str, Any]) -> dict[str, Any]:
             )
         for query in QUERIES:
             for mode in ("auto", "retrieve", "replay", "compose", "full"):
-                result = await eng.read(
-                    query, namespace="a", mode=mode, top_k=3, budget_tokens=120
-                )
+                result = await eng.read(query, namespace="a", mode=mode, top_k=3, budget_tokens=120)
                 out[f"read|{mode}|{query}"] = [
                     result.mode,
                     result.context.abstained,

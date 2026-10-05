@@ -21,6 +21,7 @@ from typing import Any, Protocol
 
 from memspine.config import constants
 from memspine.config.schema import MemspineConfig
+from memspine.core.escaping import escape_markers
 from memspine.core.event_date import (
     anchor_turn,
     cited_turns,
@@ -30,7 +31,6 @@ from memspine.core.event_date import (
     normalise_label,
     resolve_happened,
 )
-from memspine.core.escaping import escape_markers
 from memspine.core.events import EventKind, EventLogMode, MemoryEvent, fingerprint_payload
 from memspine.core.firewall import Firewall, FirewallVerdict, instruction_shaped
 from memspine.core.policies.community import CommunityOptions, CommunityPolicy
