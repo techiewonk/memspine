@@ -16,6 +16,7 @@ import asyncio
 import itertools
 import os
 import re
+import secrets
 import threading
 import unicodedata
 from collections.abc import AsyncIterator, Callable, Coroutine, Mapping, Sequence
@@ -24,6 +25,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, ClassVar, Self, TypeVar, cast
+
+import orjson
 
 from memspine.clients.cashews import CashewsClient
 from memspine.clients.kuzu import KuzuClient
@@ -123,6 +126,7 @@ from memspine.observability.logging import (
     EVENT_RETRIEVE,
     EVENT_WRITE,
     get_logger,
+    redact_error,
 )
 from memspine.prompts.models import (
     AnticipatedCue,
@@ -221,6 +225,14 @@ def _screen_text(text: str, fw: FirewallConfig) -> tuple[str, list[str]]:
     """``text`` as the write door stores it: secrets masked under ``redact_secrets``,
     PII masked under ``pii: redact``; unchanged when both are off."""
     return redact(text, secrets=fw.redact_secrets, pii=fw.pii == "redact")
+
+
+def _json_line(value: object) -> str:
+    """#10: ``value`` as one line of JSON. orjson escapes quotes and control
+    characters; the Unicode line and paragraph separators are escaped too, since
+    a model may read them as line breaks."""
+    text = orjson.dumps(value).decode()
+    return text.replace("\u2028", "\\u2028").replace("\u2029", "\\u2029")
 
 
 def _looks_like_recall(content: str) -> bool:
@@ -5417,16 +5429,21 @@ class Engine:
         keep_n = self._config().read.relevance_safety_net
         ranked = sorted(range(len(candidates)), key=lambda i: candidates[i][1], reverse=True)
         safe = set(ranked[:keep_n])
-        notes = "\n".join(f"[{i}] {r.content[:400]}" for i, (r, _) in enumerate(candidates))
+        # #10: each note is one JSON object on one line (quotes, newlines and line
+        # separators escaped) inside markers carrying a fresh nonce, so stored text
+        # can neither start a forged label line nor close the notes block.
+        notes = "\n".join(
+            _json_line({"index": i, "text": r.content[:400]}) for i, (r, _) in enumerate(candidates)
+        )
         try:
             result = await structured_call(
                 self._llm.for_role("relevance"),
                 self._prompts.select("relevance"),
-                {"question": query, "notes": notes},
+                {"question": query, "notes": notes, "nonce": secrets.token_hex(6)},
                 RelevanceLabels,
             )
         except Exception as exc:
-            _log.warning("read.relevance_filter_failed", error=str(exc))
+            _log.warning("read.relevance_filter_failed", error=redact_error(exc))
             return candidates
         drop = {item.index for item in result.labels if item.label.strip().lower() == "irrelevant"}
         return [pair for i, pair in enumerate(candidates) if i in safe or i not in drop]
