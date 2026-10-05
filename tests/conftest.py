@@ -17,6 +17,20 @@ from memspine.clients.sqlite import SQLiteClient
 
 
 @pytest.fixture(autouse=True)
+def _pin_pre_adr032_default(
+    request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The suite tests engine mechanics on schema defaults: ``Engine()`` with no
+    template meant "no template" before ADR-032 made ``assistant`` the default.
+    Keep that for every test except those marked ``shipped_default``, which check
+    the real default."""
+    if request.node.get_closest_marker("shipped_default") is None:
+        from memspine.config import constants
+
+        monkeypatch.setattr(constants, "DEFAULT_TEMPLATE", None)
+
+
+@pytest.fixture(autouse=True)
 def _scrub_memspine_env(monkeypatch: pytest.MonkeyPatch) -> None:
     for key in list(os.environ):
         if key.startswith("MEMSPINE_"):

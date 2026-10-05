@@ -10,6 +10,7 @@ from typing import Annotated
 import typer
 import yaml
 
+from memspine.config import constants
 from memspine.config.loader import ResolvedConfig, flatten_dotted, load_config
 from memspine.core.registry import dependency_closure
 from memspine.exceptions import ConfigError
@@ -31,7 +32,7 @@ FileOpt = Annotated[Path | None, typer.Option("--config", "-c", help="User confi
 def _load(template: str | None, config_file: Path | None) -> ResolvedConfig:
     secrets = EnvSecrets(dotenv_path=".env")
     return load_config(
-        template=template,
+        template=template if template is not None else constants.DEFAULT_TEMPLATE,  # ADR-032
         user_config=config_file,
         env=os.environ,
         secret_resolver=secrets.get,

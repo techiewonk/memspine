@@ -95,7 +95,9 @@ print(engine.describe())   # enabled types, services, event-log mode, projectors
 | `voice` | rolling+zstd event log; tighter working window (`page_size: 8`) |
 | `multi_agent` | + shared |
 | `regulated_financial` | full audit log, strict PII, no forgetting |
-| `assistant` | long multi-session chat: relative dates resolved, time order for ordering questions, relevance-first scoring, relative floor (LoCoMo 70.7 → 78.3%, measured) |
+| `assistant` (**default**, ADR-032) | long multi-session chat: relative dates resolved, time order for ordering questions, relevance-first scoring, relative floor (LoCoMo 70.7 → 78.3%, measured) |
+
+> **Default template (ADR-032).** `Engine()` with no `template` loads `assistant`. Pass `template="base"` for the plain `simple` profile (the previous behaviour).
 
 ---
 

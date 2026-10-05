@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+import pytest
+
 from memspine import Engine
 
 
@@ -59,3 +61,21 @@ async def test_base_template_is_unchanged() -> None:
         assert "computed from" not in eng.chat_messages("hi")[0]["content"]
     finally:
         await eng.stop()
+
+
+@pytest.mark.shipped_default
+async def test_engine_without_a_template_uses_assistant() -> None:
+    """ADR-032: Engine() defaults to the assistant template; base stays simple."""
+    eng = Engine(dotenv_path=None, storage={"path": ":memory:"}, embedding={"provider": "hash"})
+    await eng.start()
+    try:
+        assert eng.describe()["profile"] == "assistant"
+        assert eng._config().read.default_mode == "replay"
+    finally:
+        await eng.stop()
+    simple = _engine("base")
+    await simple.start()
+    try:
+        assert simple.describe()["profile"] == "simple"
+    finally:
+        await simple.stop()

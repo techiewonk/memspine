@@ -114,6 +114,9 @@ select = ["E", "F", "I", "UP", "B", "SIM", "ASYNC", "RUF"]
 asyncio_mode = "auto"
 testpaths = ["tests"]
 addopts = "-q"
+markers = [
+    "shipped_default: run with the shipped Engine() default template (ADR-032), not the pinned pre-ADR default",
+]
 
 [tool.mypy]
 python_version = "3.13"

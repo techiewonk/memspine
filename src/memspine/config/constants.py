@@ -245,3 +245,9 @@ LEAD_STANDING_MAX = 5
 # far-future date cannot win every later conflict on its key.
 MINED_FACT_MIN_YEAR = 1900
 MINED_FACT_FUTURE_SLACK_DAYS = 366
+
+#: ADR-032: the template ``Engine()`` uses when the caller names none. ``assistant``
+#: carries the measured combo-A read settings (LoCoMo 70.7 -> 78.3%). Pass
+#: ``template="base"`` for the unchanged ``simple`` profile; ``MemspineConfig()``
+#: schema defaults are not affected.
+DEFAULT_TEMPLATE: str | None = "assistant"

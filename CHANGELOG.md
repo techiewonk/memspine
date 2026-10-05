@@ -4,6 +4,9 @@ All notable changes to memspine are documented here. Format: [Keep a Changelog](
 
 ## [Unreleased]
 
+### Changed
+- **`assistant` is the default template (ADR-032, D-58).** `Engine()` and the CLI with no template now load `assistant` (LoCoMo 70.7 → 78.3%). `template="base"` keeps the previous `simple` behaviour; `MemspineConfig()` schema defaults are unchanged.
+
 ### Added — remaining read/write enhancements (2026-10-04)
 - **H22 lead section (opt-in, `read.topic_timelines` / `read.standing_instructions`):** timelines open the volatile context with one dated timeline per topic entity of the retrieved keyed facts (every live fact on the entity plus its superseded history, oldest first); the standing block places the preferences and requests the user stated ("from now on …", "please always …", "I'd prefer …"; user role, trust ≥ `read.standing_min_trust`) right after the pinned persona, labelled as the user's words. Read-time projections (no model, nothing stored) under `read.lead_budget_tokens`, with `timeline_entities` / `timeline_items` caps; entries pass the context gates and the untrusted-note threshold; the `TIMELINE:` and `USER-STATED PREFERENCES` markers join the H21 recall filter. Not applied to shared reads. The standing block is a poisoning surface for user-role writers (MINJA regime): leave it off for agents that serve untrusted users.
 - **B9 facts-only reads (opt-in, `integrity.claims_only_below`):** a record below this view trust never reaches a context window as raw text; the live, unflagged atomic facts mined from it stand in as `[CLAIM from a low-trust source, unverified]` entries, or it is left out. The claim marker joins the H21 recall filter.

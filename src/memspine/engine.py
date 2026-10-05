@@ -438,7 +438,7 @@ class Engine:
         # 1. secrets, then config (D-22 two-phase).
         secrets = self._build_secrets()
         self._resolved = load_config(
-            template=self._template,
+            template=self._template if self._template is not None else constants.DEFAULT_TEMPLATE,
             user_config=self._user_config,
             env=os.environ,
             overrides=self._overrides,
