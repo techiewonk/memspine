@@ -137,7 +137,12 @@ from memspine.exceptions import (
     RollbackUnavailableError,
     StorageError,
 )
-from memspine.memories.associative.entities import EntityPolicy
+from memspine.memories.associative.entities import (
+    ENTITY_PREFIX,
+    EntityPolicy,
+    canonical_entity,
+    entity_node_id,
+)
 from memspine.memories.associative.evolution import propose_links
 from memspine.memories.associative.projector import GraphProjector
 from memspine.memories.associative.resolution import ResolveBatch
@@ -4787,13 +4792,23 @@ class Engine:
             await self._forget_many(storage, ns, ids, hard)
         await self._audit_action("forget", ns, ids, actor=actor, reason=reason, hard=hard)
 
-    async def erase_subject(self, subject: str, namespace: str = "default") -> list[str]:
+    async def erase_subject(
+        self,
+        subject: str,
+        namespace: str = "default",
+        *,
+        actor: str = "user",
+        reason: str | None = None,
+    ) -> list[str]:
         """#43 per-subject erasure: hard-forget every record of ``namespace``
         about ``subject``, with its descendants.
 
         A record is about the subject when its fact key's ``entity`` equals
         ``subject`` (case-insensitive) or its ``source.principal`` is
-        ``subject``. Returns the erased record ids."""
+        ``subject``. The subject's entity node id is also renamed to an opaque
+        id in the community-partition history. ``actor`` and ``reason`` go into a
+        ``memory.audit`` event under ``audit.actions`` (record ids only, never the
+        subject's name). Returns the erased record ids."""
         storage = self._require_started()
         ns = validate_namespace(namespace)
         wanted = subject.casefold()
@@ -4805,18 +4820,24 @@ class Engine:
                 or r.source.principal == subject
             ]
             ids = [*seeds, *await self._descendants(storage, ns, seeds)]
-            await self._forget_many(storage, ns, ids, hard=True)
+            await self._forget_many(storage, ns, ids, hard=True, subject_names=[subject])
+        await self._audit_action("erase_subject", ns, ids, actor=actor, reason=reason)
         return ids
 
-    async def erase_namespace(self, namespace: str) -> list[str]:
+    async def erase_namespace(
+        self, namespace: str, *, actor: str = "user", reason: str | None = None
+    ) -> list[str]:
         """#43 per-namespace erasure: hard-forget every record of ``namespace``
         (any type and status) in one log pass. A legal hold on the namespace
-        refuses the whole call before anything is touched. Returns the ids."""
+        refuses the whole call before anything is touched. ``actor`` and
+        ``reason`` go into a ``memory.audit`` event under ``audit.actions``.
+        Returns the ids."""
         storage = self._require_started()
         ns = validate_namespace(namespace)
         async with self._write_locks.setdefault(ns, asyncio.Lock()):
             ids = [r.record_id for r in await storage.list_records(ns)]
             await self._forget_many(storage, ns, ids, hard=True)
+        await self._audit_action("erase_namespace", ns, ids, actor=actor, reason=reason)
         return ids
 
     async def _descendants(self, storage: SqlStorage, ns: str, seeds: Sequence[str]) -> list[str]:
@@ -4883,11 +4904,19 @@ class Engine:
             after = batch[-1].seq
 
     async def _forget_many(
-        self, storage: SqlStorage, ns: str, record_ids: Sequence[str], hard: bool
+        self,
+        storage: SqlStorage,
+        ns: str,
+        record_ids: Sequence[str],
+        hard: bool,
+        *,
+        subject_names: Sequence[str] = (),
     ) -> None:
         """Forget ``record_ids`` (lock held). Hard: every legal hold is checked
         before the first FORGET, the log is redacted for all ids in one pass, then
-        caches are purged and the WAL checkpointed."""
+        caches are purged and the WAL checkpointed. The same pass renames, in the
+        community-partition markers, the entity node ids of ``subject_names`` and
+        of the erased records' entities that no longer have a graph edge."""
         ids = list(dict.fromkeys(record_ids))
         if not ids:
             return
@@ -4899,7 +4928,9 @@ class Engine:
             await self._forget_locked(storage, ns, rid, hard, redact=False)
         if not hard:
             return
-        redacted = await storage.redact_event_payloads(ids)
+        names = [*subject_names, *(r.entity for r in records if r is not None and r.entity)]
+        renames = await self._erased_entity_nodes(ns, names, forced=subject_names)
+        redacted = await storage.redact_event_payloads(ids, node_renames=renames)
         # D-18: the hard-delete cascade escalates to alert severity.
         _log.error(
             EVENT_FORGET,
@@ -4918,6 +4949,27 @@ class Engine:
             _log.warning("memory.forget_vector_purge_incomplete", namespace=ns, record_id=ids[0])
         if self._client is not None:
             await self._client.checkpoint()
+
+    async def _erased_entity_nodes(
+        self, ns: str, names: Sequence[str], *, forced: Sequence[str] = ()
+    ) -> dict[str, str]:
+        """Entity node id -> opaque id for the erased ``names`` (KB-12 partition
+        markers store node ids, which spell the name). A name in ``forced`` (the
+        erased subject) is always renamed; another only once its node has no edge
+        left (no live record mentions it). Empty without a graph store."""
+        if self._graph is None:
+            return {}
+        forced_keys = {canonical_entity(n) for n in forced}
+        renames: dict[str, str] = {}
+        for name in dict.fromkeys(names):
+            canonical = canonical_entity(name)
+            node = entity_node_id(ns, canonical)
+            if not canonical or node in renames:
+                continue
+            if canonical not in forced_keys and await self._graph.edges_of(node):
+                continue
+            renames[node] = f"{ENTITY_PREFIX}{ns}:#erased-{secrets.token_hex(8)}"
+        return renames
 
     async def _forget_target(
         self, storage: SqlStorage, ns: str, record_id: str, hard: bool
@@ -5460,6 +5512,8 @@ class Engine:
     async def expire_retention(self, now: datetime | None = None) -> dict[str, object]:
         """#48: hard-forget every record past its retention class's TTL.
 
+        Soft-forgotten records count too: a soft forget keeps the content in the
+        read model and the log, so past the TTL it is hard-erased like any other.
         The age is measured from ``recorded_at``. A record whose type's ``retention``
         policy refuses deletion (legal hold, regulated PII: ``may_delete``) is kept,
         and so is one any of whose descendants would be; the rest go through
@@ -5475,7 +5529,7 @@ class Engine:
         errors: list[str] = []
         for ns in await storage.list_namespaces():
             for record in await storage.list_records(ns):
-                if record.status is RecordStatus.DELETED or record.record_id in expired:
+                if record.record_id in expired:
                     continue
                 cls = matching_class(record, classes)
                 if cls is None or (record.memory_type == "shared" and cls.memory_type is None):
@@ -6268,7 +6322,10 @@ class Engine:
             )
             updated = await self._require_started().get_record(record_id)
             assert updated is not None
-            return updated
+        await self._audit_action(
+            "approve_quarantined", ns, [record_id], actor=actor, reason=reason, principal=principal
+        )
+        return updated
 
     async def reject_quarantined(
         self,
@@ -6310,7 +6367,8 @@ class Engine:
             )
             updated = await self._require_started().get_record(record_id)
             assert updated is not None
-            return updated
+        await self._audit_action("reject_quarantined", ns, [record_id], actor=actor, reason=reason)
+        return updated
 
     async def feedback(
         self,
@@ -6358,6 +6416,10 @@ class Engine:
             updated = await storage.get_record(record_id)
         assert updated is not None
         _log.info(EVENT_FEEDBACK, namespace=ns, record_id=record_id, signal=signal)
+        # #49: the signal only; the note stays in the erasable FEEDBACK event.
+        await self._audit_action(
+            "feedback", ns, [record_id], actor=actor, reason=None, signal=signal
+        )
         return updated
 
     def _config(self) -> MemspineConfig:
@@ -6820,23 +6882,40 @@ class Engine:
         # Write lock on the GRANTOR namespace: the read-diff-append unit must
         # not interleave with a concurrent grant/revoke or forget cascade.
         async with self._write_locks.setdefault(grantor, asyncio.Lock()):
-            return await shared.grant(
+            record = await shared.grant(
                 grantor,
                 grantee,
                 memory_types=memory_types,
                 source=SourceInfo(role=actor, channel="grant"),
             )
+        await self._audit_action(
+            "grant",
+            grantor,
+            [record.record_id],
+            actor=actor,
+            reason=None,
+            grantee=grantee,
+            memory_types=sorted(memory_types) if memory_types is not None else None,
+        )
+        return record
 
-    async def revoke(self, to_namespace: str, namespace: str = "default") -> MemoryRecord:
+    async def revoke(
+        self, to_namespace: str, namespace: str = "default", *, actor: str = "user"
+    ) -> MemoryRecord:
         """Revoke ``to_namespace``'s read access to ``namespace`` (R2): the
         grant record is archived via a delta event; raises when no grant is
-        live (a typo'd grantee must not read as success)."""
+        live (a typo'd grantee must not read as success). ``actor`` goes into a
+        ``memory.audit`` event under ``audit.actions``."""
         self._require_started()
         shared = self._require_shared()
         grantor = validate_namespace(namespace)
         grantee = validate_namespace(to_namespace)
         async with self._write_locks.setdefault(grantor, asyncio.Lock()):
-            return await shared.revoke(grantor, grantee)
+            record = await shared.revoke(grantor, grantee)
+        await self._audit_action(
+            "revoke", grantor, [record.record_id], actor=actor, reason=None, grantee=grantee
+        )
+        return record
 
     async def shared_search(
         self,

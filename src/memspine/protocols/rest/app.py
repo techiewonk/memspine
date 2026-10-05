@@ -517,14 +517,17 @@ def build_app(engine: Engine, rest: RestConfig | None = None) -> FastAPI:
     # ── shared (R2) ──────────────────────────────────────────────────────────
 
     @app.post("/grants")
-    async def grant(body: GrantRequest, ns: Namespace) -> MemoryRecord:
+    async def grant(body: GrantRequest, ns: Namespace, request: Request) -> MemoryRecord:
         return await engine.grant(
-            body.to_namespace, namespace=ns, memory_types=body.memory_types, actor=body.actor
+            body.to_namespace,
+            namespace=ns,
+            memory_types=body.memory_types,
+            actor=_actor(request, body.actor),
         )
 
     @app.delete("/grants")
-    async def revoke(to_namespace: str, ns: Namespace) -> MemoryRecord:
-        return await engine.revoke(to_namespace, namespace=ns)
+    async def revoke(to_namespace: str, ns: Namespace, request: Request) -> MemoryRecord:
+        return await engine.revoke(to_namespace, namespace=ns, actor=_actor(request, "user"))
 
     @app.get("/shared_search")
     async def shared_search(

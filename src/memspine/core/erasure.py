@@ -14,9 +14,14 @@ survives under a key the redactor never looked at. One walker, used by both.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
-__all__ = ["redact_record", "retained_fields"]
+__all__ = ["PARTITION_MARKER", "redact_record", "retained_fields", "scrub_partition_nodes"]
+
+#: The MARKER payload (``community_partition``, KB-12) whose node ids
+#: (``ent:<ns>:<canonical name>``) name entities: erasure renames them.
+PARTITION_MARKER = "community_partition"
 
 #: Fields on a record snapshot that identify the subject, with their erased value:
 #: the content (plain and cold-tier), its fingerprint (an xxhash of short content
@@ -100,6 +105,34 @@ def redact_record(node: Any, record_id: str) -> bool:
     elif isinstance(node, list):
         for item in node:
             changed |= redact_record(item, record_id)
+    return changed
+
+
+def scrub_partition_nodes(payload: Any, renames: Mapping[str, str]) -> bool:
+    """Rename entity node ids in a ``community_partition`` marker payload: the
+    ``set`` keys and anchors and the ``drop`` entries. A node id names the entity,
+    so an erased subject's name must not survive in the partition history; the
+    rename is consistent within one call, so the partition structure is kept.
+    Returns True if anything changed. Mutates ``payload`` in place."""
+    if not renames or not isinstance(payload, dict):
+        return False
+    if payload.get("marker") != PARTITION_MARKER:
+        return False
+    changed = False
+    current = payload.get("set")
+    if isinstance(current, dict):
+        renamed: dict[str, Any] = {}
+        for node, anchor in current.items():
+            new_node = renames.get(node, node)
+            new_anchor = renames.get(anchor, anchor) if isinstance(anchor, str) else anchor
+            changed |= new_node != node or new_anchor != anchor
+            renamed[new_node] = new_anchor
+        payload["set"] = renamed
+    dropped = payload.get("drop")
+    if isinstance(dropped, list):
+        new_drop = [renames.get(n, n) if isinstance(n, str) else n for n in dropped]
+        changed |= new_drop != dropped
+        payload["drop"] = new_drop
     return changed
 
 

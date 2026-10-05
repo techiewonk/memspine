@@ -18,7 +18,7 @@ compression (D-45/D-32), and M7 erasure all live here unchanged.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from typing import Any, Protocol
 
@@ -30,7 +30,7 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from memspine.config.constants import ZSTD_LEVEL
-from memspine.core.erasure import redact_record
+from memspine.core.erasure import redact_record, scrub_partition_nodes
 from memspine.core.events import EventKind, EventLogMode, MemoryEvent, canonical_payload
 from memspine.core.records import MemoryRecord
 from memspine.exceptions import StorageError
@@ -451,7 +451,9 @@ class SqlStorage(ServiceAdapter):
         records = [await self.get_record(record_id) for record_id in hits]
         return [record for record in records if record is not None]
 
-    async def redact_event_payloads(self, record_id: str | Sequence[str]) -> list[int]:
+    async def redact_event_payloads(
+        self, record_id: str | Sequence[str], node_renames: Mapping[str, str] | None = None
+    ) -> list[int]:
         """M7 erasure: the ONE sanctioned mutation of the log.
 
         Rewrites every event payload carrying a snapshot of ``record_id`` (one
@@ -463,6 +465,10 @@ class SqlStorage(ServiceAdapter):
         content is unrecoverable (GDPR erasure in an append-only design).
         Replay of a redacted WRITE materializes an empty-content row, which the
         subsequent FORGET(hard) event then removes — rebuild stays clean.
+
+        ``node_renames`` (old entity node id -> opaque id) also renames those
+        node ids in ``community_partition`` markers in the same pass
+        (:func:`~memspine.core.erasure.scrub_partition_nodes`).
         """
         if self._mode is EventLogMode.EPHEMERAL:
             return []
@@ -481,6 +487,8 @@ class SqlStorage(ServiceAdapter):
                 changed = False
                 for rid in record_ids:
                     changed |= redact_record(payload, rid)
+                if node_renames:
+                    changed |= scrub_partition_nodes(payload, node_renames)
                 if not changed:
                     continue
                 payload["redacted"] = True
