@@ -75,7 +75,8 @@ async def test_upgrade_backfills_a_pre_kb1_graph(tmp_path: Path) -> None:
             ).all()
         }
     engine.dispose()
-    assert nodes == {"r1": "ns/a", "r2": ""}
+    # r2 is a bare endpoint: it takes its incident edges' namespace, as a rebuild would.
+    assert nodes == {"r1": "ns/a", "r2": "ns/a"}
     assert kinds == {"r1": "episodic", "r2": None}
     assert edges["related"] == ("ns/a", 0.0, None)
     assert edges["asserted"] == ("ns/a", 0.4, "event")  # src r2 has no ns -> dst's
@@ -90,3 +91,48 @@ async def test_upgrade_backfills_a_pre_kb1_graph(tmp_path: Path) -> None:
         assert [n.node_id for n in await graph.neighbors("r1", rel_type="related")] == []
     finally:
         await client.close()
+
+
+async def test_upgrade_matches_a_rebuild_for_bare_endpoints(tmp_path: Path) -> None:
+    """Upgrade == rebuild: replaying the same LINK through the adapter creates the
+    bare endpoint in the edge's namespace, and the backfill gives it the same."""
+    db = tmp_path / "legacy.db"
+    upgrade_to_head(db)
+    command.downgrade(alembic_config(db), "0002")
+    engine = create_engine(f"sqlite:///{db}")
+    with engine.begin() as conn:
+        conn.execute(
+            text("INSERT INTO graph_nodes (node_id, labels, properties) VALUES (:n, :l, :p)"),
+            [
+                {"n": "r1", "l": b'["semantic"]', "p": orjson.dumps({"namespace": "ns/b"})},
+                {"n": "bare", "l": b"[]", "p": b"{}"},
+            ],
+        )
+        conn.execute(
+            text("INSERT INTO graph_edges (src, dst, rel_type, properties) VALUES (:s, :d, :r, :p)"),
+            {"s": "r1", "d": "bare", "r": "related", "p": b'{"weight":1.0}'},
+        )
+    engine.dispose()
+    command.upgrade(alembic_config(db), "head")
+    engine = create_engine(f"sqlite:///{db}")
+    with engine.connect() as conn:
+        upgraded = dict(conn.execute(text("SELECT node_id, namespace FROM graph_nodes")).all())
+    engine.dispose()
+
+    client = SQLiteClient(":memory:")
+    await client.connect()
+    try:
+        from memspine.services.storage.sqlite.schema import metadata
+
+        async with client.engine.begin() as conn:
+            await conn.run_sync(metadata.create_all)
+        rebuilt = SQLiteAdjacencyGraph(client)
+        await rebuilt.upsert_node("r1", ["semantic"], {"namespace": "ns/b"})
+        await rebuilt.upsert_edge("r1", "bare", "related", {"weight": 1.0}, namespace="ns/b")
+        async with client.engine.connect() as conn:
+            replayed = dict(
+                (await conn.execute(text("SELECT node_id, namespace FROM graph_nodes"))).all()
+            )
+    finally:
+        await client.close()
+    assert upgraded == replayed == {"r1": "ns/b", "bare": "ns/b"}
