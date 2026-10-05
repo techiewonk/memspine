@@ -9,7 +9,13 @@ generated from the code before the ingest optimisations.
 Record and event ids are random, so they are replaced by ordinals in order of
 first appearance in the log; wall-clock timestamps (anything not in 2023, the
 turns' own year) are replaced by a placeholder. Floats are compared with a
-relative tolerance of 1e-9.
+relative tolerance of 1e-9, except search scores (see ``_clusters``).
+
+Tantivy breaks BM25 ties by segment order, which varies from run to run even
+on unchanged code (its segments merge in the background), so the hybrid
+search would not repeat itself. ``_stable_lexical_ties`` makes the lexical leg
+break ties by indexing order for the whole observation, in the reference run
+as in the checked one.
 
 Regenerate the fixture (only from code whose behaviour is the reference) with
 ``python tests/integration/test_ingest_equivalence.py --regen``.
@@ -22,6 +28,8 @@ import json
 import random
 import re
 import sys
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -29,6 +37,8 @@ from typing import Any
 import pytest
 
 from memspine import Engine
+from memspine.services.lexical.base import LexicalHit
+from memspine.services.lexical.tantivy import TantivyLexical
 
 FIXTURE = Path(__file__).parent / "fixtures" / "ingest_equivalence.json"
 
@@ -124,7 +134,38 @@ class _Normaliser:
         return value
 
 
+@contextmanager
+def _stable_lexical_ties() -> Iterator[None]:
+    """Break equal BM25 scores by first indexing order, not segment order."""
+    order: dict[str, int] = {}
+    add_doc, search = TantivyLexical._add_doc, TantivyLexical._search
+
+    def _add(self: TantivyLexical, record_id: str, namespace: str, content: str) -> None:
+        order.setdefault(record_id, len(order))
+        add_doc(self, record_id, namespace, content)
+
+    def _search(
+        self: TantivyLexical, namespace: str, terms: list[str], top_k: int
+    ) -> list[LexicalHit]:
+        hits = search(self, namespace, terms, 1_000_000)  # every match: no cut on a tie
+        hits.sort(key=lambda hit: (-hit.score, order.get(hit.record_id, len(order))))
+        return hits[:top_k]
+
+    TantivyLexical._add_doc = _add  # type: ignore[method-assign]
+    TantivyLexical._search = _search  # type: ignore[method-assign]
+    try:
+        yield
+    finally:
+        TantivyLexical._add_doc = add_doc  # type: ignore[method-assign]
+        TantivyLexical._search = search  # type: ignore[method-assign]
+
+
 async def _observe(template: str, storage_path: str) -> dict[str, Any]:
+    with _stable_lexical_ties():
+        return await _observe_engine(template, storage_path)
+
+
+async def _observe_engine(template: str, storage_path: str) -> dict[str, Any]:
     engine = Engine(
         template=template,
         dotenv_path=None,
