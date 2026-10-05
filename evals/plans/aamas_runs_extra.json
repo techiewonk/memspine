@@ -1,0 +1,190 @@
+{
+  "plan_id": "aamas27-locomo-qwen3",
+  "source": "ENHANCEMENT_PLAN_2026-10-05.md (G5a, G10 safety check, H13/H19/H23 single-change arms). Same plan_id, dataset, protocol and memspine_base as plans/aamas_runs.json (copied, not referenced), so the runs share its prefix and plan_report.py / significance.py read them alongside the main plan. Keys checked against memspine.config.schema and core.policies.assembly.AssemblyOptions.",
+  "dataset": {
+    "name": "locomo",
+    "revision": "3eb6f2c-locomo10",
+    "categories": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "n_questions": 1540,
+    "n_conversations": 10
+  },
+  "protocol": {
+    "mode": "qa",
+    "bedrock": true,
+    "judge_prompt": "rubric",
+    "qa_prompt": "default",
+    "budget_tokens": 4096,
+    "top_k": 10,
+    "memspine_llm": "bedrock-qwen3"
+  },
+  "memspine_base": {
+    "read_mode": "replay",
+    "build_sleep": false,
+    "config": {
+      "read": {
+        "record_access": false,
+        "scoring": {
+          "recency_weight": 0.0,
+          "importance_weight": 0.0,
+          "utility_weight": 0.0
+        }
+      },
+      "embedding": {
+        "provider": "litellm",
+        "model": "bedrock/cohere.embed-v4:0",
+        "dim": 1024,
+        "aws_region": "us-east-1",
+        "request_dimensions": true,
+        "query_input_type": "search_query",
+        "document_input_type": "search_document"
+      }
+    }
+  },
+  "projection_assumptions": {
+    "note": "Completion tokens per call are assumptions (the stub's replies are not the model's). Prompt tokens are measured on the stub run (chars/4). 'ceiling' uses each caller's max_tokens, or the prompt's token_budget for engine roles, which send no max_tokens.",
+    "completion_tokens": {
+      "reader": 24,
+      "judge": 12,
+      "extract": 600,
+      "extract_edges": 200,
+      "summarize": 120,
+      "reflect": 200,
+      "anticipate": 400,
+      "relevance": 120,
+      "query_rewrite": 30,
+      "judge_engine": 30,
+      "chat": 100
+    },
+    "ceiling_completion_tokens": {
+      "reader": 256,
+      "judge": 96,
+      "extract": 2048,
+      "extract_edges": 768,
+      "summarize": 256,
+      "reflect": 384,
+      "anticipate": 1024,
+      "relevance": 512,
+      "query_rewrite": 128,
+      "judge_engine": 128,
+      "chat": 512
+    }
+  },
+  "arms": [
+    {
+      "id": "cat5-dated",
+      "hypothesis": "G10 safety control",
+      "benchmark": "LoCoMo cat 5 (adversarial; gold is an abstention)",
+      "systems": [
+        "memspine"
+      ],
+      "categories": [
+        5
+      ],
+      "qa_prompt": "dated",
+      "config_delta": {
+        "read": {
+          "resolve_relative_dates": true,
+          "order_by_time_for_ordering": true,
+          "assembly": {
+            "relative_floor": 0.3
+          }
+        }
+      },
+      "notes": "combo-A (config copied from aamas_runs.json) on cat 5 only, dated prompt: the abstention baseline for cat5-infer. The rubric judge is abstention-aware."
+    },
+    {
+      "id": "cat5-infer",
+      "hypothesis": "G10 safety check",
+      "benchmark": "LoCoMo cat 5 (adversarial; gold is an abstention)",
+      "systems": [
+        "memspine"
+      ],
+      "categories": [
+        5
+      ],
+      "qa_prompt": "dated_infer",
+      "config_delta": {
+        "read": {
+          "resolve_relative_dates": true,
+          "order_by_time_for_ordering": true,
+          "assembly": {
+            "relative_floor": 0.3
+          }
+        }
+      },
+      "notes": "same as cat5-dated with the inference-aware prompt; a drop against cat5-dated is hallucination on unanswerable questions. Needs --qa-prompt dated_infer in the harness (added on another branch); not rehearsable before that lands."
+    },
+    {
+      "id": "H13",
+      "hypothesis": "H13",
+      "systems": [
+        "memspine"
+      ],
+      "config_delta": {
+        "read": {
+          "core_terms_leg": true
+        }
+      },
+      "notes": "extra BM25 leg over the question's core terms, fused by RRF; needs read.hybrid (default true). One change on memspine-base."
+    },
+    {
+      "id": "H19",
+      "hypothesis": "H19",
+      "benchmark": "LoCoMo cat 2 (latest / most recent)",
+      "systems": [
+        "memspine"
+      ],
+      "config_delta": {
+        "read": {
+          "assembly": {
+            "latest_slots": 3
+          }
+        }
+      },
+      "notes": "Mem++ latest-dated slot reservation (AssemblyOptions.latest_slots); 3 slots as in the tests. One change on memspine-base."
+    },
+    {
+      "id": "H23",
+      "hypothesis": "H23",
+      "systems": [
+        "memspine"
+      ],
+      "config_delta": {
+        "read": {
+          "assembly": {
+            "dedupe_jaccard": 0.8
+          }
+        }
+      },
+      "notes": "Mnemon near-duplicate removal (AssemblyOptions.dedupe_jaccard, word-set Jaccard >= 0.8). One change on memspine-base."
+    },
+    {
+      "id": "R-qwen3",
+      "hypothesis": "combo-A + local Qwen3-Reranker-0.6B (G5a)",
+      "systems": [
+        "memspine"
+      ],
+      "qa_prompt": "dated",
+      "config_delta": {
+        "read": {
+          "resolve_relative_dates": true,
+          "order_by_time_for_ordering": true,
+          "assembly": {
+            "relative_floor": 0.3
+          },
+          "rerank": "qwen3",
+          "rerank_model": "Qwen/Qwen3-Reranker-0.6B",
+          "candidate_pool": 3,
+          "rerank_date_prefix": true,
+          "skip_rerank_for_ordering": true
+        }
+      },
+      "notes": "Qwen/Qwen3-Reranker-0.6B (Apache-2.0) via read.rerank: qwen3, memspine[st] (transformers + torch) and a ~1.2 GB model download; pool 3x, [Date:] prefix, skip for ordering, as R-bge / R-cohere. Without the extra the engine skip-logs and runs combo-A-pool, so check the rerank log line before trusting a score. Control: combo-A-pool."
+    }
+  ]
+}

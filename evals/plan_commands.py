@@ -22,7 +22,7 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from memspine_evals.rehearsal import deep_merge
+from memspine_evals.rehearsal import arm_categories, deep_merge
 
 PLAN = Path(__file__).resolve().parent / "plans" / "aamas_runs.json"
 
@@ -44,7 +44,7 @@ def arm_command(
     cmd = [
         "python", "-m", "memspine_evals", "c0-1",
         "--dataset", data["name"], "--path", path, "--revision", data["revision"],
-        "--categories", ",".join(str(c) for c in data["categories"]),
+        "--categories", ",".join(str(c) for c in arm_categories(plan, arm) or ()),
         "--mode", proto["mode"], "--budget", str(proto["budget_tokens"]),
         "--top-k", str(proto["top_k"]),
         "--judge-prompt", proto["judge_prompt"],
