@@ -3745,19 +3745,10 @@ class Engine:
                 embedder_id=self._embedder.embedder_id,
                 top_k=constants.ANOMALY_MIN_NEIGHBOURS,
             )
-            neighbour_sims = []
-            for hit in hits:
-                neighbour = await storage.get_record(hit.record_id)
-                if neighbour is not None and neighbour.quarantined:
-                    continue
-                neighbour_sims.append(hit.score)
-        recent = [
-            existing
-            for existing in await storage.list_records(record.namespace)
-            if not existing.quarantined
-        ]
-        recent.sort(key=lambda existing: existing.recorded_at)
-        recent_contents = [existing.content for existing in recent[-50:]]
+            held = await storage.quarantined_ids([hit.record_id for hit in hits])
+            neighbour_sims = [hit.score for hit in hits if hit.record_id not in held]
+        # The 50 most recently recorded live contents, oldest first.
+        recent_contents = await storage.recent_contents(record.namespace, 50)
         return self._firewall.assess(
             record, neighbour_similarities=neighbour_sims, recent_contents=recent_contents
         )
@@ -3803,7 +3794,7 @@ class Engine:
             return
         storage = self._require_started()
         integrity = self._integrity()
-        for held in await storage.list_records(namespace):
+        for held in await storage.list_quarantined(namespace):
             if not held.quarantined or held.status is not RecordStatus.QUARANTINED:
                 continue
             # Independence: a record cannot corroborate itself, and neither can

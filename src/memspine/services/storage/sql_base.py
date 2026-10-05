@@ -18,6 +18,7 @@ compression (D-45/D-32), and M7 erasure all live here unchanged.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any, Protocol
 
@@ -322,6 +323,51 @@ class SqlStorage(ServiceAdapter):
             stmt = stmt.where(memory_records.c.memory_type == memory_type)
         if group_id is not None:  # D2 sub-scoping facet
             stmt = stmt.where(memory_records.c.group_id == group_id)
+        async with self._client.engine.connect() as conn:
+            rows = (await conn.execute(stmt)).all()
+        return [self._row_to_record(row._mapping) for row in rows]
+
+    async def quarantined_ids(self, record_ids: Sequence[str]) -> set[str]:
+        """The ids among ``record_ids`` whose record exists and is quarantined.
+
+        One query in place of a ``get_record`` per id when only the quarantine
+        flag is needed (the firewall's neighbour check)."""
+        if not record_ids:
+            return set()
+        stmt = select(memory_records.c.record_id, memory_records.c.quarantined).where(
+            memory_records.c.record_id.in_(list(dict.fromkeys(record_ids)))
+        )
+        async with self._client.engine.connect() as conn:
+            rows = (await conn.execute(stmt)).all()
+        return {str(row[0]) for row in rows if row[1]}
+
+    async def recent_contents(self, namespace: str, limit: int) -> list[str]:
+        """Contents of the ``limit`` most recently recorded non-quarantined
+        records of a namespace, oldest first.
+
+        Equal to filtering :meth:`list_records` on ``not quarantined``, stable-
+        sorting by ``recorded_at`` and keeping the last ``limit``, without
+        building a :class:`MemoryRecord` per row. The rows come from the same
+        unordered namespace select as :meth:`list_records`, so ties on
+        ``recorded_at`` keep the same relative order."""
+        stmt = select(
+            memory_records.c.content,
+            memory_records.c.recorded_at,
+            memory_records.c.quarantined,
+        ).where(memory_records.c.namespace == namespace)
+        async with self._client.engine.connect() as conn:
+            rows = (await conn.execute(stmt)).all()
+        live = [(_parse_ts(row[1]), str(row[0])) for row in rows if not row[2]]
+        live.sort(key=lambda pair: pair[0])
+        return [content for _, content in live[-limit:]] if limit > 0 else []
+
+    async def list_quarantined(self, namespace: str) -> list[MemoryRecord]:
+        """:meth:`list_records` narrowed to rows whose quarantine flag is set,
+        in the same relative order (the corroboration scan only visits those)."""
+        stmt = select(memory_records).where(
+            memory_records.c.namespace == namespace,
+            memory_records.c.quarantined.is_(True),
+        )
         async with self._client.engine.connect() as conn:
             rows = (await conn.execute(stmt)).all()
         return [self._row_to_record(row._mapping) for row in rows]
