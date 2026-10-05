@@ -89,6 +89,8 @@ from memspine.core.privacy import (
     current_purpose,
     export_line,
     export_record,
+    inherited_consent,
+    inherited_pii,
     matching_class,
     payload_mentions,
     pii_rank,
@@ -1630,7 +1632,9 @@ class Engine:
         ``integrity.enabled`` also never one below the admission threshold (stored
         trust; the read gates re-judge the leg's hits on live trust). ``history``
         (the facts block) also admits superseded (ARCHIVED) facts, to show their
-        validity range; the read leg admits only live records."""
+        validity range; the read leg admits only live records. A passive-session
+        record the read did not ask for, or one the read's purpose may not see
+        (#50), is never admitted."""
         floor = self._config().read.graph_min_trust
         integrity = self._integrity()
         statuses = (
@@ -1649,6 +1653,8 @@ class Engine:
                 and _TAINT_ARCHIVED_TAG not in record.tags
                 and record.trust >= floor
                 and (not integrity.enabled or integrity.admits(record.trust))
+                and not _passive_hidden(record)  # #53, as every other read leg
+                and self._consent_ok(record)  # #50: the read's purpose
             )
 
         return admit
@@ -2010,7 +2016,9 @@ class Engine:
 
         Its trust is the least of its entries' (a block is never more trusted than
         what it shows) and its parents are the entries, so the provenance of every
-        line stays visible to the caller.
+        line stays visible to the caller. Its purposes are the intersection of the
+        entries' and its PII tier their highest (#50), so the purpose gate and the
+        remote-LLM gate judge the block as strictly as its strictest entry.
         """
         return MemoryRecord(
             namespace=ns,
@@ -2020,6 +2028,10 @@ class Engine:
             valid_from=max(p.valid_from for p in parts),
             trust=min(p.trust for p in parts),
             source=SourceInfo(role="system", channel="lead", parents=[p.record_id for p in parts]),
+            consent_tags=inherited_consent(
+                (p.consent_tags for p in parts), self._config().consent.untagged
+            ),
+            pii_tier=inherited_pii(p.pii_tier for p in parts),
         ).as_engine_block()
 
     async def _standing_block(self, ns: str) -> tuple[MemoryRecord, list[MemoryRecord]] | None:
@@ -2160,6 +2172,8 @@ class Engine:
         """
         if record.memory_type == "shared" or CUE_TAG in record.tags:
             return None
+        if not self._consent_ok(record):
+            return None  # #50: the read's purpose may not see it
         if record.status is RecordStatus.ARCHIVED and _TAINT_ARCHIVED_TAG in record.tags:
             return None  # N3: rolled back, even when the log no longer says so
         integrity = self._integrity()
@@ -4568,6 +4582,8 @@ class Engine:
             return False
         if _passive_hidden(record):
             return False  # #53
+        if not self._consent_ok(record):
+            return False  # #50: the read's purpose may not see it
         integrity = self._integrity()
         return not integrity.enabled or integrity.admits(record.trust)
 
@@ -7279,6 +7295,7 @@ class Engine:
         the head; set_offset is advance-only, so races cannot regress marks).
         """
         assert self._storage is not None
+        event = await self._inherit_governance(event)
         appended = await self._storage.append_event(event)
         if appended.seq is None:  # pragma: no cover - write door always assigns seq
             raise MemspineError("write door returned an event without seq")
@@ -7292,6 +7309,56 @@ class Engine:
                 batch[projector.name] = appended.seq  # checkpointed at the flush
             else:
                 await self._storage.set_offset(projector.name, appended.seq)
+
+    async def _inherit_governance(self, event: MemoryEvent) -> MemoryEvent:
+        """#50: a derived record's purposes and PII tier follow its parents.
+
+        A WRITE whose record names ``source.parents`` (summaries, mined facts, list
+        cards, entity and community summaries, surprise facts, cues, reflections,
+        graph facts) gets the intersection of its parents' purposes and its own
+        (:func:`inherited_consent`) and the highest of their PII tiers. Only
+        parents in the record's own namespace count (a foreign id is no oracle).
+        The event is returned unchanged when nothing changes, so logs without
+        tagged or PII-tiered parents stay byte-identical."""
+        if event.kind is not EventKind.WRITE or self._storage is None:
+            return event
+        snapshot = event.payload.get("record")
+        if not isinstance(snapshot, dict):
+            return event
+        source = snapshot.get("source")
+        raw_parents = source.get("parents") if isinstance(source, dict) else None
+        if not raw_parents or not isinstance(raw_parents, list):
+            return event
+        own_id = snapshot.get("record_id")
+        parents: list[MemoryRecord] = []
+        for parent_id in dict.fromkeys(str(p) for p in raw_parents):
+            if parent_id == own_id:
+                continue
+            parent = await self._storage.get_record(parent_id)
+            if parent is not None and parent.namespace == snapshot.get("namespace"):
+                parents.append(parent)
+        if not parents:
+            return event
+        own_tags = [str(t) for t in snapshot.get("consent_tags") or []]
+        own_tier = str(snapshot.get("pii_tier") or PiiTier.NONE.value)
+        tag_sets: list[Sequence[str]] = [p.consent_tags for p in parents]
+        if own_tags:
+            tag_sets.append(own_tags)
+        tags = inherited_consent(tag_sets, self._config().consent.untagged)
+        tier = inherited_pii([own_tier, *(p.pii_tier for p in parents)]).value
+        if set(tags) == set(own_tags) and tier == own_tier:
+            return event
+        payload = {
+            **event.payload,
+            "record": {
+                **snapshot,
+                "consent_tags": tags if set(tags) != set(own_tags) else own_tags,
+                "pii_tier": tier,
+            },
+        }
+        return event.model_copy(
+            update={"payload": payload, "fingerprint": fingerprint_payload(payload)}
+        )
 
     @asynccontextmanager
     async def _projection_batch(self) -> AsyncIterator[None]:
