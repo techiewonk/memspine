@@ -6,10 +6,10 @@
 | | |
 |---|---|
 | **Milestone** | ✅ v0.1 Release Hardening done (bar the infra-gated live check) · ✅ **v0.2 landed** · 🟡 **v0.3 in planning (lock: no code yet)** · 🧪 **integrity (MTI) opt-in: implemented on a branch, ADR-029 *proposed*** |
-| **Tests** | **1940** in `tests/` (1918 passed, 23 skipped, 0 failed in chunked runs; 2026-10-06) + **360** in `evals/tests` (all pass) |
-| **ADRs** | **50** (ADR-001 … ADR-051; 038 unassigned; ADR-029/030/031 *proposed*) + template · decision register through **D-75** |
+| **Tests** | **1958** in `tests/` (1936 passed, 22–23 skipped, 0 failed in chunked runs; 2026-10-06) + **373** in `evals/tests` (all pass) |
+| **ADRs** | **51** (ADR-001 … ADR-052; 038 unassigned; ADR-029/030/031 *proposed*) + template · decision register through **D-76** |
 | **Version** | `pyproject` still `0.0.1` (pre-alpha; not bumped despite v0.2) |
-| **Latest commit** | `a414e04`: merge of the final privacy-review fixes. All non-paid items of the research master absorb list (Waves 1–4) are merged on `feat/integrity-mti`; see CHANGELOG `[Unreleased]` |
+| **Latest commit** | `e7a77cf`: GLiNER2 planner (#89). All non-paid items of the research master absorb list are merged, reviewed and fixed on `feat/integrity-mti`; see CHANGELOG `[Unreleased]` |
 
 ### 🏗️ Architecture — four-layer engine, event-sourced core
 - **core**: audit · erasure · events · firewall · **integrity** · namespace · projector · records · registry · replay
