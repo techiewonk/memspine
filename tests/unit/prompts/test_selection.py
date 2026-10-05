@@ -77,3 +77,21 @@ def test_unknown_selection_key_is_rejected() -> None:
 def test_select_unknown_role_raises() -> None:
     with pytest.raises(ConfigError, match="no prompt for role"):
         PromptRegistry().select("telepathy")
+
+
+def test_chat_infer_is_dated_plus_the_inference_rule() -> None:
+    """G10: ``chat@infer`` (condition ``infer``) asks for an inference on would / might /
+    likely questions; ``chat@dated``, the measured template prompt, does not."""
+    from memspine.prompts.registry import PromptRegistry as _Registry
+
+    registry = _Registry()
+    infer = registry.select("chat", condition="infer")
+    dated = registry.select("chat", condition="dated")
+    assert infer.id == "chat@infer" and dated.id == "chat@dated"
+    ctx = {"context": "[2023-05-07] Caroline: church", "message": "Is Caroline religious?"}
+    infer_system = infer.render(ctx)[0]["content"]
+    dated_system = dated.render(ctx)[0]["content"]
+    assert "would, might, or is likely to do, be, or think" in infer_system
+    assert "Likely yes, because" in infer_system
+    assert "likely" not in dated_system
+    assert infer.render(ctx)[-1] == dated.render(ctx)[-1]  # same user turn

@@ -79,6 +79,7 @@ class StubLiteLLM:
             ("instruction_shaped", "firewall_flag"),
             ("compact summaries", "summarize"),
             ("alternative search queries", "query_rewrite"),
+            ("Plan the memory read for this question", "plan"),
         )
         for marker, kind in markers:
             if marker in text:
@@ -100,7 +101,7 @@ class StubLiteLLM:
                 body = _LINE_DATE.sub("", line).strip()
                 entity = body.split(":", 1)[0].strip().lower() or "speaker"
                 facts.append(
-                    f"  - entity: {_quote(entity)}\n    attribute: event\n"
+                    f"  - entity: {_quote(entity)}\n    attribute: event\n    kind: event\n"
                     f"    value: {_quote(body)}\n    date: {date.group(1) if date else '~'}\n"
                     "    confidence: 0.8"
                 )
@@ -132,6 +133,15 @@ class StubLiteLLM:
             )
         if kind == "extract_edges":
             return "edges: []"
+        if kind == "plan":
+            # G2a: aggregate for list/count wording, lookup otherwise.
+            question = user.rsplit("question:", 1)[-1].strip()
+            if re.search(r"\b(how many|what activities|which|list)\b", question, re.I):
+                return (
+                    "mode: aggregate\ntemporal: false\nentities: []\n"
+                    f"subqueries:\n  - {_quote(question[:60])}"
+                )
+            return "mode: lookup\ntemporal: false\nentities: []\nsubqueries: []"
         if kind == "judge_conflict":
             return "verdict: add\nreason: the two memories are independent."
         if kind == "firewall_flag":

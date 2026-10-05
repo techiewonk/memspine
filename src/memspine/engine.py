@@ -18,7 +18,7 @@ import os
 import shutil
 import tempfile
 import threading
-from collections.abc import Coroutine, Mapping, Sequence
+from collections.abc import Callable, Coroutine, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -39,7 +39,11 @@ from memspine.core.events import EventKind, EventLogMode, MemoryEvent, fingerpri
 from memspine.core.firewall import Firewall, FirewallVerdict
 from memspine.core.integrity import IntegrityPolicy
 from memspine.core.lead import (
+    card_line,
     is_standing_instruction,
+    mentions_any,
+    query_names,
+    render_profile,
     render_standing,
     render_timeline,
     timeline_line,
@@ -112,6 +116,7 @@ from memspine.prompts.models import (
     ExtractedFact,
     ExtractedFacts,
     Insights,
+    ReadPlan,
     RelevanceLabels,
 )
 from memspine.prompts.registry import PromptRegistry
@@ -162,6 +167,8 @@ _RECALL_MARKERS = (
     constants.TIMELINE_MARKER,
     constants.STANDING_MARKER,
     constants.CLAIM_MARKER,
+    constants.CARDS_MARKER,
+    constants.PROFILE_MARKER,
 )
 
 
@@ -1917,6 +1924,7 @@ class Engine:
         ranked: list[tuple[str, float]],
         group_id: str | None,
         tags: list[str] | None,
+        memory_type: str | None = None,
     ) -> list[tuple[MemoryRecord, float]]:
         """The E1 / EI-1 / C8' / D2 gates of :meth:`search`, in ranked order."""
         storage = self._require_started()
@@ -1956,6 +1964,8 @@ class Engine:
                 continue
             if tags and not set(tags).issubset(record.tags):
                 continue
+            if memory_type is not None and record.memory_type != memory_type:
+                continue
             try:
                 record = self._inflate.inflate(record)  # cold-tier content restored (M6)
             except StorageError:
@@ -1975,6 +1985,7 @@ class Engine:
         tags: list[str] | None = None,
         session_id: str | None = None,
         keep_k: int,
+        memory_type: str | None = None,
     ) -> list[tuple[MemoryRecord, float]]:
         """:meth:`search` with ``keep_k``: how many results the caller finally keeps
         (assembly fetches ``candidate_pool x top_k``); the H18 rerank gate uses it."""
@@ -2026,7 +2037,7 @@ class Engine:
                 ranked: list[tuple[str, float]] = [(rid, score / rrf_max) for rid, score in fused]
             else:
                 ranked = [(hit.record_id, hit.score) for hit in vector_hits]
-            candidates = await self._gate_hits(ns, ranked, group_id, tags)
+            candidates = await self._gate_hits(ns, ranked, group_id, tags, memory_type)
             exhausted = len(vector_hits) < fetch_k and len(lexical_hits) < fetch_k
             if len(candidates) >= top_k or exhausted or widen >= _SEARCH_MAX_WIDEN:
                 break
@@ -2062,6 +2073,7 @@ class Engine:
         read_cfg = self._config().read
         if read_cfg.skip_rerank_for_ordering and is_ordering(query):
             reranker = None  # Agent Zero: a relevance reranker scrambles temporal order
+        reranked = False
         if reranker is not None and candidates:
             documents = [concat_background(record) for record, _ in candidates]
             if read_cfg.rerank_date_prefix:
@@ -2077,6 +2089,7 @@ class Engine:
                     (record, relevance)
                     for (record, _), relevance in zip(candidates, relevances, strict=True)
                 ]
+                reranked = True
             except Exception as exc:
                 _log.warning(
                     "rerank.failed", namespace=ns, reranker=reranker.reranker_id, error=str(exc)
@@ -2100,6 +2113,9 @@ class Engine:
                 if integrity.admits(record.trust)
             ]
         scored.sort(key=lambda pair: pair[1], reverse=True)
+        if reranked and read_cfg.rerank_keep is not None and read_cfg.candidate_pool > 1:
+            # G5b: the wider pool fed the reranker; only its best few go on.
+            scored = scored[: read_cfg.rerank_keep]
         if scored and self._config().read.record_access:
             # Reinforcement stats via the log (M1): last_accessed_at + access_count.
             await self._append_and_project(
@@ -2140,15 +2156,19 @@ class Engine:
         if self._assembly is None:
             raise MemspineError("assembly policy not bound — engine not started?")
         budget = self._reply_budget(budget_tokens)
+        ns = validate_namespace(namespace)
+        headers = [] if shared else await self._read_headers(ns, query, budget)
+        inner = budget - self._headers_cost(headers)
         assembled = await self._assemble_core(
             query,
-            validate_namespace(namespace),
-            budget,
+            ns,
+            inner,
             top_k,
             shared=shared,
             session_id=session_id,
+            hide=self._header_hide(headers),
         )
-        return self._render(query, assembled, budget)
+        return self._attach_headers(self._render(query, assembled, inner), headers)
 
     async def _assemble_core(
         self,
@@ -2159,9 +2179,12 @@ class Engine:
         *,
         shared: bool = False,
         session_id: str | None = None,
+        hide: Callable[[MemoryRecord], bool] | None = None,
     ) -> AssembledContext:
         """:meth:`assemble` without the reply reserve and the final render (callers
-        apply both once, so the replay read can extend the context first)."""
+        apply both once, so the replay read can extend the context first).
+
+        ``hide`` (G1b/G3b): candidates a read header already carries leave."""
         if self._assembly is None:
             raise MemspineError("assembly policy not bound — engine not started?")
         fetch_k = top_k * self._config().read.candidate_pool
@@ -2171,6 +2194,8 @@ class Engine:
             )
         else:
             scored = await self._search(query, ns, fetch_k, session_id=session_id, keep_k=top_k)
+        if hide is not None:
+            scored = [pair for pair in scored if not hide(pair[0])]
         integrity = self._integrity()
         if integrity.enabled and integrity.trust_weighted_ranking and scored:
             # Scores are composite x view trust. Abstention (theta_abstain) judges
@@ -2446,12 +2471,43 @@ class Engine:
             mode = self._config().read.default_mode  # "auto" unless a template pins one
         if mode not in ("auto", "full", "replay", "retrieve", "compose"):
             raise ValueError(f"unknown read mode {mode!r}")
-        storage = self._require_started()
+        self._require_started()
         ns = validate_namespace(namespace)
         budget_tokens = self._reply_budget(budget_tokens)
+        # G1b/G3b: the read headers take their shares first; the routed read gets the
+        # rest and leaves out what they carry, so nothing appears twice.
+        headers = await self._read_headers(ns, query, budget_tokens)
+        result = await self._read_routed(
+            query,
+            ns,
+            mode,
+            budget_tokens - self._headers_cost(headers),
+            top_k,
+            replay_window,
+            compose_pool,
+            hide=self._header_hide(headers),
+        )
+        return ReadResult(result.mode, self._attach_headers(result.context, headers))
+
+    async def _read_routed(
+        self,
+        query: str,
+        ns: str,
+        mode: str,
+        budget_tokens: int,
+        top_k: int,
+        replay_window: int,
+        compose_pool: int,
+        *,
+        hide: Callable[[MemoryRecord], bool] | None = None,
+    ) -> ReadResult:
+        """:meth:`read` after the reply reserve and the read headers: route and read."""
+        storage = self._require_started()
         if mode in ("auto", "full"):
             live = []
             for record in await storage.list_records(ns):
+                if hide is not None and hide(record):
+                    continue
                 view = await self._live_view(record)
                 if view is not None:
                     live.append(view)
@@ -2467,11 +2523,32 @@ class Engine:
                     return ReadResult("full", full)
             if mode == "full":
                 mode = "retrieve"
-        if mode == "auto" and self._config().read.planner == "decision":
+        read_cfg = self._config().read
+        planner = read_cfg.planner
+        routed = mode == "auto"
+        probes: list[str] = []
+        if mode == "auto" and planner == "decision":
             mode = await self._plan_read_mode(query) or mode
+        elif mode == "auto" and planner == "llm":
+            plan = await self._llm_read_plan(query)
+            if plan is not None:
+                # G2a: lookup and replay both read by replay; aggregate by compose.
+                mode = "compose" if plan.mode == "aggregate" else "replay"
+                probes = list(plan.subqueries) if plan.mode == "aggregate" else []
         if mode == "compose" or (mode == "auto" and is_aggregation(query)):
-            return await self._compose(query, ns, budget_tokens, top_k, compose_pool)
-        base = await self._assemble_core(query, ns, budget_tokens, top_k)
+            # G11: a routed aggregation read pools more candidates (budget-capped).
+            k = read_cfg.aggregate_top_k if routed and read_cfg.aggregate_top_k else top_k
+            return await self._compose(
+                query,
+                ns,
+                budget_tokens,
+                k,
+                compose_pool,
+                hide=hide,
+                extra_probes=probes,
+                replay_window=replay_window,
+            )
+        base = await self._assemble_core(query, ns, budget_tokens, top_k, hide=hide)
         episodic_hits = [r for r in base.records if r.memory_type == "episodic"]
         # H6: a mined atomic fact replays the source turn it best matches (its
         # derived_from lists the whole session, which would not fit the budget).
@@ -2554,6 +2631,114 @@ class Engine:
         decorated = await self._decorate(ns, [(inflated[0], 0.0)], expand_claims=False)
         return decorated[0][0] if decorated else None
 
+    async def _cards_section(self, ns: str, query: str, budget_tokens: int) -> MemoryRecord | None:
+        """G1b: the cards header, or None (``read.cards: off``, or no fact to show).
+
+        The namespace's mined facts relevant to ``query`` come from the same hybrid
+        search, restricted to ``atomic_fact`` records, so they pass every search
+        gate (status, quarantine, admission, live re-evaluation). Each gets the
+        per-record wrappers, then one ``[YYYY-MM-DD] Entity: fact`` line, best
+        first while the block fits ``read.cards_budget_share x budget_tokens``;
+        the kept lines are shown oldest first.
+        """
+        read_cfg = self._config().read
+        if read_cfg.cards != "header":
+            return None
+        allowance = int(budget_tokens * read_cfg.cards_budget_share)
+        if allowance <= estimate_tokens(constants.CARDS_MARKER):
+            return None
+        k = read_cfg.cards_top_k
+        hits = await self._search(query, ns, k, tags=["atomic_fact"], keep_k=k)
+        kept: list[MemoryRecord] = []
+        for record, _ in hits:
+            trial = [*kept, self._wrap_for_context(record)]
+            if estimate_tokens(self._cards_text(trial)) <= allowance:
+                kept = trial
+        if not kept:
+            return None
+        kept.sort(key=lambda r: (r.valid_from, r.record_id))
+        block = self._lead_record(ns, self._cards_text(kept), kept)
+        return block.model_copy(update={"tags": [constants.LEAD_TAG, constants.CARDS_TAG]})
+
+    @staticmethod
+    def _cards_text(cards: list[MemoryRecord]) -> str:
+        return "\n".join([constants.CARDS_MARKER, *(card_line(r) for r in cards)])
+
+    async def _profile_section(
+        self, ns: str, query: str, budget_tokens: int
+    ) -> MemoryRecord | None:
+        """G3b: the profile header, or None (``read.profile_header`` off, or nothing).
+
+        Candidates are the H14 profile insights (``reflect_profile`` deposits:
+        reflective records from the ``reflection`` channel) from the same search,
+        restricted to reflective records, so every search gate applies. Insights
+        that name a person in the query come first; when none does, the most
+        relevant insights are used. Lines are kept best first while the block fits
+        ``read.profile_budget_share x budget_tokens``.
+        """
+        read_cfg = self._config().read
+        if not read_cfg.profile_header:
+            return None
+        allowance = int(budget_tokens * read_cfg.profile_budget_share)
+        names = query_names(query)
+        if allowance <= estimate_tokens(render_profile(names, [])):
+            return None
+        k = constants.PROFILE_HEADER_TOP_K
+        hits = await self._search(query, ns, k, memory_type="reflective", keep_k=k)
+        insights = [
+            r
+            for r, _ in hits
+            if r.source.channel == "reflection"
+            and (r.source.message_id or "").startswith("reflected:")
+        ]
+        about = [r for r in insights if mentions_any(r.content, names)]
+        kept: list[MemoryRecord] = []
+        for record in about or insights:
+            trial = [*kept, self._wrap_for_context(record)]
+            if estimate_tokens(render_profile(names if about else [], trial)) <= allowance:
+                kept = trial
+        if not kept:
+            return None
+        block = self._lead_record(ns, render_profile(names if about else [], kept), kept)
+        return block.model_copy(update={"tags": [constants.LEAD_TAG, constants.PROFILE_TAG]})
+
+    async def _read_headers(self, ns: str, query: str, budget_tokens: int) -> list[MemoryRecord]:
+        """G1b/G3b: the cards header, then the profile header (each optional)."""
+        headers = []
+        for section in (self._cards_section, self._profile_section):
+            header = await section(ns, query, budget_tokens)
+            if header is not None:
+                headers.append(header)
+        return headers
+
+    @staticmethod
+    def _headers_cost(headers: list[MemoryRecord]) -> int:
+        return sum(estimate_tokens(h.content) for h in headers)
+
+    @staticmethod
+    def _header_hide(headers: list[MemoryRecord]) -> Callable[[MemoryRecord], bool] | None:
+        """What the routed read leaves out: every record a header shows, and with
+        the cards header every mined fact (facts reach the context through it)."""
+        if not headers:
+            return None
+        shown = {pid for h in headers for pid in h.source.parents}
+        facts = any(constants.CARDS_TAG in h.tags for h in headers)
+        return lambda r: r.record_id in shown or (facts and "atomic_fact" in r.tags)
+
+    def _attach_headers(
+        self, assembled: AssembledContext, headers: list[MemoryRecord]
+    ) -> AssembledContext:
+        """G1b/G3b: the headers open the volatile part (after the stable prefix),
+        cards first. An abstained read gets none, like the H22 timelines."""
+        if not headers or assembled.abstained:
+            return assembled
+        records = list(assembled.records)
+        at = min(assembled.boundary_index, len(records))
+        records[at:at] = headers
+        assembled.records = records
+        assembled.tokens_used += self._headers_cost(headers)
+        return assembled
+
     async def _best_source_turn(self, fact: MemoryRecord) -> MemoryRecord | None:
         """H6: the eligible parent turn sharing the most words with ``fact``."""
         storage = self._require_started()
@@ -2579,21 +2764,38 @@ class Engine:
         return decorated[0][0] if decorated else None
 
     async def _compose(
-        self, query: str, ns: str, budget_tokens: int, top_k: int, pool: int
+        self,
+        query: str,
+        ns: str,
+        budget_tokens: int,
+        top_k: int,
+        pool: int,
+        *,
+        hide: Callable[[MemoryRecord], bool] | None = None,
+        extra_probes: Sequence[str] = (),
+        replay_window: int = 2,
     ) -> ReadResult:
-        """H3: session-diverse, wider-recall read for aggregation questions."""
+        """H3: session-diverse, wider-recall read for aggregation questions.
+
+        ``extra_probes`` (G2a: the LLM planner's subqueries) join the query, its
+        core terms and the P4 rewrites; every probe's hits are rank-fused."""
         assert self._assembly is not None
         probes = [query]
         terms = core_terms(query)
         if terms and terms.lower() != query.lower():
             probes.append(terms)
         probes += await self._query_rewrite_probes(query)
+        for probe in extra_probes:
+            if probe.strip() and probe.strip().lower() not in (p.lower() for p in probes):
+                probes.append(probe.strip())
         rrf_k = self._config().read.rrf_k or constants.RRF_K
         fused: dict[str, float] = {}
         records: dict[str, MemoryRecord] = {}
         best_score: dict[str, float] = {}
         for probe in probes:
             hits = await self.search(probe, namespace=ns, top_k=max(1, top_k * pool))
+            if hide is not None:
+                hits = [pair for pair in hits if not hide(pair[0])]
             for rank, (record, score) in enumerate(hits, start=1):
                 rid = record.record_id
                 fused[rid] = fused.get(rid, 0.0) + 1.0 / (rrf_k + rank)
@@ -2615,10 +2817,12 @@ class Engine:
             key=lambda rid: (-fused[rid], rid),
         )
         sessions: dict[str, list[str]] = {}
+        session_ids: dict[str, list[str]] = {}
         if self._episodic is not None:
             for s in await self._episodic.sessions(ns, constants.SESSION_GAP_MINUTES):
                 for rid in s.record_ids:
                     sessions.setdefault(rid, []).append(s.session_key)
+                    session_ids.setdefault(rid, s.record_ids)
         queues: dict[str, list[str]] = {}
         order: list[str] = []
         for rid in ranked:
@@ -2646,11 +2850,52 @@ class Engine:
                 chosen.append(record)
                 chosen_raw.append(records[rid])
                 used += cost
+        if self._config().read.compose_replay and replay_window > 0:
+            used = await self._expand_neighbours(
+                ns, chosen, session_ids, replay_window, budget_tokens, used
+            )
         chosen.sort(key=lambda r: (r.valid_from, r.record_id))
         return ReadResult(
             "compose",
             self._render(query, AssembledContext(records=chosen, tokens_used=used), budget_tokens),
         )
+
+    async def _expand_neighbours(
+        self,
+        ns: str,
+        chosen: list[MemoryRecord],
+        session_ids: dict[str, list[str]],
+        window: int,
+        budget_tokens: int,
+        used: int,
+    ) -> int:
+        """G2c: add each chosen turn's +-``window`` session neighbours, in place.
+
+        Hits are expanded in selection order, neighbours nearest first (older on a
+        tie). A neighbour passes the same gates and decoration as in replay mode;
+        one that does not fit the budget is skipped. Returns the new token count.
+        """
+        seen = {r.record_id for r in chosen}
+        for hit in list(chosen):
+            ids = session_ids.get(hit.record_id)
+            if not ids:
+                continue
+            at = ids.index(hit.record_id)
+            span = range(max(0, at - window), min(len(ids), at + window + 1))
+            for index in sorted(span, key=lambda i: (abs(i - at), i)):
+                rid = ids[index]
+                if rid in seen:
+                    continue
+                turn = await self._replay_neighbour(rid, ns)
+                if turn is None:
+                    continue
+                cost = len(turn.content) // 4 + 1
+                if used + cost > budget_tokens:
+                    continue
+                chosen.append(turn)
+                seen.add(rid)
+                used += cost
+        return used
 
     def _context_eligible(self, record: MemoryRecord) -> bool:
         """C7': the search-time gates, for records reached without a search (stored trust)."""
@@ -4498,11 +4743,38 @@ class Engine:
         if provider is None:
             return None
         try:
-            label, _ = await provider.choose(query, self._READ_MODES)
+            label, confidence = await provider.choose(query, self._READ_MODES)
         except Exception as exc:  # an enhancer, never a gate
             _log.warning("read.planner_failed", error=str(exc))
             return None
-        return label if label in self._READ_MODES else None
+        if label not in self._READ_MODES:
+            return None
+        gate = self._config().read.planner_min_confidence
+        if confidence < gate:
+            # G2b: an unsure choice does not route; keep the default replay read.
+            _log.info("read.planner_unsure", label=label, confidence=confidence, gate=gate)
+            return "replay"
+        return str(label)
+
+    async def _llm_read_plan(self, query: str) -> ReadPlan | None:
+        """G2a: one ``plan`` role call (counted by the router), or None (rules).
+
+        None when the role is not bound, the call fails, or the reply is not a
+        valid :class:`ReadPlan`; each case logs a warning (an enhancer, never a gate).
+        """
+        if self._llm is None or self._prompts is None or "plan" not in self._llm.roles:
+            _log.warning("read.planner_unbound", planner="llm", role="plan")
+            return None
+        try:
+            return await structured_call(
+                self._llm.for_role("plan"),
+                self._prompts.select("plan"),
+                {"query": query},
+                ReadPlan,
+            )
+        except Exception as exc:
+            _log.warning("read.planner_failed", planner="llm", error=str(exc))
+            return None
 
     async def _query_rewrite_probes(self, query: str) -> list[str]:
         """P4 (JustMem COMPOSE): up to two answer-free rewrites from the ``query_rewrite``
@@ -4650,8 +4922,15 @@ class Engine:
         parents: list[str],
         valid_from: datetime,
         session_key: str,
+        *,
+        kind: str | None = None,
     ) -> MemoryRecord:
         """C6': one mined fact through the write door (firewall, ladder, MTI).
+
+        G1a: ``kind="event"`` drops the attribute, so the fact is ADDed beside the
+        person's other events instead of superseding them; ``kind="state"`` keeps
+        the (entity, attribute) key. The kind is tagged ``kind:<kind>``. None
+        (an unclassified caller) keeps the attribute as given.
 
         Trust is capped at the least-trusted source turn even with integrity
         off, exactly like a consolidation summary: derived content is never
@@ -4661,6 +4940,13 @@ class Engine:
         ns = validate_namespace(namespace)
         sources = [r for r in [await storage.get_record(p) for p in parents] if r is not None]
         tags = ["atomic_fact", f"mined:{session_key}"]
+        if kind is not None:
+            tags.append(f"kind:{kind}")
+            protected = self._config().firewall.protected_keys
+            if kind != "state" and f"{entity}.{attribute}" not in protected:
+                # A protected (entity, attribute) key keeps its attribute whatever
+                # the miner called it, so "kind: event" cannot dodge the check.
+                attribute = None
         if sources and all("assistant_claim" in r.tags for r in sources):
             # R2-11: a fact mined only from assistant turns stays an assistant claim.
             tags.append("assistant_claim")

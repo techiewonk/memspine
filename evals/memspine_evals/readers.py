@@ -68,11 +68,25 @@ QUESTION_DATED_QA_PROMPT = DATED_QA_PROMPT.replace(
     "Question: {question}\nAnswer:",
 )
 
+#: G10: the dated prompt plus an inference rule. In combo-A's open-domain errors, half
+#: were refusals on "would / might / likely" questions the context supports; the dated
+#: prompt's "say you do not know" made the reader refuse instead of inferring.
+INFER_RULE = (
+    "If the question asks what someone would, might, or is likely to do, be, or think, "
+    "infer the most plausible answer from the context and give it (e.g. 'Likely yes, "
+    "because ...'); say you do not know only when nothing in the context bears on it. "
+    "Otherwise, if the context does not contain the answer, say you do not know."
+)
+DATED_INFER_QA_PROMPT = DATED_QA_PROMPT.replace(
+    "If the context does not contain the answer, say you do not know.", INFER_RULE
+)
+
 QA_PROMPTS = {
     "mab_fc": MAB_FC_QA_PROMPT,
     "question_dated": QUESTION_DATED_QA_PROMPT,
     "default": DEFAULT_QA_PROMPT,
     "dated": DATED_QA_PROMPT,
+    "dated_infer": DATED_INFER_QA_PROMPT,
     "abstain": ABSTAIN_QA_PROMPT,
     "converse": CONVERSE_QA_PROMPT,
 }

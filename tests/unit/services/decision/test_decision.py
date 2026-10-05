@@ -241,3 +241,50 @@ def test_ner_adapter_uses_the_same_checkpoint(monkeypatch: pytest.MonkeyPatch) -
     _fake_gliner2(monkeypatch, _FakeModel)
     GlinerEntityExtractor()
     assert _FakeModel.loaded == [DEFAULT_MODEL]
+
+
+class _Scored:
+    provider_id = "scored"
+
+    def __init__(self, label: str, confidence: float) -> None:
+        self.label, self.confidence = label, confidence
+
+    async def choose(self, text: str, options: Mapping[str, str]) -> tuple[str, float]:
+        return self.label, self.confidence
+
+
+@pytest.mark.parametrize(
+    ("confidence", "gate", "expected"),
+    [(0.4, 0.6, "replay"), (0.9, 0.6, "compose"), (0.1, 0.0, "compose"), (0.6, 0.6, "compose")],
+)
+async def test_confidence_gate_keeps_the_default_mode(
+    monkeypatch: pytest.MonkeyPatch, confidence: float, gate: float, expected: str
+) -> None:
+    """G2b: below ``read.planner_min_confidence`` the choice does not route."""
+    _fake_gliner2(monkeypatch, _FakeModel)
+    eng = Engine(
+        template="base",
+        dotenv_path=None,
+        storage={"path": ":memory:"},
+        embedding={"provider": "hash"},
+        memories={"episodic": {"enabled": True}},
+        read={"hybrid": False, "planner": "decision", "planner_min_confidence": gate},
+        decision={"provider": "gliner2"},
+    )
+    await eng.start()
+    try:
+        monkeypatch.setattr(eng, "_decision_provider", lambda: _Scored("compose", confidence))
+        assert await eng._plan_read_mode("where does Ana live") == expected
+        for i in range(30):
+            await eng.write(
+                f"note {i} " + "word " * 30,
+                namespace="a",
+                memory_type="episodic",
+                valid_from=datetime(2023, 5, 1 + i % 20, tzinfo=UTC),
+            )
+        out = await eng.read(
+            "where does Ana live", namespace="a", mode="auto", budget_tokens=200, top_k=3
+        )
+        assert out.mode == expected
+    finally:
+        await eng.stop()

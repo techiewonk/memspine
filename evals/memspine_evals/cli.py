@@ -296,7 +296,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     c01.add_argument(
         "--qa-prompt",
-        choices=("default", "dated", "abstain", "converse", "mab_fc", "question_dated"),
+        choices=(
+            "default",
+            "dated",
+            "dated_infer",
+            "abstain",
+            "converse",
+            "mab_fc",
+            "question_dated",
+        ),
         default="default",
         help="QA prompt variant for every arm (H7/H12); question_dated shows the question date",
     )

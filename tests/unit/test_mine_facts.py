@@ -141,12 +141,12 @@ async def test_mined_fact_date_becomes_its_event_time(monkeypatch: pytest.Monkey
         t0 = await _write_session(eng)
         await eng.sleep()
         facts = {
-            r.attribute: r
+            r.content.split(":")[0]: r
             for r in await eng.retrieve(namespace="a", memory_type="semantic")
             if "atomic_fact" in r.tags
         }
-        assert facts["event"].valid_from == datetime(2023, 5, 7, tzinfo=UTC)
-        assert facts["career goal"].valid_from == t0
+        assert facts["Caroline event"].valid_from == datetime(2023, 5, 7, tzinfo=UTC)
+        assert facts["Caroline career goal"].valid_from == t0
     finally:
         await eng.stop()
 
@@ -215,8 +215,82 @@ async def test_mine_by_topic_calls_the_miner_once_per_segment(
             for r in await eng.retrieve(namespace="a", memory_type="semantic")
             if "atomic_fact" in r.tags
         ]
-        assert sorted(f.attribute or "" for f in facts) == ["car", "garden"]
+        assert sorted(f.content.split(":")[0] for f in facts) == ["caroline car", "caroline garden"]
         assert all(len(f.source.parents) == 4 for f in facts)  # its segment only
         assert (await eng.sleep())["mine_facts"]["facts"] == 0  # still idempotent
     finally:
         await eng.stop()
+
+
+async def _two_sessions(eng: Engine) -> None:
+    for n, (day, line) in enumerate(
+        [
+            (8, "Caroline: I went to the support group yesterday"),
+            (20, "Caroline: I ran a charity race last weekend"),
+        ]
+    ):
+        t = datetime(2023, 5, day, 13, 0, tzinfo=UTC)
+        msgs = [
+            {"role": "user", "content": c, "timestamp": (t + timedelta(minutes=i)).isoformat()}
+            for i, c in enumerate([line, "Melanie: wow, tell me more", "Caroline: it was great"])
+        ]
+        await eng.write_messages(msgs, namespace="a", session_id=f"s{n}", group_id=f"s{n}")
+        await eng.sleep()
+
+
+async def test_event_facts_never_supersede_each_other(monkeypatch: pytest.MonkeyPatch) -> None:
+    """G1a: two events of one person (same attribute "event") both stay ACTIVATED;
+    before the kind field the newer one archived the older through the ladder."""
+    from memspine.core.records import RecordStatus
+
+    eng = _engine(mine=True)
+
+    async def fake_mine(text: str) -> list[ExtractedFact]:
+        value = "attended a support group" if "support" in text else "ran a charity race"
+        return [ExtractedFact(entity="Caroline", attribute="event", value=value, kind="event")]
+
+    monkeypatch.setattr(eng, "_build_fact_miner", lambda: fake_mine)
+    await eng.start()
+    try:
+        await _two_sessions(eng)
+        storage = eng._require_started()
+        facts = [r for r in await storage.list_records("a", "semantic") if "atomic_fact" in r.tags]
+        assert len(facts) == 2
+        assert all(f.status is RecordStatus.ACTIVATED for f in facts)
+        assert all("kind:event" in f.tags and f.attribute is None for f in facts)
+        assert all(f.entity == "Caroline" for f in facts)
+    finally:
+        await eng.stop()
+
+
+async def test_state_facts_still_supersede(monkeypatch: pytest.MonkeyPatch) -> None:
+    """G1a: a state (where someone lives) is single-valued: the newer city wins."""
+    from memspine.core.records import RecordStatus
+
+    eng = _engine(mine=True)
+
+    async def fake_mine(text: str) -> list[ExtractedFact]:
+        city = "Boston" if "support" in text else "Denver"
+        return [
+            ExtractedFact(
+                entity="Caroline", attribute="city", value=f"lives in {city}", kind="state"
+            )
+        ]
+
+    monkeypatch.setattr(eng, "_build_fact_miner", lambda: fake_mine)
+    await eng.start()
+    try:
+        await _two_sessions(eng)
+        storage = eng._require_started()
+        facts = [r for r in await storage.list_records("a", "semantic") if "atomic_fact" in r.tags]
+        live = [f for f in facts if f.status is RecordStatus.ACTIVATED]
+        assert [f.content for f in live] == ["Caroline city: lives in Denver"]
+        assert all("kind:state" in f.tags and f.attribute == "city" for f in facts)
+    finally:
+        await eng.stop()
+
+
+def test_extracted_fact_kind_defaults_to_event() -> None:
+    """G1a: a miner reply without ``kind`` (older prompts, caches) parses as an event."""
+    fact = ExtractedFact.model_validate({"entity": "a", "attribute": "b", "value": "c"})
+    assert fact.kind == "event"

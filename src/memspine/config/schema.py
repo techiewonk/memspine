@@ -277,6 +277,11 @@ class ReadConfig(BaseModel):
     #: most when few of many candidates are kept, and can hurt abstention when
     #: many are). None = always rerank when a reranker is configured.
     rerank_max_top_k: int | None = Field(default=None, ge=1)
+    #: G5b: with a reranker and ``candidate_pool > 1``, keep only the best
+    #: ``rerank_keep`` candidates after reranking, before assembly fills the budget,
+    #: so a wider pool sharpens the ranking instead of growing the context.
+    #: None = keep the whole pool (unchanged).
+    rerank_keep: int | None = Field(default=None, ge=1)
     #: H15: replay windows stay inside the hit's topic segment (lexical-cohesion
     #: boundaries within a session), so neighbours from another topic are not replayed.
     replay_topic_segments: bool = False
@@ -302,9 +307,24 @@ class ReadConfig(BaseModel):
     #: from the ``query_rewrite`` LLM role (``@compose`` prompt). Needs the role bound.
     compose_rewrites: bool = False
     #: H24: how ``read(mode="auto")`` picks a mode once full context does not fit:
-    #: ``rules`` (deterministic cues) or ``decision`` (the decision provider chooses
-    #: among compose / replay / retrieve; rules on any failure).
-    planner: Literal["rules", "decision"] = "rules"
+    #: ``rules`` (deterministic cues), ``decision`` (the decision provider chooses
+    #: among compose / replay / retrieve) or ``llm`` (G2a: one ``plan`` role call
+    #: returns a ReadPlan; lookup/replay read by replay, aggregate by compose with
+    #: the plan's subqueries as extra probes). Rules on any failure.
+    planner: Literal["rules", "decision", "llm"] = "rules"
+    #: G2b: with ``planner: decision``, a choice whose confidence is below this
+    #: does not route the read: it keeps the default ``replay`` (retrieve when no
+    #: hit is episodic). 0.0 = every choice routes (unchanged).
+    planner_min_confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    #: G2c: compose results get the same +-``replay_window`` neighbour expansion as
+    #: replay mode (nearest first, within the budget), so routing an aggregation
+    #: question to compose no longer loses the turns around each hit.
+    compose_replay: bool = False
+    #: G11: the ``top_k`` of a read that ``read(mode="auto")`` routes to compose (the
+    #: LLM planner's ``aggregate``, the decision planner's or the rules' compose), so
+    #: list and count questions whose evidence spans sessions pool more candidates.
+    #: The budget still caps the context. None = the caller's ``top_k`` (unchanged).
+    aggregate_top_k: int | None = Field(default=None, ge=1)
     relevance_safety_net: int = Field(default=10, ge=0)
     #: C8': resolve search hits on anticipatory cues (``Engine.add_cues``) to
     #: their target records. A cue below ``cue_min_trust`` is ignored, so cues
@@ -345,6 +365,21 @@ class ReadConfig(BaseModel):
     #: H22: the token sub-budget of the lead section (standing preferences, then
     #: timelines), taken out of the assembly budget.
     lead_budget_tokens: int = Field(default=400, ge=0)
+    #: G1b (JustMem cards): ``header`` opens the volatile context with the mined
+    #: atomic facts relevant to the query, one dated line each, retrieved by the same
+    #: hybrid search restricted to ``atomic_fact`` records and gated like any record.
+    #: The block stays within ``cards_budget_share`` of the budget; the rest goes to
+    #: the normal read, which then leaves mined facts out (no fact twice). ``off``:
+    #: byte-identical.
+    cards: Literal["off", "header"] = "off"
+    cards_budget_share: float = Field(default=0.25, gt=0.0, le=1.0)
+    cards_top_k: int = Field(default=10, ge=1)
+    #: G3b: after the cards header, an "about" block of the H14 profile insights
+    #: (``consolidation.reflect_profile`` records) on the people the query names, or
+    #: the most relevant insights when none matches, within ``profile_budget_share``
+    #: of the budget. Gated like any record. Off: byte-identical.
+    profile_header: bool = False
+    profile_budget_share: float = Field(default=0.15, gt=0.0, le=1.0)
 
 
 class MemoryTypeConfig(BaseModel):

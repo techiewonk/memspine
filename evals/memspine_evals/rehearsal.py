@@ -142,7 +142,9 @@ def arm_config(
         memspine_build_sleep=bool(arm.get("build_sleep", base.get("build_sleep", False))),
         memspine_batch_turns=int(arm.get("batch_turns", base.get("batch_turns", 1))),
         memspine_llm=protocol.get("memspine_llm", "none") if memspine else "none",
-        dense=bool(arm.get("dense", False)),
+        # The plan's ``dense`` flag is plan_commands' --naive-dense-same-embedder (the
+        # naive-rag-dense-memspine-embedder system), not the c0-1 --dense retriever switch.
+        naive_dense_same_embedder=bool(arm.get("dense", False)),
         matched_budget_tokens=arm.get("matched_budget_tokens"),
         only_systems=tuple(arm.get("systems", ["memspine"])),
         item_ids=item_ids,
