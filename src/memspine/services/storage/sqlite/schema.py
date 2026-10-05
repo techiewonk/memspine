@@ -108,6 +108,9 @@ memory_records = Table(
     # nullable — a NULL tags column reads back as an empty list.
     Column("group_id", String),
     Column("tags", LargeBinary),
+    # #19 interval arithmetic (migration 0004): when the fact stopped being true
+    # in the world; NULL = not known (always, unless conflict.interval_order).
+    Column("invalid_at", String),
     Index("ix_memory_records_ns_type", "namespace", "memory_type"),
     Index("ix_memory_records_fingerprint", "content_fingerprint"),
     Index("ix_memory_records_fact_key", "namespace", "entity", "attribute"),

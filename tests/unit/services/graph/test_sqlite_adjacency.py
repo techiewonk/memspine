@@ -228,3 +228,36 @@ async def test_walks_past_the_sqlite_variable_limit(store: SQLiteAdjacencyGraph)
     assert len(reached) == leaves
     edges = await store.subgraph(["hub"], depth=1, namespace="default")
     assert len(edges) == leaves
+
+
+@pytest.mark.parametrize("namespace", [None, "ns"])
+@pytest.mark.parametrize("rel_type", [None, "related"])
+@pytest.mark.parametrize("max_degree", [None, 3])
+async def test_walk_steps_are_index_seeks_not_edge_scans(
+    store: SQLiteAdjacencyGraph,
+    namespace: str | None,
+    rel_type: str | None,
+    max_degree: int | None,
+) -> None:
+    """#24 perf gap: every recursive step seeks graph_edges by its frontier node
+    (never a full scan of the edge table), whatever the planner's statistics."""
+    from sqlalchemy import text
+
+    from memspine.services.graph.sqlite_adjacency import _walk_sql
+
+    for i in range(20):
+        await store.upsert_edge(f"n{i}", f"n{i + 1}", "related", namespace="ns")
+    params: dict[str, object] = {"seeds": '["n0"]', "depth": 3}
+    if namespace is not None:
+        params["namespace"] = namespace
+    if rel_type is not None:
+        params["rel_type"] = rel_type
+    if max_degree is not None:
+        params["max_degree"] = max_degree
+    sql = "EXPLAIN QUERY PLAN " + _walk_sql(namespace, rel_type, max_degree) + "SELECT * FROM hops"
+    async with store._client.engine.connect() as conn:
+        details = [str(row[3]) for row in (await conn.execute(text(sql), params)).all()]
+    edge_reads = [d for d in details if " e " in f" {d} " or " c " in f" {d} "]
+    assert edge_reads, details
+    assert all(d.startswith("SEARCH") and "INDEX" in d for d in edge_reads), details
+    assert not any("graph_edges" in d and d.startswith("SCAN") for d in details), details

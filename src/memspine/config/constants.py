@@ -368,6 +368,13 @@ GRAPH_LEG_FALLBACK_HITS = 3
 GRAPH_SEED_MAX_NGRAM = 4
 # Fan-out cap per node during a graph-leg walk (KB-3), so a hub cannot flood it.
 GRAPH_LEG_MAX_DEGREE = 50
+# #22 (``read.graph_rerank``): local push-PPR over the seeds' subgraph. Restart
+# probability alpha (= 1 - PPR_DAMPING, the global PPR's convention) and the
+# residual threshold epsilon per unit degree (Andersen, Chung & Lang 2006); the
+# push loop stops after GRAPH_RERANK_PUSH_MAX pushes whatever the residuals.
+GRAPH_RERANK_PPR_ALPHA = 1.0 - PPR_DAMPING
+GRAPH_RERANK_PPR_EPSILON = 1e-4
+GRAPH_RERANK_PUSH_MAX = 10_000
 # GP-10 (#16): the default ``read.graph_min_trust``: a graph walk never enters a
 # record below the trust the firewall quarantines at.
 GRAPH_MIN_TRUST_DEFAULT = QUARANTINE_TRUST_THRESHOLD

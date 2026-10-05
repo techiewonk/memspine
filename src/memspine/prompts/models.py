@@ -48,6 +48,22 @@ __all__ = [
 ]
 
 
+def _positive_ints(value: Any) -> list[int]:
+    """Line numbers an LLM cites: ``3``, ``"3, 4"``, ``["[3]", 4]`` and junk -> the
+    positive ints, each once, in order."""
+    if value is None:
+        return []
+    items = re.findall(r"-?\d+", value) if isinstance(value, str) else value
+    if not isinstance(items, list | tuple):
+        items = [items]
+    out: list[int] = []
+    for item in items:
+        digits = re.findall(r"-?\d+", str(item))
+        if digits and int(digits[0]) > 0 and int(digits[0]) not in out:
+            out.append(int(digits[0]))
+    return out
+
+
 def _as_text(value: Any) -> Any:
     """Scalars YAML did not keep as text: an unquoted ``2023-05-08`` loads as a date,
     ``2023`` or ``32`` as a number. Turn them back into the string the model wrote."""
@@ -244,17 +260,7 @@ class ExtractedFact(BaseModel):
     @classmethod
     def _line_numbers(cls, value: Any) -> Any:
         """Tolerate ``3``, ``"3, 4"``, ``["[3]", 4]`` and junk: keep the positive ints."""
-        if value is None:
-            return []
-        items = re.findall(r"-?\d+", value) if isinstance(value, str) else value
-        if not isinstance(items, list | tuple):
-            items = [items]
-        out: list[int] = []
-        for item in items:
-            digits = re.findall(r"-?\d+", str(item))
-            if digits and int(digits[0]) > 0 and int(digits[0]) not in out:
-                out.append(int(digits[0]))
-        return out
+        return _positive_ints(value)
 
 
 class ExtractedFacts(BaseModel):
@@ -354,8 +360,18 @@ class ExtractedEdge(BaseModel):
     #: attended) is one of many that hold at once, keyed ``(src, rel, dst)`` and
     #: add-only. Missing or unknown => ``event``, mirroring ``ExtractedFact`` (G1a).
     kind: Literal["state", "event"] = "event"
+    #: #20: session-level extraction (``extract_graph.granularity: session``): the
+    #: 1-based numbered turns of the session transcript that state the edge. Empty
+    #: for record-level extraction (and when the model cites none).
+    episode_indices: list[int] = Field(default_factory=list)
 
     _valid_from_as_text = field_validator("valid_from", mode="before")(_as_text)
+
+    @field_validator("episode_indices", mode="before")
+    @classmethod
+    def _turn_numbers(cls, value: Any) -> Any:
+        """Tolerate ``3``, ``"3, 4"``, ``["[3]", 4]`` and junk: keep the positive ints."""
+        return _positive_ints(value)
 
     @field_validator("kind", mode="before")
     @classmethod

@@ -70,6 +70,8 @@
       "graph_leg": false,
       "graph_leg_k": 10,
       "graph_min_trust": 0.25,
+      "graph_rerank": "off",
+      "graph_rerank_weight": 0.2,
       "hybrid": true,
       "lead_budget_tokens": 400,
       "lexical_provider": "tantivy",
@@ -181,6 +183,7 @@
       "contest_ties": false,
       "contest_trust_margin": 0.05,
       "contest_window_seconds": 0.0,
+      "interval_order": false,
       "trust_margin": 0.3
     },
     "consolidation": {

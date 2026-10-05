@@ -4,6 +4,14 @@ All notable changes to memspine are documented here. Format: [Keep a Changelog](
 
 ## [Unreleased]
 
+### Added — Wave 2b graph intervals and rerank (2026-10-06)
+- **#19 interval arithmetic (opt-in, `memories.semantic.policies.conflict.interval_order`):** records gain an optional `invalid_at` (migration 0004; omitted from payloads when unset). Superseded/retracted facts get `invalid_at`; an older-arriving contradiction is stored as history ending at the next statement and re-closes the history entry it lands in; same key + same `dst:` endpoint merges as a duplicate. Off: unchanged.
+- **#20 session-level extraction (opt-in, `extract_graph.granularity: session`):** one `extract_edges@session` call per consolidated session, per-fact turn attribution via `episode_indices` (parents + links), GLiNER2 entities as the allowed list, per-session watermark.
+- **#22 graph rerank (opt-in, `read.graph_rerank: off|distance|ppr`, `read.graph_rerank_weight` 0.2):** node-distance or local push-PPR boost from the graph leg's seeds plus an episode-mentions boost. Off: byte-identical.
+
+### Changed — Wave 2b (2026-10-06)
+- **#24 perf gap:** the `sqlite_adjacency` walk seeks the `(namespace, src|dst, weight)` indexes on every step instead of scanning all edges; identical results. 100K edges: BFS d1 p95 1106 -> 2.4 ms, d3 p95 925 -> 35.7 ms.
+
 ### Added — Wave 4 infrastructure (2026-10-06)
 - **#33 per-prompt token tracking:** `Engine.usage(reset=False)` returns calls and input/output tokens per prompt id and version (provider-reported where available, else a chars/4 estimate flagged `estimated`); the evals harness records `engine_prompt_usage` per stage.
 - **#52 encryption at rest (option, ADR-035):** `storage.encryption.mode: sqlcipher` + `key_env`; `[encrypt]` extra; the key never appears in logs or reprs.

@@ -471,6 +471,17 @@ class ReadConfig(BaseModel):
     #: the entities the query names, with validity ranges and source counts, within
     #: ``cards_budget_share`` (shared with the cards header). Off: byte-identical.
     cards_include_edges: bool = False
+    #: GP-4/KB-4/GR-19 (#22): rerank the gated candidates by graph proximity to
+    #: the graph leg's seeds (the entities the query names, else those of the best
+    #: hits): ``distance`` = 1 / entity hops of the seed walk, ``ppr`` = local
+    #: push-PPR over the seeds' subgraph (normalised to the best record). Each
+    #: boost, and an episode-mentions boost (facts restated by more episodes,
+    #: ``edge_source:`` provenance), lifts relevance as ``r + w * b * (1 - r)``
+    #: with ``w = graph_rerank_weight``; unboosted candidates keep their score.
+    #: Needs associative memory with ``entity_nodes`` for the graph part. Off:
+    #: byte-identical.
+    graph_rerank: Literal["off", "distance", "ppr"] = "off"
+    graph_rerank_weight: float = Field(default=0.2, ge=0.0, le=1.0)
     #: GP-6 (#17): an "About <Name>: …" block of the entity summaries
     #: (``summarize_entities`` stage) of the entities the query names (the graph
     #: leg's seeds), within ``cards_budget_share`` after the cards and the graph

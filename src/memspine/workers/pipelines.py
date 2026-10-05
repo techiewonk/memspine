@@ -146,6 +146,8 @@ AppendEvent = Callable[[MemoryEvent], Awaitable[None]]
 #: (firewall screening, M5 dedup and the M4 conflict ladder all apply).
 WriteDerivedFact = Callable[[MemoryRecord, list[float]], Awaitable[MemoryRecord]]
 Summarize = Callable[[str], Awaitable[str]]
+#: #20: text -> the entity names a decision provider (GLiNER2) finds in it.
+FindEntities = Callable[[str], Awaitable[list[str]]]
 # ``ExtractEdges`` (re-exported): LLM edge extraction for the graphiti-style
 # write path (C2). Takes source text plus an optional :class:`EdgeContext`,
 # returns the (reflexion-merged) relationship edges. None on the context => the
@@ -228,6 +230,12 @@ class PipelineContext:
     #: LLM edge extractor for the C2 graphiti-style pipeline. None => the
     #: extract_graph stage self-skips (feature off or no extract_edges LLM role).
     extract_edges: ExtractEdges | None = None
+    #: #20: the session-level extractor (``extract_edges@session``: numbered turns
+    #: in, edges with ``episode_indices`` out). None => record-level extraction.
+    extract_session_edges: ExtractEdges | None = None
+    #: #20: the decision provider's entity finder (GLiNER2): text -> entity names,
+    #: the allowed-entity list of a session extraction. None => no list.
+    find_entities: FindEntities | None = None
     #: C6' atomic-fact mining. Both None => the mine_facts stage self-skips.
     mine_facts: MineFacts | None = None
     #: #29: the batched LLM date fill (``consolidation.mine_event_dates_llm``).
@@ -1484,15 +1492,41 @@ def _one_line(text: str, limit: int = 400) -> str:
     return flat if len(flat) <= limit else flat[: limit - 1] + "..."
 
 
-def _edge_contexts(sources: list[MemoryRecord], known: list[MemoryRecord]) -> list[EdgeContext]:
-    """GR-4: per source, its event time, the episodes just before it (same
-    group, at most ``MAX_PREVIOUS_EPISODES``) and the entity names already
-    known in the namespace (most recent first)."""
+def _context_entities(known: list[MemoryRecord]) -> list[str]:
+    """GR-4: the entity names already known in the namespace, most recent first."""
     entities: list[str] = []
     for record in sorted(known, key=lambda r: r.recorded_at, reverse=True):
         if record.entity and record.entity not in entities:
             entities.append(record.entity)
-    entities = entities[:EDGE_CONTEXT_MAX_ENTITIES]
+    return entities[:EDGE_CONTEXT_MAX_ENTITIES]
+
+
+def _session_transcript(members: list[MemoryRecord]) -> str:
+    """#20: the session as ``[n] [YYYY-MM-DD] turn`` lines (1-based), the numbers
+    the extractor cites in ``episode_indices``."""
+    return "\n".join(
+        f"[{n}] [{m.valid_from:%Y-%m-%d}] {_one_line(m.content, 2000)}"
+        for n, m in enumerate(members, 1)
+    )
+
+
+def _cited(members: list[MemoryRecord], indices: list[int]) -> list[MemoryRecord]:
+    """#20: the session turns an edge cites (valid 1-based indices, transcript
+    order); the whole session when it cites none, so a fact always has parents."""
+    cited = [members[i - 1] for i in sorted(set(indices)) if 1 <= i <= len(members)]
+    return cited or list(members)
+
+
+#: #20: the stage name of the per-session ``stage_done`` markers extract_graph
+#: appends under ``granularity: session`` (the session watermark).
+EXTRACT_GRAPH_SESSION_STAGE = "extract_graph"
+
+
+def _edge_contexts(sources: list[MemoryRecord], known: list[MemoryRecord]) -> list[EdgeContext]:
+    """GR-4: per source, its event time, the episodes just before it (same
+    group, at most ``MAX_PREVIOUS_EPISODES``) and the entity names already
+    known in the namespace (most recent first)."""
+    entities = _context_entities(known)
     episodes = sorted(
         (r for r in sources if r.memory_type == "episodic"),
         key=lambda r: (r.valid_from, r.record_id),
@@ -1565,6 +1599,11 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
     opts = _policy_options(ctx, "semantic", "extract_graph") or {}
     raw_conf = opts.get("min_confidence", 0.0)
     min_conf = float(raw_conf) if isinstance(raw_conf, (int, float, str)) else 0.0
+    # #20: ``granularity: session`` sends each consolidated session in one call
+    # (needs the session extractor the engine builds for it); record = per source.
+    session_extract = (
+        ctx.extract_session_edges if opts.get("granularity", "record") == "session" else None
+    )
     resolving = resolve_mode(opts)
     resolution: dict[str, int] = {}
     written = 0
@@ -1575,6 +1614,7 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
     errors: list[str] = []
     screen = ctx.screen or _local_screen(ctx)
     protected = ctx.config.firewall.protected_keys
+    append = ctx.append_event
     # GP-8a: a source already sent to the LLM (same content) is not sent again.
     index = ctx.session_index
     await index.refresh(ctx.storage)
@@ -1610,7 +1650,74 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
                     ):
                         sources.append(record)
             done: dict[str, str] = {}
+            # Extraction first, writes after (GP-7 resolves every name in one pass).
+            # Each entry: (owner, edges, parents). The owner is the record the
+            # resolver judges trust by and keys its decision on; the parents are
+            # what the fact cites: the source record, or the session turns (#20).
             extracted: list[tuple[MemoryRecord, list[ExtractedEdge]]] = []
+            parent_sets: list[list[MemoryRecord]] = []
+            sessions_done: list[tuple[str, str]] = []
+            if session_extract is not None:
+                # #20: one call per consolidated session (numbered turns); the
+                # session's members leave the per-record pass.
+                member_of: dict[str, str] = {}
+                for (session_ns, session_key), member_ids in index.sessions.items():
+                    if session_ns == namespace:
+                        for member_id in member_ids:
+                            member_of.setdefault(member_id, session_key)
+                grouped: dict[str, list[MemoryRecord]] = {}
+                loose: list[MemoryRecord] = []
+                for record in sources:
+                    owner_key = member_of.get(record.record_id)
+                    if owner_key is None:
+                        loose.append(record)
+                    else:
+                        grouped.setdefault(owner_key, []).append(record)
+                names = _context_entities(known)
+                for session_key, members in grouped.items():
+                    members.sort(key=lambda m: (m.valid_from, m.record_id))
+                    members_fp = _members_fp([m.record_id for m in members])
+                    if index.membership_done(
+                        EXTRACT_GRAPH_SESSION_STAGE, namespace, members_fp
+                    ) or all(
+                        index.graph_sources.get((namespace, m.record_id)) == m.content_fingerprint
+                        for m in members
+                    ):
+                        already += len(members)
+                        continue
+                    allowed: list[str] = []
+                    if ctx.find_entities is not None:
+                        try:
+                            allowed = list(
+                                await ctx.find_entities("\n".join(m.content for m in members))
+                            )
+                        except Exception as exc:  # an enhancer, never a gate
+                            _log.warning("extract_graph.entities_failed", error=str(exc))
+                    context = EdgeContext(
+                        reference_time=members[-1].valid_from,
+                        entities=names,
+                        allowed_entities=allowed,
+                    )
+                    try:
+                        edges = await session_extract(_session_transcript(members), context)
+                    except Exception as exc:  # the LLM is an enhancer, never a gate (N6)
+                        errors.append(f"{namespace}:{session_key}: {exc}")
+                        _log.warning(
+                            "extract_graph.extract_failed", session_key=session_key, error=str(exc)
+                        )
+                        continue  # no watermark: retried next sweep
+                    for member in members:
+                        done[member.record_id] = member.content_fingerprint
+                    sessions_done.append((session_key, members_fp))
+                    for edge in edges:
+                        if edge.confidence < min_conf:
+                            continue
+                        cited = _cited(members, edge.episode_indices)
+                        # The resolver's trust guard judges the least trusted turn.
+                        owner = min(cited, key=lambda m: (m.trust, m.record_id))
+                        extracted.append((owner, [edge]))
+                        parent_sets.append(cited)
+                sources = loose
             for record, edge_context in zip(sources, _edge_contexts(sources, known), strict=True):
                 if (
                     index.graph_sources.get((namespace, record.record_id))
@@ -1628,6 +1735,7 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
                     continue  # no watermark: retried next sweep
                 done[record.record_id] = record.content_fingerprint
                 extracted.append((record, [e for e in edges if e.confidence >= min_conf]))
+                parent_sets.append([record])
             if resolving != "off" and any(edges for _, edges in extracted):
                 # GP-7: one resolution pass (at most one batched LLM call) per sweep.
                 extracted, counts = await _resolve_edges(
@@ -1635,106 +1743,122 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
                 )
                 for name, count in counts.items():
                     resolution[name] = resolution.get(name, 0) + count
-            for record, edges in extracted:
-                for edge in edges:
-                    if edge.confidence < min_conf:
-                        continue
-                    key = _edge_key(namespace, edge)
-                    if key in existing:
-                        skipped += 1
-                        # GR-9: a verbatim duplicate (same src, rel, dst and kind) adds
-                        # its source episode to the fact's provenance; no LLM call.
-                        if await _add_edge_provenance(ctx, existing[key], edge, record):
+
+            async def emit(
+                edge: ExtractedEdge,
+                parents: list[MemoryRecord],
+                namespace: str = namespace,
+                existing: dict[str, MemoryRecord] = existing,
+            ) -> None:
+                """One extracted edge -> a fact record (+ ``asserted`` LINKs) whose
+                parents are ``parents``: the source record, or the session turns
+                the edge cites (#20)."""
+                nonlocal written, linked, skipped, quarantined, provenance
+                if edge.confidence < min_conf:
+                    return
+                key = _edge_key(namespace, edge)
+                if key in existing:
+                    skipped += 1
+                    # GR-9: a verbatim duplicate (same src, rel, dst and kind) adds
+                    # its source episode to the fact's provenance; no LLM call.
+                    for parent in parents:
+                        if await _add_edge_provenance(ctx, existing[key], edge, parent):
                             provenance += 1
-                        continue
-                    # GP-1: an event edge drops its attribute (add-only, never
-                    # superseded); kind, rel and dst persist as tags.
-                    attribute, tags = edge_fact_key(edge, edge.src_entity, protected)
-                    fact = MemoryRecord(
-                        namespace=namespace,
-                        memory_type="semantic",
-                        content=edge.fact,
-                        entity=edge.src_entity,
-                        attribute=attribute,
-                        tags=tags,
-                        valid_from=_edge_valid_from(edge, record.valid_from),
-                        source=SourceInfo(
-                            role=constants.DERIVED_ROLE,
-                            channel="extract_graph",
-                            message_id=key,
-                            parents=[record.record_id],
-                        ),
-                    )
-                    if ctx.write_fact is not None:
-                        # The semantic door: firewall (N2, cap = the source's trust),
-                        # M5 dedup and the M4 ladder, so a state edge supersedes the
-                        # older value; event edges carry no attribute and are ADDed.
-                        stored = await ctx.write_fact(fact, [record.trust])
-                        existing[key] = stored
-                        if stored.quarantined:
-                            quarantined += 1  # held content gains no graph reach (E1)
-                            continue
-                        if stored.record_id != fact.record_id:
-                            skipped += 1  # merged into / rejected by an existing fact
-                            continue
-                        fact = stored
-                    else:
-                        # Derived trust never exceeds the source (E1): the cap rides
-                        # the same firewall screening as every other derived write.
-                        fact, reasons = await screen(fact, [record.trust])
-                        payload: dict[str, object] = {
-                            "record": fact.model_dump(mode="json"),
-                            "extract_graph": {"source_record_id": record.record_id},
-                        }
-                        if reasons:
-                            payload["firewall"] = {"reasons": reasons}
-                        await ctx.append_event(
-                            MemoryEvent(
-                                kind=EventKind.WRITE,
-                                namespace=namespace,
-                                actor="system",
-                                payload=payload,
-                            )
+                    return
+                trusts = [p.trust for p in parents]
+                # GP-1: an event edge drops its attribute (add-only, never
+                # superseded); kind, rel and dst persist as tags.
+                attribute, tags = edge_fact_key(edge, edge.src_entity, protected)
+                fact = MemoryRecord(
+                    namespace=namespace,
+                    memory_type="semantic",
+                    content=edge.fact,
+                    entity=edge.src_entity,
+                    attribute=attribute,
+                    tags=tags,
+                    valid_from=_edge_valid_from(edge, parents[-1].valid_from),
+                    source=SourceInfo(
+                        role=constants.DERIVED_ROLE,
+                        channel="extract_graph",
+                        message_id=key,
+                        parents=[p.record_id for p in parents],
+                    ),
+                )
+                if ctx.write_fact is not None:
+                    # The semantic door: firewall (N2, cap = the sources' trust),
+                    # M5 dedup and the M4 ladder, so a state edge supersedes the
+                    # older value; event edges carry no attribute and are ADDed.
+                    stored = await ctx.write_fact(fact, trusts)
+                    existing[key] = stored
+                    if stored.quarantined:
+                        quarantined += 1  # held content gains no graph reach (E1)
+                        return
+                    if stored.record_id != fact.record_id:
+                        skipped += 1  # merged into / rejected by an existing fact
+                        return
+                    fact = stored
+                else:
+                    # Derived trust never exceeds the source (E1): the cap rides
+                    # the same firewall screening as every other derived write.
+                    fact, reasons = await screen(fact, trusts)
+                    payload: dict[str, object] = {
+                        "record": fact.model_dump(mode="json"),
+                        "extract_graph": {"source_record_id": parents[0].record_id},
+                    }
+                    if reasons:
+                        payload["firewall"] = {"reasons": reasons}
+                    await append(
+                        MemoryEvent(
+                            kind=EventKind.WRITE,
+                            namespace=namespace,
+                            actor="system",
+                            payload=payload,
                         )
-                        existing[key] = fact
-                        if reasons:
-                            quarantined += 1  # held content gains no graph reach (E1)
-                            _log.warning(
-                                "memory.quarantined",
-                                namespace=namespace,
-                                record_id=fact.record_id,
-                                reasons=reasons,
-                            )
-                            continue
-                    written += 1
+                    )
+                    existing[key] = fact
+                    if reasons:
+                        quarantined += 1  # held content gains no graph reach (E1)
+                        _log.warning(
+                            "memory.quarantined",
+                            namespace=namespace,
+                            record_id=fact.record_id,
+                            reasons=reasons,
+                        )
+                        return
+                written += 1
+                for parent in parents:
                     # Associate the fact with its source (non-reserved rel: budget
                     # applies). A saturated source keeps the record, skips the link.
                     if ctx.graph is not None:
                         try:
-                            await assert_within_budget(ctx.graph, record.record_id)
+                            await assert_within_budget(ctx.graph, parent.record_id)
                         except ConflictError:
                             _log.warning(
-                                "extract_graph.link_budget_full", record_id=record.record_id
+                                "extract_graph.link_budget_full", record_id=parent.record_id
                             )
                             continue
-                    await ctx.append_event(
+                    await append(
                         link_event(
                             namespace,
-                            record.record_id,
+                            parent.record_id,
                             fact.record_id,
                             "asserted",
                             # GP-10: an edge is never stronger than its
                             # confidence or the trust of what it links.
-                            weight=max(0.0, min(1.0, edge.confidence, record.trust, fact.trust)),
+                            weight=max(0.0, min(1.0, edge.confidence, parent.trust, fact.trust)),
                             reason="extract_graph",
                             actor="system",
                         )
                     )
                     linked += 1
+
+            for (_owner, edges), parents in zip(extracted, parent_sets, strict=True):
+                for edge in edges:
+                    await emit(edge, parents)
             if done:
                 # GP-8a: one watermark marker per namespace per sweep, appended
                 # after the facts, so a crash mid-sweep re-extracts idempotently.
-                await ctx.append_event(
+                await append(
                     MemoryEvent(
                         kind=EventKind.MARKER,
                         namespace=namespace,
@@ -1751,6 +1875,21 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
                 )
                 for record_id, fp in done.items():
                     index.graph_sources[(namespace, record_id)] = fp
+            for session_key, members_fp in sessions_done:
+                # #20: the session watermark (a re-consolidated session with the
+                # same live turns is not sent again).
+                await append(
+                    stage_marker(
+                        namespace, EXTRACT_GRAPH_SESSION_STAGE, session_key, members_fp=members_fp
+                    )
+                )
+                index.mark(
+                    EXTRACT_GRAPH_SESSION_STAGE,
+                    namespace,
+                    session_key,
+                    done=True,
+                    members_fp=members_fp,
+                )
     stats: dict[str, object] = {
         "status": "ok" if not errors else "partial",
         "edges_written": written,
