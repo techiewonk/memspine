@@ -31,7 +31,7 @@ from memspine.clients.lancedb import LanceDBClient
 from memspine.clients.postgres import PostgresClient
 from memspine.clients.sqlite import SQLiteClient
 from memspine.config import constants
-from memspine.config.loader import ResolvedConfig, load_config
+from memspine.config.loader import ResolvedConfig, default_template, load_config
 from memspine.config.schema import MemspineConfig
 from memspine.core.audit import IntegrityReport, TaintReport, trace_taint, verify_events
 from memspine.core.erasure import payload_retains_content
@@ -445,7 +445,7 @@ class Engine:
         # 1. secrets, then config (D-22 two-phase).
         secrets = self._build_secrets()
         self._resolved = load_config(
-            template=self._template if self._template is not None else constants.DEFAULT_TEMPLATE,
+            template=default_template(self._template, self._user_config, self._overrides),
             user_config=self._user_config,
             env=os.environ,
             overrides=self._overrides,
