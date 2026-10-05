@@ -9,6 +9,7 @@ database.
 
 from __future__ import annotations
 
+import threading
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -23,6 +24,12 @@ from memspine.exceptions import StorageError
 __all__ = ["alembic_config", "ensure_schema", "upgrade_to_head"]
 
 _HERE = Path(__file__).parent / "alembic"
+
+#: #88: Alembic keeps its migration context in module globals (``alembic.op``,
+#: ``alembic.context``), so two migrations in one process must not overlap. Two
+#: engines started concurrently on one file each run :func:`ensure_schema` in a
+#: worker thread; unserialised, the process crashed (a native access violation).
+_MIGRATION_LOCK = threading.Lock()
 
 
 def _reject_memory(db_path: str | Path) -> None:
@@ -58,9 +65,15 @@ def ensure_schema(db_path: str | Path, creator: Callable[[], Any] | None = None)
     migration would read garbage or write plaintext pages.
     """
     _reject_memory(db_path)
-    if creator is not None:
-        _ensure_schema_with(db_path, creator)
-        return
+    with _MIGRATION_LOCK:
+        if creator is not None:
+            _ensure_schema_with(db_path, creator)
+        else:
+            _ensure_schema_plain(db_path)
+
+
+def _ensure_schema_plain(db_path: str | Path) -> None:
+    """:func:`ensure_schema` over a plain ``sqlite:///`` URL."""
     engine = create_engine(f"sqlite:///{db_path}")
     try:
         inspector = inspect(engine)

@@ -23,6 +23,7 @@ part of ``repr()`` or an error message.
 
 from __future__ import annotations
 
+import asyncio
 import importlib
 import itertools
 import os
@@ -31,23 +32,71 @@ from pathlib import Path
 from typing import Any
 
 from sqlalchemy import event as sa_event
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, create_async_engine
 from sqlalchemy.pool import AsyncAdaptedQueuePool
 
 from memspine.clients.base import Client
+from memspine.config import constants
 from memspine.exceptions import ConfigError, MissingServiceError, StorageError
 
 __all__ = ["SQLiteClient"]
 
+#: Set first on every connection, so each statement after it, the journal-mode
+#: probe included, waits out a competing writer instead of failing.
+_BUSY_TIMEOUT = f"PRAGMA busy_timeout={constants.SQLITE_BUSY_TIMEOUT_MS}"
 _PRAGMAS = (
-    "PRAGMA journal_mode=WAL",
     "PRAGMA synchronous=NORMAL",
     "PRAGMA foreign_keys=ON",
-    "PRAGMA busy_timeout=5000",
     # #43: deleted and overwritten rows are zeroed on disk, not left in free
     # pages, so a hard forget leaves no recoverable bytes in the database file.
     "PRAGMA secure_delete=ON",
 )
+
+
+def _is_locked(exc: BaseException) -> bool:
+    return "database is locked" in str(exc) or "database is busy" in str(exc)
+
+
+async def _first_connection(engine: AsyncEngine) -> None:
+    """Open (and return to the pool) one connection, retrying while another
+    process holds the lock the WAL switch needs (the switch does not wait on its
+    own, see :func:`_ensure_wal`), for up to the busy timeout."""
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + constants.SQLITE_BUSY_TIMEOUT_MS / 1000
+    delay = 0.01
+    while True:
+        try:
+            async with engine.connect():
+                return
+        except OperationalError as exc:
+            if not _is_locked(exc) or loop.time() >= deadline:
+                raise
+        await asyncio.sleep(delay)
+        delay = min(delay * 2, 0.25)
+
+
+def _ensure_wal(cursor: Any) -> None:
+    """Switch the database to WAL unless it already is.
+
+    #88 (flaky "database is locked" with two engines on one file): the Alembic
+    migration creates a database file in rollback mode, and the switch to WAL was
+    left to the first pooled connection, which ran ``PRAGMA journal_mode=WAL``
+    unconditionally. With two engines on a fresh file, both first connections
+    asked to switch at once; the switch needs an exclusive lock and does not
+    consult the busy handler, so one failed at once (about 1 ms, not after the
+    5 s timeout). Now :meth:`SQLiteClient.connect` switches the file before the
+    migration (retrying, see :func:`_first_connection`), and later connections
+    only check: one read of the schema (a shared lock, which does wait) loads the
+    header, after which the pager reports ``wal`` and nothing is switched.
+    """
+    cursor.execute("PRAGMA schema_version")
+    cursor.fetchone()
+    cursor.execute("PRAGMA journal_mode")
+    row = cursor.fetchone()
+    if row is None or str(row[0]).lower() != "wal":
+        cursor.execute("PRAGMA journal_mode=WAL")
+
 
 _memory_db_counter = itertools.count(1)
 
@@ -159,20 +208,25 @@ class SQLiteClient(Client):
         @sa_event.listens_for(engine.sync_engine, "connect")
         def _set_pragmas(dbapi_conn: Any, _record: Any) -> None:
             cursor = dbapi_conn.cursor()
+            cursor.execute(_BUSY_TIMEOUT)
+            if not self.is_memory:
+                _ensure_wal(cursor)
             for pragma in _PRAGMAS:
                 cursor.execute(pragma)
             cursor.close()
 
-        if self.encrypted:
-            # #52: open one connection now, so a wrong key or a plain-SQLite file
-            # fails at start instead of at the first write.
+        if not self.is_memory:
+            # #88: open one connection now, so the file is in WAL before anything
+            # else touches it (the Alembic migration creates it in rollback mode
+            # otherwise, and the first pooled connections of two engines then race
+            # to switch it). #52: a wrong key or a plain-SQLite file also fails here,
+            # at start, instead of at the first write.
             try:
-                async with engine.connect():
-                    pass
+                await _first_connection(engine)
             except BaseException:
                 await engine.dispose()
                 raise
-        elif self.is_memory:
+        else:
             # Keep the shared in-memory database alive across pool churn. The
             # engine is only published once the anchor holds, so a failed
             # anchor cannot leave a half-connected client that no-ops retries.
