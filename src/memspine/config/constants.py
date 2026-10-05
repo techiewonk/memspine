@@ -503,3 +503,27 @@ PROFILE_PACK_MARKER = (
 PROFILE_PACK_SECTIONS = ("Summaries:", "Observations:", "Related:")
 PROFILE_PACK_SECTION_K = 8
 PROFILE_PACK_MAX_SHARE = 0.5
+# ── wave 4 remaining (#56 / #61 / #62) ──────────────────────────────────────
+#: #56: with ``consolidation.session_summary.incremental``, a session summary is
+#: rebuilt from all its turns once this many turns were folded in incrementally.
+SESSION_SUMMARY_REBUILD_EVERY = 8
+#: #56: tag on an incremental summary carrying how many turns were folded in since
+#: the last full rebuild (``summary_since_rebuild:<n>``).
+SUMMARY_SINCE_REBUILD_PREFIX = "summary_since_rebuild:"
+#: #56: tag on a summary of a session that was still open when it was written.
+SUMMARY_OPEN_TAG = "summary_open"
+#: #62: known statements handed to the ``predict_episode`` call (best lexical
+#: overlap with the episode first).
+PREDICT_CALIBRATE_KNOWLEDGE_K = 20
+#: #62: characters of the episode's opening turn the prediction is cued with.
+PREDICT_CALIBRATE_CUE_CHARS = 200
+#: #62: a calibrated "surprise" whose content words are covered at least this much
+#: by one predicted line (or one known statement) was predicted: it is not stored.
+PREDICT_CALIBRATE_COVERED = 0.8
+#: #62: tag of a fact stored by predict-calibrate.
+SURPRISE_FACT_TAG = "surprise_fact"
+#: #61: the share of a cue's content words a query must contain for the ``cues``
+#: query encoder to match it.
+QUERY_ENCODER_CUE_MIN_OVERLAP = 0.5
+#: #61: the most cue targets one query adds as a retrieval leg.
+QUERY_ENCODER_MAX_TARGETS = 10

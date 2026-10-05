@@ -28,4 +28,6 @@ PROMPT_ROLES: tuple[str, ...] = (
     "plan",  # G2a: read planner for read(mode="auto") (JustMem-style), opt-in
     "sufficiency",  # #38: completeness check + missing-info queries on compose reads, opt-in
     "verify_answer",  # #39: answer verification against the context (Engine.verify_answer)
+    "predict_episode",  # #62: Nemori predict step (episode from stored memory), opt-in
+    "calibrate",  # #62: Nemori calibrate step (prediction vs episode -> surprise), opt-in
 )

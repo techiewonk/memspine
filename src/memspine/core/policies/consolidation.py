@@ -19,13 +19,31 @@ from memspine.config import constants
 from memspine.core.policies.base import BindablePolicy, PolicyOptions
 from memspine.core.records import MemoryRecord
 
-__all__ = ["ConsolidationPolicy", "ConsolidationTrigger", "extractive_summary"]
+__all__ = [
+    "ConsolidationPolicy",
+    "ConsolidationTrigger",
+    "SessionSummaryOptions",
+    "extractive_summary",
+]
 
 
 class ConsolidationTrigger(StrEnum):
     SESSION_END = "session_end"
     HEAT = "heat"
     SLEEP_CYCLE = "sleep_cycle"
+
+
+class SessionSummaryOptions(PolicyOptions):
+    """#56: how a session summary follows its session (ADR-048)."""
+
+    #: Off (default): one summary per CLOSED session, rebuilt from all its turns
+    #: whenever its membership changes. On: open sessions are summarised too, and a
+    #: summary whose session gained turns is updated with ONE call over the previous
+    #: summary plus only the new turns (``summarize@incremental``).
+    incremental: bool = False
+    #: With ``incremental``: once this many turns were folded in incrementally since
+    #: the last full rebuild, the summary is rebuilt from all turns (stops drift).
+    rebuild_every: int = Field(default=constants.SESSION_SUMMARY_REBUILD_EVERY, ge=1)
 
 
 class ConsolidationOptions(PolicyOptions):
@@ -85,6 +103,13 @@ class ConsolidationOptions(PolicyOptions):
     #: habits, goals) with the ``reflect`` role and store them as reflective memory
     #: through ``Engine.reflect`` (trust capped at the evidence, depth capped), once.
     reflect_profile: bool = False
+    #: #56: incremental session summaries with a periodic full rebuild (ADR-048).
+    session_summary: SessionSummaryOptions = Field(default_factory=SessionSummaryOptions)
+    #: #62 (Nemori predict-calibrate, research-grade, ADR-049): per consolidated
+    #: session, predict its content from what is already stored
+    #: (``predict_episode``), then store only the facts the prediction missed or got
+    #: wrong (``calibrate``) as derived semantic facts whose parents are the turns.
+    predict_calibrate: bool = False
 
 
 def extractive_summary(contents: list[str], max_chars: int) -> str:
@@ -121,6 +146,10 @@ class ConsolidationPolicy(BindablePolicy):
     @property
     def triggers(self) -> list[ConsolidationTrigger]:
         return list(self._options().triggers)
+
+    @property
+    def session_summary(self) -> SessionSummaryOptions:
+        return self._options().session_summary
 
     def should_trigger(self, trigger: ConsolidationTrigger, heat: int = 0) -> bool:
         options = self._options()

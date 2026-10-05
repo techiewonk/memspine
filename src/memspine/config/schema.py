@@ -402,6 +402,13 @@ class ReadConfig(BaseModel):
     #: ``[2023-05-08 Mon]``, after the stable prefix. ``plain`` = unchanged.
     render: Literal["plain", "dated"] = "plain"
     cue_min_trust: float = 0.5
+    #: #61 (ADR-050): the read-time query encoder. ``none`` = no encoder (reads are
+    #: byte-identical). ``cues`` matches the query against stored anticipatory cues
+    #: (H8 / ``add_cues``) by content-word overlap, no model, and adds the cued
+    #: records as one more fused retrieval leg; matches respect ``cue_min_trust``
+    #: and the cued records pass every read gate. Independent of
+    #: ``anticipatory_cues`` (which searches cue text directly).
+    query_encoder: Literal["none", "cues"] = "none"
     #: H22 (Mnemon): open the volatile context with a dated timeline per topic
     #: entity of the retrieved keyed facts: every live fact on that entity plus its
     #: superseded history, oldest first. Built at read time from the stored facts

@@ -10,7 +10,14 @@ from __future__ import annotations
 
 import re
 
-__all__ = ["core_terms", "is_aggregation", "is_count", "is_ordering", "is_temporal"]
+__all__ = [
+    "content_words",
+    "core_terms",
+    "is_aggregation",
+    "is_count",
+    "is_ordering",
+    "is_temporal",
+]
 
 #: Time words after which "every" / "each" describe a habit ("every morning"), not a set.
 _HABIT = (
@@ -153,3 +160,15 @@ def core_terms(query: str) -> str:
     """The query without interrogative and function words: a second, lexical-leaning probe."""
     words = [w for w in _WORD.findall(query) if w.lower() not in _STOP]
     return " ".join(words)
+
+
+_CONTENT_WORD = re.compile(r"[a-z0-9]+")
+
+
+def content_words(text: str) -> frozenset[str]:
+    """The lowercase content words of ``text``: alphanumeric runs of two or more
+    characters that are not function words ("Alice's party" -> {alice, party}).
+    Used for lexical overlap without a model (#61 cue matching, #62 coverage)."""
+    return frozenset(
+        w for w in _CONTENT_WORD.findall(text.lower()) if len(w) > 1 and w not in _STOP
+    )

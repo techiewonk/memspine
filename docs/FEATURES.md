@@ -187,6 +187,12 @@ lexical index. Two further opt-in legs join the same fusion: `read.temporal_leg`
 - `Engine.add_cues(record_id, cues)` stores anticipatory retrieval keys that resolve
   to their target (`read.anticipatory_cues`). Cues pass the firewall, their trust is
   capped at the target's, and cues below `read.cue_min_trust` are ignored.
+  `read.query_encoder: cues` (#61, ADR-050) also matches a query to stored cues by
+  content-word overlap, with no model at read, and adds the cued records as a fused leg.
+- Opt-in consolidation (all off by default): `session_summary.incremental` (#56,
+  ADR-048) keeps a running summary of open sessions, one call per update batch, rebuilt
+  from all turns every `rebuild_every` turns; `predict_calibrate` (#62, ADR-049, Nemori)
+  predicts a session from stored memory and stores only the surprise.
 - Integrity enforcement (`integrity.*`): implicit parents from the read ledger,
   live re-evaluation, the untrusted-note wrapper, `authorize()` for tool actions,
   `repair_taint()` and `verify_integrity()`. See `USAGE.md` for every key.
