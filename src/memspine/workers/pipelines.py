@@ -60,6 +60,12 @@ from memspine.memories.semantic.write_pipeline import (
 from memspine.observability.logging import get_logger
 from memspine.prompts.models import AnticipatedCue, ExtractedEdge, ExtractedFact
 from memspine.services.graph.base import GraphEdge, GraphStore
+from memspine.workers.list_cards import (
+    LIST_CLASSES_MARKER,
+    DepositListCard,
+    LabelClasses,
+    derive_list_cards,
+)
 
 __all__ = [
     "PIPELINES",
@@ -144,7 +150,8 @@ class DepositFact(Protocol):
     """C6': engine-side deposit of one mined fact through the write door
     (namespace, text, entity, attribute, parent ids, event time, session key);
     ``kind`` (G1a) is ``state`` / ``event``, or None for an unclassified fact;
-    ``happened`` / ``said`` (#29) the fact's happened date and the day it was said."""
+    ``happened`` / ``said`` (#29) the fact's happened date and the day it was said;
+    ``persons`` / ``location`` / ``topic`` (#28) its multi-view fields."""
 
     def __call__(
         self,
@@ -159,6 +166,9 @@ class DepositFact(Protocol):
         kind: str | None = None,
         happened: str | None = None,
         said: str | None = None,
+        persons: list[str] | None = None,
+        location: str | None = None,
+        topic: str | None = None,
     ) -> Awaitable[object]: ...
 
 
@@ -198,6 +208,10 @@ class PipelineContext:
     mine_facts: MineFacts | None = None
     #: #29: the batched LLM date fill (``consolidation.mine_event_dates_llm``).
     date_facts: DateFacts | None = None
+    #: #30: the list-card deposit and the per-person class labeller
+    #: (``consolidation.list_cards``). No deposit => the step self-skips.
+    deposit_list_card: DepositListCard | None = None
+    label_classes: LabelClasses | None = None
     #: H8 anticipatory cues. Both None => the anticipate stage self-skips.
     anticipate: Anticipate | None = None
     #: H14 profile reflection. Both None => the reflect_profile stage self-skips.
@@ -1680,6 +1694,9 @@ class SessionIndex:
     #: KB-12: namespace -> community partition + refresh counters, folded from
     #: ``community_partition`` markers (``community.incremental``).
     communities: dict[str, CommunityState] = field(default_factory=dict)
+    #: #30: (namespace, fact record id) -> the LLM list class ("" = none), folded
+    #: from ``list_classes`` markers so a fact is classed once.
+    list_classes: dict[tuple[str, str], str] = field(default_factory=dict)
 
     async def refresh(self, storage: PipelineStorage) -> None:
         while True:
@@ -1695,6 +1712,7 @@ class SessionIndex:
         if event.kind is EventKind.FORGET:
             # M7: a forgotten source keeps no watermark (its fingerprint is erased).
             self.graph_sources.pop((event.namespace, str(payload.get("record_id", ""))), None)
+            self.list_classes.pop((event.namespace, str(payload.get("record_id", ""))), None)
         elif event.kind is EventKind.CONSOLIDATE:
             key = str(payload.get("session_key", ""))
             if key:
@@ -1707,6 +1725,9 @@ class SessionIndex:
                     self.graph_sources[(event.namespace, record_id)] = source_fp
             elif marker == COMMUNITY_PARTITION_MARKER:
                 self._fold_partition(event.namespace, payload)
+            elif marker == LIST_CLASSES_MARKER and isinstance(payload.get("labels"), dict):
+                for record_id, label in payload["labels"].items():
+                    self.list_classes[(event.namespace, str(record_id))] = str(label)
             elif marker in ("stage_done", "stage_cleared"):
                 fp = payload.get("members_fp")
                 self.mark(
@@ -1945,6 +1966,7 @@ async def mine_facts(ctx: PipelineContext) -> dict[str, object]:
     event_dates = bool(getattr(options, "mine_event_dates", False))
     dater = ctx.date_facts if getattr(options, "mine_event_dates_llm", False) else None
     week = ctx.config.read.relative_week
+    multiview = bool(getattr(options, "mine_multiview", False))
 
     async def work(namespace: str, key: str, members: list[MemoryRecord]) -> tuple[int, list[str]]:
         # H15: one call per topic segment. Every call runs before any deposit, so a
@@ -1973,7 +1995,10 @@ async def mine_facts(ctx: PipelineContext) -> dict[str, object]:
                 # G1a: only a state is keyed by (entity, attribute) and may supersede;
                 # the deposit drops an event's attribute, so the ladder ADDs it.
                 kind = getattr(fact, "kind", "event") or "event"
-                extra: dict[str, str] = {}
+                extra: dict[str, Any] = {}
+                if multiview:  # #28: the view fields ride along as tags
+                    extra.update(persons=list(fact.persons), location=fact.location)
+                    extra["topic"] = fact.topic
                 if happened and happened[index].label:
                     h = happened[index]
                     extra["happened"] = str(h.label)
@@ -2000,7 +2025,12 @@ async def mine_facts(ctx: PipelineContext) -> dict[str, object]:
         return written, errors
 
     legacy = _legacy_tag_check(ctx, "semantic", lambda r, key: f"mined:{key}" in r.tags)
-    return await _run_session_stage(ctx, "mine_facts", "facts", legacy, work)
+    stats = await _run_session_stage(ctx, "mine_facts", "facts", legacy, work)
+    if getattr(options, "list_cards", False) and stats.get("status") != "skipped":
+        # #30: the list cards follow the facts, every cycle (a forgotten fact
+        # re-derives its card even when no new session was mined).
+        stats["list_cards"] = await derive_list_cards(ctx)
+    return stats
 
 
 async def anticipate(ctx: PipelineContext) -> dict[str, object]:

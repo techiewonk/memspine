@@ -97,9 +97,13 @@ def card_line(
     fact was said (its earliest source turn); without one the card has no date,
     since the block's marker reads every date as "when it was said" and the
     fact's own ``valid_from`` is the event date. ``claim`` (B9) prefixes
-    :data:`constants.CLAIM_MARKER`.
+    :data:`constants.CLAIM_MARKER`. A #30 list card is shown whole, with no date.
     """
     text = " ".join(record.content.split())
+    if constants.LIST_CARD_TAG in record.tags:
+        # #30: a list card spans many dates (each item carries its own): it is
+        # shown whole (already escaped and wrapped by the engine), with no said date.
+        return f"{constants.CLAIM_MARKER} {text}" if claim else text
     if record.entity:
         rest = _strip_entity(text, record.entity)
         if rest != text and ": " in rest:

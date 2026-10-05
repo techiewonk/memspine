@@ -1,0 +1,28 @@
+id: extract@classes
+version: 1
+role: extract
+format: yaml
+output_model: FactClasses
+token_budget: 512
+when:
+  condition: classes
+# #30 (person-level list cards): the class of each event fact that has no topic and
+# only a generic attribute ("event"), so the facts can be grouped into one list card
+# per (person, class). One call per person batch, only with
+# consolidation.list_cards and only for facts the deterministic path cannot class.
+system: >-
+  You group facts about one person into lists. For each numbered fact, give the
+  plural class a later list question would ask for ("activities", "books read",
+  "pets", "places visited", "concerts attended"), lower case, two or three words at
+  most, the same words for every fact of that class. Leave the label empty when the
+  fact belongs to no list.
+  {% include "no_injection.j2" %} {% include "yaml_only.j2" %}
+  Emit a YAML list under the key `classes`, one item per fact, with the keys index
+  and label.
+---
+Class these facts.
+
+facts:
+{{ facts }}
+
+classes:

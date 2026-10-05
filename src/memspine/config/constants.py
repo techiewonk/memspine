@@ -286,12 +286,14 @@ PLAN_LOOKUP_PROBES = 2
 # dated mentions, among the retrieved records, of the event a count question asks about.
 COUNT_MARKER = "Occurrences (dated):"
 COUNT_TAG = "count_timeline"
+#: #30: the tag of a derived person-level list card (``consolidation.list_cards``).
+LIST_CARD_TAG = "list_card"
 # Tags only the engine may set: read-time block tags, the cue tag (a cue skips
 # dedup and the conflict ladder) and the lifecycle tags of taint rollback and
 # quarantine rejection. The write door strips them from caller-supplied tags.
 RESERVED_TAGS = frozenset(
     {LEAD_TAG, CARDS_TAG, PROFILE_TAG, COUNT_TAG, CUE_TAG, "taint_archived", "quarantine_rejected"}
-)
+) | {LIST_CARD_TAG}  # #30: a list card is engine-derived, never caller-tagged
 # B9 facts-only (``integrity.claims_only_below``): the prefix of a mined fact shown
 # in place of the low-trust raw record it was mined from.
 CLAIM_MARKER = "[CLAIM from a low-trust source, unverified]"
@@ -384,6 +386,39 @@ LEAD_STANDING_MAX = 5
 # far-future date cannot win every later conflict on its key.
 MINED_FACT_MIN_YEAR = 1900
 MINED_FACT_FUTURE_SLACK_DAYS = 366
+
+#: #28 (multi-view fact fields): at most this many ``persons`` per mined fact, and the
+#: longest ``persons`` item, ``location`` or ``topic`` kept (longer is cut at a word).
+MULTIVIEW_MAX_PERSONS = 8
+MULTIVIEW_FIELD_MAX_CHARS = 80
+
+#: #30 (person-level list cards): a (person, class) group needs at least this many
+#: event facts to get a card; a card lists at most the newest ``MAX_ITEMS`` of them
+#: (the rest are counted), each statement cut to ``ITEM_MAX_CHARS``.
+LIST_CARD_MIN_ITEMS = 2
+LIST_CARD_MAX_ITEMS = 25
+LIST_CARD_ITEM_MAX_CHARS = 80
+#: #30: miner attributes too generic to name a list class ("Melanie event: ..."); a
+#: fact with one of these and no ``topic:`` tag gets its class from the LLM labeller.
+LIST_CARD_GENERIC_CLASSES = frozenset(
+    {
+        "event",
+        "events",
+        "fact",
+        "facts",
+        "info",
+        "information",
+        "other",
+        "misc",
+        "general",
+        "detail",
+        "details",
+        "statement",
+        "update",
+        "news",
+        "note",
+    }
+)
 
 #: ADR-032: the template ``Engine()`` uses when the caller names none. ``assistant``
 #: carries the measured combo-A read settings (LoCoMo 70.7 -> 78.3%). Pass
