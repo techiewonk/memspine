@@ -1,8 +1,8 @@
 """Sleep cycle (M2/E7): the ordered maintenance pass.
 
 consolidate → mine_facts → anticipate → reflect_profile → extract_graph → reorganize →
-check_watches → decay_sweep → compress → event_log_prune, with the E7 sleep-time-compute hook
-slot reserved
+check_watches → session_lifecycle → decay_sweep → compress → event_log_prune, with the
+E7 sleep-time-compute hook slot reserved
 after compress (no-op default, RG tier). The C2 extract_graph stage (LLM edge
 extraction → asserted links) runs before reorganize so communities form over
 the fresh edges; it self-skips without an extract_edges LLM role. The D-42
@@ -31,6 +31,8 @@ SLEEP_CYCLE_ORDER: tuple[str, ...] = (
     "reorganize",
     # M13.8/ADR-016: log fired prospective watches (pull-based, read-only).
     "check_watches",
+    # #53 optional stage: idle sessions -> PASSIVE (skipped without passive_after).
+    "session_lifecycle",
     "decay_sweep",
     "compress",
     # E7 hook slot: anticipatory sleep-time compute (no-op default; deployments

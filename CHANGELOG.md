@@ -4,6 +4,13 @@ All notable changes to memspine are documented here. Format: [Keep a Changelog](
 
 ## [Unreleased]
 
+### Added — Wave 4 infrastructure (2026-10-06)
+- **#33 per-prompt token tracking:** `Engine.usage(reset=False)` returns calls and input/output tokens per prompt id and version (provider-reported where available, else a chars/4 estimate flagged `estimated`); the evals harness records `engine_prompt_usage` per stage.
+- **#52 encryption at rest (option, ADR-035):** `storage.encryption.mode: sqlcipher` + `key_env`; `[encrypt]` extra; the key never appears in logs or reprs.
+- **#54 feedback verb (ADR-036):** `Engine.feedback()` and REST `POST /feedback`; counts feed `utility_weight` (0 in `base`; `core` keeps 0.5, so feedback reorders `core` engines when used).
+- **#53 session lifecycle (ADR-037):** `episodic.policies.sessions.passive_after`; `include_passive` on `search`/`assemble`/`read`/`retrieve`; `session_lifecycle` sleep stage (skipped by default).
+- **#64 rollback beyond the retained log:** `rollback_taint`/`repair_taint` gain `strict`; `RollbackUnavailableError`; ADR-011 addendum.
+
 ### Added — Wave 2 graph core (2026-10-05)
 - **#13 entity layer (opt-in, `memories.associative.policies.entity_nodes`):** the graph projector adds `ent:<namespace>:<canonical>` nodes and `mentions` edges (record -> entity, weight = record trust) from WRITE payloads (`entity`, `dst:` tags). Junk-name blocklist, optional `allowed` list, no self-edges; forget removes mentions and orphaned entities; rebuild == incremental. `mentions` is a reserved rel; `related()` and Leiden ignore it (ADR-015 amendment).
 - **#14 graph read leg (opt-in, `read.graph_leg`, `read.graph_depth` 2 (max 3), `read.graph_leg_k` 10):** query-named entities (or the entities of the top 3 hits) seed a walk to edge facts and their source turns, fused as an extra RRF leg. Off: byte-identical (golden `graph_leg_off_read.json`).

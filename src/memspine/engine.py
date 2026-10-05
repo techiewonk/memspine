@@ -13,6 +13,8 @@ Startup follows plan §4 (Phase-0 scope — runners join in Phase 1):
 from __future__ import annotations
 
 import asyncio
+import functools
+import inspect
 import itertools
 import os
 import re
@@ -119,12 +121,14 @@ from memspine.exceptions import (
     ConflictError,
     MemspineError,
     MissingServiceError,
+    RollbackUnavailableError,
     StorageError,
 )
 from memspine.memories.associative.entities import EntityPolicy
 from memspine.memories.associative.evolution import propose_links
 from memspine.memories.associative.projector import GraphProjector
 from memspine.memories.associative.store import AssociativeMemory, match_key
+from memspine.memories.episodic.lifecycle import passive_after, session_of
 from memspine.memories.episodic.sessions import Session, topic_segments
 from memspine.memories.episodic.store import EpisodicMemory
 from memspine.memories.procedural.prompt_registry import prompt_version_records
@@ -148,6 +152,7 @@ from memspine.memories.shared.subscriptions import make_subscription_record
 from memspine.memories.working.manager import DEFAULT_PAGE_SIZE, WorkingMemory
 from memspine.memories.working.persona import make_persona_record
 from memspine.observability.logging import (
+    EVENT_FEEDBACK,
     EVENT_FORGET,
     EVENT_LINK,
     EVENT_REBUILD,
@@ -440,6 +445,64 @@ _NEIGHBOUR_BATCH: ContextVar[_NeighbourBatch | None] = ContextVar(
 
 
 @dataclass(frozen=True, slots=True)
+class _PassiveScope:
+    """#53: which PASSIVE-session records the running read may see."""
+
+    include_all: bool = False
+    sessions: frozenset[str] = frozenset()
+
+
+#: #53: the passive-session scope of the read running in this task (None: default).
+_PASSIVE_SCOPE: ContextVar[_PassiveScope | None] = ContextVar(
+    "memspine_passive_scope", default=None
+)
+
+
+def _passive_scoped[**P, R](
+    fn: Callable[P, Coroutine[Any, Any, R]],
+) -> Callable[P, Coroutine[Any, Any, R]]:
+    """#53: run a public read with its ``include_passive`` / ``session_id`` arguments
+    widening the passive-session scope for every search it makes (nested reads
+    only widen it, never narrow it)."""
+    signature = inspect.signature(fn)
+
+    @functools.wraps(fn)
+    async def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+        bound = signature.bind_partial(*args, **kwargs).arguments
+        include = bool(bound.get("include_passive", False))
+        session = bound.get("session_id")
+        outer = _PASSIVE_SCOPE.get()
+        if not include and not session:
+            return await fn(*args, **kwargs)
+        scope = _PassiveScope(
+            include_all=include or (outer is not None and outer.include_all),
+            sessions=(outer.sessions if outer is not None else frozenset())
+            | ({str(session)} if session else frozenset()),
+        )
+        token = _PASSIVE_SCOPE.set(scope)
+        try:
+            return await fn(*args, **kwargs)
+        finally:
+            _PASSIVE_SCOPE.reset(token)
+
+    return wrapper
+
+
+def _passive_hidden(record: MemoryRecord, group_id: str | None = None) -> bool:
+    """#53: whether a PASSIVE-session record stays out of this read. A read that
+    asks for passive records, names the session (``session_id``) or filters on the
+    record's ``group_id`` sees it; every other read does not."""
+    if not record.scoring.passive:
+        return False
+    if group_id is not None and record.group_id == group_id:
+        return False
+    scope = _PASSIVE_SCOPE.get()
+    if scope is None:
+        return True
+    return not (scope.include_all or session_of(record) in scope.sessions)
+
+
+@dataclass(frozen=True, slots=True)
 class ReadResult:
     """C7': what :meth:`Engine.read` chose (``full``/``replay``/``retrieve``) and the context."""
 
@@ -613,6 +676,10 @@ class Engine:
         self._audit_lock = asyncio.Lock()
         #: #48: the retention clock (tests swap in a fake one).
         self._clock: Callable[[], datetime] = lambda: datetime.now(UTC)
+        #: #53: ``episodic.policies.sessions.passive_after`` (None: lifecycle off) and,
+        #: per namespace, the PASSIVE session ids (loaded lazily, dropped after a sleep).
+        self._sessions_horizon: timedelta | None = None
+        self._passive_sessions: dict[str, set[str]] = {}
 
     # ── lifecycle ────────────────────────────────────────────────────────────
 
@@ -758,6 +825,8 @@ class Engine:
         )
         if "episodic" in self._enabled:
             self._episodic = EpisodicMemory(self._storage)
+        # #53: validated at start, so a bad duration fails here, not at the first sleep.
+        self._sessions_horizon = passive_after(self._memory_policy(config, "episodic"))
         if "resource" in self._enabled:
             self._resource = ResourceMemory(
                 self._append_and_project,
@@ -836,7 +905,9 @@ class Engine:
 
                 async def _tick() -> object:
                     assert self._runner is not None  # set above; loop only runs while started
-                    return await run_sleep_cycle(self._runner, self._pipeline_ctx())
+                    stats = await run_sleep_cycle(self._runner, self._pipeline_ctx())
+                    self._passive_sessions.clear()  # #53
+                    return stats
 
                 self._scheduler = SleepScheduler(interval, _tick)
                 self._scheduler.start()
@@ -964,7 +1035,48 @@ class Engine:
                 storage, ns, record, memory_type, actor, trust_cap=trust_cap
             )
         self._last_write_action = action
+        if self._sessions_horizon is not None and memory_type == "episodic":
+            await self._reopen_session(storage, ns, session_of(record))
         return written
+
+    async def _reopen_session(self, storage: SqlStorage, ns: str, session: str | None) -> None:
+        """#53: a write to a PASSIVE session reopens it (one SESSION ``active`` event
+        listing its members), so the whole conversation is back in default reads."""
+        if session is None:
+            return
+        async with self._write_locks.setdefault(ns, asyncio.Lock()):
+            passive = self._passive_sessions.get(ns)
+            records: list[MemoryRecord] | None = None
+            if passive is None:  # first episodic write here since start or a sleep
+                records = await storage.list_records(ns, "episodic")
+                passive = {
+                    sid for r in records if r.scoring.passive and (sid := session_of(r)) is not None
+                }
+                self._passive_sessions[ns] = passive
+            if session not in passive:
+                return
+            if records is None:
+                records = await storage.list_records(ns, "episodic")
+            members = sorted(
+                r.record_id
+                for r in records
+                if session_of(r) == session and r.status is not RecordStatus.DELETED
+            )
+            await self._append_and_project(
+                MemoryEvent(
+                    kind=EventKind.SESSION,
+                    namespace=ns,
+                    actor="system",
+                    payload={
+                        "session_id": session,
+                        "state": "active",
+                        "record_ids": members,
+                        "reason": "new_write",
+                    },
+                )
+            )
+            passive.discard(session)
+        _log.info("memory.session_reopened", namespace=ns, session_id=session)
 
     async def write_ex(self, content: str, **kwargs: Any) -> WriteOutcome:
         """``write`` that also reports what happened (G8).
@@ -2373,6 +2485,7 @@ class Engine:
             await self._working.enforce(ns, active)
         return record, "added"
 
+    @_passive_scoped
     async def retrieve(
         self,
         namespace: str = "default",
@@ -2381,6 +2494,7 @@ class Engine:
         tags: list[str] | None = None,
         include_held: bool = False,
         purpose: str | None = None,
+        include_passive: bool = False,
     ) -> list[MemoryRecord]:
         """P0 read path: relational listing. ``group_id``/``tags`` (D2) narrow to
         a sub-scope within the namespace; tags match records carrying ALL of the
@@ -2390,13 +2504,16 @@ class Engine:
         ``include_held=True``, the operator's audit view; :meth:`list_quarantined`
         is the review queue.
 
-        ``purpose`` (#50): the read's purpose, checked under ``consent.enforce``."""
+        ``purpose`` (#50): the read's purpose, checked under ``consent.enforce``.
+        #53: records of PASSIVE sessions are left out unless ``include_passive=True``
+        or ``group_id`` names their group."""
         storage = self._require_started()
         ns = validate_namespace(namespace)
         with read_scope(purpose) as outer:
             listed = await storage.list_records(ns, memory_type, group_id)
             if not include_held:
                 listed = [r for r in listed if not r.quarantined]
+            listed = [r for r in listed if not _passive_hidden(r, group_id)]
             records = [r for r in self._inflate_all(listed, ns) if self._consent_ok(r)]
             if tags:
                 wanted = set(tags)
@@ -2406,6 +2523,7 @@ class Engine:
                 await self._audit_read("retrieve", ns, [r.record_id for r in records])
         return records
 
+    @_passive_scoped
     async def search(
         self,
         query: str,
@@ -2415,6 +2533,7 @@ class Engine:
         tags: list[str] | None = None,
         session_id: str | None = None,
         purpose: str | None = None,
+        include_passive: bool = False,
     ) -> list[tuple[MemoryRecord, float]]:
         """Semantic retrieval (P1 + E8 opt-in stages, D-51):
         ``[static_prefilter?] → vector/hybrid → [rerank?] → score`` (MMR and
@@ -2444,6 +2563,9 @@ class Engine:
         off by default: results are bit-identical to the plain pipeline.
 
         ``purpose`` (#50): the read's purpose, checked under ``consent.enforce``.
+        #53: records of PASSIVE sessions (session lifecycle) are left out unless
+        ``include_passive=True``, ``session_id`` names their session, or ``group_id``
+        names their group. With the lifecycle off no record is passive.
         """
         with read_scope(purpose) as outer:
             scored = await self._search(
@@ -2530,6 +2652,8 @@ class Engine:
             # D2 sub-scoping gate: narrow to a group and/or records carrying all tags.
             if group_id is not None and record.group_id != group_id:
                 continue
+            if _passive_hidden(record, group_id):
+                continue  # #53: an archived (PASSIVE) session stays out of default reads
             if tags and not set(tags).issubset(record.tags):
                 continue
             if memory_type is not None and record.memory_type != memory_type:
@@ -2737,6 +2861,7 @@ class Engine:
         reserve = self._config().read.reply_reserve_tokens
         return max(1, budget_tokens - reserve) if reserve else budget_tokens
 
+    @_passive_scoped
     async def assemble(
         self,
         query: str,
@@ -2746,6 +2871,7 @@ class Engine:
         shared: bool = False,
         session_id: str | None = None,
         purpose: str | None = None,
+        include_passive: bool = False,
     ) -> AssembledContext:
         """Retrieval + M12/E2 assembly: MMR-selected, cache-aware-ordered context.
 
@@ -2757,6 +2883,8 @@ class Engine:
         (trust-capped, and under ``integrity.*`` attenuated and admitted at theta).
 
         ``purpose`` (#50): the read's purpose, checked under ``consent.enforce``.
+        #53: PASSIVE-session records enter only with ``include_passive=True`` or when
+        ``session_id`` names their session (see :meth:`search`).
         """
         with read_scope(purpose) as outer:
             context = await self._assemble(
@@ -3077,6 +3205,7 @@ class Engine:
         without the marker comes back whole (stripped)."""
         return final_answer(reply)
 
+    @_passive_scoped
     async def read(
         self,
         query: str,
@@ -3088,6 +3217,7 @@ class Engine:
         compose_pool: int = 3,
         session_id: str | None = None,
         purpose: str | None = None,
+        include_passive: bool = False,
     ) -> ReadResult:
         """C7': mode-routed read. Rules decide; no model on the read path.
 
@@ -3124,6 +3254,8 @@ class Engine:
         headers and the routed read alike.
 
         ``purpose`` (#50): the read's purpose, checked under ``consent.enforce``.
+        #53: PASSIVE-session records enter only with ``include_passive=True`` or when
+        ``session_id`` names their session (see :meth:`search`).
         """
         with read_scope(purpose) as outer:
             result = await self._read(
@@ -3764,6 +3896,8 @@ class Engine:
             return False
         if record.memory_type == "shared" or CUE_TAG in record.tags:
             return False
+        if _passive_hidden(record):
+            return False  # #53
         integrity = self._integrity()
         return not integrity.enabled or integrity.admits(record.trust)
 
@@ -4767,7 +4901,12 @@ class Engine:
             return updated
 
     async def rollback_taint(
-        self, record_id: str, namespace: str = "default", actor: str = "operator"
+        self,
+        record_id: str,
+        namespace: str = "default",
+        actor: str = "operator",
+        *,
+        strict: bool = False,
     ) -> dict[str, list[str]]:
         """MG-9 repair: archive a poison seed and every content-tainted descendant.
 
@@ -4781,9 +4920,17 @@ class Engine:
         restored as the current fact when nothing else holds its key now, and a
         contest the poison opened no longer marks the survivors ``disputed``.
         Restored ids are returned under ``"restored"``.
+
+        #64: the walk needs the seed's origin WRITE in the log. When the log no longer
+        holds it (``event_log.mode: ephemeral``, or a ``rolling`` window that pruned
+        it), descendants cannot be traced: ``strict=True`` raises
+        :class:`RollbackUnavailableError`; otherwise the call logs
+        ``memory.rollback_beyond_window``, archives the seed alone (its ``valid_to``
+        closed) and returns its id under ``"untraced"``.
         """
         storage = self._require_started()
         report = await self.audit_taint(record_id, namespace, cross_namespace=True)
+        untraced = await self._lineage_window(report, "rollback_taint", strict)
         archived: list[str] = []
         review: list[str] = []
         targets = [(record_id, "seed"), *report.descendants.items()]
@@ -4819,7 +4966,38 @@ class Engine:
             restored=len(restored),
             review=len(review),
         )
-        return {"archived": archived, "restored": restored, "review": review}
+        result = {"archived": archived, "restored": restored, "review": review}
+        if untraced:
+            result["untraced"] = [record_id]
+        return result
+
+    async def _lineage_window(self, report: TaintReport, verb: str, strict: bool) -> bool:
+        """#64: True when the log no longer holds the seed's origin WRITE, so the
+        taint walk saw none of its descendants. Raises with ``strict``; else warns."""
+        if report.origin_seq is not None:
+            return False
+        storage = self._require_started()
+        mode = storage.mode.value
+        detail = (
+            "the event log does not hold this record's origin WRITE "
+            f"(event_log.mode={mode}: "
+            + (
+                "events are never persisted"
+                if storage.mode is EventLogMode.EPHEMERAL
+                else "pruned or never logged"
+            )
+            + "); its descendants cannot be traced (D-45, ADR-011)"
+        )
+        if strict:
+            raise RollbackUnavailableError(f"{verb} {report.record_id!r}: {detail}")
+        _log.warning(
+            "memory.rollback_beyond_window",
+            verb=verb,
+            record_id=report.record_id,
+            event_log_mode=mode,
+            detail=detail + "; falling back to archiving the seed alone (valid_to closed)",
+        )
+        return True
 
     async def _undo_displacement(
         self, seed: str, report: TaintReport, removed: Sequence[str], actor: str
@@ -4927,7 +5105,12 @@ class Engine:
         return verify_events(events, view, key=key, expected_head=expected_head)
 
     async def repair_taint(
-        self, record_id: str, namespace: str = "default", actor: str = "operator"
+        self,
+        record_id: str,
+        namespace: str = "default",
+        actor: str = "operator",
+        *,
+        strict: bool = False,
     ) -> dict[str, list[str]]:
         """B3: counterfactual repair (rollback that keeps benign knowledge).
 
@@ -4937,11 +5120,16 @@ class Engine:
         extractive summariser, so the result is exactly what consolidation would
         have produced had the seed never been written (tested). Summaries with
         no untainted member left are archived. Merge survivors go to review.
+
+        #64: like :meth:`rollback_taint`, a seed whose origin WRITE the log no longer
+        holds raises :class:`RollbackUnavailableError` with ``strict=True``, else is
+        archived alone and returned under ``"untraced"``.
         """
         from memspine.core.policies.consolidation import ConsolidationPolicy
 
         storage = self._require_started()
         report = await self.audit_taint(record_id, namespace, cross_namespace=True)
+        untraced = await self._lineage_window(report, "repair_taint", strict)
         tainted = {record_id, *report.descendants}
         members_of: dict[str, list[str]] = {}
         sessions_of_tainted: set[tuple[str, str]] = set()
@@ -5073,12 +5261,15 @@ class Engine:
             restored=len(restored),
             review=len(review),
         )
-        return {
+        result = {
             "archived": archived,
             "rebuilt": rebuilt,
             "restored": restored,
             "review": review,
         }
+        if untraced:
+            result["untraced"] = [record_id]
+        return result
 
     async def _assess_write(self, record: MemoryRecord) -> FirewallVerdict:
         """Gather the firewall's namespace context: nearest-neighbour
@@ -5387,6 +5578,54 @@ class Engine:
             updated = await self._require_started().get_record(record_id)
             assert updated is not None
             return updated
+
+    async def feedback(
+        self,
+        record_id: str,
+        signal: str,
+        *,
+        note: str | None = None,
+        actor: str = "user",
+        namespace: str = "default",
+    ) -> MemoryRecord:
+        """#54: record a user's ``like`` / ``dislike`` / ``note`` on one record.
+
+        Appends one FEEDBACK event through the door; the record projector keeps the
+        per-record counts (``scoring.likes`` / ``dislikes`` / ``notes``). With
+        ``read.scoring.utility_weight > 0`` the ranking's utility term then includes
+        ``tanh((likes - dislikes) / FEEDBACK_UTILITY_SCALE)``, bounded in (-1, 1), so
+        a repeated like cannot dominate relevance. A record with no feedback scores
+        exactly as before.
+
+        ``note`` is optional with a like or dislike and required for ``"note"``. It
+        is screened like message content (``firewall.redact_secrets`` / ``pii``),
+        cut to ``FEEDBACK_NOTE_MAX_CHARS`` and stored in the event only, under
+        ``content``, so a hard forget of the record erases it too. Namespace-scoped
+        like :meth:`quarantine`: a missing, foreign or forgotten id raises the same
+        ``ConflictError``. Returns the record with its updated counts.
+        """
+        if signal not in ("like", "dislike", "note"):
+            raise MemspineError(f"feedback signal must be like, dislike or note, got {signal!r}")
+        text = (note or "").strip()
+        if signal == "note" and not text:
+            raise MemspineError("feedback signal 'note' needs a non-empty note")
+        storage = self._require_started()
+        ns = validate_namespace(namespace)
+        payload: dict[str, object] = {"record_id": record_id, "signal": signal}
+        if text:
+            screened = _screen_text(text, self._config().firewall)[0]
+            payload["content"] = screened[: constants.FEEDBACK_NOTE_MAX_CHARS]
+        async with self._write_locks.setdefault(ns, asyncio.Lock()):
+            record = await storage.get_record(record_id)
+            if record is None or record.namespace != ns or record.status is RecordStatus.DELETED:
+                raise ConflictError(f"no such record {record_id!r} in namespace {ns!r}")
+            await self._append_and_project(
+                MemoryEvent(kind=EventKind.FEEDBACK, namespace=ns, actor=actor, payload=payload)
+            )
+            updated = await storage.get_record(record_id)
+        assert updated is not None
+        _log.info(EVENT_FEEDBACK, namespace=ns, record_id=record_id, signal=signal)
+        return updated
 
     def _config(self) -> MemspineConfig:
         assert self._resolved is not None
@@ -6180,6 +6419,19 @@ class Engine:
             }
         return out
 
+    def usage(self, *, reset: bool = False) -> dict[str, dict[str, Any]]:
+        """#33: LLM calls and tokens per named prompt since ``start()`` or the last reset.
+
+        Keyed by ``prompt_version`` (``<id>@<version>``; ``"<unnamed>"`` for a caller's
+        own messages sent through :meth:`llm`). Each entry holds ``prompt_id``,
+        ``prompt_version``, ``roles``, ``calls``, ``input_tokens``, ``output_tokens``,
+        ``estimated_calls`` and ``estimated``. Tokens are the provider's own usage
+        report when it gives one, else a characters/4 estimate, and such calls are
+        counted in ``estimated_calls``. ``reset=True`` clears the counters after the
+        snapshot is taken. In-process only; empty when no LLM role is bound.
+        """
+        return self._llm.prompt_usage(reset=reset) if self._llm is not None else {}
+
     def llm(self, role: str) -> LLMService:
         """The provider bound to a role (D-07/D-22): extract / judge / chat.
 
@@ -6197,6 +6449,7 @@ class Engine:
         self._require_started()
         assert self._runner is not None
         stats = await run_sleep_cycle(self._runner, self._pipeline_ctx())
+        self._passive_sessions.clear()  # #53: the cycle may have passivated sessions
         degraded = {
             name: stage
             for name, stage in stats.items()
@@ -6242,6 +6495,7 @@ class Engine:
         purge = getattr(self._vector, "purge_deleted", None)
         if callable(purge):
             await purge()
+        self._passive_sessions.clear()  # #53: passive flags were replayed
         _log.info(EVENT_REBUILD, counts=counts)
         return counts
 
@@ -6982,9 +7236,25 @@ class Engine:
         backend = config.storage.backend
         mode = config.event_log.mode
         compress = config.event_log.compress
+        encryption = config.storage.encryption
+        if encryption.mode == "sqlcipher" and backend != "sqlite":
+            raise ConfigError(
+                "storage.encryption.mode=sqlcipher applies to the sqlite backend only "
+                f"(storage.backend={backend!r}; use the database's own encryption at rest)"
+            )
         if backend == "sqlite":
-            self._client = SQLiteClient(config.storage.path)
+            cipher_env = encryption.key_env if encryption.mode == "sqlcipher" else None
+            self._client = SQLiteClient(config.storage.path, cipher_key_env=cipher_env)
             await self._client.connect()
+            if cipher_env is not None:
+                # #52/ADR-035: name what the option does NOT cover; never the key.
+                _log.warning(
+                    "storage.encryption_partial",
+                    detail="SQLCipher encrypts the SQLite event log and read model only; "
+                    "LanceDB vectors, the Tantivy lexical index, disk caches and a DBOS "
+                    "system database are separate files and are not encrypted",
+                    key_env=cipher_env,
+                )
             return SQLiteStorage(self._client, mode=mode, compress=compress)
         if backend == "postgres":
             if not config.storage.url:

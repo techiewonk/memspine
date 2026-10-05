@@ -48,6 +48,7 @@ from memspine.memories.associative.communities import (
     partition_graph,
 )
 from memspine.memories.associative.links import assert_within_budget, link_event
+from memspine.memories.episodic.lifecycle import passive_after, plan_transitions
 from memspine.memories.episodic.sessions import Session, detect_sessions, topic_segments
 from memspine.memories.prospective.triggers import due_watches, invalidation_watches
 from memspine.memories.semantic.write_pipeline import (
@@ -79,6 +80,7 @@ __all__ = [
     "mine_facts",
     "reflect_profile",
     "reorganize",
+    "session_lifecycle",
     "sleep_compute",
     "stage_marker",
 ]
@@ -469,6 +471,53 @@ async def _consolidate_session(
         )
     )
     return summaries + 1, superseded
+
+
+async def session_lifecycle(ctx: PipelineContext) -> dict[str, object]:
+    """#53: mark sessions idle past ``episodic.policies.sessions.passive_after``
+    PASSIVE (and reopen any that saw a write since), one SESSION event each.
+
+    Skipped unless the horizon is set. The decision is recorded in the log, so a
+    rebuild replays the same passive set regardless of when it runs (ADR-037)."""
+    mem = ctx.config.memories.get("episodic")
+    horizon = passive_after(dict(mem.policies)) if mem is not None else None
+    if horizon is None:
+        return {"status": "skipped", "reason": "episodic.policies.sessions.passive_after unset"}
+    if ctx.append_event is None:
+        return {"status": "skipped", "reason": "read-only context (no write door)"}
+    now = datetime.now(UTC)
+    counts = {"passive": 0, "active": 0}
+    errors: list[str] = []
+    for namespace in await ctx.storage.list_namespaces():
+        async with ctx.lock(namespace):  # a reopening write must not interleave
+            records = await ctx.storage.list_records(namespace, "episodic")
+            for change in plan_transitions(records, now, horizon):
+                try:
+                    await ctx.append_event(
+                        MemoryEvent(
+                            kind=EventKind.SESSION,
+                            namespace=namespace,
+                            actor="system",
+                            payload={
+                                "session_id": change.session_id,
+                                "state": change.state,
+                                "record_ids": change.record_ids,
+                                "reason": "idle" if change.state == "passive" else "recent_write",
+                            },
+                        )
+                    )
+                    counts[change.state] += 1
+                except Exception as exc:  # one session must not kill the sweep
+                    errors.append(f"{change.session_id}: {exc}")
+                    _log.warning(
+                        "session_lifecycle.session_failed",
+                        namespace=namespace,
+                        session_id=change.session_id,
+                        error=str(exc),
+                    )
+    stats = _sweep_stats("passivated", counts["passive"], errors)
+    stats["reopened"] = counts["active"]
+    return stats
 
 
 async def decay_sweep(ctx: PipelineContext) -> dict[str, object]:
@@ -2083,6 +2132,7 @@ PIPELINES: dict[str, Pipeline] = {
     "anticipate": anticipate,
     "reflect_profile": reflect_profile,
     "check_watches": check_watches,
+    "session_lifecycle": session_lifecycle,
     "decay_sweep": decay_sweep,
     "compress": compress,
     "sleep_compute": sleep_compute,

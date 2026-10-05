@@ -62,6 +62,10 @@ promptopt  = ["langmem>=0.0.20"]                     # RG-only prompt self-optim
 postgres   = ["psycopg[binary]>=3.2", "pgvector>=0.3"]  # storage backend (D-36, psycopg3: sync Alembic + async runtime)
 weaviate   = ["weaviate-client>=4.9"]
 neo4j      = ["neo4j>=5.26"]
+# #52/ADR-035: SQLCipher encryption at rest for the SQLite event log + read model
+# (``storage.encryption.mode: sqlcipher``). A native build on some platforms, so it
+# is NOT in ``all``; ``pysqlcipher3`` is accepted too if already installed.
+encrypt    = ["sqlcipher3>=0.5"]
 
 # Convenience bundles
 local      = ["memspine[graph,cache,dbos,ingest,ner]"]

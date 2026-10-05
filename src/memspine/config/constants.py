@@ -401,3 +401,12 @@ HEADER_HIDE_OVERFETCH = 64
 #: blank unrelated words of a prompt).
 REMOTE_GATE_NOTE_PREFIX_CHARS = 400
 REMOTE_GATE_MIN_CHARS = 8
+# ── wave 4 infrastructure (#33 / #53 / #54) ─────────────────────────────────
+#: #33: characters per token for the estimate used when a provider reports no
+#: usage of its own (the per-prompt ledger flags such calls as estimated).
+TOKEN_ESTIMATE_CHARS_PER_TOKEN = 4
+#: #54: the net feedback (likes - dislikes) that moves the feedback utility term
+#: to tanh(1) ~ 0.76 of its bound; the term is tanh(net / scale), in (-1, 1).
+FEEDBACK_UTILITY_SCALE = 3.0
+#: #54: a feedback note is cut to this many characters before it enters the log.
+FEEDBACK_NOTE_MAX_CHARS = 2000

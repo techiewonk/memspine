@@ -56,6 +56,7 @@ from memspine.protocols.rest.models import (
     AssembleRequest,
     AssembleResponse,
     CorrectRequest,
+    FeedbackRequest,
     GrantRequest,
     GrantView,
     PlanRequest,
@@ -294,6 +295,13 @@ def build_app(engine: Engine, rest: RestConfig | None = None) -> FastAPI:
     async def retrieve(body: RetrieveRequest, ns: Namespace) -> list[MemoryRecord]:
         return await engine.retrieve(
             namespace=ns, memory_type=body.memory_type, purpose=body.purpose
+        )
+
+    @app.post("/feedback")
+    async def feedback(body: FeedbackRequest, ns: Namespace) -> MemoryRecord:
+        # #54: counts only; the bounded utility transform caps what a caller can move.
+        return await engine.feedback(
+            body.record_id, body.signal, note=body.note, actor=body.actor, namespace=ns
         )
 
     @app.delete("/records/{record_id}")

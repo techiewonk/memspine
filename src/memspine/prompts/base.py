@@ -26,7 +26,7 @@ from pydantic import BaseModel, ConfigDict, PrivateAttr
 from memspine.exceptions import ConfigError
 from memspine.prompts.env import default_environment
 
-__all__ = ["Prompt", "PromptFormat", "PromptWhen", "parse_prompt_text"]
+__all__ = ["Prompt", "PromptFormat", "PromptWhen", "RenderedMessages", "parse_prompt_text"]
 
 
 class PromptFormat(StrEnum):
@@ -51,6 +51,27 @@ class PromptWhen(BaseModel):
     @property
     def specificity(self) -> int:
         return sum(v is not None for v in (self.memory_type, self.condition))
+
+
+class RenderedMessages(list[dict[str, str]]):
+    """Chat messages rendered from a named prompt (#33).
+
+    A plain ``list`` of ``{"role", "content"}`` dicts that also carries the identity of
+    the prompt it came from, so the LLM router can attribute the call's tokens to
+    ``prompt_version`` without every call site passing the prompt along. It compares,
+    serializes and pickles as a list.
+    """
+
+    def __init__(
+        self,
+        messages: list[dict[str, str]] | None = None,
+        *,
+        prompt_id: str | None = None,
+        prompt_version: str | None = None,
+    ) -> None:
+        super().__init__(messages or [])
+        self.prompt_id = prompt_id
+        self.prompt_version = prompt_version
 
 
 class Prompt(BaseModel):
@@ -80,16 +101,17 @@ class Prompt(BaseModel):
         shifts the identity too (B1)."""
         return f"{self.id}@{self.version}{self._version_suffix}"
 
-    def render(self, context: dict[str, object]) -> list[dict[str, str]]:
+    def render(self, context: dict[str, object]) -> RenderedMessages:
         """Render to chat messages. Unknown template variables fail loudly;
-        ``{% include %}`` names resolve against the bound partials loader."""
+        ``{% include %}`` names resolve against the bound partials loader. The
+        result is a list tagged with this prompt's id and version (#33)."""
         env = self._env or default_environment()
         try:
             user = env.from_string(self.body).render(**context)
             system = env.from_string(self.system).render(**context) if self.system else None
         except Exception as exc:
             raise ConfigError(f"prompt {self.prompt_version} failed to render: {exc}") from exc
-        messages: list[dict[str, str]] = []
+        messages = RenderedMessages(prompt_id=self.id, prompt_version=self.prompt_version)
         if system:
             messages.append({"role": "system", "content": system})
         messages.append({"role": "user", "content": user})

@@ -157,6 +157,23 @@ events = await engine.timeline(namespace="dev")
 sessions = await engine.sessions(namespace="dev", gap_minutes=30)
 ```
 
+**Session lifecycle (#53, opt-in).** Conversations idle longer than
+`memories.episodic.policies.sessions.passive_after` (seconds, or `"30d"`, `"12h"`;
+default `null` = off) are marked PASSIVE by the `session_lifecycle` sleep stage:
+```yaml
+memories:
+  episodic:
+    enabled: true
+    policies:
+      sessions:
+        passive_after: 30d
+```
+A session is the `session_id` you pass to `write_messages` / `write_episode`. Its
+records stay stored, but `search` / `assemble` / `read` / `retrieve` leave them out
+unless you pass `include_passive=True`, name the session (`session_id="..."`) or its
+`group_id`. A new write to the session reopens it. Each change is a `memory.session`
+event, so `rebuild()` reproduces the same passive set (ADR-037).
+
 ### Resource — ingest *(needs `memspine[ingest]`)*
 ```python
 chunks = await engine.ingest("docs/runbook.md", namespace="ops")
@@ -273,6 +290,44 @@ assert await engine.audit_chain_ok()     # audit.reads / audit.actions hash chai
   the principal recorded by the read audit outside REST.
 - The FORGET event itself still records `actor: user`; under `audit.actions` the
   chained `memory.audit` event carries the real actor and reason.
+`rollback_taint` / `repair_taint` walk the event log from the seed's origin WRITE. With
+`event_log.mode: ephemeral` (no events kept, not even in memory) or a `rolling` window
+that pruned the origin, they cannot trace descendants: by default they log
+`memory.rollback_beyond_window`, archive the seed alone (closing its `valid_to`) and
+return `"untraced": [seed]`; pass `strict=True` to get `RollbackUnavailableError`
+instead and change nothing (ADR-011 addendum, #64).
+
+### Feedback — like / dislike / note (#54)
+```python
+await engine.feedback(record_id, "like", namespace="ops")
+await engine.feedback(record_id, "dislike", note="moved to Lyon in May", namespace="ops")
+rec = await engine.feedback(record_id, "note", note="check with Ana", namespace="ops")
+rec.scoring.likes, rec.scoring.dislikes, rec.scoring.notes   # (1, 1, 2)
+```
+Each call appends one `memory.feedback` event; the record projector keeps the counts.
+They affect ranking only through `read.scoring.utility_weight` (0 in the `base`
+template): utility then adds `tanh((likes - dislikes) / 3)`, bounded in (-1, 1). Notes
+are screened like messages, capped at 2000 characters, kept in the log only, and
+erased by a hard forget of the record (ADR-036). REST: `POST /feedback`.
+
+### Cost accounting — per role and per prompt (#33)
+```python
+engine.model_calls()      # {"extract": 3, ...}            calls per LLM role
+engine.model_usage()      # {"extract": {"model", "calls", "prompt", "completion"}}
+engine.usage()            # {"extract@2": {"prompt_id": "extract", "roles": ["extract"],
+                          #   "calls": 3, "input_tokens": 912, "output_tokens": 140,
+                          #   "estimated_calls": 0, "estimated": False}, ...}
+engine.usage(reset=True)  # snapshot, then clear the per-prompt counters
+```
+Every internal LLM call renders a named, versioned prompt (D-43), so `usage()` keys
+its counters by `prompt_version` (`<id>@<version>`; `"<unnamed>"` for messages you
+send yourself through `engine.llm(role)`). Tokens are the provider's own report when
+it gives one (LiteLLM); otherwise a characters/4 estimate, counted in
+`estimated_calls`. Each call also logs an `llm.usage` event at DEBUG level. The
+counters live in the process only (never persisted). The evals harness reads them
+into each result's `meta["engine_prompts"]` and the run summary's
+`engine_prompt_usage` (per loop stage, per prompt), which is how cost per cycle is
+attributed to stages.
 
 ---
 
@@ -330,6 +385,8 @@ missing.
 | `DELETE /records/{id}?hard=&reason=` · `GET /describe` | forget · introspect |
 | `POST /correct` | #47 correction by `record_id` or `entity` + `attribute` (never contested) |
 | `GET /export?subject=&include_history=&include_events=` | #46 subject-access export, `application/x-ndjson` (admin under auth) |
+| `DELETE /records/{id}?hard=` · `GET /describe` | forget · introspect |
+| `POST /feedback` | like / dislike / note on a record (#54) |
 | `POST /skills` · `POST /skills/{id}/promote` · `DELETE /skills/{id}` | procedural |
 | `POST /plans` · `GET /plans/recall` | plan cache (E6) |
 | `POST /reflect` | reflective |
@@ -401,6 +458,21 @@ Never expose this app to an untrusted network without filling the auth seam.
 ---
 
 ## Swap a backend (config alone)
+
+### Encrypt the SQLite file at rest *(needs `memspine[encrypt]`)*
+```yaml
+storage:
+  path: ./memspine.db
+  encryption:
+    mode: sqlcipher
+    key_env: MEMSPINE_DB_KEY     # the NAME of the variable, never the key itself
+```
+Every connection (and the schema migration) is opened through SQLCipher and keyed
+from `$MEMSPINE_DB_KEY`; a wrong key fails `start()` with `StorageError`, and a
+missing driver with `MissingServiceError` naming `[encrypt]`. Only the SQLite file is
+encrypted: LanceDB vectors, the Tantivy lexical index (it holds record text), disk
+caches and a DBOS system database are separate files; protect them with volume
+encryption (ADR-035). A lost key is a lost database.
 
 Every store is a port; you pick the adapter by config, and the event-sourced core
 stays the single source of truth. Nothing below changes the API you call — only
@@ -492,13 +564,15 @@ in the schema — or if the schema gains a key not documented here.
 |-----|---------|-------|
 | `profile` | `simple` | Behavior profile; templates set it (base→simple/core/coding/personal/voice/multi_agent/regulated_financial/assistant). |
 | `strict_services` | `true` | Missing service hard-fails naming the extra (D-10); `false` starts degraded. |
-| `event_log.mode` | `full` | `full` \| `rolling` (bounded window) \| `ephemeral` (nothing persisted — no rebuild/audit) (D-45). |
+| `event_log.mode` | `full` | `full` \| `rolling` (bounded window) \| `ephemeral` (nothing persisted — no rebuild/audit; taint rollback falls back to archiving the seed alone, `strict=True` raises) (D-45, #64). |
 | `event_log.retention_days` | `30` | Rolling-window retention floor; never prunes past a projector high-water mark. |
 | `event_log.compress` | `false` | zstd-compress event payloads at rest. |
 | `storage.backend` | `sqlite` | `sqlite` \| `postgres` (ADR-025). |
 | `storage.path` | `./memspine.db` | SQLite db file, or `:memory:` for ephemeral. |
 | `storage.url` | `null` | Postgres DSN (secrets-resolved); required when `backend: postgres`. |
 | `storage.data_dir` | `null` | Base dir for file-backed projections (LanceDB/Tantivy); required for postgres. |
+| `storage.encryption.mode` | `none` | `none` \| `sqlcipher` (#52, ADR-035): SQLCipher encryption of the SQLite file, `[encrypt]` extra; sqlite backend only, not `:memory:`. Vectors, the lexical index and disk caches are not covered. |
+| `storage.encryption.key_env` | `null` | **Name** of the environment variable holding the SQLCipher key; required with `sqlcipher`. The key is read only from it and never logged. |
 | `embedding.provider` | `fastembed` | `fastembed` (ONNX/CPU) \| `hash` (deterministic, tests) \| `static` (model2vec `[static]`) \| `litellm` (cloud). |
 | `embedding.model` | `BAAI/bge-small-en-v1.5` | Embedder model id. |
 | `embedding.dim` | `null` | **Required** when `provider: litellm` — a cloud embedder's output dim. |
@@ -636,7 +710,7 @@ in the schema — or if the schema gains a key not documented here.
 | `prompts.partials` | `{}` | Override fragments for shared Jinja `{% include %}` partials (anti-injection block, output footer); `<name>` → replacement text, consulted before the shipped `_partials/` dir (B1). |
 | `prompts.selection` | `{}` | Per-role default scenario selectors: `<role>` → map of optional `memory_type`/`condition`, merged into every `select(role)` query so a deployment can pin a prompt variant without code (B2). Shipped `chat` conditions: `dated` (H12, `chat@dated`), `dated2` (G12, `chat@dated2`: `chat@dated` plus "a line's leading date is when it was said, `[= …]` is when the event happened; answer *when* questions with the happened date"), `infer` (G10, `chat@infer`), `dated3` (#34, `chat@dated3`: brief reasoning then a final `Answer:` line, which `Engine.final_answer()` extracts; quote the specific detail; dates in the granularity asked; "a date in brackets is when it was said; the event may be earlier"; merge repeated mentions before counting; "Not mentioned" only when nothing bears on the question). `plan` condition `v2` is selected by `read.planner_version`; `extract` conditions `session3` / `dates` by the consolidation options. |
 | `memories.*.enabled` | `false` | Enable a memory type (`working`/`episodic`/`semantic`/…); C1b auto-enables prerequisites. |
-| `memories.*.policies` | `{}` | Per-type policy overrides (conflict/dedup/trust/entity_extraction/page_size/…). `semantic.policies.extract_graph` (`{max_rounds, min_confidence}`) opts into C2 graphiti-style writes: with an `extract_edges` LLM role, the background `extract_graph` sleep stage writes edge facts + `asserted` links. `semantic.policies.write_pipeline: graph` opts into the C3 synchronous variant — edges extracted at write time and written through the M4/M5 ladder (ADR-026). |
+| `memories.*.policies` | `{}` | Per-type policy overrides (conflict/dedup/trust/entity_extraction/page_size/…). `semantic.policies.extract_graph` (`{max_rounds, min_confidence}`) opts into C2 graphiti-style writes: with an `extract_edges` LLM role, the background `extract_graph` sleep stage writes edge facts + `asserted` links. `semantic.policies.write_pipeline: graph` opts into the C3 synchronous variant — edges extracted at write time and written through the M4/M5 ladder (ADR-026). `episodic.policies.sessions.passive_after` (seconds or `"30d"`; default off) opts into the #53 session lifecycle: idle sessions go PASSIVE, out of default reads (ADR-037). |
 | `namespaces.*.policies` | `{}` | Per-namespace policy overrides (D-14). |
 <!-- CONFIG-KEYS-TABLE:END -->
 

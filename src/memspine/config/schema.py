@@ -21,6 +21,7 @@ __all__ = [
     "CacheConfig",
     "ConsentConfig",
     "EmbeddingConfig",
+    "EncryptionConfig",
     "EventLogConfig",
     "GraphConfig",
     "LLMConfig",
@@ -49,6 +50,32 @@ class EventLogConfig(BaseModel):
     compress: bool = False
 
 
+class EncryptionConfig(BaseModel):
+    """Encryption at rest for the SQLite event log and read model (#52, ADR-035).
+
+    ``none`` (default) leaves the database file plain. ``sqlcipher`` opens every
+    connection through SQLCipher (``pip install memspine[encrypt]``; a missing
+    driver fails with ``MissingServiceError``), keyed with the passphrase held in
+    the environment variable named by ``key_env``. The key is read from that
+    variable only, never from config, and never logged. Derived stores outside the
+    SQLite file (LanceDB vectors, the Tantivy index, disk caches) are not
+    encrypted by this option; ADR-035 lists them."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    mode: Literal["none", "sqlcipher"] = "none"
+    key_env: str | None = None
+
+    @model_validator(mode="after")
+    def _key_env_named(self) -> EncryptionConfig:
+        if self.mode == "sqlcipher" and not self.key_env:
+            raise ConfigError(
+                "storage.encryption.mode=sqlcipher requires storage.encryption.key_env "
+                "(the NAME of the environment variable holding the key)"
+            )
+        return self
+
+
 class StorageConfig(BaseModel):
     """Event-log + read-model storage (D-36, Phase 6). ``sqlite`` (default) uses
     ``path`` (a file, or ``:memory:``); ``postgres`` uses ``url`` (a DSN,
@@ -62,6 +89,8 @@ class StorageConfig(BaseModel):
     path: str = "./memspine.db"  # sqlite db file, or ":memory:"
     url: str | None = None  # postgres DSN, required when backend=postgres
     data_dir: str | None = None  # base dir for derived vector/lexical files (postgres)
+    #: #52: SQLCipher encryption at rest (sqlite backend only); off by default.
+    encryption: EncryptionConfig = Field(default_factory=EncryptionConfig)
 
 
 class EmbeddingConfig(BaseModel):

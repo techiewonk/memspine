@@ -19,6 +19,12 @@ Handled kinds (M11):
   (max(), idempotent) and ``access_count`` increments. The counter is
   at-least-once — a crash between apply and checkpoint may recount a batch —
   which is acceptable by design for an approximate reinforcement signal.
+- ``FEEDBACK`` (#54) — per-record feedback counts in ``scoring``: a ``like`` or
+  ``dislike`` increments its count; any event carrying a note increments
+  ``notes``. At-least-once like RETRIEVE (a crash between apply and checkpoint
+  may recount); the transform that reads them is bounded.
+- ``SESSION`` (#53) — ``scoring.passive`` set (state ``passive``) or cleared
+  (``active``) on every record the event lists. Idempotent.
 """
 
 from __future__ import annotations
@@ -65,6 +71,10 @@ _DELTA_MUTABLE = frozenset(
 _DELTA_TAG_UNION = frozenset({"tags_add", "tags"})
 
 
+#: #54: the feedback signals the projector counts.
+_FEEDBACK_SIGNALS = frozenset({"like", "dislike", "note"})
+
+
 class RecordStore(Protocol):
     """The slice of the storage port this projector needs — any backend qualifies."""
 
@@ -93,6 +103,10 @@ class RecordProjector(Projector):
             await self._apply_forget(event)
         elif event.kind is EventKind.RETRIEVE:
             await self._apply_retrieve(event)
+        elif event.kind is EventKind.FEEDBACK:
+            await self._apply_feedback(event)
+        elif event.kind is EventKind.SESSION:
+            await self._apply_session(event)
         # other kinds materialize in later phases (M2-M7)
 
     async def _apply_decay_transition(self, event: MemoryEvent) -> None:
@@ -180,6 +194,30 @@ class RecordProjector(Projector):
                     ),
                 }
             )
+            await self._store.upsert_record(record.model_copy(update={"scoring": scoring}))
+
+    async def _apply_feedback(self, event: MemoryEvent) -> None:
+        record = await self._store.get_record(str(event.payload.get("record_id")))
+        signal = str(event.payload.get("signal"))
+        if record is None or signal not in _FEEDBACK_SIGNALS:
+            return
+        update: dict[str, int] = {}
+        if signal == "like":
+            update["likes"] = record.scoring.likes + 1
+        elif signal == "dislike":
+            update["dislikes"] = record.scoring.dislikes + 1
+        if signal == "note" or event.payload.get("content"):
+            update["notes"] = record.scoring.notes + 1  # every event carrying a note
+        scoring = record.scoring.model_copy(update=update)
+        await self._store.upsert_record(record.model_copy(update={"scoring": scoring}))
+
+    async def _apply_session(self, event: MemoryEvent) -> None:
+        passive = event.payload.get("state") == "passive"
+        for raw_id in event.payload.get("record_ids", []):
+            record = await self._store.get_record(str(raw_id))
+            if record is None or record.scoring.passive is passive:
+                continue
+            scoring = record.scoring.model_copy(update={"passive": passive})
             await self._store.upsert_record(record.model_copy(update={"scoring": scoring}))
 
     async def reset(self) -> None:
