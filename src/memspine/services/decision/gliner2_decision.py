@@ -13,6 +13,9 @@ API surface used here, and how sure we are of it:
 * Classification goes through ``create_schema().classification(...)`` + ``extract(...)`` when the
   model exposes them, and through ``classify_text(...)`` otherwise. ``include_confidence`` is
   dropped on a ``TypeError``. The shape of the result is checked by ``parse_choice``.
+* ``entities(text)`` (GP-3, the graph read leg's optional seed finder) calls
+  ``extract_entities(text, labels)``; ``parse_entities`` reads the
+  ``{"entities": {label: [names]}}`` shape and ignores anything else.
 """
 
 from __future__ import annotations
@@ -25,12 +28,14 @@ from typing import Any
 
 from memspine.exceptions import MissingServiceError
 
-__all__ = ["DEFAULT_MODEL", "GLiNER2Decision", "gliner2_class", "parse_choice"]
+__all__ = ["DEFAULT_MODEL", "GLiNER2Decision", "gliner2_class", "parse_choice", "parse_entities"]
 
 DEFAULT_MODEL = "fastino/gliner2-base-v1"
 _SERVICE = "gliner2 decision provider"
 _CLASS_NAMES = ("GLiNER2", "AutoExtractor")
 _FIELD = "choice"
+#: GP-3: the entity types the graph leg asks for when it seeds from a query.
+_ENTITY_LABELS = ("person", "place", "organization", "event", "thing")
 
 
 def gliner2_class() -> Any:
@@ -96,6 +101,29 @@ class GLiNER2Decision:
 
     async def choose(self, text: str, options: Mapping[str, str]) -> tuple[str, float | None]:
         return await asyncio.to_thread(self._choose_sync, text, options)
+
+    def _entities_sync(self, text: str) -> list[str]:
+        return parse_entities(self._load().extract_entities(text, list(_ENTITY_LABELS)))
+
+    async def entities(self, text: str) -> list[str]:
+        """GP-3: the entity names in ``text`` (seeds for the graph read leg)."""
+        return await asyncio.to_thread(self._entities_sync, text)
+
+
+def parse_entities(result: Any) -> list[str]:
+    """``{"entities": {label: [names]}}`` (or the inner mapping) -> the names, in
+    order, each once. Names may be strings or ``{"text": ...}`` mappings; any
+    other shape gives no names (the leg then falls back to its rules)."""
+    entities = result.get("entities", result) if isinstance(result, Mapping) else None
+    names: list[str] = []
+    if not isinstance(entities, Mapping):
+        return names
+    for found in entities.values():
+        for item in found if isinstance(found, list) else []:
+            name = item.get("text") if isinstance(item, Mapping) else item
+            if isinstance(name, str) and name.strip() and name not in names:
+                names.append(name)
+    return names
 
 
 def parse_choice(result: Any, options: Mapping[str, str]) -> tuple[str, float | None]:

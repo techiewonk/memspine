@@ -55,7 +55,9 @@ def _edge(row: Any) -> GraphEdge:
 
 
 def _walk_sql(namespace: str | None, rel_type: str | None, max_degree: int | None) -> str:
-    """The recursive-CTE BFS: ``walk(node, depth)`` from the ``:seeds`` json array.
+    """The recursive-CTE BFS prefix: ``walk(node, depth)`` from the ``:seeds`` json
+    array and ``hops(node, hops)``, the hop count from the nearest seed; callers
+    append the final ``SELECT``.
 
     ``UNION`` deduplicates ``(node, depth)`` rows, so the walk is bounded by
     ``nodes x depth``. A node re-expanded at a deeper level follows the same
@@ -82,8 +84,26 @@ def _walk_sql(namespace: str | None, rel_type: str | None, max_degree: int | Non
         "walk(node, depth) AS ("
         "SELECT value, 0 FROM json_each(:seeds) "
         "UNION SELECT a.other, w.depth + 1 FROM walk w JOIN adj a ON a.node = w.node "
-        f"WHERE w.depth < :depth{cap}) "
-        "SELECT node, MIN(depth) AS hops FROM walk GROUP BY node"
+        f"WHERE w.depth < :depth{cap}), "
+        "hops(node, hops) AS (SELECT node, MIN(depth) FROM walk GROUP BY node) "
+    )
+
+
+#: The walk's node rows joined in SQL (never an ``IN (...)`` list of bound ids,
+#: which overflows SQLite's variable limit on a large walk).
+_NEIGHBOR_ROWS = (
+    "SELECT n.node_id, n.labels, n.properties, h.hops FROM hops h "
+    "JOIN graph_nodes n ON n.node_id = h.node"
+)
+
+
+def _subgraph_rows(namespace: str | None) -> str:
+    """Every live edge with both endpoints in the walk, joined against it in SQL."""
+    scope = " AND e.namespace = :namespace" if namespace is not None else ""
+    return (
+        "SELECT e.src, e.dst, e.rel_type, e.properties FROM graph_edges e "
+        "WHERE e.weight > 0"
+        f"{scope} AND e.src IN (SELECT node FROM hops) AND e.dst IN (SELECT node FROM hops)"
     )
 
 
@@ -153,8 +173,9 @@ class SQLiteAdjacencyGraph:
         namespace: str | None,
         rel_type: str | None,
         max_degree: int | None,
-    ) -> dict[str, int]:
-        """node id -> hop count from the nearest seed (seeds at 0), one query."""
+        select: str = "SELECT node, hops FROM hops",
+    ) -> list[Any]:
+        """The walk's rows under ``select`` (seeds at hop 0), one query."""
         params: dict[str, object] = {
             "seeds": orjson.dumps(list(seeds)).decode(),
             "depth": max(depth, 0),
@@ -165,10 +186,9 @@ class SQLiteAdjacencyGraph:
             params["rel_type"] = rel_type
         if max_degree is not None:
             params["max_degree"] = max(max_degree, 0)
-        sql = text(_walk_sql(namespace, rel_type, max_degree))
+        sql = text(_walk_sql(namespace, rel_type, max_degree) + select)
         async with self._client.engine.connect() as conn:
-            rows = (await conn.execute(sql, params)).all()
-        return {str(row[0]): int(row[1]) for row in rows}
+            return list((await conn.execute(sql, params)).all())
 
     async def neighbors(
         self,
@@ -179,17 +199,11 @@ class SQLiteAdjacencyGraph:
         namespace: str | None = None,
         max_degree: int | None = None,
     ) -> list[GraphNode]:
-        hops = await self._walk([node_id], depth, namespace, rel_type, max_degree)
-        hops.pop(node_id, None)
-        if not hops:
-            return []
-        stmt = select(graph_nodes.c.node_id, graph_nodes.c.labels, graph_nodes.c.properties).where(
-            graph_nodes.c.node_id.in_(list(hops))
+        rows = await self._walk(
+            [node_id], depth, namespace, rel_type, max_degree, select=_NEIGHBOR_ROWS
         )
-        async with self._client.engine.connect() as conn:
-            rows = (await conn.execute(stmt)).all()
-        nodes = [_node(row) for row in rows]
-        return sorted(nodes, key=lambda node: (hops[node.node_id], node.node_id))
+        found = [(int(row[3]), _node(row)) for row in rows if row[0] != node_id]
+        return [node for _, node in sorted(found, key=lambda pair: (pair[0], pair[1].node_id))]
 
     async def subgraph(
         self,
@@ -199,18 +213,9 @@ class SQLiteAdjacencyGraph:
         namespace: str | None = None,
         max_degree: int | None = None,
     ) -> list[GraphEdge]:
-        reached = list(await self._walk(seeds, depth, namespace, None, max_degree))
-        if not reached:
-            return []
-        stmt = self._edge_select().where(
-            graph_edges.c.src.in_(reached),
-            graph_edges.c.dst.in_(reached),
-            graph_edges.c.weight > 0,
+        rows = await self._walk(
+            seeds, depth, namespace, None, max_degree, select=_subgraph_rows(namespace)
         )
-        if namespace is not None:
-            stmt = stmt.where(graph_edges.c.namespace == namespace)
-        async with self._client.engine.connect() as conn:
-            rows = (await conn.execute(stmt)).all()
         return sorted((_edge(row) for row in rows), key=lambda e: (e.src, e.dst, e.rel_type))
 
     async def edges_of(self, node_id: str) -> list[GraphEdge]:

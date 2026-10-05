@@ -264,6 +264,87 @@ RESERVED_TAGS = frozenset(
 # B9 facts-only (``integrity.claims_only_below``): the prefix of a mined fact shown
 # in place of the low-trust raw record it was mined from.
 CLAIM_MARKER = "[CLAIM from a low-trust source, unverified]"
+# GP-2 (ADR-015 amendment, 2026-10-05): names that never become entity nodes
+# (``memories.associative.policies.entity_nodes``): pronouns, day words and the
+# junk the edge extractor turns into hubs ("luck", "tomorrow"). Canonical form
+# (casefolded); a policy ``blocklist`` replaces this list.
+ENTITY_NODE_BLOCKLIST: frozenset[str] = frozenset(
+    {
+        "i",
+        "me",
+        "my",
+        "mine",
+        "myself",
+        "you",
+        "your",
+        "yours",
+        "yourself",
+        "he",
+        "him",
+        "his",
+        "himself",
+        "she",
+        "her",
+        "hers",
+        "herself",
+        "it",
+        "its",
+        "itself",
+        "we",
+        "us",
+        "our",
+        "ours",
+        "they",
+        "them",
+        "their",
+        "theirs",
+        "this",
+        "that",
+        "these",
+        "those",
+        "someone",
+        "somebody",
+        "something",
+        "anyone",
+        "anything",
+        "everyone",
+        "everything",
+        "nobody",
+        "nothing",
+        "today",
+        "tomorrow",
+        "yesterday",
+        "tonight",
+        "now",
+        "later",
+        "soon",
+        "luck",
+        "time",
+        "thing",
+        "things",
+        "stuff",
+        "people",
+    }
+)
+# GP-3 (#14): the graph read leg. Depth is counted in entity hops (one hop =
+# entity -> record -> entity) and capped at GRAPH_LEG_MAX_DEPTH; a seedless query
+# seeds from the entities of this many best non-graph hits.
+GRAPH_LEG_MAX_DEPTH = 3
+GRAPH_LEG_FALLBACK_HITS = 3
+# Longest query n-gram (in words) matched against entity names for seeds.
+GRAPH_SEED_MAX_NGRAM = 4
+# Fan-out cap per node during a graph-leg walk (KB-3), so a hub cannot flood it.
+GRAPH_LEG_MAX_DEGREE = 50
+# GP-10 (#16): the default ``read.graph_min_trust``: a graph walk never enters a
+# record below the trust the firewall quarantines at.
+GRAPH_MIN_TRUST_DEFAULT = QUARANTINE_TRUST_THRESHOLD
+# GP-5 (#15): header of the graph facts block (``read.cards_include_edges``) and
+# the tag on its synthetic record. A read-time projection, never stored.
+GRAPH_FACTS_MARKER = "GRAPH FACTS (validity: from → until or present; sources = episodes):"
+GRAPH_FACTS_TAG = "graph_facts"
+# GR-9: tag prefix naming one more source episode of an extract_graph fact (a
+# verbatim duplicate edge adds its episode instead of a new fact).
+EDGE_SOURCE_TAG_PREFIX = "edge_source:"
 # H22: at most this many stated preferences in the standing block (newest kept).
 LEAD_STANDING_MAX = 5
 

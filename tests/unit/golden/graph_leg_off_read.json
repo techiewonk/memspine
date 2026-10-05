@@ -1,0 +1,164 @@
+{
+  "compose|tell me about Biscuit": {
+    "abstained": false,
+    "contents": [
+      "Melanie read \"Charlotte's Web\"",
+      "we chatted about the rain in Boston",
+      "Melanie read \"Nothing Is Impossible\"",
+      "Caroline moved to Denver for a new job",
+      "Caroline lives in Denver",
+      "the weekend hike got cancelled",
+      "Caroline adopted a dog named Biscuit",
+      "Caroline owns a dog named Biscuit"
+    ],
+    "mode": "compose",
+    "tokens_used": 71
+  },
+  "compose|what books has Melanie read": {
+    "abstained": false,
+    "contents": [
+      "Melanie said she finished reading Charlotte's Web last night",
+      "Melanie read \"Charlotte's Web\"",
+      "we chatted about the rain in Boston",
+      "Melanie is now reading Nothing Is Impossible",
+      "Melanie read \"Nothing Is Impossible\"",
+      "Caroline moved to Denver for a new job",
+      "Caroline adopted a dog named Biscuit",
+      "Caroline owns a dog named Biscuit"
+    ],
+    "mode": "compose",
+    "tokens_used": 84
+  },
+  "compose|where does Caroline live": {
+    "abstained": false,
+    "contents": [
+      "Melanie said she finished reading Charlotte's Web last night",
+      "we chatted about the rain in Boston",
+      "Melanie is now reading Nothing Is Impossible",
+      "Caroline moved to Denver for a new job",
+      "Caroline lives in Denver",
+      "the weekend hike got cancelled",
+      "Caroline adopted a dog named Biscuit",
+      "Caroline owns a dog named Biscuit"
+    ],
+    "mode": "compose",
+    "tokens_used": 81
+  },
+  "full|tell me about Biscuit": {
+    "abstained": false,
+    "contents": [
+      "Melanie said she finished reading Charlotte's Web last night",
+      "Melanie read \"Charlotte's Web\"",
+      "we chatted about the rain in Boston",
+      "Melanie is now reading Nothing Is Impossible",
+      "Melanie read \"Nothing Is Impossible\"",
+      "Caroline moved to Denver for a new job",
+      "Caroline lives in Denver",
+      "the weekend hike got cancelled",
+      "Caroline adopted a dog named Biscuit",
+      "Caroline owns a dog named Biscuit"
+    ],
+    "mode": "full",
+    "tokens_used": 99
+  },
+  "full|what books has Melanie read": {
+    "abstained": false,
+    "contents": [
+      "Melanie said she finished reading Charlotte's Web last night",
+      "Melanie read \"Charlotte's Web\"",
+      "we chatted about the rain in Boston",
+      "Melanie is now reading Nothing Is Impossible",
+      "Melanie read \"Nothing Is Impossible\"",
+      "Caroline moved to Denver for a new job",
+      "Caroline lives in Denver",
+      "the weekend hike got cancelled",
+      "Caroline adopted a dog named Biscuit",
+      "Caroline owns a dog named Biscuit"
+    ],
+    "mode": "full",
+    "tokens_used": 99
+  },
+  "full|where does Caroline live": {
+    "abstained": false,
+    "contents": [
+      "Melanie said she finished reading Charlotte's Web last night",
+      "Melanie read \"Charlotte's Web\"",
+      "we chatted about the rain in Boston",
+      "Melanie is now reading Nothing Is Impossible",
+      "Melanie read \"Nothing Is Impossible\"",
+      "Caroline moved to Denver for a new job",
+      "Caroline lives in Denver",
+      "the weekend hike got cancelled",
+      "Caroline adopted a dog named Biscuit",
+      "Caroline owns a dog named Biscuit"
+    ],
+    "mode": "full",
+    "tokens_used": 99
+  },
+  "replay|tell me about Biscuit": {
+    "abstained": false,
+    "contents": [
+      "Caroline owns a dog named Biscuit",
+      "Melanie read \"Charlotte's Web\"",
+      "we chatted about the rain in Boston",
+      "Caroline adopted a dog named Biscuit"
+    ],
+    "mode": "replay",
+    "tokens_used": 36
+  },
+  "replay|what books has Melanie read": {
+    "abstained": false,
+    "contents": [
+      "Melanie read \"Nothing Is Impossible\"",
+      "Melanie read \"Charlotte's Web\"",
+      "Melanie said she finished reading Charlotte's Web last night",
+      "Melanie is now reading Nothing Is Impossible"
+    ],
+    "mode": "replay",
+    "tokens_used": 46
+  },
+  "replay|where does Caroline live": {
+    "abstained": false,
+    "contents": [
+      "Caroline lives in Denver",
+      "Caroline owns a dog named Biscuit",
+      "Caroline moved to Denver for a new job",
+      "Caroline adopted a dog named Biscuit"
+    ],
+    "mode": "replay",
+    "tokens_used": 36
+  },
+  "retrieve|tell me about Biscuit": {
+    "abstained": false,
+    "contents": [
+      "Caroline owns a dog named Biscuit",
+      "Melanie read \"Charlotte's Web\"",
+      "Caroline adopted a dog named Biscuit",
+      "we chatted about the rain in Boston"
+    ],
+    "mode": "retrieve",
+    "tokens_used": 36
+  },
+  "retrieve|what books has Melanie read": {
+    "abstained": false,
+    "contents": [
+      "Melanie read \"Nothing Is Impossible\"",
+      "Melanie read \"Charlotte's Web\"",
+      "Melanie is now reading Nothing Is Impossible",
+      "Melanie said she finished reading Charlotte's Web last night"
+    ],
+    "mode": "retrieve",
+    "tokens_used": 46
+  },
+  "retrieve|where does Caroline live": {
+    "abstained": false,
+    "contents": [
+      "Caroline lives in Denver",
+      "Caroline owns a dog named Biscuit",
+      "Caroline adopted a dog named Biscuit",
+      "Caroline moved to Denver for a new job"
+    ],
+    "mode": "retrieve",
+    "tokens_used": 36
+  }
+}

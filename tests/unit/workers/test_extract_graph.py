@@ -141,6 +141,8 @@ async def test_rerun_is_idempotent() -> None:
     assert second["edges_written"] == 0
     assert second["skipped_existing"] == 1
     assert second["skipped_sources"] == 1
+    # GR-9: the restating source is recorded as one more episode of the fact.
+    assert second["provenance_added"] == 1
     facts = [
         r
         for r in await harness.storage.list_records("agent/a", "semantic")
@@ -338,3 +340,56 @@ async def test_extractor_sees_reference_time_previous_episodes_and_entities() ->
     assert list(last.previous) == [f"turn {i}" for i in range(1, 11)]  # the 10 just before
     assert last.reference_time == base + timedelta(minutes=11)
     assert list(last.entities) == ["Melanie"]
+
+
+async def test_watermark_marker_is_erasable_and_forget_drops_it() -> None:
+    """The ``graph_extracted`` marker stores ``{record_id, content_fingerprint}``
+    dicts, the shape the M7 walker scrubs, and a FORGET drops the watermark."""
+    import copy
+
+    from memspine.core.erasure import redact_record, retained_fields
+    from memspine.workers.pipelines import GRAPH_EXTRACTED_MARKER, SessionIndex
+
+    ctx, harness, _graph = await _make([])
+    source = await _seed(harness, "Alice works at Acme.")
+    await extract_graph(ctx)
+    [marker] = [
+        e
+        for e in await harness.storage.read_events()
+        if e.kind is EventKind.MARKER and e.payload.get("marker") == GRAPH_EXTRACTED_MARKER
+    ]
+    assert marker.payload["sources"] == [
+        {"record_id": source.record_id, "content_fingerprint": source.content_fingerprint}
+    ]
+    assert retained_fields(marker.payload, source.record_id) == {"content_fingerprint"}
+    payload = copy.deepcopy(marker.payload)
+    assert redact_record(payload, source.record_id)
+    assert retained_fields(payload, source.record_id) == set()
+    # A redacted entry is no watermark.
+    index = SessionIndex()
+    index.observe(marker.model_copy(update={"payload": payload}))
+    assert index.graph_sources == {}
+
+    index = SessionIndex()
+    index.observe(marker)
+    assert ("agent/a", source.record_id) in index.graph_sources
+    index.observe(
+        MemoryEvent(
+            kind=EventKind.FORGET, namespace="agent/a", payload={"record_id": source.record_id}
+        )
+    )
+    assert index.graph_sources == {}
+
+
+async def test_legacy_dict_marker_is_still_read() -> None:
+    from memspine.workers.pipelines import GRAPH_EXTRACTED_MARKER, SessionIndex
+
+    index = SessionIndex()
+    index.observe(
+        MemoryEvent(
+            kind=EventKind.MARKER,
+            namespace="agent/a",
+            payload={"marker": GRAPH_EXTRACTED_MARKER, "sources": {"r1": "fp1"}},
+        )
+    )
+    assert index.graph_sources == {("agent/a", "r1"): "fp1"}

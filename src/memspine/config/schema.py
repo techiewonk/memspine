@@ -419,12 +419,27 @@ class ReadConfig(BaseModel):
     #: mentions on the same event day with high word overlap are one occurrence, even
     #: when said on different days. Off: byte-identical.
     count_dedupe: bool = False
+    #: GP-3 (#14): fuse a graph leg into the RRF ranking: from the entities the
+    #: query names (else those of the best 3 hits of the other legs), walk the
+    #: association graph ``graph_depth`` entity hops to fact records and their
+    #: source turns. Needs associative memory with ``entity_nodes``. Off:
+    #: byte-identical.
+    graph_leg: bool = False
+    graph_depth: int = Field(default=2, ge=1, le=3)
+    graph_leg_k: int = Field(default=10, ge=1)
+    #: GP-10 (#16): a graph walk never enters a record below this trust (nor a
+    #: quarantined one). Default: the firewall's quarantine threshold.
+    graph_min_trust: float = Field(default=constants.GRAPH_MIN_TRUST_DEFAULT, ge=0.0, le=1.0)
+    #: GP-5 (#15): a graph facts block after the cards: the edge facts reached from
+    #: the entities the query names, with validity ranges and source counts, within
+    #: ``cards_budget_share`` (shared with the cards header). Off: byte-identical.
+    cards_include_edges: bool = False
 
     @model_validator(mode="after")
     def _header_shares_leave_room(self) -> ReadConfig:
         """A-9: the active read headers' shares must leave budget for the read itself."""
         shares = (
-            (self.cards_budget_share if self.cards == "header" else 0.0)
+            (self.cards_budget_share if self.cards == "header" or self.cards_include_edges else 0.0)
             + (self.profile_budget_share if self.profile_header else 0.0)
             + (self.count_budget_share if self.count_timeline else 0.0)
         )

@@ -11,7 +11,10 @@ stamped before KB-1 gets the columns, the indexes and a backfill:
 - ``graph_nodes.namespace`` from the ``namespace`` property the projector has
   always written on record nodes, ``graph_nodes.kind`` from the first label;
 - ``graph_edges.namespace`` from the source node's namespace (else the
-  destination's), since links never cross namespaces.
+  destination's), since links never cross namespaces;
+- a node still without a namespace (a bare endpoint an edge created) from an
+  incident edge's namespace, which is what a rebuild gives it (the port creates
+  missing endpoints in the edge's namespace).
 
 The graph is a rebuildable projection (D0.1), so ``engine.rebuild()`` reaches
 the same state; the backfill only spares existing databases that replay.
@@ -44,6 +47,7 @@ def _indexes(table: str) -> set[str]:
 
 def upgrade() -> None:
     nodes = _columns("graph_nodes")
+    backfill_bare_nodes = "namespace" not in nodes
     if "namespace" not in nodes:
         op.add_column(
             "graph_nodes", sa.Column("namespace", sa.String(), nullable=False, server_default="")
@@ -83,6 +87,13 @@ def upgrade() -> None:
             "UPDATE graph_edges SET namespace = COALESCE("
             "NULLIF((SELECT n.namespace FROM graph_nodes n WHERE n.node_id = graph_edges.src), ''),"
             "(SELECT n.namespace FROM graph_nodes n WHERE n.node_id = graph_edges.dst), '')"
+        )
+    if backfill_bare_nodes:
+        # Upgrade == rebuild: a bare endpoint takes its incident edge's namespace.
+        op.execute(
+            "UPDATE graph_nodes SET namespace = COALESCE((SELECT MIN(e.namespace) "
+            "FROM graph_edges e WHERE (e.src = graph_nodes.node_id OR e.dst = graph_nodes.node_id) "
+            "AND e.namespace != ''), '') WHERE namespace = ''"
         )
     existing = _indexes("graph_edges")
     if "ix_graph_edges_ns_src_weight" not in existing:

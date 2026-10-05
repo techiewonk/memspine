@@ -152,3 +152,45 @@ namespace.
   in charge and the log explainable.
 - A `delete_edge` port method for pruning — widens every adapter for one
   internal need the tombstone already serves deterministically.
+
+## Amendment (2026-10-05): entity layer, graph read leg, trust caps on graph paths
+
+Opt-in throughout; with the flags off the engine is byte-identical
+(`tests/unit/test_graph_leg_off_golden.py` compares `read()` contexts against a
+snapshot recorded before the change). No decision above is reversed: entity
+edges are a projection of WRITE payloads, so D0.1 and rebuild parity hold.
+
+- **Entity nodes (GP-2, `memories.associative.policies.entity_nodes`, default
+  off).** The `GraphProjector` adds an `ent:<namespace>:<canonical>` node per
+  entity a record names (its `entity` field and the `dst:` tag edge facts carry;
+  canonical = NFKC, casefolded, whitespace collapsed) and a `mentions` edge
+  record -> entity. The namespace is part of the node id because node ids are
+  global keys in every adapter: two tenants naming one person get two nodes, and
+  one tenant's forget never deletes the other's node. Junk names (pronouns, day
+  words, "luck"; one character; digits) and, when an `allowed` list is set, any
+  other name are rejected; a self-edge adds no second mention. A re-projected
+  record whose names changed tombstones its stale mentions (weight 0, §2); a
+  FORGET deletes the record's mentions with its node, and an entity left with no
+  live mention is deleted. `mentions` joins the **reserved** rels: budget-exempt,
+  never prunable, refused from callers. `related()` (PPR and BFS) and the
+  reorganizer's Leiden input drop `mentions` edges, so they see the association
+  graph exactly as before.
+- **Trust caps on graph paths (GP-10).** A `mentions` edge weighs the record's
+  trust; an extract_graph `asserted` LINK weighs min(confidence, source trust,
+  fact trust). A graph walk never enters a record that is quarantined, erased,
+  taint-rolled-back, below `read.graph_min_trust` (default the quarantine
+  threshold, 0.25) or, under integrity, below admission; a refused node is a
+  dead end. Graph-sourced hits then pass the ordinary search gates.
+- **Graph read leg (GP-3, `read.graph_leg`, `graph_depth` ≤ 3, `graph_leg_k`).**
+  Seeds are the entities the query names (n-gram match on entity names; the
+  decision provider's optional `entities` hook, GLiNER2) or, failing that, the
+  entities of the best three hits of the other legs. The walk
+  (`AssociativeMemory.seed_expand`, depth in entity hops) yields facts and their
+  source turns, fused as one more RRF leg in `engine._search`.
+- **Facts block (GP-5, `read.cards_include_edges`)** renders the reached edge
+  facts with validity ranges and source counts in the cards allowance.
+- **Edge provenance (GR-9).** A verbatim duplicate edge in `extract_graph`
+  (same (src, rel, dst) key and kind) adds an `edge_source:<episode>` tag
+  through an add-only lifecycle delta instead of a new fact; no model call.
+  Background `extract_graph` facts now go through the semantic write door
+  (firewall, dedup, conflict ladder), so a `state` edge supersedes there too.

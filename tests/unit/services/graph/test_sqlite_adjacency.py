@@ -159,7 +159,7 @@ async def test_clear_then_replay_reproduces_identical_projection(
 
 
 async def test_multi_hop_walk_is_one_query(store: SQLiteAdjacencyGraph) -> None:
-    """KB-2: depth-3 BFS is one recursive CTE plus one node fetch, not a query per node."""
+    """KB-2: depth-3 BFS is one recursive CTE (nodes joined in SQL), not a query per node."""
     from sqlalchemy import event
 
     for i in range(30):
@@ -176,7 +176,7 @@ async def test_multi_hop_walk_is_one_query(store: SQLiteAdjacencyGraph) -> None:
     finally:
         event.remove(sync_engine, "before_cursor_execute", count)
     assert [n.node_id for n in found] == ["n1", "n2", "n3"]
-    assert len(statements) == 2
+    assert len(statements) == 1
     assert "WITH RECURSIVE" in statements[0]
 
 
@@ -200,3 +200,31 @@ async def test_upsert_mirrors_weight_kind_and_namespace_columns(
         )
     assert tuple(edge) == ("ns/a", 0.3, "event")
     assert nodes == {"r1": "ns/a", "r2": "ns/a"}  # the bare endpoint inherits the edge's ns
+
+
+async def test_walks_past_the_sqlite_variable_limit(store: SQLiteAdjacencyGraph) -> None:
+    """A walk reaching more nodes than SQLite binds in one statement (32,766 on
+    current builds) still answers: reached nodes are joined in SQL, never bound
+    as an ``IN (...)`` list."""
+    from sqlalchemy import text
+
+    leaves = 40_000
+    async with store._client.engine.begin() as conn:
+        await conn.execute(
+            text(
+                "INSERT INTO graph_nodes (node_id, labels, properties, namespace) "
+                "VALUES (:n, '[]', '{}', 'default')"
+            ),
+            [{"n": "hub"}, *({"n": f"leaf{i}"} for i in range(leaves))],
+        )
+        await conn.execute(
+            text(
+                "INSERT INTO graph_edges (src, dst, rel_type, properties, namespace, weight) "
+                "VALUES ('hub', :d, 'related', '{}', 'default', 1.0)"
+            ),
+            [{"d": f"leaf{i}"} for i in range(leaves)],
+        )
+    reached = await store.neighbors("hub", depth=1, namespace="default")
+    assert len(reached) == leaves
+    edges = await store.subgraph(["hub"], depth=1, namespace="default")
+    assert len(edges) == leaves

@@ -25,11 +25,13 @@ __all__ = [
     "count_terms",
     "distinct_occurrences",
     "event_day",
+    "graph_fact_line",
     "is_standing_instruction",
     "mentions_any",
     "mentions_event",
     "occurrence_line",
     "query_names",
+    "render_graph_facts",
     "render_occurrences",
     "render_profile",
     "render_standing",
@@ -409,3 +411,32 @@ def render_standing(records: Sequence[MemoryRecord]) -> str:
         f"- {r.valid_from:%Y-%m-%d}: {escape_markers(' '.join(r.content.split()))}" for r in records
     ]
     return "\n".join([header, *lines])
+
+
+def validity_range(record: MemoryRecord) -> str:
+    """GP-5: ``YYYY-MM-DD → YYYY-MM-DD`` (closed) or ``YYYY-MM-DD → present``.
+
+    The end is the record's ``valid_to``, else, for a superseded (not ACTIVATED)
+    fact, the time it was superseded; a superseded fact with neither is ``?``."""
+    start = f"{record.valid_from:%Y-%m-%d}"
+    end = record.valid_to
+    if end is None and record.status.value != "activated":
+        end = record.superseded_at
+    if end is not None:
+        return f"{start} → {end:%Y-%m-%d}"
+    return f"{start} → present" if record.status.value == "activated" else f"{start} → ?"
+
+
+def graph_fact_line(record: MemoryRecord, sources: int) -> str:
+    """GP-5: ``[2023-05-01 → present] Melanie read "X" (sources: 2)``.
+
+    ``record`` is already wrapped for the context (markers escaped by the
+    engine's per-record wrappers); ``sources`` is the number of live episodes
+    stating it (GR-9)."""
+    text = " ".join(record.content.split())
+    return f"[{validity_range(record)}] {text} (sources: {sources})"
+
+
+def render_graph_facts(lines: Sequence[str]) -> str:
+    """GP-5: the graph facts block, under :data:`constants.GRAPH_FACTS_MARKER`."""
+    return "\n".join([constants.GRAPH_FACTS_MARKER, *lines])
