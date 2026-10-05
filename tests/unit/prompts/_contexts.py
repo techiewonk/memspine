@@ -43,7 +43,21 @@ CANONICAL_CONTEXTS: dict[str, dict[str, Any]] = {
         "previous_episodes": ["Alice moved to Berlin last spring."],
         "entities": ["Alice", "Acme"],
     },
-    "resolve_entity": {"mention_a": "Bob Smith", "mention_b": "Robert Smith"},
+    "resolve_entity": {
+        "mention_a": "Bob Smith",
+        "mention_b": "Robert Smith",
+        "names": (
+            "[1] Bob Smith (candidates: Robert Smith; Bobby Tables)\n"
+            "[2] Acme Corp (candidates: Acme)"
+        ),
+    },
+    "summarize_entity": {
+        "entities": (
+            "[1] Alice\n- [2026-01-01] Alice moved to Berlin\n"
+            "- [2026-02-01] Alice started at Acme\n"
+            "[2] Acme\n- [2026-02-01] Acme hired Alice"
+        )
+    },
     "invalidate_edge": {
         "existing_fact": "Alice works at Acme",
         "existing_valid_from": "2026-01-01",
@@ -87,6 +101,12 @@ SAMPLE_PAYLOADS: dict[str, dict[str, Any]] = {
     },
     "FactDates": {"dates": [{"index": 1, "date": "2026-01-02"}]},
     "FactClasses": {"classes": [{"index": 1, "label": "places lived"}]},
+    "EntitySummaries": {
+        "summaries": [{"index": 1, "summary": "Alice moved to Berlin on 2026-01-01."}]
+    },
+    "EntityMatches": {
+        "matches": [{"index": 1, "match": "Robert Smith"}, {"index": 2, "match": ""}]
+    },
     "EntityResolutionOut": {
         "same_entity": True,
         "canonical": "Robert Smith",

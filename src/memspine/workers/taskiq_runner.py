@@ -78,13 +78,14 @@ PIPELINE_PRIORITIES: dict[str, int] = {
     "anticipate": 3,  # H8: cues right after their session is consolidated
     "reflect_profile": 4,  # H14: profile insights right after their session
     "extract_graph": 5,  # C2: LLM edges before communities form over them
-    "reorganize": 6,
-    "session_lifecycle": 7,  # #53: idle sessions -> PASSIVE, before the decay sweep
-    "decay_sweep": 8,
-    "compress": 9,
-    "sleep_compute": 10,
-    "retention_expire": 11,  # #48: expiry is housekeeping, never urgent
-    "event_log_prune": 12,
+    "summarize_entities": 6,  # GP-6: entity summaries over the fresh facts
+    "reorganize": 7,
+    "session_lifecycle": 8,  # #53: idle sessions -> PASSIVE, before the decay sweep
+    "decay_sweep": 9,
+    "compress": 10,
+    "sleep_compute": 11,
+    "retention_expire": 12,  # #48: expiry is housekeeping, never urgent
+    "event_log_prune": 13,
 }
 
 #: Labels outside the known pipeline set (deployment-registered pipelines,

@@ -469,12 +469,26 @@ class ReadConfig(BaseModel):
     #: the entities the query names, with validity ranges and source counts, within
     #: ``cards_budget_share`` (shared with the cards header). Off: byte-identical.
     cards_include_edges: bool = False
+    #: GP-6 (#17): an "About <Name>: …" block of the entity summaries
+    #: (``summarize_entities`` stage) of the entities the query names (the graph
+    #: leg's seeds), within ``cards_budget_share`` after the cards and the graph
+    #: facts. Off: byte-identical.
+    entity_summaries: bool = False
+    #: GP-9 (#23): community summaries (``reorganize`` parents) are read only when
+    #: a seed entity of the graph leg is a member: one of the records it mentions
+    #: belongs to the community. Others never reach the context; with
+    #: ``graph_leg`` on, the admitted ones join the graph leg. Off: byte-identical.
+    graph_communities: bool = False
 
     @model_validator(mode="after")
     def _header_shares_leave_room(self) -> ReadConfig:
         """A-9: the active read headers' shares must leave budget for the read itself."""
         shares = (
-            (self.cards_budget_share if self.cards == "header" or self.cards_include_edges else 0.0)
+            (
+                self.cards_budget_share
+                if self.cards == "header" or self.cards_include_edges or self.entity_summaries
+                else 0.0
+            )
             + (self.profile_budget_share if self.profile_header else 0.0)
             + (self.count_budget_share if self.count_timeline else 0.0)
         )
