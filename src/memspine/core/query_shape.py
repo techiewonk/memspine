@@ -119,6 +119,19 @@ def is_ordering(query: str) -> bool:
     return bool(_ORDERING.search(query))
 
 
+_TEMPORAL = re.compile(
+    r"\b(?:when|what (?:date|day|month|year|time)|which (?:date|day|month|year)|"
+    r"how long (?:ago|before|after|since)|how many (?:days|weeks|months|years)|"
+    r"since when|until when)\b",
+    re.I,
+)
+
+
+def is_temporal(query: str) -> bool:
+    """True when the question asks for a date or a time span ("when did ...")."""
+    return bool(_TEMPORAL.search(query))
+
+
 def is_aggregation(query: str) -> bool:
     """True when the question asks for a count, a list or several items."""
     return bool(_AGGREGATE.search(query))

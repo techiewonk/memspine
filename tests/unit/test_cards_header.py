@@ -183,3 +183,19 @@ async def test_routed_read_keeps_top_k_raw_turns_when_facts_are_hidden() -> None
         assert len(raw) >= 3  # before the fix: 1
     finally:
         await eng.stop()
+
+
+async def test_cards_skip_temporal_questions() -> None:
+    """Smoke 2026-10-05: cards' own dates cost temporal questions; skip them there."""
+    eng = _engine(cards="header", cards_skip_temporal=True)
+    await eng.start()
+    try:
+        await _seed(eng)
+        when = await eng.read(
+            "When did Ana adopt the cat?", namespace="a", mode="retrieve", top_k=3
+        )
+        what = await eng.read("What pet does Ana have?", namespace="a", mode="retrieve", top_k=3)
+        assert not _header(when.context.records)
+        assert _header(what.context.records)
+    finally:
+        await eng.stop()

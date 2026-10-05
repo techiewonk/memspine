@@ -374,6 +374,10 @@ class ReadConfig(BaseModel):
     cards: Literal["off", "header"] = "off"
     cards_budget_share: float = Field(default=0.25, gt=0.0, le=1.0)
     cards_top_k: int = Field(default=10, ge=1)
+    #: Smoke 2026-10-05: cards carry the miner's own, often wrong, absolute dates and
+    #: cost temporal questions -16; skip the cards header for date questions
+    #: (``query_shape.is_temporal``) so the H1-resolved raw turns answer them.
+    cards_skip_temporal: bool = False
     #: G3b: after the cards header, an "about" block of the H14 profile insights
     #: (``consolidation.reflect_profile`` records) on the people the query names, or
     #: the most relevant insights when none matches, within ``profile_budget_share``

@@ -57,7 +57,7 @@ from memspine.core.policies.retention import RetentionPolicy
 from memspine.core.policies.scoring import ScoringPolicy
 from memspine.core.policies.trust import TrustPolicy
 from memspine.core.projector import Projector
-from memspine.core.query_shape import core_terms, is_aggregation, is_ordering
+from memspine.core.query_shape import core_terms, is_aggregation, is_ordering, is_temporal
 from memspine.core.records import (
     ArchivedVersion,
     MemoryRecord,
@@ -2657,6 +2657,8 @@ class Engine:
         """
         read_cfg = self._config().read
         if read_cfg.cards != "header":
+            return None
+        if read_cfg.cards_skip_temporal and is_temporal(query):
             return None
         allowance = int(budget_tokens * read_cfg.cards_budget_share)
         if allowance <= estimate_tokens(constants.CARDS_MARKER):

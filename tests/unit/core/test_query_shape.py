@@ -58,3 +58,19 @@ def test_non_ordering_question() -> None:
     from memspine.core.query_shape import is_ordering
 
     assert not is_ordering("Where does Caroline live?")
+
+
+@pytest.mark.parametrize(
+    ("query", "expected"),
+    [
+        ("When did Caroline give a speech?", True),
+        ("How many weeks after the move did she adopt?", True),
+        ("Which year did they meet?", True),
+        ("What activities does Melanie do?", False),
+        ("whenever possible, call me", False),
+    ],
+)
+def test_is_temporal(query: str, expected: bool) -> None:
+    from memspine.core.query_shape import is_temporal
+
+    assert is_temporal(query) is expected

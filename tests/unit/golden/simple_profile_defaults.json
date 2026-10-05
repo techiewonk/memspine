@@ -37,6 +37,7 @@
       "candidate_pool": 1,
       "cards": "off",
       "cards_budget_share": 0.25,
+      "cards_skip_temporal": false,
       "cards_top_k": 10,
       "compose_replay": false,
       "compose_rewrites": false,
