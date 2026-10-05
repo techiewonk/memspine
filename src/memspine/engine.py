@@ -17,7 +17,8 @@ import itertools
 import os
 import re
 import threading
-from collections.abc import Callable, Coroutine, Mapping, Sequence
+from collections.abc import AsyncIterator, Callable, Coroutine, Mapping, Sequence
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -369,6 +370,9 @@ class Engine:
         self._client: SQLiteClient | None = None  # SQLite storage + FTS5/adjacency projections
         self._pg: PostgresClient | None = None  # Postgres storage backend (Phase 6)
         self._lance: LanceDBClient | None = None
+        # Inside a projection batch (write_messages): the last seq each
+        # projector applied, checkpointed when the batch flushes. None outside.
+        self._batch_offsets: dict[str, int] | None = None
         self._kuzu: KuzuClient | None = None
         self._ladybug: LadybugClient | None = None
         # Phase 2: one shared KV cache + the optional clients backing it.
@@ -1548,10 +1552,32 @@ class Engine:
         in calls of at most ``embedding.batch_size`` texts, which fills the
         embedding cache; the per-record firewall and vector projection then read
         their vectors from it. If that up-front embedding fails, the call raises
-        before any turn is written, so a retry cannot duplicate turns."""
+        before any turn is written, so a retry cannot duplicate turns.
+
+        The turns share one projection batch (:meth:`_projection_batch`): the
+        lexical index commits and the projector checkpoints happen once per
+        call instead of once per turn."""
+        await self._prewarm_embeddings(self._depositable_contents(messages))
+        async with self._projection_batch():
+            return await self._write_turns(
+                messages, namespace, actor, session_id, channel, group_id, tags, valid_from
+            )
+
+    async def _write_turns(
+        self,
+        messages: Sequence[Mapping[str, str]],
+        namespace: str,
+        actor: str,
+        session_id: str | None,
+        channel: str,
+        group_id: str | None,
+        tags: list[str] | None,
+        valid_from: datetime | None,
+    ) -> list[MemoryRecord]:
+        """The per-turn loop of :meth:`write_messages`: each turn goes through
+        the write door on its own, with its own firewall and ladder decisions."""
         records: list[MemoryRecord] = []
         fw = self._config().firewall
-        await self._prewarm_embeddings(self._depositable_contents(messages))
         for i, turn in enumerate(messages):
             try:
                 role = turn["role"]
@@ -4828,9 +4854,54 @@ class Engine:
         appended = await self._storage.append_event(event)
         if appended.seq is None:  # pragma: no cover - write door always assigns seq
             raise MemspineError("write door returned an event without seq")
+        batch = self._batch_offsets
         for projector in self._projectors:
             await projector.apply(appended)
-            await self._storage.set_offset(projector.name, appended.seq)
+            if batch is not None:
+                batch[projector.name] = appended.seq  # checkpointed at the flush
+            else:
+                await self._storage.set_offset(projector.name, appended.seq)
+
+    @asynccontextmanager
+    async def _projection_batch(self) -> AsyncIterator[None]:
+        """Group the projection work of many events (one ``write_messages`` call).
+
+        Every event is still appended and applied one at a time, so the log, the
+        records and every read in between are exactly as without the batch.
+        Two costs move to the end: projectors may hold per-event commits (see
+        :meth:`Projector.begin_batch`), and the high-water marks are written
+        once per projector instead of once per event. A mark is written only
+        after that projector's flush succeeds, so a projection is never marked
+        ahead of what it holds; after a crash catch-up re-applies the tail
+        (applies are idempotent). Nested batches join the outermost one."""
+        if self._batch_offsets is not None:
+            yield
+            return
+        self._batch_offsets = {}
+        for projector in self._projectors:
+            projector.begin_batch()
+        try:
+            yield
+        finally:
+            offsets, self._batch_offsets = self._batch_offsets, None
+            await self._flush_projections(offsets)
+
+    async def _flush_projections(self, offsets: Mapping[str, int]) -> None:
+        """Flush each projector, then checkpoint the ones that flushed."""
+        assert self._storage is not None
+        failure: BaseException | None = None
+        for projector in self._projectors:
+            try:
+                await projector.flush()
+            except Exception as exc:
+                # Its mark stays behind, so catch-up re-applies its tail.
+                failure = failure or exc
+                continue
+            seq = offsets.get(projector.name)
+            if seq is not None:
+                await self._storage.set_offset(projector.name, seq)
+        if failure is not None:
+            raise failure
 
     def _namespace_lock(self, namespace: str) -> asyncio.Lock:
         """The same per-namespace lock every write verb holds — handed to
