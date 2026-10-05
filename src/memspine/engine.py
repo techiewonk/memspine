@@ -38,7 +38,7 @@ from memspine.clients.sqlite import SQLiteClient
 from memspine.config import constants
 from memspine.config.loader import ResolvedConfig, default_template, load_config
 from memspine.config.schema import FirewallConfig, MemspineConfig
-from memspine.core.answer import final_answer
+from memspine.core.answer import final_answer, numbered_context, verification
 from memspine.core.audit import IntegrityReport, TaintReport, trace_taint, verify_events
 from memspine.core.erasure import redact_record, retained_fields
 from memspine.core.escaping import escape_markers
@@ -484,21 +484,6 @@ _CORROBORATION_ROLES = frozenset({"operator", "system", "user"})
 #: R1-2: how far :meth:`Engine.search` widens its leg windows (x1, x4, x16, x64) when
 #: the gates leave fewer than ``top_k`` live candidates.
 _SEARCH_MAX_WIDEN = 64
-
-
-def _numbered_context(
-    context: AssembledContext | Sequence[MemoryRecord] | str,
-) -> tuple[list[str], list[str]]:
-    """#39: ``context`` as numbered prompt lines ``[n] text``, and the id behind each
-    line (a record id, or ``L<n>`` for a plain-text context)."""
-    if isinstance(context, str):
-        texts = [line.strip() for line in context.splitlines() if line.strip()]
-        ids = [f"L{n}" for n in range(1, len(texts) + 1)]
-    else:
-        records = context.records if isinstance(context, AssembledContext) else list(context)
-        texts = [" ".join(r.content.split()) for r in records]
-        ids = [r.record_id for r in records]
-    return [f"[{n}] {text}" for n, text in enumerate(texts, start=1)], ids
 
 
 def _cosine(u: list[float], v: list[float]) -> float:
@@ -3244,18 +3229,19 @@ class Engine:
         )
         if llm_router is None or role is None or self._prompts is None:
             raise MissingServiceError("llm role 'verify_answer'")
-        lines, ids = _numbered_context(context)
+        if isinstance(context, AssembledContext):
+            context = context.records
+        lines, ids = numbered_context(context if isinstance(context, str) else list(context))
         verdict = await structured_call(
             llm_router.for_role(role),
             self._prompts.select("verify_answer"),
             {"question": question, "answer": answer, "context": "\n".join(lines)},
             AnswerVerdictOut,
         )
-        evidence = [ids[n - 1] for n in dict.fromkeys(verdict.evidence) if 1 <= n <= len(ids)]
-        revised = verdict.revised_answer
-        if verdict.supported or revised is None or revised.strip() == answer.strip():
-            revised = None
-        return {"supported": verdict.supported, "evidence_ids": evidence, "revised_answer": revised}
+        return cast(
+            AnswerVerification,
+            verification(verdict.supported, verdict.evidence, verdict.revised_answer, ids, answer),
+        )
 
     async def read(
         self,
