@@ -4008,11 +4008,25 @@ class Engine:
         )
         return block.model_copy(update={"tags": [constants.LEAD_TAG, constants.CARDS_TAG]})
 
-    async def _from_low_trust(self, parents: list[MemoryRecord], threshold: float) -> bool:
-        """B9 for a card: a source turn below ``threshold`` (view trust) makes it a claim."""
+    async def _from_low_trust(
+        self, parents: list[MemoryRecord], threshold: float, _depth: int = 0
+    ) -> bool:
+        """B9 for a card: a source turn below ``threshold`` (view trust) makes it a claim.
+
+        A parent that is itself a mined fact (a #30 list card's parents) is judged on
+        its own source turns: the card is a claim when any of its facts would be."""
         live = self._integrity().live_reevaluation
+        storage = self._require_started()
         for parent in parents:
-            if parent.source.channel == "persona" or "atomic_fact" in parent.tags:
+            if parent.source.channel == "persona":
+                continue
+            if "atomic_fact" in parent.tags:
+                if _depth >= constants.CLAIM_PARENT_DEPTH:
+                    continue
+                grand = [await storage.get_record(pid) for pid in parent.source.parents]
+                found = [g for g in grand if g is not None]
+                if await self._from_low_trust(found, threshold, _depth + 1):
+                    return True
                 continue
             trust = await self.effective_trust(parent.record_id) if live else parent.trust
             if trust < threshold:
@@ -7344,6 +7358,26 @@ class Engine:
                 batch[projector.name] = appended.seq  # checkpointed at the flush
             else:
                 await self._storage.set_offset(projector.name, appended.seq)
+        if self._query_encoder is not None:
+            self._evict_from_encoder(event)
+
+    def _evict_from_encoder(self, event: MemoryEvent) -> None:
+        """#61: a forgotten, quarantined or archived record leaves the query
+        encoder's in-process index (its text must not outlive the erasure)."""
+        assert self._query_encoder is not None
+        record_id = event.payload.get("record_id")
+        if not isinstance(record_id, str):
+            return
+        if event.kind is EventKind.FORGET:
+            self._query_encoder.evict(event.namespace, record_id)
+        elif event.kind is EventKind.DECAY_TRANSITION:
+            changes = event.payload.get("set")
+            if isinstance(changes, dict) and (
+                changes.get("quarantined") is True
+                or changes.get("status", RecordStatus.ACTIVATED.value)
+                != RecordStatus.ACTIVATED.value
+            ):
+                self._query_encoder.evict(event.namespace, record_id)
 
     @asynccontextmanager
     async def _projection_batch(self) -> AsyncIterator[None]:
@@ -7680,10 +7714,15 @@ class Engine:
         llm = self._llm.for_role(role)
         prompt = self._prompts.select("calibrate")
 
-        async def calibrate(prediction: str, content: str) -> list[ExtractedFact]:
-            result = await structured_call(
-                llm, prompt, {"prediction": prediction, "content": content}, ExtractedFacts
-            )
+        async def calibrate(
+            prediction: str, content: str, knowledge: list[str]
+        ) -> list[ExtractedFact]:
+            context: dict[str, object] = {
+                "prediction": prediction,
+                "content": content,
+                "knowledge": knowledge,
+            }
+            result = await structured_call(llm, prompt, context, ExtractedFacts)
             return list(result.facts)
 
         return calibrate
@@ -8041,6 +8080,8 @@ class Engine:
                 valid_from=card.valid_from,
                 tags=list(card.tags),
             )
+            if sources and all("assistant_claim" in r.tags for r in sources):
+                record.tags.append("assistant_claim")  # R2-11: every fact is a claim
             cap = [min(r.trust for r in sources)] if sources else None
             integrity_cap = await self._parent_trust_cap(ns, card.parents)
             if integrity_cap:

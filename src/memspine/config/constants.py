@@ -306,6 +306,9 @@ COUNT_MARKER = "Occurrences (dated):"
 COUNT_TAG = "count_timeline"
 #: #30: the tag of a derived person-level list card (``consolidation.list_cards``).
 LIST_CARD_TAG = "list_card"
+#: B9 for a card: how many mined-fact levels the low-trust check follows to reach
+#: source turns (a #30 list card -> its facts -> their turns).
+CLAIM_PARENT_DEPTH = 2
 # Tags only the engine may set: read-time block tags, the cue tag (a cue skips
 # dedup and the conflict ladder) and the lifecycle tags of taint rollback and
 # quarantine rejection. The write door strips them from caller-supplied tags.
@@ -542,9 +545,14 @@ SUMMARY_OPEN_TAG = "summary_open"
 PREDICT_CALIBRATE_KNOWLEDGE_K = 20
 #: #62: characters of the episode's opening turn the prediction is cued with.
 PREDICT_CALIBRATE_CUE_CHARS = 200
-#: #62: a calibrated "surprise" whose content words are covered at least this much
-#: by one predicted line (or one known statement) was predicted: it is not stored.
+#: #62: a calibrated fact whose content words are covered at least this much by one
+#: known statement (on an overlapping date, for a dated event) is already in memory:
+#: it is not stored. Predicted lines never count (ADR-049).
 PREDICT_CALIBRATE_COVERED = 0.8
+#: #62: the least trust of a stored statement that is shown to the prediction and can
+#: mark a calibrated fact as already known (a low-trust record pre-stating a fact must
+#: not suppress the true one).
+PREDICT_CALIBRATE_KNOWN_MIN_TRUST = 0.5
 #: #62: tag of a fact stored by predict-calibrate.
 SURPRISE_FACT_TAG = "surprise_fact"
 #: #61: the share of a cue's content words a query must contain for the ``cues``

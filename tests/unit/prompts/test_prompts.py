@@ -98,7 +98,11 @@ def test_every_shipped_prompt_renders_with_plausible_context() -> None:
         "consolidate": {"episodes": ["e1", "e2"]},
         "summarize": {"content": "long text", "max_sentences": 2, "previous": "short"},
         "predict_episode": {"knowledge": ["Alice lives in Berlin"], "date": "d", "cue": "c"},
-        "calibrate": {"prediction": "Alice lives in Berlin", "content": "[d] Alice: hi"},
+        "calibrate": {
+            "prediction": "Alice lives in Berlin",
+            "content": "[d] Alice: hi",
+            "knowledge": ["Alice lives in Berlin"],
+        },
         "subcluster": {"members": ["m1", "m2"]},
         "query_rewrite": {"query": "coffee preference"},
         "plan": {"query": "What activities does Alice do?"},
