@@ -222,3 +222,26 @@ async def test_without_an_llm_the_extractive_summary_is_rebuilt() -> None:
     await consolidate(ctx)
     [current] = await active_summaries(ctx)
     assert current.content == "turn 0. turn 1. turn 2. turn 3."
+
+
+async def test_an_open_summary_is_closed_after_incremental_is_switched_off() -> None:
+    """Review fix: an open-session summary written under ``incremental: true`` is
+    still closed once the flag is off, or its session never reaches the derived
+    stages (mine_facts, anticipate)."""
+    counter = Counter()
+    ctx, harness = await make_ctx(_policy(), counter)
+    for i in range(3):
+        await add_turn(harness, f"turn {i}", 20 - i)
+    await consolidate(ctx)
+    [opened] = await active_summaries(ctx)
+    assert constants.SUMMARY_OPEN_TAG in opened.tags
+    # The flag is switched off, and the session closes (gap passes).
+    ctx2, _ = await make_ctx({"session_gap_minutes": 5}, counter)
+    ctx2.storage, ctx2.append_event = ctx.storage, harness.append
+    stats = await consolidate(ctx2)
+    assert stats == {"status": "ok", "summaries": 1, "superseded": 1}
+    [closed] = await active_summaries(ctx2)
+    assert constants.SUMMARY_OPEN_TAG not in closed.tags and closed.content == "FULL[3]"
+    index = SessionIndex()
+    await index.refresh(ctx.storage)
+    assert len(index.sessions) == 1

@@ -397,9 +397,10 @@ async def consolidate(ctx: PipelineContext) -> dict[str, object]:
             if still_open and not incremental:
                 continue  # session still open — a new record may yet join it
             if session.session_key in existing_keys:
-                if incremental and not still_open:
+                if not still_open:
                     # #56: a summary written while the session was open is closed
-                    # without a call, so the derived stages now see the session.
+                    # without a call, so the derived stages now see the session;
+                    # whatever ``incremental`` is now (it may have been switched off).
                     closed = await _close_open_summary(
                         ctx, namespace, session, active_summaries, now
                     )
