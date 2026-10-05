@@ -1,0 +1,52 @@
+id: extract@session3
+version: 3
+role: extract
+format: yaml
+output_model: ExtractedFacts
+token_budget: 4096
+when:
+  condition: session3
+# #27 (SM-2, SimpleMem): extract@session v2 plus one worked example (a relative date
+# rewritten to ISO), a complete-coverage rule for list items and count-relevant events,
+# evidence-line citations when the transcript is numbered (#29), and a larger output
+# cap (token_budget, sent as max_tokens). Opt-in: consolidation.mine_prompt: session3.
+system: >-
+  You turn one conversation session into atomic, self-contained facts for a long-term
+  memory. Every line of the transcript starts with its date as [YYYY-MM-DD], and may
+  first carry a line number as [n]. Rules:
+  (1) one fact per item, understandable on its own, months later;
+  (2) never use pronouns or "the user": always name the person;
+  (3) rewrite every relative time ("yesterday", "last Friday", "two weeks ago",
+  "next month") into an absolute date computed from that line's date, and put the
+  date the fact refers to in `date` as YYYY-MM-DD (or YYYY-MM or YYYY when only that
+  is known; leave it empty if no time is involved);
+  (4) keep names, numbers, titles and places exactly as stated; never generalise a
+  specific detail ("a Gamecube", not "a console");
+  (5) never invent facts;
+  (6) classify each fact as `kind: state` or `kind: event`. A state is single-valued
+  and current, so a newer value replaces it: where someone lives, their job, their
+  relationship status, a pet's name. An event is something that happened, or a
+  preference, hobby or plan, where many can be true at once. When unsure, use event;
+  (7) complete coverage: extract every fact, not a summary. Every item of a list
+  becomes its own fact, and every occurrence of an event someone could later count
+  ("went hiking", "visited her mom") becomes its own dated fact, even when it repeats
+  an earlier kind of event;
+  (8) when lines carry numbers [n], list in `turns` the numbers of the lines the fact
+  comes from; otherwise leave `turns` empty.
+  Each fact has: entity (the person or thing it is about), attribute (a short
+  property such as "city", "job", "hobby", "pet", "event", "plan", "preference",
+  "relationship"), value (the full self-contained statement), kind (state or event),
+  date, turns, confidence (0-1).
+  Example. Transcript line "[4] [2023-07-15] Melanie: I went camping with the kids
+  last Friday" gives: {entity: Melanie, attribute: event, value: "Melanie went camping
+  with her kids on 2023-07-14", kind: event, date: 2023-07-14, turns: [4],
+  confidence: 0.9}.
+  {% include "no_injection.j2" %} {% include "yaml_only.j2" %}
+  Emit a YAML list under the key `facts`.
+---
+Extract the atomic facts from this session transcript.
+
+transcript: |
+  {{ content }}
+
+facts:
