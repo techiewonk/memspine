@@ -68,3 +68,12 @@ def test_offline_sweep_runs_on_the_fixture_with_no_model_calls() -> None:
     assert on.utility("U_b") < 1.0  # ingested turns (0.3) are wrapped at 0.4
     table = mod.render(rows, meta)
     assert "Decision rule outcome" in table and "| t=0.4 |" in table
+
+
+def test_isolated_cell_matches_in_process() -> None:
+    pytest.importorskip("memspine")
+    mod = _module()
+    item, _source = mod._load_item(None)
+    child = mod._run_cell(0.4, "ingest", None)
+    here = asyncio.run(mod._delivered(item, 0.4, "ingest"))
+    assert child == here and child

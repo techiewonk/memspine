@@ -35,7 +35,7 @@ import asyncio
 import functools
 import json
 import sys
-from collections.abc import Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -294,8 +294,39 @@ def _load_item(locomo: Path | None) -> tuple[Any, str]:
     return item, "FIXTURE (synthetic-smoke; LoCoMo file not found) - not a LoCoMo result"
 
 
+async def _in_process(
+    item: Any, threshold: float, channel: str, _locomo: Path | None
+) -> dict[tuple[str, str], bool]:
+    return await _delivered(item, threshold, channel)
+
+
+async def _isolated(
+    _item: Any, threshold: float, channel: str, locomo: Path | None
+) -> dict[tuple[str, str], bool]:
+    """One utility cell in a child process, so native memory is returned between cells
+    (an in-process run of all twelve cells exhausted memory on the dev machine)."""
+    return await asyncio.to_thread(_run_cell, threshold, channel, locomo)
+
+
+def _run_cell(threshold: float, channel: str, locomo: Path | None) -> dict[tuple[str, str], bool]:
+    import subprocess
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmp:
+        out = Path(tmp) / "cell.json"
+        cmd = [sys.executable, str(Path(__file__).resolve()), "--cell", channel, str(threshold)]
+        cmd += ["--cell-out", str(out)]
+        if locomo is not None:
+            cmd += ["--locomo", str(locomo)]
+        subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL)
+        rows = json.loads(out.read_text(encoding="utf-8"))
+    return {(q, t): bool(u) for q, t, u in rows}
+
+
 async def sweep(
-    locomo: Path | None, grid: Sequence[float] = GRID
+    locomo: Path | None,
+    grid: Sequence[float] = GRID,
+    deliver: Callable[..., Awaitable[dict[tuple[str, str], bool]]] = _in_process,
 ) -> tuple[list[Row], dict[str, Any]]:
     fixtures = _fixtures()
     item, source = _load_item(locomo)
@@ -307,10 +338,12 @@ async def sweep(
             row.fixture_states[fx.fixture_id] = state
             trusts[fx.fixture_id] = trust
     for cond, channel in (("U_a", "messages"), ("U_b", "ingest")):
-        baseline = await _delivered(item, 0.0, channel)
+        baseline = await deliver(item, 0.0, channel, locomo)
         for row in rows:
             got = (
-                baseline if row.threshold == 0.0 else await _delivered(item, row.threshold, channel)
+                baseline
+                if row.threshold == 0.0
+                else await deliver(item, row.threshold, channel, locomo)
             )
             kept = sum(1 for key in baseline if got.get(key, False))
             row.u[cond] = (kept, len(got), len(baseline))
@@ -399,11 +432,24 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--locomo", type=Path, default=None)
     parser.add_argument("--out", type=Path, default=None)
     parser.add_argument("--json", type=Path, default=None)
+    parser.add_argument("--cell", nargs=2, metavar=("CHANNEL", "T"), help=argparse.SUPPRESS)
+    parser.add_argument("--cell-out", type=Path, help=argparse.SUPPRESS)
+    parser.add_argument("--in-process", action="store_true", help="no child process per cell")
     args = parser.parse_args(argv)
     from memspine_evals.stub_llm import install_stub_litellm
 
+    if args.cell:
+        item, _source = _load_item(args.locomo)
+        with install_stub_litellm() as stub:
+            got = asyncio.run(_delivered(item, float(args.cell[1]), args.cell[0]))
+        if sum(stub.calls.values()) or stub.embeddings:
+            raise SystemExit("G8a offline arm made a model call; the run is void")
+        rows = [[q, t, u] for (q, t), u in sorted(got.items())]
+        args.cell_out.write_text(json.dumps(rows), encoding="utf-8")
+        return 0
+    deliver = _in_process if args.in_process else _isolated
     with install_stub_litellm() as stub:
-        rows, meta = asyncio.run(sweep(args.locomo))
+        rows, meta = asyncio.run(sweep(args.locomo, deliver=deliver))
     if sum(stub.calls.values()) or stub.embeddings:
         raise SystemExit("G8a offline arm made a model call; the run is void")
     table = render(rows, meta)
