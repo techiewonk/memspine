@@ -95,3 +95,47 @@ def test_chat_infer_is_dated_plus_the_inference_rule() -> None:
     assert "Likely yes, because" in infer_system
     assert "likely" not in dated_system
     assert infer.render(ctx)[-1] == dated.render(ctx)[-1]  # same user turn
+
+
+def test_chat_dated2_is_dated_plus_the_said_vs_happened_rule() -> None:
+    """G12: ``chat@dated2`` (condition ``dated2``) tells the reader that a line's leading
+    date is when it was said and ``[= ...]`` is when the event happened; ``chat@dated``,
+    the measured template prompt, is unchanged."""
+    from memspine.prompts.registry import PromptRegistry as _Registry
+
+    registry = _Registry()
+    dated2 = registry.select("chat", condition="dated2")
+    dated = registry.select("chat", condition="dated")
+    assert dated2.id == "chat@dated2" and dated.id == "chat@dated"
+    ctx = {"context": "[2023-05-08] I ran last week [= 2023-05-01..2023-05-07]", "message": "q"}
+    dated2_system = dated2.render(ctx)[0]["content"]
+    dated_system = dated.render(ctx)[0]["content"]
+    rule = (
+        "A line's leading [YYYY-MM-DD] is when it was said; a bracketed [= ...] after a "
+        "relative phrase is the resolved date the event happened."
+    )
+    assert rule in dated2_system and rule not in dated_system
+    assert "answer with the happened date (the [= ...] value when present)" in dated2_system
+    assert (
+        dated2_system.replace(rule, "")
+        .replace(
+            ' For "when did X happen", answer with the happened date (the [= ...] value when '
+            "present), not the date it was said.",
+            "",
+        )
+        .replace("  ", " ")
+        == dated_system
+    )
+    assert dated2.render(ctx)[-1] == dated.render(ctx)[-1]  # same user turn
+
+
+def test_no_template_selects_chat_dated2() -> None:
+    """G12 ships opt-in: no shipped template's prompt selection names ``dated2`` yet."""
+    from pathlib import Path
+
+    import memspine.config
+
+    templates = Path(memspine.config.__file__).parent / "templates"
+    assert list(templates.glob("*.yaml"))
+    for path in templates.glob("*.yaml"):
+        assert "dated2" not in path.read_text(encoding="utf-8"), path.name

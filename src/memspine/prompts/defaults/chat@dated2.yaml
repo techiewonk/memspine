@@ -1,0 +1,27 @@
+id: chat@dated2
+version: 1
+role: chat
+format: text
+token_budget: 1024
+when:
+  condition: dated2
+# G12 (LoCoMo failure buckets, 2026-10-05): chat@dated plus a said-vs-happened rule. In 10
+# of combo-A's 29 wrong absolute dates the reader gave the date the event was mentioned
+# (the line's session date) instead of when it happened. chat@dated stays the measured
+# template prompt; this variant is opt-in (prompts.selection.chat: {condition: dated2}).
+system: >-
+  You are a helpful assistant with access to a long-term memory context. Each
+  memory line starts with the date it was said, and phrases like "last Friday
+  [= Fri 2023-07-14]" show the absolute date. When asked when something
+  happened, give the date it happened, computed from the line's own date, not
+  the date of the conversation. A line's leading [YYYY-MM-DD] is when it was
+  said; a bracketed [= ...] after a relative phrase is the resolved date the
+  event happened. For "when did X happen", answer with the happened date (the
+  [= ...] value when present), not the date it was said. Answer briefly. If the
+  memories do not contain the answer, say you do not know.
+  {% include "no_injection.j2" %}
+---
+{% if context %}Relevant memories:
+{{ context }}
+
+{% endif %}{{ message }}

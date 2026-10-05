@@ -36,3 +36,14 @@ def test_cli_accepts_every_qa_prompt() -> None:
     for name in QA_PROMPTS:
         args = parser.parse_args(["c0-1", "--dataset", "locomo", "--qa-prompt", name])
         assert args.qa_prompt == name
+
+
+def test_dated2_is_dated_plus_the_said_vs_happened_rule() -> None:
+    """G12: same as ``dated`` plus one rule before the length instruction."""
+    from memspine_evals.readers import DATED_QA_PROMPT, SAID_HAPPENED_RULE
+
+    dated2 = QA_PROMPTS["dated2"]
+    assert SAID_HAPPENED_RULE in dated2
+    assert "[= ...] value when present" in dated2
+    assert dated2.replace(f"{SAID_HAPPENED_RULE} ", "") == DATED_QA_PROMPT
+    assert "happened date" not in QA_PROMPTS["dated"]

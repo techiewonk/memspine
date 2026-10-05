@@ -81,11 +81,25 @@ DATED_INFER_QA_PROMPT = DATED_QA_PROMPT.replace(
     "If the context does not contain the answer, say you do not know.", INFER_RULE
 )
 
+#: G12: the dated prompt plus a said-vs-happened rule. In 10 of combo-A's 29 wrong
+#: absolute dates the reader answered with the date the event was mentioned (the line's
+#: session date), not the date it happened.
+SAID_HAPPENED_RULE = (
+    "A line's leading [YYYY-MM-DD] is when it was said; a bracketed [= ...] after a "
+    'relative phrase is the resolved date the event happened. For "when did X happen", '
+    "answer with the happened date (the [= ...] value when present), not the date it was "
+    "said."
+)
+DATED2_QA_PROMPT = DATED_QA_PROMPT.replace(
+    "Answer in one short sentence.", f"{SAID_HAPPENED_RULE} Answer in one short sentence."
+)
+
 QA_PROMPTS = {
     "mab_fc": MAB_FC_QA_PROMPT,
     "question_dated": QUESTION_DATED_QA_PROMPT,
     "default": DEFAULT_QA_PROMPT,
     "dated": DATED_QA_PROMPT,
+    "dated2": DATED2_QA_PROMPT,
     "dated_infer": DATED_INFER_QA_PROMPT,
     "abstain": ABSTAIN_QA_PROMPT,
     "converse": CONVERSE_QA_PROMPT,

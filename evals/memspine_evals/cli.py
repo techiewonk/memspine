@@ -335,6 +335,7 @@ def build_parser() -> argparse.ArgumentParser:
         choices=(
             "default",
             "dated",
+            "dated2",
             "dated_infer",
             "abstain",
             "converse",
