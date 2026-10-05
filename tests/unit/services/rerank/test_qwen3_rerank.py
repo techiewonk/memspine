@@ -81,11 +81,16 @@ class FakeModel:
     def __init__(self, tokenizer: FakeTokenizer) -> None:
         self.tokenizer = tokenizer
         self.batches: list[int] = []
+        self.upcast = False
 
     def eval(self) -> FakeModel:
         return self
 
     def to(self, device: str) -> FakeModel:
+        return self
+
+    def float(self) -> FakeModel:
+        self.upcast = True
         return self
 
     def __call__(self, input_ids: _Tensor) -> _Output:
@@ -232,6 +237,16 @@ async def test_rerank_runs_off_the_event_loop(fake: list[int]) -> None:
     reranker.score = spy  # type: ignore[method-assign]
     await asyncio.gather(reranker.rerank("x", ["x"]), reranker.rerank("y", ["y"]))
     assert seen and all(ident != loop_thread for ident in seen)
+
+
+@pytest.mark.parametrize(("device", "upcast"), [(None, True), ("cpu", True), ("cuda", False)])
+async def test_cpu_weights_are_float32(fake: list[int], device: str | None, upcast: bool) -> None:
+    """The bf16 checkpoint is upcast on CPU (slow and padding-sensitive in bf16)."""
+    from memspine.services.rerank.qwen3_rerank import Qwen3Reranker
+
+    reranker = Qwen3Reranker(device=device)
+    reranker._ensure_loaded()
+    assert reranker._model.upcast is upcast
 
 
 def test_p_yes_is_overflow_safe() -> None:

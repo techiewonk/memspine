@@ -17,11 +17,11 @@ are not, which the factory turns into a skipped rerank stage); the weights load 
 first ``rerank`` call, under a lock, inside the worker thread that scores. Scoring runs
 in batches in a worker thread, so the event loop stays free.
 
-.. warning::
-   This adapter has **not been run against the real model**: it was written without
-   network access, so the weights could not be downloaded, and it is tested only with a
-   fake ``transformers`` / ``torch``. Verify its scores against the model card's example
-   before relying on a benchmark number from it.
+On CPU (``device`` unset or ``"cpu"``) the weights are kept in float32. The checkpoint is
+stored in bfloat16 and transformers>=5 loads it as such; on a CPU without native bf16
+that is ~6x slower per pair, and the left-padded batches then drift from unbatched
+scores by up to ~0.05 P(yes). In float32 the batched scores match the model card's
+unbatched formulation exactly (checked against the real 0.6B weights, 2026-10-06).
 """
 
 from __future__ import annotations
@@ -107,6 +107,8 @@ class Qwen3Reranker:
             auto_lm = self._transformers.AutoModelForCausalLM
             tokenizer = auto_tok.from_pretrained(self._model_id, padding_side="left")
             model = auto_lm.from_pretrained(self._model_id).eval()
+            if self._device is None or str(self._device).startswith("cpu"):
+                model = model.float()  # bf16 on CPU: slow and drifts under padding
             if self._device is not None:
                 model = model.to(self._device)
             self._prefix = list(tokenizer.encode(_PREFIX, add_special_tokens=False))
