@@ -1,0 +1,4445 @@
+{
+  "core-defaults": {
+    "assemble|How many times did Melanie go camping?": [
+      34,
+      [
+        "Melanie event: went camping with the kids",
+        "Melanie event: went camping at the beach",
+        "Melanie loves camping and outdoor family trips"
+      ]
+    ],
+    "assemble|What activities has Melanie done?": [
+      38,
+      [
+        "Melanie event: went camping with the kids",
+        "Melanie event: went camping at the beach",
+        "Melanie \u2014 activities: camping (2023-05); charity race (2023-05)"
+      ]
+    ],
+    "assemble|What did Melanie do in May 2023?": [
+      42,
+      [
+        "Melanie \u2014 activities: camping (2023-05); charity race (2023-05)",
+        "Melanie loves camping and outdoor family trips",
+        "Melanie: we ran a charity race for mental health in May"
+      ]
+    ],
+    "assemble|What does Melanie like to do?": [
+      35,
+      [
+        "Melanie event: took the kids to a pottery class",
+        "Melanie event: went camping with the kids",
+        "Caroline is creative and is planning to adopt"
+      ]
+    ],
+    "assemble|When did Caroline join the support group?": [
+      35,
+      [
+        "Caroline event: joined a support group",
+        "Melanie: the kids loved the pottery class yesterday",
+        "Caroline: I joined a support group last Tuesday"
+      ]
+    ],
+    "read|auto|How many times did Melanie go camping?": [
+      "full",
+      false,
+      191,
+      [
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping with the kids last weekend"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-04-29",
+            "kind:event",
+            "mined:s1",
+            "person:melanie",
+            "said:2023-05-01"
+          ],
+          "Melanie event: went camping with the kids"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I started a new painting of a lake sunset"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: we ran a charity race for mental health in May"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "kind:event",
+            "mined:s1",
+            "person:melanie"
+          ],
+          "Melanie event: ran a charity race for mental health"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping at the beach again with the family"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "kind:event",
+            "mined:s1",
+            "person:melanie"
+          ],
+          "Melanie event: went camping at the beach"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "list_card",
+            "person:melanie",
+            "topic:activity"
+          ],
+          "Melanie \u2014 activities: camping (2023-05); charity race (2023-05)"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I joined a support group last Tuesday"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-05-30",
+            "kind:event",
+            "mined:s1",
+            "person:caroline",
+            "said:2023-06-03"
+          ],
+          "Caroline event: joined a support group"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: the kids loved the pottery class yesterday"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-06-09",
+            "kind:event",
+            "mined:s1",
+            "person:melanie"
+          ],
+          "Melanie event: took the kids to a pottery class"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I am researching adoption agencies this month"
+        ],
+        [
+          "reflective",
+          [],
+          "Melanie loves camping and outdoor family trips"
+        ],
+        [
+          "reflective",
+          [],
+          "Caroline is creative and is planning to adopt"
+        ]
+      ]
+    ],
+    "read|auto|What activities has Melanie done?": [
+      "full",
+      false,
+      191,
+      [
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping with the kids last weekend"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-04-29",
+            "kind:event",
+            "mined:s1",
+            "person:melanie",
+            "said:2023-05-01"
+          ],
+          "Melanie event: went camping with the kids"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I started a new painting of a lake sunset"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: we ran a charity race for mental health in May"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "kind:event",
+            "mined:s1",
+            "person:melanie"
+          ],
+          "Melanie event: ran a charity race for mental health"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping at the beach again with the family"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "kind:event",
+            "mined:s1",
+            "person:melanie"
+          ],
+          "Melanie event: went camping at the beach"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "list_card",
+            "person:melanie",
+            "topic:activity"
+          ],
+          "Melanie \u2014 activities: camping (2023-05); charity race (2023-05)"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I joined a support group last Tuesday"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-05-30",
+            "kind:event",
+            "mined:s1",
+            "person:caroline",
+            "said:2023-06-03"
+          ],
+          "Caroline event: joined a support group"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: the kids loved the pottery class yesterday"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-06-09",
+            "kind:event",
+            "mined:s1",
+            "person:melanie"
+          ],
+          "Melanie event: took the kids to a pottery class"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I am researching adoption agencies this month"
+        ],
+        [
+          "reflective",
+          [],
+          "Melanie loves camping and outdoor family trips"
+        ],
+        [
+          "reflective",
+          [],
+          "Caroline is creative and is planning to adopt"
+        ]
+      ]
+    ],
+    "read|auto|What did Melanie do in May 2023?": [
+      "full",
+      false,
+      191,
+      [
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping with the kids last weekend"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-04-29",
+            "kind:event",
+            "mined:s1",
+            "person:melanie",
+            "said:2023-05-01"
+          ],
+          "Melanie event: went camping with the kids"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I started a new painting of a lake sunset"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: we ran a charity race for mental health in May"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "kind:event",
+            "mined:s1",
+            "person:melanie"
+          ],
+          "Melanie event: ran a charity race for mental health"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping at the beach again with the family"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "kind:event",
+            "mined:s1",
+            "person:melanie"
+          ],
+          "Melanie event: went camping at the beach"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "list_card",
+            "person:melanie",
+            "topic:activity"
+          ],
+          "Melanie \u2014 activities: camping (2023-05); charity race (2023-05)"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I joined a support group last Tuesday"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-05-30",
+            "kind:event",
+            "mined:s1",
+            "person:caroline",
+            "said:2023-06-03"
+          ],
+          "Caroline event: joined a support group"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: the kids loved the pottery class yesterday"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-06-09",
+            "kind:event",
+            "mined:s1",
+            "person:melanie"
+          ],
+          "Melanie event: took the kids to a pottery class"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I am researching adoption agencies this month"
+        ],
+        [
+          "reflective",
+          [],
+          "Melanie loves camping and outdoor family trips"
+        ],
+        [
+          "reflective",
+          [],
+          "Caroline is creative and is planning to adopt"
+        ]
+      ]
+    ],
+    "read|auto|What does Melanie like to do?": [
+      "full",
+      false,
+      191,
+      [
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping with the kids last weekend"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-04-29",
+            "kind:event",
+            "mined:s1",
+            "person:melanie",
+            "said:2023-05-01"
+          ],
+          "Melanie event: went camping with the kids"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I started a new painting of a lake sunset"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: we ran a charity race for mental health in May"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "kind:event",
+            "mined:s1",
+            "person:melanie"
+          ],
+          "Melanie event: ran a charity race for mental health"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping at the beach again with the family"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "kind:event",
+            "mined:s1",
+            "person:melanie"
+          ],
+          "Melanie event: went camping at the beach"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "list_card",
+            "person:melanie",
+            "topic:activity"
+          ],
+          "Melanie \u2014 activities: camping (2023-05); charity race (2023-05)"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I joined a support group last Tuesday"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-05-30",
+            "kind:event",
+            "mined:s1",
+            "person:caroline",
+            "said:2023-06-03"
+          ],
+          "Caroline event: joined a support group"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: the kids loved the pottery class yesterday"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-06-09",
+            "kind:event",
+            "mined:s1",
+            "person:melanie"
+          ],
+          "Melanie event: took the kids to a pottery class"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I am researching adoption agencies this month"
+        ],
+        [
+          "reflective",
+          [],
+          "Melanie loves camping and outdoor family trips"
+        ],
+        [
+          "reflective",
+          [],
+          "Caroline is creative and is planning to adopt"
+        ]
+      ]
+    ],
+    "read|auto|When did Caroline join the support group?": [
+      "full",
+      false,
+      191,
+      [
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping with the kids last weekend"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-04-29",
+            "kind:event",
+            "mined:s1",
+            "person:melanie",
+            "said:2023-05-01"
+          ],
+          "Melanie event: went camping with the kids"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I started a new painting of a lake sunset"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: we ran a charity race for mental health in May"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "kind:event",
+            "mined:s1",
+            "person:melanie"
+          ],
+          "Melanie event: ran a charity race for mental health"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping at the beach again with the family"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "kind:event",
+            "mined:s1",
+            "person:melanie"
+          ],
+          "Melanie event: went camping at the beach"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "list_card",
+            "person:melanie",
+            "topic:activity"
+          ],
+          "Melanie \u2014 activities: camping (2023-05); charity race (2023-05)"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I joined a support group last Tuesday"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-05-30",
+            "kind:event",
+            "mined:s1",
+            "person:caroline",
+            "said:2023-06-03"
+          ],
+          "Caroline event: joined a support group"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: the kids loved the pottery class yesterday"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-06-09",
+            "kind:event",
+            "mined:s1",
+            "person:melanie"
+          ],
+          "Melanie event: took the kids to a pottery class"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I am researching adoption agencies this month"
+        ],
+        [
+          "reflective",
+          [],
+          "Melanie loves camping and outdoor family trips"
+        ],
+        [
+          "reflective",
+          [],
+          "Caroline is creative and is planning to adopt"
+        ]
+      ]
+    ],
+    "read|compose|How many times did Melanie go camping?": [
+      "compose",
+      false,
+      75,
+      [
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping with the kids last weekend"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-04-29",
+            "kind:event",
+            "mined:s1",
+            "person:melanie",
+            "said:2023-05-01"
+          ],
+          "Melanie event: went camping with the kids"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "kind:event",
+            "mined:s1",
+            "person:melanie"
+          ],
+          "Melanie event: went camping at the beach"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "list_card",
+            "person:melanie",
+            "topic:activity"
+          ],
+          "Melanie \u2014 activities: camping (2023-05); charity race (2023-05)"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-06-09",
+            "kind:event",
+            "mined:s1",
+            "person:melanie"
+          ],
+          "Melanie event: took the kids to a pottery class"
+        ],
+        [
+          "reflective",
+          [],
+          "Melanie loves camping and outdoor family trips"
+        ]
+      ]
+    ],
+    "read|compose|What activities has Melanie done?": [
+      "compose",
+      false,
+      75,
+      [
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping with the kids last weekend"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-04-29",
+            "kind:event",
+            "mined:s1",
+            "person:melanie",
+            "said:2023-05-01"
+          ],
+          "Melanie event: went camping with the kids"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "kind:event",
+            "mined:s1",
+            "person:melanie"
+          ],
+          "Melanie event: went camping at the beach"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "list_card",
+            "person:melanie",
+            "topic:activity"
+          ],
+          "Melanie \u2014 activities: camping (2023-05); charity race (2023-05)"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-06-09",
+            "kind:event",
+            "mined:s1",
+            "person:melanie"
+          ],
+          "Melanie event: took the kids to a pottery class"
+        ],
+        [
+          "reflective",
+          [],
+          "Melanie loves camping and outdoor family trips"
+        ]
+      ]
+    ],
+    "read|compose|What did Melanie do in May 2023?": [
+      "compose",
+      false,
+      76,
+      [
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-04-29",
+            "kind:event",
+            "mined:s1",
+            "person:melanie",
+            "said:2023-05-01"
+          ],
+          "Melanie event: went camping with the kids"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: we ran a charity race for mental health in May"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "kind:event",
+            "mined:s1",
+            "person:melanie"
+          ],
+          "Melanie event: went camping at the beach"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "list_card",
+            "person:melanie",
+            "topic:activity"
+          ],
+          "Melanie \u2014 activities: camping (2023-05); charity race (2023-05)"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-06-09",
+            "kind:event",
+            "mined:s1",
+            "person:melanie"
+          ],
+          "Melanie event: took the kids to a pottery class"
+        ],
+        [
+          "reflective",
+          [],
+          "Melanie loves camping and outdoor family trips"
+        ]
+      ]
+    ],
+    "read|compose|What does Melanie like to do?": [
+      "compose",
+      false,
+      75,
+      [
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-04-29",
+            "kind:event",
+            "mined:s1",
+            "person:melanie",
+            "said:2023-05-01"
+          ],
+          "Melanie event: went camping with the kids"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "kind:event",
+            "mined:s1",
+            "person:melanie"
+          ],
+          "Melanie event: ran a charity race for mental health"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "kind:event",
+            "mined:s1",
+            "person:melanie"
+          ],
+          "Melanie event: went camping at the beach"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "list_card",
+            "person:melanie",
+            "topic:activity"
+          ],
+          "Melanie \u2014 activities: camping (2023-05); charity race (2023-05)"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-06-09",
+            "kind:event",
+            "mined:s1",
+            "person:melanie"
+          ],
+          "Melanie event: took the kids to a pottery class"
+        ],
+        [
+          "reflective",
+          [],
+          "Melanie loves camping and outdoor family trips"
+        ]
+      ]
+    ],
+    "read|compose|When did Caroline join the support group?": [
+      "compose",
+      false,
+      76,
+      [
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping with the kids last weekend"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping at the beach again with the family"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I joined a support group last Tuesday"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-05-30",
+            "kind:event",
+            "mined:s1",
+            "person:caroline",
+            "said:2023-06-03"
+          ],
+          "Caroline event: joined a support group"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I am researching adoption agencies this month"
+        ],
+        [
+          "reflective",
+          [],
+          "Caroline is creative and is planning to adopt"
+        ]
+      ]
+    ],
+    "read|replay|How many times did Melanie go camping?": [
+      "replay",
+      false,
+      62,
+      [
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-04-29",
+            "kind:event",
+            "mined:s1",
+            "person:melanie",
+            "said:2023-05-01"
+          ],
+          "Melanie event: went camping with the kids"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "kind:event",
+            "mined:s1",
+            "person:melanie"
+          ],
+          "Melanie event: went camping at the beach"
+        ],
+        [
+          "reflective",
+          [],
+          "Melanie loves camping and outdoor family trips"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping with the kids last weekend"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping at the beach again with the family"
+        ]
+      ]
+    ],
+    "read|replay|What activities has Melanie done?": [
+      "replay",
+      false,
+      66,
+      [
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-04-29",
+            "kind:event",
+            "mined:s1",
+            "person:melanie",
+            "said:2023-05-01"
+          ],
+          "Melanie event: went camping with the kids"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "kind:event",
+            "mined:s1",
+            "person:melanie"
+          ],
+          "Melanie event: went camping at the beach"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "list_card",
+            "person:melanie",
+            "topic:activity"
+          ],
+          "Melanie \u2014 activities: camping (2023-05); charity race (2023-05)"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping with the kids last weekend"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping at the beach again with the family"
+        ]
+      ]
+    ],
+    "read|replay|What did Melanie do in May 2023?": [
+      "replay",
+      false,
+      42,
+      [
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "list_card",
+            "person:melanie",
+            "topic:activity"
+          ],
+          "Melanie \u2014 activities: camping (2023-05); charity race (2023-05)"
+        ],
+        [
+          "reflective",
+          [],
+          "Melanie loves camping and outdoor family trips"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: we ran a charity race for mental health in May"
+        ]
+      ]
+    ],
+    "read|replay|What does Melanie like to do?": [
+      "replay",
+      false,
+      61,
+      [
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-06-09",
+            "kind:event",
+            "mined:s1",
+            "person:melanie"
+          ],
+          "Melanie event: took the kids to a pottery class"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-04-29",
+            "kind:event",
+            "mined:s1",
+            "person:melanie",
+            "said:2023-05-01"
+          ],
+          "Melanie event: went camping with the kids"
+        ],
+        [
+          "reflective",
+          [],
+          "Caroline is creative and is planning to adopt"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping with the kids last weekend"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: the kids loved the pottery class yesterday"
+        ]
+      ]
+    ],
+    "read|replay|When did Caroline join the support group?": [
+      "replay",
+      false,
+      35,
+      [
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-05-30",
+            "kind:event",
+            "mined:s1",
+            "person:caroline",
+            "said:2023-06-03"
+          ],
+          "Caroline event: joined a support group"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I joined a support group last Tuesday"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: the kids loved the pottery class yesterday"
+        ]
+      ]
+    ],
+    "read|retrieve|How many times did Melanie go camping?": [
+      "retrieve",
+      false,
+      34,
+      [
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-04-29",
+            "kind:event",
+            "mined:s1",
+            "person:melanie",
+            "said:2023-05-01"
+          ],
+          "Melanie event: went camping with the kids"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "kind:event",
+            "mined:s1",
+            "person:melanie"
+          ],
+          "Melanie event: went camping at the beach"
+        ],
+        [
+          "reflective",
+          [],
+          "Melanie loves camping and outdoor family trips"
+        ]
+      ]
+    ],
+    "read|retrieve|What activities has Melanie done?": [
+      "retrieve",
+      false,
+      38,
+      [
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-04-29",
+            "kind:event",
+            "mined:s1",
+            "person:melanie",
+            "said:2023-05-01"
+          ],
+          "Melanie event: went camping with the kids"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "kind:event",
+            "mined:s1",
+            "person:melanie"
+          ],
+          "Melanie event: went camping at the beach"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "list_card",
+            "person:melanie",
+            "topic:activity"
+          ],
+          "Melanie \u2014 activities: camping (2023-05); charity race (2023-05)"
+        ]
+      ]
+    ],
+    "read|retrieve|What did Melanie do in May 2023?": [
+      "retrieve",
+      false,
+      42,
+      [
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "list_card",
+            "person:melanie",
+            "topic:activity"
+          ],
+          "Melanie \u2014 activities: camping (2023-05); charity race (2023-05)"
+        ],
+        [
+          "reflective",
+          [],
+          "Melanie loves camping and outdoor family trips"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: we ran a charity race for mental health in May"
+        ]
+      ]
+    ],
+    "read|retrieve|What does Melanie like to do?": [
+      "retrieve",
+      false,
+      35,
+      [
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-06-09",
+            "kind:event",
+            "mined:s1",
+            "person:melanie"
+          ],
+          "Melanie event: took the kids to a pottery class"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-04-29",
+            "kind:event",
+            "mined:s1",
+            "person:melanie",
+            "said:2023-05-01"
+          ],
+          "Melanie event: went camping with the kids"
+        ],
+        [
+          "reflective",
+          [],
+          "Caroline is creative and is planning to adopt"
+        ]
+      ]
+    ],
+    "read|retrieve|When did Caroline join the support group?": [
+      "retrieve",
+      false,
+      35,
+      [
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-05-30",
+            "kind:event",
+            "mined:s1",
+            "person:caroline",
+            "said:2023-06-03"
+          ],
+          "Caroline event: joined a support group"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: the kids loved the pottery class yesterday"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I joined a support group last Tuesday"
+        ]
+      ]
+    ]
+  },
+  "lead-blocks": {
+    "assemble|How many times did Melanie go camping?": [
+      188,
+      [
+        "Occurrences (dated):\n- [said 2023-05-01] Melanie: I went camping with the kids last weekend",
+        "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Melanie: went camping with the kids\nMelanie \u2014 activities: camping (2023-05); charity race (2023-05)\n[said 2023-05-21] Melanie: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Melanie: took the kids to a pottery class",
+        "PROFILE NOTES (reflected from earlier conversations about Melanie; inferred, not stated):\n- [<today>] Melanie loves camping and outdoor family trips",
+        "Melanie: I went camping with the kids last weekend",
+        "Melanie: I went camping at the beach again with the family",
+        "Melanie: the kids loved the pottery class yesterday"
+      ]
+    ],
+    "assemble|What activities has Melanie done?": [
+      164,
+      [
+        "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Melanie: went camping with the kids\nMelanie \u2014 activities: camping (2023-05); charity race (2023-05)\n[said 2023-05-21] Melanie: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Melanie: took the kids to a pottery class",
+        "PROFILE NOTES (reflected from earlier conversations about Melanie; inferred, not stated):\n- [<today>] Melanie loves camping and outdoor family trips",
+        "Melanie: I went camping with the kids last weekend",
+        "Melanie: the kids loved the pottery class yesterday",
+        "Melanie: we ran a charity race for mental health in May"
+      ]
+    ],
+    "assemble|What did Melanie do in May 2023?": [
+      167,
+      [
+        "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Melanie: went camping with the kids\nMelanie \u2014 activities: camping (2023-05); charity race (2023-05)\n[said 2023-05-10] Melanie: ran a charity race for mental health\n[said 2023-06-10 \u00b7 happened 2023-06-09] Melanie: took the kids to a pottery class",
+        "PROFILE NOTES (reflected from earlier conversations about Melanie; inferred, not stated):\n- [<today>] Melanie loves camping and outdoor family trips",
+        "Melanie: we ran a charity race for mental health in May",
+        "Melanie: I went camping with the kids last weekend",
+        "Melanie: the kids loved the pottery class yesterday"
+      ]
+    ],
+    "assemble|What does Melanie like to do?": [
+      162,
+      [
+        "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Melanie: went camping with the kids\n[said 2023-05-10] Melanie: ran a charity race for mental health\n[said 2023-05-21] Melanie: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Melanie: took the kids to a pottery class",
+        "PROFILE NOTES (reflected from earlier conversations about Melanie; inferred, not stated):\n- [<today>] Melanie loves camping and outdoor family trips",
+        "Caroline is creative and is planning to adopt",
+        "Melanie: I went camping with the kids last weekend",
+        "Melanie: the kids loved the pottery class yesterday"
+      ]
+    ],
+    "assemble|When did Caroline join the support group?": [
+      152,
+      [
+        "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Melanie: went camping with the kids\n[said 2023-06-03 \u00b7 happened 2023-05-30] Caroline: joined a support group\n[said 2023-06-10 \u00b7 happened 2023-06-09] Melanie: took the kids to a pottery class",
+        "PROFILE NOTES (reflected from earlier conversations about Caroline; inferred, not stated):\n- [<today>] Caroline is creative and is planning to adopt",
+        "Melanie: the kids loved the pottery class yesterday",
+        "Caroline: I joined a support group last Tuesday",
+        "Caroline: I am researching adoption agencies this month"
+      ]
+    ],
+    "read|auto|How many times did Melanie go camping?": [
+      "full",
+      false,
+      276,
+      [
+        [
+          "semantic",
+          [
+            "count_timeline",
+            "lead_section"
+          ],
+          "Occurrences (dated):\n- [said 2023-05-01] Melanie: I went camping with the kids last weekend"
+        ],
+        [
+          "semantic",
+          [
+            "cards_header",
+            "lead_section"
+          ],
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Melanie: went camping with the kids\nMelanie \u2014 activities: camping (2023-05); charity race (2023-05)\n[said 2023-05-21] Melanie: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Melanie: took the kids to a pottery class"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations about Melanie; inferred, not stated):\n- [<today>] Melanie loves camping and outdoor family trips"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping with the kids last weekend"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I started a new painting of a lake sunset"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: we ran a charity race for mental health in May"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "kind:event",
+            "mined:s1",
+            "person:melanie"
+          ],
+          "Melanie event: ran a charity race for mental health"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping at the beach again with the family"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I joined a support group last Tuesday"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-05-30",
+            "kind:event",
+            "mined:s1",
+            "person:caroline",
+            "said:2023-06-03"
+          ],
+          "Caroline event: joined a support group"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: the kids loved the pottery class yesterday"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I am researching adoption agencies this month"
+        ],
+        [
+          "reflective",
+          [],
+          "Caroline is creative and is planning to adopt"
+        ]
+      ]
+    ],
+    "read|auto|What activities has Melanie done?": [
+      "full",
+      false,
+      253,
+      [
+        [
+          "semantic",
+          [
+            "cards_header",
+            "lead_section"
+          ],
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Melanie: went camping with the kids\nMelanie \u2014 activities: camping (2023-05); charity race (2023-05)\n[said 2023-05-21] Melanie: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Melanie: took the kids to a pottery class"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations about Melanie; inferred, not stated):\n- [<today>] Melanie loves camping and outdoor family trips"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping with the kids last weekend"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I started a new painting of a lake sunset"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: we ran a charity race for mental health in May"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "kind:event",
+            "mined:s1",
+            "person:melanie"
+          ],
+          "Melanie event: ran a charity race for mental health"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping at the beach again with the family"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I joined a support group last Tuesday"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-05-30",
+            "kind:event",
+            "mined:s1",
+            "person:caroline",
+            "said:2023-06-03"
+          ],
+          "Caroline event: joined a support group"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: the kids loved the pottery class yesterday"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I am researching adoption agencies this month"
+        ],
+        [
+          "reflective",
+          [],
+          "Caroline is creative and is planning to adopt"
+        ]
+      ]
+    ],
+    "read|auto|What did Melanie do in May 2023?": [
+      "full",
+      false,
+      254,
+      [
+        [
+          "semantic",
+          [
+            "cards_header",
+            "lead_section"
+          ],
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Melanie: went camping with the kids\nMelanie \u2014 activities: camping (2023-05); charity race (2023-05)\n[said 2023-05-10] Melanie: ran a charity race for mental health\n[said 2023-06-10 \u00b7 happened 2023-06-09] Melanie: took the kids to a pottery class"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations about Melanie; inferred, not stated):\n- [<today>] Melanie loves camping and outdoor family trips"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping with the kids last weekend"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I started a new painting of a lake sunset"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: we ran a charity race for mental health in May"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping at the beach again with the family"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "kind:event",
+            "mined:s1",
+            "person:melanie"
+          ],
+          "Melanie event: went camping at the beach"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I joined a support group last Tuesday"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-05-30",
+            "kind:event",
+            "mined:s1",
+            "person:caroline",
+            "said:2023-06-03"
+          ],
+          "Caroline event: joined a support group"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: the kids loved the pottery class yesterday"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I am researching adoption agencies this month"
+        ],
+        [
+          "reflective",
+          [],
+          "Caroline is creative and is planning to adopt"
+        ]
+      ]
+    ],
+    "read|auto|What does Melanie like to do?": [
+      "full",
+      false,
+      256,
+      [
+        [
+          "semantic",
+          [
+            "cards_header",
+            "lead_section"
+          ],
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Melanie: went camping with the kids\n[said 2023-05-10] Melanie: ran a charity race for mental health\n[said 2023-05-21] Melanie: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Melanie: took the kids to a pottery class"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations about Melanie; inferred, not stated):\n- [<today>] Melanie loves camping and outdoor family trips"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping with the kids last weekend"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I started a new painting of a lake sunset"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: we ran a charity race for mental health in May"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping at the beach again with the family"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "list_card",
+            "person:melanie",
+            "topic:activity"
+          ],
+          "Melanie \u2014 activities: camping (2023-05); charity race (2023-05)"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I joined a support group last Tuesday"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-05-30",
+            "kind:event",
+            "mined:s1",
+            "person:caroline",
+            "said:2023-06-03"
+          ],
+          "Caroline event: joined a support group"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: the kids loved the pottery class yesterday"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I am researching adoption agencies this month"
+        ],
+        [
+          "reflective",
+          [],
+          "Caroline is creative and is planning to adopt"
+        ]
+      ]
+    ],
+    "read|auto|When did Caroline join the support group?": [
+      "full",
+      false,
+      259,
+      [
+        [
+          "semantic",
+          [
+            "cards_header",
+            "lead_section"
+          ],
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Melanie: went camping with the kids\n[said 2023-06-03 \u00b7 happened 2023-05-30] Caroline: joined a support group\n[said 2023-06-10 \u00b7 happened 2023-06-09] Melanie: took the kids to a pottery class"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations about Caroline; inferred, not stated):\n- [<today>] Caroline is creative and is planning to adopt"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping with the kids last weekend"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I started a new painting of a lake sunset"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: we ran a charity race for mental health in May"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "kind:event",
+            "mined:s1",
+            "person:melanie"
+          ],
+          "Melanie event: ran a charity race for mental health"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping at the beach again with the family"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "kind:event",
+            "mined:s1",
+            "person:melanie"
+          ],
+          "Melanie event: went camping at the beach"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "list_card",
+            "person:melanie",
+            "topic:activity"
+          ],
+          "Melanie \u2014 activities: camping (2023-05); charity race (2023-05)"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I joined a support group last Tuesday"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: the kids loved the pottery class yesterday"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I am researching adoption agencies this month"
+        ],
+        [
+          "reflective",
+          [],
+          "Melanie loves camping and outdoor family trips"
+        ]
+      ]
+    ],
+    "read|compose|How many times did Melanie go camping?": [
+      "compose",
+      false,
+      188,
+      [
+        [
+          "semantic",
+          [
+            "count_timeline",
+            "lead_section"
+          ],
+          "Occurrences (dated):\n- [said 2023-05-01] Melanie: I went camping with the kids last weekend"
+        ],
+        [
+          "semantic",
+          [
+            "cards_header",
+            "lead_section"
+          ],
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Melanie: went camping with the kids\nMelanie \u2014 activities: camping (2023-05); charity race (2023-05)\n[said 2023-05-21] Melanie: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Melanie: took the kids to a pottery class"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations about Melanie; inferred, not stated):\n- [<today>] Melanie loves camping and outdoor family trips"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping with the kids last weekend"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping at the beach again with the family"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: the kids loved the pottery class yesterday"
+        ]
+      ]
+    ],
+    "read|compose|What activities has Melanie done?": [
+      "compose",
+      false,
+      179,
+      [
+        [
+          "semantic",
+          [
+            "cards_header",
+            "lead_section"
+          ],
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Melanie: went camping with the kids\nMelanie \u2014 activities: camping (2023-05); charity race (2023-05)\n[said 2023-05-21] Melanie: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Melanie: took the kids to a pottery class"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations about Melanie; inferred, not stated):\n- [<today>] Melanie loves camping and outdoor family trips"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping with the kids last weekend"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: we ran a charity race for mental health in May"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping at the beach again with the family"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: the kids loved the pottery class yesterday"
+        ]
+      ]
+    ],
+    "read|compose|What did Melanie do in May 2023?": [
+      "compose",
+      false,
+      182,
+      [
+        [
+          "semantic",
+          [
+            "cards_header",
+            "lead_section"
+          ],
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Melanie: went camping with the kids\nMelanie \u2014 activities: camping (2023-05); charity race (2023-05)\n[said 2023-05-10] Melanie: ran a charity race for mental health\n[said 2023-06-10 \u00b7 happened 2023-06-09] Melanie: took the kids to a pottery class"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations about Melanie; inferred, not stated):\n- [<today>] Melanie loves camping and outdoor family trips"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping with the kids last weekend"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: we ran a charity race for mental health in May"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping at the beach again with the family"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: the kids loved the pottery class yesterday"
+        ]
+      ]
+    ],
+    "read|compose|What does Melanie like to do?": [
+      "compose",
+      false,
+      176,
+      [
+        [
+          "semantic",
+          [
+            "cards_header",
+            "lead_section"
+          ],
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Melanie: went camping with the kids\n[said 2023-05-10] Melanie: ran a charity race for mental health\n[said 2023-05-21] Melanie: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Melanie: took the kids to a pottery class"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations about Melanie; inferred, not stated):\n- [<today>] Melanie loves camping and outdoor family trips"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping with the kids last weekend"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: we ran a charity race for mental health in May"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: the kids loved the pottery class yesterday"
+        ],
+        [
+          "reflective",
+          [],
+          "Caroline is creative and is planning to adopt"
+        ]
+      ]
+    ],
+    "read|compose|When did Caroline join the support group?": [
+      "compose",
+      false,
+      193,
+      [
+        [
+          "semantic",
+          [
+            "cards_header",
+            "lead_section"
+          ],
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Melanie: went camping with the kids\n[said 2023-06-03 \u00b7 happened 2023-05-30] Caroline: joined a support group\n[said 2023-06-10 \u00b7 happened 2023-06-09] Melanie: took the kids to a pottery class"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations about Caroline; inferred, not stated):\n- [<today>] Caroline is creative and is planning to adopt"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping with the kids last weekend"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I started a new painting of a lake sunset"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping at the beach again with the family"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I joined a support group last Tuesday"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: the kids loved the pottery class yesterday"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I am researching adoption agencies this month"
+        ]
+      ]
+    ],
+    "read|replay|How many times did Melanie go camping?": [
+      "replay",
+      false,
+      188,
+      [
+        [
+          "semantic",
+          [
+            "count_timeline",
+            "lead_section"
+          ],
+          "Occurrences (dated):\n- [said 2023-05-01] Melanie: I went camping with the kids last weekend"
+        ],
+        [
+          "semantic",
+          [
+            "cards_header",
+            "lead_section"
+          ],
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Melanie: went camping with the kids\nMelanie \u2014 activities: camping (2023-05); charity race (2023-05)\n[said 2023-05-21] Melanie: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Melanie: took the kids to a pottery class"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations about Melanie; inferred, not stated):\n- [<today>] Melanie loves camping and outdoor family trips"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping with the kids last weekend"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping at the beach again with the family"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: the kids loved the pottery class yesterday"
+        ]
+      ]
+    ],
+    "read|replay|What activities has Melanie done?": [
+      "replay",
+      false,
+      164,
+      [
+        [
+          "semantic",
+          [
+            "cards_header",
+            "lead_section"
+          ],
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Melanie: went camping with the kids\nMelanie \u2014 activities: camping (2023-05); charity race (2023-05)\n[said 2023-05-21] Melanie: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Melanie: took the kids to a pottery class"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations about Melanie; inferred, not stated):\n- [<today>] Melanie loves camping and outdoor family trips"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping with the kids last weekend"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: we ran a charity race for mental health in May"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: the kids loved the pottery class yesterday"
+        ]
+      ]
+    ],
+    "read|replay|What did Melanie do in May 2023?": [
+      "replay",
+      false,
+      167,
+      [
+        [
+          "semantic",
+          [
+            "cards_header",
+            "lead_section"
+          ],
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Melanie: went camping with the kids\nMelanie \u2014 activities: camping (2023-05); charity race (2023-05)\n[said 2023-05-10] Melanie: ran a charity race for mental health\n[said 2023-06-10 \u00b7 happened 2023-06-09] Melanie: took the kids to a pottery class"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations about Melanie; inferred, not stated):\n- [<today>] Melanie loves camping and outdoor family trips"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping with the kids last weekend"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: we ran a charity race for mental health in May"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: the kids loved the pottery class yesterday"
+        ]
+      ]
+    ],
+    "read|replay|What does Melanie like to do?": [
+      "replay",
+      false,
+      162,
+      [
+        [
+          "semantic",
+          [
+            "cards_header",
+            "lead_section"
+          ],
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Melanie: went camping with the kids\n[said 2023-05-10] Melanie: ran a charity race for mental health\n[said 2023-05-21] Melanie: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Melanie: took the kids to a pottery class"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations about Melanie; inferred, not stated):\n- [<today>] Melanie loves camping and outdoor family trips"
+        ],
+        [
+          "reflective",
+          [],
+          "Caroline is creative and is planning to adopt"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping with the kids last weekend"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: the kids loved the pottery class yesterday"
+        ]
+      ]
+    ],
+    "read|replay|When did Caroline join the support group?": [
+      "replay",
+      false,
+      152,
+      [
+        [
+          "semantic",
+          [
+            "cards_header",
+            "lead_section"
+          ],
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Melanie: went camping with the kids\n[said 2023-06-03 \u00b7 happened 2023-05-30] Caroline: joined a support group\n[said 2023-06-10 \u00b7 happened 2023-06-09] Melanie: took the kids to a pottery class"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations about Caroline; inferred, not stated):\n- [<today>] Caroline is creative and is planning to adopt"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I joined a support group last Tuesday"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: the kids loved the pottery class yesterday"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I am researching adoption agencies this month"
+        ]
+      ]
+    ],
+    "read|retrieve|How many times did Melanie go camping?": [
+      "retrieve",
+      false,
+      188,
+      [
+        [
+          "semantic",
+          [
+            "count_timeline",
+            "lead_section"
+          ],
+          "Occurrences (dated):\n- [said 2023-05-01] Melanie: I went camping with the kids last weekend"
+        ],
+        [
+          "semantic",
+          [
+            "cards_header",
+            "lead_section"
+          ],
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Melanie: went camping with the kids\nMelanie \u2014 activities: camping (2023-05); charity race (2023-05)\n[said 2023-05-21] Melanie: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Melanie: took the kids to a pottery class"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations about Melanie; inferred, not stated):\n- [<today>] Melanie loves camping and outdoor family trips"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping with the kids last weekend"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping at the beach again with the family"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: the kids loved the pottery class yesterday"
+        ]
+      ]
+    ],
+    "read|retrieve|What activities has Melanie done?": [
+      "retrieve",
+      false,
+      164,
+      [
+        [
+          "semantic",
+          [
+            "cards_header",
+            "lead_section"
+          ],
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Melanie: went camping with the kids\nMelanie \u2014 activities: camping (2023-05); charity race (2023-05)\n[said 2023-05-21] Melanie: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Melanie: took the kids to a pottery class"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations about Melanie; inferred, not stated):\n- [<today>] Melanie loves camping and outdoor family trips"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping with the kids last weekend"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: the kids loved the pottery class yesterday"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: we ran a charity race for mental health in May"
+        ]
+      ]
+    ],
+    "read|retrieve|What did Melanie do in May 2023?": [
+      "retrieve",
+      false,
+      167,
+      [
+        [
+          "semantic",
+          [
+            "cards_header",
+            "lead_section"
+          ],
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Melanie: went camping with the kids\nMelanie \u2014 activities: camping (2023-05); charity race (2023-05)\n[said 2023-05-10] Melanie: ran a charity race for mental health\n[said 2023-06-10 \u00b7 happened 2023-06-09] Melanie: took the kids to a pottery class"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations about Melanie; inferred, not stated):\n- [<today>] Melanie loves camping and outdoor family trips"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: we ran a charity race for mental health in May"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping with the kids last weekend"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: the kids loved the pottery class yesterday"
+        ]
+      ]
+    ],
+    "read|retrieve|What does Melanie like to do?": [
+      "retrieve",
+      false,
+      162,
+      [
+        [
+          "semantic",
+          [
+            "cards_header",
+            "lead_section"
+          ],
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Melanie: went camping with the kids\n[said 2023-05-10] Melanie: ran a charity race for mental health\n[said 2023-05-21] Melanie: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Melanie: took the kids to a pottery class"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations about Melanie; inferred, not stated):\n- [<today>] Melanie loves camping and outdoor family trips"
+        ],
+        [
+          "reflective",
+          [],
+          "Caroline is creative and is planning to adopt"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping with the kids last weekend"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: the kids loved the pottery class yesterday"
+        ]
+      ]
+    ],
+    "read|retrieve|When did Caroline join the support group?": [
+      "retrieve",
+      false,
+      152,
+      [
+        [
+          "semantic",
+          [
+            "cards_header",
+            "lead_section"
+          ],
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Melanie: went camping with the kids\n[said 2023-06-03 \u00b7 happened 2023-05-30] Caroline: joined a support group\n[said 2023-06-10 \u00b7 happened 2023-06-09] Melanie: took the kids to a pottery class"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations about Caroline; inferred, not stated):\n- [<today>] Caroline is creative and is planning to adopt"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: the kids loved the pottery class yesterday"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I joined a support group last Tuesday"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I am researching adoption agencies this month"
+        ]
+      ]
+    ]
+  },
+  "lead-blocks-skip-temporal": {
+    "assemble|How many times did Melanie go camping?": [
+      188,
+      [
+        "Occurrences (dated):\n- [said 2023-05-01] Melanie: I went camping with the kids last weekend",
+        "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Melanie: went camping with the kids\nMelanie \u2014 activities: camping (2023-05); charity race (2023-05)\n[said 2023-05-21] Melanie: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Melanie: took the kids to a pottery class",
+        "PROFILE NOTES (reflected from earlier conversations about Melanie; inferred, not stated):\n- [<today>] Melanie loves camping and outdoor family trips",
+        "Melanie: I went camping with the kids last weekend",
+        "Melanie: I went camping at the beach again with the family",
+        "Melanie: the kids loved the pottery class yesterday"
+      ]
+    ],
+    "assemble|What activities has Melanie done?": [
+      164,
+      [
+        "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Melanie: went camping with the kids\nMelanie \u2014 activities: camping (2023-05); charity race (2023-05)\n[said 2023-05-21] Melanie: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Melanie: took the kids to a pottery class",
+        "PROFILE NOTES (reflected from earlier conversations about Melanie; inferred, not stated):\n- [<today>] Melanie loves camping and outdoor family trips",
+        "Melanie: I went camping with the kids last weekend",
+        "Melanie: the kids loved the pottery class yesterday",
+        "Melanie: we ran a charity race for mental health in May"
+      ]
+    ],
+    "assemble|What did Melanie do in May 2023?": [
+      161,
+      [
+        "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Melanie: went camping with the kids\nMelanie \u2014 activities: camping (2023-05); charity race (2023-05)\n[said 2023-05-10] Melanie: ran a charity race for mental health\n[said 2023-05-21] Melanie: went camping at the beach",
+        "PROFILE NOTES (reflected from earlier conversations about Melanie; inferred, not stated):\n- [<today>] Melanie loves camping and outdoor family trips",
+        "Melanie: we ran a charity race for mental health in May",
+        "Melanie: I went camping at the beach again with the family",
+        "Melanie: I went camping with the kids last weekend"
+      ]
+    ],
+    "assemble|What does Melanie like to do?": [
+      162,
+      [
+        "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Melanie: went camping with the kids\n[said 2023-05-10] Melanie: ran a charity race for mental health\n[said 2023-05-21] Melanie: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Melanie: took the kids to a pottery class",
+        "PROFILE NOTES (reflected from earlier conversations about Melanie; inferred, not stated):\n- [<today>] Melanie loves camping and outdoor family trips",
+        "Caroline is creative and is planning to adopt",
+        "Melanie: I went camping with the kids last weekend",
+        "Melanie: the kids loved the pottery class yesterday"
+      ]
+    ],
+    "assemble|When did Caroline join the support group?": [
+      73,
+      [
+        "Caroline event: joined a support group",
+        "PROFILE NOTES (reflected from earlier conversations about Caroline; inferred, not stated):\n- [<today>] Caroline is creative and is planning to adopt",
+        "Melanie: the kids loved the pottery class yesterday",
+        "Caroline: I joined a support group last Tuesday"
+      ]
+    ],
+    "read|auto|How many times did Melanie go camping?": [
+      "full",
+      false,
+      276,
+      [
+        [
+          "semantic",
+          [
+            "count_timeline",
+            "lead_section"
+          ],
+          "Occurrences (dated):\n- [said 2023-05-01] Melanie: I went camping with the kids last weekend"
+        ],
+        [
+          "semantic",
+          [
+            "cards_header",
+            "lead_section"
+          ],
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Melanie: went camping with the kids\nMelanie \u2014 activities: camping (2023-05); charity race (2023-05)\n[said 2023-05-21] Melanie: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Melanie: took the kids to a pottery class"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations about Melanie; inferred, not stated):\n- [<today>] Melanie loves camping and outdoor family trips"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping with the kids last weekend"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I started a new painting of a lake sunset"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: we ran a charity race for mental health in May"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "kind:event",
+            "mined:s1",
+            "person:melanie"
+          ],
+          "Melanie event: ran a charity race for mental health"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping at the beach again with the family"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I joined a support group last Tuesday"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-05-30",
+            "kind:event",
+            "mined:s1",
+            "person:caroline",
+            "said:2023-06-03"
+          ],
+          "Caroline event: joined a support group"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: the kids loved the pottery class yesterday"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I am researching adoption agencies this month"
+        ],
+        [
+          "reflective",
+          [],
+          "Caroline is creative and is planning to adopt"
+        ]
+      ]
+    ],
+    "read|auto|What activities has Melanie done?": [
+      "full",
+      false,
+      253,
+      [
+        [
+          "semantic",
+          [
+            "cards_header",
+            "lead_section"
+          ],
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Melanie: went camping with the kids\nMelanie \u2014 activities: camping (2023-05); charity race (2023-05)\n[said 2023-05-21] Melanie: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Melanie: took the kids to a pottery class"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations about Melanie; inferred, not stated):\n- [<today>] Melanie loves camping and outdoor family trips"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping with the kids last weekend"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I started a new painting of a lake sunset"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: we ran a charity race for mental health in May"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "kind:event",
+            "mined:s1",
+            "person:melanie"
+          ],
+          "Melanie event: ran a charity race for mental health"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping at the beach again with the family"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I joined a support group last Tuesday"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-05-30",
+            "kind:event",
+            "mined:s1",
+            "person:caroline",
+            "said:2023-06-03"
+          ],
+          "Caroline event: joined a support group"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: the kids loved the pottery class yesterday"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I am researching adoption agencies this month"
+        ],
+        [
+          "reflective",
+          [],
+          "Caroline is creative and is planning to adopt"
+        ]
+      ]
+    ],
+    "read|auto|What did Melanie do in May 2023?": [
+      "full",
+      false,
+      247,
+      [
+        [
+          "semantic",
+          [
+            "cards_header",
+            "lead_section"
+          ],
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Melanie: went camping with the kids\nMelanie \u2014 activities: camping (2023-05); charity race (2023-05)\n[said 2023-05-10] Melanie: ran a charity race for mental health\n[said 2023-05-21] Melanie: went camping at the beach"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations about Melanie; inferred, not stated):\n- [<today>] Melanie loves camping and outdoor family trips"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping with the kids last weekend"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I started a new painting of a lake sunset"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: we ran a charity race for mental health in May"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping at the beach again with the family"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I joined a support group last Tuesday"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-05-30",
+            "kind:event",
+            "mined:s1",
+            "person:caroline",
+            "said:2023-06-03"
+          ],
+          "Caroline event: joined a support group"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: the kids loved the pottery class yesterday"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-06-09",
+            "kind:event",
+            "mined:s1",
+            "person:melanie"
+          ],
+          "Melanie event: took the kids to a pottery class"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I am researching adoption agencies this month"
+        ],
+        [
+          "reflective",
+          [],
+          "Caroline is creative and is planning to adopt"
+        ]
+      ]
+    ],
+    "read|auto|What does Melanie like to do?": [
+      "full",
+      false,
+      256,
+      [
+        [
+          "semantic",
+          [
+            "cards_header",
+            "lead_section"
+          ],
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Melanie: went camping with the kids\n[said 2023-05-10] Melanie: ran a charity race for mental health\n[said 2023-05-21] Melanie: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Melanie: took the kids to a pottery class"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations about Melanie; inferred, not stated):\n- [<today>] Melanie loves camping and outdoor family trips"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping with the kids last weekend"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I started a new painting of a lake sunset"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: we ran a charity race for mental health in May"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping at the beach again with the family"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "list_card",
+            "person:melanie",
+            "topic:activity"
+          ],
+          "Melanie \u2014 activities: camping (2023-05); charity race (2023-05)"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I joined a support group last Tuesday"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-05-30",
+            "kind:event",
+            "mined:s1",
+            "person:caroline",
+            "said:2023-06-03"
+          ],
+          "Caroline event: joined a support group"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: the kids loved the pottery class yesterday"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I am researching adoption agencies this month"
+        ],
+        [
+          "reflective",
+          [],
+          "Caroline is creative and is planning to adopt"
+        ]
+      ]
+    ],
+    "read|auto|When did Caroline join the support group?": [
+      "full",
+      false,
+      217,
+      [
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations about Caroline; inferred, not stated):\n- [<today>] Caroline is creative and is planning to adopt"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping with the kids last weekend"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-04-29",
+            "kind:event",
+            "mined:s1",
+            "person:melanie",
+            "said:2023-05-01"
+          ],
+          "Melanie event: went camping with the kids"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I started a new painting of a lake sunset"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: we ran a charity race for mental health in May"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "kind:event",
+            "mined:s1",
+            "person:melanie"
+          ],
+          "Melanie event: ran a charity race for mental health"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping at the beach again with the family"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "kind:event",
+            "mined:s1",
+            "person:melanie"
+          ],
+          "Melanie event: went camping at the beach"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "list_card",
+            "person:melanie",
+            "topic:activity"
+          ],
+          "Melanie \u2014 activities: camping (2023-05); charity race (2023-05)"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I joined a support group last Tuesday"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-05-30",
+            "kind:event",
+            "mined:s1",
+            "person:caroline",
+            "said:2023-06-03"
+          ],
+          "Caroline event: joined a support group"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: the kids loved the pottery class yesterday"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-06-09",
+            "kind:event",
+            "mined:s1",
+            "person:melanie"
+          ],
+          "Melanie event: took the kids to a pottery class"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I am researching adoption agencies this month"
+        ],
+        [
+          "reflective",
+          [],
+          "Melanie loves camping and outdoor family trips"
+        ]
+      ]
+    ],
+    "read|compose|How many times did Melanie go camping?": [
+      "compose",
+      false,
+      188,
+      [
+        [
+          "semantic",
+          [
+            "count_timeline",
+            "lead_section"
+          ],
+          "Occurrences (dated):\n- [said 2023-05-01] Melanie: I went camping with the kids last weekend"
+        ],
+        [
+          "semantic",
+          [
+            "cards_header",
+            "lead_section"
+          ],
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Melanie: went camping with the kids\nMelanie \u2014 activities: camping (2023-05); charity race (2023-05)\n[said 2023-05-21] Melanie: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Melanie: took the kids to a pottery class"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations about Melanie; inferred, not stated):\n- [<today>] Melanie loves camping and outdoor family trips"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping with the kids last weekend"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping at the beach again with the family"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: the kids loved the pottery class yesterday"
+        ]
+      ]
+    ],
+    "read|compose|What activities has Melanie done?": [
+      "compose",
+      false,
+      179,
+      [
+        [
+          "semantic",
+          [
+            "cards_header",
+            "lead_section"
+          ],
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Melanie: went camping with the kids\nMelanie \u2014 activities: camping (2023-05); charity race (2023-05)\n[said 2023-05-21] Melanie: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Melanie: took the kids to a pottery class"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations about Melanie; inferred, not stated):\n- [<today>] Melanie loves camping and outdoor family trips"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping with the kids last weekend"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: we ran a charity race for mental health in May"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping at the beach again with the family"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: the kids loved the pottery class yesterday"
+        ]
+      ]
+    ],
+    "read|compose|What did Melanie do in May 2023?": [
+      "compose",
+      false,
+      161,
+      [
+        [
+          "semantic",
+          [
+            "cards_header",
+            "lead_section"
+          ],
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Melanie: went camping with the kids\nMelanie \u2014 activities: camping (2023-05); charity race (2023-05)\n[said 2023-05-10] Melanie: ran a charity race for mental health\n[said 2023-05-21] Melanie: went camping at the beach"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations about Melanie; inferred, not stated):\n- [<today>] Melanie loves camping and outdoor family trips"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping with the kids last weekend"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: we ran a charity race for mental health in May"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping at the beach again with the family"
+        ]
+      ]
+    ],
+    "read|compose|What does Melanie like to do?": [
+      "compose",
+      false,
+      176,
+      [
+        [
+          "semantic",
+          [
+            "cards_header",
+            "lead_section"
+          ],
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Melanie: went camping with the kids\n[said 2023-05-10] Melanie: ran a charity race for mental health\n[said 2023-05-21] Melanie: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Melanie: took the kids to a pottery class"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations about Melanie; inferred, not stated):\n- [<today>] Melanie loves camping and outdoor family trips"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping with the kids last weekend"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: we ran a charity race for mental health in May"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: the kids loved the pottery class yesterday"
+        ],
+        [
+          "reflective",
+          [],
+          "Caroline is creative and is planning to adopt"
+        ]
+      ]
+    ],
+    "read|compose|When did Caroline join the support group?": [
+      "compose",
+      false,
+      115,
+      [
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations about Caroline; inferred, not stated):\n- [<today>] Caroline is creative and is planning to adopt"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping with the kids last weekend"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping at the beach again with the family"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I joined a support group last Tuesday"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-05-30",
+            "kind:event",
+            "mined:s1",
+            "person:caroline",
+            "said:2023-06-03"
+          ],
+          "Caroline event: joined a support group"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: the kids loved the pottery class yesterday"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I am researching adoption agencies this month"
+        ]
+      ]
+    ],
+    "read|replay|How many times did Melanie go camping?": [
+      "replay",
+      false,
+      188,
+      [
+        [
+          "semantic",
+          [
+            "count_timeline",
+            "lead_section"
+          ],
+          "Occurrences (dated):\n- [said 2023-05-01] Melanie: I went camping with the kids last weekend"
+        ],
+        [
+          "semantic",
+          [
+            "cards_header",
+            "lead_section"
+          ],
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Melanie: went camping with the kids\nMelanie \u2014 activities: camping (2023-05); charity race (2023-05)\n[said 2023-05-21] Melanie: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Melanie: took the kids to a pottery class"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations about Melanie; inferred, not stated):\n- [<today>] Melanie loves camping and outdoor family trips"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping with the kids last weekend"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping at the beach again with the family"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: the kids loved the pottery class yesterday"
+        ]
+      ]
+    ],
+    "read|replay|What activities has Melanie done?": [
+      "replay",
+      false,
+      164,
+      [
+        [
+          "semantic",
+          [
+            "cards_header",
+            "lead_section"
+          ],
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Melanie: went camping with the kids\nMelanie \u2014 activities: camping (2023-05); charity race (2023-05)\n[said 2023-05-21] Melanie: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Melanie: took the kids to a pottery class"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations about Melanie; inferred, not stated):\n- [<today>] Melanie loves camping and outdoor family trips"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping with the kids last weekend"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: we ran a charity race for mental health in May"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: the kids loved the pottery class yesterday"
+        ]
+      ]
+    ],
+    "read|replay|What did Melanie do in May 2023?": [
+      "replay",
+      false,
+      161,
+      [
+        [
+          "semantic",
+          [
+            "cards_header",
+            "lead_section"
+          ],
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Melanie: went camping with the kids\nMelanie \u2014 activities: camping (2023-05); charity race (2023-05)\n[said 2023-05-10] Melanie: ran a charity race for mental health\n[said 2023-05-21] Melanie: went camping at the beach"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations about Melanie; inferred, not stated):\n- [<today>] Melanie loves camping and outdoor family trips"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping with the kids last weekend"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: we ran a charity race for mental health in May"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping at the beach again with the family"
+        ]
+      ]
+    ],
+    "read|replay|What does Melanie like to do?": [
+      "replay",
+      false,
+      162,
+      [
+        [
+          "semantic",
+          [
+            "cards_header",
+            "lead_section"
+          ],
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Melanie: went camping with the kids\n[said 2023-05-10] Melanie: ran a charity race for mental health\n[said 2023-05-21] Melanie: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Melanie: took the kids to a pottery class"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations about Melanie; inferred, not stated):\n- [<today>] Melanie loves camping and outdoor family trips"
+        ],
+        [
+          "reflective",
+          [],
+          "Caroline is creative and is planning to adopt"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping with the kids last weekend"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: the kids loved the pottery class yesterday"
+        ]
+      ]
+    ],
+    "read|replay|When did Caroline join the support group?": [
+      "replay",
+      false,
+      73,
+      [
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-05-30",
+            "kind:event",
+            "mined:s1",
+            "person:caroline",
+            "said:2023-06-03"
+          ],
+          "Caroline event: joined a support group"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations about Caroline; inferred, not stated):\n- [<today>] Caroline is creative and is planning to adopt"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I joined a support group last Tuesday"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: the kids loved the pottery class yesterday"
+        ]
+      ]
+    ],
+    "read|retrieve|How many times did Melanie go camping?": [
+      "retrieve",
+      false,
+      188,
+      [
+        [
+          "semantic",
+          [
+            "count_timeline",
+            "lead_section"
+          ],
+          "Occurrences (dated):\n- [said 2023-05-01] Melanie: I went camping with the kids last weekend"
+        ],
+        [
+          "semantic",
+          [
+            "cards_header",
+            "lead_section"
+          ],
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Melanie: went camping with the kids\nMelanie \u2014 activities: camping (2023-05); charity race (2023-05)\n[said 2023-05-21] Melanie: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Melanie: took the kids to a pottery class"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations about Melanie; inferred, not stated):\n- [<today>] Melanie loves camping and outdoor family trips"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping with the kids last weekend"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping at the beach again with the family"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: the kids loved the pottery class yesterday"
+        ]
+      ]
+    ],
+    "read|retrieve|What activities has Melanie done?": [
+      "retrieve",
+      false,
+      164,
+      [
+        [
+          "semantic",
+          [
+            "cards_header",
+            "lead_section"
+          ],
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Melanie: went camping with the kids\nMelanie \u2014 activities: camping (2023-05); charity race (2023-05)\n[said 2023-05-21] Melanie: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Melanie: took the kids to a pottery class"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations about Melanie; inferred, not stated):\n- [<today>] Melanie loves camping and outdoor family trips"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping with the kids last weekend"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: the kids loved the pottery class yesterday"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: we ran a charity race for mental health in May"
+        ]
+      ]
+    ],
+    "read|retrieve|What did Melanie do in May 2023?": [
+      "retrieve",
+      false,
+      161,
+      [
+        [
+          "semantic",
+          [
+            "cards_header",
+            "lead_section"
+          ],
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Melanie: went camping with the kids\nMelanie \u2014 activities: camping (2023-05); charity race (2023-05)\n[said 2023-05-10] Melanie: ran a charity race for mental health\n[said 2023-05-21] Melanie: went camping at the beach"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations about Melanie; inferred, not stated):\n- [<today>] Melanie loves camping and outdoor family trips"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: we ran a charity race for mental health in May"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping at the beach again with the family"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping with the kids last weekend"
+        ]
+      ]
+    ],
+    "read|retrieve|What does Melanie like to do?": [
+      "retrieve",
+      false,
+      162,
+      [
+        [
+          "semantic",
+          [
+            "cards_header",
+            "lead_section"
+          ],
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Melanie: went camping with the kids\n[said 2023-05-10] Melanie: ran a charity race for mental health\n[said 2023-05-21] Melanie: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Melanie: took the kids to a pottery class"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations about Melanie; inferred, not stated):\n- [<today>] Melanie loves camping and outdoor family trips"
+        ],
+        [
+          "reflective",
+          [],
+          "Caroline is creative and is planning to adopt"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping with the kids last weekend"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: the kids loved the pottery class yesterday"
+        ]
+      ]
+    ],
+    "read|retrieve|When did Caroline join the support group?": [
+      "retrieve",
+      false,
+      73,
+      [
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-05-30",
+            "kind:event",
+            "mined:s1",
+            "person:caroline",
+            "said:2023-06-03"
+          ],
+          "Caroline event: joined a support group"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations about Caroline; inferred, not stated):\n- [<today>] Caroline is creative and is planning to adopt"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: the kids loved the pottery class yesterday"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I joined a support group last Tuesday"
+        ]
+      ]
+    ]
+  },
+  "packed-profile": {
+    "assemble|How many times did Melanie go camping?": [
+      227,
+      [
+        "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01] Melanie: went camping with the kids\nMelanie \u2014 activities: camping (2023-05); charity race (2023-05)\n[said 2023-05-10] Melanie: ran a charity race for mental health\n[said 2023-05-21] Melanie: went camping at the beach\n[said 2023-06-10] Melanie: took the kids to a pottery class",
+        "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nObservations:\n- [<today>] Melanie loves camping and outdoor family trips\nRelated:\n- [2023-05-01] Melanie: I went camping with the kids last weekend\n- [2023-05-21] Melanie: I went camping at the beach again with the family",
+        "Melanie: the kids loved the pottery class yesterday",
+        "Melanie: we ran a charity race for mental health in May",
+        "Caroline: I am researching adoption agencies this month"
+      ]
+    ],
+    "assemble|What activities has Melanie done?": [
+      225,
+      [
+        "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01] Melanie: went camping with the kids\nMelanie \u2014 activities: camping (2023-05); charity race (2023-05)\n[said 2023-05-10] Melanie: ran a charity race for mental health\n[said 2023-05-21] Melanie: went camping at the beach\n[said 2023-06-10] Melanie: took the kids to a pottery class",
+        "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nObservations:\n- [<today>] Melanie loves camping and outdoor family trips\nRelated:\n- [2023-05-01] Melanie: I went camping with the kids last weekend\n- [2023-06-10] Melanie: the kids loved the pottery class yesterday",
+        "Melanie: we ran a charity race for mental health in May",
+        "Melanie: I went camping at the beach again with the family",
+        "Caroline: I joined a support group last Tuesday"
+      ]
+    ],
+    "assemble|What did Melanie do in May 2023?": [
+      225,
+      [
+        "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01] Melanie: went camping with the kids\nMelanie \u2014 activities: camping (2023-05); charity race (2023-05)\n[said 2023-05-10] Melanie: ran a charity race for mental health\n[said 2023-05-21] Melanie: went camping at the beach\n[said 2023-06-10] Melanie: took the kids to a pottery class",
+        "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nObservations:\n- [<today>] Melanie loves camping and outdoor family trips\nRelated:\n- [2023-05-01] Melanie: I went camping with the kids last weekend\n- [2023-05-10] Melanie: we ran a charity race for mental health in May",
+        "Caroline is creative and is planning to adopt",
+        "Melanie: the kids loved the pottery class yesterday",
+        "Melanie: I went camping at the beach again with the family"
+      ]
+    ],
+    "assemble|What does Melanie like to do?": [
+      224,
+      [
+        "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01] Melanie: went camping with the kids\nMelanie \u2014 activities: camping (2023-05); charity race (2023-05)\n[said 2023-05-10] Melanie: ran a charity race for mental health\n[said 2023-05-21] Melanie: went camping at the beach\n[said 2023-06-10] Melanie: took the kids to a pottery class",
+        "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nObservations:\n- [<today>] Melanie loves camping and outdoor family trips\n- [<today>] Caroline is creative and is planning to adopt\nRelated:\n- [2023-05-01] Melanie: I went camping with the kids last weekend",
+        "Melanie: the kids loved the pottery class yesterday",
+        "Melanie: we ran a charity race for mental health in May",
+        "Melanie: I went camping at the beach again with the family"
+      ]
+    ],
+    "assemble|When did Caroline join the support group?": [
+      230,
+      [
+        "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01] Melanie: went camping with the kids\n[said 2023-06-03] Caroline: joined a support group\n[said 2023-06-10] Melanie: took the kids to a pottery class",
+        "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nObservations:\n- [<today>] Caroline is creative and is planning to adopt\nRelated:\n- [2023-05-01] Melanie: I went camping with the kids last weekend\n- [2023-05-21] Melanie: I went camping at the beach again with the family\n- [2023-06-03] Caroline: I joined a support group last Tuesday\n- [2023-06-10] Melanie: the kids loved the pottery class yesterday\n- [2023-07-02] Caroline: I am researching adoption agencies this month",
+        "Caroline: I started a new painting of a lake sunset",
+        "Melanie: we ran a charity race for mental health in May"
+      ]
+    ],
+    "read|auto|How many times did Melanie go camping?": [
+      "full",
+      false,
+      274,
+      [
+        [
+          "semantic",
+          [
+            "cards_header",
+            "lead_section"
+          ],
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01] Melanie: went camping with the kids\nMelanie \u2014 activities: camping (2023-05); charity race (2023-05)\n[said 2023-05-10] Melanie: ran a charity race for mental health\n[said 2023-05-21] Melanie: went camping at the beach\n[said 2023-06-10] Melanie: took the kids to a pottery class"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nObservations:\n- [<today>] Melanie loves camping and outdoor family trips\nRelated:\n- [2023-05-01] Melanie: I went camping with the kids last weekend\n- [2023-05-21] Melanie: I went camping at the beach again with the family"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I started a new painting of a lake sunset"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: we ran a charity race for mental health in May"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I joined a support group last Tuesday"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-05-30",
+            "kind:event",
+            "mined:s1",
+            "person:caroline",
+            "said:2023-06-03"
+          ],
+          "Caroline event: joined a support group"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: the kids loved the pottery class yesterday"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I am researching adoption agencies this month"
+        ],
+        [
+          "reflective",
+          [],
+          "Caroline is creative and is planning to adopt"
+        ]
+      ]
+    ],
+    "read|auto|What activities has Melanie done?": [
+      "full",
+      false,
+      274,
+      [
+        [
+          "semantic",
+          [
+            "cards_header",
+            "lead_section"
+          ],
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01] Melanie: went camping with the kids\nMelanie \u2014 activities: camping (2023-05); charity race (2023-05)\n[said 2023-05-10] Melanie: ran a charity race for mental health\n[said 2023-05-21] Melanie: went camping at the beach\n[said 2023-06-10] Melanie: took the kids to a pottery class"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nObservations:\n- [<today>] Melanie loves camping and outdoor family trips\nRelated:\n- [2023-05-01] Melanie: I went camping with the kids last weekend\n- [2023-06-10] Melanie: the kids loved the pottery class yesterday"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I started a new painting of a lake sunset"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: we ran a charity race for mental health in May"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping at the beach again with the family"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I joined a support group last Tuesday"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-05-30",
+            "kind:event",
+            "mined:s1",
+            "person:caroline",
+            "said:2023-06-03"
+          ],
+          "Caroline event: joined a support group"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I am researching adoption agencies this month"
+        ],
+        [
+          "reflective",
+          [],
+          "Caroline is creative and is planning to adopt"
+        ]
+      ]
+    ],
+    "read|auto|What did Melanie do in May 2023?": [
+      "full",
+      false,
+      274,
+      [
+        [
+          "semantic",
+          [
+            "cards_header",
+            "lead_section"
+          ],
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01] Melanie: went camping with the kids\nMelanie \u2014 activities: camping (2023-05); charity race (2023-05)\n[said 2023-05-10] Melanie: ran a charity race for mental health\n[said 2023-05-21] Melanie: went camping at the beach\n[said 2023-06-10] Melanie: took the kids to a pottery class"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nObservations:\n- [<today>] Melanie loves camping and outdoor family trips\nRelated:\n- [2023-05-01] Melanie: I went camping with the kids last weekend\n- [2023-05-10] Melanie: we ran a charity race for mental health in May"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I started a new painting of a lake sunset"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping at the beach again with the family"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I joined a support group last Tuesday"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-05-30",
+            "kind:event",
+            "mined:s1",
+            "person:caroline",
+            "said:2023-06-03"
+          ],
+          "Caroline event: joined a support group"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: the kids loved the pottery class yesterday"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I am researching adoption agencies this month"
+        ],
+        [
+          "reflective",
+          [],
+          "Caroline is creative and is planning to adopt"
+        ]
+      ]
+    ],
+    "read|auto|What does Melanie like to do?": [
+      "full",
+      false,
+      273,
+      [
+        [
+          "semantic",
+          [
+            "cards_header",
+            "lead_section"
+          ],
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01] Melanie: went camping with the kids\nMelanie \u2014 activities: camping (2023-05); charity race (2023-05)\n[said 2023-05-10] Melanie: ran a charity race for mental health\n[said 2023-05-21] Melanie: went camping at the beach\n[said 2023-06-10] Melanie: took the kids to a pottery class"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nObservations:\n- [<today>] Melanie loves camping and outdoor family trips\n- [<today>] Caroline is creative and is planning to adopt\nRelated:\n- [2023-05-01] Melanie: I went camping with the kids last weekend"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I started a new painting of a lake sunset"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: we ran a charity race for mental health in May"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping at the beach again with the family"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I joined a support group last Tuesday"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-05-30",
+            "kind:event",
+            "mined:s1",
+            "person:caroline",
+            "said:2023-06-03"
+          ],
+          "Caroline event: joined a support group"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: the kids loved the pottery class yesterday"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I am researching adoption agencies this month"
+        ]
+      ]
+    ],
+    "read|auto|When did Caroline join the support group?": [
+      "full",
+      false,
+      282,
+      [
+        [
+          "semantic",
+          [
+            "cards_header",
+            "lead_section"
+          ],
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01] Melanie: went camping with the kids\n[said 2023-06-03] Caroline: joined a support group\n[said 2023-06-10] Melanie: took the kids to a pottery class"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nObservations:\n- [<today>] Caroline is creative and is planning to adopt\nRelated:\n- [2023-05-01] Melanie: I went camping with the kids last weekend\n- [2023-05-21] Melanie: I went camping at the beach again with the family\n- [2023-06-03] Caroline: I joined a support group last Tuesday\n- [2023-06-10] Melanie: the kids loved the pottery class yesterday\n- [2023-07-02] Caroline: I am researching adoption agencies this month"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I started a new painting of a lake sunset"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: we ran a charity race for mental health in May"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "kind:event",
+            "mined:s1",
+            "person:melanie"
+          ],
+          "Melanie event: ran a charity race for mental health"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "kind:event",
+            "mined:s1",
+            "person:melanie"
+          ],
+          "Melanie event: went camping at the beach"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "list_card",
+            "person:melanie",
+            "topic:activity"
+          ],
+          "Melanie \u2014 activities: camping (2023-05); charity race (2023-05)"
+        ],
+        [
+          "reflective",
+          [],
+          "Melanie loves camping and outdoor family trips"
+        ]
+      ]
+    ],
+    "read|compose|How many times did Melanie go camping?": [
+      "compose",
+      false,
+      199,
+      [
+        [
+          "semantic",
+          [
+            "cards_header",
+            "lead_section"
+          ],
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01] Melanie: went camping with the kids\nMelanie \u2014 activities: camping (2023-05); charity race (2023-05)\n[said 2023-05-10] Melanie: ran a charity race for mental health\n[said 2023-05-21] Melanie: went camping at the beach\n[said 2023-06-10] Melanie: took the kids to a pottery class"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nObservations:\n- [<today>] Melanie loves camping and outdoor family trips\nRelated:\n- [2023-05-01] Melanie: I went camping with the kids last weekend\n- [2023-05-21] Melanie: I went camping at the beach again with the family"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: the kids loved the pottery class yesterday"
+        ]
+      ]
+    ],
+    "read|compose|What activities has Melanie done?": [
+      "compose",
+      false,
+      213,
+      [
+        [
+          "semantic",
+          [
+            "cards_header",
+            "lead_section"
+          ],
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01] Melanie: went camping with the kids\nMelanie \u2014 activities: camping (2023-05); charity race (2023-05)\n[said 2023-05-10] Melanie: ran a charity race for mental health\n[said 2023-05-21] Melanie: went camping at the beach\n[said 2023-06-10] Melanie: took the kids to a pottery class"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nObservations:\n- [<today>] Melanie loves camping and outdoor family trips\nRelated:\n- [2023-05-01] Melanie: I went camping with the kids last weekend\n- [2023-06-10] Melanie: the kids loved the pottery class yesterday"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: we ran a charity race for mental health in May"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping at the beach again with the family"
+        ]
+      ]
+    ],
+    "read|compose|What did Melanie do in May 2023?": [
+      "compose",
+      false,
+      213,
+      [
+        [
+          "semantic",
+          [
+            "cards_header",
+            "lead_section"
+          ],
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01] Melanie: went camping with the kids\nMelanie \u2014 activities: camping (2023-05); charity race (2023-05)\n[said 2023-05-10] Melanie: ran a charity race for mental health\n[said 2023-05-21] Melanie: went camping at the beach\n[said 2023-06-10] Melanie: took the kids to a pottery class"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nObservations:\n- [<today>] Melanie loves camping and outdoor family trips\nRelated:\n- [2023-05-01] Melanie: I went camping with the kids last weekend\n- [2023-05-10] Melanie: we ran a charity race for mental health in May"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping at the beach again with the family"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: the kids loved the pottery class yesterday"
+        ]
+      ]
+    ],
+    "read|compose|What does Melanie like to do?": [
+      "compose",
+      false,
+      209,
+      [
+        [
+          "semantic",
+          [
+            "cards_header",
+            "lead_section"
+          ],
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01] Melanie: went camping with the kids\nMelanie \u2014 activities: camping (2023-05); charity race (2023-05)\n[said 2023-05-10] Melanie: ran a charity race for mental health\n[said 2023-05-21] Melanie: went camping at the beach\n[said 2023-06-10] Melanie: took the kids to a pottery class"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nObservations:\n- [<today>] Melanie loves camping and outdoor family trips\n- [<today>] Caroline is creative and is planning to adopt\nRelated:\n- [2023-05-01] Melanie: I went camping with the kids last weekend"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: we ran a charity race for mental health in May"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: the kids loved the pottery class yesterday"
+        ]
+      ]
+    ],
+    "read|compose|When did Caroline join the support group?": [
+      "compose",
+      false,
+      242,
+      [
+        [
+          "semantic",
+          [
+            "cards_header",
+            "lead_section"
+          ],
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01] Melanie: went camping with the kids\n[said 2023-06-03] Caroline: joined a support group\n[said 2023-06-10] Melanie: took the kids to a pottery class"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nObservations:\n- [<today>] Caroline is creative and is planning to adopt\nRelated:\n- [2023-05-01] Melanie: I went camping with the kids last weekend\n- [2023-05-21] Melanie: I went camping at the beach again with the family\n- [2023-06-03] Caroline: I joined a support group last Tuesday\n- [2023-06-10] Melanie: the kids loved the pottery class yesterday\n- [2023-07-02] Caroline: I am researching adoption agencies this month"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I started a new painting of a lake sunset"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: we ran a charity race for mental health in May"
+        ],
+        [
+          "reflective",
+          [],
+          "Melanie loves camping and outdoor family trips"
+        ]
+      ]
+    ],
+    "read|replay|How many times did Melanie go camping?": [
+      "replay",
+      false,
+      227,
+      [
+        [
+          "semantic",
+          [
+            "cards_header",
+            "lead_section"
+          ],
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01] Melanie: went camping with the kids\nMelanie \u2014 activities: camping (2023-05); charity race (2023-05)\n[said 2023-05-10] Melanie: ran a charity race for mental health\n[said 2023-05-21] Melanie: went camping at the beach\n[said 2023-06-10] Melanie: took the kids to a pottery class"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nObservations:\n- [<today>] Melanie loves camping and outdoor family trips\nRelated:\n- [2023-05-01] Melanie: I went camping with the kids last weekend\n- [2023-05-21] Melanie: I went camping at the beach again with the family"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: we ran a charity race for mental health in May"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: the kids loved the pottery class yesterday"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I am researching adoption agencies this month"
+        ]
+      ]
+    ],
+    "read|replay|What activities has Melanie done?": [
+      "replay",
+      false,
+      225,
+      [
+        [
+          "semantic",
+          [
+            "cards_header",
+            "lead_section"
+          ],
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01] Melanie: went camping with the kids\nMelanie \u2014 activities: camping (2023-05); charity race (2023-05)\n[said 2023-05-10] Melanie: ran a charity race for mental health\n[said 2023-05-21] Melanie: went camping at the beach\n[said 2023-06-10] Melanie: took the kids to a pottery class"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nObservations:\n- [<today>] Melanie loves camping and outdoor family trips\nRelated:\n- [2023-05-01] Melanie: I went camping with the kids last weekend\n- [2023-06-10] Melanie: the kids loved the pottery class yesterday"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: we ran a charity race for mental health in May"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping at the beach again with the family"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I joined a support group last Tuesday"
+        ]
+      ]
+    ],
+    "read|replay|What did Melanie do in May 2023?": [
+      "replay",
+      false,
+      225,
+      [
+        [
+          "semantic",
+          [
+            "cards_header",
+            "lead_section"
+          ],
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01] Melanie: went camping with the kids\nMelanie \u2014 activities: camping (2023-05); charity race (2023-05)\n[said 2023-05-10] Melanie: ran a charity race for mental health\n[said 2023-05-21] Melanie: went camping at the beach\n[said 2023-06-10] Melanie: took the kids to a pottery class"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nObservations:\n- [<today>] Melanie loves camping and outdoor family trips\nRelated:\n- [2023-05-01] Melanie: I went camping with the kids last weekend\n- [2023-05-10] Melanie: we ran a charity race for mental health in May"
+        ],
+        [
+          "reflective",
+          [],
+          "Caroline is creative and is planning to adopt"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping at the beach again with the family"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: the kids loved the pottery class yesterday"
+        ]
+      ]
+    ],
+    "read|replay|What does Melanie like to do?": [
+      "replay",
+      false,
+      224,
+      [
+        [
+          "semantic",
+          [
+            "cards_header",
+            "lead_section"
+          ],
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01] Melanie: went camping with the kids\nMelanie \u2014 activities: camping (2023-05); charity race (2023-05)\n[said 2023-05-10] Melanie: ran a charity race for mental health\n[said 2023-05-21] Melanie: went camping at the beach\n[said 2023-06-10] Melanie: took the kids to a pottery class"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nObservations:\n- [<today>] Melanie loves camping and outdoor family trips\n- [<today>] Caroline is creative and is planning to adopt\nRelated:\n- [2023-05-01] Melanie: I went camping with the kids last weekend"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: we ran a charity race for mental health in May"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping at the beach again with the family"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: the kids loved the pottery class yesterday"
+        ]
+      ]
+    ],
+    "read|replay|When did Caroline join the support group?": [
+      "replay",
+      false,
+      230,
+      [
+        [
+          "semantic",
+          [
+            "cards_header",
+            "lead_section"
+          ],
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01] Melanie: went camping with the kids\n[said 2023-06-03] Caroline: joined a support group\n[said 2023-06-10] Melanie: took the kids to a pottery class"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nObservations:\n- [<today>] Caroline is creative and is planning to adopt\nRelated:\n- [2023-05-01] Melanie: I went camping with the kids last weekend\n- [2023-05-21] Melanie: I went camping at the beach again with the family\n- [2023-06-03] Caroline: I joined a support group last Tuesday\n- [2023-06-10] Melanie: the kids loved the pottery class yesterday\n- [2023-07-02] Caroline: I am researching adoption agencies this month"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I started a new painting of a lake sunset"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: we ran a charity race for mental health in May"
+        ]
+      ]
+    ],
+    "read|retrieve|How many times did Melanie go camping?": [
+      "retrieve",
+      false,
+      227,
+      [
+        [
+          "semantic",
+          [
+            "cards_header",
+            "lead_section"
+          ],
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01] Melanie: went camping with the kids\nMelanie \u2014 activities: camping (2023-05); charity race (2023-05)\n[said 2023-05-10] Melanie: ran a charity race for mental health\n[said 2023-05-21] Melanie: went camping at the beach\n[said 2023-06-10] Melanie: took the kids to a pottery class"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nObservations:\n- [<today>] Melanie loves camping and outdoor family trips\nRelated:\n- [2023-05-01] Melanie: I went camping with the kids last weekend\n- [2023-05-21] Melanie: I went camping at the beach again with the family"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: the kids loved the pottery class yesterday"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: we ran a charity race for mental health in May"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I am researching adoption agencies this month"
+        ]
+      ]
+    ],
+    "read|retrieve|What activities has Melanie done?": [
+      "retrieve",
+      false,
+      225,
+      [
+        [
+          "semantic",
+          [
+            "cards_header",
+            "lead_section"
+          ],
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01] Melanie: went camping with the kids\nMelanie \u2014 activities: camping (2023-05); charity race (2023-05)\n[said 2023-05-10] Melanie: ran a charity race for mental health\n[said 2023-05-21] Melanie: went camping at the beach\n[said 2023-06-10] Melanie: took the kids to a pottery class"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nObservations:\n- [<today>] Melanie loves camping and outdoor family trips\nRelated:\n- [2023-05-01] Melanie: I went camping with the kids last weekend\n- [2023-06-10] Melanie: the kids loved the pottery class yesterday"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: we ran a charity race for mental health in May"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping at the beach again with the family"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I joined a support group last Tuesday"
+        ]
+      ]
+    ],
+    "read|retrieve|What did Melanie do in May 2023?": [
+      "retrieve",
+      false,
+      225,
+      [
+        [
+          "semantic",
+          [
+            "cards_header",
+            "lead_section"
+          ],
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01] Melanie: went camping with the kids\nMelanie \u2014 activities: camping (2023-05); charity race (2023-05)\n[said 2023-05-10] Melanie: ran a charity race for mental health\n[said 2023-05-21] Melanie: went camping at the beach\n[said 2023-06-10] Melanie: took the kids to a pottery class"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nObservations:\n- [<today>] Melanie loves camping and outdoor family trips\nRelated:\n- [2023-05-01] Melanie: I went camping with the kids last weekend\n- [2023-05-10] Melanie: we ran a charity race for mental health in May"
+        ],
+        [
+          "reflective",
+          [],
+          "Caroline is creative and is planning to adopt"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: the kids loved the pottery class yesterday"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping at the beach again with the family"
+        ]
+      ]
+    ],
+    "read|retrieve|What does Melanie like to do?": [
+      "retrieve",
+      false,
+      224,
+      [
+        [
+          "semantic",
+          [
+            "cards_header",
+            "lead_section"
+          ],
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01] Melanie: went camping with the kids\nMelanie \u2014 activities: camping (2023-05); charity race (2023-05)\n[said 2023-05-10] Melanie: ran a charity race for mental health\n[said 2023-05-21] Melanie: went camping at the beach\n[said 2023-06-10] Melanie: took the kids to a pottery class"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nObservations:\n- [<today>] Melanie loves camping and outdoor family trips\n- [<today>] Caroline is creative and is planning to adopt\nRelated:\n- [2023-05-01] Melanie: I went camping with the kids last weekend"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: the kids loved the pottery class yesterday"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: we ran a charity race for mental health in May"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: I went camping at the beach again with the family"
+        ]
+      ]
+    ],
+    "read|retrieve|When did Caroline join the support group?": [
+      "retrieve",
+      false,
+      230,
+      [
+        [
+          "semantic",
+          [
+            "cards_header",
+            "lead_section"
+          ],
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01] Melanie: went camping with the kids\n[said 2023-06-03] Caroline: joined a support group\n[said 2023-06-10] Melanie: took the kids to a pottery class"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nObservations:\n- [<today>] Caroline is creative and is planning to adopt\nRelated:\n- [2023-05-01] Melanie: I went camping with the kids last weekend\n- [2023-05-21] Melanie: I went camping at the beach again with the family\n- [2023-06-03] Caroline: I joined a support group last Tuesday\n- [2023-06-10] Melanie: the kids loved the pottery class yesterday\n- [2023-07-02] Caroline: I am researching adoption agencies this month"
+        ],
+        [
+          "episodic",
+          [],
+          "Caroline: I started a new painting of a lake sunset"
+        ],
+        [
+          "episodic",
+          [],
+          "Melanie: we ran a charity race for mental health in May"
+        ]
+      ]
+    ]
+  }
+}
