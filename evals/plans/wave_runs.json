@@ -324,11 +324,13 @@
       }
      }
     }
-   }
+   },
+   "disabled": true,
+   "notes": "stopped by decision at 2 of 10 conversations (2026-10-06)"
   },
   {
    "id": "w2-graph",
-   "hypothesis": "#13-#21 graph stack on top of mining",
+   "hypothesis": "#13-#21 graph stack on top of cards (mining stack removed 2026-10-06)",
    "systems": [
     "memspine"
    ],
@@ -343,7 +345,6 @@
      },
      "cards": "header",
      "cards_skip_temporal": true,
-     "cards_event_date": true,
      "graph_leg": true,
      "cards_include_edges": true,
      "entity_summaries": true
@@ -352,12 +353,7 @@
      "episodic": {
       "policies": {
        "consolidation": {
-        "mine_facts": true,
-        "mine_prompt": "session4",
-        "mine_multiview": true,
-        "mine_event_dates": true,
-        "mine_evidence_turns": true,
-        "list_cards": true
+        "mine_facts": true
        }
       }
      },

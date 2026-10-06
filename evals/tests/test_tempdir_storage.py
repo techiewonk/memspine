@@ -14,20 +14,24 @@ from memspine_evals.systems.memspine_system import TEMPDIR_STORAGE, MemspineSyst
 
 
 def test_tempdir_storage_is_per_item_and_removed() -> None:
-    async def run() -> tuple[str, str, bool]:
-        system = MemspineSystem(
-            config={"storage": {"path": TEMPDIR_STORAGE}, "embedding": {"provider": "hash"}},
-            template="core",
-        )
-        await system.reset("a")
-        first = system._tempdir
-        assert first is not None and Path(first).is_dir()
-        await system.insert(Turn(turn_id="t1", session_id="s1", speaker="u", text="hello"))
-        await system.reset("b")
-        second = system._tempdir
-        await system.close()
-        return first, second, Path(first).exists() or Path(second).exists()
+    system = MemspineSystem(
+        config={"storage": {"path": TEMPDIR_STORAGE}, "embedding": {"provider": "hash"}},
+        template="core",
+    )
 
-    first, second, left = asyncio.run(run())
-    assert first != second
-    assert not left
+    async def first_item() -> str | None:
+        await system.reset("a")
+        await system.insert(Turn(turn_id="t1", session_id="s1", speaker="u", text="hello"))
+        return system._tempdir
+
+    async def second_item() -> str | None:
+        await system.reset("b")
+        return system._tempdir
+
+    first = asyncio.run(first_item())
+    assert first is not None and Path(first).is_dir()
+    second = asyncio.run(second_item())
+    assert second is not None and second != first
+    assert not Path(first).exists()  # reset removed the first item's store
+    asyncio.run(system.close())
+    assert not Path(second).exists()
