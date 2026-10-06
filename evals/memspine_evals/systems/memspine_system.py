@@ -15,6 +15,7 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 from ..contracts import DepositResult, Evidence, RetrievedContext, Turn
@@ -67,6 +68,10 @@ def parse_turn_time(stamp: str | None) -> datetime | None:
     except ValueError:
         return None
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+
+
+#: ``storage.path`` sentinel: one fresh file-backed store per item (see ``_build_engine``).
+TEMPDIR_STORAGE = "tempdir"
 
 
 class MemspineSystem:
@@ -147,6 +152,17 @@ class MemspineSystem:
             ) from exc
         self._version = getattr(memspine, "__version__", "unknown")
         overrides: dict[str, Any] = {"storage": {"path": ":memory:"}, **self.config}
+        # ``storage.path: "tempdir"``: a fresh file-backed store per item, removed on
+        # close. LanceDB's in-memory tables commit ~18 MB of memory per write that is
+        # never released (7.5 GB for one LoCoMo conversation), so parallel paid runs
+        # exhaust the machine's commit limit; a file-backed store peaks at ~0.8 GB.
+        storage = dict(overrides.get("storage") or {})
+        if storage.get("path") == TEMPDIR_STORAGE:
+            import tempfile
+
+            self._tempdir = tempfile.mkdtemp(prefix="memspine-eval-")
+            storage["path"] = str(Path(self._tempdir) / "memspine.db")
+            overrides["storage"] = storage
         # Never load a .env: the harness passes only what a run needs (a repo .env
         # can hold unrelated secrets, and a benchmark must not depend on it).
         overrides.setdefault("dotenv_path", None)
@@ -472,6 +488,12 @@ class MemspineSystem:
         if self._engine is not None:
             await self._engine.stop()
             self._engine = None
+        tempdir = getattr(self, "_tempdir", None)
+        if tempdir:
+            import shutil
+
+            shutil.rmtree(tempdir, ignore_errors=True)
+            self._tempdir = None
 
 
 def _align(records: list[Any], turns: list[Turn], texts: list[str]) -> list[tuple[Any, str]]:

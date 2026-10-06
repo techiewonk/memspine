@@ -41,6 +41,9 @@
     "request_dimensions": true,
     "query_input_type": "search_query",
     "document_input_type": "search_document"
+   },
+   "storage": {
+    "path": "tempdir"
    }
   }
  },
@@ -73,7 +76,7 @@
    "chat": 512
   }
  },
- "source": "Wave measure plan (2026-10-06): master list #81/#41/#59/#66 round 1 (single changes on combo-A after the determinism fix), round 2 stacks (#28-#30, graph #13-#21), round 3 best-of repeats (#67). Same plan_id/dataset/protocol/memspine_base as aamas_runs.json.",
+ "source": "Wave measure plan (2026-10-06): master list #81/#41/#59/#66 round 1 (single changes on combo-A after the determinism fix), round 2 stacks (#28-#30, graph #13-#21), round 3 best-of repeats (#67). Same plan_id/dataset/protocol/memspine_base as aamas_runs.json. storage.path=tempdir (file-backed per item): in-memory LanceDB commits ~7.5 GB per conversation.",
  "arms": [
   {
    "id": "w1-combo-A",
