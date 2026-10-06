@@ -60,7 +60,12 @@ class LanceDBVectorStore:
         ``exclusive``: no other writer touches the table (an in-memory table is
         private to its connection). The store then tracks the ids it holds and
         appends a new id directly instead of running the merge join, which
-        writes the same row in the same place."""
+        writes the same row in the same place. Its compaction also drops every
+        table version but the latest (ADR-053): a ``memory://`` store keeps
+        each version's files alive, and LanceDB's writer leaves every one of
+        them holding a 5 MB upload buffer, so without the cleanup an in-memory
+        table commits ~15 MB per write and never gives it back. Deletes count
+        towards the same compaction cadence as upserts."""
         if quantization not in (None, "int8", "binary"):
             raise ValueError(f"unknown quantization {quantization!r} (valid: int8, binary, None)")
         self._client = client
@@ -152,15 +157,18 @@ class LanceDBVectorStore:
             await self._maybe_compact(table)
 
     async def _maybe_compact(self, table: Any) -> None:
-        """Merge fragments every ``compact_every`` upserts (see ``__init__``)."""
+        """Merge fragments every ``compact_every`` writes (see ``__init__``).
+
+        An exclusive table also removes its older versions in the same call."""
         if self._compact_every is None or self._rescore_active:
             return
         self._upserts_since_compact += 1
         if self._upserts_since_compact < self._compact_every:
             return
         self._upserts_since_compact = 0
+        cleanup = timedelta(0) if self._ids is not None else None
         try:
-            await asyncio.to_thread(table.optimize)
+            await asyncio.to_thread(lambda: table.optimize(cleanup_older_than=cleanup))
         except Exception as exc:
             # Compaction is an optimisation only: a failure leaves the rows
             # exactly as they were, so it must never fail the write.
@@ -337,6 +345,7 @@ class LanceDBVectorStore:
             self._unpurged.add(record_id)
             if self._ids is not None:
                 self._ids.discard(record_id)
+            await self._maybe_compact(table)
 
     async def delete_all(self) -> None:
         table = await self._ensure_table()
