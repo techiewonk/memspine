@@ -15,6 +15,7 @@ __all__ = [
     "core_terms",
     "is_aggregation",
     "is_count",
+    "is_inference",
     "is_ordering",
     "is_temporal",
     "rule_read_mode",
@@ -138,6 +139,17 @@ _TEMPORAL = re.compile(
 def is_temporal(query: str) -> bool:
     """True when the question asks for a date or a time span ("when did ...")."""
     return bool(_TEMPORAL.search(query))
+
+
+#: A modal or "likely" ahead of the question mark: the answer is inferred, not stated.
+_INFERENCE = re.compile(r"\b(?:would|likely|might|could)\b[^?]*\?", re.I)
+
+
+def is_inference(query: str) -> bool:
+    """True when the question asks what someone would, might or could do, or is likely
+    to ("Would Caroline pursue writing?", "Is it likely that ...?"): a modal word, or
+    "likely", before the question mark. Pure and self-contained (C1)."""
+    return bool(_INFERENCE.search(query))
 
 
 #: Units after "how many" that ask for a duration ("how many days ago ..."), not a count.
