@@ -213,3 +213,65 @@ reads.
 - **Dollar cap:** `--price MODEL=IN,OUT` (USD per 1M tokens, repeatable) and `--max-usd X` per arm. Reader/judge calls are refused before a call whose worst case (prompt + `max_tokens`) would cross the cap; engine spend is charged as observed and stops the next call. The arm ends with UNATTEMPTED rows. Embedding calls (Cohere) are not metered.
 - **Raw reader reply:** when a reader extracts its final answer (`extract_answer`, e.g. `--qa-prompt dated3`), the row's `answer` holds the extracted line and `meta["reader_raw"]` keeps the full reply (capped at 4000 chars, `meta["reader_raw_truncated"]: true` when cut), so a truncated list can be audited; rows of non-extracting prompts carry no such key.
 - **Rehearse before paying:** `python evals/rehearse.py --plan evals/plans/aamas_runs.json --path data/locomo10.json --price bedrock/converse/qwen.qwen3-32b-v1:0=IN,OUT` runs every planned arm on one conversation over a local stub transport (no network) and writes `PROJECTION.md` with the projected cost of the full LoCoMo cats 1–4 run.
+
+## Screening memory-side changes (retrieval-only + disk cache)
+
+A paid LoCoMo QA run of one arm costs dollars and hours. Most memory-side changes (what is
+stored, how it is ranked, what the read path assembles) can be screened first for whether
+they put more gold evidence into the reader's context, with no reader, no judge, and the
+paid embedding / engine-role calls replayed from disk.
+
+**Flags (`c0-1`):**
+
+- `--retrieval-only`: ingest the history and call the arm's read path for every question
+  exactly as the QA run would (same `--memspine-config`, `--budget`, `--top-k`,
+  `--memspine-read-mode`, `--memspine-build-sleep`, `--memspine-batch-turns`), then skip the
+  reader and the judge. Each row carries `retrieved_ids` (after the budget cut),
+  `context_tokens`, `meta.gold_evidence` (LoCoMo `qa[*].evidence`, split on `;` and
+  normalised to `D<s>:<t>`) and `meta.ev_all` / `ev_any` / `ev_frac`; `score` is `ev_all`.
+  Cat 5 has no gold evidence (`ev_* = null`, left out of the means). `summary.json` gains a
+  `coverage` block: per category, the mean `ev_all` / `ev_any` / `ev_frac` and context
+  tokens. Protocol id `c0-1-retrieval-only`, reader model `none`: never a QA number.
+- `--cache-dir PATH`: a SQLite cache (`PATH/llm_cache.sqlite`) at the LiteLLM boundary for
+  embeddings (one row per text, keyed on model, input type, dimensions, text; vectors stored
+  bit-exact) and engine-role completions (extract / mine, summarize, reflect, anticipate,
+  extract_edges, plan, ...; keyed on model, the full messages, temperature, max_tokens,
+  response_format and the other sampling options). A hit costs $0, is not counted as a
+  model call, and is reported in `summary.json` (`cache_hits`, `cache_misses`, `usd_saved`,
+  and a `cache` block with the split). A completion with a non-zero temperature is never
+  cached (`uncacheable`); the engine's roles send no temperature and are keyed as such, so a
+  hit replays the reply the populating run received. Several processes can share one cache.
+- `--cache-reader`: with `--cache-dir`, also cache reader and judge completions (temperature
+  0 only). Off by default: reader and judge calls pass through (`bypassed`).
+
+Coverage credits raw turns only: a derived record (a mined fact, a summary, a card) that
+carries the evidence is not a turn and is not counted, so an arm whose gain is in derived
+records reads low on coverage. Screen those on the paid 2-subset QA step instead.
+
+**Workflow:**
+
+1. **Populate the cache once** with a normal (or retrieval-only) run of combo-A over the
+   conversations, with `--cache-dir evals/cache/locomo` added. This stores every turn and
+   question embedding (Cohere v4) and any engine-role reply the arm made.
+2. **Screen arms** with `--retrieval-only --cache-dir evals/cache/locomo` (keep
+   `--max-model-calls` as the cap on cache misses). A read-side arm re-embeds nothing and
+   costs about $0; an arm that adds write-time LLM roles (mining, cards, reflection) pays
+   for its own new calls once, and its re-screens are then free too.
+
+   ```
+   python -m memspine_evals c0-1 --dataset locomo --path data/locomo10.json --categories all \
+     --with-memspine --only-systems memspine --memspine-llm bedrock-qwen3 \
+     --memspine-read-mode replay --memspine-config "$(cat arm.json)" \
+     --retrieval-only --cache-dir evals/cache/locomo --max-model-calls 2000 \
+     --item-ids conv-26 --run-id screen--ARM--conv-26
+   python evals/screen_compare.py --base "evals/runs/screen--combo-A--conv-*--memspine" \
+     --arm "evals/runs/screen--ARM--conv-*--memspine"
+   ```
+
+   `screen_compare.py` pairs questions by `(item_id, query_id)` across split
+   per-conversation run dirs (globs) and prints per-category coverage deltas with an exact
+   sign test on `ev_all` (won / lost on discordant questions, two-sided binomial); given two
+   QA runs it adds accuracy deltas with the same sign test (`--locomo` recomputes coverage
+   for QA rows from their `retrieved_ids`; `--json` writes the result).
+3. Only arms that **raise coverage** go to a paid **2-subset QA screen**.
+4. A **full run** only if both subsets are positive.
