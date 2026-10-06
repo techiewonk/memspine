@@ -295,6 +295,26 @@
      }
     }
    }
+  },
+  {
+   "id": "s-routed-v2",
+   "hypothesis": "routed v2: combo-A + B1 temporal_leg + count_timeline/count_dedupe (no cards, no mining)",
+   "systems": [
+    "memspine"
+   ],
+   "qa_prompt": "dated",
+   "config_delta": {
+    "read": {
+     "resolve_relative_dates": true,
+     "order_by_time_for_ordering": true,
+     "assembly": {
+      "relative_floor": 0.3
+     },
+     "temporal_leg": true,
+     "count_timeline": true,
+     "count_dedupe": true
+    }
+   }
   }
  ]
 }
