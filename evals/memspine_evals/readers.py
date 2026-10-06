@@ -142,6 +142,21 @@ _THINK = re.compile(r"<think>.*?</think>", re.S | re.I)
 #: after the last marker); bump it whenever ``final_answer``'s output can change.
 ANSWER_EXTRACTOR_VERSION = "v2"
 
+#: Cap on the raw reply kept in a row's ``meta["reader_raw"]`` (extraction only).
+READER_RAW_MAX_CHARS = 4000
+
+
+def reader_raw_meta(raw_text: str | None) -> dict[str, Any]:
+    """Row ``meta`` keys for a reader's raw reply: ``{}`` when no extraction ran (rows of
+    every non-extracting prompt stay byte-identical), else ``reader_raw`` capped at
+    :data:`READER_RAW_MAX_CHARS`, plus ``reader_raw_truncated: True`` when the cap cut it."""
+    if raw_text is None:
+        return {}
+    if len(raw_text) <= READER_RAW_MAX_CHARS:
+        return {"reader_raw": raw_text}
+    return {"reader_raw": raw_text[:READER_RAW_MAX_CHARS], "reader_raw_truncated": True}
+
+
 _MARKER = re.compile(
     r"(?:^|(?<=[\s*>#_(\[]))\**\s*(?:final\s+|short\s+)?answer\s*\**\s*[:\uff1a]\s*\**",
     re.I,
@@ -333,6 +348,7 @@ class OpenAICompatReader:
         text = choice["message"]["content"].strip()
         return ReaderAnswer(
             text=final_answer(text) if self.extract_answer else text,
+            raw_text=text if self.extract_answer else None,
             prompt_tokens=int(usage.get("prompt_tokens", 0)),
             completion_tokens=int(usage.get("completion_tokens", 0)),
             latency_ms=latency,

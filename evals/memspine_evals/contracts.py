@@ -190,6 +190,9 @@ class ReaderAnswer:
     #: (0 when the provider reports none); fresh = prompt_tokens - cached.
     cached_prompt_tokens: int = 0
     finish_reason: str = ""
+    #: The reader's raw reply when ``text`` was post-processed by answer extraction
+    #: (``extract_answer``); None otherwise. Lands in the row's ``meta["reader_raw"]``.
+    raw_text: str | None = None
 
 
 @runtime_checkable

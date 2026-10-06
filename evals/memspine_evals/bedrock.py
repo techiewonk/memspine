@@ -496,7 +496,7 @@ class LiteLLMReader:
         )
         if not self.extract_answer:
             return reply
-        return replace(reply, text=final_answer(reply.text))
+        return replace(reply, text=final_answer(reply.text), raw_text=reply.text)
 
 
 def litellm_chat(
