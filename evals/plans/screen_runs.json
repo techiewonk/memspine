@@ -262,6 +262,39 @@
      }
     }
    }
+  },
+  {
+   "id": "s-routed-v1",
+   "hypothesis": "routed v1: combo-A + B1 temporal_leg + cards (temporal skipped) + count_dedupe + lead_budget_share 0.25",
+   "systems": [
+    "memspine"
+   ],
+   "qa_prompt": "dated",
+   "build_sleep": true,
+   "config_delta": {
+    "read": {
+     "resolve_relative_dates": true,
+     "order_by_time_for_ordering": true,
+     "assembly": {
+      "relative_floor": 0.3
+     },
+     "temporal_leg": true,
+     "cards": "header",
+     "cards_skip_temporal": true,
+     "count_timeline": true,
+     "count_dedupe": true,
+     "lead_budget_share": 0.25
+    },
+    "memories": {
+     "episodic": {
+      "policies": {
+       "consolidation": {
+        "mine_facts": true
+       }
+      }
+     }
+    }
+   }
   }
  ]
 }
