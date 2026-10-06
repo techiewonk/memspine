@@ -315,6 +315,40 @@
      "count_dedupe": true
     }
    }
+  },
+  {
+   "id": "s-routed-v3",
+   "hypothesis": "routed v3: routed v1 + read.cards_skip_hides_facts (date questions read with mined facts hidden)",
+   "systems": [
+    "memspine"
+   ],
+   "qa_prompt": "dated",
+   "build_sleep": true,
+   "config_delta": {
+    "read": {
+     "resolve_relative_dates": true,
+     "order_by_time_for_ordering": true,
+     "assembly": {
+      "relative_floor": 0.3
+     },
+     "temporal_leg": true,
+     "cards": "header",
+     "cards_skip_temporal": true,
+     "count_timeline": true,
+     "count_dedupe": true,
+     "lead_budget_share": 0.25,
+     "cards_skip_hides_facts": true
+    },
+    "memories": {
+     "episodic": {
+      "policies": {
+       "consolidation": {
+        "mine_facts": true
+       }
+      }
+     }
+    }
+   }
   }
  ]
 }
