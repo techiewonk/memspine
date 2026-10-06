@@ -28,6 +28,7 @@ __all__ = [
     "happened_label",
     "happened_of",
     "happened_tag",
+    "label_span",
     "label_start",
     "normalise_label",
     "resolve_happened",
@@ -76,6 +77,29 @@ def label_start(label: str) -> date | None:
         except ValueError:
             continue
     return None
+
+
+def label_span(label: str) -> tuple[date, date] | None:
+    """The inclusive ``(first, last)`` days a label denotes (``2023-07`` ->
+    2023-07-01..2023-07-31), None if malformed."""
+    if not _LABEL.match(label):
+        return None
+    head, _, tail = label.partition("..")
+    first = label_start(head)
+    if first is None:
+        return None
+    if tail:
+        try:
+            last = date.fromisoformat(tail)
+        except ValueError:
+            return None
+        return (first, last) if last >= first else None
+    if len(head) == 4:
+        return first, date(first.year, 12, 31)
+    if len(head) == 7:
+        nxt = date(first.year + (first.month == 12), first.month % 12 + 1, 1)
+        return first, date.fromordinal(nxt.toordinal() - 1)
+    return first, first
 
 
 def resolve_happened(

@@ -5,7 +5,8 @@ ABSOLUTE date span out of a query ("2023-05-07", "7 May 2023", "May 7, 2023",
 "May 2023", "in 2023"); relative phrases ("last week") are deliberately not
 resolved, because a read has no trustworthy anchor time of its own.
 :func:`temporal_leg` ranks live records whose event time (``valid_from``) falls
-in that span by closeness to its midpoint; :func:`metadata_leg` ranks records
+in that span by closeness to its midpoint (B2: optionally also a mined fact whose
+``happened:`` date overlaps it); :func:`metadata_leg` ranks records
 whose ``entity`` is named in the query, newest first. Both return
 ``record_id``-bearing hits that :func:`~memspine.services.lexical.base.rrf_fuse`
 fuses as extra legs.
@@ -19,6 +20,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
+from memspine.core.event_date import happened_of, label_span
 from memspine.core.records import MemoryRecord, chrono_key
 
 __all__ = ["LegHit", "metadata_leg", "query_interval", "temporal_leg"]
@@ -74,16 +76,45 @@ def _aware(t: datetime) -> datetime:
     return t if t.tzinfo is not None else t.replace(tzinfo=UTC)
 
 
-def temporal_leg(query: str, records: Iterable[MemoryRecord], top_k: int) -> list[LegHit]:
-    """Records whose event time lies in the query's span, closest to its middle first."""
+def temporal_leg(
+    query: str, records: Iterable[MemoryRecord], top_k: int, *, event_dates: bool = False
+) -> list[LegHit]:
+    """Records whose event time lies in the query's span, closest to its middle first.
+
+    ``event_dates`` (B2, ``read.temporal_leg_event_dates``): a record whose
+    ``happened:`` date (a mined fact's event date) overlaps the span also enters, at
+    the start of the overlap, so an event said days after it happened is found by its
+    own date. A record matching both ways keeps the closer time. Ties: ``chrono_key``.
+    """
     span = query_interval(query)
     if span is None:
         return []
     start, end = span
     mid = start + (end - start) / 2
-    inside = [r for r in records if start <= _aware(r.valid_from) < end]
-    inside.sort(key=lambda r: (abs((_aware(r.valid_from) - mid).total_seconds()), chrono_key(r)))
-    return [LegHit(r.record_id, 1.0) for r in inside[:top_k]]
+    scored: list[tuple[float, MemoryRecord]] = []
+    for r in records:
+        times = []
+        said = _aware(r.valid_from)
+        if start <= said < end:
+            times.append(said)
+        if event_dates and (at := _happened_in(r, start, end)) is not None:
+            times.append(at)
+        if times:
+            scored.append((min(abs((t - mid).total_seconds()) for t in times), r))
+    scored.sort(key=lambda pair: (pair[0], chrono_key(pair[1])))
+    return [LegHit(r.record_id, 1.0) for _, r in scored[:top_k]]
+
+
+def _happened_in(record: MemoryRecord, start: datetime, end: datetime) -> datetime | None:
+    """The start of the overlap of ``record``'s happened span with ``[start, end)``."""
+    label = happened_of(record)
+    days = label_span(label) if label else None
+    if days is None:
+        return None
+    first = datetime(days[0].year, days[0].month, days[0].day, tzinfo=UTC)
+    after = datetime(days[1].year, days[1].month, days[1].day, tzinfo=UTC) + timedelta(days=1)
+    lo, hi = max(first, start), min(after, end)
+    return lo if lo < hi else None
 
 
 def metadata_leg(query: str, records: Iterable[MemoryRecord], top_k: int) -> list[LegHit]:

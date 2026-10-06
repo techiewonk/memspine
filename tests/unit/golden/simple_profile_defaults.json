@@ -42,6 +42,7 @@
       "verification_bonus": 1.0
     },
     "read": {
+      "aggregate_in_replay": false,
       "aggregate_top_k": null,
       "anticipatory_cues": false,
       "assembly": {},
@@ -51,6 +52,7 @@
       "cards_event_date": false,
       "cards_include_edges": false,
       "cards_skip_temporal": false,
+      "cards_temporal": "skip",
       "cards_top_k": 10,
       "completeness_check": false,
       "compose_replay": false,
@@ -73,8 +75,10 @@
       "graph_rerank": "off",
       "graph_rerank_weight": 0.2,
       "hybrid": true,
+      "lead_budget_share": null,
       "lead_budget_tokens": 400,
       "lexical_provider": "tantivy",
+      "list_cards_only_aggregate": false,
       "metadata_leg": false,
       "order_by_time_for_ordering": false,
       "person_time_leg_k": 10,
@@ -85,6 +89,7 @@
       "profile_header": false,
       "profile_header_budget": 300,
       "profile_header_packing": false,
+      "profile_skip_temporal": false,
       "query_encoder": "none",
       "record_access": true,
       "relative_dates_anchored": false,
@@ -108,6 +113,7 @@
       "static_embedding_prefilter": false,
       "static_prefilter": false,
       "temporal_leg": false,
+      "temporal_leg_event_dates": false,
       "timeline_entities": 3,
       "timeline_items": 8,
       "topic_timelines": false

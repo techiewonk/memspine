@@ -517,6 +517,27 @@ class ReadConfig(BaseModel):
     #: byte-identical.
     profile_header_packing: bool = False
     profile_header_budget: int = Field(default=300, ge=1)
+    #: ADR-055 question-shape gates on the replay read path (all off by default).
+    #: A1: a ``replay`` read of a list or count question (``query_shape.is_aggregation``
+    #: / ``is_count``) retrieves ``aggregate_top_k`` candidates (when set) through the
+    #: normal replay path; no compose rendering. The budget still caps the context.
+    aggregate_in_replay: bool = False
+    #: A2: the cards header shows #30 list cards only to list and count questions.
+    list_cards_only_aggregate: bool = False
+    #: B2: with ``temporal_leg``, a record whose ``happened:`` date (a mined fact's
+    #: event date) overlaps the query's date span also enters the temporal leg.
+    temporal_leg_event_dates: bool = False
+    #: B3: the cards header on date/time questions (``query_shape.is_temporal``):
+    #: ``skip`` = today's behaviour (no cards when ``cards_skip_temporal``);
+    #: ``event_dates`` = only cards with a ``happened:`` date, rendered
+    #: ``[happened d · said d']``, whatever ``cards_skip_temporal`` says.
+    cards_temporal: Literal["skip", "event_dates"] = "skip"
+    #: D1: no profile header (plain or packed) on date/time questions.
+    profile_skip_temporal: bool = False
+    #: H12: cap the total of all lead blocks (cards, graph facts, entity summaries,
+    #: profile, count timeline) at this share of the read budget, dropping the
+    #: lowest-priority blocks first, so raw evidence keeps its budget. None = no cap.
+    lead_budget_share: float | None = Field(default=None, gt=0.0, le=1.0)
 
     @model_validator(mode="after")
     def _header_shares_leave_room(self) -> ReadConfig:

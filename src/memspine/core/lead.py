@@ -85,6 +85,7 @@ def card_line(
     *,
     claim: bool = False,
     happened: str | None = None,
+    happened_first: bool = False,
 ) -> str:
     """G1b: one card, ``[said YYYY-MM-DD] Entity: fact``.
 
@@ -98,6 +99,10 @@ def card_line(
     since the block's marker reads every date as "when it was said" and the
     fact's own ``valid_from`` is the event date. ``claim`` (B9) prefixes
     :data:`constants.CLAIM_MARKER`. A #30 list card is shown whole, with no date.
+
+    ``happened_first`` (ADR-055, ``read.cards_temporal: event_dates``): a card with a
+    ``happened`` date leads with it, ``[happened <date> · said YYYY-MM-DD]`` (said
+    omitted when unknown), even when the two dates are the same day.
     """
     text = " ".join(record.content.split())
     if constants.LIST_CARD_TAG in record.tags:
@@ -110,6 +115,10 @@ def card_line(
             text = f"{record.entity}: {rest.split(': ', 1)[1]}"
     if claim:
         text = f"{constants.CLAIM_MARKER} {text}"
+    if happened_first and happened:
+        if said is None:
+            return f"[happened {happened}] {text}"
+        return f"[happened {happened} · said {said:%Y-%m-%d}] {text}"
     if said is not None:
         # The date the fact was SAID (its earliest source turn): the miner's event
         # date is unreliable, and the source turn carries the resolved event date.

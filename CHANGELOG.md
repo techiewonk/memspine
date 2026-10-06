@@ -4,6 +4,9 @@ All notable changes to memspine are documented here. Format: [Keep a Changelog](
 
 ## [Unreleased]
 
+### Added — question-shape gates on the replay read path (ADR-055, 2026-10-06)
+- Six opt-in `read.*` keys, all off by default (reads byte-identical, golden `tests/unit/golden/routed_read_off.json`): `aggregate_in_replay` (A1: list/count questions in replay pool `aggregate_top_k` candidates), `list_cards_only_aggregate` (A2), `temporal_leg_event_dates` (B2: the temporal leg also matches `happened:` dates), `cards_temporal: skip|event_dates` (B3: date questions see only happened-dated cards, `[happened d · said d']`), `profile_skip_temporal` (D1), `lead_budget_share` (H12: one cap on all lead blocks, lowest priority dropped first).
+
 ### Fixed — real-model checks (2026-10-06)
 - **`[ner]` extra:** now `gliner2[local]>=1.2,<2`. gliner2 keeps torch/transformers/peft in its `local` extra and 2.0 dropped peft from the base install, so a fresh `memspine[ner]` resolved gliner2 2.0.0 with no local inference stack. 2.x `[local]` needs transformers<5 (and so huggingface-hub<1), which this lock does not resolve; checked against the real `fastino/gliner2-base-v1` on gliner2 1.3.2.
 - **Qwen3-Reranker on CPU (G5a):** the weights are kept in float32 when `device` is unset or `cpu`. transformers>=5 loads the bf16 checkpoint as bf16, which on a CPU without native bf16 cost ~4.3 s per pair (vs ~0.74 s in float32, Qwen3-Reranker-0.6B, 8-thread Zen 2) and made left-padded batched scores drift from unbatched ones by up to 0.055 P(yes); in float32 they match the model card's formulation (max diff < 1e-5). Real-model sanity on 20 LoCoMo conv-26 sets: gold hit@1 0.55 (BM25) -> 0.85.
