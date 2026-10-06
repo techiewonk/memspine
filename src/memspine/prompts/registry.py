@@ -14,13 +14,30 @@ from typing import Any
 
 from jinja2 import Environment
 
+from memspine.core.query_shape import is_inference, is_temporal
 from memspine.exceptions import ConfigError
 from memspine.prompts.base import Prompt
 from memspine.prompts.env import build_environment, partials_fingerprint
 from memspine.prompts.loader import load_default_pack
 from memspine.prompts.models import OUTPUT_MODELS
 
-__all__ = ["PromptRegistry"]
+__all__ = ["BY_SHAPE_SUFFIX", "QUESTION_SHAPES", "PromptRegistry", "question_shape"]
+
+#: C2: ``prompts.selection.<role>_by_shape`` maps a question shape to the ``condition``
+#: of ``<role>`` used for questions of that shape (``chat_by_shape: {temporal: infer}``).
+BY_SHAPE_SUFFIX = "_by_shape"
+QUESTION_SHAPES = ("temporal", "inference")
+
+
+def question_shape(question: str) -> str | None:
+    """``temporal`` for a date / span question, else ``inference`` for a "would / likely
+    / might / could ...?" question, else None (the harness ``routed`` QA prompt's rule)."""
+    if is_temporal(question):
+        return "temporal"
+    if is_inference(question):
+        return "inference"
+    return None
+
 
 #: Override keys a user may set; anything else is a config error.
 _OVERRIDABLE = {"body", "system", "format", "version", "output_model", "token_budget"}
@@ -39,7 +56,20 @@ class PromptRegistry:
         self._env: Environment = build_environment(partials)
         # ``prompts.selection`` (B2): per-role default selectors merged into
         # every select() query that doesn't override them.
-        self._selection: dict[str, dict[str, str]] = dict(selection or {})
+        self._selection: dict[str, dict[str, str]] = {}
+        #: C2: ``<role>_by_shape`` entries, keyed by the base role.
+        self._by_shape: dict[str, dict[str, str]] = {}
+        for key, sel in (selection or {}).items():
+            if key.endswith(BY_SHAPE_SUFFIX):
+                unknown = set(sel) - set(QUESTION_SHAPES)
+                if unknown:
+                    raise ConfigError(
+                        f"prompts.selection.{key}: unknown question shape(s) {sorted(unknown)} "
+                        f"(valid: {', '.join(QUESTION_SHAPES)})"
+                    )
+                self._by_shape[key.removesuffix(BY_SHAPE_SUFFIX)] = dict(sel)
+            else:
+                self._selection[key] = sel
         for role, sel in self._selection.items():
             unknown = set(sel) - {"memory_type", "condition"}
             if unknown:
@@ -55,6 +85,17 @@ class PromptRegistry:
         self._overridden: set[str] = set()
         for prompt_id, raw in (overrides or {}).items():
             self._apply_override(prompt_id, raw)
+        for role, by_shape in self._by_shape.items():
+            known = {p.when.condition for p in self._prompts.values() if p.role == role and p.when}
+            for shape, cond in by_shape.items():
+                # "" is the base prompt; anything else must name a shipped condition
+                # (select() would silently fall back to the base prompt on a typo).
+                if cond and cond not in known:
+                    raise ConfigError(
+                        f"prompts.selection.{role}{BY_SHAPE_SUFFIX}.{shape}: no {role!r} "
+                        f"prompt with condition {cond!r} "
+                        f"(known: {', '.join(sorted(c for c in known if c))})"
+                    )
 
     def _bind(self, prompt: Prompt) -> Prompt:
         """Attach this registry's Jinja environment and fold the digest of the
@@ -148,6 +189,23 @@ class PromptRegistry:
                 f"{sorted(p.id for p in winners)}"
             )
         return winners[0]
+
+    def select_for_question(
+        self,
+        role: str,
+        question: str,
+        *,
+        memory_type: str | None = None,
+        condition: str | None = None,
+    ) -> Prompt:
+        """C2: :meth:`select`, with the condition picked by ``question``'s shape when
+        ``prompts.selection.<role>_by_shape`` maps it (:func:`question_shape`). An
+        explicit ``condition`` wins; without a mapping this is exactly ``select``."""
+        if condition is None:
+            shape = question_shape(question) if self._by_shape.get(role) else None
+            if shape is not None:
+                condition = self._by_shape[role].get(shape)
+        return self.select(role, memory_type=memory_type, condition=condition)
 
     def list(self) -> list[Prompt]:
         return sorted(self._prompts.values(), key=lambda p: p.id)

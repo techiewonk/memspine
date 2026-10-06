@@ -3595,11 +3595,13 @@ class Engine:
         memspine does not answer; this hands back the messages to send, with the
         memory context in place. ``prompts.selection.chat`` picks the variant (the
         ``assistant`` template selects ``chat@dated``, H12); ``condition`` overrides it
-        per call (``"dated"``, or ``""`` for the base prompt).
+        per call (``"dated"``, or ``""`` for the base prompt). C2:
+        ``prompts.selection.chat_by_shape`` (e.g. ``{temporal: infer, inference: infer}``)
+        picks the condition by ``message``'s question shape; unset, nothing changes.
         """
         if self._prompts is None:
             raise MemspineError("Engine not started — call start() first")
-        prompt = self._prompts.select("chat", condition=condition)
+        prompt = self._prompts.select_for_question("chat", message, condition=condition)
         return prompt.render({"context": context, "message": message})
 
     @staticmethod
