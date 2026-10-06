@@ -1,4 +1,4 @@
-"""ADR-054 question-shape gates off: ``read()`` and ``assemble()`` are byte-identical.
+"""ADR-055 question-shape gates off: ``read()`` and ``assemble()`` are byte-identical.
 
 ``golden/routed_read_off.json`` was recorded on the engine before the replay-path
 question-shape gates existed (``read.aggregate_in_replay``,
@@ -176,7 +176,10 @@ async def snapshot(read: dict[str, Any]) -> dict[str, Any]:
                     result.mode,
                     result.context.abstained,
                     result.context.tokens_used,
-                    [[r.memory_type, sorted(r.tags), _stable(r.content)] for r in result.context.records],
+                    [
+                        [r.memory_type, sorted(r.tags), _stable(r.content)]
+                        for r in result.context.records
+                    ],
                 ]
             ctx = await eng.assemble(query, namespace="a", top_k=3, budget_tokens=400)
             out[f"assemble|{query}"] = [ctx.tokens_used, [_stable(r.content) for r in ctx.records]]
@@ -193,4 +196,21 @@ async def test_new_gates_at_defaults_match_the_golden(name: str) -> None:
         golden[name] = current
         GOLDEN.parent.mkdir(parents=True, exist_ok=True)
         GOLDEN.write_text(json.dumps(golden, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    assert current == json.loads(GOLDEN.read_text(encoding="utf-8"))[name]
+
+
+#: Every ADR-055 key, spelled out at its default value.
+NEW_KEYS_AT_DEFAULT: dict[str, Any] = {
+    "aggregate_in_replay": False,
+    "list_cards_only_aggregate": False,
+    "temporal_leg_event_dates": False,
+    "cards_temporal": "skip",
+    "profile_skip_temporal": False,
+    "lead_budget_share": None,
+}
+
+
+@pytest.mark.parametrize("name", ["lead-blocks", "lead-blocks-skip-temporal"])
+async def test_new_keys_spelled_out_at_default_match_the_golden(name: str) -> None:
+    current = await snapshot({**CONFIGS[name], **NEW_KEYS_AT_DEFAULT})
     assert current == json.loads(GOLDEN.read_text(encoding="utf-8"))[name]

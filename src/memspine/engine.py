@@ -1610,7 +1610,9 @@ class Engine:
                 and r.memory_type != "shared"
             ]
             if read.temporal_leg:
-                legs.append(temporal_leg(query, live, fetch_k))
+                legs.append(
+                    temporal_leg(query, live, fetch_k, event_dates=read.temporal_leg_event_dates)
+                )
             if read.metadata_leg:
                 legs.append(metadata_leg(query, live, fetch_k))
         except Exception as exc:  # an enhancer, never a gate: degrade to the base legs
@@ -3308,6 +3310,7 @@ class Engine:
         ns = validate_namespace(namespace)
         headers = [] if shared else await self._read_headers(ns, query, budget, session_id)
         count_share = 0 if shared else self._count_allowance(query, budget)
+        headers, count_share = self._cap_lead_blocks(headers, count_share, budget)
         inner = budget - self._headers_cost(headers) - count_share
         assembled = await self._assemble_core(
             query,
@@ -3770,6 +3773,7 @@ class Engine:
         # E3: a count question keeps room for the occurrences block, built afterwards
         # from what the routed read retrieved.
         count_share = self._count_allowance(query, budget_tokens)
+        headers, count_share = self._cap_lead_blocks(headers, count_share, budget_tokens)
         result = await self._read_routed(
             query,
             ns,
@@ -3885,6 +3889,15 @@ class Engine:
                 session_id=session_id,
                 legs=legs,
             )
+        if (
+            mode in ("replay", "auto")
+            and read_cfg.aggregate_in_replay
+            and read_cfg.aggregate_top_k
+            and (is_aggregation(query) or is_count(query))
+        ):
+            # A1 (ADR-055): a list or count question read by replay pools more
+            # candidates too; replay rendering, no compose. The budget still caps it.
+            top_k = read_cfg.aggregate_top_k
         base = await self._assemble_core(
             query,
             ns,
@@ -4000,14 +4013,30 @@ class Engine:
         read_cfg = self._config().read
         if read_cfg.cards != "header":
             return None
-        if read_cfg.cards_skip_temporal and is_temporal(query):
+        temporal = is_temporal(query)
+        # B3 (ADR-055): ``cards_temporal: event_dates`` shows a date question only the
+        # cards with a happened date, happened date first, instead of no cards.
+        event_only = temporal and read_cfg.cards_temporal == "event_dates"
+        if temporal and not event_only and read_cfg.cards_skip_temporal:
             return None
         allowance = int(budget_tokens * read_cfg.cards_budget_share)
         if allowance <= estimate_tokens(constants.CARDS_MARKER):
             return None
+        # A2 (ADR-055): list cards only for list and count questions.
+        drop_lists = read_cfg.list_cards_only_aggregate and not (
+            is_aggregation(query) or is_count(query)
+        )
+        card_hide: Callable[[MemoryRecord], bool] | None = None
+        if event_only or drop_lists:
+
+            def card_hide(r: MemoryRecord) -> bool:
+                return (event_only and happened_of(r) is None) or (
+                    drop_lists and constants.LIST_CARD_TAG in r.tags
+                )
+
         k = read_cfg.cards_top_k
         hits = await self._search(
-            query, ns, k, tags=["atomic_fact"], keep_k=k, session_id=session_id
+            query, ns, k, tags=["atomic_fact"], keep_k=k, session_id=session_id, hide=card_hide
         )
         if self._header_abstains(hits):
             return None
@@ -4027,10 +4056,11 @@ class Engine:
                 said[record.record_id] = min(p.valid_from for p in found)
             if claim_below > 0.0 and await self._from_low_trust(found, claim_below):
                 claims.add(record.record_id)
+        event_dates = read_cfg.cards_event_date or event_only
         kept: list[MemoryRecord] = []
         for record, _ in hits:
             trial = [*kept, self._wrap_for_context(record)]
-            text = self._cards_text(trial, said, claims, read_cfg.cards_event_date)
+            text = self._cards_text(trial, said, claims, event_dates, happened_first=event_only)
             if estimate_tokens(text) <= allowance:
                 kept = trial
         if not kept:
@@ -4039,7 +4069,7 @@ class Engine:
             key=lambda r: (r.record_id in said, said.get(r.record_id, r.valid_from), chrono_key(r))
         )
         block = self._lead_record(
-            ns, self._cards_text(kept, said, claims, read_cfg.cards_event_date), kept
+            ns, self._cards_text(kept, said, claims, event_dates, happened_first=event_only), kept
         )
         return block.model_copy(update={"tags": [constants.LEAD_TAG, constants.CARDS_TAG]})
 
@@ -4074,6 +4104,8 @@ class Engine:
         said: dict[str, datetime] | None = None,
         claims: set[str] | None = None,
         event_dates: bool = False,
+        *,
+        happened_first: bool = False,
     ) -> str:
         dates = said or {}
         flagged = claims or set()
@@ -4084,6 +4116,7 @@ class Engine:
                 claim=r.record_id in flagged,
                 # #29 (read.cards_event_date): the fact's happened date, when tagged.
                 happened=happened_of(r) if event_dates else None,
+                happened_first=happened_first,
             )
             for r in cards
         )
@@ -4105,6 +4138,8 @@ class Engine:
         (:meth:`_packed_profile_section`).
         """
         read_cfg = self._config().read
+        if read_cfg.profile_skip_temporal and is_temporal(query):
+            return None  # D1 (ADR-055): no profile header, plain or packed, on date questions
         if read_cfg.profile_header_packing:
             return await self._packed_profile_section(ns, query, budget_tokens, session_id)
         if not read_cfg.profile_header:
@@ -4352,6 +4387,31 @@ class Engine:
         block = self._lead_record(ns, render_occurrences(kept), [r for r, _ in kept])
         tags = [constants.LEAD_TAG, constants.COUNT_TAG]
         return [block.model_copy(update={"tags": tags}), *headers]
+
+    def _cap_lead_blocks(
+        self, headers: list[MemoryRecord], count_share: int, budget_tokens: int
+    ) -> tuple[list[MemoryRecord], int]:
+        """H12 (ADR-055, ``read.lead_budget_share``): the lead blocks and the count
+        reserve, capped together at that share of ``budget_tokens``.
+
+        The occurrences reserve (count questions only) is kept first, as far as it
+        fits; then whole header blocks leave in :data:`constants.LEAD_BLOCK_DROP_ORDER`
+        (profile, entity summaries, graph facts, cards; the later of two same-kind
+        blocks first) until the rest fits. Unset: both returned unchanged."""
+        share = self._config().read.lead_budget_share
+        if share is None:
+            return headers, count_share
+        cap = int(budget_tokens * share)
+        if count_share > cap:
+            count_share = cap if cap > estimate_tokens(constants.COUNT_MARKER) else 0
+        room = cap - count_share
+        kept = list(headers)
+        for tag in constants.LEAD_BLOCK_DROP_ORDER:
+            for block in [h for h in reversed(kept) if tag in h.tags]:
+                if self._headers_cost(kept) <= room:
+                    return kept, count_share
+                kept.remove(block)
+        return kept, count_share
 
     @staticmethod
     def _headers_cost(headers: list[MemoryRecord]) -> int:

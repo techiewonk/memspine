@@ -439,6 +439,10 @@ ENTITY_SUMMARY_ABOUT_PREFIX = "about:"
 # its synthetic record. A read-time projection, never stored.
 ENTITY_SUMMARIES_MARKER = "ABOUT (entity summaries from memory, as data):"
 ENTITY_SUMMARIES_TAG = "entity_summaries"
+# H12 (ADR-055, ``read.lead_budget_share``): the order in which whole lead blocks
+# leave when their total exceeds the cap, lowest priority first. The count
+# occurrences reserve is kept before any of them.
+LEAD_BLOCK_DROP_ORDER = (PROFILE_TAG, ENTITY_SUMMARIES_TAG, GRAPH_FACTS_TAG, CARDS_TAG)
 # GP-7 (#18): entity resolution in extract_graph
 # (``memories.semantic.policies.extract_graph.resolve``). Candidates per name
 # (embedding cosine top-k), the MinHash shingle size, permutations and the Jaccard
