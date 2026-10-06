@@ -15,7 +15,6 @@ hard-coded here, because they change and differ by region).
 
 from __future__ import annotations
 
-import hashlib
 import os
 import re
 import time
@@ -25,7 +24,14 @@ from pathlib import Path
 from typing import Any
 
 from .contracts import ReaderAnswer
-from .readers import ANSWER_EXTRACTOR_VERSION, DEFAULT_QA_PROMPT, final_answer
+from .readers import (
+    ANSWER_EXTRACTOR_VERSION,
+    DEFAULT_QA_PROMPT,
+    RoutedQAPrompt,
+    final_answer,
+    prompt_describe,
+    prompt_variant,
+)
 from .runner import ModelCallBudgetExceeded
 
 __all__ = [
@@ -399,7 +405,7 @@ class LiteLLMReader:
         model: str = QWEN3_32B,
         temperature: float = 0.0,
         max_tokens: int = 256,
-        prompt: str = DEFAULT_QA_PROMPT,
+        prompt: str | RoutedQAPrompt = DEFAULT_QA_PROMPT,
         reader_id: str | None = None,
         no_think: bool | None = None,
         retry_attempts: int = 5,
@@ -434,7 +440,7 @@ class LiteLLMReader:
             "temperature": self.temperature,
             "max_tokens": self.max_tokens,
             "no_think": self.no_think,
-            "prompt_sha256": hashlib.sha256(self.prompt.encode()).hexdigest(),
+            **prompt_describe(self.prompt),
             **(
                 {"extract_answer": True, "answer_extractor": ANSWER_EXTRACTOR_VERSION}
                 if self.extract_answer
@@ -494,6 +500,9 @@ class LiteLLMReader:
                 context=context, question=question, question_date=question_date or "unknown"
             )
         )
+        variant = prompt_variant(self.prompt, question)
+        if variant is not None:
+            reply = replace(reply, prompt_variant=variant)
         if not self.extract_answer:
             return reply
         return replace(reply, text=final_answer(reply.text), raw_text=reply.text)

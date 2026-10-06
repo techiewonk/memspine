@@ -343,9 +343,11 @@ def build_parser() -> argparse.ArgumentParser:
             "converse",
             "mab_fc",
             "question_dated",
+            "routed",
         ),
         default="default",
-        help="QA prompt variant for every arm (H7/H12); question_dated shows the question date",
+        help="QA prompt variant for every arm (H7/H12); question_dated shows the question date; "
+        "routed (C1) picks dated / a temporal / an inference variant per question",
     )
     c01.add_argument(
         "--verify-answer",

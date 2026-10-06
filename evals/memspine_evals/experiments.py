@@ -402,11 +402,22 @@ def build_reader_and_judge(config: C01Config) -> tuple[Reader, Judge, bool]:
         # No generation: "was the answer retrievable at all". This is what R@k
         # and MemPalace's 96.6 measure, and it costs nothing to run.
         return ContextOnlyReader(), ContainsJudge(), False
-    from .readers import QA_PROMPTS, REASONING_MAX_TOKENS, REASONING_QA_PROMPTS
+    from .readers import (
+        QA_PROMPTS,
+        REASONING_MAX_TOKENS,
+        REASONING_QA_PROMPTS,
+        ROUTED_QA_PROMPTS,
+        RoutedQAPrompt,
+    )
 
-    if config.qa_prompt not in QA_PROMPTS:
-        raise ValueError(f"unknown qa prompt {config.qa_prompt!r}; known: {sorted(QA_PROMPTS)}")
-    qa_prompt = QA_PROMPTS[config.qa_prompt]
+    qa_prompt: str | RoutedQAPrompt
+    if config.qa_prompt in QA_PROMPTS:
+        qa_prompt = QA_PROMPTS[config.qa_prompt]
+    elif config.qa_prompt in ROUTED_QA_PROMPTS:  # C1: one variant per question
+        qa_prompt = ROUTED_QA_PROMPTS[config.qa_prompt]
+    else:
+        known = sorted([*QA_PROMPTS, *ROUTED_QA_PROMPTS])
+        raise ValueError(f"unknown qa prompt {config.qa_prompt!r}; known: {known}")
     # #34: a reasoning prompt's reader keeps the final answer and gets room to reason.
     reasoning = config.qa_prompt in REASONING_QA_PROMPTS
     if config.bedrock:
