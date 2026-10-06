@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from memspine.clients.base import Client
+from memspine.config import constants
 from memspine.exceptions import MissingServiceError, StorageError
 
 __all__ = ["LanceDBClient"]
@@ -34,7 +35,15 @@ class LanceDBClient(Client):
             import lancedb
         except ImportError as exc:
             raise MissingServiceError("vector:lancedb") from exc
-        self._db = await asyncio.to_thread(lancedb.connect, self._path)
+        if self._path.startswith("memory://"):
+            # ADR-053: a small metadata cache, so dropped table versions are
+            # released instead of pinned by cache entries.
+            session = lancedb.Session(
+                metadata_cache_size_bytes=constants.LANCE_MEMORY_METADATA_CACHE_BYTES
+            )
+            self._db = await asyncio.to_thread(lancedb.connect, self._path, session=session)
+        else:
+            self._db = await asyncio.to_thread(lancedb.connect, self._path)
 
     async def close(self) -> None:
         # lancedb connections hold no server socket; drop the handle so table
