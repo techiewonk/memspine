@@ -3319,7 +3319,7 @@ class Engine:
             top_k,
             shared=shared,
             session_id=session_id,
-            hide=self._header_hide(headers),
+            hide=self._header_hide(headers, hide_facts=self._cards_gated(query)),
         )
         rendered = self._render(query, assembled, inner)
         headers = self._count_section(ns, query, rendered, count_share, headers)
@@ -3776,6 +3776,8 @@ class Engine:
         # from what the routed read retrieved.
         count_share = self._count_allowance(query, budget_tokens)
         headers, count_share = self._cap_lead_blocks(headers, count_share, budget_tokens)
+        # ADR-055 addendum: a gated question reads raw turns only, in every mode.
+        gated = self._cards_gated(query)
         result = await self._read_routed(
             query,
             ns,
@@ -3784,8 +3786,8 @@ class Engine:
             top_k,
             replay_window,
             compose_pool,
-            hide=self._header_hide(headers),
-            full_hide=self._header_hide(headers, all_facts=False),
+            hide=self._header_hide(headers, hide_facts=gated),
+            full_hide=self._header_hide(headers, all_facts=False, hide_facts=gated),
             session_id=session_id,
         )
         headers = self._count_section(ns, query, result.context, count_share, headers)
@@ -4013,7 +4015,7 @@ class Engine:
         :data:`constants.CLAIM_MARKER`, as its claim would in the routed read.
         """
         read_cfg = self._config().read
-        if read_cfg.cards != "header":
+        if read_cfg.cards != "header" or self._cards_gated(query):
             return None
         temporal = is_temporal(query)
         # B3 (ADR-055): ``cards_temporal: event_dates`` shows a date question only the
@@ -4419,17 +4421,35 @@ class Engine:
     def _headers_cost(headers: list[MemoryRecord]) -> int:
         return sum(estimate_tokens(h.content) for h in headers)
 
+    def _cards_gated(self, query: str) -> bool:
+        """ADR-055 addendum (``read.cards_only_aggregate``): True when ``query`` gets
+        no cards header and no mined fact in its routed read.
+
+        Only with ``read.cards: header`` and the key on, and only for a question that
+        is neither a list/count question (``is_aggregation`` / ``is_count``) nor a
+        date question (``is_temporal``): date questions keep the ``cards_skip_temporal``
+        / ``cards_temporal`` behaviour unchanged."""
+        read_cfg = self._config().read
+        return (
+            read_cfg.cards_only_aggregate
+            and read_cfg.cards == "header"
+            and not (is_aggregation(query) or is_count(query) or is_temporal(query))
+        )
+
     @staticmethod
     def _header_hide(
-        headers: list[MemoryRecord], *, all_facts: bool = True
+        headers: list[MemoryRecord], *, all_facts: bool = True, hide_facts: bool = False
     ) -> Callable[[MemoryRecord], bool] | None:
         """What the routed read leaves out: every record a header shows, and with
         the cards header every mined fact (facts reach the context through it).
-        ``all_facts=False`` (a ``full`` read) leaves out only the shown records."""
-        if not headers:
+        ``all_facts=False`` (a ``full`` read) leaves out only the shown records.
+        ``hide_facts`` (``read.cards_only_aggregate`` gating the cards header off)
+        leaves out every mined fact even without a cards header, in a ``full`` read
+        too, so the question reads as with mining off."""
+        if not headers and not hide_facts:
             return None
         shown = {pid for h in headers for pid in h.source.parents}
-        facts = all_facts and any(constants.CARDS_TAG in h.tags for h in headers)
+        facts = hide_facts or (all_facts and any(constants.CARDS_TAG in h.tags for h in headers))
         return lambda r: r.record_id in shown or (facts and "atomic_fact" in r.tags)
 
     def _header_abstains(self, hits: list[tuple[MemoryRecord, float]]) -> bool:

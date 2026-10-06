@@ -207,6 +207,7 @@ NEW_KEYS_AT_DEFAULT: dict[str, Any] = {
     "cards_temporal": "skip",
     "profile_skip_temporal": False,
     "lead_budget_share": None,
+    "cards_only_aggregate": False,  # ADR-055 addendum
 }
 
 

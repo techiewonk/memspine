@@ -67,5 +67,14 @@ Design choices:
 - With `cards_temporal: event_dates` and the cards header shown, the routed read still hides
   every mined fact (the G1b rule). Undated facts therefore leave a date question's context,
   which is the intent: their miner dates were the problem.
+- **Addendum (2026-10-06): `read.cards_only_aggregate`** (default `false`, byte-identical). The
+  paid screen of the mining stack (mined facts and list cards in the cards header) gave
+  multi-hop +8.1 and single-hop −7.9 on non-list questions. With `cards: header` and the key on,
+  the cards header is built only for list and count questions; any other question that is not a
+  date question also has every `atomic_fact` record hidden from its routed read (in every mode,
+  `full` included: no header shows them, so the question reads as with mining off). Precedence:
+  list/count first, then date questions (unchanged `cards_skip_temporal` / `cards_temporal`
+  behaviour), then the gate. Tests in `tests/unit/test_routed_read_gates.py`; the key is in the
+  defaults golden and spelled out in `tests/unit/test_routed_read_off_golden.py`.
 - Not done here: making the completeness round reachable from replay (A4/H2), generic
   `read.replay_gates`, and line-level trimming of lead blocks.
