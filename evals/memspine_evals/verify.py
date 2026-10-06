@@ -108,4 +108,5 @@ def _with_call(
         truncated=first.truncated,
         cached_prompt_tokens=first.cached_prompt_tokens,
         finish_reason=first.finish_reason,
+        raw_text=first.raw_text,
     )

@@ -40,6 +40,7 @@ from .credentials import is_auth_error
 from .judge import Judge, recall_over_units, unit_ranking
 from .metrics import CostModel, Ledger, Stage
 from .provenance import ReaderSpec, RunManifest, RunProtocol, SystemSpec
+from .readers import reader_raw_meta
 from .results import ResultRow, ResultWriter, RowStatus, RunSummary, aggregate
 from .tokens import HeuristicTokenCounter, TokenCounter, truncate_to_budget
 from .trace import DepositTrace, TraceWriter, cycle_from_context
@@ -778,6 +779,7 @@ class EvalRunner:
                     **(
                         {"reranked": context.meta["reranked"]} if "reranked" in context.meta else {}
                     ),
+                    **reader_raw_meta(answer.raw_text),
                     **self._row_spend(spend_before),
                 },
             )
