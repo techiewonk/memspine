@@ -7,7 +7,7 @@
 |---|---|
 | **Milestone** | ✅ v0.1 Release Hardening done (bar the infra-gated live check) · ✅ **v0.2 landed** · 🟡 **v0.3 in planning (lock: no code yet)** · 🧪 **integrity (MTI) opt-in: implemented on a branch, ADR-029 *proposed*** |
 | **Tests** | **1958** in `tests/` (1936 passed, 22–23 skipped, 0 failed in chunked runs; 2026-10-06) + **373** in `evals/tests` (all pass) |
-| **ADRs** | **52** (ADR-001 … ADR-053; 038 unassigned; ADR-029/030/031 *proposed*) + template · decision register through **D-77** |
+| **ADRs** | **55** (ADR-001 … ADR-056; 038 unassigned; ADR-029/030/031 *proposed*) + template · decision register through **D-80** |
 | **Version** | `pyproject` still `0.0.1` (pre-alpha; not bumped despite v0.2) |
 | **Latest commit** | `e7a77cf`: GLiNER2 planner (#89). All non-paid items of the research master absorb list are merged, reviewed and fixed on `feat/integrity-mti`; see CHANGELOG `[Unreleased]` |
 
