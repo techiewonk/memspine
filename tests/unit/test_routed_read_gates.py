@@ -451,3 +451,99 @@ async def test_lead_budget_share_applies_to_assemble() -> None:
     finally:
         await eng.stop()
     assert not [r for r in ctx.records if constants.LEAD_TAG in r.tags]
+
+
+# -- ADR-055 addendum: cards header and mined facts only for list / count questions ----
+
+
+def _facts(out: Any) -> list[MemoryRecord]:
+    return [r for r in out.context.records if "atomic_fact" in r.tags]
+
+
+def _view(out: Any) -> list[tuple[str, list[str], str]]:
+    return [(r.memory_type, sorted(r.tags), r.content) for r in out.context.records]
+
+
+async def _read_all(
+    query: str, modes: tuple[str, ...] = ("replay",), budget: int = 600, **read: Any
+) -> dict[str, Any]:
+    eng = _engine(**read)
+    await eng.start()
+    try:
+        await _seed(eng)
+        out: dict[str, Any] = {
+            mode: await eng.read(query, namespace="a", mode=mode, top_k=3, budget_tokens=budget)
+            for mode in modes
+        }
+        out["assemble"] = await eng.assemble(query, namespace="a", top_k=3, budget_tokens=budget)
+        return out
+    finally:
+        await eng.stop()
+
+
+def test_cards_only_aggregate_defaults_off() -> None:
+    assert ReadConfig().cards_only_aggregate is False
+
+
+@pytest.mark.parametrize("query", [AGGREGATE, COUNT])
+async def test_cards_only_aggregate_keeps_the_header_for_list_and_count(query: str) -> None:
+    out = await _read_all(query, cards="header", cards_only_aggregate=True)
+    off = await _read_all(query, cards="header")
+    assert _tagged(out["replay"], constants.CARDS_TAG)
+    assert _view(out["replay"]) == _view(off["replay"])
+
+
+MODES = ("replay", "retrieve", "compose", "auto", "full")
+
+
+async def test_lookup_has_header_and_facts_when_the_key_is_off() -> None:
+    off = await _read_all(LOOKUP, MODES, cards="header")
+    assert _tagged(off["replay"], constants.CARDS_TAG)
+
+
+async def test_cards_only_aggregate_lookup_reads_raw_turns_only() -> None:
+    out = await _read_all(LOOKUP, MODES, cards="header", cards_only_aggregate=True)
+    for mode in MODES:
+        result = out[mode]
+        assert not _tagged(result, constants.CARDS_TAG), mode
+        assert not _facts(result), mode
+        assert result.context.records, mode
+    assert not [r for r in out["assemble"].records if "atomic_fact" in r.tags]
+    assert not [r for r in out["assemble"].records if constants.CARDS_TAG in r.tags]
+
+
+async def test_cards_only_aggregate_full_read_matches_mining_off() -> None:
+    """Small namespace: ``auto``/``full`` hold every live record, minus mined facts."""
+    out = await _read_all(LOOKUP, ("full",), budget=4000, cards="header", cards_only_aggregate=True)
+    contents = [r.content for r in out["full"].context.records]
+    assert any("Melanie: I went camping at the beach" in c for c in contents)
+    assert not _facts(out["full"])
+
+
+@pytest.mark.parametrize(
+    "temporal_cfg",
+    [
+        {},
+        {"cards_skip_temporal": True},
+        {"cards_temporal": "event_dates"},
+        {"cards_skip_temporal": True, "cards_temporal": "event_dates"},
+    ],
+)
+async def test_cards_only_aggregate_leaves_temporal_questions_alone(
+    temporal_cfg: dict[str, Any],
+) -> None:
+    on = await _read_all(TEMPORAL, MODES, cards="header", cards_only_aggregate=True, **temporal_cfg)
+    off = await _read_all(TEMPORAL, MODES, cards="header", **temporal_cfg)
+    for mode in MODES:
+        assert _view(on[mode]) == _view(off[mode]), mode
+    assert [r.content for r in on["assemble"].records] == [
+        r.content for r in off["assemble"].records
+    ]
+
+
+async def test_cards_only_aggregate_needs_the_cards_header() -> None:
+    """Without ``cards: header`` there is no mining stack to gate: byte-identical."""
+    on = await _read_all(LOOKUP, MODES, cards_only_aggregate=True)
+    off = await _read_all(LOOKUP, MODES)
+    for mode in MODES:
+        assert _view(on[mode]) == _view(off[mode]), mode

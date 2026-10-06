@@ -51,6 +51,7 @@
       "cards_budget_share": 0.25,
       "cards_event_date": false,
       "cards_include_edges": false,
+      "cards_only_aggregate": false,
       "cards_skip_temporal": false,
       "cards_temporal": "skip",
       "cards_top_k": 10,

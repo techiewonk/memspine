@@ -524,6 +524,13 @@ class ReadConfig(BaseModel):
     aggregate_in_replay: bool = False
     #: A2: the cards header shows #30 list cards only to list and count questions.
     list_cards_only_aggregate: bool = False
+    #: ADR-055 addendum: with ``cards: header``, the cards header (mined facts and
+    #: list cards) is built only for list and count questions; any other question
+    #: that is not a date question also gets no mined fact (``atomic_fact``) in its
+    #: routed read, so it reads raw turns only. Date questions keep the
+    #: ``cards_skip_temporal`` / ``cards_temporal`` behaviour. The rule holds in every
+    #: read mode, ``full`` included (as with mining off). Off: byte-identical.
+    cards_only_aggregate: bool = False
     #: B2: with ``temporal_leg``, a record whose ``happened:`` date (a mined fact's
     #: event date) overlaps the query's date span also enters the temporal leg.
     temporal_leg_event_dates: bool = False
