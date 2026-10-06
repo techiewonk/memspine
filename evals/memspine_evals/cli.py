@@ -139,9 +139,18 @@ def cmd_smoke(args: argparse.Namespace) -> int:
 
 
 def cmd_c0_1(args: argparse.Namespace) -> int:
+    if args.cache_reader and not args.cache_dir:
+        raise SystemExit("--cache-reader needs --cache-dir")
+    if args.retrieval_only and args.mode == "qa":
+        print(
+            "NOTE: --retrieval-only skips the reader and the judge; --mode qa is ignored",
+            file=sys.stderr,
+            flush=True,
+        )
     dataset = _dataset(args)
     config = C01Config(
-        mode=args.mode,
+        # screening runs read as the QA run would, but never generate
+        mode="retrieval" if args.retrieval_only else args.mode,
         budget_tokens=args.budget,
         top_k=args.top_k,
         seed=args.seed,
@@ -170,6 +179,9 @@ def cmd_c0_1(args: argparse.Namespace) -> int:
         service_prices=parse_service_prices(args.price),
         max_usd=args.max_usd,
         verify_answer=args.verify_answer,
+        retrieval_only=args.retrieval_only,
+        cache_dir=args.cache_dir,
+        cache_reader=args.cache_reader,
     )
     if args.protocol:
         from .experiments import apply_protocol_preset
@@ -207,7 +219,7 @@ def cmd_c0_1(args: argparse.Namespace) -> int:
             "--memspine-llm binds the engine's LLM roles to a paid model — pass "
             "--max-model-calls with a cap you have agreed to"
         )
-    if config.mode == "qa" and args.max_model_calls is None:
+    if config.mode == "qa" and not config.retrieval_only and args.max_model_calls is None:
         raise SystemExit(
             "qa mode calls models — pass --max-model-calls with a cap you have agreed to. "
             "An uncapped run is how a benchmark bill becomes a surprise."
@@ -226,7 +238,9 @@ def cmd_c0_1(args: argparse.Namespace) -> int:
         f"({info.n_items} items, {info.n_queries} queries)\n"
         f"- mode: **{config.mode}** | budget: {config.budget_tokens} tokens | top_k: {config.top_k}"
         f" | seed: {config.seed} | retriever: {'dense' if config.dense else 'bm25 lexical'}\n"
-        f"- reader: `{config.reader_model if config.mode == 'qa' else 'none (retrieval only)'}`\n\n"
+        f"- reader: `{config.reader_model if config.mode == 'qa' else 'none (retrieval only)'}`\n"
+        + ("- screening: retrieval-only (no reader, no judge)\n" if config.retrieval_only else "")
+        + "\n"
     )
     (out_dir / "COMPARISON.md").write_text(header + table + "\n", encoding="utf-8")
 
@@ -421,6 +435,27 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="dollar cap per arm (reader + judge + engine); a call whose worst case would "
         "cross it is refused and the arm stops with UNATTEMPTED rows",
+    )
+    c01.add_argument(
+        "--retrieval-only",
+        action="store_true",
+        help="screening: ingest and read every question exactly as the QA run would (same "
+        "engine config, budget, top_k, read mode) but skip the reader and the judge; rows "
+        "record retrieved_ids, context_tokens, the gold evidence and ev_all/ev_any/ev_frac, "
+        "and summary.json a per-category coverage block",
+    )
+    c01.add_argument(
+        "--cache-dir",
+        default=None,
+        metavar="PATH",
+        help="screening: a disk cache of paid embedding and engine-role completion calls "
+        "(temperature 0 or unset only); a hit costs $0 and is counted in summary.json "
+        "(cache_hits, cache_misses, usd_saved). Reader and judge calls are not cached",
+    )
+    c01.add_argument(
+        "--cache-reader",
+        action="store_true",
+        help="with --cache-dir: cache reader and judge completions too (temperature 0 only)",
     )
     c01.add_argument("--run-id", default=None)
     c01.add_argument("--out", default=str(DEFAULT_OUT))
