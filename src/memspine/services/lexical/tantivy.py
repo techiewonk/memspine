@@ -42,6 +42,8 @@ from typing import TYPE_CHECKING, Any
 from memspine.config.constants import (
     MAX_LEXICAL_QUERY_CHARS,
     MAX_LEXICAL_QUERY_TERMS,
+    TANTIVY_COMMIT_BACKOFF_S,
+    TANTIVY_COMMIT_RETRIES,
     TANTIVY_WRITER_HEAP_BYTES,
 )
 from memspine.core.records import MemoryRecord
@@ -89,6 +91,25 @@ def tokenize_content(query: str) -> list[str]:
     if current and len(terms) < MAX_LEXICAL_QUERY_TERMS:
         terms.append("".join(current))
     return terms
+
+
+def _commit_with_retry(writer: Any) -> None:
+    """Commit, retrying a Windows sharing violation a few times.
+
+    On Windows a commit renames ``meta.json``; while another handle in the process
+    (the reader reload, an indexer or scanner) still has it open, the rename fails
+    with ``Access is denied (os error 5)``. The commit is safe to retry: nothing was
+    published. Any other error, or the last attempt's, is raised unchanged."""
+    import time
+
+    for attempt in range(TANTIVY_COMMIT_RETRIES):
+        try:
+            writer.commit()
+            return
+        except ValueError as exc:
+            if "os error 5" not in str(exc) or attempt == TANTIVY_COMMIT_RETRIES - 1:
+                raise
+            time.sleep(TANTIVY_COMMIT_BACKOFF_S * (2**attempt))
 
 
 class TantivyLexical:
@@ -200,12 +221,12 @@ class TantivyLexical:
                 self._uncommitted = False
 
     def _commit(self) -> None:
-        self._writer.commit()
+        _commit_with_retry(self._writer)
         self._index.reload()
 
     def _commit_index(self, record_id: str, namespace: str, content: str) -> None:
         self._add_doc(record_id, namespace, content)
-        self._writer.commit()
+        _commit_with_retry(self._writer)
         self._index.reload()
 
     async def index_many(self, records: Sequence[MemoryRecord]) -> None:
@@ -225,7 +246,7 @@ class TantivyLexical:
     def _commit_index_many(self, cleaned: list[tuple[str, str, str]]) -> None:
         for rid, ns, content in cleaned:
             self._add_doc(rid, ns, content)
-        self._writer.commit()
+        _commit_with_retry(self._writer)
         self._index.reload()
 
     async def search(self, namespace: str, query: str, top_k: int = 8) -> list[LexicalHit]:
@@ -271,7 +292,7 @@ class TantivyLexical:
 
     def _commit_delete(self, record_id: str) -> None:
         self._writer.delete_documents_by_term("record_id", record_id)
-        self._writer.commit()
+        _commit_with_retry(self._writer)
         self._index.reload()
 
     async def exists(self, record_id: str) -> bool:
@@ -296,7 +317,7 @@ class TantivyLexical:
 
     def _commit_clear(self) -> None:
         self._writer.delete_all_documents()
-        self._writer.commit()
+        _commit_with_retry(self._writer)
         self._index.reload()
 
     async def close(self) -> None:

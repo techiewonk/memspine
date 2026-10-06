@@ -572,3 +572,9 @@ SURPRISE_FACT_TAG = "surprise_fact"
 QUERY_ENCODER_CUE_MIN_OVERLAP = 0.5
 #: #61: the most cue targets one query adds as a retrieval leg.
 QUERY_ENCODER_MAX_TARGETS = 10
+
+#: Tantivy commit on Windows: retries and base backoff (s, doubled each try) for the
+#: "Access is denied (os error 5)" sharing violation when ``meta.json`` is renamed
+#: while another handle holds it (file-backed stores only).
+TANTIVY_COMMIT_RETRIES = 6
+TANTIVY_COMMIT_BACKOFF_S = 0.05
