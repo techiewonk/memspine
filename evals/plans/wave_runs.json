@@ -375,7 +375,9 @@
       }
      }
     }
-   }
+   },
+   "disabled": true,
+   "notes": "stopped by decision at 2 of 10 conversations (2026-10-06): +0.0 vs cards on the same 233 questions"
   }
  ]
 }
