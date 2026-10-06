@@ -1,0 +1,117 @@
+{
+ "plan_id": "aamas27-locomo-qwen3",
+ "dataset": {
+  "name": "locomo",
+  "revision": "3eb6f2c-locomo10",
+  "categories": [
+   1,
+   2,
+   3,
+   4
+  ],
+  "n_questions": 1540,
+  "n_conversations": 10
+ },
+ "protocol": {
+  "mode": "qa",
+  "bedrock": true,
+  "judge_prompt": "rubric",
+  "qa_prompt": "default",
+  "budget_tokens": 4096,
+  "top_k": 10,
+  "memspine_llm": "bedrock-qwen3"
+ },
+ "memspine_base": {
+  "read_mode": "replay",
+  "build_sleep": false,
+  "config": {
+   "read": {
+    "record_access": false,
+    "scoring": {
+     "recency_weight": 0.0,
+     "importance_weight": 0.0,
+     "utility_weight": 0.0
+    }
+   },
+   "embedding": {
+    "provider": "litellm",
+    "model": "bedrock/cohere.embed-v4:0",
+    "dim": 1024,
+    "aws_region": "us-east-1",
+    "request_dimensions": true,
+    "query_input_type": "search_query",
+    "document_input_type": "search_document"
+   },
+   "storage": {
+    "path": "tempdir"
+   }
+  }
+ },
+ "projection_assumptions": {
+  "note": "Completion tokens per call are assumptions (the stub's replies are not the model's). Prompt tokens are measured on the stub run (chars/4). 'ceiling' uses each caller's max_tokens, or the prompt's token_budget for engine roles, which send no max_tokens.",
+  "completion_tokens": {
+   "reader": 24,
+   "judge": 12,
+   "extract": 600,
+   "extract_edges": 200,
+   "summarize": 120,
+   "reflect": 200,
+   "anticipate": 400,
+   "relevance": 120,
+   "query_rewrite": 30,
+   "judge_engine": 30,
+   "chat": 100
+  },
+  "ceiling_completion_tokens": {
+   "reader": 256,
+   "judge": 96,
+   "extract": 2048,
+   "extract_edges": 768,
+   "summarize": 256,
+   "reflect": 384,
+   "anticipate": 1024,
+   "relevance": 512,
+   "query_rewrite": 128,
+   "judge_engine": 128,
+   "chat": 512
+  }
+ },
+ "source": "Screens (2026-10-06): each candidate on 2 conversation subsets (S1 conv-26,conv-30; S2 conv-41,conv-42), paired against w1-combo-A rows; a full run only if positive on both.",
+ "arms": [
+  {
+   "id": "s-B1-temporal-leg",
+   "hypothesis": "B1: read.temporal_leg (never measured)",
+   "systems": [
+    "memspine"
+   ],
+   "qa_prompt": "dated",
+   "config_delta": {
+    "read": {
+     "resolve_relative_dates": true,
+     "order_by_time_for_ordering": true,
+     "assembly": {
+      "relative_floor": 0.3
+     },
+     "temporal_leg": true
+    }
+   }
+  },
+  {
+   "id": "s-C1-routed",
+   "hypothesis": "C1/H11: routed QA prompt (temporal / inference / dated)",
+   "systems": [
+    "memspine"
+   ],
+   "qa_prompt": "routed",
+   "config_delta": {
+    "read": {
+     "resolve_relative_dates": true,
+     "order_by_time_for_ordering": true,
+     "assembly": {
+      "relative_floor": 0.3
+     }
+    }
+   }
+  }
+ ]
+}
