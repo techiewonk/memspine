@@ -1,0 +1,382 @@
+{
+ "plan_id": "aamas27-locomo-qwen3",
+ "dataset": {
+  "name": "locomo",
+  "revision": "3eb6f2c-locomo10",
+  "categories": [
+   1,
+   2,
+   3,
+   4
+  ],
+  "n_questions": 1540,
+  "n_conversations": 10
+ },
+ "protocol": {
+  "mode": "qa",
+  "bedrock": true,
+  "judge_prompt": "rubric",
+  "qa_prompt": "default",
+  "budget_tokens": 4096,
+  "top_k": 10,
+  "memspine_llm": "bedrock-qwen3"
+ },
+ "memspine_base": {
+  "read_mode": "replay",
+  "build_sleep": false,
+  "config": {
+   "read": {
+    "record_access": false,
+    "scoring": {
+     "recency_weight": 0.0,
+     "importance_weight": 0.0,
+     "utility_weight": 0.0
+    }
+   },
+   "embedding": {
+    "provider": "litellm",
+    "model": "bedrock/cohere.embed-v4:0",
+    "dim": 1024,
+    "aws_region": "us-east-1",
+    "request_dimensions": true,
+    "query_input_type": "search_query",
+    "document_input_type": "search_document"
+   }
+  }
+ },
+ "projection_assumptions": {
+  "note": "Completion tokens per call are assumptions (the stub's replies are not the model's). Prompt tokens are measured on the stub run (chars/4). 'ceiling' uses each caller's max_tokens, or the prompt's token_budget for engine roles, which send no max_tokens.",
+  "completion_tokens": {
+   "reader": 24,
+   "judge": 12,
+   "extract": 600,
+   "extract_edges": 200,
+   "summarize": 120,
+   "reflect": 200,
+   "anticipate": 400,
+   "relevance": 120,
+   "query_rewrite": 30,
+   "judge_engine": 30,
+   "chat": 100
+  },
+  "ceiling_completion_tokens": {
+   "reader": 256,
+   "judge": 96,
+   "extract": 2048,
+   "extract_edges": 768,
+   "summarize": 256,
+   "reflect": 384,
+   "anticipate": 1024,
+   "relevance": 512,
+   "query_rewrite": 128,
+   "judge_engine": 128,
+   "chat": 512
+  }
+ },
+ "source": "Wave measure plan (2026-10-06): master list #81/#41/#59/#66 round 1 (single changes on combo-A after the determinism fix), round 2 stacks (#28-#30, graph #13-#21), round 3 best-of repeats (#67). Same plan_id/dataset/protocol/memspine_base as aamas_runs.json.",
+ "arms": [
+  {
+   "id": "w1-combo-A",
+   "hypothesis": "baseline after determinism fix (#87)",
+   "systems": [
+    "memspine"
+   ],
+   "qa_prompt": "dated",
+   "config_delta": {
+    "read": {
+     "resolve_relative_dates": true,
+     "order_by_time_for_ordering": true,
+     "assembly": {
+      "relative_floor": 0.3
+     }
+    }
+   }
+  },
+  {
+   "id": "w1-dated3",
+   "hypothesis": "#34 chat@dated3",
+   "systems": [
+    "memspine"
+   ],
+   "qa_prompt": "dated3",
+   "config_delta": {
+    "read": {
+     "resolve_relative_dates": true,
+     "order_by_time_for_ordering": true,
+     "assembly": {
+      "relative_floor": 0.3
+     }
+    }
+   }
+  },
+  {
+   "id": "w1-infer",
+   "hypothesis": "#59 dated_infer",
+   "systems": [
+    "memspine"
+   ],
+   "qa_prompt": "dated_infer",
+   "config_delta": {
+    "read": {
+     "resolve_relative_dates": true,
+     "order_by_time_for_ordering": true,
+     "assembly": {
+      "relative_floor": 0.3
+     }
+    }
+   }
+  },
+  {
+   "id": "w1-read",
+   "hypothesis": "#58 relative week + #60 count dedupe",
+   "systems": [
+    "memspine"
+   ],
+   "qa_prompt": "dated",
+   "config_delta": {
+    "read": {
+     "resolve_relative_dates": true,
+     "order_by_time_for_ordering": true,
+     "assembly": {
+      "relative_floor": 0.3
+     },
+     "relative_week": "preceding_7_days",
+     "count_timeline": true,
+     "count_dedupe": true
+    }
+   }
+  },
+  {
+   "id": "w1-cards",
+   "hypothesis": "#41c cards header, temporal skipped",
+   "systems": [
+    "memspine"
+   ],
+   "qa_prompt": "dated",
+   "build_sleep": true,
+   "config_delta": {
+    "read": {
+     "resolve_relative_dates": true,
+     "order_by_time_for_ordering": true,
+     "assembly": {
+      "relative_floor": 0.3
+     },
+     "cards": "header",
+     "cards_skip_temporal": true
+    },
+    "memories": {
+     "episodic": {
+      "policies": {
+       "consolidation": {
+        "mine_facts": true
+       }
+      }
+     }
+    }
+   }
+  },
+  {
+   "id": "w1-plm",
+   "hypothesis": "#41a LLM planner (v3 persons/time leg)",
+   "systems": [
+    "memspine"
+   ],
+   "qa_prompt": "dated",
+   "read_mode": "auto",
+   "config_delta": {
+    "read": {
+     "resolve_relative_dates": true,
+     "order_by_time_for_ordering": true,
+     "assembly": {
+      "relative_floor": 0.3
+     },
+     "planner": "llm",
+     "planner_version": "v3",
+     "compose_replay": true
+    }
+   }
+  },
+  {
+   "id": "w1-profile",
+   "hypothesis": "#41b H14 profile + #40 packing",
+   "systems": [
+    "memspine"
+   ],
+   "qa_prompt": "dated",
+   "build_sleep": true,
+   "config_delta": {
+    "read": {
+     "resolve_relative_dates": true,
+     "order_by_time_for_ordering": true,
+     "assembly": {
+      "relative_floor": 0.3
+     },
+     "profile_header": true,
+     "profile_header_packing": true
+    },
+    "memories": {
+     "episodic": {
+      "policies": {
+       "consolidation": {
+        "reflect_profile": true
+       }
+      }
+     },
+     "reflective": {
+      "enabled": true
+     }
+    }
+   }
+  },
+  {
+   "id": "w1-cat5-dated",
+   "hypothesis": "#66 abstention baseline",
+   "systems": [
+    "memspine"
+   ],
+   "categories": [
+    5
+   ],
+   "qa_prompt": "dated",
+   "config_delta": {
+    "read": {
+     "resolve_relative_dates": true,
+     "order_by_time_for_ordering": true,
+     "assembly": {
+      "relative_floor": 0.3
+     }
+    }
+   }
+  },
+  {
+   "id": "w1-cat5-infer",
+   "hypothesis": "#66 abstention with dated_infer",
+   "systems": [
+    "memspine"
+   ],
+   "categories": [
+    5
+   ],
+   "qa_prompt": "dated_infer",
+   "config_delta": {
+    "read": {
+     "resolve_relative_dates": true,
+     "order_by_time_for_ordering": true,
+     "assembly": {
+      "relative_floor": 0.3
+     }
+    }
+   }
+  },
+  {
+   "id": "w1-cat5-dated3",
+   "hypothesis": "#66 abstention with dated3",
+   "systems": [
+    "memspine"
+   ],
+   "categories": [
+    5
+   ],
+   "qa_prompt": "dated3",
+   "config_delta": {
+    "read": {
+     "resolve_relative_dates": true,
+     "order_by_time_for_ordering": true,
+     "assembly": {
+      "relative_floor": 0.3
+     }
+    }
+   }
+  },
+  {
+   "id": "w2-mine2",
+   "hypothesis": "#27-#30 mining stack + cards",
+   "systems": [
+    "memspine"
+   ],
+   "qa_prompt": "dated",
+   "build_sleep": true,
+   "config_delta": {
+    "read": {
+     "resolve_relative_dates": true,
+     "order_by_time_for_ordering": true,
+     "assembly": {
+      "relative_floor": 0.3
+     },
+     "cards": "header",
+     "cards_skip_temporal": true,
+     "cards_event_date": true
+    },
+    "memories": {
+     "episodic": {
+      "policies": {
+       "consolidation": {
+        "mine_facts": true,
+        "mine_prompt": "session4",
+        "mine_multiview": true,
+        "mine_event_dates": true,
+        "mine_evidence_turns": true,
+        "list_cards": true
+       }
+      }
+     }
+    }
+   }
+  },
+  {
+   "id": "w2-graph",
+   "hypothesis": "#13-#21 graph stack on top of mining",
+   "systems": [
+    "memspine"
+   ],
+   "qa_prompt": "dated",
+   "build_sleep": true,
+   "config_delta": {
+    "read": {
+     "resolve_relative_dates": true,
+     "order_by_time_for_ordering": true,
+     "assembly": {
+      "relative_floor": 0.3
+     },
+     "cards": "header",
+     "cards_skip_temporal": true,
+     "cards_event_date": true,
+     "graph_leg": true,
+     "cards_include_edges": true,
+     "entity_summaries": true
+    },
+    "memories": {
+     "episodic": {
+      "policies": {
+       "consolidation": {
+        "mine_facts": true,
+        "mine_prompt": "session4",
+        "mine_multiview": true,
+        "mine_event_dates": true,
+        "mine_evidence_turns": true,
+        "list_cards": true
+       }
+      }
+     },
+     "associative": {
+      "enabled": true,
+      "policies": {
+       "entity_nodes": true,
+       "entity_summaries": true
+      }
+     },
+     "semantic": {
+      "enabled": true,
+      "policies": {
+       "extract_graph": {
+        "max_rounds": 1,
+        "granularity": "session",
+        "resolve": "rules"
+       }
+      }
+     }
+    }
+   }
+  }
+ ]
+}

@@ -92,6 +92,13 @@ def arm_engine_config(plan: dict[str, Any], arm: dict[str, Any]) -> dict[str, An
     return deep_merge(base, arm.get("config_delta") or {})
 
 
+#: Policy blocks the engine reads directly (a flag or a small mapping) rather than
+#: through a ``BindablePolicy``; the engine validates their contents itself at start.
+RAW_POLICIES = frozenset(
+    {"entity_nodes", "entity_summaries", "extract_graph", "related", "sessions", "write"}
+)
+
+
 def validate_engine_config(config: dict[str, Any]) -> None:
     """Parse ``config`` the way the engine will: the schema, then each policy block.
 
@@ -114,6 +121,10 @@ def validate_engine_config(config: dict[str, Any]) -> None:
     blocks += [(f"namespaces.{n}", ns.policies) for n, ns in _namespaces(parsed).items()]
     for where, policies in blocks:
         for name, raw in policies.items():
+            if name in RAW_POLICIES:
+                if not isinstance(raw, (bool, dict)):
+                    raise ValueError(f"{where}.policies.{name}: expected true/false or a mapping")
+                continue
             model = options.get(name)
             if model is None:
                 raise ValueError(
