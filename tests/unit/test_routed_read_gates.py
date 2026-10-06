@@ -547,3 +547,45 @@ async def test_cards_only_aggregate_needs_the_cards_header() -> None:
     off = await _read_all(LOOKUP, MODES)
     for mode in MODES:
         assert _view(on[mode]) == _view(off[mode]), mode
+
+
+# -- ADR-055 addendum: a date question that skips the cards header hides mined facts ----
+
+
+def test_cards_skip_hides_facts_defaults_off() -> None:
+    assert ReadConfig().cards_skip_hides_facts is False
+
+
+async def test_skipped_date_question_shows_mined_facts_when_the_key_is_off() -> None:
+    off = await _read_all(TEMPORAL, ("replay",), cards="header", cards_skip_temporal=True)
+    assert not _tagged(off["replay"], constants.CARDS_TAG)
+    assert _facts(off["replay"])
+
+
+async def test_cards_skip_hides_facts_date_question_reads_raw_turns() -> None:
+    out = await _read_all(
+        TEMPORAL, MODES, cards="header", cards_skip_temporal=True, cards_skip_hides_facts=True
+    )
+    for mode in MODES:
+        result = out[mode]
+        assert not _tagged(result, constants.CARDS_TAG), mode
+        assert not _facts(result), mode
+        assert result.context.records, mode
+    assert not [r for r in out["assemble"].records if "atomic_fact" in r.tags]
+
+
+@pytest.mark.parametrize(
+    ("query", "read"),
+    [
+        (LOOKUP, {"cards_skip_temporal": True}),
+        (TEMPORAL, {}),
+        (TEMPORAL, {"cards_skip_temporal": True, "cards_temporal": "event_dates"}),
+    ],
+)
+async def test_cards_skip_hides_facts_changes_nothing_else(
+    query: str, read: dict[str, Any]
+) -> None:
+    on = await _read_all(query, MODES, cards="header", cards_skip_hides_facts=True, **read)
+    off = await _read_all(query, MODES, cards="header", **read)
+    for mode in MODES:
+        assert _view(on[mode]) == _view(off[mode]), mode

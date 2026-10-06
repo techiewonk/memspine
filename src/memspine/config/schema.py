@@ -524,6 +524,11 @@ class ReadConfig(BaseModel):
     aggregate_in_replay: bool = False
     #: A2: the cards header shows #30 list cards only to list and count questions.
     list_cards_only_aggregate: bool = False
+    #: With ``cards: header`` and ``cards_skip_temporal``, a date question gets no cards
+    #: header, and then (with this key) no mined fact either: it reads raw turns, as
+    #: with mining off. Off: mined facts compete in its raw read (measured to push out
+    #: dated turns on LoCoMo temporal questions).
+    cards_skip_hides_facts: bool = False
     #: ADR-055 addendum: with ``cards: header``, the cards header (mined facts and
     #: list cards) is built only for list and count questions; any other question
     #: that is not a date question also gets no mined fact (``atomic_fact``) in its

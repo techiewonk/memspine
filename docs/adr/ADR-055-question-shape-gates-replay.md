@@ -78,3 +78,13 @@ Design choices:
   defaults golden and spelled out in `tests/unit/test_routed_read_off_golden.py`.
 - Not done here: making the completeness round reachable from replay (A4/H2), generic
   `read.replay_gates`, and line-level trimming of lead blocks.
+
+## Addendum (2026-10-07): `read.cards_skip_hides_facts`
+
+With `cards: header` and `cards_skip_temporal` (`cards_temporal: skip`), a date question gets no
+cards header, and `_header_hide` hides mined facts only when a cards header exists. So on those
+questions every mined `atomic_fact` competes in the raw read. That is the measured cause of the
+routed-v1 screen's temporal loss (−9.5 on conv-26+30). The opt-in key `read.cards_skip_hides_facts`
+(default `false`) hides mined facts on such a skipped date question too, so it reads as with
+mining off. Every other question, and every configuration without the key, stays byte-identical
+(tests in `tests/unit/test_routed_read_gates.py`).

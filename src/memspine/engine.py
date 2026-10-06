@@ -4428,12 +4428,24 @@ class Engine:
         Only with ``read.cards: header`` and the key on, and only for a question that
         is neither a list/count question (``is_aggregation`` / ``is_count``) nor a
         date question (``is_temporal``): date questions keep the ``cards_skip_temporal``
-        / ``cards_temporal`` behaviour unchanged."""
+        / ``cards_temporal`` behaviour unchanged, except under
+        ``read.cards_skip_hides_facts``: a date question that skips the cards header
+        (``cards_skip_temporal`` with ``cards_temporal: skip``) then reads with every
+        mined fact hidden too."""
         read_cfg = self._config().read
-        return (
-            read_cfg.cards_only_aggregate
-            and read_cfg.cards == "header"
-            and not (is_aggregation(query) or is_count(query) or is_temporal(query))
+        if read_cfg.cards != "header":
+            return False
+        if (
+            read_cfg.cards_skip_hides_facts
+            and read_cfg.cards_skip_temporal
+            and read_cfg.cards_temporal == "skip"
+            and is_temporal(query)
+        ):
+            # A date question that skips the cards header reads as with mining off:
+            # otherwise the hidden-by-header mined facts flood its raw read.
+            return True
+        return read_cfg.cards_only_aggregate and not (
+            is_aggregation(query) or is_count(query) or is_temporal(query)
         )
 
     @staticmethod
