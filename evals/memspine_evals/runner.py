@@ -24,8 +24,9 @@ import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
+from .call_cache import reader_scope
 from .contracts import (
     DatasetAdapter,
     DepositResult,
@@ -42,8 +43,12 @@ from .metrics import CostModel, Ledger, Stage
 from .provenance import ReaderSpec, RunManifest, RunProtocol, SystemSpec
 from .readers import reader_raw_meta
 from .results import ResultRow, ResultWriter, RowStatus, RunSummary, aggregate
+from .screen import coverage, coverage_summary, normalise_evidence
 from .tokens import HeuristicTokenCounter, TokenCounter, truncate_to_budget
 from .trace import DepositTrace, TraceWriter, cycle_from_context
+
+if TYPE_CHECKING:
+    from .call_cache import CacheStats
 
 
 class ModelCallBudgetExceeded(RuntimeError):
@@ -106,6 +111,12 @@ class RunConfig:
     #: C-6: ``"embed:<model>"`` (USD per 1M tokens) / ``"rerank:<model>"`` (USD per
     #: 1,000 searches) for the engine's paid services, charged as their use is observed.
     service_prices: Mapping[str, float] | None = None
+    #: screening: ingest and read every question as a QA run would, then skip the reader
+    #: and the judge; rows carry evidence coverage instead (``screen.py``)
+    retrieval_only: bool = False
+    #: screening: the installed :class:`~memspine_evals.call_cache.CallCache`, if any.
+    #: Completions it serves are not counted as model calls and cost nothing.
+    call_cache: Any = None
 
     def limits(self) -> dict[str, Any]:
         return {
@@ -156,6 +167,8 @@ class EvalRunner:
         #: C-6: engine services observed (``meta["engine_services"]``), priced or not
         self.engine_services: dict[str, float] = {}
         self._meter, self._own_meter = self._spend_meter()
+        #: screening: the call cache's counters when this arm started (per-arm deltas)
+        self._cache_start = self._cache_mark()
         try:
             params = inspect.signature(reader.answer).parameters
         except (TypeError, ValueError):  # pragma: no cover - builtins without a signature
@@ -222,14 +235,48 @@ class EvalRunner:
         """Dollars metered so far (None without a meter)."""
         return float(self._meter.spent_usd()) if self._meter is not None else None
 
-    def _charge_services(self, meta: Mapping[str, Any]) -> None:
+    # -- call cache (screening) ------------------------------------------------
+
+    def _cache_mark(self) -> CacheStats | None:
+        """The call cache's counters now (None without a cache)."""
+        cache = self.config.call_cache
+        return cache.stats.snapshot() if cache is not None else None
+
+    def _cache_since(self, mark: CacheStats | None) -> CacheStats | None:
+        cache = self.config.call_cache
+        return cache.stats.since(mark) if cache is not None and mark is not None else None
+
+    @staticmethod
+    def _served(delta: CacheStats | None) -> int:
+        """Completions the cache served during a call (made no provider call)."""
+        return delta.chat_hits if delta is not None else 0
+
+    def cache_summary(self) -> dict[str, Any] | None:
+        """This arm's cache block for ``summary.json`` (None without a cache)."""
+        delta = self._cache_since(self._cache_start)
+        if delta is None:
+            return None
+        return {
+            **delta.to_dict(self.config.prices_per_mtok, self.config.service_prices),
+            **self.config.call_cache.describe(),
+        }
+
+    def _charge_services(self, meta: Mapping[str, Any], cached: CacheStats | None = None) -> None:
         """C-6: charge the engine's observed paid-service use (``meta["engine_services"]``:
-        ``{"embed:<model>": tokens, "rerank:<model>": searches}``) to the meter."""
+        ``{"embed:<model>": tokens, "rerank:<model>": searches}``) to the meter.
+
+        Embedding tokens are an estimate over the texts the system embedded; when the call
+        cache served some of them (``cached``), only the share it sent to the provider is
+        charged."""
         services = meta.get("engine_services")
         if not services:
             return
-        for key, units in services.items():
+        embed_share = 1.0
+        if cached is not None and cached.embed_hits + cached.embed_misses > 0:
+            embed_share = cached.embed_misses / (cached.embed_hits + cached.embed_misses)
+        for key, raw_units in services.items():
             kind, _, model = str(key).partition(":")
+            units = float(raw_units or 0) * (embed_share if kind == "embed" else 1.0)
             self.engine_services[key] = self.engine_services.get(key, 0.0) + float(units or 0)
             charge = getattr(self._meter, "charge_service", None)
             if callable(charge):
@@ -263,11 +310,13 @@ class EvalRunner:
         if self._meter is not None:
             self._meter.check_usd(what=what)
 
-    def _charge_engine(self, stage: Stage, meta: Mapping[str, Any]) -> None:
+    def _charge_engine(self, stage: Stage, meta: Mapping[str, Any], served: int = 0) -> None:
         """Charge the engine's observed LLM use (``meta["engine_llm"]``) to the meter.
 
         #33: ``meta["engine_prompts"]`` (the same calls, split per prompt version) is
-        tallied per stage for the summary only; the meter is charged once, per role."""
+        tallied per stage for the summary only; the meter is charged once, per role.
+        ``served``: completions the call cache answered (0 tokens, no provider call);
+        they stay in the per-role tally but are not charged as calls."""
         self._tally_engine_prompts(stage, meta.get("engine_prompts"))
         usage = meta.get("engine_llm")
         if not usage:
@@ -280,11 +329,14 @@ class EvalRunner:
             for key in ("calls", "prompt", "completion"):
                 acc[key] += int(used.get(key, 0) or 0)
             if self._meter is not None:
+                calls = int(used.get("calls", 0) or 0)
+                uncharged = min(served, calls)
+                served -= uncharged
                 self._meter.charge(
                     str(used.get("model", "")),
                     int(used.get("prompt", 0) or 0),
                     int(used.get("completion", 0) or 0),
-                    calls=int(used.get("calls", 0) or 0),
+                    calls=calls - uncharged,
                 )
 
     def _tally_engine_prompts(self, stage: Stage, prompts: Any) -> None:
@@ -386,7 +438,9 @@ class EvalRunner:
                 try:
                     summary = aggregate(manifest, rows, self.ledger)
                     writer.write_summary(summary)
-                    self._write_summary_file(manifest, summary, aborted=crashed or aborted)
+                    self._write_summary_file(
+                        manifest, summary, aborted=crashed or aborted, rows=rows
+                    )
                 except Exception:
                     if crashed is None:
                         raise
@@ -403,6 +457,57 @@ class EvalRunner:
         if now is None or before is None:
             return {}
         return {"spend_usd": round(now - before, 8), "spend_usd_run": round(now, 8)}
+
+    def _coverage_row(
+        self,
+        item: EvalItem,
+        query: Query,
+        context: Any,
+        latency_retrieve: float,
+        spend_before: float | None,
+    ) -> ResultRow:
+        """Screening: the row of a retrieval-only question (no reader, no judge). The
+        ``score`` is ``ev_all`` (0 for a question without gold evidence); the coverage
+        fields are in ``meta``."""
+        retrieved_ids = tuple(dict.fromkeys(e.turn_id for e in context.evidence))
+        gold = tuple(query.gold_turn_ids)
+        cover = coverage(retrieved_ids, gold)
+        ranked = bool(context.meta.get("ranked", True))
+        units = unit_ranking(context.evidence)
+        recall: dict[str, float | None] = {}
+        for k in self.config.protocol.recall_ks:
+            recall[f"R@{k}"] = recall_over_units(units, gold, k) if ranked else None
+            recall[f"R_all@{k}"] = (
+                recall_over_units(units, gold, k, require_all=True) if ranked else None
+            )
+        return ResultRow(
+            run_id=self.config.run_id,
+            item_id=item.item_id,
+            query_id=query.query_id,
+            question=query.text,
+            gold=query.gold,
+            answer="",
+            score=1.0 if cover["ev_all"] else 0.0,
+            scale=self.judge.spec.scale.value,
+            status=RowStatus.COMPLETED.value,
+            protocol_id=self.config.protocol.protocol_id,
+            dataset_revision=self.dataset.info().revision_id,
+            system_id=self.system.system_id,
+            seed=self.config.protocol.seed,
+            type_label=query.type_label,
+            context_tokens=context.tokens,
+            context_truncated=context.truncated,
+            latency_retrieve_ms=latency_retrieve,
+            retrieved_ids=retrieved_ids,
+            recall=recall,
+            meta={
+                "retrieval_only": True,
+                "gold_evidence": list(normalise_evidence(gold)),
+                **cover,
+                **({"reranked": context.meta["reranked"]} if "reranked" in context.meta else {}),
+                **self._row_spend(spend_before),
+            },
+        )
 
     def _unattempted(self, item: EvalItem, query: Query) -> ResultRow:
         return self._blank_row(
@@ -438,6 +543,7 @@ class EvalRunner:
         manifest: RunManifest,
         summary: RunSummary,
         aborted: BaseException | None = None,
+        rows: Sequence[ResultRow] = (),
     ) -> None:
         import json
 
@@ -462,6 +568,15 @@ class EvalRunner:
             "rerank_unavailable": self.rerank_summary()["rerank_unavailable"],
             "spend": self._meter.summary() if self._meter is not None else None,
         }
+        cache = self.cache_summary()
+        if cache is not None:
+            # screening: completions / embeddings the disk cache served at $0
+            payload["cache"] = cache
+            for key in ("cache_hits", "cache_misses", "usd_saved"):
+                payload[key] = cache[key]
+        if self.config.retrieval_only:
+            # screening: per category, mean evidence coverage and context size
+            payload["coverage"] = coverage_summary(row.to_dict() for row in rows)
         self.summary_path.parent.mkdir(parents=True, exist_ok=True)
         self.summary_path.write_text(
             json.dumps(payload, indent=2, ensure_ascii=False, default=str), encoding="utf-8"
@@ -532,11 +647,12 @@ class EvalRunner:
     async def _insert(self, item_id: str, t: int, turn: Turn, tracer: TraceWriter) -> None:
         self._check_spend(f"{self.system.system_id}.insert")
         started = time.perf_counter()
+        mark = self._cache_mark()
         deposit = await self._guard_auth(
             f"{self.system.system_id}.insert", lambda: self.system.insert(turn)
         )
         latency = (time.perf_counter() - started) * 1000
-        self._record_deposit(item_id, t, turn, deposit, latency, tracer)
+        self._record_deposit(item_id, t, turn, deposit, latency, tracer, self._cache_since(mark))
 
     async def _flush(self, item_id: str, t: int, turn: Turn, tracer: TraceWriter) -> None:
         """Optional adapter hook (G9): write turns the system has buffered. Its
@@ -546,11 +662,12 @@ class EvalRunner:
             return
         self._check_spend(f"{self.system.system_id}.flush")
         started = time.perf_counter()
+        mark = self._cache_mark()
         deposit = await self._guard_auth(f"{self.system.system_id}.flush", flush)
         if not deposit.n_records and not deposit.model_calls and not deposit.meta:
             return  # nothing was buffered
         latency = (time.perf_counter() - started) * 1000
-        self._record_deposit(item_id, t, turn, deposit, latency, tracer)
+        self._record_deposit(item_id, t, turn, deposit, latency, tracer, self._cache_since(mark))
 
     def _record_deposit(
         self,
@@ -560,13 +677,16 @@ class EvalRunner:
         deposit: DepositResult,
         latency: float,
         tracer: TraceWriter,
+        cached: CacheStats | None = None,
     ) -> None:
-        self._charge_engine(Stage.DEPOSIT, deposit.meta)
-        self._charge_services(deposit.meta)
-        self._account_model_calls(deposit.model_calls, f"{self.system.system_id}.insert")
+        served = self._served(cached)
+        calls = max(deposit.model_calls - served, 0)
+        self._charge_engine(Stage.DEPOSIT, deposit.meta, served)
+        self._charge_services(deposit.meta, cached)
+        self._account_model_calls(calls, f"{self.system.system_id}.insert")
         self.ledger.add(
             Stage.DEPOSIT,
-            calls=deposit.model_calls,
+            calls=calls,
             latency_ms=deposit.latency_ms or latency,
         )
         # An adapter that cannot see its own write-path cost says so, and the
@@ -584,7 +704,7 @@ class EvalRunner:
                 n_records=deposit.n_records,
                 record_ids=deposit.record_ids,
                 latency_ms=deposit.latency_ms or latency,
-                model_calls=deposit.model_calls,
+                model_calls=calls,
                 meta=deposit.meta,
             )
         )
@@ -604,13 +724,17 @@ class EvalRunner:
             )
         self._check_spend(f"{self.system.system_id}.build")
         started = time.perf_counter()
+        mark = self._cache_mark()
         result = await self._guard_auth(f"{self.system.system_id}.build", build)
-        self._charge_engine(Stage.SYNTHESISE, result.meta)
-        self._charge_services(result.meta)
-        self._account_model_calls(result.model_calls, f"{self.system.system_id}.build")
+        cached = self._cache_since(mark)
+        served = self._served(cached)
+        calls = max(result.model_calls - served, 0)
+        self._charge_engine(Stage.SYNTHESISE, result.meta, served)
+        self._charge_services(result.meta, cached)
+        self._account_model_calls(calls, f"{self.system.system_id}.build")
         self.ledger.add(
             Stage.SYNTHESISE,
-            calls=result.model_calls,
+            calls=calls,
             latency_ms=(time.perf_counter() - started) * 1000,
         )
         if result.meta.get("cost_observable") is False:
@@ -625,10 +749,14 @@ class EvalRunner:
         try:
             self._check_spend(f"{self.system.system_id}.query")
             started = time.perf_counter()
+            mark = self._cache_mark()
             context = await self.system.query(query.text, protocol.budget_tokens, protocol.top_k)
             latency_retrieve = (time.perf_counter() - started) * 1000
-            self._charge_engine(Stage.RETRIEVE, context.meta)
-            self._charge_services(context.meta)
+            cached = self._cache_since(mark)
+            served = self._served(cached)
+            query_calls = max(int(context.meta.get("model_calls", 0)) - served, 0)
+            self._charge_engine(Stage.RETRIEVE, context.meta, served)
+            self._charge_services(context.meta, cached)
             self._audit_rerank(context.meta)
 
             # The protocol owns the budget, not the system: truncate here even
@@ -646,20 +774,17 @@ class EvalRunner:
                     boundary_index=context.boundary_index,
                     meta=context.meta,
                 )
-            self.ledger.add(
-                Stage.RETRIEVE,
-                latency_ms=latency_retrieve,
-                calls=int(context.meta.get("model_calls", 0)),
-            )
+            self.ledger.add(Stage.RETRIEVE, latency_ms=latency_retrieve, calls=query_calls)
             if context.meta.get("cost_observable") is False:
                 self.ledger.mark_unknown(
                     Stage.RETRIEVE,
                     str(context.meta.get("cost_unknown_reason", "query cost not observable")),
                 )
-            self._account_model_calls(
-                int(context.meta.get("model_calls", 0)), f"{self.system.system_id}.query"
-            )
+            self._account_model_calls(query_calls, f"{self.system.system_id}.query")
             self.ledger.add(Stage.COMPOSE, prompt_tokens=context.tokens)
+
+            if self.config.retrieval_only:
+                return self._coverage_row(item, query, context, latency_retrieve, spend_before)
 
             if query.meta.get("abstention") and not getattr(
                 self.judge, "handles_abstention", False
@@ -673,20 +798,25 @@ class EvalRunner:
 
             # R3-6: the date the question is asked, for readers whose prompt uses it.
             question_date = query.meta.get("question_date")
-            if self._reader_takes_date:
-                answer = await self.reader.answer(
-                    query.text,
-                    context.text,
-                    question_date=None if question_date is None else str(question_date),
-                )
-            else:
-                answer = await self.reader.answer(query.text, context.text)
+            mark = self._cache_mark()
+            with reader_scope():
+                if self._reader_takes_date:
+                    answer = await self.reader.answer(
+                        query.text,
+                        context.text,
+                        question_date=None if question_date is None else str(question_date),
+                    )
+                else:
+                    answer = await self.reader.answer(query.text, context.text)
+            reader_served = self._served(self._cache_since(mark))
             if self._own_meter and answer.model_calls:
                 # a reader without a provider budget is charged after the fact
                 self._meter.charge(
                     self.reader.model, answer.prompt_tokens, answer.completion_tokens
                 )
-            self._account_model_calls(answer.model_calls, self.reader.reader_id)
+            self._account_model_calls(
+                max(answer.model_calls - reader_served, 0), self.reader.reader_id
+            )
             self.ledger.add(
                 Stage.GENERATE,
                 prompt_tokens=answer.prompt_tokens,
@@ -699,12 +829,15 @@ class EvalRunner:
             )
 
             score_query = getattr(self.judge, "score_query", None)
-            if score_query is not None:
-                verdict = await score_query(query, answer.text)
-            else:
-                verdict = await self.judge.score(query.text, answer.text, query.gold)
-            self._judge_calls += verdict.model_calls
-            self._account_model_calls(verdict.model_calls, self.judge.spec.judge_id)
+            mark = self._cache_mark()
+            with reader_scope():
+                if score_query is not None:
+                    verdict = await score_query(query, answer.text)
+                else:
+                    verdict = await self.judge.score(query.text, answer.text, query.gold)
+            judge_calls = max(verdict.model_calls - self._served(self._cache_since(mark)), 0)
+            self._judge_calls += judge_calls
+            self._account_model_calls(judge_calls, self.judge.spec.judge_id)
 
             retrieved_ids = tuple(dict.fromkeys(e.turn_id for e in context.evidence))
             # R@k is defined over a *ranking*. Full-context replay returns turns
@@ -846,6 +979,8 @@ async def run_matrix(
             max_usd=config.max_usd,
             prices_per_mtok=config.prices_per_mtok,
             service_prices=config.service_prices,
+            retrieval_only=config.retrieval_only,
+            call_cache=config.call_cache,
             extra_limits={
                 **dict(config.extra_limits),
                 "model_call_cap_scope": "per-arm",

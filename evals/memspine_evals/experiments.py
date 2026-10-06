@@ -126,6 +126,14 @@ class C01Config:
     #: ``verify_answer`` prompt on the judge's backend (+1 call per question); an
     #: unsupported answer the context contradicts is replaced. Off: readers unchanged.
     verify_answer: bool = False
+    #: screening: ingest and read every question as the QA run would, skip the reader
+    #: and the judge, record evidence coverage per question (``screen.py``)
+    retrieval_only: bool = False
+    #: screening: a directory for the disk cache of paid embedding and engine-role
+    #: completion calls (``call_cache.py``). None = no cache.
+    cache_dir: str | None = None
+    #: screening: also cache reader and judge completions (temperature 0 only)
+    cache_reader: bool = False
 
 
 #: H25: declared protocol presets. OmniMemEval (MemTensor/OmniMemEval @ 0b1ea8d) is the
@@ -293,7 +301,7 @@ def check_dollar_cap(config: C01Config) -> None:
     if config.max_usd <= 0:
         raise ValueError(f"max_usd must be > 0, got {config.max_usd}")
     paid = set(engine_llm_models(config))
-    if config.mode == "qa":
+    if config.mode == "qa" and not config.retrieval_only:
         if not config.bedrock:
             raise ValueError(
                 "--max-usd checks reader and judge calls before they are made only on the "
@@ -398,6 +406,11 @@ def build_reader_and_judge(config: C01Config) -> tuple[Reader, Judge, bool]:
     Every call builds a fresh reader and judge, and on Bedrock a fresh ``CallBudget``:
     ``run_c0_1`` calls it once per arm, so one arm cannot spend another's budget (R3-3).
     """
+    if config.retrieval_only:
+        # Screening: the runner stops after the read; neither of these is ever called.
+        from .screen import SkippedJudge, SkippedReader
+
+        return SkippedReader(), SkippedJudge(), False  # type: ignore[return-value]
     if config.mode == "retrieval":
         # No generation: "was the answer retrievable at all". This is what R@k
         # and MemPalace's 96.6 measure, and it costs nothing to run.
@@ -487,15 +500,17 @@ async def run_c0_1(
     reader, judge, calls = build_reader_and_judge(config)
     if config.item_ids:
         dataset = _ItemFilter(dataset, config.item_ids)  # type: ignore[assignment]
-    n_abstention = _abstention_queries(dataset)
+    n_abstention = 0 if config.retrieval_only else _abstention_queries(dataset)
     if n_abstention and not getattr(judge, "handles_abstention", False):
         raise ValueError(
             f"{n_abstention} abstention question(s) (e.g. LoCoMo cat 5) but judge "
             f"{judge.spec.judge_id!r} cannot grade a refusal; pass --categories 1,2,3,4 "
             "or an abstention-aware judge"
         )
+    from .screen import RETRIEVAL_ONLY_PROTOCOL
+
     protocol = RunProtocol(
-        protocol_id=f"c0-1-{config.mode}",
+        protocol_id=RETRIEVAL_ONLY_PROTOCOL if config.retrieval_only else f"c0-1-{config.mode}",
         budget_tokens=config.budget_tokens,
         top_k=config.top_k,
         seed=config.seed,
@@ -532,7 +547,7 @@ async def run_c0_1(
         labels={
             "experiment": "C0-1",
             "question": "does verbatim storage beat extraction on our own harness",
-            "mode": config.mode,
+            "mode": "retrieval-only" if config.retrieval_only else config.mode,
             "dense": config.dense,
             "hybrid": config.hybrid,
             "categories": list(config.categories) if config.categories is not None else "all",
@@ -547,13 +562,35 @@ async def run_c0_1(
             "prices_per_mtok": {m: list(p) for m, p in sorted(prices.items())},
             "service_prices": service_price_table(config),
             "paid_services": [f"{k}:{m}" for k, m in paid_services(config)],
+            # screening (listed only when on, so other runs keep their labels)
+            **({"retrieval_only": True} if config.retrieval_only else {}),
+            **(
+                {"call_cache": {"dir": config.cache_dir, "cache_reader": config.cache_reader}}
+                if config.cache_dir
+                else {}
+            ),
         },
         extra_limits={"item_ids": list(config.item_ids) if config.item_ids else None},
+        retrieval_only=config.retrieval_only,
     )
     factory = (lambda: build_reader_and_judge(config)[:2]) if calls else None
-    return await run_matrix(
-        dataset, systems, reader, judge, run_config, reader_judge_factory=factory
-    )
+    if not config.cache_dir:
+        return await run_matrix(
+            dataset, systems, reader, judge, run_config, reader_judge_factory=factory
+        )
+    from dataclasses import replace
+
+    from .call_cache import install_call_cache
+
+    with install_call_cache(config.cache_dir, cache_reader=config.cache_reader) as cache:
+        return await run_matrix(
+            dataset,
+            systems,
+            reader,
+            judge,
+            replace(run_config, call_cache=cache),
+            reader_judge_factory=factory,
+        )
 
 
 def comparison_table(summaries: Sequence[RunSummary], mode: Mode) -> str:
