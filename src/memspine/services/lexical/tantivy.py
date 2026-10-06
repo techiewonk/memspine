@@ -93,6 +93,15 @@ def tokenize_content(query: str) -> list[str]:
     return terms
 
 
+def _is_sharing_violation(exc: Exception) -> bool:
+    """A Windows "Access is denied" (error 5) from Tantivy, in any of its wordings:
+    ``An IO error occurred: 'Access is denied. (os error 5)'`` on a rename, or
+    ``Failed to open file for write: 'IoError { ... code: 5, kind: PermissionDenied
+    ... }'`` on a segment file."""
+    text = str(exc)
+    return "os error 5" in text or ("PermissionDenied" in text and "code: 5" in text)
+
+
 def _commit_with_retry(writer: Any) -> None:
     """Commit, retrying a Windows sharing violation a few times.
 
@@ -107,7 +116,7 @@ def _commit_with_retry(writer: Any) -> None:
             writer.commit()
             return
         except ValueError as exc:
-            if "os error 5" not in str(exc) or attempt == TANTIVY_COMMIT_RETRIES - 1:
+            if not _is_sharing_violation(exc) or attempt == TANTIVY_COMMIT_RETRIES - 1:
                 raise
             time.sleep(TANTIVY_COMMIT_BACKOFF_S * (2**attempt))
 

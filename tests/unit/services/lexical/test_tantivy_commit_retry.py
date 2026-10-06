@@ -41,3 +41,14 @@ def test_other_errors_are_not_retried() -> None:
     with pytest.raises(ValueError, match="schema mismatch"):
         tantivy._commit_with_retry(writer)
     assert writer.calls == 1
+
+
+def test_segment_open_permission_denied_is_retried(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(tantivy, "TANTIVY_COMMIT_BACKOFF_S", 0.0)
+    message = (
+        "Failed to open file for write: 'IoError { io_error: Os { code: 5, kind: "
+        'PermissionDenied, message: "Access is denied." }, filepath: "x.fast" }\''
+    )
+    writer = FlakyWriter(failures=2, message=message)
+    tantivy._commit_with_retry(writer)
+    assert writer.calls == 3
