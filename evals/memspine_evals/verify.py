@@ -109,4 +109,5 @@ def _with_call(
         cached_prompt_tokens=first.cached_prompt_tokens,
         finish_reason=first.finish_reason,
         raw_text=first.raw_text,
+        prompt_variant=first.prompt_variant,
     )

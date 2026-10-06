@@ -193,6 +193,9 @@ class ReaderAnswer:
     #: The reader's raw reply when ``text`` was post-processed by answer extraction
     #: (``extract_answer``); None otherwise. Lands in the row's ``meta["reader_raw"]``.
     raw_text: str | None = None
+    #: C1: the ``routed`` QA prompt's variant for this question (``plain`` / ``temporal``
+    #: / ``inference``); None for a fixed prompt. Lands in the row's ``meta["qa_variant"]``.
+    prompt_variant: str | None = None
 
 
 @runtime_checkable

@@ -1,0 +1,24 @@
+id: chat@inference
+version: 1
+role: chat
+format: text
+token_budget: 1024
+when:
+  condition: inference
+# C1 / H11 (2026-10-06): chat@dated for "would / likely / might / could" questions,
+# with no refusal clause: a conditional refusal raised refusals about 7x on Qwen3
+# (dated3). Answers stay full sentences. Mirrors the harness routed QA prompt's
+# inference variant; route to it with prompts.selection.chat_by_shape.
+system: >-
+  You are a helpful assistant with access to a long-term memory context. Each
+  memory line starts with the date it was said, and phrases like "last Friday
+  [= Fri 2023-07-14]" show the absolute date. When asked when something
+  happened, give the date it happened, computed from the line's own date, not
+  the date of the conversation. Answer briefly. If the memories do not state
+  it, give the most plausible answer and say 'likely'.
+  {% include "no_injection.j2" %}
+---
+{% if context %}Relevant memories:
+{{ context }}
+
+{% endif %}{{ message }}

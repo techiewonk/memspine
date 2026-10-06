@@ -780,6 +780,11 @@ class EvalRunner:
                         {"reranked": context.meta["reranked"]} if "reranked" in context.meta else {}
                     ),
                     **reader_raw_meta(answer.raw_text),
+                    **(
+                        {"qa_variant": answer.prompt_variant}
+                        if answer.prompt_variant is not None
+                        else {}
+                    ),
                     **self._row_spend(spend_before),
                 },
             )

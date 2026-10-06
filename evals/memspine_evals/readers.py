@@ -9,6 +9,7 @@ backbone alone moving a headline by 10.64 points.
 
 from __future__ import annotations
 
+import hashlib
 import re
 import time
 from collections.abc import Mapping
@@ -130,6 +131,90 @@ QA_PROMPTS = {
     "abstain": ABSTAIN_QA_PROMPT,
     "converse": CONVERSE_QA_PROMPT,
 }
+
+#: C1 / H11: the ``routed`` QA prompt picks one of three variants per question by its
+#: shape (``memspine.core.query_shape``). The infer arm gained only on temporal questions
+#: (+1.3, others -0.3) and dated3's terse answers and conditional refusal cost -3.3, so:
+#: every variant keeps ``dated``'s one-sentence answer, the temporal one adds the
+#: relative-date inference and a date format, the inference one drops the refusal.
+_DATED_REFUSAL = "If the context does not contain the answer, say you do not know."
+ROUTED_TEMPORAL_RULE = (
+    "If the date is not stated outright, infer the most plausible date from the line's "
+    "date and any relative phrase (e.g. 'the week before 9 June 2023'); say you do not "
+    "know only when nothing in the context bears on it. Answer dates as DD Month YYYY "
+    "(or the granularity the question asks)."
+)
+ROUTED_INFERENCE_RULE = (
+    "If the context does not state it, give the most plausible answer and say 'likely'."
+)
+ROUTED_QA_VARIANTS: Mapping[str, str] = {
+    "plain": DATED_QA_PROMPT,
+    "temporal": DATED_QA_PROMPT.replace(_DATED_REFUSAL, ROUTED_TEMPORAL_RULE),
+    "inference": DATED_QA_PROMPT.replace(_DATED_REFUSAL, ROUTED_INFERENCE_RULE),
+}
+#: Bump whenever the routing decision (the shape rules or their order) changes.
+QA_ROUTER_VERSION = "shape-v1"
+
+
+def qa_shape(question: str) -> str:
+    """The ``routed`` variant for ``question``: ``temporal`` when it asks for a date or a
+    span, else ``inference`` for a "would / likely / might / could ...?" question, else
+    ``plain``. Temporal wins ("When would ...?" is a date question)."""
+    from memspine.core.query_shape import is_inference, is_temporal
+
+    if is_temporal(question):
+        return "temporal"
+    if is_inference(question):
+        return "inference"
+    return "plain"
+
+
+class RoutedQAPrompt:
+    """A QA prompt chosen per question (C1). Duck-types ``str.format`` for the readers:
+    ``format(question=...)`` renders the variant :func:`qa_shape` picks."""
+
+    name = "routed"
+
+    def __init__(self, variants: Mapping[str, str] = ROUTED_QA_VARIANTS) -> None:
+        self.variants = dict(variants)
+
+    def variant_for(self, question: str) -> str:
+        return qa_shape(question)
+
+    def format(self, *, context: str, question: str, question_date: str = "unknown") -> str:
+        return self.variants[self.variant_for(question)].format(
+            context=context, question=question, question_date=question_date
+        )
+
+    def describe(self) -> dict[str, Any]:
+        """``describe()`` keys of a routed reader: the name, the router version and one
+        hash per variant; ``prompt_sha256`` hashes the three together."""
+        hashes = {k: hashlib.sha256(v.encode()).hexdigest() for k, v in self.variants.items()}
+        joined = "\n".join(f"{k}={hashes[k]}" for k in sorted(hashes))
+        return {
+            "prompt_sha256": hashlib.sha256(f"{QA_ROUTER_VERSION}\n{joined}".encode()).hexdigest(),
+            "qa_prompt": self.name,
+            "qa_router": QA_ROUTER_VERSION,
+            "prompt_variants_sha256": hashes,
+        }
+
+
+#: Per-question QA prompts, selectable by ``--qa-prompt`` next to :data:`QA_PROMPTS`.
+ROUTED_QA_PROMPTS: Mapping[str, RoutedQAPrompt] = {"routed": RoutedQAPrompt()}
+
+
+def prompt_describe(prompt: str | RoutedQAPrompt) -> dict[str, Any]:
+    """A reader's prompt keys for ``describe()``: ``prompt_sha256`` alone for a fixed
+    prompt (unchanged), the routed keys for a :class:`RoutedQAPrompt`."""
+    if isinstance(prompt, RoutedQAPrompt):
+        return prompt.describe()
+    return {"prompt_sha256": hashlib.sha256(prompt.encode()).hexdigest()}
+
+
+def prompt_variant(prompt: str | RoutedQAPrompt, question: str) -> str | None:
+    """The routed variant used for ``question``; None for a fixed prompt."""
+    return prompt.variant_for(question) if isinstance(prompt, RoutedQAPrompt) else None
+
 
 #: #34: prompts whose reply reasons first; the reader keeps only the final answer and
 #: gets :data:`REASONING_MAX_TOKENS` so the reasoning cannot truncate the answer.
@@ -281,7 +366,7 @@ class OpenAICompatReader:
         temperature: float = 0.0,
         max_tokens: int = 512,
         timeout: float = 120.0,
-        prompt: str = DEFAULT_QA_PROMPT,
+        prompt: str | RoutedQAPrompt = DEFAULT_QA_PROMPT,
         reader_id: str | None = None,
         extract_answer: bool = False,
     ) -> None:
@@ -308,7 +393,7 @@ class OpenAICompatReader:
             "base_url": self.base_url,
             "temperature": self.temperature,
             "max_tokens": self.max_tokens,
-            "prompt_sha256": __import__("hashlib").sha256(self.prompt.encode()).hexdigest(),
+            **prompt_describe(self.prompt),
             **(
                 {"extract_answer": True, "answer_extractor": ANSWER_EXTRACTOR_VERSION}
                 if self.extract_answer
@@ -355,6 +440,7 @@ class OpenAICompatReader:
             model_calls=1,
             truncated=finish == "length",
             finish_reason=finish,
+            prompt_variant=prompt_variant(self.prompt, question),
         )
 
 
