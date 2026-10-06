@@ -112,6 +112,156 @@
      }
     }
    }
+  },
+  {
+   "id": "s-A123",
+   "hypothesis": "A1+A2+A3: wider pool for list/count questions in replay, list cards only on aggregate questions, mining stack",
+   "systems": [
+    "memspine"
+   ],
+   "qa_prompt": "dated",
+   "build_sleep": true,
+   "config_delta": {
+    "read": {
+     "resolve_relative_dates": true,
+     "order_by_time_for_ordering": true,
+     "assembly": {
+      "relative_floor": 0.3
+     },
+     "cards": "header",
+     "cards_skip_temporal": true,
+     "aggregate_in_replay": true,
+     "aggregate_top_k": 20,
+     "list_cards_only_aggregate": true
+    },
+    "memories": {
+     "episodic": {
+      "policies": {
+       "consolidation": {
+        "mine_facts": true,
+        "list_cards": true,
+        "mine_multiview": true
+       }
+      }
+     }
+    }
+   }
+  },
+  {
+   "id": "s-D1",
+   "hypothesis": "D1: profile header skipped on temporal questions",
+   "systems": [
+    "memspine"
+   ],
+   "qa_prompt": "dated",
+   "build_sleep": true,
+   "config_delta": {
+    "read": {
+     "resolve_relative_dates": true,
+     "order_by_time_for_ordering": true,
+     "assembly": {
+      "relative_floor": 0.3
+     },
+     "profile_header": true,
+     "profile_skip_temporal": true
+    },
+    "memories": {
+     "episodic": {
+      "policies": {
+       "consolidation": {
+        "reflect_profile": true
+       }
+      }
+     },
+     "reflective": {
+      "enabled": true
+     }
+    }
+   }
+  },
+  {
+   "id": "s-B3",
+   "hypothesis": "B3: event-date cards on temporal questions + event-date mining",
+   "systems": [
+    "memspine"
+   ],
+   "qa_prompt": "dated",
+   "build_sleep": true,
+   "config_delta": {
+    "read": {
+     "resolve_relative_dates": true,
+     "order_by_time_for_ordering": true,
+     "assembly": {
+      "relative_floor": 0.3
+     },
+     "cards": "header",
+     "cards_temporal": "event_dates",
+     "cards_event_date": true
+    },
+    "memories": {
+     "episodic": {
+      "policies": {
+       "consolidation": {
+        "mine_facts": true,
+        "mine_event_dates": true,
+        "mine_evidence_turns": true
+       }
+      }
+     }
+    }
+   }
+  },
+  {
+   "id": "s-combo-A-r2",
+   "hypothesis": "second combo-A baseline run on the screen subsets (noise control)",
+   "systems": [
+    "memspine"
+   ],
+   "qa_prompt": "dated",
+   "config_delta": {
+    "read": {
+     "resolve_relative_dates": true,
+     "order_by_time_for_ordering": true,
+     "assembly": {
+      "relative_floor": 0.3
+     }
+    }
+   }
+  },
+  {
+   "id": "s-A123-gated",
+   "hypothesis": "A1+A2+A3 + read.cards_only_aggregate: mining blocks only on list/count questions",
+   "systems": [
+    "memspine"
+   ],
+   "qa_prompt": "dated",
+   "build_sleep": true,
+   "config_delta": {
+    "read": {
+     "resolve_relative_dates": true,
+     "order_by_time_for_ordering": true,
+     "assembly": {
+      "relative_floor": 0.3
+     },
+     "cards": "header",
+     "cards_skip_temporal": true,
+     "aggregate_in_replay": true,
+     "aggregate_top_k": 20,
+     "list_cards_only_aggregate": true,
+     "cards_only_aggregate": true
+    },
+    "memories": {
+     "episodic": {
+      "policies": {
+       "consolidation": {
+        "mine_facts": true,
+        "list_cards": true,
+        "mine_multiview": true
+       }
+      }
+     }
+    }
+   }
   }
  ]
 }
