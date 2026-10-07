@@ -304,6 +304,11 @@ class ReadConfig(BaseModel):
     #: date span named in the query) and a metadata leg (records whose entity is
     #: named in the query) into the RRF ranking. Off: bit-identical ranking.
     temporal_leg: bool = False
+    #: F2 (plan v3.2): with ``temporal_leg``, a question with no absolute date but a
+    #: relative phrase ("what did we discuss last week?") gets its span resolved
+    #: against the read time (the engine clock) by the H1 rules, using
+    #: ``relative_week``. Off: relative phrases name no span (unchanged).
+    temporal_relative: bool = False
     metadata_leg: bool = False
     #: H13: an extra BM25 leg over the question's core terms (interrogative and
     #: function words removed), fused by RRF. Needs the lexical store (hybrid).

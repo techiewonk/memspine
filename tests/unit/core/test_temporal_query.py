@@ -52,3 +52,31 @@ def test_metadata_leg_whole_word_newest_first() -> None:
     ]
     hits = metadata_leg("Where did Caroline move?", recs, top_k=5)
     assert [h.record_id for h in hits] == [recs[1].record_id, recs[0].record_id]
+
+
+# -- F2 (plan v3.2): relative phrases against an anchor ------------------------------
+
+NOW = _d(2023, 6, 14)  # a Wednesday
+
+
+def test_relative_phrase_resolves_only_with_an_anchor() -> None:
+    assert query_interval("what did she do yesterday?") is None
+    assert query_interval("what did she do yesterday?", NOW) == (_d(2023, 6, 13), _d(2023, 6, 14))
+
+
+def test_relative_week_follows_the_week_mode() -> None:
+    calendar = query_interval("what did we discuss last week?", NOW)
+    assert calendar == (_d(2023, 6, 5), _d(2023, 6, 12))
+    rolling = query_interval("what did we discuss last week?", NOW, week="preceding_7_days")
+    assert rolling == (_d(2023, 6, 7), _d(2023, 6, 14))
+
+
+def test_absolute_date_wins_over_the_anchor() -> None:
+    assert query_interval("on 7 May 2023, a week ago?", NOW) == (_d(2023, 5, 7), _d(2023, 5, 8))
+
+
+def test_temporal_leg_uses_the_anchor() -> None:
+    recs = [_rec("tuesday talk", _d(2023, 6, 13)), _rec("may talk", _d(2023, 5, 2))]
+    assert temporal_leg("what did we talk about yesterday?", recs, 5) == []
+    hits = temporal_leg("what did we talk about yesterday?", recs, 5, anchor=NOW)
+    assert [h.record_id for h in hits] == [recs[0].record_id]

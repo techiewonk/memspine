@@ -1619,7 +1619,15 @@ class Engine:
             ]
             if read.temporal_leg:
                 legs.append(
-                    temporal_leg(query, live, fetch_k, event_dates=read.temporal_leg_event_dates)
+                    temporal_leg(
+                        query,
+                        live,
+                        fetch_k,
+                        event_dates=read.temporal_leg_event_dates,
+                        # F2: relative phrases in the question, against the read time.
+                        anchor=self._clock() if read.temporal_relative else None,
+                        week=read.relative_week,
+                    )
                 )
             if read.metadata_leg:
                 legs.append(metadata_leg(query, live, fetch_k))

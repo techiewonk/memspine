@@ -22,6 +22,7 @@ from datetime import UTC, datetime, timedelta
 
 from memspine.core.event_date import happened_of, label_span
 from memspine.core.records import MemoryRecord, chrono_key
+from memspine.core.temporal_resolve import WeekMode, resolve
 
 __all__ = ["LegHit", "metadata_leg", "query_interval", "temporal_leg"]
 
@@ -54,8 +55,28 @@ def _day(y: int, m: int, d: int) -> tuple[datetime, datetime] | None:
     return start, start + timedelta(days=1)
 
 
-def query_interval(query: str) -> tuple[datetime, datetime] | None:
-    """The first absolute ``[start, end)`` span named in ``query``, or None."""
+def query_interval(
+    query: str, anchor: datetime | None = None, *, week: WeekMode = "calendar"
+) -> tuple[datetime, datetime] | None:
+    """The first absolute ``[start, end)`` span named in ``query``, or None.
+
+    F2 (plan v3.2, ``read.temporal_relative``): with ``anchor`` (the read time, or an
+    explicit as-of), a query with no absolute date falls back to its first relative
+    phrase ("last week", "two months ago", "yesterday") resolved against ``anchor`` by
+    the H1 rules. Without ``anchor`` a relative phrase names no span (unchanged)."""
+    span = _absolute_interval(query)
+    if span is not None or anchor is None:
+        return span
+    found = resolve(query, anchor, week=week)
+    if not found:
+        return None
+    first, last = found[0].first, found[0].last
+    start = datetime(first.year, first.month, first.day, tzinfo=UTC)
+    end = datetime(last.year, last.month, last.day, tzinfo=UTC) + timedelta(days=1)
+    return start, end
+
+
+def _absolute_interval(query: str) -> tuple[datetime, datetime] | None:
     if m := _ISO.search(query):
         return _day(int(m["y"]), int(m["m"]), int(m["d"]))
     for pattern in (_DAY_MON_YEAR, _MON_DAY_YEAR):
@@ -77,7 +98,13 @@ def _aware(t: datetime) -> datetime:
 
 
 def temporal_leg(
-    query: str, records: Iterable[MemoryRecord], top_k: int, *, event_dates: bool = False
+    query: str,
+    records: Iterable[MemoryRecord],
+    top_k: int,
+    *,
+    event_dates: bool = False,
+    anchor: datetime | None = None,
+    week: WeekMode = "calendar",
 ) -> list[LegHit]:
     """Records whose event time lies in the query's span, closest to its middle first.
 
@@ -85,8 +112,9 @@ def temporal_leg(
     ``happened:`` date (a mined fact's event date) overlaps the span also enters, at
     the start of the overlap, so an event said days after it happened is found by its
     own date. A record matching both ways keeps the closer time. Ties: ``chrono_key``.
+    ``anchor`` / ``week`` (F2): see :func:`query_interval`.
     """
-    span = query_interval(query)
+    span = query_interval(query, anchor, week=week)
     if span is None:
         return []
     start, end = span
