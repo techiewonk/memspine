@@ -1463,11 +1463,67 @@ class Engine:
                 storage, receiver, record, "episodic", actor, trust_cap=[crossed]
             )
 
+    async def approve(
+        self,
+        subject: str,
+        field: str,
+        value: str,
+        namespace: str = "default",
+        *,
+        valid_until: datetime | None = None,
+        actor: str = "user",
+    ) -> MemoryRecord:
+        """G29 (plan v3.2): record an explicit approval for one change (``subject``'s
+        ``field`` set to ``value``), optionally until ``valid_until``. Only operator or
+        user approvals count in :meth:`authorize`; a newer approval on the same key
+        supersedes the older one through the conflict ladder."""
+        if actor not in ("user", "operator"):
+            raise ValueError("only a user or an operator can approve")
+        return await self.write(
+            f"{subject} {field}: {value}",
+            namespace=namespace,
+            memory_type="semantic",
+            entity=subject,
+            attribute=f"approval:{field}",
+            source=SourceInfo(role=actor, channel="approval"),
+            valid_from=self._clock(),
+            tags=[constants.APPROVAL_TAG]
+            + (
+                [f"{constants.APPROVAL_UNTIL_PREFIX}{valid_until.isoformat()}"]
+                if valid_until
+                else []
+            ),
+        )
+
+    async def _approved(self, ns: str, subject: str, field: str, value: str) -> bool:
+        """G29: a live, exactly matching approval exists for (subject, field, value)."""
+        now = self._clock()
+        for record in await self._require_started().list_records(ns, "semantic"):
+            if (
+                constants.APPROVAL_TAG in record.tags
+                and record.status is RecordStatus.ACTIVATED
+                and not record.quarantined
+                and record.source.role in ("user", "operator")
+                and record.entity == subject
+                and record.attribute == f"approval:{field}"
+                and record.content.split(":", 1)[-1].strip() == value.strip()
+                and record.valid_from <= now
+                and all(
+                    now < datetime.fromisoformat(t[len(constants.APPROVAL_UNTIL_PREFIX) :])
+                    for t in record.tags
+                    if t.startswith(constants.APPROVAL_UNTIL_PREFIX)
+                )
+            ):
+                return True
+        return False
+
     async def authorize(
         self,
         evidence_ids: Sequence[str],
         namespace: str = "default",
         threshold: float = 0.5,
+        *,
+        approval: tuple[str, str, str] | None = None,
     ) -> AuthorizeDecision:
         """B6: may an action justified by ``evidence_ids`` proceed for ``namespace``?
 
@@ -1476,9 +1532,17 @@ class Engine:
         B4', then attenuated across the grant edge) is at least ``threshold``.
         Unknown, unreadable or quarantined evidence denies (fail closed). The
         weakest link is returned so the caller can explain or escalate.
+
+        G29 (plan v3.2, MEM-INV): ``approval=(subject, field, value)`` also requires an
+        explicit approval (:meth:`approve`) for exactly that change: a live record
+        tagged ``approval`` on key (subject, field) whose value matches exactly, written
+        by an operator or the user, and valid now. Deny by default; a remembered
+        instruction or a similar value is never an approval.
         """
         storage = self._require_started()
         ns = validate_namespace(namespace)
+        if approval is not None and not await self._approved(ns, *approval):
+            return AuthorizeDecision(False, 0.0, None, "no matching approval")
         grants: Mapping[str, frozenset[str] | None] = (
             await self._shared.grants_to(ns) if self._shared is not None else {}
         )

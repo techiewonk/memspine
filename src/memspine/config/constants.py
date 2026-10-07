@@ -568,6 +568,10 @@ SECOND_ROUND_TOP = 3
 #: N06 (``read.cluster_expand``): how many top hits seed a neighbourhood leg.
 CLUSTER_EXPAND_SEEDS = 2
 
+#: G29 (``Engine.approve`` / ``authorize(approval=...)``): the tag of an approval record.
+APPROVAL_TAG = "approval"
+APPROVAL_UNTIL_PREFIX = "approval_until:"
+
 #: #50 remote-LLM gate: the per-note prefix the relevance filter sends (also withheld
 #: on its own), and the shortest record text the gate matches (shorter texts would
 #: blank unrelated words of a prompt).
