@@ -82,6 +82,7 @@ def rrf_fuse(
     lexical_hits: Sequence[RankedHit],
     k: int = RRF_K,
     extra: Sequence[Sequence[RankedHit]] = (),
+    weights: Sequence[float] | None = None,
 ) -> list[tuple[str, float]]:
     """Reciprocal-rank fusion (D-25) of the vector and lexical legs.
 
@@ -97,6 +98,9 @@ def rrf_fuse(
     is common) swapped places from one run to the next, and at the ``top_k`` cut
     a different record got in. No two records share a rank within one leg, so
     the rank tuple never ties.
+
+    ``weights`` (N16, plan v3.2): one weight per leg (vector, lexical, then each extra
+    leg), multiplying its ``1 / (k + rank)`` contributions. None: all 1 (unchanged).
     """
     legs = (vector_hits, lexical_hits, *extra)
     fused: dict[str, float] = {}
@@ -107,5 +111,6 @@ def rrf_fuse(
             rid = hit.record_id
             slots = ranks.setdefault(rid, [absent] * len(legs))
             slots[leg] = min(slots[leg], rank)
-            fused[rid] = fused.get(rid, 0.0) + 1.0 / (k + rank)
+            weight = 1.0 if weights is None or leg >= len(weights) else weights[leg]
+            fused[rid] = fused.get(rid, 0.0) + weight / (k + rank)
     return sorted(fused.items(), key=lambda item: (-item[1], ranks[item[0]]))

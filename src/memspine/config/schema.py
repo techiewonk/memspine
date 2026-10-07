@@ -609,6 +609,12 @@ class ReadConfig(BaseModel):
     #: between ...") gets one engine-computed line from the two best-matching dated
     #: turns: "A (date) -> B (date): N days (about W weeks, M months)". Off: none.
     span_line: bool = False
+    #: N16 (plan v3.2, LaMP RSPG): per-leg RRF weights for this deployment's task
+    #: (``{"vector": w, "lexical": w, "extra": w}``; missing keys weigh 1). Empty:
+    #: unchanged. With ``recency_leg``, a recency-only leg (newest records first) joins
+    #: the fusion as an extra leg, for tasks where the latest behaviour matters most.
+    leg_weights: dict[str, float] = Field(default_factory=dict)
+    recency_leg: bool = False
     #: H12: cap the total of all lead blocks (cards, graph facts, entity summaries,
     #: profile, count timeline) at this share of the read budget, dropping the
     #: lowest-priority blocks first, so raw evidence keeps its budget. None = no cap.

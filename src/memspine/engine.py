@@ -1845,6 +1845,7 @@ class Engine:
             or read.subject_leg
             or read.role_aware
             or read.sentence_leg
+            or read.recency_leg
         ):
             return [leg for leg in legs if leg]
         try:
@@ -1884,6 +1885,10 @@ class Engine:
             if read.sentence_leg:
                 # N05 (plan v3.2): the best single sentence of each record, lexically.
                 legs.append(sentence_leg(query, live, fetch_k))
+            if read.recency_leg:
+                # N16 (plan v3.2, LaMP RSPG): a recency-only leg, newest first.
+                newest = sorted(live, key=chrono_key, reverse=True)[:fetch_k]
+                legs.append([LegHit(r.record_id, 1.0) for r in newest])
         except Exception as exc:  # an enhancer, never a gate: degrade to the base legs
             _log.warning("read.metadata_legs_failed", namespace=ns, error=str(exc))
             return []
@@ -3502,7 +3507,17 @@ class Engine:
                 ]
             if use_hybrid or extra_legs:
                 rrf_k = self._config().read.rrf_k or constants.RRF_K
-                fused = rrf_fuse(vector_hits, lexical_hits, k=rrf_k, extra=extra_legs)
+                # N16 (plan v3.2): per-leg weights (vector, lexical, extra legs).
+                lw = self._config().read.leg_weights
+                weights = (
+                    [lw.get("vector", 1.0), lw.get("lexical", 1.0)]
+                    + [lw.get("extra", 1.0)] * len(extra_legs)
+                    if lw
+                    else None
+                )
+                fused = rrf_fuse(
+                    vector_hits, lexical_hits, k=rrf_k, extra=extra_legs, weights=weights
+                )
                 fused = fused[: top_k * widen]
                 # F1: raw RRF scores are ~1/(k+1) (≈0.016), but the M1 composite
                 # expects relevance in [0, 1]. Normalize by the theoretical max (a
@@ -3511,7 +3526,11 @@ class Engine:
                 # would — otherwise relevance collapses and recency/importance
                 # dominate under hybrid. Without C3' legs this is 2/(k+1).
                 legs = 2 + len(extra_legs) if use_hybrid else 1 + len(extra_legs)
-                rrf_max = legs / (rrf_k + 1)
+                if weights is not None:  # N16: the max is the weighted leg sum
+                    leg_ws = weights if use_hybrid else [weights[0], *weights[2:]]
+                    rrf_max = sum(leg_ws) / (rrf_k + 1) or 1.0
+                else:
+                    rrf_max = legs / (rrf_k + 1)
                 ranked: list[tuple[str, float]] = [(rid, score / rrf_max) for rid, score in fused]
             else:
                 ranked = [(hit.record_id, hit.score) for hit in vector_hits]
