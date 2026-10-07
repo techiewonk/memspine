@@ -157,6 +157,7 @@ from memspine.core.temporal_query import (
     temporal_leg,
 )
 from memspine.core.temporal_resolve import annotate as annotate_relative_dates
+from memspine.core.temporal_resolve import resolve
 from memspine.core.ties import settle_ties
 from memspine.exceptions import (
     ConfigError,
@@ -8872,6 +8873,7 @@ class Engine:
         storage = self._require_started()
         ns = validate_namespace(namespace)
         sources = [r for r in [await storage.get_record(p) for p in parents] if r is not None]
+        planned = attribute == "plans"  # G33: before an event's attribute is dropped
         tags = ["atomic_fact", f"mined:{session_key}"]
         if happened:
             tags.append(happened_tag(happened))
@@ -8906,7 +8908,27 @@ class Engine:
         if integrity_cap:
             cap = [*(cap or []), *integrity_cap]
         async with self._write_locks.setdefault(ns, asyncio.Lock()):
-            return await self._write_locked(storage, ns, record, "semantic", "system", cap)
+            written = await self._write_locked(storage, ns, record, "semantic", "system", cap)
+        if planned and self._consolidation_option("auto_watch", False):
+            await self._auto_watch(ns, written, sources)
+        return written
+
+    async def _auto_watch(
+        self, ns: str, plan: MemoryRecord, sources: list[MemoryRecord]
+    ) -> MemoryRecord | None:
+        """G33 (plan v3.2, ``consolidation.auto_watch``): a mined plan whose source turn
+        names a future time ("next week", "in two months", "on 3 June") becomes a
+        prospective watch due then (H1 rules against the turn's own date). Needs the
+        prospective memory type; a plan without a resolvable future date gets none."""
+        if self._prospective is None or plan.quarantined:
+            return None
+        for source in sources:
+            said = source.valid_from
+            for found in resolve(source.content, said, week=self._config().read.relative_week):
+                due = datetime(found.first.year, found.first.month, found.first.day, tzinfo=UTC)
+                if due.date() > said.date():
+                    return await self.watch(plan.content, namespace=ns, due_at=due, actor="system")
+        return None
 
     def _build_class_labeller(self) -> LabelClasses | None:
         """#30: the per-person ``extract@classes`` call of the list-card step, only

@@ -66,6 +66,9 @@ class ConsolidationOptions(PolicyOptions):
     #: home, origin, job, likes, pets, family, plans, ...), so ``mine_facts`` and
     #: everything built on it (list cards, the cards header) work without an LLM.
     miner: Literal["llm", "rules"] = "llm"
+    #: G33 (plan v3.2): a mined ``plans`` fact whose source turn names a future time
+    #: becomes a prospective watch due then (needs ``memories.prospective.enabled``).
+    auto_watch: bool = False
     #: H15: mine each topic segment of a session in its own call (lexical-cohesion
     #: boundaries, no model; ``sessions.topic_segments``), so the miner reads one
     #: topic at a time. A mined fact's parents are its segment's turns: the call

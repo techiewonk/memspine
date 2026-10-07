@@ -233,6 +233,7 @@
     },
     "consolidation": {
       "anticipate": false,
+      "auto_watch": false,
       "heat_threshold": 50,
       "list_cards": false,
       "min_session_records": 3,

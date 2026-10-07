@@ -106,3 +106,44 @@ async def test_rule_mining_end_to_end_supersedes_home_without_an_llm() -> None:
         assert any("Sweden" in r.content and r.valid_to is not None for r in homes)
     finally:
         await eng.stop()
+
+
+async def test_auto_watch_turns_a_dated_plan_into_a_watch() -> None:
+    """G33 (plan v3.2): a mined plan with a future date in its turn becomes a watch."""
+    eng = Engine(
+        template="core",
+        dotenv_path=None,
+        storage={"path": ":memory:"},
+        embedding={"provider": "hash"},
+        memories={
+            "episodic": {
+                "enabled": True,
+                "policies": {
+                    "consolidation": {"mine_facts": True, "miner": "rules", "auto_watch": True}
+                },
+            },
+            "semantic": {"enabled": True},
+            "prospective": {"enabled": True},
+        },
+        read={"hybrid": False},
+    )
+    await eng.start()
+    try:
+        t0 = datetime(2023, 5, 8, 13, 0, tzinfo=UTC)
+        texts = [
+            "Melanie: I'm planning to run a marathon next month",
+            "Caroline: wow",
+            "Melanie: yes!",
+        ]
+        msgs = [
+            {"role": "user", "content": c, "timestamp": (t0 + timedelta(minutes=i)).isoformat()}
+            for i, c in enumerate(texts)
+        ]
+        await eng.write_messages(msgs, namespace="a", session_id="s1", group_id="s1")
+        await eng.sleep()
+        watches = await eng._require_started().list_records("a", "prospective")
+        assert [w.content for w in watches] == ["Melanie plans: run a marathon"]
+        assert watches[0].valid_from.date() > t0.date()
+        assert eng.model_calls() == {}
+    finally:
+        await eng.stop()
