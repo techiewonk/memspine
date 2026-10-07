@@ -357,6 +357,10 @@ class MemspineSystem:
         if not self._build_sleep or self._engine is None:
             return flushed
         estimate = self.sleep_calls_per_session * max(len(self._sessions), 1)
+        if getattr(self._engine, "_llm", None) is None:
+            # Plan v3.2 (W5 rule miner): an engine with no LLM bound makes no model
+            # calls at sleep, whatever stages are on.
+            estimate = 0
         if self.remaining_model_calls is not None and estimate > self.remaining_model_calls:
             from ..runner import ModelCallBudgetExceeded
 
