@@ -129,6 +129,7 @@
       "rerank_max_top_k": null,
       "rerank_model": null,
       "resolve_relative_dates": false,
+      "role_aware": false,
       "rrf_k": null,
       "scoring": {},
       "session_cap": null,

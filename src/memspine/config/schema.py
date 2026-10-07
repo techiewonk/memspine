@@ -315,6 +315,11 @@ class ReadConfig(BaseModel):
     #: ranked by content-word overlap with the question. A boost, never a filter.
     #: Off: unchanged.
     subject_leg: bool = False
+    #: W11 (plan v3.2): assistant-side memory. Assistant turns that recommend something
+    #: are tagged ``recommendation`` at ``write_messages``; a question about what the
+    #: assistant said ("what did you recommend", "your suggestion") gets an RRF leg of
+    #: the assistant's own turns, recommendations first. Off: unchanged.
+    role_aware: bool = False
     #: H13: an extra BM25 leg over the question's core terms (interrogative and
     #: function words removed), fused by RRF. Needs the lexical store (hybrid).
     core_terms_leg: bool = False

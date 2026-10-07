@@ -25,8 +25,12 @@ from memspine.core.records import MemoryRecord, chrono_key
 from memspine.core.temporal_resolve import WeekMode, resolve
 
 __all__ = [
+    "RECOMMENDATION_TAG",
     "SPEAKER_PREFIX",
     "LegHit",
+    "asks_about_assistant",
+    "assistant_leg",
+    "is_recommendation",
     "metadata_leg",
     "query_interval",
     "speaker_leg",
@@ -205,3 +209,50 @@ def speaker_leg(query: str, records: Iterable[MemoryRecord], top_k: int) -> list
         )
     )
     return [LegHit(r.record_id, 1.0) for r in named[:top_k]]
+
+
+#: W11 (plan v3.2): the question asks what the ASSISTANT said ("what did you
+#: recommend", "you told me", "your suggestion").
+_ASKS_ASSISTANT = re.compile(
+    r"\byou (?:say|said|tell|told|recommend(?:ed)?|suggest(?:ed)?|mention(?:ed)?|give|gave|"
+    r"write|wrote|list(?:ed)?|advised?|proposed?|shared?)\b|\byour (?:recommendation|suggestion|advice|answer|list|tip)s?\b",
+    re.IGNORECASE,
+)
+#: W11: an assistant turn that recommends something (tagged ``recommendation``).
+_RECOMMENDS = re.compile(
+    r"\bI(?: would|'d)? (?:recommend|suggest)\b|\byou (?:should|could|might) (?:try|check out|"
+    r"read|watch|visit|listen to|consider)\b|\bmy (?:top )?(?:recommendation|pick|suggestion)s?\b",
+    re.IGNORECASE,
+)
+RECOMMENDATION_TAG = "recommendation"
+
+
+def asks_about_assistant(query: str) -> bool:
+    """W11: True when the question is about what the assistant said or recommended."""
+    return bool(_ASKS_ASSISTANT.search(query))
+
+
+def is_recommendation(text: str) -> bool:
+    """W11: True when an assistant turn recommends something."""
+    return bool(_RECOMMENDS.search(text))
+
+
+def assistant_leg(query: str, records: Iterable[MemoryRecord], top_k: int) -> list[LegHit]:
+    """W11 (``read.role_aware``): for a question about what the assistant said, the
+    assistant's own turns (recommendations first), by content-word overlap with the
+    question, then newest first. Empty for any other question."""
+    from memspine.core.query_shape import content_words
+
+    if not asks_about_assistant(query):
+        return []
+    wanted = content_words(query)
+    turns = [r for r in records if r.source.role == "assistant"]
+    turns.sort(
+        key=lambda r: (
+            RECOMMENDATION_TAG not in r.tags,
+            -len(wanted & content_words(r.content)),
+            -_aware(r.valid_from).timestamp(),
+            chrono_key(r),
+        )
+    )
+    return [LegHit(r.record_id, 1.0) for r in turns[:top_k]]

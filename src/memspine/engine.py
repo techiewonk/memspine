@@ -139,8 +139,11 @@ from memspine.core.replay import rebuild as replay_rebuild
 from memspine.core.rule_miner import mine_rules
 from memspine.core.sensitive import sensitive_topics
 from memspine.core.temporal_query import (
+    RECOMMENDATION_TAG,
     SPEAKER_PREFIX,
     LegHit,
+    assistant_leg,
+    is_recommendation,
     metadata_leg,
     speaker_leg,
     speaker_of,
@@ -1646,7 +1649,7 @@ class Engine:
                     legs.append([LegHit(h.record_id, 1.0) for h in hits])
                 except Exception as exc:  # an enhancer, never a gate
                     _log.warning("read.core_terms_leg_failed", namespace=ns, error=str(exc))
-        if not (read.temporal_leg or read.metadata_leg or read.subject_leg):
+        if not (read.temporal_leg or read.metadata_leg or read.subject_leg or read.role_aware):
             return [leg for leg in legs if leg]
         try:
             live = [
@@ -1673,6 +1676,9 @@ class Engine:
             if read.subject_leg:
                 # W8 (plan v3.2): the named speaker's own turns, best word overlap first.
                 legs.append(speaker_leg(query, live, fetch_k))
+            if read.role_aware:
+                # W11 (plan v3.2): "what did you recommend" reads the assistant's turns.
+                legs.append(assistant_leg(query, live, fetch_k))
         except Exception as exc:  # an enhancer, never a gate: degrade to the base legs
             _log.warning("read.metadata_legs_failed", namespace=ns, error=str(exc))
             return []
@@ -2525,6 +2531,12 @@ class Engine:
             turn_tags = list(tags or [])
             if fw.tag_assistant_claims and role == "assistant":
                 turn_tags.append("assistant_claim")
+            if (
+                role == "assistant"
+                and self._config().read.role_aware
+                and is_recommendation(content)
+            ):
+                turn_tags.append(RECOMMENDATION_TAG)  # W11: the recommendation ledger
             if (
                 role == "user"
                 and self._memory_policy(self._config(), "episodic").get("forget_detector")
