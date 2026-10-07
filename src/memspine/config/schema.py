@@ -733,6 +733,11 @@ class FirewallConfig(BaseModel):
     #: checksum: card numbers after a card cue, bank accounts, passports, driving
     #: licences, licence plates, street addresses. Off: the #44 pack only.
     pii_extended: bool = False
+    #: W16 (plan v3.2): tag GDPR art. 9-style sensitive topics (health, religion,
+    #: sexual orientation, politics, ethnicity, legal, financial hardship;
+    #: ``core/sensitive.py``) as ``sensitive:<topic>`` and raise ``pii_tier`` to at least
+    #: ``high``. Text is kept; consent / purpose / remote-LLM tier rules then apply.
+    sensitive_topics: bool = False
     max_content_chars: int | None = Field(default=None, ge=1)
     protected_keys: list[str] = Field(default_factory=list)
     #: H21 (G->D self-contamination): ``write_messages`` never deposits turns whose role

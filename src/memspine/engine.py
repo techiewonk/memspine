@@ -136,6 +136,7 @@ from memspine.core.registry import SERVICE_EXTRAS, dependency_closure, missing_s
 from memspine.core.replay import catch_up
 from memspine.core.replay import rebuild as replay_rebuild
 from memspine.core.rule_miner import mine_rules
+from memspine.core.sensitive import sensitive_topics
 from memspine.core.temporal_query import LegHit, metadata_leg, temporal_leg
 from memspine.core.temporal_resolve import annotate as annotate_relative_dates
 from memspine.core.ties import settle_ties
@@ -2748,6 +2749,17 @@ class Engine:
                 update["tags"] = [*record.tags, *(m for m in marks if m not in record.tags)]
                 tier = max(tier, PiiTier.HIGH, key=_PII_RANK.__getitem__)
                 _log.warning("memory.pii_tagged", namespace=record.namespace, kinds=found_pii)
+        if fw.sensitive_topics:
+            # W16 (plan v3.2): GDPR art. 9-style topics are tagged, not masked; the
+            # tier raise brings consent / purpose / remote-LLM rules to bear on them.
+            topics = sensitive_topics(record.content)
+            if topics:
+                tagged = update.get("tags")
+                current = list(tagged) if isinstance(tagged, list) else list(record.tags)
+                marks = [f"sensitive:{topic}" for topic in topics]
+                update["tags"] = [*current, *(m for m in marks if m not in current)]
+                tier = max(tier, PiiTier.HIGH, key=_PII_RANK.__getitem__)
+                _log.info("memory.sensitive_tagged", namespace=record.namespace, topics=topics)
         if tier is PiiTier.NONE:
             default = self._memory_policy(self._config(), record.memory_type).get(
                 "pii_default_tier"

@@ -21,6 +21,7 @@
       "pii_extended": false,
       "protected_keys": [],
       "redact_secrets": false,
+      "sensitive_topics": false,
       "signals": {
         "anomaly": true,
         "instruction": true,

@@ -220,7 +220,8 @@ PII_PATTERNS: tuple[tuple[str, re.Pattern[str], Validator | None], ...] = (
 
 _STREET = (
     r"(?:Street|St|Road|Rd|Avenue|Ave|Lane|Ln|Drive|Dr|Boulevard|Blvd|Grove|Way|Court|Ct|"
-    r"Place|Pl|Terrace|Close|Crescent|Square|Sq|Highway|Hwy|Parkway|Pkwy)\.?"
+    r"Place|Pl|Terrace|Close|Crescent|Square|Sq|Highway|Hwy|Parkway|Pkwy|Parade|Row|"
+    r"Walk|Gardens|Mews|Circle|Cir|Trail|Alley|Esplanade|Quay|Hill)\.?"
 )
 #: N23: up to 30 non-digit characters between a cue and its value ("number is",
 #: "in question ends with number", "for verification:").
@@ -263,8 +264,19 @@ PII_EXTENDED_PATTERNS: tuple[tuple[str, re.Pattern[str], Validator | None], ...]
     ),
     (
         "street_address",
-        re.compile(rf"\b\d{{1,5}}(?: [A-Z][a-z]+){{1,3}} {_STREET}(?=\W|$)"),
+        # "42 Palm Grove Street", "4827 NE Tillamook St, Apt 3B": the street, and the
+        # unit when one follows.
+        re.compile(
+            rf"\b\d{{1,5}}(?: [A-Z][A-Za-z]+){{1,4}} {_STREET}(?=\W|$)"
+            r"(?:,? (?:Apt|Apartment|Unit|Suite|Flat|#) ?[\w-]+)?"
+        ),
         None,
+    ),
+    (
+        # A user name inside a home-directory path (/Users/emily_thompson/...).
+        "home_path_user",
+        re.compile(r"(?:/Users/|/home/|[A-Za-z]:\\Users\\)(?P<pii>[^/\\\s]+)"),
+        _whole(lambda text: text.lower() not in {"shared", "public", "default"}),
     ),
     (
         "street_address",
