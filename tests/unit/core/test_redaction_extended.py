@@ -32,7 +32,7 @@ def test_secret_patterns_mask_provider_keys_and_url_credentials(text: str, kind:
         ("Bank Account Number: 024851937462", "bank_account", "024851937462"),
         ("Passport Number: YA9237614", "passport", "YA9237614"),
         ("my passport number for verification: 548296371", "passport", "548296371"),
-        ("my driver’s licence number M630481927650", "driving_licence", "M630481927650"),
+        ("my driver’s licence number M630481927650", "driving_licence", "M630481927650"),  # noqa: RUF001
         ("License plate: KJL 4821", "licence_plate", "KJL 4821"),
         ("I live at 42 Palm Grove Street in Accra", "street_address", "42 Palm Grove Street"),
         ("Postal Address: 17 Rue Lepic, Paris", "street_address", "17 Rue Lepic"),

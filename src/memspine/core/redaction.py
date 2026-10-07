@@ -250,7 +250,7 @@ PII_EXTENDED_PATTERNS: tuple[tuple[str, re.Pattern[str], Validator | None], ...]
     ("passport", re.compile(r"(?i)\bpassport\b" + _CUE_GAP + _ID_VALUE), _whole(lambda t: True)),
     (
         "driving_licence",
-        re.compile(r"(?i)\b(?:driver[’']?s?|driving) licen[cs]e\b" + _CUE_GAP + _ID_VALUE),
+        re.compile(r"(?i)\b(?:driver[\u2019']?s?|driving) licen[cs]e\b" + _CUE_GAP + _ID_VALUE),
         _whole(lambda text: True),
     ),
     (
