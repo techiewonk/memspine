@@ -10,6 +10,6 @@ run() { # name config budget [extra flags]
   echo "done $1 $?"
 }
 ( run local-sentence-leg local-sentence-leg 4096; run local-multi-intent local-multi-intent 4096 ) &
-( run local-second-round local-second-round 4096 ) &
+( run local-second-round local-second-round 4096; run local-cluster-expand local-cluster-expand 4096 ) &
 wait
 echo ALL DONE 3
