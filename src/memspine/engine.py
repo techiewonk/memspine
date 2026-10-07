@@ -644,6 +644,15 @@ def _excerpted(record: MemoryRecord, query: str) -> MemoryRecord:
     return record if text == record.content else record.model_copy(update={"content": text})
 
 
+def _turn_content(turn: Mapping[str, str]) -> str:
+    """G30 (plan v3.2): a turn's text, with an image or attachment ``caption`` (when
+    the turn carries one) appended as ``[image: caption]``, so it is embedded, indexed
+    and read with the turn. Raises ``KeyError`` without ``content``, as before."""
+    content = turn["content"]
+    caption = turn.get("caption")
+    return f"{content} [image: {caption}]".strip() if caption else content
+
+
 def _current_at(record: MemoryRecord, as_of: datetime | None) -> bool:
     """W7: ``record`` is a superseded (ARCHIVED) fact that was the current one at
     ``as_of``: begun by then, ended after it, not a retraction, never quarantined."""
@@ -2598,7 +2607,7 @@ class Engine:
         for i, turn in enumerate(messages):
             try:
                 role = turn["role"]
-                content = turn["content"]
+                content = _turn_content(turn)
             except (KeyError, TypeError) as exc:
                 raise ValueError(
                     f"messages[{i}] must be a mapping with 'role' and 'content' keys"
@@ -2669,7 +2678,7 @@ class Engine:
         for turn in messages:
             try:
                 role = turn["role"]
-                content = turn["content"]
+                content = _turn_content(turn)
             except (KeyError, TypeError):
                 continue
             if role in fw.skip_message_roles:

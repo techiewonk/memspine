@@ -41,3 +41,24 @@ async def test_lists_records_derived_from_the_session_turns() -> None:
         assert await eng.session_memories("a", []) == []
     finally:
         await eng.stop()
+
+
+async def test_write_messages_keeps_an_image_caption() -> None:
+    """G30 (plan v3.2): a turn's caption is stored with its text."""
+    eng = Engine(
+        template="core",
+        dotenv_path=None,
+        storage={"path": ":memory:"},
+        embedding={"provider": "hash"},
+        memories={"episodic": {"enabled": True}},
+    )
+    await eng.start()
+    try:
+        await eng.write_messages(
+            [{"role": "user", "content": "Look at this!", "caption": "a dog on a beach"}],
+            namespace="a",
+        )
+        [turn] = await eng._require_started().list_records("a", "episodic")
+        assert turn.content == "Look at this! [image: a dog on a beach]"
+    finally:
+        await eng.stop()
