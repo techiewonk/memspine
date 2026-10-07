@@ -99,9 +99,14 @@ def _documented_keys() -> set[str]:
     return keys
 
 
+#: Open policy dicts (``memories.<type>.policies``): the table may document the
+#: individual options inside them; those rows are not schema fields of their own.
+_POLICY_OPTION = re.compile(r"^memories\.[a-z_]+\.policies\.[a-z_.]+$")
+
+
 def test_documented_config_keys_match_schema_exactly() -> None:
     schema = _schema_keys()
-    documented = _documented_keys()
+    documented = {key for key in _documented_keys() if not _POLICY_OPTION.match(key)}
 
     # Sanity: the schema introspection found the real tree (guards a refactor that
     # silently empties model_fields), and the doc parser found the real table.

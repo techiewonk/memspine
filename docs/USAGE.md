@@ -216,6 +216,20 @@ active = await engine.skills(namespace="dev")        # ACTIVE only by default
 
 await engine.record_plan("ship a release", "1. bump version 2. tag 3. push", namespace="dev")
 plan = await engine.recall_plan("cut a release", namespace="dev")   # None if nothing clears the floor
+
+# ADR-060 (plan v3.2, no model calls): outcomes, lessons, top-k plans, trajectories,
+# task state and a kNN label vote.
+await engine.record_outcome("ship a release", "failure", action="push tag",
+                            error="TimeoutError: registry", next_action="retry with --wait",
+                            used_ids=[plan.record_id] if plan else [], namespace="dev")
+plans = await engine.recall_plans("ship a release", k=3, namespace="dev")  # [(record, score)]
+lessons = await engine.recall_lessons("ship a release", namespace="dev")
+steps = await engine.record_trajectory("ship a release", [{"action": "bump"}, {"action": "tag"}],
+                                       "success", namespace="dev")
+await engine.set_task_state("rel-42", "ship 1.2", subgoals=["bump", "tag"], namespace="dev")
+await engine.update_subgoal("rel-42", "bump", "done", receipt_id="ci-981", namespace="dev")
+await engine.add_exemplar("how do I reset my password", "howto", group="intents")
+vote = await engine.classify("how can I change my email", group="intents")  # label, margin, label_table
 ```
 
 ### Reflective — derive from records
@@ -773,6 +787,16 @@ in the schema — or if the schema gains a key not documented here.
 | `memories.semantic.policies.conflict.merge_containment` | `false` | W6 (ADR-059): a same-key write whose content words are all in the current fact's is a restatement (NOOP), not a supersession of the richer fact. |
 | `memories.episodic.policies.consolidation.miner` | `llm` | W5 (ADR-059): `rules` mines first-person personal facts without a model (`core/rule_miner.py`): home, origin, job, employer, relationship, age, education, diet, favourites, partner / parents supersede; likes, dislikes, pets, family, activities, plans coexist. With `mine_facts: true`. |
 | `memories.episodic.policies.subject_tagging` | `false` | W8 (ADR-059): an episodic turn written as "Name: text" is tagged `speaker:<name>`. |
+| `memories.procedural.policies.lessons` | off | W17a (ADR-060): `true` lets corrections leave lessons; `{inject: true, max: 3, min_similarity: 0.5}` also shows the lessons for the query after all evidence in `assemble`, marked advisory. `Engine.record_outcome` writes lessons whatever the key. |
+| `memories.procedural.policies.recall_k` | `3` | W17b (ADR-060): default k of `Engine.recall_plans` (ranked `cos × (1 + helpful) / (1 + harmful)`, failure-dominated plans pruned). `recall_plan` stays top-1. |
+| `memories.procedural.policies.auto_verify_on_reward` | `false` | W17b (ADR-060): an outcome receipt with reward ≥ 1 advances a used staged plan to verified (active still needs the dry run). |
+| `memories.procedural.policies.trajectory` | off | N27 (ADR-060): `{expand: true, radius: 1, cap: 20}` brings the neighbouring steps of a trajectory hit (`Engine.record_trajectory`) into `assemble`. |
+| `memories.procedural.policies.task_state` | `false` | W17e (ADR-060): `assemble(..., session_id=<task id>)` pins the open task state (`Engine.set_task_state` / `update_subgoal`, done needs a receipt) right after the persona. |
+| `memories.procedural.policies.quarantine_lesson` | `false` | N24 (ADR-060): every quarantine verdict writes an advisory lesson with the source signature, reason kinds and content hash, never the held text; repeats add notes. |
+| `memories.episodic.policies.correction_detector` | `false` | W17d (ADR-060): a user turn correcting a fact ("no, I said Tuesday", "actually it's", "not X, Y", "that's wrong") is tagged `correction`; the best-matching live keyed fact is superseded (or retracted without a replacement). |
+| `memories.semantic.policies.trust.source_types` | `{}` | N26 (ADR-060): document type (`doctype:<t>` tag, else channel) → authority tier 0–3; trust capped at 0.3 / 0.45 / 0.6 / 1.0. |
+| `memories.semantic.policies.trust.hold_needs_evidence` | `false` | N26 (ADR-060): hold a non-privileged write below `authority_min_tier` (2) in quarantine (`pending_evidence`); `Engine.review_evidence` promotes it on authoritative support. |
+| `read.multi_intent_split` | `false` | G34: each request of a multi-part question ("…, and also where did he move?") joins the search as an RRF probe. |
 | `memories.episodic.policies.forget_detector` | `false` | G25 (ADR-059): a user turn asking to forget something ("please forget my address") is tagged `forget_request`; `Engine.forget_requests()` lists the candidate records. Nothing is deleted automatically. |
 | `Engine.verify_forget(probe=...)` | — | W14 (ADR-059): erasure proven on recall — the erased text, searched for, must bring back no record holding it or a near-duplicate (`residual_recall`). |
 | `read(as_of=...)`, `assemble(as_of=...)`, REST `/assemble` `as_of` | — | W7 (ADR-059): valid-time view — records begun by then; a fact superseded after `as_of` counts as current; relative phrases resolve against it. Add `recorded_before` for a known-at read. |
