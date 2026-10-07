@@ -142,6 +142,7 @@ from memspine.core.redaction import find_pii, redact
 from memspine.core.registry import SERVICE_EXTRAS, dependency_closure, missing_services
 from memspine.core.replay import catch_up
 from memspine.core.replay import rebuild as replay_rebuild
+from memspine.core.rule_edges import BECAUSE_REL, is_why_question
 from memspine.core.rule_miner import mine_rules
 from memspine.core.sensitive import sensitive_topics
 from memspine.core.temporal_query import (
@@ -350,6 +351,30 @@ def _looks_like_recall(content: str) -> bool:
 
 #: #3: tag on a held record an operator rejected (archived, never releasable).
 _QUARANTINE_REJECTED_TAG = "quarantine_rejected"
+
+
+def _reply_targets(record: MemoryRecord) -> list[str]:
+    """G27: the record ids ``record``'s ``reply_to:<id>`` tags name."""
+    prefix = constants.REPLY_TO_PREFIX
+    return [tag[len(prefix) :] for tag in record.tags if tag.startswith(prefix) and tag != prefix]
+
+
+def _reply_target(turn: Mapping[str, Any], index: int, written: Mapping[int, str]) -> str | None:
+    """G27: the record a ``write_messages`` turn answers (its ``reply_to`` field).
+
+    A string is a record id; an int is the index of an earlier message of the same
+    call (one skipped as system/tool text or injected recall links to nothing).
+    Anything else, or an index that is not earlier, is a ``ValueError``."""
+    raw: object = turn.get("reply_to")
+    if raw is None:
+        return None
+    if isinstance(raw, str) and raw:
+        return raw
+    if isinstance(raw, int) and not isinstance(raw, bool) and 0 <= raw < index:
+        return written.get(raw)
+    raise ValueError(
+        f"messages[{index}]['reply_to'] must be a record id or the index of an earlier message"
+    )
 
 
 def _caller_tags(tags: Sequence[str] | None, ns: str) -> list[str]:
@@ -1113,6 +1138,7 @@ class Engine:
         session_id: str | None = None,
         parent_weights: Mapping[str, float] | None = None,
         purposes: Sequence[str] | None = None,
+        reply_to: str | None = None,
     ) -> MemoryRecord:
         """Append a WRITE event through the single door; projection materializes it.
 
@@ -1134,9 +1160,21 @@ class Engine:
 
         ``purposes`` (#50) are the read purposes the record may serve, stored as its
         ``consent_tags`` (``*`` = any); enforced only under ``consent.enforce``.
+
+        ``reply_to`` (G27, ADR-061) names the record this one answers, in the same
+        namespace (a missing, foreign or erased one is refused like a missing
+        record). It is stored as a ``reply_to:<id>`` tag, so ``read.reply_links``
+        can show the answered message beside a replayed reply; with associative
+        memory on, a ``reply_to`` LINK (reply -> answered) is written too, unless
+        either end is held or at its link budget (logged, the write stands).
         """
         storage = self._require_started()
         ns = validate_namespace(namespace)
+        if reply_to is not None:
+            target = await storage.get_record(reply_to)
+            if target is None or target.namespace != ns or target.status is RecordStatus.DELETED:
+                raise ConflictError(f"no such record {reply_to!r} in namespace {ns!r}")
+            tags = [*(tags or []), f"{constants.REPLY_TO_PREFIX}{reply_to}"]
         # SEC-H1/ADR-018: the "shared" type is engine-internal bookkeeping
         # (grants + subscriptions carry authorization state). A public write of
         # it would forge a live grant — parse_grant only checks shape, so a
@@ -1197,7 +1235,28 @@ class Engine:
         self._last_write_action = action
         if self._sessions_horizon is not None and memory_type == "episodic":
             await self._reopen_session(storage, ns, session_of(record))
+        if reply_to is not None:
+            await self._link_reply(ns, written, reply_to)
         return written
+
+    async def _link_reply(self, ns: str, written: MemoryRecord, reply_to: str) -> None:
+        """G27: the ``reply_to`` LINK beside the tag, when associative memory is on.
+        A held endpoint or a full link budget skips it (the tag still links them)."""
+        if self._associative is None or written.quarantined or written.record_id == reply_to:
+            return
+        try:
+            async with self._write_locks.setdefault(ns, asyncio.Lock()):
+                await self._associative.link(
+                    ns,
+                    written.record_id,
+                    reply_to,
+                    rel=constants.REPLY_TO_REL,
+                    weight=max(0.01, min(1.0, written.trust)),
+                    reason="reply_to",
+                    actor="system",
+                )
+        except ConflictError as exc:
+            _log.warning("memory.reply_link_skipped", namespace=ns, error=str(exc))
 
     async def _reopen_session(self, storage: SqlStorage, ns: str, session: str | None) -> None:
         """#53: a write to a PASSIVE session reopens it (one SESSION ``active`` event
@@ -2018,6 +2077,52 @@ class Engine:
             boosted.append((record, relevance))
         return sorted(boosted, key=lambda pair: pair[1], reverse=True)
 
+    async def _causal_walk(
+        self,
+        ns: str,
+        candidates: list[tuple[MemoryRecord, float]],
+        group_id: str | None,
+        tags: list[str] | None,
+        memory_type: str | None,
+    ) -> list[tuple[MemoryRecord, float]]:
+        """W12/G27 (``read.causal_walk``, ADR-061): a ranked directed walk.
+
+        From the best ``CAUSAL_WALK_SEEDS`` candidates, follow ``because`` (effect
+        -> cause) and ``reply_to`` (reply -> answered) LINKs up to
+        ``read.causal_walk_hops`` hops (:meth:`AssociativeMemory.rel_walk`, GP-10
+        admission). A record reached ``h`` hops from a seed of relevance ``r``
+        scores ``r x CAUSAL_WALK_DECAY ** h`` (its best path); it joins the
+        candidates, or lifts one already there that scored less, after the same
+        search gates as every leg. The stable re-sort keeps ties in fused order.
+        Failures leave the candidates as they were (an enhancer, never a gate)."""
+        assert self._associative is not None
+        seeds = candidates[: constants.CAUSAL_WALK_SEEDS]
+        seed_score = {record.record_id: relevance for record, relevance in seeds}
+        try:
+            reached = await self._associative.rel_walk(
+                ns,
+                list(seed_score),
+                (BECAUSE_REL, constants.REPLY_TO_REL),
+                depth=self._config().read.causal_walk_hops,
+                admit=self._graph_admit(ns),
+            )
+        except Exception as exc:  # an enhancer, never a gate
+            _log.warning("read.causal_walk_failed", namespace=ns, error=str(exc))
+            return candidates
+        current = {record.record_id: relevance for record, relevance in candidates}
+        best: dict[str, float] = {}
+        for record, hops, origin in reached:
+            score = seed_score[origin] * constants.CAUSAL_WALK_DECAY**hops
+            if score > max(best.get(record.record_id, 0.0), current.get(record.record_id, -1.0)):
+                best[record.record_id] = score
+        if not best:
+            return candidates
+        gated = await self._gate_hits(ns, list(best.items()), group_id, tags, memory_type)
+        merged = {record.record_id: (record, relevance) for record, relevance in candidates}
+        for record, relevance in gated:
+            merged[record.record_id] = (record, relevance)
+        return sorted(merged.values(), key=lambda pair: pair[1], reverse=True)
+
     async def _community_gate(
         self,
         ns: str,
@@ -2529,6 +2634,10 @@ class Engine:
         otherwise "now". This is what lets "when did X happen" be answered from
         the session date rather than from the ingestion time.
 
+        Reply threads (G27): a message may carry ``"reply_to"``, the record id it
+        answers or the index of an earlier message of this call; it is passed to
+        :meth:`write` as ``reply_to``.
+
         Embedding (G9): the turns that will reach the door are embedded up front
         in calls of at most ``embedding.batch_size`` texts, which fills the
         embedding cache; the per-record firewall and vector projection then read
@@ -2609,6 +2718,7 @@ class Engine:
         """The per-turn loop of :meth:`write_messages`: each turn goes through
         the write door on its own, with its own firewall and ladder decisions."""
         records: list[MemoryRecord] = []
+        written_at: dict[int, str] = {}  # G27: message index -> its record id
         fw = self._config().firewall
         for i, turn in enumerate(messages):
             try:
@@ -2618,6 +2728,7 @@ class Engine:
                 raise ValueError(
                     f"messages[{i}] must be a mapping with 'role' and 'content' keys"
                 ) from exc
+            reply_to = _reply_target(turn, i, written_at)
             if role in fw.skip_message_roles:
                 continue  # H21: system/tool text is not memory
             if fw.skip_injected_recall and _looks_like_recall(content):
@@ -2669,8 +2780,10 @@ class Engine:
                 group_id=group_id,
                 tags=turn_tags or None,
                 valid_from=stamp,
+                reply_to=reply_to,
             )
             records.append(record)
+            written_at[i] = record.record_id
         return records
 
     def _depositable_contents(self, messages: Sequence[Mapping[str, str]]) -> list[str]:
@@ -3386,6 +3499,20 @@ class Engine:
         if candidates and self._config().read.graph_rerank != "off":
             # #22: graph-proximity and episode-mentions boosts, before the cut.
             candidates = await self._graph_rerank(ns, query, candidates)
+        walk = self._config().read.causal_walk
+        if (
+            candidates
+            and walk != "off"
+            and self._associative is not None
+            and (walk == "always" or is_why_question(query))
+        ):
+            # W12/G27: the causes and answered messages of the best candidates.
+            candidates = await self._causal_walk(ns, candidates, group_id, tags, memory_type)
+            if hide is not None:
+                candidates = [pair for pair in candidates if not hide(pair[0])]
+            date_filter = active_date_filter()
+            if date_filter is not None:
+                candidates = [pair for pair in candidates if date_filter.matches(pair[0])]
         candidates = candidates[:top_k]
         # E8 stage: static prefilter (opt-in, default off).
         if candidates and self._config().read.static_prefilter:
@@ -4339,6 +4466,22 @@ class Engine:
                 used += cost
                 if rank == 0:
                     best_window.add(rid)
+            if read_cfg.reply_links:
+                # G27: a reply also shows the message it answers (gated, in budget).
+                for answered in _reply_targets(hit):
+                    if answered in seen:
+                        continue
+                    turn = await self._replay_neighbour(answered, ns)
+                    if turn is None or turn.namespace != ns:
+                        continue
+                    cost = len(turn.content) // 4 + 1
+                    if used + cost > budget_tokens:
+                        continue
+                    chosen.append(turn)
+                    seen.add(answered)
+                    used += cost
+                    if rank == 0:
+                        best_window.add(answered)
         stable = [r for r in chosen if r.memory_type != "episodic"]
         turns = sorted(
             (r for r in chosen if r.memory_type == "episodic"),

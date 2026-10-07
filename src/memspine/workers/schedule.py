@@ -14,10 +14,16 @@ counts — delivery stays pull-based via ``Engine.due()`` in v0.1.
 
 from __future__ import annotations
 
-from memspine.workers.pipelines import PipelineContext
+from memspine.workers.pipelines import PipelineContext, rule_edges_options
 from memspine.workers.runner import TaskRunner
 
-__all__ = ["PREDICT_CALIBRATE_STAGE", "RETENTION_STAGE", "SLEEP_CYCLE_ORDER", "run_sleep_cycle"]
+__all__ = [
+    "PREDICT_CALIBRATE_STAGE",
+    "RETENTION_STAGE",
+    "RULE_EDGES_STAGE",
+    "SLEEP_CYCLE_ORDER",
+    "run_sleep_cycle",
+]
 
 SLEEP_CYCLE_ORDER: tuple[str, ...] = (
     "consolidate",
@@ -54,6 +60,11 @@ RETENTION_STAGE = "retention_expire"
 PREDICT_CALIBRATE_STAGE = "predict_calibrate"
 
 
+#: W12 (ADR-061): runs right after ``extract_graph``, and only when
+#: ``memories.associative.policies.rule_edges`` is on, so the default cycle is unchanged.
+RULE_EDGES_STAGE = "rule_edges"
+
+
 def _predict_calibrate_on(ctx: PipelineContext) -> bool:
     mem = ctx.config.memories.get("episodic")
     options = mem.policies.get("consolidation") if mem is not None else None
@@ -65,6 +76,9 @@ async def run_sleep_cycle(runner: TaskRunner, ctx: PipelineContext) -> dict[str,
     if _predict_calibrate_on(ctx):
         at = order.index("mine_facts") + 1
         order = (*order[:at], PREDICT_CALIBRATE_STAGE, *order[at:])
+    if rule_edges_options(ctx.config) is not None:
+        at = order.index("extract_graph") + 1
+        order = (*order[:at], RULE_EDGES_STAGE, *order[at:])
     if ctx.config.retention.classes:
         order = (RETENTION_STAGE, *order)
     return {name: await runner.run(name, ctx) for name in order}

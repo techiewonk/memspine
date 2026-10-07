@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import math
 import re
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Awaitable, Callable, Collection, Sequence
 from typing import Any, ClassVar, Protocol
 
 from memspine.config.constants import LINK_BUDGET, SEARCH_TOP_K
@@ -422,6 +422,60 @@ class AssociativeMemory(BaseMemory):
         }
         best = max(scores.values(), default=0.0)
         return {node: score / best for node, score in scores.items()} if best > 0 else {}
+
+    async def rel_walk(
+        self,
+        namespace: str,
+        starts: Sequence[str],
+        rels: Collection[str],
+        *,
+        depth: int,
+        admit: Admit,
+    ) -> list[tuple[MemoryRecord, int, str]]:
+        """W12/G27 (ADR-061): the records a directed walk over ``rels`` reaches.
+
+        Follows live ``rels`` edges from ``src`` to ``dst`` only (a ``because``
+        edge runs effect -> cause, a ``reply_to`` edge reply -> answered message),
+        breadth-first from ``starts`` up to ``depth`` hops. Returns ``(record, hops,
+        start)`` nearest first (per node, strongest edge first, then id), each
+        record once, never a start. GP-10 as :meth:`seed_expand`: the walk stays in
+        ``namespace`` and never enters a record ``admit`` refuses (a dead end)."""
+        records: dict[str, MemoryRecord | None] = {}
+
+        async def enterable(node_id: str) -> MemoryRecord | None:
+            if node_id not in records:
+                record = await self._storage.get_record(node_id)
+                ok = record is not None and record.namespace == namespace and admit(record)
+                records[node_id] = record if ok else None
+            return records[node_id]
+
+        seen = set(starts)
+        frontier = [(s, s) for s in dict.fromkeys(starts)]
+        reached: list[tuple[MemoryRecord, int, str]] = []
+        for hop in range(1, max(1, depth) + 1):
+            next_frontier: list[tuple[str, str]] = []
+            for node, origin in frontier:
+                edges = sorted(
+                    (
+                        e
+                        for e in await self._graph.edges_of(node)
+                        if e.src == node and e.rel_type in rels and e.weight > 0
+                    ),
+                    key=lambda e: (-e.weight, e.dst),
+                )
+                for edge in edges:
+                    if edge.dst in seen:
+                        continue
+                    record = await enterable(edge.dst)
+                    if record is None:
+                        continue
+                    seen.add(edge.dst)
+                    reached.append((record, hop, origin))
+                    next_frontier.append((edge.dst, origin))
+            if not next_frontier:
+                break
+            frontier = next_frontier
+        return reached
 
     async def prune_weakest(self, namespace: str, record_id: str) -> GraphEdge | None:
         """Free one budget slot on ``record_id`` (weakest live link retired

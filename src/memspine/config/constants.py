@@ -556,6 +556,22 @@ RESIDUAL_PROBE_OVERLAP = 0.8
 #: asks the assistant to forget something (listed by ``Engine.forget_requests``).
 FORGET_REQUEST_TAG = "forget_request"
 
+#: W12 (``memories.associative.policies.rule_edges``, ADR-061): a causal clause links
+#: to the earlier turn, among this many, sharing the most content words with it, when
+#: they share at least ``RULE_EDGES_MIN_OVERLAP`` (three letters or more).
+RULE_EDGES_LOOKBACK = 40
+RULE_EDGES_MIN_OVERLAP = 2
+#: W12: weight of a rule ``because`` LINK (capped by both endpoints' trust, GP-10).
+RULE_EDGE_WEIGHT = 0.5
+#: W12 (``read.causal_walk``): the walk starts from this many best candidates, and
+#: a record reached ``h`` hops away scores ``seed relevance x CAUSAL_WALK_DECAY**h``.
+CAUSAL_WALK_SEEDS = 5
+CAUSAL_WALK_DECAY = 0.9
+#: G27 (``write(reply_to=)``, ADR-061): the tag prefix naming the record a turn
+#: answers, and the rel of the LINK written beside it (associative memory on).
+REPLY_TO_PREFIX = "reply_to:"
+REPLY_TO_REL = "reply_to"
+
 #: W13 (``integrity.corroboration_roots``): the most lineage records one root walk
 #: visits (cycles are skipped; a deeper lineage stops here).
 LINEAGE_ROOTS_MAX_NODES = 256
