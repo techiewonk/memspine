@@ -2,7 +2,7 @@
 # Plan v3.2 free screens, batch 5: second corpora for U5 (local embedder, retrieval-only, $0).
 cd "D:/mem/memory research/memspine/evals"
 run() { # name dataset path config [extra]
-  env -u AWS_ACCESS_KEY_ID -u AWS_SECRET_ACCESS_KEY -u AWS_SESSION_TOKEN HF_HUB_OFFLINE=1 \
+  PYTHONPATH="D:/mem/memory research/_wt_screens/src" env -u AWS_ACCESS_KEY_ID -u AWS_SECRET_ACCESS_KEY -u AWS_SESSION_TOKEN HF_HUB_OFFLINE=1 \
     ../.venv/Scripts/python.exe -m memspine_evals c0-1 --dataset $2 --path $3 \
     --with-memspine --only-systems memspine --memspine-read-mode replay \
     --memspine-config "$(cat arms/$4.json)" --retrieval-only --max-model-calls 0 \
