@@ -2129,7 +2129,9 @@ class Engine:
                 # Cheap test first: the cue rules on the (inflated) text, then the
                 # gates, which can cost an effective-trust walk under live re-eval.
                 inflated = self._inflate_all([record], ns)
-                if not inflated or not is_standing_instruction(inflated[0].content):
+                if not inflated or not is_standing_instruction(
+                    inflated[0].content, wide=read_cfg.standing_patterns == "wide"
+                ):
                     continue
                 view = await self._live_view(record)
                 if view is None or view.trust < read_cfg.standing_min_trust:

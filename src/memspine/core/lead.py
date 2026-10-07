@@ -57,9 +57,39 @@ _STANDING = re.compile(
 )
 
 
-def is_standing_instruction(text: str) -> bool:
-    """True when ``text`` states a preference or a request that should persist."""
-    return bool(_STANDING.search(text))
+#: N18 (plan v3.2, ``read.standing_patterns: wide``): first-person evaluative forms the
+#: narrow cues miss ("I strictly avoid caffeine", "I can't stand horror films", "I'm
+#: vegetarian", "I find long lectures ineffective"). PrefEval explicit preferences:
+#: the narrow cues match 11.3%. A compliment aimed at the assistant ("I love how you
+#: explained it") is not a preference, so "love / like / enjoy" never takes "how you".
+_STANDING_WIDE = re.compile(
+    r"\bi(?:'m| am)? (?:really |strongly |generally |usually |always |definitely |"
+    r"absolutely |strictly |tend to |try to |much |need to |have to |must )?(?:"
+    r"prefer|avoid|dislike|hate|detest|loathe"
+    r"|(?:love|like|enjoy|adore)(?! (?:how|that|what|when|the way) you)"
+    r"|can't stand|cannot stand|can't tolerate|can't eat|can't have"
+    r"|(?:don't|do not|never) (?:like|enjoy|eat|drink|want|use|watch|wear|buy|care for)"
+    r"|(?:not|no longer) (?:a fan of|into|keen on|interested in)"
+    r"|(?:a )?(?:vegetarian|vegan|pescatarian|teetotal|teetotaler)\b"
+    r"|allergic to|intolerant to|lactose intolerant|gluten.free"
+    r"|(?:have|feel) (?:an? )?(?:strong )?(?:aversion|dislike|preference|fondness)"
+    r"|find [^.?!]{1,40} (?:ineffective|annoying|boring|unhelpful|overwhelming|"
+    r"useless|distracting|stressful|uncomfortable|helpful|relaxing)"
+    r"|would rather|'d rather|follow an? [\w-]+ diet|stick to"
+    r"|opposed to|refuse to|steer clear|cannot tolerate|prioriti[sz]e|require"
+    r"|have an? (?:[\w-]+ )?(?:phobia|fear|preference|allergy)"
+    r")"
+    r"|\bmy (?:favou?rite|go-to|preferred)\b"
+    r"|\bi'm (?:into|keen on|a fan of|a big fan of|not a fan of)\b",
+    re.IGNORECASE,
+)
+
+
+def is_standing_instruction(text: str, *, wide: bool = False) -> bool:
+    """True when ``text`` states a preference or a request that should persist.
+
+    ``wide`` (N18) also accepts the first-person evaluative forms."""
+    return bool(_STANDING.search(text) or (wide and _STANDING_WIDE.search(text)))
 
 
 def _strip_entity(content: str, entity: str) -> str:

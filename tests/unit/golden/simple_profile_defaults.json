@@ -129,6 +129,7 @@
       "skip_rerank_for_ordering": false,
       "standing_instructions": false,
       "standing_min_trust": 0.7,
+      "standing_patterns": "narrow",
       "static_embedding_prefilter": false,
       "static_prefilter": false,
       "temporal_leg": false,

@@ -429,6 +429,12 @@ class ReadConfig(BaseModel):
     #: user stated, never as system instructions. Deterministic cue rules.
     standing_instructions: bool = False
     standing_min_trust: float = Field(default=0.7, ge=0.0, le=1.0)
+    #: N18 (plan v3.2): the standing-preference cues. ``narrow`` (unchanged): requests
+    #: aimed at the assistant ("from now on", "please always", "call me").
+    #: ``wide``: also first-person evaluative forms ("I avoid / can't stand / am
+    #: allergic to / I'm vegetarian / my favourite"). PrefEval explicit preferences:
+    #: narrow 11.3%, wide 83.1%; LoCoMo turns matched: 0.4% vs 4.8%.
+    standing_patterns: Literal["narrow", "wide"] = "narrow"
     #: H22: the token sub-budget of the lead section (standing preferences, then
     #: timelines), taken out of the assembly budget.
     lead_budget_tokens: int = Field(default=400, ge=0)
