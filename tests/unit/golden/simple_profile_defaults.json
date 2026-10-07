@@ -279,8 +279,10 @@
       "reflexion": true
     },
     "trust": {
+      "authority_min_tier": 2,
       "corroborations_to_promote": 2,
       "default_trust": 0.5,
+      "hold_needs_evidence": false,
       "quarantine_below": 0.25,
       "retrieved_content_cap": 0.3,
       "role_trust": {
@@ -289,7 +291,8 @@
         "system": 0.9,
         "tool": 0.4,
         "user": 0.7
-      }
+      },
+      "source_types": {}
     }
   }
 }
