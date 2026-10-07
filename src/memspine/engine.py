@@ -48,6 +48,7 @@ from memspine.core.escaping import escape_markers
 from memspine.core.event_date import SAID_PREFIX, date_anchor, happened_of, happened_tag
 from memspine.core.events import EventKind, EventLogMode, MemoryEvent, fingerprint_payload
 from memspine.core.evidence import evidence_signal
+from memspine.core.excerpt import focused_excerpt
 from memspine.core.fact_views import view_tags
 from memspine.core.firewall import Firewall, FirewallSignals, FirewallVerdict, QueryHistory
 from memspine.core.integrity import IntegrityPolicy
@@ -610,6 +611,24 @@ def _cosine(u: list[float], v: list[float]) -> float:
             "embedder model changed without a rebuild?"
         )
     return sum(a * b for a, b in zip(u, v, strict=True))
+
+
+def _excerpted(record: MemoryRecord, query: str) -> MemoryRecord:
+    """N13: ``record`` with a query-anchored excerpt as its shown content."""
+    text = focused_excerpt(record.content, query)
+    return record if text == record.content else record.model_copy(update={"content": text})
+
+
+def _shares_key(records: Sequence[MemoryRecord]) -> bool:
+    """N01: True when two records state the same keyed fact (``entity`` + ``attribute``)."""
+    seen: set[tuple[str, str]] = set()
+    for record in records:
+        if record.entity and record.attribute:
+            key = (record.entity.lower(), record.attribute.lower())
+            if key in seen:
+                return True
+            seen.add(key)
+    return False
 
 
 def _as_options_dict(raw: Any) -> dict[str, object] | None:
@@ -3600,8 +3619,17 @@ class Engine:
         lead = [r for r in volatile if constants.LEAD_TAG in r.tags]
         volatile = [r for r in volatile if constants.LEAD_TAG not in r.tags]
         stable = [*stable, *lead]
+        if read_cfg.focused_excerpt and not is_verbatim(query):
+            # N13 (plan v3.2): long multi-line records shown as query-anchored excerpts.
+            volatile = [_excerpted(r, query) for r in volatile]
         priority = list(volatile)
         if read_cfg.order_by_time_for_ordering and is_ordering(query):
+            volatile = sorted(volatile, key=chrono_key)
+        elif read_cfg.present_order == "recorded" or (
+            read_cfg.present_order == "recorded_if_shared_key" and _shares_key(volatile)
+        ):
+            # N01 (plan v3.2): recorded order, so a later value of the same fact reads
+            # after the earlier one (the reader takes the last as current).
             volatile = sorted(volatile, key=chrono_key)
         if read_cfg.render != "dated":
             assembled.records = [*stable, *volatile]

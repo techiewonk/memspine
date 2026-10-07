@@ -588,6 +588,17 @@ class ReadConfig(BaseModel):
     #: first (in time order), then the other windows in time order, so the reader meets
     #: the best evidence before the context around it. Off: all turns in time order.
     evidence_first: bool = False
+    #: N01 (plan v3.2, MAB TAM): presentation order of the retrieved (volatile) records.
+    #: ``relevance`` (unchanged): score order. ``recorded``: always time order.
+    #: ``recorded_if_shared_key``: time order only when two records state the same
+    #: keyed fact (entity + attribute), so the newer value reads last. An ordering
+    #: question under ``order_by_time_for_ordering`` is time-ordered either way.
+    present_order: Literal["relevance", "recorded", "recorded_if_shared_key"] = "relevance"
+    #: N13 (plan v3.2, Mnemon ``focused``): a retrieved record of six or more lines is
+    #: shown as its two lines that best match the question, each with its next line,
+    #: cuts marked "…" (``core/excerpt.py``). Never for a verbatim question. The stored
+    #: record is unchanged. Off: whole records.
+    focused_excerpt: bool = False
 
     @model_validator(mode="after")
     def _header_shares_leave_room(self) -> ReadConfig:
