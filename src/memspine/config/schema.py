@@ -638,6 +638,10 @@ class ReadConfig(BaseModel):
     #: lacks join the search as one more RRF probe (one extra local search). Off:
     #: unchanged.
     prf_expansion: bool = False
+    #: G34 (plan v3.2): a multi-part question ("..., and also where did he move?") is
+    #: split on discourse markers and each part joins the search as an RRF probe.
+    #: Off: unchanged.
+    multi_intent_split: bool = False
 
     @model_validator(mode="after")
     def _header_shares_leave_room(self) -> ReadConfig:

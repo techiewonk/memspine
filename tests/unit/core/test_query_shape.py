@@ -146,3 +146,25 @@ def test_is_personal(query: str, expected: bool) -> None:
     from memspine.core.query_shape import is_personal
 
     assert is_personal(query) is expected
+
+
+@pytest.mark.parametrize(
+    ("query", "parts"),
+    [
+        (
+            "What did Jon say about the studio, and where did he move?",
+            ["What did Jon say about the studio", "where did he move"],
+        ),
+        ("What books has Melanie read?", ["What books has Melanie read"]),
+        (
+            "Recommend a hotel and also tell me the weather there in May",
+            ["Recommend a hotel", "tell me the weather there in May"],
+        ),
+        ("Who did Caroline and Melanie meet?", ["Who did Caroline and Melanie meet"]),
+    ],
+)
+def test_split_intents(query: str, parts: list[str]) -> None:
+    """G34 (plan v3.2): multi-part questions."""
+    from memspine.core.query_shape import split_intents
+
+    assert split_intents(query) == parts

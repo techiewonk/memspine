@@ -22,6 +22,7 @@ __all__ = [
     "is_temporal",
     "is_verbatim",
     "rule_read_mode",
+    "split_intents",
 ]
 
 #: Time words after which "every" / "each" describe a habit ("every morning"), not a set.
@@ -257,3 +258,30 @@ def is_personal(query: str) -> bool:
     general-knowledge question ("What is the capital of France?") is not, and gets no
     profile or preference block under ``read.profile_scope_gate``."""
     return bool(_PERSONAL.search(query))
+
+
+#: G34 (plan v3.2): discourse markers that join two requests in one question.
+_INTENT_SPLIT = re.compile(
+    r"\s*(?:[;?]\s+|,?\s+(?:and also|and additionally|additionally|also,|plus,?|"
+    r"as well as|what I really want(?: to know)? is|and then)\s+"
+    # "..., and where did he move?": split before the question word, keeping it.
+    r"|,?\s+and\s+(?=(?:what|where|when|who|whom|which|how|why)\b))",
+    re.IGNORECASE,
+)
+
+
+def split_intents(query: str, min_words: int = 3) -> list[str]:
+    """G34: the separate requests in a multi-part question ("What did Jon say about
+    the studio, and where did he move?" -> two parts). A part shorter than
+    ``min_words`` words stays with the previous one; a single request comes back as
+    ``[query]``."""
+    parts: list[str] = []
+    for piece in _INTENT_SPLIT.split(query):
+        piece = piece.strip(" ,.?")
+        if not piece:
+            continue
+        if parts and len(piece.split()) < min_words:
+            parts[-1] = f"{parts[-1]} {piece}"
+        else:
+            parts.append(piece)
+    return parts or [query]

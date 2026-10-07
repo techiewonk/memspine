@@ -115,6 +115,7 @@ from memspine.core.query_shape import (
     is_temporal,
     is_verbatim,
     rule_read_mode,
+    split_intents,
 )
 from memspine.core.read_filters import (
     DateBound,
@@ -3485,6 +3486,11 @@ class Engine:
         if self._assembly is None:
             raise MemspineError("assembly policy not bound — engine not started?")
         want = top_k * self._config().read.candidate_pool
+        if self._config().read.multi_intent_split:
+            # G34 (plan v3.2): each request of a multi-part question is its own probe.
+            parts = split_intents(query)
+            if len(parts) > 1:
+                probes = [*probes, *parts]
         if shared:
             scored = await self.shared_search(
                 query, namespace=ns, top_k=want, session_id=session_id
