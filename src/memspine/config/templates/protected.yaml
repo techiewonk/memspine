@@ -1,0 +1,14 @@
+# Protected single-agent profile (plan v3.2 W1, ADR-059): combo-A plus the lineage and
+# self-contamination protections that `base` leaves off. Every write records the turn
+# it came from (implicit parents), recalled memory echoed back into the conversation is
+# never re-deposited, and assistant turns are proposals (assistant_claim), not facts.
+# Deterministic; no model calls. Measure against `base` before relying on it.
+extends: base
+profile: protected
+
+integrity:
+  implicit_parents: turn
+
+firewall:
+  skip_injected_recall: true
+  tag_assistant_claims: true
