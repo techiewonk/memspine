@@ -113,3 +113,13 @@ async def test_raw_turn_floor_without_derived_records_is_byte_identical(mode: st
     off = await _raw_turns(mined=False, mode=mode)
     on = await _raw_turns(mined=False, mode=mode, raw_turn_floor=True)
     assert on == off
+
+
+def test_rerank_instruction_reaches_the_settings() -> None:
+    """N12 (plan v3.2): the reranker instruction is configurable, default None."""
+    from memspine.services.rerank.factory import RerankSettings
+
+    assert ReadConfig().rerank_instruction is None
+    assert RerankSettings(mode="qwen3", instruction="judge relevance").instruction == (
+        "judge relevance"
+    )

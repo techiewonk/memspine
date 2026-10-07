@@ -37,6 +37,9 @@ class RerankSettings:
     api_base: str | None = None
     api_key: str | None = None
     aws_region: str | None = None
+    #: N12 (plan v3.2): the task instruction of an instruction-conditioned reranker
+    #: (``qwen3``); None keeps its default memory instruction.
+    instruction: str | None = None
 
 
 #: A spec lazily constructs one Reranker from settings (imports its adapter here).
@@ -75,9 +78,16 @@ def _build_litellm(settings: RerankSettings) -> Reranker:
 
 
 def _build_qwen3(settings: RerankSettings) -> Reranker:
-    from memspine.services.rerank.qwen3_rerank import Qwen3Reranker
+    from memspine.services.rerank.qwen3_rerank import (
+        DEFAULT_INSTRUCTION,
+        DEFAULT_MODEL,
+        Qwen3Reranker,
+    )
 
-    return Qwen3Reranker(settings.model) if settings.model else Qwen3Reranker()
+    return Qwen3Reranker(
+        settings.model or DEFAULT_MODEL,
+        instruction=settings.instruction or DEFAULT_INSTRUCTION,
+    )
 
 
 _REGISTRY: dict[str, RerankSpec] = {

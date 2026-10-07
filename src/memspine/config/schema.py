@@ -349,6 +349,9 @@ class ReadConfig(BaseModel):
     default_mode: Literal["auto", "full", "replay", "retrieve", "compose"] = "auto"
     #: Hindsight: prefix reranker inputs with ``[Date: YYYY-MM-DD]``.
     rerank_date_prefix: bool = False
+    #: N12 (plan v3.2, EverMemOS): the task instruction an instruction-conditioned
+    #: reranker (``rerank: qwen3``) judges with; None keeps its memory default.
+    rerank_instruction: str | None = None
     #: Agent Zero: skip the reranker for ordering questions (first / latest / ...).
     skip_rerank_for_ordering: bool = False
     #: H22 (Mastra): with ``render: dated``, mark long gaps ("[3 weeks later]").

@@ -7076,7 +7076,9 @@ class Engine:
         # The RerankerFactory (A2/D-51) owns lazy construction + the swallow-to-
         # None on ANY failure (COR-3/ADR-018); the engine keeps only the cache +
         # sticky-disable. A None here means unavailable → disable the stage once.
-        self._reranker = build_reranker(RerankSettings(mode=mode, model=read.rerank_model))
+        self._reranker = build_reranker(
+            RerankSettings(mode=mode, model=read.rerank_model, instruction=read.rerank_instruction)
+        )
         if self._reranker is None:
             self._rerank_unavailable = True
         return self._reranker
