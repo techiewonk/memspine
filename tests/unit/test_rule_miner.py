@@ -165,3 +165,48 @@ def test_attitude_slot_and_canonical_favourite_keys() -> None:
     assert ("favourite_book", "Emma", "state", [2]) in facts
     assert canonical_thing("TV show") == "show"
     assert canonical_thing("colour") == "color"
+
+
+async def test_profile_slots_header_shows_the_current_slots() -> None:
+    """W5 (plan v3.2): the Λ-profile header from rule-mined state facts."""
+    from memspine.config import constants
+
+    eng = Engine(
+        template="core",
+        dotenv_path=None,
+        storage={"path": ":memory:"},
+        embedding={"provider": "hash"},
+        memories={
+            "episodic": {
+                "enabled": True,
+                "policies": {"consolidation": {"mine_facts": True, "miner": "rules"}},
+            },
+            "semantic": {"enabled": True},
+        },
+        read={"hybrid": False, "profile_slots_header": True},
+    )
+    await eng.start()
+    try:
+        t0 = datetime(2023, 5, 8, 13, 0, tzinfo=UTC)
+        sessions = {
+            0: ["Caroline: I moved to Sweden last year", "Melanie: wow", "Caroline: yes, cold!"],
+            30: ["Caroline: I moved to Norway", "Melanie: again?", "Caroline: I work as a nurse"],
+        }
+        for day, texts in sessions.items():
+            msgs = [
+                {
+                    "role": "user",
+                    "content": text,
+                    "timestamp": (t0 + timedelta(days=day, minutes=i)).isoformat(),
+                }
+                for i, text in enumerate(texts)
+            ]
+            await eng.write_messages(msgs, namespace="a", session_id=f"s{day}", group_id=f"s{day}")
+        await eng.sleep()
+        out = await eng.read("Where does Caroline live?", namespace="a", mode="replay", top_k=3)
+        [header] = [r for r in out.context.records if constants.SLOTS_TAG in r.tags]
+        assert "Caroline home: Norway" in header.content
+        assert "Caroline job: nurse" in header.content
+        assert "Sweden" not in header.content
+    finally:
+        await eng.stop()

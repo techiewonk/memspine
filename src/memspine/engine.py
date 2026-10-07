@@ -4532,6 +4532,53 @@ class Engine:
                 return True
         return False
 
+    async def _slots_section(self, ns: str, query: str, budget_tokens: int) -> MemoryRecord | None:
+        """W5 (plan v3.2, ``read.profile_slots_header``): the Λ-profile block: for each
+        person the question names (else the asker, ``user``), their current keyed
+        STATE facts (home, origin, job, favourites, attitudes …; one per key, the live
+        one) as one line each. Slots tagged ``sensitive:*`` stay out unless
+        ``read.profile_sensitive``. Under ``read.profile_scope_gate`` only for
+        questions it applies to. None when nothing is known."""
+        read_cfg = self._config().read
+        if not read_cfg.profile_slots_header:
+            return None
+        if read_cfg.profile_scope_gate and not await self._applies_to_person(ns, query):
+            return None
+        names = [n.lower() for n in query_names(query)] or ["user"]
+        slots: dict[str, list[MemoryRecord]] = {}
+        for record in await self._require_started().list_records(ns, "semantic"):
+            if (
+                record.status is not RecordStatus.ACTIVATED
+                or record.quarantined
+                or record.valid_to is not None
+                or not record.entity
+                or not record.attribute
+                or record.entity.lower() not in names
+                or "kind:state" not in record.tags
+            ):
+                continue
+            if not read_cfg.profile_sensitive and any(
+                t.startswith("sensitive:") for t in record.tags
+            ):
+                continue
+            slots.setdefault(record.entity, []).append(record)
+        if not slots:
+            return None
+        allowance = max(1, int(budget_tokens * read_cfg.profile_budget_share))
+        lines: list[str] = []
+        kept: list[MemoryRecord] = []
+        for entity in sorted(slots):
+            for record in sorted(slots[entity], key=lambda r: r.attribute or ""):
+                line = f"- {' '.join(record.content.split())}"
+                if estimate_tokens("\n".join([constants.SLOTS_MARKER, *lines, line])) > allowance:
+                    break
+                lines.append(line)
+                kept.append(record)
+        if not kept:
+            return None
+        block = self._lead_record(ns, "\n".join([constants.SLOTS_MARKER, *lines]), kept)
+        return block.model_copy(update={"tags": [constants.LEAD_TAG, constants.SLOTS_TAG]})
+
     async def _novelty_section(
         self, ns: str, query: str, budget_tokens: int
     ) -> MemoryRecord | None:
@@ -4704,6 +4751,7 @@ class Engine:
             await self._cards_section(ns, query, budget_tokens, session_id, strong=strong),
             await self._profile_section(ns, query, budget_tokens, session_id),
             await self._novelty_section(ns, query, budget_tokens),
+            await self._slots_section(ns, query, budget_tokens),
         ):
             if header is not None:
                 headers.append(header)

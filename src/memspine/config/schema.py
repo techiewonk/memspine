@@ -585,6 +585,12 @@ class ReadConfig(BaseModel):
     #: already likes / does / has (keyed likes, activities, favourite_*, pets facts and
     #: list cards), so the answer avoids repeats. Off: unchanged.
     novelty_exclusions: bool = False
+    #: W5 (plan v3.2): the Λ-profile header: the current keyed STATE facts (rule- or
+    #: LLM-mined: home, origin, job, favourites, attitudes …) of each person the
+    #: question names, else of ``user``; within ``profile_budget_share``. Off: none.
+    profile_slots_header: bool = False
+    #: W5 / W16: include slots tagged ``sensitive:*`` in that header (default: never).
+    profile_sensitive: bool = False
     #: H12: cap the total of all lead blocks (cards, graph facts, entity summaries,
     #: profile, count timeline) at this share of the read budget, dropping the
     #: lowest-priority blocks first, so raw evidence keeps its budget. None = no cap.
