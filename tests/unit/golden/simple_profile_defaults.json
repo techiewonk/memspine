@@ -71,6 +71,8 @@
       "compose_replay": false,
       "compose_rewrites": false,
       "compression": {},
+      "concentration_filter": false,
+      "concentration_jaccard": 0.2,
       "core_terms_leg": false,
       "count_budget_share": 0.1,
       "count_dedupe": false,

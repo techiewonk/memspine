@@ -610,6 +610,13 @@ class ReadConfig(BaseModel):
     #: 4x wider search, so evidence spread over many sessions reaches the read. In
     #: replay each hit brings its window. None: unchanged (no cap).
     session_cap: int | None = Field(default=None, ge=1)
+    #: N21 (plan v3.2, RAGDefender): collapse each dense near-duplicate cluster among
+    #: the search candidates (3+ records sharing ``concentration_jaccard`` of their
+    #: content words) to its best member, tagged ``concentrated:<n>``
+    #: (``core/concentration.py``). PoisonedRAG planted sets: 257 / 300 clustered at
+    #: 0.2; LoCoMo 10-turn windows: 8 / 581. Off: unchanged.
+    concentration_filter: bool = False
+    concentration_jaccard: float = Field(default=0.2, gt=0.0, le=1.0)
 
     @model_validator(mode="after")
     def _header_shares_leave_room(self) -> ReadConfig:

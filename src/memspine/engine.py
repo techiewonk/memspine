@@ -43,6 +43,7 @@ from memspine.config.loader import ResolvedConfig, default_template, load_config
 from memspine.config.schema import FirewallConfig, MemspineConfig
 from memspine.core.answer import final_answer, numbered_context, verification
 from memspine.core.audit import IntegrityReport, TaintReport, trace_taint, verify_events
+from memspine.core.concentration import collapse_concentrated
 from memspine.core.erasure import redact_record, retained_fields
 from memspine.core.escaping import escape_markers
 from memspine.core.event_date import SAID_PREFIX, date_anchor, happened_of, happened_tag
@@ -3456,6 +3457,11 @@ class Engine:
                     probes=probes,
                     legs=legs,
                 )
+        read_cfg = self._config().read
+        if read_cfg.concentration_filter:
+            # N21 (plan v3.2): a dense near-duplicate cluster (a planted paraphrase
+            # set) counts once, its kept member tagged ``concentrated:<n>``.
+            scored = collapse_concentrated(scored, jaccard=read_cfg.concentration_jaccard)
         integrity = self._integrity()
         if integrity.enabled and integrity.trust_weighted_ranking and scored:
             # Scores are composite x view trust. Abstention (theta_abstain) judges
@@ -3466,7 +3472,6 @@ class Engine:
             unweighted = best[1] / best[0].trust if best[0].trust > 0 else best[1]
             factor = unweighted / best[1] if best[1] > 0 else 1.0
             scored = [(record, score * factor) for record, score in scored]
-        read_cfg = self._config().read
         # W3: judged on the search's evidence, before the pinned persona joins.
         signal = (
             evidence_signal(query, scored, read_cfg.evidence_weak_below)
