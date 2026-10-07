@@ -130,6 +130,25 @@ class RunConfig:
         }
 
 
+def _answer_in_context(gold: str | None, text: str) -> dict[str, object]:
+    """N47 (plan v3.2 / S6b): ``ans_in_ctx`` is True when at least
+    :data:`ANSWER_WORDS_SHARE` of the gold answer's content words appear in the
+    retrieved context (``ans_words`` = that share). None without a usable gold."""
+    if not gold:
+        return {}
+    from memspine.core.query_shape import content_words
+
+    wanted = content_words(gold)
+    if not wanted:
+        return {}
+    share = len(wanted & content_words(text)) / len(wanted)
+    return {"ans_in_ctx": share >= ANSWER_WORDS_SHARE, "ans_words": round(share, 4)}
+
+
+#: N47: share of the gold answer's content words that must be in the context.
+ANSWER_WORDS_SHARE = 0.8
+
+
 class EvalRunner:
     """Drives one (dataset x system x protocol) run to a provenanced result."""
 
@@ -504,6 +523,9 @@ class EvalRunner:
                 "retrieval_only": True,
                 "gold_evidence": list(normalise_evidence(gold)),
                 **cover,
+                # N47 (S6b): answer presence without an LLM, the closest free
+                # analogue of Dakera's judged Recall@20 (gold content words found).
+                **_answer_in_context(query.gold, context.text),
                 **({"reranked": context.meta["reranked"]} if "reranked" in context.meta else {}),
                 # W3 (plan v3.2): the engine's evidence-sufficiency signal, when on.
                 **(

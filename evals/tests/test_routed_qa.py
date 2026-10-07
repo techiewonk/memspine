@@ -95,6 +95,7 @@ def test_existing_prompt_table_is_unchanged() -> None:
         "dated2",
         "dated_infer",
         "dated3",
+        "dated_world",
         "abstain",
         "converse",
     }
