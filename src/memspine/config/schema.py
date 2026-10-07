@@ -510,6 +510,20 @@ class ReadConfig(BaseModel):
     #: byte-identical.
     graph_rerank: Literal["off", "distance", "ppr"] = "off"
     graph_rerank_weight: float = Field(default=0.2, ge=0.0, le=1.0)
+    #: W12 (plan v3.2, ADR-061): before the cut, walk the ``because`` (effect ->
+    #: cause) and ``reply_to`` (reply -> answered message) edges from the best
+    #: ``CAUSAL_WALK_SEEDS`` candidates up to ``causal_walk_hops`` hops. A reached
+    #: record joins (or is lifted to) ``seed relevance x CAUSAL_WALK_DECAY ** hops``
+    #: and then passes every search gate. ``why``: only for questions asking for a
+    #: cause ("Why ...", "What made ..."); ``always``: every read. Edges come from
+    #: ``memories.associative.policies.rule_edges`` and ``write(reply_to=)``;
+    #: needs associative memory. Off: byte-identical.
+    causal_walk: Literal["off", "why", "always"] = "off"
+    causal_walk_hops: int = Field(default=2, ge=1, le=3)
+    #: G27 (plan v3.2, ADR-061): in a replay read, a turn written with ``reply_to``
+    #: also shows the message it answers (gated like any replayed neighbour, within
+    #: the budget). Off: byte-identical.
+    reply_links: bool = False
     #: GP-6 (#17): an "About <Name>: …" block of the entity summaries
     #: (``summarize_entities`` stage) of the entities the query names (the graph
     #: leg's seeds), within ``cards_budget_share`` after the cards and the graph
