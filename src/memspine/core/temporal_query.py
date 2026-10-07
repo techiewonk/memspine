@@ -215,7 +215,8 @@ def speaker_leg(query: str, records: Iterable[MemoryRecord], top_k: int) -> list
 #: recommend", "you told me", "your suggestion").
 _ASKS_ASSISTANT = re.compile(
     r"\byou (?:say|said|tell|told|recommend(?:ed)?|suggest(?:ed)?|mention(?:ed)?|give|gave|"
-    r"write|wrote|list(?:ed)?|advised?|proposed?|shared?)\b|\byour (?:recommendation|suggestion|advice|answer|list|tip)s?\b",
+    r"write|wrote|list(?:ed)?|advised?|proposed?|shared?)\b"
+    r"|\byour (?:recommendation|suggestion|advice|answer|list|tip)s?\b",
     re.IGNORECASE,
 )
 #: W11: an assistant turn that recommends something (tagged ``recommendation``).
