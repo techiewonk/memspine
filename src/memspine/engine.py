@@ -5590,6 +5590,27 @@ class Engine:
                 await memory.on_forget(ns, record_id)
         _log.info(EVENT_FORGET, namespace=ns, record_id=record_id)
 
+    async def session_memories(
+        self, namespace: str = "default", session_record_ids: Sequence[str] = ()
+    ) -> list[MemoryRecord]:
+        """N19 (plan v3.2, HaluMem ``get_session_memories``): the live derived records
+        (mined facts, summaries, reflections, cards) whose ``source.parents`` include
+        any of ``session_record_ids`` — what memory extracted from those turns, oldest
+        first. Read-only; the raw turns themselves are not listed."""
+        ns = validate_namespace(namespace)
+        wanted = set(session_record_ids)
+        if not wanted:
+            return []
+        out = [
+            record
+            for record in await self._require_started().list_records(ns)
+            if record.status is RecordStatus.ACTIVATED
+            and not record.quarantined
+            and record.record_id not in wanted
+            and wanted & set(record.source.parents)
+        ]
+        return sorted(out, key=chrono_key)
+
     async def forget_requests(
         self, namespace: str = "default", top_k: int = 5
     ) -> list[dict[str, object]]:
