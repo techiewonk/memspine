@@ -69,6 +69,7 @@
       "cards_temporal": "skip",
       "cards_top_k": 10,
       "cards_when_weak": false,
+      "cluster_expand": false,
       "completeness_check": false,
       "compose_replay": false,
       "compose_rewrites": false,

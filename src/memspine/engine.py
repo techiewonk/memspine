@@ -3562,6 +3562,21 @@ class Engine:
                         fused_legs=legs,
                     )
                     scored = scored[:want]
+            if self._config().read.cluster_expand and scored:
+                # N06 (plan v3.2): the vector neighbourhoods of the top hits (across
+                # sessions) join the search as extra legs: the topic cluster around
+                # the best evidence, not only what matches the question's wording.
+                legs = [*legs, *await self._cluster_legs(ns, scored, want)]
+                scored = await self._search(
+                    query,
+                    ns,
+                    want,
+                    session_id=session_id,
+                    keep_k=top_k,
+                    hide=hide,
+                    probes=probes,
+                    fused_legs=legs,
+                )
             # W19 (read.raw_turn_floor): a derived record (mined fact, card, summary)
             # takes a search slot a raw turn would have had, and in replay each lost
             # turn hit costs its whole window. Widen by the derived records found, so
@@ -4731,6 +4746,25 @@ class Engine:
     @staticmethod
     def _headers_cost(headers: list[MemoryRecord]) -> int:
         return sum(estimate_tokens(h.content) for h in headers)
+
+    async def _cluster_legs(
+        self, ns: str, scored: list[tuple[MemoryRecord, float]], fetch_k: int
+    ) -> list[list[LegHit]]:
+        """N06: one ranked leg per top hit (``CLUSTER_EXPAND_SEEDS`` of them): its
+        nearest stored neighbours by embedding. Best-effort, never a gate."""
+        if self._embedder is None or self._vector is None:
+            return []
+        seeds = [r for r, _ in scored[: constants.CLUSTER_EXPAND_SEEDS]]
+        try:
+            vectors = await self._embedder.embed([r.content for r in seeds])
+            legs: list[list[LegHit]] = []
+            for vector in vectors:
+                hits = await self._vector_leg(ns, list(vector), fetch_k)
+                legs.append([LegHit(h.record_id, 1.0) for h in hits])
+            return legs
+        except Exception as exc:  # an enhancer, never a gate
+            _log.warning("read.cluster_expand_failed", namespace=ns, error=str(exc))
+            return []
 
     async def _session_capped(
         self,

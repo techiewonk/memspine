@@ -654,6 +654,10 @@ class ReadConfig(BaseModel):
     #: mention and the question lacks seed a second search over a doubled pool. Off:
     #: unchanged.
     second_round: bool = False
+    #: N06 (plan v3.2, EverMemOS clusters / HyperMem hyperedges, read-time variant): the
+    #: embedding neighbourhoods of the top two hits, across sessions, join the search
+    #: as RRF legs (two embeds and two vector queries per read). Off: unchanged.
+    cluster_expand: bool = False
 
     @model_validator(mode="after")
     def _header_shares_leave_room(self) -> ReadConfig:
