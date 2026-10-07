@@ -93,3 +93,26 @@ def test_rule_read_mode(q: str, expected: str | None) -> None:
     from memspine.core.query_shape import rule_read_mode
 
     assert rule_read_mode(q) == expected
+
+
+@pytest.mark.parametrize(
+    ("query", "expected"),
+    [
+        ("What does Gina say about the dancers in the photo?", True),
+        ("What did Jon say about Gina's progress with her store?", True),
+        ("How do Melanie and Caroline describe their journey together?", True),
+        ("What did the posters at the poetry reading say?", True),
+        ("What exactly did my landlord tell me about the deposit?", True),
+        ("Can you give me her exact words?", True),
+        ("What does Evan mention about his progress at the gym?", True),
+        ("Which movie does Tim mention they enjoy watching?", False),
+        ("Is the friend who wrote Deborah the motivational quote alive?", False),
+        ("What did Gina design for her store?", False),
+        ("When did Caroline say she would move?", False),
+    ],
+)
+def test_is_verbatim(query: str, expected: bool) -> None:
+    """F5 (plan v3.2): questions that ask for someone's own words."""
+    from memspine.core.query_shape import is_verbatim
+
+    assert is_verbatim(query) is expected

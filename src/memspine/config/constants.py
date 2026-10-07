@@ -522,6 +522,12 @@ DEFAULT_TEMPLATE: str | None = "assistant"
 #: records survive (smoke 2026-10-05: hiding after one cut left 1-5 raw turns).
 HEADER_HIDE_OVERFETCH = 64
 
+#: W19 (``read.raw_turn_floor``, plan v3.2): the routed search widens by the derived
+#: records it found (mined facts, cards, summaries) at most this many times, so raw
+#: turns keep the search slots they would have without them (LoCoMo traces
+#: 2026-10-07: 2.5 derived records cost 6.3 raw turns per question in replay).
+RAW_TURN_FLOOR_MAX_WIDEN = 3
+
 #: #50 remote-LLM gate: the per-note prefix the relevance filter sends (also withheld
 #: on its own), and the shortest record text the gate matches (shorter texts would
 #: blank unrelated words of a prompt).

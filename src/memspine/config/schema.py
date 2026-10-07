@@ -550,6 +550,18 @@ class ReadConfig(BaseModel):
     #: profile, count timeline) at this share of the read budget, dropping the
     #: lowest-priority blocks first, so raw evidence keeps its budget. None = no cap.
     lead_budget_share: float | None = Field(default=None, gt=0.0, le=1.0)
+    #: W19 (plan v3.2, F3): derived records (mined facts, cards, summaries) found by
+    #: the routed search no longer take search slots from raw (episodic) turns: the
+    #: search widens by their number, so every raw turn hit of the read without them
+    #: stays, with its replay window. The 4K budget was not binding on LoCoMo (about
+    #: 1.7K tokens used); slots were. Off: byte-identical.
+    raw_turn_floor: bool = False
+    #: F5 (plan v3.2): a verbatim question (``is_verbatim``: "what did X say about
+    #: ...", "exact words") gets no read header (cards, profile, graph facts, entity
+    #: summaries) and, with ``cards: header``, no mined fact either: it reads raw
+    #: turns only (LoCoMo quote questions fell 92 -> 68-74 under every header).
+    #: Off: byte-identical.
+    verbatim_raw_only: bool = False
 
     @model_validator(mode="after")
     def _header_shares_leave_room(self) -> ReadConfig:

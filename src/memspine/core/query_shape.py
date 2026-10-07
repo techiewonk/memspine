@@ -18,6 +18,7 @@ __all__ = [
     "is_inference",
     "is_ordering",
     "is_temporal",
+    "is_verbatim",
     "rule_read_mode",
 ]
 
@@ -150,6 +151,27 @@ def is_inference(query: str) -> bool:
     to ("Would Caroline pursue writing?", "Is it likely that ...?"): a modal word, or
     "likely", before the question mark. Pure and self-contained (C1)."""
     return bool(_INFERENCE.search(query))
+
+
+#: F5 (plan v3.2): the asker wants someone's own words, not a paraphrase: "what did
+#: Gina say about ...", "how did Jon describe ...", "what were her exact words", "quote
+#: ...". Up to six words for the speaker ("the posters at the poetry reading"). A
+#: bare "mention" is an attribute lookup ("which movie does Tim mention"), so only
+#: "mention about" counts; a bare "quote" is a noun too often ("a motivational quote").
+_VERBATIM = re.compile(
+    r"\b(?:what|how) (?:exactly )?(?:did|does|do|has|have|had|was|were) (?:[\w'-]+ ){1,6}"
+    r"(?:say|said|tell|told|write|wrote|describe|described|put it|phrase|word|"
+    r"mention(?:ed)? about)\b"
+    r"|\b(?:exact|own|actual) words\b|\bword for word\b|\bverbatim\b",
+    re.I,
+)
+
+
+def is_verbatim(query: str) -> bool:
+    """True when the question asks for what someone said, in their words ("What does
+    Gina say about the dancers?", "How did Jon describe the studio?", "her exact
+    words"). Such a question is answered from the raw turn, never from a summary."""
+    return bool(_VERBATIM.search(query))
 
 
 #: Units after "how many" that ask for a duration ("how many days ago ..."), not a count.

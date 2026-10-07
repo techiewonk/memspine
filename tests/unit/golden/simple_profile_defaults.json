@@ -93,6 +93,7 @@
       "profile_header_packing": false,
       "profile_skip_temporal": false,
       "query_encoder": "none",
+      "raw_turn_floor": false,
       "record_access": true,
       "relative_dates_anchored": false,
       "relative_week": "calendar",
@@ -118,7 +119,8 @@
       "temporal_leg_event_dates": false,
       "timeline_entities": 3,
       "timeline_items": 8,
-      "topic_timelines": false
+      "topic_timelines": false,
+      "verbatim_raw_only": false
     },
     "rest": {
       "auth": {

@@ -589,3 +589,36 @@ async def test_cards_skip_hides_facts_changes_nothing_else(
     off = await _read_all(query, MODES, cards="header", **read)
     for mode in MODES:
         assert _view(on[mode]) == _view(off[mode]), mode
+
+
+# -- F5 (plan v3.2): a verbatim question reads raw turns only ------------------------
+
+VERBATIM = "What did Melanie say about camping at the beach?"
+
+
+def test_verbatim_raw_only_defaults_off() -> None:
+    assert ReadConfig().verbatim_raw_only is False
+
+
+async def test_verbatim_question_gets_headers_when_the_key_is_off() -> None:
+    off = await _read_all(VERBATIM, ("replay",), cards="header", profile_header=True)
+    assert _tagged(off["replay"], constants.CARDS_TAG)
+
+
+async def test_verbatim_raw_only_drops_every_header_and_mined_fact() -> None:
+    out = await _read_all(
+        VERBATIM, MODES, cards="header", profile_header=True, verbatim_raw_only=True
+    )
+    for mode in MODES:
+        result = out[mode]
+        assert not _tagged(result, constants.CARDS_TAG), mode
+        assert not _tagged(result, constants.PROFILE_TAG), mode
+        assert not _facts(result), mode
+        assert result.context.records, mode
+
+
+async def test_verbatim_raw_only_changes_nothing_for_other_questions() -> None:
+    on = await _read_all(LOOKUP, MODES, cards="header", profile_header=True, verbatim_raw_only=True)
+    off = await _read_all(LOOKUP, MODES, cards="header", profile_header=True)
+    for mode in MODES:
+        assert _view(on[mode]) == _view(off[mode]), mode

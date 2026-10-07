@@ -106,6 +106,7 @@ from memspine.core.query_shape import (
     is_count,
     is_ordering,
     is_temporal,
+    is_verbatim,
     rule_read_mode,
 )
 from memspine.core.read_filters import (
@@ -3367,6 +3368,27 @@ class Engine:
                 probes=probes,
                 fused_legs=legs,
             )
+            # W19 (read.raw_turn_floor): a derived record (mined fact, card, summary)
+            # takes a search slot a raw turn would have had, and in replay each lost
+            # turn hit costs its whole window. Widen by the derived records found, so
+            # the raw turns keep every slot they had without them.
+            if self._config().read.raw_turn_floor:
+                wanted = want
+                for _ in range(constants.RAW_TURN_FLOOR_MAX_WIDEN):
+                    derived = sum(1 for record, _ in scored if record.memory_type != "episodic")
+                    if want + derived <= wanted:
+                        break
+                    wanted = want + derived
+                    scored = await self._search(
+                        query,
+                        ns,
+                        wanted,
+                        session_id=session_id,
+                        keep_k=top_k + derived,
+                        hide=hide,
+                        probes=probes,
+                        fused_legs=legs,
+                    )
         integrity = self._integrity()
         if integrity.enabled and integrity.trust_weighted_ranking and scored:
             # Scores are composite x view trust. Abstention (theta_abstain) judges
@@ -4244,7 +4266,10 @@ class Engine:
     ) -> list[MemoryRecord]:
         """G1b/G3b: the cards header, then the profile header (each optional).
 
-        ``session_id`` keys their searches in the B0 read ledger, like the read's own."""
+        ``session_id`` keys their searches in the B0 read ledger, like the read's own.
+        F5 (``read.verbatim_raw_only``): a verbatim question gets none."""
+        if self._config().read.verbatim_raw_only and is_verbatim(query):
+            return []
         headers = []
         for section in (self._cards_section, self._profile_section):
             header = await section(ns, query, budget_tokens, session_id)
@@ -4435,6 +4460,8 @@ class Engine:
         read_cfg = self._config().read
         if read_cfg.cards != "header":
             return False
+        if read_cfg.verbatim_raw_only and is_verbatim(query):
+            return True
         if (
             read_cfg.cards_skip_hides_facts
             and read_cfg.cards_skip_temporal
