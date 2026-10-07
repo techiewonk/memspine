@@ -55,3 +55,34 @@ async def test_a_restatement_derived_from_the_poison_does_not_count_with_roots()
 
 async def test_an_independent_write_still_counts_with_roots() -> None:
     assert await _corroborations(True, derived=False) == 1
+
+
+async def test_a_reworded_copy_of_an_earlier_corroborator_does_not_count() -> None:
+    """N25 (plan v3.2): the second, near-identical corroborator is a copy."""
+    eng = Engine(
+        template="core",
+        dotenv_path=None,
+        storage={"path": ":memory:"},
+        embedding={"provider": "hash"},
+        memories={"semantic": {"enabled": True}},
+        integrity={"corroboration_roots": True},
+    )
+    await eng.start()
+    try:
+        held = await eng.write(
+            POISON,
+            namespace="a",
+            memory_type="semantic",
+            source=SourceInfo(role="tool", channel="tool"),
+        )
+        for i in range(2):
+            await eng.write(
+                POISON,
+                namespace="a",
+                memory_type="semantic",
+                source=SourceInfo(role="user", channel="chat", message_id=f"m{i}"),
+            )
+        stored = await eng._require_started().get_record(held.record_id)
+        assert stored is not None and stored.corroborations == 1
+    finally:
+        await eng.stop()

@@ -576,6 +576,10 @@ APPROVAL_UNTIL_PREFIX = "approval_until:"
 #: namespace within the window before it is reported.
 BULK_READ_MAX_RECORDS = 200
 
+#: N25 (``integrity.corroboration_roots``): a corroborator sharing at least this word
+#: Jaccard with an earlier corroborator of the same record is a copy (CPB rewordings).
+COPY_JACCARD = 0.7
+
 #: #50 remote-LLM gate: the per-note prefix the relevance filter sends (also withheld
 #: on its own), and the shortest record text the gate matches (shorter texts would
 #: blank unrelated words of a prompt).

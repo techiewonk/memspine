@@ -22,7 +22,7 @@ import re
 import secrets
 import threading
 import unicodedata
-from collections.abc import AsyncIterator, Callable, Coroutine, Mapping, Sequence
+from collections.abc import AsyncIterator, Callable, Collection, Coroutine, Mapping, Sequence
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -642,6 +642,12 @@ def _excerpted(record: MemoryRecord, query: str) -> MemoryRecord:
     """N13: ``record`` with a query-anchored excerpt as its shown content."""
     text = focused_excerpt(record.content, query)
     return record if text == record.content else record.model_copy(update={"content": text})
+
+
+def _jaccard(a: Collection[str], b: Collection[str]) -> float:
+    """Word-set Jaccard (N25)."""
+    sa, sb = set(a), set(b)
+    return len(sa & sb) / len(sa | sb) if sa and sb else 0.0
 
 
 def _turn_content(turn: Mapping[str, str]) -> str:
@@ -7066,8 +7072,10 @@ class Engine:
                 # against it (replay-safe, no in-memory state).
                 payload["principal"] = incoming.source.principal
             if by_roots:
-                # W13: the roots that vouched, so the next corroborator is checked.
+                # W13: the roots that vouched, so the next corroborator is checked;
+                # N25: and its wording, so a near-copy of it does not vouch again.
                 payload["roots"] = sorted(await self._lineage_roots(incoming))
+                payload["words"] = sorted(content_words(incoming.content))
             await self._append_and_project(
                 MemoryEvent(
                     kind=EventKind.DECAY_TRANSITION,
@@ -7982,6 +7990,9 @@ class Engine:
         mine = await self._lineage_roots(incoming)
         if mine & await self._lineage_roots(held):
             return False
+        # N25 (plan v3.2, CPB): a near-copy of an earlier corroborator's wording is
+        # the same source propagated, not a second opinion.
+        words = content_words(incoming.content)
         storage = self._require_started()
         after = 0
         while True:
@@ -7990,10 +8001,14 @@ class Engine:
                 return True
             for event in events:
                 if (
-                    event.kind is EventKind.DECAY_TRANSITION
-                    and event.payload.get("record_id") == held.record_id
-                    and mine & set(event.payload.get("roots") or [])
+                    event.kind is not EventKind.DECAY_TRANSITION
+                    or event.payload.get("record_id") != held.record_id
                 ):
+                    continue
+                if mine & set(event.payload.get("roots") or []):
+                    return False
+                earlier = set(event.payload.get("words") or [])
+                if earlier and words and _jaccard(words, earlier) >= constants.COPY_JACCARD:
                     return False
             after = max(event.seq for event in events if event.seq is not None)
 
