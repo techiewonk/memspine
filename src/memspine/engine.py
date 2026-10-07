@@ -6025,6 +6025,45 @@ class Engine:
             )
             self._audit_head = digest
 
+    async def bulk_read_alerts(
+        self,
+        namespace: str = "default",
+        *,
+        window: timedelta = timedelta(hours=1),
+        max_records: int = constants.BULK_READ_MAX_RECORDS,
+    ) -> list[dict[str, object]]:
+        """G31 (plan v3.2): principals whose reads in the last ``window`` touched more
+        than ``max_records`` distinct records of ``namespace`` (an extraction pattern:
+        membership inference or scraping by repeated queries). Built from the
+        ``READ_AUDIT`` events, so it needs ``audit.reads``; read-only."""
+        ns = validate_namespace(namespace)
+        since = self._clock() - window
+        seen: dict[str, set[str]] = {}
+        reads: dict[str, int] = {}
+        storage = self._require_started()
+        after = 0
+        while True:
+            batch = await storage.read_events(after_seq=after, limit=1000)
+            if not batch:
+                break
+            for event in batch:
+                if event.kind is not EventKind.READ_AUDIT or event.namespace != ns:
+                    continue
+                at = event.payload.get("at")
+                if isinstance(at, str) and datetime.fromisoformat(at) < since:
+                    continue
+                who = str(event.payload.get("principal") or "anonymous")
+                seen.setdefault(who, set()).update(
+                    str(r) for r in event.payload.get("record_ids") or []
+                )
+                reads[who] = reads.get(who, 0) + 1
+            after = max(e.seq for e in batch if e.seq is not None)
+        return [
+            {"principal": who, "distinct_records": len(ids), "reads": reads[who]}
+            for who, ids in sorted(seen.items())
+            if len(ids) > max_records
+        ]
+
     async def _audit_read(self, verb: str, namespace: str, record_ids: Sequence[str]) -> None:
         """#49: a READ_AUDIT event for one read verb (``audit.reads`` only)."""
         if not self._config().audit.reads:

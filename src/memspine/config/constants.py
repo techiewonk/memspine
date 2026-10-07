@@ -572,6 +572,10 @@ CLUSTER_EXPAND_SEEDS = 2
 APPROVAL_TAG = "approval"
 APPROVAL_UNTIL_PREFIX = "approval_until:"
 
+#: G31 (``Engine.bulk_read_alerts``): distinct records one principal may read from a
+#: namespace within the window before it is reported.
+BULK_READ_MAX_RECORDS = 200
+
 #: #50 remote-LLM gate: the per-note prefix the relevance filter sends (also withheld
 #: on its own), and the shortest record text the gate matches (shorter texts would
 #: blank unrelated words of a prompt).
