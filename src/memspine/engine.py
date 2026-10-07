@@ -305,7 +305,9 @@ _PII_RANK = {PiiTier.NONE: 0, PiiTier.LOW: 1, PiiTier.HIGH: 2, PiiTier.REGULATED
 def _screen_text(text: str, fw: FirewallConfig) -> tuple[str, list[str]]:
     """``text`` as the write door stores it: secrets masked under ``redact_secrets``,
     PII masked under ``pii: redact``; unchanged when both are off."""
-    return redact(text, secrets=fw.redact_secrets, pii=fw.pii == "redact")
+    return redact(
+        text, secrets=fw.redact_secrets, pii=fw.pii == "redact", pii_extended=fw.pii_extended
+    )
 
 
 def _json_line(value: object) -> str:
@@ -2696,7 +2698,11 @@ class Engine:
         tier = record.pii_tier
         if fw.pii == "tag":
             fields = [record.content, record.entity or "", record.attribute or "", *record.tags]
-            found_pii = list(dict.fromkeys(k for text in fields for k in find_pii(text)))
+            found_pii = list(
+                dict.fromkeys(
+                    k for text in fields for k in find_pii(text, extended=fw.pii_extended)
+                )
+            )
             if found_pii:
                 marks = [f"pii:{kind}" for kind in found_pii]
                 update["tags"] = [*record.tags, *(m for m in marks if m not in record.tags)]

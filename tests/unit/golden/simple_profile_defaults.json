@@ -18,6 +18,7 @@
       "enabled": true,
       "max_content_chars": null,
       "pii": "off",
+      "pii_extended": false,
       "protected_keys": [],
       "redact_secrets": false,
       "signals": {

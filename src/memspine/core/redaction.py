@@ -36,6 +36,21 @@ PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
             r"['\"]?[^\s'\"]{8,}"
         ),
     ),
+    # N23 (plan v3.2): model-provider keys (``sk-``, ``sk-proj-``, ``sk-ant-api03-``),
+    # Google API keys, Stripe live keys; PersonaMem-v2 kept 46 / 46 ``sk-`` keys.
+    ("llm_api_key", re.compile(r"\bsk-(?:proj-|ant-(?:api\d{2}-)?)?[A-Za-z0-9_-]{20,}")),
+    ("google_api_key", re.compile(r"\bAIza[0-9A-Za-z_-]{35}\b")),
+    ("stripe_key", re.compile(r"\b(?:sk|rk)_live_[0-9A-Za-z]{16,}\b")),
+    # A password in a connection URL: postgres://user:password@host.
+    ("url_credential", re.compile(r"\b[a-z][a-z0-9+.-]*://[^\s:/@]+:[^\s@/]+@")),
+    # An env-style assignment the ``credential`` word boundary misses (LLM_API_KEY=...).
+    (
+        "credential",
+        re.compile(
+            r"\b[A-Z][A-Z0-9_]*(?:API_KEY|SECRET|PASSWORD|TOKEN|ACCESS_KEY)\s*=\s*"
+            r"['\"]?(?!\[REDACTED:)[^\s'\"]{8,}"
+        ),
+    ),
     ("email", re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b")),
 )
 
@@ -203,6 +218,65 @@ PII_PATTERNS: tuple[tuple[str, re.Pattern[str], Validator | None], ...] = (
 )
 
 
+_STREET = (
+    r"(?:Street|St|Road|Rd|Avenue|Ave|Lane|Ln|Drive|Dr|Boulevard|Blvd|Grove|Way|Court|Ct|"
+    r"Place|Pl|Terrace|Close|Crescent|Square|Sq|Highway|Hwy|Parkway|Pkwy)\.?"
+)
+#: N23: up to 30 non-digit characters between a cue and its value ("number is",
+#: "in question ends with number", "for verification:").
+_CUE_GAP = r"[^\d\n]{0,30}?"
+#: An identifier with at least one digit (passport, licence): 6 to 15 letters / digits.
+_ID_VALUE = r"(?P<pii>(?=[A-Z0-9-]*\d)[A-Z0-9][A-Z0-9-]{5,14})\b"
+#: N23 (plan v3.2, ``firewall.pii_extended``): identifiers that have no checksum, found by
+#: their cue ("Passport number: ...", "Bank Account Number: ...", "Address: ...") or by a
+#: street-address shape. Cue-anchored, so a bare number is never taken; runs after the
+#: base pack (which takes Luhn-valid cards and phone numbers first). Only the value is
+#: masked, never the cue.
+PII_EXTENDED_PATTERNS: tuple[tuple[str, re.Pattern[str], Validator | None], ...] = (
+    (
+        "payment_card",
+        re.compile(r"(?i)\bcard\b" + _CUE_GAP + r"(?P<pii>\d(?:[ -]?[\d*]){11,18})(?![\d*])"),
+        _whole(lambda text: True),
+    ),
+    (
+        "bank_account",
+        re.compile(
+            r"(?i)\b(?:bank )?(?:account|acct) (?:number|no\b\.?|#)"
+            + _CUE_GAP
+            + r"(?P<pii>\d[\d -]{6,20}\d)(?!\d)"
+        ),
+        _whole(lambda text: True),
+    ),
+    ("passport", re.compile(r"(?i)\bpassport\b" + _CUE_GAP + _ID_VALUE), _whole(lambda t: True)),
+    (
+        "driving_licence",
+        re.compile(r"(?i)\b(?:driver[’']?s?|driving) licen[cs]e\b" + _CUE_GAP + _ID_VALUE),
+        _whole(lambda text: True),
+    ),
+    (
+        "licence_plate",
+        re.compile(
+            r"(?i)\b(?:licen[cs]e plate|plate number|registration (?:number|no\.?))\s*[:=]?\s*"
+            r"(?P<pii>[A-Z0-9][A-Z0-9 -]{3,9}[A-Z0-9])\b"
+        ),
+        _whole(lambda text: any(ch.isdigit() for ch in text)),
+    ),
+    (
+        "street_address",
+        re.compile(rf"\b\d{{1,5}}(?: [A-Z][a-z]+){{1,3}} {_STREET}(?=\W|$)"),
+        None,
+    ),
+    (
+        "street_address",
+        re.compile(
+            r"(?i)\b(?:postal |mailing |home |street |billing |shipping )?address\s*:\s*"
+            r"(?P<pii>\d{1,5}[^\n;]{5,80})"
+        ),
+        _whole(lambda text: True),
+    ),
+)
+
+
 def _sub_pii(
     text: str, kind: str, pattern: re.Pattern[str], valid: Validator | None
 ) -> tuple[str, int]:
@@ -221,16 +295,21 @@ def _sub_pii(
     return "".join(out), count
 
 
-def find_pii(text: str) -> list[str]:
-    """The PII kinds present in ``text``, in pack order (content is not changed)."""
-    return redact(text, secrets=False, pii=True)[1]
+def find_pii(text: str, *, extended: bool = False) -> list[str]:
+    """The PII kinds present in ``text``, in pack order (content is not changed).
+
+    ``extended`` (N23) adds the cue-anchored kinds of :data:`PII_EXTENDED_PATTERNS`."""
+    return redact(text, secrets=False, pii=True, pii_extended=extended)[1]
 
 
-def redact(text: str, *, secrets: bool = True, pii: bool = False) -> tuple[str, list[str]]:
+def redact(
+    text: str, *, secrets: bool = True, pii: bool = False, pii_extended: bool = False
+) -> tuple[str, list[str]]:
     """Return ``(redacted_text, kinds_found)``; ``kinds_found`` is empty if clean.
 
-    ``secrets`` runs the B8 secret patterns (and email), ``pii`` the #44 PII pack.
-    The default (secrets only) is the B8 behaviour."""
+    ``secrets`` runs the B8 secret patterns (and email), ``pii`` the #44 PII pack,
+    and ``pii_extended`` (with ``pii``) the N23 cue-anchored kinds after it. The
+    default (secrets only) is the B8 behaviour."""
     found: list[str] = []
     if secrets:
         for kind, pattern in PATTERNS:
@@ -238,7 +317,8 @@ def redact(text: str, *, secrets: bool = True, pii: bool = False) -> tuple[str, 
             if count:
                 found.append(kind)
     if pii:
-        for kind, pattern, valid in PII_PATTERNS:
+        pack = (*PII_PATTERNS, *PII_EXTENDED_PATTERNS) if pii_extended else PII_PATTERNS
+        for kind, pattern, valid in pack:
             text, count = _sub_pii(text, kind, pattern, valid)
             if count and kind not in found:
                 found.append(kind)

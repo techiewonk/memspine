@@ -695,6 +695,10 @@ class FirewallConfig(BaseModel):
     #: ``[REDACTED:<kind>]``; ``tag`` keeps the text, adds ``pii:<kind>`` tags and
     #: raises the record's ``pii_tier`` to at least ``high``; ``off`` does neither.
     pii: Literal["off", "redact", "tag"] = "off"
+    #: N23 (plan v3.2): with ``pii`` on, also the cue-anchored kinds that have no
+    #: checksum: card numbers after a card cue, bank accounts, passports, driving
+    #: licences, licence plates, street addresses. Off: the #44 pack only.
+    pii_extended: bool = False
     max_content_chars: int | None = Field(default=None, ge=1)
     protected_keys: list[str] = Field(default_factory=list)
     #: H21 (G->D self-contamination): ``write_messages`` never deposits turns whose role
