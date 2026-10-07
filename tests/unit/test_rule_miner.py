@@ -147,3 +147,21 @@ async def test_auto_watch_turns_a_dated_plan_into_a_watch() -> None:
         assert eng.model_calls() == {}
     finally:
         await eng.stop()
+
+
+def test_attitude_slot_and_canonical_favourite_keys() -> None:
+    """N07 / N08 (plan v3.2): a change of mind supersedes; synonymous slots merge."""
+    from memspine.core.rule_miner import canonical_thing
+
+    lines = (
+        "[1] [2023-05-08] Ana: I love jazz bars. My favorite novel is Dune.\n"
+        "[2] [2023-07-01] Ana: I no longer like jazz bars, too loud. "
+        "My favourite book is Emma."
+    )
+    facts = [(f.attribute, f.value, f.kind, f.turns) for f in mine_rules(lines)]
+    assert ("attitude:jazz_bars", "likes", "state", [1]) in facts
+    assert ("attitude:jazz_bars", "dislikes", "state", [2]) in facts
+    assert ("favourite_book", "Dune", "state", [1]) in facts
+    assert ("favourite_book", "Emma", "state", [2]) in facts
+    assert canonical_thing("TV show") == "show"
+    assert canonical_thing("colour") == "color"

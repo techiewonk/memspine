@@ -26,7 +26,7 @@ from dataclasses import dataclass
 
 from memspine.prompts.models import ExtractedFact
 
-__all__ = ["RULES", "mine_rules"]
+__all__ = ["RULES", "canonical_thing", "mine_rules"]
 
 #: "[3] [2023-05-08] Caroline: text" or "[2023-05-08] Caroline: text".
 _LINE = re.compile(
@@ -168,13 +168,73 @@ def _line_slots(text: str) -> list[tuple[str, str, str]]:
                 found.append(("employer", "state", employer))
             found.append((rule.attribute, rule.kind, value))
     for m in _FAVOURITE.finditer(text):
-        found.append((f"favourite_{'_'.join(m['thing'].lower().split())}", "state", m["v"]))
+        found.append((f"favourite_{canonical_thing(m['thing'])}", "state", m["v"]))
     for m in _REL_STATE_RX.finditer(text):
         rel = m["rel"].lower()
         slot = {"mom": "mother", "dad": "father"}.get(rel, rel)
         slot = "partner" if slot in {"wife", "husband", "boyfriend", "girlfriend"} else slot
         found.append((slot, "state", m["v"]))
+    for m in _NO_LONGER.finditer(text):
+        found.append(("dislikes", "event", m["v"]))
+    # N07 (plan v3.2, O-Mem attitude timeline): every like / dislike also sets a
+    # single-valued attitude slot for its object, so a change of mind supersedes.
+    for attribute, _, value in list(found):
+        if attribute in ("likes", "dislikes"):
+            obj = _clean(value)
+            if obj:
+                key = "_".join(obj.lower().split())[:40]
+                found.append((f"attitude:{key}", "state", attribute))
     return found
+
+
+#: N08 (plan v3.2, O-Mem / Memobase slot unification, rule variant): synonymous slot
+#: names map to one canonical key, so "favourite novel" and "favourite book" are the
+#: same slot and a new value supersedes the old one.
+_THING_SYNONYMS: dict[str, str] = {
+    "novel": "book",
+    "books": "book",
+    "author": "writer",
+    "movie": "film",
+    "movies": "film",
+    "films": "film",
+    "tv show": "show",
+    "tv series": "show",
+    "series": "show",
+    "dish": "food",
+    "meal": "food",
+    "cuisine": "food",
+    "track": "song",
+    "tune": "song",
+    "band": "artist",
+    "musician": "artist",
+    "singer": "artist",
+    "hobbies": "hobby",
+    "pastime": "hobby",
+    "colour": "color",
+    "game": "game",
+    "video game": "game",
+    "sports": "sport",
+    "team": "team",
+    "place": "place",
+    "spot": "place",
+    "restaurant": "restaurant",
+    "drink": "drink",
+    "beverage": "drink",
+}
+
+
+def canonical_thing(thing: str) -> str:
+    """N08: the canonical slot word for ``thing`` ("Novel" -> "book")."""
+    text = " ".join(thing.lower().split())
+    return "_".join(_THING_SYNONYMS.get(text, text).split())
+
+
+#: N07: "I no longer like / don't enjoy X anymore" is a change of mind to a dislike.
+_NO_LONGER = re.compile(
+    r"\bI (?:no longer|don't really|do not) (?:like|love|enjoy) "
+    r"(?P<v>[^.,!?;:()\n]{2,60}?)(?=\s*(?:[.,!?;:()\n]|\banymore\b|$))",
+    re.IGNORECASE,
+)
 
 
 def mine_rules(transcript: str) -> list[ExtractedFact]:
