@@ -134,6 +134,7 @@
       "role_aware": false,
       "rrf_k": null,
       "scoring": {},
+      "second_round": false,
       "session_cap": null,
       "skip_rerank_for_ordering": false,
       "standing_instructions": false,

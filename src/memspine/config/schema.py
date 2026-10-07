@@ -642,6 +642,11 @@ class ReadConfig(BaseModel):
     #: split on discourse markers and each part joins the search as an RRF probe.
     #: Off: unchanged.
     multi_intent_split: bool = False
+    #: N04 (plan v3.2, EverOS / Honcho): when the first search's evidence is weak (W3
+    #: signal with ``evidence_weak_below``), the names and dates its top three hits
+    #: mention and the question lacks seed a second search over a doubled pool. Off:
+    #: unchanged.
+    second_round: bool = False
 
     @model_validator(mode="after")
     def _header_shares_leave_room(self) -> ReadConfig:

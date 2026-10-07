@@ -48,7 +48,7 @@ from memspine.core.erasure import redact_record, retained_fields
 from memspine.core.escaping import escape_markers
 from memspine.core.event_date import SAID_PREFIX, date_anchor, happened_of, happened_tag
 from memspine.core.events import EventKind, EventLogMode, MemoryEvent, fingerprint_payload
-from memspine.core.evidence import evidence_signal
+from memspine.core.evidence import evidence_signal, second_round_probe
 from memspine.core.excerpt import focused_excerpt
 from memspine.core.fact_views import view_tags
 from memspine.core.firewall import Firewall, FirewallSignals, FirewallVerdict, QueryHistory
@@ -3529,6 +3529,29 @@ class Engine:
                         probes=probes,
                         fused_legs=legs,
                     )
+            read_now = self._config().read
+            if (
+                read_now.second_round
+                and evidence_signal(query, scored, read_now.evidence_weak_below).weak
+            ):
+                # N04 (plan v3.2): weak evidence -> the names and dates the first hits
+                # mention become a probe, over a doubled pool (one more local search).
+                probe = second_round_probe(
+                    query, [r.content for r, _ in scored[: constants.SECOND_ROUND_TOP]]
+                )
+                if probe:
+                    probes = [*probes, probe]
+                    scored = await self._search(
+                        query,
+                        ns,
+                        want * 2,
+                        session_id=session_id,
+                        keep_k=top_k,
+                        hide=hide,
+                        probes=probes,
+                        fused_legs=legs,
+                    )
+                    scored = scored[:want]
             # W19 (read.raw_turn_floor): a derived record (mined fact, card, summary)
             # takes a search slot a raw turn would have had, and in replay each lost
             # turn hit costs its whole window. Widen by the derived records found, so

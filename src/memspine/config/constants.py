@@ -557,6 +557,10 @@ LINEAGE_ROOTS_MAX_NODES = 256
 #: hits for shared words.
 PRF_TOP_DOCS = 5
 
+#: N04 (``read.second_round``): the first-round hits whose names and dates seed the
+#: second search.
+SECOND_ROUND_TOP = 3
+
 #: #50 remote-LLM gate: the per-note prefix the relevance filter sends (also withheld
 #: on its own), and the shortest record text the gate matches (shorter texts would
 #: blank unrelated words of a prompt).

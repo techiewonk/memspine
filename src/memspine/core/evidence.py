@@ -23,7 +23,13 @@ from dataclasses import dataclass
 
 from memspine.core.records import MemoryRecord
 
-__all__ = ["EvidenceSignal", "answer_type", "contains_answer_type", "evidence_signal"]
+__all__ = [
+    "EvidenceSignal",
+    "answer_type",
+    "contains_answer_type",
+    "evidence_signal",
+    "second_round_probe",
+]
 
 #: Candidates the signal looks at: the type check reads the top three, the spread
 #: compares the best with the next four, the day count covers the top five.
@@ -206,3 +212,22 @@ def evidence_signal(
         type_match=match,
         weak=weak,
     )
+
+
+def second_round_probe(query: str, texts: Sequence[str], k: int = 6) -> str:
+    """N04 (plan v3.2, EverOS / Honcho): the names and dates the first-round top hits
+    mention and the question does not, as one probe text for a second search when the
+    evidence is weak (multi-hop: the first hit names the bridge entity). Empty when
+    nothing new is found."""
+    asked = query.lower()
+    found: list[str] = []
+    for text in texts:
+        body = _SPEAKER.sub("", text, count=1)
+        for word in _CAPITALISED.findall(body):
+            if word not in _NOT_NAMES and word.lower() not in asked and word not in found:
+                found.append(word)
+        for m in _DATE.finditer(body):
+            token = m.group(0)
+            if token[0].isdigit() and token.lower() not in asked and token not in found:
+                found.append(token)
+    return " ".join(found[:k])

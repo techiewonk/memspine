@@ -92,3 +92,37 @@ def test_persona_is_not_evidence() -> None:
     sig = evidence_signal("Who is Jon?", scored)
     assert sig.candidates == 0
     assert sig.weak is True
+
+
+def test_second_round_probe_collects_new_names_and_dates() -> None:
+    """N04 (plan v3.2)."""
+    from memspine.core.evidence import second_round_probe
+
+    texts = [
+        "Caroline: I went to the gallery with Maria on 12 March 2023",
+        "Caroline: Maria loves the Tate",
+    ]
+    probe = second_round_probe("Who went to the gallery with Caroline?", texts)
+    assert probe.split() == ["Maria", "March", "2023", "Tate"]
+    assert second_round_probe("hi", []) == ""
+
+
+async def test_second_round_read_is_well_formed() -> None:
+    from memspine import Engine
+
+    eng = Engine(
+        template="core",
+        dotenv_path=None,
+        storage={"path": ":memory:"},
+        embedding={"provider": "hash"},
+        memories={"episodic": {"enabled": True}},
+        read={"hybrid": False, "second_round": True, "evidence_weak_below": 10.0},
+    )
+    await eng.start()
+    try:
+        for text in ["Caroline: I went to the gallery with Maria", "Maria: the Tate was great"]:
+            await eng.write(text, namespace="a", memory_type="episodic")
+        out = await eng.read("Who went to the gallery?", namespace="a", mode="retrieve", top_k=2)
+        assert out.context.records
+    finally:
+        await eng.stop()
