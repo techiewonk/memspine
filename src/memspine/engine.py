@@ -110,6 +110,7 @@ from memspine.core.query_shape import (
     feedback_terms,
     is_aggregation,
     is_count,
+    is_novelty,
     is_ordering,
     is_personal,
     is_temporal,
@@ -4439,6 +4440,43 @@ class Engine:
                 return True
         return False
 
+    async def _novelty_section(
+        self, ns: str, query: str, budget_tokens: int
+    ) -> MemoryRecord | None:
+        """G32 (plan v3.2, ``read.novelty_exclusions``): for a request for something new
+        ("a book I haven't read"), a header listing what memory says the asker already
+        likes, does or has had (keyed facts whose attribute is ``likes``,
+        ``activities``, ``favourite_*``, ``pets`` or a list card), so the answer can
+        avoid repeating it. None for any other question or when nothing is known."""
+        if not (self._config().read.novelty_exclusions and is_novelty(query)):
+            return None
+        known: list[MemoryRecord] = []
+        for record in await self._require_started().list_records(ns, "semantic"):
+            if record.status is not RecordStatus.ACTIVATED or record.quarantined:
+                continue
+            attribute = (record.attribute or "").lower()
+            if (
+                attribute in {"likes", "activities", "pets", "dislikes"}
+                or attribute.startswith("favourite_")
+                or constants.LIST_CARD_TAG in record.tags
+            ):
+                known.append(record)
+        if not known:
+            return None
+        allowance = max(1, budget_tokens // 10)
+        lines: list[str] = []
+        kept: list[MemoryRecord] = []
+        for record in sorted(known, key=chrono_key, reverse=True):
+            line = f"- {' '.join(record.content.split())}"
+            if estimate_tokens("\n".join([constants.NOVELTY_MARKER, *lines, line])) > allowance:
+                break
+            lines.append(line)
+            kept.append(record)
+        if not kept:
+            return None
+        block = self._lead_record(ns, "\n".join([constants.NOVELTY_MARKER, *lines]), kept)
+        return block.model_copy(update={"tags": [constants.LEAD_TAG, constants.NOVELTY_TAG]})
+
     async def _profile_section(
         self, ns: str, query: str, budget_tokens: int, session_id: str | None = None
     ) -> MemoryRecord | None:
@@ -4573,6 +4611,7 @@ class Engine:
         for header in (
             await self._cards_section(ns, query, budget_tokens, session_id, strong=strong),
             await self._profile_section(ns, query, budget_tokens, session_id),
+            await self._novelty_section(ns, query, budget_tokens),
         ):
             if header is not None:
                 headers.append(header)

@@ -103,6 +103,7 @@
       "list_cards_only_aggregate": false,
       "metadata_leg": false,
       "multi_intent_split": false,
+      "novelty_exclusions": false,
       "order_by_time_for_ordering": false,
       "person_time_leg_k": 10,
       "planner": "rules",

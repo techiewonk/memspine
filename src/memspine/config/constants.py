@@ -314,6 +314,10 @@ CARDS_TAG = "cards_header"
 # reflective candidates its search fetches.
 PROFILE_MARKER = "PROFILE NOTES (reflected from earlier conversations"
 PROFILE_TAG = "profile_header"
+# G32 (plan v3.2): the novelty header (``read.novelty_exclusions``): what the asker
+# already likes, does or has had, for a request for something new.
+NOVELTY_MARKER = "ALREADY KNOWN (the user asked for something new; avoid repeating these):"
+NOVELTY_TAG = "novelty_header"
 PROFILE_HEADER_TOP_K = 8
 # #35 (SM-8): the most planner-v2 lookup subqueries a lookup read fuses as extra legs.
 PLAN_LOOKUP_PROBES = 2

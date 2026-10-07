@@ -580,6 +580,11 @@ class ReadConfig(BaseModel):
     #: France?") gets none, so the profile is not injected where it does not apply.
     #: Standing instructions (style requests) are unaffected. Off: unchanged.
     profile_scope_gate: bool = False
+    #: G32 (plan v3.2): a request for something new (``is_novelty``: "a book I haven't
+    #: read", "something different") gets a header of what memory says the asker
+    #: already likes / does / has (keyed likes, activities, favourite_*, pets facts and
+    #: list cards), so the answer avoids repeats. Off: unchanged.
+    novelty_exclusions: bool = False
     #: H12: cap the total of all lead blocks (cards, graph facts, entity summaries,
     #: profile, count timeline) at this share of the read budget, dropping the
     #: lowest-priority blocks first, so raw evidence keeps its budget. None = no cap.

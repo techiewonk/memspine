@@ -17,6 +17,7 @@ __all__ = [
     "is_aggregation",
     "is_count",
     "is_inference",
+    "is_novelty",
     "is_ordering",
     "is_personal",
     "is_temporal",
@@ -285,3 +286,19 @@ def split_intents(query: str, min_words: int = 3) -> list[str]:
         else:
             parts.append(piece)
     return parts or [query]
+
+
+#: G32 (plan v3.2): the asker wants something NEW ("a book I haven't read", "something
+#: different from last time", "other than sushi").
+_NOVELTY = re.compile(
+    r"\b(?:something|anything|somewhere|someone) (?:new|different|else)\b"
+    r"|\b(?:haven't|have not|never) (?:tried|read|seen|watched|been|visited|done|heard)\b"
+    r"|\bother than\b|\bnot already\b|\bdifferent from (?:last time|before|usual)\b"
+    r"|\bnew (?:ideas|places|books|recipes|things|restaurants|shows|hobbies)\b",
+    re.IGNORECASE,
+)
+
+
+def is_novelty(query: str) -> bool:
+    """G32: True when the question asks for something the asker has not had yet."""
+    return bool(_NOVELTY.search(query))
