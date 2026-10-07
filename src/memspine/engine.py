@@ -6631,6 +6631,9 @@ class Engine:
             principal_bound = integrity.enabled and integrity.principal_bound_corroboration
             if principal_bound and not await self._independent_principal(held, incoming):
                 continue
+            by_roots = integrity.corroboration_roots
+            if by_roots and not await self._independent_roots(held, incoming):
+                continue
             count = held.corroborations + 1
             change: dict[str, object] = {"corroborations": count}
             promoted = self._firewall.policy.may_promote(
@@ -6648,6 +6651,9 @@ class Engine:
                 # Durable record of who vouched: the next corroborator is checked
                 # against it (replay-safe, no in-memory state).
                 payload["principal"] = incoming.source.principal
+            if by_roots:
+                # W13: the roots that vouched, so the next corroborator is checked.
+                payload["roots"] = sorted(await self._lineage_roots(incoming))
             await self._append_and_project(
                 MemoryEvent(
                     kind=EventKind.DECAY_TRANSITION,
@@ -7530,6 +7536,50 @@ class Engine:
                 "prospective memory not enabled — set memories.prospective.enabled: true"
             )
         return self._prospective
+
+    async def _lineage_roots(self, record: MemoryRecord) -> frozenset[str]:
+        """W13: the records at the top of ``record``'s ``source.parents`` lineage (a
+        record with no parents is its own root). Parents no longer stored count as
+        roots under their id. Bounded walk (cycles and depth guarded)."""
+        storage = self._require_started()
+        roots: set[str] = set()
+        seen: set[str] = set()
+        frontier: list[tuple[str, list[str]]] = [(record.record_id, list(record.source.parents))]
+        while frontier and len(seen) < constants.LINEAGE_ROOTS_MAX_NODES:
+            rid, parents = frontier.pop()
+            if rid in seen:
+                continue
+            seen.add(rid)
+            if not parents:
+                roots.add(rid)
+                continue
+            for pid in parents:
+                parent = await storage.get_record(pid)
+                frontier.append((pid, list(parent.source.parents) if parent else []))
+        return frozenset(roots)
+
+    async def _independent_roots(self, held: MemoryRecord, incoming: MemoryRecord) -> bool:
+        """W13 (plan v3.2, ``integrity.corroboration_roots``): the corroborator's
+        lineage roots must not overlap the held record's, nor any earlier
+        corroborator's (read from the log). A summary of, or a re-statement derived
+        from, the poison's own source turns is then not a second opinion."""
+        mine = await self._lineage_roots(incoming)
+        if mine & await self._lineage_roots(held):
+            return False
+        storage = self._require_started()
+        after = 0
+        while True:
+            events = await storage.read_events(after_seq=after, limit=1000)
+            if not events:
+                return True
+            for event in events:
+                if (
+                    event.kind is EventKind.DECAY_TRANSITION
+                    and event.payload.get("record_id") == held.record_id
+                    and mine & set(event.payload.get("roots") or [])
+                ):
+                    return False
+            after = max(event.seq for event in events if event.seq is not None)
 
     async def _independent_principal(self, held: MemoryRecord, incoming: MemoryRecord) -> bool:
         """Principal-bound independence (integrity.principal_bound_corroboration).

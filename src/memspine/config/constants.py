@@ -549,6 +549,10 @@ RESIDUAL_PROBE_OVERLAP = 0.8
 #: asks the assistant to forget something (listed by ``Engine.forget_requests``).
 FORGET_REQUEST_TAG = "forget_request"
 
+#: W13 (``integrity.corroboration_roots``): the most lineage records one root walk
+#: visits (cycles are skipped; a deeper lineage stops here).
+LINEAGE_ROOTS_MAX_NODES = 256
+
 #: #50 remote-LLM gate: the per-note prefix the relevance filter sends (also withheld
 #: on its own), and the shortest record text the gate matches (shorter texts would
 #: blank unrelated words of a prompt).

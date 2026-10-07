@@ -26,6 +26,7 @@ class IntegrityPolicy:
     admission_threshold: float = 0.0
     trust_weighted_ranking: bool = True
     principal_bound_corroboration: bool = True
+    corroboration_roots: bool = False
     merge_reinforcement_gate: bool = True
     implicit_parents: str = "off"
     untrusted_wrap_below: float = 0.0

@@ -785,6 +785,12 @@ class IntegrityConfig(BaseModel):
     admission_threshold: float = Field(default=0.0, ge=0.0, le=1.0)
     trust_weighted_ranking: bool = True
     principal_bound_corroboration: bool = True
+    #: W13 (plan v3.2): corroboration counts independent LINEAGE ROOTS, not records:
+    #: a corroborating write whose ``source.parents`` lineage shares a root with the
+    #: quarantined record, or with an earlier corroborator, does not count (a summary
+    #: or a re-statement of the poison's own source is not a second opinion). Applies
+    #: whether or not ``integrity.enabled``. Off: unchanged.
+    corroboration_roots: bool = False
     merge_reinforcement_gate: bool = True
     #: B0: the engine records what each session READS and treats it as parents
     #: of the session's next writes, so omitting ``derived_from`` cannot launder

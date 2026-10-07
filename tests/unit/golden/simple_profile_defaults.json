@@ -38,6 +38,7 @@
       "admission_threshold": 0.0,
       "attenuation": "product",
       "claims_only_below": 0.0,
+      "corroboration_roots": false,
       "derivation_decay": 1.0,
       "edge_kappa": {},
       "enabled": false,
