@@ -159,6 +159,7 @@ from memspine.core.temporal_query import (
 from memspine.core.temporal_resolve import annotate as annotate_relative_dates
 from memspine.core.temporal_resolve import resolve
 from memspine.core.ties import settle_ties
+from memspine.core.vetting import VetFlag, draft_sentences, vet_sentences
 from memspine.exceptions import (
     ConfigError,
     ConflictError,
@@ -5696,6 +5697,39 @@ class Engine:
             if memory is not None:
                 await memory.on_forget(ns, record_id)
         _log.info(EVENT_FORGET, namespace=ns, record_id=record_id)
+
+    async def vet(self, draft: str, namespace: str = "default") -> list[VetFlag]:
+        """G26 (plan v3.2, TWIST): check a draft reply against the namespace's current
+        keyed facts. Each draft sentence that names a fact's entity and attribute but
+        not its current value, or negates the current value, is flagged with that
+        fact and up to three superseded values (its history). Read-only, no model."""
+        ns = validate_namespace(namespace)
+        records = await self._require_started().list_records(ns, "semantic")
+        current = [
+            r
+            for r in records
+            if r.status is RecordStatus.ACTIVATED
+            and not r.quarantined
+            and r.entity
+            and r.attribute
+            and r.valid_to is None
+        ]
+        history: dict[str, list[str]] = {}
+        for fact in current:
+            past = sorted(
+                (
+                    r
+                    for r in records
+                    if r.entity == fact.entity
+                    and r.attribute == fact.attribute
+                    and r.record_id != fact.record_id
+                    and r.status is RecordStatus.ARCHIVED
+                ),
+                key=lambda r: r.valid_from,
+                reverse=True,
+            )
+            history[fact.record_id] = [r.content for r in past[:3]]
+        return vet_sentences(draft_sentences(draft), current, history)
 
     async def session_memories(
         self, namespace: str = "default", session_record_ids: Sequence[str] = ()
