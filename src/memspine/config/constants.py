@@ -545,6 +545,10 @@ SESSION_CAP_POOL = 4
 RESIDUAL_PROBE_TOP_K = 20
 RESIDUAL_PROBE_OVERLAP = 0.8
 
+#: G25 (``memories.episodic.policies.forget_detector``): the tag of a user turn that
+#: asks the assistant to forget something (listed by ``Engine.forget_requests``).
+FORGET_REQUEST_TAG = "forget_request"
+
 #: #50 remote-LLM gate: the per-note prefix the relevance filter sends (also withheld
 #: on its own), and the shortest record text the gate matches (shorter texts would
 #: blank unrelated words of a prompt).

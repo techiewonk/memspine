@@ -49,6 +49,7 @@ from memspine.core.event_date import SAID_PREFIX, date_anchor, happened_of, happ
 from memspine.core.events import EventKind, EventLogMode, MemoryEvent, fingerprint_payload
 from memspine.core.evidence import evidence_signal
 from memspine.core.excerpt import focused_excerpt
+from memspine.core.forget_request import forget_target, is_forget_request
 from memspine.core.fact_views import view_tags
 from memspine.core.firewall import Firewall, FirewallSignals, FirewallVerdict, QueryHistory
 from memspine.core.integrity import IntegrityPolicy
@@ -2504,6 +2505,13 @@ class Engine:
             turn_tags = list(tags or [])
             if fw.tag_assistant_claims and role == "assistant":
                 turn_tags.append("assistant_claim")
+            if (
+                role == "user"
+                and self._memory_policy(self._config(), "episodic").get("forget_detector")
+                and is_forget_request(content)
+            ):
+                # G25: tagged and listed by forget_requests(); never deleted on a regex.
+                turn_tags.append(constants.FORGET_REQUEST_TAG)
             stamp = _parse_event_time(turn.get("timestamp")) or valid_from
             record = await self.write(
                 content,
@@ -5436,6 +5444,36 @@ class Engine:
             if memory is not None:
                 await memory.on_forget(ns, record_id)
         _log.info(EVENT_FORGET, namespace=ns, record_id=record_id)
+
+    async def forget_requests(
+        self, namespace: str = "default", top_k: int = 5
+    ) -> list[dict[str, object]]:
+        """G25 (plan v3.2, ``memories.episodic.policies.forget_detector``): the user's
+        "forget that" requests in ``namespace`` and, for each, the earlier live records
+        that best match what it names (:func:`core.forget_request.forget_target`).
+
+        Read-only: nothing is forgotten here. The caller confirms the candidates and
+        calls :meth:`forget` (``hard=True`` for erasure), so a false detection never
+        deletes a memory."""
+        ns = validate_namespace(namespace)
+        storage = self._require_started()
+        out: list[dict[str, object]] = []
+        for request in await storage.list_records(ns, "episodic"):
+            if constants.FORGET_REQUEST_TAG not in request.tags:
+                continue
+            target = forget_target(request.content) or request.content
+            hits = await self.search(target, namespace=ns, top_k=top_k + 1)
+            candidates = [
+                r.record_id
+                for r, _ in hits
+                if r.record_id != request.record_id
+                and constants.FORGET_REQUEST_TAG not in r.tags
+                and r.valid_from <= request.valid_from
+            ][:top_k]
+            out.append(
+                {"request_id": request.record_id, "target": target, "candidates": candidates}
+            )
+        return out
 
     async def verify_forget(
         self, record_id: str, namespace: str = "default", *, probe: str | None = None
