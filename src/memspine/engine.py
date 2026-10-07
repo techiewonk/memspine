@@ -49,9 +49,9 @@ from memspine.core.event_date import SAID_PREFIX, date_anchor, happened_of, happ
 from memspine.core.events import EventKind, EventLogMode, MemoryEvent, fingerprint_payload
 from memspine.core.evidence import evidence_signal
 from memspine.core.excerpt import focused_excerpt
-from memspine.core.forget_request import forget_target, is_forget_request
 from memspine.core.fact_views import view_tags
 from memspine.core.firewall import Firewall, FirewallSignals, FirewallVerdict, QueryHistory
+from memspine.core.forget_request import forget_target, is_forget_request
 from memspine.core.integrity import IntegrityPolicy
 from memspine.core.lead import (
     card_line,
