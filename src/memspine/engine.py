@@ -132,6 +132,7 @@ from memspine.core.redaction import find_pii, redact
 from memspine.core.registry import SERVICE_EXTRAS, dependency_closure, missing_services
 from memspine.core.replay import catch_up
 from memspine.core.replay import rebuild as replay_rebuild
+from memspine.core.rule_miner import mine_rules
 from memspine.core.temporal_query import LegHit, metadata_leg, temporal_leg
 from memspine.core.temporal_resolve import annotate as annotate_relative_dates
 from memspine.core.ties import settle_ties
@@ -8389,7 +8390,15 @@ class Engine:
         )
 
     def _build_fact_miner(self) -> Any:
-        """C6': the atomic-fact miner, only when an ``extract`` LLM role is bound."""
+        """C6': the atomic-fact miner, only when an ``extract`` LLM role is bound.
+
+        W5 (``consolidation.miner: rules``): the rule miner instead, no model."""
+        if self._consolidation_option("miner", "llm") == "rules":
+
+            async def mine_by_rules(content: str) -> list[ExtractedFact]:
+                return mine_rules(content)
+
+            return mine_by_rules
         if self._llm is None or self._prompts is None or "extract" not in self._llm.roles:
             return None
         llm = self._llm.for_role("extract")

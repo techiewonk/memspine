@@ -2884,7 +2884,10 @@ async def mine_facts(ctx: PipelineContext) -> dict[str, object]:
         return {"status": "skipped", "reason": "no extract LLM role bound"}
     miner, deposit = ctx.mine_facts, ctx.deposit_fact
     by_topic = bool(getattr(options, "mine_by_topic", False))
-    numbered = bool(getattr(options, "mine_evidence_turns", False))
+    # W5: the rule miner always cites its line, so a fact's parent is its own turn.
+    numbered = bool(getattr(options, "mine_evidence_turns", False)) or (
+        getattr(options, "miner", "llm") == "rules"
+    )
     event_dates = bool(getattr(options, "mine_event_dates", False))
     dater = ctx.date_facts if getattr(options, "mine_event_dates_llm", False) else None
     week = ctx.config.read.relative_week

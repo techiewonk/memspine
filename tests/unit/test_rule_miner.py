@@ -1,0 +1,108 @@
+"""W5 (plan v3.2): the rule miner (``consolidation.miner: rules``), no model."""
+
+from __future__ import annotations
+
+from datetime import UTC, datetime, timedelta
+
+import pytest
+
+from memspine import Engine
+from memspine.core.policies.consolidation import ConsolidationOptions
+from memspine.core.records import RecordStatus
+from memspine.core.rule_miner import mine_rules
+
+LINES = "\n".join(
+    [
+        "[1] [2023-05-08] Caroline: I moved to Sweden four years ago and I love painting sunsets.",
+        "[2] [2023-05-08] Melanie: My dog is called Oscar, and my favorite book is"
+        " Charlotte's Web!",
+        "[3] [2023-05-09] Caroline: I'm from Ohio originally. I work as a counselor at the center.",
+        "[4] [2023-05-09] Melanie: I went camping last week. I'm planning to run a marathon.",
+        "[5] [2023-05-09] Melanie: I love how you explained that.",
+        "[6] [2023-05-10] I'm vegetarian and I can't stand loud bars.",
+    ]
+)
+
+
+def _facts() -> set[tuple[str, str, str, str]]:
+    return {(f.entity, f.attribute, f.value, f.kind) for f in mine_rules(LINES)}
+
+
+@pytest.mark.parametrize(
+    "fact",
+    [
+        ("Caroline", "home", "Sweden", "state"),
+        ("Caroline", "likes", "painting sunsets", "event"),
+        ("Melanie", "pets", "Oscar", "event"),
+        ("Melanie", "favourite_book", "Charlotte's Web", "state"),
+        ("Caroline", "origin", "Ohio", "state"),
+        ("Caroline", "job", "counselor", "state"),
+        ("Caroline", "employer", "the center", "state"),
+        ("Melanie", "activities", "camping", "event"),
+        ("Melanie", "plans", "run a marathon", "event"),
+        ("user", "diet", "vegetarian", "state"),
+        ("user", "dislikes", "loud bars", "event"),
+    ],
+)
+def test_rule_miner_finds_personal_facts(fact: tuple[str, str, str, str]) -> None:
+    assert fact in _facts()
+
+
+def test_rule_miner_cites_its_line_and_date() -> None:
+    home = next(f for f in mine_rules(LINES) if f.attribute == "home")
+    assert home.turns == [1]
+    assert home.date == "2023-05-08"
+
+
+def test_compliment_to_the_assistant_is_not_a_like() -> None:
+    assert not any("explained" in value for _, _, value, _ in _facts())
+
+
+def test_miner_defaults_to_llm() -> None:
+    assert ConsolidationOptions().miner == "llm"
+
+
+async def test_rule_mining_end_to_end_supersedes_home_without_an_llm() -> None:
+    eng = Engine(
+        template="core",
+        dotenv_path=None,
+        storage={"path": ":memory:"},
+        embedding={"provider": "hash"},
+        memories={
+            "episodic": {
+                "enabled": True,
+                "policies": {"consolidation": {"mine_facts": True, "miner": "rules"}},
+            },
+            "semantic": {"enabled": True},
+        },
+        read={"hybrid": False},
+    )
+    await eng.start()
+    try:
+        t0 = datetime(2023, 5, 8, 13, 0, tzinfo=UTC)
+        sessions = {
+            0: ["Caroline: I moved to Sweden last year", "Melanie: wow", "Caroline: yes, cold!"],
+            30: ["Caroline: I moved to Norway", "Melanie: again?", "Caroline: for work"],
+        }
+        for day, texts in sessions.items():
+            msgs = [
+                {
+                    "role": "user",
+                    "content": text,
+                    "timestamp": (t0 + timedelta(days=day, minutes=i)).isoformat(),
+                }
+                for i, text in enumerate(texts)
+            ]
+            await eng.write_messages(msgs, namespace="a", session_id=f"s{day}", group_id=f"s{day}")
+        await eng.sleep()
+        assert eng.model_calls() == {}
+        homes = [
+            r
+            for r in await eng._require_started().list_records("a", "semantic")
+            if r.attribute == "home"
+        ]
+        current = [r for r in homes if r.status is RecordStatus.ACTIVATED and r.valid_to is None]
+        assert [r.content for r in current] == ["Caroline home: Norway"]
+        assert any("Sweden" in r.content and r.valid_to is not None for r in homes)
+    finally:
+        await eng.stop()

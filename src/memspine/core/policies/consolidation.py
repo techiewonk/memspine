@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 from enum import StrEnum
-from typing import ClassVar
+from typing import ClassVar, Literal
 
 from pydantic import Field
 
@@ -61,6 +61,11 @@ class ConsolidationOptions(PolicyOptions):
     #: an ``extract`` LLM role). Facts are dated with the session start, carry
     #: the session records as parents, and go through the engine's write door.
     mine_facts: bool = False
+    #: W5 (plan v3.2): who mines. ``llm`` (unchanged) needs an ``extract`` role;
+    #: ``rules`` uses ``core/rule_miner.py`` (first-person personal facts, no model:
+    #: home, origin, job, likes, pets, family, plans, ...), so ``mine_facts`` and
+    #: everything built on it (list cards, the cards header) work without an LLM.
+    miner: Literal["llm", "rules"] = "llm"
     #: H15: mine each topic segment of a session in its own call (lexical-cohesion
     #: boundaries, no model; ``sessions.topic_segments``), so the miner reads one
     #: topic at a time. A mined fact's parents are its segment's turns: the call

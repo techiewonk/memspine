@@ -229,6 +229,7 @@
       "mine_facts": false,
       "mine_multiview": false,
       "mine_prompt": "session",
+      "miner": "llm",
       "predict_calibrate": false,
       "reflect_profile": false,
       "session_gap_minutes": 30,
