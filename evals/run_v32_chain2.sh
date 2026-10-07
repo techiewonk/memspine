@@ -5,4 +5,5 @@ source <(sed -n '/^FROZEN=/,/^}/p' run_v32_chain.sh)
 L="locomo data/locomo10.json"
 run rulecards-floor $L local-rulecards-floor 4096 --memspine-build-sleep
 run rulecards-weak $L local-rulecards-weak 4096 --memspine-build-sleep
+run sw-auto-mode-valid $L local-combo-A 4096 --memspine-read-mode auto
 echo CHAIN2 DONE
