@@ -539,6 +539,12 @@ QUERY_ANOMALY_MIN_BASELINE = 20
 #: candidates from a search this many times wider than it keeps.
 SESSION_CAP_POOL = 4
 
+#: W14 (``Engine.verify_forget(probe=...)``): the residual-recall probe searches this
+#: many hits, and a hit sharing at least this share of the probe's content words (or
+#: containing the probe verbatim) still recalls the erased content.
+RESIDUAL_PROBE_TOP_K = 20
+RESIDUAL_PROBE_OVERLAP = 0.8
+
 #: #50 remote-LLM gate: the per-note prefix the relevance filter sends (also withheld
 #: on its own), and the shortest record text the gate matches (shorter texts would
 #: blank unrelated words of a prompt).

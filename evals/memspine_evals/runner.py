@@ -505,6 +505,12 @@ class EvalRunner:
                 "gold_evidence": list(normalise_evidence(gold)),
                 **cover,
                 **({"reranked": context.meta["reranked"]} if "reranked" in context.meta else {}),
+                # W3 (plan v3.2): the engine's evidence-sufficiency signal, when on.
+                **(
+                    {"evidence_signal": context.meta["evidence_signal"]}
+                    if "evidence_signal" in context.meta
+                    else {}
+                ),
                 **self._row_spend(spend_before),
             },
         )

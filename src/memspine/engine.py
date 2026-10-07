@@ -103,6 +103,7 @@ from memspine.core.privacy import (
 from memspine.core.profile_pack import pack_profile, render_packed_profile
 from memspine.core.projector import Projector
 from memspine.core.query_shape import (
+    content_words,
     core_terms,
     is_aggregation,
     is_count,
@@ -5436,7 +5437,9 @@ class Engine:
                 await memory.on_forget(ns, record_id)
         _log.info(EVENT_FORGET, namespace=ns, record_id=record_id)
 
-    async def verify_forget(self, record_id: str, namespace: str = "default") -> dict[str, object]:
+    async def verify_forget(
+        self, record_id: str, namespace: str = "default", *, probe: str | None = None
+    ) -> dict[str, object]:
         """M7 ``forget --verify``: prove erasure across every store we own.
 
         Uses the SAME payload walker as the redactor (``retained_fields`` ↔
@@ -5490,10 +5493,27 @@ class Engine:
             assert batch[-1].seq is not None
             after = batch[-1].seq
         log_clean = not retained
+        # W14 (plan v3.2): erasure proven on RECALL, not only on the stores: the
+        # erased text, searched for, must bring back no record holding it or a
+        # near-duplicate (a copy, a derived summary, a re-statement) in this namespace.
+        residual: list[str] | None = None
+        if probe is not None and probe.strip():
+            wanted = content_words(probe)
+            residual = []
+            for hit, _ in await self.search(
+                probe, namespace=namespace, top_k=constants.RESIDUAL_PROBE_TOP_K
+            ):
+                words = content_words(hit.content)
+                overlap = len(wanted & words) / max(1, len(wanted))
+                if probe.strip().lower() in hit.content.lower() or (
+                    wanted and overlap >= constants.RESIDUAL_PROBE_OVERLAP
+                ):
+                    residual.append(hit.record_id)
         clean = (
             record_absent
             and log_verifiable
             and log_clean
+            and not residual
             and not descendants
             and vector_absent is True
             and vector_history_absent is True
@@ -5515,6 +5535,8 @@ class Engine:
             "log_redacted": log_clean,
             "log_retained_fields": sorted(retained),
             "descendants_remaining": descendants,
+            # W14: records the probe still recalls (None: no probe given).
+            "residual_recall": residual,
             "clean": clean,
         }
 

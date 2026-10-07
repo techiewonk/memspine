@@ -12,6 +12,7 @@ need none of them, could not be run either.
 
 from __future__ import annotations
 
+import dataclasses
 import re
 from collections.abc import Mapping
 from datetime import UTC, datetime
@@ -453,6 +454,11 @@ class MemspineSystem:
             boundary_index=getattr(assembled, "boundary_index", None),
             meta={
                 "abstained": getattr(assembled, "abstained", False),
+                **(
+                    {"evidence_signal": dataclasses.asdict(signal)}
+                    if (signal := getattr(assembled, "evidence", None)) is not None
+                    else {}
+                ),
                 "n_records": len(evidence),
                 "read_mode": self._read_mode or "assemble",
                 "ranked": self._read_mode is None,
