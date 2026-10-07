@@ -213,6 +213,7 @@
       "contest_trust_margin": 0.05,
       "contest_window_seconds": 0.0,
       "interval_order": false,
+      "merge_containment": false,
       "trust_margin": 0.3
     },
     "consolidation": {

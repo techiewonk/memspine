@@ -68,3 +68,26 @@ def test_bias_oldest_inverts_r3() -> None:
     incoming = fact("Paris", days_ago=0)
     existing = fact("Berlin", days_ago=30)
     assert policy.resolve(incoming, existing) is ConflictVerdict.ADD
+
+
+# -- W6 (plan v3.2): merge by containment ---------------------------------------------
+
+
+def test_merge_containment_keeps_the_richer_fact() -> None:
+    policy = ConflictPolicy.bind({"merge_containment": True})
+    richer = fact("Alice lives in central Berlin near the river", days_ago=5)
+    restated = fact("Alice lives in Berlin")
+    assert policy.resolve(restated, richer) is ConflictVerdict.NOOP
+
+
+def test_merge_containment_still_updates_a_new_value() -> None:
+    policy = ConflictPolicy.bind({"merge_containment": True})
+    old = fact("Alice lives in Berlin", days_ago=5)
+    new = fact("Alice lives in Munich")
+    assert policy.resolve(new, old) is ConflictVerdict.UPDATE
+
+
+def test_merge_containment_off_supersedes_as_before() -> None:
+    policy = ConflictPolicy.bind()
+    richer = fact("Alice lives in central Berlin near the river", days_ago=5)
+    assert policy.resolve(fact("Alice lives in Berlin"), richer) is ConflictVerdict.UPDATE

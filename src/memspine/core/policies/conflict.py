@@ -16,6 +16,9 @@ Ladder (evaluated on two records sharing a fact key):
                  (both kept and tagged ``disputed``; the current fact stays the
                  single active one, so the store's invariant holds)
 - R3 temporal:   incoming is newer (per ``bias``)                → UPDATE
+- W6 merge:      (opt-in, ``merge_containment``) every content word of the
+                 incoming value is already in the current one: a restatement,
+                 not a new value                               → NOOP
 - R4 backfill:   incoming is older than the current fact         → ADD (historical,
                  store closes its validity at existing.valid_from). With the
                  Graphiti overlap rule, a closed interval that ended before the
@@ -36,6 +39,7 @@ from enum import StrEnum
 from typing import ClassVar
 
 from memspine.core.policies.base import BindablePolicy, PolicyOptions
+from memspine.core.query_shape import content_words
 from memspine.core.records import MemoryRecord
 
 __all__ = ["ConflictPolicy", "ConflictVerdict"]
@@ -66,6 +70,10 @@ class ConflictOptions(PolicyOptions):
     #: (``invalid_at``, history re-closing, same-endpoint duplicates). Off = the
     #: plain R4 backfill (closed at the current fact's start, no ``invalid_at``).
     interval_order: bool = False
+    #: W6 (plan v3.2): a same-key write whose content words are all in the current
+    #: fact's ("Jon works at the bank" after "Jon works as a teller at the city bank")
+    #: is a restatement: NOOP instead of superseding the richer fact. Off: unchanged.
+    merge_containment: bool = False
 
 
 class ConflictPolicy(BindablePolicy):
@@ -134,6 +142,12 @@ class ConflictPolicy(BindablePolicy):
         # so the rung is deterministic; no LLM decides what a negation is.
         if "retract" in incoming.tags:
             return ConflictVerdict.INVALIDATE
+
+        # W6 merge (opt-in): a restatement adds no new value.
+        if options.merge_containment:
+            mine = content_words(incoming.content)
+            if mine and mine <= content_words(existing.content):
+                return ConflictVerdict.NOOP
 
         # Graphiti overlap rule: an incoming statement whose validity interval is
         # closed and ended before the current fact began cannot contradict it.
