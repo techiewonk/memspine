@@ -111,6 +111,7 @@ from memspine.core.query_shape import (
     feedback_terms,
     is_aggregation,
     is_count,
+    is_duration,
     is_novelty,
     is_ordering,
     is_personal,
@@ -3735,6 +3736,7 @@ class Engine:
         if pinned or lessons:
             rendered = self._place_procedural(rendered, pinned, lessons)
         headers = self._count_section(ns, query, rendered, count_share, headers)
+        headers = self._duration_section(ns, query, rendered, headers)
         return self._attach_headers(rendered, headers)
 
     async def _procedural_blocks(
@@ -4424,6 +4426,7 @@ class Engine:
             session_id=session_id,
         )
         headers = self._count_section(ns, query, result.context, count_share, headers)
+        headers = self._duration_section(ns, query, result.context, headers)
         return ReadResult(result.mode, self._attach_headers(result.context, headers))
 
     async def _read_routed(
@@ -5128,6 +5131,54 @@ class Engine:
             return 0
         allowance = int(budget_tokens * read_cfg.count_budget_share)
         return allowance if allowance > estimate_tokens(constants.COUNT_MARKER) else 0
+
+    def _duration_section(
+        self,
+        ns: str,
+        query: str,
+        assembled: AssembledContext,
+        headers: list[MemoryRecord],
+    ) -> list[MemoryRecord]:
+        """N10 (plan v3.2, ``read.span_line``): for a duration question ("how long
+        after …", "how many weeks between …"), one line computed by the engine from
+        the two retrieved turns that best match the question and carry different
+        days: ``A (date) -> B (date): N days (about W weeks / M months)``. The reader
+        no longer does the date arithmetic. Unchanged when off, for other questions,
+        or when two dated matches are not found."""
+        if not self._config().read.span_line or not is_duration(query):
+            return headers
+        wanted = content_words(query)
+        turns = [
+            r
+            for r in assembled.records
+            if r.memory_type == "episodic" and constants.LEAD_TAG not in r.tags
+        ]
+        ranked = sorted(
+            turns, key=lambda r: (-len(wanted & content_words(r.content)), chrono_key(r))
+        )
+        picked: list[MemoryRecord] = []
+        for record in ranked:
+            if not wanted & content_words(record.content):
+                break
+            if all(record.valid_from.date() != p.valid_from.date() for p in picked):
+                picked.append(record)
+            if len(picked) == 2:
+                break
+        if len(picked) < 2:
+            return headers
+        first, second = sorted(picked, key=lambda r: r.valid_from)
+        days = (second.valid_from.date() - first.valid_from.date()).days
+        line = (
+            f"{constants.SPAN_MARKER} "
+            f'"{" ".join(first.content.split())[:60]}" ({first.valid_from:%Y-%m-%d}) -> '
+            f'"{" ".join(second.content.split())[:60]}" ({second.valid_from:%Y-%m-%d}): '
+            f"{days} days (about {days / 7:.1f} weeks, {days / 30.44:.1f} months)"
+        )
+        block = self._lead_record(ns, line, [first, second])
+        return [
+            *headers,
+            block.model_copy(update={"tags": [constants.LEAD_TAG, constants.SPAN_TAG]}),
+        ]
 
     def _count_section(
         self,

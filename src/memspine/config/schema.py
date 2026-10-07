@@ -605,6 +605,10 @@ class ReadConfig(BaseModel):
     profile_slots_header: bool = False
     #: W5 / W16: include slots tagged ``sensitive:*`` in that header (default: never).
     profile_sensitive: bool = False
+    #: N10 (plan v3.2): a duration question ("how long after ...", "how many weeks
+    #: between ...") gets one engine-computed line from the two best-matching dated
+    #: turns: "A (date) -> B (date): N days (about W weeks, M months)". Off: none.
+    span_line: bool = False
     #: H12: cap the total of all lead blocks (cards, graph facts, entity summaries,
     #: profile, count timeline) at this share of the read budget, dropping the
     #: lowest-priority blocks first, so raw evidence keeps its budget. None = no cap.

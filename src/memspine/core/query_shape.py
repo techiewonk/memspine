@@ -16,6 +16,7 @@ __all__ = [
     "feedback_terms",
     "is_aggregation",
     "is_count",
+    "is_duration",
     "is_inference",
     "is_novelty",
     "is_ordering",
@@ -302,3 +303,17 @@ _NOVELTY = re.compile(
 def is_novelty(query: str) -> bool:
     """G32: True when the question asks for something the asker has not had yet."""
     return bool(_NOVELTY.search(query))
+
+
+#: N10 (plan v3.2): a question about the time between two events.
+_DURATION_Q = re.compile(
+    r"\bhow long (?:after|before|between|since|did|was|has|had|ago|have)\b"
+    r"|\bhow many (?:days|weeks|months|years) (?:after|before|between|passed|since|did|was|"
+    r"had|went by|later|earlier)\b",
+    re.IGNORECASE,
+)
+
+
+def is_duration(query: str) -> bool:
+    """N10: True when the question asks how much time lies between two events."""
+    return bool(_DURATION_Q.search(query))

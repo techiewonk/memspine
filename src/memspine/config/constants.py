@@ -321,6 +321,9 @@ NOVELTY_TAG = "novelty_header"
 # W5 (plan v3.2): the Λ-profile block (``read.profile_slots_header``).
 SLOTS_MARKER = "PROFILE (current facts memory holds; newer statements replace older ones):"
 SLOTS_TAG = "slots_header"
+# N10 (plan v3.2): the engine-computed duration line (``read.span_line``).
+SPAN_MARKER = "TIME BETWEEN (computed by memory from the two best-matching dated turns):"
+SPAN_TAG = "span_line"
 PROFILE_HEADER_TOP_K = 8
 # #35 (SM-8): the most planner-v2 lookup subqueries a lookup read fuses as extra legs.
 PLAN_LOOKUP_PROBES = 2
