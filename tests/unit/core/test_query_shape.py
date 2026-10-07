@@ -129,3 +129,20 @@ def test_feedback_terms_are_shared_words_the_query_lacks() -> None:
     ]
     assert feedback_terms("Where did Melanie go camping?", texts) == "lake tent"
     assert feedback_terms("lake tent", texts) == ""
+
+
+@pytest.mark.parametrize(
+    ("query", "expected"),
+    [
+        ("What should I cook tonight?", True),
+        ("Recommend a book for the flight", True),
+        ("What did you say about my plan?", True),
+        ("What is the capital of France?", False),
+        ("How tall is the Eiffel Tower?", False),
+    ],
+)
+def test_is_personal(query: str, expected: bool) -> None:
+    """W9 (plan v3.2): personal vs general-knowledge questions."""
+    from memspine.core.query_shape import is_personal
+
+    assert is_personal(query) is expected

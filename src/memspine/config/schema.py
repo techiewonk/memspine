@@ -567,6 +567,12 @@ class ReadConfig(BaseModel):
     cards_temporal: Literal["skip", "event_dates"] = "skip"
     #: D1: no profile header (plain or packed) on date/time questions.
     profile_skip_temporal: bool = False
+    #: W9 (plan v3.2, OP-Bench): the profile header (plain or packed) only for questions
+    #: about the asker, a choice they face, or a named person (``is_personal`` or a
+    #: name in the query); a general-knowledge question ("What is the capital of
+    #: France?") gets none, so the profile is not injected where it does not apply.
+    #: Standing instructions (style requests) are unaffected. Off: unchanged.
+    profile_scope_gate: bool = False
     #: H12: cap the total of all lead blocks (cards, graph facts, entity summaries,
     #: profile, count timeline) at this share of the read budget, dropping the
     #: lowest-priority blocks first, so raw evidence keeps its budget. None = no cap.

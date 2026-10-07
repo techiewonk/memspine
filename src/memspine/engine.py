@@ -1676,17 +1676,21 @@ class Engine:
                 and r.memory_type != "shared"
             ]
             if read.temporal_leg:
+                # F2 / W7: relative phrases in the question resolve against the as-of
+                # time or the read time; without either the call is unchanged.
+                anchored: dict[str, Any] = {}
+                if read.temporal_relative or active_as_of() is not None:
+                    anchored = {
+                        "anchor": active_as_of() or self._clock(),
+                        "week": read.relative_week,
+                    }
                 legs.append(
                     temporal_leg(
                         query,
                         live,
                         fetch_k,
                         event_dates=read.temporal_leg_event_dates,
-                        # F2: relative phrases in the question, against the read time.
-                        anchor=(active_as_of() or self._clock())
-                        if read.temporal_relative or active_as_of() is not None
-                        else None,
-                        week=read.relative_week,
+                        **anchored,
                     )
                 )
             if read.metadata_leg:
@@ -4362,10 +4366,24 @@ class Engine:
         )
         return "\n".join([constants.CARDS_MARKER, *lines])
 
-    def _applies_to_person(self, query: str) -> bool:
+    async def _applies_to_person(self, ns: str, query: str) -> bool:
         """W9 (``read.profile_scope_gate``): the question is about the asker, a choice
-        they face, or a named person; not general knowledge."""
-        return is_personal(query) or bool(query_names(query))
+        they face, or a person memory knows (an entity, a ``person:`` tag or a
+        ``speaker:`` tag); not general knowledge ("France" is not a known person)."""
+        if is_personal(query):
+            return True
+        names = {n.lower() for n in query_names(query)}
+        if not names:
+            return False
+        for record in await self._require_started().list_records(ns):
+            known = {
+                t.split(":", 1)[1] for t in record.tags if t.startswith(("person:", "speaker:"))
+            }
+            if record.entity:
+                known.add(record.entity.lower())
+            if names & known:
+                return True
+        return False
 
     async def _profile_section(
         self, ns: str, query: str, budget_tokens: int, session_id: str | None = None
@@ -4385,7 +4403,7 @@ class Engine:
         read_cfg = self._config().read
         if read_cfg.profile_skip_temporal and is_temporal(query):
             return None  # D1 (ADR-055): no profile header, plain or packed, on date questions
-        if read_cfg.profile_scope_gate and not self._applies_to_person(query):
+        if read_cfg.profile_scope_gate and not await self._applies_to_person(ns, query):
             return None  # W9: a general-knowledge question gets no profile
         if read_cfg.profile_header_packing:
             return await self._packed_profile_section(ns, query, budget_tokens, session_id)

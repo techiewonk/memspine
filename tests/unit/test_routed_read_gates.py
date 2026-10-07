@@ -704,3 +704,25 @@ async def test_evidence_first_moves_the_best_window_first_and_keeps_the_set() ->
     off_turns = [r.content for r in off.context.records if r.memory_type == "episodic"]
     assert sorted(on_turns) == sorted(off_turns)
     assert best_turn.content in on_turns[:3]
+
+
+# -- W9 (plan v3.2): the profile only where it applies --------------------------------
+
+
+def test_profile_scope_gate_defaults_off() -> None:
+    assert ReadConfig().profile_scope_gate is False
+
+
+async def test_general_knowledge_question_gets_no_profile_header() -> None:
+    query = "What is the capital of France?"
+    off = await _read_all(query, ("replay",), profile_header=True)
+    on = await _read_all(query, ("replay",), profile_header=True, profile_scope_gate=True)
+    assert _tagged(off["replay"], constants.PROFILE_TAG)
+    assert not _tagged(on["replay"], constants.PROFILE_TAG)
+    assert on["replay"].context.records
+
+
+async def test_personal_question_keeps_the_profile_header() -> None:
+    on = await _read_all(LOOKUP, ("replay",), profile_header=True, profile_scope_gate=True)
+    off = await _read_all(LOOKUP, ("replay",), profile_header=True)
+    assert _view(on["replay"]) == _view(off["replay"])

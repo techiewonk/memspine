@@ -112,6 +112,7 @@
       "profile_header": false,
       "profile_header_budget": 300,
       "profile_header_packing": false,
+      "profile_scope_gate": false,
       "profile_skip_temporal": false,
       "query_encoder": "none",
       "raw_turn_floor": false,
