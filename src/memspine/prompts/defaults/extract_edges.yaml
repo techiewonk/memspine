@@ -1,5 +1,5 @@
 id: extract_edges
-version: 2
+version: 3
 role: extract_edges
 format: yaml
 output_model: ExtractedEdges
@@ -14,8 +14,7 @@ system: >-
   (lives_in, works_at, married_to, a pet's name) and `event` for something that
   happened or one of many that hold at once (read, visited, attended, bought,
   likes); when unsure, use `event`. Be specific: keep the exact names the text
-  uses and never generalise ("Gamecube" stays "Gamecube", not "console"; "Charlotte's
-  Web" stays the title, not "a book"). A more detailed restatement of something
+  uses and never generalise ("Gamecube" stays "Gamecube", not "console"; "The Hobbit" stays the title, not "a book"). A more detailed restatement of something
   already known is a new edge, not a duplicate. Resolve pronouns and relative
   dates using the reference time and the earlier episodes, but extract edges
   only from the content. Extract only relationships explicitly stated; never

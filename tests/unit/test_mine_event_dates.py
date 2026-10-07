@@ -291,7 +291,7 @@ def test_session3_prompt_is_v3_and_a_variant() -> None:
 
     registry = PromptRegistry()
     v3 = registry.select("extract", condition="session3")
-    assert (v3.id, v3.version, v3.token_budget) == ("extract@session3", 3, 4096)
+    assert (v3.id, v3.version, v3.token_budget) == ("extract@session3", 4, 4096)
     v2 = registry.select("extract", condition="session")
     assert v2.id == "extract@session" and (v2.token_budget or 0) < 4096
     system = v3.render({"content": "x"})[0]["content"]

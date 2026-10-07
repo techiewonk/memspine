@@ -306,7 +306,7 @@ def test_plan_v3_prompt_is_a_variant() -> None:
     from memspine.prompts.registry import PromptRegistry
 
     v3 = PromptRegistry().select("plan", condition="v3")
-    assert (v3.id, v3.version) == ("plan@v3", 3)
+    assert (v3.id, v3.version) == ("plan@v3", 4)
     system = v3.render({"query": "What did Melanie do in May 2023?"})[0]["content"]
     assert "time_expr" in system and "persons" in system
 

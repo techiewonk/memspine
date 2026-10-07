@@ -123,7 +123,7 @@ DATED3_QA_PROMPT = (
     "that date, computed from the line's date, not the date of the conversation. Answer a "
     'date in the style the question asks: a year for "which year", a month for "which '
     "month\", a day otherwise; relative to the line's date when the context gives no more "
-    '("the week before 2023-06-09"). Use the specific detail from the context, quoting its '
+    '("the week before 2024-03-14"). Use the specific detail from the context, quoting its '
     'words (a name, a title, a phrase such as "magical") rather than paraphrasing it. For a '
     '"how many" question, merge repeated mentions of the same event (the same thing on the '
     "same date) and count distinct events. First write one or two short sentences of "
@@ -154,7 +154,7 @@ QA_PROMPTS = {
 _DATED_REFUSAL = "If the context does not contain the answer, say you do not know."
 ROUTED_TEMPORAL_RULE = (
     "If the date is not stated outright, infer the most plausible date from the line's "
-    "date and any relative phrase (e.g. 'the week before 9 June 2023'); say you do not "
+    "date and any relative phrase (e.g. 'the week before 14 March 2024'); say you do not "
     "know only when nothing in the context bears on it. Answer dates as DD Month YYYY "
     "(or the granularity the question asks)."
 )

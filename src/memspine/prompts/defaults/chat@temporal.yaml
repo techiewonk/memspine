@@ -1,5 +1,5 @@
 id: chat@temporal
-version: 1
+version: 2
 role: chat
 format: text
 token_budget: 1024
@@ -17,7 +17,7 @@ system: >-
   happened, give the date it happened, computed from the line's own date, not
   the date of the conversation. Answer briefly. If the date is not stated
   outright, infer the most plausible date from the line's date and any
-  relative phrase (e.g. 'the week before 9 June 2023'); say you do not know
+  relative phrase (e.g. 'the week before 14 March 2024'); say you do not know
   only when nothing in the memories bears on it. Answer dates as DD Month YYYY
   (or the granularity the question asks). {% include "no_injection.j2" %}
 ---

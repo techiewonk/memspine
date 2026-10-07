@@ -174,7 +174,7 @@ async def test_miner_prompt_variant(
 def test_session4_prompt_is_a_new_variant() -> None:
     registry = PromptRegistry()
     v4 = registry.select("extract", condition="session4")
-    assert (v4.id, v4.version, v4.token_budget) == ("extract@session4", 4, 4096)
+    assert (v4.id, v4.version, v4.token_budget) == ("extract@session4", 5, 4096)
     assert registry.select("extract", condition="session3").id == "extract@session3"
     system = v4.render({"content": "x"})[0]["content"]
     assert "`persons`" in system and "`location`" in system and "`topic`" in system

@@ -1,5 +1,5 @@
 id: extract@session4
-version: 4
+version: 5
 role: extract
 format: yaml
 output_model: ExtractedFacts
@@ -42,10 +42,10 @@ system: >-
   property such as "city", "job", "hobby", "pet", "event", "plan", "preference",
   "relationship"), value (the full self-contained statement), kind (state or event),
   date, turns, persons, location, topic, confidence (0-1).
-  Example. Transcript line "[4] [2023-07-15] Melanie: I went camping at Lake Tahoe
-  with Caroline last Friday" gives: {entity: Melanie, attribute: event, value:
-  "Melanie went camping with Caroline at Lake Tahoe on 2023-07-14", kind: event,
-  date: 2023-07-14, turns: [4], persons: [Melanie, Caroline], location: Lake Tahoe,
+  Example. Transcript line "[4] [2023-07-15] Ana: I went camping at Loch Ness
+  with Ben last Friday" gives: {entity: Ana, attribute: event, value:
+  "Ana went camping with Ben at Loch Ness on 2023-07-14", kind: event,
+  date: 2023-07-14, turns: [4], persons: [Ana, Ben], location: Loch Ness,
   topic: activities, confidence: 0.9}.
   {% include "no_injection.j2" %} {% include "yaml_only.j2" %}
   Emit a YAML list under the key `facts`.

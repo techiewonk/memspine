@@ -1,5 +1,5 @@
 id: plan@v2
-version: 2
+version: 3
 role: plan
 format: yaml
 output_model: ReadPlan
@@ -22,8 +22,8 @@ system: >-
   three short subqueries, each one searching for one of the facts the answer combines.
   For lookup and replay, write one or two short subqueries with the words the
   evidence itself would likely use, when they differ from the question's words: for
-  "Is Caroline religious?", "Caroline church" and "Caroline faith"; for "What is
-  Gina's job?", "Gina works as". Never answer the question and never guess facts.
+  "Is Ben religious?", "Ben church" and "Ben faith"; for "What is
+  Lena's job?", "Lena works as". Never answer the question and never guess facts.
   {% include "no_injection.j2" %} {% include "yaml_only.j2" %}
   Emit the keys mode, temporal, entities and subqueries.
 ---
