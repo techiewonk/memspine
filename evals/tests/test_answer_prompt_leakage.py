@@ -10,7 +10,6 @@ from __future__ import annotations
 import string
 
 import pytest
-
 from memspine_evals.readers import QA_PROMPTS, ROUTED_QA_VARIANTS
 
 ALLOWED = {"context", "question", "question_date"}

@@ -1,0 +1,1 @@
+[{"preference": "I avoid loud hotels.", "question": "Hotels in Vegas?", "explanation": "x", "implicit_query": "Good hotels?", "options": ["quiet", "loud"], "conversation": {"query": "Good hotels?", "assistant_options": "1. quiet 2. loud", "user_selection": "I'll take the quiet one.", "assistant_acknowledgment": "Noted."}, "aligned_op": "quiet"}]

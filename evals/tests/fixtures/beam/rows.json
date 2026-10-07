@@ -1,0 +1,19 @@
+[
+  {
+    "conversation_id": "c1",
+    "conversation_seed": {"category": "Coding"},
+    "chat": [
+      [
+        {"id": 0, "index": "1,1", "role": "user", "content": "My sprint ends on May 3.", "question_type": "main_question", "time_anchor": "April-1-2024"},
+        {"id": 1, "index": "1,1", "role": "assistant", "content": "Noted, sprint ends May 3.", "question_type": null, "time_anchor": null},
+        {"id": 2, "index": "1,2", "role": "user", "content": "The API averages 400ms.", "question_type": "main_question", "time_anchor": null}
+      ],
+      [
+        {"id": 3, "index": "2,1", "role": "user", "content": "I have never used Flask routes.", "question_type": "main_question", "time_anchor": "May-10-2024"},
+        {"id": 4, "index": "2,1", "role": "assistant", "content": "Okay.", "question_type": null, "time_anchor": null},
+        {"id": 5, "index": "2,2", "role": "user", "content": "After caching the API averages 250ms. I wrote a Flask route today.", "question_type": "main_question", "time_anchor": null}
+      ]
+    ],
+    "probing_questions": "{'abstention': [{'question': 'What did my manager say?', 'ideal_response': 'No information.', 'abstention_type': 'missing_detail', 'rubric': ['no info']}], 'information_extraction': [{'question': 'When does my sprint end?', 'answer': 'May 3', 'question_type': 'context_date', 'source_chat_ids': [0], 'rubric': ['May 3']}], 'knowledge_update': [{'question': 'Average API response time?', 'answer': '250ms', 'update_type': 'perf', 'source_chat_ids': {'original_info': [2], 'updated_info': [5]}, 'rubric': ['250ms']}], 'contradiction_resolution': [{'question': 'Have I used Flask routes?', 'ideal_answer': 'You said both; clarify.', 'contradiction_type': 'never_statement_violation', 'source_chat_ids': {'first_statement': [3], 'second_statement': [5]}, 'rubric': ['clarify']}], 'summarization': [{'question': 'Summarise.', 'ideal_summary': 'Sprint and API.', 'summarization_type': 'overview', 'source_chat_ids': [[0, 2], 99], 'rubric': []}]}"
+  }
+]

@@ -1,0 +1,46 @@
+{
+ "scenario_id": "syn-00",
+ "family": "D-CONC",
+ "domain": "synthetic",
+ "n_agents": 3,
+ "n_rounds": 4,
+ "agents": [
+  "a0",
+  "a1",
+  "a2"
+ ],
+ "feeds": [
+  {
+   "source_id": "syn-00-auth",
+   "text": "Records confirm the Elmford board appointed Ada Vale.",
+   "source_type": "register_document",
+   "round": 4,
+   "agent": "a1"
+  },
+  {
+   "source_id": "syn-00-srcA",
+   "text": "the Elmford board appointed Ada Vale.",
+   "source_type": "web_text",
+   "round": 2,
+   "agent": "a0"
+  },
+  {
+   "source_id": "syn-00-srcB",
+   "text": "the Elmford board appointed Bo Rune.",
+   "source_type": "web_text",
+   "round": 2,
+   "agent": "a1"
+  },
+  {
+   "source_id": "syn-00-copy",
+   "text": "the Elmford board appointed Bo Rune.",
+   "source_type": "web_text",
+   "round": 3,
+   "agent": "a2"
+  }
+ ],
+ "world_update_rounds": [],
+ "task_queries": {
+  "a2": "SYNTHETIC: summarise the current facts on this topic."
+ }
+}

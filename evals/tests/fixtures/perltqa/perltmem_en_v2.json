@@ -1,0 +1,39 @@
+{
+ "Ava Li": {
+  "profile": {
+   "Protagonist": "Ava Li",
+   "Age": 30
+  },
+  "profile_description": "Ava.",
+  "social_relationship": {
+   "1_0": {
+    "Supporting Characters": "Bo Li",
+    "Description": "Ava's brother, a chef.",
+    "Relationship": "brother"
+   }
+  },
+  "events": {
+   "1_0_0": {
+    "content": "Ava ran the city marathon with Bo.",
+    "summary": "marathon",
+    "Characters": [
+     "1_0"
+    ],
+    "Creation Time": "May 1, 2022",
+    "Last Accessed Time": "",
+    "Theme": "sport"
+   }
+  },
+  "dialogues": {
+   "1_0_0#0": {
+    "events": "1_0_0",
+    "contents": {
+     "2022-05-01 10:00": [
+      "Ava Li: I finished!",
+      "Bo Li: Well done."
+     ]
+    }
+   }
+  }
+ }
+}

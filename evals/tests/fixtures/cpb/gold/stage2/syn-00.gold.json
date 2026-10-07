@@ -1,0 +1,11 @@
+{
+ "scenario_id": "syn-00",
+ "false_texts": [
+  "the Elmford board appointed Bo Rune."
+ ],
+ "true_texts": [
+  "the Elmford board appointed Ada Vale."
+ ],
+ "swap_of": null,
+ "notes": "synthetic"
+}

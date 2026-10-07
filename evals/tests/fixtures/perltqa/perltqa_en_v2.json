@@ -1,0 +1,79 @@
+[
+ {
+  "Ava Li": {
+   "profile": [
+    {
+     "Question": "How old is Ava Li?",
+     "Answer": "30.",
+     "Reference Memory": "Age",
+     "Memory Anchors": [
+      {
+       "30": [
+        -1,
+        -1
+       ]
+      }
+     ]
+    }
+   ],
+   "social_relationship": [
+    {
+     "1_0": [
+      {
+       "Question": "Who is Ava's brother?",
+       "Answer": "Bo Li.",
+       "Reference Memory": "['1_0']",
+       "Memory Anchors": []
+      }
+     ]
+    }
+   ],
+   "events": [
+    {
+     "1_0_0": [
+      {
+       "Question": "What race did Ava run?",
+       "Answer": "The city marathon.",
+       "Reference Memory": "['1_0_0']",
+       "Memory Anchors": []
+      }
+     ]
+    },
+    {
+     "9_9_9": [
+      {
+       "Question": "Missing?",
+       "Answer": "?",
+       "Reference Memory": "['9_9_9']",
+       "Memory Anchors": []
+      }
+     ]
+    }
+   ],
+   "dialogues": [
+    {
+     "1_0_0#0": [
+      {
+       "Question": "What did Bo say?",
+       "Answer": "Well done.",
+       "Reference Memory": "['1_0_0#0']",
+       "Memory Anchors": []
+      }
+     ]
+    }
+   ]
+  }
+ },
+ {
+  "Ghost": {
+   "profile": [
+    {
+     "Question": "?",
+     "Answer": "?",
+     "Reference Memory": "Age",
+     "Memory Anchors": []
+    }
+   ]
+  }
+ }
+]

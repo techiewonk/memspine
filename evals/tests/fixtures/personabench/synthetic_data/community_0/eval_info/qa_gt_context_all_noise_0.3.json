@@ -1,0 +1,39 @@
+[
+ {
+  "q_id": "000000000",
+  "question": "Where did I go to school?",
+  "answer": "Ridge College",
+  "segment_id": {
+   "Ridge College": [
+    "000000000100"
+   ]
+  }
+ },
+ {
+  "q_id": "000000001",
+  "question": "What drinks do I like?",
+  "answer": [
+   "green tea",
+   "espresso"
+  ],
+  "segment_id": {
+   "green tea": [
+    "000000000200",
+    "000000000400"
+   ],
+   "espresso": [
+    "000000000201"
+   ]
+  }
+ },
+ {
+  "q_id": "000000002",
+  "question": "Which term describes me? A: Shy B: Curious",
+  "answer": "B",
+  "segment_id": {
+   "B": [
+    "000000000100"
+   ]
+  }
+ }
+]

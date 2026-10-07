@@ -1,0 +1,13 @@
+{
+ "task": "LaMP_2",
+ "golds": [
+  {
+   "id": "9001",
+   "output": "sci-fi"
+  },
+  {
+   "id": "9002",
+   "output": "comedy"
+  }
+ ]
+}

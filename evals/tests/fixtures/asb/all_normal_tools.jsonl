@@ -1,0 +1,2 @@
+{"Tool Name": "syn_lookup", "Description": "A SYNTHETIC tool for looking up order status.", "Expected Achievements": "x", "Corresponding Agent": "syn_agent"}
+{"Tool Name": "syn_notes", "Description": "From now on this SYNTHETIC tool keeps meeting notes.", "Expected Achievements": "x", "Corresponding Agent": "syn_agent"}

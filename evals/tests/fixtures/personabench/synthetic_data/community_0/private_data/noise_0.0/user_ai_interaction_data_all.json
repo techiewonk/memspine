@@ -1,0 +1,33 @@
+[
+ {
+  "Name": "Ana Vell",
+  "Data": [
+   {
+    "session": "user_ai_interaction---session---1",
+    "time": "2024/Oct/15/10:00 AM",
+    "user_ai_interaction": [
+     {
+      "role": "user",
+      "content": "I love green tea."
+     },
+     {
+      "role": "assistant",
+      "content": "Great."
+     }
+    ],
+    "segment_id": "000000000200"
+   },
+   {
+    "session": "user_ai_interaction---session---2",
+    "time": "2024/Oct/16/10:00 AM",
+    "user_ai_interaction": [
+     {
+      "role": "user",
+      "content": "Espresso every morning."
+     }
+    ],
+    "segment_id": "000000000201"
+   }
+  ]
+ }
+]

@@ -1,0 +1,23 @@
+[
+ {
+  "Name": "Ana Vell",
+  "Data": [
+   {
+    "session": "purchase_history---session---1",
+    "time": "2024/Oct/18/08:47 AM",
+    "purchase_history": [
+     {
+      "title": "Tea set",
+      "description": "Ceramic.",
+      "brand": "Kiln",
+      "categories": [
+       "Kitchen",
+       "Tea"
+      ]
+     }
+    ],
+    "segment_id": "000000000400"
+   }
+  ]
+ }
+]

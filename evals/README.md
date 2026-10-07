@@ -145,6 +145,65 @@ Scoring, as each benchmark defines it:
 `memspine_evals.datasets.registry` lists every dataset with its source, licence and status;
 `registry.load("statemembench", ...)` raises `DatasetUnavailable`.
 
+## Retrieval-only (free) adapters — plan v3.2 M3-t2
+
+Every adapter below runs in `--mode retrieval` with zero model calls: gold evidence lands in
+`Query.gold_turn_ids`, so the runner's coverage / `R@k` / `R_all@k` machinery scores it directly.
+Measures that are not R@k are pure functions in the adapter module, applied to a run's result rows
+(`retrieved_ids`) joined to `Query.meta` by `query_id`. All tests use hand-written synthetic
+fixtures under `tests/fixtures/<name>/`; data-gated tests only parse. BEAM needs the project venv's
+`pyarrow` (the anaconda build cannot read its parquet).
+
+| registry id | class | free measure | licence |
+|---|---|---|---|
+| `memoryagentbench` | `MemoryAgentBenchDataset` | gold-fact R@k + `mab_gold.supersession_order_rate` | MIT |
+| `op_bench` | `OPBenchDataset` | `op_bench.injection_rate`, `context_repetition` (no R@k gold) | none; run only |
+| `perltqa` | `PerLTQADataset` | Reference Memory R@k per memory type | CC BY-NC |
+| `prefeval` | `PrefEvalDataset` | preference-turn R@k under seeded filler | CC BY-NC |
+| `beam` | `BEAMDataset` | `source_chat_ids` R@k; `update_order`, `contradiction_pair_recall` | CC BY-SA |
+| `tofu`, `muse_news` | `TOFUDataset`, `MUSENewsDataset` | `erase_and_verify` residual R@k (forget), retain R@k, `membership_auroc` | MIT / CC BY |
+| `personabench` | `PersonaBenchDataset` | `segment_id` R@k per noise level; `official_recall` | CC BY-NC-SA |
+| `lamp2`, `memorycd` | `LaMP2Dataset`, `MemoryCDDataset` | `knn.knn_vote` tag accuracy / `knn.knn_mean` rating MAE | research only |
+| `halumem_proxy` | `HaluMemProxyDataset` | R@k on lexical memory-point → turn proxy gold | CC BY-NC-ND |
+| `cpb_live` | `CPBLiveDataset` | `cpb_retrieval_rates`: true R@k, false-retrieval rate, true-above-false order | MIT |
+| `asb` | `ASBDataset` | `firewall_rates(asb_samples(root), "base"\|"extended")` TPR / FPR | MIT |
+
+Per-set notes:
+
+- **MemoryAgentBench Conflict_Resolution** (`mab_gold`): facts are parsed with the release's
+  relation templates; per (subject, relation) the highest serial is *current*, the rest *stale*.
+  Single-hop gold = the current fact of a question subject whose object matches an alias;
+  multi-hop gold = the shortest chain of current facts (≤ 4 hops). 798/800 questions map
+  (`meta["gold_mapping"]`: `mapped` / `ambiguous` / `inconsistent` / `unmapped`); `inconsistent`
+  (67) marks answers that need a superseded fact — the release is not always self-consistent —
+  and those hops are left out of the order metric. *Supersession order*: a query passes when
+  every current fact whose stale version was retrieved outranks all its stale versions; the rate
+  is over applicable queries and `n_applicable` is reported beside it. `map_gold=False` restores
+  the gold-free behaviour.
+- **OP-Bench**: LoCoMo history (same turn ids); irrelevance probes carry
+  `meta["persona_turn_ids"]`. A system that always returns top-k scores 1.0 injection, so the
+  rate separates only systems with a floor or gate. Sycophancy probes carry `false_premise`.
+- **PerLTQA**: one memory record per turn; en_v2: 31 characters, 8,316 queries (11 unmapped).
+- **PrefEval**: explicit and choice forms have exact gold; persona-form gold is heuristic (filter
+  on `meta["gold_method"]`; 166 of 1,000 left empty). Only 24 local filler conversations exist.
+- **BEAM**: only the 100K split is local; QA needs the rubric judge (not run).
+- **TOFU / MUSE-News**: one item holds the corpus; queries carry `meta["probe_set"]`. After
+  deposit, `erase_and_verify(engine, item, deposits)` hard-forgets the forget set and calls
+  `Engine.verify_forget(probe=...)`; re-querying gives forget-set residual R@k (target 0) and
+  retain R@k (collateral). MUSE knowmem is not adapted.
+- **PersonaBench**: 263 measurable QA per noise level (only 3 people per community have private
+  data); Subjective is flagged `official_excluded`.
+- **LaMP-2 / MemoryCD**: no retrieval gold in the releases; `gold_turn_ids` are label-consistent
+  proxies (same tag / same-domain same rating). MemoryCD queries use the review title, which leaks
+  sentiment.
+- **HaluMem proxy**: evidence memory points mapped to turns by token overlap ≥ 0.5; report the
+  mapped share (407/496 on two users) beside any R@k.
+- **CPB Live**: 160 scenarios locally (card says 180); stage-1 echo scripts are not replayed.
+- **ASB**: the five injection templates are rebuilt from the benchmark card — check them against
+  commit `544540f` before publishing. On the real data the base detector gives pooled TPR 0.286,
+  the extended one 0.714, both at FPR 0 on 71 negatives; raw attack instructions and tool
+  descriptions score 0/400 for both.
+
 ## Pre-registered sweeps
 
 `evals/prereg/` holds pre-registrations, committed before their run. G8a
@@ -180,8 +239,9 @@ dense or hybrid RRF), and a `memspine` adapter that drives the public facade onl
 in, `assemble` out). Peer systems — Mem0, A-MEM, Zep, MAGMA, MemOS, T-Mem, SaliMory — are not
 written yet.
 
-**Datasets (A4-5, first half):** LoCoMo and LongMemEval S/M/oracle. Tier 2 and tier 3 are not
-written yet.
+**Datasets (A4-5):** LoCoMo, LongMemEval S/M/oracle, LoCoMo-Plus, ConvoMem, HaluMem,
+MemoryAgentBench CR, and the retrieval-only tier-2 set above (plan v3.2 M3-t2). Not yet adapted:
+PersonaMem v1, MAB AR/TTL/LRU, MemBench, GroupMemBench, MemoryArena, LME-V2.
 
 **Not started:** A4-10 (firewall ablation, MINJA / AgentPoison / MemoryGraft), A4-11 (E1–E9 single
 toggles), A4-12 (go/no-go).

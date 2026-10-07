@@ -1,0 +1,45 @@
+[
+ {
+  "id": "9001",
+  "input": "Which tag does this movie relate to among the following tags? Just answer with the tag name without further explanation. tags: [comedy, sci-fi, classic] description: SYNTHETIC. A robot crew drifts past a dying star.",
+  "profile": [
+   {
+    "tag": "sci-fi",
+    "description": "SYNTHETIC. Astronauts find a signal near a distant star.",
+    "id": "90010"
+   },
+   {
+    "tag": "comedy",
+    "description": "SYNTHETIC. Two cousins open a disastrous bakery.",
+    "id": "90011"
+   },
+   {
+    "tag": "sci-fi",
+    "description": "SYNTHETIC. A robot learns to paint on a space station.",
+    "id": "90012"
+   }
+  ]
+ },
+ {
+  "id": "9002",
+  "input": "SYNTHETIC. A clumsy waiter wins a dance contest.",
+  "profile": [
+   {
+    "tag": "classic",
+    "description": "SYNTHETIC. A silent film about a lighthouse keeper.",
+    "id": "90020"
+   }
+  ]
+ },
+ {
+  "id": "9003",
+  "input": "Which tag does this movie relate to among the following tags? Just answer with the tag name without further explanation. tags: [comedy, sci-fi, classic] description: SYNTHETIC. Orphaned, no gold.",
+  "profile": [
+   {
+    "tag": "comedy",
+    "description": "x",
+    "id": "90030"
+   }
+  ]
+ }
+]
