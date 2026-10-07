@@ -62,3 +62,31 @@ async def test_write_messages_keeps_an_image_caption() -> None:
         assert turn.content == "Look at this! [image: a dog on a beach]"
     finally:
         await eng.stop()
+
+
+async def test_rating_profile_aggregates_by_domain() -> None:
+    """G12 (plan v3.2): mean / std / count of logged ratings per domain."""
+    eng = Engine(
+        template="core",
+        dotenv_path=None,
+        storage={"path": ":memory:"},
+        embedding={"provider": "hash"},
+        memories={"episodic": {"enabled": True}},
+    )
+    await eng.start()
+    try:
+        for i, (rating, domain) in enumerate([(5, "books"), (3, "books"), (2, "films")]):
+            await eng.write(
+                f"logged item {i}",
+                namespace="a",
+                memory_type="episodic",
+                tags=[f"rating:{rating}", f"domain:{domain}"],
+            )
+        await eng.write("plain chat", namespace="a", memory_type="episodic")
+        profile = await eng.rating_profile("a")
+    finally:
+        await eng.stop()
+    assert profile == {
+        "books": {"mean": 4.0, "std": 1.0, "n": 2.0},
+        "films": {"mean": 2.0, "std": 0.0, "n": 1.0},
+    }

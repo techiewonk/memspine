@@ -5869,6 +5869,34 @@ class Engine:
             history[fact.record_id] = [r.content for r in past[:3]]
         return vet_sentences(draft_sentences(draft), current, history)
 
+    async def rating_profile(self, namespace: str = "default") -> dict[str, dict[str, float]]:
+        """G12 (plan v3.2, LaMP / MemoryCD): the user's behaviour profile from logged
+        records tagged ``rating:<number>`` (and ``domain:<name>``; untagged -> ``all``):
+        per domain the mean, the standard deviation and the count of ratings. A
+        recommender reads the mean as the user's level and the deviation as how
+        selective they are. Read-only, no model."""
+        ns = validate_namespace(namespace)
+        values: dict[str, list[float]] = {}
+        for record in await self._require_started().list_records(ns):
+            if record.status is not RecordStatus.ACTIVATED or record.quarantined:
+                continue
+            ratings = [t.split(":", 1)[1] for t in record.tags if t.startswith("rating:")]
+            if not ratings:
+                continue
+            try:
+                rating = float(ratings[0])
+            except ValueError:
+                continue
+            domains = [t.split(":", 1)[1] for t in record.tags if t.startswith("domain:")]
+            for domain in domains or ["all"]:
+                values.setdefault(domain, []).append(rating)
+        out: dict[str, dict[str, float]] = {}
+        for domain, xs in sorted(values.items()):
+            mean = sum(xs) / len(xs)
+            std = (sum((x - mean) ** 2 for x in xs) / len(xs)) ** 0.5
+            out[domain] = {"mean": round(mean, 4), "std": round(std, 4), "n": float(len(xs))}
+        return out
+
     async def session_memories(
         self, namespace: str = "default", session_record_ids: Sequence[str] = ()
     ) -> list[MemoryRecord]:
