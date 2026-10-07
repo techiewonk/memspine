@@ -126,6 +126,7 @@
       "resolve_relative_dates": false,
       "rrf_k": null,
       "scoring": {},
+      "session_cap": null,
       "skip_rerank_for_ordering": false,
       "standing_instructions": false,
       "standing_min_trust": 0.7,

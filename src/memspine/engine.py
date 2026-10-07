@@ -3434,6 +3434,18 @@ class Engine:
                         probes=probes,
                         fused_legs=legs,
                     )
+            cap = self._config().read.session_cap
+            if cap is not None:
+                scored = await self._session_capped(
+                    query,
+                    ns,
+                    len(scored),
+                    cap,
+                    session_id=session_id,
+                    hide=hide,
+                    probes=probes,
+                    legs=legs,
+                )
         integrity = self._integrity()
         if integrity.enabled and integrity.trust_weighted_ranking and scored:
             # Scores are composite x view trust. Abstention (theta_abstain) judges
@@ -4531,6 +4543,53 @@ class Engine:
     @staticmethod
     def _headers_cost(headers: list[MemoryRecord]) -> int:
         return sum(estimate_tokens(h.content) for h in headers)
+
+    async def _session_capped(
+        self,
+        query: str,
+        ns: str,
+        want: int,
+        cap: int,
+        *,
+        session_id: str | None,
+        hide: Callable[[MemoryRecord], bool] | None,
+        probes: Sequence[str],
+        legs: Sequence[list[LegHit]],
+    ) -> list[tuple[MemoryRecord, float]]:
+        """W10 (plan v3.2, ``read.session_cap``): ``want`` candidates, best first, with
+        at most ``cap`` raw turns from any one session, drawn from a pool
+        :data:`constants.SESSION_CAP_POOL` times wider. Evidence spread over sessions
+        ("what activities has X done?") then reaches the read instead of the few
+        best-matching turns of one or two sessions. Sessions are the episodic
+        timeline's (gap-split); without episodic memory, the calendar day. Derived
+        records are never capped."""
+        pool = await self._search(
+            query,
+            ns,
+            want * constants.SESSION_CAP_POOL,
+            session_id=session_id,
+            keep_k=want,
+            hide=hide,
+            probes=probes,
+            fused_legs=legs,
+        )
+        session_of: dict[str, str] = {}
+        if self._episodic is not None:
+            for session in await self._episodic.sessions(ns, constants.SESSION_GAP_MINUTES):
+                for rid in session.record_ids:
+                    session_of[rid] = session.session_key
+        kept: list[tuple[MemoryRecord, float]] = []
+        per: dict[str, int] = {}
+        for record, score in pool:
+            if record.memory_type == "episodic":
+                key = session_of.get(record.record_id) or f"{record.valid_from:%Y-%m-%d}"
+                if per.get(key, 0) >= cap:
+                    continue
+                per[key] = per.get(key, 0) + 1
+            kept.append((record, score))
+            if len(kept) >= want:
+                break
+        return kept
 
     async def _raw_evidence_strong(
         self, ns: str, query: str, top_k: int, session_id: str | None

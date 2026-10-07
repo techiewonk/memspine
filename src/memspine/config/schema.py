@@ -605,6 +605,11 @@ class ReadConfig(BaseModel):
     #: cuts marked "…" (``core/excerpt.py``). Never for a verbatim question. The stored
     #: record is unchanged. Off: whole records.
     focused_excerpt: bool = False
+    #: W10 (plan v3.2, Mnemon ``fillPerGroup``): at most this many raw-turn hits from any
+    #: one session (episodic gap-split sessions, else the calendar day), drawn from a
+    #: 4x wider search, so evidence spread over many sessions reaches the read. In
+    #: replay each hit brings its window. None: unchanged (no cap).
+    session_cap: int | None = Field(default=None, ge=1)
 
     @model_validator(mode="after")
     def _header_shares_leave_room(self) -> ReadConfig:

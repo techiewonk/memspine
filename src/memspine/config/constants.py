@@ -535,6 +535,10 @@ QUERY_HISTORY_SIZE = 64
 QUERY_ANOMALY_BASELINE_SIZE = 256
 QUERY_ANOMALY_MIN_BASELINE = 20
 
+#: W10 (``read.session_cap``, Mnemon ``fillPerGroup``): the capped read draws its
+#: candidates from a search this many times wider than it keeps.
+SESSION_CAP_POOL = 4
+
 #: #50 remote-LLM gate: the per-note prefix the relevance filter sends (also withheld
 #: on its own), and the shortest record text the gate matches (shorter texts would
 #: blank unrelated words of a prompt).
