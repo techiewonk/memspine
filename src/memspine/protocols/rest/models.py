@@ -100,6 +100,7 @@ class AssembleRequest(_Request):
     budget_tokens: int = Field(default=constants.ASSEMBLE_BUDGET_TOKENS, ge=1)
     top_k: int = Field(default=constants.ASSEMBLE_TOP_K, ge=1)
     purpose: str | None = None  # #50
+    as_of: datetime | None = None  # W7 (plan v3.2): read memory as it stood then
 
 
 class FeedbackRequest(_Request):

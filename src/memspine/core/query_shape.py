@@ -18,6 +18,7 @@ __all__ = [
     "is_count",
     "is_inference",
     "is_ordering",
+    "is_personal",
     "is_temporal",
     "is_verbatim",
     "rule_read_mode",
@@ -239,3 +240,20 @@ def feedback_terms(query: str, texts: list[str], k: int = 5, min_docs: int = 2) 
                 counts[word] = counts.get(word, 0) + 1
     shared = sorted((w for w, n in counts.items() if n >= min_docs), key=lambda w: (-counts[w], w))
     return " ".join(shared[:k])
+
+
+#: W9 (plan v3.2): a question about the user, the conversation partner or a choice they
+#: face ("what should I cook", "recommend a book for me", "my", "you").
+_PERSONAL = re.compile(
+    r"\b(?:i|i'm|i've|i'd|i'll|me|my|mine|myself|we|us|our|ours|you|your|yours)\b"
+    r"|\b(?:recommend|suggest|should|advice|advise|plan|help|choose|pick|prefer|favou?rite|"
+    r"for tonight|for dinner|for the weekend)\b",
+    re.IGNORECASE,
+)
+
+
+def is_personal(query: str) -> bool:
+    """W9: True when the question is about the asker or a choice they face. A
+    general-knowledge question ("What is the capital of France?") is not, and gets no
+    profile or preference block under ``read.profile_scope_gate``."""
+    return bool(_PERSONAL.search(query))

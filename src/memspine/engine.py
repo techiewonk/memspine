@@ -111,6 +111,7 @@ from memspine.core.query_shape import (
     is_aggregation,
     is_count,
     is_ordering,
+    is_personal,
     is_temporal,
     is_verbatim,
     rule_read_mode,
@@ -118,10 +119,13 @@ from memspine.core.query_shape import (
 from memspine.core.read_filters import (
     DateBound,
     DateFilter,
+    active_as_of,
     active_date_filter,
+    as_of_scope,
     date_filter_scope,
     person_time_leg,
     time_expr_span,
+    to_utc,
 )
 from memspine.core.records import (
     ArchivedVersion,
@@ -633,6 +637,18 @@ def _excerpted(record: MemoryRecord, query: str) -> MemoryRecord:
     """N13: ``record`` with a query-anchored excerpt as its shown content."""
     text = focused_excerpt(record.content, query)
     return record if text == record.content else record.model_copy(update={"content": text})
+
+
+def _current_at(record: MemoryRecord, as_of: datetime | None) -> bool:
+    """W7: ``record`` is a superseded (ARCHIVED) fact that was the current one at
+    ``as_of``: begun by then, ended after it, not a retraction, never quarantined."""
+    if as_of is None or record.status is not RecordStatus.ARCHIVED or record.quarantined:
+        return False
+    if record.valid_to is None or "retract" in record.tags:
+        return False
+    start = record.valid_from if record.valid_from.tzinfo else record.valid_from.replace(tzinfo=UTC)
+    end = record.valid_to if record.valid_to.tzinfo else record.valid_to.replace(tzinfo=UTC)
+    return start <= as_of < end
 
 
 def _shares_key(records: Sequence[MemoryRecord]) -> bool:
@@ -1667,7 +1683,9 @@ class Engine:
                         fetch_k,
                         event_dates=read.temporal_leg_event_dates,
                         # F2: relative phrases in the question, against the read time.
-                        anchor=self._clock() if read.temporal_relative else None,
+                        anchor=(active_as_of() or self._clock())
+                        if read.temporal_relative or active_as_of() is not None
+                        else None,
                         week=read.relative_week,
                     )
                 )
@@ -3060,10 +3078,15 @@ class Engine:
         candidates: list[tuple[MemoryRecord, float]] = []
         for record_id, relevance in ranked:
             record = await storage.get_record(record_id)
-            if record is None or record.status is not RecordStatus.ACTIVATED:
+            if record is None or (
+                record.status is not RecordStatus.ACTIVATED
+                and not _current_at(record, active_as_of())
+            ):
                 # Only live facts reach a context window: DELETED/QUARANTINED are
                 # excluded (E1), and ARCHIVED/superseded history never surfaces as
                 # current truth — a promoted-then-superseded record cannot re-enter.
+                # W7: under an as-of read, a fact superseded AFTER that time was
+                # the current one then, and is admitted.
                 continue
             if record.quarantined:
                 continue  # defense in depth: quarantined never reaches assembly
@@ -3365,6 +3388,8 @@ class Engine:
         session_id: str | None = None,
         purpose: str | None = None,
         include_passive: bool = False,
+        *,
+        as_of: DateBound | None = None,
     ) -> AssembledContext:
         """Retrieval + M12/E2 assembly: MMR-selected, cache-aware-ordered context.
 
@@ -3378,8 +3403,18 @@ class Engine:
         ``purpose`` (#50): the read's purpose, checked under ``consent.enforce``.
         #53: PASSIVE-session records enter only with ``include_passive=True`` or when
         ``session_id`` names their session (see :meth:`search`).
+
+        ``as_of`` (W7): as in :meth:`read`.
         """
-        with read_scope(purpose) as outer:
+        as_of_filter = None
+        if as_of is not None:
+            moment = to_utc(as_of) + timedelta(microseconds=1)
+            as_of_filter = DateFilter.build(valid_from_before=moment)
+        with (
+            read_scope(purpose) as outer,
+            date_filter_scope(as_of_filter),
+            as_of_scope(as_of),
+        ):
             context = await self._assemble(
                 query, namespace, budget_tokens, top_k, shared=shared, session_id=session_id
             )
@@ -3850,6 +3885,7 @@ class Engine:
         recorded_after: DateBound | None = None,
         recorded_before: DateBound | None = None,
         date_filter_mode: str = "and",
+        as_of: DateBound | None = None,
     ) -> ReadResult:
         """C7': mode-routed read. Rules decide; no model on the read path.
 
@@ -3893,7 +3929,16 @@ class Engine:
         headers' included), the records a ``full`` read lists and the neighbours a
         replay or compose read adds. The pinned persona and the lead section are not
         dated evidence and are not filtered. No bound: unchanged.
+
+        ``as_of`` (W7, plan v3.2): read the world as memory says it stood at that time
+        (valid time): only records begun by then (unless the caller's own
+        ``valid_from_before`` says otherwise), a fact superseded after it counts as the
+        current one, and relative phrases in the question resolve against it. For
+        "what did memory know then" add ``recorded_before``. None: unchanged.
         """
+        if as_of is not None:
+            moment = to_utc(as_of) + timedelta(microseconds=1)
+            valid_from_before = valid_from_before if valid_from_before is not None else moment
         date_filter = DateFilter.build(
             valid_from_after=valid_from_after,
             valid_from_before=valid_from_before,
@@ -3903,7 +3948,11 @@ class Engine:
             recorded_before=recorded_before,
             mode=date_filter_mode,
         )
-        with read_scope(purpose) as outer, date_filter_scope(date_filter):
+        with (
+            read_scope(purpose) as outer,
+            date_filter_scope(date_filter),
+            as_of_scope(as_of),
+        ):
             result = await self._read(
                 query,
                 namespace,
@@ -4313,6 +4362,11 @@ class Engine:
         )
         return "\n".join([constants.CARDS_MARKER, *lines])
 
+    def _applies_to_person(self, query: str) -> bool:
+        """W9 (``read.profile_scope_gate``): the question is about the asker, a choice
+        they face, or a named person; not general knowledge."""
+        return is_personal(query) or bool(query_names(query))
+
     async def _profile_section(
         self, ns: str, query: str, budget_tokens: int, session_id: str | None = None
     ) -> MemoryRecord | None:
@@ -4331,6 +4385,8 @@ class Engine:
         read_cfg = self._config().read
         if read_cfg.profile_skip_temporal and is_temporal(query):
             return None  # D1 (ADR-055): no profile header, plain or packed, on date questions
+        if read_cfg.profile_scope_gate and not self._applies_to_person(query):
+            return None  # W9: a general-knowledge question gets no profile
         if read_cfg.profile_header_packing:
             return await self._packed_profile_section(ns, query, budget_tokens, session_id)
         if not read_cfg.profile_header:

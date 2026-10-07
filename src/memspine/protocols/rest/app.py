@@ -354,6 +354,7 @@ def build_app(engine: Engine, rest: RestConfig | None = None) -> FastAPI:
             budget_tokens=body.budget_tokens,
             top_k=body.top_k,
             purpose=body.purpose,
+            as_of=body.as_of,
         )
         return AssembleResponse(
             records=context.records,

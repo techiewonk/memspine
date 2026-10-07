@@ -38,7 +38,9 @@ __all__ = [
     "PERSON_TAG_PREFIX",
     "DateBound",
     "DateFilter",
+    "active_as_of",
     "active_date_filter",
+    "as_of_scope",
     "date_filter_scope",
     "person_matches",
     "person_time_leg",
@@ -237,3 +239,29 @@ def person_time_leg(
         ranked.append((key, record.record_id))
     ranked.sort(key=lambda pair: pair[0])
     return [LegHit(record_id, 1.0) for _, record_id in ranked[:top_k]]
+
+
+_AS_OF: ContextVar[datetime | None] = ContextVar("memspine_as_of", default=None)
+
+
+def active_as_of() -> datetime | None:
+    """W7 (plan v3.2): the as-of time of the ``read()`` / ``assemble()`` in progress."""
+    return _AS_OF.get()
+
+
+@contextmanager
+def as_of_scope(as_of: DateBound | None) -> Iterator[None]:
+    """W7: make ``as_of`` the read's point in time while the block runs (None: no-op).
+
+    Under an as-of read the search admits a superseded (ARCHIVED) fact whose validity
+    still covered ``as_of``, relative phrases resolve against ``as_of``, and the
+    read's date filter gets ``valid_from_before`` = ``as_of`` (valid time: what had
+    begun by then; a known-at read adds ``recorded_before`` itself)."""
+    if as_of is None:
+        yield
+        return
+    token = _AS_OF.set(to_utc(as_of))
+    try:
+        yield
+    finally:
+        _AS_OF.reset(token)
