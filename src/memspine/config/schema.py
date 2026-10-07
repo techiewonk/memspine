@@ -649,6 +649,28 @@ class CacheConfig(BaseModel):
     max_entries: int = constants.MEMORY_KV_MAX_ENTRIES  # memory backend cap
 
 
+class FirewallSignalsConfig(BaseModel):
+    """W2 / N20 / N22 (plan v3.2): which write signals the firewall runs.
+
+    The defaults reproduce the firewall before W2. ``instruction_extended`` widens the
+    instruction patterns (ASB / MEM-INV framings); ``semantic_risk`` flags content that
+    claims its own authority or binds a future answer (MAPLE-Guard); ``query_anomaly``
+    flags a write that sits unusually close to recently asked queries (MemSAD; z-score
+    above ``query_anomaly_kappa``). Turning ``instruction``, ``anomaly`` or
+    ``minja_bridge`` off is an ablation arm, never a production setting.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    instruction: bool = True
+    anomaly: bool = True
+    minja_bridge: bool = True
+    instruction_extended: bool = False
+    semantic_risk: bool = False
+    query_anomaly: bool = False
+    query_anomaly_kappa: float = Field(default=3.0, gt=0.0)
+
+
 class FirewallConfig(BaseModel):
     """Memory Firewall switches (E1 + B8). Defaults reproduce the pre-B8 firewall.
 
@@ -683,6 +705,8 @@ class FirewallConfig(BaseModel):
     skip_injected_recall: bool = False
     #: H21: tag assistant turns ``assistant_claim``: a proposal, not an observed fact.
     tag_assistant_claims: bool = False
+    #: W2 / N20 / N22 (plan v3.2): per-signal switches (see FirewallSignalsConfig).
+    signals: FirewallSignalsConfig = Field(default_factory=FirewallSignalsConfig)
 
 
 class IntegrityConfig(BaseModel):

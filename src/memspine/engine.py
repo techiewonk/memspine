@@ -49,7 +49,7 @@ from memspine.core.event_date import SAID_PREFIX, date_anchor, happened_of, happ
 from memspine.core.events import EventKind, EventLogMode, MemoryEvent, fingerprint_payload
 from memspine.core.evidence import evidence_signal
 from memspine.core.fact_views import view_tags
-from memspine.core.firewall import Firewall, FirewallVerdict
+from memspine.core.firewall import Firewall, FirewallSignals, FirewallVerdict, QueryHistory
 from memspine.core.integrity import IntegrityPolicy
 from memspine.core.lead import (
     card_line,
@@ -726,6 +726,7 @@ class Engine:
         self._ephemeral_watch_warned = False
         self._inflate: CompressionPolicy = CompressionPolicy.bind()
         self._firewall: Firewall = Firewall()
+        self._query_history = QueryHistory()
         self._summarize: Summarize | None = None
         #: #61: the read-time query encoder (``read.query_encoder``), built on first use.
         self._query_encoder: QueryEncoder | None = None
@@ -895,7 +896,10 @@ class Engine:
         # Memory Firewall (E1/M17): trust matrix binds from the semantic
         # policy block (D-14 channel); the gate itself covers every type.
         self._firewall = Firewall(
-            TrustPolicy.bind(_as_options_dict(self._memory_policy(config, "semantic").get("trust")))
+            TrustPolicy.bind(
+                _as_options_dict(self._memory_policy(config, "semantic").get("trust"))
+            ),
+            FirewallSignals(**config.firewall.signals.model_dump()),
         )
         if "episodic" in self._enabled:
             self._episodic = EpisodicMemory(self._storage)
@@ -3058,6 +3062,8 @@ class Engine:
             raise ValueError(f"top_k must be >= 1, got {top_k}")
         ns = validate_namespace(namespace)
         [query_vector] = await embed_queries(self._embedder, [query])
+        if self._firewall.signals.query_anomaly:
+            self._query_history.observe(ns, query_vector)  # N22
         use_hybrid = self._config().read.hybrid and self._lexical is not None
         probe_texts = list(
             dict.fromkeys(
@@ -6334,8 +6340,14 @@ class Engine:
         """
         storage = self._require_started()
         neighbour_sims: list[float] | None = None
+        query_z: float | None = None
         if self._embedder is not None and self._vector is not None:
             [vector] = await self._embedder.embed([record.content])
+            signals = self._firewall.signals
+            if signals.query_anomaly:  # N22
+                query_z = self._query_history.assess(
+                    record.namespace, vector, signals.query_anomaly_kappa
+                )
             wanted = constants.ANOMALY_MIN_NEIGHBOURS
             batch = _NEIGHBOUR_BATCH.get()
             if not (
@@ -6366,7 +6378,10 @@ class Engine:
         if replaced:
             recent_contents = [c for c in recent_contents if c not in replaced]
         return self._firewall.assess(
-            record, neighbour_similarities=neighbour_sims, recent_contents=recent_contents
+            record,
+            neighbour_similarities=neighbour_sims,
+            recent_contents=recent_contents,
+            query_anomaly=query_z,
         )
 
     async def _gated_assess(self, record: MemoryRecord) -> MemoryRecord:

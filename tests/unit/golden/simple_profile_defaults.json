@@ -20,6 +20,15 @@
       "pii": "off",
       "protected_keys": [],
       "redact_secrets": false,
+      "signals": {
+        "anomaly": true,
+        "instruction": true,
+        "instruction_extended": false,
+        "minja_bridge": true,
+        "query_anomaly": false,
+        "query_anomaly_kappa": 3.0,
+        "semantic_risk": false
+      },
       "skip_injected_recall": false,
       "skip_message_roles": [],
       "tag_assistant_claims": false

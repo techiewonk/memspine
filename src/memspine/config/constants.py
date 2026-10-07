@@ -528,6 +528,13 @@ HEADER_HIDE_OVERFETCH = 64
 #: 2026-10-07: 2.5 derived records cost 6.3 raw turns per question in replay).
 RAW_TURN_FLOOR_MAX_WIDEN = 3
 
+#: N22 (``firewall.signals.query_anomaly``, MemSAD): recent query vectors kept per
+#: namespace, recent write scores kept as the baseline, and the baseline size before
+#: any write can be flagged.
+QUERY_HISTORY_SIZE = 64
+QUERY_ANOMALY_BASELINE_SIZE = 256
+QUERY_ANOMALY_MIN_BASELINE = 20
+
 #: #50 remote-LLM gate: the per-note prefix the relevance filter sends (also withheld
 #: on its own), and the shortest record text the gate matches (shorter texts would
 #: blank unrelated words of a prompt).
