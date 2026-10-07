@@ -69,6 +69,10 @@ class ConsolidationOptions(PolicyOptions):
     #: G33 (plan v3.2): a mined ``plans`` fact whose source turn names a future time
     #: becomes a prospective watch due then (needs ``memories.prospective.enabled``).
     auto_watch: bool = False
+    #: E1 (plan v3.2, F7): with the LLM miner, mine at temperature 0 and cache each
+    #: reply by (model, prompt version, variant, transcript) in the engine KV cache, so
+    #: the same history always yields the same facts. Off: unchanged.
+    mining_cache: bool = False
     #: H15: mine each topic segment of a session in its own call (lexical-cohesion
     #: boundaries, no model; ``sessions.topic_segments``), so the miner reads one
     #: topic at a time. A mined fact's parents are its segment's turns: the call

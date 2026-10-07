@@ -9024,7 +9024,29 @@ class Engine:
             )
             return list(result.facts)
 
-        return mine
+        if not self._consolidation_option("mining_cache", False) or self._cache is None:
+            return mine
+        # E1 (plan v3.2, F7): deterministic mining. Temperature 0 and one cached reply
+        # per (model, prompt, variant, transcript), so re-ingesting the same history
+        # yields the same facts (LoCoMo L5: two runs of one mining arm differed).
+        options["temperature"] = 0.0
+        role = self._config().llm.roles.get("extract")
+        model = role.model if role is not None else ""
+        version = str(getattr(prompt, "version", "")) + "/" + str(getattr(prompt, "name", ""))
+        cache = self._cache
+
+        async def mine_cached(content: str) -> list[ExtractedFact]:
+            key = "mine:" + fingerprint_payload(
+                {"model": model, "prompt": version, "variant": variant, "content": content}
+            )
+            hit = await cache.get(key)
+            if hit is not None:
+                return ExtractedFacts.model_validate_json(hit).facts
+            facts = await mine(content)
+            await cache.set(key, ExtractedFacts(facts=facts).model_dump_json().encode())
+            return facts
+
+        return mine_cached
 
     def _consolidation_option(self, name: str, default: Any) -> Any:
         """One ``memories.episodic.policies.consolidation`` option as configured."""
