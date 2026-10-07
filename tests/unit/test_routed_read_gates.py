@@ -726,3 +726,14 @@ async def test_personal_question_keeps_the_profile_header() -> None:
     on = await _read_all(LOOKUP, ("replay",), profile_header=True, profile_scope_gate=True)
     off = await _read_all(LOOKUP, ("replay",), profile_header=True)
     assert _view(on["replay"]) == _view(off["replay"])
+
+
+async def test_evidence_line_marks_a_weak_read_only() -> None:
+    """W3 step 2 (plan v3.2): the weak-evidence note."""
+    weak = await _read_all(
+        LOOKUP, ("retrieve",), evidence_signal=True, evidence_line=True, evidence_weak_below=1e9
+    )
+    assert _tagged(weak["retrieve"], constants.WEAK_EVIDENCE_TAG)
+    strong = await _read_all(TEMPORAL, ("retrieve",), evidence_signal=True, evidence_line=True)
+    assert not _tagged(strong["retrieve"], constants.WEAK_EVIDENCE_TAG)
+    assert ReadConfig().evidence_line is False

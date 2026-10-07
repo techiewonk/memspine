@@ -610,6 +610,10 @@ class ReadConfig(BaseModel):
     #: ``weak`` (scores are on the search's own scale). None: only a missing answer
     #: type makes it weak.
     evidence_weak_below: float | None = Field(default=None, ge=0.0)
+    #: W3 step 2 (plan v3.2): with ``evidence_signal``, a weak read opens its volatile
+    #: part with a one-line note that memory holds no clear record answering the
+    #: question (``constants.WEAK_EVIDENCE_LINE``). Off: unchanged.
+    evidence_line: bool = False
     #: F4 (plan v3.2): with ``cards: header``, show the cards header (and let mined
     #: facts into the read) only when a raw-turns-only search gives *weak* evidence
     #: (the W3 signal, with ``evidence_weak_below``); strong raw evidence reads raw turns

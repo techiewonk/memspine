@@ -580,6 +580,12 @@ BULK_READ_MAX_RECORDS = 200
 #: Jaccard with an earlier corroborator of the same record is a copy (CPB rewordings).
 COPY_JACCARD = 0.7
 
+#: W3 step 2 (``read.evidence_line``): the note a weak-evidence read carries.
+WEAK_EVIDENCE_LINE = (
+    "NOTE: memory holds no clear record answering this; the closest records follow."
+)
+WEAK_EVIDENCE_TAG = "weak_evidence_note"
+
 #: #50 remote-LLM gate: the per-note prefix the relevance filter sends (also withheld
 #: on its own), and the shortest record text the gate matches (shorter texts would
 #: blank unrelated words of a prompt).

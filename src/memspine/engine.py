@@ -3744,6 +3744,17 @@ class Engine:
         if standing or timelines:
             assembled = self._place_lead(assembled, standing, timelines)
         assembled.evidence = signal
+        if read_cfg.evidence_line and signal is not None and signal.weak and assembled.records:
+            # W3 step 2 (plan v3.2): say so when the evidence is weak, instead of
+            # letting the reader treat a near miss as an answer.
+            note = self._lead_record(ns, constants.WEAK_EVIDENCE_LINE, assembled.records[:3])
+            note = note.model_copy(
+                update={"tags": [constants.LEAD_TAG, constants.WEAK_EVIDENCE_TAG]}
+            )
+            records = list(assembled.records)
+            records.insert(min(assembled.boundary_index, len(records)), note)
+            assembled.records = records
+            assembled.tokens_used += estimate_tokens(note.content)
         return assembled
 
     @staticmethod

@@ -85,6 +85,7 @@
       "default_mode": "auto",
       "entity_summaries": false,
       "evidence_first": false,
+      "evidence_line": false,
       "evidence_signal": false,
       "evidence_weak_below": null,
       "focused_excerpt": false,
