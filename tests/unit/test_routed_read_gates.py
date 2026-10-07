@@ -622,3 +622,85 @@ async def test_verbatim_raw_only_changes_nothing_for_other_questions() -> None:
     off = await _read_all(LOOKUP, MODES, cards="header", profile_header=True)
     for mode in MODES:
         assert _view(on[mode]) == _view(off[mode]), mode
+
+
+# -- W3 (plan v3.2): the evidence-sufficiency signal ---------------------------------
+
+
+def test_evidence_signal_defaults_off() -> None:
+    assert ReadConfig().evidence_signal is False
+    assert ReadConfig().evidence_weak_below is None
+
+
+async def test_evidence_signal_is_none_when_off() -> None:
+    out = await _read_all(TEMPORAL, ("replay", "retrieve", "compose"))
+    for mode in ("replay", "retrieve", "compose"):
+        assert out[mode].context.evidence is None, mode
+    assert out["assemble"].evidence is None
+
+
+async def test_evidence_signal_reported_in_every_routed_mode_and_assemble() -> None:
+    modes = ("replay", "retrieve", "compose")
+    on = await _read_all(TEMPORAL, modes, evidence_signal=True)
+    off = await _read_all(TEMPORAL, modes)
+    for mode in modes:
+        signal = on[mode].context.evidence
+        assert signal is not None, mode
+        assert signal.answer_type == "date", mode
+        assert signal.candidates > 0, mode
+        assert _view(on[mode]) == _view(off[mode]), mode
+    assert on["assemble"].evidence is not None
+    assert [r.content for r in on["assemble"].records] == [
+        r.content for r in off["assemble"].records
+    ]
+
+
+# -- F4 (plan v3.2): cards only when the raw evidence is weak ------------------------
+
+
+def test_cards_when_weak_defaults_off() -> None:
+    assert ReadConfig().cards_when_weak is False
+
+
+async def test_strong_raw_evidence_reads_raw_turns_only() -> None:
+    # A date question whose top raw turns carry a date: strong, so no cards, no facts.
+    out = await _read_all(TEMPORAL, MODES, cards="header", cards_when_weak=True)
+    for mode in MODES:
+        result = out[mode]
+        assert not _tagged(result, constants.CARDS_TAG), mode
+        assert not _facts(result), mode
+        assert result.context.records, mode
+
+
+async def test_weak_raw_evidence_keeps_the_cards_header() -> None:
+    # Every raw score sits below the threshold: weak, so the header stays as when off.
+    on = await _read_all(
+        AGGREGATE, MODES, cards="header", cards_when_weak=True, evidence_weak_below=1e9
+    )
+    off = await _read_all(AGGREGATE, MODES, cards="header")
+    for mode in MODES:
+        assert _view(on[mode]) == _view(off[mode]), mode
+
+
+# -- T10 (plan v3.2): the best hit's window opens a replay read -----------------------
+
+
+def test_evidence_first_defaults_off() -> None:
+    assert ReadConfig().evidence_first is False
+
+
+async def test_evidence_first_moves_the_best_window_first_and_keeps_the_set() -> None:
+    eng = _engine(evidence_first=True)
+    await eng.start()
+    try:
+        await _seed(eng)
+        hits = await eng.search(LOOKUP, namespace="a", top_k=10)
+        best_turn = next(r for r, _ in hits if r.memory_type == "episodic")
+        on = await eng.read(LOOKUP, namespace="a", mode="replay", top_k=3, budget_tokens=600)
+    finally:
+        await eng.stop()
+    off = (await _read_all(LOOKUP, ("replay",)))["replay"]
+    on_turns = [r.content for r in on.context.records if r.memory_type == "episodic"]
+    off_turns = [r.content for r in off.context.records if r.memory_type == "episodic"]
+    assert sorted(on_turns) == sorted(off_turns)
+    assert best_turn.content in on_turns[:3]

@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from typing import ClassVar
 
 from memspine.config import constants
+from memspine.core.evidence import EvidenceSignal
 from memspine.core.policies.base import BindablePolicy, PolicyOptions
 from memspine.core.policies.compression import CompressionPolicy
 from memspine.core.records import MemoryRecord
@@ -81,6 +82,8 @@ class AssembledContext:
     boundary_index: int = 0
     abstained: bool = False
     tokens_used: int = 0
+    #: W3 (``read.evidence_signal``): how strong the read's evidence is; None when off.
+    evidence: EvidenceSignal | None = None
 
 
 def _is_persona(record: MemoryRecord) -> bool:

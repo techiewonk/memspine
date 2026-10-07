@@ -47,6 +47,7 @@ from memspine.core.erasure import redact_record, retained_fields
 from memspine.core.escaping import escape_markers
 from memspine.core.event_date import SAID_PREFIX, date_anchor, happened_of, happened_tag
 from memspine.core.events import EventKind, EventLogMode, MemoryEvent, fingerprint_payload
+from memspine.core.evidence import evidence_signal
 from memspine.core.fact_views import view_tags
 from memspine.core.firewall import Firewall, FirewallVerdict
 from memspine.core.integrity import IntegrityPolicy
@@ -3309,7 +3310,10 @@ class Engine:
             raise MemspineError("assembly policy not bound — engine not started?")
         budget = self._reply_budget(budget_tokens)
         ns = validate_namespace(namespace)
-        headers = [] if shared else await self._read_headers(ns, query, budget, session_id)
+        strong = False if shared else await self._raw_evidence_strong(ns, query, top_k, session_id)
+        headers = (
+            [] if shared else await self._read_headers(ns, query, budget, session_id, strong=strong)
+        )
         count_share = 0 if shared else self._count_allowance(query, budget)
         headers, count_share = self._cap_lead_blocks(headers, count_share, budget)
         inner = budget - self._headers_cost(headers) - count_share
@@ -3320,7 +3324,7 @@ class Engine:
             top_k,
             shared=shared,
             session_id=session_id,
-            hide=self._header_hide(headers, hide_facts=self._cards_gated(query)),
+            hide=self._header_hide(headers, hide_facts=self._cards_gated(query, strong=strong)),
         )
         rendered = self._render(query, assembled, inner)
         headers = self._count_section(ns, query, rendered, count_share, headers)
@@ -3399,6 +3403,13 @@ class Engine:
             unweighted = best[1] / best[0].trust if best[0].trust > 0 else best[1]
             factor = unweighted / best[1] if best[1] > 0 else 1.0
             scored = [(record, score * factor) for record, score in scored]
+        read_cfg = self._config().read
+        # W3: judged on the search's evidence, before the pinned persona joins.
+        signal = (
+            evidence_signal(query, scored, read_cfg.evidence_weak_below)
+            if read_cfg.evidence_signal
+            else None
+        )
         # Persona is pinned context (E2): always a candidate, never query-gated,
         # but it passes the same status / quarantine / admission gates as any
         # record (a forgotten persona never comes back). It does not count as
@@ -3414,7 +3425,6 @@ class Engine:
                 inflated = self._inflate_all([live], ns)
                 if inflated:
                     scored.append((inflated[0], 1.0))
-        read_cfg = self._config().read
         standing: list[MemoryRecord] = []
         timelines: list[MemoryRecord] = []
         if not shared and (read_cfg.topic_timelines or read_cfg.standing_instructions):
@@ -3430,6 +3440,7 @@ class Engine:
         )
         if standing or timelines:
             assembled = self._place_lead(assembled, standing, timelines)
+        assembled.evidence = signal
         return assembled
 
     @staticmethod
@@ -3793,13 +3804,14 @@ class Engine:
         budget_tokens = self._reply_budget(budget_tokens)
         # G1b/G3b: the read headers take their shares first; the routed read gets the
         # rest and leaves out what they carry, so nothing appears twice.
-        headers = await self._read_headers(ns, query, budget_tokens, session_id)
+        strong = await self._raw_evidence_strong(ns, query, top_k, session_id)
+        headers = await self._read_headers(ns, query, budget_tokens, session_id, strong=strong)
         # E3: a count question keeps room for the occurrences block, built afterwards
         # from what the routed read retrieved.
         count_share = self._count_allowance(query, budget_tokens)
         headers, count_share = self._cap_lead_blocks(headers, count_share, budget_tokens)
         # ADR-055 addendum: a gated question reads raw turns only, in every mode.
-        gated = self._cards_gated(query)
+        gated = self._cards_gated(query, strong=strong)
         result = await self._read_routed(
             query,
             ns,
@@ -3965,7 +3977,8 @@ class Engine:
         chosen: list[MemoryRecord] = [r for r in base.records if r.memory_type != "episodic"]
         seen = {r.record_id for r in chosen}
         used = sum(len(r.content) // 4 + 1 for r in chosen)
-        for hit in episodic_hits:
+        best_window: set[str] = set()
+        for rank, hit in enumerate(episodic_hits):
             session = where.get(hit.record_id)
             ids = segment_of.get(hit.record_id) or (
                 session.record_ids if session else [hit.record_id]
@@ -3987,11 +4000,19 @@ class Engine:
                 chosen.append(turn)
                 seen.add(rid)
                 used += cost
+                if rank == 0:
+                    best_window.add(rid)
         stable = [r for r in chosen if r.memory_type != "episodic"]
         turns = sorted(
             (r for r in chosen if r.memory_type == "episodic"),
             key=chrono_key,
         )
+        if read_cfg.evidence_first and best_window:
+            # T10 (plan v3.2): the best hit's window opens the turns (time order inside),
+            # then the other windows in time order.
+            turns = [r for r in turns if r.record_id in best_window] + [
+                r for r in turns if r.record_id not in best_window
+            ]
         return ReadResult(
             "replay",
             self._render(
@@ -4001,6 +4022,7 @@ class Engine:
                     boundary_index=min(base.boundary_index, len(stable)),
                     abstained=base.abstained,
                     tokens_used=used,
+                    evidence=base.evidence,
                 ),
                 budget_tokens,
             ),
@@ -4022,7 +4044,13 @@ class Engine:
         return decorated[0][0] if decorated else None
 
     async def _cards_section(
-        self, ns: str, query: str, budget_tokens: int, session_id: str | None = None
+        self,
+        ns: str,
+        query: str,
+        budget_tokens: int,
+        session_id: str | None = None,
+        *,
+        strong: bool = False,
     ) -> MemoryRecord | None:
         """G1b: the cards header, or None (``read.cards: off``, or no fact to show).
 
@@ -4037,7 +4065,7 @@ class Engine:
         :data:`constants.CLAIM_MARKER`, as its claim would in the routed read.
         """
         read_cfg = self._config().read
-        if read_cfg.cards != "header" or self._cards_gated(query):
+        if read_cfg.cards != "header" or self._cards_gated(query, strong=strong):
             return None
         temporal = is_temporal(query)
         # B3 (ADR-055): ``cards_temporal: event_dates`` shows a date question only the
@@ -4262,7 +4290,13 @@ class Engine:
         return block.model_copy(update={"tags": [constants.LEAD_TAG, constants.PROFILE_TAG]})
 
     async def _read_headers(
-        self, ns: str, query: str, budget_tokens: int, session_id: str | None = None
+        self,
+        ns: str,
+        query: str,
+        budget_tokens: int,
+        session_id: str | None = None,
+        *,
+        strong: bool = False,
     ) -> list[MemoryRecord]:
         """G1b/G3b: the cards header, then the profile header (each optional).
 
@@ -4271,8 +4305,10 @@ class Engine:
         if self._config().read.verbatim_raw_only and is_verbatim(query):
             return []
         headers = []
-        for section in (self._cards_section, self._profile_section):
-            header = await section(ns, query, budget_tokens, session_id)
+        for header in (
+            await self._cards_section(ns, query, budget_tokens, session_id, strong=strong),
+            await self._profile_section(ns, query, budget_tokens, session_id),
+        ):
             if header is not None:
                 headers.append(header)
         read_cfg = self._config().read
@@ -4446,7 +4482,27 @@ class Engine:
     def _headers_cost(headers: list[MemoryRecord]) -> int:
         return sum(estimate_tokens(h.content) for h in headers)
 
-    def _cards_gated(self, query: str) -> bool:
+    async def _raw_evidence_strong(
+        self, ns: str, query: str, top_k: int, session_id: str | None
+    ) -> bool:
+        """F4 (plan v3.2, ``read.cards_when_weak``): True when the raw turns alone give
+        strong evidence (the W3 signal of a raw-only search is not ``weak``), so the
+        cards header and the mined facts stay out of the read. One extra local search,
+        only with ``read.cards: header`` and the key on; otherwise False, no search."""
+        read_cfg = self._config().read
+        if read_cfg.cards != "header" or not read_cfg.cards_when_weak:
+            return False
+        raw = await self._search(
+            query,
+            ns,
+            top_k,
+            session_id=session_id,
+            keep_k=top_k,
+            hide=lambda record: record.memory_type != "episodic",
+        )
+        return not evidence_signal(query, raw, read_cfg.evidence_weak_below).weak
+
+    def _cards_gated(self, query: str, *, strong: bool = False) -> bool:
         """ADR-055 addendum (``read.cards_only_aggregate``): True when ``query`` gets
         no cards header and no mined fact in its routed read.
 
@@ -4461,6 +4517,9 @@ class Engine:
         if read_cfg.cards != "header":
             return False
         if read_cfg.verbatim_raw_only and is_verbatim(query):
+            return True
+        if read_cfg.cards_when_weak and strong:
+            # F4 (plan v3.2): the raw turns already answer it (see _raw_evidence_strong).
             return True
         if (
             read_cfg.cards_skip_hides_facts
@@ -4593,8 +4652,14 @@ class Engine:
                 best_score[rid] = max(score, best_score.get(rid, score))
         # M12 / H4 on the pooled evidence, exactly as assembly judges it.
         pooled = [(records[rid], best_score[rid]) for rid in records]
+        read_cfg = self._config().read
+        signal = (
+            evidence_signal(query, pooled, read_cfg.evidence_weak_below)
+            if read_cfg.evidence_signal
+            else None
+        )
         if self._assembly.abstains(pooled):
-            return ReadResult("compose", AssembledContext(abstained=True))
+            return ReadResult("compose", AssembledContext(abstained=True, evidence=signal))
         kept = {r.record_id for r, _ in self._assembly.apply_floor(pooled)}
         decorated = {
             r.record_id: r
@@ -4640,14 +4705,18 @@ class Engine:
                 chosen.append(record)
                 chosen_raw.append(records[rid])
                 used += cost
-        if self._config().read.compose_replay and replay_window > 0:
+        if read_cfg.compose_replay and replay_window > 0:
             used = await self._expand_neighbours(
                 ns, chosen, session_ids, replay_window, budget_tokens, used
             )
         chosen.sort(key=chrono_key)
         return ReadResult(
             "compose",
-            self._render(query, AssembledContext(records=chosen, tokens_used=used), budget_tokens),
+            self._render(
+                query,
+                AssembledContext(records=chosen, tokens_used=used, evidence=signal),
+                budget_tokens,
+            ),
         )
 
     async def _compose_checked(
@@ -5380,6 +5449,7 @@ class Engine:
             boundary_index=boundary,
             abstained=context.abstained or not kept,
             tokens_used=max(0, tokens),
+            evidence=context.evidence,
         )
 
     async def _audit_head_hash(self) -> str:

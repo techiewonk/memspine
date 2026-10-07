@@ -562,6 +562,27 @@ class ReadConfig(BaseModel):
     #: turns only (LoCoMo quote questions fell 92 -> 68-74 under every header).
     #: Off: byte-identical.
     verbatim_raw_only: bool = False
+    #: W3 (plan v3.2, G02): attach an evidence-sufficiency signal to every assembled
+    #: context (``AssembledContext.evidence``, ``core/evidence.py``): top score, spread,
+    #: distinct days, the asked answer type and whether a top candidate holds one, and
+    #: ``weak``. Reported only; the context is unchanged. Off: ``evidence`` is None.
+    evidence_signal: bool = False
+    #: W3: with ``evidence_signal``, a best evidence score below this marks the read
+    #: ``weak`` (scores are on the search's own scale). None: only a missing answer
+    #: type makes it weak.
+    evidence_weak_below: float | None = Field(default=None, ge=0.0)
+    #: F4 (plan v3.2): with ``cards: header``, show the cards header (and let mined
+    #: facts into the read) only when a raw-turns-only search gives *weak* evidence
+    #: (the W3 signal, with ``evidence_weak_below``); strong raw evidence reads raw turns
+    #: only, like a gated question. Replaces question-shape gates (cards helped weak
+    #: conversations and hurt strong ones on LoCoMo). One extra local search per read.
+    #: The threshold is calibrated on one dataset and checked on another (U5). Off:
+    #: byte-identical.
+    cards_when_weak: bool = False
+    #: T10 (plan v3.2): in a replay read, the best search hit's window of turns comes
+    #: first (in time order), then the other windows in time order, so the reader meets
+    #: the best evidence before the context around it. Off: all turns in time order.
+    evidence_first: bool = False
 
     @model_validator(mode="after")
     def _header_shares_leave_room(self) -> ReadConfig:
