@@ -320,6 +320,10 @@ class ReadConfig(BaseModel):
     #: assistant said ("what did you recommend", "your suggestion") gets an RRF leg of
     #: the assistant's own turns, recommendations first. Off: unchanged.
     role_aware: bool = False
+    #: N05 (plan v3.2, EverMemOS ``amaxsim``, lexical variant): an RRF leg ranking records
+    #: by their best single sentence (shared content words / sqrt(sentence length)), so a
+    #: strong sentence inside a long turn is not diluted. No model. Off: unchanged.
+    sentence_leg: bool = False
     #: H13: an extra BM25 leg over the question's core terms (interrogative and
     #: function words removed), fused by RRF. Needs the lexical store (hybrid).
     core_terms_leg: bool = False

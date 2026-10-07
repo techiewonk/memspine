@@ -77,3 +77,21 @@ async def test_subject_tagging_tags_turns_and_the_leg_ranks_the_right_speaker_fi
         assert hits[0][0].content == TURNS[1]
     finally:
         await eng.stop()
+
+
+def test_sentence_leg_prefers_one_strong_sentence() -> None:
+    """N05 (plan v3.2): the best sentence counts, not the whole record."""
+    from memspine.core.temporal_query import sentence_leg
+
+    long_turn = (
+        "We talked about many things today. The weather was grey and the bus was late. "
+        "Oh, and the pottery class moved to Fridays."
+    )
+    diluted = "pottery is fine I guess but class schedules and everything else are a mess lately"
+    recs = [
+        MemoryRecord(namespace="a", memory_type="episodic", content=t)
+        for t in (diluted, long_turn, "unrelated chat about football")
+    ]
+    hits = sentence_leg("When is the pottery class?", recs, 5)
+    by_id = {r.record_id: r.content for r in recs}
+    assert [by_id[h.record_id] for h in hits] == [long_turn, diluted]

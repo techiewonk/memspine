@@ -33,6 +33,7 @@ __all__ = [
     "is_recommendation",
     "metadata_leg",
     "query_interval",
+    "sentence_leg",
     "speaker_leg",
     "speaker_of",
     "temporal_leg",
@@ -257,3 +258,31 @@ def assistant_leg(query: str, records: Iterable[MemoryRecord], top_k: int) -> li
         )
     )
     return [LegHit(r.record_id, 1.0) for r in turns[:top_k]]
+
+
+_SENTENCE = re.compile(r"(?<=[.!?])\s+|\n+")
+
+
+def sentence_leg(query: str, records: Iterable[MemoryRecord], top_k: int) -> list[LegHit]:
+    """N05 (plan v3.2, EverMemOS ``amaxsim``, lexical): records ranked by their single
+    best-matching sentence (shared content words over the square root of the
+    sentence's length), so one strongly matching sentence in a long turn is not
+    diluted by the rest of it. Records sharing no word with the query are left out."""
+    import math
+
+    from memspine.core.query_shape import content_words
+
+    wanted = content_words(query)
+    if not wanted:
+        return []
+    scored: list[tuple[float, MemoryRecord]] = []
+    for r in records:
+        best = 0.0
+        for sentence in _SENTENCE.split(r.content):
+            words = content_words(sentence)
+            if words:
+                best = max(best, len(wanted & words) / math.sqrt(len(words)))
+        if best > 0:
+            scored.append((best, r))
+    scored.sort(key=lambda pair: (-pair[0], chrono_key(pair[1])))
+    return [LegHit(r.record_id, 1.0) for _, r in scored[:top_k]]

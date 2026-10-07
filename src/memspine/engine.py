@@ -150,6 +150,7 @@ from memspine.core.temporal_query import (
     assistant_leg,
     is_recommendation,
     metadata_leg,
+    sentence_leg,
     speaker_leg,
     speaker_of,
     temporal_leg,
@@ -1666,7 +1667,13 @@ class Engine:
                     legs.append([LegHit(h.record_id, 1.0) for h in hits])
                 except Exception as exc:  # an enhancer, never a gate
                     _log.warning("read.core_terms_leg_failed", namespace=ns, error=str(exc))
-        if not (read.temporal_leg or read.metadata_leg or read.subject_leg or read.role_aware):
+        if not (
+            read.temporal_leg
+            or read.metadata_leg
+            or read.subject_leg
+            or read.role_aware
+            or read.sentence_leg
+        ):
             return [leg for leg in legs if leg]
         try:
             live = [
@@ -1702,6 +1709,9 @@ class Engine:
             if read.role_aware:
                 # W11 (plan v3.2): "what did you recommend" reads the assistant's turns.
                 legs.append(assistant_leg(query, live, fetch_k))
+            if read.sentence_leg:
+                # N05 (plan v3.2): the best single sentence of each record, lexically.
+                legs.append(sentence_leg(query, live, fetch_k))
         except Exception as exc:  # an enhancer, never a gate: degrade to the base legs
             _log.warning("read.metadata_legs_failed", namespace=ns, error=str(exc))
             return []
