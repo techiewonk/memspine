@@ -553,6 +553,10 @@ FORGET_REQUEST_TAG = "forget_request"
 #: visits (cycles are skipped; a deeper lineage stops here).
 LINEAGE_ROOTS_MAX_NODES = 256
 
+#: N03 (``read.prf_expansion``): pseudo-relevance feedback reads this many first-round
+#: hits for shared words.
+PRF_TOP_DOCS = 5
+
 #: #50 remote-LLM gate: the per-note prefix the relevance filter sends (also withheld
 #: on its own), and the shortest record text the gate matches (shorter texts would
 #: blank unrelated words of a prompt).

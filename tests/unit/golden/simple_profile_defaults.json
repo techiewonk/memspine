@@ -107,6 +107,7 @@
       "planner_min_confidence": 0.0,
       "planner_version": "v1",
       "present_order": "relevance",
+      "prf_expansion": false,
       "profile_budget_share": 0.15,
       "profile_header": false,
       "profile_header_budget": 300,

@@ -622,6 +622,11 @@ class ReadConfig(BaseModel):
     #: 0.2; LoCoMo 10-turn windows: 8 / 581. Off: unchanged.
     concentration_filter: bool = False
     concentration_jaccard: float = Field(default=0.2, gt=0.0, le=1.0)
+    #: N03 (plan v3.2, Mnemon ``feedback``): pseudo-relevance feedback. Up to five content
+    #: words that two or more of the first-round top five hits share and the question
+    #: lacks join the search as one more RRF probe (one extra local search). Off:
+    #: unchanged.
+    prf_expansion: bool = False
 
     @model_validator(mode="after")
     def _header_shares_leave_room(self) -> ReadConfig:

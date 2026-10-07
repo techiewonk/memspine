@@ -107,6 +107,7 @@ from memspine.core.projector import Projector
 from memspine.core.query_shape import (
     content_words,
     core_terms,
+    feedback_terms,
     is_aggregation,
     is_count,
     is_ordering,
@@ -3453,6 +3454,24 @@ class Engine:
                 probes=probes,
                 fused_legs=legs,
             )
+            if self._config().read.prf_expansion:
+                # N03 (plan v3.2): words the first-round top hits share and the
+                # question lacks become one more fused probe (pseudo-relevance feedback).
+                extra = feedback_terms(
+                    query, [r.content for r, _ in scored[: constants.PRF_TOP_DOCS]]
+                )
+                if extra:
+                    probes = [*probes, extra]
+                    scored = await self._search(
+                        query,
+                        ns,
+                        want,
+                        session_id=session_id,
+                        keep_k=top_k,
+                        hide=hide,
+                        probes=probes,
+                        fused_legs=legs,
+                    )
             # W19 (read.raw_turn_floor): a derived record (mined fact, card, summary)
             # takes a search slot a raw turn would have had, and in replay each lost
             # turn hit costs its whole window. Widen by the derived records found, so

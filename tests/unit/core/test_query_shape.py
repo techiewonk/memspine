@@ -116,3 +116,16 @@ def test_is_verbatim(query: str, expected: bool) -> None:
     from memspine.core.query_shape import is_verbatim
 
     assert is_verbatim(query) is expected
+
+
+def test_feedback_terms_are_shared_words_the_query_lacks() -> None:
+    """N03 (plan v3.2): pseudo-relevance feedback terms."""
+    from memspine.core.query_shape import feedback_terms
+
+    texts = [
+        "Melanie: we went camping at the lake with the tent",
+        "Melanie: the tent leaked at the lake again",
+        "Caroline: painting by the lake is calming",
+    ]
+    assert feedback_terms("Where did Melanie go camping?", texts) == "lake tent"
+    assert feedback_terms("lake tent", texts) == ""

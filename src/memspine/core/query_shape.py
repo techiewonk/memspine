@@ -13,6 +13,7 @@ import re
 __all__ = [
     "content_words",
     "core_terms",
+    "feedback_terms",
     "is_aggregation",
     "is_count",
     "is_inference",
@@ -221,3 +222,20 @@ def content_words(text: str) -> frozenset[str]:
     return frozenset(
         w for w in _CONTENT_WORD.findall(text.lower()) if len(w) > 1 and w not in _STOP
     )
+
+
+def feedback_terms(query: str, texts: list[str], k: int = 5, min_docs: int = 2) -> str:
+    """N03 (plan v3.2, pseudo-relevance feedback, Mnemon ``feedback``): the content
+    words that at least ``min_docs`` of ``texts`` (the first-round top hits) share and
+    the query lacks, most shared first, up to ``k`` of them, as one probe text. Words
+    of three letters or fewer and speaker-like capitalised prefixes are skipped.
+    Empty when nothing qualifies."""
+    asked = content_words(query)
+    counts: dict[str, int] = {}
+    for text in texts:
+        body = text.split(": ", 1)[1] if ": " in text[:40] else text
+        for word in content_words(body):
+            if len(word) > 3 and word not in asked:
+                counts[word] = counts.get(word, 0) + 1
+    shared = sorted((w for w, n in counts.items() if n >= min_docs), key=lambda w: (-counts[w], w))
+    return " ".join(shared[:k])
