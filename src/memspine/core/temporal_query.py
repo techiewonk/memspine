@@ -24,7 +24,15 @@ from memspine.core.event_date import happened_of, label_span
 from memspine.core.records import MemoryRecord, chrono_key
 from memspine.core.temporal_resolve import WeekMode, resolve
 
-__all__ = ["LegHit", "metadata_leg", "query_interval", "temporal_leg"]
+__all__ = [
+    "SPEAKER_PREFIX",
+    "LegHit",
+    "metadata_leg",
+    "query_interval",
+    "speaker_leg",
+    "speaker_of",
+    "temporal_leg",
+]
 
 _MONTHS = {name.lower(): i for i, name in enumerate(calendar.month_name) if name} | {
     name.lower(): i for i, name in enumerate(calendar.month_abbr) if name
@@ -154,4 +162,46 @@ def metadata_leg(query: str, records: Iterable[MemoryRecord], top_k: int) -> lis
         if r.entity and re.search(rf"(?<!\w){re.escape(r.entity.lower())}(?!\w)", text)
     ]
     named.sort(key=lambda r: (-_aware(r.valid_from).timestamp(), chrono_key(r)))
+    return [LegHit(r.record_id, 1.0) for r in named[:top_k]]
+
+
+#: W8 (plan v3.2): the speaker of a stored turn written as "Name: text".
+SPEAKER_PREFIX = "speaker:"
+_SPEAKER_LINE = re.compile(r"^\s*(?P<name>[A-Z][\w'-]{1,30}(?: [A-Z][\w'-]{1,30})?):\s+\S")
+
+
+def speaker_of(content: str) -> str | None:
+    """The speaker name a turn's text opens with ("Caroline: ..." -> "caroline")."""
+    m = _SPEAKER_LINE.match(content)
+    return m["name"].lower() if m else None
+
+
+def speaker_leg(query: str, records: Iterable[MemoryRecord], top_k: int) -> list[LegHit]:
+    """W8 (``read.subject_leg``): the turns of every speaker the query names (whole
+    word, case-insensitive), ranked by content-word overlap with the query, then
+    newest first. Empty when the query names no known speaker."""
+    from memspine.core.query_shape import content_words
+
+    text = query.lower()
+    by_speaker: dict[str, list[MemoryRecord]] = {}
+    for r in records:
+        for tag in r.tags:
+            if tag.startswith(SPEAKER_PREFIX):
+                by_speaker.setdefault(tag[len(SPEAKER_PREFIX) :], []).append(r)
+    named = [
+        r
+        for name, turns in by_speaker.items()
+        if re.search(rf"(?<!\w){re.escape(name)}(?!\w)", text)
+        for r in turns
+    ]
+    if not named:
+        return []
+    wanted = content_words(query)
+    named.sort(
+        key=lambda r: (
+            -len(wanted & content_words(r.content)),
+            -_aware(r.valid_from).timestamp(),
+            chrono_key(r),
+        )
+    )
     return [LegHit(r.record_id, 1.0) for r in named[:top_k]]

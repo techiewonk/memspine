@@ -310,6 +310,11 @@ class ReadConfig(BaseModel):
     #: ``relative_week``. Off: relative phrases name no span (unchanged).
     temporal_relative: bool = False
     metadata_leg: bool = False
+    #: W8 (plan v3.2): an RRF leg of the turns of every speaker the question names
+    #: (``speaker:<name>`` tags from ``memories.episodic.policies.subject_tagging``),
+    #: ranked by content-word overlap with the question. A boost, never a filter.
+    #: Off: unchanged.
+    subject_leg: bool = False
     #: H13: an extra BM25 leg over the question's core terms (interrogative and
     #: function words removed), fused by RRF. Needs the lexical store (hybrid).
     core_terms_leg: bool = False

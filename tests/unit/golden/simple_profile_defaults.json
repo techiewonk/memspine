@@ -137,6 +137,7 @@
       "standing_patterns": "narrow",
       "static_embedding_prefilter": false,
       "static_prefilter": false,
+      "subject_leg": false,
       "temporal_leg": false,
       "temporal_leg_event_dates": false,
       "temporal_relative": false,

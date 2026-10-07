@@ -137,7 +137,14 @@ from memspine.core.replay import catch_up
 from memspine.core.replay import rebuild as replay_rebuild
 from memspine.core.rule_miner import mine_rules
 from memspine.core.sensitive import sensitive_topics
-from memspine.core.temporal_query import LegHit, metadata_leg, temporal_leg
+from memspine.core.temporal_query import (
+    SPEAKER_PREFIX,
+    LegHit,
+    metadata_leg,
+    speaker_leg,
+    speaker_of,
+    temporal_leg,
+)
 from memspine.core.temporal_resolve import annotate as annotate_relative_dates
 from memspine.core.ties import settle_ties
 from memspine.exceptions import (
@@ -1100,6 +1107,13 @@ class Engine:
             raise ConflictError("memory_type 'shared' is engine-internal — use grant()/subscribe()")
         source = source or SourceInfo(role=actor)
         tags = _caller_tags(tags, ns)
+        if memory_type == "episodic" and self._memory_policy(self._config(), "episodic").get(
+            "subject_tagging"
+        ):
+            # W8 (plan v3.2): the speaker of a "Name: text" turn becomes a tag.
+            speaker = speaker_of(content)
+            if speaker and f"{SPEAKER_PREFIX}{speaker}" not in (tags or []):
+                tags = [*(tags or []), f"{SPEAKER_PREFIX}{speaker}"]
         implicit = self._consume_reads(ns, session_id)
         parents = list(dict.fromkeys([*(derived_from or []), *implicit]))
         if parents:
@@ -1631,7 +1645,7 @@ class Engine:
                     legs.append([LegHit(h.record_id, 1.0) for h in hits])
                 except Exception as exc:  # an enhancer, never a gate
                     _log.warning("read.core_terms_leg_failed", namespace=ns, error=str(exc))
-        if not (read.temporal_leg or read.metadata_leg):
+        if not (read.temporal_leg or read.metadata_leg or read.subject_leg):
             return [leg for leg in legs if leg]
         try:
             live = [
@@ -1655,6 +1669,9 @@ class Engine:
                 )
             if read.metadata_leg:
                 legs.append(metadata_leg(query, live, fetch_k))
+            if read.subject_leg:
+                # W8 (plan v3.2): the named speaker's own turns, best word overlap first.
+                legs.append(speaker_leg(query, live, fetch_k))
         except Exception as exc:  # an enhancer, never a gate: degrade to the base legs
             _log.warning("read.metadata_legs_failed", namespace=ns, error=str(exc))
             return []
