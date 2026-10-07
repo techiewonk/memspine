@@ -52,9 +52,13 @@ import numpy as np
 from plan_report import _DIR, part_order
 
 __all__ = [
+    "MIN_BOOTSTRAP_CLUSTERS",
     "PairResult",
     "Side",
+    "benjamini_hochberg",
     "bootstrap_ci",
+    "cluster_bootstrap_ci",
+    "cluster_permutation_p",
     "compare",
     "holm",
     "load_side",
@@ -367,6 +371,99 @@ def holm(pvalues: Sequence[float]) -> list[float]:
         running = max(running, min(1.0, (m - rank) * pvalues[i]))
         adjusted[i] = running
     return adjusted
+
+
+def benjamini_hochberg(pvalues: Sequence[float]) -> list[float]:
+    """Benjamini-Hochberg (FDR) adjusted p-values, in input order (secondary family)."""
+    m = len(pvalues)
+    order = sorted(range(m), key=lambda i: pvalues[i], reverse=True)
+    adjusted = [0.0] * m
+    running = 1.0
+    for k, i in enumerate(order):
+        rank = m - k  # 1-based rank in ascending order
+        running = min(running, min(1.0, pvalues[i] * m / rank))
+        adjusted[i] = running
+    return adjusted
+
+
+# -- cluster-level inference (PREREG_2026-10 / M4) -----------------------------------
+
+#: Below this many clusters a cluster bootstrap under-covers; use the permutation test.
+MIN_BOOTSTRAP_CLUSTERS = 30
+#: Up to this many clusters the sign-flip permutation is enumerated exactly (2^k flips).
+EXACT_CLUSTER_LIMIT = 20
+
+
+def _cluster_arrays(
+    clusters: dict[str, Sequence[float]] | Sequence[Sequence[float]],
+) -> tuple[np.ndarray, np.ndarray]:
+    groups = list(clusters.values()) if isinstance(clusters, dict) else list(clusters)
+    groups = [g for g in groups if len(g)]
+    sums = np.asarray([float(np.sum(g)) for g in groups], dtype=float)
+    sizes = np.asarray([len(g) for g in groups], dtype=float)
+    return sums, sizes
+
+
+def cluster_permutation_p(
+    clusters: dict[str, Sequence[float]] | Sequence[Sequence[float]],
+    *,
+    permutations: int = PERMUTATIONS,
+    seed: int = SEED,
+) -> float:
+    """Two-sided paired permutation p-value with whole clusters as the exchangeable unit.
+
+    ``clusters`` maps a cluster (a conversation or a user) to its per-question paired
+    differences ``B - A``. Under the null each cluster's summed difference is as likely
+    to carry either sign, so all questions of one cluster flip together. The statistic is
+    ``|sum of all differences|`` (the pooled delta times n). With at most
+    ``EXACT_CLUSTER_LIMIT`` clusters all ``2^k`` sign patterns are enumerated and
+    ``p = #{|flipped| >= |observed|} / 2^k`` (exact; for LoCoMo's 10 conversations the
+    smallest attainable p is 2/1024). Above that, ``permutations`` random flips are used
+    with ``p = (1 + hits) / (1 + permutations)``.
+    """
+    sums, _ = _cluster_arrays(clusters)
+    k = len(sums)
+    if k == 0 or not np.any(sums):
+        return 1.0
+    observed = abs(float(sums.sum()))
+    if k <= EXACT_CLUSTER_LIMIT:
+        patterns = ((np.arange(1 << k)[:, None] >> np.arange(k)) & 1) * 2 - 1
+        flipped = np.abs(patterns @ sums)
+        return float(np.count_nonzero(flipped >= observed - 1e-9)) / float(1 << k)
+    rng = np.random.default_rng(seed)
+    signs = rng.integers(0, 2, size=(permutations, k)) * 2 - 1
+    hits = int(np.count_nonzero(np.abs(signs @ sums) >= observed - 1e-9))
+    return (1 + hits) / (1 + permutations)
+
+
+def cluster_bootstrap_ci(
+    clusters: dict[str, Sequence[float]] | Sequence[Sequence[float]],
+    *,
+    resamples: int = RESAMPLES,
+    seed: int = SEED,
+    level: float = 0.95,
+    min_clusters: int = MIN_BOOTSTRAP_CLUSTERS,
+) -> tuple[float, float]:
+    """Percentile CI of the pooled mean difference, resampling whole clusters.
+
+    Each resample draws ``k`` clusters with replacement and takes the ratio estimator
+    ``sum(differences) / sum(questions)``. Refuses (``ValueError``) with fewer than
+    ``min_clusters`` clusters: with few clusters the interval is too narrow (review
+    R2-N3), and the exact ``cluster_permutation_p`` is the test to report instead.
+    """
+    sums, sizes = _cluster_arrays(clusters)
+    k = len(sums)
+    if k < min_clusters:
+        raise ValueError(
+            f"cluster bootstrap needs >= {min_clusters} clusters, got {k}; "
+            "use cluster_permutation_p"
+        )
+    rng = np.random.default_rng(seed)
+    idx = rng.integers(0, k, size=(resamples, k))
+    means = sums[idx].sum(axis=1) / sizes[idx].sum(axis=1)
+    alpha = (1 - level) / 2
+    low, high = np.quantile(means, [alpha, 1 - alpha])
+    return (float(low), float(high))
 
 
 # -- arms by name --------------------------------------------------------------------
