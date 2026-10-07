@@ -42,6 +42,8 @@ def next_stage(current: SkillStage, *, dry_run_passed: bool = False) -> SkillSta
     or a verified→active promotion without a passing dry run."""
     if current is SkillStage.DEPRECATED:
         raise ConflictError("a deprecated skill is terminal — it cannot be promoted")
+    if current is SkillStage.ADVISORY:
+        raise ConflictError("an advisory record (lesson, exemplar) is never promotable to a plan")
     target = _FORWARD.get(current)
     if target is None:  # only ACTIVE reaches here (has no forward stage)
         raise ConflictError(f"skill stage {current.value!r} has no forward promotion")

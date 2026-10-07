@@ -3,7 +3,10 @@
 A procedural record's identity is its ``entity`` (skill/task name) and its
 ``attribute`` names the subtype: ``"skill"`` (hand-authored how-to), ``"plan"``
 (E6: a validated multi-step plan captured on task success), or ``"prompt"``
-(a prompt-as-memory version, see ``prompt_registry``).
+(a prompt-as-memory version, see ``prompt_registry``), ``"lesson"`` (W17a: an
+advisory note built from an outcome receipt) or ``"mapping"`` (W17f: a labelled
+exemplar for the kNN label vote). Lessons and mappings sit at the ``advisory``
+stage: held out of ordinary search, read only through their own verbs.
 
 The stage ladder (``lifecycle``) maps onto the record lifecycle so existing
 gates need no new machinery: draft/staged/verified ride ``RESOLVING`` (held
@@ -25,7 +28,14 @@ from memspine.memories.base import BaseMemory
 from memspine.memories.procedural.lifecycle import SkillStage, is_usable, next_stage
 from memspine.observability.logging import EVENT_DECAY_TRANSITION, get_logger
 
-__all__ = ["SKILL_KINDS", "ProceduralMemory", "SkillKind", "make_skill_record", "stage_status"]
+__all__ = [
+    "ADVISORY_KINDS",
+    "SKILL_KINDS",
+    "ProceduralMemory",
+    "SkillKind",
+    "make_skill_record",
+    "stage_status",
+]
 
 _log = get_logger(__name__)
 
@@ -34,8 +44,10 @@ AppendEvent = Callable[[MemoryEvent], Awaitable[None]]
 #: Procedural subtypes carried in ``attribute`` (M13.4 + E6). The Literal is
 #: the source of truth so a typo'd kind is a type error at the call site, not
 #: a runtime surprise; SKILL_KINDS derives from it for runtime validation.
-SkillKind = Literal["skill", "plan", "prompt"]
+SkillKind = Literal["skill", "plan", "prompt", "lesson", "mapping"]
 SKILL_KINDS: tuple[str, ...] = get_args(SkillKind)
+#: W17a/W17f: kinds that enter (and stay) at the ``advisory`` stage.
+ADVISORY_KINDS: frozenset[str] = frozenset({"lesson", "mapping"})
 
 
 class ProceduralStore(Protocol):
@@ -71,7 +83,10 @@ def make_skill_record(
     is itself the first validation step)."""
     if kind not in SKILL_KINDS:
         raise ConflictError(f"unknown procedural kind {kind!r} (valid: {', '.join(SKILL_KINDS)})")
-    stage = SkillStage.STAGED if kind == "plan" else SkillStage.DRAFT
+    if kind in ADVISORY_KINDS:
+        stage = SkillStage.ADVISORY
+    else:
+        stage = SkillStage.STAGED if kind == "plan" else SkillStage.DRAFT
     return MemoryRecord(
         namespace=namespace,
         memory_type="procedural",

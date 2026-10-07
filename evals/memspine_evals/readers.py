@@ -35,6 +35,19 @@ DATED_QA_PROMPT = (
     "Context:\n{context}\n\nQuestion: {question}\nAnswer:"
 )
 
+#: N14 (plan v3.2, MemOS answer-prompt clauses): ``dated`` plus three generic rules, no
+#: extra call: use world knowledge to interpret what the context states (open-domain
+#: questions), the latest statement of a changed fact wins, and keep people's names apart.
+#: Prompt arms lost before (L4), so this is measured only in a paid QA screen (U6).
+DATED_WORLD_QA_PROMPT = DATED_QA_PROMPT.replace(
+    "Answer in one short sentence.",
+    "Use general world knowledge to interpret what the context states (for example, a "
+    "named park tells you the state it is in), but do not invent facts about the people. "
+    "When the context gives a fact more than once with different values, the latest line "
+    "is the current one. Do not confuse what one person said or did with another. Answer "
+    "in one short sentence.",
+)
+
 #: H7: abstention-aware variant for adversarial questions (LoCoMo cat 5): answer only
 #: what the context states about the person asked about.
 ABSTAIN_QA_PROMPT = DATED_QA_PROMPT.replace(
@@ -125,6 +138,7 @@ QA_PROMPTS = {
     "question_dated": QUESTION_DATED_QA_PROMPT,
     "default": DEFAULT_QA_PROMPT,
     "dated": DATED_QA_PROMPT,
+    "dated_world": DATED_WORLD_QA_PROMPT,
     "dated2": DATED2_QA_PROMPT,
     "dated_infer": DATED_INFER_QA_PROMPT,
     "dated3": DATED3_QA_PROMPT,

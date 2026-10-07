@@ -44,6 +44,7 @@ from memspine.config.schema import FirewallConfig, MemspineConfig
 from memspine.core.answer import final_answer, numbered_context, verification
 from memspine.core.audit import IntegrityReport, TaintReport, trace_taint, verify_events
 from memspine.core.concentration import collapse_concentrated
+from memspine.core.correction import Correction, detect_correction
 from memspine.core.erasure import redact_record, retained_fields
 from memspine.core.escaping import escape_markers
 from memspine.core.event_date import SAID_PREFIX, date_anchor, happened_of, happened_tag
@@ -134,6 +135,7 @@ from memspine.core.records import (
     MemoryRecord,
     PiiTier,
     RecordStatus,
+    SkillStage,
     SourceInfo,
     chrono_key,
     new_record_id,
@@ -182,11 +184,39 @@ from memspine.memories.associative.store import AssociativeMemory, match_key
 from memspine.memories.episodic.lifecycle import passive_after, session_of
 from memspine.memories.episodic.sessions import Session, topic_segments
 from memspine.memories.episodic.store import EpisodicMemory
+from memspine.memories.procedural.knn import Exemplar, knn_vote, render_table
+from memspine.memories.procedural.lessons import (
+    OutcomeReceipt,
+    action_signature,
+    failures_dominate,
+    lesson_key,
+    lesson_text,
+    outcome_rank,
+    quarantine_lesson_key,
+    quarantine_lesson_text,
+    render_lesson,
+    should_retire,
+    source_signature,
+)
 from memspine.memories.procedural.prompt_registry import prompt_version_records
 from memspine.memories.procedural.skills import (
     ProceduralMemory,
     make_skill_record,
     stage_status,
+)
+from memspine.memories.procedural.task_state import (
+    Subgoal,
+    TaskState,
+    render_task_state,
+    update_subgoal,
+)
+from memspine.memories.procedural.trajectory import (
+    TrajectoryStep,
+    observation_diff,
+    step_index,
+    step_text,
+    trajectory_manifest,
+    window_indices,
 )
 from memspine.memories.prospective.watches import ProspectiveMemory, make_watch_record
 from memspine.memories.reflective.reflections import ReflectiveMemory
@@ -2770,6 +2800,14 @@ class Engine:
             ):
                 # G25: tagged and listed by forget_requests(); never deleted on a regex.
                 turn_tags.append(constants.FORGET_REQUEST_TAG)
+            correction = (
+                detect_correction(content)
+                if role == "user"
+                and self._memory_policy(self._config(), "episodic").get("correction_detector")
+                else None
+            )
+            if correction is not None:
+                turn_tags.append(constants.CORRECTION_TAG)  # W17d
             stamp = _parse_event_time(turn.get("timestamp")) or valid_from
             record = await self.write(
                 content,
@@ -2782,6 +2820,8 @@ class Engine:
                 valid_from=stamp,
                 reply_to=reply_to,
             )
+            if correction is not None and not record.quarantined:
+                await self._apply_correction(record.namespace, record, correction, records)
             records.append(record)
             written_at[i] = record.record_id
         return records
@@ -2890,6 +2930,12 @@ class Engine:
                 record_id=record.record_id,
                 reasons=verdict.reasons,
             )
+            if (
+                self._procedural is not None
+                and record.attribute != "lesson"
+                and self._procedural_policy().get("quarantine_lesson")
+            ):
+                await self._quarantine_lesson(storage, ns, record, verdict.reasons)  # N24
             return record, "quarantined"
         return await self._write_screened(storage, ns, record, memory_type, actor)
 
@@ -3670,6 +3716,10 @@ class Engine:
         count_share = 0 if shared else self._count_allowance(query, budget)
         headers, count_share = self._cap_lead_blocks(headers, count_share, budget)
         inner = budget - self._headers_cost(headers) - count_share
+        pinned, lessons = (
+            ([], []) if shared else await self._procedural_blocks(ns, query, session_id)
+        )
+        inner = max(1, inner - sum(estimate_tokens(r.content) for r in [*pinned, *lessons]))
         assembled = await self._assemble_core(
             query,
             ns,
@@ -3680,8 +3730,93 @@ class Engine:
             hide=self._header_hide(headers, hide_facts=self._cards_gated(query, strong=strong)),
         )
         rendered = self._render(query, assembled, inner)
+        if not shared:
+            rendered = await self._expand_trajectories(ns, rendered, inner)
+        if pinned or lessons:
+            rendered = self._place_procedural(rendered, pinned, lessons)
         headers = self._count_section(ns, query, rendered, count_share, headers)
         return self._attach_headers(rendered, headers)
+
+    async def _procedural_blocks(
+        self, ns: str, query: str, session_id: str | None
+    ) -> tuple[list[MemoryRecord], list[MemoryRecord]]:
+        """W17e / W17a read blocks: the task state pinned for ``session_id`` (with
+        ``memories.procedural.policies.task_state``) and the advisory lessons for the
+        query (with ``lessons: {inject: true}``). Both empty by default."""
+        policy = self._procedural_policy()
+        pinned: list[MemoryRecord] = []
+        if policy.get("task_state") and session_id is not None:
+            record = await self._task_state_record(ns, session_id)
+            if record is not None and record.status is RecordStatus.ACTIVATED:
+                state = TaskState.model_validate_json(record.content)
+                if not state.closed:
+                    pinned.append(record.model_copy(update={"content": render_task_state(state)}))
+        lessons: list[MemoryRecord] = []
+        option = policy.get("lessons")
+        if isinstance(option, Mapping) and option.get("inject") and self._procedural is not None:
+            k = int(option.get("max", constants.LESSON_BLOCK_MAX))
+            floor = float(option.get("min_similarity", constants.LESSON_MIN_SIMILARITY))
+            hits = await self.recall_lessons(query, namespace=ns, k=k, min_similarity=floor)
+            lessons = [render_lesson(record) for record, _ in hits]
+        return pinned, lessons
+
+    @staticmethod
+    def _place_procedural(
+        assembled: AssembledContext, pinned: list[MemoryRecord], lessons: list[MemoryRecord]
+    ) -> AssembledContext:
+        """W17e: the task state right after the persona (stable prefix); W17a: the
+        lessons last, after every piece of evidence, never in place of it."""
+        records = list(assembled.records)
+        personas = 0
+        while personas < len(records) and records[personas].source.channel == "persona":
+            personas += 1
+        records[personas:personas] = pinned
+        records.extend(lessons)
+        assembled.records = records
+        assembled.boundary_index += len(pinned)
+        assembled.tokens_used += sum(estimate_tokens(r.content) for r in [*pinned, *lessons])
+        return assembled
+
+    async def _expand_trajectories(
+        self, ns: str, assembled: AssembledContext, budget_tokens: int
+    ) -> AssembledContext:
+        """N27 (``memories.procedural.policies.trajectory: {expand: true}``): a hit
+        on a trajectory step or head brings its neighbouring steps (``radius``,
+        default 1) right after it, inside its group, at most ``cap`` (default 20)
+        added states, while the budget allows."""
+        option = self._procedural_policy().get("trajectory")
+        if not (isinstance(option, Mapping) and option.get("expand")):
+            return assembled
+        radius = int(option.get("radius", constants.TRAJECTORY_WINDOW_RADIUS))
+        cap = int(option.get("cap", constants.TRAJECTORY_WINDOW_CAP))
+        present = {r.record_id for r in assembled.records}
+        out: list[MemoryRecord] = []
+        added = 0
+        used = assembled.tokens_used
+        for index, record in enumerate(assembled.records):
+            out.append(record)
+            if (
+                index < assembled.boundary_index
+                or added >= cap
+                or not (
+                    {constants.TRAJECTORY_STEP_TAG, constants.TRAJECTORY_HEAD_TAG}
+                    & set(record.tags)
+                )
+            ):
+                continue
+            for step in await self.trajectory_window(
+                record.record_id, namespace=ns, radius=radius, cap=cap
+            ):
+                cost = estimate_tokens(step.content)
+                if step.record_id in present or added >= cap or used + cost > budget_tokens:
+                    continue
+                present.add(step.record_id)
+                out.append(step)
+                added += 1
+                used += cost
+        assembled.records = out
+        assembled.tokens_used = used
+        return assembled
 
     async def _assemble_core(
         self,
@@ -7807,6 +7942,718 @@ class Engine:
         )
         _log.info(EVENT_RETRIEVE, namespace=ns, plan=True, similarity=round(best[1], 4))
         return record
+
+    # ── plan v3.2 procedural rows W17a-f, N24, N26-N29 (ADR-060; no model calls) ──
+
+    def _procedural_policy(self) -> dict[str, Any]:
+        """``memories.procedural.policies`` as configured (empty when unset)."""
+        return self._memory_policy(self._config(), "procedural")
+
+    def _require_procedural(self) -> ProceduralMemory:
+        self._require_started()
+        if self._procedural is None:
+            raise MemspineError(
+                "procedural memory not enabled — set memories.procedural.enabled: true"
+            )
+        return self._procedural
+
+    @staticmethod
+    def _is_live_advisory(record: MemoryRecord, kind: str) -> bool:
+        """A lesson / exemplar that is still offered: advisory stage, held status
+        (out of ordinary search), never quarantined, not retired."""
+        return (
+            record.attribute == kind
+            and record.skill_stage is SkillStage.ADVISORY
+            and record.status is RecordStatus.RESOLVING
+            and not record.quarantined
+        )
+
+    async def _append_feedback(self, ns: str, record_id: str, signal: str, note: str = "") -> None:
+        """N28: one FEEDBACK event (caller holds the namespace write lock)."""
+        payload: dict[str, object] = {"record_id": record_id, "signal": signal}
+        if note:
+            payload["content"] = note[: constants.FEEDBACK_NOTE_MAX_CHARS]
+        await self._append_and_project(
+            MemoryEvent(kind=EventKind.FEEDBACK, namespace=ns, actor="system", payload=payload)
+        )
+
+    async def record_outcome(
+        self,
+        task: str,
+        outcome: str,
+        namespace: str = "default",
+        *,
+        action: str | None = None,
+        error: str | None = None,
+        next_action: str | None = None,
+        reward: float | None = None,
+        tool: str | None = None,
+        used_ids: Sequence[str] = (),
+        derived_from: Sequence[str] = (),
+        lesson: bool = True,
+        actor: str = "assistant",
+    ) -> MemoryRecord | None:
+        """W17a + N28: record a structured outcome receipt.
+
+        Each plan or lesson in ``used_ids`` (what was injected for this run) gets a
+        helpful (success) or harmful (failure) count, a FEEDBACK like / dislike on
+        the log. With ``memories.procedural.policies.auto_verify_on_reward`` a
+        reward of at least ``OUTCOME_AUTO_VERIFY_REWARD`` advances a used staged
+        plan to verified (``active`` still needs the dry-run gate).
+
+        With ``lesson`` (default), the receipt also becomes a ``kind="lesson"``
+        record: the fixed-field template of :func:`lesson_text`, at the
+        ``advisory`` stage (never executable, never promotable), trust capped at
+        its ``derived_from`` parents (the trajectory's steps). A receipt whose key
+        (trigger words, action signature, error class) matches a live lesson adds
+        a repeat note to it instead of a new row. Returns the lesson (new or
+        repeated) or None when ``lesson`` is false.
+        """
+        procedural = self._require_procedural()
+        receipt = OutcomeReceipt(
+            task=task,
+            outcome=outcome,  # type: ignore[arg-type]  # validated by the receipt
+            action=action,
+            error=error,
+            next_action=next_action,
+            reward=reward,
+            tool=tool,
+        )
+        ns = validate_namespace(namespace)
+        storage = self._require_started()
+        signal = "like" if receipt.outcome == "success" else "dislike"
+        auto_verify = bool(self._procedural_policy().get("auto_verify_on_reward"))
+        async with self._write_locks.setdefault(ns, asyncio.Lock()):
+            for record_id in dict.fromkeys(used_ids):
+                used = await storage.get_record(record_id)
+                if used is None or used.namespace != ns or used.memory_type != "procedural":
+                    raise ConflictError(f"no such procedural record {record_id!r} in {ns!r}")
+                await self._append_feedback(ns, record_id, signal)
+                if (
+                    auto_verify
+                    and reward is not None
+                    and reward >= constants.OUTCOME_AUTO_VERIFY_REWARD
+                    and used.attribute == "plan"
+                    and used.skill_stage is SkillStage.STAGED
+                    and not used.quarantined
+                ):
+                    await procedural.promote(record_id, namespace=ns)
+        if not lesson:
+            return None
+        key = f"{constants.LESSON_KEY_TAG_PREFIX}{lesson_key(receipt)}"
+        trust_cap = await self._parent_trust_cap(ns, list(derived_from))
+        async with self._write_locks.setdefault(ns, asyncio.Lock()):
+            repeat = await self._repeat_lesson(storage, ns, key, f"repeat:{receipt.outcome}")
+            if repeat is not None:
+                return repeat
+            record = make_skill_record(
+                ns,
+                receipt.task.strip(),
+                lesson_text(receipt),
+                kind="lesson",
+                source=SourceInfo(role=actor, channel="lesson", parents=list(derived_from)),
+            ).model_copy(update={"tags": [constants.LESSON_TAG, key, f"outcome:{outcome}"]})
+            return await self._write_locked(
+                storage, ns, record, "procedural", actor, trust_cap=trust_cap
+            )
+
+    async def _repeat_lesson(
+        self, storage: SqlStorage, ns: str, key_tag: str, note: str
+    ) -> MemoryRecord | None:
+        """N28: the live lesson carrying ``key_tag`` with one more repeat note, or None."""
+        for existing in await storage.list_records(ns, "procedural"):
+            if key_tag in existing.tags and self._is_live_advisory(existing, "lesson"):
+                await self._append_feedback(ns, existing.record_id, "note", note)
+                return await storage.get_record(existing.record_id)
+        return None
+
+    async def _quarantine_lesson(
+        self, storage: SqlStorage, ns: str, held: MemoryRecord, reasons: list[str]
+    ) -> None:
+        """N24 (``memories.procedural.policies.quarantine_lesson``): a quarantine
+        verdict becomes an advisory lesson naming the source, the reasons and the
+        content hash, never the held text. Repeats from one source signature add
+        notes (N28). The caller holds the namespace write lock."""
+        key = f"{constants.LESSON_KEY_TAG_PREFIX}{quarantine_lesson_key(held, reasons)}"
+        if await self._repeat_lesson(storage, ns, key, "repeat:quarantine") is not None:
+            return
+        record = make_skill_record(
+            ns,
+            f"content held from {source_signature(held)}",
+            quarantine_lesson_text(held, reasons),
+            kind="lesson",
+            source=SourceInfo(role="system", channel="firewall"),
+        ).model_copy(update={"tags": [constants.LESSON_TAG, key, "outcome:quarantine"]})
+        await self._write_locked(storage, ns, record, "procedural", "system")
+
+    async def _similar_advisory(
+        self, ns: str, query: str, kind: str, min_similarity: float
+    ) -> list[tuple[MemoryRecord, float]]:
+        """Live advisory records of ``kind`` by cosine of ``query`` to their trigger."""
+        storage = self._require_started()
+        if self._embedder is None:
+            raise MemspineError("retrieval services not constructed — engine not started?")
+        found = [
+            r
+            for r in await storage.list_records(ns, "procedural")
+            if self._is_live_advisory(r, kind) and r.entity
+        ]
+        if not found:
+            return []
+        vectors = await self._embedder.embed([query, *(str(r.entity) for r in found)])
+        out = [
+            (record, _cosine(vectors[0], vec))
+            for record, vec in zip(found, vectors[1:], strict=True)
+        ]
+        return [(r, s) for r, s in out if s >= min_similarity]
+
+    async def recall_lessons(
+        self,
+        task: str,
+        namespace: str = "default",
+        k: int = constants.LESSON_BLOCK_MAX,
+        min_similarity: float = constants.LESSON_MIN_SIMILARITY,
+    ) -> list[tuple[MemoryRecord, float]]:
+        """W17a: the live lessons whose task trigger is most similar to ``task``,
+        ranked by ``cos x (1 + helpful) / (1 + harmful)`` (N28), at most ``k``.
+        Each returned lesson's use rides the log as a RETRIEVE."""
+        self._require_procedural()
+        ns = validate_namespace(namespace)
+        scored = [
+            (record, outcome_rank(sim, record.scoring.likes, record.scoring.dislikes))
+            for record, sim in await self._similar_advisory(ns, task, "lesson", min_similarity)
+            if not failures_dominate(record.scoring.likes, record.scoring.dislikes)
+        ]
+        scored.sort(key=lambda pair: (-pair[1], pair[0].recorded_at))
+        top = scored[: max(0, k)]
+        if top:
+            await self._append_and_project(
+                MemoryEvent(
+                    kind=EventKind.RETRIEVE,
+                    namespace=ns,
+                    actor="system",
+                    payload={"record_ids": [r.record_id for r, _ in top]},
+                )
+            )
+        return [(self._inflate.inflate(r), s) for r, s in top]
+
+    async def recall_plans(
+        self,
+        task: str,
+        namespace: str = "default",
+        k: int | None = None,
+        min_similarity: float = constants.PLAN_RECALL_MIN_SIMILARITY,
+        include_lessons: bool = False,
+    ) -> list[tuple[MemoryRecord, float]]:
+        """W17b: the top-``k`` usable plans for ``task`` (default
+        ``memories.procedural.policies.recall_k``, else ``PLAN_RECALL_K``).
+
+        Candidates clear ``min_similarity`` on the task embedding, are ranked by
+        ``cos x (1 + helpful) / (1 + harmful)`` (N28; plain cosine with no
+        outcomes), and plans whose failures dominate (at least
+        ``OUTCOME_DEMOTE_MIN_HARMFUL`` harmful, more harmful than helpful) are
+        pruned. One plan per action signature is kept (diversity). With
+        ``include_lessons`` the live lessons compete in the same ranking. Each
+        hit's use rides the log as a RETRIEVE."""
+        procedural = self._require_procedural()
+        if self._embedder is None:
+            raise MemspineError("retrieval services not constructed — engine not started?")
+        ns = validate_namespace(namespace)
+        if k is None:
+            k = int(self._procedural_policy().get("recall_k") or constants.PLAN_RECALL_K)
+        plans = [p for p in await procedural.list(ns, kind="plan", usable_only=True) if p.entity]
+        candidates: list[tuple[MemoryRecord, float]] = []
+        if plans:
+            vectors = await self._embedder.embed([task, *(str(p.entity) for p in plans)])
+            candidates = [
+                (plan, _cosine(vectors[0], vec))
+                for plan, vec in zip(plans, vectors[1:], strict=True)
+            ]
+            candidates = [(p, s) for p, s in candidates if s >= min_similarity]
+        if include_lessons:
+            candidates += await self._similar_advisory(ns, task, "lesson", min_similarity)
+        ranked = sorted(
+            (
+                (r, outcome_rank(s, r.scoring.likes, r.scoring.dislikes))
+                for r, s in candidates
+                if not failures_dominate(r.scoring.likes, r.scoring.dislikes)
+            ),
+            key=lambda pair: (-pair[1], pair[0].recorded_at),
+        )
+        picked: list[tuple[MemoryRecord, float]] = []
+        signatures: set[str] = set()
+        for record, score in ranked:
+            signature = f"{record.attribute}:{action_signature(record.content)}"
+            if signature in signatures:
+                continue
+            signatures.add(signature)
+            picked.append((record, score))
+            if len(picked) >= k:
+                break
+        _log.info(EVENT_RETRIEVE, namespace=ns, plan=True, hits=len(picked))
+        if picked:
+            await self._append_and_project(
+                MemoryEvent(
+                    kind=EventKind.RETRIEVE,
+                    namespace=ns,
+                    actor="system",
+                    payload={"record_ids": [r.record_id for r, _ in picked]},
+                )
+            )
+        return [(self._inflate.inflate(r), s) for r, s in picked]
+
+    async def prune_experience(self, namespace: str = "default") -> list[str]:
+        """N28: retire (deprecate, terminal) plans and lessons whose failures
+        dominate, or that were used at least ``OUTCOME_RETIRE_MIN_USED`` times with
+        a helpful share below ``OUTCOME_RETIRE_MIN_RATIO``. Returns retired ids."""
+        procedural = self._require_procedural()
+        ns = validate_namespace(namespace)
+        retired: list[str] = []
+        async with self._write_locks.setdefault(ns, asyncio.Lock()):
+            for record in await procedural.list(ns):
+                if record.attribute not in ("plan", "lesson") or record.skill_stage in (
+                    None,
+                    SkillStage.DEPRECATED,
+                ):
+                    continue
+                score = record.scoring
+                if failures_dominate(score.likes, score.dislikes) or should_retire(
+                    score.likes, score.access_count
+                ):
+                    await procedural.deprecate(record.record_id, namespace=ns)
+                    retired.append(record.record_id)
+        return retired
+
+    async def record_trajectory(
+        self,
+        goal: str,
+        steps: Sequence[TrajectoryStep | Mapping[str, str]],
+        outcome: str,
+        namespace: str = "default",
+        *,
+        reward: float | None = None,
+        trajectory_id: str | None = None,
+        start: str | None = None,
+        actor: str = "assistant",
+    ) -> list[MemoryRecord]:
+        """W17c + N27: a trajectory as one episodic group (``group_id`` =
+        ``trajectory_id``, new when None). Each step is one record (tag
+        ``step:<i>``) holding its action, page and the observation as a line diff
+        against the previous step; the head record (``trajectory_head``) is the
+        deterministic manifest of :func:`trajectory_manifest`. Returns the head
+        first, then the steps; pass the step ids as ``derived_from`` of the plan or
+        lesson the run produced."""
+        self._require_started()
+        if self._episodic is None:
+            raise MemspineError("episodic memory not enabled — set memories.episodic.enabled: true")
+        parsed = [
+            step
+            if isinstance(step, TrajectoryStep)
+            else TrajectoryStep(
+                action=step["action"], page=step.get("page"), observation=step.get("observation")
+            )
+            for step in steps
+        ]
+        if not parsed:
+            raise ConflictError("a trajectory needs at least one step")
+        group = trajectory_id or f"trajectory:{new_record_id()}"
+        source = SourceInfo(role=actor, channel="trajectory")
+        head = await self.write(
+            trajectory_manifest(goal, parsed, outcome, reward=reward, start=start),
+            namespace=namespace,
+            memory_type="episodic",
+            source=source,
+            actor=actor,
+            group_id=group,
+            tags=[constants.TRAJECTORY_HEAD_TAG],
+        )
+        records = [head]
+        previous: str | None = None
+        for index, step in enumerate(parsed):
+            diff = observation_diff(previous, step.observation)
+            previous = step.observation if step.observation is not None else previous
+            records.append(
+                await self.write(
+                    step_text(index, step, diff),
+                    namespace=namespace,
+                    memory_type="episodic",
+                    source=source,
+                    actor=actor,
+                    group_id=group,
+                    tags=[
+                        constants.TRAJECTORY_STEP_TAG,
+                        f"{constants.TRAJECTORY_STEP_PREFIX}{index}",
+                    ],
+                )
+            )
+        return records
+
+    async def trajectory_window(
+        self,
+        record_id: str,
+        namespace: str = "default",
+        radius: int = constants.TRAJECTORY_WINDOW_RADIUS,
+        cap: int = constants.TRAJECTORY_WINDOW_CAP,
+    ) -> list[MemoryRecord]:
+        """N27: the steps around a trajectory hit (a step: within ``radius``; the
+        head: the first steps), inside its group only, at most ``cap`` states, in
+        step order. A record outside any trajectory gives an empty list."""
+        storage = self._require_started()
+        ns = validate_namespace(namespace)
+        hit = await storage.get_record(record_id)
+        if hit is None or hit.namespace != ns or hit.group_id is None:
+            return []
+        is_head = constants.TRAJECTORY_HEAD_TAG in hit.tags
+        if not is_head and constants.TRAJECTORY_STEP_TAG not in hit.tags:
+            return []
+        steps: dict[int, MemoryRecord] = {}
+        for record in await storage.list_records(ns, "episodic", hit.group_id):
+            index = step_index(record.tags)
+            if (
+                index is not None
+                and constants.TRAJECTORY_STEP_TAG in record.tags
+                and record.status is RecordStatus.ACTIVATED
+                and not record.quarantined
+            ):
+                steps[index] = record
+        wanted = window_indices(
+            list(steps), None if is_head else step_index(hit.tags), radius=radius, cap=cap
+        )
+        return self._inflate_all([steps[i] for i in wanted], ns)
+
+    async def _task_state_record(self, ns: str, task_id: str) -> MemoryRecord | None:
+        storage = self._require_started()
+        for record in await storage.list_records(ns, "working", task_id):
+            if (
+                record.source.channel == constants.TASK_STATE_CHANNEL
+                and record.status is not RecordStatus.DELETED
+            ):
+                return record
+        return None
+
+    async def _put_task_state(
+        self, ns: str, state: TaskState, prior: MemoryRecord | None, reason: str
+    ) -> MemoryRecord:
+        """Keyed supersede in place (the persona pattern): one stable record per
+        task, the prior state archived to its history, every version on the log."""
+        text = state.model_dump_json()
+        if prior is not None:
+            record = prior.model_copy(
+                update={
+                    "content": text,
+                    "content_fingerprint": fingerprint_payload({"content": text}),
+                    "version": prior.version + 1,
+                    "history": [
+                        *prior.history,
+                        ArchivedVersion(
+                            version=prior.version,
+                            content=prior.content,
+                            archived_at=datetime.now(UTC),
+                            reason=reason,
+                        ),
+                    ],
+                }
+            )
+        else:
+            record = MemoryRecord(
+                namespace=ns,
+                memory_type="working",
+                content=text,
+                entity=state.task_id,
+                attribute="state",
+                group_id=state.task_id,
+                source=SourceInfo(role="system", channel=constants.TASK_STATE_CHANNEL),
+            )
+        await self._append_and_project(
+            MemoryEvent(
+                kind=EventKind.WRITE,
+                namespace=ns,
+                actor="system",
+                payload={"record": record.model_dump(mode="json")},
+            )
+        )
+        _log.info(EVENT_WRITE, namespace=ns, record_id=record.record_id, task_state=True)
+        return record
+
+    async def set_task_state(
+        self,
+        task_id: str,
+        goal: str,
+        namespace: str = "default",
+        *,
+        subgoals: Sequence[str | Mapping[str, str]] = (),
+        constraints: Sequence[str] = (),
+        budget_left: float | None = None,
+    ) -> TaskState:
+        """W17e: open (or reset) the task-state record of ``task_id``: goal,
+        constraints, subgoals (all ``pending``) and budget. The record lives in
+        working memory (channel ``task_state``, ``group_id`` = ``task_id``); with
+        ``memories.procedural.policies.task_state`` a read whose ``session_id`` is
+        the task pins it right after the persona."""
+        self._require_started()
+        ns = validate_namespace(namespace)
+        state = TaskState(
+            task_id=task_id,
+            goal=goal,
+            constraints=list(constraints),
+            subgoals=[
+                Subgoal(id=item)
+                if isinstance(item, str)
+                else Subgoal(id=item["id"], description=item.get("description", ""))
+                for item in subgoals
+            ],
+            budget_left=budget_left,
+        )
+        async with self._write_locks.setdefault(ns, asyncio.Lock()):
+            prior = await self._task_state_record(ns, task_id)
+            await self._put_task_state(ns, state, prior, "task_state_reset")
+        return state
+
+    async def task_state(self, task_id: str, namespace: str = "default") -> TaskState | None:
+        """W17e: the current state of ``task_id`` (None when never opened)."""
+        record = await self._task_state_record(validate_namespace(namespace), task_id)
+        return None if record is None else TaskState.model_validate_json(record.content)
+
+    async def update_subgoal(
+        self,
+        task_id: str,
+        subgoal_id: str,
+        status: str,
+        namespace: str = "default",
+        *,
+        receipt_id: str | None = None,
+        result: str | None = None,
+        budget_left: float | None = None,
+    ) -> TaskState:
+        """W17e: move one subgoal to ``pending`` / ``done`` / ``failed`` (a keyed
+        supersede of the task state). ``done`` requires ``receipt_id``."""
+        if status not in ("pending", "done", "failed"):
+            raise ConflictError(f"subgoal status must be pending, done or failed, got {status!r}")
+        ns = validate_namespace(namespace)
+        async with self._write_locks.setdefault(ns, asyncio.Lock()):
+            prior = await self._task_state_record(ns, task_id)
+            if prior is None:
+                raise ConflictError(f"no task state {task_id!r} in namespace {ns!r}")
+            state = update_subgoal(
+                TaskState.model_validate_json(prior.content),
+                subgoal_id,
+                status,  # type: ignore[arg-type]  # checked above
+                at=datetime.now(UTC),
+                receipt_id=receipt_id,
+                result=result,
+            )
+            if budget_left is not None:
+                state = state.model_copy(update={"budget_left": budget_left})
+            await self._put_task_state(ns, state, prior, f"subgoal:{subgoal_id}->{status}")
+        return state
+
+    async def close_task(self, task_id: str, namespace: str = "default") -> TaskState:
+        """W17e: close the task (an explicit done, or a fired prospective watch):
+        the state stays on the log but is no longer pinned in reads."""
+        ns = validate_namespace(namespace)
+        async with self._write_locks.setdefault(ns, asyncio.Lock()):
+            prior = await self._task_state_record(ns, task_id)
+            if prior is None:
+                raise ConflictError(f"no task state {task_id!r} in namespace {ns!r}")
+            state = TaskState.model_validate_json(prior.content).model_copy(update={"closed": True})
+            await self._put_task_state(ns, state, prior, "task_closed")
+        return state
+
+    async def task_search(
+        self, task_id: str, query: str, namespace: str = "default", top_k: int = 10
+    ) -> list[tuple[MemoryRecord, float]]:
+        """W17e: a read scoped to the task first (``group_id`` = ``task_id``), then
+        filled from the whole namespace (MemoryArena: all@10 = 0 unscoped)."""
+        scoped = await self.search(query, namespace=namespace, top_k=top_k, group_id=task_id)
+        if len(scoped) >= top_k:
+            return scoped[:top_k]
+        seen = {record.record_id for record, _ in scoped}
+        rest = [
+            pair
+            for pair in await self.search(query, namespace=namespace, top_k=top_k)
+            if pair[0].record_id not in seen
+        ]
+        return [*scoped, *rest][:top_k]
+
+    async def add_exemplar(
+        self,
+        text: str,
+        label: str,
+        namespace: str = "default",
+        group: str = "default",
+        actor: str = "user",
+    ) -> MemoryRecord:
+        """W17f: store a labelled exemplar (``kind="mapping"``, advisory stage) in
+        the mapping group ``group``, through the firewall like any write."""
+        record = make_skill_record(
+            validate_namespace(namespace),
+            label,
+            text,
+            kind="mapping",
+            source=SourceInfo(role=actor, channel="mapping"),
+        ).model_copy(update={"group_id": f"mapping:{group}"})
+        return await self._write_procedural(record, actor)
+
+    async def classify(
+        self,
+        text: str,
+        namespace: str = "default",
+        group: str = "default",
+        k: int = constants.KNN_VOTE_K,
+    ) -> dict[str, Any]:
+        """W17f + N29: the kNN label vote for ``text`` over the group's exemplars
+        (BM25 and dense cosine fused by reciprocal rank, score-weighted vote).
+        Returns ``label`` (None without a match), ``margin``, ``votes``, the voting
+        ``exemplars`` (text, label, score), the ``label_table`` (label -> its most
+        distinctive terms) and ``table_text``. The caller's reader may override."""
+        self._require_procedural()
+        if self._embedder is None:
+            raise MemspineError("retrieval services not constructed — engine not started?")
+        ns = validate_namespace(namespace)
+        stored = [
+            r
+            for r in await self._require_started().list_records(
+                ns, "procedural", f"mapping:{group}"
+            )
+            if self._is_live_advisory(r, "mapping") and r.entity
+        ]
+        exemplars = [Exemplar(r.content, str(r.entity), r.record_id) for r in stored]
+        dense: list[float] | None = None
+        if exemplars:
+            vectors = await self._embedder.embed([text, *(e.text for e in exemplars)])
+            dense = [_cosine(vectors[0], vec) for vec in vectors[1:]]
+        result = knn_vote(text, exemplars, dense=dense, k=k)
+        return {
+            "label": result.label,
+            "margin": result.margin,
+            "votes": result.votes,
+            "exemplars": [(e.text, e.label, score) for e, score in result.exemplars],
+            "label_table": result.label_table,
+            "table_text": render_table(result.label_table),
+        }
+
+    async def review_evidence(
+        self,
+        record_id: str,
+        supporting_ids: Sequence[str],
+        contradicting_ids: Sequence[str] = (),
+        namespace: str = "default",
+    ) -> str:
+        """N26: decide a held (``pending_evidence``) record against its evidence.
+
+        ``promote`` (at least one live supporter whose document-type tier reaches
+        ``memories.semantic.policies.trust.authority_min_tier``, and no
+        contradiction) releases it from quarantine; ``disputed`` (authoritative
+        support and a contradiction) and ``pending_evidence`` leave it held.
+        Supporters outside the namespace, held or not live count for nothing."""
+        storage = self._require_started()
+        ns = validate_namespace(namespace)
+        await self._held_record(ns, record_id)
+        policy = self._firewall.policy
+        tiers: list[int | None] = []
+        for support_id in supporting_ids:
+            support = await storage.get_record(support_id)
+            if (
+                support is not None
+                and support.namespace == ns
+                and support.status is RecordStatus.ACTIVATED
+                and not support.quarantined
+            ):
+                tiers.append(policy.source_tier(support))
+        contradicted = False
+        for other_id in contradicting_ids:
+            other = await storage.get_record(other_id)
+            if other is not None and other.namespace == ns and not other.quarantined:
+                contradicted = True
+        verdict = policy.evidence_verdict(tiers, contradicted)
+        if verdict == "promote":
+            await self.approve_quarantined(
+                record_id, namespace=ns, actor="system", reason="evidence_promoted"
+            )
+        _log.info("memory.evidence_review", namespace=ns, record_id=record_id, verdict=verdict)
+        return verdict
+
+    async def _apply_correction(
+        self,
+        ns: str,
+        turn: MemoryRecord,
+        correction: Correction,
+        recent: Sequence[MemoryRecord],
+    ) -> MemoryRecord | None:
+        """W17d: act on a detected user correction.
+
+        The target is the live keyed semantic fact with the highest word overlap
+        on the negated span (or, without one, on the latest assistant turn within
+        ``CORRECTION_LOOKBACK_TURNS``), when it reaches ``CORRECTION_MIN_OVERLAP``.
+        With a replacement the fact is superseded on its key (the M4 ladder);
+        without one it is retracted. With lessons on, a lesson records the
+        correction so a later, different task retrieves it. Returns the new
+        record (supersede or retraction) or None when no target qualified."""
+        span = correction.negated
+        if span is None:
+            claims = [r for r in recent[-constants.CORRECTION_LOOKBACK_TURNS :]]
+            claims = [r for r in claims if r.source.role == "assistant"]
+            span = claims[-1].content if claims else None
+        if not span:
+            return None
+        wanted = content_words(span)
+        best: tuple[float, MemoryRecord] | None = None
+        for fact in await self._require_started().list_records(ns, "semantic"):
+            if (
+                fact.entity is None
+                or fact.status is not RecordStatus.ACTIVATED
+                or fact.quarantined
+                or "retract" in fact.tags
+            ):
+                continue
+            words = content_words(fact.content)
+            if not words or not wanted:
+                continue
+            base = wanted if correction.negated else words
+            overlap = len(wanted & words) / len(base)
+            if best is None or overlap > best[0]:
+                best = (overlap, fact)
+        if best is None or best[0] < constants.CORRECTION_MIN_OVERLAP:
+            return None
+        fact = best[1]
+        source = SourceInfo(role="user", channel="correction")
+        if correction.replacement:
+            content = correction.replacement
+            if correction.negated:
+                pattern = re.compile(re.escape(correction.negated), re.IGNORECASE)
+                if pattern.search(fact.content):
+                    content = pattern.sub(correction.replacement, fact.content, count=1)
+            written = await self.write(
+                content,
+                namespace=ns,
+                memory_type="semantic",
+                source=source,
+                entity=fact.entity,
+                attribute=fact.attribute,
+                group_id=turn.group_id,
+                derived_from=[turn.record_id],
+            )
+        else:
+            assert fact.entity is not None
+            written = await self.retract(
+                fact.entity,
+                fact.attribute or "",
+                namespace=ns,
+                reason="user correction",
+                source=source.model_copy(update={"parents": [turn.record_id]}),
+            )
+        if self._procedural is not None and self._procedural_policy().get("lessons"):
+            await self.record_outcome(
+                f"{fact.entity} {fact.attribute or ''}".strip(),
+                "failure",
+                namespace=ns,
+                action=f"stated {fact.content}",
+                error="the user corrected it",
+                next_action=f"state {correction.replacement}" if correction.replacement else None,
+                derived_from=[turn.record_id],
+                actor="user",
+            )
+        return written
 
     async def reflect(
         self,

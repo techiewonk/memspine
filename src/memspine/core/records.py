@@ -94,6 +94,9 @@ class SkillStage(StrEnum):
     VERIFIED = "verified"
     ACTIVE = "active"
     DEPRECATED = "deprecated"
+    #: W17a/W17f (ADR-060): lessons and exemplars. Retrievable through their own
+    #: verbs, never executable, never promotable to a plan.
+    ADVISORY = "advisory"
 
 
 class PiiTier(StrEnum):

@@ -272,7 +272,8 @@ class Firewall:
         it sits anomalously close to recent queries (None: not anomalous / not run).
         ``firewall.signals`` decides which signals run."""
         reasons: list[str] = []
-        trust = self._policy.trust_at_write(record.source)
+        # N26: a document-type tier caps trust (no-op without ``source_types``).
+        trust = self._policy.tier_capped(self._policy.trust_at_write(record.source), record)
         signals = self._signals
 
         flagged = False
@@ -321,6 +322,10 @@ class Firewall:
         quarantine = self._policy.should_quarantine(
             stamped, anomalous=anomalous, instruction_shaped=flagged
         )
+        if self._policy.needs_evidence(stamped):
+            # N26: held, not rejected: authoritative support releases it.
+            quarantine = True
+            reasons.append(f"pending_evidence(tier={self._policy.source_tier(stamped)})")
         if quarantine:
             reasons.append("quarantined")
         return FirewallVerdict(
