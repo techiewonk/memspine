@@ -6213,14 +6213,36 @@ class Engine:
             if constants.FORGET_REQUEST_TAG not in request.tags:
                 continue
             target = forget_target(request.content) or request.content
+            # Lexical first: an earlier live record holding most of what the request
+            # names (M6 demo: the vector search alone missed the original turn).
+            wanted = content_words(target)
+            lexical = sorted(
+                (
+                    r
+                    for r in await self._require_started().list_records(ns)
+                    if r.status is RecordStatus.ACTIVATED
+                    and not r.quarantined
+                    and r.record_id != request.record_id
+                    and constants.FORGET_REQUEST_TAG not in r.tags
+                    and r.valid_from <= request.valid_from
+                    and wanted
+                    and len(wanted & content_words(r.content)) / len(wanted)
+                    >= constants.FORGET_MATCH_SHARE
+                ),
+                key=lambda r: (
+                    -len(wanted & content_words(r.content)),
+                    r.memory_type != "episodic",
+                ),
+            )
             hits = await self.search(target, namespace=ns, top_k=top_k + 1)
-            candidates = [
+            ranked = [r.record_id for r in lexical] + [
                 r.record_id
                 for r, _ in hits
                 if r.record_id != request.record_id
                 and constants.FORGET_REQUEST_TAG not in r.tags
                 and r.valid_from <= request.valid_from
-            ][:top_k]
+            ]
+            candidates = list(dict.fromkeys(ranked))[:top_k]
             out.append(
                 {"request_id": request.record_id, "target": target, "candidates": candidates}
             )

@@ -555,6 +555,9 @@ RESIDUAL_PROBE_OVERLAP = 0.8
 #: G25 (``memories.episodic.policies.forget_detector``): the tag of a user turn that
 #: asks the assistant to forget something (listed by ``Engine.forget_requests``).
 FORGET_REQUEST_TAG = "forget_request"
+#: G25: a record holding at least this share of the request target's content words is a
+#: candidate before any vector hit.
+FORGET_MATCH_SHARE = 0.6
 
 #: W12 (``memories.associative.policies.rule_edges``, ADR-061): a causal clause links
 #: to the earlier turn, among this many, sharing the most content words with it, when
