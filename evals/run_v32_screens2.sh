@@ -10,7 +10,7 @@ run() { # name config budget [extra flags]
   echo "done $1 $?"
 }
 SLEEP="--memspine-build-sleep"
-( run local-session-cap2 local-session-cap2 4096; run local-rulecards local-rulecards 4096 "$SLEEP"; run local-rulecards-floor-verbatim local-rulecards-floor-verbatim 4096 "$SLEEP" ) &
+( run local-session-cap2 local-session-cap2 4096; run local-prf local-prf 4096; run local-rulecards local-rulecards 4096 "$SLEEP"; run local-rulecards-floor-verbatim local-rulecards-floor-verbatim 4096 "$SLEEP" ) &
 ( run local-subject-leg local-subject-leg 4096; run local-rulecards-floor local-rulecards-floor 4096 "$SLEEP"; run local-rulecards-weak local-rulecards-weak 4096 "$SLEEP" ) &
 wait
 echo ALL DONE 2
