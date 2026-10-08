@@ -6271,7 +6271,8 @@ class Engine:
         The first compose result goes to the ``sufficiency`` role (+1 call); when it is
         judged incomplete, ``sufficiency@missing`` writes up to
         :data:`constants.COMPLETENESS_MAX_QUERIES` missing-information queries (+1 call)
-        and the compose read runs once more with them as extra probes. One round at most;
+        and the compose read runs once more with them as extra probes. One round by default
+        (``read.completeness_rounds``, G-17, allows up to 3);
         an abstained read, a complete verdict, no query or any failure keeps the first
         result. The P4 rewrites are fetched once for both reads."""
         rewrites = await self._query_rewrite_probes(query)
@@ -6290,22 +6291,36 @@ class Engine:
         )
         if first.context.abstained or not first.context.records:
             return first
-        missing = await self._missing_info_queries(query, first.context)
-        if not missing:
-            return first
-        return await self._compose(
-            query,
-            ns,
-            budget_tokens,
-            top_k,
-            pool,
-            hide=hide,
-            extra_probes=[*extra_probes, *missing],
-            replay_window=replay_window,
-            session_id=session_id,
-            legs=legs,
-            rewrites=rewrites,
-        )
+        result = first
+        probes = list(extra_probes)
+        # G-17 (SimpleMem multi-round reflection): up to ``read.completeness_rounds``
+        # rounds; each adds the new missing-information queries and stops at the first
+        # complete verdict (or when no new query appears).
+        for _ in range(self._config().read.completeness_rounds):
+            missing = [
+                q
+                for q in await self._missing_info_queries(query, result.context)
+                if q not in probes
+            ]
+            if not missing:
+                break
+            probes = [*probes, *missing]
+            result = await self._compose(
+                query,
+                ns,
+                budget_tokens,
+                top_k,
+                pool,
+                hide=hide,
+                extra_probes=probes,
+                replay_window=replay_window,
+                session_id=session_id,
+                legs=legs,
+                rewrites=rewrites,
+            )
+            if result.context.abstained or not result.context.records:
+                return first
+        return result
 
     async def _missing_info_queries(self, query: str, context: AssembledContext) -> list[str]:
         """#38: the completeness verdict on ``context``, then (only when incomplete) the

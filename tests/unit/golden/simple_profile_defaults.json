@@ -74,6 +74,7 @@
       "cluster_expand": false,
       "cohesion_leg": false,
       "completeness_check": false,
+      "completeness_rounds": 1,
       "compose_replay": false,
       "compose_rewrites": false,
       "compression": {},

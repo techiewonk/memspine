@@ -619,6 +619,9 @@ class ReadConfig(BaseModel):
     #: the compose read then runs once more with them as extra probes. One round at most.
     #: Off: no call, byte-identical.
     completeness_check: bool = False
+    #: G-17 (SimpleMem multi-round reflection): how many completeness rounds a checked
+    #: compose read may run (each one sufficiency + one missing-queries call). 1 = #38.
+    completeness_rounds: int = Field(default=1, ge=1, le=3)
     #: #40: the profile header packs, within ``profile_header_budget`` tokens (at most
     #: half the read budget), the session summaries, then the profile observations
     #: (H14 insights), then the best other hits for the query, one dated, escaped line
