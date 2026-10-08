@@ -28,8 +28,8 @@ from dataclasses import dataclass
 class Dataset:
     name: str
     questions: int
-    ingest_tokens: int          # total corpus tokens written, across all samples
-    context_per_question: int   # retrieved context handed to the reader
+    ingest_tokens: int  # total corpus tokens written, across all samples
+    context_per_question: int  # retrieved context handed to the reader
     answer_tokens: int
 
 
@@ -67,8 +67,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--reader", default="gpt-4.1-mini", choices=sorted(PRICES))
     parser.add_argument("--judge", default="gpt-4o-mini", choices=sorted(PRICES))
-    parser.add_argument("--runs", type=int, default=1,
-                        help="repeat count, for variance estimates")
+    parser.add_argument("--runs", type=int, default=1, help="repeat count, for variance estimates")
     args = parser.parse_args()
 
     print("Baseline cost projection -- LEAN PROFILE (no LLM role bound)\n")

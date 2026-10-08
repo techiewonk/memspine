@@ -93,7 +93,9 @@ async def test_trusted_record_still_reinforces_normally() -> None:
         first = await storage.get_record(rec.record_id)
         assert first is not None
         trusted = first.trust
-        assert trusted > constants.TRUST_RETRIEVED_CAP, "an internal write must outrank an external one"
+        assert trusted > constants.TRUST_RETRIEVED_CAP, (
+            "an internal write must outrank an external one"
+        )
 
         await eng.search("the sky is blue today")
         after1 = await storage.get_record(rec.record_id)
