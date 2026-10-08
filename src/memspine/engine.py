@@ -192,9 +192,11 @@ from memspine.exceptions import (
 )
 from memspine.memories.associative.entities import (
     ENTITY_PREFIX,
+    MENTIONS_REL,
     EntityPolicy,
     canonical_entity,
     entity_node_id,
+    is_entity_node,
 )
 from memspine.memories.associative.evolution import propose_links
 from memspine.memories.associative.projector import GraphProjector
@@ -1174,7 +1176,15 @@ class Engine:
             entities = EntityPolicy.from_policy(
                 self._memory_policy(config, "associative").get("entity_nodes")
             )
-            self._projectors.append(GraphProjector(self._graph, entities))
+            self._projectors.append(
+                GraphProjector(
+                    self._graph,
+                    entities,
+                    embed=self._embedder.embed
+                    if config.graph.entity_embeddings and self._embedder is not None
+                    else None,
+                )
+            )
 
         # Background runner seam (D-16): inline default, dbos durable [dbos].
         self._runner = self._build_runner(config)
@@ -2191,6 +2201,32 @@ class Engine:
             _log.warning("read.graph_leg_failed", namespace=ns, error=str(exc))
             return []
         return [LegHit(rid, 1.0) for rid in ids]
+
+    async def _graph_node_legs(
+        self, ns: str, query: str, query_vector: list[float], fetch_k: int
+    ) -> list[list[LegHit]]:
+        """GR-6 (Graphiti node search): the entity nodes best matching the question
+        (embedded names by cosine + text match, fused in the graph store), then the
+        records that mention them, best entity first. One named leg ("graph_nodes")."""
+        search = getattr(self._graph, "search_entities", None)
+        if search is None or self._graph is None:
+            return []
+        try:
+            entities = await search(ns, query_vector, query, constants.GRAPH_NODE_SEARCH_TOP)
+            leg: list[LegHit] = []
+            seen: set[str] = set()
+            for node_id, score in entities:
+                for node in await self._graph.neighbors(node_id, MENTIONS_REL, 1, namespace=ns):
+                    if is_entity_node(node.node_id) or node.node_id in seen:
+                        continue
+                    seen.add(node.node_id)
+                    leg.append(LegHit(node.node_id, score))
+                    if len(leg) >= fetch_k:
+                        break
+            return [NamedLeg("graph_nodes", leg)] if leg else []
+        except Exception as exc:  # an enhancer, never a gate
+            _log.warning("read.graph_node_search_failed", namespace=ns, error=str(exc))
+            return []
 
     async def _maxsim_leg(
         self,
@@ -3802,6 +3838,8 @@ class Engine:
             read_now = self._config().read
             if read_now.cohesion_leg or read_now.entity_expand_leg:
                 extra_legs += await self._anchor_legs(ns, vector_hits, lexical_hits, fetch_k)
+            if read_now.graph_node_search:
+                extra_legs += await self._graph_node_legs(ns, query, query_vector, fetch_k)
             if read_now.maxsim_leg:
                 extra_legs += await self._maxsim_leg(ns, query_vector, vector_hits, lexical_hits)
             extra_legs += [list(leg) for leg in fused_legs if leg]
@@ -11370,6 +11408,13 @@ class Engine:
         event log is in-memory, so the projection can never outlive its log
         (D0.1)."""
         provider = config.graph.provider
+        if provider == "auto":
+            # GR-1 (ADR-064): LadybugDB, the graph engine (ADR-034), when installed;
+            # else the zero-dep SQLite adjacency lists (or LadybugDB on postgres).
+            import importlib.util
+
+            has_ladybug = importlib.util.find_spec("ladybug") is not None
+            provider = "ladybug" if has_ladybug or self._client is None else "sqlite_adjacency"
         if provider == "sqlite_adjacency":
             if self._client is None:
                 raise ConfigError(

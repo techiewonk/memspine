@@ -46,6 +46,8 @@ from memspine.services.graph.base import (
     edge_kind,
     edge_namespace,
     edge_weight,
+    entity_terms,
+    fuse_entity_hits,
 )
 
 __all__ = ["CypherClient", "LadybugGraphStore"]
@@ -144,6 +146,7 @@ class LadybugGraphStore:
     def __init__(self, client: CypherClient) -> None:
         self._client = client
         self._ready = False
+        self._entity_dim: int | None = None  # GR-3: EntityVec table created
         self._lock = asyncio.Lock()
 
     async def _execute(
@@ -364,6 +367,110 @@ class LadybugGraphStore:
         await self._execute(
             "MATCH (n:MemoryNode {node_id: $node_id}) DETACH DELETE n", {"node_id": node_id}
         )
+        if self._entity_dim is not None:  # GR-3: the entity's vector row goes too
+            await self._execute(
+                "MATCH (v:EntityVec {node_id: $node_id}) DELETE v", {"node_id": node_id}
+            )
+
+    async def _ensure_entity_table(self, dim: int) -> None:
+        """GR-3/GR-5: the ``EntityVec`` table (node id, namespace, text, FLOAT[dim])
+        with LadybugDB's native FTS index, created once."""
+        if self._entity_dim is not None:
+            if dim != self._entity_dim:
+                raise ValueError(f"entity vector dim {dim} != table dim {self._entity_dim}")
+            return
+        for ext in ("FTS",):
+            await self._execute(f"LOAD {ext}", {})
+        await self._execute(
+            "CREATE NODE TABLE IF NOT EXISTS EntityVec(node_id STRING, namespace STRING, "
+            f"text STRING, emb FLOAT[{int(dim)}], PRIMARY KEY (node_id))",
+            {},
+        )
+        # No HNSW vector index: LadybugDB 0.21.2's ``CREATE_VECTOR_INDEX`` crashes the
+        # process at random on Windows (2 of 5 probe runs, 2026-10-08). The entity
+        # search ranks by exact ``array_cosine_similarity`` inside the namespace
+        # instead (stable, exact; entity counts per namespace are small).
+        for ddl in ("CALL CREATE_FTS_INDEX('EntityVec', 'entity_fts_idx', ['text'])",):
+            try:
+                await self._execute(ddl, {})
+            except Exception as exc:  # already present on a reopened database
+                if "already exists" not in str(exc).lower():
+                    raise
+        self._entity_dim = dim
+
+    async def _discover_entity_table(self) -> bool:
+        """GR-3: a reopened database already holding ``EntityVec`` (dim from a row)."""
+        try:
+            for ext in ("FTS",):
+                await self._execute(f"LOAD {ext}", {})
+            rows = await self._execute("MATCH (v:EntityVec) RETURN size(v.emb) LIMIT 1", {})
+        except Exception:
+            return False
+        if not rows:
+            return False
+        self._entity_dim = int(rows[0][0])
+        return True
+
+    async def upsert_entity_vector(
+        self, namespace: str, node_id: str, text: str, vector: Sequence[float]
+    ) -> None:
+        """GR-3: an entity node's embedding and text in ``EntityVec`` (indexed)."""
+        await self._ensure_entity_table(len(vector))
+        # Insert once, never update in place: LadybugDB 0.21 crashes the process on
+        # an update of a row covered by an FTS index (probed 2026-10-08). An entity
+        # node id derives from its canonical name, so its text and vector never change.
+        found = await self._execute(
+            "MATCH (v:EntityVec {node_id: $node_id}) RETURN count(*)", {"node_id": node_id}
+        )
+        if found and int(found[0][0]) > 0:
+            return
+        await self._execute(
+            "CREATE (:EntityVec {node_id: $node_id, namespace: $namespace, text: $text, "
+            "emb: $emb})",
+            {
+                "node_id": node_id,
+                "namespace": namespace,
+                "text": text,
+                "emb": [float(x) for x in vector],
+            },
+        )
+
+    async def search_entities(
+        self,
+        namespace: str,
+        vector: Sequence[float] | None,
+        text: str | None,
+        top_k: int = 8,
+    ) -> list[tuple[str, float]]:
+        """GR-6: entity nodes of one namespace by exact in-engine cosine and the FTS
+        index (both filtered to the namespace inside the query), fused by RRF."""
+        if self._entity_dim is None and not await self._discover_entity_table():
+            return []
+        pool = top_k * 4
+        by_vector: list[str] = []
+        if vector is not None:
+            rows = await self._execute(
+                "MATCH (v:EntityVec) WHERE v.namespace = $namespace "
+                "RETURN v.node_id, array_cosine_similarity(v.emb, $emb) AS s "
+                "ORDER BY s DESC, v.node_id LIMIT $k",
+                {"emb": [float(x) for x in vector], "k": pool, "namespace": namespace},
+            )
+            by_vector = [str(r[0]) for r in rows][:pool]
+        by_text: list[str] = []
+        terms = " ".join(sorted(entity_terms(text or "")))
+        if terms and "'" not in namespace:
+            # Literals only: LadybugDB 0.21.2 crashes the process when a
+            # ``QUERY_FTS_INDEX`` statement carries any parameter (probed 2026-10-08).
+            # The text is reduced to [a-z0-9] word tokens; the namespace grammar
+            # (``core.namespace``) admits no quotes.
+            rows = await self._execute(
+                f"CALL QUERY_FTS_INDEX('EntityVec', 'entity_fts_idx', '{terms}') "
+                f"WITH node, score WHERE node.namespace = '{namespace}' "
+                "RETURN node.node_id ORDER BY score DESC",
+                {},
+            )
+            by_text = [str(r[0]) for r in rows][:pool]
+        return fuse_entity_hits(by_vector, by_text, top_k)
 
     async def edge_list(self, namespace: str | None = None) -> list[GraphEdge]:
         if namespace is None:
@@ -385,6 +492,8 @@ class LadybugGraphStore:
 
     async def clear(self) -> None:
         await self._execute("MATCH (n:MemoryNode) DETACH DELETE n")
+        if self._entity_dim is not None or await self._discover_entity_table():
+            await self._execute("MATCH (v:EntityVec) DELETE v")  # GR-3: rebuilt with the graph
 
     async def close(self) -> None:
         """No-op: the injected client owns the database handle (D-24)."""

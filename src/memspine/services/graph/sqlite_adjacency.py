@@ -26,11 +26,16 @@ from sqlalchemy import Select, delete, func, or_, select, text
 
 from memspine.clients.sqlite import SQLiteClient
 from memspine.services.graph.base import (
+    ENTITY_TEXT_PROP,
+    ENTITY_VECTOR_PROP,
     GraphEdge,
     GraphNode,
+    cosine,
     edge_kind,
     edge_namespace,
     edge_weight,
+    entity_terms,
+    fuse_entity_hits,
 )
 from memspine.services.storage.sqlite.schema import graph_edges, graph_nodes
 
@@ -272,6 +277,61 @@ class SQLiteAdjacencyGraph:
         async with self._client.engine.connect() as conn:
             rows = (await conn.execute(stmt)).all()
         return [_edge(row) for row in rows]
+
+    async def upsert_entity_vector(
+        self, namespace: str, node_id: str, text: str, vector: Sequence[float]
+    ) -> None:
+        """GR-3: store an entity node's embedding and text in its properties (the
+        node is created bare when absent, like an edge endpoint)."""
+        async with self._client.engine.begin() as conn:
+            row = (
+                await conn.execute(
+                    select(graph_nodes.c.labels, graph_nodes.c.properties).where(
+                        graph_nodes.c.node_id == node_id
+                    )
+                )
+            ).first()
+        labels = list(orjson.loads(row[0])) if row is not None else []
+        props = _props(row[1]) if row is not None else {}
+        props[ENTITY_VECTOR_PROP] = [float(x) for x in vector]
+        props[ENTITY_TEXT_PROP] = text
+        await self.upsert_node(node_id, labels, props, namespace=namespace)
+
+    async def search_entities(
+        self,
+        namespace: str,
+        vector: Sequence[float] | None,
+        text: str | None,
+        top_k: int = 8,
+    ) -> list[tuple[str, float]]:
+        """GR-6: entity nodes of one namespace ranked by cosine (vector) and word overlap
+        (text), fused by RRF. Computed in Python over the namespace's embedded nodes."""
+        async with self._client.engine.connect() as conn:
+            rows = (
+                await conn.execute(
+                    select(graph_nodes.c.node_id, graph_nodes.c.properties).where(
+                        graph_nodes.c.namespace == namespace
+                    )
+                )
+            ).all()
+        nodes = [(r[0], _props(r[1])) for r in rows]
+        nodes = [(nid, p) for nid, p in nodes if ENTITY_VECTOR_PROP in p]
+        by_vector: list[str] = []
+        if vector is not None:
+            scored = [
+                (cosine(vector, p[ENTITY_VECTOR_PROP]), nid)  # type: ignore[arg-type]
+                for nid, p in nodes
+            ]
+            by_vector = [nid for _, nid in sorted(scored, key=lambda t: (-t[0], t[1]))]
+        by_text: list[str] = []
+        if text:
+            asked = entity_terms(text)
+            overlap = [
+                (len(asked & entity_terms(str(p.get(ENTITY_TEXT_PROP, "")))), nid)
+                for nid, p in nodes
+            ]
+            by_text = [nid for n, nid in sorted(overlap, key=lambda t: (-t[0], t[1])) if n > 0]
+        return fuse_entity_hits(by_vector[: top_k * 4], by_text[: top_k * 4], top_k)
 
     async def node_count(self) -> int:
         return await self._count(select(func.count()).select_from(graph_nodes))

@@ -222,3 +222,34 @@ async def walk_neighbors(
             break
         frontier = next_frontier
     return found
+
+
+#: GR-3 (graph engine plan 2026-10-08): the node property holding an entity's embedding
+#: on adapters without a native vector column (sqlite_adjacency), and its source text.
+ENTITY_VECTOR_PROP = "_entity_vec"
+ENTITY_TEXT_PROP = "_entity_text"
+
+
+def entity_terms(text: str) -> set[str]:
+    """Lower-case word set for the BM25-like entity text match (GR-5 fallback)."""
+    import re
+
+    return {w for w in re.findall(r"[a-z0-9]+", text.lower()) if len(w) > 1}
+
+
+def cosine(a: Sequence[float], b: Sequence[float]) -> float:
+    dot = sum(x * y for x, y in zip(a, b, strict=False))
+    na = sum(x * x for x in a) ** 0.5
+    nb = sum(y * y for y in b) ** 0.5
+    return dot / (na * nb) if na > 0 and nb > 0 else 0.0
+
+
+def fuse_entity_hits(
+    by_vector: Sequence[str], by_text: Sequence[str], top_k: int, k: int = 60
+) -> list[tuple[str, float]]:
+    """GR-6: reciprocal-rank fusion of the cosine and text rankings of entity nodes."""
+    scores: dict[str, float] = {}
+    for ranking in (by_vector, by_text):
+        for rank, node_id in enumerate(ranking, start=1):
+            scores[node_id] = scores.get(node_id, 0.0) + 1.0 / (k + rank)
+    return sorted(scores.items(), key=lambda kv: (-kv[1], kv[0]))[:top_k]

@@ -40,7 +40,26 @@ async def test_associative_memory_enables_the_default_graph_store() -> None:
     try:
         world = eng.describe()
         assert "associative" in world["memories"]["enabled"]
-        assert world["graph"] == "SQLiteAdjacencyGraph"
+        # GR-1 (ADR-064): ``auto`` picks LadybugDB when installed, else SQLite.
+        import importlib.util
+
+        expected = (
+            "LadybugGraphStore"
+            if importlib.util.find_spec("ladybug") is not None
+            else "SQLiteAdjacencyGraph"
+        )
+        assert world["graph"] == expected
+    finally:
+        await eng.stop()
+
+
+async def test_explicit_sqlite_adjacency_is_still_honoured() -> None:
+    eng = _engine(
+        memories={"associative": {"enabled": True}}, graph={"provider": "sqlite_adjacency"}
+    )
+    await eng.start()
+    try:
+        assert eng.describe()["graph"] == "SQLiteAdjacencyGraph"
     finally:
         await eng.stop()
 

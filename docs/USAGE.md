@@ -690,7 +690,8 @@ in the schema — or if the schema gains a key not documented here.
 | `cache.namespace` | `memspine` | Key prefix so instances can share one store. |
 | `cache.default_ttl_seconds` | `null` | Default TTL when a caller passes none (`null` = no expiry). |
 | `cache.max_entries` | *(constant)* | In-memory backend entry cap. |
-| `graph.provider` | `sqlite_adjacency` | `sqlite_adjacency` \| `kuzu` `[kuzu]` \| `ladybug` `[graph]` \| `neo4j` (reserved) (D-26). |
+| `graph.provider` | `auto` | `auto` (GR-1, ADR-064): LadybugDB when the `ladybug` package is installed (`[graph]`), else `sqlite_adjacency`. Explicit: `sqlite_adjacency` \| `ladybug` `[graph]` \| `kuzu` `[kuzu]` (deprecated) \| `neo4j` (reserved) (D-26). |
+| `graph.entity_embeddings` | `false` | GR-3: embed entity-node names (GP-2 entity nodes) into the graph store's entity index. LadybugDB keeps them in an `EntityVec` table (`FLOAT[]` column plus its native FTS index), and entity search ranks by exact in-engine cosine; sqlite_adjacency keeps them in node properties. Rows are written once per entity, removed with the node, and cleared on rebuild. |
 | `llm.roles.*.model` | `""` | LiteLLM model id; **prefix routes** (`openai/`, `ollama/`, `bedrock/`, `vertex_ai/`, `llamacpp/<path>`) (ADR-024). |
 | `llm.roles.*.api_base` | `null` | Local endpoint override (Ollama, vLLM, …). |
 | `llm.roles.*.api_key` | `null` | API key (secrets-resolved). |
@@ -806,6 +807,7 @@ in the schema — or if the schema gains a key not documented here.
 | `read.cohesion_leg` | `false` | N43: an RRF leg of records said within `COHESION_WINDOW_MINUTES` (5) of the first-pass top hits (`ANCHOR_TOP` = 3 from the vector leg, then the lexical leg), nearest first. |
 | `read.entity_expand_leg` | `false` | N32 + N53: an RRF leg of records naming the proper nouns and years the first-pass top hits name (speakers excluded), most shared names first. A name found in more than `ENTITY_EXPAND_MAX_SHARE` (5%) of the records is too common and is dropped. |
 | `read.maxsim_leg` | `false` | N60: an RRF leg of the first-pass candidates with two or more sentences, ranked by their best sentence's cosine with the query, so one matching sentence in a long turn is not diluted. Candidate sentences are embedded at read and cached per record (`MAXSIM_CACHE_MAX`); no re-index. Erasure purges the cache. |
+| `read.graph_node_search` | `false` | GR-6: an RRF leg (`graph_nodes`) of the records that mention the entity nodes best matching the question (cosine on embedded names + text match, fused in the graph store), best entity first. Needs `graph.entity_embeddings` and associative entity nodes. |
 | `read.session_digest` | `false` | N31: a read header (`SESSION DIGESTS`) with one line per episodic session of the first `SESSION_DIGEST_HITS` (5) hits, up to `SESSION_DIGEST_SESSIONS` (3): the `SESSION_DIGEST_SENTENCES` (2) sentences sharing most content words with the question, within `SESSION_DIGEST_SHARE` (10%) of the budget. Unlike other headers it does not hide the quoted turns from the read. |
 | `read.facts_to_sources` | `false` | N54: a mined fact (`atomic_fact`) in the hits gives its rank and score to its live source turns (its parents); a turn already listed is not repeated, and a fact whose sources are gone keeps its slot. |
 | `read.type_quotas` | `{}` | N55: the most records of each memory type a read keeps, e.g. `{semantic: 3}`; types not listed are uncapped. |

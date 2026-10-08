@@ -172,7 +172,13 @@ class GraphConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    provider: str = "sqlite_adjacency"  # sqlite_adjacency | ladybug | kuzu (deprecated) | neo4j
+    #: GR-1 (ADR-064): ``auto`` (default) = LadybugDB when the ``ladybug`` package is
+    #: installed (``[graph]``), else ``sqlite_adjacency``. Explicit values pin one.
+    provider: str = "auto"  # auto | sqlite_adjacency | ladybug | kuzu (deprecated) | neo4j
+    #: GR-3 (graph engine plan 2026-10-08): embed entity-node names (GP-2 entity nodes)
+    #: into the graph store's entity index: LadybugDB keeps them in a FLOAT[] column with
+    #: its native HNSW vector index and FTS index; sqlite_adjacency in node properties.
+    entity_embeddings: bool = False
 
 
 class LLMRoleConfig(BaseModel):
@@ -689,6 +695,10 @@ class ReadConfig(BaseModel):
     #: candidates with two or more sentences, ranked by their best sentence's cosine
     #: with the query. Embeds candidate sentences at read (cached); no index change.
     maxsim_leg: bool = False
+    #: GR-6 (Graphiti node search): an RRF leg of the records that mention the entity
+    #: nodes best matching the question (cosine on embedded entity names + text match,
+    #: fused). Needs ``graph.entity_embeddings`` and associative entity nodes.
+    graph_node_search: bool = False
     #: N31 (Memori session summaries, extractive): a read header with, for the
     #: sessions of the first hits, the two sentences most like the question. It does
     #: not hide the session's turns from the read. Off: no header.

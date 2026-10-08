@@ -30,6 +30,8 @@ not relabel the node — labels are advisory, never a retrieval gate.
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
+
 from memspine.core.events import EventKind, MemoryEvent
 from memspine.core.projector import Projector
 from memspine.core.records import MemoryRecord
@@ -55,9 +57,17 @@ _DERIVATION_KEYS = ("consolidation", "reflection")
 class GraphProjector(Projector):
     name = "graph"
 
-    def __init__(self, store: GraphStore, entities: EntityPolicy | None = None) -> None:
+    def __init__(
+        self,
+        store: GraphStore,
+        entities: EntityPolicy | None = None,
+        embed: Callable[[list[str]], Awaitable[list[list[float]]]] | None = None,
+    ) -> None:
         self._store = store
         self._entities = entities
+        #: GR-3 (``graph.entity_embeddings``): embeds entity names into the graph
+        #: store's entity index (native HNSW + FTS on LadybugDB).
+        self._embed = embed
 
     async def apply(self, event: MemoryEvent) -> None:
         if event.kind is EventKind.WRITE:
@@ -149,6 +159,7 @@ class GraphProjector(Projector):
             for node in await self._mentioned(record.record_id, live_only=True)
             if node not in wanted
         ]
+        names = record_entity_names(record, policy) if weight > 0 else []
         for node_id in wanted:
             await self._store.upsert_node(
                 node_id,
@@ -156,6 +167,9 @@ class GraphProjector(Projector):
                 properties={"namespace": record.namespace},
                 namespace=record.namespace,
             )
+        if self._embed is not None and wanted:
+            await self._embed_entities(record.namespace, list(zip(wanted, names, strict=False)))
+        for node_id in wanted:
             await self._store.upsert_edge(
                 record.record_id,
                 node_id,
@@ -173,6 +187,19 @@ class GraphProjector(Projector):
                 namespace=record.namespace,
             )
         await self._drop_orphans(stale)
+
+    async def _embed_entities(self, namespace: str, pairs: list[tuple[str, str]]) -> None:
+        """GR-3: the entity names' embeddings into the store's entity index. An
+        enhancer: a failure is logged and the graph projection goes on."""
+        upsert = getattr(self._store, "upsert_entity_vector", None)
+        if upsert is None or self._embed is None:
+            return
+        try:
+            vectors = await self._embed([name for _, name in pairs])
+            for (node_id, name), vector in zip(pairs, vectors, strict=True):
+                await upsert(namespace, node_id, name, vector)
+        except Exception as exc:
+            _log.warning("graph.entity_embedding_failed", namespace=namespace, error=str(exc))
 
     async def _drop_orphans(self, entity_ids: list[str]) -> None:
         """Remove each entity node no live ``mentions`` edge points at any more."""

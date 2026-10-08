@@ -780,3 +780,7 @@ RETRIEVED_CAPTION_TAG = "retrieved_caption"
 NAMESPACE_INDEX_EVERY = 500
 #: ... once the table holds at least this many rows (smaller tables scan fast).
 NAMESPACE_INDEX_MIN_ROWS = 1000
+
+#: GR-6 (graph engine plan 2026-10-08): entity nodes the graph node search takes before
+#: expanding to the records that mention them.
+GRAPH_NODE_SEARCH_TOP = 5
