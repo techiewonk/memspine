@@ -149,3 +149,24 @@ def test_dry_run_runs_nothing(tmp_path: Path, capsys: pytest.CaptureFixture[str]
     )
     assert code == 0
     assert "read.good" in capsys.readouterr().out
+
+
+def test_declared_default_is_not_re_run_as_a_trial() -> None:
+    calls: list[dict[str, Any]] = []
+    space = SearchSpace(
+        (
+            Knob("read.noise", (False, True), default=False),
+            Knob("read.good", (False, True), default=False),
+        )
+    )
+    result = Tuner(
+        space,
+        {"read": {}},
+        synthetic(calls),
+        ITEMS,
+        TuneSettings(algo="coordinate", max_trials=2),
+        log=lambda _m: None,
+    ).run()
+    tried = [t.settings for t in result.trials]
+    assert {"read.noise": False} not in tried
+    assert any(t.get("read.good") is True for t in tried)

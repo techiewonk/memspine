@@ -1,6 +1,6 @@
 {
   "knobs": [
-    {"path": "read.temporal_rank", "values": ["midpoint", "overlap"]},
-    {"path": "read.lexical_dates", "values": [false, true]}
+    {"path": "read.temporal_rank", "values": ["midpoint", "overlap"], "default": "midpoint"},
+    {"path": "read.lexical_dates", "values": [false, true], "default": false}
   ]
 }

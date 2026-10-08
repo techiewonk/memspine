@@ -78,10 +78,13 @@ class Knob:
     """One tunable config key (dotted path, e.g. ``read.temporal_rank``) and its values.
 
     The first value is the one tried last-resort as the incumbent's value is kept
-    unchanged; values are tried in order."""
+    unchanged; values are tried in order. ``default`` is the engine's own value when the
+    base config leaves the key unset, so a trial of that value (a baseline re-run under
+    another name) is skipped instead of spending budget."""
 
     path: str
     values: tuple[Any, ...]
+    default: Any = None
 
 
 @dataclass(frozen=True)
@@ -92,7 +95,7 @@ class SearchSpace:
     def load(cls, path: str | Path) -> SearchSpace:
         """``{"knobs": [{"path": "read.temporal_rank", "values": ["midpoint", "overlap"]}]}``."""
         raw = json.loads(Path(path).read_text(encoding="utf8"))
-        knobs = tuple(Knob(k["path"], tuple(k["values"])) for k in raw["knobs"])
+        knobs = tuple(Knob(k["path"], tuple(k["values"]), k.get("default")) for k in raw["knobs"])
         if not knobs:
             raise ValueError("search space has no knobs")
         return cls(knobs)
@@ -243,13 +246,14 @@ class Tuner:
         )
 
     def _baseline_values(self) -> dict[str, Any]:
-        """The base config's current value of every knob (its incumbent)."""
+        """The base config's current value of every knob (its incumbent); an unset key
+        reads as the knob's declared engine ``default``."""
         out: dict[str, Any] = {}
         for knob in self.space.knobs:
             node: Any = self.base
             for part in knob.path.split("."):
                 node = node.get(part) if isinstance(node, Mapping) else None
-            out[knob.path] = node
+            out[knob.path] = knob.default if node is None else node
         return out
 
     # -- algorithms --
@@ -292,6 +296,9 @@ class Tuner:
             if key in seen:
                 continue
             seen.add(key)
+            baseline = self._baseline_values()
+            if all(v == baseline.get(k) for k, v in trial.items()):
+                continue  # the baseline itself under another name
             out = self._run(trial, self.dev)
             self._trials += 1
             test = sign_test(inc_out, out)
