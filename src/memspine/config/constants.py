@@ -749,3 +749,7 @@ COHESION_WINDOW_MINUTES = 5
 #: N53 (Mem0 entity damping): a name found in more than this share of the namespace's
 #: records is too common to expand on (every turn of a speaker, "today", ...).
 ENTITY_EXPAND_MAX_SHARE = 0.05
+
+#: N60 (EverMemOS MaxSim, Dakera sentence sub-memories): the most sentence vectors the
+#: engine caches per process for the MaxSim leg; the cache is cleared when full.
+MAXSIM_CACHE_MAX = 100_000

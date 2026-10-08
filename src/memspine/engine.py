@@ -159,9 +159,11 @@ from memspine.core.temporal_query import (
     cohesion_leg,
     entity_expand_leg,
     entity_leg,
+    forget_mentions,
     is_recommendation,
     metadata_leg,
     sentence_leg,
+    sentences,
     speaker_leg,
     speaker_of,
     temporal_leg,
@@ -778,6 +780,12 @@ def _static_prefilter(
     return kept or candidates
 
 
+def _unit(vector: Sequence[float]) -> list[float]:
+    """N60: ``vector`` scaled to unit length (a zero vector stays zero)."""
+    norm = sum(x * x for x in vector) ** 0.5
+    return [x / norm for x in vector] if norm > 0 else list(vector)
+
+
 def _minmax_quiet(scores: list[float]) -> list[float]:
     """N41: min-max to [0, 1] without the degenerate-reranker warning (retrieval
     scores may legitimately tie)."""
@@ -856,6 +864,8 @@ class Engine:
         self._rerank_calls = 0  # E8 attempts / failures, read by rerank_stats()
         self._rerank_failures = 0
         self._rerank_gated = 0  # N41: reranks whose order was not used (low confidence)
+        #: N60: sentence vectors per (record id, content) for the MaxSim leg.
+        self._sentence_vectors: dict[tuple[str, str], list[list[float]]] = {}
         # E4 (ADR-020): whether the vector leg runs the two-stage quantized
         # rescore (manifest-driven + vector.quantization override). Off => the
         # exact query() path, byte-identical to the pre-E4 pipeline.
@@ -2113,6 +2123,51 @@ class Engine:
             _log.warning("read.graph_leg_failed", namespace=ns, error=str(exc))
             return []
         return [LegHit(rid, 1.0) for rid in ids]
+
+    async def _maxsim_leg(
+        self,
+        ns: str,
+        query_vector: list[float],
+        vector_hits: Sequence[Any],
+        lexical_hits: Sequence[Any],
+    ) -> list[list[LegHit]]:
+        """N60 (EverMemOS MaxSim, Dakera sentence sub-memories): the first-pass
+        candidates with two or more sentences, ranked by their best sentence's cosine
+        with the query, so one matching sentence in a long turn is not diluted. Only
+        candidates are embedded (no index); sentence vectors are cached per record."""
+        if self._embedder is None:
+            return []
+        try:
+            storage = self._require_started()
+            ids = list(dict.fromkeys(h.record_id for h in [*vector_hits, *lexical_hits]))
+            scored: list[tuple[float, str]] = []
+            q = _unit(query_vector)
+            for rid in ids:
+                record = await storage.get_record(rid)
+                if record is None or record.namespace != ns or record.quarantined:
+                    continue
+                key = (rid, record.content)
+                vectors = self._sentence_vectors.get(key)
+                if vectors is None:
+                    parts = sentences(record.content)
+                    vectors = (
+                        [_unit(v) for v in await self._embedder.embed(parts)]
+                        if len(parts) > 1
+                        else []
+                    )
+                    if len(self._sentence_vectors) >= constants.MAXSIM_CACHE_MAX:
+                        self._sentence_vectors.clear()
+                    self._sentence_vectors[key] = vectors
+                if vectors:
+                    scored.append(
+                        (max(sum(a * b for a, b in zip(q, v, strict=False)) for v in vectors), rid)
+                    )
+            scored.sort(key=lambda pair: -pair[0])
+            leg = NamedLeg("maxsim", [LegHit(rid, score) for score, rid in scored])
+            return [leg] if leg else []
+        except Exception as exc:  # an enhancer, never a gate
+            _log.warning("read.maxsim_leg_failed", namespace=ns, error=str(exc))
+            return []
 
     async def _anchor_legs(
         self,
@@ -3661,6 +3716,8 @@ class Engine:
             read_now = self._config().read
             if read_now.cohesion_leg or read_now.entity_expand_leg:
                 extra_legs += await self._anchor_legs(ns, vector_hits, lexical_hits, fetch_k)
+            if read_now.maxsim_leg:
+                extra_legs += await self._maxsim_leg(ns, query_vector, vector_hits, lexical_hits)
             extra_legs += [list(leg) for leg in fused_legs if leg]
             if allowed is not None:
                 vector_hits = [h for h in vector_hits if h.record_id in allowed[0]]
@@ -6330,7 +6387,12 @@ class Engine:
         return [t for t in dict.fromkeys(texts) if t]
 
     async def _purge_caches(self, texts: Sequence[str]) -> None:
-        """#43: drop the embedding and extraction cache entries of erased texts."""
+        """#43: drop the embedding and extraction cache entries of erased texts, and
+        the read-side caches keyed by text (N60 sentence vectors, N30 date spans)."""
+        erased = set(texts)
+        for key in [k for k in self._sentence_vectors if k[1] in erased]:
+            del self._sentence_vectors[key]
+        forget_mentions(erased)
         forget_embedding = getattr(self._embedder, "forget", None)
         for text in texts:
             if callable(forget_embedding):

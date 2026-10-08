@@ -111,6 +111,7 @@
       "lexical_analyzer": "default",
       "lexical_provider": "tantivy",
       "list_cards_only_aggregate": false,
+      "maxsim_leg": false,
       "metadata_leg": false,
       "multi_intent_split": false,
       "novelty_exclusions": false,

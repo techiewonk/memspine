@@ -35,11 +35,13 @@ __all__ = [
     "cohesion_leg",
     "entity_expand_leg",
     "entity_leg",
+    "forget_mentions",
     "is_recommendation",
     "metadata_leg",
     "named_terms",
     "query_interval",
     "sentence_leg",
+    "sentences",
     "speaker_leg",
     "speaker_of",
     "temporal_leg",
@@ -566,3 +568,16 @@ def entity_expand_leg(
                 counts[r.record_id] = counts.get(r.record_id, 0) + 1
     ranked = sorted(counts, key=lambda rid: (-counts[rid], chrono_key(by_id[rid])))
     return [LegHit(rid, 1.0) for rid in ranked[:top_k]]
+
+
+def sentences(text: str, min_words: int = 3) -> list[str]:
+    """N60: the sentences of ``text`` (the N05 splitter), dropping fragments under
+    ``min_words`` words."""
+    return [s.strip() for s in _SENTENCE.split(text) if len(s.split()) >= min_words]
+
+
+def forget_mentions(texts: Iterable[str]) -> None:
+    """N30 / #43: drop the cached date spans of erased texts (the cache keys hold them)."""
+    erased = set(texts)
+    for key in [k for k in _MENTIONS if k[1] in erased]:
+        del _MENTIONS[key]

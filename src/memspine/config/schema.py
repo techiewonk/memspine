@@ -670,6 +670,10 @@ class ReadConfig(BaseModel):
     #: records naming the proper nouns and years the first-pass top hits name; names
     #: in more than ``ENTITY_EXPAND_MAX_SHARE`` of the records are dropped.
     entity_expand_leg: bool = False
+    #: N60 (EverMemOS MaxSim, Dakera sentence sub-memories): an RRF leg of first-pass
+    #: candidates with two or more sentences, ranked by their best sentence's cosine
+    #: with the query. Embeds candidate sentences at read (cached); no index change.
+    maxsim_leg: bool = False
     #: N33 (Memori, Mem0): the BM25 leg's RRF weight for a question of at most
     #: ``SHORT_QUERY_WORDS`` content words. None: unchanged.
     short_query_lexical_weight: float | None = Field(default=None, ge=0.0)

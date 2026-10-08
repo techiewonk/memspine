@@ -90,3 +90,51 @@ async def test_engine_wires_the_anchor_legs() -> None:
         await eng.stop()
     assert len(hits) == 3
     assert all(0.0 <= score <= 1.0 for _, score in hits)
+
+
+async def _maxsim_engine() -> Engine:
+    eng = Engine(
+        template="core",
+        dotenv_path=None,
+        storage={"path": ":memory:"},
+        embedding={"provider": "hash"},
+        memories={"episodic": {"enabled": True}},
+        read={"record_access": False, "maxsim_leg": True, "temporal_leg": True},
+    )
+    await eng.start()
+    return eng
+
+
+async def test_maxsim_leg_scores_multi_sentence_candidates_and_forget_purges() -> None:
+    eng = await _maxsim_engine()
+    try:
+        long_rec = await eng.write(
+            "Ana: we had a long week at work. The kids started school. "
+            "We went camping by the lake on 7 May 2023.",
+            namespace="a",
+            memory_type="episodic",
+            valid_from=T0,
+        )
+        long_id = long_rec.record_id
+        await eng.write("Ben: short note", namespace="a", memory_type="episodic", valid_from=T0)
+        hits = await eng.search("camping by the lake", namespace="a", top_k=2)
+        assert any(r.record_id == long_id for r, _ in hits)
+        assert any(k[0] == long_id for k in eng._sentence_vectors)  # sentences embedded
+        from memspine.core.temporal_query import _MENTIONS, mentioned_spans
+
+        mentioned_spans(long_rec)  # the N30 cache now holds the text too
+        await eng.forget(long_id, namespace="a", hard=True)
+        assert not any(k[0] == long_id for k in eng._sentence_vectors)
+        assert not any(k[0] == long_id for k in _MENTIONS)
+    finally:
+        await eng.stop()
+
+
+def test_forget_mentions_drops_cached_spans() -> None:
+    from memspine.core.temporal_query import _MENTIONS, forget_mentions, mentioned_spans
+
+    rec = _rec("Ana: I went camping yesterday", 0)
+    mentioned_spans(rec)
+    assert (rec.record_id, rec.content) in _MENTIONS
+    forget_mentions([rec.content])
+    assert (rec.record_id, rec.content) not in _MENTIONS
