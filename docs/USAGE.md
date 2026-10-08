@@ -270,6 +270,8 @@ community summary into a read only when an entity the query names belongs to it;
 `semantic.policies.extract_graph.resolve` merges name variants ("Mel" ≡ "Melanie") before
 extracted facts are written.
 
+**Raw turns (G-7).** `entity_nodes: {turn_mentions: true}` makes raw episodic turns link to the proper nouns and years they name, found by rule with no model call. The turn's speaker is left out, and so are capitals that only open a sentence. The graph and `read.graph_node_search` can then reach turns no fact was mined from.
+
 `policies.rule_edges` adds model-free `because` links between turns and kinship facts
 (sleep stage `rule_edges`); `read.causal_walk: why` walks them from the best hits so a
 "why" question reaches the turn holding the cause. `write(..., reply_to=record_id)`

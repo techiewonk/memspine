@@ -87,6 +87,10 @@ class EntityPolicy:
 
     blocklist: frozenset[str] = frozenset()
     allowed: frozenset[str] | None = None
+    #: G-7 (Graphiti MENTIONS for every episode): ``turn_mentions: true`` also takes
+    #: the proper nouns and years a raw episodic turn names (rules, no model), minus
+    #: the turn's speaker, so the graph reaches turns no fact was mined from.
+    turn_mentions: bool = False
 
     @classmethod
     def from_policy(cls, value: Any) -> EntityPolicy | None:
@@ -98,7 +102,11 @@ class EntityPolicy:
         blocklist = ENTITY_NODE_BLOCKLIST if raw_block is None else _names(raw_block)
         raw_allowed = options.get("allowed")
         allowed = None if raw_allowed is None else frozenset(_names(raw_allowed))
-        return cls(blocklist=frozenset(_names(blocklist)), allowed=allowed)
+        return cls(
+            blocklist=frozenset(_names(blocklist)),
+            allowed=allowed,
+            turn_mentions=bool(options.get("turn_mentions", False)),
+        )
 
     def accepts(self, canonical: str) -> bool:
         if len(canonical) < 2 or canonical.isdigit() or canonical in self.blocklist:
@@ -123,6 +131,19 @@ def record_entity_names(record: MemoryRecord, policy: EntityPolicy) -> list[str]
     if record.entity:
         raw.append(record.entity)
     raw.extend(tag[len(_DST_TAG) :] for tag in record.tags if tag.startswith(_DST_TAG))
+    if policy.turn_mentions and record.memory_type == "episodic" and not record.entity:
+        # G-7: a raw turn's own proper nouns and years (derived from the content, so a
+        # rebuild projects the same mentions); the speaker is a hub, not a mention.
+        from memspine.core.temporal_query import named_terms, speaker_of
+
+        speaker = speaker_of(record.content)
+        raw.extend(
+            named_terms(
+                record.content,
+                exclude=[speaker] if speaker else [],
+                skip_sentence_start=True,
+            )
+        )
     names: list[str] = []
     for name in raw:
         canonical = canonical_entity(name)

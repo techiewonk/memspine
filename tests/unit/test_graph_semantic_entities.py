@@ -73,3 +73,38 @@ async def test_entity_index_survives_reopen(tmp_path: Path, provider: str) -> No
     finally:
         await eng.stop()
     assert hits and "luna" in hits[0][0]
+
+
+@pytest.mark.parametrize("provider", ["sqlite_adjacency", "ladybug"])
+async def test_turn_mentions_let_the_graph_reach_raw_turns(tmp_path: Path, provider: str) -> None:
+    """G-7: with ``turn_mentions`` a raw turn's own names become mentions edges."""
+    if provider == "ladybug":
+        pytest.importorskip("ladybug")
+    eng = Engine(
+        template="core",
+        dotenv_path=None,
+        storage={"path": str(tmp_path / "m.db")},
+        embedding={"provider": "hash"},
+        graph={"provider": provider, "entity_embeddings": True},
+        memories={
+            "episodic": {"enabled": True},
+            "associative": {
+                "enabled": True,
+                "policies": {"entity_nodes": {"turn_mentions": True}},
+            },
+        },
+        read={"record_access": False, "graph_node_search": True},
+    )
+    await eng.start()
+    try:
+        turn = await eng.write(
+            "Ana: Yes! We took Luna to the vet in Leeds.", namespace="u", memory_type="episodic"
+        )
+        vector = (await eng._embedder.embed(["Luna"]))[0]
+        legs = await eng._graph_node_legs("u", "how is Luna?", vector, 10)
+        nodes = [n for n, _ in await eng._graph.search_entities("u", vector, "Luna Leeds", 10)]
+    finally:
+        await eng.stop()
+    assert legs and turn.record_id in [h.record_id for h in legs[0]]
+    assert any("luna" in n for n in nodes) and any("leeds" in n for n in nodes)
+    assert not any(n.endswith(":yes") or n.endswith(":ana") for n in nodes)

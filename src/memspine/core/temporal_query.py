@@ -468,16 +468,25 @@ _NOT_NAMES = frozenset(
 )
 _CAP_WORD = re.compile(r"\b[A-Z][a-zA-Z'-]{1,}\b")
 _YEAR_WORD = re.compile(r"\b(?:19|20)\d{2}\b")
+#: G-7: the first word of each sentence (turn start, after ".!?", or after "Name: ").
+_SENTENCE_START = re.compile(r"((?:^[A-Z][\w'-]{1,30}:\s+|^|[.!?]\s+)[\"'(]?)([A-Z][a-z]+)")
 
 
-def named_terms(query: str, exclude: Iterable[str] = ()) -> list[str]:
+def named_terms(
+    query: str, exclude: Iterable[str] = (), *, skip_sentence_start: bool = False
+) -> list[str]:
     """N59: proper nouns and years a question names, lower-cased, in order.
 
     Capitalised words that are not question words, months or weekdays, plus four-digit
     years; ``exclude`` drops names already handled elsewhere (the conversation's
-    speakers, which the subject leg covers). A possessive "'s" is stripped."""
+    speakers, which the subject leg covers). A possessive "'s" is stripped.
+
+    ``skip_sentence_start`` (G-7, statements): a capital that only opens a sentence
+    ("Yes", "So", "Well") is not taken as a name."""
     skip = {e.lower() for e in exclude} | _NOT_NAMES
     terms: list[str] = []
+    if skip_sentence_start:
+        query = _SENTENCE_START.sub(lambda m: m.group(1) + m.group(2).lower(), query)
     for word in _CAP_WORD.findall(query):
         w = word.lower().removesuffix("'s").strip("'-")
         if w and w not in skip and w not in terms:
