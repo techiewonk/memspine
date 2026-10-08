@@ -46,6 +46,7 @@ __all__ = [
     "speaker_leg",
     "speaker_of",
     "temporal_leg",
+    "view_tag_leg",
 ]
 
 _MONTHS = {name.lower(): i for i, name in enumerate(calendar.month_name) if name} | {
@@ -604,3 +605,29 @@ def date_words(record: MemoryRecord) -> str:
         if words not in seen:
             seen.append(words)
     return " ".join(seen)
+
+
+def view_tag_leg(query: str, records: Iterable[MemoryRecord], top_k: int) -> list[LegHit]:
+    """G-16 (SimpleMem symbolic leg, ``read.view_tag_leg``): records whose location,
+    topic or person view tags (``loc:`` / ``topic:`` / ``person:``, written by
+    ``consolidation.mine_multiview``) share words with the question, most shared words
+    first, then location over topic over person, then time order."""
+    from memspine.core.fact_views import LOCATION_PREFIX, PERSON_PREFIX, TOPIC_PREFIX
+
+    asked = _content_words(query)
+    if not asked:
+        return []
+    weight = {LOCATION_PREFIX: 3, TOPIC_PREFIX: 2, PERSON_PREFIX: 1}
+    scored: list[tuple[int, int, MemoryRecord]] = []
+    for r in records:
+        best_words, best_kind = 0, 0
+        for tag in r.tags:
+            for prefix, kind in weight.items():
+                if tag.startswith(prefix):
+                    shared = len(asked & _content_words(tag[len(prefix) :]))
+                    if (shared, kind) > (best_words, best_kind) and shared:
+                        best_words, best_kind = shared, kind
+        if best_words:
+            scored.append((-best_words, -best_kind, r))
+    scored.sort(key=lambda item: (item[0], item[1], chrono_key(item[2])))
+    return [LegHit(r.record_id, 1.0) for _, _, r in scored[:top_k]]

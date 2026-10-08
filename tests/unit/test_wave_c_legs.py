@@ -230,3 +230,17 @@ async def test_type_quotas_cap_a_memory_type() -> None:
 def test_n54_n55_off_by_default() -> None:
     read = ReadConfig()
     assert read.facts_to_sources is False and read.type_quotas == {}
+
+
+def test_view_tag_leg_matches_location_and_topic() -> None:
+    """G-16: records found by their location / topic view tags."""
+    from memspine.core.temporal_query import view_tag_leg
+
+    lake = _rec("Ana went camping", 0).model_copy(
+        update={"tags": ["loc:lake tahoe", "topic:camping"]}
+    )
+    paris = _rec("Ana flew out", 1).model_copy(update={"tags": ["loc:paris"]})
+    none = _rec("Ana had tea", 2)
+    hits = view_tag_leg("What did Ana do at the lake?", [none, paris, lake], 5)
+    assert [h.record_id for h in hits] == [lake.record_id]
+    assert ReadConfig().view_tag_leg is False

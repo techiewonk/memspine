@@ -699,6 +699,9 @@ class ReadConfig(BaseModel):
     #: nodes best matching the question (cosine on embedded entity names + text match,
     #: fused). Needs ``graph.entity_embeddings`` and associative entity nodes.
     graph_node_search: bool = False
+    #: G-16 (SimpleMem symbolic leg): an RRF leg of records whose location / topic /
+    #: person view tags (``consolidation.mine_multiview``) share words with the question.
+    view_tag_leg: bool = False
     #: N31 (Memori session summaries, extractive): a read header with, for the
     #: sessions of the first hits, the two sentences most like the question. It does
     #: not hide the session's turns from the read. Off: no header.

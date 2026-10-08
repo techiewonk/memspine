@@ -187,7 +187,8 @@
       "timeline_items": 8,
       "topic_timelines": false,
       "type_quotas": {},
-      "verbatim_raw_only": false
+      "verbatim_raw_only": false,
+      "view_tag_leg": false
     },
     "rest": {
       "auth": {

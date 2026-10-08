@@ -177,6 +177,7 @@ from memspine.core.temporal_query import (
     speaker_leg,
     speaker_of,
     temporal_leg,
+    view_tag_leg,
 )
 from memspine.core.temporal_resolve import annotate as annotate_relative_dates
 from memspine.core.temporal_resolve import resolve
@@ -1954,6 +1955,7 @@ class Engine:
             or read.recency_leg
             or read.entity_leg
             or read.speaker_probe
+            or read.view_tag_leg
         ):
             return [leg for leg in legs if leg]
         try:
@@ -2012,6 +2014,9 @@ class Engine:
                 # N16 (plan v3.2, LaMP RSPG): a recency-only leg, newest first.
                 newest = sorted(live, key=chrono_key, reverse=True)[:fetch_k]
                 legs.append([LegHit(r.record_id, 1.0) for r in newest])
+            if read.view_tag_leg:
+                # G-16 (SimpleMem symbolic leg): location / topic / person view tags.
+                legs.append(NamedLeg("view_tags", view_tag_leg(query, live, fetch_k)))
             if read.entity_leg or read.speaker_probe:
                 speakers = {s for r in live if (s := speaker_of(r.content)) is not None}
                 if read.entity_leg:
