@@ -1,0 +1,171 @@
+{
+ "plan_id": "aamas27-locomo-qwen3",
+ "dataset": {
+  "name": "locomo",
+  "revision": "3eb6f2c-locomo10",
+  "categories": [
+   1,
+   2,
+   3,
+   4
+  ],
+  "n_questions": 1540,
+  "n_conversations": 10
+ },
+ "protocol": {
+  "mode": "qa",
+  "bedrock": true,
+  "judge_prompt": "rubric",
+  "qa_prompt": "default",
+  "budget_tokens": 4096,
+  "top_k": 10,
+  "memspine_llm": "bedrock-qwen3"
+ },
+ "memspine_base": {
+  "read_mode": "replay",
+  "build_sleep": false,
+  "config": {
+   "read": {
+    "record_access": false,
+    "scoring": {
+     "recency_weight": 0.0,
+     "importance_weight": 0.0,
+     "utility_weight": 0.0
+    }
+   },
+   "embedding": {
+    "provider": "litellm",
+    "model": "bedrock/cohere.embed-v4:0",
+    "dim": 1024,
+    "aws_region": "us-east-1",
+    "request_dimensions": true,
+    "query_input_type": "search_query",
+    "document_input_type": "search_document"
+   },
+   "storage": {
+    "path": "tempdir"
+   }
+  }
+ },
+ "projection_assumptions": {
+  "note": "Completion tokens per call are assumptions (the stub's replies are not the model's). Prompt tokens are measured on the stub run (chars/4). 'ceiling' uses each caller's max_tokens, or the prompt's token_budget for engine roles, which send no max_tokens.",
+  "completion_tokens": {
+   "reader": 24,
+   "judge": 12,
+   "extract": 600,
+   "extract_edges": 200,
+   "summarize": 120,
+   "reflect": 200,
+   "anticipate": 400,
+   "relevance": 120,
+   "query_rewrite": 30,
+   "judge_engine": 30,
+   "chat": 100
+  },
+  "ceiling_completion_tokens": {
+   "reader": 256,
+   "judge": 96,
+   "extract": 2048,
+   "extract_edges": 768,
+   "summarize": 256,
+   "reflect": 384,
+   "anticipate": 1024,
+   "relevance": 512,
+   "query_rewrite": 128,
+   "judge_engine": 128,
+   "chat": 512
+  }
+ },
+ "source": "LLM phase plan (2026-10-08, TODO_IMPROVE section 5): QA confirmation of the new base (temporal leg, ADR-062) and the answer-prompt arms N46/N56/N65. Not run: each arm needs the owner's approval. Winners of the free screens (waves A-D) are added as arms once their screens land. Same plan_id/dataset/protocol/memspine_base as wave_runs.json.",
+ "arms": [
+  {
+   "id": "llm-base-dated",
+   "hypothesis": "combo-A (dated prompt) re-measured on today's engine: the comparison point",
+   "systems": [
+    "memspine"
+   ],
+   "qa_prompt": "dated",
+   "config_delta": {
+    "read": {
+     "resolve_relative_dates": true,
+     "order_by_time_for_ordering": true,
+     "assembly": {
+      "relative_floor": 0.3
+     }
+    }
+   }
+  },
+  {
+   "id": "llm-temporal-leg",
+   "hypothesis": "5.2: QA effect of the temporal leg now on in base (coverage +1.7)",
+   "systems": [
+    "memspine"
+   ],
+   "qa_prompt": "dated",
+   "config_delta": {
+    "read": {
+     "resolve_relative_dates": true,
+     "order_by_time_for_ordering": true,
+     "assembly": {
+      "relative_floor": 0.3
+     },
+     "temporal_leg": true
+    }
+   }
+  },
+  {
+   "id": "llm-temporal-evermemos-cot",
+   "hypothesis": "N65: EverMemOS 7-step reasoning prompt on the same context",
+   "systems": [
+    "memspine"
+   ],
+   "qa_prompt": "evermemos_cot",
+   "config_delta": {
+    "read": {
+     "resolve_relative_dates": true,
+     "order_by_time_for_ordering": true,
+     "assembly": {
+      "relative_floor": 0.3
+     },
+     "temporal_leg": true
+    }
+   }
+  },
+  {
+   "id": "llm-temporal-planned",
+   "hypothesis": "N46: planned actions count as done",
+   "systems": [
+    "memspine"
+   ],
+   "qa_prompt": "dated_planned",
+   "config_delta": {
+    "read": {
+     "resolve_relative_dates": true,
+     "order_by_time_for_ordering": true,
+     "assembly": {
+      "relative_floor": 0.3
+     },
+     "temporal_leg": true
+    }
+   }
+  },
+  {
+   "id": "llm-temporal-noabstain",
+   "hypothesis": "N56: never abstain",
+   "systems": [
+    "memspine"
+   ],
+   "qa_prompt": "dated_noabstain",
+   "config_delta": {
+    "read": {
+     "resolve_relative_dates": true,
+     "order_by_time_for_ordering": true,
+     "assembly": {
+      "relative_floor": 0.3
+     },
+     "temporal_leg": true
+    }
+   }
+  }
+ ]
+}
