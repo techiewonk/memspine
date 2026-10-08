@@ -6472,6 +6472,9 @@ class Engine:
         async with self._write_locks.setdefault(ns, asyncio.Lock()):
             ids = [r.record_id for r in await storage.list_records(ns)]
             await self._forget_many(storage, ns, ids, hard=True)
+            drop = getattr(self._vector, "drop_namespace", None)
+            if drop is not None:  # I4: per-namespace tables: the user's table goes too
+                await drop(ns)
         await self._audit_action("erase_namespace", ns, ids, actor=actor, reason=reason)
         return ids
 
@@ -11288,16 +11291,27 @@ class Engine:
             exclusive = False
         self._lance = LanceDBClient(lance_path)
         await self._lance.connect()
-        return LanceDBVectorStore(
-            self._lance,
-            self._embedder,
-            quantization=quantization,
-            matryoshka_dim=matryoshka_dim,
-            oversample=constants.RESCORE_OVERSAMPLE,
-            compact_every=constants.LANCE_COMPACT_EVERY if exclusive else None,
-            exclusive=exclusive,
-            namespace_index=config.vector.namespace_index,
-        )
+        lance, embedder = self._lance, self._embedder
+
+        def make(suffix: str = "") -> LanceDBVectorStore:
+            return LanceDBVectorStore(
+                lance,
+                embedder,
+                quantization=quantization,
+                matryoshka_dim=matryoshka_dim,
+                oversample=constants.RESCORE_OVERSAMPLE,
+                compact_every=constants.LANCE_COMPACT_EVERY if exclusive else None,
+                exclusive=exclusive,
+                namespace_index=config.vector.namespace_index,
+                table_suffix=suffix,
+            )
+
+        if config.vector.isolation == "per_namespace":
+            # I4: one table per namespace (``services/vector/per_namespace.py``).
+            from memspine.services.vector.per_namespace import PerNamespaceVectorStore
+
+            return cast("VectorStore", PerNamespaceVectorStore(lance, embedder, make))
+        return make()
 
     @staticmethod
     def _lexical_projector_name(config: MemspineConfig) -> str:

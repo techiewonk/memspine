@@ -683,6 +683,7 @@ in the schema — or if the schema gains a key not documented here.
 | `vector.backend` | `lance` | `lance` is the sole store (ADR-021); `weaviate` reserved (raises). |
 | `vector.quantization` | `auto` | `auto` (manifest-driven) \| `none` \| `int8` \| `binary` — E4 native rescore (ADR-020). |
 | `vector.namespace_index` | `false` | I1: keep a LanceDB BITMAP scalar index on the vector table's `namespace` column. It is rebuilt every `NAMESPACE_INDEX_EVERY` (500) writes once the table holds `NAMESPACE_INDEX_MIN_ROWS` (1,000) rows, so each user's search prefilter reads that user's rows instead of scanning the column. Results are unchanged; a build failure is logged and stops further attempts. |
+| `vector.isolation` | `shared` | I4: `shared` keeps one LanceDB table per embedder with a namespace prefilter. `per_namespace` gives each namespace its own table (`memspine_<embedder>__ns_<hash>`), so a search touches one user's rows only, and `erase_namespace` drops that user's table. Record-id operations (`forget`, erasure checks) search every namespace table. Switching rebuilds the vector projection from the event log. |
 | `cache.backend` | `memory` | `memory` \| `lmdb` `[lmdb]` \| `redis` `[redis]` \| `valkey` `[valkey]` (D-09). |
 | `cache.path` | `./memspine.cache` | LMDB env directory. |
 | `cache.url` | `redis://localhost:6379/0` | Redis/Valkey DSN (secrets-resolved). |

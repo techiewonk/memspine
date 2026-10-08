@@ -154,6 +154,11 @@ class VectorConfig(BaseModel):
     #: the table has ``NAMESPACE_INDEX_MIN_ROWS`` rows), so the per-user prefilter
     #: reads one user's rows. Results are unchanged. Off: the column is scanned.
     namespace_index: bool = False
+    #: I4 (isolation review 2026-10-08): ``shared`` (unchanged: one table per embedder,
+    #: namespace prefilter) or ``per_namespace`` (one table per namespace: a search
+    #: touches one user's rows only, and ``erase_namespace`` drops the user's table).
+    #: Switching rebuilds the vector projection from the event log.
+    isolation: Literal["shared", "per_namespace"] = "shared"
 
 
 class GraphConfig(BaseModel):
