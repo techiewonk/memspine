@@ -69,6 +69,9 @@ def strip_control_chars(text: str) -> str:
 
 _log = get_logger(__name__)
 
+#: N58: the registered name of the English (stop words + stemmer) analyzer.
+ENGLISH_TOKENIZER = "memspine_english"
+
 
 def tokenize_content(query: str) -> list[str]:
     """Split user text into content-field terms the way Tantivy's ``default``
@@ -132,7 +135,10 @@ class TantivyLexical:
     """
 
     def __init__(
-        self, index_path: str | Path | None = None, heap_bytes: int = TANTIVY_WRITER_HEAP_BYTES
+        self,
+        index_path: str | Path | None = None,
+        heap_bytes: int = TANTIVY_WRITER_HEAP_BYTES,
+        analyzer: str = "default",
     ) -> None:
         # tantivy is a CORE dependency (v0.2): it backs the default hybrid leg on
         # every backend, so a failed import is a broken install, not a missing
@@ -147,7 +153,23 @@ class TantivyLexical:
         builder = tantivy.SchemaBuilder()
         builder.add_text_field("record_id", stored=True, tokenizer_name="raw")
         builder.add_text_field("namespace", stored=True, tokenizer_name="raw")
-        builder.add_text_field("content", stored=False, tokenizer_name="default")
+        #: N58: ``english`` = stop words + Snowball stemmer, applied to the indexed
+        #: content and to the query terms alike (``_terms``).
+        self._analyzer: Any = None
+        content_tokenizer = "default"
+        if analyzer == "english":
+            self._analyzer = (
+                tantivy.TextAnalyzerBuilder(tantivy.Tokenizer.simple())
+                .filter(tantivy.Filter.remove_long(40))
+                .filter(tantivy.Filter.lowercase())
+                .filter(tantivy.Filter.stopword("english"))
+                .filter(tantivy.Filter.stemmer("english"))
+                .build()
+            )
+            content_tokenizer = ENGLISH_TOKENIZER
+        elif analyzer != "default":
+            raise ValueError(f"unknown lexical analyzer {analyzer!r} (default | english)")
+        builder.add_text_field("content", stored=False, tokenizer_name=content_tokenizer)
         self._schema = builder.build()
         self._index: Any = None
         self._writer: Any = None
@@ -174,6 +196,8 @@ class TantivyLexical:
         else:
             Path(self._path).mkdir(parents=True, exist_ok=True)
             self._index = tantivy.Index(self._schema, path=self._path)
+        if self._analyzer is not None:
+            self._index.register_tokenizer(ENGLISH_TOKENIZER, self._analyzer)
         # One writer for the store's life: commit() is reusable across mutations,
         # so the heap is allocated once (wait_merging_threads, which consumes the
         # writer, is deferred to close()).
@@ -261,11 +285,18 @@ class TantivyLexical:
     async def search(self, namespace: str, query: str, top_k: int = 8) -> list[LexicalHit]:
         await self._ensure()
         # Bound the query before it reaches the tokenizer/index (DoS guard).
-        terms = tokenize_content(strip_control_chars(query)[:MAX_LEXICAL_QUERY_CHARS])
+        terms = self._terms(strip_control_chars(query)[:MAX_LEXICAL_QUERY_CHARS])
         if not terms:
             return []
         await self._commit_pending()
         return await asyncio.to_thread(self._search, namespace, terms, top_k)
+
+    def _terms(self, query: str) -> list[str]:
+        """Query terms, split exactly as the content field's analyzer splits text."""
+        if self._analyzer is None:
+            return tokenize_content(query)
+        terms = list(dict.fromkeys(self._analyzer.analyze(query)))
+        return terms[:MAX_LEXICAL_QUERY_TERMS]
 
     def _search(self, namespace: str, terms: list[str], top_k: int) -> list[LexicalHit]:
         import tantivy

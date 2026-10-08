@@ -19,8 +19,11 @@ __all__ = ["LexicalProjector"]
 class LexicalProjector(Projector):
     name = "lexical"
 
-    def __init__(self, store: LexicalStore) -> None:
+    def __init__(self, store: LexicalStore, name: str = "lexical") -> None:
         self._store = store
+        #: N58: a non-default analyzer projects under its own name, so its offset
+        #: starts at 0 and the index is rebuilt from the log.
+        self.name = name
 
     async def apply(self, event: MemoryEvent) -> None:
         if event.kind is EventKind.WRITE:

@@ -298,6 +298,12 @@ class ReadConfig(BaseModel):
     static_embedding_prefilter: bool = False
     hybrid: bool = True  # v0.2 A3: default-on hybrid retrieval (D-25, ADR-019)
     lexical_provider: str = "tantivy"  # tantivy (core, default) | opensearch [opensearch] (D-25)
+    #: N58 (gaps plan 2026-10-08): the Tantivy analyzer for the BM25 body. ``default``
+    #: (unchanged: alphanumeric runs, lower-cased) or ``english`` (plus English stop
+    #: words and the Snowball English stemmer, so "camping" matches "camp"). The
+    #: ``english`` index lives in its own directory under its own projector name, so
+    #: switching rebuilds it from the event log and never touches the default index.
+    lexical_analyzer: Literal["default", "english"] = "default"
     compression: dict[str, Any] = Field(default_factory=dict)
     #: Append a RETRIEVE event per search (access stats feed reinforcement, M1).
     #: ``false`` makes reads side-effect free, e.g. so benchmark questions cannot

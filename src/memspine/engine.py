@@ -1074,7 +1074,9 @@ class Engine:
         if self._lexical is not None:
             # Registered only when hybrid is on, so rebuild() replays it and the
             # index backfills from seq 0 the first time hybrid is enabled.
-            self._projectors.append(LexicalProjector(self._lexical))
+            self._projectors.append(
+                LexicalProjector(self._lexical, name=self._lexical_projector_name(config))
+            )
         if self._associative is not None:
             # Registered only when associative is enabled, so rebuild() replays
             # it and profile="simple" never projects a graph (D0.1/ADR-015).
@@ -10715,6 +10717,13 @@ class Engine:
             exclusive=exclusive,
         )
 
+    @staticmethod
+    def _lexical_projector_name(config: MemspineConfig) -> str:
+        """N58: ``lexical`` for the default analyzer, ``lexical:<analyzer>`` otherwise,
+        so a new analyzer's index starts from offset 0 and is rebuilt from the log."""
+        analyzer = config.read.lexical_analyzer
+        return "lexical" if analyzer == "default" else f"lexical:{analyzer}"
+
     def _build_lexical_store(self, config: MemspineConfig) -> LexicalStore:
         """Lexical provider selection (D-25). ``tantivy`` (default, **core**)
         builds a standalone BM25 index independent of the storage backend;
@@ -10729,10 +10738,12 @@ class Engine:
             # In-RAM index for an in-memory event log (same lifetime, no ghost
             # segments across runs — mirrors the vector store's :memory: rule);
             # else an on-disk directory beside the derived base.
+            analyzer = config.read.lexical_analyzer
+            suffix = ".tantivy" if analyzer == "default" else f".tantivy-{analyzer}"
             index_path = (
-                None if self._client_is_memory(config) else f"{self._derived_base(config)}.tantivy"
+                None if self._client_is_memory(config) else f"{self._derived_base(config)}{suffix}"
             )
-            return TantivyLexical(index_path)
+            return TantivyLexical(index_path, analyzer=analyzer)
         if provider == "opensearch":
             from memspine.services.lexical.opensearch import OpenSearchLexical
 

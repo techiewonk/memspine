@@ -687,6 +687,7 @@ in the schema — or if the schema gains a key not documented here.
 | `read.static_embedding_prefilter` | `false` | E4 model2vec static-cosine gate `[static]`. |
 | `read.hybrid` | `true` | Fuse the lexical BM25 leg via RRF (D-25; on by default since the v0.2 flip, ADR-019); `false` = vector-only. |
 | `read.lexical_provider` | `tantivy` | `sqlite_fts5` (FTS5/BM25) \| `tantivy` `[tantivy]`; only when `hybrid` is on. |
+| `read.lexical_analyzer` | `default` | N58: Tantivy analyzer for the BM25 leg. `default` (alphanumeric runs, lower-cased) or `english` (adds English stop words and the Snowball English stemmer, so "camping" matches "camp"). The query is tokenized with the same analyzer. `english` keeps its own index (`<db>.tantivy-english`) under the projector name `lexical:english`, so turning it on rebuilds that index from the event log and leaves the default index alone. |
 | `read.compression` | `{}` | Options for the E5 assembly-stage `CompressionPolicy` (`memspine[compress]`). |
 | `read.record_access` | `true` | Append a RETRIEVE event per search (reinforcement stats). `false` makes reads side-effect free (e.g. benchmark isolation). |
 | `read.current_state_view` | `false` | C4': render each retrieved keyed fact as `CURRENT (since date)` plus its superseded `HISTORY` (deterministic, from the bi-temporal chain). |
