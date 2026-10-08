@@ -728,3 +728,7 @@ DOCTYPE_TAG_PREFIX = "doctype:"
 #: N64: the BGE v1.5 retrieval query instruction (BAAI model card, "for s2p retrieval
 #: ... add an instruction to the query"). Used as ``embedding.query_instruction``.
 BGE_QUERY_INSTRUCTION = "Represent this sentence for searching relevant passages: "
+
+#: N44 (gaps plan 2026-10-08, Dakera soft date proximity): a soft temporal span widens
+#: by one span length, and by at least this many days (a one-day span by 3 days).
+TEMPORAL_SOFT_MARGIN_DAYS = 3

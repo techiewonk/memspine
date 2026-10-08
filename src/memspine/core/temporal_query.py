@@ -20,6 +20,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
+from memspine.config.constants import TEMPORAL_SOFT_MARGIN_DAYS
 from memspine.core.event_date import happened_of, label_span
 from memspine.core.records import MemoryRecord, chrono_key
 from memspine.core.temporal_resolve import WeekMode, resolve
@@ -53,6 +54,24 @@ _MON_DAY_YEAR = re.compile(
 _MON_YEAR = re.compile(rf"\b{_MON}\s*,?\s+(?P<y>(?:19|20)\d{{2}})\b", re.I)
 _YEAR = re.compile(r"\b(?:in|during|of|since|by)\s+(?P<y>(?:19|20)\d{2})\b", re.I)
 
+# N45: dates with no year. Case-sensitive capitalised month names, next to a day
+# number or after a preposition, so "may I" or "march on" never match.
+_CAP_MON = (
+    r"(?P<mon>"
+    + "|".join(
+        sorted(
+            {n for n in calendar.month_name if n} | {n for n in calendar.month_abbr if n},
+            key=len,
+            reverse=True,
+        )
+    )
+    + r")\.?"
+)
+_NO_YEAR = r"(?!\s*,?\s*(?:19|20)\d{2})"
+_DAY_MON = re.compile(rf"\b(?P<d>\d{{1,2}})(?:st|nd|rd|th)?\s+(?:of\s+)?{_CAP_MON}{_NO_YEAR}")
+_MON_DAY = re.compile(rf"\b{_CAP_MON}\s+(?P<d>\d{{1,2}})(?:st|nd|rd|th)?\b{_NO_YEAR}")
+_IN_MON = re.compile(rf"\b(?:in|during|since|by|early|late|mid-?)\s+{_CAP_MON}\b{_NO_YEAR}")
+
 
 @dataclass(frozen=True, slots=True)
 class LegHit:
@@ -69,15 +88,25 @@ def _day(y: int, m: int, d: int) -> tuple[datetime, datetime] | None:
 
 
 def query_interval(
-    query: str, anchor: datetime | None = None, *, week: WeekMode = "calendar"
+    query: str,
+    anchor: datetime | None = None,
+    *,
+    week: WeekMode = "calendar",
+    year_ref: datetime | None = None,
 ) -> tuple[datetime, datetime] | None:
     """The first absolute ``[start, end)`` span named in ``query``, or None.
+
+    N45 (``read.temporal_infer_year``): with ``year_ref`` (the newest record time, or
+    an explicit as-of), a date with no year ("on 7 May", "in March") takes the latest
+    year that puts it on or before ``year_ref``.
 
     F2 (plan v3.2, ``read.temporal_relative``): with ``anchor`` (the read time, or an
     explicit as-of), a query with no absolute date falls back to its first relative
     phrase ("last week", "two months ago", "yesterday") resolved against ``anchor`` by
     the H1 rules. Without ``anchor`` a relative phrase names no span (unchanged)."""
     span = _absolute_interval(query)
+    if span is None and year_ref is not None:
+        span = _yearless_interval(query, year_ref)
     if span is not None or anchor is None:
         return span
     found = resolve(query, anchor, week=week)
@@ -106,6 +135,26 @@ def _absolute_interval(query: str) -> tuple[datetime, datetime] | None:
     return None
 
 
+def _yearless_interval(query: str, ref: datetime) -> tuple[datetime, datetime] | None:
+    """N45: "7 May" / "May 7th" (a day) or "in May" (a month) with the year inferred
+    as the latest one that puts the date on or before ``ref``."""
+    ref = _aware(ref)
+    for pattern in (_DAY_MON, _MON_DAY):
+        if m := pattern.search(query):
+            mon, d = _MONTHS[m["mon"].lower()], int(m["d"])
+            for y in (ref.year, ref.year - 1):
+                day = _day(y, mon, d)
+                if day is not None and day[0] <= ref:
+                    return day
+            return None
+    if m := _IN_MON.search(query):
+        mon = _MONTHS[m["mon"].lower()]
+        y = ref.year if mon <= ref.month else ref.year - 1
+        start = datetime(y, mon, 1, tzinfo=UTC)
+        return start, datetime(y + (mon == 12), mon % 12 + 1, 1, tzinfo=UTC)
+    return None
+
+
 def _aware(t: datetime) -> datetime:
     return t if t.tzinfo is not None else t.replace(tzinfo=UTC)
 
@@ -118,6 +167,9 @@ def temporal_leg(
     event_dates: bool = False,
     anchor: datetime | None = None,
     week: WeekMode = "calendar",
+    year_ref: datetime | None = None,
+    rank: str = "midpoint",
+    soft: bool = False,
 ) -> list[LegHit]:
     """Records whose event time lies in the query's span, closest to its middle first.
 
@@ -125,14 +177,22 @@ def temporal_leg(
     ``happened:`` date (a mined fact's event date) overlaps the span also enters, at
     the start of the overlap, so an event said days after it happened is found by its
     own date. A record matching both ways keeps the closer time. Ties: ``chrono_key``.
-    ``anchor`` / ``week`` (F2): see :func:`query_interval`.
+    ``anchor`` / ``week`` (F2) and ``year_ref`` (N45): see :func:`query_interval`.
+
+    ``rank`` (N61, ``read.temporal_rank``): ``midpoint`` (unchanged) or ``overlap``:
+    in-span records with more content words shared with the query first, then by
+    closeness to the middle. ``soft`` (N44, ``read.temporal_soft``): when fewer than
+    ``top_k`` records fall in the span, the rest of the leg is filled with the records
+    nearest outside it, within one span length (at least ``TEMPORAL_SOFT_MARGIN``).
     """
-    span = query_interval(query, anchor, week=week)
+    records = list(records)
+    span = query_interval(query, anchor, week=week, year_ref=year_ref)
     if span is None:
         return []
     start, end = span
     mid = start + (end - start) / 2
-    scored: list[tuple[float, MemoryRecord]] = []
+    asked = _content_words(query) if rank == "overlap" else frozenset()
+    scored: list[tuple[float, float, MemoryRecord]] = []
     for r in records:
         times = []
         said = _aware(r.valid_from)
@@ -141,9 +201,33 @@ def temporal_leg(
         if event_dates and (at := _happened_in(r, start, end)) is not None:
             times.append(at)
         if times:
-            scored.append((min(abs((t - mid).total_seconds()) for t in times), r))
-    scored.sort(key=lambda pair: (pair[0], chrono_key(pair[1])))
-    return [LegHit(r.record_id, 1.0) for _, r in scored[:top_k]]
+            shared = len(asked & _content_words(r.content)) if asked else 0
+            dist = min(abs((t - mid).total_seconds()) for t in times)
+            scored.append((-shared, dist, r))
+    scored.sort(key=lambda item: (item[0], item[1], chrono_key(item[2])))
+    if soft and len(scored) < top_k:
+        inside = {r.record_id for _, _, r in scored}
+        margin = max(end - start, TEMPORAL_SOFT_MARGIN)
+        near: list[tuple[float, MemoryRecord]] = []
+        for r in records:
+            said = _aware(r.valid_from)
+            if r.record_id in inside or not (start - margin <= said < end + margin):
+                continue
+            gap = (start - said) if said < start else (said - end)
+            near.append((gap.total_seconds(), r))
+        near.sort(key=lambda pair: (pair[0], chrono_key(pair[1])))
+        scored += [(0, 0.0, r) for _, r in near[: top_k - len(scored)]]
+    return [LegHit(r.record_id, 1.0) for _, _, r in scored[:top_k]]
+
+
+#: N44: the smallest widening of a soft temporal span.
+TEMPORAL_SOFT_MARGIN = timedelta(days=TEMPORAL_SOFT_MARGIN_DAYS)
+
+
+def _content_words(text: str) -> frozenset[str]:
+    from memspine.core.query_shape import content_words
+
+    return content_words(text)
 
 
 def _happened_in(record: MemoryRecord, start: datetime, end: datetime) -> datetime | None:

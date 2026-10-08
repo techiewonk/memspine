@@ -321,6 +321,18 @@ class ReadConfig(BaseModel):
     #: against the read time (the engine clock) by the H1 rules, using
     #: ``relative_week``. Off: relative phrases name no span (unchanged).
     temporal_relative: bool = False
+    #: N45 (gaps plan 2026-10-08): with ``temporal_leg``, a date with no year ("on
+    #: 7 May", "in March") takes the latest year that puts it on or before the
+    #: namespace's newest record (or the as-of time). Off: such dates name no span.
+    temporal_infer_year: bool = False
+    #: N61: order of in-span records in the temporal leg. ``midpoint`` (unchanged:
+    #: closest to the span's middle) or ``overlap`` (most content words shared with
+    #: the question first, then midpoint).
+    temporal_rank: Literal["midpoint", "overlap"] = "midpoint"
+    #: N44: when fewer than ``fetch_k`` records fall in the span, fill the temporal leg
+    #: with the nearest records outside it (within one span length, at least
+    #: ``TEMPORAL_SOFT_MARGIN_DAYS``). Off: hard window (unchanged).
+    temporal_soft: bool = False
     metadata_leg: bool = False
     #: W8 (plan v3.2): an RRF leg of the turns of every speaker the question names
     #: (``speaker:<name>`` tags from ``memories.episodic.policies.subject_tagging``),

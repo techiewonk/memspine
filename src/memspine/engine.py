@@ -1867,6 +1867,16 @@ class Engine:
                         "anchor": active_as_of() or self._clock(),
                         "week": read.relative_week,
                     }
+                if read.temporal_infer_year and live:
+                    # N45: a yearless date resolves against the conversation's "now".
+                    anchored["year_ref"] = active_as_of() or max(
+                        r.valid_from if r.valid_from.tzinfo else r.valid_from.replace(tzinfo=UTC)
+                        for r in live
+                    )
+                if read.temporal_rank != "midpoint":
+                    anchored["rank"] = read.temporal_rank
+                if read.temporal_soft:
+                    anchored["soft"] = True
                 legs.append(
                     temporal_leg(
                         query,
