@@ -789,3 +789,7 @@ GRAPH_NODE_SEARCH_TOP = 5
 BRIEF_SUMMARIES_MARKER = "EARLIER SESSIONS (newest first):"
 BRIEF_RECENT_MARKER = "LAST TURNS (oldest first):"
 BRIEF_TAG = "brief_block"
+
+#: G-2 (Graphiti cross-key contradiction): the same-subject facts on other keys a new
+#: state fact is adjudicated against (one ``invalidate_edge`` call each).
+CONTRADICTION_CANDIDATES = 3

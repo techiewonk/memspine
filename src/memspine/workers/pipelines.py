@@ -257,6 +257,10 @@ class PipelineContext:
     #: #20: the session-level extractor (``extract_edges@session``: numbered turns
     #: in, edges with ``episode_indices`` out). None => record-level extraction.
     extract_session_edges: ExtractEdges | None = None
+    #: G-2: the ``invalidate_edge`` adjudicator: (existing fact, its valid_from,
+    #: incoming fact, its valid_from) -> add | update | invalidate | noop. None => the
+    #: cross-key contradiction check self-skips.
+    adjudicate_edge: Callable[[str, str, str, str], Awaitable[str]] | None = None
     #: #20: the decision provider's entity finder (GLiNER2): text -> entity names,
     #: the allowed-entity list of a session extraction. None => no list.
     find_entities: FindEntities | None = None
@@ -1788,6 +1792,64 @@ def _edge_key(namespace: str, edge: ExtractedEdge, *, dated: bool = False) -> st
 _NUMERAL = re.compile(r"\d+(?:[.,]\d+)*")
 
 
+async def _retract_contradicted(
+    ctx: PipelineContext, namespace: str, fact: MemoryRecord, trusts: list[float]
+) -> int:
+    """G-2 (Graphiti cross-key contradiction): the live ``extract_graph`` facts about the
+    same subject on OTHER keys, most words shared with ``fact`` first (at most
+    ``CONTRADICTION_CANDIDATES``), are each adjudicated by ``invalidate_edge``. An
+    ``update`` / ``invalidate`` verdict retracts the old key through the semantic door,
+    so the M4 ladder closes it (``valid_to``) and its trust gate still applies.
+    Returns how many facts were retracted. Failures skip the candidate."""
+    assert ctx.adjudicate_edge is not None and ctx.write_fact is not None
+    subject = (fact.entity or "").casefold()
+    if not subject:
+        return 0
+    words = set(fact.content.lower().split())
+    candidates = [
+        r
+        for r in await ctx.storage.list_records(namespace, "semantic")
+        if r.source.channel == "extract_graph"
+        and r.record_id != fact.record_id
+        and r.status is RecordStatus.ACTIVATED
+        and r.valid_to is None
+        and (r.entity or "").casefold() == subject
+        and r.attribute
+        and r.attribute != fact.attribute
+        and "retract" not in r.tags
+    ]
+    candidates.sort(key=lambda r: (-len(words & set(r.content.lower().split())), r.record_id))
+    retracted = 0
+    for old in candidates[: constants.CONTRADICTION_CANDIDATES]:
+        try:
+            verdict = await ctx.adjudicate_edge(
+                old.content,
+                old.valid_from.date().isoformat(),
+                fact.content,
+                fact.valid_from.date().isoformat(),
+            )
+        except Exception as exc:
+            _log.warning("extract_graph.adjudicate_failed", namespace=namespace, error=str(exc))
+            continue
+        if verdict.strip().lower() not in ("update", "invalidate"):
+            continue
+        retraction = MemoryRecord(
+            namespace=namespace,
+            memory_type="semantic",
+            content=f"RETRACTED {old.entity}.{old.attribute}: contradicted by {fact.content}",
+            entity=old.entity,
+            attribute=old.attribute,
+            tags=["retract"],
+            valid_from=fact.valid_from,
+            source=SourceInfo(
+                role=constants.DERIVED_ROLE, channel="extract_graph", parents=[fact.record_id]
+            ),
+        )
+        await ctx.write_fact(retraction, trusts)
+        retracted += 1
+    return retracted
+
+
 def _edge_valid_to(edge: ExtractedEdge) -> datetime | None:
     """G-1: the edge's stated ISO ``valid_to`` if parseable, else None (open)."""
     if not edge.valid_to:
@@ -1843,6 +1905,9 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
     dated_events = opts.get("event_identity", "plain") == "dated"
     # G-1: an edge whose text says it ended is written already closed (valid_to).
     close_ended = bool(opts.get("close_ended", False))
+    # G-2: a new STATE fact is checked against the subject's facts on OTHER keys.
+    contradictions = bool(opts.get("contradictions", False)) and ctx.adjudicate_edge is not None
+    invalidated = 0
     raw_conf = opts.get("min_confidence", 0.0)
     min_conf = float(raw_conf) if isinstance(raw_conf, (int, float, str)) else 0.0
     # #20: ``granularity: session`` sends each consolidated session in one call
@@ -1999,7 +2064,7 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
                 """One extracted edge -> a fact record (+ ``asserted`` LINKs) whose
                 parents are ``parents``: the source record, or the session turns
                 the edge cites (#20)."""
-                nonlocal written, linked, skipped, quarantined, provenance
+                nonlocal written, linked, skipped, quarantined, provenance, invalidated
                 if edge.confidence < min_conf:
                     return
                 key = _edge_key(namespace, edge, dated=dated_events)
@@ -2073,6 +2138,8 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
                         )
                         return
                 written += 1
+                if contradictions and edge.kind == "state" and ctx.write_fact is not None:
+                    invalidated += await _retract_contradicted(ctx, namespace, fact, trusts)
                 for parent in parents:
                     # Associate the fact with its source (non-reserved rel: budget
                     # applies). A saturated source keeps the record, skips the link.
@@ -2140,6 +2207,7 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
     stats: dict[str, object] = {
         "status": "ok" if not errors else "partial",
         "edges_written": written,
+        "edges_invalidated": invalidated,
         "links": linked,
         "skipped_existing": skipped,
         "skipped_sources": already,

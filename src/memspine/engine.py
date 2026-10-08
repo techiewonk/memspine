@@ -24,6 +24,7 @@ import threading
 import unicodedata
 from collections.abc import (
     AsyncIterator,
+    Awaitable,
     Callable,
     Collection,
     Coroutine,
@@ -269,6 +270,7 @@ from memspine.prompts.models import (
     AnswerVerdictOut,
     AnticipatedCue,
     AnticipatedCues,
+    ConflictVerdictOut,
     EntityMatches,
     EntitySummaries,
     ExtractedEdge,
@@ -10457,6 +10459,7 @@ class Engine:
             deposit_surprise=self._deposit_surprise_fact,
             extract_edges=self._extract_edges,
             extract_session_edges=self._extract_session_edges,
+            adjudicate_edge=self._build_edge_adjudicator(),
             find_entities=(
                 self._entity_finder() if self._extract_session_edges is not None else None
             ),
@@ -11283,6 +11286,31 @@ class Engine:
         if granularity != "session" or self._build_edge_extractor(config) is None:
             return None
         return self._edge_extract_callable(int(opts.get("max_rounds", 1)), condition="session")
+
+    def _build_edge_adjudicator(self) -> Callable[[str, str, str, str], Awaitable[str]] | None:
+        """G-2: the ``invalidate_edge`` prompt as a callable, when that role is bound."""
+        if self._llm is None or self._prompts is None or "invalidate_edge" not in self._llm.roles:
+            return None
+        llm = self._llm.for_role("invalidate_edge")
+        prompt = self._prompts.for_role("invalidate_edge")
+
+        async def adjudicate(
+            existing: str, existing_from: str, incoming: str, incoming_from: str
+        ) -> str:
+            result = await structured_call(
+                llm,
+                prompt,
+                {
+                    "existing_fact": existing,
+                    "existing_valid_from": existing_from,
+                    "incoming_fact": incoming,
+                    "incoming_valid_from": incoming_from,
+                },
+                ConflictVerdictOut,
+            )
+            return str(result.verdict)
+
+        return adjudicate
 
     def _entity_finder(self) -> FindEntities | None:
         """#20: the decision provider's ``entities`` hook (GLiNER2), or None."""
