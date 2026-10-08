@@ -778,6 +778,9 @@ class EvalRunner:
             self._check_spend(f"{self.system.system_id}.query")
             started = time.perf_counter()
             mark = self._cache_mark()
+            set_meta = getattr(self.system, "set_query_meta", None)
+            if set_meta is not None:
+                set_meta(query.meta)  # N34: e.g. the question's own date (as-of reads)
             context = await self.system.query(query.text, protocol.budget_tokens, protocol.top_k)
             latency_retrieve = (time.perf_counter() - started) * 1000
             cached = self._cache_since(mark)

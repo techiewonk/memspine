@@ -87,6 +87,8 @@ class C01Config:
     memspine_config: dict[str, Any] | None = None
     #: memspine arm read path: None = assemble, else an Engine.read mode (C7').
     memspine_read_mode: str | None = None
+    #: N34: memspine reads as of each question's date (LongMemEval ``question_date``).
+    memspine_as_of_question_date: bool = False
     #: run the engine's sleep cycle after ingestion (write-time stages: H2, H8, H14)
     memspine_build_sleep: bool = False
     #: G9: turns of one session per write_messages call (1 = one call per turn)
@@ -361,6 +363,7 @@ def build_systems(config: C01Config) -> list[SystemAdapter]:
                 read_mode=config.memspine_read_mode,
                 build_sleep=config.memspine_build_sleep,
                 batch_turns=config.memspine_batch_turns,
+                as_of_question_date=config.memspine_as_of_question_date,
             )
         )
     if config.only_systems:

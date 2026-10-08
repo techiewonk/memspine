@@ -91,8 +91,13 @@ class MemspineSystem:
         build_sleep: bool = False,
         sleep_calls_per_session: int = 1,
         batch_turns: int = 1,
+        as_of_question_date: bool = False,
     ) -> None:
         self.system_id = system_id
+        #: N34: read as of each question's date (LongMemEval ``question_date``), so a
+        #: turn recorded after the question was asked is never retrieved.
+        self._as_of_question_date = as_of_question_date
+        self._question_as_of: Any = None
         # ``template`` names a config template (base, personal, coding, ...);
         # the *profile* is a field those templates set. Conflating them would
         # silently evaluate the default engine while claiming another.
@@ -139,6 +144,7 @@ class MemspineSystem:
             "sleep_calls_per_session": self.sleep_calls_per_session,
             # Listed only when on, so default runs keep their config hash.
             **({"batch_turns": self.batch_turns} if self.batch_turns > 1 else {}),
+            **({"as_of_question_date": True} if self._as_of_question_date else {}),
             "token_counter": dict(self._counter.describe()),
         }
 
@@ -387,6 +393,12 @@ class MemspineSystem:
             return DepositResult(model_calls=0, meta=meta)
         return DepositResult(model_calls=after - before + flushed.model_calls, meta=meta)
 
+    def set_query_meta(self, meta: Mapping[str, Any]) -> None:
+        """N34: the runner hands each question's metadata over before ``query``."""
+        self._question_as_of = (
+            parse_question_date(meta.get("question_date")) if self._as_of_question_date else None
+        )
+
     async def query(self, text: str, budget_tokens: int, top_k: int) -> RetrievedContext:
         if self._engine is None:
             raise RuntimeError("query before reset/insert — no engine started")
@@ -397,6 +409,7 @@ class MemspineSystem:
         usage_before = self._usage()
         prompts_before = self._prompt_usage()
         rerank_before = self._rerank_stats()
+        as_of = {"as_of": self._question_as_of} if self._question_as_of is not None else {}
         if self._read_mode:
             result = await self._engine.read(
                 text,
@@ -404,11 +417,12 @@ class MemspineSystem:
                 mode=self._read_mode,
                 budget_tokens=budget_tokens,
                 top_k=top_k,
+                **as_of,
             )
             assembled = result.context
         else:
             assembled = await self._engine.assemble(
-                text, namespace=self.namespace, budget_tokens=budget_tokens, top_k=top_k
+                text, namespace=self.namespace, budget_tokens=budget_tokens, top_k=top_k, **as_of
             )
         after = self._calls()
         engine_llm = self._usage_delta(usage_before, self._usage())
@@ -560,3 +574,19 @@ def _merge_deposits(results: list[DepositResult]) -> DepositResult:
         model_calls=sum(r.model_calls for r in results),
         meta=meta,
     )
+
+
+def parse_question_date(value: Any) -> datetime | None:
+    """N34: LongMemEval's ``question_date`` ("2023/05/30 (Tue) 23:40") as UTC, else None."""
+    import re
+
+    if not value:
+        return None
+    m = re.match(
+        r"\s*(\d{4})/(\d{1,2})/(\d{1,2})(?:\s*\(\w+\))?(?:\s+(\d{1,2}):(\d{2}))?", str(value)
+    )
+    if not m:
+        return None
+    y, mo, d = int(m[1]), int(m[2]), int(m[3])
+    hh, mm = int(m[4] or 23), int(m[5] or 59)
+    return datetime(y, mo, d, hh, mm, tzinfo=UTC)

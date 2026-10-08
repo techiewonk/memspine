@@ -24,9 +24,7 @@ EXAMPLE = {  # one question per category, from the dataset itself
 @pytest.mark.skipif(not DATA.exists(), reason="LoCoMo data not present")
 def test_locomo_category_counts_and_labels() -> None:
     ds = LoCoMoDataset(DATA, revision_id="test")
-    counts = collections.Counter(
-        q.type_label for item in ds.items() for q in item.queries
-    )
+    counts = collections.Counter(q.type_label for item in ds.items() for q in item.queries)
     assert dict(counts) == COUNTS
     assert sum(counts[c] for c in ("cat1", "cat2", "cat3", "cat4")) == 1540
     by_text = {q.text: q.type_label for item in ds.items() for q in item.queries}

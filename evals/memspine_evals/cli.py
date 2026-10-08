@@ -165,6 +165,7 @@ def cmd_c0_1(args: argparse.Namespace) -> int:
         bedrock=args.bedrock,
         memspine_config=json.loads(args.memspine_config) if args.memspine_config else None,
         memspine_read_mode=args.memspine_read_mode,
+        memspine_as_of_question_date=args.memspine_as_of_question_date,
         memspine_build_sleep=args.memspine_build_sleep,
         memspine_batch_turns=args.memspine_batch_turns,
         qa_prompt=args.qa_prompt,
@@ -400,6 +401,12 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="N",
         help="memspine arm: write up to N turns of one session per write_messages call "
         "(one batched embedding); flushed before every query and at session boundaries (G9)",
+    )
+    c01.add_argument(
+        "--memspine-as-of-question-date",
+        action="store_true",
+        help="memspine arm reads as of each question's date (LongMemEval question_date; "
+        "N34), so turns recorded after the question are never retrieved",
     )
     c01.add_argument(
         "--memspine-read-mode",
