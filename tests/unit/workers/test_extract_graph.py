@@ -8,7 +8,10 @@ land in both the record and graph projectors — the engine's write-door unit.
 
 from __future__ import annotations
 
+import sys
 from datetime import UTC, datetime
+
+import pytest
 
 from memspine.clients.sqlite import SQLiteClient
 from memspine.core.events import EventKind, MemoryEvent
@@ -21,6 +24,13 @@ from memspine.services.storage.sqlite.engine import SQLiteStorage
 from memspine.workers.pipelines import PipelineContext, extract_graph
 
 NOW = datetime.now(UTC)
+
+
+@pytest.fixture(autouse=True)
+def _fresh_now(monkeypatch: pytest.MonkeyPatch) -> None:
+    """``NOW`` is taken when each test starts, not when the module is imported: a long
+    parallel run would otherwise age every "minutes / hours ago" offset (flake fix)."""
+    monkeypatch.setattr(sys.modules[__name__], "NOW", datetime.now(UTC))
 
 
 class Harness:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 
@@ -16,6 +17,13 @@ from memspine.exceptions import MissingServiceError  # noqa: E402
 from memspine.protocols.rest import create_app  # noqa: E402
 
 NOW = datetime.now(UTC)
+
+
+@pytest.fixture(autouse=True)
+def _fresh_now(monkeypatch: pytest.MonkeyPatch) -> None:
+    """``NOW`` is taken when each test starts, not when the module is imported: a long
+    parallel run would otherwise age every "minutes / hours ago" offset (flake fix)."""
+    monkeypatch.setattr(sys.modules[__name__], "NOW", datetime.now(UTC))
 
 
 @pytest.fixture

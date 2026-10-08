@@ -7,7 +7,10 @@ written by pipelines materialize exactly as they would in production.
 
 from __future__ import annotations
 
+import sys
 from datetime import UTC, datetime, timedelta
+
+import pytest
 
 from memspine.clients.sqlite import SQLiteClient
 from memspine.config.loader import load_config
@@ -18,6 +21,13 @@ from memspine.services.storage.sqlite.engine import SQLiteStorage
 from memspine.workers.pipelines import PipelineContext, compress, consolidate, decay_sweep
 
 NOW = datetime.now(UTC)
+
+
+@pytest.fixture(autouse=True)
+def _fresh_now(monkeypatch: pytest.MonkeyPatch) -> None:
+    """``NOW`` is taken when each test starts, not when the module is imported: a long
+    parallel run would otherwise age every "minutes / hours ago" offset (flake fix)."""
+    monkeypatch.setattr(sys.modules[__name__], "NOW", datetime.now(UTC))
 
 
 class Harness:
