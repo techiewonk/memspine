@@ -14,7 +14,8 @@ placeholders are kept as the vendor wrote them and mapped in ``JudgePrompt.rende
   ``{response}``.
 * ``EVERMEMOS`` -- EverMemOS ``benchmarks/run.py`` ``JUDGE_USER_PROMPT`` + ``JUDGE_SYSTEM_PROMPT``,
   from the code-traced notes ``docs/survey/_staging/EverMemOS/PROMPTS.md`` (the run is judged
-  three times and the best run reported). Fields ``{question}``, ``{golden_answer}``,
+  three times and the mean of the 3 runs reported for 92.32;
+  best-of-runs is only the current runner's sample). Fields ``{question}``, ``{golden_answer}``,
   ``{generated_answer}``.
 """
 
