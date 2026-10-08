@@ -112,6 +112,7 @@ from memspine.core.query_shape import (
     is_aggregation,
     is_count,
     is_duration,
+    is_followup,
     is_novelty,
     is_ordering,
     is_personal,
@@ -3719,6 +3720,13 @@ class Engine:
             if read_now.maxsim_leg:
                 extra_legs += await self._maxsim_leg(ns, query_vector, vector_hits, lexical_hits)
             extra_legs += [list(leg) for leg in fused_legs if leg]
+            floors = self._config().read.leg_min_scores
+            if floors:
+                # C6 (per-leg score floors): weak hits never enter the fusion.
+                if "vector" in floors:
+                    vector_hits = [h for h in vector_hits if h.score >= floors["vector"]]
+                if "lexical" in floors:
+                    lexical_hits = [h for h in lexical_hits if h.score >= floors["lexical"]]
             if allowed is not None:
                 vector_hits = [h for h in vector_hits if h.record_id in allowed[0]]
                 lexical_hits = [h for h in lexical_hits if h.record_id in allowed[0]]
@@ -4106,6 +4114,12 @@ class Engine:
         if self._assembly is None:
             raise MemspineError("assembly policy not bound — engine not started?")
         want = top_k * self._config().read.candidate_pool
+        if self._config().read.followup_probe and is_followup(query):
+            # C1 (rules): a follow-up ("what about her sister?") also searches with
+            # the turn before it, so its missing subject comes from the conversation.
+            before = await self._previous_turn(ns, query)
+            if before:
+                probes = [*probes, f"{before} {query}"]
         if self._config().read.statement_probe and (said := statement_form(query)):
             # N63 (EverMemOS multi-query, by rules): the question as a statement.
             probes = [*probes, said]
@@ -5173,6 +5187,50 @@ class Engine:
                     listed.add(src.record_id)
         return out
 
+    async def _previous_turn(self, ns: str, query: str) -> str | None:
+        """C1: the newest live episodic turn that is not the question itself."""
+        try:
+            turns = [
+                r
+                for r in await self._require_started().list_records(ns, "episodic")
+                if self._context_eligible(r) and r.content.strip() != query.strip()
+            ]
+        except Exception as exc:  # an enhancer, never a gate
+            _log.warning("read.previous_turn_failed", namespace=ns, error=str(exc))
+            return None
+        return max(turns, key=chrono_key).content if turns else None
+
+    async def _recent_section(self, ns: str, query: str, budget_tokens: int) -> MemoryRecord | None:
+        """C2 (``read.recent_exchanges``): the namespace's last N live episodic turns,
+        oldest first, within ``RECENT_SHARE`` of the budget, leaving out a turn that is
+        the question itself (the in-flight message). The turns stay readable below."""
+        n = self._config().read.recent_exchanges
+        if n <= 0:
+            return None
+        try:
+            turns = [
+                r
+                for r in await self._require_started().list_records(ns, "episodic")
+                if self._context_eligible(r) and r.content.strip() != query.strip()
+            ]
+        except Exception as exc:  # an enhancer, never a gate
+            _log.warning("read.recent_section_failed", namespace=ns, error=str(exc))
+            return None
+        latest = sorted(turns, key=chrono_key)[-n:]
+        allowance = int(budget_tokens * constants.RECENT_SHARE)
+        lines: list[str] = []
+        kept: list[MemoryRecord] = []
+        for record in reversed(latest):  # newest first while it fits, shown oldest first
+            line = f"- {escape_markers(' '.join(record.content.split()))}"
+            if estimate_tokens("\n".join([constants.RECENT_MARKER, line, *lines])) > allowance:
+                break
+            lines.insert(0, line)
+            kept.insert(0, record)
+        if not kept:
+            return None
+        block = self._lead_record(ns, "\n".join([constants.RECENT_MARKER, *lines]), kept)
+        return block.model_copy(update={"tags": [constants.LEAD_TAG, constants.RECENT_TAG]})
+
     async def _session_digest_section(
         self, ns: str, query: str, budget_tokens: int, session_id: str | None = None
     ) -> MemoryRecord | None:
@@ -5415,6 +5473,7 @@ class Engine:
             await self._novelty_section(ns, query, budget_tokens),
             await self._slots_section(ns, query, budget_tokens),
             await self._session_digest_section(ns, query, budget_tokens, session_id),
+            await self._recent_section(ns, query, budget_tokens),
         ):
             if header is not None:
                 headers.append(header)
@@ -5771,7 +5830,7 @@ class Engine:
         shown = {
             pid
             for h in headers
-            if constants.SESSION_DIGEST_TAG not in h.tags
+            if constants.SESSION_DIGEST_TAG not in h.tags and constants.RECENT_TAG not in h.tags
             for pid in h.source.parents
         }
         facts = hide_facts or (all_facts and any(constants.CARDS_TAG in h.tags for h in headers))
@@ -5796,6 +5855,12 @@ class Engine:
         assembled.abstained = False
         records = list(assembled.records)
         at = min(assembled.boundary_index, len(records))
+        if self._config().read.section_captions and len(records) > at:
+            # C7: the retrieved part gets its own caption after the headers' markers.
+            caption = self._lead_record(
+                records[at].namespace, constants.RETRIEVED_CAPTION, list(records[at:])
+            ).model_copy(update={"tags": [constants.LEAD_TAG, constants.RETRIEVED_CAPTION_TAG]})
+            headers = [*headers, caption]
         records[at:at] = headers
         assembled.records = records
         assembled.tokens_used += self._headers_cost(headers)

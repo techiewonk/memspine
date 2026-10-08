@@ -67,6 +67,17 @@ The two lexical variants (`english`, `dates`) build their own index directory un
 | N57 | Vendor judge suites and `memspine_evals.rejudge` |
 | N46, N56, N65 | QA prompts `dated_planned`, `dated_noabstain`, `evermemos_cot`. EverMemOS's 7-step prompt is verbatim; `final_answer` v3 reads its "STEP 7: FINAL ANSWER" heading. |
 
+### Addendum (2026-10-08): context practices from a production memory service
+
+| Key | Item | Behaviour |
+|---|---|---|
+| `read.recent_exchanges` | C2 | A recent-conversation header, without the in-flight question. |
+| `read.leg_min_scores` | C6 | Per-leg score floors before fusion. |
+| `read.section_captions` | C7 | A caption on the retrieved part. |
+| `read.followup_probe` | C1 | Rules: follow-up questions also search with the previous turn. |
+
+All four are off.
+
 ## Consequences
 
 - **Defaults:** with every key off, reads are unchanged. The simple-profile golden only gained the new keys at their off values.

@@ -764,3 +764,13 @@ SESSION_DIGEST_HITS = 5
 SESSION_DIGEST_SESSIONS = 3
 SESSION_DIGEST_SENTENCES = 2
 SESSION_DIGEST_SHARE = 0.1
+
+# C2 (replay the last exchanges): the recent-conversation header
+# (``read.recent_exchanges``). Never hides its turns from the read.
+RECENT_MARKER = "RECENT CONVERSATION (the latest turns, oldest first):"
+RECENT_TAG = "recent_header"
+#: C2: the share of the budget the recent-conversation header may use.
+RECENT_SHARE = 0.15
+# C7 (labelled context sections): the caption of the retrieved part when headers lead.
+RETRIEVED_CAPTION = "RETRIEVED MEMORIES (the turns most relevant to the question):"
+RETRIEVED_CAPTION_TAG = "retrieved_caption"

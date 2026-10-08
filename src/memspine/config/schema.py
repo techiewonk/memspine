@@ -689,6 +689,19 @@ class ReadConfig(BaseModel):
     #: N55 (EverMemOS per-source quotas): the most records of each memory type the
     #: read keeps (``{"semantic": 3}``); types not listed are uncapped. Empty: unchanged.
     type_quotas: dict[str, int] = Field(default_factory=dict)
+    #: C2 (replay the last exchanges): a read header with the namespace's last N live
+    #: episodic turns, oldest first (``RECENT_SHARE`` of the budget); the in-flight
+    #: question is left out and the turns are not hidden from the read. 0: off.
+    recent_exchanges: int = Field(default=0, ge=0, le=20)
+    #: C6 (per-leg score floors): ``{"vector": 0.3, "lexical": 1.0}`` drops a leg's
+    #: hits below its floor before fusion (vector = cosine, lexical = BM25). Empty: off.
+    leg_min_scores: dict[str, float] = Field(default_factory=dict)
+    #: C7 (labelled sections): when read headers lead the context, the retrieved part
+    #: gets a caption too (``RETRIEVED_CAPTION``). Off: unchanged.
+    section_captions: bool = False
+    #: C1 (follow-up questions, by rules): a question that reads as a follow-up ("what
+    #: about her sister?", "and then?") also searches with the turn before it.
+    followup_probe: bool = False
     #: N33 (Memori, Mem0): the BM25 leg's RRF weight for a question of at most
     #: ``SHORT_QUERY_WORDS`` content words. None: unchanged.
     short_query_lexical_weight: float | None = Field(default=None, ge=0.0)
