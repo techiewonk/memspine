@@ -633,13 +633,18 @@ def _snapshot_scoped[**P, R](
         if _READ_SNAPSHOT.get() is not None:
             return await fn(*args, **kwargs)
         token = _READ_SNAPSHOT.set({})
+        focal = _FOCAL_ENTITY.set(None)  # G-11: a focal entity lives for one read
         try:
             return await fn(*args, **kwargs)
         finally:
+            _FOCAL_ENTITY.reset(focal)
             _READ_SNAPSHOT.reset(token)
 
     return wrapper
 
+
+#: G-11 (Graphiti center node): the focal entity of the read in progress, if any.
+_FOCAL_ENTITY: ContextVar[str | None] = ContextVar("memspine_focal_entity", default=None)
 
 #: #63: the neighbour batch of the ``write_messages`` call running in this task.
 _NEIGHBOUR_BATCH: ContextVar[_NeighbourBatch | None] = ContextVar(
@@ -2146,6 +2151,12 @@ class Engine:
             return []
         words = match_key(query).split()
         seeds: list[str] = []
+        focal = _FOCAL_ENTITY.get()
+        if focal:
+            # G-11: the caller's focal entity seeds the walk first (when it is known).
+            for node in index.get(match_key(focal), []):
+                if node not in seeds:
+                    seeds.append(node)
         for size in range(min(constants.GRAPH_SEED_MAX_NGRAM, len(words)), 0, -1):
             for start in range(len(words) - size + 1):
                 for node in index.get(" ".join(words[start : start + size]), []):
@@ -3572,6 +3583,7 @@ class Engine:
         roles: Sequence[str] | None = None,
         memory_types: Sequence[str] | None = None,
         tags_any: Sequence[str] | None = None,
+        focal_entity: str | None = None,
         purpose: str | None = None,
         include_passive: bool = False,
         *,
@@ -3624,6 +3636,8 @@ class Engine:
         costs recall. No bound: unchanged.
         """
         session_id = ledger_id if ledger_id is not None else session_id  # I9
+        if focal_entity:  # G-11: an extra graph seed for this read
+            _FOCAL_ENTITY.set(focal_entity)
         date_filter = DateFilter.build(
             valid_from_after=valid_from_after,
             valid_from_before=valid_from_before,
@@ -4137,6 +4151,7 @@ class Engine:
         roles: Sequence[str] | None = None,
         memory_types: Sequence[str] | None = None,
         tags_any: Sequence[str] | None = None,
+        focal_entity: str | None = None,
         purpose: str | None = None,
         include_passive: bool = False,
         *,
@@ -4158,6 +4173,8 @@ class Engine:
         ``as_of`` (W7): as in :meth:`read`.
         """
         session_id = ledger_id if ledger_id is not None else session_id  # I9
+        if focal_entity:  # G-11: an extra graph seed for this read
+            _FOCAL_ENTITY.set(focal_entity)
         as_of_filter = None
         if as_of is not None:
             moment = to_utc(as_of) + timedelta(microseconds=1)
@@ -4796,6 +4813,7 @@ class Engine:
         roles: Sequence[str] | None = None,
         memory_types: Sequence[str] | None = None,
         tags_any: Sequence[str] | None = None,
+        focal_entity: str | None = None,
         purpose: str | None = None,
         include_passive: bool = False,
         *,
@@ -4858,6 +4876,8 @@ class Engine:
         "what did memory know then" add ``recorded_before``. None: unchanged.
         """
         session_id = ledger_id if ledger_id is not None else session_id  # I9
+        if focal_entity:  # G-11: an extra graph seed for this read
+            _FOCAL_ENTITY.set(focal_entity)
         if as_of is not None:
             moment = to_utc(as_of) + timedelta(microseconds=1)
             valid_from_before = valid_from_before if valid_from_before is not None else moment

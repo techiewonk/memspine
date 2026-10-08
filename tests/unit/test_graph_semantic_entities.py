@@ -108,3 +108,29 @@ async def test_turn_mentions_let_the_graph_reach_raw_turns(tmp_path: Path, provi
     assert legs and turn.record_id in [h.record_id for h in legs[0]]
     assert any("luna" in n for n in nodes) and any("leeds" in n for n in nodes)
     assert not any(n.endswith(":yes") or n.endswith(":ana") for n in nodes)
+
+
+async def test_focal_entity_seeds_the_graph_and_does_not_leak(tmp_path: Path) -> None:
+    """G-11: ``focal_entity=`` adds a graph seed for one read only."""
+    from memspine.engine import _FOCAL_ENTITY
+
+    eng = _engine(tmp_path, "sqlite_adjacency")
+    await eng.start()
+    seen: list[list[str]] = []
+    real = eng._graph_seeds
+
+    async def spy(ns: str, query: str, fallback_ids: object = ()) -> list[str]:
+        out = await real(ns, query, fallback_ids)  # type: ignore[arg-type]
+        seen.append(out)
+        return out
+
+    eng._graph_seeds = spy  # type: ignore[method-assign]
+    try:
+        await eng.write("Luna is a grey cat", namespace="u", entity="Luna", attribute="pet")
+        eng._config().read.graph_leg = True  # type: ignore[misc]
+        await eng.search("what about her?", namespace="u", focal_entity="Luna")
+        after = _FOCAL_ENTITY.get()
+    finally:
+        await eng.stop()
+    assert any(any("luna" in s for s in seeds) for seeds in seen)
+    assert after is None
