@@ -1,5 +1,5 @@
 id: extract_edges@session
-version: 1
+version: 2
 role: extract_edges
 format: yaml
 output_model: ExtractedEdges
@@ -13,7 +13,9 @@ system: >-
   verb-phrase slug like works_at or located_in), dst_entity, fact (one
   self-contained sentence that states it, naming the people, never a pronoun),
   kind, valid_from (ISO date only if the transcript states one or it follows
-  from a line's date, else omit), confidence (0-1) and episode_indices (the
+  from a line's date, else omit), valid_to (ISO date only if the transcript
+  says the relation stopped holding, e.g. "until 2022", "used to", "no
+  longer"; else omit), confidence (0-1) and episode_indices (the
   numbers [n] of the lines that state the edge). kind is `state` for a
   single-valued, current relation where a newer value replaces the old one
   (lives_in, works_at, married_to, a pet's name) and `event` for something that

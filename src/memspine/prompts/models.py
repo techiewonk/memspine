@@ -354,6 +354,9 @@ class ExtractedEdge(BaseModel):
     dst_entity: str
     fact: str  # the sentence asserting the edge (provenance for the context window)
     valid_from: str | None = None  # ISO date if the text states one
+    #: G-1 (Graphiti edge end time): the ISO date the relation stopped holding, only
+    #: when the text says so ("until 2022", "used to", "no longer"); else None.
+    valid_to: str | None = None
     confidence: float = 1.0
     #: GP-1: a ``state`` edge is single-valued and current (lives_in, works_at), so
     #: a newer ``(src, rel)`` edge supersedes it; an ``event`` edge (read, visited,
@@ -366,6 +369,7 @@ class ExtractedEdge(BaseModel):
     episode_indices: list[int] = Field(default_factory=list)
 
     _valid_from_as_text = field_validator("valid_from", mode="before")(_as_text)
+    _valid_to_as_text = field_validator("valid_to", mode="before")(_as_text)
 
     @field_validator("episode_indices", mode="before")
     @classmethod

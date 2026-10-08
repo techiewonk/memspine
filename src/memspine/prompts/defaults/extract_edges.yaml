@@ -1,5 +1,5 @@
 id: extract_edges
-version: 3
+version: 4
 role: extract_edges
 format: yaml
 output_model: ExtractedEdges
@@ -9,7 +9,9 @@ system: >-
   graph. Each edge has: src_entity, rel (a short verb-phrase slug like
   works_at or located_in), dst_entity, fact (the sentence that states it),
   kind, valid_from (ISO date only if the text states one or it follows from
-  the reference time, else omit), confidence (0-1). kind is `state` for a
+  the reference time, else omit), valid_to (ISO date only if the text says the
+  relation stopped holding, e.g. "until 2022", "used to", "no longer"; else
+  omit), confidence (0-1). kind is `state` for a
   single-valued, current relation where a newer value replaces the old one
   (lives_in, works_at, married_to, a pet's name) and `event` for something that
   happened or one of many that hold at once (read, visited, attended, bought,

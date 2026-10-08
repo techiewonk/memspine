@@ -1788,6 +1788,17 @@ def _edge_key(namespace: str, edge: ExtractedEdge, *, dated: bool = False) -> st
 _NUMERAL = re.compile(r"\d+(?:[.,]\d+)*")
 
 
+def _edge_valid_to(edge: ExtractedEdge) -> datetime | None:
+    """G-1: the edge's stated ISO ``valid_to`` if parseable, else None (open)."""
+    if not edge.valid_to:
+        return None
+    try:
+        parsed = datetime.fromisoformat(edge.valid_to)
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+
+
 def _edge_valid_from(edge: ExtractedEdge, fallback: datetime) -> datetime:
     """The edge's stated ISO ``valid_from`` if parseable, else the source
     record's time — a malformed date never fails the sweep."""
@@ -1830,6 +1841,8 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
     opts = _policy_options(ctx, "semantic", "extract_graph") or {}
     # G-3: event edges keyed on their day and numerals (off: (src, rel, dst) only).
     dated_events = opts.get("event_identity", "plain") == "dated"
+    # G-1: an edge whose text says it ended is written already closed (valid_to).
+    close_ended = bool(opts.get("close_ended", False))
     raw_conf = opts.get("min_confidence", 0.0)
     min_conf = float(raw_conf) if isinstance(raw_conf, (int, float, str)) else 0.0
     # #20: ``granularity: session`` sends each consolidated session in one call
@@ -2010,6 +2023,7 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
                     attribute=attribute,
                     tags=tags,
                     valid_from=_edge_valid_from(edge, parents[-1].valid_from),
+                    valid_to=_edge_valid_to(edge) if close_ended else None,
                     source=SourceInfo(
                         role=constants.DERIVED_ROLE,
                         channel="extract_graph",
