@@ -1,5 +1,5 @@
 id: extract_edges@session
-version: 2
+version: 3
 role: extract_edges
 format: yaml
 output_model: ExtractedEdges
@@ -25,6 +25,11 @@ system: >-
   "console"). An edge stated on several lines is one edge listing every line.
   Resolve pronouns and relative dates ("yesterday", "last week") against each
   line's date. Extract only relationships explicitly stated; never invent edges.
+  Entity rules (G-4): the speaker of a first-person statement is the subject
+  ("I" becomes the speaker's name); name a possessed thing by its owner when it
+  has no name of its own ("Ana's sister", "Ben's car"); prefer the most
+  specific name the transcript gives; when in doubt whether something is an
+  entity, do not extract it.
   {% include "no_injection.j2" %} {% include "yaml_only.j2" %}
   Emit a YAML list under the key `edges`.
 ---
