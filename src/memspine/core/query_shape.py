@@ -17,7 +17,6 @@ __all__ = [
     "is_aggregation",
     "is_count",
     "is_duration",
-    "is_followup",
     "is_inference",
     "is_novelty",
     "is_ordering",
@@ -366,21 +365,3 @@ def question_shape(query: str) -> str:
     if is_inference(query):
         return "inference"
     return "plain"
-
-
-#: C1: openings of a follow-up that leans on the previous turn for its subject.
-_FOLLOWUP = re.compile(
-    r"^\s*(?:and|but|also|so|then|what about|how about|why not|which one|what else|"
-    r"(?:and )?(?:he|she|they|it|him|her|them|that|this|those|these)\b)",
-    re.IGNORECASE,
-)
-
-
-def is_followup(query: str) -> bool:
-    """C1: True when a question opens like a follow-up ("what about her?", "and
-    then?", "she said what?") or is very short (at most 3 words) with no name after
-    its first word."""
-    if _FOLLOWUP.search(query):
-        return True
-    words = query.strip().rstrip("?").split()
-    return 0 < len(words) <= 3 and not any(w[:1].isupper() for w in words[1:])

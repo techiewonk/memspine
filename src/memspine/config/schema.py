@@ -699,9 +699,6 @@ class ReadConfig(BaseModel):
     #: C7 (labelled sections): when read headers lead the context, the retrieved part
     #: gets a caption too (``RETRIEVED_CAPTION``). Off: unchanged.
     section_captions: bool = False
-    #: C1 (follow-up questions, by rules): a question that reads as a follow-up ("what
-    #: about her sister?", "and then?") also searches with the turn before it.
-    followup_probe: bool = False
     #: N33 (Memori, Mem0): the BM25 leg's RRF weight for a question of at most
     #: ``SHORT_QUERY_WORDS`` content words. None: unchanged.
     short_query_lexical_weight: float | None = Field(default=None, ge=0.0)

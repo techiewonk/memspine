@@ -1,4 +1,4 @@
-"""C1 follow-up probe, C2 recent-conversation header, C6 per-leg score floors, C7 section
+"""C2 recent-conversation header, C6 per-leg score floors, C7 section
 caption (generic field practice; all off by default)."""
 
 from __future__ import annotations
@@ -6,12 +6,9 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-import pytest
-
 from memspine import Engine
 from memspine.config import constants
 from memspine.config.schema import ReadConfig
-from memspine.core.query_shape import is_followup
 
 T0 = datetime(2023, 5, 1, 9, 0, tzinfo=UTC)
 
@@ -21,22 +18,6 @@ def test_keys_are_off_by_default() -> None:
     assert read.recent_exchanges == 0
     assert read.leg_min_scores == {}
     assert read.section_captions is False
-    assert read.followup_probe is False
-
-
-@pytest.mark.parametrize(
-    ("question", "followup"),
-    [
-        ("What about her sister?", True),
-        ("and then?", True),
-        ("She said what?", True),
-        ("why?", True),
-        ("When did Ana go camping by the lake?", False),
-        ("Where does Ben live?", False),
-    ],
-)
-def test_is_followup(question: str, followup: bool) -> None:
-    assert is_followup(question) is followup
 
 
 async def _engine(**read: Any) -> Engine:
@@ -96,20 +77,3 @@ async def test_leg_floor_drops_weak_vector_hits() -> None:
     finally:
         await eng.stop()
     assert hits == []
-
-
-async def test_followup_probe_adds_the_previous_turn(monkeypatch: pytest.MonkeyPatch) -> None:
-    eng = await _engine(followup_probe=True)
-    seen: list[Any] = []
-    real = eng._search
-
-    async def spy(*args: Any, **kwargs: Any) -> Any:
-        seen.append(kwargs.get("probes"))
-        return await real(*args, **kwargs)
-
-    monkeypatch.setattr(eng, "_search", spy)
-    try:
-        await eng.assemble("and her job?", namespace="a", budget_tokens=200)
-    finally:
-        await eng.stop()
-    assert any(p and any("what about your sister" in x for x in p) for p in seen)

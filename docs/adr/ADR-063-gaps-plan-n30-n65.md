@@ -74,9 +74,8 @@ The two lexical variants (`english`, `dates`) build their own index directory un
 | `read.recent_exchanges` | C2 | A recent-conversation header, without the in-flight question. |
 | `read.leg_min_scores` | C6 | Per-leg score floors before fusion. |
 | `read.section_captions` | C7 | A caption on the retrieved part. |
-| `read.followup_probe` | C1 | Rules: follow-up questions also search with the previous turn. |
 
-All four are off.
+All three are off. C1 (a rule-based follow-up probe) was built and then removed at the owner's request.
 
 ## Consequences
 

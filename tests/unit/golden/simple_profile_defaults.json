@@ -95,7 +95,6 @@
       "evidence_weak_below": null,
       "facts_to_sources": false,
       "focused_excerpt": false,
-      "followup_probe": false,
       "fusion": "rrf",
       "gap_markers": false,
       "graph_communities": false,

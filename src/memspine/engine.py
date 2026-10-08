@@ -112,7 +112,6 @@ from memspine.core.query_shape import (
     is_aggregation,
     is_count,
     is_duration,
-    is_followup,
     is_novelty,
     is_ordering,
     is_personal,
@@ -4114,12 +4113,6 @@ class Engine:
         if self._assembly is None:
             raise MemspineError("assembly policy not bound — engine not started?")
         want = top_k * self._config().read.candidate_pool
-        if self._config().read.followup_probe and is_followup(query):
-            # C1 (rules): a follow-up ("what about her sister?") also searches with
-            # the turn before it, so its missing subject comes from the conversation.
-            before = await self._previous_turn(ns, query)
-            if before:
-                probes = [*probes, f"{before} {query}"]
         if self._config().read.statement_probe and (said := statement_form(query)):
             # N63 (EverMemOS multi-query, by rules): the question as a statement.
             probes = [*probes, said]
@@ -5186,19 +5179,6 @@ class Engine:
                     out.append((src, score))
                     listed.add(src.record_id)
         return out
-
-    async def _previous_turn(self, ns: str, query: str) -> str | None:
-        """C1: the newest live episodic turn that is not the question itself."""
-        try:
-            turns = [
-                r
-                for r in await self._require_started().list_records(ns, "episodic")
-                if self._context_eligible(r) and r.content.strip() != query.strip()
-            ]
-        except Exception as exc:  # an enhancer, never a gate
-            _log.warning("read.previous_turn_failed", namespace=ns, error=str(exc))
-            return None
-        return max(turns, key=chrono_key).content if turns else None
 
     async def _recent_section(self, ns: str, query: str, budget_tokens: int) -> MemoryRecord | None:
         """C2 (``read.recent_exchanges``): the namespace's last N live episodic turns,

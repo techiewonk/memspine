@@ -126,7 +126,9 @@ async def test_leg_weights_by_shape_and_short_question() -> None:
     )
     await eng.start()
     try:
-        temporal = eng._leg_weights_for("When did Ana and her two kids go camping at the lake in the hills?")
+        temporal = eng._leg_weights_for(
+            "When did Ana and her two kids go camping at the lake in the hills?"
+        )
         short = eng._leg_weights_for("Ana's book?")
     finally:
         await eng.stop()
