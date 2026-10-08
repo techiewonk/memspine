@@ -213,6 +213,8 @@ It does **not** restrict the read to that conversation; the whole namespace is s
 
 A record outside the scope never reaches the context. That covers search hits, replay neighbours, `full` mode, and the recent-conversation and digest headers. Both filters combine with each other and with the date filters. Two more filters, `memory_types=[...]` (e.g. `episodic`, `semantic`) and `tags_any=[...]` (at least one tag), work the same way (G-12). `focal_entity="Name"` adds that entity as the first seed of the graph walk and the graph rerank for this one read (G-11, Graphiti's center node). Example: `read(q, namespace="u", sessions=["trip-1"], roles=["user"])`.
 
+**Structured session summaries (G-19).** `prompts.selection.summarize: {condition: structured}` makes session summaries five labelled lines: Request, Findings, Outcome, Next steps, Open questions (`summarize@structured`). That shape suits "what did we cover" and aggregation questions, and `brief()` shows these summaries.
+
 **Session-start brief (G-20).** `brief(namespace, budget_tokens, summaries=3, recent_turns=6)` returns context for the start of a new session, with no question. In order, while they fit the budget:
 - the profile block (with `read.profile_slots_header`);
 - the newest session summaries;
