@@ -201,6 +201,12 @@ unless you pass `include_passive=True`, name the session (`session_id="..."`) or
 `group_id`. A new write to the session reopens it. Each change is a `memory.session`
 event, so `rebuild()` reproduces the same passive set (ADR-037).
 
+**`session_id` on reads is not a session filter (I9).** On `write`, `send`, `search`, `assemble`, `read` and `shared_search`, `session_id` does two things:
+- it keys the B0 read ledger: what this caller was shown becomes the implicit parents of its next write;
+- it un-hides that session if it is passive.
+
+It does **not** restrict the read to that conversation; the whole namespace is searched. `ledger_id` is the clearer name for the same argument (`ledger_id` wins when both are given). A real per-session filter is planned (I6/I7).
+
 ### Resource — ingest *(needs `memspine[ingest]`)*
 ```python
 chunks = await engine.ingest("docs/runbook.md", namespace="ops")

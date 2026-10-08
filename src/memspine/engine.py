@@ -1195,6 +1195,7 @@ class Engine:
         derived_from: Sequence[str] | None = None,
         valid_from: datetime | None = None,
         session_id: str | None = None,
+        ledger_id: str | None = None,
         parent_weights: Mapping[str, float] | None = None,
         purposes: Sequence[str] | None = None,
         reply_to: str | None = None,
@@ -1227,6 +1228,7 @@ class Engine:
         memory on, a ``reply_to`` LINK (reply -> answered) is written too, unless
         either end is held or at its link budget (logged, the write stands).
         """
+        session_id = ledger_id if ledger_id is not None else session_id  # I9
         storage = self._require_started()
         ns = validate_namespace(namespace)
         if reply_to is not None:
@@ -1550,6 +1552,7 @@ class Engine:
         to_namespace: str,
         derived_from: Sequence[str] | None = None,
         session_id: str | None = None,
+        ledger_id: str | None = None,
         actor: str = "assistant",
         principal: str | None = None,
     ) -> MemoryRecord:
@@ -1564,6 +1567,7 @@ class Engine:
         so messaging cannot create reachability the grant graph does not have.
         Paper A's complete-mediation assumption (A1) then covers messages too.
         """
+        session_id = ledger_id if ledger_id is not None else session_id  # I9
         storage = self._require_started()
         sender = validate_namespace(from_namespace)
         receiver = validate_namespace(to_namespace)
@@ -3399,6 +3403,7 @@ class Engine:
         group_id: str | None = None,
         tags: list[str] | None = None,
         session_id: str | None = None,
+        ledger_id: str | None = None,
         purpose: str | None = None,
         include_passive: bool = False,
         *,
@@ -3450,6 +3455,7 @@ class Engine:
         the ``top_k`` cut (each leg looks over the whole namespace), so a filter never
         costs recall. No bound: unchanged.
         """
+        session_id = ledger_id if ledger_id is not None else session_id  # I9
         date_filter = DateFilter.build(
             valid_from_after=valid_from_after,
             valid_from_before=valid_from_before,
@@ -3928,6 +3934,7 @@ class Engine:
         top_k: int = constants.ASSEMBLE_TOP_K,
         shared: bool = False,
         session_id: str | None = None,
+        ledger_id: str | None = None,
         purpose: str | None = None,
         include_passive: bool = False,
         *,
@@ -3948,6 +3955,7 @@ class Engine:
 
         ``as_of`` (W7): as in :meth:`read`.
         """
+        session_id = ledger_id if ledger_id is not None else session_id  # I9
         as_of_filter = None
         if as_of is not None:
             moment = to_utc(as_of) + timedelta(microseconds=1)
@@ -4579,6 +4587,7 @@ class Engine:
         replay_window: int = 2,
         compose_pool: int = 3,
         session_id: str | None = None,
+        ledger_id: str | None = None,
         purpose: str | None = None,
         include_passive: bool = False,
         *,
@@ -4640,6 +4649,7 @@ class Engine:
         current one, and relative phrases in the question resolve against it. For
         "what did memory know then" add ``recorded_before``. None: unchanged.
         """
+        session_id = ledger_id if ledger_id is not None else session_id  # I9
         if as_of is not None:
             moment = to_utc(as_of) + timedelta(microseconds=1)
             valid_from_before = valid_from_before if valid_from_before is not None else moment
@@ -9387,12 +9397,14 @@ class Engine:
         namespace: str = "default",
         top_k: int = constants.SEARCH_TOP_K,
         session_id: str | None = None,
+        ledger_id: str | None = None,
         purpose: str | None = None,
     ) -> list[tuple[MemoryRecord, float]]:
         """Own-namespace search plus granted foreign results (see :meth:`_shared_search`).
 
         ``purpose`` (#50): the read's purpose, checked under ``consent.enforce``
         for own and foreign records alike."""
+        session_id = ledger_id if ledger_id is not None else session_id  # I9
         with read_scope(purpose) as outer:
             results = await self._shared_search(query, namespace, top_k, session_id)
             results = [pair for pair in results if self._consent_ok(pair[0])]
