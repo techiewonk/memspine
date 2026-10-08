@@ -205,7 +205,15 @@ event, so `rebuild()` reproduces the same passive set (ADR-037).
 - it keys the B0 read ledger: what this caller was shown becomes the implicit parents of its next write;
 - it un-hides that session if it is passive.
 
-It does **not** restrict the read to that conversation; the whole namespace is searched. `ledger_id` is the clearer name for the same argument (`ledger_id` wins when both are given). A real per-session filter is planned (I6/I7).
+It does **not** restrict the read to that conversation; the whole namespace is searched. `ledger_id` is the clearer name for the same argument (`ledger_id` wins when both are given).
+
+**Session and role filters (I7 / I8).** `search`, `assemble` and `read` take two filters, applied inside the namespace:
+- `sessions=[...]`: the conversation ids given to `write_messages(session_id=...)`;
+- `roles=[...]`: `user`, `assistant`, `tool`, and so on.
+
+A record outside the scope never reaches the context. That covers search hits, replay neighbours, `full` mode, and the recent-conversation and digest headers. Both filters combine with each other and with the date filters. Example: `read(q, namespace="u", sessions=["trip-1"], roles=["user"])`.
+
+**Per-read listing snapshot (I2).** Within one `search` / `assemble` / `read` call, each listing of a namespace's records is fetched from storage once and shared by every leg and header. Any write during the read clears it, so results are the same as without it.
 
 ### Resource — ingest *(needs `memspine[ingest]`)*
 ```python

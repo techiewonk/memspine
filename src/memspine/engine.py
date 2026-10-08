@@ -22,7 +22,14 @@ import re
 import secrets
 import threading
 import unicodedata
-from collections.abc import AsyncIterator, Callable, Collection, Coroutine, Mapping, Sequence
+from collections.abc import (
+    AsyncIterator,
+    Callable,
+    Collection,
+    Coroutine,
+    Mapping,
+    Sequence,
+)
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -125,11 +132,14 @@ from memspine.core.query_shape import (
 from memspine.core.read_filters import (
     DateBound,
     DateFilter,
+    RecordScope,
     active_as_of,
     active_date_filter,
+    active_record_scope,
     as_of_scope,
     date_filter_scope,
     person_time_leg,
+    record_scope,
     time_expr_span,
     to_utc,
 )
@@ -576,6 +586,58 @@ class _NeighbourBatch:
         return hits[:top_k]
 
 
+#: I2 (isolation review 2026-10-08): the records a read has listed, by (namespace,
+#: memory_type, group_id). Set for the duration of one ``search`` / ``assemble`` /
+#: ``read`` call (outermost wins), cleared by every append, so a read sees exactly what
+#: an uncached read would see while listing each namespace at most once.
+_READ_SNAPSHOT: ContextVar[dict[tuple[str, str | None, str | None], list[MemoryRecord]] | None] = (
+    ContextVar("memspine_read_snapshot", default=None)
+)
+
+
+def _snapshot_listings(storage: Any) -> None:
+    """I2: make ``storage.list_records`` read through the current read snapshot.
+
+    Inside a read every listing of a (namespace, type, group) is fetched once and a
+    fresh list is returned to each caller; outside a read it is the plain listing.
+    Every append clears the snapshot (``_append_and_project``), so a read never sees
+    a listing older than its own writes. The episodic store and every engine helper
+    share the storage object, so all of them go through it."""
+    original = storage.list_records
+
+    async def list_records(
+        namespace: str, memory_type: str | None = None, group_id: str | None = None
+    ) -> list[MemoryRecord]:
+        cache = _READ_SNAPSHOT.get()
+        if cache is None:
+            records: list[MemoryRecord] = await original(namespace, memory_type, group_id)
+            return records
+        key = (namespace, memory_type, group_id)
+        if key not in cache:
+            cache[key] = await original(namespace, memory_type, group_id)
+        return list(cache[key])
+
+    storage.list_records = list_records
+
+
+def _snapshot_scoped[**P, R](
+    fn: Callable[P, Coroutine[Any, Any, R]],
+) -> Callable[P, Coroutine[Any, Any, R]]:
+    """I2: run ``fn`` inside one read snapshot (a nested call reuses the outer one)."""
+
+    @functools.wraps(fn)
+    async def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+        if _READ_SNAPSHOT.get() is not None:
+            return await fn(*args, **kwargs)
+        token = _READ_SNAPSHOT.set({})
+        try:
+            return await fn(*args, **kwargs)
+        finally:
+            _READ_SNAPSHOT.reset(token)
+
+    return wrapper
+
+
 #: #63: the neighbour batch of the ``write_messages`` call running in this task.
 _NEIGHBOUR_BATCH: ContextVar[_NeighbourBatch | None] = ContextVar(
     "memspine_neighbour_batch", default=None
@@ -615,7 +677,8 @@ def _passive_scoped[**P, R](
     async def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
         bound = signature.bind_partial(*args, **kwargs).arguments
         include = bool(bound.get("include_passive", False))
-        session = bound.get("session_id")
+        # I9: ``ledger_id`` is the clearer name of the same argument and wins.
+        session = bound.get("ledger_id") or bound.get("session_id")
         outer = _PASSIVE_SCOPE.get()
         if not include and not session:
             return await fn(*args, **kwargs)
@@ -970,6 +1033,7 @@ class Engine:
 
         # 3./4. construct services + open the write door.
         self._storage = await self._build_storage(config)
+        _snapshot_listings(self._storage)  # I2
         await self._storage.start()
         if config.event_log.mode is EventLogMode.EPHEMERAL:
             _log.warning(
@@ -1635,7 +1699,7 @@ class Engine:
     async def _approved(self, ns: str, subject: str, field: str, value: str) -> bool:
         """G29: a live, exactly matching approval exists for (subject, field, value)."""
         now = self._clock()
-        for record in await self._require_started().list_records(ns, "semantic"):
+        for record in await self._records(ns, "semantic"):
             if (
                 constants.APPROVAL_TAG in record.tags
                 and record.status is RecordStatus.ACTIVATED
@@ -1885,7 +1949,7 @@ class Engine:
         try:
             live = [
                 r
-                for r in await self._require_started().list_records(ns)
+                for r in await self._records(ns)
                 if r.status is RecordStatus.ACTIVATED
                 and not r.quarantined
                 and r.memory_type != "shared"
@@ -1977,7 +2041,7 @@ class Engine:
         try:
             live = [
                 r
-                for r in await self._require_started().list_records(ns)
+                for r in await self._records(ns)
                 if r.status is RecordStatus.ACTIVATED
                 and not r.quarantined
                 and r.memory_type != "shared"
@@ -2187,7 +2251,7 @@ class Engine:
         try:
             live = [
                 r
-                for r in await self._require_started().list_records(ns)
+                for r in await self._records(ns)
                 if r.status is RecordStatus.ACTIVATED
                 and not r.quarantined
                 and r.memory_type != "shared"
@@ -2261,7 +2325,7 @@ class Engine:
                     session_ids.setdefault(rid, s.record_ids)
             text = {
                 r.record_id: r.content
-                for r in await self._require_started().list_records(ns)
+                for r in await self._records(ns)
                 if r.status is RecordStatus.ACTIVATED and not r.quarantined
             }
             out: list[str] = []
@@ -3395,6 +3459,7 @@ class Engine:
         return records
 
     @_passive_scoped
+    @_snapshot_scoped
     async def search(
         self,
         query: str,
@@ -3404,6 +3469,8 @@ class Engine:
         tags: list[str] | None = None,
         session_id: str | None = None,
         ledger_id: str | None = None,
+        sessions: Sequence[str] | None = None,
+        roles: Sequence[str] | None = None,
         purpose: str | None = None,
         include_passive: bool = False,
         *,
@@ -3465,7 +3532,11 @@ class Engine:
             recorded_before=recorded_before,
             mode=date_filter_mode,
         )
-        with read_scope(purpose) as outer, date_filter_scope(date_filter):
+        with (
+            read_scope(purpose) as outer,
+            date_filter_scope(date_filter),
+            record_scope(RecordScope.build(sessions, roles)),  # I7 / I8
+        ):
             scored = await self._search(
                 query,
                 namespace,
@@ -3486,10 +3557,19 @@ class Engine:
         The ids are the records that match the filter plus every cue record: a cue is a
         key whose target is judged after the gates resolve it. None: no filter."""
         date_filter = active_date_filter()
-        if date_filter is None:
+        scope = active_record_scope()  # I7 / I8: session and role limits
+        if date_filter is None and scope is None:
             return None
-        listed = await self._require_started().list_records(ns)
-        allowed = {r.record_id for r in listed if CUE_TAG in r.tags or date_filter.matches(r)}
+        listed = await self._records(ns)
+        allowed = {
+            r.record_id
+            for r in listed
+            if CUE_TAG in r.tags
+            or (
+                (date_filter is None or date_filter.matches(r))
+                and (scope is None or scope.matches(r))
+            )
+        }
         return allowed, len(listed)
 
     async def _vector_leg(
@@ -3790,8 +3870,13 @@ class Engine:
             if allowed is not None:
                 # A cue passed the leg filter as a key; its resolved target is judged here.
                 date_filter = active_date_filter()
-                assert date_filter is not None
-                candidates = [pair for pair in candidates if date_filter.matches(pair[0])]
+                scope = active_record_scope()  # I7 / I8
+                candidates = [
+                    pair
+                    for pair in candidates
+                    if (date_filter is None or date_filter.matches(pair[0]))
+                    and (scope is None or scope.matches(pair[0]))
+                ]
             if hide is not None:
                 candidates = [pair for pair in candidates if not hide(pair[0])]
             # Exhaustion is judged on the legs (before any gate or cut).
@@ -3926,6 +4011,7 @@ class Engine:
         return max(1, budget_tokens - reserve) if reserve else budget_tokens
 
     @_passive_scoped
+    @_snapshot_scoped
     async def assemble(
         self,
         query: str,
@@ -3935,6 +4021,8 @@ class Engine:
         shared: bool = False,
         session_id: str | None = None,
         ledger_id: str | None = None,
+        sessions: Sequence[str] | None = None,
+        roles: Sequence[str] | None = None,
         purpose: str | None = None,
         include_passive: bool = False,
         *,
@@ -3964,6 +4052,7 @@ class Engine:
             read_scope(purpose) as outer,
             date_filter_scope(as_of_filter),
             as_of_scope(as_of),
+            record_scope(RecordScope.build(sessions, roles)),  # I7 / I8
         ):
             context = await self._assemble(
                 query, namespace, budget_tokens, top_k, shared=shared, session_id=session_id
@@ -4374,7 +4463,7 @@ class Engine:
             return scored
         mined: dict[str, list[MemoryRecord]] = {}
         if expand:
-            for fact in await self._require_started().list_records(ns, "semantic"):
+            for fact in await self._records(ns, "semantic"):
                 if "atomic_fact" in fact.tags:
                     for parent in fact.source.parents:
                         mined.setdefault(parent, []).append(fact)
@@ -4577,6 +4666,7 @@ class Engine:
         )
 
     @_passive_scoped
+    @_snapshot_scoped
     async def read(
         self,
         query: str,
@@ -4588,6 +4678,8 @@ class Engine:
         compose_pool: int = 3,
         session_id: str | None = None,
         ledger_id: str | None = None,
+        sessions: Sequence[str] | None = None,
+        roles: Sequence[str] | None = None,
         purpose: str | None = None,
         include_passive: bool = False,
         *,
@@ -4666,6 +4758,7 @@ class Engine:
             read_scope(purpose) as outer,
             date_filter_scope(date_filter),
             as_of_scope(as_of),
+            record_scope(RecordScope.build(sessions, roles)),  # I7 / I8
         ):
             result = await self._read(
                 query,
@@ -5102,7 +5195,7 @@ class Engine:
         names = {n.lower() for n in query_names(query)}
         if not names:
             return False
-        for record in await self._require_started().list_records(ns):
+        for record in await self._records(ns):
             known = {
                 t.split(":", 1)[1] for t in record.tags if t.startswith(("person:", "speaker:"))
             }
@@ -5126,7 +5219,7 @@ class Engine:
             return None
         names = [n.lower() for n in query_names(query)] or ["user"]
         slots: dict[str, list[MemoryRecord]] = {}
-        for record in await self._require_started().list_records(ns, "semantic"):
+        for record in await self._records(ns, "semantic"):
             if (
                 record.status is not RecordStatus.ACTIVATED
                 or record.quarantined
@@ -5200,7 +5293,7 @@ class Engine:
         try:
             turns = [
                 r
-                for r in await self._require_started().list_records(ns, "episodic")
+                for r in await self._records(ns, "episodic")
                 if self._context_eligible(r) and r.content.strip() != query.strip()
             ]
         except Exception as exc:  # an enhancer, never a gate
@@ -5251,7 +5344,7 @@ class Engine:
                 return None
             live = {
                 r.record_id: r
-                for r in await self._require_started().list_records(ns, "episodic")
+                for r in await self._records(ns, "episodic")
                 if self._context_eligible(r)
             }
         except Exception as exc:  # an enhancer, never a gate
@@ -5300,7 +5393,7 @@ class Engine:
         if not (self._config().read.novelty_exclusions and is_novelty(query)):
             return None
         known: list[MemoryRecord] = []
-        for record in await self._require_started().list_records(ns, "semantic"):
+        for record in await self._records(ns, "semantic"):
             if record.status is not RecordStatus.ACTIVATED or record.quarantined:
                 continue
             attribute = (record.attribute or "").lower()
@@ -5513,7 +5606,7 @@ class Engine:
                 return None
             admit = self._graph_admit(ns)
             found: dict[str, MemoryRecord] = {}
-            for record in await self._require_started().list_records(ns, "semantic"):
+            for record in await self._records(ns, "semantic"):
                 if record.source.channel != constants.ENTITY_SUMMARY_CHANNEL or not admit(record):
                     continue
                 node = entity_summary_node(record)
@@ -6140,6 +6233,9 @@ class Engine:
             return False
         if record.memory_type == "shared" or CUE_TAG in record.tags:
             return False
+        scope = active_record_scope()
+        if scope is not None and not scope.matches(record):
+            return False  # I7 / I8: outside the read's sessions or roles
         if _passive_hidden(record):
             return False  # #53
         if not self._consent_ok(record):
@@ -6619,7 +6715,7 @@ class Engine:
         not its current value, or negates the current value, is flagged with that
         fact and up to three superseded values (its history). Read-only, no model."""
         ns = validate_namespace(namespace)
-        records = await self._require_started().list_records(ns, "semantic")
+        records = await self._records(ns, "semantic")
         current = [
             r
             for r in records
@@ -6654,7 +6750,7 @@ class Engine:
         selective they are. Read-only, no model."""
         ns = validate_namespace(namespace)
         values: dict[str, list[float]] = {}
-        for record in await self._require_started().list_records(ns):
+        for record in await self._records(ns):
             if record.status is not RecordStatus.ACTIVATED or record.quarantined:
                 continue
             ratings = [t.split(":", 1)[1] for t in record.tags if t.startswith("rating:")]
@@ -6687,7 +6783,7 @@ class Engine:
             return []
         out = [
             record
-            for record in await self._require_started().list_records(ns)
+            for record in await self._records(ns)
             if record.status is RecordStatus.ACTIVATED
             and not record.quarantined
             and record.record_id not in wanted
@@ -6718,7 +6814,7 @@ class Engine:
             lexical = sorted(
                 (
                     r
-                    for r in await self._require_started().list_records(ns)
+                    for r in await self._records(ns)
                     if r.status is RecordStatus.ACTIVATED
                     and not r.quarantined
                     and r.record_id != request.record_id
@@ -9033,9 +9129,7 @@ class Engine:
         ns = validate_namespace(namespace)
         stored = [
             r
-            for r in await self._require_started().list_records(
-                ns, "procedural", f"mapping:{group}"
-            )
+            for r in await self._records(ns, "procedural", f"mapping:{group}")
             if self._is_live_advisory(r, "mapping") and r.entity
         ]
         exemplars = [Exemplar(r.content, str(r.entity), r.record_id) for r in stored]
@@ -9119,7 +9213,7 @@ class Engine:
             return None
         wanted = content_words(span)
         best: tuple[float, MemoryRecord] | None = None
-        for fact in await self._require_started().list_records(ns, "semantic"):
+        for fact in await self._records(ns, "semantic"):
             if (
                 fact.entity is None
                 or fact.status is not RecordStatus.ACTIVATED
@@ -9935,6 +10029,12 @@ class Engine:
             raise MemspineError("Engine not started — call start() first")
         return self._storage
 
+    async def _records(
+        self, namespace: str, memory_type: str | None = None, group_id: str | None = None
+    ) -> list[MemoryRecord]:
+        """I2: ``list_records`` (snapshot-aware via :func:`_snapshot_listings`)."""
+        return await self._require_started().list_records(namespace, memory_type, group_id)
+
     async def _append_and_project(self, event: MemoryEvent) -> None:
         """The one internal path from an event to its projections.
 
@@ -9943,6 +10043,9 @@ class Engine:
         the head; set_offset is advance-only, so races cannot regress marks).
         """
         assert self._storage is not None
+        snapshot = _READ_SNAPSHOT.get()
+        if snapshot:  # I2: a write inside a read: later listings must see it
+            snapshot.clear()
         event = await self._inherit_governance(event)
         appended = await self._storage.append_event(event)
         if appended.seq is None:  # pragma: no cover - write door always assigns seq

@@ -265,3 +265,48 @@ def as_of_scope(as_of: DateBound | None) -> Iterator[None]:
         yield
     finally:
         _AS_OF.reset(token)
+
+
+@dataclass(frozen=True, slots=True)
+class RecordScope:
+    """I7 / I8 (isolation review 2026-10-08): which conversations and which speakers a
+    read may return, inside its namespace. ``sessions``: the conversation ids given to
+    ``write_messages(session_id=...)`` (a record's ``source.message_id``). ``roles``:
+    ``user`` / ``assistant`` / ``tool`` / ... (``source.role``). None: no limit."""
+
+    sessions: frozenset[str] | None = None
+    roles: frozenset[str] | None = None
+
+    @classmethod
+    def build(
+        cls, sessions: Iterable[str] | None = None, roles: Iterable[str] | None = None
+    ) -> RecordScope | None:
+        s = frozenset(sessions) if sessions is not None else None
+        r = frozenset(roles) if roles is not None else None
+        return None if s is None and r is None else cls(sessions=s, roles=r)
+
+    def matches(self, record: MemoryRecord) -> bool:
+        if self.sessions is not None and (record.source.message_id or "") not in self.sessions:
+            return False
+        return self.roles is None or (record.source.role or "") in self.roles
+
+
+_SCOPE: ContextVar[RecordScope | None] = ContextVar("memspine_record_scope", default=None)
+
+
+def active_record_scope() -> RecordScope | None:
+    """The session / role scope of the read in progress, if any (I7 / I8)."""
+    return _SCOPE.get()
+
+
+@contextmanager
+def record_scope(scope: RecordScope | None) -> Iterator[None]:
+    """Make ``scope`` the active session / role scope while the block runs (None: untouched)."""
+    if scope is None:
+        yield
+        return
+    token = _SCOPE.set(scope)
+    try:
+        yield
+    finally:
+        _SCOPE.reset(token)

@@ -63,3 +63,33 @@ async def test_ledger_id_wins_over_session_id(monkeypatch: pytest.MonkeyPatch) -
     finally:
         await eng.stop()
     assert seen == ["new"]
+
+
+async def test_ledger_id_also_unhides_a_passive_session() -> None:
+    eng = Engine(
+        template="core",
+        dotenv_path=None,
+        storage={"path": ":memory:"},
+        embedding={"provider": "hash"},
+        read={"record_access": False},
+        memories={"episodic": {"enabled": True, "policies": {"sessions": {"passive_after": "1s"}}}},
+    )
+    await eng.start()
+    try:
+        from datetime import UTC, datetime, timedelta
+
+        old = datetime.now(UTC) - timedelta(days=3)
+        await eng.write_messages(
+            [{"role": "user", "content": "we went camping by the lake"}],
+            namespace="a",
+            session_id="trip",
+            valid_from=old,
+        )
+        await eng.sleep()
+        hidden = await eng.search("camping lake", namespace="a")
+        by_ledger = await eng.search("camping lake", namespace="a", ledger_id="trip")
+        by_session = await eng.search("camping lake", namespace="a", session_id="trip")
+    finally:
+        await eng.stop()
+    assert [r.record_id for r, _ in by_ledger] == [r.record_id for r, _ in by_session]
+    assert len(by_ledger) >= len(hidden)
