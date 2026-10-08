@@ -32,6 +32,8 @@ __all__ = [
     "NamedLeg",
     "asks_about_assistant",
     "assistant_leg",
+    "cohesion_leg",
+    "entity_expand_leg",
     "entity_leg",
     "is_recommendation",
     "metadata_leg",
@@ -510,3 +512,57 @@ class NamedLeg(list[LegHit]):
     def __init__(self, name: str, hits: Iterable[LegHit] = ()) -> None:
         super().__init__(hits)
         self.name = name
+
+
+def cohesion_leg(
+    anchors: list[MemoryRecord], records: Iterable[MemoryRecord], top_k: int, window: timedelta
+) -> list[LegHit]:
+    """N43 (``read.cohesion_leg``, Dakera session cohesion): records said within
+    ``window`` of an anchor hit (the first-pass top hits), nearest first; the anchors
+    themselves are left out (they already rank)."""
+    ids = {a.record_id for a in anchors}
+    times = [_aware(a.valid_from) for a in anchors]
+    near: list[tuple[float, MemoryRecord]] = []
+    for r in records:
+        if r.record_id in ids:
+            continue
+        said = _aware(r.valid_from)
+        gap = min((abs((said - t).total_seconds()) for t in times), default=None)
+        if gap is not None and gap <= window.total_seconds():
+            near.append((gap, r))
+    near.sort(key=lambda pair: (pair[0], chrono_key(pair[1])))
+    return [LegHit(r.record_id, 1.0) for _, r in near[:top_k]]
+
+
+def entity_expand_leg(
+    anchors: list[MemoryRecord],
+    records: Iterable[MemoryRecord],
+    top_k: int,
+    exclude: Iterable[str] = (),
+    max_share: float = 1.0,
+) -> list[LegHit]:
+    """N32 (``read.entity_expand_leg``; Hindsight / EverMemOS entity links): records
+    naming the proper nouns and years the anchor hits name, most shared names first.
+
+    N53 (Mem0 entity damping): a name found in more than ``max_share`` of the records
+    is too common to expand on and is dropped. ``exclude`` drops the speakers."""
+    records = list(records)
+    names: list[str] = []
+    for a in anchors:
+        for n in named_terms(a.content, exclude):
+            if n not in names:
+                names.append(n)
+    if not names or not records:
+        return []
+    patterns = {n: re.compile(rf"(?<!\w){re.escape(n)}(?!\w)", re.I) for n in names}
+    holders = {n: [r for r in records if p.search(r.content)] for n, p in patterns.items()}
+    kept = [n for n in names if len(holders[n]) / len(records) <= max_share]
+    ids = {a.record_id for a in anchors}
+    counts: dict[str, int] = {}
+    by_id = {r.record_id: r for r in records}
+    for n in kept:
+        for r in holders[n]:
+            if r.record_id not in ids:
+                counts[r.record_id] = counts.get(r.record_id, 0) + 1
+    ranked = sorted(counts, key=lambda rid: (-counts[rid], chrono_key(by_id[rid])))
+    return [LegHit(rid, 1.0) for rid in ranked[:top_k]]

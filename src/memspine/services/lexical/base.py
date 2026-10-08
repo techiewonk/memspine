@@ -20,7 +20,7 @@ from typing import Protocol, runtime_checkable
 from memspine.config.constants import RRF_K
 from memspine.core.records import MemoryRecord
 
-__all__ = ["LexicalHit", "LexicalStore", "RankedHit", "rrf_fuse"]
+__all__ = ["LexicalHit", "LexicalStore", "RankedHit", "minmax_fuse", "rrf_fuse"]
 
 
 @dataclass(frozen=True)
@@ -113,4 +113,41 @@ def rrf_fuse(
             slots[leg] = min(slots[leg], rank)
             weight = 1.0 if weights is None or leg >= len(weights) else weights[leg]
             fused[rid] = fused.get(rid, 0.0) + weight / (k + rank)
+    return sorted(fused.items(), key=lambda item: (-item[1], ranks[item[0]]))
+
+
+def minmax_fuse(
+    vector_hits: Sequence[RankedHit],
+    lexical_hits: Sequence[RankedHit],
+    extra: Sequence[Sequence[RankedHit]] = (),
+    weights: Sequence[float] | None = None,
+) -> list[tuple[str, float]]:
+    """N52 (``read.fusion: minmax``; Dakera reports +6.3 Recall@10 over RRF): each leg's
+    scores min-max normalised to [0, 1] and summed (weighted, as in :func:`rrf_fuse`).
+
+    A leg whose scores all tie (the rule legs score every hit 1.0) is normalised by
+    rank instead: ``1 - (rank - 1) / len``. A record a leg lists twice keeps its best
+    score there. Returns ``(record_id, fused_score)`` best first; ties break on the
+    record's ranks leg by leg, as in :func:`rrf_fuse`, so the order depends on the
+    legs alone. The fused score is in [0, sum of weights].
+    """
+    legs = (vector_hits, lexical_hits, *extra)
+    fused: dict[str, float] = {}
+    ranks: dict[str, list[int]] = {}
+    absent = 1 + max((len(hits) for hits in legs), default=0)
+    for leg, hits in enumerate(legs):
+        if not hits:
+            continue
+        scores = [float(getattr(hit, "score", 1.0)) for hit in hits]
+        lo, hi = min(scores), max(scores)
+        weight = 1.0 if weights is None or leg >= len(weights) else weights[leg]
+        best: dict[str, float] = {}
+        for rank, (hit, score) in enumerate(zip(hits, scores, strict=True), start=1):
+            rid = hit.record_id
+            slots = ranks.setdefault(rid, [absent] * len(legs))
+            slots[leg] = min(slots[leg], rank)
+            norm = (score - lo) / (hi - lo) if hi - lo > 1e-12 else 1.0 - (rank - 1) / len(hits)
+            best[rid] = max(best.get(rid, 0.0), norm)
+        for rid, norm in best.items():
+            fused[rid] = fused.get(rid, 0.0) + weight * norm
     return sorted(fused.items(), key=lambda item: (-item[1], ranks[item[0]]))

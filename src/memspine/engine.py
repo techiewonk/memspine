@@ -156,6 +156,8 @@ from memspine.core.temporal_query import (
     LegHit,
     NamedLeg,
     assistant_leg,
+    cohesion_leg,
+    entity_expand_leg,
     entity_leg,
     is_recommendation,
     metadata_leg,
@@ -272,7 +274,7 @@ from memspine.services.cache.semantic import CachedEmbedding, CachedExtractor
 from memspine.services.embedding.base import EmbeddingService, embed_queries
 from memspine.services.graph.base import GraphStore
 from memspine.services.graph.sqlite_adjacency import SQLiteAdjacencyGraph
-from memspine.services.lexical.base import LexicalHit, LexicalStore, rrf_fuse
+from memspine.services.lexical.base import LexicalHit, LexicalStore, minmax_fuse, rrf_fuse
 from memspine.services.lexical.projector import LexicalProjector
 from memspine.services.llm.base import LLMRouter, LLMService
 from memspine.services.llm.structured import structured_call
@@ -2112,6 +2114,60 @@ class Engine:
             return []
         return [LegHit(rid, 1.0) for rid in ids]
 
+    async def _anchor_legs(
+        self,
+        ns: str,
+        vector_hits: Sequence[Any],
+        lexical_hits: Sequence[Any],
+        fetch_k: int,
+    ) -> list[list[LegHit]]:
+        """N43 cohesion and N32 entity-expansion legs, anchored on the first-pass top
+        hits (``ANCHOR_TOP`` from the vector leg, then the lexical leg). Only live,
+        unquarantined records anchor or join; the search gates still judge every hit."""
+        read = self._config().read
+        try:
+            live = [
+                r
+                for r in await self._require_started().list_records(ns)
+                if r.status is RecordStatus.ACTIVATED
+                and not r.quarantined
+                and r.memory_type != "shared"
+                and CUE_TAG not in r.tags
+            ]
+            by_id = {r.record_id: r for r in live}
+            anchor_ids: list[str] = []
+            for hit in [
+                *vector_hits[: constants.ANCHOR_TOP],
+                *lexical_hits[: constants.ANCHOR_TOP],
+            ]:
+                if hit.record_id in by_id and hit.record_id not in anchor_ids:
+                    anchor_ids.append(hit.record_id)
+            anchors = [by_id[rid] for rid in anchor_ids[: constants.ANCHOR_TOP]]
+            if not anchors:
+                return []
+            legs: list[list[LegHit]] = []
+            if read.cohesion_leg:
+                window = timedelta(minutes=constants.COHESION_WINDOW_MINUTES)
+                legs.append(NamedLeg("cohesion", cohesion_leg(anchors, live, fetch_k, window)))
+            if read.entity_expand_leg:
+                speakers = {s for r in live if (s := speaker_of(r.content)) is not None}
+                legs.append(
+                    NamedLeg(
+                        "entity_expand",
+                        entity_expand_leg(
+                            anchors,
+                            live,
+                            fetch_k,
+                            speakers,
+                            constants.ENTITY_EXPAND_MAX_SHARE,
+                        ),
+                    )
+                )
+            return [leg for leg in legs if leg]
+        except Exception as exc:  # an enhancer, never a gate
+            _log.warning("read.anchor_legs_failed", namespace=ns, error=str(exc))
+            return []
+
     def _leg_weights_for(self, query: str) -> dict[str, float]:
         """N16 leg weights, then N62's for this question's shape, then N33's lexical
         weight for a very short question. Empty = unweighted RRF (unchanged)."""
@@ -3602,6 +3658,9 @@ class Engine:
                     graph_leg += [LegHit(pid, 1.0) for pid in community_gate if pid not in in_leg]
             if graph_leg:
                 extra_legs = [*extra_legs, graph_leg]
+            read_now = self._config().read
+            if read_now.cohesion_leg or read_now.entity_expand_leg:
+                extra_legs += await self._anchor_legs(ns, vector_hits, lexical_hits, fetch_k)
             extra_legs += [list(leg) for leg in fused_legs if leg]
             if allowed is not None:
                 vector_hits = [h for h in vector_hits if h.record_id in allowed[0]]
@@ -3623,9 +3682,14 @@ class Engine:
                     if lw
                     else None
                 )
-                fused = rrf_fuse(
-                    vector_hits, lexical_hits, k=rrf_k, extra=extra_legs, weights=weights
-                )
+                minmax = self._config().read.fusion == "minmax"
+                if minmax:
+                    # N52: min-max-normalised scores summed per leg, in place of RRF.
+                    fused = minmax_fuse(vector_hits, lexical_hits, extra_legs, weights)
+                else:
+                    fused = rrf_fuse(
+                        vector_hits, lexical_hits, k=rrf_k, extra=extra_legs, weights=weights
+                    )
                 fused = fused[: top_k * widen]
                 # F1: raw RRF scores are ~1/(k+1) (≈0.016), but the M1 composite
                 # expects relevance in [0, 1]. Normalize by the theoretical max (a
@@ -3639,6 +3703,8 @@ class Engine:
                     rrf_max = sum(leg_ws) / (rrf_k + 1) or 1.0
                 else:
                     rrf_max = legs / (rrf_k + 1)
+                if minmax:  # N52: the max is the (weighted) leg count, without 1/(k+1)
+                    rrf_max *= rrf_k + 1
                 ranked: list[tuple[str, float]] = [(rid, score / rrf_max) for rid, score in fused]
             else:
                 ranked = [(hit.record_id, hit.score) for hit in vector_hits]

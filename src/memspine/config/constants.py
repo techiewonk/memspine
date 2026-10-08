@@ -739,3 +739,13 @@ MENTION_CACHE_MAX = 200_000
 #: N33 (Memori / Mem0): a question with at most this many content words is "short";
 #: ``read.short_query_lexical_weight`` then sets the BM25 leg's RRF weight.
 SHORT_QUERY_WORDS = 5
+
+#: N43 / N32 (gaps plan 2026-10-08): how many first-pass top hits anchor the cohesion
+#: and entity-expansion legs.
+ANCHOR_TOP = 3
+#: N43 (Dakera session cohesion, +-5 min): records said this close to an anchor hit join
+#: the cohesion leg.
+COHESION_WINDOW_MINUTES = 5
+#: N53 (Mem0 entity damping): a name found in more than this share of the namespace's
+#: records is too common to expand on (every turn of a speaker, "today", ...).
+ENTITY_EXPAND_MAX_SHARE = 0.05

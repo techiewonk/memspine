@@ -659,6 +659,17 @@ class ReadConfig(BaseModel):
     #: applied over ``leg_weights``. Named legs: ``vector``, ``lexical``, ``temporal``,
     #: ``entity``; every other extra leg is ``extra``. Empty: unchanged.
     leg_weights_by_shape: dict[str, dict[str, float]] = Field(default_factory=dict)
+    #: N52 (Mem0 / Dakera calibrated fusion): how the retrieval legs are fused. ``rrf``
+    #: (unchanged, reciprocal rank) or ``minmax`` (each leg's scores min-max normalised
+    #: and summed; tied rule legs normalised by rank).
+    fusion: Literal["rrf", "minmax"] = "rrf"
+    #: N43 (Dakera session cohesion): an RRF leg of records said within
+    #: ``COHESION_WINDOW_MINUTES`` of the first-pass top hits (``ANCHOR_TOP``).
+    cohesion_leg: bool = False
+    #: N32 (Hindsight / EverMemOS entity links) + N53 (Mem0 damping): an RRF leg of
+    #: records naming the proper nouns and years the first-pass top hits name; names
+    #: in more than ``ENTITY_EXPAND_MAX_SHARE`` of the records are dropped.
+    entity_expand_leg: bool = False
     #: N33 (Memori, Mem0): the BM25 leg's RRF weight for a question of at most
     #: ``SHORT_QUERY_WORDS`` content words. None: unchanged.
     short_query_lexical_weight: float | None = Field(default=None, ge=0.0)
