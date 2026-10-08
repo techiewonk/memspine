@@ -213,6 +213,8 @@ It does **not** restrict the read to that conversation; the whole namespace is s
 
 A record outside the scope never reaches the context. That covers search hits, replay neighbours, `full` mode, and the recent-conversation and digest headers. Both filters combine with each other and with the date filters. Example: `read(q, namespace="u", sessions=["trip-1"], roles=["user"])`.
 
+**One conversation (I6).** `conversation(namespace, session_id, roles=None)` returns the live turns of one conversation in time order. It reads them through the indexed `session_key` column (migration 0005 adds `session_key` and `source_role` and backfills existing rows from their source).
+
 **Per-read listing snapshot (I2).** Within one `search` / `assemble` / `read` call, each listing of a namespace's records is fetched from storage once and shared by every leg and header. Any write during the read clears it, so results are the same as without it.
 
 ### Resource — ingest *(needs `memspine[ingest]`)*

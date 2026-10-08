@@ -7,6 +7,7 @@ else in the system is a projection of that log (D0.1). ``upsert_record`` /
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import datetime
 from typing import Protocol, runtime_checkable
 
@@ -64,3 +65,9 @@ class StorageService(Protocol):
         memory_type: str | None = None,
         group_id: str | None = None,
     ) -> list[MemoryRecord]: ...
+
+    async def list_session_records(
+        self, namespace: str, session_key: str, roles: Sequence[str] | None = None
+    ) -> list[MemoryRecord]:
+        """I6: one conversation of one namespace (indexed ``session_key``)."""
+        ...

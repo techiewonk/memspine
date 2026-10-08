@@ -111,11 +111,17 @@ memory_records = Table(
     # #19 interval arithmetic (migration 0004): when the fact stopped being true
     # in the world; NULL = not known (always, unless conflict.interval_order).
     Column("invalid_at", String),
+    # I6 (migration 0005): the conversation id (``source.message_id``) and speaker
+    # role (``source.role``) as indexed columns, so one user's conversation is listed
+    # through an index.
+    Column("session_key", String),
+    Column("source_role", String),
     Index("ix_memory_records_ns_type", "namespace", "memory_type"),
     Index("ix_memory_records_fingerprint", "content_fingerprint"),
     Index("ix_memory_records_fact_key", "namespace", "entity", "attribute"),
     Index("ix_memory_records_tier", "tier"),
     Index("ix_memory_records_ns_group", "namespace", "group_id"),
+    Index("ix_memory_records_ns_session", "namespace", "session_key"),
 )
 
 # Zero-dep graph fallback (P6, D-26): adjacency lists for associative memory,

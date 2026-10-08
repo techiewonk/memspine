@@ -6770,6 +6770,21 @@ class Engine:
             out[domain] = {"mean": round(mean, 4), "std": round(std, 4), "n": float(len(xs))}
         return out
 
+    async def conversation(
+        self,
+        namespace: str = "default",
+        session_id: str = "",
+        roles: Sequence[str] | None = None,
+    ) -> list[MemoryRecord]:
+        """I6: the live turns of one conversation (``write_messages(session_id=...)``),
+        in time order, read through the indexed ``session_key`` column; ``roles`` keeps
+        only some speakers. Passes the same context gates as a read (erased, quarantined
+        or untrusted turns are left out)."""
+        ns = validate_namespace(namespace)
+        storage = self._require_started()
+        listed = await storage.list_session_records(ns, session_id, roles)
+        return sorted((r for r in listed if self._context_eligible(r)), key=chrono_key)
+
     async def session_memories(
         self, namespace: str = "default", session_record_ids: Sequence[str] = ()
     ) -> list[MemoryRecord]:

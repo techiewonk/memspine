@@ -293,6 +293,8 @@ class SqlStorage(ServiceAdapter):
             "group_id": record.group_id,
             "tags": orjson.dumps(record.tags),
             "invalid_at": _iso(record.invalid_at) if record.invalid_at else None,
+            "session_key": record.source.message_id,  # I6
+            "source_role": record.source.role,  # I6
         }
         stmt = self._insert(memory_records).values(record_id=record.record_id, **values)
         stmt = stmt.on_conflict_do_update(index_elements=["record_id"], set_=values)
@@ -324,6 +326,21 @@ class SqlStorage(ServiceAdapter):
             stmt = stmt.where(memory_records.c.memory_type == memory_type)
         if group_id is not None:  # D2 sub-scoping facet
             stmt = stmt.where(memory_records.c.group_id == group_id)
+        async with self._client.engine.connect() as conn:
+            rows = (await conn.execute(stmt)).all()
+        return [self._row_to_record(row._mapping) for row in rows]
+
+    async def list_session_records(
+        self, namespace: str, session_key: str, roles: Sequence[str] | None = None
+    ) -> list[MemoryRecord]:
+        """I6: one conversation of one namespace, through ``ix_memory_records_ns_session``
+        (optionally only some speaker roles)."""
+        stmt = select(memory_records).where(
+            memory_records.c.namespace == namespace,
+            memory_records.c.session_key == session_key,
+        )
+        if roles is not None:
+            stmt = stmt.where(memory_records.c.source_role.in_(list(roles)))
         async with self._client.engine.connect() as conn:
             rows = (await conn.execute(stmt)).all()
         return [self._row_to_record(row._mapping) for row in rows]
