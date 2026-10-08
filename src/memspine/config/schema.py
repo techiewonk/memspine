@@ -654,6 +654,23 @@ class ReadConfig(BaseModel):
     #: unchanged. With ``recency_leg``, a recency-only leg (newest records first) joins
     #: the fusion as an extra leg, for tasks where the latest behaviour matters most.
     leg_weights: dict[str, float] = Field(default_factory=dict)
+    #: N62 (Dakera per-route weights): leg weights by question shape (``temporal``,
+    #: ``count``, ``ordering``, ``inference``, ``plain``; ``query_shape.question_shape``),
+    #: applied over ``leg_weights``. Named legs: ``vector``, ``lexical``, ``temporal``,
+    #: ``entity``; every other extra leg is ``extra``. Empty: unchanged.
+    leg_weights_by_shape: dict[str, dict[str, float]] = Field(default_factory=dict)
+    #: N33 (Memori, Mem0): the BM25 leg's RRF weight for a question of at most
+    #: ``SHORT_QUERY_WORDS`` content words. None: unchanged.
+    short_query_lexical_weight: float | None = Field(default=None, ge=0.0)
+    #: N59 (Dakera name boost): an RRF leg of raw turns naming the question's proper
+    #: nouns and years beyond the speakers (``temporal_query.entity_leg``).
+    entity_leg: bool = False
+    #: N63 (EverMemOS multi-query, by rules): the question rewritten as a statement
+    #: ("When did Ana go camping?" -> "Ana go camping") joins the search as a probe.
+    statement_probe: bool = False
+    #: N40 (MemMachine): when the question names a speaker, "Name: <core terms>" (the
+    #: stored-turn form) joins the search as a vector probe.
+    speaker_probe: bool = False
     recency_leg: bool = False
     #: H12: cap the total of all lead blocks (cards, graph facts, entity summaries,
     #: profile, count timeline) at this share of the read budget, dropping the

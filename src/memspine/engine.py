@@ -117,8 +117,10 @@ from memspine.core.query_shape import (
     is_personal,
     is_temporal,
     is_verbatim,
+    question_shape,
     rule_read_mode,
     split_intents,
+    statement_form,
 )
 from memspine.core.read_filters import (
     DateBound,
@@ -152,7 +154,9 @@ from memspine.core.temporal_query import (
     RECOMMENDATION_TAG,
     SPEAKER_PREFIX,
     LegHit,
+    NamedLeg,
     assistant_leg,
+    entity_leg,
     is_recommendation,
     metadata_leg,
     sentence_leg,
@@ -1858,6 +1862,8 @@ class Engine:
             or read.role_aware
             or read.sentence_leg
             or read.recency_leg
+            or read.entity_leg
+            or read.speaker_probe
         ):
             return [leg for leg in legs if leg]
         try:
@@ -1890,12 +1896,15 @@ class Engine:
                 if read.temporal_leg_mentions:
                     anchored["mentions"] = True
                 legs.append(
-                    temporal_leg(
-                        query,
-                        live,
-                        fetch_k,
-                        event_dates=read.temporal_leg_event_dates,
-                        **anchored,
+                    NamedLeg(
+                        "temporal",
+                        temporal_leg(
+                            query,
+                            live,
+                            fetch_k,
+                            event_dates=read.temporal_leg_event_dates,
+                            **anchored,
+                        ),
                     )
                 )
             if read.metadata_leg:
@@ -1913,6 +1922,26 @@ class Engine:
                 # N16 (plan v3.2, LaMP RSPG): a recency-only leg, newest first.
                 newest = sorted(live, key=chrono_key, reverse=True)[:fetch_k]
                 legs.append([LegHit(r.record_id, 1.0) for r in newest])
+            if read.entity_leg or read.speaker_probe:
+                speakers = {s for r in live if (s := speaker_of(r.content)) is not None}
+                if read.entity_leg:
+                    # N59 (Dakera name boost): proper nouns and years the question
+                    # names, beyond the speakers, matched in raw turns.
+                    legs.append(NamedLeg("entity", entity_leg(query, live, fetch_k, speakers)))
+                if read.speaker_probe:
+                    # N40 (MemMachine): the question in stored-turn form, "Name: ...".
+                    named = sorted(
+                        (
+                            s
+                            for s in speakers
+                            if re.search(rf"(?<!\w){re.escape(s)}(?!\w)", query, re.I)
+                        ),
+                        key=lambda s: query.lower().find(s),  # the first one named
+                    )
+                    if named and self._embedder is not None:
+                        text = f"{named[0].title()}: {core_terms(query) or query}"
+                        vector = (await embed_queries(self._embedder, [text]))[0]
+                        legs += await self._probe_legs(ns, text, vector, fetch_k, lexical=False)
         except Exception as exc:  # an enhancer, never a gate: degrade to the base legs
             _log.warning("read.metadata_legs_failed", namespace=ns, error=str(exc))
             return []
@@ -2082,6 +2111,20 @@ class Engine:
             _log.warning("read.graph_leg_failed", namespace=ns, error=str(exc))
             return []
         return [LegHit(rid, 1.0) for rid in ids]
+
+    def _leg_weights_for(self, query: str) -> dict[str, float]:
+        """N16 leg weights, then N62's for this question's shape, then N33's lexical
+        weight for a very short question. Empty = unweighted RRF (unchanged)."""
+        read = self._config().read
+        weights = dict(read.leg_weights)
+        if read.leg_weights_by_shape:
+            weights.update(read.leg_weights_by_shape.get(question_shape(query), {}))
+        if (
+            read.short_query_lexical_weight is not None
+            and len(content_words(query)) <= constants.SHORT_QUERY_WORDS
+        ):
+            weights["lexical"] = read.short_query_lexical_weight
+        return weights
 
     async def _with_session_neighbours(
         self,
@@ -3570,10 +3613,13 @@ class Engine:
             if use_hybrid or extra_legs:
                 rrf_k = self._config().read.rrf_k or constants.RRF_K
                 # N16 (plan v3.2): per-leg weights (vector, lexical, extra legs).
-                lw = self._config().read.leg_weights
+                lw = self._leg_weights_for(query)
                 weights = (
                     [lw.get("vector", 1.0), lw.get("lexical", 1.0)]
-                    + [lw.get("extra", 1.0)] * len(extra_legs)
+                    + [
+                        lw.get(getattr(leg, "name", "extra"), lw.get("extra", 1.0))
+                        for leg in extra_legs
+                    ]
                     if lw
                     else None
                 )
@@ -3937,6 +3983,9 @@ class Engine:
         if self._assembly is None:
             raise MemspineError("assembly policy not bound — engine not started?")
         want = top_k * self._config().read.candidate_pool
+        if self._config().read.statement_probe and (said := statement_form(query)):
+            # N63 (EverMemOS multi-query, by rules): the question as a statement.
+            probes = [*probes, said]
         if self._config().read.multi_intent_split:
             # G34 (plan v3.2): each request of a multi-part question is its own probe.
             parts = split_intents(query)

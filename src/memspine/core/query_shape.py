@@ -23,8 +23,10 @@ __all__ = [
     "is_personal",
     "is_temporal",
     "is_verbatim",
+    "question_shape",
     "rule_read_mode",
     "split_intents",
+    "statement_form",
 ]
 
 #: Time words after which "every" / "each" describe a habit ("every morning"), not a set.
@@ -317,3 +319,49 @@ _DURATION_Q = re.compile(
 def is_duration(query: str) -> bool:
     """N10: True when the question asks how much time lies between two events."""
     return bool(_DURATION_Q.search(query))
+
+
+#: N63 (EverMemOS multi-query, by rules): a wh- or yes/no question as a statement.
+_WH_AUX = re.compile(
+    r"^\s*(?:when|where|why|how|what|which|who|whom|whose)(?:\s+\w+)?\s+"
+    r"(?P<aux>did|does|do|is|are|was|were|has|have|had|will|would|can|could)\s+(?P<rest>.+)$",
+    re.IGNORECASE,
+)
+_YES_NO = re.compile(
+    r"^\s*(?P<aux>did|does|do|is|are|was|were|has|have|had|will|would|can|could)\s+"
+    r"(?P<rest>.+)$",
+    re.IGNORECASE,
+)
+_BE = {"is", "are", "was", "were"}
+
+
+def statement_form(query: str) -> str | None:
+    """N63: the question rewritten as a statement, or None when no rule applies.
+
+    "When did Ana go camping?" -> "Ana go camping"; "What is Ana's favourite book?" ->
+    "Ana's favourite book is"; "Did Ben join a club?" -> "Ben join a club". The verb
+    keeps its base form: the probe only needs the statement's words in statement order.
+    """
+    text = query.strip().rstrip("?").strip()
+    m = _WH_AUX.match(text) or _YES_NO.match(text)
+    if not m:
+        return None
+    rest = m["rest"].strip()
+    if len(rest.split()) < 2:
+        return None
+    out = f"{rest} {m['aux'].lower()}" if m["aux"].lower() in _BE else rest
+    return out if out.lower() != text.lower() else None
+
+
+def question_shape(query: str) -> str:
+    """N62: one shape per question, for per-shape leg weights: ``temporal``,
+    ``count``, ``ordering``, ``inference`` or ``plain`` (first rule that matches)."""
+    if is_temporal(query):
+        return "temporal"
+    if is_count(query):
+        return "count"
+    if is_ordering(query):
+        return "ordering"
+    if is_inference(query):
+        return "inference"
+    return "plain"

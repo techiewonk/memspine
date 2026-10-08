@@ -29,10 +29,13 @@ __all__ = [
     "RECOMMENDATION_TAG",
     "SPEAKER_PREFIX",
     "LegHit",
+    "NamedLeg",
     "asks_about_assistant",
     "assistant_leg",
+    "entity_leg",
     "is_recommendation",
     "metadata_leg",
+    "named_terms",
     "query_interval",
     "sentence_leg",
     "speaker_leg",
@@ -410,3 +413,100 @@ def sentence_leg(query: str, records: Iterable[MemoryRecord], top_k: int) -> lis
             scored.append((best, r))
     scored.sort(key=lambda pair: (-pair[0], chrono_key(pair[1])))
     return [LegHit(r.record_id, 1.0) for _, r in scored[:top_k]]
+
+
+#: N59: capitalised words that open questions or name times, never entities.
+_NOT_NAMES = frozenset(
+    {
+        "when",
+        "what",
+        "where",
+        "which",
+        "who",
+        "whom",
+        "whose",
+        "why",
+        "how",
+        "did",
+        "does",
+        "do",
+        "is",
+        "are",
+        "was",
+        "were",
+        "has",
+        "have",
+        "had",
+        "will",
+        "would",
+        "can",
+        "could",
+        "i",
+        "the",
+        "a",
+        "an",
+        "in",
+        "on",
+        "at",
+        "of",
+        "and",
+        "or",
+        "my",
+        "your",
+        "tell",
+        "list",
+        "name",
+        "describe",
+    }
+    | {n.lower() for n in calendar.month_name if n}
+    | {n.lower() for n in calendar.day_name}
+)
+_CAP_WORD = re.compile(r"\b[A-Z][a-zA-Z'-]{1,}\b")
+_YEAR_WORD = re.compile(r"\b(?:19|20)\d{2}\b")
+
+
+def named_terms(query: str, exclude: Iterable[str] = ()) -> list[str]:
+    """N59: proper nouns and years a question names, lower-cased, in order.
+
+    Capitalised words that are not question words, months or weekdays, plus four-digit
+    years; ``exclude`` drops names already handled elsewhere (the conversation's
+    speakers, which the subject leg covers). A possessive "'s" is stripped."""
+    skip = {e.lower() for e in exclude} | _NOT_NAMES
+    terms: list[str] = []
+    for word in _CAP_WORD.findall(query):
+        w = word.lower().removesuffix("'s").strip("'-")
+        if w and w not in skip and w not in terms:
+            terms.append(w)
+    for year in _YEAR_WORD.findall(query):
+        if year not in terms:
+            terms.append(year)
+    return terms
+
+
+def entity_leg(
+    query: str, records: Iterable[MemoryRecord], top_k: int, exclude: Iterable[str] = ()
+) -> list[LegHit]:
+    """N59 (``read.entity_leg``, Dakera name boost): raw records whose text names the
+    question's proper nouns or years (whole word, case-insensitive), most names
+    matched first, then most content words shared with the question, then time order.
+    Empty when the question names nothing beyond ``exclude`` (the speakers)."""
+    names = named_terms(query, exclude)
+    if not names:
+        return []
+    patterns = [re.compile(rf"(?<!\w){re.escape(n)}(?!\w)", re.I) for n in names]
+    asked = _content_words(query)
+    scored: list[tuple[int, int, MemoryRecord]] = []
+    for r in records:
+        hits = sum(1 for p in patterns if p.search(r.content))
+        if hits:
+            scored.append((-hits, -len(asked & _content_words(r.content)), r))
+    scored.sort(key=lambda item: (item[0], item[1], chrono_key(item[2])))
+    return [LegHit(r.record_id, 1.0) for _, _, r in scored[:top_k]]
+
+
+class NamedLeg(list[LegHit]):
+    """N62: a fused leg that carries its name, so per-shape weights can find it."""
+
+    def __init__(self, name: str, hits: Iterable[LegHit] = ()) -> None:
+        super().__init__(hits)
+        self.name = name

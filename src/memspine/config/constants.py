@@ -735,3 +735,7 @@ TEMPORAL_SOFT_MARGIN_DAYS = 3
 
 #: N30: the most records whose named date spans the temporal leg caches per process.
 MENTION_CACHE_MAX = 200_000
+
+#: N33 (Memori / Mem0): a question with at most this many content words is "short";
+#: ``read.short_query_lexical_weight`` then sets the BM25 leg's RRF weight.
+SHORT_QUERY_WORDS = 5
