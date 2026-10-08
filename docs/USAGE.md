@@ -213,6 +213,13 @@ It does **not** restrict the read to that conversation; the whole namespace is s
 
 A record outside the scope never reaches the context. That covers search hits, replay neighbours, `full` mode, and the recent-conversation and digest headers. Both filters combine with each other and with the date filters. Two more filters, `memory_types=[...]` (e.g. `episodic`, `semantic`) and `tags_any=[...]` (at least one tag), work the same way (G-12). Example: `read(q, namespace="u", sessions=["trip-1"], roles=["user"])`.
 
+**Session-start brief (G-20).** `brief(namespace, budget_tokens, summaries=3, recent_turns=6)` returns context for the start of a new session, with no question. In order, while they fit the budget:
+- the profile block (with `read.profile_slots_header`);
+- the newest session summaries;
+- the last turns, oldest first.
+
+Every record passes the same gates as a read.
+
 **One conversation (I6).** `conversation(namespace, session_id, roles=None)` returns the live turns of one conversation in time order. It reads them through the indexed `session_key` column (migration 0005 adds `session_key` and `source_role` and backfills existing rows from their source).
 
 **Per-read listing snapshot (I2).** Within one `search` / `assemble` / `read` call, each listing of a namespace's records is fetched from storage once and shared by every leg and header. Any write during the read clears it, so results are the same as without it.

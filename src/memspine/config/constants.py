@@ -784,3 +784,8 @@ NAMESPACE_INDEX_MIN_ROWS = 1000
 #: GR-6 (graph engine plan 2026-10-08): entity nodes the graph node search takes before
 #: expanding to the records that mention them.
 GRAPH_NODE_SEARCH_TOP = 5
+
+# G-20 (SimpleMem session-start injection): the blocks of ``Engine.brief``.
+BRIEF_SUMMARIES_MARKER = "EARLIER SESSIONS (newest first):"
+BRIEF_RECENT_MARKER = "LAST TURNS (oldest first):"
+BRIEF_TAG = "brief_block"

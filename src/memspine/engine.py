@@ -6889,6 +6889,66 @@ class Engine:
             out[domain] = {"mean": round(mean, 4), "std": round(std, 4), "n": float(len(xs))}
         return out
 
+    async def brief(
+        self,
+        namespace: str = "default",
+        budget_tokens: int = constants.ASSEMBLE_BUDGET_TOKENS,
+        *,
+        summaries: int = 3,
+        recent_turns: int = 6,
+    ) -> list[MemoryRecord]:
+        """G-20 (SimpleMem session-start injection): context for the start of a new
+        session, with no question. In order, while they fit ``budget_tokens``:
+        - the profile block (``read.profile_slots_header``), when on and known;
+        - the newest session summaries (``session_summary`` / consolidation records);
+        - the last ``recent_turns`` episodic turns, oldest first.
+        Every record passes the read gates (status, quarantine, consent, trust), and the
+        blocks carry their own markers. No model call."""
+        ns = validate_namespace(namespace)
+        live = [
+            r for r in await self._require_started().list_records(ns) if self._context_eligible(r)
+        ]
+        blocks: list[MemoryRecord] = []
+        used = 0
+        profile = await self._slots_section(ns, "", budget_tokens)
+        if profile is not None:
+            blocks.append(profile)
+            used += estimate_tokens(profile.content)
+
+        def block(marker: str, records: list[MemoryRecord]) -> MemoryRecord | None:
+            nonlocal used
+            lines: list[str] = []
+            kept: list[MemoryRecord] = []
+            for record in records:
+                line = f"- {escape_markers(' '.join(record.content.split()))}"
+                cost = estimate_tokens("\n".join([marker, *lines, line]))
+                if used + cost > budget_tokens:
+                    break
+                lines.append(line)
+                kept.append(record)
+            if not kept:
+                return None
+            used += estimate_tokens("\n".join([marker, *lines]))
+            lead = self._lead_record(ns, "\n".join([marker, *lines]), kept)
+            return lead.model_copy(update={"tags": [constants.LEAD_TAG, constants.BRIEF_TAG]})
+
+        summaries_found = sorted(
+            (r for r in live if r.source.channel == "consolidation"), key=chrono_key, reverse=True
+        )[:summaries]
+        turns = (
+            sorted((r for r in live if r.memory_type == "episodic"), key=chrono_key)[-recent_turns:]
+            if recent_turns > 0
+            else []
+        )
+        for marker, records in (
+            (constants.BRIEF_SUMMARIES_MARKER, summaries_found),
+            (constants.BRIEF_RECENT_MARKER, turns),
+        ):
+            made = block(marker, records)
+            if made is not None:
+                blocks.append(made)
+        return blocks
+
     async def namespace_stats(self, namespace: str = "default") -> dict[str, Any]:
         """I5 (isolation review 2026-10-08): how big one user's memory is. Counts of
         live records by memory type and status, distinct conversations, quarantined
