@@ -6770,6 +6770,39 @@ class Engine:
             out[domain] = {"mean": round(mean, 4), "std": round(std, 4), "n": float(len(xs))}
         return out
 
+    async def namespace_stats(self, namespace: str = "default") -> dict[str, Any]:
+        """I5 (isolation review 2026-10-08): how big one user's memory is. Counts of
+        live records by memory type and status, distinct conversations, quarantined
+        and erased records, an estimate of stored tokens, and the time span covered.
+        Read-only; no model call."""
+        ns = validate_namespace(namespace)
+        records = await self._require_started().list_records(ns)
+        by_type: dict[str, int] = {}
+        by_status: dict[str, int] = {}
+        sessions: set[str] = set()
+        tokens = 0
+        for r in records:
+            by_status[r.status.value] = by_status.get(r.status.value, 0) + 1
+            if r.status is not RecordStatus.ACTIVATED:
+                continue
+            by_type[r.memory_type] = by_type.get(r.memory_type, 0) + 1
+            if r.source.message_id:
+                sessions.add(r.source.message_id)
+            tokens += estimate_tokens(r.content)
+        live = [r for r in records if r.status is RecordStatus.ACTIVATED]
+        return {
+            "namespace": ns,
+            "records": len(records),
+            "live": len(live),
+            "by_type": dict(sorted(by_type.items())),
+            "by_status": dict(sorted(by_status.items())),
+            "conversations": len(sessions),
+            "quarantined": sum(1 for r in live if r.quarantined),
+            "tokens_estimate": tokens,
+            "first": min((r.valid_from for r in live), default=None),
+            "last": max((r.valid_from for r in live), default=None),
+        }
+
     async def conversation(
         self,
         namespace: str = "default",
