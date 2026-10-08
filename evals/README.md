@@ -840,3 +840,26 @@ invocation (and per rung) so two runs cannot overwrite each other's results.
 - `docs/memspine-structure-plan.md` — decision register, E1–E9 (the ablation matrix)
 - `docs/ARCHITECTURE_FLOWS.md` §2 — the write / read / sleep flows the toggles switch
 - `docs/adr/` — one decision, one ADR; harness decisions belong there too
+
+## SpineTune: guarded self-tuning of the read configuration (G-23)
+
+`python -m memspine_evals.spinetune` searches memspine's existing read keys for a better
+configuration. It avoids the leaks of SimpleMem's EvolveMem, which tunes on the reported
+questions and lets an LLM read their gold answers.
+
+| Control | What it does |
+|---|---|
+| `--space` | JSON list of knobs: dotted config keys and their allowed values. Only existing keys are searched; no LLM proposes changes, and no answer is ever seen |
+| `--algo` | `coordinate` (one key at a time, repeated passes), `random` (sampled configs against the incumbent) or `halving` (successive halving: many configs on a small dev subset, survivors on larger ones) |
+| `--dev-fraction`, `--seed` | Conversations are split into dev (search) and held-out (confirmation). The search never sees held-out items |
+| `--alpha`, `--max-trials` | A change is accepted on dev only if the paired exact sign test has p < `alpha / max_trials` (Bonferroni over every try) |
+| `--min-delta` | ...and the coverage gain is at least this many points |
+| `--guard-dataset/-path/-items` | A second dataset where the result must not be significantly worse |
+| `--max-hours`, `--cache-dir` | Time budget. Every evaluation is cached, so resuming is free |
+| `--pythonpath` | Run against a frozen engine copy, as the screens do |
+| `--dry-run` | Print the split and the plan, run nothing |
+
+The objective is retrieval-only coverage (`ev_all`, $0, local embedder). The report
+(`SPINETUNE.md`, `spinetune.json`) lists every trial and the held-out and guard tests. A
+result is labelled **auto-tuned** and reported next to the hand-built baseline, never in
+place of it. A default changes only through an ADR, after U5 (two independent corpora).

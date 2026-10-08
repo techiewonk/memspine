@@ -64,6 +64,17 @@ C1 (a follow-up rewrite) was built and then removed at the owner's request.
 | GR-10 embedding-ranked resolution | `resolution.py`, GP-7 |
 | GR-11 / GR-12 searchable summaries | Summaries are records |
 
+### G-23: guarded self-tuning (added 2026-10-09 at the owner's request)
+
+`memspine_evals.spinetune` (SpineTune) is in the harness, not the engine. It differs from EvolveMem in five ways:
+- it searches only existing keys;
+- it splits by conversation into dev and held-out;
+- it accepts a change only on a Bonferroni-corrected sign test plus a minimum gain;
+- it can check a guard dataset for non-inferiority;
+- no LLM proposer and no gold answers are involved.
+
+Results are labelled "auto-tuned" and never replace the hand-built baseline. A default changes only through an ADR after rule U5.
+
 ### Deferred (low value for retrieval accuracy, or a new dependency)
 
 | Item | Reason |
@@ -73,7 +84,6 @@ C1 (a follow-up rewrite) was built and then removed at the owner's request.
 | G-15 MCP adapter | Integration; a new dependency needs its own decision |
 | G-18 session value score | Low value |
 | G-21 multimodal units | Out of the text-memory scope |
-| G-23 self-tuning retrieval policy | Overfitting risk |
 | Directed BFS | memspine's walk is undirected by design (GP-3) |
 
 ## Consequences
