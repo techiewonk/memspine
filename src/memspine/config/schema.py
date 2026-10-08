@@ -382,6 +382,17 @@ class ReadConfig(BaseModel):
     default_mode: Literal["auto", "full", "replay", "retrieve", "compose"] = "auto"
     #: Hindsight: prefix reranker inputs with ``[Date: YYYY-MM-DD]``.
     rerank_date_prefix: bool = False
+    #: N41 (Dakera): None (unchanged) = the reranker's relevance replaces the retrieval
+    #: score; a weight in [0, 1] blends them: ``w * rerank + (1 - w) * retrieval``,
+    #: each min-max normalised over the candidates.
+    rerank_blend: float | None = Field(default=None, ge=0.0, le=1.0)
+    #: N41 confidence gate: when the reranker's best raw score is below this, it is
+    #: not confident any candidate answers, and the retrieval order is kept. None = off.
+    rerank_gate: float | None = None
+    #: N42 (MemMachine): the reranker sees each candidate with this many neighbouring
+    #: turns of its session on each side, so a short reply is judged with its question.
+    #: 0 = the candidate alone (unchanged).
+    rerank_context: int = Field(default=0, ge=0, le=3)
     #: N12 (plan v3.2, EverMemOS): the task instruction an instruction-conditioned
     #: reranker (``rerank: qwen3``) judges with; None keeps its memory default.
     rerank_instruction: str | None = None

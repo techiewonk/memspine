@@ -772,6 +772,15 @@ def _static_prefilter(
     return kept or candidates
 
 
+def _minmax_quiet(scores: list[float]) -> list[float]:
+    """N41: min-max to [0, 1] without the degenerate-reranker warning (retrieval
+    scores may legitimately tie)."""
+    lo, hi = min(scores), max(scores)
+    if hi - lo <= 1e-12:
+        return [0.5] * len(scores)
+    return [(score - lo) / (hi - lo) for score in scores]
+
+
 def _minmax_normalize(scores: list[float]) -> list[float]:
     """Cross-encoder logits → [0, 1] relevance (rank-preserving) so reranked
     scores compose with the M1 composite exactly like cosine similarities."""
@@ -840,6 +849,7 @@ class Engine:
         self._rerank_unavailable = False
         self._rerank_calls = 0  # E8 attempts / failures, read by rerank_stats()
         self._rerank_failures = 0
+        self._rerank_gated = 0  # N41: reranks whose order was not used (low confidence)
         # E4 (ADR-020): whether the vector leg runs the two-stage quantized
         # rescore (manifest-driven + vector.quantization override). Off => the
         # exact query() path, byte-identical to the pre-E4 pipeline.
@@ -2072,6 +2082,44 @@ class Engine:
             _log.warning("read.graph_leg_failed", namespace=ns, error=str(exc))
             return []
         return [LegHit(rid, 1.0) for rid in ids]
+
+    async def _with_session_neighbours(
+        self,
+        ns: str,
+        candidates: list[tuple[MemoryRecord, float]],
+        documents: list[str],
+        width: int,
+    ) -> list[str]:
+        """N42: each reranker input with ``width`` neighbouring turns of its session
+        on each side (in time order), so a short reply is judged with its question.
+        Sessions are the episodic store's (the same ones replay expands). A record in
+        no session, a neighbour that is not live, or a failure keeps its own text."""
+        if self._episodic is None:
+            return documents
+        try:
+            session_ids: dict[str, list[str]] = {}
+            for s in await self._episodic.sessions(ns, constants.SESSION_GAP_MINUTES):
+                for rid in s.record_ids:
+                    session_ids.setdefault(rid, s.record_ids)
+            text = {
+                r.record_id: r.content
+                for r in await self._require_started().list_records(ns)
+                if r.status is RecordStatus.ACTIVATED and not r.quarantined
+            }
+            out: list[str] = []
+            for (record, _), doc in zip(candidates, documents, strict=True):
+                ids = session_ids.get(record.record_id)
+                if not ids:
+                    out.append(doc)
+                    continue
+                i = ids.index(record.record_id)
+                before = [text[x] for x in ids[max(0, i - width) : i] if x in text]
+                after = [text[x] for x in ids[i + 1 : i + 1 + width] if x in text]
+                out.append("\n".join([*before, doc, *after]))
+            return out
+        except Exception as exc:  # an enhancer, never a gate
+            _log.warning("rerank.context_failed", namespace=ns, error=str(exc))
+            return documents
 
     async def _graph_rerank(
         self, ns: str, query: str, candidates: list[tuple[MemoryRecord, float]]
@@ -3626,15 +3674,29 @@ class Engine:
                     f"[Date: {record.valid_from:%Y-%m-%d}] {doc}"
                     for (record, _), doc in zip(candidates, documents, strict=True)
                 ]
+            if read_cfg.rerank_context:
+                documents = await self._with_session_neighbours(
+                    ns, candidates, documents, read_cfg.rerank_context
+                )
             try:
                 self._rerank_calls += 1
                 raw_scores = await reranker.rerank(query, documents)
-                relevances = _minmax_normalize(raw_scores)
-                candidates = [
-                    (record, relevance)
-                    for (record, _), relevance in zip(candidates, relevances, strict=True)
-                ]
-                reranked = True
+                if read_cfg.rerank_gate is not None and max(raw_scores) < read_cfg.rerank_gate:
+                    # N41: the reranker is not confident: keep the retrieval order.
+                    self._rerank_gated += 1
+                else:
+                    relevances = _minmax_normalize(raw_scores)
+                    if read_cfg.rerank_blend is not None:
+                        w = read_cfg.rerank_blend
+                        prior = _minmax_quiet([score for _, score in candidates])
+                        relevances = [
+                            w * r + (1.0 - w) * p for r, p in zip(relevances, prior, strict=True)
+                        ]
+                    candidates = [
+                        (record, relevance)
+                        for (record, _), relevance in zip(candidates, relevances, strict=True)
+                    ]
+                    reranked = True
             except Exception as exc:
                 self._rerank_failures += 1
                 _log.warning(
@@ -9317,6 +9379,7 @@ class Engine:
             "calls": self._rerank_calls,
             "failures": self._rerank_failures,
             "unavailable": self._rerank_unavailable,
+            "gated": self._rerank_gated,
         }
 
     def model_usage(self) -> dict[str, dict[str, Any]]:
