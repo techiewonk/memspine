@@ -304,6 +304,11 @@ class ReadConfig(BaseModel):
     #: ``english`` index lives in its own directory under its own projector name, so
     #: switching rebuilds it from the event log and never touches the default index.
     lexical_analyzer: Literal["default", "english"] = "default"
+    #: N30 (write side; Hindsight indexes dates with the text): the BM25 index also
+    #: holds each record's date words (the day it was said and the days it names:
+    #: "2023-05-07 7 May 2023 Sunday"), so a question naming a date matches lexically.
+    #: Own index and projector name (``lexical:dates``): turning it on rebuilds.
+    lexical_dates: bool = False
     compression: dict[str, Any] = Field(default_factory=dict)
     #: Append a RETRIEVE event per search (access stats feed reinforcement, M1).
     #: ``false`` makes reads side-effect free, e.g. so benchmark questions cannot

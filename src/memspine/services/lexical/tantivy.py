@@ -139,6 +139,7 @@ class TantivyLexical:
         index_path: str | Path | None = None,
         heap_bytes: int = TANTIVY_WRITER_HEAP_BYTES,
         analyzer: str = "default",
+        date_tokens: bool = False,
     ) -> None:
         # tantivy is a CORE dependency (v0.2): it backs the default hybrid leg on
         # every backend, so a failed import is a broken install, not a missing
@@ -153,6 +154,8 @@ class TantivyLexical:
         builder = tantivy.SchemaBuilder()
         builder.add_text_field("record_id", stored=True, tokenizer_name="raw")
         builder.add_text_field("namespace", stored=True, tokenizer_name="raw")
+        #: N30 (write side): index each record's date words with its text.
+        self._date_tokens = date_tokens
         #: N58: ``english`` = stop words + Snowball stemmer, applied to the indexed
         #: content and to the query terms alike (``_terms``).
         self._analyzer: Any = None
@@ -221,7 +224,7 @@ class TantivyLexical:
         # Strip control chars from the lexical projection (a NUL is a bind hazard
         # elsewhere and carries no lexical signal); the record store keeps the
         # content verbatim, so a NUL can never poison the projector chain.
-        content = strip_control_chars(record.content)
+        content = self._body(record)
         rid, ns = record.record_id, record.namespace
         async with self._lock:
             if self._deferring:
@@ -266,10 +269,7 @@ class TantivyLexical:
         """Index a sequence under a SINGLE commit + reload (per the port's batch
         convenience). Still idempotent under replay via the per-record upsert."""
         await self._ensure()
-        cleaned = [
-            (record.record_id, record.namespace, strip_control_chars(record.content))
-            for record in records
-        ]
+        cleaned = [(record.record_id, record.namespace, self._body(record)) for record in records]
         if not cleaned:
             return
         async with self._lock:
@@ -290,6 +290,15 @@ class TantivyLexical:
             return []
         await self._commit_pending()
         return await asyncio.to_thread(self._search, namespace, terms, top_k)
+
+    def _body(self, record: MemoryRecord) -> str:
+        """The indexed text: the content, plus its date words under N30."""
+        content = strip_control_chars(record.content)
+        if not self._date_tokens:
+            return content
+        from memspine.core.temporal_query import date_words
+
+        return f"{content} {date_words(record)}"
 
     def _terms(self, query: str) -> list[str]:
         """Query terms, split exactly as the content field's analyzer splits text."""

@@ -33,6 +33,7 @@ __all__ = [
     "asks_about_assistant",
     "assistant_leg",
     "cohesion_leg",
+    "date_words",
     "entity_expand_leg",
     "entity_leg",
     "forget_mentions",
@@ -581,3 +582,16 @@ def forget_mentions(texts: Iterable[str]) -> None:
     erased = set(texts)
     for key in [k for k in _MENTIONS if k[1] in erased]:
         del _MENTIONS[key]
+
+
+def date_words(record: MemoryRecord) -> str:
+    """N30 (write side, ``read.lexical_dates``): the words of the dates a record was
+    said on and names, for the BM25 index: "2023-05-07 7 May 2023 Sunday" per day."""
+    days = [_aware(record.valid_from)]
+    days += [lo for lo, _ in mentioned_spans(record)]
+    seen: list[str] = []
+    for d in days:
+        words = f"{d:%Y-%m-%d} {d.day} {d:%B} {d.year} {d:%A}"
+        if words not in seen:
+            seen.append(words)
+    return " ".join(seen)

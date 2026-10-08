@@ -11094,8 +11094,19 @@ class Engine:
     def _lexical_projector_name(config: MemspineConfig) -> str:
         """N58: ``lexical`` for the default analyzer, ``lexical:<analyzer>`` otherwise,
         so a new analyzer's index starts from offset 0 and is rebuilt from the log."""
-        analyzer = config.read.lexical_analyzer
-        return "lexical" if analyzer == "default" else f"lexical:{analyzer}"
+        variant = Engine._lexical_variant(config)
+        return f"lexical:{variant}" if variant else "lexical"
+
+    @staticmethod
+    def _lexical_variant(config: MemspineConfig) -> str:
+        """N58 / N30: the lexical index variant ("" = the default index): the analyzer
+        when not ``default``, and ``dates`` with ``read.lexical_dates``."""
+        parts: list[str] = (
+            [] if config.read.lexical_analyzer == "default" else [config.read.lexical_analyzer]
+        )
+        if config.read.lexical_dates:
+            parts.append("dates")
+        return "+".join(parts)
 
     def _build_lexical_store(self, config: MemspineConfig) -> LexicalStore:
         """Lexical provider selection (D-25). ``tantivy`` (default, **core**)
@@ -11111,12 +11122,16 @@ class Engine:
             # In-RAM index for an in-memory event log (same lifetime, no ghost
             # segments across runs — mirrors the vector store's :memory: rule);
             # else an on-disk directory beside the derived base.
-            analyzer = config.read.lexical_analyzer
-            suffix = ".tantivy" if analyzer == "default" else f".tantivy-{analyzer}"
+            variant = self._lexical_variant(config)
+            suffix = f".tantivy-{variant.replace('+', '-')}" if variant else ".tantivy"
             index_path = (
                 None if self._client_is_memory(config) else f"{self._derived_base(config)}{suffix}"
             )
-            return TantivyLexical(index_path, analyzer=analyzer)
+            return TantivyLexical(
+                index_path,
+                analyzer=config.read.lexical_analyzer,
+                date_tokens=config.read.lexical_dates,
+            )
         if provider == "opensearch":
             from memspine.services.lexical.opensearch import OpenSearchLexical
 

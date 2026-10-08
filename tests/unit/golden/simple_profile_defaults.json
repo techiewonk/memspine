@@ -110,6 +110,7 @@
       "leg_weights": {},
       "leg_weights_by_shape": {},
       "lexical_analyzer": "default",
+      "lexical_dates": false,
       "lexical_provider": "tantivy",
       "list_cards_only_aggregate": false,
       "maxsim_leg": false,

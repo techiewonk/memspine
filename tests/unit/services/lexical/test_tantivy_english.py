@@ -83,3 +83,39 @@ async def test_switching_on_rebuilds_the_english_index_from_the_log(tmp_path: Pa
         await eng.stop()
     assert len(hits) == 1  # caught up from offset 0 under its own projector name
     assert (tmp_path / "m.db.tantivy").exists()  # the default index is left alone
+
+
+async def test_date_tokens_make_a_date_question_match_lexically() -> None:
+    from datetime import UTC, datetime
+
+    said = datetime(2023, 5, 8, 10, 0, tzinfo=UTC)
+    turn = rec("r1", "Ana: I went camping yesterday")
+    turn = turn.model_copy(update={"valid_from": said})
+    plain = TantivyLexical()
+    dated = TantivyLexical(date_tokens=True)
+    for store in (plain, dated):
+        await store.index(turn)
+    assert await plain.search("a", "7 May 2023") == []
+    hits = await dated.search("a", "what happened on 7 May 2023")
+    assert [h.record_id for h in hits] == ["r1"]  # "yesterday" -> 7 May, indexed
+
+
+def test_lexical_dates_is_off_by_default() -> None:
+    assert ReadConfig().lexical_dates is False
+
+
+async def test_dates_variant_has_its_own_index_and_projector(tmp_path: Path) -> None:
+    eng = Engine(
+        template="core",
+        dotenv_path=None,
+        storage={"path": str(tmp_path / "m.db")},
+        embedding={"provider": "hash"},
+        read={"hybrid": True, "lexical_analyzer": "english", "lexical_dates": True},
+    )
+    await eng.start()
+    try:
+        assert "lexical:english+dates" in [p.name for p in eng._projectors]
+        await eng.write("Ana went camping", namespace="a")  # the index opens lazily
+    finally:
+        await eng.stop()
+    assert (tmp_path / "m.db.tantivy-english-dates").exists()
