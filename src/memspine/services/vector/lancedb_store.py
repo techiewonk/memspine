@@ -47,6 +47,7 @@ class LanceDBVectorStore:
         oversample: int = constants.RESCORE_OVERSAMPLE,
         compact_every: int | None = None,
         exclusive: bool = False,
+        namespace_index: bool = False,
     ) -> None:
         """``compact_every``: merge the table's fragments after that many
         upserts. Each single-row upsert adds a fragment, and a flat query opens
@@ -83,6 +84,11 @@ class LanceDBVectorStore:
         self._oversample = max(1, oversample)
         self._compact_every = compact_every if compact_every and compact_every > 0 else None
         self._upserts_since_compact = 0
+        #: I1 (isolation review): keep a BITMAP scalar index on ``namespace`` so the
+        #: per-user prefilter reads one user's rows instead of scanning the column.
+        self._namespace_index = namespace_index
+        self._writes_since_ns_index = 0
+        self._ns_index_disabled = False
         # Ids present in an exclusive table (None: not exclusive, always merge).
         self._ids: set[str] | None = set() if exclusive else None
         self._table: Any = None
@@ -155,6 +161,30 @@ class LanceDBVectorStore:
                     )
                 )
             await self._maybe_compact(table)
+            await self._maybe_index_namespace(table)
+
+    async def _maybe_index_namespace(self, table: Any) -> None:
+        """I1: (re)build the ``namespace`` BITMAP index every
+        ``NAMESPACE_INDEX_EVERY`` writes once the table holds at least
+        ``NAMESPACE_INDEX_MIN_ROWS`` rows. Rows written since the last build are
+        still found: LanceDB scans the unindexed tail. An optimisation only: a
+        failure is logged, never raised, and disables further attempts."""
+        if not self._namespace_index or self._ns_index_disabled:
+            return
+        self._writes_since_ns_index += 1
+        if self._writes_since_ns_index < constants.NAMESPACE_INDEX_EVERY:
+            return
+        self._writes_since_ns_index = 0
+        try:
+            rows = int(await asyncio.to_thread(table.count_rows))
+            if rows < constants.NAMESPACE_INDEX_MIN_ROWS:
+                return
+            await asyncio.to_thread(
+                lambda: table.create_scalar_index("namespace", index_type="BITMAP", replace=True)
+            )
+        except Exception as exc:
+            self._ns_index_disabled = True
+            _log.warning("vector.lance_namespace_index_failed", error=str(exc))
 
     async def _maybe_compact(self, table: Any) -> None:
         """Merge fragments every ``compact_every`` writes (see ``__init__``).
@@ -346,6 +376,7 @@ class LanceDBVectorStore:
             if self._ids is not None:
                 self._ids.discard(record_id)
             await self._maybe_compact(table)
+            await self._maybe_index_namespace(table)
 
     async def delete_all(self) -> None:
         table = await self._ensure_table()

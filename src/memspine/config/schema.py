@@ -149,6 +149,11 @@ class VectorConfig(BaseModel):
 
     backend: str = "lance"  # lance (sole store); weaviate reserved (ADR-021)
     quantization: str = "auto"  # auto | none | int8 | binary (E4/ADR-020)
+    #: I1 (isolation review 2026-10-08): keep a BITMAP scalar index on the vector
+    #: table's ``namespace`` column (rebuilt every ``NAMESPACE_INDEX_EVERY`` writes once
+    #: the table has ``NAMESPACE_INDEX_MIN_ROWS`` rows), so the per-user prefilter
+    #: reads one user's rows. Results are unchanged. Off: the column is scanned.
+    namespace_index: bool = False
 
 
 class GraphConfig(BaseModel):

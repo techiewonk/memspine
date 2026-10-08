@@ -11145,6 +11145,7 @@ class Engine:
             oversample=constants.RESCORE_OVERSAMPLE,
             compact_every=constants.LANCE_COMPACT_EVERY if exclusive else None,
             exclusive=exclusive,
+            namespace_index=config.vector.namespace_index,
         )
 
     @staticmethod

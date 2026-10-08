@@ -774,3 +774,9 @@ RECENT_SHARE = 0.15
 # C7 (labelled context sections): the caption of the retrieved part when headers lead.
 RETRIEVED_CAPTION = "RETRIEVED MEMORIES (the turns most relevant to the question):"
 RETRIEVED_CAPTION_TAG = "retrieved_caption"
+
+#: I1 (isolation review 2026-10-08): with ``vector.namespace_index``, the LanceDB
+#: ``namespace`` BITMAP index is rebuilt every this many writes ...
+NAMESPACE_INDEX_EVERY = 500
+#: ... once the table holds at least this many rows (smaller tables scan fast).
+NAMESPACE_INDEX_MIN_ROWS = 1000
