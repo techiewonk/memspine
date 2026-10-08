@@ -100,7 +100,7 @@ class EmbeddingConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    provider: str = "fastembed"  # fastembed | hash | static | litellm
+    provider: str = "fastembed"  # fastembed | hash | static | litellm | st
     model: str = "BAAI/bge-small-en-v1.5"
     #: REQUIRED when provider=litellm — a cloud embedder's output dimension is
     #: not locally discoverable, and the vector store needs it up front.
@@ -108,6 +108,10 @@ class EmbeddingConfig(BaseModel):
     api_base: str | None = None
     api_key: str | None = None
     aws_region: str | None = None  # bedrock
+    #: st only: torch device ("cuda", "cpu"; None = library default) and weight dtype
+    #: ("bfloat16", "float16"; None = checkpoint default).
+    device: str | None = None
+    dtype: str | None = None
     #: litellm only: ask the model for exactly ``dim`` dimensions (Matryoshka
     #: models: Cohere embed-v4 256/512/1024/1536, Titan v2, OpenAI v3). Off =
     #: the model's default size, which must then equal ``dim``.
@@ -423,6 +427,10 @@ class ReadConfig(BaseModel):
     #: N12 (plan v3.2, EverMemOS): the task instruction an instruction-conditioned
     #: reranker (``rerank: qwen3``) judges with; None keeps its memory default.
     rerank_instruction: str | None = None
+    #: ``rerank: qwen3`` only: torch device (None = CPU float32) and weight quantisation
+    #: ("4bit" | "8bit" via bitsandbytes, GPU only; None = full precision).
+    rerank_device: str | None = None
+    rerank_quant: Literal["4bit", "8bit"] | None = None
     #: Agent Zero: skip the reranker for ordering questions (first / latest / ...).
     skip_rerank_for_ordering: bool = False
     #: H22 (Mastra): with ``render: dated``, mark long gaps ("[3 weeks later]").

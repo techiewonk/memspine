@@ -8584,7 +8584,13 @@ class Engine:
         # None on ANY failure (COR-3/ADR-018); the engine keeps only the cache +
         # sticky-disable. A None here means unavailable → disable the stage once.
         self._reranker = build_reranker(
-            RerankSettings(mode=mode, model=read.rerank_model, instruction=read.rerank_instruction)
+            RerankSettings(
+                mode=mode,
+                model=read.rerank_model,
+                instruction=read.rerank_instruction,
+                device=read.rerank_device,
+                quant=read.rerank_quant,
+            )
         )
         if self._reranker is None:
             self._rerank_unavailable = True
@@ -11404,6 +11410,18 @@ class Engine:
                 model=config.embedding.model,
                 query_instruction=config.embedding.query_instruction,
             )
+        if config.embedding.provider == "st":
+            if config.embedding.dim is None:
+                raise ConfigError("embedding.dim is required when embedding.provider='st'")
+            from memspine.services.embedding.st_local import SentenceTransformersEmbedding
+
+            return SentenceTransformersEmbedding(
+                config.embedding.model,
+                config.embedding.dim,
+                query_instruction=config.embedding.query_instruction,
+                device=config.embedding.device,
+                dtype=config.embedding.dtype,
+            )
         if config.embedding.provider == "static":
             # E4 model2vec (ADR-020): a missing [static] extra hard-fails here
             # (D-10) because the deployer chose it as their embedder — as a mere
@@ -11431,7 +11449,7 @@ class Engine:
             )
         raise ConfigError(
             f"unknown embedding.provider {config.embedding.provider!r} "
-            "(valid: fastembed, hash, static, litellm)"
+            "(valid: fastembed, hash, static, litellm, st)"
         )
 
     def _rescore_settings(self, config: MemspineConfig) -> tuple[str | None, int | None]:

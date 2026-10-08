@@ -74,6 +74,7 @@ class Qwen3Reranker:
         batch_size: int = 8,
         max_length: int = 8192,
         device: str | None = None,
+        quant: str | None = None,
     ) -> None:
         # Fail at construction (not first use) when the extra is missing, so the
         # factory's swallow-to-None turns it into one skip log at engine start.
@@ -84,6 +85,7 @@ class Qwen3Reranker:
         self._batch_size = max(1, batch_size)
         self._max_length = max_length
         self._device = device
+        self._quant = quant
         self._load_lock = threading.Lock()
         self._infer_lock = threading.Lock()
         self._tokenizer: Any = None
@@ -92,7 +94,7 @@ class Qwen3Reranker:
         self._suffix: list[int] = []
         self._yes_id = -1
         self._no_id = -1
-        self.reranker_id = f"qwen3:{model}"
+        self.reranker_id = f"qwen3:{model}" + (f":{quant}" if quant else "")
 
     # -- loading ---------------------------------------------------------------------
 
@@ -106,11 +108,21 @@ class Qwen3Reranker:
             auto_tok = self._transformers.AutoTokenizer
             auto_lm = self._transformers.AutoModelForCausalLM
             tokenizer = auto_tok.from_pretrained(self._model_id, padding_side="left")
-            model = auto_lm.from_pretrained(self._model_id).eval()
-            if self._device is None or str(self._device).startswith("cpu"):
-                model = model.float()  # bf16 on CPU: slow and drifts under padding
-            if self._device is not None:
-                model = model.to(self._device)
+            if self._quant is not None:
+                # bitsandbytes places the quantised weights on the GPU itself.
+                bnb = {"4bit": {"load_in_4bit": True}, "8bit": {"load_in_8bit": True}}[self._quant]
+                cfg = self._transformers.BitsAndBytesConfig(
+                    **bnb, bnb_4bit_compute_dtype=self._torch.bfloat16
+                )
+                model = auto_lm.from_pretrained(
+                    self._model_id, quantization_config=cfg, device_map={"": self._device or 0}
+                ).eval()
+            else:
+                model = auto_lm.from_pretrained(self._model_id).eval()
+                if self._device is None or str(self._device).startswith("cpu"):
+                    model = model.float()  # bf16 on CPU: slow and drifts under padding
+                if self._device is not None:
+                    model = model.to(self._device)
             self._prefix = list(tokenizer.encode(_PREFIX, add_special_tokens=False))
             self._suffix = list(tokenizer.encode(_SUFFIX, add_special_tokens=False))
             self._yes_id = int(tokenizer.convert_tokens_to_ids("yes"))

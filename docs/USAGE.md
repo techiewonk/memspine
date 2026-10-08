@@ -690,6 +690,8 @@ in the schema — or if the schema gains a key not documented here.
 | `embedding.api_base` | `null` | Endpoint override (litellm). |
 | `embedding.api_key` | `null` | API key (litellm; secrets-resolved). |
 | `embedding.aws_region` | `null` | Bedrock region (litellm). |
+| `embedding.device` | `null` | `provider: st` only: torch device (`cuda`, `cpu`). |
+| `embedding.dtype` | `null` | `provider: st` only: weight dtype (`bfloat16`, `float16`). `provider: st` needs `embedding.dim` and the `[st]` extra. |
 | `embedding.request_dimensions` | `false` | litellm only: request exactly `dim` dimensions (Matryoshka models: Cohere embed-v4 256/512/1024/1536, Titan v2, OpenAI v3). |
 | `embedding.query_input_type` | `null` | litellm only: input type for retrieval queries (Cohere: `search_query`). |
 | `embedding.document_input_type` | `null` | litellm only: input type for stored content (Cohere: `search_document`). |
@@ -717,6 +719,8 @@ in the schema — or if the schema gains a key not documented here.
 | `read.assembly` | `{}` | Options for `AssemblyPolicy.bind` (E2 placement / MMR). |
 | `read.rerank` | `off` | `off` \| `fastembed` \| `flashrank` `[rerank]` \| `litellm` \| `qwen3` `[st]` (Qwen3-Reranker, `rerank_model` defaults to `Qwen/Qwen3-Reranker-0.6B`) — E8 cross-encoder (D-51). |
 | `read.rerank_model` | `null` | LiteLLM rerank model id; required when `rerank: litellm`. For `fastembed` / `qwen3` it overrides the default local model. |
+| `read.rerank_device` | `null` | `rerank: qwen3` only: torch device (`cuda`); unset = CPU float32. |
+| `read.rerank_quant` | `null` | `rerank: qwen3` only: `4bit` | `8bit` (bitsandbytes, GPU). |
 | `read.static_prefilter` | `false` | E8 cheap lexical-overlap gate (post-vector). |
 | `read.static_embedding_prefilter` | `false` | E4 model2vec static-cosine gate `[static]`. |
 | `read.hybrid` | `true` | Fuse the lexical BM25 leg via RRF (D-25; on by default since the v0.2 flip, ADR-019); `false` = vector-only. |

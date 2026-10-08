@@ -40,6 +40,9 @@ class RerankSettings:
     #: N12 (plan v3.2): the task instruction of an instruction-conditioned reranker
     #: (``qwen3``); None keeps its default memory instruction.
     instruction: str | None = None
+    #: ``qwen3``: torch device and bitsandbytes quantisation ("4bit" | "8bit").
+    device: str | None = None
+    quant: str | None = None
 
 
 #: A spec lazily constructs one Reranker from settings (imports its adapter here).
@@ -87,6 +90,8 @@ def _build_qwen3(settings: RerankSettings) -> Reranker:
     return Qwen3Reranker(
         settings.model or DEFAULT_MODEL,
         instruction=settings.instruction or DEFAULT_INSTRUCTION,
+        device=settings.device,
+        quant=settings.quant,
     )
 
 
