@@ -414,6 +414,12 @@ class ReadConfig(BaseModel):
     #: turns of its session on each side, so a short reply is judged with its question.
     #: 0 = the candidate alone (unchanged).
     rerank_context: int = Field(default=0, ge=0, le=3)
+    #: GR-15 (Graphiti balanced shortlist): with a reranker on, the pool cut before
+    #: reranking takes each leg's best hits in turn, so one leg cannot fill it.
+    rerank_balanced: bool = False
+    #: G-10 (Graphiti MMR): None = off; a lambda in [0, 1] reorders the final hits by
+    #: maximal marginal relevance on embeddings (1 = relevance only, 0 = diversity only).
+    mmr_lambda: float | None = Field(default=None, ge=0.0, le=1.0)
     #: N12 (plan v3.2, EverMemOS): the task instruction an instruction-conditioned
     #: reranker (``rerank: qwen3``) judges with; None keeps its memory default.
     rerank_instruction: str | None = None

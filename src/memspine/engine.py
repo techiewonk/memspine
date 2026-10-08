@@ -852,6 +852,32 @@ def _unit(vector: Sequence[float]) -> list[float]:
     return [x / norm for x in vector] if norm > 0 else list(vector)
 
 
+def _balanced_pool(
+    candidates: list[tuple[MemoryRecord, float]], legs: Sequence[Sequence[Any]], keep: int
+) -> list[tuple[MemoryRecord, float]]:
+    """GR-15: ``candidates`` reordered so the first ``keep`` take each leg's best
+    remaining hit in turn (legs in the order given); the rest follow in their order.
+    Only candidates already admitted are moved; nothing is added."""
+    by_id = {record.record_id: (record, score) for record, score in candidates}
+    chosen: list[str] = []
+    cursors = [iter(leg) for leg in legs if leg]
+    while cursors and len(chosen) < keep:
+        alive = []
+        for cursor in cursors:
+            for hit in cursor:
+                rid = getattr(hit, "record_id", None)
+                if rid in by_id and rid not in chosen:
+                    chosen.append(rid)
+                    alive.append(cursor)
+                    break
+            if len(chosen) >= keep:
+                break
+        cursors = alive
+    picked = set(chosen)
+    rest = [pair for pair in candidates if pair[0].record_id not in picked]
+    return [by_id[rid] for rid in chosen] + rest
+
+
 def _minmax_quiet(scores: list[float]) -> list[float]:
     """N41: min-max to [0, 1] without the degenerate-reranker warning (retrieval
     scores may legitimately tie)."""
@@ -2232,6 +2258,38 @@ class Engine:
         except Exception as exc:  # an enhancer, never a gate
             _log.warning("read.graph_node_search_failed", namespace=ns, error=str(exc))
             return []
+
+    async def _mmr_order(
+        self, query: str, scored: list[tuple[MemoryRecord, float]], lam: float
+    ) -> list[tuple[MemoryRecord, float]]:
+        """G-10: maximal marginal relevance on embeddings. Greedily takes the hit with
+        the best ``lam * relevance - (1 - lam) * max cosine to the hits already taken``;
+        scores are kept, only the order changes. Vectors come from the embedder (its
+        cache serves the stored documents); a failure keeps the order."""
+        if self._embedder is None:
+            return scored
+        try:
+            vectors = [_unit(v) for v in await self._embedder.embed([r.content for r, _ in scored])]
+        except Exception as exc:  # an enhancer, never a gate
+            _log.warning("read.mmr_failed", error=str(exc))
+            return scored
+        rel = _minmax_quiet([s for _, s in scored])
+        left = list(range(len(scored)))
+        order: list[int] = []
+        while left:
+
+            def gain(i: int) -> float:
+                if not order:
+                    return rel[i]
+                sim = max(
+                    sum(a * b for a, b in zip(vectors[i], vectors[j], strict=False)) for j in order
+                )
+                return lam * rel[i] - (1.0 - lam) * sim
+
+            best = max(left, key=lambda i: (gain(i), -i))
+            order.append(best)
+            left.remove(best)
+        return [scored[i] for i in order]
 
     async def _maxsim_leg(
         self,
@@ -3953,6 +4011,11 @@ class Engine:
             date_filter = active_date_filter()
             if date_filter is not None:
                 candidates = [pair for pair in candidates if date_filter.matches(pair[0])]
+        read_pre = self._config().read
+        if read_pre.rerank_balanced and read_pre.rerank != "off" and len(candidates) > top_k:
+            # GR-15 (Graphiti d40da88): the pool the reranker sees takes the legs'
+            # best hits in turn, so one leg cannot fill it before the cut.
+            candidates = _balanced_pool(candidates, [vector_hits, lexical_hits, *extra_legs], top_k)
         candidates = candidates[:top_k]
         # E8 stage: static prefilter (opt-in, default off).
         if candidates and self._config().read.static_prefilter:
@@ -4033,6 +4096,10 @@ class Engine:
                 if integrity.admits(record.trust)
             ]
         scored = rank_pairs(scored)
+        mmr_lambda = self._config().read.mmr_lambda
+        if mmr_lambda is not None and len(scored) > 2:
+            # G-10 (Graphiti MMR): diversity among near-duplicate hits, on embeddings.
+            scored = await self._mmr_order(query, scored, mmr_lambda)
         if reranked and read_cfg.rerank_keep is not None and read_cfg.candidate_pool > 1:
             # G5b: the wider pool fed the reranker; only its best few go on.
             scored = scored[: read_cfg.rerank_keep]

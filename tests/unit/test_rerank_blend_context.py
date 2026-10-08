@@ -89,3 +89,49 @@ async def test_no_context_shows_each_turn_alone() -> None:
     await _search({}, fake)
     reply = next(d for d in fake.seen[0] if "[type: episodic]\nBen: yes" in d)
     assert "where should we go camping" not in reply
+
+
+def test_balanced_pool_takes_each_leg_in_turn() -> None:
+    """GR-15: the pre-rerank pool interleaves the legs' best hits."""
+    from dataclasses import dataclass
+
+    from memspine.core.records import MemoryRecord
+    from memspine.engine import _balanced_pool
+
+    @dataclass
+    class Hit:
+        record_id: str
+
+    recs = {k: MemoryRecord(namespace="a", memory_type="episodic", content=k) for k in "abcdef"}
+    cands = [(recs[k], 1.0 - i / 10) for i, k in enumerate("abcdef")]
+    ids = {k: recs[k].record_id for k in recs}
+    vector = [Hit(ids[k]) for k in "abc"]
+    lexical = [Hit(ids[k]) for k in "fed"]
+    pool = _balanced_pool(cands, [vector, lexical], keep=4)
+    assert [r.content for r, _ in pool[:4]] == ["a", "f", "b", "e"]
+    assert {r.content for r, _ in pool} == set("abcdef")
+
+
+async def test_mmr_moves_a_near_duplicate_down() -> None:
+    """G-10: with MMR on, a near-duplicate of the best hit is not second."""
+    eng = Engine(
+        template="core",
+        dotenv_path=None,
+        storage={"path": ":memory:"},
+        embedding={"provider": "hash"},
+        read={"record_access": False, "mmr_lambda": 0.3},
+    )
+    await eng.start()
+    try:
+        for text in (
+            "camping by the lake in May",
+            "camping by the lake in May again",
+            "painting a sunset at home",
+        ):
+            await eng.write(text, namespace="a")
+        hits = await eng.search("camping by the lake", namespace="a", top_k=3)
+    finally:
+        await eng.stop()
+    contents = [r.content for r, _ in hits]
+    assert contents[0].startswith("camping")
+    assert contents[1] == "painting a sunset at home"
