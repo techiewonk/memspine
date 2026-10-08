@@ -7,7 +7,7 @@ run() { # name dataset path config budget [extra...]
   local name=$1 ds=$2 path=$3 cfg=$4 budget=$5; shift 5
   local extra=()
   [ "$ds" = locomo ] && extra+=(--categories all)
-  PYTHONPATH="$FROZEN" FASTEMBED_CACHE_PATH="D:/hf-cache/fastembed" env -u AWS_ACCESS_KEY_ID -u AWS_SECRET_ACCESS_KEY -u AWS_SESSION_TOKEN HF_HUB_OFFLINE=1 \
+  PYTHONPATH="$FROZEN" FASTEMBED_CACHE_PATH="D:/hf-cache/fastembed" TMP="D:/mem/evaltmp" TEMP="D:/mem/evaltmp" env -u AWS_ACCESS_KEY_ID -u AWS_SECRET_ACCESS_KEY -u AWS_SESSION_TOKEN HF_HUB_OFFLINE=1 \
     ../.venv/Scripts/python.exe -m memspine_evals c0-1 --dataset "$ds" --path "$path" "${extra[@]}" \
     --with-memspine --only-systems memspine --memspine-read-mode replay \
     --memspine-config "$(cat arms/$cfg.json)" --retrieval-only --max-model-calls 0 \
