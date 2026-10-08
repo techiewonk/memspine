@@ -44,6 +44,14 @@ from .official_prompts import (
     OMNIMEMEVAL_JUDGE,
     OMNIMEMEVAL_JUDGE_SYSTEM,
 )
+from .vendor_judges import (
+    EVERMEMOS_JUDGE,
+    EVERMEMOS_JUDGE_SYSTEM,
+    MEM0_GENEROUS_JUDGE,
+    MEM0_GENEROUS_JUDGE_SYSTEM,
+    MEM0_UNIFIED_JUDGE,
+    MEM0_UNIFIED_JUDGE_SYSTEM,
+)
 
 __all__ = [
     "JUDGE_PROMPTS",
@@ -136,7 +144,10 @@ class JudgePrompt:
     ``fields`` names the template's placeholder style: ``named`` ({question}, {gold},
     {answer}), ``positional`` (question, gold, answer in order: LongMemEval),
     ``locomo_plus`` ({gold}, {pred}, {evidence}) or ``omnimemeval`` ({question},
-    {golden_answer}, {response}). ``parse`` names the reply format. ``system`` is the
+    {golden_answer}, {response}); the N57 vendor styles are ``mem0_generous`` ({question},
+    {expected_answer}, {ai_response}), ``mem0_unified`` ({question}, {answer} = gold,
+    {response}) and ``evermemos`` ({question}, {golden_answer}, {generated_answer}).
+    ``parse`` names the reply format. ``system`` is the
     official system message sent with the template, when the benchmark sends one.
     """
 
@@ -168,6 +179,12 @@ class JudgePrompt:
             return text.format(gold=gold, pred=answer, evidence=evidence)
         if self.fields == "omnimemeval":
             return text.format(question=question, golden_answer=gold, response=answer)
+        if self.fields == "mem0_generous":
+            return text.format(question=question, expected_answer=gold, ai_response=answer)
+        if self.fields == "mem0_unified":
+            return text.format(question=question, answer=gold, response=answer)
+        if self.fields == "evermemos":
+            return text.format(question=question, golden_answer=gold, generated_answer=answer)
         return text.format(question=question, gold=gold, answer=answer)
 
     def parse_reply(self, raw: str) -> float:
@@ -232,6 +249,36 @@ def _registry() -> dict[str, JudgePrompt]:
             system=OMNIMEMEVAL_JUDGE_SYSTEM,
         )
     )
+    # N57: vendor LoCoMo judges, to re-grade saved answers with each vendor's own judge.
+    prompts += [
+        JudgePrompt(
+            "vendor/mem0-generous",
+            MEM0_GENEROUS_JUDGE,
+            PromptStatus.VENDORED,
+            "github.com/Backboard-io/Backboard-Locomo-Benchmark@164d45c:locomo_ingest_eval.py"
+            ":ACCURACY_PROMPT (Mem0 paper judge)",
+            fields="mem0_generous",
+            system=MEM0_GENEROUS_JUDGE_SYSTEM,
+        ),
+        JudgePrompt(
+            "vendor/mem0-unified",
+            MEM0_UNIFIED_JUDGE,
+            PromptStatus.VENDORED,
+            "github.com/mem0ai/memory-benchmarks@4b61c5d:benchmarks/locomo/prompts.py"
+            ":JUDGE_PROMPT (no evidence)",
+            fields="mem0_unified",
+            system=MEM0_UNIFIED_JUDGE_SYSTEM,
+        ),
+        JudgePrompt(
+            "vendor/evermemos",
+            EVERMEMOS_JUDGE,
+            PromptStatus.VENDORED,
+            "EverMemOS benchmarks/run.py:JUDGE_USER_PROMPT + JUDGE_SYSTEM_PROMPT "
+            "(code-traced notes, docs/survey/_staging/EverMemOS/PROMPTS.md)",
+            fields="evermemos",
+            system=EVERMEMOS_JUDGE_SYSTEM,
+        ),
+    ]
     return {p.prompt_id: p for p in prompts}
 
 
@@ -328,6 +375,30 @@ JUDGE_SUITES: dict[str, JudgeSuite] = {
         route_constant,
         handles_abstention=False,
         notes="official OmniMemEval LoCoMo judge (CORRECT/WRONG JSON label)",
+    ),
+    "mem0-generous": JudgeSuite(
+        "mem0-generous",
+        JudgeScale.BINARY,
+        {"default": "vendor/mem0-generous"},
+        route_constant,
+        handles_abstention=False,
+        notes="N57 vendor judge: Mem0 paper 'be generous' judge (Backboard, Hindsight harness)",
+    ),
+    "mem0-unified": JudgeSuite(
+        "mem0-unified",
+        JudgeScale.BINARY,
+        {"default": "vendor/mem0-unified"},
+        route_constant,
+        handles_abstention=False,
+        notes="N57 vendor judge: Mem0 memory-benchmarks; partial credit, 14-day dates",
+    ),
+    "evermemos": JudgeSuite(
+        "evermemos",
+        JudgeScale.BINARY,
+        {"default": "vendor/evermemos"},
+        route_constant,
+        handles_abstention=False,
+        notes="N57 vendor judge: EverMemOS judge (generous text, label-only JSON)",
     ),
 }
 
