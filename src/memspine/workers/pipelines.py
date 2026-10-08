@@ -11,6 +11,7 @@ decay only emits on a tier *change*, compression skips already-compressed rows.
 from __future__ import annotations
 
 import asyncio
+import re
 from collections import Counter
 from collections.abc import Awaitable, Callable
 from contextlib import AbstractAsyncContextManager, nullcontext
@@ -1767,12 +1768,24 @@ def _edge_contexts(sources: list[MemoryRecord], known: list[MemoryRecord]) -> li
     return contexts
 
 
-def _edge_key(namespace: str, edge: ExtractedEdge) -> str:
+def _edge_key(namespace: str, edge: ExtractedEdge, *, dated: bool = False) -> str:
     """Idempotency key for an extracted edge: same (src, rel, dst) in a
-    namespace fingerprints to the same record, so a re-run never duplicates."""
-    return fingerprint_payload(
-        {"extract_graph": [namespace, edge.src_entity, edge.rel, edge.dst_entity]}
-    )
+    namespace fingerprints to the same record, so a re-run never duplicates.
+
+    ``dated`` (G-3, ``extract_graph.event_identity: dated``): an EVENT edge also keys
+    on its event day and the numbers its fact states, so "visited Paris in 2022" and
+    "visited Paris in 2023" (or "ran 5 km" / "ran 10 km") stay two events instead of
+    one. State edges keep (src, rel, dst): a newer state supersedes, it does not add."""
+    parts: list[object] = [namespace, edge.src_entity, edge.rel, edge.dst_entity]
+    if dated and edge.kind == "event":
+        day = (edge.valid_from or "")[:10]
+        numbers = sorted(set(_NUMERAL.findall(edge.fact)))
+        parts += [day, numbers]
+    return fingerprint_payload({"extract_graph": parts})
+
+
+#: G-3: the numbers a fact states ("5", "10.5", "2,000") for event-edge identity.
+_NUMERAL = re.compile(r"\d+(?:[.,]\d+)*")
 
 
 def _edge_valid_from(edge: ExtractedEdge, fallback: datetime) -> datetime:
@@ -1815,6 +1828,8 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
     if ctx.extract_edges is None:
         return {"status": "skipped", "reason": "extract_graph disabled or no extract_edges role"}
     opts = _policy_options(ctx, "semantic", "extract_graph") or {}
+    # G-3: event edges keyed on their day and numerals (off: (src, rel, dst) only).
+    dated_events = opts.get("event_identity", "plain") == "dated"
     raw_conf = opts.get("min_confidence", 0.0)
     min_conf = float(raw_conf) if isinstance(raw_conf, (int, float, str)) else 0.0
     # #20: ``granularity: session`` sends each consolidated session in one call
@@ -1974,7 +1989,7 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
                 nonlocal written, linked, skipped, quarantined, provenance
                 if edge.confidence < min_conf:
                     return
-                key = _edge_key(namespace, edge)
+                key = _edge_key(namespace, edge, dated=dated_events)
                 if key in existing:
                     skipped += 1
                     # GR-9: a verbatim duplicate (same src, rel, dst and kind) adds
