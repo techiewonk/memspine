@@ -333,6 +333,11 @@ class ReadConfig(BaseModel):
     #: with the nearest records outside it (within one span length, at least
     #: ``TEMPORAL_SOFT_MARGIN_DAYS``). Off: hard window (unchanged).
     temporal_soft: bool = False
+    #: N30 (Hindsight: dates indexed with the text): with ``temporal_leg``, a turn
+    #: whose text names a date ("last weekend", "on 7 May"), resolved against the
+    #: turn's own time, also enters the leg when that date overlaps the question's
+    #: span. Read-side only: nothing stored changes. Off: unchanged.
+    temporal_leg_mentions: bool = False
     metadata_leg: bool = False
     #: W8 (plan v3.2): an RRF leg of the turns of every speaker the question names
     #: (``speaker:<name>`` tags from ``memories.episodic.policies.subject_tagging``),

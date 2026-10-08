@@ -120,3 +120,25 @@ async def test_engine_passes_the_newest_record_time_as_year_ref(
         await eng.stop()
     assert seen and seen[-1]["year_ref"] == _d(2023, 8, 1)
     assert any("camping" in r.content for r, _ in hits)
+
+
+def test_mentions_find_a_turn_by_the_date_it_names() -> None:
+    from memspine.core.temporal_query import mentioned_spans
+
+    camping = _rec("Ana: I went camping yesterday", _d(2023, 5, 8))
+    other = _rec("Ana: nice weather today", _d(2023, 5, 8))
+    assert mentioned_spans(camping)[0] == (_d(2023, 5, 7), _d(2023, 5, 8))
+    plain = temporal_leg("what happened on 7 May 2023?", [camping, other], 5)
+    found = temporal_leg("what happened on 7 May 2023?", [camping, other], 5, mentions=True)
+    assert plain == []
+    assert [h.record_id for h in found] == [camping.record_id]
+
+
+def test_mentions_read_a_yearless_date_against_the_turn() -> None:
+    turn = _rec("Ben: the race is on 3 June", _d(2023, 6, 10))
+    found = temporal_leg("on 3 June 2023", [turn], 5, mentions=True)
+    assert [h.record_id for h in found] == [turn.record_id]
+
+
+def test_mentions_key_is_off_by_default() -> None:
+    assert ReadConfig().temporal_leg_mentions is False

@@ -732,3 +732,6 @@ BGE_QUERY_INSTRUCTION = "Represent this sentence for searching relevant passages
 #: N44 (gaps plan 2026-10-08, Dakera soft date proximity): a soft temporal span widens
 #: by one span length, and by at least this many days (a one-day span by 3 days).
 TEMPORAL_SOFT_MARGIN_DAYS = 3
+
+#: N30: the most records whose named date spans the temporal leg caches per process.
+MENTION_CACHE_MAX = 200_000

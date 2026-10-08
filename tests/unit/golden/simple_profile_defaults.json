@@ -160,6 +160,7 @@
       "temporal_infer_year": false,
       "temporal_leg": false,
       "temporal_leg_event_dates": false,
+      "temporal_leg_mentions": false,
       "temporal_rank": "midpoint",
       "temporal_relative": false,
       "temporal_soft": false,

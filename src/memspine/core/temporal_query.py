@@ -20,7 +20,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
-from memspine.config.constants import TEMPORAL_SOFT_MARGIN_DAYS
+from memspine.config.constants import MENTION_CACHE_MAX, TEMPORAL_SOFT_MARGIN_DAYS
 from memspine.core.event_date import happened_of, label_span
 from memspine.core.records import MemoryRecord, chrono_key
 from memspine.core.temporal_resolve import WeekMode, resolve
@@ -170,6 +170,7 @@ def temporal_leg(
     year_ref: datetime | None = None,
     rank: str = "midpoint",
     soft: bool = False,
+    mentions: bool = False,
 ) -> list[LegHit]:
     """Records whose event time lies in the query's span, closest to its middle first.
 
@@ -184,6 +185,11 @@ def temporal_leg(
     closeness to the middle. ``soft`` (N44, ``read.temporal_soft``): when fewer than
     ``top_k`` records fall in the span, the rest of the leg is filled with the records
     nearest outside it, within one span length (at least ``TEMPORAL_SOFT_MARGIN``).
+
+    ``mentions`` (N30, ``read.temporal_leg_mentions``): a turn whose text names a date
+    ("last weekend", "on 7 May", "yesterday"), resolved against the turn's own time,
+    also enters when that date overlaps the span, so "I went camping last weekend"
+    said on 8 May is found for "7 May". Works on raw turns, unlike ``event_dates``.
     """
     records = list(records)
     span = query_interval(query, anchor, week=week, year_ref=year_ref)
@@ -200,6 +206,10 @@ def temporal_leg(
             times.append(said)
         if event_dates and (at := _happened_in(r, start, end)) is not None:
             times.append(at)
+        if mentions:
+            for lo, hi in mentioned_spans(r):
+                if max(lo, start) < min(hi, end):
+                    times.append(max(lo, start))
         if times:
             shared = len(asked & _content_words(r.content)) if asked else 0
             dist = min(abs((t - mid).total_seconds()) for t in times)
@@ -222,6 +232,36 @@ def temporal_leg(
 
 #: N44: the smallest widening of a soft temporal span.
 TEMPORAL_SOFT_MARGIN = timedelta(days=TEMPORAL_SOFT_MARGIN_DAYS)
+
+
+#: N30: date spans each record's text names, by (record_id, content); bounded.
+_MENTIONS: dict[tuple[str, str], tuple[tuple[datetime, datetime], ...]] = {}
+
+
+def mentioned_spans(record: MemoryRecord) -> tuple[tuple[datetime, datetime], ...]:
+    """N30: the date spans a record's text names, resolved against its own time.
+
+    Relative phrases ("last weekend", "yesterday", "two weeks ago") use the H1 rules;
+    an absolute or yearless date ("7 May 2023", "on 7 May") is read as in a query.
+    Cached by record id and content (records are immutable; the cache is bounded).
+    """
+    key = (record.record_id, record.content)
+    cached = _MENTIONS.get(key)
+    if cached is not None:
+        return cached
+    said = _aware(record.valid_from)
+    spans: list[tuple[datetime, datetime]] = []
+    for found in resolve(record.content, said):
+        lo = datetime(found.first.year, found.first.month, found.first.day, tzinfo=UTC)
+        hi = datetime(found.last.year, found.last.month, found.last.day, tzinfo=UTC)
+        spans.append((lo, hi + timedelta(days=1)))
+    named = _absolute_interval(record.content) or _yearless_interval(record.content, said)
+    if named is not None:
+        spans.append(named)
+    if len(_MENTIONS) >= MENTION_CACHE_MAX:
+        _MENTIONS.clear()
+    result = _MENTIONS[key] = tuple(spans)
+    return result
 
 
 def _content_words(text: str) -> frozenset[str]:

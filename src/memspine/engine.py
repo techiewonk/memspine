@@ -1877,6 +1877,8 @@ class Engine:
                     anchored["rank"] = read.temporal_rank
                 if read.temporal_soft:
                     anchored["soft"] = True
+                if read.temporal_leg_mentions:
+                    anchored["mentions"] = True
                 legs.append(
                     temporal_leg(
                         query,
