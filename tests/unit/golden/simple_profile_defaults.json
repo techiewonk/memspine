@@ -93,6 +93,7 @@
       "evidence_line": false,
       "evidence_signal": false,
       "evidence_weak_below": null,
+      "facts_to_sources": false,
       "focused_excerpt": false,
       "fusion": "rrf",
       "gap_markers": false,
@@ -158,6 +159,7 @@
       "second_round": false,
       "sentence_leg": false,
       "session_cap": null,
+      "session_digest": false,
       "short_query_lexical_weight": null,
       "skip_rerank_for_ordering": false,
       "span_line": false,
@@ -179,6 +181,7 @@
       "timeline_entities": 3,
       "timeline_items": 8,
       "topic_timelines": false,
+      "type_quotas": {},
       "verbatim_raw_only": false
     },
     "rest": {

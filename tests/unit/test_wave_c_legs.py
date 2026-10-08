@@ -138,3 +138,95 @@ def test_forget_mentions_drops_cached_spans() -> None:
     assert (rec.record_id, rec.content) in _MENTIONS
     forget_mentions([rec.content])
     assert (rec.record_id, rec.content) not in _MENTIONS
+
+
+async def test_session_digest_header_quotes_sessions_without_hiding_turns() -> None:
+    from memspine.config import constants
+
+    eng = Engine(
+        template="core",
+        dotenv_path=None,
+        storage={"path": ":memory:"},
+        embedding={"provider": "hash"},
+        memories={"episodic": {"enabled": True}},
+        read={"record_access": False, "session_digest": True},
+    )
+    await eng.start()
+    try:
+        turns = [
+            "Ana: we went camping by the lake. It rained all night.",
+            "Ben: the tent leaked. We still loved camping there.",
+        ]
+        for i, text in enumerate(turns):
+            await eng.write(
+                text, namespace="a", memory_type="episodic", valid_from=T0 + timedelta(minutes=i)
+            )
+        result = await eng.read(
+            "Did they like camping by the lake?", namespace="a", mode="replay", budget_tokens=800
+        )
+        off = ReadConfig().session_digest
+    finally:
+        await eng.stop()
+    contents = [r.content for r in result.context.records]
+    digest = [c for c in contents if c.startswith(constants.SESSION_DIGEST_MARKER)]
+    assert off is False
+    assert len(digest) == 1 and "camping" in digest[0]
+    assert any(c.startswith("Ana: we went camping") for c in contents)  # turn still read
+
+
+async def _fact_engine(**read: object) -> Engine:
+    eng = Engine(
+        template="core",
+        dotenv_path=None,
+        storage={"path": ":memory:"},
+        embedding={"provider": "hash"},
+        memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
+        read={"record_access": False, **read},
+    )
+    await eng.start()
+    return eng
+
+
+async def _seed_fact(eng: Engine) -> tuple[str, str]:
+    from memspine.core.records import SourceInfo
+
+    turn = await eng.write(
+        "Ana: my cat Luna is three", namespace="a", memory_type="episodic", valid_from=T0
+    )
+    fact = await eng.write(
+        "Ana has a cat named Luna",
+        namespace="a",
+        memory_type="semantic",
+        tags=["atomic_fact"],
+        source=SourceInfo(role="system", parents=[turn.record_id]),
+        valid_from=T0,
+    )
+    return turn.record_id, fact.record_id
+
+
+async def test_facts_to_sources_swaps_a_fact_for_its_turn() -> None:
+    eng = await _fact_engine(facts_to_sources=True)
+    try:
+        turn_id, fact_id = await _seed_fact(eng)
+        ctx = await eng.assemble("Ana cat Luna", namespace="a", budget_tokens=400)
+    finally:
+        await eng.stop()
+    ids = [r.record_id for r in ctx.records]
+    assert turn_id in ids and fact_id not in ids
+    assert ids.count(turn_id) == 1
+
+
+async def test_type_quotas_cap_a_memory_type() -> None:
+    eng = await _fact_engine(type_quotas={"semantic": 0})
+    try:
+        turn_id, fact_id = await _seed_fact(eng)
+        ctx = await eng.assemble("Ana cat Luna", namespace="a", budget_tokens=400)
+    finally:
+        await eng.stop()
+    ids = [r.record_id for r in ctx.records]
+    assert fact_id not in ids and turn_id in ids
+
+
+def test_n54_n55_off_by_default() -> None:
+    read = ReadConfig()
+    assert read.facts_to_sources is False and read.type_quotas == {}

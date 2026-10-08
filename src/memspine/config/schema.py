@@ -674,6 +674,16 @@ class ReadConfig(BaseModel):
     #: candidates with two or more sentences, ranked by their best sentence's cosine
     #: with the query. Embeds candidate sentences at read (cached); no index change.
     maxsim_leg: bool = False
+    #: N31 (Memori session summaries, extractive): a read header with, for the
+    #: sessions of the first hits, the two sentences most like the question. It does
+    #: not hide the session's turns from the read. Off: no header.
+    session_digest: bool = False
+    #: N54 (EverMemOS episode/fact pairing): a mined fact in the hits gives its slot,
+    #: rank and score to its live source turns, so facts never displace raw turns.
+    facts_to_sources: bool = False
+    #: N55 (EverMemOS per-source quotas): the most records of each memory type the
+    #: read keeps (``{"semantic": 3}``); types not listed are uncapped. Empty: unchanged.
+    type_quotas: dict[str, int] = Field(default_factory=dict)
     #: N33 (Memori, Mem0): the BM25 leg's RRF weight for a question of at most
     #: ``SHORT_QUERY_WORDS`` content words. None: unchanged.
     short_query_lexical_weight: float | None = Field(default=None, ge=0.0)

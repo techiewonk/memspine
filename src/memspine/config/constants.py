@@ -753,3 +753,14 @@ ENTITY_EXPAND_MAX_SHARE = 0.05
 #: N60 (EverMemOS MaxSim, Dakera sentence sub-memories): the most sentence vectors the
 #: engine caches per process for the MaxSim leg; the cache is cleared when full.
 MAXSIM_CACHE_MAX = 100_000
+
+# N31 (Memori session summaries, extractive): the session digest header
+# (``read.session_digest``): for the sessions of the first hits, the sentences most
+# like the question. Never hides the session's turns from the read.
+SESSION_DIGEST_MARKER = "SESSION DIGESTS (the sentences most like the question, per session):"
+SESSION_DIGEST_TAG = "session_digest_header"
+#: N31: hits searched, sessions digested, sentences per session, budget share.
+SESSION_DIGEST_HITS = 5
+SESSION_DIGEST_SESSIONS = 3
+SESSION_DIGEST_SENTENCES = 2
+SESSION_DIGEST_SHARE = 0.1

@@ -4228,6 +4228,21 @@ class Engine:
             # N21 (plan v3.2): a dense near-duplicate cluster (a planted paraphrase
             # set) counts once, its kept member tagged ``concentrated:<n>``.
             scored = collapse_concentrated(scored, jaccard=read_cfg.concentration_jaccard)
+        if read_cfg.facts_to_sources and scored:
+            # N54 (EverMemOS episode/fact pairing, reversed): a mined fact gives its
+            # slot to the source turn it came from, so facts never displace turns.
+            scored = await self._facts_to_sources(ns, scored)
+        if read_cfg.type_quotas and scored:
+            # N55 (EverMemOS per-source quotas): at most N records of each type.
+            seen: dict[str, int] = {}
+            capped: list[tuple[MemoryRecord, float]] = []
+            for record, score in scored:
+                quota = read_cfg.type_quotas.get(record.memory_type)
+                if quota is not None and seen.get(record.memory_type, 0) >= quota:
+                    continue
+                seen[record.memory_type] = seen.get(record.memory_type, 0) + 1
+                capped.append((record, score))
+            scored = capped
         integrity = self._integrity()
         if integrity.enabled and integrity.trust_weighted_ranking and scored:
             # Scores are composite x view trust. Abstention (theta_abstain) judges
@@ -5127,6 +5142,105 @@ class Engine:
         block = self._lead_record(ns, "\n".join([constants.SLOTS_MARKER, *lines]), kept)
         return block.model_copy(update={"tags": [constants.LEAD_TAG, constants.SLOTS_TAG]})
 
+    async def _facts_to_sources(
+        self, ns: str, scored: list[tuple[MemoryRecord, float]]
+    ) -> list[tuple[MemoryRecord, float]]:
+        """N54: each mined fact (``atomic_fact``) replaced, at its rank and score, by
+        its live source turns (its parents); a turn already listed is not repeated.
+        A fact whose sources are all gone or gated keeps its own slot."""
+        storage = self._require_started()
+        out: list[tuple[MemoryRecord, float]] = []
+        listed: set[str] = set()
+        for record, score in scored:
+            if "atomic_fact" not in record.tags:
+                if record.record_id not in listed:
+                    out.append((record, score))
+                    listed.add(record.record_id)
+                continue
+            sources: list[MemoryRecord] = []
+            for pid in record.source.parents:
+                parent = await storage.get_record(pid)
+                if parent is not None and parent.namespace == ns:
+                    view = await self._live_view(parent)
+                    if view is not None:
+                        sources.append(view)
+            if not sources:
+                out.append((record, score))
+                continue
+            for src in sources:
+                if src.record_id not in listed:
+                    out.append((src, score))
+                    listed.add(src.record_id)
+        return out
+
+    async def _session_digest_section(
+        self, ns: str, query: str, budget_tokens: int, session_id: str | None = None
+    ) -> MemoryRecord | None:
+        """N31 (``read.session_digest``; Memori session summaries, made extractive):
+        for the episodic sessions of the first ``SESSION_DIGEST_HITS`` hits, one line
+        each of the ``SESSION_DIGEST_SENTENCES`` sentences sharing most content words
+        with the question, within ``SESSION_DIGEST_SHARE`` of the budget. The block's
+        parents are the turns quoted; they are not hidden from the read."""
+        if not self._config().read.session_digest or self._episodic is None:
+            return None
+        try:
+            hits = await self._search(
+                query,
+                ns,
+                constants.SESSION_DIGEST_HITS,
+                session_id=session_id,
+                keep_k=constants.SESSION_DIGEST_HITS,
+            )
+            sessions = await self._episodic.sessions(ns, constants.SESSION_GAP_MINUTES)
+            session_of_id = {rid: s for s in sessions for rid in s.record_ids}
+            chosen: list[Any] = []
+            for record, _ in hits:
+                s = session_of_id.get(record.record_id)
+                if s is not None and all(s.session_key != c.session_key for c in chosen):
+                    chosen.append(s)
+            chosen = chosen[: constants.SESSION_DIGEST_SESSIONS]
+            if not chosen:
+                return None
+            live = {
+                r.record_id: r
+                for r in await self._require_started().list_records(ns, "episodic")
+                if self._context_eligible(r)
+            }
+        except Exception as exc:  # an enhancer, never a gate
+            _log.warning("read.session_digest_failed", namespace=ns, error=str(exc))
+            return None
+        asked = content_words(query)
+        allowance = int(budget_tokens * constants.SESSION_DIGEST_SHARE)
+        lines: list[str] = []
+        kept: list[MemoryRecord] = []
+        for s in chosen:
+            scored: list[tuple[int, int, str, MemoryRecord]] = []
+            for order, rid in enumerate(s.record_ids):
+                turn = live.get(rid)
+                if turn is None:
+                    continue
+                for sentence in sentences(turn.content):
+                    shared = len(asked & content_words(sentence))
+                    if shared:
+                        scored.append((-shared, order, sentence, turn))
+            if not scored:
+                continue
+            best = sorted(scored, key=lambda item: (item[0], item[1]))[
+                : constants.SESSION_DIGEST_SENTENCES
+            ]
+            best.sort(key=lambda item: item[1])  # in the order they were said
+            text = " … ".join(" ".join(sentence.split()) for _, _, sentence, _ in best)
+            line = f"- {s.start:%Y-%m-%d}: {escape_markers(text)}"
+            trial = [*lines, line]
+            if estimate_tokens("\n".join([constants.SESSION_DIGEST_MARKER, *trial])) > allowance:
+                break
+            lines = trial
+            kept += [turn for _, _, _, turn in best if turn not in kept]
+        if not kept:
+            return None
+        block = self._lead_record(ns, "\n".join([constants.SESSION_DIGEST_MARKER, *lines]), kept)
+        return block.model_copy(update={"tags": [constants.LEAD_TAG, constants.SESSION_DIGEST_TAG]})
+
     async def _novelty_section(
         self, ns: str, query: str, budget_tokens: int
     ) -> MemoryRecord | None:
@@ -5300,6 +5414,7 @@ class Engine:
             await self._profile_section(ns, query, budget_tokens, session_id),
             await self._novelty_section(ns, query, budget_tokens),
             await self._slots_section(ns, query, budget_tokens),
+            await self._session_digest_section(ns, query, budget_tokens, session_id),
         ):
             if header is not None:
                 headers.append(header)
@@ -5652,7 +5767,13 @@ class Engine:
         too, so the question reads as with mining off."""
         if not headers and not hide_facts:
             return None
-        shown = {pid for h in headers for pid in h.source.parents}
+        # N31: a session digest shows two sentences of a session; its turns stay readable.
+        shown = {
+            pid
+            for h in headers
+            if constants.SESSION_DIGEST_TAG not in h.tags
+            for pid in h.source.parents
+        }
         facts = hide_facts or (all_facts and any(constants.CARDS_TAG in h.tags for h in headers))
         return lambda r: r.record_id in shown or (facts and "atomic_fact" in r.tags)
 
