@@ -793,3 +793,7 @@ BRIEF_TAG = "brief_block"
 #: G-2 (Graphiti cross-key contradiction): the same-subject facts on other keys a new
 #: state fact is adjudicated against (one ``invalidate_edge`` call each).
 CONTRADICTION_CANDIDATES = 3
+
+#: G-8 (Graphiti custom extraction instructions): a record's extraction hint rides as a
+#: tag with this prefix (``write(extraction_hint=...)``), read by ``extract_graph``.
+EXTRACTION_HINT_PREFIX = "extract_hint:"

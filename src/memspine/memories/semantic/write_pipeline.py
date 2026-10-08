@@ -89,6 +89,8 @@ class EdgeContext:
     #: #20: session-level extraction with a decision provider (GLiNER2): the entity
     #: names it found in the session, the only names the extractor may use.
     allowed_entities: Sequence[str] = ()
+    #: G-8: the writer's extraction hint for this record (``write(extraction_hint=)``).
+    hint: str = ""
 
 
 class SemanticWriteOptions(BaseModel):

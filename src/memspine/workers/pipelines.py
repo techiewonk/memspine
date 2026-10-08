@@ -1762,11 +1762,20 @@ def _edge_contexts(sources: list[MemoryRecord], known: list[MemoryRecord]) -> li
             for e in episodes
             if e.group_id == record.group_id and chrono_key(e) < chrono_key(record)
         ][-MAX_PREVIOUS_EPISODES:]
+        hint = next(
+            (
+                t[len(constants.EXTRACTION_HINT_PREFIX) :]
+                for t in record.tags
+                if t.startswith(constants.EXTRACTION_HINT_PREFIX)
+            ),
+            "",
+        )
         contexts.append(
             EdgeContext(
                 reference_time=record.valid_from,
                 previous=[_one_line(e.content) for e in previous],
                 entities=entities,
+                hint=hint,
             )
         )
     return contexts
@@ -1905,6 +1914,11 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
     dated_events = opts.get("event_identity", "plain") == "dated"
     # G-1: an edge whose text says it ended is written already closed (valid_to).
     close_ended = bool(opts.get("close_ended", False))
+    # G-6: a declared relation vocabulary drops edges outside it (after extraction).
+    declared = opts.get("relation_types") or ()
+    allowed_rels = {
+        str(r).strip().lower() for r in (declared if isinstance(declared, list | tuple) else ())
+    }
     # G-2: a new STATE fact is checked against the subject's facts on OTHER keys.
     contradictions = bool(opts.get("contradictions", False)) and ctx.adjudicate_edge is not None
     invalidated = 0
@@ -2066,6 +2080,9 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
                 the edge cites (#20)."""
                 nonlocal written, linked, skipped, quarantined, provenance, invalidated
                 if edge.confidence < min_conf:
+                    return
+                if allowed_rels and edge.rel.strip().lower() not in allowed_rels:
+                    skipped += 1  # G-6: outside the declared ontology
                     return
                 key = _edge_key(namespace, edge, dated=dated_events)
                 if key in existing:

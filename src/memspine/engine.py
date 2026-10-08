@@ -1315,6 +1315,7 @@ class Engine:
         valid_from: datetime | None = None,
         session_id: str | None = None,
         ledger_id: str | None = None,
+        extraction_hint: str | None = None,
         parent_weights: Mapping[str, float] | None = None,
         purposes: Sequence[str] | None = None,
         reply_to: str | None = None,
@@ -1348,6 +1349,8 @@ class Engine:
         either end is held or at its link budget (logged, the write stands).
         """
         session_id = ledger_id if ledger_id is not None else session_id  # I9
+        if extraction_hint:  # G-8: rides as a tag; extract_graph passes it to the prompt
+            tags = [*(tags or []), constants.EXTRACTION_HINT_PREFIX + extraction_hint.strip()]
         storage = self._require_started()
         ns = validate_namespace(namespace)
         if reply_to is not None:
@@ -11236,6 +11239,10 @@ class Engine:
             else self._prompts.select("extract_edges", condition=condition)
         )
         rounds = max(1, max_rounds)
+        graph_opts = self._memory_policy(self._config(), "semantic").get("extract_graph")
+        graph_opts = graph_opts if isinstance(graph_opts, dict) else {}
+        ontology_entities = [str(t) for t in graph_opts.get("entity_types") or ()]
+        ontology_rels = [str(t) for t in graph_opts.get("relation_types") or ()]
 
         async def extract_edges(
             content: str, context: EdgeContext | None = None, /
@@ -11248,6 +11255,10 @@ class Engine:
                 "reference_time": ctx.reference_time.isoformat() if ctx.reference_time else "",
                 "previous_episodes": list(ctx.previous),
                 "entities": list(ctx.entities),
+                # G-8 / G-5 / G-6: the writer's hint and the declared ontology.
+                "hint": ctx.hint,
+                "entity_types": list(ontology_entities),
+                "relation_types": list(ontology_rels),
             }
             if condition is not None:
                 variables["allowed_entities"] = list(ctx.allowed_entities)

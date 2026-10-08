@@ -1,5 +1,5 @@
 id: extract_edges@session
-version: 3
+version: 4
 role: extract_edges
 format: yaml
 output_model: ExtractedEdges
@@ -41,7 +41,13 @@ known entities (reuse these exact names when the transcript refers to them):
 allowed entities (src_entity and dst_entity must be one of these names):
 {% for name in allowed_entities %}  - {{ name }}
 {% endfor %}{% endif %}
-transcript: |
+{% if entity_types is defined and entity_types %}
+entity types (use only these kinds of entities): {{ entity_types | join(", ") }}
+{% endif %}{% if relation_types is defined and relation_types %}
+relation types (use only these rel values): {{ relation_types | join(", ") }}
+{% endif %}{% if hint is defined and hint %}
+extraction instructions from the writer: {{ hint }}
+{% endif %}transcript: |
   {{ content }}
 
 edges:
