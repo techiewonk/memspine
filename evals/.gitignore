@@ -1,7 +1,21 @@
-# Fetched datasets and run outputs never enter git.
-data/
+# Nothing this harness produces or consumes belongs in git.
+#
+# Benchmark corpora carry their own licences (LoCoMo is Snap Inc.'s, LongMemEval is its
+# authors') and are never redistributed from this repository. Built memories and result
+# files are outputs: they are reproducible from a run config and a corpus, and a
+# committed result file is a number nobody can re-derive.
+
+# Per-sample build cache (CacheConfig.dir default) and run outputs (RunConfig.output_dir).
+.cache/
 runs/
+
+# Corpora, wherever an operator parks them.
+data/
+*locomo*.json
+*longmemeval*.json
+
 __pycache__/
+# Fetched datasets and run outputs never enter git.
 .pytest_cache/
 .deepeval
 cache/

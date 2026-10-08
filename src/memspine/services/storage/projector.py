@@ -188,9 +188,25 @@ class RecordProjector(Projector):
                     # A5 reinforcement-on-read: durable salience lift, clamped so
                     # a hot record can't run away. Rides the RETRIEVE event, so a
                     # rebuild replays it deterministically.
+                    #
+                    # E1 interaction: the ceiling is the record's own trust, not a
+                    # global constant. Without it, reinforcement was a ranking-level
+                    # privilege escalation — search emits RETRIEVE over EVERY scored
+                    # record, utility has no decrement site anywhere, and the composite
+                    # score adds 0.5*utility against a relevance term whose whole range
+                    # is 1/3. So ~10 searches let any ACTIVATED record outrank a
+                    # perfectly relevant one at any relevance. External channels are
+                    # capped at TRUST_RETRIEVED_CAP (0.3) but that is above
+                    # QUARANTINE_TRUST_THRESHOLD (0.25), so untrusted content was
+                    # admitted and fully pumpable. Bounding by trust makes the
+                    # firewall's graded verdict load-bearing at the read door, where it
+                    # previously collapsed to a binary. Replay-safe: trust is immutable
+                    # post-write (see _DELTA_MUTABLE). See tests/unit/
+                    # test_reinforcement_trust_cap.py.
                     "utility": min(
                         record.scoring.utility + constants.RETRIEVE_UTILITY_STEP,
                         constants.RETRIEVE_UTILITY_MAX,
+                        record.trust,
                     ),
                 }
             )

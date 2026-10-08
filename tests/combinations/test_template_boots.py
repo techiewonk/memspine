@@ -6,10 +6,10 @@ clean ``stop()``. The write→read round-trips live in ``test_single_type_boots`
 and ``test_kitchen_sink``; here we only prove the profiles start and describe
 themselves.
 
-Template-count note: the plan (§6) says "5 templates"; six ship today
-(``base`` + the five profiles); ``assistant`` (2026-10-03) makes seven and
-``core`` (ADR-033, the bare configuration) eight. We boot all of them and pin
-the count.
+Template-count note: the plan (§6) says "5 templates"; ``base`` + the five
+profiles, ``assistant`` (2026-10-03), ``core`` (ADR-033), ``protected`` (W1),
+``benchmark`` (measurement-only, the lean row of the cost-versus-capability
+frontier) and ``graph`` (GR-14) ship today. We boot all of them and pin the count.
 """
 
 from __future__ import annotations
@@ -26,6 +26,14 @@ TEMPLATES: dict[str, tuple[str, frozenset[str], str]] = {
     "assistant": ("assistant", frozenset({"working", "episodic", "semantic"}), "inline"),
     "base": ("simple", frozenset({"working", "episodic", "semantic"}), "inline"),
     "core": ("core", frozenset({"working", "episodic", "semantic"}), "inline"),
+    # Measurement profile: `working` is off (no paging window in LoCoMo /
+    # LongMemEval) and `associative` is on, satisfying its C1(b) hard dependency
+    # on `semantic`.
+    "benchmark": (
+        "benchmark",
+        frozenset({"episodic", "semantic", "associative"}),
+        "inline",
+    ),
     "coding": ("coding", frozenset({"working", "episodic", "semantic", "procedural"}), "inline"),
     "multi_agent": (
         "multi_agent",
@@ -76,7 +84,8 @@ def test_all_shipped_templates_are_in_the_matrix() -> None:
 
     shipped = {p.stem for p in template_dir().glob("*.yaml")}
     assert shipped == set(TEMPLATES), f"matrix out of sync with shipped templates: {shipped}"
-    assert len(TEMPLATES) == 10
+    assert len(TEMPLATES) == 11
+    assert len(TEMPLATES) == 11
 
 
 @pytest.mark.parametrize("template", sorted(TEMPLATES))

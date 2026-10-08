@@ -40,12 +40,17 @@ async def test_retrieval_bumps_utility_and_clamps() -> None:
         assert after2 is not None
         assert after2.scoring.utility == pytest.approx(2 * constants.RETRIEVE_UTILITY_STEP)
 
-        # Clamp: many retrievals never exceed MAX.
+        # Clamp: many retrievals never exceed the ceiling. Since the E1 trust cap
+        # landed, the ceiling is min(RETRIEVE_UTILITY_MAX, record.trust) — a record
+        # can never be reinforced past the firewall's verdict on it. See
+        # tests/unit/test_reinforcement_trust_cap.py for why.
         for _ in range(20):
             await eng.search("the sky is blue today")
         capped = await storage.get_record(rec.record_id)
         assert capped is not None
-        assert capped.scoring.utility == pytest.approx(constants.RETRIEVE_UTILITY_MAX)
+        assert capped.scoring.utility == pytest.approx(
+            min(constants.RETRIEVE_UTILITY_MAX, capped.trust)
+        )
     finally:
         await eng.stop()
 

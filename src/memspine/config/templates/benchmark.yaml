@@ -1,0 +1,93 @@
+# Benchmark profile: the cheapest configuration that can still answer LoCoMo
+# and LongMemEval questions — the lean baseline row of the cost-versus-
+# capability frontier, against which every governance layer is priced.
+#
+# !! MEASUREMENT ONLY — NOT A RECOMMENDED PRODUCTION CONFIGURATION !!
+# It trades away audit depth, graph enrichment and hierarchy for a
+# deterministic, LLM-free write path so runs are reproducible and comparable
+# with lightweight research systems. Deploy `personal`/`regulated_financial`
+# instead; use this one to answer "what does layer X cost?".
+#
+# Turned OFF here — each is a priced ablation toggle, not a permanent loss:
+#   - working / procedural / reflective / prospective / shared / resource
+#     memory: not exercised by these benchmarks (C1b closure still holds —
+#     associative requires semantic, which is enabled below)
+#   - entity extraction (D-28): the LLM fallback is the expensive write path
+#   - extract_graph (C2) + the graphiti write pipeline (C3): the single most
+#     expensive sleep stage
+#   - E5 assembly compression, E8 rerank and both static prefilters (D-51)
+#   - every LLM role. With `llm.roles` empty, consolidation falls back to the
+#     deterministic extractive summarizer (N6) and extract_graph self-skips,
+#     so the whole write path is LLM-free and same-log-same-result holds.
+#   - reorganize / Leiden communities (D-40). NOTE: there is no config switch
+#     for that stage — it self-skips unless `memspine[community]` (leidenalg)
+#     is installed, so a benchmark environment must simply not install it.
+#
+# Deliberately left ON, to be PRICED rather than hidden:
+#   - the Memory Firewall (E1): a deterministic trust / quarantine / anomaly
+#     gate, not an LLM call. Reporting what the defence costs is the point.
+#   - the M4 conflict ladder and MinHash dedup (D-27): both deterministic.
+#   - hybrid BM25 + RRF retrieval (D-25/ADR-019): core Tantivy, no extra.
+extends: base
+profile: benchmark
+strict_services: true
+
+event_log:
+  mode: rolling        # audit depth is not what these benchmarks score (D-45)
+  retention_days: 30
+  compress: false      # zstd at rest costs CPU per append; price it separately
+
+storage:
+  path: ./memspine_benchmark.db   # harness overrides this per sample so a built
+                                  # memory can be cached and reused (one build,
+                                  # many read-side ablations)
+
+embedding:
+  provider: fastembed             # ONNX on CPU — torch never enters core (D-08)
+  model: BAAI/bge-small-en-v1.5   # pinned: an unpinned embedder is an unpinned
+                                  # number
+
+vector:
+  backend: lance
+  quantization: auto   # the default embedder declares none -> exact float32
+
+graph:
+  provider: sqlite_adjacency   # zero-dep default (D-26/D-49); legal here only
+                               # because associative memory is enabled below
+
+cache:
+  backend: memory      # in-process E3 embedding cache, zero-dep core (D-03)
+
+llm:
+  roles: {}            # no role bound anywhere => no LLM call on any path
+
+read:
+  hybrid: true                    # BM25 leg + RRF fusion (D-25/ADR-019); core
+                                  # Tantivy, no extra. `hybrid: false` is the
+                                  # ablation row, not the default.
+  lexical_provider: tantivy
+  rerank: "off"                   # E8. Quoted: bare `off` is YAML 1.1 false.
+  static_prefilter: false         # E8 lexical-overlap gate
+  static_embedding_prefilter: false   # E4 model2vec gate ([static])
+  compression:
+    assembly: false               # E5 master switch (D-51) — its own row
+
+workers:
+  runner: inline                 # in-process, no external infra (D-16); the
+                                 # harness calls sleep() explicitly
+  sleep_interval_seconds: null   # no autonomous cycle — cadence must be a
+                                 # measured variable, not a background surprise
+
+memories:
+  working:
+    enabled: false     # base enables it; these benchmarks have no paging window
+  episodic:
+    enabled: true
+  semantic:
+    enabled: true
+    policies:
+      entity_extraction: "off"   # D-28. Quoted: bare `off` is YAML 1.1 false.
+      extract_graph: false       # C2 LLM edge extraction
+      write_pipeline: single     # C3 graphiti write pipeline off
+  associative:
+    enabled: true      # C1b hard dep on semantic, satisfied above
