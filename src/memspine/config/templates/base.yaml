@@ -20,6 +20,7 @@ read:
   record_access: false          # a read must not boost recency for the next question
   resolve_relative_dates: true  # H1: "last Friday" -> [= 2023-05-12]  (+5.8 alone)
   order_by_time_for_ordering: true  # H16: first/latest/before -> time order
+  temporal_leg: true            # F2/W4b: event-time leg (LoCoMo coverage +1.7, 28 gained / 2 lost; ADR-062)
   scoring:                      # relevance-first: recency/importance demoted the best
     recency_weight: 0.0         # match on stored transcripts
     importance_weight: 0.0
