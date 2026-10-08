@@ -10544,7 +10544,10 @@ class Engine:
         if config.embedding.provider == "fastembed":
             from memspine.services.embedding.fastembed_local import FastembedEmbedding
 
-            return FastembedEmbedding(model=config.embedding.model)
+            return FastembedEmbedding(
+                model=config.embedding.model,
+                query_instruction=config.embedding.query_instruction,
+            )
         if config.embedding.provider == "static":
             # E4 model2vec (ADR-020): a missing [static] extra hard-fails here
             # (D-10) because the deployer chose it as their embedder — as a mere

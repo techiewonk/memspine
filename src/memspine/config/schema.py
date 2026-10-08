@@ -119,6 +119,12 @@ class EmbeddingConfig(BaseModel):
     #: G9: the most texts one embedding call carries when ``write_messages``
     #: embeds its turns up front (Cohere on Bedrock accepts up to 96).
     batch_size: int = Field(default=32, ge=1)
+    #: N64 (plan v3.2 gaps): fastembed only: a text prepended to every retrieval
+    #: QUERY before embedding (documents unchanged, so no re-index). The BGE v1.5
+    #: models are trained with ``BGE_QUERY_INSTRUCTION`` (``config/constants.py``);
+    #: fastembed's own ``query_embed`` does not add it. None = queries embed like
+    #: documents (unchanged).
+    query_instruction: str | None = None
 
 
 class VectorConfig(BaseModel):

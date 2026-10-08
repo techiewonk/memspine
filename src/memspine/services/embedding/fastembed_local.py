@@ -21,8 +21,12 @@ _KNOWN_DIMS = {
 
 
 class FastembedEmbedding:
-    def __init__(self, model: str = "BAAI/bge-small-en-v1.5") -> None:
+    def __init__(
+        self, model: str = "BAAI/bge-small-en-v1.5", query_instruction: str | None = None
+    ) -> None:
         self._model_name = model
+        #: N64: prepended to queries only (``embed_queries``); None = symmetric.
+        self._query_instruction = query_instruction or None
         self._model: Any = None
         self._dim = _KNOWN_DIMS.get(model, 384)
         self._lock = asyncio.Lock()
@@ -64,3 +68,18 @@ class FastembedEmbedding:
         if vectors:
             self._dim = len(vectors[0])
         return vectors
+
+    @property
+    def query_variant(self) -> str:
+        """N64: a cache-key tag for the query instruction ("" when none)."""
+        if self._query_instruction is None:
+            return ""
+        import xxhash
+
+        return ":" + xxhash.xxh64_hexdigest(self._query_instruction.encode())
+
+    async def embed_queries(self, texts: list[str]) -> list[list[float]]:
+        """N64: queries with the model's retrieval instruction, when one is set."""
+        if self._query_instruction is None:
+            return await self.embed(texts)
+        return await self.embed([self._query_instruction + t for t in texts])

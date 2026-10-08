@@ -662,6 +662,7 @@ in the schema — or if the schema gains a key not documented here.
 | `embedding.request_dimensions` | `false` | litellm only: request exactly `dim` dimensions (Matryoshka models: Cohere embed-v4 256/512/1024/1536, Titan v2, OpenAI v3). |
 | `embedding.query_input_type` | `null` | litellm only: input type for retrieval queries (Cohere: `search_query`). |
 | `embedding.document_input_type` | `null` | litellm only: input type for stored content (Cohere: `search_document`). |
+| `embedding.query_instruction` | `None` | N64: fastembed only. Text prepended to every retrieval query before embedding; documents are unchanged, so no re-index. For the BGE v1.5 models, use `constants.BGE_QUERY_INSTRUCTION` ("Represent this sentence for searching relevant passages: "). fastembed's own `query_embed` does not add it. Query vectors are cached under a key that includes the instruction. |
 | `embedding.batch_size` | `32` | G9: most texts per embedding call when `write_messages` embeds its turns up front (Cohere on Bedrock: up to 96). |
 | `vector.backend` | `lance` | `lance` is the sole store (ADR-021); `weaviate` reserved (raises). |
 | `vector.quantization` | `auto` | `auto` (manifest-driven) \| `none` \| `int8` \| `binary` — E4 native rescore (ADR-020). |

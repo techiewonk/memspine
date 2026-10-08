@@ -724,3 +724,7 @@ SOURCE_TIER_TRUST_CAP: dict[int, float] = {3: 1.0, 2: 0.6, 1: 0.45, 0: 0.3}
 EVIDENCE_AUTHORITY_MIN_TIER = 2
 #: N26: tag prefix naming a record's document type (``doctype:news``).
 DOCTYPE_TAG_PREFIX = "doctype:"
+
+#: N64: the BGE v1.5 retrieval query instruction (BAAI model card, "for s2p retrieval
+#: ... add an instruction to the query"). Used as ``embedding.query_instruction``.
+BGE_QUERY_INSTRUCTION = "Represent this sentence for searching relevant passages: "

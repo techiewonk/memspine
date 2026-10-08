@@ -57,7 +57,8 @@ class CachedEmbedding:
 
     async def forget(self, text: str) -> None:
         """#43 erasure: drop the cached document and query vectors of ``text``."""
-        for prefix in ("emb", "embq"):
+        variant = getattr(self._inner, "query_variant", "")
+        for prefix in {"emb", "embq", f"embq{variant}"}:
             await self._kv.delete(self._key(text, prefix))
 
     async def embed_queries(self, texts: list[str]) -> list[list[float]]:
@@ -66,7 +67,10 @@ class CachedEmbedding:
         inner = getattr(self._inner, "embed_queries", None)
         if inner is None:
             return await self.embed(texts)
-        return await self._cached(texts, inner, "embq")
+        # N64: a query instruction changes the query vector; key it in, so turning
+        # the instruction on or off never serves a vector made under the other.
+        variant = getattr(self._inner, "query_variant", "")
+        return await self._cached(texts, inner, f"embq{variant}")
 
     async def embed(self, texts: list[str]) -> list[list[float]]:
         return await self._cached(texts, self._inner.embed, "emb")
