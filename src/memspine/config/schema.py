@@ -708,6 +708,10 @@ class ReadConfig(BaseModel):
     #: G-16 (SimpleMem symbolic leg): an RRF leg of records whose location / topic /
     #: person view tags (``consolidation.mine_multiview``) share words with the question.
     view_tag_leg: bool = False
+    #: G-22 (SimpleMem pyramid retrieval): None = off; N = the best N hits keep their
+    #: full text and the rest are shown as their one sentence most like the question,
+    #: before the budget fit, so more distinct evidence fits.
+    gist_after: int | None = Field(default=None, ge=0)
     #: N31 (Memori session summaries, extractive): a read header with, for the
     #: sessions of the first hits, the two sentences most like the question. It does
     #: not hide the session's turns from the read. Off: no header.

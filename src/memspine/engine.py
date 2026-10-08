@@ -779,6 +779,17 @@ def _excerpted(record: MemoryRecord, query: str) -> MemoryRecord:
     return record if text == record.content else record.model_copy(update={"content": text})
 
 
+def _gisted(record: MemoryRecord, query: str) -> MemoryRecord:
+    """G-22: ``record`` shown as its one sentence sharing most content words with the
+    query (the first sentence on a tie); a one-sentence record is unchanged."""
+    parts = sentences(record.content, min_words=1)
+    if len(parts) < 2:
+        return record
+    asked = content_words(query)
+    best = max(parts, key=lambda part: (len(asked & content_words(part)), -parts.index(part)))
+    return record.model_copy(update={"content": best})
+
+
 def _jaccard(a: Collection[str], b: Collection[str]) -> float:
     """Word-set Jaccard (N25)."""
     sa, sb = set(a), set(b)
@@ -4515,6 +4526,15 @@ class Engine:
             standing, timelines = await self._lead_section(ns, scored, budget_tokens)
         lead_cost = sum(estimate_tokens(r.content) for r in [*standing, *timelines])
         scored = await self._decorate(ns, scored, hide=hide)
+        gist_after = read_cfg.gist_after
+        if gist_after is not None and not is_verbatim(query):
+            # G-22 (SimpleMem pyramid): the best ``gist_after`` hits keep their text;
+            # the rest are shown as their one sentence most like the question, so the
+            # budget holds more distinct evidence.
+            scored = [
+                (record if i < gist_after else _gisted(record, query), score)
+                for i, (record, score) in enumerate(scored)
+            ]
         # E5 (D-51): the compression policy's own master switch decides whether
         # the fit stage runs; with the default options this is a no-op.
         assembled = self._assembly.assemble(

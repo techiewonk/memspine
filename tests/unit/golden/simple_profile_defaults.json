@@ -97,6 +97,7 @@
       "focused_excerpt": false,
       "fusion": "rrf",
       "gap_markers": false,
+      "gist_after": null,
       "graph_communities": false,
       "graph_depth": 2,
       "graph_leg": false,

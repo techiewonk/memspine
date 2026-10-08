@@ -244,3 +244,33 @@ def test_view_tag_leg_matches_location_and_topic() -> None:
     hits = view_tag_leg("What did Ana do at the lake?", [none, paris, lake], 5)
     assert [h.record_id for h in hits] == [lake.record_id]
     assert ReadConfig().view_tag_leg is False
+
+
+async def test_gist_after_shows_lower_hits_as_one_sentence() -> None:
+    """G-22: hits after the first N are shown as their sentence most like the query."""
+    long_turn = (
+        "Ana: we had a long week. The car broke down twice. "
+        "Then we went camping by the lake. It rained a lot."
+    )
+    for gist_after in (None, 1):
+        eng = Engine(
+            template="core",
+            dotenv_path=None,
+            storage={"path": ":memory:"},
+            embedding={"provider": "hash"},
+            read={"record_access": False, "gist_after": gist_after},
+        )
+        await eng.start()
+        try:
+            await eng.write("Ana: camping by the lake was great", namespace="a")
+            await eng.write(long_turn, namespace="a")
+            ctx = await eng.assemble("camping by the lake", namespace="a", budget_tokens=400)
+        finally:
+            await eng.stop()
+        contents = [r.content for r in ctx.records]
+        if gist_after is None:
+            assert long_turn in contents
+        else:
+            assert "Then we went camping by the lake." in contents
+            assert long_turn not in contents
+    assert ReadConfig().gist_after is None
