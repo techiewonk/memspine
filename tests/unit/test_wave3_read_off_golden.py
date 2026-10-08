@@ -107,6 +107,27 @@ def _fixed_ids(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(records, "uuid4", lambda: uuid.UUID(int=next(counter)))
 
 
+@pytest.fixture(autouse=True)
+def _fixed_now(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Freeze the wall clock seen by record times and recency scoring.
+
+    Recency decays with the real time between write and search, so a search score
+    on a 4-decimal rounding boundary (0.6465 / 0.6464) flipped from run to run."""
+    from memspine.core import records
+    from memspine.core.policies import scoring
+
+    frozen = datetime(2023, 7, 15, 12, 0, tzinfo=UTC)
+
+    class _Frozen(datetime):
+        @classmethod
+        def now(cls, tz: Any = None) -> datetime:  # type: ignore[override]
+            return frozen if tz is not None else frozen.replace(tzinfo=None)
+
+    monkeypatch.setattr(records, "datetime", _Frozen)
+    monkeypatch.setattr(scoring, "datetime", _Frozen)
+    monkeypatch.setattr(records, "_last_record_time", datetime.min.replace(tzinfo=UTC))
+
+
 async def _current(**read: Any) -> dict[str, Any]:
     eng = _engine(**read)
     await eng.start()
