@@ -420,10 +420,10 @@ def build_reader_and_judge(config: C01Config) -> tuple[Reader, Judge, bool]:
         return ContextOnlyReader(), ContainsJudge(), False
     from .readers import (
         QA_PROMPTS,
-        REASONING_MAX_TOKENS,
         REASONING_QA_PROMPTS,
         ROUTED_QA_PROMPTS,
         RoutedQAPrompt,
+        reasoning_max_tokens,
     )
 
     qa_prompt: str | RoutedQAPrompt
@@ -451,7 +451,7 @@ def build_reader_and_judge(config: C01Config) -> tuple[Reader, Judge, bool]:
             budget,
             model=QWEN3_32B,
             temperature=0.0,
-            max_tokens=REASONING_MAX_TOKENS if reasoning else 256,
+            max_tokens=reasoning_max_tokens(config.qa_prompt) if reasoning else 256,
             prompt=qa_prompt,
             extract_answer=reasoning,
         )
@@ -481,6 +481,7 @@ def build_reader_and_judge(config: C01Config) -> tuple[Reader, Judge, bool]:
         api_key=api_key,
         prompt=qa_prompt,
         extract_answer=reasoning,
+        **({"max_tokens": reasoning_max_tokens(config.qa_prompt)} if reasoning else {}),
     )
     judge = build_judge(
         config,

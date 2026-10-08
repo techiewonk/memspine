@@ -17,6 +17,7 @@ from typing import Any
 
 from .contracts import ReaderAnswer
 from .tokens import HeuristicTokenCounter, TokenCounter
+from .vendor_judges import EVERMEMOS_COT_QA_PROMPT
 
 DEFAULT_QA_PROMPT = (
     "Answer the question using only the context below. "
@@ -133,6 +134,27 @@ DATED3_QA_PROMPT = (
     "Context:\n{context}\n\nQuestion: {question}\nReasoning:"
 )
 
+#: N46 (MemMachine answer clause, our wording): ``dated`` plus "a plan the context
+#: states counts as done unless the context says it did not happen". QA only (paid).
+DATED_PLANNED_QA_PROMPT = DATED_QA_PROMPT.replace(
+    "Answer in one short sentence.",
+    "When the context says someone planned or intended to do something and never says it "
+    "did not happen, treat it as done. Answer in one short sentence.",
+)
+
+#: N56 (Mem0 answer prompt, our wording): ``dated`` without the refusal clause; the
+#: reader always gives its best answer from the context. QA only (paid).
+DATED_NOABSTAIN_QA_PROMPT = DATED_QA_PROMPT.replace(
+    "If the context does not contain the answer, say you do not know.",
+    "Always give your best answer from the context; never reply that you do not know.",
+)
+
+#: N65 (EverMemOS): its 7-step chain-of-thought answer prompt, verbatim from
+#: ``benchmarks/run.py:102`` @ 933f818 (code-traced notes,
+#: ``docs/survey/_staging/EverMemOS/PROMPTS.md``). The reply ends in a
+#: "STEP 7: FINAL ANSWER" section, which :func:`final_answer` reads. QA only (paid). The text
+#: lives in ``vendor_judges.py`` (vendor texts kept verbatim, long lines allowed).
+
 QA_PROMPTS = {
     "mab_fc": MAB_FC_QA_PROMPT,
     "question_dated": QUESTION_DATED_QA_PROMPT,
@@ -144,6 +166,9 @@ QA_PROMPTS = {
     "dated3": DATED3_QA_PROMPT,
     "abstain": ABSTAIN_QA_PROMPT,
     "converse": CONVERSE_QA_PROMPT,
+    "dated_planned": DATED_PLANNED_QA_PROMPT,
+    "dated_noabstain": DATED_NOABSTAIN_QA_PROMPT,
+    "evermemos_cot": EVERMEMOS_COT_QA_PROMPT,
 }
 
 #: C1 / H11: the ``routed`` QA prompt picks one of three variants per question by its
@@ -232,14 +257,22 @@ def prompt_variant(prompt: str | RoutedQAPrompt, question: str) -> str | None:
 
 #: #34: prompts whose reply reasons first; the reader keeps only the final answer and
 #: gets :data:`REASONING_MAX_TOKENS` so the reasoning cannot truncate the answer.
-REASONING_QA_PROMPTS = frozenset({"dated3"})
+REASONING_QA_PROMPTS = frozenset({"dated3", "evermemos_cot"})
 REASONING_MAX_TOKENS = 512
+#: N65: a prompt whose reasoning needs more room than :data:`REASONING_MAX_TOKENS`.
+REASONING_MAX_TOKENS_BY_PROMPT = {"evermemos_cot": 1536}
+
+
+def reasoning_max_tokens(prompt_name: str) -> int:
+    """The reply cap for a reasoning prompt (#34; N65 needs more for its seven steps)."""
+    return REASONING_MAX_TOKENS_BY_PROMPT.get(prompt_name, REASONING_MAX_TOKENS)
+
 
 _THINK = re.compile(r"<think>.*?</think>", re.S | re.I)
 #: Version of :func:`final_answer` recorded in ``describe()`` when ``extract_answer`` is
 #: set. "v2" is the Wave 1 rewrite (``<think>`` handling, dangling markers, first line
 #: after the last marker); bump it whenever ``final_answer``'s output can change.
-ANSWER_EXTRACTOR_VERSION = "v2"
+ANSWER_EXTRACTOR_VERSION = "v3"
 
 #: Cap on the raw reply kept in a row's ``meta["reader_raw"]`` (extraction only).
 READER_RAW_MAX_CHARS = 4000
@@ -257,7 +290,9 @@ def reader_raw_meta(raw_text: str | None) -> dict[str, Any]:
 
 
 _MARKER = re.compile(
-    r"(?:^|(?<=[\s*>#_(\[]))\**\s*(?:final\s+|short\s+)?answer\s*\**\s*[:\uff1a]\s*\**",
+    r"(?:^|(?<=[\s*>#_(\[]))\**\s*(?:final\s+|short\s+)?answer\s*\**\s*[:\uff1a]\s*\**"
+    # v3 (N65): EverMemOS's "## STEP 7: FINAL ANSWER" section heading (no colon after it).
+    r"|(?:^|(?<=\n))[ \t]*#*[ \t]*STEP[ \t]*7[ \t]*[:.][ \t]*FINAL[ \t]+ANSWER\b[^\n]*",
     re.I,
 )
 

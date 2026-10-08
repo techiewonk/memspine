@@ -360,6 +360,9 @@ def build_parser() -> argparse.ArgumentParser:
             "mab_fc",
             "question_dated",
             "routed",
+            "dated_planned",
+            "dated_noabstain",
+            "evermemos_cot",
         ),
         default="default",
         help="QA prompt variant for every arm (H7/H12); question_dated shows the question date; "

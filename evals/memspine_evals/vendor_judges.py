@@ -11,7 +11,10 @@ placeholders are kept as the vendor wrote them and mapped in ``JudgePrompt.rende
 * ``MEM0_UNIFIED`` -- Mem0's current judge, github.com/mem0ai/memory-benchmarks@4b61c5d:
   benchmarks/locomo/prompts.py ``JUDGE_PROMPT`` (no-evidence build: partial credit, 14-day
   date tolerance, same-valence emotions). Fields ``{question}``, ``{answer}`` (gold),
-  ``{response}``.
+  ``{response}``. **Its paraphrase examples quote LoCoMo gold answers** ("chocolate
+  raspberry tart", "19 days", "two weeks", "six months"): kept verbatim on purpose, since
+  N57 measures the vendor's judge as shipped; any score under it is inflated for those
+  questions (THREATS T35).
 * ``EVERMEMOS`` -- EverMemOS ``benchmarks/run.py`` ``JUDGE_USER_PROMPT`` + ``JUDGE_SYSTEM_PROMPT``,
   from the code-traced notes ``docs/survey/_staging/EverMemOS/PROMPTS.md`` (the run is judged
   three times and the mean of the 3 runs reported for 92.32;
@@ -22,6 +25,7 @@ placeholders are kept as the vendor wrote them and mapped in ``JudgePrompt.rende
 from __future__ import annotations
 
 __all__ = [
+    "EVERMEMOS_COT_QA_PROMPT",
     "EVERMEMOS_JUDGE",
     "EVERMEMOS_JUDGE_SYSTEM",
     "MEM0_GENEROUS_JUDGE",
@@ -38,3 +42,7 @@ EVERMEMOS_JUDGE = 'Your task is to label an answer to a question as \'CORRECT\' 
 EVERMEMOS_JUDGE_SYSTEM = (
     "You are an expert grader that determines if answers to questions match a gold standard answer"
 )
+
+#: N65: EverMemOS's 7-step answer prompt (benchmarks/run.py:102 @ 933f818), verbatim
+#: from the code-traced notes. Used by the ``evermemos_cot`` QA prompt (readers.py).
+EVERMEMOS_COT_QA_PROMPT = 'You are an intelligent memory assistant tasked with retrieving accurate information from episodic memories.\n\n# CONTEXT:\nYou have access to episodic memories from conversations between two speakers. These memories contain\ntimestamped information that may be relevant to answering the question.\n\n# INSTRUCTIONS:\nYour goal is to synthesize information from all relevant memories to provide a comprehensive and accurate answer.\nYou MUST follow a structured Chain-of-Thought process to ensure no details are missed.\nActively look for connections between people, places, and events to build a complete picture. Synthesize information from different memories to answer the user\'s question.\nIt is CRITICAL that you move beyond simple fact extraction and perform logical inference. When the evidence strongly suggests a connection, you must state that connection. Do not dismiss reasonable inferences as "speculation." Your task is to provide the most complete answer supported by the available evidence.\n\n# CRITICAL REQUIREMENTS:\n1. NEVER omit specific names - use "Amy\'s colleague Rob" not "a colleague"\n2. ALWAYS include exact numbers, amounts, prices, percentages, dates, times\n3. PRESERVE frequencies exactly - "every Tuesday and Thursday" not "twice a week"\n4. MAINTAIN all proper nouns and entities as they appear\n5. EXPLICITLY state confidence levels for inferences (High/Medium/Low)\n\n# RESPONSE FORMAT (You MUST follow this structure):\n\n## STEP 1: RELEVANT MEMORIES EXTRACTION\n[List each memory that relates to the question, with its timestamp]\n- Memory [ID]: [timestamp] - [content snippet]\n\n## STEP 2: KEY INFORMATION IDENTIFICATION\n[Extract ALL specific details from the memories]\n- Names mentioned: [list all person names, place names, company names]\n- Numbers/Quantities: [list all amounts, prices, percentages]\n- Dates/Times: [list all temporal information]\n- Frequencies: [list any recurring patterns]\n- Other entities: [list brands, products, etc.]\n\n## STEP 3: CROSS-MEMORY LINKING & INFERENCE\n[Identify entities that appear in multiple memories and link related information. Make reasonable inferences when entities are strongly connected.]\n- Shared entities: [list people, places, events mentioned across different memories]\n- Connections found: [e.g., "Memory 1 mentions A moved from hometown -> Memory 2 mentions A\'s hometown is LA -> Therefore A moved from LA"]\n- Inferences: [Connect the dots. Label confidence: (Confidence: High/Medium/Low)]\n\n## STEP 4: TIME REFERENCE CALCULATION\n[If applicable, convert relative time references using the timestamps]\n- Original reference: [e.g., "last year" from May 2022]\n- Calculation: [Show logic]\n- Actual time: [e.g., "2021"]\n\n## STEP 5: CONTRADICTION & GAP ANALYSIS\n[Check for conflicts and missing details]\n- Conflicting information: [describe conflicts and resolution strategy]\n- Missing information: [explicitly state what details are requested but missing from context]\n\n## STEP 6: DETAIL VERIFICATION CHECKLIST\n- [ ] All person names included?\n- [ ] All locations included?\n- [ ] All numbers exact?\n- [ ] All frequencies specific?\n- [ ] All dates/times precise?\n- [ ] All proper nouns preserved?\n\n## STEP 7: FINAL ANSWER\n[Provide the concise answer with ALL specific details preserved. Do not include the internal checklist in this section, just the final synthesized answer.]\n\n---\n\n{context}\n\nQuestion: {question}\n\nNow, follow the Chain-of-Thought process above to answer the question:\n'

@@ -98,6 +98,9 @@ def test_existing_prompt_table_is_unchanged() -> None:
         "dated_world",
         "abstain",
         "converse",
+        "dated_planned",  # N46
+        "dated_noabstain",  # N56
+        "evermemos_cot",  # N65
     }
 
 
@@ -119,7 +122,7 @@ def _old_describe(reader: Any, bedrock: bool) -> dict[str, Any]:
             "max_tokens": reader.max_tokens,
             "prompt_sha256": sha,
         }
-    extra = {"extract_answer": True, "answer_extractor": "v2"} if reader.extract_answer else {}
+    extra = {"extract_answer": True, "answer_extractor": "v3"} if reader.extract_answer else {}
     return {**head, **body, **extra}
 
 

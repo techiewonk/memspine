@@ -207,7 +207,7 @@ def test_describe_records_the_answer_extractor_only_when_extracting(
     old_keys |= {"no_think"} if bedrock else {"base_url"}
     if reader.extract_answer:  # type: ignore[attr-defined]
         assert described["extract_answer"] is True
-        assert described["answer_extractor"] == "v2"
+        assert described["answer_extractor"] == "v3"  # N65 added the STEP 7 marker
         assert set(described) == old_keys | {"extract_answer", "answer_extractor"}
     else:
         assert set(described) == old_keys
