@@ -90,3 +90,20 @@ async def test_no_filter_reads_both_sessions() -> None:
     finally:
         await eng.stop()
     assert len(hits) == 4
+
+
+async def test_memory_type_and_tag_prefilters() -> None:
+    """G-12: ``memory_types=`` and ``tags_any=`` on the same scope."""
+    eng = await _engine()
+    try:
+        await eng.write("trip three: Ana likes trains", namespace="u", tags=["travel"])
+        semantic = await eng.search("trip", namespace="u", memory_types=["semantic"], top_k=10)
+        tagged = await eng.search("trip", namespace="u", tags_any=["travel"], top_k=10)
+        ctx = await eng.assemble(
+            "trip", namespace="u", memory_types=["episodic"], budget_tokens=600
+        )
+    finally:
+        await eng.stop()
+    assert [r.content for r, _ in semantic] == ["trip three: Ana likes trains"]
+    assert [r.content for r, _ in tagged] == ["trip three: Ana likes trains"]
+    assert "trains" not in _text(ctx.records)

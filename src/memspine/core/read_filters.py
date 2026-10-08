@@ -269,26 +269,42 @@ def as_of_scope(as_of: DateBound | None) -> Iterator[None]:
 
 @dataclass(frozen=True, slots=True)
 class RecordScope:
-    """I7 / I8 (isolation review 2026-10-08): which conversations and which speakers a
-    read may return, inside its namespace. ``sessions``: the conversation ids given to
-    ``write_messages(session_id=...)`` (a record's ``source.message_id``). ``roles``:
-    ``user`` / ``assistant`` / ``tool`` / ... (``source.role``). None: no limit."""
+    """I7 / I8 / G-12 (isolation review, S8 gaps 2026-10-08): which records a read may
+    return inside its namespace. ``sessions``: conversation ids
+    (``write_messages(session_id=...)``, a record's ``source.message_id``). ``roles``:
+    ``user`` / ``assistant`` / ``tool`` / ... (``source.role``). ``memory_types``:
+    ``episodic`` / ``semantic`` / ... . ``tags_any``: at least one of these tags.
+    None: no limit on that axis."""
 
     sessions: frozenset[str] | None = None
     roles: frozenset[str] | None = None
+    memory_types: frozenset[str] | None = None
+    tags_any: frozenset[str] | None = None
 
     @classmethod
     def build(
-        cls, sessions: Iterable[str] | None = None, roles: Iterable[str] | None = None
+        cls,
+        sessions: Iterable[str] | None = None,
+        roles: Iterable[str] | None = None,
+        memory_types: Iterable[str] | None = None,
+        tags_any: Iterable[str] | None = None,
     ) -> RecordScope | None:
-        s = frozenset(sessions) if sessions is not None else None
-        r = frozenset(roles) if roles is not None else None
-        return None if s is None and r is None else cls(sessions=s, roles=r)
+        values = [
+            frozenset(v) if v is not None else None
+            for v in (sessions, roles, memory_types, tags_any)
+        ]
+        if all(v is None for v in values):
+            return None
+        return cls(*values)
 
     def matches(self, record: MemoryRecord) -> bool:
         if self.sessions is not None and (record.source.message_id or "") not in self.sessions:
             return False
-        return self.roles is None or (record.source.role or "") in self.roles
+        if self.roles is not None and (record.source.role or "") not in self.roles:
+            return False
+        if self.memory_types is not None and record.memory_type not in self.memory_types:
+            return False
+        return self.tags_any is None or not self.tags_any.isdisjoint(record.tags)
 
 
 _SCOPE: ContextVar[RecordScope | None] = ContextVar("memspine_record_scope", default=None)

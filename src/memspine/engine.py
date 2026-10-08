@@ -3507,6 +3507,8 @@ class Engine:
         ledger_id: str | None = None,
         sessions: Sequence[str] | None = None,
         roles: Sequence[str] | None = None,
+        memory_types: Sequence[str] | None = None,
+        tags_any: Sequence[str] | None = None,
         purpose: str | None = None,
         include_passive: bool = False,
         *,
@@ -3571,7 +3573,7 @@ class Engine:
         with (
             read_scope(purpose) as outer,
             date_filter_scope(date_filter),
-            record_scope(RecordScope.build(sessions, roles)),  # I7 / I8
+            record_scope(RecordScope.build(sessions, roles, memory_types, tags_any)),  # I7/I8/G-12
         ):
             scored = await self._search(
                 query,
@@ -4061,6 +4063,8 @@ class Engine:
         ledger_id: str | None = None,
         sessions: Sequence[str] | None = None,
         roles: Sequence[str] | None = None,
+        memory_types: Sequence[str] | None = None,
+        tags_any: Sequence[str] | None = None,
         purpose: str | None = None,
         include_passive: bool = False,
         *,
@@ -4090,7 +4094,7 @@ class Engine:
             read_scope(purpose) as outer,
             date_filter_scope(as_of_filter),
             as_of_scope(as_of),
-            record_scope(RecordScope.build(sessions, roles)),  # I7 / I8
+            record_scope(RecordScope.build(sessions, roles, memory_types, tags_any)),  # I7/I8/G-12
         ):
             context = await self._assemble(
                 query, namespace, budget_tokens, top_k, shared=shared, session_id=session_id
@@ -4718,6 +4722,8 @@ class Engine:
         ledger_id: str | None = None,
         sessions: Sequence[str] | None = None,
         roles: Sequence[str] | None = None,
+        memory_types: Sequence[str] | None = None,
+        tags_any: Sequence[str] | None = None,
         purpose: str | None = None,
         include_passive: bool = False,
         *,
@@ -4796,7 +4802,7 @@ class Engine:
             read_scope(purpose) as outer,
             date_filter_scope(date_filter),
             as_of_scope(as_of),
-            record_scope(RecordScope.build(sessions, roles)),  # I7 / I8
+            record_scope(RecordScope.build(sessions, roles, memory_types, tags_any)),  # I7/I8/G-12
         ):
             result = await self._read(
                 query,

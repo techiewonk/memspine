@@ -211,7 +211,7 @@ It does **not** restrict the read to that conversation; the whole namespace is s
 - `sessions=[...]`: the conversation ids given to `write_messages(session_id=...)`;
 - `roles=[...]`: `user`, `assistant`, `tool`, and so on.
 
-A record outside the scope never reaches the context. That covers search hits, replay neighbours, `full` mode, and the recent-conversation and digest headers. Both filters combine with each other and with the date filters. Example: `read(q, namespace="u", sessions=["trip-1"], roles=["user"])`.
+A record outside the scope never reaches the context. That covers search hits, replay neighbours, `full` mode, and the recent-conversation and digest headers. Both filters combine with each other and with the date filters. Two more filters, `memory_types=[...]` (e.g. `episodic`, `semantic`) and `tags_any=[...]` (at least one tag), work the same way (G-12). Example: `read(q, namespace="u", sessions=["trip-1"], roles=["user"])`.
 
 **One conversation (I6).** `conversation(namespace, session_id, roles=None)` returns the live turns of one conversation in time order. It reads them through the indexed `session_key` column (migration 0005 adds `session_key` and `source_role` and backfills existing rows from their source).
 
