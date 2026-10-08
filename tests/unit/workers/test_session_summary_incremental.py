@@ -17,7 +17,6 @@ from memspine.services.storage.projector import RecordProjector
 from memspine.services.storage.sqlite.engine import SQLiteStorage
 from memspine.workers.pipelines import PipelineContext, SessionIndex, consolidate
 
-NOW = datetime.now(UTC)
 NS = "agent/a"
 
 
@@ -69,7 +68,9 @@ async def make_ctx(
 
 
 async def add_turn(harness: Harness, content: str, minutes_ago: float, trust: float = 0.9) -> str:
-    moment = NOW - timedelta(minutes=minutes_ago)
+    # Relative to the wall clock at call time, not at import: the pipeline judges
+    # session gaps against now, and a long parallel run must not age the turns.
+    moment = datetime.now(UTC) - timedelta(minutes=minutes_ago)
     record = MemoryRecord(
         namespace=NS,
         memory_type="episodic",
