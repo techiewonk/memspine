@@ -1,0 +1,22 @@
+# Graph memory profile (GR-14, graph engine plan 2026-10-08; ADR-064): combo-A plus a
+# Graphiti-style semantic graph on LadybugDB. Entity nodes come from facts and, by rule,
+# from the names raw turns mention (G-7); entity names are embedded (GR-3); a read adds
+# the graph walk from the entities the question names (GP-3) and the hybrid entity-node
+# search (GR-6). No model calls on the read path. Measure against `base` first.
+extends: base
+profile: graph
+
+graph:
+  provider: auto            # LadybugDB when installed (ADR-064), else sqlite_adjacency
+  entity_embeddings: true
+
+memories:
+  associative:
+    enabled: true
+    policies:
+      entity_nodes:
+        turn_mentions: true
+
+read:
+  graph_leg: true
+  graph_node_search: true

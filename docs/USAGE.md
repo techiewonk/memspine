@@ -277,6 +277,8 @@ community summary into a read only when an entity the query names belongs to it;
 `semantic.policies.extract_graph.resolve` merges name variants ("Mel" ≡ "Melanie") before
 extracted facts are written.
 
+**`graph` template (GR-14).** `Engine(template="graph")` turns on the whole Graphiti-style setup on LadybugDB: entity nodes from facts and from the names raw turns mention, embedded entity names, the graph walk from the entities a question names, and the hybrid entity-node search. Measure it against `base` before relying on it.
+
 **Raw turns (G-7).** `entity_nodes: {turn_mentions: true}` makes raw episodic turns link to the proper nouns and years they name, found by rule with no model call. The turn's speaker is left out, and so are capitals that only open a sentence. The graph and `read.graph_node_search` can then reach turns no fact was mined from.
 
 `policies.rule_edges` adds model-free `because` links between turns and kinship facts

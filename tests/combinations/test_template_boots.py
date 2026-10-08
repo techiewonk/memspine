@@ -32,6 +32,11 @@ TEMPLATES: dict[str, tuple[str, frozenset[str], str]] = {
         frozenset({"working", "episodic", "semantic", "shared"}),
         "dbos",
     ),
+    "graph": (
+        "graph",
+        frozenset({"working", "episodic", "semantic", "associative"}),
+        "inline",
+    ),
     "personal": (
         "personal",
         frozenset({"working", "episodic", "semantic", "reflective", "prospective"}),
@@ -71,7 +76,7 @@ def test_all_shipped_templates_are_in_the_matrix() -> None:
 
     shipped = {p.stem for p in template_dir().glob("*.yaml")}
     assert shipped == set(TEMPLATES), f"matrix out of sync with shipped templates: {shipped}"
-    assert len(TEMPLATES) == 9
+    assert len(TEMPLATES) == 10
 
 
 @pytest.mark.parametrize("template", sorted(TEMPLATES))
