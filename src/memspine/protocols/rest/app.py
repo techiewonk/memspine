@@ -33,8 +33,9 @@ from collections.abc import Awaitable, Callable
 from datetime import datetime
 from typing import Annotated, Any
 
+import orjson
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
-from fastapi.responses import ORJSONResponse
+from fastapi.responses import JSONResponse
 
 from memspine.config import constants
 from memspine.config.schema import RestConfig, RestRateLimitConfig
@@ -107,6 +108,13 @@ async def resolve_operator() -> str:
 
 
 Operator = Annotated[str, Depends(resolve_operator)]
+
+
+class ORJSONResponse(JSONResponse):
+    """JSON via orjson (D-38 hot path); FastAPI's own ``ORJSONResponse`` is deprecated."""
+
+    def render(self, content: Any) -> bytes:
+        return orjson.dumps(content, option=orjson.OPT_NON_STR_KEYS)
 
 
 def _error_response(status: int, exc: Exception) -> ORJSONResponse:

@@ -208,6 +208,32 @@ read:
     assembly: true           # E5 fit stage (needs memspine[compress])
 ```
 
+### Plan v3.2 additions (2026-10; ADR-057 to ADR-062)
+
+**On by default (in `base` and every template that extends it):**
+- `read.temporal_leg` (ADR-062): an event-time retrieval leg for questions that name a date or span.
+- Screen result on LoCoMo: evidence coverage +1.7 (28 questions gained, 2 lost).
+- The `core` template keeps it off.
+
+Everything below is **off by default**. Each item has its own key; `USAGE.md` describes every key.
+
+| Area | Features |
+|---|---|
+| Read legs and composition | Relative-date anchor for the temporal leg (`temporal_relative`), presentation order (`present_order`), focused excerpts of long records (`focused_excerpt`), wider standing-preference cues (`standing_patterns: wide`), session cap (`session_cap`), concentration filter, subject leg, role-aware assistant leg, multi-intent split, second round, sentence leg, cluster expand, novelty exclusions, evidence line, span line, per-leg weights (`leg_weights`), raw-turn floor, evidence signal and evidence-gated cards, verbatim gate, evidence-first replay |
+| Time | `as_of` valid-time reads on `read`, `assemble` and REST `/assemble` |
+| Profile | Rule miner without a model (`consolidation.miner: rules`), a slots header for the profile (`profile_slots_header`), profile scope gate, mining cache |
+| Conflicts and integrity | Containment merge (`conflict.merge_containment`), independent corroboration roots (`integrity.corroboration_roots`), copy-Jaccard check |
+| Firewall | Per-signal switches, sensitive topics (`firewall.sensitive_topics`), extended PII patterns |
+| Erasure | Forget requests (`forget_requests`), `verify_forget(probe=)` |
+| Governance verbs | `vet`, `approve` (plus `authorize(approval=)`), `bulk_read_alerts`, `session_memories`, `rating_profile` |
+| Procedural (ADR-060) | Lessons and mappings from outcome receipts, without a model |
+| Rule edges (ADR-061) | Causal `because` links, causal walk, reply links |
+| Templates | `protected` |
+
+Screen results for each key, wins and losses alike, are in the research repo:
+- `paper_spine/evaluation/SCREENS_v32_LOCAL_2026-10-07.md`;
+- `paper_spine/evaluation/NEGATIVE_RESULTS.md`.
+
 ---
 
 ## Event-sourced substrate & lifecycle
