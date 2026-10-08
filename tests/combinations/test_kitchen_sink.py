@@ -15,6 +15,13 @@ import pytest
 from memspine import Engine
 from memspine.core.registry import MEMORY_TYPES
 
+#: GR-1 (ADR-064): ``graph.provider: auto`` picks LadybugDB when installed.
+_AUTO_GRAPH = (
+    "LadybugGraphStore"
+    if __import__("importlib.util").util.find_spec("ladybug") is not None
+    else "SQLiteAdjacencyGraph"
+)
+
 ALL_TYPES = sorted(MEMORY_TYPES)
 
 #: A fixed instant so time-triggered verbs (watch/due) never touch the wall clock.
@@ -44,7 +51,9 @@ async def test_all_nine_enabled_in_describe(kitchen: Engine) -> None:
         "shared",
     ):
         assert world[flag] is True
-    assert world["graph"] == "SQLiteAdjacencyGraph"  # associative wired the graph
+    assert (
+        world["graph"] == _AUTO_GRAPH
+    )  # GR-1 (ADR-064): LadybugDB when installed  # associative wired the graph
     assert "graph" in world["projectors"]
 
 

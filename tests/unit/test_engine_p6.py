@@ -13,6 +13,13 @@ from memspine import Engine
 from memspine.core.records import SourceInfo
 from memspine.exceptions import ConflictError, MemspineError
 
+#: GR-1 (ADR-064): ``graph.provider: auto`` picks LadybugDB when installed.
+_AUTO_GRAPH = (
+    "LadybugGraphStore"
+    if __import__("importlib.util").util.find_spec("ladybug") is not None
+    else "SQLiteAdjacencyGraph"
+)
+
 
 @pytest.fixture
 async def engine() -> AsyncIterator[Engine]:
@@ -142,7 +149,7 @@ async def test_describe_reports_the_p6_surface(engine: Engine) -> None:
     world = engine.describe()
     assert world["associative"] is True
     assert "associative" in world["memories"]["enabled"]
-    assert world["graph"] == "SQLiteAdjacencyGraph"
+    assert world["graph"] == _AUTO_GRAPH  # GR-1 (ADR-064): LadybugDB when installed
     assert "graph" in world["projectors"]
 
 
