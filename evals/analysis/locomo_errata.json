@@ -3,7 +3,7 @@
  "dataset": "locomo10.json",
  "dataset_sha256_prefix": "79fa87e90f040813",
  "created": "2026-10-10",
- "note": "Questions whose LoCoMo gold contradicts the transcript, or that need the image. Found while hand-reading 148 read failures of one run, so this list is incomplete (an estimated 16-24 more exist among unread wrong answers). Report accuracy with and without these. No corpus text is stored here.",
+ "note": "Questions whose LoCoMo gold contradicts the transcript, or that need the image. Found while hand-reading 148 read failures of one run, so this list is incomplete (an estimated 16-24 more exist among unread wrong answers). Report accuracy with and without these. No corpus text is stored here. 2026-10-10: added tag evidence_label_error (gold answer is right but a labelled evidence turn does not support it; correct turn id in the reason), from B2_EVIDENCE_AUDIT.md.",
  "entries": [
   {
    "item": "conv-26",
@@ -212,6 +212,143 @@
    "borderline": false,
    "reason": "one gold title appears only in the photo (D7:8), not in text or caption",
    "source": "dev reasoning 2026-10-10"
+  },
+  {
+   "item": "conv-30",
+   "qid": "1-44",
+   "tag": "evidence_label_error",
+   "borderline": false,
+   "reason": "gold turn D1:26 is the other speaker's reply; the statement the question asks about (Gina) is D1:25",
+   "source": "B2_EVIDENCE_AUDIT.md"
+  },
+  {
+   "item": "conv-41",
+   "qid": "2-32",
+   "tag": "evidence_label_error",
+   "borderline": false,
+   "reason": "gold turn D16:2 is the reply; John's hiking photo with workmates is D16:1",
+   "source": "B2_EVIDENCE_AUDIT.md"
+  },
+  {
+   "item": "conv-41",
+   "qid": "2-49",
+   "tag": "evidence_label_error",
+   "borderline": false,
+   "reason": "D25:19 does not mention food; the cakes are in D25:20 (D26:1 only says baked)",
+   "source": "B2_EVIDENCE_AUDIT.md"
+  },
+  {
+   "item": "conv-41",
+   "qid": "2-44",
+   "tag": "evidence_label_error",
+   "borderline": true,
+   "reason": "D28:5 (John, job news) does not concern Maria and church friends",
+   "source": "B2_EVIDENCE_AUDIT.md"
+  },
+  {
+   "item": "conv-42",
+   "qid": "3-69",
+   "tag": "evidence_label_error",
+   "borderline": false,
+   "reason": "D8:3 is unrelated to turtles; \"tank big enough for three\" is D28:25",
+   "source": "B2_EVIDENCE_AUDIT.md"
+  },
+  {
+   "item": "conv-42",
+   "qid": "3-67",
+   "tag": "evidence_label_error",
+   "borderline": true,
+   "reason": "D8:3 is unrelated to pets",
+   "source": "B2_EVIDENCE_AUDIT.md"
+  },
+  {
+   "item": "conv-42",
+   "qid": "3-51",
+   "tag": "evidence_label_error",
+   "borderline": true,
+   "reason": "D24:2 (recipe talk) unrelated to Tilly; D13:9 is the supporting turn",
+   "source": "B2_EVIDENCE_AUDIT.md"
+  },
+  {
+   "item": "conv-43",
+   "qid": "4-11",
+   "tag": "evidence_label_error",
+   "borderline": false,
+   "reason": "D1:7, D2:14, D3:1 are basketball only; the only supporting turns are D3:25 / D3:27 (surfing)",
+   "source": "B2_EVIDENCE_AUDIT.md"
+  },
+  {
+   "item": "conv-44",
+   "qid": "5-26",
+   "tag": "evidence_label_error",
+   "borderline": true,
+   "reason": "D10:16 is cooking as stress relief; work stress is D12:3",
+   "source": "B2_EVIDENCE_AUDIT.md"
+  },
+  {
+   "item": "conv-44",
+   "qid": "5-27",
+   "tag": "evidence_label_error",
+   "borderline": true,
+   "reason": "D10:16 is cooking as stress relief; work stress is D12:3",
+   "source": "B2_EVIDENCE_AUDIT.md"
+  },
+  {
+   "item": "conv-48",
+   "qid": "7-82",
+   "tag": "evidence_label_error",
+   "borderline": false,
+   "reason": "D2:11 is the image reply; the location (her old home) is D2:13",
+   "source": "B2_EVIDENCE_AUDIT.md"
+  },
+  {
+   "item": "conv-48",
+   "qid": "7-86",
+   "tag": "evidence_label_error",
+   "borderline": false,
+   "reason": "D23:20 is the photo post; the quote from a friend is D23:22",
+   "source": "B2_EVIDENCE_AUDIT.md"
+  },
+  {
+   "item": "conv-49",
+   "qid": "8-14",
+   "tag": "evidence_label_error",
+   "borderline": true,
+   "reason": "D22:12 is Evan sharing cookies; ginger snaps as favourite is D5:5",
+   "source": "B2_EVIDENCE_AUDIT.md"
+  },
+  {
+   "item": "conv-49",
+   "qid": "8-91",
+   "tag": "evidence_label_error",
+   "borderline": true,
+   "reason": "D11:7 is a reply about watercolor painting, not about writing",
+   "source": "B2_EVIDENCE_AUDIT.md"
+  },
+  {
+   "item": "conv-50",
+   "qid": "9-11",
+   "tag": "evidence_label_error",
+   "borderline": false,
+   "reason": "D6:1 is a greeting; the flooding incident is D6:3",
+   "source": "B2_EVIDENCE_AUDIT.md"
+  },
+  {
+   "item": "conv-26",
+   "qid": "0-48",
+   "tag": "evidence_label_error",
+   "borderline": true,
+   "reason": "D12:14 (friendship thanks) does not mention pottery",
+   "source": "B2_EVIDENCE_AUDIT.md"
+  },
+  {
+   "item": "conv-49",
+   "qid": "8-54",
+   "tag": "gold_error",
+   "borderline": true,
+   "reason": "gold lists \"twisted ankle\" twice while the transcript has a twisted knee (D9:2, D11:2)",
+   "source": "B2_EVIDENCE_AUDIT.md"
   }
- ]
+ ],
+ "updated": "2026-10-10"
 }
