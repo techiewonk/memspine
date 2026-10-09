@@ -47,7 +47,7 @@ with no retrieved turn. Image captions, relative-time words and speaker confusio
 | B12 | Window was hard-coded +-2 | `replay_window_before/after` added (worktree) and used in the fixed config (2/4) | merge; record in `describe()`; regenerate arm JSONs | P2 | **implemented and in use; merge pending (H3)** |
 | B13 | Batched vs unbatched arms mixed | bf16 embeddings not batch-invariant (E RET-5) | one batching mode for all arms; measure bt1 vs bt32 once | P2 | open |
 | B14 | Existing expansion options are neutral or harmful | `statement_probe`, `prf_expansion`, `cluster_expand`, `session_cap`, leg weights, rrf_k, cohesion/sentence/entity_expand legs (R 3, 7) | do not run; keep as documented negatives | - | decided |
-| B15 | BM25 misses related wording; word2vec / word-vector leg | user request 2026-10-09/10 | IMPLEMENTED `read.word_vector_leg` (model2vec potion-retrieval-32M or gensim word2vec), per-leg weights and per-shape weights. Measured conv-26 (152 q, paired vs 83.6%): in place of BM25 78.9% (+6/-13), alongside BM25 80.9% (+7/-11); BM25 finds rare exact terms, a third leg dilutes fusion, temporal improves | P1 | **implemented, opt-in. 2-conversation screen (233 q): BM25 + word vectors at 0.5 = 82.4% (-4 net), with fixed reranker = 82.4% (-5 net vs reranker alone); word vectors always lower multi-hop (65 -> 56-58) and raise temporal (86 -> 89-91). Temporal-only weighting (V3) running** |
+| B15 | BM25 misses related wording; word2vec / word-vector leg | user request 2026-10-09/10 | IMPLEMENTED `read.word_vector_leg` (model2vec potion-retrieval-32M or gensim word2vec), per-leg weights and per-shape weights. Measured conv-26 (152 q, paired vs 83.6%): in place of BM25 78.9% (+6/-13), alongside BM25 80.9% (+7/-11); BM25 finds rare exact terms, a third leg dilutes fusion, temporal improves | P1 | **closed - measured negative.** Implemented, opt-in, default off. Paired screens on dev conversations: in place of BM25 -7 (conv-26); alongside BM25 -4 (weight 0.5), -5 with the fixed reranker, -7 with temporal-only weighting (2 conversations, 233 q). Always lowers multi-hop (65 -> 56-60), raises temporal (86 -> 87-91). Keep BM25; best = BM25 + fixed reranker |
 | B16 | Vector leg shrank to top_k when BM25 was off | with `hybrid: false` the vector leg fetched 10 instead of 30, so the first replace-BM25 screen was unfair (81.6% with 66.7% leg coverage) | word-vector leg now widens the fetch like BM25; unit test added | P1 | **fixed (2026-10-10)** |
 
 ## C. Reader - wrong answer although the evidence was in context
@@ -118,6 +118,11 @@ Measured on the fixed run: 148 read failures, of which ~48 are not reader errors
 | H3 | Two diverged trees, duplicated runs, 20-25 one-off scripts | `memspine` vs `memspine-fixes` (132 files, 18.8k lines) (E PROC-3) | merge behind opt-in flags; one `evals/runs` + generated `runs/INDEX.md`; tag each campaign commit | P1 | open |
 
 ## Progress log
+
+**2026-10-10 02:20**
+- Screen finished (2 dev conversations, 233 q): fixed reranker 84.5% (best), fixed reference 84.1%, every word-vector
+  variant 81.5-82.4% (-4 to -7 net). B15 closed as measured-negative; next: H3 merge, then reader fixes C1/C2/C5,
+  then the full held-out run of the best configuration.
 
 **2026-10-10 02:05**
 - 2-conversation screen (233 q, development conversations): fixed reference 84.1%, fixed reranker 84.5% (best coverage),
