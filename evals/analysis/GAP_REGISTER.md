@@ -41,13 +41,14 @@ with no retrieved turn. Image captions, relative-time words and speaker confusio
 | B6 | Morphology-only / paraphrase | 27 + 12 turns (R M/P) | `lexical_analyzer: english` (recovers 21); larger pool | P2 | open |
 | B7 | Top-10 fusion cut | 237 gold turns cut; 195 vector-only; BM25 top-10 is 34% noise (R 2.5, 3) | candidate pool 30 + tiered window; rerank pool 30; hit selection aware of the window (X2: 1.87 of 10 hits overlap a higher hit's window, +15 q) | P1 | open |
 | B8 | Gold in sessions with no hit | 75% of lost gold; window saturated - no window shape reaches it (R 5) | session-level leg (session digests/summaries); two-stage session-then-turn search; diversity across sessions in hit selection | P1 | open |
-| B9 | Reranker deletes hits | keeps 5.7 of 10; 97.6% of questions lose >=1; 74% of its lost gold were window neighbours; rr run 70.8% (R 6, E RET-1) | `rerank_floor: skip` (implemented); `relative_floor 0` / `rerank_blend` / `rerank_gate`; normalise by raw P(yes); log `n_dropped_by_floor` | P1 | fix ready |
-| B10 | Reranker scope | with pool 1 it sees only the fused top-10 and can only delete (R, P) | `candidate_pool` 2-3 + `rerank_keep` (exists, tested); `rerank_context` 1-2 so a reply is scored with its question turn | P1 | fix ready |
+| B9 | Reranker deletes hits | keeps 5.7 of 10; 97.6% of questions lose >=1; 74% of its lost gold were window neighbours; rr run 70.8% (R 6, E RET-1) | `rerank_floor: skip` (implemented); `relative_floor 0` / `rerank_blend` / `rerank_gate`; normalise by raw P(yes); log `n_dropped_by_floor` | P1 | **fixed in code; measured on conv-26: 84.2% vs 83.6%, all-gold-in-context 80.7 -> 84.0%; 4-conversation screen running; full run pending** |
+| B10 | Reranker scope | with pool 1 it sees only the fused top-10 and can only delete (R, P) | `candidate_pool` 2-3 + `rerank_keep` (exists, tested); `rerank_context` 1-2 so a reply is scored with its question turn | P1 | **in use (pool 2, keep 10) in the B9 measurement; `rerank_context` not yet tried** |
 | B11 | Reranker unavailable = silent skip | sticky skip-log, no run assertion (E RET-3). Audited 2026-10-10: all 22 retrieval runs - every configured reranker scored 100% of queries, 0 failures, none unavailable; past reranker results are valid | runner asserts rerank calls > 0 and failures == 0 when configured; `rerank_required` engine flag | P1 | past runs verified; safeguard open |
-| B12 | Window was hard-coded +-2 | fixed in worktree as `replay_window_before/after`; not in manifests (E RET-2) | merge; record in `describe()`; regenerate arm JSONs | P2 | fix ready |
+| B12 | Window was hard-coded +-2 | `replay_window_before/after` added (worktree) and used in the fixed config (2/4) | merge; record in `describe()`; regenerate arm JSONs | P2 | **implemented and in use; merge pending (H3)** |
 | B13 | Batched vs unbatched arms mixed | bf16 embeddings not batch-invariant (E RET-5) | one batching mode for all arms; measure bt1 vs bt32 once | P2 | open |
 | B14 | Existing expansion options are neutral or harmful | `statement_probe`, `prf_expansion`, `cluster_expand`, `session_cap`, leg weights, rrf_k, cohesion/sentence/entity_expand legs (R 3, 7) | do not run; keep as documented negatives | - | decided |
-| B15 | Future idea: word2vec + BM25 leg | user request 2026-10-09 | discuss later (`evals/TODO_FUTURE.md`) | - | parked |
+| B15 | BM25 misses related wording; word2vec / word-vector leg | user request 2026-10-09/10 | IMPLEMENTED `read.word_vector_leg` (model2vec potion-retrieval-32M or gensim word2vec), per-leg weights and per-shape weights. Measured conv-26 (152 q, paired vs 83.6%): in place of BM25 78.9% (+6/-13), alongside BM25 80.9% (+7/-11); BM25 finds rare exact terms, a third leg dilutes fusion, temporal improves | P1 | **implemented, opt-in; BM25 + word vectors with weights / with the fixed reranker: 4-conversation screen running** |
+| B16 | Vector leg shrank to top_k when BM25 was off | with `hybrid: false` the vector leg fetched 10 instead of 30, so the first replace-BM25 screen was unfair (81.6% with 66.7% leg coverage) | word-vector leg now widens the fetch like BM25; unit test added | P1 | **fixed (2026-10-10)** |
 
 ## C. Reader - wrong answer although the evidence was in context
 
@@ -85,7 +86,7 @@ Measured on the fixed run: 148 read failures, of which ~48 are not reader errors
 | ID | Gap | Evidence | Solution options | Pri | Status |
 |---|---|---|---|---|---|
 | E1 | `localhost` slow on Windows | 2.1 s per plain request; not visible in recorded run latencies (~0.6-0.8 s/call overhead) (E SRV-3) | 127.0.0.1 everywhere (done); `bench_http.py`; warn on `localhost` | P2 | fixed |
-| E2 | New HTTP client per call | ~130 ms per call (E SRV-4) | pooled client (done in worktree); merge | P3 | fix ready |
+| E2 | New HTTP client per call | ~130 ms per call (E SRV-4) | pooled client per event loop | P3 | **implemented in worktree, harness tests pass; merge pending** |
 | E3 | Ollama config not pinned | flash-attn flipped, model reloads, 237 MB debug log, no prefix cache for hybrid Qwen3.5 (E SRV-5) | one `ollama_env.ps1` (KEEP_ALIVE, FLASH_ATTENTION, CONTEXT_LENGTH, KV type, parallel) recorded in manifest; lower log level; retry with backoff on 5xx | P2 | partly fixed (env vars set) |
 | E4 | GPU shared with desktop and models | dwm ~2.4-3 GB; two arms + Ollama reached 15.7/16.3 GB (E SRV-6) | record GPU memory at run start/end; one heavy arm at a time; `expandable_segments` | P2 | partly fixed |
 
@@ -115,3 +116,21 @@ Measured on the fixed run: 148 read failures, of which ~48 are not reader errors
 | H1 | CI never runs `evals/tests` | 59 test files, no `st` extra in CI (E PROC-1) | second CI job with stub reader/judge; nightly CPU smoke with golden `retrieved_ids` | P1 | open |
 | H2 | Missing tests for new code | forensic hook, ingest log, floor interaction, budget invariants (E PROC-2) | stub-engine tests; schema validation in tests; tokenizer property test | P1 | open |
 | H3 | Two diverged trees, duplicated runs, 20-25 one-off scripts | `memspine` vs `memspine-fixes` (132 files, 18.8k lines) (E PROC-3) | merge behind opt-in flags; one `evals/runs` + generated `runs/INDEX.md`; tag each campaign commit | P1 | open |
+
+## Progress log
+
+**2026-10-10**
+- Done: complete register (64 gaps, now 65 with B16); word-vector leg built, tested (7 unit tests), screened (B15);
+  vector-leg fetch bug fixed (B16); reranker floor fix measured on one conversation (B9/B10); reranker audit of 22 past
+  runs (B11: all valid); serving fixes (E1, E2, E3 partly).
+- Running: 4-conversation paired screen (about 600 q per arm): fixed config, fixed reranker, and BM25 + word vectors
+  three ways (weight 0.5; with the fixed reranker; weight 0.3 with 1.0 for temporal).
+- Stopped by request: the full 1,540 run of the fixed reranker (restart after the screen if it still leads).
+- Pending decision: A1 second judge (local Qwen3-32B vs paid API with the official Mem0 prompt).
+- Pending, not started: all of A (measurement) except A9-related notes; B1/B2/B4/B7/B8 retrieval design work;
+  C reader fixes beyond the grounded prompt, retry and judge guards; D1-D7; F2-F5; G1-G4; H1-H3.
+
+**2026-10-09**
+- Done: fixed configuration (grounded prompt, refusal retry, judge guards, window 2/4, gold-style relative dates,
+  date-mention leg) 80.1% vs 74.5% baseline on all 1,540 (A7: not yet attributable); forensic stage logging,
+  JSON schemas, HTML reports; Ollama flash attention, q8 KV cache, 8192 window.
