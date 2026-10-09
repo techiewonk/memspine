@@ -84,7 +84,7 @@ class C01Config:
     embedding_model: str = "BAAI/bge-small-en-v1.5"
     reader_model: str = "qwen3:4b"
     judge_model: str = "qwen3:4b"
-    base_url: str = "http://localhost:11434/v1"
+    base_url: str = "http://127.0.0.1:11434/v1"
     include_memspine: bool = False
     max_items: int | None = None
     max_model_calls: int | None = None

@@ -447,7 +447,7 @@ class OpenAICompatReader:
     def __init__(
         self,
         model: str,
-        base_url: str = "http://localhost:11434/v1",
+        base_url: str = "http://127.0.0.1:11434/v1",
         api_key: str = "not-needed",
         temperature: float = 0.0,
         max_tokens: int = 512,
@@ -513,12 +513,12 @@ class OpenAICompatReader:
             ],
         }
         started = time.perf_counter()
-        async with self._httpx.AsyncClient(timeout=self.timeout) as client:
-            response = await client.post(
-                f"{self.base_url}/chat/completions", json=payload, headers=self._headers
-            )
-            response.raise_for_status()
-            body = response.json()
+        client = _shared_client(self._httpx, self.timeout)
+        response = await client.post(
+            f"{self.base_url}/chat/completions", json=payload, headers=self._headers
+        )
+        response.raise_for_status()
+        body = response.json()
         latency = (time.perf_counter() - started) * 1000
         usage = body.get("usage") or {}
         choice = body["choices"][0]
@@ -537,9 +537,29 @@ class OpenAICompatReader:
         )
 
 
+_CLIENTS: dict[tuple[int, int, float], Any] = {}
+
+
+def _shared_client(httpx: Any, timeout: float) -> Any:
+    """One pooled ``httpx.AsyncClient`` per event loop and timeout.
+
+    A new client per call paid ~130 ms of connection and TLS-context setup on every reader
+    and judge request (measured on Windows, 2026-10-09: 0.67 s of model time per call), so
+    one QA question spent ~0.25 s just opening clients. Keyed by the running loop because an
+    AsyncClient is bound to the loop that first uses it.
+    """
+    import asyncio
+
+    key = (id(httpx), id(asyncio.get_running_loop()), float(timeout))
+    client = _CLIENTS.get(key)
+    if client is None or getattr(client, "is_closed", False):
+        client = _CLIENTS[key] = httpx.AsyncClient(timeout=timeout)
+    return client
+
+
 def openai_compat_chat(
     model: str,
-    base_url: str = "http://localhost:11434/v1",
+    base_url: str = "http://127.0.0.1:11434/v1",
     api_key: str = "not-needed",
     temperature: float = 0.0,
     timeout: float = 120.0,
@@ -551,19 +571,19 @@ def openai_compat_chat(
         messages = [{"role": "user", "content": prompt}]
         if system is not None:
             messages.insert(0, {"role": "system", "content": system})
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            response = await client.post(
-                f"{base_url.rstrip('/')}/chat/completions",
-                json={
-                    "model": model,
-                    "temperature": temperature,
-                    **thinking_off(model),
-                    "messages": messages,
-                },
-                headers={"Authorization": f"Bearer {api_key}"},
-            )
-            response.raise_for_status()
-            return str(response.json()["choices"][0]["message"]["content"])
+        client = _shared_client(httpx, timeout)
+        response = await client.post(
+            f"{base_url.rstrip('/')}/chat/completions",
+            json={
+                "model": model,
+                "temperature": temperature,
+                **thinking_off(model),
+                "messages": messages,
+            },
+            headers={"Authorization": f"Bearer {api_key}"},
+        )
+        response.raise_for_status()
+        return str(response.json()["choices"][0]["message"]["content"])
 
     # R3-11: the judge records these in its spec.
     chat.params = {  # type: ignore[attr-defined]

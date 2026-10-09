@@ -74,7 +74,7 @@ def bench_llm() -> None:
     def chat(prompt: str, n: int) -> dict:
         body = {"model": "qwen3.5:9b", "stream": False, "think": False,
                 "messages": [{"role": "user", "content": prompt}], "options": {"num_predict": n, "temperature": 0}}
-        req = urllib.request.Request("http://localhost:11434/api/chat", json.dumps(body).encode(),
+        req = urllib.request.Request("http://127.0.0.1:11434/api/chat", json.dumps(body).encode(),
                                      {"Content-Type": "application/json"})
         return json.load(urllib.request.urlopen(req, timeout=600))
 

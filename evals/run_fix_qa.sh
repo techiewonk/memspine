@@ -11,6 +11,6 @@ s=$(date +%s)
   --categories 1,2,3,4 --mode qa ${ITEMS:+--items $ITEMS} --with-memspine --only-systems memspine --memspine-read-mode replay \
   --memspine-config "$(cat arms/$arm.json)" --memspine-batch-turns 32 --top-k "${TOPK:-20}" \
   $FLAGS \
-  --reader-model qwen3.5:9b --judge-model qwen3.5:9b --base-url http://localhost:11434/v1 \
+  --reader-model qwen3.5:9b --judge-model qwen3.5:9b --base-url http://127.0.0.1:11434/v1 \
   --max-model-calls 6000 --run-id qa-full-$arm$sfx 2>&1 | cat > runs/_logs/qa-full-$arm$sfx.log
 echo "qa-full-$arm$sfx rc=${PIPESTATUS[0]} secs=$(( $(date +%s)-s ))" >> runs/_logs/qa_fix_times.txt
