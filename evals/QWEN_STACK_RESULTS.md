@@ -33,3 +33,28 @@ Pilot (2 items) timings, for estimating: 167 s (bge-small), 184 s (Qwen3-Emb), 1
 - Qwen3.5-9B QA smoke (`qa-smoke-q35`): all scores 0.000 because the run hit `--max-model-calls 150`
   with 603 queries in scope (`--items 1` did not limit the query set), so answers were unattempted.
   Not a result. Open: `/no_think` behaviour for Qwen3.5, and a 9B judge versus earlier judges.
+
+## Throughput per token (`evals/bench_models.py`, 2026-10-09, RTX 5080)
+Measured while the grid shared the machine (GPU 8-99% busy), so treat as conservative. Embedders: 256
+passages (~70 tokens) in batches of 32, plus batch 1. Rerankers: one query vs a pool of 30 passages.
+LLM: Ollama, thinking off, Q4_K_M.
+
+| Model | Backend | tokens/s | ms/token | Other |
+|---|---|---|---|---|
+| bge-small-en-v1.5, batch 32 | fastembed ONNX (CPU) | 1,246 | 0.80 | 36 texts/s |
+| bge-small-en-v1.5, batch 1 | fastembed ONNX (CPU) | 361 | 2.77 | |
+| bge-base-en-v1.5, batch 32 | fastembed ONNX (CPU) | 365 | 2.74 | 10 texts/s |
+| bge-base-en-v1.5, batch 1 | fastembed ONNX (CPU) | 119 | 8.42 | |
+| Qwen3-Embedding-0.6B, batch 32 | torch bf16 (GPU) | 7,360 | 0.136 | 196 texts/s |
+| Qwen3-Embedding-0.6B, batch 1 | torch bf16 (GPU) | 91 | 10.99 | |
+| jina-embeddings-v5-text-small, batch 32 | torch bf16 (GPU) | 6,756 | 0.148 | 185 texts/s |
+| jina-embeddings-v5-text-small, batch 1 | torch bf16 (GPU) | 81 | 12.36 | |
+| bge-reranker-base, pool 30 | fastembed ONNX (CPU) | 4,529 | 0.221 | 91 pairs/s |
+| Qwen3-Reranker-0.6B, pool 30 | torch (GPU) | 6,325 | 0.158 | 139 pairs/s |
+| Qwen3-Reranker-4B 4-bit, pool 30 | bitsandbytes (GPU) | 1,617 | 0.618 | 35 pairs/s |
+| jina-reranker-v3.5, pool 30 | torch listwise (GPU) | 8,943 | 0.112 | 196 pairs/s |
+| Qwen3.5-9B Q4_K_M prefill | Ollama | 4,869 | 0.205 | |
+| Qwen3.5-9B Q4_K_M decode | Ollama | 115 | 8.72 | |
+
+Reading: batching the GPU embedders is 80-90x cheaper per token than one text at a time, so runs should use
+`--memspine-batch-turns 32`. Jina reranker v3.5 is the fastest reranker and Qwen3-Reranker-4B 4-bit the slowest.
