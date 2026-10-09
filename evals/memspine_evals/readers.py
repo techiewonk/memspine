@@ -151,6 +151,22 @@ GROUNDED_QA_PROMPT = (
     "Memories:\n{context}\n\nQuestion: {question}\nAnswer:"
 )
 
+#: Dev reasoning 2026-10-10: ``grounded`` plus three rules from the read failures of the
+#: development conversations - references to earlier lines ("that book you recommended",
+#: "we did it yesterday"), photo captions as evidence, and yes/no inference questions answered
+#: with general knowledge. Keeps the short answer (``grounded_detail``'s longer answers broke
+#: single-hop questions).
+GROUNDED_V2_QA_PROMPT = GROUNDED_QA_PROMPT.replace(
+    "Give a short, direct answer. ",
+    "A memory may refer back to something said earlier (\"that book you recommended\", \"we "
+    "did it yesterday\", a photo): find the earlier line it refers to and use its details. "
+    "Text in [image: ...] describes a photo shared in that line and counts as evidence. For "
+    "questions like \"would X likely...\" or \"is X...\", answer yes or no from what the "
+    "memories show together with general knowledge, then give the reason in a few words. "
+    "Give a short, direct answer. ",
+)
+assert GROUNDED_V2_QA_PROMPT != GROUNDED_QA_PROMPT
+
 #: C2: ``grounded`` plus the hit-marker legend (``--memspine-mark-hits``), a one-sentence
 #: answer that keeps the specific detail, and exhaustive lists for multi-item questions.
 GROUNDED_DETAIL_QA_PROMPT = (
@@ -201,6 +217,7 @@ QA_PROMPTS = {
     "dated3": DATED3_QA_PROMPT,
     "grounded": GROUNDED_QA_PROMPT,
     "grounded_detail": GROUNDED_DETAIL_QA_PROMPT,
+    "grounded_v2": GROUNDED_V2_QA_PROMPT,
     "abstain": ABSTAIN_QA_PROMPT,
     "converse": CONVERSE_QA_PROMPT,
     "dated_planned": DATED_PLANNED_QA_PROMPT,
