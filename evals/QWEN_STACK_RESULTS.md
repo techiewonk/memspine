@@ -72,3 +72,9 @@ Qwen3.5). Thinking on allows 4,096 completion tokens.
 On the 103 questions both settings answered, accuracy is identical: **0.806 vs 0.806** (think-on wins 5,
 loses 5). The 49 truncated answers hit the token limit; think-off scores 0.571 on those same questions.
 Thinking costs 5.7x the run time and 22x the tokens for no measured gain, so keep it off for this task.
+
+**Correction (judge artifact).** Of the 49 truncated think-on answers (all empty strings), the Qwen3.5-9B judge
+marked 7 as correct, so the harness headline 0.592 includes 7 credits for empty answers. `make_sota_table.py`
+scores any unanswered or truncated question as a miss, giving think-on 54.6 vs think-off 73.0 on the same 152
+questions. The matched-question comparison above (0.806 vs 0.806 on the 103 both answered) is unaffected.
+A small judge can credit an empty answer; a stronger or rubric-checked judge is needed for publishable numbers.
