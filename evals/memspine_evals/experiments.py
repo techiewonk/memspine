@@ -53,7 +53,15 @@ from .systems.baselines import BudgetCappedSystem
 HARNESS_PROTOCOL_REVISION = "harness-protocol=r3-2026-10-02"
 
 #: judge choices: the alias judge (no model) plus every routed suite.
-JUDGE_CHOICES = ("rubric", "constraint", "alias", "locomo-plus-v2", "longmemeval", "omnimemeval")
+JUDGE_CHOICES = (
+    "rubric",
+    "rubric-guarded",
+    "constraint",
+    "alias",
+    "locomo-plus-v2",
+    "longmemeval",
+    "omnimemeval",
+)
 
 Mode = Literal["retrieval", "qa"]
 
@@ -128,6 +136,11 @@ class C01Config:
     #: ``verify_answer`` prompt on the judge's backend (+1 call per question); an
     #: unsupported answer the context contradicts is replaced. Off: readers unchanged.
     verify_answer: bool = False
+    #: reader-gap fix: re-ask once, firmer, when the reader refuses (``refusal.py``).
+    retry_refusal: bool = False
+    #: reader-gap fix: empty answers score wrong without a judge call, and ``rubric`` becomes
+    #: ``rubric-guarded`` (``judge.GuardedJudge``). Off: judges unchanged.
+    judge_guards: bool = False
     #: screening: ingest and read every question as the QA run would, skip the reader
     #: and the judge, record evidence coverage per question (``screen.py``)
     retrieval_only: bool = False
@@ -392,15 +405,19 @@ def build_judge(config: C01Config, chat: Any, model: str, judge_id: str | None =
     The one-token default prompt is never used in QA: it graded "I do not know" CORRECT.
     """
     if config.judge_prompt == "alias":
-        from .judge import AliasContainsJudge
+        from .judge import AliasContainsJudge, GuardedJudge
 
-        return AliasContainsJudge()
+        return GuardedJudge(AliasContainsJudge()) if config.judge_guards else AliasContainsJudge()
+    from .judge import GuardedJudge
     from .judge_prompts import RoutedLLMJudge
 
-    judge = RoutedLLMJudge(chat, model=model, suite=config.judge_prompt, judge_id=judge_id)
+    suite = config.judge_prompt
+    if config.judge_guards and suite == "rubric":
+        suite = "rubric-guarded"
+    judge = RoutedLLMJudge(chat, model=model, suite=suite, judge_id=judge_id)
     if judge.spec.prompt_hash == sha256_text(DEFAULT_BINARY_PROMPT):  # pragma: no cover
         raise ValueError("the default binary judge prompt is not allowed in QA mode")
-    return judge
+    return GuardedJudge(judge) if config.judge_guards else judge
 
 
 def build_reader_and_judge(config: C01Config) -> tuple[Reader, Judge, bool]:
@@ -455,6 +472,10 @@ def build_reader_and_judge(config: C01Config) -> tuple[Reader, Judge, bool]:
             prompt=qa_prompt,
             extract_answer=reasoning,
         )
+        if config.retry_refusal:
+            from .refusal import RefusalRetryReader
+
+            bedrock_reader = RefusalRetryReader(bedrock_reader)  # type: ignore[assignment]
         judge = build_judge(
             config,
             litellm_chat(budget, model=QWEN3_32B),
@@ -483,6 +504,10 @@ def build_reader_and_judge(config: C01Config) -> tuple[Reader, Judge, bool]:
         extract_answer=reasoning,
         **({"max_tokens": reasoning_max_tokens(config.qa_prompt)} if reasoning else {}),
     )
+    if config.retry_refusal:
+        from .refusal import RefusalRetryReader
+
+        reader = RefusalRetryReader(reader)  # type: ignore[assignment]
     judge = build_judge(
         config,
         openai_compat_chat(config.judge_model, base_url=config.base_url, api_key=api_key),
@@ -568,6 +593,8 @@ async def run_c0_1(
             "categories": list(config.categories) if config.categories is not None else "all",
             "qa_prompt": config.qa_prompt if config.mode == "qa" else None,
             **({"verify_answer": True} if config.verify_answer else {}),
+            **({"retry_refusal": True} if config.retry_refusal else {}),
+            **({"judge_guards": True} if config.judge_guards else {}),
             "judge_prompt": config.judge_prompt if config.mode == "qa" else None,
             "arms": [s.system_id for s in systems],
             "naive_dense_same_embedder": config.naive_dense_same_embedder,

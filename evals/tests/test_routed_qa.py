@@ -101,6 +101,7 @@ def test_existing_prompt_table_is_unchanged() -> None:
         "dated_planned",  # N46
         "dated_noabstain",  # N56
         "evermemos_cot",  # N65
+        "grounded",  # reader-gap fix
     }
 
 

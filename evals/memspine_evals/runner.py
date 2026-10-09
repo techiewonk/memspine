@@ -944,6 +944,7 @@ class EvalRunner:
                         {"reranked": context.meta["reranked"]} if "reranked" in context.meta else {}
                     ),
                     **reader_raw_meta(answer.raw_text),
+                    **dict(answer.extra_meta),
                     **(
                         {"qa_variant": answer.prompt_variant}
                         if answer.prompt_variant is not None

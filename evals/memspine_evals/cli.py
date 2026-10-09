@@ -180,6 +180,8 @@ def cmd_c0_1(args: argparse.Namespace) -> int:
         service_prices=parse_service_prices(args.price),
         max_usd=args.max_usd,
         verify_answer=args.verify_answer,
+        retry_refusal=args.retry_refusal,
+        judge_guards=args.judge_guards,
         retrieval_only=args.retrieval_only,
         cache_dir=args.cache_dir,
         cache_reader=args.cache_reader,
@@ -343,7 +345,8 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "QA judge on every endpoint: rubric (QA; abstention-aware), constraint "
             "(LoCoMo-Plus), alias, locomo-plus-v2 (official LoCoMo-Plus prompts), longmemeval "
-            "(anscheck templates by type), omnimemeval (official OmniMemEval LoCoMo judge)"
+            "(anscheck templates by type), omnimemeval (official OmniMemEval LoCoMo judge), "
+            "rubric-guarded (rubric plus relative-date and hedged-answer rules)"
         ),
     )
     c01.add_argument(
@@ -354,6 +357,7 @@ def build_parser() -> argparse.ArgumentParser:
             "dated2",
             "dated_infer",
             "dated3",
+            "grounded",
             "dated_world",
             "abstain",
             "converse",
@@ -366,7 +370,22 @@ def build_parser() -> argparse.ArgumentParser:
         ),
         default="default",
         help="QA prompt variant for every arm (H7/H12); question_dated shows the question date; "
-        "routed (C1) picks dated / a temporal / an inference variant per question",
+        "routed (C1) picks dated / a temporal / an inference variant per question; "
+        "grounded explains the line dates and [= date] annotations, no blanket refusal",
+    )
+    c01.add_argument(
+        "--retry-refusal",
+        action="store_true",
+        help="re-ask once, with a firmer instruction, when the reader refuses (or answers "
+        "empty) on a non-empty context; both answers land in the row meta, the extra call "
+        "counts against --max-model-calls; off by default",
+    )
+    c01.add_argument(
+        "--judge-guards",
+        action="store_true",
+        help="empty answers score wrong without a judge call; with --judge-prompt rubric the "
+        "judge is the rubric-guarded variant (equivalent relative-date phrasings and hedged "
+        "answers that contain the gold fact are CORRECT); off by default",
     )
     c01.add_argument(
         "--verify-answer",

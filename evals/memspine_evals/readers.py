@@ -134,6 +134,22 @@ DATED3_QA_PROMPT = (
     "Context:\n{context}\n\nQuestion: {question}\nReasoning:"
 )
 
+#: Grounded prompt (reader-gap fix, ``analysis/READER_GAPS.md``): explains the line dates and
+#: the ``[= date]`` annotations, asks for the best-supported short answer, and keeps "not
+#: mentioned" for questions nothing in the memories bears on (the default prompt's blanket
+#: "say you do not know" drew 92 of 182 refusals with the gold evidence in context).
+GROUNDED_QA_PROMPT = (
+    "Answer the question from the memories below. Each memory is one line: [YYYY-MM-DD] is "
+    'the date it was said, and a bracket like "last Saturday [= 2023-05-20]" gives the '
+    "absolute date of that relative phrase. Resolve other relative times (yesterday, last "
+    "week, two days ago) against the date of the line they appear in, not today's date. "
+    "Give a short, direct answer. Give the best-supported answer from the memories, even if "
+    "it is indirect; say it is not mentioned only when nothing in the memories bears on the "
+    "question. When a date is asked, answer in the wording the memories use (for example "
+    '"the week before 9 June 2023" or "2022"), at the precision asked.\n\n'
+    "Memories:\n{context}\n\nQuestion: {question}\nAnswer:"
+)
+
 #: N46 (MemMachine answer clause, our wording): ``dated`` plus "a plan the context
 #: states counts as done unless the context says it did not happen". QA only (paid).
 DATED_PLANNED_QA_PROMPT = DATED_QA_PROMPT.replace(
@@ -164,6 +180,7 @@ QA_PROMPTS = {
     "dated2": DATED2_QA_PROMPT,
     "dated_infer": DATED_INFER_QA_PROMPT,
     "dated3": DATED3_QA_PROMPT,
+    "grounded": GROUNDED_QA_PROMPT,
     "abstain": ABSTAIN_QA_PROMPT,
     "converse": CONVERSE_QA_PROMPT,
     "dated_planned": DATED_PLANNED_QA_PROMPT,

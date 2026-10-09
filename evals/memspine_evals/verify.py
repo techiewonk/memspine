@@ -110,4 +110,5 @@ def _with_call(
         finish_reason=first.finish_reason,
         raw_text=first.raw_text,
         prompt_variant=first.prompt_variant,
+        extra_meta=first.extra_meta,
     )

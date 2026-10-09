@@ -33,6 +33,7 @@ from .judge import (
     ABSTENTION_BINARY_PROMPT,
     CONSTRAINT_BINARY_PROMPT,
     RUBRIC_BINARY_PROMPT,
+    RUBRIC_GUARDED_BINARY_PROMPT,
     JudgeScale,
     JudgeSpec,
     Verdict,
@@ -210,6 +211,12 @@ def _registry() -> dict[str, JudgePrompt]:
     prompts = [
         JudgePrompt("memspine/rubric", RUBRIC_BINARY_PROMPT, PromptStatus.MEMSPINE, "judge.py"),
         JudgePrompt(
+            "memspine/rubric-guarded",
+            RUBRIC_GUARDED_BINARY_PROMPT,
+            PromptStatus.MEMSPINE,
+            "judge.py",
+        ),
+        JudgePrompt(
             "memspine/constraint", CONSTRAINT_BINARY_PROMPT, PromptStatus.MEMSPINE, "judge.py"
         ),
         JudgePrompt(
@@ -342,6 +349,14 @@ JUDGE_SUITES: dict[str, JudgeSuite] = {
         route_rubric,
         handles_abstention=True,
         notes="memspine rubric; abstention questions use the abstention judge",
+    ),
+    "rubric-guarded": JudgeSuite(
+        "rubric-guarded",
+        JudgeScale.BINARY,
+        {"default": "memspine/rubric-guarded", "abstention": "memspine/abstention"},
+        route_rubric,
+        handles_abstention=True,
+        notes="rubric plus equivalent relative-date and hedged-answer rules (--judge-guards)",
     ),
     "constraint": JudgeSuite(
         "constraint",

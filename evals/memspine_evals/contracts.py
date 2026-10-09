@@ -196,6 +196,9 @@ class ReaderAnswer:
     #: C1: the ``routed`` QA prompt's variant for this question (``plain`` / ``temporal``
     #: / ``inference``); None for a fixed prompt. Lands in the row's ``meta["qa_variant"]``.
     prompt_variant: str | None = None
+    #: Extra row ``meta`` keys a reader wrapper records (e.g. the refusal retry's two
+    #: answers); empty for every plain reader, so their rows stay byte-identical.
+    extra_meta: Mapping[str, Any] = field(default_factory=dict)
 
 
 @runtime_checkable
