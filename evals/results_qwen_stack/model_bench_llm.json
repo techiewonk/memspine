@@ -1,0 +1,19 @@
+{
+ "gpu_load_at_start": "8 %, 11678 MiB",
+ "rows": [
+  {
+   "model": "qwen3.5:9b Q4_K_M [Ollama prefill]",
+   "tokens": 2172,
+   "secs": 0.446,
+   "tokens_per_s": 4869,
+   "ms_per_token": 0.205
+  },
+  {
+   "model": "qwen3.5:9b Q4_K_M [Ollama decode]",
+   "tokens": 200,
+   "secs": 1.744,
+   "tokens_per_s": 115,
+   "ms_per_token": 8.718
+  }
+ ]
+}

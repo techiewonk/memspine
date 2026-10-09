@@ -78,3 +78,22 @@ marked 7 as correct, so the harness headline 0.592 includes 7 credits for empty 
 scores any unanswered or truncated question as a miss, giving think-on 54.6 vs think-off 73.0 on the same 152
 questions. The matched-question comparison above (0.806 vs 0.806 on the 103 both answered) is unaffected.
 A small judge can credit an empty answer; a stronger or rubric-checked judge is needed for publishable numbers.
+
+## Consolidated retrieval grid (full LoCoMo, 1,986 questions) - updated 2026-10-09 10:40
+Raw per-arm summaries are tracked in `evals/results_qwen_stack/<run>/` (COMPARISON.md, summary.json); the
+large `runs/` folder is gitignored. "bt32" = batched writes (`--memspine-batch-turns 32`), which halves wall-clock.
+
+| Embedder | Reranker | Sufficiency | Ctx tokens | Wall-clock |
+|---|---|---|---|---|
+| bge-small | none | 0.594 | 1508 | 1,334 s |
+| bge-small | bge-reranker-base | 0.579 | 971 | 1,775 s |
+| bge-small | Qwen3-Reranker-0.6B | 0.573 | 789 | 1,782 s |
+| bge-small | Qwen3-Reranker-4B 4-bit | 0.575 | 695 | 3,318 s |
+| Qwen3-Embedding-0.6B | none | **0.615** | 1567 | 1,321 s |
+| Qwen3-Embedding-0.6B | bge-reranker-base | 0.602 | 1001 | 1,745 s |
+| Qwen3-Embedding-0.6B | Qwen3-Reranker-0.6B | 0.593 | 871 | 1,685 s |
+| Qwen3-Embedding-0.6B | Qwen3-Reranker-4B 4-bit | 0.597 | 774 | 3,294 s |
+| Jina v5 text-small (bt32) | none | 0.610 | 1517 | 662 s |
+| Jina v5 text-small (bt32) | Jina reranker v3.5 | running | | |
+| Qwen3-Embedding (bt32) / bge-small (bt32) | Jina reranker v3.5 | running / queued | | |
+| bge-base | various | queued last | | |
