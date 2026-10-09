@@ -7,7 +7,7 @@ unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN MEMSPINE_EVAL_TH
 export PYTHONPATH="$(cd .. && pwd)/src"
 FLAGS=${FLAGS-"--qa-prompt grounded --retry-refusal --judge-guards"}  # FLAGS="" = harness defaults
 s=$(date +%s)
-../../memspine/.venv/Scripts/python.exe _launch.py c0-1 --dataset locomo --path ../../memspine/data/locomo10.json \
+../.venv/Scripts/python.exe _launch.py c0-1 --dataset locomo --path ../data/locomo10.json \
   --categories 1,2,3,4 --mode qa ${ITEMS:+--items $ITEMS} --with-memspine --only-systems memspine --memspine-read-mode replay \
   --memspine-config "$(cat arms/$arm.json)" --memspine-batch-turns 32 --top-k "${TOPK:-20}" \
   $FLAGS \

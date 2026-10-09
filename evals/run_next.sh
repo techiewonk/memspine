@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SUPERSEDED (2026-10-10): referenced the removed memspine-fixes worktree; use evals/run.sh.
 # A6 fixed config on GPU, then the Qwen-4B reranker baseline (main checkout code), both with stage logs.
 cd "$(dirname "$0")" || exit 1
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
