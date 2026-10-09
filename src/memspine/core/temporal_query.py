@@ -45,6 +45,7 @@ __all__ = [
     "sentences",
     "speaker_leg",
     "speaker_of",
+    "speaker_vector_leg",
     "temporal_leg",
     "view_tag_leg",
 ]
@@ -343,6 +344,41 @@ def speaker_leg(query: str, records: Iterable[MemoryRecord], top_k: int) -> list
         )
     )
     return [LegHit(r.record_id, 1.0) for r in named[:top_k]]
+
+
+def _speaker_name(record: MemoryRecord) -> str | None:
+    """The speaker of a turn: its ``speaker:`` tag, else the "Name:" prefix of its text."""
+    for tag in record.tags:
+        if tag.startswith(SPEAKER_PREFIX):
+            return tag[len(SPEAKER_PREFIX) :]
+    return speaker_of(record.content)
+
+
+def speaker_vector_leg(
+    query: str,
+    records: Iterable[MemoryRecord],
+    vector_hits: Iterable[LegHit],
+    top_k: int = 30,
+) -> list[LegHit]:
+    """B1 (``read.list_mode``): the first ``top_k`` ``vector_hits`` (in vector order, scores
+    kept) spoken by the one speaker the query names (whole word, case-insensitive; "Melanie's
+    kids" names Melanie). The speaker of a record is its ``speaker:`` tag, else the "Name:"
+    prefix of its text. Empty when the query names no known speaker or more than one."""
+    by_id = {r.record_id: r for r in records}
+    names = {name for r in by_id.values() if (name := _speaker_name(r))}
+    text = query.lower()
+    named = {n for n in names if re.search(rf"(?<!\w){re.escape(n)}(?!\w)", text)}
+    if len(named) != 1:
+        return []
+    [who] = named
+    out: list[LegHit] = []
+    for hit in vector_hits:
+        rec = by_id.get(hit.record_id)
+        if rec is not None and _speaker_name(rec) == who:
+            out.append(hit)
+            if len(out) >= top_k:
+                break
+    return out
 
 
 #: W11 (plan v3.2): the question asks what the ASSISTANT said ("what did you

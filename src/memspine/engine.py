@@ -124,6 +124,7 @@ from memspine.core.query_shape import (
     is_novelty,
     is_ordering,
     is_personal,
+    is_set_question,
     is_temporal,
     is_verbatim,
     question_shape,
@@ -178,6 +179,7 @@ from memspine.core.temporal_query import (
     sentences,
     speaker_leg,
     speaker_of,
+    speaker_vector_leg,
     temporal_leg,
     view_tag_leg,
 )
@@ -657,6 +659,9 @@ _FORENSICS: ContextVar[dict[str, Any] | None] = ContextVar("memspine_forensics",
 #: Whether the last ``_search`` of the current read reranked its candidates
 #: (``read.rerank_floor="skip"`` needs it at assembly).
 _RERANKED: ContextVar[bool] = ContextVar("memspine_reranked", default=False)
+#: B1 (``read.list_mode``): True while the routed read searches for a list / set question;
+#: the search then adds the speaker vote leg, widens the pool and skips ``rerank_keep``.
+_LIST_MODE: ContextVar[bool] = ContextVar("memspine_list_mode", default=False)
 
 
 @contextmanager
@@ -2526,6 +2531,31 @@ class Engine:
             _log.warning("read.session_leg_failed", namespace=ns, error=str(exc))
             return []
 
+    async def _speaker_vote_leg(
+        self,
+        ns: str,
+        query: str,
+        query_vector: list[float],
+        vector_hits: Sequence[Any],
+        fetch_k: int,
+    ) -> list[list[LegHit]]:
+        """``read.list_mode``: the vector leg fetched ``list_vote_depth`` deep, kept to the
+        turns of the one speaker the question names (top ``list_vote_top_k``), as the
+        ``speaker_vote`` leg. Empty when no or several speakers are named."""
+        read = self._config().read
+        try:
+            depth = max(read.list_vote_depth, fetch_k)
+            deep = vector_hits
+            if depth > fetch_k:
+                deep = await self._vector_leg(ns, query_vector, depth)
+            records = [r for r in await self._records(ns) if not r.quarantined]
+            hits = speaker_vector_leg(query, records, deep, read.list_vote_top_k)
+            leg = NamedLeg("speaker_vote", hits)
+            return [leg] if leg else []
+        except Exception as exc:  # an enhancer, never a gate
+            _log.warning("read.speaker_vote_leg_failed", namespace=ns, error=str(exc))
+            return []
+
     async def _anchor_legs(
         self,
         ns: str,
@@ -4114,6 +4144,10 @@ class Engine:
                 extra_legs += await self._word_vector_leg(ns, query, fetch_k)
             if read_now.session_leg:
                 extra_legs += await self._session_leg(ns, query_vector, fetch_k)
+            if read_now.list_mode and _LIST_MODE.get():
+                extra_legs += await self._speaker_vote_leg(
+                    ns, query, query_vector, vector_hits, fetch_k
+                )
             extra_legs += [list(leg) for leg in fused_legs if leg]
             floors = self._config().read.leg_min_scores
             if floors:
@@ -4329,7 +4363,12 @@ class Engine:
             # G-10 (Graphiti MMR): diversity among near-duplicate hits, on embeddings.
             scored = await self._mmr_order(query, scored, mmr_lambda)
         _RERANKED.set(reranked)
-        if reranked and read_cfg.rerank_keep is not None and read_cfg.candidate_pool > 1:
+        if (
+            reranked
+            and read_cfg.rerank_keep is not None
+            and read_cfg.candidate_pool > 1
+            and not _LIST_MODE.get()  # B1: list mode keeps the whole reranked pool
+        ):
             # G5b: the wider pool fed the reranker; only its best few go on.
             scored = scored[: read_cfg.rerank_keep]
         if scored and self._config().read.record_access:
@@ -4557,7 +4596,10 @@ class Engine:
         ``legs`` (#36): precomputed ranked legs fused into the search by RRF."""
         if self._assembly is None:
             raise MemspineError("assembly policy not bound — engine not started?")
-        want = top_k * self._config().read.candidate_pool
+        pool = self._config().read.candidate_pool
+        if _LIST_MODE.get():  # B1: a list question draws a wider pool
+            pool = max(pool, self._config().read.list_pool)
+        want = top_k * pool
         _RERANKED.set(False)
         if self._config().read.statement_probe and (said := statement_form(query)):
             # N63 (EverMemOS multi-query, by rules): the question as a statement.
@@ -5294,16 +5336,21 @@ class Engine:
             # A1 (ADR-055): a list or count question read by replay pools more
             # candidates too; replay rendering, no compose. The budget still caps it.
             top_k = read_cfg.aggregate_top_k
-        base = await self._assemble_core(
-            query,
-            ns,
-            budget_tokens,
-            top_k,
-            session_id=session_id,
-            hide=hide,
-            probes=lookup_probes,
-            legs=legs,
-        )
+        list_fire = self._list_mode_fires(query)
+        list_token = _LIST_MODE.set(list_fire)  # B1: the search widens for a list question
+        try:
+            base = await self._assemble_core(
+                query,
+                ns,
+                budget_tokens,
+                top_k,
+                session_id=session_id,
+                hide=hide,
+                probes=lookup_probes,
+                legs=legs,
+            )
+        finally:
+            _LIST_MODE.reset(list_token)
         episodic_hits = [r for r in base.records if r.memory_type == "episodic"]
         # H6: a mined atomic fact replays the source turn it best matches (its
         # derived_from lists the whole session, which would not fit the budget).
@@ -5346,6 +5393,14 @@ class Engine:
             # neighbour that does not fit is skipped, it never costs the hit its place.
             before, after = self._window_sides(replay_window)
             span = range(max(0, at - before), min(len(ids), at + after + 1))
+            # B1 tier: hits past ``window_full_hits`` are single turns (no neighbours).
+            single = (
+                list_fire
+                and read_cfg.window_full_hits is not None
+                and rank >= read_cfg.window_full_hits
+            )
+            if single:
+                span = range(at, at + 1)
             for index in sorted(span, key=lambda i: (i != at, abs(i - at), i)):
                 rid = ids[index]
                 if rid in seen:
@@ -5361,7 +5416,7 @@ class Engine:
                 used += cost
                 if rank == 0:
                     best_window.add(rid)
-            if read_cfg.reply_links:
+            if read_cfg.reply_links and not single:
                 # G27: a reply also shows the message it answers (gated, in budget).
                 for answered in _reply_targets(hit):
                     if answered in seen:
@@ -5402,6 +5457,15 @@ class Engine:
                 budget_tokens,
             ),
         )
+
+    def _list_mode_fires(self, query: str) -> bool:
+        """B1: ``read.list_mode`` is on and the question matches ``read.list_trigger``."""
+        read = self._config().read
+        if not read.list_mode:
+            return False
+        if read.list_trigger == "aggregation":
+            return is_aggregation(query) or is_count(query)
+        return is_set_question(query)
 
     async def _replay_neighbour(self, record_id: str, ns: str) -> MemoryRecord | None:
         """C7': a replayed neighbour turn, gated, inflated and decorated; None if not shown.

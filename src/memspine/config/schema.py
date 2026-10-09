@@ -765,6 +765,21 @@ class ReadConfig(BaseModel):
     session_leg: bool = False
     session_leg_top_sessions: int = Field(default=3, ge=1)
     session_leg_per_session: int = Field(default=2, ge=1)
+    #: Gap B1 (2026-10-10) list mode, opt-in. For a list / set question (``list_trigger``)
+    #: that names exactly one speaker, the read (1) adds a ``speaker_vote`` RRF leg: the
+    #: vector leg fetched ``list_vote_depth`` deep, kept to the named speaker's turns (top
+    #: ``list_vote_top_k``); (2) draws ``list_pool`` x top_k candidates (never fewer than
+    #: ``candidate_pool``) and skips the ``rerank_keep`` cut; (3) gives only the best
+    #: ``window_full_hits`` replay hits their neighbour window, the rest are single turns
+    #: (``None``: every hit keeps its window). Other questions read exactly as before.
+    list_mode: bool = False
+    #: ``set_question`` = ``query_shape.is_set_question``; ``aggregation`` = ``is_aggregation``
+    #: or ``is_count``.
+    list_trigger: Literal["set_question", "aggregation"] = "set_question"
+    list_vote_depth: int = Field(default=100, ge=1)
+    list_vote_top_k: int = Field(default=30, ge=1)
+    list_pool: int = Field(default=3, ge=1, le=10)
+    window_full_hits: int | None = Field(default=10, ge=0)
     #: GR-6 (Graphiti node search): an RRF leg of the records that mention the entity
     #: nodes best matching the question (cosine on embedded entity names + text match,
     #: fused). Needs ``graph.entity_embeddings`` and associative entity nodes.

@@ -21,6 +21,7 @@ __all__ = [
     "is_novelty",
     "is_ordering",
     "is_personal",
+    "is_set_question",
     "is_temporal",
     "is_verbatim",
     "question_shape",
@@ -46,6 +47,22 @@ _AGGREGATE = re.compile(
     r"|\b(?:what|which) (?:\w+ )?"
     r"(?:names|kinds|types|ways|activities|places|books|events|hobbies|items|things)\b"
     r"|\bwhat \w+s (?:has|have|did|does|do)\b",
+    re.I,
+)
+_SET_NOUN = (
+    r"(?:activities|events|hobbies|books|items|places|things|games|movies|songs|pets|foods|"
+    r"sports|instruments|artists|bands|shows|trips|projects|classes|courses|gifts|ways|kinds|"
+    r"types|topics|interests|destinations|restaurants|cities|countries|subjects|genres|"
+    r"charities|organi[sz]ations|groups|animals|friends|people|plans|goals|skills|"
+    r"painting|paintings|pieces|stories|shows|dishes|recipes|cuisines|festivals|concerts)"
+)
+_SET_QUESTION = re.compile(
+    rf"^\s*(?:what|which|who)\s+(?:\w+(?:'s)?\s+){{0,2}}{_SET_NOUN}\b"
+    r"|^\s*(?:what|which)\s+(?:kind|kinds|type|types|sort|sorts)\s+of\b"
+    r"|^\s*what\s+(?:do|does|has|have)\b.*\b(?:do|done|like|likes|love|loves|enjoy|enjoys|"
+    r"attend|attended|play|played|plays|buy|bought|read|watch|watched|visit|visited|"
+    r"participate|participated|partake|collect|collects|paint|painted|make|made|eat|cook|"
+    r"write|writes|wrote|own|owns|have|try|tried|support|supports)\b(?!.*\bfor a living\b)",
     re.I,
 )
 _STOP = frozenset(
@@ -184,6 +201,14 @@ def is_verbatim(query: str) -> bool:
 #: Units after "how many" that ask for a duration ("how many days ago ..."), not a count.
 _DURATION_UNITS = r"(?:seconds|minutes|hours|days|weeks|weekends|months|years|decades)"
 _COUNT = re.compile(rf"\bhow (?:many|often)\b(?! {_DURATION_UNITS}\b)", re.I)
+
+
+def is_set_question(question: str) -> bool:
+    """B1 list-mode trigger: a question asking for a set ("What activities does X do?",
+    "What do X's kids like?", "What kind of books does X read?"). Rules only. Opens with
+    what / which / who; when, how many, yes/no openers and the singular past form
+    ("What book did X read ...?") do not fire."""
+    return bool(_SET_QUESTION.search(question))
 
 
 def is_count(query: str) -> bool:
