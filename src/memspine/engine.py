@@ -28,10 +28,11 @@ from collections.abc import (
     Callable,
     Collection,
     Coroutine,
+    Iterator,
     Mapping,
     Sequence,
 )
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -647,6 +648,28 @@ def _snapshot_scoped[**P, R](
 
 #: G-11 (Graphiti center node): the focal entity of the read in progress, if any.
 _FOCAL_ENTITY: ContextVar[str | None] = ContextVar("memspine_focal_entity", default=None)
+
+#: Search forensics (opt-in, evals/debugging): while a sink dict is installed by
+#: :func:`search_forensics`, ``Engine._search`` records the ranked ``(record_id, score)``
+#: list of every stage: each leg, the fusion, the gated candidate pool, the reranker's raw
+#: scores and the final cut. Unset (the default) the hook is a single ``is not None`` test.
+_FORENSICS: ContextVar[dict[str, Any] | None] = ContextVar("memspine_forensics", default=None)
+
+
+@contextmanager
+def search_forensics() -> Iterator[dict[str, Any]]:
+    """Capture the stage-by-stage ranking of every ``search`` inside the block.
+
+    The yielded dict is filled by the last ``_search`` that runs: ``vector``, ``lexical``,
+    ``extra_legs`` (``[(name, hits)]``), ``fused``, ``pool``, ``reranker`` (id or None),
+    ``rerank_scores`` and ``final``, each a list of ``(record_id, score)``.
+    """
+    sink: dict[str, Any] = {}
+    token = _FORENSICS.set(sink)
+    try:
+        yield sink
+    finally:
+        _FORENSICS.reset(token)
 
 #: #63: the neighbour batch of the ``write_messages`` call running in this task.
 _NEIGHBOUR_BATCH: ContextVar[_NeighbourBatch | None] = ContextVar(
@@ -3991,6 +4014,14 @@ class Engine:
                 ranked: list[tuple[str, float]] = [(rid, score / rrf_max) for rid, score in fused]
             else:
                 ranked = [(hit.record_id, hit.score) for hit in vector_hits]
+            if (fx := _FORENSICS.get()) is not None:
+                fx["vector"] = [(h.record_id, h.score) for h in vector_hits]
+                fx["lexical"] = [(h.record_id, h.score) for h in lexical_hits]
+                fx["extra_legs"] = [
+                    (getattr(leg, "name", "extra"), [(h.record_id, h.score) for h in leg])
+                    for leg in extra_legs
+                ]
+                fx["fused"] = list(ranked)
             candidates = await self._gate_hits(ns, ranked, group_id, tags, memory_type)
             if community_gate is not None:
                 # GP-9: a community summary no seed entity belongs to is never read.
@@ -4071,6 +4102,9 @@ class Engine:
         if read_cfg.skip_rerank_for_ordering and is_ordering(query):
             reranker = None  # Agent Zero: a relevance reranker scrambles temporal order
         reranked = False
+        if (fx := _FORENSICS.get()) is not None:
+            fx["pool"] = [(record.record_id, score) for record, score in candidates]
+            fx["reranker"] = getattr(reranker, "reranker_id", None)
         if reranker is not None and candidates:
             documents = [concat_background(record) for record, _ in candidates]
             if read_cfg.rerank_date_prefix:
@@ -4086,6 +4120,11 @@ class Engine:
             try:
                 self._rerank_calls += 1
                 raw_scores = await reranker.rerank(query, documents)
+                if (fx := _FORENSICS.get()) is not None:
+                    fx["rerank_scores"] = [
+                        (record.record_id, float(raw))
+                        for (record, _), raw in zip(candidates, raw_scores, strict=True)
+                    ]
                 if read_cfg.rerank_gate is not None and max(raw_scores) < read_cfg.rerank_gate:
                     # N41: the reranker is not confident: keep the retrieval order.
                     self._rerank_gated += 1
@@ -4143,6 +4182,8 @@ class Engine:
                     payload={"record_ids": [record.record_id for record, _ in scored]},
                 )
             )
+        if (fx := _FORENSICS.get()) is not None:
+            fx["final"] = [(record.record_id, score) for record, score in scored]
         _log.info(EVENT_RETRIEVE, namespace=ns, query=True, count=len(scored))
         self._record_reads(ns, session_id, scored)
         return scored

@@ -399,6 +399,44 @@ class MemspineSystem:
             parse_question_date(meta.get("question_date")) if self._as_of_question_date else None
         )
 
+    def _write_forensics(self, directory: str, query: str, stages: dict[str, Any], assembled: Any) -> None:
+        """One JSON line per question: every retrieval stage, ranked, with turn ids.
+
+        Scores are the engine's own (RRF-normalised for fusion, raw cross-encoder for the
+        reranker). ``turn`` is the dataset turn a record was written from; offline joining with
+        the gold evidence (``evals/forensics_report.py``) names the stage that lost it.
+        """
+        import json
+        from pathlib import Path
+
+        def rank(pairs: list[tuple[Any, float]]) -> list[dict[str, Any]]:
+            return [
+                {"r": i + 1, "turn": self._origin.get(str(rid), str(rid)), "score": round(float(s), 5)}
+                for i, (rid, s) in enumerate(pairs)
+            ]
+
+        row = {
+            "namespace": self.namespace,
+            "query": query,
+            "vector": rank(stages.get("vector", [])),
+            "lexical": rank(stages.get("lexical", [])),
+            "extra_legs": {name: rank(hits) for name, hits in stages.get("extra_legs", [])},
+            "fused": rank(stages.get("fused", [])),
+            "pool": rank(stages.get("pool", [])),
+            "reranker": stages.get("reranker"),
+            "rerank_scores": rank(stages.get("rerank_scores", [])),
+            "final": rank(stages.get("final", [])),
+            "context_records": [
+                {"turn": self._origin.get(str(r.record_id), str(r.record_id)), "text": r.content}
+                for r in getattr(assembled, "records", [])
+            ],
+            "context_tokens": getattr(assembled, "tokens_used", None),
+        }
+        out = Path(directory)
+        out.mkdir(parents=True, exist_ok=True)
+        with (out / "forensics.jsonl").open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(row) + "\n")
+
     async def query(self, text: str, budget_tokens: int, top_k: int) -> RetrievedContext:
         if self._engine is None:
             raise RuntimeError("query before reset/insert — no engine started")
@@ -410,20 +448,32 @@ class MemspineSystem:
         prompts_before = self._prompt_usage()
         rerank_before = self._rerank_stats()
         as_of = {"as_of": self._question_as_of} if self._question_as_of is not None else {}
-        if self._read_mode:
-            result = await self._engine.read(
-                text,
-                namespace=self.namespace,
-                mode=self._read_mode,
-                budget_tokens=budget_tokens,
-                top_k=top_k,
-                **as_of,
-            )
-            assembled = result.context
-        else:
-            assembled = await self._engine.assemble(
-                text, namespace=self.namespace, budget_tokens=budget_tokens, top_k=top_k, **as_of
-            )
+        import os
+
+        forensics_dir = os.environ.get("MEMSPINE_FORENSICS_DIR")
+        from memspine.engine import search_forensics
+
+        with search_forensics() as stages:
+            if self._read_mode:
+                result = await self._engine.read(
+                    text,
+                    namespace=self.namespace,
+                    mode=self._read_mode,
+                    budget_tokens=budget_tokens,
+                    top_k=top_k,
+                    **as_of,
+                )
+                assembled = result.context
+            else:
+                assembled = await self._engine.assemble(
+                    text,
+                    namespace=self.namespace,
+                    budget_tokens=budget_tokens,
+                    top_k=top_k,
+                    **as_of,
+                )
+        if forensics_dir:
+            self._write_forensics(forensics_dir, text, stages, assembled)
         after = self._calls()
         engine_llm = self._usage_delta(usage_before, self._usage())
         engine_prompts = self._prompt_delta(prompts_before, self._prompt_usage())
