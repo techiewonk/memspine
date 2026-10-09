@@ -397,7 +397,7 @@ class ScriptedReader:
         )
 
 
-def thinking_off(model: str) -> dict[str, Any]:
+def thinking_off(model: str, *, reader: bool = False) -> dict[str, Any]:
     """Request body fields that switch reasoning off for models that think by default.
 
     Qwen3.5 dropped the ``/no_think`` soft switch (appending it leaves the answer empty
@@ -407,7 +407,9 @@ def thinking_off(model: str) -> dict[str, Any]:
     """
     import os
 
-    if os.environ.get("MEMSPINE_EVAL_THINK") == "on":  # think-mode comparison runs
+    # think-mode comparison runs: only the reader (the model under test) may think;
+    # the judge always answers without reasoning so the comparison isolates the reader.
+    if reader and os.environ.get("MEMSPINE_EVAL_THINK") == "on":
         return {}
     name = model.lower()
     if "qwen3.5" in name or "qwen3.6" in name:
@@ -481,7 +483,7 @@ class OpenAICompatReader:
             "model": self.model,
             "temperature": self.temperature,
             "max_tokens": self.max_tokens,
-            **thinking_off(self.model),
+            **thinking_off(self.model, reader=True),
             "messages": [
                 {
                     "role": "user",
