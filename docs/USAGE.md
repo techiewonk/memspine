@@ -840,6 +840,10 @@ in the schema — or if the schema gains a key not documented here.
 | `read.word_vector_provider` | `model2vec` | `model2vec` (`[static]` extra) or `word2vec` (gensim `KeyedVectors`, installed separately). |
 | `read.word_vector_model` | `null` | model id (model2vec) or local file path (word2vec: `.bin` binary, `.kv` gensim, else text); `null` = `minishlab/potion-retrieval-32M`. |
 | `read.word_vector_top_k` | `null` | hits the leg contributes to fusion; `null` = the search fetch size. |
+| `read.lexical_strip_names` | `false` | Drop speaker names (the `Speaker:` prefixes of the namespace's records) from the BM25 query only; the vector leg is untouched. If nothing is left, the original query is used. |
+| `read.session_leg` | `false` | RRF leg `session`: sessions (`group_id`) ranked by the cosine of the query with the mean of their record vectors; contributes the best records of the top sessions. Record vectors are embedded once and cached. |
+| `read.session_leg_top_sessions` | `3` | sessions the session leg draws from. |
+| `read.session_leg_per_session` | `2` | records the session leg takes from each session. |
 | `read.graph_node_search` | `false` | GR-6: an RRF leg (`graph_nodes`) of the records that mention the entity nodes best matching the question (cosine on embedded names + text match, fused in the graph store), best entity first. Needs `graph.entity_embeddings` and associative entity nodes. |
 | `read.view_tag_leg` | `false` | G-16: an RRF leg (`view_tags`) of records whose location / topic / person view tags (`loc:` / `topic:` / `person:`, from `consolidation.mine_multiview`) share words with the question. Ranked by most shared words, then location over topic over person. |
 | `read.gist_after` | `None` | G-22 (SimpleMem pyramid retrieval): the best N hits keep their full text, and the rest are shown as their one sentence sharing most words with the question. This happens before the budget fit, so more distinct evidence fits. Never applied to verbatim questions. |

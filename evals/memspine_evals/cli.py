@@ -386,6 +386,8 @@ def build_parser() -> argparse.ArgumentParser:
             "QA judge on every endpoint: rubric (QA; abstention-aware), constraint "
             "(LoCoMo-Plus), alias, locomo-plus-v2 (official LoCoMo-Plus prompts), longmemeval "
             "(anscheck templates by type), omnimemeval (official OmniMemEval LoCoMo judge), "
+            "mem0-official (Mem0 paper J-score judge, CORRECT/WRONG, generous on same-topic "
+            "answers; vendored text, cannot grade cat-5 abstention), "
             "rubric-guarded (rubric plus relative-date and hedged-answer rules)"
         ),
     )

@@ -163,7 +163,7 @@ def build(args) -> None:
     run_dir = Path(args.run)
     run_id = run_dir.name.removesuffix("--memspine")
 
-    ds = LoCoMoDataset(args.data, revision_id="auto", categories=(1, 2, 3, 4))
+    ds = LoCoMoDataset(args.data, revision_id="auto", categories=(1, 2, 3, 4, 5))  # cat 5 is reported apart (A13)
     turn_info: dict[tuple[str, str], dict] = {}
     gold_by_q: dict[tuple[str, str], list[str]] = {}
     for item in ds.items():
@@ -320,16 +320,53 @@ def build(args) -> None:
     (out / "run_summary.json").write_text(json.dumps(summary, indent=1), encoding="utf-8")
     write_markdown(out, rows, args.only_wrong_md)
     write_gap_md(out, summary)
-    print(f"{run_id}: {len(rows)} questions, accuracy {summary['accuracy']:.1%}, stage log={summary['has_stage_log']} -> {out}")
+    print(f"{run_id}: {summary['n_questions']} questions (+{summary['n_adversarial']} adversarial), accuracy {summary['accuracy']:.1%}, stage log={summary['has_stage_log']} -> {out}")
+
+
+#: A12: the non-adversarial LoCoMo question set (categories 1-4) every headline is over.
+QA_SET_SIZE = 1540
+ADVERSARIAL = "adversarial"
+
+
+def adversarial_block(adv: list[dict]) -> dict | None:
+    """A13: the cat-5 (abstention) rows, apart from the headline. Accuracy is the judge's
+    verdict on whether the answer abstained; a retrieval-only run has no answer to judge, so
+    its accuracy is None (cat 5 has no gold evidence to retrieve)."""
+    if not adv:
+        return None
+    qa = adv[0]["mode"] == "qa"
+    return {
+        "label": ADVERSARIAL,
+        "n": len(adv),
+        "accuracy": (sum(r["correct"] for r in adv) / len(adv)) if qa else None,
+        "note": "LoCoMo category 5 (unanswerable; graded as abstention); excluded from the "
+        f"{QA_SET_SIZE}-question headline",
+    }
+
+
+def recall_at_10_hits(rows: list[dict]) -> dict | None:
+    """A12: share of questions whose gold turns are all in the engine's final top-10 search
+    hits, before neighbour expansion (the stage log's ``final`` list). None without a stage log."""
+    staged = [r for r in rows if r["has_stage_log"] and r["gold_turns"]]
+    if not staged:
+        return None
+    ok = sum(
+        all(g["ranks"]["final"] is not None and g["ranks"]["final"] <= 10 for g in r["gold_turns"])
+        for r in staged
+    )
+    return {"n": len(staged), "value": ok / len(staged)}
 
 
 def summarise(run_id: str, rows: list[dict], manifest: dict, ingest: list[dict], turn_info: dict) -> dict:
+    all_rows = rows
+    rows = [r for r in all_rows if r["category"] != ADVERSARIAL]  # headline: categories 1-4 only
+    adv = [r for r in all_rows if r["category"] == ADVERSARIAL]
     sysconf = ((manifest.get("system") or {}).get("config") or {})
     cfg = sysconf.get("config") or {}
     reader = (manifest.get("reader") or {})
     judge = (manifest.get("judge") or {})
     s: dict = {"schema_version": "forensic_run/v1", "run_id": run_id,
-               "mode": rows[0]["mode"] if rows else "qa", "has_stage_log": any(r["has_stage_log"] for r in rows),
+               "mode": (rows or all_rows)[0]["mode"] if all_rows else "qa", "has_stage_log": any(r["has_stage_log"] for r in rows),
                "generated_at": datetime.now(UTC).isoformat(timespec="seconds"), "config": cfg or None,
                "models": {"embedder": (cfg.get("embedding") or {}).get("model", "BAAI/bge-small-en-v1.5 (default)"),
                           "reranker": (cfg.get("read") or {}).get("rerank_model") or (cfg.get("read") or {}).get("rerank", "off"),
@@ -337,6 +374,14 @@ def summarise(run_id: str, rows: list[dict], manifest: dict, ingest: list[dict],
                           "judge": judge.get("model") or judge.get("judge_id")},
                "wall_clock_s": None, "n_questions": len(rows),
                "accuracy": (sum(r["correct"] for r in rows) / len(rows)) if rows else 0.0}
+    s["n_adversarial"] = len(adv)
+    s["adversarial"] = adversarial_block(adv)
+    s["recall_at_10_hits"] = recall_at_10_hits(rows)
+    s["sufficiency_on_qa_set"] = (
+        {"n": len(rows), "value": sum(r["correct"] for r in rows) / len(rows),
+         "complete_qa_set": len(rows) == QA_SET_SIZE}
+        if s["mode"] == "retrieval" and rows else None
+    )
     s["by_category"] = {c: {"n": len(sub), "accuracy": sum(r["correct"] for r in sub) / len(sub)}
                         for c in CATS if (sub := [r for r in rows if r["category"] == c])}
     s["outcome_classes"] = dict(Counter(r["outcome_class"] for r in rows))
@@ -448,6 +493,15 @@ def write_gap_md(out: Path, s: dict) -> None:
          f"{s['n_questions']} questions, accuracy {pc(s['accuracy'])}", f"- models: {s['models']}\n",
          "| Category | n | accuracy |", "|---|---|---|"]
     L += [f"| {c} | {v['n']} | {pc(v['accuracy'])} |" for c, v in s["by_category"].items()]
+    adv = s.get("adversarial")
+    if adv:
+        L += [f"\n- adversarial (cat 5, apart from the headline): n={adv['n']}, accuracy {pc(adv['accuracy'])}"]
+    if s.get("sufficiency_on_qa_set"):
+        suff = s["sufficiency_on_qa_set"]
+        L += [f"- sufficiency on the QA set: {pc(suff['value'])} (n={suff['n']})"]
+    if s.get("recall_at_10_hits"):
+        r10 = s["recall_at_10_hits"]
+        L += [f"- recall@10 (all gold in final top-10 hits): {pc(r10['value'])} (n={r10['n']})"]
     L += ["\n## Outcome classes", *[f"- {k}: {v}" for k, v in s["outcome_classes"].items()],
           "\n## Primary gap (wrong questions)", *[f"- {k}: {v}" for k, v in s["primary_gaps"].items()]]
     if s["funnel"]:

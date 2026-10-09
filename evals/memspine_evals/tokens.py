@@ -12,7 +12,7 @@ and reproducible; a heuristic counter whose identity is lost is not.
 from __future__ import annotations
 
 import logging
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from typing import Any, Protocol, runtime_checkable
 
 log = logging.getLogger(__name__)
@@ -162,20 +162,16 @@ def load_reader_tokenizer_counter(tokenizer_id: str | None = None) -> HFTokenCou
     return counter
 
 
-def truncate_by_rank(
+def _fit_units(
     text: str,
     evidence: Sequence[Any],
     budget_tokens: int,
     counter: TokenCounter,
+    drop_order: Callable[[list[Any]], list[int]],
 ) -> tuple[str, int, bool, tuple[Any, ...]] | None:
-    """D1 [HAR-1]: fit ``text`` into ``budget_tokens`` by dropping whole evidence lines,
-    lowest score first, instead of cutting the tail of the (chronological) text.
-
-    ``evidence`` rows carry ``meta["span"] = (start, end)`` into ``text`` and a ``score``
-    (higher = ranked better). Returns ``(text, tokens, truncated, kept_evidence)`` with the
-    kept lines in their original order, joined by newlines and their spans recomputed; None
-    when the evidence has no usable spans (the caller falls back to the tail cut).
-    """
+    """Shared body of the ranked truncations: drop whole evidence lines in ``drop_order``
+    (a function of the position-sorted rows returning indices, first = drop first) until
+    the text fits. None when the evidence has no usable spans."""
     if budget_tokens <= 0:
         raise ValueError("budget_tokens must be positive")
     tokens = counter.count(text)
@@ -192,14 +188,14 @@ def truncate_by_rank(
     units.sort(key=lambda u: u[0])
     # a leading/trailing part of the text outside every span is not rank-droppable; keep it
     pieces = [(text[a:b], row) for a, b, row in units]
-    order = sorted(range(len(pieces)), key=lambda i: (getattr(pieces[i][1], "score", 0.0), -i))
+    order = drop_order([row for _, row in pieces])
     dropped: set[int] = set()
 
     def render() -> str:
         return "\n".join(p for i, (p, _) in enumerate(pieces) if i not in dropped)
 
     current = render()
-    for i in order:  # lowest score first; ties drop the later line first
+    for i in order:
         if counter.count(current) <= budget_tokens:
             break
         dropped.add(i)
@@ -220,3 +216,70 @@ def truncate_by_rank(
             kept.append(replace(row, meta=meta))
         offset = end + 1
     return current, counter.count(current), True, tuple(kept)
+
+
+def truncate_by_rank(
+    text: str,
+    evidence: Sequence[Any],
+    budget_tokens: int,
+    counter: TokenCounter,
+) -> tuple[str, int, bool, tuple[Any, ...]] | None:
+    """D1 [HAR-1]: fit ``text`` into ``budget_tokens`` by dropping whole evidence lines,
+    lowest score first, instead of cutting the tail of the (chronological) text.
+
+    ``evidence`` rows carry ``meta["span"] = (start, end)`` into ``text`` and a ``score``
+    (higher = ranked better). Returns ``(text, tokens, truncated, kept_evidence)`` with the
+    kept lines in their original order, joined by newlines and their spans recomputed; None
+    when the evidence has no usable spans (the caller falls back to the tail cut).
+    """
+
+    def order(rows: list[Any]) -> list[int]:
+        # lowest score first; ties drop the later line first
+        return sorted(range(len(rows)), key=lambda i: (getattr(rows[i], "score", 0.0), -i))
+
+    return _fit_units(text, evidence, budget_tokens, counter, order)
+
+
+def hit_drop_order(rows: Sequence[Any]) -> list[int] | None:
+    """D1: the order to drop context lines of a replay-mode (chronological) context.
+
+    ``rows`` are position-sorted evidence whose ``meta["hit_rank"]`` is the 1-based rank of
+    a final search hit, or None for a neighbour line. Neighbours go first: each belongs to
+    its nearest hit (ties: the worse-ranked one), and those of the lowest-ranked hit are
+    dropped first, farther lines before nearer ones. Then the hits, lowest rank first.
+    None when no row is a hit (nothing to rank by).
+    """
+    ranks = [(getattr(r, "meta", None) or {}).get("hit_rank") for r in rows]
+    hit_pos = [i for i, rk in enumerate(ranks) if rk is not None]
+    if not hit_pos:
+        return None
+    neighbours = []
+    for i, rk in enumerate(ranks):
+        if rk is not None:
+            continue
+        dist, neg_rank = min((abs(i - j), -ranks[j]) for j in hit_pos)
+        neighbours.append((-neg_rank, dist, i))  # (parent rank, distance, position)
+    neighbours.sort(reverse=True)  # worst parent, farthest, later line first
+    hits = sorted(hit_pos, key=lambda i: (-ranks[i], -i))
+    return [n[2] for n in neighbours] + hits
+
+
+def truncate_by_hit_rank(
+    text: str,
+    evidence: Sequence[Any],
+    budget_tokens: int,
+    counter: TokenCounter,
+) -> tuple[str, int, bool, tuple[Any, ...]] | None:
+    """D1 [HAR-1], replay mode: like ``truncate_by_rank`` for a chronological context
+    whose lines are search hits (``meta["hit_rank"]``) and neighbour lines (None). Drops
+    neighbours of the lowest-ranked hits first, then the lowest-ranked hits; what remains
+    keeps its chronological order. None (tail-cut fallback) without hit ranks or spans."""
+    if not any((getattr(r, "meta", None) or {}).get("hit_rank") is not None for r in evidence):
+        return None
+    return _fit_units(
+        text,
+        evidence,
+        budget_tokens,
+        counter,
+        lambda rows: hit_drop_order(rows) or [],
+    )

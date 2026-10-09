@@ -1006,6 +1006,10 @@ class Engine:
         self._word_vectors: Any = None
         self._word_vectors_unavailable = False
         self._word_vector_cache: dict[tuple[str, str], list[float]] = {}
+        #: read.lexical_strip_names: speaker names per namespace, keyed by record count
+        self._speaker_names: dict[str, tuple[int, frozenset[str]]] = {}
+        #: read.session_leg: unit vector per (record id, content)
+        self._session_vectors: dict[tuple[str, str], list[float]] = {}
         # E4 (ADR-020): whether the vector leg runs the two-stage quantized
         # rescore (manifest-driven + vector.quantization override). Off => the
         # exact query() path, byte-identical to the pre-E4 pipeline.
@@ -2437,6 +2441,89 @@ class Engine:
             return []
         except Exception as exc:  # an enhancer, never a gate
             _log.warning("read.word_vector_leg_failed", namespace=ns, error=str(exc))
+            return []
+
+    async def _strip_speaker_names(self, ns: str, query: str) -> str:
+        """``read.lexical_strip_names``: the query without the speaker names of ``ns``
+        (the "Speaker:" prefix of its records), for the BM25 leg only. Names are cached
+        per namespace and refreshed when the record count changes. A query that would
+        be left empty, or any failure, keeps the original text."""
+        try:
+            records = await self._records(ns)
+            cached = self._speaker_names.get(ns)
+            if cached is None or cached[0] != len(records):
+                found: set[str] = set()
+                for r in records:
+                    head, sep, _ = r.content.partition(":")
+                    word = head.strip()
+                    if sep and word.isalpha() and word[:1].isupper():
+                        found.add(word.lower())
+                cached = (len(records), frozenset(found))
+                self._speaker_names[ns] = cached
+            names = cached[1]
+            if not names:
+                return query
+            kept = [
+                tok
+                for tok in query.split()
+                if re.sub(r"(?:['\u2019]s)?\W*$", "", tok.strip("\"'(")).lower() not in names
+            ]
+            if not any(re.search(r"\w", tok) for tok in kept):
+                return query
+            return " ".join(kept)
+        except Exception as exc:  # an enhancer, never a gate
+            _log.warning("read.lexical_strip_names_failed", namespace=ns, error=str(exc))
+            return query
+
+    async def _session_leg(
+        self, ns: str, query_vector: list[float], fetch_k: int
+    ) -> list[list[LegHit]]:
+        """``read.session_leg``: sessions (``group_id``) ranked by the cosine of the query
+        with the mean of their records' vectors; the best ``session_leg_per_session``
+        records (by cosine) of each of the top ``session_leg_top_sessions`` sessions form
+        the leg. Record vectors are embedded once and cached per (record, content)."""
+        read = self._config().read
+        if self._embedder is None:
+            return []
+        try:
+            records = [
+                r for r in await self._records(ns) if not r.quarantined and r.group_id is not None
+            ]
+            cache = self._session_vectors
+            missing = [r for r in records if (r.record_id, r.content) not in cache]
+            if missing:
+                if len(cache) + len(missing) > constants.MAXSIM_CACHE_MAX:
+                    cache.clear()
+                    missing = records
+                for start in range(0, len(missing), 64):
+                    chunk = missing[start : start + 64]
+                    vectors = await self._embedder.embed([r.content for r in chunk])
+                    for r, v in zip(chunk, vectors, strict=True):
+                        cache[(r.record_id, r.content)] = _unit(v)
+            q = _unit(query_vector)
+
+            def cos(v: Sequence[float]) -> float:
+                return sum(a * b for a, b in zip(q, v, strict=False))
+
+            groups: dict[str, list[tuple[float, str]]] = {}
+            sums: dict[str, list[float]] = {}
+            for r in records:
+                v = cache[(r.record_id, r.content)]
+                gid = str(r.group_id)
+                groups.setdefault(gid, []).append((cos(v), r.record_id))
+                acc = sums.setdefault(gid, [0.0] * len(v))
+                for i, x in enumerate(v):
+                    acc[i] += x
+            ranked = sorted(sums, key=lambda g: (-cos(sums[g]), g))[: read.session_leg_top_sessions]
+            hits: list[tuple[float, str]] = []
+            for gid in ranked:
+                best = sorted(groups[gid], key=lambda pair: (-pair[0], pair[1]))
+                hits += best[: read.session_leg_per_session]
+            hits.sort(key=lambda pair: -pair[0])
+            leg = NamedLeg("session", [LegHit(rid, score) for score, rid in hits[:fetch_k]])
+            return [leg] if leg else []
+        except Exception as exc:  # an enhancer, never a gate
+            _log.warning("read.session_leg_failed", namespace=ns, error=str(exc))
             return []
 
     async def _anchor_legs(
@@ -3958,7 +4045,9 @@ class Engine:
         # legs combine, can still enter the fused top_k.
         # The word-vector leg is a second fused leg like BM25, so it widens the window the
         # same way; without this, ``hybrid: false`` + word vectors cut the vector leg to top_k.
-        wide = use_hybrid or self._config().read.word_vector_leg
+        wide = (
+            use_hybrid or self._config().read.word_vector_leg or self._config().read.session_leg
+        )
         base_fetch = top_k * constants.LEXICAL_FETCH_MULTIPLIER if wide else top_k
         allowed = await self._date_allowed(ns)
         if allowed is not None:
@@ -3982,7 +4071,12 @@ class Engine:
             if use_hybrid:
                 assert self._lexical is not None  # narrowed by use_hybrid
                 try:
-                    lexical_hits = await self._lexical_leg(ns, query, fetch_k)
+                    lexical_query = (
+                        await self._strip_speaker_names(ns, query)
+                        if self._config().read.lexical_strip_names
+                        else query
+                    )
+                    lexical_hits = await self._lexical_leg(ns, lexical_query, fetch_k)
                 except Exception as exc:
                     # Defense in depth: a broken lexical leg degrades to vector-only
                     # (fusing an empty leg preserves the vector ordering), it never
@@ -4018,6 +4112,8 @@ class Engine:
                 extra_legs += await self._maxsim_leg(ns, query_vector, vector_hits, lexical_hits)
             if read_now.word_vector_leg:
                 extra_legs += await self._word_vector_leg(ns, query, fetch_k)
+            if read_now.session_leg:
+                extra_legs += await self._session_leg(ns, query_vector, fetch_k)
             extra_legs += [list(leg) for leg in fused_legs if leg]
             floors = self._config().read.leg_min_scores
             if floors:

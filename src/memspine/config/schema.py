@@ -754,6 +754,17 @@ class ReadConfig(BaseModel):
     word_vector_model: str | None = None
     #: hits the leg contributes to the fusion; None = the search's fetch size.
     word_vector_top_k: int | None = Field(default=None, ge=1)
+    #: Gap B5 (2026-10-10): drop speaker/person names (the "Speaker:" prefixes of the
+    #: namespace's records) from the BM25 query only, so a name in the question does not
+    #: make BM25 rank by the name. The vector leg is untouched; if nothing is left the
+    #: original query is used.
+    lexical_strip_names: bool = False
+    #: Gap B8 (2026-10-10): an RRF leg ("session") that ranks sessions (``group_id``) by the
+    #: cosine of the query with the mean of their record vectors, then contributes the best
+    #: ``session_leg_per_session`` records of each of the top ``session_leg_top_sessions``.
+    session_leg: bool = False
+    session_leg_top_sessions: int = Field(default=3, ge=1)
+    session_leg_per_session: int = Field(default=2, ge=1)
     #: GR-6 (Graphiti node search): an RRF leg of the records that mention the entity
     #: nodes best matching the question (cosine on embedded entity names + text match,
     #: fused). Needs ``graph.entity_embeddings`` and associative entity nodes.

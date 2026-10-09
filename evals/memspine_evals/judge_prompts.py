@@ -399,6 +399,20 @@ JUDGE_SUITES: dict[str, JudgeSuite] = {
         handles_abstention=False,
         notes="N57 vendor judge: Mem0 paper 'be generous' judge (Backboard, Hindsight harness)",
     ),
+    "mem0-official": JudgeSuite(
+        "mem0-official",
+        JudgeScale.BINARY,
+        {"default": "vendor/mem0-generous"},
+        route_constant,
+        handles_abstention=False,
+        notes=(
+            "A4: the Mem0 paper's LoCoMo J-score judge (CORRECT/WRONG, generous on same-topic "
+            "answers, one-sentence reasoning then JSON label), the ACCURACY_PROMPT text as "
+            "vendored in Backboard-io/Backboard-Locomo-Benchmark@164d45c (upstream: "
+            "mem0ai/mem0 evals/metrics/llm_judge.py; not byte-compared with upstream, so "
+            "status is vendored, not official-verbatim). Gold-turn categories 1-4 only"
+        ),
+    ),
     "mem0-unified": JudgeSuite(
         "mem0-unified",
         JudgeScale.BINARY,

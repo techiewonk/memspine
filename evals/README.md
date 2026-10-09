@@ -125,6 +125,37 @@ Always recorded, no flag:
 - **A10** `summary.json` `summary.accuracy_ci`: accuracy with a conversation-level cluster-bootstrap 95% CI (2000 resamples by item;
   failed rows count at the failure score, like the headline mean).
 
+### Measurement and harness additions (A4, A12, A13, D1, D5, E3, E4, F4)
+
+- **A4 `--judge-prompt mem0-official`**: the Mem0 paper's LoCoMo J-score judge (CORRECT/WRONG, generous on same-topic
+  answers). The text is the vendored `ACCURACY_PROMPT` from Backboard-io/Backboard-Locomo-Benchmark@164d45c (upstream
+  `mem0ai/mem0 evals/metrics/llm_judge.py`); it is not byte-compared with upstream, so it is `vendored`, not
+  `official-verbatim`. It cannot grade cat-5 abstention. To re-judge stored answers later, with no new reader calls:
+  `python -m memspine_evals.rejudge --run runs/<run-id>/results.jsonl --suites mem0-official --model <litellm-model-id>
+  --max-model-calls N` (add `--dry-run` first; `--suites` takes any registered suite, `--model` any LiteLLM model id).
+- **A12** `forensics_report.py` run summaries add `sufficiency_on_qa_set` (retrieval-only runs: share of the non-adversarial
+  questions with all gold in context, with `n` and `complete_qa_set` true at 1,540) and `recall_at_10_hits` (all gold in the
+  engine's final top-10 search hits before neighbour expansion; needs the stage log).
+- **A13** `--categories 5` runs the adversarial (abstention) questions with the default `rubric` judge (abstention-aware);
+  a judge that cannot grade a refusal refuses to start. `forensics_report.py` labels cat 5 `adversarial`, excludes it from
+  `n_questions`/`accuracy`/`by_category`, and reports `n_adversarial` and `adversarial.accuracy` apart (null for retrieval-only
+  runs). `summary.json` has `adversarial_split` (headline excluding cat 5 next to cat 5) when a run includes cat 5. The default
+  categories are unchanged.
+- **D1 replay mode**: with `--token-count reader`, an over-budget replay context (chronological, `ranked=False`) is cut by hit
+  rank, not by tail: the memspine adapter stamps `meta.hit_rank` (rank in the final search hits, None for neighbour lines) on
+  every evidence row; neighbours of the lowest-ranked hits go first, then the lowest-ranked hits, and what remains keeps its
+  chronological order. Without hit ranks it still falls back to the tail cut.
+- **D5** `summary.json` `latency`: reader and judge latency `p50`/`p95` (wall time, queueing at the server included),
+  `server_side_ms` (the server's own timing when the response carries `total_duration`/`timings`; Ollama's `/v1` endpoint does
+  not, so it is null there) and `concurrent_arms` (read from the `MEMSPINE_CONCURRENT_ARMS` environment variable; set it in
+  the launcher when arms share a server, otherwise null).
+- **E4/F4** `summary.json` `ingest_timing`: ingest wall seconds (deposits, flushes, build) and turns per second, per item and
+  overall. `manifest.runtime.gpu.start` and, in `summary.json`, `.end` (plus `gpu_memory`) hold GPU memory used/total in MiB
+  from `nvidia-smi` (3 s timeout; null when unavailable, never fails a run).
+- **E3** `evals/ollama_env.ps1` sets `OLLAMA_FLASH_ATTENTION=1`, `OLLAMA_KV_CACHE_TYPE=q8_0`, `OLLAMA_CONTEXT_LENGTH=8192`,
+  `OLLAMA_NUM_PARALLEL=2`, `OLLAMA_KEEP_ALIVE=-1` as user environment variables and restarts Ollama (`-NoRestart` to only set
+  them). It interrupts any run using Ollama; do not run it mid-benchmark.
+
 ## Run it
 
 ```bash

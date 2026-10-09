@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from .contracts import ReaderAnswer
+from .timing import extract_server_timing
 from .tokens import HeuristicTokenCounter, TokenCounter
 from .vendor_judges import EVERMEMOS_COT_QA_PROMPT
 
@@ -672,6 +673,10 @@ class OpenAICompatReader:
             truncated=finish == "length",
             finish_reason=finish,
             prompt_variant=prompt_variant(self.prompt, question),
+            # D5: server-side timings, when the endpoint returns them (Ollama's /v1 does not)
+            extra_meta=(
+                {"server_timing": timing} if (timing := extract_server_timing(body)) else {}
+            ),
         )
 
 
@@ -727,6 +732,8 @@ def openai_compat_chat(
         )
         response.raise_for_status()
         body = response.json()
+        if (timing := extract_server_timing(body)) is not None:
+            chat.server_timings.append(timing)  # type: ignore[attr-defined]
         if guard is not None:
             usage = body.get("usage") or {}
             guard.check(
@@ -743,4 +750,5 @@ def openai_compat_chat(
         "sampler": sampler.describe(),
     }
     chat.guard = guard  # type: ignore[attr-defined]
+    chat.server_timings = []  # type: ignore[attr-defined]  # D5: per-call server timings
     return chat

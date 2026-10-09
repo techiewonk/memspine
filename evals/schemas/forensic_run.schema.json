@@ -19,6 +19,10 @@
     "accuracy": {"type": "number"},
     "by_category": {"type": "object", "additionalProperties": {
       "type": "object", "properties": {"n": {"type": "integer"}, "accuracy": {"type": "number"}}}},
+    "n_adversarial": {"type": "integer", "description": "A13: LoCoMo cat-5 rows, excluded from n_questions and accuracy"},
+    "adversarial": {"type": ["object", "null"], "description": "A13: cat-5 (abstention) n and accuracy, reported apart from the headline; accuracy is null for retrieval-only runs"},
+    "sufficiency_on_qa_set": {"type": ["object", "null"], "description": "A12: retrieval-only runs: share of the non-adversarial questions with all gold in context"},
+    "recall_at_10_hits": {"type": ["object", "null"], "description": "A12: share of questions with all gold in the engine's final top-10 search hits before neighbour expansion (needs the stage log)"},
     "outcome_classes": {"type": "object", "additionalProperties": {"type": "integer"}},
     "primary_gaps": {"type": "object", "additionalProperties": {"type": "integer"}},
     "primary_gaps_by_category": {"type": "object"},

@@ -631,7 +631,10 @@ class MemspineSystem:
         lines: list[str] = []
         evidence: list[Evidence] = []
         offset = 0
-        hit_ranks = hit_rank_map(stages) if self._mark_hits != "off" else {}
+        # D1: the final search hits' ranks always travel with the evidence (meta["hit_rank"],
+        # None = neighbour line) so a replay-mode context can be truncated by hit rank.
+        all_hit_ranks = hit_rank_map(stages) if "final" in stages else None
+        hit_ranks = all_hit_ranks if self._mark_hits != "off" and all_hit_ranks else {}
         for rank, record in enumerate(assembled.records):
             # Dated rendering: absolute event dates next to every retrieved line
             # (the single largest temporal-question lever in the literature).
@@ -649,6 +652,11 @@ class MemspineSystem:
                     meta={
                         "memory_type": getattr(record, "memory_type", None),
                         "unit_id": record_id,
+                        **(
+                            {"hit_rank": all_hit_ranks.get(record_id)}
+                            if all_hit_ranks is not None
+                            else {}
+                        ),
                         "span": (offset, offset + len(line)),
                     },
                 )

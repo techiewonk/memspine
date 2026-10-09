@@ -67,6 +67,7 @@ JUDGE_CHOICES = (
     "locomo-plus-v2",
     "longmemeval",
     "omnimemeval",
+    "mem0-official",
 )
 
 Mode = Literal["retrieval", "qa"]

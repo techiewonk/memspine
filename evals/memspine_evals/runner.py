@@ -24,6 +24,7 @@ import random
 import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -48,6 +49,7 @@ from .screen import coverage, coverage_summary, normalise_evidence
 from .tokens import (
     HeuristicTokenCounter,
     TokenCounter,
+    truncate_by_hit_rank,
     truncate_by_rank,
     truncate_to_budget,
 )
@@ -205,6 +207,8 @@ class EvalRunner:
         #: the rows / calls it flagged
         self.guard = find_guard(reader)
         self.server_truncation: dict[str, int] = {"rows": 0, "reader": 0, "judge": 0}
+        #: E4/F4: per item, ingest wall seconds (deposits, flushes, build) and turns deposited
+        self.ingest_wall: dict[str, dict[str, float]] = {}
         self._meter, self._own_meter = self._spend_meter()
         #: screening: the call cache's counters when this arm started (per-arm deltas)
         self._cache_start = self._cache_mark()
@@ -637,6 +641,20 @@ class EvalRunner:
             # F2 [INJ-2]: records the firewall quarantined at deposit
             "n_quarantined": self.n_quarantined,
         }
+        # D5/E4/F4: reader and judge latency percentiles, ingest throughput, GPU memory
+        from .timing import gpu_memory, ingest_summary, latency_block
+
+        payload["latency"] = latency_block(
+            [row.to_dict() for row in rows],
+            self._judge_server_timings(),
+        )
+        payload["adversarial_split"] = _adversarial_split(rows, summary.score_scale)
+        payload["ingest_timing"] = ingest_summary(self.ingest_wall)
+        runtime_gpu = (payload["manifest"].get("runtime") or {}).get("gpu")
+        if isinstance(runtime_gpu, dict):
+            runtime_gpu["end"] = gpu_memory()
+            runtime_gpu["end_at"] = datetime.now(UTC).isoformat(timespec="seconds")
+            payload["gpu_memory"] = dict(runtime_gpu)
         if self.guard is not None:
             # D2 [HAR-3]: rows / calls where prompt + completion tokens reached the server window
             payload["server_truncation_suspected"] = {
@@ -662,6 +680,18 @@ class EvalRunner:
         self.summary_path.write_text(
             json.dumps(payload, indent=2, ensure_ascii=False, default=str), encoding="utf-8"
         )
+
+    def _judge_server_timings(self) -> list[Any]:
+        """Server timings the judge's chat callable collected (through any wrappers)."""
+        judge: Any = self.judge
+        for _ in range(4):
+            chat = getattr(judge, "_chat", None)
+            if chat is not None:
+                return list(getattr(chat, "server_timings", None) or ())
+            judge = getattr(judge, "_inner", None)
+            if judge is None:
+                break
+        return []
 
     def _capped_queries(self, item: EvalItem) -> list[Query]:
         queries = list(item.queries)
@@ -743,7 +773,13 @@ class EvalRunner:
             f"{self.system.system_id}.insert", lambda: self.system.insert(turn)
         )
         latency = (time.perf_counter() - started) * 1000
+        self._note_ingest(item_id, latency, turns=1)
         self._record_deposit(item_id, t, turn, deposit, latency, tracer, self._cache_since(mark))
+
+    def _note_ingest(self, item_id: str, latency_ms: float, turns: int = 0) -> None:
+        rec = self.ingest_wall.setdefault(item_id, {"turns": 0, "wall_s": 0.0})
+        rec["turns"] += turns
+        rec["wall_s"] += latency_ms / 1000
 
     async def _flush(self, item_id: str, t: int, turn: Turn, tracer: TraceWriter) -> None:
         """Optional adapter hook (G9): write turns the system has buffered. Its
@@ -758,6 +794,7 @@ class EvalRunner:
         if not deposit.n_records and not deposit.model_calls and not deposit.meta:
             return  # nothing was buffered
         latency = (time.perf_counter() - started) * 1000
+        self._note_ingest(item_id, latency)
         self._record_deposit(item_id, t, turn, deposit, latency, tracer, self._cache_since(mark))
 
     def _record_deposit(
@@ -819,6 +856,7 @@ class EvalRunner:
         mark = self._cache_mark()
         result = await self._guard_auth(f"{self.system.system_id}.build", build)
         cached = self._cache_since(mark)
+        self._note_ingest(item_id, (time.perf_counter() - started) * 1000)
         served = self._served(cached)
         calls = max(result.model_calls - served, 0)
         self._charge_engine(Stage.SYNTHESISE, result.meta, served)
@@ -862,18 +900,17 @@ class EvalRunner:
             # The protocol owns the budget, not the system: truncate here even
             # when the system says it already did.
             engine_tokens = context.tokens
-            by_rank = (
-                self.config.token_count == "reader"
-                and bool(context.meta.get("ranked", True))
-                and bool(context.evidence)
-            )
-            ranked_cut = (
-                truncate_by_rank(
+            by_rank = self.config.token_count == "reader" and bool(context.evidence)
+            ranked_cut = None
+            if by_rank and bool(context.meta.get("ranked", True)):
+                ranked_cut = truncate_by_rank(
                     context.text, context.evidence, protocol.budget_tokens, self.counter
                 )
-                if by_rank
-                else None
-            )
+            elif by_rank:
+                # replay mode: chronological order, so rank by the final search hits
+                ranked_cut = truncate_by_hit_rank(
+                    context.text, context.evidence, protocol.budget_tokens, self.counter
+                )
             if ranked_cut is not None:
                 # D1 [HAR-1]: whole lowest-ranked lines go, not the tail of the text.
                 text, tokens, truncated, kept = ranked_cut
@@ -1090,6 +1127,35 @@ class EvalRunner:
                 status=RowStatus.ERROR.value,
                 error=f"{type(exc).__name__}: {exc}",
             )
+
+
+def _adversarial_split(rows: Sequence[ResultRow], scale: str) -> dict[str, Any] | None:
+    """A13: LoCoMo cat 5 (abstention) apart from the headline. None when the run has no cat-5
+    rows; otherwise the mean over the other rows next to the cat-5 mean. Failed rows count at
+    0, like the headline."""
+    from .judge import JudgeScale, to_unit_interval
+
+    adv = [r for r in rows if r.type_label == "cat5" and r.status != RowStatus.UNATTEMPTED.value]
+    if not adv:
+        return None
+    unit = JudgeScale(scale)
+
+    def mean(group: Sequence[ResultRow]) -> float | None:
+        vals = [
+            to_unit_interval(r.score, unit) if r.scored and r.error is None else 0.0 for r in group
+        ]
+        return round(sum(vals) / len(vals), 4) if vals else None
+
+    rest = [r for r in rows if r.type_label != "cat5" and r.status != RowStatus.UNATTEMPTED.value]
+    return {
+        "headline_excluding_adversarial": {"n": len(rest), "accuracy": mean(rest)},
+        "adversarial": {
+            "label": "adversarial",
+            "n": len(adv),
+            # a retrieval-only run has no answer to grade as an abstention
+            "accuracy": None if any(r.meta.get("retrieval_only") for r in adv) else mean(adv),
+        },
+    }
 
 
 async def run_matrix(

@@ -202,6 +202,13 @@ def capture_runtime(
     }
     if base_url:
         runtime["ollama"] = _probe_ollama(base_url)
+    from .timing import gpu_memory
+
+    # F4: GPU memory at run start (the run's end reading goes in summary.json)
+    runtime["gpu"] = {
+        "start": gpu_memory(),
+        "start_at": datetime.now(UTC).isoformat(timespec="seconds"),
+    }
     return runtime
 
 
