@@ -9,7 +9,7 @@ Priority: P0 = blocks trustworthy numbers, P1 = next, P2/P3 = later. Status: ope
 
 | ID | Gap | Evidence | Solution options | Pri | Status |
 |---|---|---|---|---|---|
-| A1 | Reader and judge are the same 9B model | both fail on weekday arithmetic and long lists; judge flips on identical answers (E EVAL-1, D 4.4) | re-judge stored answers with a stronger independent judge (local Qwen3-32B, or Bedrock Qwen3-32B < $0.10/run via `rejudge.py`); hand-label 150 rows and report judge accuracy + kappa; report both judges | P0 | open |
+| A1 | Reader and judge are the same 9B model | both fail on weekday arithmetic and long lists; judge flips on identical answers (E EVAL-1, D 4.4) | re-judge stored answers with a stronger independent judge (local Qwen3-32B, or Bedrock Qwen3-32B < $0.10/run via `rejudge.py`); hand-label 150 rows and report judge accuracy + kappa; report both judges | P0 | **deferred by user (2026-10-10): do after all fixes** |
 | A2 | Judge false negatives | 24-50 questions (1.6-3.2 pts); rejects 7 of 20 exact resolved dates vs "the Friday before X" gold (D 4.1) | deterministic pre-judge: weekday/week-before date equivalence, containment, fuzzy names (12-17 q); second judge on disputed rows (14-20 q); few-shot date examples (3-6 q, weak alone) | P0 | open |
 | A3 | Judge false positives | est. 45-60 partial lists credited, mostly multi-hop; truncated/refusal answers were credited earlier (D 4.2, E EVAL-7) | per-item list recall column; one scoring function where empty/truncated = miss; second judge | P0 | open |
 | A4 | Home-made judge prompt, tuned on test data; published comparison invalid | rubric/rubric-guarded written by us on LoCoMo failures (E EVAL-2) | run the official Mem0 J-score prompt verbatim with a strong judge and publish that as the comparable number; freeze judge prompts; "different judge, unreproduced" column for published numbers | P0 | open |
@@ -104,7 +104,7 @@ Measured on the fixed run: 148 read failures, of which ~48 are not reader errors
 
 | ID | Gap | Evidence | Solution options | Pri | Status |
 |---|---|---|---|---|---|
-| G1 | No lock file, unbounded extras | `uv.lock` gitignored; huggingface-hub 2.x broke transformers; CUDA torch / bitsandbytes not in default env (E ENV-1) | commit an evals lock; pin `huggingface-hub<2`; `just evals-setup` with the cu128 index; `pip freeze` per run | P1 | **recipe implemented** (`just evals-setup`, cu128 torch, `huggingface-hub<2`); lock-file decision pending (recommendation: commit `uv.lock`) |
+| G1 | No lock file, unbounded extras | `uv.lock` gitignored; huggingface-hub 2.x broke transformers; CUDA torch / bitsandbytes not in default env (E ENV-1) | commit an evals lock; pin `huggingface-hub<2`; `just evals-setup` with the cu128 index; `pip freeze` per run | P1 | **done** - `uv.lock` committed on `feat/locomo-infra` (257 packages, huggingface-hub 1.16.1); lock uses standard PyPI torch, GPU machines add CUDA torch with `just evals-setup` |
 | G2 | `evals/datasets` shadows HF `datasets` | broke LanceDB; only `_launch.py` protected (E ENV-2) | rename to `evals/legacy_datasets`; test that `datasets.__file__` is not under evals/ | P1 | **implemented** (renamed to `evals/legacy_datasets`, test added) (branch `feat/locomo-infra`, tests pass; merge pending) |
 | G3 | `env -u` silently does nothing in Git Bash | still in 6 scripts (E ENV-3) | replace with `unset`; post-run non-empty-log check | P1 | **implemented** (`unset` in the 6 scripts, marked superseded by run.sh) (branch `feat/locomo-infra`, tests pass; merge pending) |
 | G4 | CRLF/LF churn | 985 files LF in index, CRLF in tree, no `.gitattributes` (E ENV-4) | `.gitattributes` (`* text=auto eol=lf`, `*.sh eol=lf`) + one renormalise commit | P2 | **`.gitattributes` added**; one-time renormalise commit still pending |
@@ -125,7 +125,7 @@ Measured on the fixed run: 148 read failures, of which ~48 are not reader errors
 
 **2026-10-10 (infra merge-ready)**
 - Implemented and committed on `feat/locomo-infra` (all tests pass): A8, A10, B11, D1 (partial), D2, D3, D4, D6, D7, F2, F3, G1, G2, G3, G4 (renormalise pending), H1 (CI not yet run), H2.
-- Open decisions: A1 second judge; G1 commit `uv.lock` (recommended yes).
+- Decisions: A1 second judge deferred until all fixes are done; G1 `uv.lock` committed.
 - Next: merge `feat/locomo-fixes` + `feat/locomo-infra` (H3); D1 for replay mode; reader fixes C1/C2/C5.
 
 **2026-10-10 (later)**
