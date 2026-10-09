@@ -61,7 +61,7 @@ Measured on the fixed run: 148 read failures, of which ~48 are not reader errors
 | C2 | Vague / wrong detail | 16 q (D) | answer-style clause "one sentence with the specific detail" 4-7 q; quote-then-answer 3-6 q | P1 | **implemented** - prompt `grounded_detail` (marker legend, one sentence with the specific detail, list every matching item); screen pending |
 | C3 | Open-domain world knowledge | 12 q (D) | world-knowledge clause in prompt 3-6 q; bigger reader (27-32B) 4-8 q | P2 | open |
 | C4 | Open-domain hypothetical ("would X...") | 11 q (D) | route to an inference prompt committing to yes/no/likely with the supporting line 3-5 q; second-stage retry with a different instruction 3-6 q | P2 | open |
-| C5 | Duration / elapsed-time arithmetic | 13 q (D) | duration annotator in `temporal_resolve` ("for N years" -> `[= since YYYY]`) 3-4 q; elapsed helper: extract two anchors, code subtracts 4-6 q | P1 | open |
+| C5 | Duration / elapsed-time arithmetic | 13 q (D) | duration annotator in `temporal_resolve` ("for N years" -> `[= since YYYY]`) 3-4 q; elapsed helper: extract two anchors, code subtracts 4-6 q | P1 | **duration annotator implemented** (`read.resolve_durations`, 24 tests; "for 3 years" -> [= since about 2020]); elapsed-between-two-events helper not done; screen running |
 | C6 | List / count incomplete | 10 q (D) | list/count clause for list-shaped questions 3-5 q; event dedup in context 1-3 q; structured fact memory with set semantics 4-6 q | P2 | **partly addressed** by `grounded_detail` list clause; screen pending |
 | C7 | Image caption ignored | 8 q (D) | prompt line on `[image: ...]` + render as its own "Photo:" sentence 3-5 q | P2 | open |
 | C8 | Refusal / multi-hop link / date anchoring / conflict | 12 q (D) | implicit-date rule (line date = event date for past-tense "when") 2-4 q; coreference via previous 2 lines | P3 | open |
@@ -118,6 +118,10 @@ Measured on the fixed run: 148 read failures, of which ~48 are not reader errors
 | H3 | Two diverged trees, duplicated runs, 20-25 one-off scripts | `memspine` vs `memspine-fixes` (132 files, 18.8k lines) (E PROC-3) | merge behind opt-in flags; one `evals/runs` + generated `runs/INDEX.md`; tag each campaign commit | P1 | **done** - `feat/locomo-fixes` and `feat/locomo-infra` merged into `feat/local-qwen-stack` (df8421f), no conflicts, engine unit suite and harness tests pass; worktrees removed, all run outputs kept in `evals/runs` |
 
 ## Progress log
+
+**2026-10-10 03:10**
+- C1, C2, C5 implemented and committed (all tests pass). Screen running on 2 dev conversations with the fixed reranker,
+  reference re-run under the new sampler defaults: R0 reference, R1 C1+C2, R2 C5, R3 all.
 
 **2026-10-10 02:45**
 - H3 done: one code line (`feat/local-qwen-stack`), all tests pass; infra features verified on a live 2-question run.
