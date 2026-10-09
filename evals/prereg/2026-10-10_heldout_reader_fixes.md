@@ -15,3 +15,5 @@ Written before any held-out result is seen (gap A6 / EVAL-4).
   excluding the errata in `analysis/locomo_errata.json` (held-out entries only).
 - Decision rule: adopt R3 as the default reader set only if paired net >= +10 questions (about +1 point) on held-out;
   otherwise keep R0. No further tuning on held-out conversations after this run.
+
+**Status 2026-10-10 03:50:** the held-out run was stopped after about 2 minutes at the user's request (fix remaining gaps first). Partial outputs (part of conv-43) were deleted unread; the held-out set remains unused.
