@@ -58,3 +58,17 @@ LLM: Ollama, thinking off, Q4_K_M.
 
 Reading: batching the GPU embedders is 80-90x cheaper per token than one text at a time, so runs should use
 `--memspine-batch-turns 32`. Jina reranker v3.5 is the fastest reranker and Qwen3-Reranker-4B 4-bit the slowest.
+
+## Qwen3.5-9B Q4_K_M: thinking off vs on (LoCoMo conversation 1, categories 1-4, 152 questions)
+Reader and judge both Qwen3.5-9B via Ollama; only the reader thinks. Retrieval: Qwen3-Embedding-0.6B, no
+reranker, batched writes. Thinking off sends `reasoning_effort: none` (the `/no_think` switch does not work on
+Qwen3.5). Thinking on allows 4,096 completion tokens.
+
+| Setting | Headline accuracy | Answered | Truncated | Tokens/answer | Answer latency | Run time |
+|---|---|---|---|---|---|---|
+| thinking off | 0.730 | 152 | 0 | 45 | 1.2 s | 320 s |
+| thinking on | 0.592 | 103 | 49 | 1,017 | 8.9 s | 1,834 s |
+
+On the 103 questions both settings answered, accuracy is identical: **0.806 vs 0.806** (think-on wins 5,
+loses 5). The 49 truncated answers hit the token limit; think-off scores 0.571 on those same questions.
+Thinking costs 5.7x the run time and 22x the tokens for no measured gain, so keep it off for this task.
