@@ -2,3 +2,12 @@ qa-q35-think-off secs=320
 qa-q35-think-on secs=1834
 QA DONE
 qs-ejina-roff-bt32 rc=0 secs=662
+qs-ejina-rjina-bt32 rc=0 secs=754
+qs-eq06-rjina-bt32 rc=0 secs=796
+qs-ebge-rjina-bt32 rc=0 secs=1088
+qs-ejina-rq4b4-bt32 rc=0 secs=1359
+qs-ejina-rq06-bt32 rc=0 secs=1055
+qs-ebgeb-roff-bt32 rc=0 secs=2707
+qs-ebgeb-rjina-bt32 rc=0 secs=2812
+RETRIEVAL DONE
+STAGE2 DONE

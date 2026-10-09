@@ -97,3 +97,45 @@ large `runs/` folder is gitignored. "bt32" = batched writes (`--memspine-batch-t
 | Jina v5 text-small (bt32) | Jina reranker v3.5 | running | | |
 | Qwen3-Embedding (bt32) / bge-small (bt32) | Jina reranker v3.5 | running / queued | | |
 | bge-base | various | queued last | | |
+
+## FINAL - complete retrieval grid (16 arms, full LoCoMo, 1,986 questions, retrieval-only)
+Time marked * used batched writes (`--memspine-batch-turns 32`); unbatched runs are about 2x slower.
+
+| Embedder | Reranker | Sufficiency | Ctx tokens | Time |
+|---|---|---|---|---|
+| bge-small | none | 0.594 | 1508 | 22 min |
+| bge-small | bge-reranker-base | 0.579 | 971 | 30 min |
+| bge-small | Qwen3-Reranker-0.6B | 0.573 | 789 | 30 min |
+| bge-small | Qwen3-Reranker-4B 4-bit | 0.575 | 695 | 55 min |
+| bge-small | Jina reranker v3.5 | 0.577 | 649 | 18 min* |
+| bge-base | none | 0.592 | 1523 | 45 min* |
+| bge-base | Jina reranker v3.5 | 0.579 | 651 | 47 min* |
+| Qwen3-Embedding-0.6B | none | **0.615** | 1567 | 22 min |
+| Qwen3-Embedding-0.6B | bge-reranker-base | 0.602 | 1001 | 29 min |
+| Qwen3-Embedding-0.6B | Qwen3-Reranker-0.6B | 0.593 | 871 | 28 min |
+| Qwen3-Embedding-0.6B | Qwen3-Reranker-4B 4-bit | 0.597 | 774 | 55 min |
+| Qwen3-Embedding-0.6B | Jina reranker v3.5 | 0.597 | 673 | 13 min* |
+| Jina v5 text-small | none | 0.610 | 1517 | 11 min* |
+| Jina v5 text-small | Qwen3-Reranker-0.6B | 0.586 | 838 | 18 min* |
+| Jina v5 text-small | Qwen3-Reranker-4B 4-bit | 0.589 | 741 | 23 min* |
+| Jina v5 text-small | Jina reranker v3.5 | 0.590 | 654 | 13 min* |
+
+## FINAL - full LoCoMo QA in the published format (1,540 questions, categories 1-4)
+Qwen3.5-9B Q4_K_M as reader and judge, thinking off, batched writes. Unanswered or truncated = miss. The judge
+is a local 9B model, so these are NOT directly comparable with the GPT-4-class-judged published numbers below;
+context tokens per question are comparable. Table also in `results_qwen_stack/SOTA_FORMAT_TABLE.md`.
+
+| System | Single-hop | Multi-hop | Temporal | Open-domain | **Overall** | Ctx tok/q | Answer p50 / p95 | Answered | Run time |
+|---|---|---|---|---|---|---|---|---|---|
+| bge-small, no reranker | 86.1 | 50.0 | 67.0 | 29.2 | **71.9** | 1,513 | 1.0 s / 1.8 s | 1,535 / 1,540 | 58 min |
+| Qwen3-Embedding-0.6B, no reranker | 87.2 | 56.0 | 70.4 | 29.2 | **74.4** | 1,571 | 1.0 s / 1.9 s | 1,536 / 1,540 | 54 min |
+| Jina v5 + Jina reranker v3.5 | 85.9 | 51.8 | 64.2 | 19.8 | **71.0** | 655 | 0.8 s / 1.6 s | 1,538 / 1,540 | 48 min |
+
+Published (LoCoMo LLM-judge, overall; not re-run): Mem0 vendor 92.5 (~6,956 tok), Mnemon 91.7 (3.8k), MemOS 88.83
+(5.4k), Cognee 83.48, EverMemOS 82.75, Hindsight 81.99 (24.7k), Mem0 OSS 77.68 (17.4k), Letta 77.12, Zep 63.83 (1.9k),
+A-Mem 61.4. Sources: `scraped_mem0_benchmark_2026.md`, `SOTA_SYSTEMS_UPDATE_2026-10-02.md` in memory-research.
+
+Findings: (1) Qwen3-Embedding-0.6B is the best embedder on both retrieval (0.615) and QA (74.4), +2.5 QA points over
+bge-small. (2) Every reranker trades 1-2 sufficiency points (and 3.4 QA points for Jina v5 + Jina reranker) for 40-60%
+less context. (3) Thinking mode does not help Qwen3.5-9B here. (4) Batching halves wall-clock. (5) Weakest category is
+open-domain (20-29). Caveats: single run per arm, no confidence intervals, local 9B judge that can credit empty answers.
