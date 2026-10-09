@@ -397,6 +397,20 @@ class ScriptedReader:
         )
 
 
+def thinking_off(model: str) -> dict[str, Any]:
+    """Request body fields that switch reasoning off for models that think by default.
+
+    Qwen3.5 dropped the ``/no_think`` soft switch (appending it leaves the answer empty
+    while the model keeps reasoning); an OpenAI-compatible endpoint turns thinking off
+    with ``reasoning_effort: "none"`` (verified on Ollama /v1, 2026-10-09). Qwen3 (no
+    ``.5``) keeps its own switch and is untouched.
+    """
+    name = model.lower()
+    if "qwen3.5" in name or "qwen3.6" in name:
+        return {"reasoning_effort": "none"}
+    return {}
+
+
 class OpenAICompatReader:
     """Any OpenAI-compatible ``/v1/chat/completions`` endpoint.
 
@@ -457,6 +471,7 @@ class OpenAICompatReader:
             "model": self.model,
             "temperature": self.temperature,
             "max_tokens": self.max_tokens,
+            **thinking_off(self.model),
             "messages": [
                 {
                     "role": "user",
@@ -513,6 +528,7 @@ def openai_compat_chat(
                 json={
                     "model": model,
                     "temperature": temperature,
+                    **thinking_off(model),
                     "messages": messages,
                 },
                 headers={"Authorization": f"Bearer {api_key}"},
