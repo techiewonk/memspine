@@ -57,12 +57,12 @@ Measured on the fixed run: 148 read failures, of which ~48 are not reader errors
 
 | ID | Gap | Evidence | Solution options | Pri | Status |
 |---|---|---|---|---|---|
-| C1 | Wrong line chosen (distractor) | 18 q; gold line is in the final top 5 in 89% of read failures (D) | mark/order retrieval hits (hits first or `*`, neighbours after) 4-7 q; per-shape window (2/4 only for temporal/multi-turn) 3-5 q; answer verification pass (`--verify-answer`) 3-5 q | P1 | open |
-| C2 | Vague / wrong detail | 16 q (D) | answer-style clause "one sentence with the specific detail" 4-7 q; quote-then-answer 3-6 q | P1 | open |
+| C1 | Wrong line chosen (distractor) | 18 q; gold line is in the final top 5 in 89% of read failures (D) | mark/order retrieval hits (hits first or `*`, neighbours after) 4-7 q; per-shape window (2/4 only for temporal/multi-turn) 3-5 q; answer verification pass (`--verify-answer`) 3-5 q | P1 | **implemented** - `--memspine-mark-hits star|rank` (hit lines marked, neighbours unmarked, order unchanged); screen pending |
+| C2 | Vague / wrong detail | 16 q (D) | answer-style clause "one sentence with the specific detail" 4-7 q; quote-then-answer 3-6 q | P1 | **implemented** - prompt `grounded_detail` (marker legend, one sentence with the specific detail, list every matching item); screen pending |
 | C3 | Open-domain world knowledge | 12 q (D) | world-knowledge clause in prompt 3-6 q; bigger reader (27-32B) 4-8 q | P2 | open |
 | C4 | Open-domain hypothetical ("would X...") | 11 q (D) | route to an inference prompt committing to yes/no/likely with the supporting line 3-5 q; second-stage retry with a different instruction 3-6 q | P2 | open |
 | C5 | Duration / elapsed-time arithmetic | 13 q (D) | duration annotator in `temporal_resolve` ("for N years" -> `[= since YYYY]`) 3-4 q; elapsed helper: extract two anchors, code subtracts 4-6 q | P1 | open |
-| C6 | List / count incomplete | 10 q (D) | list/count clause for list-shaped questions 3-5 q; event dedup in context 1-3 q; structured fact memory with set semantics 4-6 q | P2 | open |
+| C6 | List / count incomplete | 10 q (D) | list/count clause for list-shaped questions 3-5 q; event dedup in context 1-3 q; structured fact memory with set semantics 4-6 q | P2 | **partly addressed** by `grounded_detail` list clause; screen pending |
 | C7 | Image caption ignored | 8 q (D) | prompt line on `[image: ...]` + render as its own "Photo:" sentence 3-5 q | P2 | open |
 | C8 | Refusal / multi-hop link / date anchoring / conflict | 12 q (D) | implicit-date rule (line date = event date for past-tense "when") 2-4 q; coreference via previous 2 lines | P3 | open |
 | C9 | Regressions from the grounded prompt + bigger context | 49 previously correct answers now wrong (lists, detail, distractors) (D 2.3) | C1 + C2 + per-shape window; screen every prompt change on dev set with paired test | P1 | open |
