@@ -492,6 +492,12 @@ class ReadConfig(BaseModel):
     #: LoCoMo's "the week before <session date>"). Also used by
     #: ``consolidation.mine_event_dates``.
     relative_week: Literal["calendar", "preceding_7_days"] = "calendar"
+    #: C5: with ``resolve_relative_dates``, also annotate unambiguous durations against
+    #: the record's own day: "for 3 years" -> "[= since about 2020]", "a month now" ->
+    #: "[= since about 2023-04]", "since 2019" -> "[= about 4 years as of 2023-05-20]".
+    #: Always ``about``; vague spans ("for years", "for a while") are left alone.
+    #: Off: byte-identical.
+    resolve_durations: bool = False
     #: H11: assembly draws from ``candidate_pool x top_k`` search candidates, so
     #: the token budget, not a fixed K, decides how much evidence enters (LoCoMo:
     #: top-10 filled ~400 of 4,096 tokens). 1 = unchanged. Pair with

@@ -41,6 +41,18 @@ week`` and ``next week`` changes, to the seven days before (after) the anchor da
 stays an absolute span (``[= 2023-06-02..2023-06-08]``) with no relation phrase, and every
 other phrase is resolved as in the default ``calendar`` mode. ``this week`` stays the
 calendar week. Anchored mode already uses these spans.
+
+C5, ``durations=True`` (``read.resolve_durations``): an LLM reader is bad at duration
+arithmetic ("how long has she painted?"), so an unambiguous number+unit duration is
+resolved against the anchor day, always marked ``about``:
+
+- ``for N years|months`` (ongoing: "has been ... for 3 years"), ``N years|months now``,
+  ``a month now``: ``[= since about 2020]`` / ``[= since about 2023-04]``.
+- ``N weeks|days now``: ``[= since about 2023-05-06]``.
+- ``since 2019`` / ``since March 2019``: ``[= about 4 years as of 2023-05-20]``.
+
+A bare "for 3 years" with no ongoing cue ("stayed for 3 years") is left alone, as are
+"for years" and "for a while". ``N years ago`` is resolved by the base rules.
 """
 
 from __future__ import annotations
@@ -51,6 +63,26 @@ from datetime import date, datetime, timedelta
 from typing import Literal
 
 __all__ = ["Resolution", "WeekMode", "annotate", "resolve"]
+
+_MONTHS = (
+    *("january", "february", "march", "april", "may", "june"),
+    *("july", "august", "september", "october", "november", "december"),
+)
+_NUMBERS_D = {"eleven": 11, "twelve": 12}
+_DNUM = (
+    r"(?P<n>\d{1,2}|a couple of|couple of|an?|one|two|three|four|five|six|seven|eight|nine"
+    r"|ten|eleven|twelve)"
+)
+_DURATIONS: tuple[tuple[str, re.Pattern[str]], ...] = tuple(
+    (name, re.compile(rx, re.I))
+    for name, rx in (
+        ("dur_now", rf"\b(?:for )?{_DNUM} (?P<unit>year|month|week|day)s? now\b"),
+        ("dur_for", rf"\bfor {_DNUM} (?P<unit>year|month)s?\b(?! ago)"),
+        ("since", rf"\bsince (?:(?P<mon>{'|'.join(_MONTHS)}) )?(?P<y>(?:19|20)\d\d)\b"),
+    )
+)
+#: an ongoing-state cue before a bare "for N years": "has been ... for 3 years".
+_ONGOING = re.compile(r"\b(?:been|have|has|'ve|am|is|are|do|does)\b(?! to\b)", re.I)
 
 #: #58: how ``last/next week`` resolve (see the module docstring).
 WeekMode = Literal["calendar", "preceding_7_days"]
@@ -282,12 +314,47 @@ def _relate(
     return "", first, last, True
 
 
+def _duration(name: str, m: re.Match[str], text: str, d: date) -> str | None:
+    """C5: the ``[= ...]`` label of one duration phrase, or None when it is not clear."""
+    if name == "since":
+        y = int(m["y"])
+        mon = _MONTHS.index(m["mon"].lower()) + 1 if m["mon"] else None
+        months = (d.year - y) * 12 + (d.month - mon if mon else 0)
+        if months <= 0 or (mon is None and d.year - y < 1):
+            return None  # this month / year or the future: no span to state
+        yrs, rem = divmod(months, 12)
+        if mon is None:
+            rem = 0
+        parts = []
+        if yrs:
+            parts.append(f"{yrs} year{'s' if yrs != 1 else ''}")
+        if rem:
+            parts.append(f"{rem} month{'s' if rem != 1 else ''}")
+        return f"about {' '.join(parts)} as of {d:%Y-%m-%d}"
+    n_raw = m["n"].lower()
+    n = int(n_raw) if n_raw.isdigit() else {**_NUMBERS, **_NUMBERS_D}.get(n_raw)
+    if not n:
+        return None
+    unit = m["unit"].lower()
+    if name == "dur_for":
+        before = re.split(r"[.!?;]", text[max(0, m.start() - 50) : m.start()])[-1]
+        if not _ONGOING.search(before):
+            return None  # "stayed for 3 years": a finished span, not a start
+    if unit == "year":
+        return f"since about {d.year - n}"
+    if unit == "month":
+        return f"since about {_add_months(date(d.year, d.month, 1), -n):%Y-%m}"
+    days = n * (7 if unit == "week" else 1)
+    return f"since about {d - timedelta(days=days):%Y-%m-%d}"
+
+
 def resolve(
     text: str,
     anchor: datetime | date,
     *,
     anchored: bool = False,
     week: WeekMode = "calendar",
+    durations: bool = False,
 ) -> list[Resolution]:
     """All non-overlapping relative-time phrases in ``text``, resolved against ``anchor``.
 
@@ -316,6 +383,16 @@ def resolve(
                 Resolution(m.start(), m.end(), m.group(0), first, last, approx, relation, bounded)
             )
             taken.append((m.start(), m.end()))
+    if durations:  # C5: after the base phrases, so "3 years ago" is never re-read
+        for name, rx in _DURATIONS:
+            for m in rx.finditer(text):
+                if any(m.start() < e and s < m.end() for s, e in taken):
+                    continue
+                label = _duration(name, m, text, d)
+                if label is None:
+                    continue
+                found.append(Resolution(m.start(), m.end(), m.group(0), d, d, True, label, False))
+                taken.append((m.start(), m.end()))
     return sorted(found, key=lambda r: r.start)
 
 
@@ -325,10 +402,11 @@ def annotate(
     *,
     anchored: bool = False,
     week: WeekMode = "calendar",
+    durations: bool = False,
 ) -> str:
     """``text`` with ``[= <absolute date>]`` after every resolved relative phrase."""
     out, pos = [], 0
-    for r in resolve(text, anchor, anchored=anchored, week=week):
+    for r in resolve(text, anchor, anchored=anchored, week=week, durations=durations):
         out.append(text[pos : r.end])
         out.append(f" [= {r.label}]")
         pos = r.end

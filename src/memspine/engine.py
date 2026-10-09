@@ -6571,6 +6571,7 @@ class Engine:
             anchor,
             anchored=read_cfg.relative_dates_anchored,
             week=read_cfg.relative_week,
+            durations=read_cfg.resolve_durations,
         )
         if annotated == record.content:
             return record

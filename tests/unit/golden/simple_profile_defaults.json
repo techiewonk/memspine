@@ -165,6 +165,7 @@
       "rerank_max_top_k": null,
       "rerank_model": null,
       "rerank_quant": null,
+      "resolve_durations": false,
       "resolve_relative_dates": false,
       "role_aware": false,
       "rrf_k": null,
