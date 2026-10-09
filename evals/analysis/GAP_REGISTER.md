@@ -24,6 +24,7 @@ Priority: P0 = blocks trustworthy numbers, P1 = next, P2/P3 = later. Status: ope
 | A13 | Excluded category and label mapping | cat 5 (adversarial/abstention) never reported; category mapping by convention (E EVAL-6) | separate abstention metric run; mapping and n in every table header; verify published entries' category definitions | P1 | **implemented** - cat 5 reported apart (`n_adversarial`, `adversarial`), never in the headline |
 | A14 | Results docs contain superseded conclusions | think-mode, localhost "1.7 h saved", reranker conclusions (E PROC-5) | "status of each claim" table; generate tables from manifests with CI and judge id | P1 | **done** - "Status of each claim" table in `QWEN_STACK_RESULTS.md` |
 | A15 | Corpus text in git | 6,476 rows of LoCoMo text committed (E EVAL-9) | kept by user decision; if shared: keep only summaries, stripped JSONL, CI check for corpus strings | - | decided: keep |
+| A16 | Dev-screen noise floor (found during the pass) | across 12 configurations on the same 233 dev questions: 171 always right, 17 always wrong, **45 (19%) flip at least once**; the same boundary questions (0-48, 0-49, 0-75, 1-31, 1-56, 1-75) flip in almost every variant | treat screen deltas within about +-5 net as noise; target the 17 stable failures; confirm any candidate on all 4 dev conversations (584 q) before held-out; repeat-run noise check on one config | P0 | **new - applied from now on** |
 
 ## B. Retrieval - why gold evidence does not reach the context
 
@@ -37,7 +38,7 @@ with no retrieved turn. Image captions, relative-time words and speaker confusio
 | B2 | Answer not literally in the gold turn | 112 turns, 35 wrong q; part is weak gold labelling (R N) | N1 audit labels (metric hygiene); N2 pool/rerank (37 turns); N3 HyDE / answer-free rewrite leg (+5-15 q est.); N4 reply-aware indexing (measured -11..+2, skip); N5 Qwen3-Embedding-4B (unlikely: median vector rank 127) | P1 | **audited (B2_EVIDENCE_AUDIT.md)** - of 112 turns: 77 valid-implicit, 19 weak label, 16 wrong label (31% label artefacts, but only 1 retrieval-failed question cleared). Answer-string HyDE does not help (oracle worse than the question); turn-shaped hypotheses are a leaky upper bound; est. +3 to +8 q. Recommendation: hygiene only now, B1 first; optional turn-shaped HyDE leg for list/count questions later |
 | B3 | Open-domain inference | 96 turns, 28 wrong q; reader converts only ~25% even with all gold (R I) | I1 pool/rerank (8-14 turns); I2 evidence-seeking sub-queries for "would X" (+3-8 covered); I3 reflective profile memory at sleep; I4 prioritise reader-side fixes (C3/C4) | P2 | open |
 | B4 | Temporal / date-dependent evidence | 43 turns, 29 wrong q; temporal leg fires on only 187/1,540 questions (R T) | T1 `temporal_relative`, `temporal_infer_year` (5-12 turns); T2 `lexical_dates: true` (+10 q net simulated); T3 smarter write-time date index (`mine_event_dates`); T4 `rerank_date_prefix` (3-8) | P1 | **tested** - `lexical_dates` 85.4% vs 86.7% (+1/-4, temporal -3.1): rejected. `temporal_relative` + `temporal_infer_year`: leg fires on 11 vs 7 dev questions but changes no answer (+0/-0): neutral, not adopted. Remaining temporal errors are reader/date-arithmetic (C5) and judge (A2, done) |
-| B5 | Lexical overlap present but out-ranked | 63 turns, 11 wrong q (R O) | O1 pool/rerank (35 turns); O2 `lexical_analyzer: english` + strip speaker names from BM25 query (+13-23 q, churn); O3 weights / rrf_k / reserved slots measured 0 or negative - do not run | P2 | **implemented** (`read.lexical_strip_names`, tests); screen queued; english analyzer screen running |
+| B5 | Lexical overlap present but out-ranked | 63 turns, 11 wrong q (R O) | O1 pool/rerank (35 turns); O2 `lexical_analyzer: english` + strip speaker names from BM25 query (+13-23 q, churn); O3 weights / rrf_k / reserved slots measured 0 or negative - do not run | P2 | **tested** - `lexical_strip_names` 85.4% vs 86.7% (+3/-6): not adopted; english analyzer neutral (see B6) |
 | B6 | Morphology-only / paraphrase | 27 + 12 turns (R M/P) | `lexical_analyzer: english` (recovers 21); larger pool | P2 | **tested** - `lexical_analyzer: english` 86.3% vs 86.7% (+7/-8): multi-hop +4.6, single-hop -1.7; gains overlap with rerank_balanced (0-3, 0-15, 0-19). Neutral alone; revisit in the combination screen |
 | B7 | Top-10 fusion cut | 237 gold turns cut; 195 vector-only; BM25 top-10 is 34% noise (R 2.5, 3) | candidate pool 30 + tiered window; rerank pool 30; hit selection aware of the window (X2: 1.87 of 10 hits overlap a higher hit's window, +15 q) | P1 | **fixed and screened** - `rerank_balanced` (after the no-op fix) on 2 dev conversations: 87.1% vs 86.7% (+9/-8); multi-hop 62.8 -> 72.1 (+9.3), temporal -3.1, single-hop -0.9; recovers the targeted vector-only hits (0-3, 0-19); gold in final hits 68.4 -> 71.4%. Candidate default; test together with B1 |
 | B8 | Gold in sessions with no hit | 75% of lost gold; window saturated - no window shape reaches it (R 5) | session-level leg (session digests/summaries); two-stage session-then-turn search; diversity across sessions in hit selection | P1 | **implemented** (`read.session_leg`, top 3 sessions x 2 records, tests); screen queued |
@@ -118,7 +119,21 @@ Measured on the fixed run: 148 read failures, of which ~48 are not reader errors
 | H3 | Two diverged trees, duplicated runs, 20-25 one-off scripts | `memspine` vs `memspine-fixes` (132 files, 18.8k lines) (E PROC-3) | merge behind opt-in flags; one `evals/runs` + generated `runs/INDEX.md`; tag each campaign commit | P1 | **done** - `feat/locomo-fixes` and `feat/locomo-infra` merged into `feat/local-qwen-stack` (df8421f), no conflicts, engine unit suite and harness tests pass; worktrees removed, all run outputs kept in `evals/runs` |
 | H4 | Date-dependent golden test (found during the pass) | `tests/unit/golden/pre_wave1_read.json` regenerates without some `[= Thu 2023-06-08]` annotations when goldens are rebuilt today; two agents hit it independently and restored it | find the clock dependency (relative dates resolved against today?) and pin the clock in the test; regenerate once | P2 | **new, open** |
 
+## Stable dev failures (target set for the next round, 2026-10-10)
+
+Wrong in all 12 configurations screened on conv-26/30 (233 q). 4 are errata (0-5, 0-23, 1-9, 1-44). The 13 real ones:
+
+| Group | Questions | Addressed by |
+|---|---|---|
+| multi-hop lists spread over sessions | 0-11, 0-34, 0-38, 0-70, 1-3, 1-23 | B1 list mode (screening) |
+| open-domain inference | 0-22, 0-59, 0-69 | open - needs profile/inference memory (B3/I3); prompt rules failed (C3) |
+| reader: wrong line or photo-dependent | 0-151, 1-20, 1-43, 1-48 | open - candidates: mark-hits (C1, neutral), photo-only (errata review) |
+
 ## Progress log
+
+**2026-10-10 07:10**
+- B5 strip names rejected (+3/-6). New gap A16: 45 of 233 dev questions flip across configurations - deltas within +-5 are noise.
+- Refill: 17 stable failures listed above (4 errata, 6 B1 targets, 3 inference, 4 reader).
 
 **2026-10-10 07:00**
 - English analyzer neutral overall (+7/-8), multi-hop +4.6 - same questions as rerank_balanced. B5 strip running, then B8, then B1.
