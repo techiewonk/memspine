@@ -78,7 +78,7 @@ Measured on the fixed run: 148 read failures, of which ~48 are not reader errors
 | D3 | `prompt_tokens` sums retries | up to 2.6x engine count (E HAR-2) | store first/retry tokens separately; cost with/without retries | P1 | **in progress** (infra worktree `feat/locomo-infra`, 2026-10-10) |
 | D4 | Manifest misses what determines results | no server config, sampler, model digest, engine path, git dirty flag (E HAR-5) | `runtime` block: package versions, `git describe --dirty`, argv, env, Ollama `/api/version`/`show`/`ps`; fail on dirty tree | P1 | **in progress** (infra worktree `feat/locomo-infra`, 2026-10-10) |
 | D5 | Latency confounded by concurrency | two arms on one Ollama slot: 3.6x server time (E HAR-6) | report server-side timings; run serially; record concurrency in manifest; `bench_llm.py` | P1 | open |
-| D6 | Scripts report success on failure; hidden env controls | rc=0 on failure, `MEMSPINE_*` env vars not recorded (E HAR-7, PROC-4) | one `evals/run.sh` wrapper: `set -euo pipefail`, arm check, STATUS file, row-count check, explicit `--topk/--flags`, derived call cap, no overwrite without `--force` | P1 | **in progress** (infra worktree `feat/locomo-infra`, 2026-10-10) |
+| D6 | Scripts report success on failure; hidden env controls | rc=0 on failure, `MEMSPINE_*` env vars not recorded (E HAR-7, PROC-4) | one `evals/run.sh` wrapper: `set -euo pipefail`, arm check, STATUS file, row-count check, explicit `--topk/--flags`, derived call cap, no overwrite without `--force` | P1 | **implemented** (`evals/run.sh`: strict errors, no overwrite, STATUS file, row-count check, saved command); real run untested; uncommitted until both infra agents finish |
 | D7 | Forensics logs append without run/query id | 11 duplicate questions break text joins (E INJ-6) | write `run_id`, `query_id` per row; open per run; refuse a non-empty dir | P2 | **in progress** (infra worktree `feat/locomo-infra`, 2026-10-10) |
 
 ## E. Inference serving
@@ -104,17 +104,17 @@ Measured on the fixed run: 148 read failures, of which ~48 are not reader errors
 
 | ID | Gap | Evidence | Solution options | Pri | Status |
 |---|---|---|---|---|---|
-| G1 | No lock file, unbounded extras | `uv.lock` gitignored; huggingface-hub 2.x broke transformers; CUDA torch / bitsandbytes not in default env (E ENV-1) | commit an evals lock; pin `huggingface-hub<2`; `just evals-setup` with the cu128 index; `pip freeze` per run | P1 | **in progress** (infra worktree `feat/locomo-infra`, 2026-10-10) |
-| G2 | `evals/datasets` shadows HF `datasets` | broke LanceDB; only `_launch.py` protected (E ENV-2) | rename to `evals/legacy_datasets`; test that `datasets.__file__` is not under evals/ | P1 | **in progress** (infra worktree `feat/locomo-infra`, 2026-10-10) |
-| G3 | `env -u` silently does nothing in Git Bash | still in 6 scripts (E ENV-3) | replace with `unset`; post-run non-empty-log check | P1 | **in progress** (infra worktree `feat/locomo-infra`, 2026-10-10) |
-| G4 | CRLF/LF churn | 985 files LF in index, CRLF in tree, no `.gitattributes` (E ENV-4) | `.gitattributes` (`* text=auto eol=lf`, `*.sh eol=lf`) + one renormalise commit | P2 | **in progress** (infra worktree `feat/locomo-infra`, 2026-10-10) |
+| G1 | No lock file, unbounded extras | `uv.lock` gitignored; huggingface-hub 2.x broke transformers; CUDA torch / bitsandbytes not in default env (E ENV-1) | commit an evals lock; pin `huggingface-hub<2`; `just evals-setup` with the cu128 index; `pip freeze` per run | P1 | **recipe implemented** (`just evals-setup`, cu128 torch, `huggingface-hub<2`); lock-file decision pending (recommendation: commit `uv.lock`) |
+| G2 | `evals/datasets` shadows HF `datasets` | broke LanceDB; only `_launch.py` protected (E ENV-2) | rename to `evals/legacy_datasets`; test that `datasets.__file__` is not under evals/ | P1 | **implemented** (renamed to `evals/legacy_datasets`, test added) |
+| G3 | `env -u` silently does nothing in Git Bash | still in 6 scripts (E ENV-3) | replace with `unset`; post-run non-empty-log check | P1 | **implemented** (`unset` in the 6 scripts, marked superseded by run.sh) |
+| G4 | CRLF/LF churn | 985 files LF in index, CRLF in tree, no `.gitattributes` (E ENV-4) | `.gitattributes` (`* text=auto eol=lf`, `*.sh eol=lf`) + one renormalise commit | P2 | **`.gitattributes` added**; one-time renormalise commit still pending |
 
 ## H. Process
 
 | ID | Gap | Evidence | Solution options | Pri | Status |
 |---|---|---|---|---|---|
-| H1 | CI never runs `evals/tests` | 59 test files, no `st` extra in CI (E PROC-1) | second CI job with stub reader/judge; nightly CPU smoke with golden `retrieved_ids` | P1 | **in progress** (infra worktree `feat/locomo-infra`, 2026-10-10) |
-| H2 | Missing tests for new code | forensic hook, ingest log, floor interaction, budget invariants (E PROC-2) | stub-engine tests; schema validation in tests; tokenizer property test | P1 | **in progress** (infra worktree `feat/locomo-infra`, 2026-10-10) |
+| H1 | CI never runs `evals/tests` | 59 test files, no `st` extra in CI (E PROC-1) | second CI job with stub reader/judge; nightly CPU smoke with golden `retrieved_ids` | P1 | **CI job added** (`evals/tests`, offline, stub reader/judge); not yet run in CI |
+| H2 | Missing tests for new code | forensic hook, ingest log, floor interaction, budget invariants (E PROC-2) | stub-engine tests; schema validation in tests; tokenizer property test | P1 | **tests added** (forensic hook stages, schema validation of report rows) |
 | H3 | Two diverged trees, duplicated runs, 20-25 one-off scripts | `memspine` vs `memspine-fixes` (132 files, 18.8k lines) (E PROC-3) | merge behind opt-in flags; one `evals/runs` + generated `runs/INDEX.md`; tag each campaign commit | P1 | open |
 
 ## Progress log
