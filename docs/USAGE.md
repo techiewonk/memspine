@@ -684,7 +684,7 @@ in the schema — or if the schema gains a key not documented here.
 | `storage.data_dir` | `null` | Base dir for file-backed projections (LanceDB/Tantivy); required for postgres. |
 | `storage.encryption.mode` | `none` | `none` \| `sqlcipher` (#52, ADR-035): SQLCipher encryption of the SQLite file, `[encrypt]` extra; sqlite backend only, not `:memory:`. Vectors, the lexical index and disk caches are not covered. |
 | `storage.encryption.key_env` | `null` | **Name** of the environment variable holding the SQLCipher key; required with `sqlcipher`. The key is read only from it and never logged. |
-| `embedding.provider` | `fastembed` | `fastembed` (ONNX/CPU) \| `hash` (deterministic, tests) \| `static` (model2vec `[static]`) \| `litellm` (cloud). |
+| `embedding.provider` || `read.rerank` | `off` | `off` | `fastembed` | `flashrank` `[rerank]` | `litellm` | `jina` `[st]` (Jina listwise reranker; `rerank_model` defaults to `jinaai/jina-reranker-v3.5`, runs the repo's custom code) | `qwen3` `[st]`| `fastembed` (ONNX/CPU) \| `hash` (deterministic, tests) \| `static` (model2vec `[static]`) \| `litellm` (cloud). |
 | `embedding.model` | `BAAI/bge-small-en-v1.5` | Embedder model id. |
 | `embedding.dim` | `null` | **Required** when `provider: litellm` — a cloud embedder's output dim. |
 | `embedding.api_base` | `null` | Endpoint override (litellm). |
@@ -692,6 +692,9 @@ in the schema — or if the schema gains a key not documented here.
 | `embedding.aws_region` | `null` | Bedrock region (litellm). |
 | `embedding.device` | `null` | `provider: st` only: torch device (`cuda`, `cpu`). |
 | `embedding.dtype` | `null` | `provider: st` only: weight dtype (`bfloat16`, `float16`). `provider: st` needs `embedding.dim` and the `[st]` extra. |
+| `embedding.query_prompt_name` | `null` | `provider: st` only: sentence-transformers prompt name used for queries (Jina v5: `query`). |
+| `embedding.document_prompt_name` | `null` | `provider: st` only: prompt name used for documents (Jina v5: `document`). |
+| `embedding.trust_remote_code` | `false` | `provider: st` only: allow the model repository's custom code to run (Jina v5 needs it). |
 | `embedding.request_dimensions` | `false` | litellm only: request exactly `dim` dimensions (Matryoshka models: Cohere embed-v4 256/512/1024/1536, Titan v2, OpenAI v3). |
 | `embedding.query_input_type` | `null` | litellm only: input type for retrieval queries (Cohere: `search_query`). |
 | `embedding.document_input_type` | `null` | litellm only: input type for stored content (Cohere: `search_document`). |
@@ -717,8 +720,8 @@ in the schema — or if the schema gains a key not documented here.
 | `llm.roles.*.no_think` | `null` | Qwen3 thinking switch: `true` appends ` /no_think` to the last user message; `null` = on for model ids containing `qwen3`, off otherwise. `<think>…</think>` blocks are always stripped from replies. |
 | `read.scoring` | `{}` | Options for `ScoringPolicy.bind` (M1 composite). |
 | `read.assembly` | `{}` | Options for `AssemblyPolicy.bind` (E2 placement / MMR). |
-| `read.rerank` | `off` | `off` \| `fastembed` \| `flashrank` `[rerank]` \| `litellm` \| `qwen3` `[st]` (Qwen3-Reranker, `rerank_model` defaults to `Qwen/Qwen3-Reranker-0.6B`) — E8 cross-encoder (D-51). |
-| `read.rerank_model` | `null` | LiteLLM rerank model id; required when `rerank: litellm`. For `fastembed` / `qwen3` it overrides the default local model. |
+| `read.rerank` | `off` | `off` | `fastembed` | `flashrank` `[rerank]` | `litellm` | `jina` `[st]` (Jina listwise reranker; `rerank_model` defaults to `jinaai/jina-reranker-v3.5`, runs the repo's custom code) | `qwen3` `[st]`\| `fastembed` \| `flashrank` `[rerank]` \| `litellm` \| `qwen3` `[st]` (Qwen3-Reranker, `rerank_model` defaults to `Qwen/Qwen3-Reranker-0.6B`) — E8 cross-encoder (D-51). |
+| `read.rerank_model` | `null` | LiteLLM rerank model id; required when `rerank: litellm`. For| `read.rerank` | `off` | `off` | `fastembed` | `flashrank` `[rerank]` | `litellm` | `jina` `[st]` (Jina listwise reranker; `rerank_model` defaults to `jinaai/jina-reranker-v3.5`, runs the repo's custom code) | `qwen3` `[st]`/ `qwen3` it overrides the default local model. |
 | `read.rerank_device` | `null` | `rerank: qwen3` only: torch device (`cuda`); unset = CPU float32. |
 | `read.rerank_quant` | `null` | `rerank: qwen3` only: `4bit` | `8bit` (bitsandbytes, GPU). |
 | `read.static_prefilter` | `false` | E8 cheap lexical-overlap gate (post-vector). |

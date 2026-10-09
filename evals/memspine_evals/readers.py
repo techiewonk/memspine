@@ -405,6 +405,10 @@ def thinking_off(model: str) -> dict[str, Any]:
     with ``reasoning_effort: "none"`` (verified on Ollama /v1, 2026-10-09). Qwen3 (no
     ``.5``) keeps its own switch and is untouched.
     """
+    import os
+
+    if os.environ.get("MEMSPINE_EVAL_THINK") == "on":  # think-mode comparison runs
+        return {}
     name = model.lower()
     if "qwen3.5" in name or "qwen3.6" in name:
         return {"reasoning_effort": "none"}
@@ -445,6 +449,12 @@ class OpenAICompatReader:
         self.max_tokens = max_tokens
         self.timeout = timeout
         self.prompt = prompt
+        import os
+
+        if os.environ.get("MEMSPINE_EVAL_THINK") == "on":
+            # reasoning tokens count against max_tokens: leave room for the answer
+            self.max_tokens = max(self.max_tokens, 4096)
+            self.timeout = max(self.timeout, 600.0)
         #: #34: keep only the final answer of a reasoning prompt (:func:`final_answer`).
         self.extract_answer = extract_answer
         self._headers = {"Authorization": f"Bearer {api_key}"}

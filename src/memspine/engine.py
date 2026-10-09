@@ -11421,6 +11421,9 @@ class Engine:
                 query_instruction=config.embedding.query_instruction,
                 device=config.embedding.device,
                 dtype=config.embedding.dtype,
+                query_prompt_name=config.embedding.query_prompt_name,
+                document_prompt_name=config.embedding.document_prompt_name,
+                trust_remote_code=config.embedding.trust_remote_code,
             )
         if config.embedding.provider == "static":
             # E4 model2vec (ADR-020): a missing [static] extra hard-fails here

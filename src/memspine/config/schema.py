@@ -112,6 +112,11 @@ class EmbeddingConfig(BaseModel):
     #: ("bfloat16", "float16"; None = checkpoint default).
     device: str | None = None
     dtype: str | None = None
+    #: st only: sentence-transformers prompt names for queries / documents (Jina v5:
+    #: "query" / "document"), and whether the repo's custom code may run.
+    query_prompt_name: str | None = None
+    document_prompt_name: str | None = None
+    trust_remote_code: bool = False
     #: litellm only: ask the model for exactly ``dim`` dimensions (Matryoshka
     #: models: Cohere embed-v4 256/512/1024/1536, Titan v2, OpenAI v3). Off =
     #: the model's default size, which must then equal ``dim``.

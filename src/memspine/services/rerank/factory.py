@@ -95,11 +95,18 @@ def _build_qwen3(settings: RerankSettings) -> Reranker:
     )
 
 
+def _build_jina(settings: RerankSettings) -> Reranker:
+    from memspine.services.rerank.jina_rerank import DEFAULT_MODEL, JinaReranker
+
+    return JinaReranker(settings.model or DEFAULT_MODEL, device=settings.device)
+
+
 _REGISTRY: dict[str, RerankSpec] = {
     "fastembed": _build_fastembed,  # in-core (rides fastembed D-08)
     "flashrank": _build_flashrank,  # [rerank]
     "litellm": _build_litellm,  # [litellm] — Cohere/Voyage/Jina/Bedrock in one adapter
     "qwen3": _build_qwen3,  # [st] — Qwen3-Reranker (transformers + torch), G5a
+    "jina": _build_jina,  # [st] — Jina listwise reranker (custom code, CC-BY-NC weights)
 }
 
 
