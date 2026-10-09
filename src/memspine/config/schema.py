@@ -497,6 +497,24 @@ class ReadConfig(BaseModel):
     #: top-10 filled ~400 of 4,096 tokens). 1 = unchanged. Pair with
     #: ``assembly.relative_floor`` to keep precision.
     candidate_pool: int = Field(default=1, ge=1, le=10)
+    #: RETRIEVAL_GAPS finding 4: the replay / compose neighbour window is a fixed
+    #: +-2 turns (the ``window`` argument of ``Engine.read``), but 63% of the gold the
+    #: window supplies lies AFTER the hit, so a 2-before / 4-after window beats a
+    #: symmetric 3 at equal cost. These two override the window per side (turns of the
+    #: hit's session). ``None`` = that side keeps the ``read`` argument (default 2),
+    #: byte-identical; ``0`` = no neighbours on that side. ``read(replay_window=0)``
+    #: still switches the compose expansion off.
+    replay_window_before: int | None = Field(default=None, ge=0)
+    replay_window_after: int | None = Field(default=None, ge=0)
+    #: RETRIEVAL_GAPS finding 3: a reranked candidate list is min-max normalised
+    #: (best 1.0, worst 0.0), so ``assembly.relative_floor`` then drops on average half
+    #: of the hits (and their replay windows) however relevant the reranker found them.
+    #: ``minmax`` = unchanged. ``skip`` = reranked reads do not apply the relative
+    #: floor (the reranker, ``rerank_keep`` and the budget bound the context instead);
+    #: a read the reranker did not score (off, gated, failed) still applies it. A
+    #: ``raw`` mode was left out: reranker outputs are only calibrated 0-1 for some
+    #: models, and the floor would still multiply the composite score.
+    rerank_floor: Literal["minmax", "skip"] = "minmax"
     #: H16: for ordering questions ("first", "latest", "most recent", ...) present
     #: the assembled volatile records in event-time order instead of score order.
     order_by_time_for_ordering: bool = False

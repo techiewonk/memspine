@@ -654,6 +654,9 @@ _FOCAL_ENTITY: ContextVar[str | None] = ContextVar("memspine_focal_entity", defa
 #: list of every stage: each leg, the fusion, the gated candidate pool, the reranker's raw
 #: scores and the final cut. Unset (the default) the hook is a single ``is not None`` test.
 _FORENSICS: ContextVar[dict[str, Any] | None] = ContextVar("memspine_forensics", default=None)
+#: Whether the last ``_search`` of the current read reranked its candidates
+#: (``read.rerank_floor="skip"`` needs it at assembly).
+_RERANKED: ContextVar[bool] = ContextVar("memspine_reranked", default=False)
 
 
 @contextmanager
@@ -4169,6 +4172,7 @@ class Engine:
         if mmr_lambda is not None and len(scored) > 2:
             # G-10 (Graphiti MMR): diversity among near-duplicate hits, on embeddings.
             scored = await self._mmr_order(query, scored, mmr_lambda)
+        _RERANKED.set(reranked)
         if reranked and read_cfg.rerank_keep is not None and read_cfg.candidate_pool > 1:
             # G5b: the wider pool fed the reranker; only its best few go on.
             scored = scored[: read_cfg.rerank_keep]
@@ -4398,6 +4402,7 @@ class Engine:
         if self._assembly is None:
             raise MemspineError("assembly policy not bound — engine not started?")
         want = top_k * self._config().read.candidate_pool
+        _RERANKED.set(False)
         if self._config().read.statement_probe and (said := statement_form(query)):
             # N63 (EverMemOS multi-query, by rules): the question as a statement.
             probes = [*probes, said]
@@ -4587,6 +4592,7 @@ class Engine:
             scored,
             budget_tokens=max(1, budget_tokens - lead_cost),
             compression=self._assembly_compression,
+            apply_floor=not (read_cfg.rerank_floor == "skip" and _RERANKED.get()),
         )
         if standing or timelines:
             assembled = self._place_lead(assembled, standing, timelines)
@@ -5182,7 +5188,8 @@ class Engine:
             at = ids.index(hit.record_id) if hit.record_id in ids else 0
             # The hit first, then its neighbours nearest first (older on a tie): a
             # neighbour that does not fit is skipped, it never costs the hit its place.
-            span = range(max(0, at - replay_window), min(len(ids), at + replay_window + 1))
+            before, after = self._window_sides(replay_window)
+            span = range(max(0, at - before), min(len(ids), at + after + 1))
             for index in sorted(span, key=lambda i: (i != at, abs(i - at), i)):
                 rid = ids[index]
                 if rid in seen:
@@ -6407,6 +6414,14 @@ class Engine:
                 queries.append(text.strip())
         return queries[: constants.COMPLETENESS_MAX_QUERIES]
 
+    def _window_sides(self, window: int) -> tuple[int, int]:
+        """The neighbour window as (turns before, turns after) a hit: ``window`` on both
+        sides unless ``read.replay_window_before`` / ``replay_window_after`` override one."""
+        read_cfg = self._config().read
+        before = read_cfg.replay_window_before
+        after = read_cfg.replay_window_after
+        return (window if before is None else before, window if after is None else after)
+
     async def _expand_neighbours(
         self,
         ns: str,
@@ -6428,7 +6443,8 @@ class Engine:
             if not ids:
                 continue
             at = ids.index(hit.record_id)
-            span = range(max(0, at - window), min(len(ids), at + window + 1))
+            before, after = self._window_sides(window)
+            span = range(max(0, at - before), min(len(ids), at + after + 1))
             for index in sorted(span, key=lambda i: (abs(i - at), i)):
                 rid = ids[index]
                 if rid in seen:
