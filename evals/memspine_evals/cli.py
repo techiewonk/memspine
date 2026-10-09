@@ -178,6 +178,7 @@ def cmd_c0_1(args: argparse.Namespace) -> int:
         memspine_config=json.loads(args.memspine_config) if args.memspine_config else None,
         memspine_read_mode=args.memspine_read_mode,
         memspine_as_of_question_date=args.memspine_as_of_question_date,
+        memspine_mark_hits=args.memspine_mark_hits,
         memspine_build_sleep=args.memspine_build_sleep,
         memspine_batch_turns=args.memspine_batch_turns,
         qa_prompt=args.qa_prompt,
@@ -396,6 +397,7 @@ def build_parser() -> argparse.ArgumentParser:
             "dated_infer",
             "dated3",
             "grounded",
+            "grounded_detail",
             "dated_world",
             "abstain",
             "converse",
@@ -467,6 +469,13 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="memspine arm reads as of each question's date (LongMemEval question_date; "
         "N34), so turns recorded after the question are never retrieved",
+    )
+    c01.add_argument(
+        "--memspine-mark-hits",
+        choices=("off", "star", "rank"),
+        default="off",
+        help="memspine arm: mark the context lines that are final search hits for the reader "
+        "(star: '* ' prefix; rank: '[hit k] ' prefix); neighbour lines stay unmarked (C1)",
     )
     c01.add_argument(
         "--memspine-read-mode",

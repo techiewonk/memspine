@@ -151,6 +151,24 @@ GROUNDED_QA_PROMPT = (
     "Memories:\n{context}\n\nQuestion: {question}\nAnswer:"
 )
 
+#: C2: ``grounded`` plus the hit-marker legend (``--memspine-mark-hits``), a one-sentence
+#: answer that keeps the specific detail, and exhaustive lists for multi-item questions.
+GROUNDED_DETAIL_QA_PROMPT = (
+    "Answer the question from the memories below. Each memory is one line: [YYYY-MM-DD] is "
+    'the date it was said, and a bracket like "last Saturday [= 2023-05-20]" gives the '
+    "absolute date of that relative phrase. Resolve other relative times (yesterday, last "
+    "week, two days ago) against the date of the line they appear in, not today's date. "
+    "If lines start with * or [hit k], those are the memories retrieved as most relevant "
+    "(k = rank); unmarked lines are surrounding conversation. Answer in one sentence that "
+    "includes the specific detail from the memory (names, objects, places, numbers). When the "
+    'question asks for several items or "how many", list every matching item found across '
+    "the memories, then count them. Give the best-supported answer from the memories, even "
+    "if it is indirect; say it is not mentioned only when nothing in the memories bears on "
+    "the question. When a date is asked, answer in the wording the memories use (for example "
+    '"the week before 9 June 2023" or "2022"), at the precision asked.\n\n'
+    "Memories:\n{context}\n\nQuestion: {question}\nAnswer:"
+)
+
 #: N46 (MemMachine answer clause, our wording): ``dated`` plus "a plan the context
 #: states counts as done unless the context says it did not happen". QA only (paid).
 DATED_PLANNED_QA_PROMPT = DATED_QA_PROMPT.replace(
@@ -182,6 +200,7 @@ QA_PROMPTS = {
     "dated_infer": DATED_INFER_QA_PROMPT,
     "dated3": DATED3_QA_PROMPT,
     "grounded": GROUNDED_QA_PROMPT,
+    "grounded_detail": GROUNDED_DETAIL_QA_PROMPT,
     "abstain": ABSTAIN_QA_PROMPT,
     "converse": CONVERSE_QA_PROMPT,
     "dated_planned": DATED_PLANNED_QA_PROMPT,

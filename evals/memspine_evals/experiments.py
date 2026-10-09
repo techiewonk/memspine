@@ -103,6 +103,8 @@ class C01Config:
     memspine_read_mode: str | None = None
     #: N34: memspine reads as of each question's date (LongMemEval ``question_date``).
     memspine_as_of_question_date: bool = False
+    #: C1: mark final search hits in the rendered context (off | star | rank)
+    memspine_mark_hits: str = "off"
     #: run the engine's sleep cycle after ingestion (write-time stages: H2, H8, H14)
     memspine_build_sleep: bool = False
     #: G9: turns of one session per write_messages call (1 = one call per turn)
@@ -413,6 +415,7 @@ def build_systems(config: C01Config) -> list[SystemAdapter]:
                 build_sleep=config.memspine_build_sleep,
                 batch_turns=config.memspine_batch_turns,
                 as_of_question_date=config.memspine_as_of_question_date,
+                mark_hits=config.memspine_mark_hits,
             )
         )
     if config.only_systems:

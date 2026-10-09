@@ -112,6 +112,26 @@ def prepare_forensics_dir(directory: str, environ: Mapping[str, str] | None = No
 TEMPDIR_STORAGE = "tempdir"
 
 
+#: C1: how context lines that are final search hits are marked for the reader.
+MARK_HITS_MODES = ("off", "star", "rank")
+
+
+def hit_rank_map(stages: Mapping[str, Any]) -> dict[str, int]:
+    """record_id -> 1-based rank of each final search hit (``stages["final"]``)."""
+    return {str(rid): i + 1 for i, (rid, _score) in enumerate(stages.get("final", []))}
+
+
+def mark_hit_line(line: str, rank: int | None, mode: str) -> str:
+    """Prefix a rendered context line when it is search hit ``rank`` (None = neighbour)."""
+    if rank is None or mode == "off":
+        return line
+    if mode == "star":
+        return f"* {line}"
+    if mode == "rank":
+        return f"[hit {rank}] {line}"
+    raise ValueError(f"unknown mark_hits mode {mode!r}")
+
+
 class MemspineSystem:
     """Drives ``memspine.Engine`` through the two-verb contract."""
 
@@ -129,8 +149,14 @@ class MemspineSystem:
         sleep_calls_per_session: int = 1,
         batch_turns: int = 1,
         as_of_question_date: bool = False,
+        mark_hits: str = "off",
     ) -> None:
         self.system_id = system_id
+        if mark_hits not in MARK_HITS_MODES:
+            raise ValueError(f"mark_hits must be one of {MARK_HITS_MODES}, got {mark_hits!r}")
+        #: C1: mark the lines that are final search hits (``star`` | ``rank``); the
+        #: neighbour-window lines stay unmarked. ``off`` renders as before.
+        self._mark_hits = mark_hits
         #: N34: read as of each question's date (LongMemEval ``question_date``), so a
         #: turn recorded after the question was asked is never retrieved.
         self._as_of_question_date = as_of_question_date
@@ -186,6 +212,7 @@ class MemspineSystem:
             # Listed only when on, so default runs keep their config hash.
             **({"batch_turns": self.batch_turns} if self.batch_turns > 1 else {}),
             **({"as_of_question_date": True} if self._as_of_question_date else {}),
+            **({"mark_hits": self._mark_hits} if self._mark_hits != "off" else {}),
             "token_counter": dict(self._counter.describe()),
         }
 
@@ -604,14 +631,17 @@ class MemspineSystem:
         lines: list[str] = []
         evidence: list[Evidence] = []
         offset = 0
+        hit_ranks = hit_rank_map(stages) if self._mark_hits != "off" else {}
         for rank, record in enumerate(assembled.records):
             # Dated rendering: absolute event dates next to every retrieved line
             # (the single largest temporal-question lever in the literature).
             when = getattr(record, "valid_from", None)
             prefix = f"[{when:%Y-%m-%d}] " if self._dated and when is not None else ""
-            line = f"{prefix}{record.content}"
-            lines.append(line)
             record_id = str(record.record_id)
+            line = mark_hit_line(
+                f"{prefix}{record.content}", hit_ranks.get(record_id), self._mark_hits
+            )
+            lines.append(line)
             evidence.append(
                 Evidence(
                     turn_id=self._origin.get(record_id, record_id),
@@ -648,6 +678,7 @@ class MemspineSystem:
                     else {}
                 ),
                 "n_records": len(evidence),
+                **({"n_marked_hits": len(hit_ranks)} if self._mark_hits != "off" else {}),
                 "read_mode": self._read_mode or "assemble",
                 "ranked": self._read_mode is None,
                 **({"flushed_records": flushed.n_records} if flushed.n_records else {}),
