@@ -204,7 +204,8 @@ def test_describe_records_the_answer_extractor_only_when_extracting(
     reader, _, _ = build_reader_and_judge(config)
     described = dict(reader.describe())
     old_keys = {"reader_id", "model", "temperature", "max_tokens", "prompt_sha256"}
-    old_keys |= {"no_think"} if bedrock else {"base_url"}
+    # A8: the local endpoint's explicit sampler is recorded in describe()
+    old_keys |= {"no_think"} if bedrock else {"base_url", "sampler"}
     if reader.extract_answer:  # type: ignore[attr-defined]
         assert described["extract_answer"] is True
         assert described["answer_extractor"] == "v3"  # N65 added the STEP 7 marker

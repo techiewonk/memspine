@@ -11,8 +11,11 @@ and reproducible; a heuristic counter whose identity is lost is not.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+import logging
+from collections.abc import Mapping, Sequence
 from typing import Any, Protocol, runtime_checkable
+
+log = logging.getLogger(__name__)
 
 
 @runtime_checkable
@@ -95,3 +98,125 @@ def truncate_to_budget(
             hi = mid - 1
     cut = text[:lo]
     return cut, counter.count(cut), True
+
+
+#: D1 [HAR-1]: tokenizers tried, in order, for ``--token-count reader``. The Qwen3 family
+#: share one tokenizer; the first one in the local Hugging Face cache is used (offline).
+DEFAULT_TOKENIZER_IDS = ("Qwen/Qwen3-0.6B", "Qwen/Qwen3-1.7B", "Qwen/Qwen3-4B", "Qwen/Qwen3-8B")
+
+
+class HFTokenCounter:
+    """Token counts from a Hugging Face ``tokenizer.json`` (the reader's own tokenizer).
+
+    Loaded once from the local cache with the ``tokenizers`` library; no network, no
+    ``transformers`` import. ``count`` excludes special tokens, like a prompt body.
+    """
+
+    def __init__(self, tokenizer: Any, tokenizer_id: str, source: str = "") -> None:
+        self._tok = tokenizer
+        self.tokenizer_id = tokenizer_id
+        self.source = source
+        self.counter_id = f"hf-{tokenizer_id}"
+
+    def count(self, text: str) -> int:
+        if not text:
+            return 0
+        return len(self._tok.encode(text, add_special_tokens=False).ids)
+
+    def describe(self) -> Mapping[str, Any]:
+        return {"counter_id": self.counter_id, "tokenizer": self.tokenizer_id, "file": self.source}
+
+
+_HF_COUNTERS: dict[str, HFTokenCounter | None] = {}
+
+
+def load_reader_tokenizer_counter(tokenizer_id: str | None = None) -> HFTokenCounter | None:
+    """The reader-tokenizer counter, or None (with a logged warning) when no tokenizer is in
+    the local cache, so callers fall back to the heuristic counter. Cached per id."""
+    candidates = (tokenizer_id,) if tokenizer_id else DEFAULT_TOKENIZER_IDS
+    key = "|".join(candidates)
+    if key in _HF_COUNTERS:
+        return _HF_COUNTERS[key]
+    counter: HFTokenCounter | None = None
+    try:
+        from huggingface_hub import hf_hub_download
+        from tokenizers import Tokenizer
+    except ImportError as exc:
+        log.warning("reader tokenizer unavailable (%s); using the chars/4 heuristic", exc)
+        _HF_COUNTERS[key] = None
+        return None
+    for candidate in candidates:
+        try:
+            path = hf_hub_download(candidate, "tokenizer.json", local_files_only=True)
+            counter = HFTokenCounter(Tokenizer.from_file(path), candidate, path)
+            break
+        except Exception as exc:  # not cached / unreadable: try the next candidate
+            log.debug("tokenizer %s not usable offline: %s", candidate, exc)
+    if counter is None:
+        log.warning(
+            "no reader tokenizer in the local Hugging Face cache (tried %s); "
+            "using the chars/4 heuristic",
+            ", ".join(candidates),
+        )
+    _HF_COUNTERS[key] = counter
+    return counter
+
+
+def truncate_by_rank(
+    text: str,
+    evidence: Sequence[Any],
+    budget_tokens: int,
+    counter: TokenCounter,
+) -> tuple[str, int, bool, tuple[Any, ...]] | None:
+    """D1 [HAR-1]: fit ``text`` into ``budget_tokens`` by dropping whole evidence lines,
+    lowest score first, instead of cutting the tail of the (chronological) text.
+
+    ``evidence`` rows carry ``meta["span"] = (start, end)`` into ``text`` and a ``score``
+    (higher = ranked better). Returns ``(text, tokens, truncated, kept_evidence)`` with the
+    kept lines in their original order, joined by newlines and their spans recomputed; None
+    when the evidence has no usable spans (the caller falls back to the tail cut).
+    """
+    if budget_tokens <= 0:
+        raise ValueError("budget_tokens must be positive")
+    tokens = counter.count(text)
+    if tokens <= budget_tokens:
+        return text, tokens, False, tuple(evidence)
+    units = []
+    for row in evidence:
+        span = (getattr(row, "meta", None) or {}).get("span")
+        if span is None:
+            return None
+        units.append((int(span[0]), int(span[1]), row))
+    if not units or any(not (0 <= a <= b <= len(text)) for a, b, _ in units):
+        return None
+    units.sort(key=lambda u: u[0])
+    # a leading/trailing part of the text outside every span is not rank-droppable; keep it
+    pieces = [(text[a:b], row) for a, b, row in units]
+    order = sorted(range(len(pieces)), key=lambda i: (getattr(pieces[i][1], "score", 0.0), -i))
+    dropped: set[int] = set()
+
+    def render() -> str:
+        return "\n".join(p for i, (p, _) in enumerate(pieces) if i not in dropped)
+
+    current = render()
+    for i in order:  # lowest score first; ties drop the later line first
+        if counter.count(current) <= budget_tokens:
+            break
+        dropped.add(i)
+        current = render()
+    if counter.count(current) > budget_tokens:  # even one line is too long: cut that tail
+        current, _, _ = truncate_to_budget(current, budget_tokens, counter)
+    kept = []
+    offset = 0
+    from dataclasses import replace
+
+    for i, (piece, row) in enumerate(pieces):
+        if i in dropped:
+            continue
+        end = min(offset + len(piece), len(current))
+        meta = dict(getattr(row, "meta", None) or {})
+        meta["span"] = (offset, offset + len(piece))
+        if offset + len(piece) <= len(current):
+            kept.append(replace(row, meta=meta))
+        offset = end + 1
+    return current, counter.count(current), True, tuple(kept)

@@ -654,6 +654,9 @@ _FOCAL_ENTITY: ContextVar[str | None] = ContextVar("memspine_focal_entity", defa
 #: list of every stage: each leg, the fusion, the gated candidate pool, the reranker's raw
 #: scores and the final cut. Unset (the default) the hook is a single ``is not None`` test.
 _FORENSICS: ContextVar[dict[str, Any] | None] = ContextVar("memspine_forensics", default=None)
+#: Whether the last ``_search`` of the current read reranked its candidates
+#: (``read.rerank_floor="skip"`` needs it at assembly).
+_RERANKED: ContextVar[bool] = ContextVar("memspine_reranked", default=False)
 
 
 @contextmanager
@@ -999,6 +1002,10 @@ class Engine:
         self._rerank_gated = 0  # N41: reranks whose order was not used (low confidence)
         #: N60: sentence vectors per (record id, content) for the MaxSim leg.
         self._sentence_vectors: dict[tuple[str, str], list[list[float]]] = {}
+        #: word-vector leg (read.word_vector_leg): lazy encoder and per-(record, content) vectors
+        self._word_vectors: Any = None
+        self._word_vectors_unavailable = False
+        self._word_vector_cache: dict[tuple[str, str], list[float]] = {}
         # E4 (ADR-020): whether the vector leg runs the two-stage quantized
         # rescore (manifest-driven + vector.quantization override). Off => the
         # exact query() path, byte-identical to the pre-E4 pipeline.
@@ -2384,6 +2391,52 @@ class Engine:
             return [leg] if leg else []
         except Exception as exc:  # an enhancer, never a gate
             _log.warning("read.maxsim_leg_failed", namespace=ns, error=str(exc))
+            return []
+
+    async def _word_vector_leg(self, ns: str, query: str, fetch_k: int) -> list[list[LegHit]]:
+        """Word-vector leg (``read.word_vector_leg``): every live record of ``ns`` ranked by
+        the cosine of pooled static word vectors with the query. Vectors are cached per
+        (record, content); a missing provider skip-logs once and the leg stays empty, so
+        retrieval never fails because of it."""
+        read = self._config().read
+        try:
+            if self._word_vectors is None:
+                if self._word_vectors_unavailable:
+                    return []
+                from memspine.services.embedding.word_vectors import WordVectorEncoder
+
+                self._word_vectors = WordVectorEncoder(
+                    read.word_vector_provider, read.word_vector_model
+                )
+            encoder = self._word_vectors
+            storage = self._require_started()
+            records = [r for r in await storage.list_records(ns) if not r.quarantined]
+            cache = self._word_vector_cache
+            missing = [r for r in records if (r.record_id, r.content) not in cache]
+            if missing:
+                vectors = await asyncio.to_thread(encoder.encode, [r.content for r in missing])
+                if len(cache) + len(missing) > constants.MAXSIM_CACHE_MAX:
+                    cache.clear()
+                for r, v in zip(missing, vectors, strict=True):
+                    cache[(r.record_id, r.content)] = v
+            [q] = await asyncio.to_thread(encoder.encode, [query])
+            scored = sorted(
+                (
+                    (sum(a * b for a, b in zip(q, cache[(r.record_id, r.content)], strict=False)),
+                     r.record_id)
+                    for r in records
+                    if (r.record_id, r.content) in cache
+                ),
+                key=lambda pair: -pair[0],
+            )[: read.word_vector_top_k or fetch_k]
+            leg = NamedLeg("word_vector", [LegHit(rid, score) for score, rid in scored])
+            return [leg] if leg else []
+        except MissingServiceError as exc:
+            self._word_vectors_unavailable = True
+            _log.info("read.word_vector_leg_unavailable", error=str(exc))
+            return []
+        except Exception as exc:  # an enhancer, never a gate
+            _log.warning("read.word_vector_leg_failed", namespace=ns, error=str(exc))
             return []
 
     async def _anchor_legs(
@@ -3903,7 +3956,10 @@ class Engine:
         # Hybrid recall (E8/D-25): fetch a wider candidate window per leg so a
         # record ranked just outside a single leg's top_k, but strong when the two
         # legs combine, can still enter the fused top_k.
-        base_fetch = top_k * constants.LEXICAL_FETCH_MULTIPLIER if use_hybrid else top_k
+        # The word-vector leg is a second fused leg like BM25, so it widens the window the
+        # same way; without this, ``hybrid: false`` + word vectors cut the vector leg to top_k.
+        wide = use_hybrid or self._config().read.word_vector_leg
+        base_fetch = top_k * constants.LEXICAL_FETCH_MULTIPLIER if wide else top_k
         allowed = await self._date_allowed(ns)
         if allowed is not None:
             if not allowed[0]:
@@ -3960,6 +4016,8 @@ class Engine:
                 extra_legs += await self._graph_node_legs(ns, query, query_vector, fetch_k)
             if read_now.maxsim_leg:
                 extra_legs += await self._maxsim_leg(ns, query_vector, vector_hits, lexical_hits)
+            if read_now.word_vector_leg:
+                extra_legs += await self._word_vector_leg(ns, query, fetch_k)
             extra_legs += [list(leg) for leg in fused_legs if leg]
             floors = self._config().read.leg_min_scores
             if floors:
@@ -4169,6 +4227,7 @@ class Engine:
         if mmr_lambda is not None and len(scored) > 2:
             # G-10 (Graphiti MMR): diversity among near-duplicate hits, on embeddings.
             scored = await self._mmr_order(query, scored, mmr_lambda)
+        _RERANKED.set(reranked)
         if reranked and read_cfg.rerank_keep is not None and read_cfg.candidate_pool > 1:
             # G5b: the wider pool fed the reranker; only its best few go on.
             scored = scored[: read_cfg.rerank_keep]
@@ -4398,6 +4457,7 @@ class Engine:
         if self._assembly is None:
             raise MemspineError("assembly policy not bound — engine not started?")
         want = top_k * self._config().read.candidate_pool
+        _RERANKED.set(False)
         if self._config().read.statement_probe and (said := statement_form(query)):
             # N63 (EverMemOS multi-query, by rules): the question as a statement.
             probes = [*probes, said]
@@ -4587,6 +4647,7 @@ class Engine:
             scored,
             budget_tokens=max(1, budget_tokens - lead_cost),
             compression=self._assembly_compression,
+            apply_floor=not (read_cfg.rerank_floor == "skip" and _RERANKED.get()),
         )
         if standing or timelines:
             assembled = self._place_lead(assembled, standing, timelines)
@@ -5182,7 +5243,8 @@ class Engine:
             at = ids.index(hit.record_id) if hit.record_id in ids else 0
             # The hit first, then its neighbours nearest first (older on a tie): a
             # neighbour that does not fit is skipped, it never costs the hit its place.
-            span = range(max(0, at - replay_window), min(len(ids), at + replay_window + 1))
+            before, after = self._window_sides(replay_window)
+            span = range(max(0, at - before), min(len(ids), at + after + 1))
             for index in sorted(span, key=lambda i: (i != at, abs(i - at), i)):
                 rid = ids[index]
                 if rid in seen:
@@ -6407,6 +6469,14 @@ class Engine:
                 queries.append(text.strip())
         return queries[: constants.COMPLETENESS_MAX_QUERIES]
 
+    def _window_sides(self, window: int) -> tuple[int, int]:
+        """The neighbour window as (turns before, turns after) a hit: ``window`` on both
+        sides unless ``read.replay_window_before`` / ``replay_window_after`` override one."""
+        read_cfg = self._config().read
+        before = read_cfg.replay_window_before
+        after = read_cfg.replay_window_after
+        return (window if before is None else before, window if after is None else after)
+
     async def _expand_neighbours(
         self,
         ns: str,
@@ -6428,7 +6498,8 @@ class Engine:
             if not ids:
                 continue
             at = ids.index(hit.record_id)
-            span = range(max(0, at - window), min(len(ids), at + window + 1))
+            before, after = self._window_sides(window)
+            span = range(max(0, at - before), min(len(ids), at + after + 1))
             for index in sorted(span, key=lambda i: (abs(i - at), i)):
                 rid = ids[index]
                 if rid in seen:

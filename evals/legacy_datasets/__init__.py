@@ -11,14 +11,14 @@ Each adapter in this package does three things and nothing else:
    config_hash, options_hash, adapter_version)``, so read-side ablations pay for
    construction once and a write-side ablation cannot reuse a build made without it.
 
-:mod:`evals.datasets.base` owns everything the two adapters must agree on: the neutral
+:mod:`evals.legacy_datasets.base` owns everything the two adapters must agree on: the neutral
 sample model, the outcome vocabulary, the ingestion-driver protocol, the namespace rule
 and the build cache. Two benchmarks cannot report one comparable frontier through two
 incompatible cost types, so there is exactly one of each.
 
-:func:`evals.datasets.base.load_dataset` is the harness's entry point — it resolves the
+:func:`evals.legacy_datasets.base.load_dataset` is the harness's entry point — it resolves the
 adapter lazily by name, so loading LoCoMo never imports the LongMemEval adapter and vice
-versa, and yields :class:`~evals.datasets.base.BenchmarkSample` either way.
+versa, and yields :class:`~evals.legacy_datasets.base.BenchmarkSample` either way.
 
 Scoring, judging, CLI wiring and engine configuration live elsewhere in ``evals/``;
 adapters import none of it.

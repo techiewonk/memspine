@@ -1,7 +1,8 @@
 """Launch memspine_evals without evals/ first on sys.path.
 
-evals/datasets/ (legacy) would shadow the HuggingFace `datasets` package once
-sentence-transformers installs it, and LanceDB then fails registering its converter.
+The legacy folder evals/datasets (now evals/legacy_datasets, ENV-2) used to shadow the
+HuggingFace `datasets` package once sentence-transformers installed it, and LanceDB then
+failed registering its converter.
 """
 import sys
 from pathlib import Path

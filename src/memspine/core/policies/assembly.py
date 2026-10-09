@@ -145,6 +145,7 @@ class AssemblyPolicy(BindablePolicy):
         scored: list[tuple[MemoryRecord, float]],
         budget_tokens: int = 2048,
         compression: CompressionPolicy | None = None,
+        apply_floor: bool = True,
     ) -> AssembledContext:
         """Select by MMR under a token budget, then place by E2 stability order.
 
@@ -171,7 +172,8 @@ class AssemblyPolicy(BindablePolicy):
                 abstained=True,
                 tokens_used=sum(estimate_tokens(record.content) for record in personas),
             )
-        scored = self.apply_floor(scored)
+        if apply_floor:  # read.rerank_floor="skip" turns the H4 floor off for reranked reads
+            scored = self.apply_floor(scored)
 
         # Greedy MMR selection under the token budget. Token sets are computed
         # once per record — jaccard over pre-split sets, not raw strings.

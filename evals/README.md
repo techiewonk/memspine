@@ -67,6 +67,64 @@ Insert is sequential, a query sees only what preceded it, and the returned conte
 the declared budget before the reader sees it — the LongMemEval-V2 precedent, cited rather than
 reinvented.
 
+## Run wrapper: `evals/run.sh`
+
+One entry point for a LoCoMo run (replaces the core of the older `run_*.sh` scripts, which are kept
+for provenance):
+
+```bash
+bash evals/run.sh --arm qs-eq06-fix --run-id qa-full-qs-eq06-fix-s152 --mode qa --topk 10     --items 1 --flags "--qa-prompt grounded --retry-refusal --judge-guards" --forensics
+bash evals/run.sh --arm local-combo-A --run-id v33-combo-A --mode retrieval --topk 10 --questions 1540
+```
+
+Required: `--arm` (an `evals/arms/<arm>.json`), `--run-id`, `--mode qa|retrieval`, `--topk`.
+Optional: `--items N`, `--max-queries N` (per-item cap), `--questions N` (expected row count, needed
+unless it can be derived from the LoCoMo categories 1-4 defaults: 1540 full, 152 for `--items 1`),
+`--flags "..."` (passed through to `c0-1`), `--forensics` (sets `MEMSPINE_FORENSICS_DIR=runs/<run-id>--forensics`),
+`--engine-src PATH` (sets `PYTHONPATH`, default `<repo>/src`), `--data`, `--categories`, `--batch-turns`, `--force`.
+Env: `PYTHON`, `READER_MODEL`, `JUDGE_MODEL`, `BASE_URL`.
+
+What it does: refuses to overwrite `runs/<run-id>*` unless `--force`; clears `AWS_*` with `unset`; caps
+`--max-model-calls` at 3 per question + 200 (0 in retrieval mode); writes the resolved command to the top of
+`runs/_logs/<run-id>.log`; writes `runs/<run-id>.STATUS` (`ok` or `failed ...`); and after the run checks that
+`results.jsonl` exists with the expected number of result rows. Exit code is non-zero on any failure.
+
+## Run-integrity flags (gap register A8, D1-D4, D7, B11, F2, F3, A10)
+
+**Default change (A8).** Every reader and judge request on the OpenAI-compatible endpoint now sends
+`presence_penalty`, `frequency_penalty`, `top_p` and `seed` explicitly. Before, only `temperature` was sent, so
+Ollama silently applied the model's own defaults (presence_penalty 1.5 for Qwen3.5). The new defaults are
+`--presence-penalty 0 --frequency-penalty 0 --top-p 1 --sampler-seed <--seed>`. Runs made before this change used
+the server's sampler and are not comparable to runs after it; the sampler is recorded in `manifest.reader.params.sampler`,
+`manifest.judge.params.sampler` and `manifest.labels.sampler`. Pass `--presence-penalty 1.5` to reproduce an old run.
+
+| flag | default | what it does |
+|---|---|---|
+| `--presence-penalty`, `--frequency-penalty`, `--top-p`, `--sampler-seed` | 0, 0, 1, run `--seed` | sampler sent with every reader and judge request (A8) |
+| `--server-ctx` | 8192 | the model server's context window. A reader or judge call with `prompt + completion >= server_ctx - 8` sets row `meta.server_truncation_suspected` (and `server_truncation_by`) and is counted in `summary.json` `server_truncation_suspected` (D2) |
+| `--strict-ctx` | off | raise (abort the run, rest UNATTEMPTED) instead of flagging (D2) |
+| `--token-count heuristic\|reader` | `heuristic` | `reader` counts context tokens with the reader's tokenizer from the local HF cache (offline; falls back to the heuristic with a logged warning), and an over-budget context drops its lowest-ranked lines instead of cutting the tail. `context_tokens` is then the reader count and `meta.engine_tokens` the engine's (D1) |
+| `--tokenizer-id` | first cached Qwen3 | tokenizer for `--token-count reader` |
+| `--no-runtime-capture` | off | skip the manifest `runtime` block (D4) |
+
+Always recorded, no flag:
+
+- **D3** with `--retry-refusal`, row `meta` keeps `first_prompt_tokens`, `first_completion_tokens`, `retry_prompt_tokens`,
+  `retry_completion_tokens` (the row's `prompt_tokens` is still the sum of both calls).
+- **D4** `manifest.runtime`: `memspine.__file__`, versions of memspine/torch/transformers/sentence-transformers/httpx/lancedb,
+  `git describe --always --dirty` of the engine's repo, argv, all `MEMSPINE_*`/`OLLAMA_*` env vars (names containing
+  KEY/TOKEN/SECRET/PASSWORD are redacted), and, for a local-Ollama QA run, `/api/version` and `/api/ps` (2 s timeout, never fails the run).
+- **D7** `forensics.jsonl` rows carry `run_id` and `query_id`, `ingest.jsonl` rows carry `run_id`; `forensics_report.py` joins on
+  `query_id` (old logs fall back to the question text). A run refuses to start if `MEMSPINE_FORENSICS_DIR` already holds
+  `forensics.jsonl` or `ingest.jsonl`, unless `MEMSPINE_FORENSICS_OVERWRITE=1` (which deletes them first).
+- **B11** `summary.json` `rerank_check`: `FAILED` when the memspine arm's config has `read.rerank` other than `off` and the engine
+  made no rerank call or any failed one (the CLI then exits 3 after writing its outputs), `ok` when it ran cleanly, `not_applicable`
+  otherwise.
+- **F2** `ingest.jsonl` rows add `quarantined`, `trust`, `status`; `summary.json` has `n_quarantined` (a warning is logged if > 0).
+- **F3** a turn with a non-empty timestamp that `parse_turn_time` cannot read raises an error instead of being stored as "now".
+- **A10** `summary.json` `summary.accuracy_ci`: accuracy with a conversation-level cluster-bootstrap 95% CI (2000 resamples by item;
+  failed rows count at the failure score, like the headline mean).
+
 ## Run it
 
 ```bash
@@ -501,10 +559,10 @@ prevent.
 
 The generation seam is the engine adapter, and it is the larger of the two. Its job:
 
-1. Load the corpus — `evals.datasets.base.load_dataset(name, path)` yields
+1. Load the corpus — `evals.legacy_datasets.base.load_dataset(name, path)` yields
    `BenchmarkSample` for either benchmark.
 2. Build or reuse each sample's memory — `BuildCache` keyed on `config.build_digest()`;
-   for LoCoMo, `evals.datasets.locomo.build_or_load_memory` already does this end to end
+   for LoCoMo, `evals.legacy_datasets.locomo.build_or_load_memory` already does this end to end
    through the real write door.
 3. Retrieve and assemble per question, honouring `config.budget`.
 4. Call the backbone named in `config.generation.backbone`.

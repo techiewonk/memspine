@@ -188,6 +188,29 @@ RUBRIC_BINARY_PROMPT = (
     'Respond with JSON only: {{"label": "CORRECT"}} or {{"label": "WRONG"}}'
 )
 
+#: Guarded rubric (``--judge-guards``): the rubric above plus two rules from the reader-gap
+#: analysis (``analysis/READER_GAPS.md``): LoCoMo's gold is often a relative phrasing
+#: ("The Friday before 25 May 2023") the 9B judge marked wrong against an equivalent date,
+#: and hedged answers that contain the gold fact were marked wrong. The original rubric
+#: stays reachable as ``--judge-prompt rubric``.
+RUBRIC_GUARDED_BINARY_PROMPT = (
+    "Your task is to label an answer to a question as CORRECT or WRONG, given a gold (reference) "
+    "answer.\n"
+    "Rules:\n"
+    "- CORRECT only if the answer states the same fact as the gold answer. Wording may differ, "
+    "and a longer answer is fine if it contains the gold fact, including when it adds hedging "
+    '("probably", "it seems", "around") or extra detail, as long as it does not contradict the '
+    "gold fact. For dates, the same day, month or year as the gold (at the gold's precision) is "
+    'CORRECT, including relative forms that resolve to it: a gold such as "the Friday before '
+    '25 May 2023" is the same as "19 May 2023" (and the reverse), and "the week before 9 June '
+    '2023" is the same as a date in that week.\n'
+    "- WRONG if the answer gives a different fact, or says it does not know, cannot tell, or that "
+    "the information is not available, unless the gold answer itself says the information is not "
+    "available. An empty answer is WRONG.\n\n"
+    "Question: {question}\nGold answer: {gold}\nAnswer to label: {answer}\n\n"
+    'Respond with JSON only: {{"label": "CORRECT"}} or {{"label": "WRONG"}}'
+)
+
 #: LoCoMo-Plus binary judge (T-Mem-style: the question is included). ``gold`` carries the
 #: earlier cue dialogue; the reply is correct only if it explicitly acknowledges or adapts to
 #: the constraint the cue established.
@@ -356,3 +379,42 @@ def recall_over_units(
     gold = set(gold_ids)
     hit = gold <= covered if require_all else bool(gold & covered)
     return 1.0 if hit else 0.0
+
+
+class GuardedJudge:
+    """``--judge-guards``: an empty or whitespace answer is WRONG without a judge call.
+
+    Everything else passes through to ``inner`` (a 9B judge credited empty answers). The
+    guard covers ``score`` and ``score_query``; ``handles_abstention`` and the other
+    attributes of the inner judge stay readable.
+    """
+
+    def __init__(self, inner: Any) -> None:
+        self.inner = inner
+        self.spec = JudgeSpec(
+            judge_id=inner.spec.judge_id,
+            scale=inner.spec.scale,
+            model=inner.spec.model,
+            prompt_id=inner.spec.prompt_id,
+            prompt_hash=inner.spec.prompt_hash,
+            makes_model_calls=inner.spec.makes_model_calls,
+            params={**dict(inner.spec.params), "empty_answer_guard": True},
+        )
+        self.handles_abstention = getattr(inner, "handles_abstention", False)
+        if hasattr(inner, "score_query"):
+            self.score_query = self._score_query  # runner probes for it with getattr
+
+    def _empty(self) -> Verdict:
+        return Verdict(
+            score=0.0, scale=self.spec.scale, meta={"guard": "empty_answer", "skipped": "empty"}
+        )
+
+    async def score(self, question: str, answer: str, gold: str | None) -> Verdict:
+        if not answer.strip():
+            return self._empty()
+        return await self.inner.score(question, answer, gold)
+
+    async def _score_query(self, query: Any, answer: str) -> Verdict:
+        if not answer.strip():
+            return self._empty()
+        return await self.inner.score_query(query, answer)

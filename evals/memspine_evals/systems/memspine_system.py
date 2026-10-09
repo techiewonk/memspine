@@ -71,6 +71,43 @@ def parse_turn_time(stamp: str | None) -> datetime | None:
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
 
 
+def parse_turn_stamp(turn: Turn) -> datetime | None:
+    """F3 [INJ-3]: the turn's event time. A missing stamp is None; a non-empty stamp that
+    :func:`parse_turn_time` cannot read is an error, not a silent fall back to "now"."""
+    stamp = turn.timestamp
+    parsed = parse_turn_time(stamp)
+    if parsed is None and stamp and str(stamp).strip():
+        raise ValueError(
+            f"turn {turn.turn_id!r} (session {turn.session_id!r}) has an unparseable timestamp "
+            f"{stamp!r}; add its format to _DATE_FORMATS (it would be stored as 'now')"
+        )
+    return parsed
+
+
+#: D7 [INJ-6]: the forensic logs ``MEMSPINE_FORENSICS_DIR`` collects.
+FORENSIC_LOGS = ("forensics.jsonl", "ingest.jsonl")
+
+
+def prepare_forensics_dir(directory: str, environ: Mapping[str, str] | None = None) -> None:
+    """D7 [INJ-6]: refuse to append to a forensics directory that already holds logs, unless
+    ``MEMSPINE_FORENSICS_OVERWRITE=1`` (then the old logs are removed)."""
+    import os
+
+    env = os.environ if environ is None else environ
+    existing = [name for name in FORENSIC_LOGS if (Path(directory) / name).exists()]
+    if not existing:
+        return
+    if env.get("MEMSPINE_FORENSICS_OVERWRITE") == "1":
+        for name in existing:
+            (Path(directory) / name).unlink()
+        return
+    raise RuntimeError(
+        f"MEMSPINE_FORENSICS_DIR={directory!r} already contains {', '.join(existing)}; a second "
+        "run would append to them and mix two runs. Use a fresh directory, or set "
+        "MEMSPINE_FORENSICS_OVERWRITE=1 to delete the old logs."
+    )
+
+
 #: ``storage.path`` sentinel: one fresh file-backed store per item (see ``_build_engine``).
 TEMPDIR_STORAGE = "tempdir"
 
@@ -128,6 +165,10 @@ class MemspineSystem:
         #: call (one batched embedding). 1 = one call per turn, the original path.
         self.batch_turns = max(1, int(batch_turns))
         self._buffer: list[Turn] = []
+        #: D7: ids the runner hands over; written into every forensic log row
+        self._run_id: str | None = None
+        self._query_id: str | None = None
+        self._forensics_ready = False
 
     def describe(self) -> Mapping[str, Any]:
         return {
@@ -248,6 +289,21 @@ class MemspineSystem:
                 delta[key] = {"prompt_id": now.get("prompt_id"), "roles": now.get("roles"), **diff}
         return delta
 
+    def begin_run(self, run_id: str) -> None:
+        """D7 [INJ-6]: the runner announces the run before anything is ingested. Fails fast
+        when the forensics directory already holds another run's logs."""
+        import os
+
+        self._run_id = run_id
+        directory = os.environ.get("MEMSPINE_FORENSICS_DIR")
+        if directory and not self._forensics_ready:
+            prepare_forensics_dir(directory)
+            self._forensics_ready = True
+
+    def set_query_id(self, query_id: str) -> None:
+        """D7: the id of the question about to be asked (forensics rows carry it)."""
+        self._query_id = query_id
+
     async def reset(self, item_id: str) -> None:
         self._item_id = item_id
         await self.close()
@@ -300,13 +356,13 @@ class MemspineSystem:
                 namespace=self.namespace,
                 session_id=session_id,
                 group_id=session_id,
-                valid_from=parse_turn_time(turns[0].timestamp),
+                valid_from=parse_turn_stamp(turns[0]),
             )
         else:
             messages: list[dict[str, Any]] = []
             for turn, text in zip(turns, texts, strict=True):
                 message: dict[str, Any] = {"role": "user", "content": text}
-                stamp = parse_turn_time(turn.timestamp)
+                stamp = parse_turn_stamp(turn)
                 if stamp is not None:
                     message["timestamp"] = stamp
                 messages.append(message)
@@ -323,6 +379,9 @@ class MemspineSystem:
             ids.append(record_id)
         self._write_ingest_log(records, turns, texts)
         meta: dict[str, Any] = {}
+        n_quarantined = sum(1 for record in records if getattr(record, "quarantined", False))
+        if n_quarantined:
+            meta["n_quarantined"] = n_quarantined
         if len(turns) > 1:
             meta["batched_turns"] = [turn.turn_id for turn in turns]
         services = self._embed_services(texts)
@@ -426,6 +485,7 @@ class MemspineSystem:
                 fh.write(
                     json.dumps(
                         {
+                            "run_id": self._run_id,
                             "item": getattr(self, "_item_id", None),
                             "turn": turn.turn_id,
                             "session": turn.session_id,
@@ -441,12 +501,18 @@ class MemspineSystem:
                             "group_id": getattr(record, "group_id", None),
                             "session_id": getattr(record, "session_id", None),
                             "batch_size": len(turns),
+                            # F2 [INJ-2]: what the firewall did with the record
+                            "quarantined": getattr(record, "quarantined", None),
+                            "trust": getattr(record, "trust", None),
+                            "status": _enum_value(getattr(record, "status", None)),
                         }
                     )
                     + "\n"
                 )
 
-    def _write_forensics(self, directory: str, query: str, stages: dict[str, Any], assembled: Any) -> None:
+    def _write_forensics(
+        self, directory: str, query: str, stages: dict[str, Any], assembled: Any
+    ) -> None:
         """One JSON line per question: every retrieval stage, ranked, with turn ids.
 
         Scores are the engine's own (RRF-normalised for fusion, raw cross-encoder for the
@@ -458,11 +524,17 @@ class MemspineSystem:
 
         def rank(pairs: list[tuple[Any, float]]) -> list[dict[str, Any]]:
             return [
-                {"r": i + 1, "turn": self._origin.get(str(rid), str(rid)), "score": round(float(s), 5)}
+                {
+                    "r": i + 1,
+                    "turn": self._origin.get(str(rid), str(rid)),
+                    "score": round(float(s), 5),
+                }
                 for i, (rid, s) in enumerate(pairs)
             ]
 
         row = {
+            "run_id": self._run_id,
+            "query_id": self._query_id,
             "item": getattr(self, "_item_id", None),
             "namespace": self.namespace,
             "query": query,
@@ -618,6 +690,11 @@ class MemspineSystem:
             self._tempdir = None
 
 
+def _enum_value(value: Any) -> Any:
+    """An enum member's value (``RecordStatus.ACTIVATED`` -> ``"activated"``), else as is."""
+    return getattr(value, "value", value)
+
+
 def _align(records: list[Any], turns: list[Turn], texts: list[str]) -> list[tuple[Any, str]]:
     """Pair each written record with the turn it came from.
 
@@ -652,6 +729,8 @@ def _merge_deposits(results: list[DepositResult]) -> DepositResult:
         for key, value in result.meta.items():
             if key == "batched_turns":
                 meta.setdefault(key, []).extend(value)
+            elif key == "n_quarantined":
+                meta[key] = int(meta.get(key, 0)) + int(value)
             elif key == "engine_services":
                 services = meta.setdefault(key, {})
                 for name, units in value.items():

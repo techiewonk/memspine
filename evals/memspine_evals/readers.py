@@ -13,6 +13,7 @@ import hashlib
 import re
 import time
 from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Any
 
 from .contracts import ReaderAnswer
@@ -134,6 +135,22 @@ DATED3_QA_PROMPT = (
     "Context:\n{context}\n\nQuestion: {question}\nReasoning:"
 )
 
+#: Grounded prompt (reader-gap fix, ``analysis/READER_GAPS.md``): explains the line dates and
+#: the ``[= date]`` annotations, asks for the best-supported short answer, and keeps "not
+#: mentioned" for questions nothing in the memories bears on (the default prompt's blanket
+#: "say you do not know" drew 92 of 182 refusals with the gold evidence in context).
+GROUNDED_QA_PROMPT = (
+    "Answer the question from the memories below. Each memory is one line: [YYYY-MM-DD] is "
+    'the date it was said, and a bracket like "last Saturday [= 2023-05-20]" gives the '
+    "absolute date of that relative phrase. Resolve other relative times (yesterday, last "
+    "week, two days ago) against the date of the line they appear in, not today's date. "
+    "Give a short, direct answer. Give the best-supported answer from the memories, even if "
+    "it is indirect; say it is not mentioned only when nothing in the memories bears on the "
+    "question. When a date is asked, answer in the wording the memories use (for example "
+    '"the week before 9 June 2023" or "2022"), at the precision asked.\n\n'
+    "Memories:\n{context}\n\nQuestion: {question}\nAnswer:"
+)
+
 #: N46 (MemMachine answer clause, our wording): ``dated`` plus "a plan the context
 #: states counts as done unless the context says it did not happen". QA only (paid).
 DATED_PLANNED_QA_PROMPT = DATED_QA_PROMPT.replace(
@@ -164,6 +181,7 @@ QA_PROMPTS = {
     "dated2": DATED2_QA_PROMPT,
     "dated_infer": DATED_INFER_QA_PROMPT,
     "dated3": DATED3_QA_PROMPT,
+    "grounded": GROUNDED_QA_PROMPT,
     "abstain": ABSTAIN_QA_PROMPT,
     "converse": CONVERSE_QA_PROMPT,
     "dated_planned": DATED_PLANNED_QA_PROMPT,
@@ -417,6 +435,85 @@ def thinking_off(model: str, *, reader: bool = False) -> dict[str, Any]:
     return {}
 
 
+@dataclass(frozen=True, slots=True)
+class SamplerConfig:
+    """A8 [SRV-2]: the sampler a request asks for, sent explicitly on every reader and judge
+    call. Ollama otherwise applies its own model defaults (``presence_penalty`` 1.5 for
+    Qwen3.5), which the harness silently inherited before. ``seed`` None = not sent."""
+
+    presence_penalty: float = 0.0
+    frequency_penalty: float = 0.0
+    top_p: float = 1.0
+    seed: int | None = None
+
+    def payload(self) -> dict[str, Any]:
+        out: dict[str, Any] = {
+            "presence_penalty": self.presence_penalty,
+            "frequency_penalty": self.frequency_penalty,
+            "top_p": self.top_p,
+        }
+        if self.seed is not None:
+            out["seed"] = self.seed
+        return out
+
+    def describe(self) -> dict[str, Any]:
+        return self.payload()
+
+
+class ServerContextExceeded(RuntimeError):
+    """D2 [HAR-3]: a call filled the server's context window (``--strict-ctx``)."""
+
+
+class CtxGuard:
+    """D2 [HAR-3]: flags calls whose prompt + completion tokens reach the server's context
+    window (minus a margin of 8), where the server truncates silently. One guard is shared by
+    the reader and the judge of an arm; the runner drains it after each stage."""
+
+    MARGIN = 8
+
+    def __init__(self, server_ctx: int = 8192, strict: bool = False) -> None:
+        self.server_ctx = int(server_ctx)
+        self.strict = strict
+        #: calls flagged so far, by role
+        self.suspected: dict[str, int] = {"reader": 0, "judge": 0}
+        self._pending: list[str] = []
+
+    def describe(self) -> dict[str, Any]:
+        return {"server_ctx": self.server_ctx, "strict_ctx": self.strict}
+
+    def check(self, prompt_tokens: int, completion_tokens: int, role: str) -> bool:
+        """True (and counted) when the call reached the window; raises under ``strict``."""
+        if self.server_ctx <= 0 or prompt_tokens + completion_tokens <= 0:
+            return False  # no usage reported: cannot tell
+        if prompt_tokens + completion_tokens < self.server_ctx - self.MARGIN:
+            return False
+        self.suspected[role] = self.suspected.get(role, 0) + 1
+        self._pending.append(role)
+        if self.strict:
+            raise ServerContextExceeded(
+                f"{role} call used {prompt_tokens}+{completion_tokens} tokens against a server "
+                f"context of {self.server_ctx}: the server may have truncated the prompt"
+            )
+        return True
+
+    def consume(self) -> list[str]:
+        """Roles flagged since the last call to ``consume`` (and forget them)."""
+        out, self._pending = self._pending, []
+        return out
+
+
+def find_guard(reader: Any) -> CtxGuard | None:
+    """The :class:`CtxGuard` of a reader, through wrapper readers (``.inner``)."""
+    seen = 0
+    while reader is not None and seen < 8:
+        guard = getattr(reader, "guard", None)
+        if isinstance(guard, CtxGuard):
+            return guard
+        reader = getattr(reader, "inner", None)
+        seen += 1
+    return None
+
+
 class OpenAICompatReader:
     """Any OpenAI-compatible ``/v1/chat/completions`` endpoint.
 
@@ -438,6 +535,8 @@ class OpenAICompatReader:
         prompt: str | RoutedQAPrompt = DEFAULT_QA_PROMPT,
         reader_id: str | None = None,
         extract_answer: bool = False,
+        sampler: SamplerConfig | None = None,
+        guard: CtxGuard | None = None,
     ) -> None:
         try:
             import httpx
@@ -459,6 +558,8 @@ class OpenAICompatReader:
             self.timeout = max(self.timeout, 600.0)
         #: #34: keep only the final answer of a reasoning prompt (:func:`final_answer`).
         self.extract_answer = extract_answer
+        self.sampler = sampler or SamplerConfig()
+        self.guard = guard
         self._headers = {"Authorization": f"Bearer {api_key}"}
 
     def describe(self) -> Mapping[str, Any]:
@@ -468,6 +569,7 @@ class OpenAICompatReader:
             "base_url": self.base_url,
             "temperature": self.temperature,
             "max_tokens": self.max_tokens,
+            "sampler": self.sampler.describe(),
             **prompt_describe(self.prompt),
             **(
                 {"extract_answer": True, "answer_extractor": ANSWER_EXTRACTOR_VERSION}
@@ -483,6 +585,7 @@ class OpenAICompatReader:
             "model": self.model,
             "temperature": self.temperature,
             "max_tokens": self.max_tokens,
+            **self.sampler.payload(),
             **thinking_off(self.model, reader=True),
             "messages": [
                 {
@@ -496,22 +599,26 @@ class OpenAICompatReader:
             ],
         }
         started = time.perf_counter()
-        async with self._httpx.AsyncClient(timeout=self.timeout) as client:
-            response = await client.post(
-                f"{self.base_url}/chat/completions", json=payload, headers=self._headers
-            )
-            response.raise_for_status()
-            body = response.json()
+        client = _shared_client(self._httpx, self.timeout)
+        response = await client.post(
+            f"{self.base_url}/chat/completions", json=payload, headers=self._headers
+        )
+        response.raise_for_status()
+        body = response.json()
         latency = (time.perf_counter() - started) * 1000
         usage = body.get("usage") or {}
         choice = body["choices"][0]
         finish = str(choice.get("finish_reason") or "")
         text = choice["message"]["content"].strip()
+        prompt_tokens = int(usage.get("prompt_tokens", 0))
+        completion_tokens = int(usage.get("completion_tokens", 0))
+        if self.guard is not None:
+            self.guard.check(prompt_tokens, completion_tokens, "reader")
         return ReaderAnswer(
             text=final_answer(text) if self.extract_answer else text,
             raw_text=text if self.extract_answer else None,
-            prompt_tokens=int(usage.get("prompt_tokens", 0)),
-            completion_tokens=int(usage.get("completion_tokens", 0)),
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
             latency_ms=latency,
             model_calls=1,
             truncated=finish == "length",
@@ -520,33 +627,64 @@ class OpenAICompatReader:
         )
 
 
+_CLIENTS: dict[tuple[int, int, float], Any] = {}
+
+
+def _shared_client(httpx: Any, timeout: float) -> Any:
+    """One pooled ``httpx.AsyncClient`` per event loop and timeout.
+
+    A new client per call paid ~130 ms of connection and TLS-context setup on every reader
+    and judge request (measured on Windows, 2026-10-09: 0.67 s of model time per call), so
+    one QA question spent ~0.25 s just opening clients. Keyed by the running loop because an
+    AsyncClient is bound to the loop that first uses it.
+    """
+    import asyncio
+
+    key = (id(httpx), id(asyncio.get_running_loop()), float(timeout))
+    client = _CLIENTS.get(key)
+    if client is None or getattr(client, "is_closed", False):
+        client = _CLIENTS[key] = httpx.AsyncClient(timeout=timeout)
+    return client
+
+
 def openai_compat_chat(
     model: str,
     base_url: str = "http://127.0.0.1:11434/v1",
     api_key: str = "not-needed",
     temperature: float = 0.0,
     timeout: float = 120.0,
+    sampler: SamplerConfig | None = None,
+    guard: CtxGuard | None = None,
 ) -> Any:
     """A bare ``async (prompt) -> str`` callable, for ``LLMJudge``."""
     import httpx
+
+    sampler = sampler or SamplerConfig()
 
     async def chat(prompt: str, system: str | None = None) -> str:
         messages = [{"role": "user", "content": prompt}]
         if system is not None:
             messages.insert(0, {"role": "system", "content": system})
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            response = await client.post(
-                f"{base_url.rstrip('/')}/chat/completions",
-                json={
-                    "model": model,
-                    "temperature": temperature,
-                    **thinking_off(model),
-                    "messages": messages,
-                },
-                headers={"Authorization": f"Bearer {api_key}"},
+        client = _shared_client(httpx, timeout)
+        response = await client.post(
+            f"{base_url.rstrip('/')}/chat/completions",
+            json={
+                "model": model,
+                "temperature": temperature,
+                **sampler.payload(),
+                **thinking_off(model),
+                "messages": messages,
+            },
+            headers={"Authorization": f"Bearer {api_key}"},
+        )
+        response.raise_for_status()
+        body = response.json()
+        if guard is not None:
+            usage = body.get("usage") or {}
+            guard.check(
+                int(usage.get("prompt_tokens", 0)), int(usage.get("completion_tokens", 0)), "judge"
             )
-            response.raise_for_status()
-            return str(response.json()["choices"][0]["message"]["content"])
+        return str(body["choices"][0]["message"]["content"])
 
     # R3-11: the judge records these in its spec.
     chat.params = {  # type: ignore[attr-defined]
@@ -554,5 +692,7 @@ def openai_compat_chat(
         "base_url": base_url,
         "temperature": temperature,
         "max_tokens": None,
+        "sampler": sampler.describe(),
     }
+    chat.guard = guard  # type: ignore[attr-defined]
     return chat

@@ -48,7 +48,7 @@ Cost discipline (MAGMA_HARVEST §3): this module reports history size
 publish the (accuracy, tokens, latency) triplet rather than accuracy alone.
 
 The dataset-agnostic half of this adapter — the sample model, the ingestion driver
-protocol and the build cache — now lives in :mod:`evals.datasets.base` and is shared
+protocol and the build cache — now lives in :mod:`evals.legacy_datasets.base` and is shared
 with the LoCoMo adapter. Names re-exported here are aliases, not copies.
 """
 
@@ -113,7 +113,7 @@ ADAPTER_VERSION = "1"
 
 
 # ---------------------------------------------------------------------------
-# Shared contract - now in evals/datasets/base.py
+# Shared contract - now in evals/legacy_datasets/base.py
 #
 # The sample model (ChatTurn / IngestUnit / BenchmarkQuery / BenchmarkSample), the
 # outcome vocabulary (Ability / AnswerOutcome / scored_correct), the ingestion-driver
@@ -452,7 +452,7 @@ class LongMemEvalAdapter:
 
 
 def adapter() -> LongMemEvalAdapter:
-    """Zero-argument factory, the shape :data:`evals.datasets.base.LOADERS` resolves.
+    """Zero-argument factory, the shape :data:`evals.legacy_datasets.base.LOADERS` resolves.
 
     Defaults only: a run that needs filters or FILE ordering constructs
     :class:`LongMemEvalAdapter` directly rather than going through the registry.

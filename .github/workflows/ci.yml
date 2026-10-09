@@ -26,3 +26,26 @@ jobs:
         run: uv run mypy
       - name: Test
         run: uv run pytest -q
+
+  # H1 / PROC-1: the eval harness tests run on every PR. Stub reader and judge only:
+  # no network, no GPU, no Ollama, no cloud credentials.
+  evals:
+    runs-on: ubuntu-latest
+    env:
+      HF_HUB_OFFLINE: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
+          enable-cache: true
+      - name: Sync dev environment
+        run: uv sync --extra dev
+      - name: Eval-only test dependencies
+        run: uv pip install pyarrow jsonschema httpx
+      - name: Eval harness tests
+        run: uv run pytest evals/tests -q -p no:cacheprovider
+        env:
+          PYTHONPATH: src
+          AWS_ACCESS_KEY_ID: ""
+          AWS_SECRET_ACCESS_KEY: ""

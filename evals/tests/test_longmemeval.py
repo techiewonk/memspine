@@ -20,8 +20,8 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from evals.datasets.base import BuildCache, IngestionStats  # noqa: E402
-from evals.datasets.longmemeval import (  # noqa: E402
+from evals.legacy_datasets.base import BuildCache, IngestionStats  # noqa: E402
+from evals.legacy_datasets.longmemeval import (  # noqa: E402
     ADAPTER_NAME,
     Ability,
     AnswerOutcome,

@@ -138,6 +138,18 @@ def cmd_smoke(args: argparse.Namespace) -> int:
     return 0
 
 
+def failed_rerank_checks(out: Path, summaries: list) -> list[str]:
+    """B11: run ids whose ``summary.json`` says ``rerank_check: FAILED``."""
+    failed = []
+    for summary in summaries:
+        path = out / summary.run_id / "summary.json"
+        if not path.exists():
+            continue
+        if json.loads(path.read_text(encoding="utf-8")).get("rerank_check") == "FAILED":
+            failed.append(summary.run_id)
+    return failed
+
+
 def cmd_c0_1(args: argparse.Namespace) -> int:
     if args.cache_reader and not args.cache_dir:
         raise SystemExit("--cache-reader needs --cache-dir")
@@ -180,9 +192,27 @@ def cmd_c0_1(args: argparse.Namespace) -> int:
         service_prices=parse_service_prices(args.price),
         max_usd=args.max_usd,
         verify_answer=args.verify_answer,
+        retry_refusal=args.retry_refusal,
+        judge_guards=args.judge_guards,
         retrieval_only=args.retrieval_only,
         cache_dir=args.cache_dir,
         cache_reader=args.cache_reader,
+        presence_penalty=args.presence_penalty,
+        frequency_penalty=args.frequency_penalty,
+        top_p=args.top_p,
+        sampler_seed=args.sampler_seed,
+        server_ctx=args.server_ctx,
+        strict_ctx=args.strict_ctx,
+        token_count=args.token_count,
+        tokenizer_id=args.tokenizer_id,
+        capture_runtime=not args.no_runtime_capture,
+        # a local Ollama is asked for its version / loaded models only when this run uses it
+        probe_server=(
+            not args.no_runtime_capture
+            and not args.bedrock
+            and not args.retrieval_only
+            and args.mode == "qa"
+        ),
     )
     if args.protocol:
         from .experiments import apply_protocol_preset
@@ -257,6 +287,16 @@ def cmd_c0_1(args: argparse.Namespace) -> int:
 
     print(table)
     print(f"\nwritten: {out_dir / 'COMPARISON.md'}")
+    failed = failed_rerank_checks(Path(args.out), summaries)
+    if failed:
+        # B11 [RET-3]: a configured reranker that never ran (or failed) voids the run
+        print(
+            f"ERROR: rerank_check FAILED for {', '.join(failed)}: the reranker is configured "
+            "but made no call or failed; the numbers are not the configured pipeline's",
+            file=sys.stderr,
+            flush=True,
+        )
+        return 3
     return 0
 
 
@@ -343,7 +383,8 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "QA judge on every endpoint: rubric (QA; abstention-aware), constraint "
             "(LoCoMo-Plus), alias, locomo-plus-v2 (official LoCoMo-Plus prompts), longmemeval "
-            "(anscheck templates by type), omnimemeval (official OmniMemEval LoCoMo judge)"
+            "(anscheck templates by type), omnimemeval (official OmniMemEval LoCoMo judge), "
+            "rubric-guarded (rubric plus relative-date and hedged-answer rules)"
         ),
     )
     c01.add_argument(
@@ -354,6 +395,7 @@ def build_parser() -> argparse.ArgumentParser:
             "dated2",
             "dated_infer",
             "dated3",
+            "grounded",
             "dated_world",
             "abstain",
             "converse",
@@ -366,7 +408,22 @@ def build_parser() -> argparse.ArgumentParser:
         ),
         default="default",
         help="QA prompt variant for every arm (H7/H12); question_dated shows the question date; "
-        "routed (C1) picks dated / a temporal / an inference variant per question",
+        "routed (C1) picks dated / a temporal / an inference variant per question; "
+        "grounded explains the line dates and [= date] annotations, no blanket refusal",
+    )
+    c01.add_argument(
+        "--retry-refusal",
+        action="store_true",
+        help="re-ask once, with a firmer instruction, when the reader refuses (or answers "
+        "empty) on a non-empty context; both answers land in the row meta, the extra call "
+        "counts against --max-model-calls; off by default",
+    )
+    c01.add_argument(
+        "--judge-guards",
+        action="store_true",
+        help="empty answers score wrong without a judge call; with --judge-prompt rubric the "
+        "judge is the rubric-guarded variant (equivalent relative-date phrasings and hedged "
+        "answers that contain the gold fact are CORRECT); off by default",
     )
     c01.add_argument(
         "--verify-answer",
@@ -467,6 +524,64 @@ def build_parser() -> argparse.ArgumentParser:
         "--cache-reader",
         action="store_true",
         help="with --cache-dir: cache reader and judge completions too (temperature 0 only)",
+    )
+    c01.add_argument(
+        "--presence-penalty",
+        type=float,
+        default=0.0,
+        help="A8: sampler presence_penalty sent with every reader and judge request (default 0; "
+        "before this flag the server's own default, 1.5 for Qwen3.5 on Ollama, applied silently)",
+    )
+    c01.add_argument(
+        "--frequency-penalty",
+        type=float,
+        default=0.0,
+        help="A8: sampler frequency_penalty sent with every reader and judge request (default 0)",
+    )
+    c01.add_argument(
+        "--top-p",
+        type=float,
+        default=1.0,
+        help="A8: sampler top_p sent with every reader and judge request (default 1)",
+    )
+    c01.add_argument(
+        "--sampler-seed",
+        type=int,
+        default=None,
+        help="A8: sampler seed sent with every reader and judge request (default: --seed)",
+    )
+    c01.add_argument(
+        "--server-ctx",
+        type=int,
+        default=8192,
+        help="D2: the model server's context window in tokens; a reader/judge call with "
+        "prompt + completion tokens >= this - 8 marks the row meta "
+        "server_truncation_suspected and is counted in summary.json (default 8192)",
+    )
+    c01.add_argument(
+        "--strict-ctx",
+        action="store_true",
+        help="D2: raise (stop the run) instead of flagging when a call reaches --server-ctx",
+    )
+    c01.add_argument(
+        "--token-count",
+        choices=("heuristic", "reader"),
+        default="heuristic",
+        help="D1: heuristic (chars/4, default; old runs stay comparable) | reader (count with "
+        "the reader's tokenizer from the local HF cache, drop the lowest-ranked lines of an "
+        "over-budget context instead of cutting its tail, record engine_tokens next to "
+        "context_tokens)",
+    )
+    c01.add_argument(
+        "--tokenizer-id",
+        default=None,
+        help="D1: Hugging Face tokenizer for --token-count reader (default: the first Qwen3 "
+        "tokenizer found in the local cache; offline)",
+    )
+    c01.add_argument(
+        "--no-runtime-capture",
+        action="store_true",
+        help="D4: do not record the manifest runtime block (versions, argv, env, Ollama state)",
     )
     c01.add_argument("--run-id", default=None)
     c01.add_argument("--out", default=str(DEFAULT_OUT))

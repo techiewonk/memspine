@@ -497,6 +497,24 @@ class ReadConfig(BaseModel):
     #: top-10 filled ~400 of 4,096 tokens). 1 = unchanged. Pair with
     #: ``assembly.relative_floor`` to keep precision.
     candidate_pool: int = Field(default=1, ge=1, le=10)
+    #: RETRIEVAL_GAPS finding 4: the replay / compose neighbour window is a fixed
+    #: +-2 turns (the ``window`` argument of ``Engine.read``), but 63% of the gold the
+    #: window supplies lies AFTER the hit, so a 2-before / 4-after window beats a
+    #: symmetric 3 at equal cost. These two override the window per side (turns of the
+    #: hit's session). ``None`` = that side keeps the ``read`` argument (default 2),
+    #: byte-identical; ``0`` = no neighbours on that side. ``read(replay_window=0)``
+    #: still switches the compose expansion off.
+    replay_window_before: int | None = Field(default=None, ge=0)
+    replay_window_after: int | None = Field(default=None, ge=0)
+    #: RETRIEVAL_GAPS finding 3: a reranked candidate list is min-max normalised
+    #: (best 1.0, worst 0.0), so ``assembly.relative_floor`` then drops on average half
+    #: of the hits (and their replay windows) however relevant the reranker found them.
+    #: ``minmax`` = unchanged. ``skip`` = reranked reads do not apply the relative
+    #: floor (the reranker, ``rerank_keep`` and the budget bound the context instead);
+    #: a read the reranker did not score (off, gated, failed) still applies it. A
+    #: ``raw`` mode was left out: reranker outputs are only calibrated 0-1 for some
+    #: models, and the floor would still multiply the composite score.
+    rerank_floor: Literal["minmax", "skip"] = "minmax"
     #: H16: for ordering questions ("first", "latest", "most recent", ...) present
     #: the assembled volatile records in event-time order instead of score order.
     order_by_time_for_ordering: bool = False
@@ -717,6 +735,19 @@ class ReadConfig(BaseModel):
     #: candidates with two or more sentences, ranked by their best sentence's cosine
     #: with the query. Embeds candidate sentences at read (cached); no index change.
     maxsim_leg: bool = False
+    #: Word-vector leg (gap B5/B7, 2026-10-10): an RRF leg ranking every record of the
+    #: namespace by the cosine of pooled static word vectors (query vs record), so related
+    #: words meet without sharing a term ("hobbies" ~ "kayaking"). Opt-in; set
+    #: ``hybrid: false`` to use it IN PLACE of the BM25 leg, or keep both. Brute force over
+    #: the namespace with per-record vectors cached in memory (fine for conversation-sized
+    #: stores; not an index).
+    word_vector_leg: bool = False
+    #: ``model2vec`` ([static] extra) or ``word2vec`` (gensim KeyedVectors, local path).
+    word_vector_provider: Literal["model2vec", "word2vec"] = "model2vec"
+    #: model id (model2vec) or file path (word2vec); None = minishlab/potion-retrieval-32M.
+    word_vector_model: str | None = None
+    #: hits the leg contributes to the fusion; None = the search's fetch size.
+    word_vector_top_k: int | None = Field(default=None, ge=1)
     #: GR-6 (Graphiti node search): an RRF leg of the records that mention the entity
     #: nodes best matching the question (cosine on embedded entity names + text match,
     #: fused). Needs ``graph.entity_embeddings`` and associative entity nodes.
