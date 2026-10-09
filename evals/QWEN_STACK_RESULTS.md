@@ -147,3 +147,18 @@ open-domain (20-29). Caveats: single run per arm, no confidence intervals, local
 | **Qwen3-Embedding-0.6B + Jina reranker v3.5** | 85.4 | 53.2 | 64.2 | 25.0 | **71.3** | 672 | 0.75 s / 1.5 s | 1,540 / 1,540 | 47 min |
 Reranking costs 3.1 QA points (mostly temporal, -6.2) for 57% less context and 20% faster runs. It is level with
 the bge-small baseline (71.9) while using 56% fewer context tokens. Only run with every question answered.
+
+## Status of each claim (corrections, 2026-10-10)
+Read this before quoting anything above. Evidence: `analysis/ENGINEERING_GAPS.md`, `analysis/GAP_REGISTER.md`.
+
+| Claim above | Status | Why |
+|---|---|---|
+| "Thinking costs 5.7x for no gain" (Qwen3.5-9B think on vs off) | **INVALID - confounded** | all 49 "truncated" think-on answers hit Ollama's 4,096-token window, not max_tokens (gap A9); re-test at 16K pending |
+| "localhost cost ~2.1 s per request, ~1.7 h per run" | **OVERSTATED** | 2.1 s is real for plain urllib/httpx calls, but recorded harness latencies were ~1 s; the faster later run came mainly from running alone (gap E1, HAR-6) |
+| Reranker arms lose 1-2 points of sufficiency | **valid as measured, mechanism found** | min-max scores + 0.3 relative floor deleted ~half the hits (gap B9); with the floor fix the reranker ties or leads on conv-26 (84.2 vs 83.6) |
+| Fixed config 80.1% vs baseline 74.5% (+5.6) | **valid, not attributable** | five changes at once incl. a more lenient judge rubric (gap A7); +10.5 on the tuned conversation vs +5.1 elsewhere (gap A6); single run, CI about +-2.2 (gap A10) |
+| Judge = Qwen3.5-9B for all QA numbers | **caveat** | same model as reader; est. 24-50 false negatives and 45-60 partial-list false positives (gaps A1-A3); `presence_penalty 1.5` applied silently to every call (gap A8) |
+| Published-format comparison table | **not comparable** | home-made judge, different reader; only context tokens per question are comparable (gap A4) |
+| Word vectors (potion) in place of BM25 | **negative on conv-26** | 78.9% vs 83.6% paired (gap B15); 2-conversation screen of BM25 + word vectors running |
+| 21+ LoCoMo gold errors | **listed** | `analysis/locomo_errata.json` (24 entries incl. 3 image-only); headline should be reported with and without |
+| Development / held-out split | **saved** | `analysis/locomo_split.json`: dev conv-26/30/41/42, report on conv-43/44/47/48/49/50 |

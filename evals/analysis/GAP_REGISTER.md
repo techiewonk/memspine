@@ -13,16 +13,16 @@ Priority: P0 = blocks trustworthy numbers, P1 = next, P2/P3 = later. Status: ope
 | A2 | Judge false negatives | 24-50 questions (1.6-3.2 pts); rejects 7 of 20 exact resolved dates vs "the Friday before X" gold (D 4.1) | deterministic pre-judge: weekday/week-before date equivalence, containment, fuzzy names (12-17 q); second judge on disputed rows (14-20 q); few-shot date examples (3-6 q, weak alone) | P0 | open |
 | A3 | Judge false positives | est. 45-60 partial lists credited, mostly multi-hop; truncated/refusal answers were credited earlier (D 4.2, E EVAL-7) | per-item list recall column; one scoring function where empty/truncated = miss; second judge | P0 | open |
 | A4 | Home-made judge prompt, tuned on test data; published comparison invalid | rubric/rubric-guarded written by us on LoCoMo failures (E EVAL-2) | run the official Mem0 J-score prompt verbatim with a strong judge and publish that as the comparable number; freeze judge prompts; "different judge, unreproduced" column for published numbers | P0 | open |
-| A5 | Gold / dataset errors | 21 gold errors + 3 photo-only questions in the read failures; est. 16-24 more among unread wrong rows; excluding them: 81.4% (D 5) | errata file (`gold_error`, `needs_image`) and report both headlines; audit the 112 "answer not literal in gold turn" retrieval cases (R N1) | P0 | open |
-| A6 | Tuning on the test set | tuned on conv-26: fixes +10.5 there vs +5.1 on the rest; no split file (E EVAL-4) | dev/held-out split or 2-fold cross-fit saved in repo (tune on conv-26/30/41/42, report the other 6); external check on LongMemEval / LoCoMo-Plus; pre-registration note before each tuning round | P0 | open |
+| A5 | Gold / dataset errors | 21 gold errors + 3 photo-only questions in the read failures; est. 16-24 more among unread wrong rows; excluding them: 81.4% (D 5) | errata file (`gold_error`, `needs_image`) and report both headlines; audit the 112 "answer not literal in gold turn" retrieval cases (R N1) | P0 | **errata file done** (`locomo_errata.json`, 24 entries); reporting with/without pending (infra work) |
+| A6 | Tuning on the test set | tuned on conv-26: fixes +10.5 there vs +5.1 on the rest; no split file (E EVAL-4) | dev/held-out split or 2-fold cross-fit saved in repo (tune on conv-26/30/41/42, report the other 6); external check on LongMemEval / LoCoMo-Plus; pre-registration note before each tuning round | P0 | **split saved** (`locomo_split.json`: dev conv-26/30/41/42, held-out 6); screens now on dev only |
 | A7 | Fix run changes 5 things at once | prompt, retry, judge rubric, window, server context (E HAR-4) | re-judge baseline with guarded rubric and fix answers with original rubric (judge-only, ~15 min each); 2x2 {engine old/new} x {reader+judge old/new}; headline = judge-controlled number | P0 | open |
-| A8 | Hidden sampler | Ollama applied `presence_penalty 1.5` (64-token window) to all 6,341 calls, judge included (E SRV-2) | send `presence_penalty 0`, `top_p`, `seed` explicitly and record them; derived Modelfile with correct defaults; measure effect by re-judging 300 answers | P0 | open |
+| A8 | Hidden sampler | Ollama applied `presence_penalty 1.5` (64-token window) to all 6,341 calls, judge included (E SRV-2) | send `presence_penalty 0`, `top_p`, `seed` explicitly and record them; derived Modelfile with correct defaults; measure effect by re-judging 300 answers | P0 | **in progress** (infra worktree: explicit sampler params) |
 | A9 | Thinking-mode conclusion is an artefact | all 49 "truncated" think-on answers hit the old 4,096 server window (E SRV-1) | re-run those 49 questions at 16K context (~12 min); mark the result "confounded" in `QWEN_STACK_RESULTS.md` | P0 | open |
-| A10 | No confidence intervals | single runs; measured noise is tiny (identical retrieval 1,540/1,540, 2 judge flips) but question-sampling CI is +-2.2 pts (77.7-82.7 around 80.1) (E EVAL-3/8) | cluster-bootstrap CI + paired test in every summary (code exists); never print a bare % | P0 | open |
+| A10 | No confidence intervals | single runs; measured noise is tiny (identical retrieval 1,540/1,540, 2 judge flips) but question-sampling CI is +-2.2 pts (77.7-82.7 around 80.1) (E EVAL-3/8) | cluster-bootstrap CI + paired test in every summary (code exists); never print a bare % | P0 | **in progress** (infra worktree: cluster-bootstrap CI in summary) |
 | A11 | Small ablations overstated gains | one-conversation ablation 84.2% vs full 80.1% (E) | ablate on held-out dev set with paired tests; full run before any claim | P1 | open |
 | A12 | "Sufficiency" vs QA accuracy differ in denominator and context size | retrieval-only on 1,986 incl. adversarial; QA on 1,540 (E EVAL-5) | report sufficiency on the same 1,540; at matched tokens; add R@10 before expansion | P1 | open |
 | A13 | Excluded category and label mapping | cat 5 (adversarial/abstention) never reported; category mapping by convention (E EVAL-6) | separate abstention metric run; mapping and n in every table header; verify published entries' category definitions | P1 | open |
-| A14 | Results docs contain superseded conclusions | think-mode, localhost "1.7 h saved", reranker conclusions (E PROC-5) | "status of each claim" table; generate tables from manifests with CI and judge id | P1 | open |
+| A14 | Results docs contain superseded conclusions | think-mode, localhost "1.7 h saved", reranker conclusions (E PROC-5) | "status of each claim" table; generate tables from manifests with CI and judge id | P1 | **done** - "Status of each claim" table in `QWEN_STACK_RESULTS.md` |
 | A15 | Corpus text in git | 6,476 rows of LoCoMo text committed (E EVAL-9) | kept by user decision; if shared: keep only summaries, stripped JSONL, CI check for corpus strings | - | decided: keep |
 
 ## B. Retrieval - why gold evidence does not reach the context
@@ -43,7 +43,7 @@ with no retrieved turn. Image captions, relative-time words and speaker confusio
 | B8 | Gold in sessions with no hit | 75% of lost gold; window saturated - no window shape reaches it (R 5) | session-level leg (session digests/summaries); two-stage session-then-turn search; diversity across sessions in hit selection | P1 | open |
 | B9 | Reranker deletes hits | keeps 5.7 of 10; 97.6% of questions lose >=1; 74% of its lost gold were window neighbours; rr run 70.8% (R 6, E RET-1) | `rerank_floor: skip` (implemented); `relative_floor 0` / `rerank_blend` / `rerank_gate`; normalise by raw P(yes); log `n_dropped_by_floor` | P1 | **fixed in code; measured on conv-26: 84.2% vs 83.6%, all-gold-in-context 80.7 -> 84.0%; 4-conversation screen running; full run pending** |
 | B10 | Reranker scope | with pool 1 it sees only the fused top-10 and can only delete (R, P) | `candidate_pool` 2-3 + `rerank_keep` (exists, tested); `rerank_context` 1-2 so a reply is scored with its question turn | P1 | **in use (pool 2, keep 10) in the B9 measurement; `rerank_context` not yet tried** |
-| B11 | Reranker unavailable = silent skip | sticky skip-log, no run assertion (E RET-3). Audited 2026-10-10: all 22 retrieval runs - every configured reranker scored 100% of queries, 0 failures, none unavailable; past reranker results are valid | runner asserts rerank calls > 0 and failures == 0 when configured; `rerank_required` engine flag | P1 | past runs verified; safeguard open |
+| B11 | Reranker unavailable = silent skip | sticky skip-log, no run assertion (E RET-3). Audited 2026-10-10: all 22 retrieval runs - every configured reranker scored 100% of queries, 0 failures, none unavailable; past reranker results are valid | runner asserts rerank calls > 0 and failures == 0 when configured; `rerank_required` engine flag | P1 | **in progress** (infra worktree `feat/locomo-infra`, 2026-10-10) |
 | B12 | Window was hard-coded +-2 | `replay_window_before/after` added (worktree) and used in the fixed config (2/4) | merge; record in `describe()`; regenerate arm JSONs | P2 | **implemented and in use; merge pending (H3)** |
 | B13 | Batched vs unbatched arms mixed | bf16 embeddings not batch-invariant (E RET-5) | one batching mode for all arms; measure bt1 vs bt32 once | P2 | open |
 | B14 | Existing expansion options are neutral or harmful | `statement_probe`, `prf_expansion`, `cluster_expand`, `session_cap`, leg weights, rrf_k, cohesion/sentence/entity_expand legs (R 3, 7) | do not run; keep as documented negatives | - | decided |
@@ -73,13 +73,13 @@ Measured on the fixed run: 148 read failures, of which ~48 are not reader errors
 
 | ID | Gap | Evidence | Solution options | Pri | Status |
 |---|---|---|---|---|---|
-| D1 | Three token counters disagree; harness cuts from the tail | real tokens 1.12-1.25x engine count; harness +7.2% (date prefixes); top_k 20 overflowed -> 48.7% (E HAR-1) | count with the reader's tokenizer; engine counts the exact rendered string; truncate by least relevance not recency; assert per call | P0 | open |
-| D2 | Server-side truncation invisible | prompts over n_ctx silently cut (E HAR-3) | per call: raise if prompt+completion >= n_ctx-8; pre-run check of server n_ctx; native endpoint with explicit `num_ctx` | P0 | partly fixed (8192 window) |
-| D3 | `prompt_tokens` sums retries | up to 2.6x engine count (E HAR-2) | store first/retry tokens separately; cost with/without retries | P1 | open |
-| D4 | Manifest misses what determines results | no server config, sampler, model digest, engine path, git dirty flag (E HAR-5) | `runtime` block: package versions, `git describe --dirty`, argv, env, Ollama `/api/version`/`show`/`ps`; fail on dirty tree | P1 | open |
+| D1 | Three token counters disagree; harness cuts from the tail | real tokens 1.12-1.25x engine count; harness +7.2% (date prefixes); top_k 20 overflowed -> 48.7% (E HAR-1) | count with the reader's tokenizer; engine counts the exact rendered string; truncate by least relevance not recency; assert per call | P0 | **in progress** (infra worktree `feat/locomo-infra`, 2026-10-10) |
+| D2 | Server-side truncation invisible | prompts over n_ctx silently cut (E HAR-3) | per call: raise if prompt+completion >= n_ctx-8; pre-run check of server n_ctx; native endpoint with explicit `num_ctx` | P0 | **in progress** (infra worktree `feat/locomo-infra`, 2026-10-10) |
+| D3 | `prompt_tokens` sums retries | up to 2.6x engine count (E HAR-2) | store first/retry tokens separately; cost with/without retries | P1 | **in progress** (infra worktree `feat/locomo-infra`, 2026-10-10) |
+| D4 | Manifest misses what determines results | no server config, sampler, model digest, engine path, git dirty flag (E HAR-5) | `runtime` block: package versions, `git describe --dirty`, argv, env, Ollama `/api/version`/`show`/`ps`; fail on dirty tree | P1 | **in progress** (infra worktree `feat/locomo-infra`, 2026-10-10) |
 | D5 | Latency confounded by concurrency | two arms on one Ollama slot: 3.6x server time (E HAR-6) | report server-side timings; run serially; record concurrency in manifest; `bench_llm.py` | P1 | open |
-| D6 | Scripts report success on failure; hidden env controls | rc=0 on failure, `MEMSPINE_*` env vars not recorded (E HAR-7, PROC-4) | one `evals/run.sh` wrapper: `set -euo pipefail`, arm check, STATUS file, row-count check, explicit `--topk/--flags`, derived call cap, no overwrite without `--force` | P1 | open |
-| D7 | Forensics logs append without run/query id | 11 duplicate questions break text joins (E INJ-6) | write `run_id`, `query_id` per row; open per run; refuse a non-empty dir | P2 | open |
+| D6 | Scripts report success on failure; hidden env controls | rc=0 on failure, `MEMSPINE_*` env vars not recorded (E HAR-7, PROC-4) | one `evals/run.sh` wrapper: `set -euo pipefail`, arm check, STATUS file, row-count check, explicit `--topk/--flags`, derived call cap, no overwrite without `--force` | P1 | **in progress** (infra worktree `feat/locomo-infra`, 2026-10-10) |
+| D7 | Forensics logs append without run/query id | 11 duplicate questions break text joins (E INJ-6) | write `run_id`, `query_id` per row; open per run; refuse a non-empty dir | P2 | **in progress** (infra worktree `feat/locomo-infra`, 2026-10-10) |
 
 ## E. Inference serving
 
@@ -95,8 +95,8 @@ Measured on the fixed run: 148 read failures, of which ~48 are not reader errors
 | ID | Gap | Evidence | Solution options | Pri | Status |
 |---|---|---|---|---|---|
 | F1 | Write path audit | 5,882/5,882 written, identical text, correct dates, no session merges (E INJ-1) | make these permanent post-ingest invariants + `ingest_audit` block in summary | info | clean |
-| F2 | Quarantine / trust not logged | `written` true for quarantined rows (E INJ-2) | log `quarantined`, `trust`, `status` per turn + `n_quarantined`; one control run with firewall off | P1 | open |
-| F3 | Timestamp parse failure becomes "now"; locale-dependent | latent (all parse today) (E INJ-3) | raise on unparsed timestamp; explicit month-name parser; engine counter `valid_from_defaulted` | P1 | open |
+| F2 | Quarantine / trust not logged | `written` true for quarantined rows (E INJ-2) | log `quarantined`, `trust`, `status` per turn + `n_quarantined`; one control run with firewall off | P1 | **in progress** (infra worktree `feat/locomo-infra`, 2026-10-10) |
+| F3 | Timestamp parse failure becomes "now"; locale-dependent | latent (all parse today) (E INJ-3) | raise on unparsed timestamp; explicit month-name parser; engine counter `valid_from_defaulted` | P1 | **in progress** (infra worktree `feat/locomo-infra`, 2026-10-10) |
 | F4 | Ingest cost / time not measured | per-turn deposit latency in trace is not real (E INJ-4) | record flush time and records; `ingest_s`, `turns_per_s`, `wall_clock_s` | P2 | open |
 | F5 | Day-only stamps, naive local time labelled UTC, in-session order = write order | 14 of 272 sessions within 1 h of midnight (E INJ-5) | document "dataset-local, no conversion"; assert sequential writes | P3 | open |
 
@@ -104,20 +104,25 @@ Measured on the fixed run: 148 read failures, of which ~48 are not reader errors
 
 | ID | Gap | Evidence | Solution options | Pri | Status |
 |---|---|---|---|---|---|
-| G1 | No lock file, unbounded extras | `uv.lock` gitignored; huggingface-hub 2.x broke transformers; CUDA torch / bitsandbytes not in default env (E ENV-1) | commit an evals lock; pin `huggingface-hub<2`; `just evals-setup` with the cu128 index; `pip freeze` per run | P1 | open |
-| G2 | `evals/datasets` shadows HF `datasets` | broke LanceDB; only `_launch.py` protected (E ENV-2) | rename to `evals/legacy_datasets`; test that `datasets.__file__` is not under evals/ | P1 | open |
-| G3 | `env -u` silently does nothing in Git Bash | still in 6 scripts (E ENV-3) | replace with `unset`; post-run non-empty-log check | P1 | open |
-| G4 | CRLF/LF churn | 985 files LF in index, CRLF in tree, no `.gitattributes` (E ENV-4) | `.gitattributes` (`* text=auto eol=lf`, `*.sh eol=lf`) + one renormalise commit | P2 | open |
+| G1 | No lock file, unbounded extras | `uv.lock` gitignored; huggingface-hub 2.x broke transformers; CUDA torch / bitsandbytes not in default env (E ENV-1) | commit an evals lock; pin `huggingface-hub<2`; `just evals-setup` with the cu128 index; `pip freeze` per run | P1 | **in progress** (infra worktree `feat/locomo-infra`, 2026-10-10) |
+| G2 | `evals/datasets` shadows HF `datasets` | broke LanceDB; only `_launch.py` protected (E ENV-2) | rename to `evals/legacy_datasets`; test that `datasets.__file__` is not under evals/ | P1 | **in progress** (infra worktree `feat/locomo-infra`, 2026-10-10) |
+| G3 | `env -u` silently does nothing in Git Bash | still in 6 scripts (E ENV-3) | replace with `unset`; post-run non-empty-log check | P1 | **in progress** (infra worktree `feat/locomo-infra`, 2026-10-10) |
+| G4 | CRLF/LF churn | 985 files LF in index, CRLF in tree, no `.gitattributes` (E ENV-4) | `.gitattributes` (`* text=auto eol=lf`, `*.sh eol=lf`) + one renormalise commit | P2 | **in progress** (infra worktree `feat/locomo-infra`, 2026-10-10) |
 
 ## H. Process
 
 | ID | Gap | Evidence | Solution options | Pri | Status |
 |---|---|---|---|---|---|
-| H1 | CI never runs `evals/tests` | 59 test files, no `st` extra in CI (E PROC-1) | second CI job with stub reader/judge; nightly CPU smoke with golden `retrieved_ids` | P1 | open |
-| H2 | Missing tests for new code | forensic hook, ingest log, floor interaction, budget invariants (E PROC-2) | stub-engine tests; schema validation in tests; tokenizer property test | P1 | open |
+| H1 | CI never runs `evals/tests` | 59 test files, no `st` extra in CI (E PROC-1) | second CI job with stub reader/judge; nightly CPU smoke with golden `retrieved_ids` | P1 | **in progress** (infra worktree `feat/locomo-infra`, 2026-10-10) |
+| H2 | Missing tests for new code | forensic hook, ingest log, floor interaction, budget invariants (E PROC-2) | stub-engine tests; schema validation in tests; tokenizer property test | P1 | **in progress** (infra worktree `feat/locomo-infra`, 2026-10-10) |
 | H3 | Two diverged trees, duplicated runs, 20-25 one-off scripts | `memspine` vs `memspine-fixes` (132 files, 18.8k lines) (E PROC-3) | merge behind opt-in flags; one `evals/runs` + generated `runs/INDEX.md`; tag each campaign commit | P1 | open |
 
 ## Progress log
+
+**2026-10-10 (later)**
+- Done: A5 errata file, A6 split file, A14 claim-status corrections.
+- In progress (worktree `memspine-infra`, two agents): A8, A10, B11, D1-D4, D6, D7, F2, F3, G1-G4, H1, H2.
+- Running: 2-conversation screen (conv-26/30 = development) of BM25 + word vectors vs references.
 
 **2026-10-10**
 - Done: complete register (64 gaps, now 65 with B16); word-vector leg built, tested (7 unit tests), screened (B15);

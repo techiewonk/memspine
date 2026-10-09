@@ -1,0 +1,38 @@
+{
+  "dataset_id": "locomo",
+  "revision_id": "sha256:79fa87e90f040813",
+  "content_sha256": "79fa87e90f04081343b8c8debecb80a9a6842b76a7aa537dc9fdf651ea698ff4",
+  "dev_items": [
+    "conv-26",
+    "conv-30",
+    "conv-41",
+    "conv-42"
+  ],
+  "heldout_items": [
+    "conv-43",
+    "conv-44",
+    "conv-47",
+    "conv-48",
+    "conv-49",
+    "conv-50"
+  ],
+  "seed": null,
+  "created_at": "2026-10-10T00:00:00+00:00",
+  "category_balance": {
+    "dev": {
+      "cat1": 111,
+      "cat2": 130,
+      "cat3": 32,
+      "cat4": 311,
+      "cat5": 173
+    },
+    "heldout": {
+      "cat1": 171,
+      "cat2": 191,
+      "cat3": 64,
+      "cat4": 530,
+      "cat5": 273
+    }
+  },
+  "note": "Chosen, not random: conv-26 was already used for tuning (2026-10-09), so it must be development. Tune and screen only on dev_items; report the headline only on heldout_items (gap A6). Screens using --items 1/2 run conv-26/conv-30 = development."
+}

@@ -1,0 +1,201 @@
+{
+ "schema": "locomo_errata/v1",
+ "dataset": "locomo10.json",
+ "dataset_sha256_prefix": "79fa87e90f040813",
+ "created": "2026-10-10",
+ "note": "Questions whose LoCoMo gold contradicts the transcript, or that need the image. Found while hand-reading 148 read failures of one run, so this list is incomplete (an estimated 16-24 more exist among unread wrong answers). Report accuracy with and without these. No corpus text is stored here.",
+ "entries": [
+  {
+   "item": "conv-26",
+   "qid": "0-5",
+   "tag": "gold_error",
+   "borderline": false,
+   "reason": "gold weekday contradicts transcript (Saturday)",
+   "source": "READER_GAPS_FORENSIC.md section 5"
+  },
+  {
+   "item": "conv-26",
+   "qid": "0-94",
+   "tag": "gold_error",
+   "borderline": false,
+   "reason": "question names wrong speaker",
+   "source": "READER_GAPS_FORENSIC.md section 5"
+  },
+  {
+   "item": "conv-30",
+   "qid": "1-9",
+   "tag": "gold_error",
+   "borderline": false,
+   "reason": "question names wrong people",
+   "source": "READER_GAPS_FORENSIC.md section 5"
+  },
+  {
+   "item": "conv-41",
+   "qid": "2-69",
+   "tag": "gold_error",
+   "borderline": false,
+   "reason": "question year contradicts transcript",
+   "source": "READER_GAPS_FORENSIC.md section 5"
+  },
+  {
+   "item": "conv-42",
+   "qid": "3-24",
+   "tag": "gold_error",
+   "borderline": true,
+   "reason": "gold date ambiguous vs transcript",
+   "source": "READER_GAPS_FORENSIC.md section 5"
+  },
+  {
+   "item": "conv-43",
+   "qid": "4-6",
+   "tag": "gold_error",
+   "borderline": false,
+   "reason": "gold month contradicts transcript",
+   "source": "READER_GAPS_FORENSIC.md section 5"
+  },
+  {
+   "item": "conv-43",
+   "qid": "4-60",
+   "tag": "gold_error",
+   "borderline": false,
+   "reason": "gold date contradicts transcript",
+   "source": "READER_GAPS_FORENSIC.md section 5"
+  },
+  {
+   "item": "conv-43",
+   "qid": "4-86",
+   "tag": "gold_error",
+   "borderline": false,
+   "reason": "question names wrong speaker",
+   "source": "READER_GAPS_FORENSIC.md section 5"
+  },
+  {
+   "item": "conv-43",
+   "qid": "4-135",
+   "tag": "gold_error",
+   "borderline": false,
+   "reason": "gold is the other speaker's line",
+   "source": "READER_GAPS_FORENSIC.md section 5"
+  },
+  {
+   "item": "conv-43",
+   "qid": "4-136",
+   "tag": "gold_error",
+   "borderline": false,
+   "reason": "question names wrong speaker",
+   "source": "READER_GAPS_FORENSIC.md section 5"
+  },
+  {
+   "item": "conv-43",
+   "qid": "4-164",
+   "tag": "gold_error",
+   "borderline": false,
+   "reason": "question names wrong speaker",
+   "source": "READER_GAPS_FORENSIC.md section 5"
+  },
+  {
+   "item": "conv-43",
+   "qid": "4-165",
+   "tag": "gold_error",
+   "borderline": false,
+   "reason": "question names wrong speaker",
+   "source": "READER_GAPS_FORENSIC.md section 5"
+  },
+  {
+   "item": "conv-43",
+   "qid": "4-166",
+   "tag": "gold_error",
+   "borderline": false,
+   "reason": "question names wrong speaker",
+   "source": "READER_GAPS_FORENSIC.md section 5"
+  },
+  {
+   "item": "conv-44",
+   "qid": "5-4",
+   "tag": "gold_error",
+   "borderline": false,
+   "reason": "gold week contradicts transcript",
+   "source": "READER_GAPS_FORENSIC.md section 5"
+  },
+  {
+   "item": "conv-47",
+   "qid": "6-31",
+   "tag": "gold_error",
+   "borderline": false,
+   "reason": "gold duration contradicts transcript",
+   "source": "READER_GAPS_FORENSIC.md section 5"
+  },
+  {
+   "item": "conv-47",
+   "qid": "6-72",
+   "tag": "gold_error",
+   "borderline": true,
+   "reason": "gold attributes the other speaker's line",
+   "source": "READER_GAPS_FORENSIC.md section 5"
+  },
+  {
+   "item": "conv-48",
+   "qid": "7-174",
+   "tag": "gold_error",
+   "borderline": false,
+   "reason": "question names wrong speaker",
+   "source": "READER_GAPS_FORENSIC.md section 5"
+  },
+  {
+   "item": "conv-49",
+   "qid": "8-24",
+   "tag": "gold_error",
+   "borderline": false,
+   "reason": "question names wrong speaker",
+   "source": "READER_GAPS_FORENSIC.md section 5"
+  },
+  {
+   "item": "conv-49",
+   "qid": "8-74",
+   "tag": "gold_error",
+   "borderline": false,
+   "reason": "gold weekday contradicts transcript",
+   "source": "READER_GAPS_FORENSIC.md section 5"
+  },
+  {
+   "item": "conv-49",
+   "qid": "8-80",
+   "tag": "gold_error",
+   "borderline": false,
+   "reason": "gold year contradicts transcript",
+   "source": "READER_GAPS_FORENSIC.md section 5"
+  },
+  {
+   "item": "conv-50",
+   "qid": "9-137",
+   "tag": "gold_error",
+   "borderline": false,
+   "reason": "question names wrong speaker",
+   "source": "READER_GAPS_FORENSIC.md section 5"
+  },
+  {
+   "item": "conv-42",
+   "qid": "3-91",
+   "tag": "needs_image",
+   "borderline": false,
+   "reason": "evidence only in the image, not in the text",
+   "source": "READER_GAPS_FORENSIC.md section 5"
+  },
+  {
+   "item": "conv-42",
+   "qid": "3-92",
+   "tag": "needs_image",
+   "borderline": false,
+   "reason": "evidence only in the image, not in the text",
+   "source": "READER_GAPS_FORENSIC.md section 5"
+  },
+  {
+   "item": "conv-26",
+   "qid": "0-23",
+   "tag": "needs_image",
+   "borderline": false,
+   "reason": "evidence only in the image, not in the text",
+   "source": "READER_GAPS_FORENSIC.md section 5"
+  }
+ ]
+}
