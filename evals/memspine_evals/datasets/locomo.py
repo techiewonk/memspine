@@ -184,6 +184,10 @@ class LoCoMoDataset:
                         meta=meta,
                     )
                 )
+            import os
+
+            if os.environ.get("MEMSPINE_EVAL_MAX_QUERIES"):  # debugging: first N questions per item
+                queries = queries[: int(os.environ["MEMSPINE_EVAL_MAX_QUERIES"])]
             if queries:
                 yield EvalItem(
                     item_id=str(sample.get("sample_id", index)),

@@ -249,6 +249,7 @@ class MemspineSystem:
         return delta
 
     async def reset(self, item_id: str) -> None:
+        self._item_id = item_id
         await self.close()
         self._origin = {}
         self._sessions = set()
@@ -320,6 +321,7 @@ class MemspineSystem:
             record_id = str(record.record_id)
             self._origin[record_id] = turn_id
             ids.append(record_id)
+        self._write_ingest_log(records, turns, texts)
         meta: dict[str, Any] = {}
         if len(turns) > 1:
             meta["batched_turns"] = [turn.turn_id for turn in turns]
@@ -399,6 +401,51 @@ class MemspineSystem:
             parse_question_date(meta.get("question_date")) if self._as_of_question_date else None
         )
 
+    def _write_ingest_log(self, records: list[Any], turns: list[Turn], texts: list[str]) -> None:
+        """Injection audit (``MEMSPINE_FORENSICS_DIR``): one line per record written.
+
+        Records the source turn next to what the engine stored: content fidelity, the event time
+        it was filed under (``valid_from``), grouping and type, so a later miss can be traced back
+        to a write-side defect (dropped or merged turn, wrong date, altered text).
+        """
+        import json
+        import os
+        from pathlib import Path
+
+        directory = os.environ.get("MEMSPINE_FORENSICS_DIR")
+        if not directory:
+            return
+        by_turn = {turn_id: record for record, turn_id in _align(records, turns, texts)}
+        out = Path(directory)
+        out.mkdir(parents=True, exist_ok=True)
+        with (out / "ingest.jsonl").open("a", encoding="utf-8") as fh:
+            for turn, text in zip(turns, texts, strict=True):
+                record = by_turn.get(turn.turn_id)
+                stored = getattr(record, "content", None)
+                valid_from = getattr(record, "valid_from", None)
+                fh.write(
+                    json.dumps(
+                        {
+                            "item": getattr(self, "_item_id", None),
+                            "turn": turn.turn_id,
+                            "session": turn.session_id,
+                            "speaker": turn.speaker,
+                            "source_timestamp": turn.timestamp,
+                            "source_text": text,
+                            "written": record is not None,
+                            "record_id": str(record.record_id) if record is not None else None,
+                            "stored_text": stored,
+                            "text_identical": stored == text if stored is not None else None,
+                            "valid_from": valid_from.isoformat() if valid_from else None,
+                            "memory_type": str(getattr(record, "memory_type", None)),
+                            "group_id": getattr(record, "group_id", None),
+                            "session_id": getattr(record, "session_id", None),
+                            "batch_size": len(turns),
+                        }
+                    )
+                    + "\n"
+                )
+
     def _write_forensics(self, directory: str, query: str, stages: dict[str, Any], assembled: Any) -> None:
         """One JSON line per question: every retrieval stage, ranked, with turn ids.
 
@@ -416,6 +463,7 @@ class MemspineSystem:
             ]
 
         row = {
+            "item": getattr(self, "_item_id", None),
             "namespace": self.namespace,
             "query": query,
             "vector": rank(stages.get("vector", [])),
