@@ -735,6 +735,19 @@ class ReadConfig(BaseModel):
     #: candidates with two or more sentences, ranked by their best sentence's cosine
     #: with the query. Embeds candidate sentences at read (cached); no index change.
     maxsim_leg: bool = False
+    #: Word-vector leg (gap B5/B7, 2026-10-10): an RRF leg ranking every record of the
+    #: namespace by the cosine of pooled static word vectors (query vs record), so related
+    #: words meet without sharing a term ("hobbies" ~ "kayaking"). Opt-in; set
+    #: ``hybrid: false`` to use it IN PLACE of the BM25 leg, or keep both. Brute force over
+    #: the namespace with per-record vectors cached in memory (fine for conversation-sized
+    #: stores; not an index).
+    word_vector_leg: bool = False
+    #: ``model2vec`` ([static] extra) or ``word2vec`` (gensim KeyedVectors, local path).
+    word_vector_provider: Literal["model2vec", "word2vec"] = "model2vec"
+    #: model id (model2vec) or file path (word2vec); None = minishlab/potion-retrieval-32M.
+    word_vector_model: str | None = None
+    #: hits the leg contributes to the fusion; None = the search's fetch size.
+    word_vector_top_k: int | None = Field(default=None, ge=1)
     #: GR-6 (Graphiti node search): an RRF leg of the records that mention the entity
     #: nodes best matching the question (cosine on embedded entity names + text match,
     #: fused). Needs ``graph.entity_embeddings`` and associative entity nodes.

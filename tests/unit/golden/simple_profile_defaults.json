@@ -197,7 +197,11 @@
       "topic_timelines": false,
       "type_quotas": {},
       "verbatim_raw_only": false,
-      "view_tag_leg": false
+      "view_tag_leg": false,
+      "word_vector_leg": false,
+      "word_vector_model": null,
+      "word_vector_provider": "model2vec",
+      "word_vector_top_k": null
     },
     "rest": {
       "auth": {

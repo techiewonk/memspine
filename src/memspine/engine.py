@@ -1002,6 +1002,10 @@ class Engine:
         self._rerank_gated = 0  # N41: reranks whose order was not used (low confidence)
         #: N60: sentence vectors per (record id, content) for the MaxSim leg.
         self._sentence_vectors: dict[tuple[str, str], list[list[float]]] = {}
+        #: word-vector leg (read.word_vector_leg): lazy encoder and per-(record, content) vectors
+        self._word_vectors: Any = None
+        self._word_vectors_unavailable = False
+        self._word_vector_cache: dict[tuple[str, str], list[float]] = {}
         # E4 (ADR-020): whether the vector leg runs the two-stage quantized
         # rescore (manifest-driven + vector.quantization override). Off => the
         # exact query() path, byte-identical to the pre-E4 pipeline.
@@ -2387,6 +2391,52 @@ class Engine:
             return [leg] if leg else []
         except Exception as exc:  # an enhancer, never a gate
             _log.warning("read.maxsim_leg_failed", namespace=ns, error=str(exc))
+            return []
+
+    async def _word_vector_leg(self, ns: str, query: str, fetch_k: int) -> list[list[LegHit]]:
+        """Word-vector leg (``read.word_vector_leg``): every live record of ``ns`` ranked by
+        the cosine of pooled static word vectors with the query. Vectors are cached per
+        (record, content); a missing provider skip-logs once and the leg stays empty, so
+        retrieval never fails because of it."""
+        read = self._config().read
+        try:
+            if self._word_vectors is None:
+                if self._word_vectors_unavailable:
+                    return []
+                from memspine.services.embedding.word_vectors import WordVectorEncoder
+
+                self._word_vectors = WordVectorEncoder(
+                    read.word_vector_provider, read.word_vector_model
+                )
+            encoder = self._word_vectors
+            storage = self._require_started()
+            records = [r for r in await storage.list_records(ns) if not r.quarantined]
+            cache = self._word_vector_cache
+            missing = [r for r in records if (r.record_id, r.content) not in cache]
+            if missing:
+                vectors = await asyncio.to_thread(encoder.encode, [r.content for r in missing])
+                if len(cache) + len(missing) > constants.MAXSIM_CACHE_MAX:
+                    cache.clear()
+                for r, v in zip(missing, vectors, strict=True):
+                    cache[(r.record_id, r.content)] = v
+            [q] = await asyncio.to_thread(encoder.encode, [query])
+            scored = sorted(
+                (
+                    (sum(a * b for a, b in zip(q, cache[(r.record_id, r.content)], strict=False)),
+                     r.record_id)
+                    for r in records
+                    if (r.record_id, r.content) in cache
+                ),
+                key=lambda pair: -pair[0],
+            )[: read.word_vector_top_k or fetch_k]
+            leg = NamedLeg("word_vector", [LegHit(rid, score) for score, rid in scored])
+            return [leg] if leg else []
+        except MissingServiceError as exc:
+            self._word_vectors_unavailable = True
+            _log.info("read.word_vector_leg_unavailable", error=str(exc))
+            return []
+        except Exception as exc:  # an enhancer, never a gate
+            _log.warning("read.word_vector_leg_failed", namespace=ns, error=str(exc))
             return []
 
     async def _anchor_legs(
@@ -3963,6 +4013,8 @@ class Engine:
                 extra_legs += await self._graph_node_legs(ns, query, query_vector, fetch_k)
             if read_now.maxsim_leg:
                 extra_legs += await self._maxsim_leg(ns, query_vector, vector_hits, lexical_hits)
+            if read_now.word_vector_leg:
+                extra_legs += await self._word_vector_leg(ns, query, fetch_k)
             extra_legs += [list(leg) for leg in fused_legs if leg]
             floors = self._config().read.leg_min_scores
             if floors:
