@@ -19,6 +19,16 @@ QWEN_QUERY = (
     "retrieve memories that answer it\nQuery: "
 )
 EMBEDDERS = {
+    "ejina": {
+        "provider": "st",
+        "model": "jinaai/jina-embeddings-v5-text-small-retrieval",
+        "dim": 1024,
+        "device": "cuda",
+        "dtype": "bfloat16",
+        "query_prompt_name": "query",
+        "document_prompt_name": "document",
+        "trust_remote_code": True,
+    },
     "ebge": {"provider": "fastembed", "model": "BAAI/bge-small-en-v1.5"},
     "ebgeb": {"provider": "fastembed", "model": "BAAI/bge-base-en-v1.5"},
     "eq06": {
@@ -31,6 +41,7 @@ EMBEDDERS = {
     },
 }
 RERANKERS = {
+    "rjina": {"rerank": "jina", "rerank_model": "jinaai/jina-reranker-v3.5", "rerank_device": "cuda"},
     "roff": {"rerank": "off"},
     "rbge": {"rerank": "fastembed", "rerank_model": "BAAI/bge-reranker-base"},
     "rq06": {
