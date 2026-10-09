@@ -128,3 +128,26 @@ def test_model2vec_encoder_relates_words() -> None:
         pytest.skip(f"model2vec model unavailable: {exc}")
     dot = lambda x, y: sum(i * j for i, j in zip(x, y, strict=True))  # noqa: E731
     assert dot(q, a) > dot(q, b)
+
+
+async def test_word_vector_leg_keeps_the_wide_vector_window(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With ``hybrid: false`` the word-vector leg replaces BM25: the vector leg must still fetch
+    ``top_k * LEXICAL_FETCH_MULTIPLIER`` candidates, as it does beside BM25 (screen 2026-10-10)."""
+    from memspine.config import constants
+
+    monkeypatch.setattr(word_vectors, "WordVectorEncoder", FakeEncoder)
+    for leg_on, expected in ((False, 10), (True, 10 * constants.LEXICAL_FETCH_MULTIPLIER)):
+        eng = _engine(word_vector_leg=leg_on)
+        await eng.start()
+        try:
+            for i in range(40):
+                await eng.write(
+                    f"note number {i} about things", namespace="a", memory_type="episodic"
+                )
+            with search_forensics() as stages:
+                await eng.search("things", namespace="a", top_k=10)
+            assert len(stages["vector"]) == min(40, expected)
+        finally:
+            await eng.stop()

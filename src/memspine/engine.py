@@ -3956,7 +3956,10 @@ class Engine:
         # Hybrid recall (E8/D-25): fetch a wider candidate window per leg so a
         # record ranked just outside a single leg's top_k, but strong when the two
         # legs combine, can still enter the fused top_k.
-        base_fetch = top_k * constants.LEXICAL_FETCH_MULTIPLIER if use_hybrid else top_k
+        # The word-vector leg is a second fused leg like BM25, so it widens the window the
+        # same way; without this, ``hybrid: false`` + word vectors cut the vector leg to top_k.
+        wide = use_hybrid or self._config().read.word_vector_leg
+        base_fetch = top_k * constants.LEXICAL_FETCH_MULTIPLIER if wide else top_k
         allowed = await self._date_allowed(ns)
         if allowed is not None:
             if not allowed[0]:
