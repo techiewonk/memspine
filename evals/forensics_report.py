@@ -38,7 +38,7 @@ HERE = Path(__file__).parent
 sys.path[:] = [p for p in sys.path if Path(p or ".").resolve() != HERE.resolve()]
 sys.path.append(str(HERE))
 
-from failure_buckets import _session_date, bucket_failure  # noqa: E402
+from failure_buckets import _list_items, _session_date, _words, bucket_failure  # noqa: E402
 from memspine_evals.datasets import LoCoMoDataset  # noqa: E402
 
 CAT = {"cat1": "multi-hop", "cat2": "temporal", "cat3": "open-domain", "cat4": "single-hop", "cat5": "adversarial"}
@@ -61,6 +61,30 @@ HYPOTHESES = {
     "reader": "All gold evidence was in context and the answer was wrong: prompt (refusal instruction, unexplained "
     "[= date] tags), date arithmetic, granularity, list completeness, inference, or judge disagreement / gold error.",
 }
+
+
+def list_recall(question: str, gold: str | None, answer: str | None) -> tuple[int, int] | None:
+    """Gap A3: (items found, items) for a short-list gold, else None.
+
+    An item counts as found when every content word of it appears in the answer, matching on
+    a shared prefix in either direction ("win"/"winning", "painting"/"paintings"). Date golds
+    ("25 May, 2022") are not lists.
+    """
+    from failure_buckets import parse_interval
+
+    if parse_interval(str(gold or "")) is not None:  # "25 May, 2022" is a date, not a list
+        return None
+    items = _list_items(question or "", str(gold or ""))
+    if not items:
+        return None
+    words = _words(answer or "")
+
+    def present(w: str) -> bool:
+        stem = w[: max(3, min(5, len(w)))]
+        return any(a.startswith(stem) or w.startswith(a[:5]) and len(a) >= 3 for a in words)
+
+    found = sum(1 for item in items if _words(item) and all(present(w) for w in _words(item)))
+    return found, len(items)
 
 
 def gold_turns(raw) -> list[str]:
@@ -186,9 +210,17 @@ def build(args) -> None:
             "judge_raw": meta.get("judge_raw"), "correct": correct, "has_stage_log": f is not None,
             "context_tokens": num(r.get("context_tokens")), "latency_retrieve_ms": num(r.get("latency_retrieve_ms")),
             "latency_answer_ms": num(r.get("latency_answer_ms")), "retrieved_turns": retrieved,
+            "list_recall": None,
             "gold_turns": [], "flags": [], "primary_gap": None, "reader_bucket": None,
             "stages": None, "top_non_gold": None, "context_text": None,
         }
+        lr = list_recall(r["question"], r.get("gold"), answer) if mode == "qa" else None
+        if lr is not None:
+            entry["list_recall"] = {"found": lr[0], "items": lr[1], "recall": lr[0] / lr[1]}
+            if correct and lr[0] < lr[1]:
+                entry["flags"].append("judge:credited_partial_list")
+            if not correct and lr[0] == lr[1]:
+                entry["flags"].append("judge:rejected_complete_list")
         losses: list[str] = []
         for g in gold_ids:
             info = turn_info.get((r["item_id"], g), {})
@@ -355,6 +387,13 @@ def summarise(run_id: str, rows: list[dict], manifest: dict, ingest: list[dict],
                           "batch_sizes": dict(Counter(str(r.get("batch_size")) for r in ingest))}
     else:
         s["injection"] = None
+    lists = [r for r in rows if r.get("list_recall")]
+    s["list_questions"] = {
+        "n": len(lists),
+        "mean_recall": (sum(r["list_recall"]["recall"] for r in lists) / len(lists)) if lists else None,
+        "judged_correct_partial_list": sum(1 for r in lists if r["correct"] and r["list_recall"]["recall"] < 1),
+        "judged_wrong_complete_list": sum(1 for r in lists if not r["correct"] and r["list_recall"]["recall"] == 1),
+    } if lists else None
     s["fix_hypotheses"] = HYPOTHESES
     return s
 

@@ -4054,7 +4054,12 @@ class Engine:
                     fused = rrf_fuse(
                         vector_hits, lexical_hits, k=rrf_k, extra=extra_legs, weights=weights
                     )
-                fused = fused[: top_k * widen]
+                read_cut = self._config().read
+                # GR-15 fix (2026-10-10): with ``rerank_balanced`` the fused list must keep more
+                # than the pool size, or ``_balanced_pool`` below has nothing to choose from and
+                # is a no-op (measured: identical answers on 233 dev questions).
+                over = 3 if read_cut.rerank_balanced and read_cut.rerank != "off" else 1
+                fused = fused[: top_k * widen * over]
                 # F1: raw RRF scores are ~1/(k+1) (≈0.016), but the M1 composite
                 # expects relevance in [0, 1]. Normalize by the theoretical max (a
                 # record ranked #1 in EVERY non-empty leg) so the fused relevance
