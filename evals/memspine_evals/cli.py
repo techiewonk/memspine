@@ -321,7 +321,7 @@ def build_parser() -> argparse.ArgumentParser:
     c01.add_argument("--items", type=int, default=None, help="cap items (pilot runs)")
     c01.add_argument("--reader-model", default="qwen3:4b")
     c01.add_argument("--judge-model", default=None)
-    c01.add_argument("--base-url", default="http://localhost:11434/v1")
+    c01.add_argument("--base-url", default="http://127.0.0.1:11434/v1")
     c01.add_argument("--max-model-calls", type=int, default=None)
     c01.add_argument(
         "--bedrock", action="store_true", help="D23 Qwen3 protocol: Bedrock Qwen3 reader + judge"

@@ -75,7 +75,7 @@ def check_llm() -> None:
     try:
         body = {"model": "qwen3.5:9b", "reasoning_effort": "none", "max_tokens": 50,
                 "messages": [{"role": "user", "content": "Reply with the single word: ready"}]}
-        req = urllib.request.Request("http://localhost:11434/v1/chat/completions",
+        req = urllib.request.Request("http://127.0.0.1:11434/v1/chat/completions",
                                      json.dumps(body).encode(), {"Content-Type": "application/json"})
         d = json.load(urllib.request.urlopen(req, timeout=120))
         m = d["choices"][0]["message"]

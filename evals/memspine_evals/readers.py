@@ -430,7 +430,7 @@ class OpenAICompatReader:
     def __init__(
         self,
         model: str,
-        base_url: str = "http://localhost:11434/v1",
+        base_url: str = "http://127.0.0.1:11434/v1",
         api_key: str = "not-needed",
         temperature: float = 0.0,
         max_tokens: int = 512,
@@ -522,7 +522,7 @@ class OpenAICompatReader:
 
 def openai_compat_chat(
     model: str,
-    base_url: str = "http://localhost:11434/v1",
+    base_url: str = "http://127.0.0.1:11434/v1",
     api_key: str = "not-needed",
     temperature: float = 0.0,
     timeout: float = 120.0,
