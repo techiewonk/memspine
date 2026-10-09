@@ -389,8 +389,11 @@ class GuardedJudge:
     attributes of the inner judge stay readable.
     """
 
-    def __init__(self, inner: Any) -> None:
+    def __init__(self, inner: Any, *, date_check: bool = False, empty_guard: bool = True) -> None:
         self.inner = inner
+        #: gap A2: credit a single-day date match deterministically (``date_check.py``)
+        self.date_check = date_check
+        self.empty_guard = empty_guard
         self.spec = JudgeSpec(
             judge_id=inner.spec.judge_id,
             scale=inner.spec.scale,
@@ -398,7 +401,11 @@ class GuardedJudge:
             prompt_id=inner.spec.prompt_id,
             prompt_hash=inner.spec.prompt_hash,
             makes_model_calls=inner.spec.makes_model_calls,
-            params={**dict(inner.spec.params), "empty_answer_guard": True},
+            params={
+                **dict(inner.spec.params),
+                "empty_answer_guard": empty_guard,
+                **({"date_check": "date_check/v1"} if date_check else {}),
+            },
         )
         self.handles_abstention = getattr(inner, "handles_abstention", False)
         if hasattr(inner, "score_query"):
@@ -409,12 +416,22 @@ class GuardedJudge:
             score=0.0, scale=self.spec.scale, meta={"guard": "empty_answer", "skipped": "empty"}
         )
 
+    def _dated(self, gold: str | None, answer: str) -> Verdict | None:
+        if not self.date_check:
+            return None
+        from memspine_evals.date_check import date_equivalent
+
+        if date_equivalent(gold, answer):
+            return Verdict(score=1.0, scale=self.spec.scale, meta={"guard": "date_equivalent"})
+        return None
+
     async def score(self, question: str, answer: str, gold: str | None) -> Verdict:
-        if not answer.strip():
+        if self.empty_guard and not answer.strip():
             return self._empty()
-        return await self.inner.score(question, answer, gold)
+        return self._dated(gold, answer) or await self.inner.score(question, answer, gold)
 
     async def _score_query(self, query: Any, answer: str) -> Verdict:
-        if not answer.strip():
+        if self.empty_guard and not answer.strip():
             return self._empty()
-        return await self.inner.score_query(query, answer)
+        dated = self._dated(getattr(query, "gold", None), answer)
+        return dated or await self.inner.score_query(query, answer)

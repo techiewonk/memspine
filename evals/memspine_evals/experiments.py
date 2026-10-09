@@ -149,6 +149,8 @@ class C01Config:
     #: reader-gap fix: empty answers score wrong without a judge call, and ``rubric`` becomes
     #: ``rubric-guarded`` (``judge.GuardedJudge``). Off: judges unchanged.
     judge_guards: bool = False
+    #: gap A2: deterministic single-day date equivalence before the LLM judge
+    judge_date_check: bool = False
     #: screening: ingest and read every question as the QA run would, skip the reader
     #: and the judge, record evidence coverage per question (``screen.py``)
     retrieval_only: bool = False
@@ -446,7 +448,15 @@ def build_judge(config: C01Config, chat: Any, model: str, judge_id: str | None =
     if config.judge_prompt == "alias":
         from .judge import AliasContainsJudge, GuardedJudge
 
-        return GuardedJudge(AliasContainsJudge()) if config.judge_guards else AliasContainsJudge()
+        return (
+            GuardedJudge(
+                AliasContainsJudge(),
+                date_check=config.judge_date_check,
+                empty_guard=config.judge_guards,
+            )
+            if (config.judge_guards or config.judge_date_check)
+            else AliasContainsJudge()
+        )
     from .judge import GuardedJudge
     from .judge_prompts import RoutedLLMJudge
 
@@ -456,7 +466,11 @@ def build_judge(config: C01Config, chat: Any, model: str, judge_id: str | None =
     judge = RoutedLLMJudge(chat, model=model, suite=suite, judge_id=judge_id)
     if judge.spec.prompt_hash == sha256_text(DEFAULT_BINARY_PROMPT):  # pragma: no cover
         raise ValueError("the default binary judge prompt is not allowed in QA mode")
-    return GuardedJudge(judge) if config.judge_guards else judge
+    if config.judge_guards or config.judge_date_check:
+        return GuardedJudge(
+            judge, date_check=config.judge_date_check, empty_guard=config.judge_guards
+        )
+    return judge
 
 
 def build_reader_and_judge(config: C01Config) -> tuple[Reader, Judge, bool]:

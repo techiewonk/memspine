@@ -196,6 +196,22 @@
    "borderline": false,
    "reason": "evidence only in the image, not in the text",
    "source": "READER_GAPS_FORENSIC.md section 5"
+  },
+  {
+   "item": "conv-30",
+   "qid": "1-57",
+   "tag": "gold_error",
+   "borderline": false,
+   "reason": "question attributes the advice to Gina; the gold line (D7:5) is Jon's",
+   "source": "dev reasoning 2026-10-10"
+  },
+  {
+   "item": "conv-26",
+   "qid": "0-23",
+   "tag": "needs_image",
+   "borderline": false,
+   "reason": "one gold title appears only in the photo (D7:8), not in text or caption",
+   "source": "dev reasoning 2026-10-10"
   }
  ]
 }

@@ -195,6 +195,7 @@ def cmd_c0_1(args: argparse.Namespace) -> int:
         verify_answer=args.verify_answer,
         retry_refusal=args.retry_refusal,
         judge_guards=args.judge_guards,
+        judge_date_check=args.judge_date_check,
         retrieval_only=args.retrieval_only,
         cache_dir=args.cache_dir,
         cache_reader=args.cache_reader,
@@ -426,6 +427,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="empty answers score wrong without a judge call; with --judge-prompt rubric the "
         "judge is the rubric-guarded variant (equivalent relative-date phrasings and hedged "
         "answers that contain the gold fact are CORRECT); off by default",
+    )
+    c01.add_argument(
+        "--judge-date-check",
+        action="store_true",
+        help="gap A2: before the LLM judge, credit an answer whose first date is the single day "
+        "the "
+        "gold names (e.g. 'the Friday before 15 July 2023'); refusals and denials never credited",
     )
     c01.add_argument(
         "--verify-answer",
