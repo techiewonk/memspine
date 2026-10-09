@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "memspine/evals/forensic_run/v1",
+  "title": "Run summary (run_summary.json beside per_question.jsonl)",
+  "description": "One run: configuration, models, timings, accuracy by category, the retrieval funnel, primary gaps, cascades, reader failure types and the injection audit. All numbers are derived from per_question.jsonl and ingest.jsonl.",
+  "type": "object",
+  "required": ["schema_version", "run_id", "mode", "has_stage_log", "n_questions", "accuracy", "by_category",
+               "primary_gaps", "outcome_classes"],
+  "properties": {
+    "schema_version": {"const": "forensic_run/v1"},
+    "run_id": {"type": "string"},
+    "mode": {"enum": ["qa", "retrieval"]},
+    "has_stage_log": {"type": "boolean"},
+    "generated_at": {"type": "string"},
+    "config": {"type": ["object", "null"], "description": "engine config overrides of the arm (from the run manifest)"},
+    "models": {"type": "object", "description": "embedder, reranker, reader, judge ids"},
+    "wall_clock_s": {"type": ["number", "null"]},
+    "n_questions": {"type": "integer"},
+    "accuracy": {"type": "number"},
+    "by_category": {"type": "object", "additionalProperties": {
+      "type": "object", "properties": {"n": {"type": "integer"}, "accuracy": {"type": "number"}}}},
+    "outcome_classes": {"type": "object", "additionalProperties": {"type": "integer"}},
+    "primary_gaps": {"type": "object", "additionalProperties": {"type": "integer"}},
+    "primary_gaps_by_category": {"type": "object"},
+    "funnel": {"type": ["object", "null"], "description": "share of questions whose gold evidence survives each stage, per category"},
+    "oracle": {"type": "object", "description": "accuracy given all gold in context vs not, per category"},
+    "cascades": {"type": "array", "items": {"type": "object",
+      "properties": {"flags": {"type": "array", "items": {"type": "string"}}, "count": {"type": "integer"}}}},
+    "reader_buckets": {"type": "object", "additionalProperties": {"type": "integer"}},
+    "context_tokens_mean": {"type": ["number", "null"]},
+    "latency_answer_p50_ms": {"type": ["number", "null"]},
+    "latency_answer_p95_ms": {"type": ["number", "null"]},
+    "injection": {"type": ["object", "null"], "description": "turns, written, text_altered, no_date, date_mismatch, memory_types"},
+    "fix_hypotheses": {"type": "object", "additionalProperties": {"type": "string"}}
+  }
+}

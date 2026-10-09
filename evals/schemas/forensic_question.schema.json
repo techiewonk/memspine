@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "memspine/evals/forensic_question/v1",
+  "title": "Per-question forensic record (one line of per_question.jsonl)",
+  "description": "Everything about one benchmark question, step by step: injection of its gold evidence, every retrieval stage, the context the reader saw, the answer, the judge verdict and the gap attribution. Stage fields are null for runs recorded without MEMSPINE_FORENSICS_DIR (results-level only).",
+  "type": "object",
+  "required": ["schema_version", "run_id", "mode", "item", "qid", "category", "question", "gold_answer",
+               "correct", "outcome_class", "gold_turns", "flags", "primary_gap", "has_stage_log"],
+  "properties": {
+    "schema_version": {"const": "forensic_question/v1"},
+    "run_id": {"type": "string"},
+    "mode": {"enum": ["qa", "retrieval"], "description": "qa = answered and judged; retrieval = retrieval-only (sufficiency, no answer)"},
+    "item": {"type": "string", "description": "conversation id, e.g. conv-26"},
+    "qid": {"type": "string", "description": "query id within the dataset, e.g. 0-5"},
+    "category": {"enum": ["single-hop", "multi-hop", "temporal", "open-domain", "adversarial", "other"]},
+    "question": {"type": "string"},
+    "gold_answer": {"type": ["string", "null"]},
+    "answer": {"type": ["string", "null"]},
+    "status": {"type": ["string", "null"], "description": "completed | truncated | unattempted | error"},
+    "judge_score": {"type": ["number", "null"]},
+    "judge_raw": {"type": ["string", "null"]},
+    "correct": {"type": "boolean", "description": "qa: judge said correct AND a non-empty answer exists; retrieval: all gold evidence in context"},
+    "outcome_class": {"enum": ["correct", "retrieval_miss", "partial", "read_fail", "no_gold"],
+                      "description": "retrieval_miss = no gold turn in context; partial = some; read_fail = all gold in context but wrong"},
+    "primary_gap": {"enum": [null, "ingest", "recall", "fusion", "gate", "rerank", "assembly", "reader"],
+                    "description": "earliest stage that lost a gold turn (weakest link); reader when all gold reached the context"},
+    "reader_bucket": {"type": ["object", "null"],
+                      "properties": {"bucket": {"type": "string"}, "detail": {"type": "string"}}},
+    "flags": {"type": "array", "items": {"type": "string"},
+              "description": "every condition seen, to expose cascades: ingest:*, lost:*, rescued_by_expansion:*, judge:*"},
+    "has_stage_log": {"type": "boolean"},
+    "context_tokens": {"type": ["number", "null"]},
+    "latency_retrieve_ms": {"type": ["number", "null"]},
+    "latency_answer_ms": {"type": ["number", "null"]},
+    "retrieved_turns": {"type": "array", "items": {"type": "string"},
+                        "description": "turn ids that reached the context, in order"},
+    "gold_turns": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["turn", "lost_at"],
+        "properties": {
+          "turn": {"type": "string"},
+          "text": {"type": ["string", "null"]},
+          "source_timestamp": {"type": ["string", "null"]},
+          "in_context": {"type": ["boolean", "null"]},
+          "ingest": {"type": ["object", "null"], "properties": {
+            "written": {"type": "boolean"}, "text_identical": {"type": ["boolean", "null"]},
+            "valid_from": {"type": ["string", "null"]}, "record_id": {"type": ["string", "null"]}}},
+          "ranks": {"type": ["object", "null"], "description": "1-based rank of this gold turn at every stage; null = absent",
+            "properties": {
+              "vector": {"type": ["integer", "null"]}, "lexical": {"type": ["integer", "null"]},
+              "extra": {"type": "object", "additionalProperties": {"type": ["integer", "null"]}},
+              "fused": {"type": ["integer", "null"]}, "pool": {"type": ["integer", "null"]},
+              "rerank": {"type": ["integer", "null"]}, "rerank_order": {"type": ["integer", "null"]},
+              "rerank_score": {"type": ["number", "null"]}, "final": {"type": ["integer", "null"]},
+              "in_context": {"type": "boolean"}}},
+          "lost_at": {"enum": [null, "ingest", "recall", "fusion", "gate", "rerank", "assembly"]},
+          "rescued_from": {"type": ["string", "null"]}
+        }
+      }
+    },
+    "stages": {
+      "type": ["object", "null"],
+      "description": "the full ranked list at each search stage, as recorded by engine.search_forensics()",
+      "properties": {
+        "vector": {"$ref": "#/$defs/ranked"}, "lexical": {"$ref": "#/$defs/ranked"},
+        "extra_legs": {"type": "object", "additionalProperties": {"$ref": "#/$defs/ranked"}},
+        "fused": {"$ref": "#/$defs/ranked"}, "pool": {"$ref": "#/$defs/ranked"},
+        "reranker": {"type": ["string", "null"]}, "rerank_scores": {"$ref": "#/$defs/ranked"},
+        "final": {"$ref": "#/$defs/ranked"}
+      }
+    },
+    "top_non_gold": {"type": ["array", "null"], "items": {"type": "object"}},
+    "context_text": {"type": ["array", "null"], "items": {"type": "string"}}
+  },
+  "$defs": {
+    "ranked": {
+      "type": "array",
+      "items": {"type": "object", "required": ["r", "turn", "score"],
+                "properties": {"r": {"type": "integer"}, "turn": {"type": "string"}, "score": {"type": "number"}}}
+    }
+  }
+}

@@ -19,3 +19,6 @@ __pycache__/
 .pytest_cache/
 .deepeval
 cache/
+
+# Forensic HTML views embed corpus text: local only (build with build_html_report.py).
+reports/
