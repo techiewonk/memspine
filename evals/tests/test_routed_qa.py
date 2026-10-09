@@ -104,6 +104,7 @@ def test_existing_prompt_table_is_unchanged() -> None:
         "grounded",  # reader-gap fix
         "grounded_detail",  # C2
         "grounded_v2",  # dev reasoning 2026-10-10
+        "grounded_v3",
     }
 
 

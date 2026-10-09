@@ -400,6 +400,7 @@ def build_parser() -> argparse.ArgumentParser:
             "grounded",
             "grounded_detail",
             "grounded_v2",
+            "grounded_v3",
             "dated_world",
             "abstain",
             "converse",

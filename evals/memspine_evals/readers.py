@@ -167,6 +167,17 @@ GROUNDED_V2_QA_PROMPT = GROUNDED_QA_PROMPT.replace(
 )
 assert GROUNDED_V2_QA_PROMPT != GROUNDED_QA_PROMPT
 
+#: ``grounded_v2`` minus its yes/no rule, which made the reader open "when"/"what" answers with
+#: "No, ..." (dev screen 2026-10-10: 81.5% vs 86.7%, 5 gained / 17 lost). Keeps the
+#: earlier-line reference rule and captions as evidence.
+GROUNDED_V3_QA_PROMPT = GROUNDED_QA_PROMPT.replace(
+    "Give a short, direct answer. ",
+    "A memory may refer back to something said earlier (\"that book you recommended\", \"we "
+    "did it yesterday\", a photo): find the earlier line it refers to and use its details. "
+    "Text in [image: ...] describes a photo shared in that line and counts as evidence. "
+    "Give a short, direct answer. ",
+)
+
 #: C2: ``grounded`` plus the hit-marker legend (``--memspine-mark-hits``), a one-sentence
 #: answer that keeps the specific detail, and exhaustive lists for multi-item questions.
 GROUNDED_DETAIL_QA_PROMPT = (
@@ -218,6 +229,7 @@ QA_PROMPTS = {
     "grounded": GROUNDED_QA_PROMPT,
     "grounded_detail": GROUNDED_DETAIL_QA_PROMPT,
     "grounded_v2": GROUNDED_V2_QA_PROMPT,
+    "grounded_v3": GROUNDED_V3_QA_PROMPT,
     "abstain": ABSTAIN_QA_PROMPT,
     "converse": CONVERSE_QA_PROMPT,
     "dated_planned": DATED_PLANNED_QA_PROMPT,
