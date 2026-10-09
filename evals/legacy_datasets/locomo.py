@@ -29,7 +29,7 @@ What lives here (and what deliberately does not):
   of which ``Engine._write_locked`` gates on ``memory_type == "semantic"``. Those two
   layers are priced on the consolidation path, not here.
 * **Caching** — the built store is cached per sample through
-  :class:`evals.datasets.base.BuildCache`, keyed by ``(dataset, sample_id, profile,
+  :class:`evals.legacy_datasets.base.BuildCache`, keyed by ``(dataset, sample_id, profile,
   config_hash, options_hash, adapter_version)`` with an explicit ``rebuild`` escape
   hatch (MAGMA harvest §2.3). Construction is the expensive half; read-side ablations
   must not pay for it twice. ``options_hash`` is what stops a run with the sleep
@@ -37,7 +37,7 @@ What lives here (and what deliberately does not):
   holds the engine's own on-disk store plus a bookkeeping manifest — it is *not* a
   second source of truth for memory content (the event log remains that).
 
-The dataset-agnostic half of this adapter lives in :mod:`evals.datasets.base` and is
+The dataset-agnostic half of this adapter lives in :mod:`evals.legacy_datasets.base` and is
 shared with the LongMemEval adapter: the neutral sample model, the build cache, the
 ingestion accounting and the namespace rule. :meth:`LocomoSample.to_benchmark_sample`
 projects LoCoMo's richer records onto that shared shape.
@@ -188,7 +188,7 @@ CATEGORY_LABELS: Final[Mapping[LocomoCategory, str]] = {
     LocomoCategory.ADVERSARIAL: "adversarial",
 }
 
-#: LoCoMo category -> the shared coarse :class:`~evals.datasets.base.Ability` label.
+#: LoCoMo category -> the shared coarse :class:`~evals.legacy_datasets.base.Ability` label.
 #:
 #: **This grouping is ours**, not LoCoMo's — the benchmark publishes numeric codes and
 #: no ability taxonomy at all. It exists so one frontier table can carry both
@@ -342,11 +342,11 @@ class LocomoSample:
         return digest.hexdigest()
 
     def to_benchmark_sample(self) -> BenchmarkSample:
-        """Project onto the shared :class:`~evals.datasets.base.BenchmarkSample`.
+        """Project onto the shared :class:`~evals.legacy_datasets.base.BenchmarkSample`.
 
         Lossless where it matters: the rendered turn text is exactly what
         :func:`ingest_sample` writes, ``dia_id`` rides along as
-        :attr:`~evals.datasets.base.ChatTurn.turn_id` so retrieved evidence can be
+        :attr:`~evals.legacy_datasets.base.ChatTurn.turn_id` so retrieved evidence can be
         matched against LoCoMo's turn-level gold pointers, and the numeric category is
         preserved both as the verbatim ``question_type`` label and in ``meta``.
 
@@ -666,7 +666,7 @@ class SupportsEngineWrite(Protocol):
 def sample_namespace(sample: LocomoSample, prefix: str = ADAPTER_NAME) -> str:
     """One namespace per conversation — LoCoMo's sample *is* the user.
 
-    Delegates to :func:`evals.datasets.base.sample_namespace` so both adapters
+    Delegates to :func:`evals.legacy_datasets.base.sample_namespace` so both adapters
     namespace the same way (``"locomo/conv-26"``, ``"longmemeval/gpt4_2655b836"``);
     a per-adapter rule was one more place two benchmarks could stop being comparable.
     """
@@ -883,9 +883,9 @@ async def build_or_load_memory(
 
 @dataclass(frozen=True, slots=True)
 class LocomoAdapter:
-    """:class:`~evals.datasets.base.DatasetAdapter` over the LoCoMo corpus.
+    """:class:`~evals.legacy_datasets.base.DatasetAdapter` over the LoCoMo corpus.
 
-    Yields the neutral :class:`~evals.datasets.base.BenchmarkSample`, so the harness
+    Yields the neutral :class:`~evals.legacy_datasets.base.BenchmarkSample`, so the harness
     drives LoCoMo and LongMemEval through one code path. The richer LoCoMo records stay
     available through :func:`load_locomo` for anything that needs them.
     """
@@ -903,7 +903,7 @@ class LocomoAdapter:
 
 
 def adapter() -> LocomoAdapter:
-    """Zero-argument factory, the shape :data:`evals.datasets.base.LOADERS` resolves."""
+    """Zero-argument factory, the shape :data:`evals.legacy_datasets.base.LOADERS` resolves."""
     return LocomoAdapter()
 
 

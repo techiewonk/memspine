@@ -35,7 +35,13 @@ from .contracts import DatasetAdapter, Reader, SystemAdapter, sha256_text
 from .judge import DEFAULT_BINARY_PROMPT, ContainsJudge, Judge
 from .metrics import CostModel, Price
 from .provenance import RunProtocol
-from .readers import ContextOnlyReader, OpenAICompatReader, openai_compat_chat
+from .readers import (
+    ContextOnlyReader,
+    CtxGuard,
+    OpenAICompatReader,
+    SamplerConfig,
+    openai_compat_chat,
+)
 from .results import RunSummary
 from .runner import RunConfig, run_matrix
 from .systems import (
@@ -149,6 +155,36 @@ class C01Config:
     cache_dir: str | None = None
     #: screening: also cache reader and judge completions (temperature 0 only)
     cache_reader: bool = False
+    #: A8 [SRV-2]: sampler sent explicitly with every reader and judge request. The server's
+    #: own defaults (Ollama/Qwen3.5: presence_penalty 1.5) no longer apply. ``sampler_seed``
+    #: None = the run ``seed``.
+    presence_penalty: float = 0.0
+    frequency_penalty: float = 0.0
+    top_p: float = 1.0
+    sampler_seed: int | None = None
+    #: D2 [HAR-3]: the server's context window; a call with prompt + completion tokens
+    #: within 8 of it is flagged ``server_truncation_suspected`` (``strict_ctx``: raise).
+    server_ctx: int = 8192
+    strict_ctx: bool = False
+    #: D1 [HAR-1]: ``heuristic`` (chars/4, the default, old runs stay comparable) or
+    #: ``reader`` (the reader's own tokenizer; over-budget contexts drop their lowest-ranked
+    #: lines instead of cutting the tail).
+    token_count: str = "heuristic"
+    tokenizer_id: str | None = None
+    #: D4 [HAR-5]: record the ``runtime`` block (versions, argv, env, Ollama state) in the
+    #: manifest. ``probe_server`` also asks the local Ollama for /api/version and /api/ps.
+    capture_runtime: bool = False
+    probe_server: bool = False
+
+
+def sampler_for(config: C01Config) -> SamplerConfig:
+    """A8: the run's explicit sampler (seed defaults to the run seed)."""
+    return SamplerConfig(
+        presence_penalty=config.presence_penalty,
+        frequency_penalty=config.frequency_penalty,
+        top_p=config.top_p,
+        seed=config.seed if config.sampler_seed is None else config.sampler_seed,
+    )
 
 
 #: H25: declared protocol presets. OmniMemEval (MemTensor/OmniMemEval @ 0b1ea8d) is the
@@ -496,12 +532,16 @@ def build_reader_and_judge(config: C01Config) -> tuple[Reader, Judge, bool]:
     # Local OpenAI-compatible servers ignore the key; hosted endpoints (e.g. the
     # OmniMemEval preset) read it from the process environment, never from .env.
     api_key = os.environ.get("OPENAI_API_KEY", "not-needed")
+    sampler = sampler_for(config)
+    guard = CtxGuard(config.server_ctx, config.strict_ctx)
     reader = OpenAICompatReader(
         model=config.reader_model,
         base_url=config.base_url,
         api_key=api_key,
         prompt=qa_prompt,
         extract_answer=reasoning,
+        sampler=sampler,
+        guard=guard,
         **({"max_tokens": reasoning_max_tokens(config.qa_prompt)} if reasoning else {}),
     )
     if config.retry_refusal:
@@ -510,13 +550,61 @@ def build_reader_and_judge(config: C01Config) -> tuple[Reader, Judge, bool]:
         reader = RefusalRetryReader(reader)  # type: ignore[assignment]
     judge = build_judge(
         config,
-        openai_compat_chat(config.judge_model, base_url=config.base_url, api_key=api_key),
+        openai_compat_chat(
+            config.judge_model,
+            base_url=config.base_url,
+            api_key=api_key,
+            sampler=sampler,
+            guard=guard,
+        ),
         config.judge_model,
     )
     if config.verify_answer:
-        chat = openai_compat_chat(config.judge_model, base_url=config.base_url, api_key=api_key)
+        chat = openai_compat_chat(
+            config.judge_model,
+            base_url=config.base_url,
+            api_key=api_key,
+            sampler=sampler,
+            guard=guard,
+        )
         return with_verifier(reader, chat), judge, True
     return reader, judge, True
+
+
+def _openai_compat_labels(config: C01Config, calls: bool) -> dict[str, Any]:
+    """A8/D2: the sampler and context guard a local-endpoint QA run used, for the manifest
+    labels. Listed only for runs that call the OpenAI-compatible endpoint."""
+    if not calls or config.bedrock or config.mode != "qa" or config.retrieval_only:
+        return {}
+    return {
+        "sampler": sampler_for(config).describe(),
+        "server_ctx": config.server_ctx,
+        "strict_ctx": config.strict_ctx,
+    }
+
+
+def _capture_runtime(config: C01Config) -> dict[str, Any]:
+    if not config.capture_runtime:
+        return {}
+    from .provenance import capture_runtime
+
+    return capture_runtime(
+        base_url=config.base_url if config.probe_server else None,
+    )
+
+
+def build_token_counter(config: C01Config) -> Any:
+    """D1 [HAR-1]: the runner's token counter. ``heuristic`` (default): None, so the runner
+    builds its chars/4 counter; ``reader``: the reader tokenizer, else the heuristic with a
+    logged warning."""
+    if config.token_count == "heuristic":
+        return None
+    if config.token_count != "reader":
+        raise ValueError(f"unknown token_count {config.token_count!r}; known: heuristic, reader")
+    from .tokens import HeuristicTokenCounter, load_reader_tokenizer_counter
+
+    counter = load_reader_tokenizer_counter(config.tokenizer_id)
+    return counter if counter is not None else HeuristicTokenCounter()
 
 
 def with_verifier(reader: Any, chat: Any) -> Any:
@@ -600,6 +688,7 @@ async def run_c0_1(
             "naive_dense_same_embedder": config.naive_dense_same_embedder,
             "matched_budget_tokens": config.matched_budget_tokens,
             "memspine_llm": config.memspine_llm,
+            **_openai_compat_labels(config, calls),
             "engine_llm_models": sorted(engine_models),
             "prices_per_mtok": {m: list(p) for m, p in sorted(prices.items())},
             "service_prices": service_price_table(config),
@@ -614,11 +703,20 @@ async def run_c0_1(
         },
         extra_limits={"item_ids": list(config.item_ids) if config.item_ids else None},
         retrieval_only=config.retrieval_only,
+        runtime=_capture_runtime(config),
+        token_count=config.token_count,
     )
+    counter = build_token_counter(config)
     factory = (lambda: build_reader_and_judge(config)[:2]) if calls else None
     if not config.cache_dir:
         return await run_matrix(
-            dataset, systems, reader, judge, run_config, reader_judge_factory=factory
+            dataset,
+            systems,
+            reader,
+            judge,
+            run_config,
+            token_counter=counter,
+            reader_judge_factory=factory,
         )
     from dataclasses import replace
 
@@ -631,6 +729,7 @@ async def run_c0_1(
             reader,
             judge,
             replace(run_config, call_cache=cache),
+            token_counter=counter,
             reader_judge_factory=factory,
         )
 

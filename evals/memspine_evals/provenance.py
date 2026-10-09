@@ -16,6 +16,7 @@ is not discouraged here, it is unreachable.
 
 from __future__ import annotations
 
+import os
 import platform
 import subprocess
 import sys
@@ -112,6 +113,98 @@ def git_sha(repo: Path) -> str:
     return f"{sha}-dirty" if dirty.stdout.strip() else sha
 
 
+_RUNTIME_PACKAGES = (
+    "memspine",
+    "torch",
+    "transformers",
+    "sentence-transformers",
+    "httpx",
+    "lancedb",
+)
+_SECRET_NAME = ("KEY", "TOKEN", "SECRET", "PASSWORD", "CREDENTIAL")
+
+
+def _package_version(name: str) -> str | None:
+    try:
+        from importlib.metadata import PackageNotFoundError
+        from importlib.metadata import version as dist_version
+
+        return dist_version(name)
+    except (ImportError, PackageNotFoundError):
+        return None
+
+
+def _git_describe(path: Path) -> str:
+    """``git describe --always --dirty`` of the repo containing ``path``, or ``unknown``."""
+    try:
+        out = subprocess.run(
+            ["git", "-C", str(path), "describe", "--always", "--dirty"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return "unknown"
+    text = out.stdout.strip()
+    return text if out.returncode == 0 and text else "unknown"
+
+
+def _probe_ollama(base_url: str, timeout: float = 2.0) -> dict[str, Any]:
+    """Best effort ``/api/version`` and ``/api/ps`` of a local Ollama; never raises. Only a
+    loopback host is asked, so a hosted endpoint never receives a stray request."""
+    from urllib.parse import urlparse
+    from urllib.request import urlopen
+
+    parsed = urlparse(base_url)
+    if parsed.hostname not in ("127.0.0.1", "localhost", "::1"):
+        return {"skipped": f"not a loopback host: {parsed.hostname}"}
+    root = f"{parsed.scheme}://{parsed.netloc}"
+    out: dict[str, Any] = {}
+    for key, path in (("version", "/api/version"), ("ps", "/api/ps")):
+        try:
+            import json
+
+            with urlopen(root + path, timeout=timeout) as response:
+                out[key] = json.loads(response.read().decode("utf-8"))
+        except Exception as exc:  # unreachable, not Ollama, bad JSON: record, do not fail
+            out[key] = {"error": f"{type(exc).__name__}: {str(exc)[:120]}"}
+    return out
+
+
+def capture_runtime(
+    base_url: str | None = None,
+    argv: Sequence[str] | None = None,
+    environ: Mapping[str, str] | None = None,
+) -> dict[str, Any]:
+    """D4 [HAR-5]: the runtime block of a manifest. Never raises: a field it cannot read is
+    recorded as ``None`` / ``"unknown"``. ``base_url`` set = also probe a loopback Ollama."""
+    env = os.environ if environ is None else environ
+    engine_file: str | None = None
+    try:
+        import memspine
+
+        engine_file = getattr(memspine, "__file__", None)
+    except Exception:  # the engine is not importable: record that
+        engine_file = None
+    runtime: dict[str, Any] = {
+        "memspine_file": engine_file,
+        "versions": {name: _package_version(name) for name in _RUNTIME_PACKAGES},
+        "engine_git_describe": (
+            _git_describe(Path(engine_file).resolve().parent) if engine_file else "unknown"
+        ),
+        "argv": list(sys.argv if argv is None else argv),
+        "env": {
+            k: ("<redacted>" if any(part in k.upper() for part in _SECRET_NAME) else v)
+            for k, v in sorted(env.items())
+            if k.startswith(("MEMSPINE_", "OLLAMA_"))
+        },
+    }
+    if base_url:
+        runtime["ollama"] = _probe_ollama(base_url)
+    return runtime
+
+
 @dataclass(frozen=True, slots=True)
 class RunManifest:
     """Everything needed to say what a number means, and to run it again."""
@@ -132,6 +225,10 @@ class RunManifest:
     #: R3-11: the caps a run was started under (items, queries per item, model calls,
     #: offline flag, call-budget scope). A capped pilot is not a full run.
     limits: Mapping[str, Any] = field(default_factory=dict)
+    #: D4 [HAR-5]: what the process actually ran (``capture_runtime``): engine path and
+    #: versions, argv, MEMSPINE_*/OLLAMA_* environment, the local Ollama's state. {} when
+    #: not captured.
+    runtime: Mapping[str, Any] = field(default_factory=dict)
 
     @staticmethod
     def build(
@@ -145,6 +242,7 @@ class RunManifest:
         repo: Path | None = None,
         labels: Mapping[str, Any] | None = None,
         limits: Mapping[str, Any] | None = None,
+        runtime: Mapping[str, Any] | None = None,
     ) -> RunManifest:
         repo = repo or Path(__file__).resolve().parents[2]
         return RunManifest(
@@ -163,6 +261,7 @@ class RunManifest:
             created_at=datetime.now(UTC).isoformat(timespec="seconds"),
             labels=dict(labels or {}),
             limits=dict(limits or {}),
+            runtime=dict(runtime or {}),
         )
 
     # -- D16 admissibility ---------------------------------------------------

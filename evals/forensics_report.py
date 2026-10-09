@@ -102,6 +102,37 @@ def session_day(stamp: str | None) -> date | None:
     return _session_date(stamp) if stamp else None
 
 
+def join_forensics(results: list[dict], fx: list[dict]) -> dict[tuple[str, str], dict]:
+    """Pair each result row with its forensics row, keyed ``(item_id, query_id)``.
+
+    D7 [INJ-6]: rows written with a ``query_id`` (and ``run_id``) join on it, preferring the row
+    of the same run. Older logs have neither; those pair by question text in order of
+    appearance (duplicate questions pair first-to-first), the legacy join.
+    """
+    by_qid: dict[tuple, list[dict]] = defaultdict(list)
+    by_text: dict[tuple, list[dict]] = defaultdict(list)
+    for row in fx:
+        if row.get("query_id") is not None:
+            by_qid[(row.get("item"), row["query_id"])].append(row)
+        else:
+            by_text[(row.get("item"), row["query"])].append(row)
+    seen: Counter = Counter()
+    joined: dict[tuple[str, str], dict] = {}
+    for r in results:
+        qkey = (r["item_id"], r["query_id"])
+        candidates = by_qid.get(qkey)
+        if candidates:
+            same_run = [c for c in candidates if c.get("run_id") == r.get("run_id")]
+            joined[qkey] = (same_run or candidates)[-1]
+            continue
+        key = (r["item_id"], r["question"])
+        n = seen[key]
+        seen[key] += 1
+        if n < len(by_text.get(key, [])):
+            joined[qkey] = by_text[key][n]
+    return joined
+
+
 def build(args) -> None:
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
@@ -124,18 +155,13 @@ def build(args) -> None:
     fxdir = Path(args.forensics) if args.forensics else None
     fx = load_jsonl(fxdir / "forensics.jsonl") if fxdir else []
     ingest = load_jsonl(fxdir / "ingest.jsonl") if fxdir else []
-    ing = {(r.get("item"), r["turn"]): r for r in ingest}
-    fx_index: dict[tuple, list[dict]] = defaultdict(list)
-    for row in fx:
-        fx_index[(row.get("item"), row["query"])].append(row)
-    seen: Counter = Counter()
-    fx_by_q: dict[tuple[str, str], dict] = {}
-    for r in results:
-        key = (r["item_id"], r["question"])
-        n = seen[key]
-        seen[key] += 1
-        if n < len(fx_index.get(key, [])):
-            fx_by_q[(r["item_id"], r["query_id"])] = fx_index[key][n]
+    run_ids = {r.get("run_id") for r in results}
+    ing = {
+        (r.get("item"), r["turn"]): r
+        for r in ingest
+        if r.get("run_id") is None or r.get("run_id") in run_ids  # D7: other runs' rows out
+    }
+    fx_by_q = join_forensics(results, fx)
 
     rows: list[dict] = []
     for r in results:
@@ -173,6 +199,11 @@ def build(args) -> None:
             if i is not None:
                 gt["ingest"] = {"written": bool(i["written"]), "text_identical": i.get("text_identical"),
                                 "valid_from": i.get("valid_from"), "record_id": i.get("record_id")}
+                for extra in ("quarantined", "trust", "status"):  # F2 [INJ-2]
+                    if i.get(extra) is not None:
+                        gt["ingest"][extra] = i[extra]
+                if i.get("quarantined"):
+                    entry["flags"].append(f"ingest:quarantined:{g}")
                 if not i["written"]:
                     loss = "ingest"
                     entry["flags"].append(f"ingest:not_written:{g}")

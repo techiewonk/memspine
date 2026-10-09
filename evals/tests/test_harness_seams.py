@@ -22,12 +22,6 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from evals.datasets.base import (  # noqa: E402
-    LOADERS,
-    BuildCache,
-    IngestionStats,
-    sample_namespace,
-)
 from evals.harness.accounting import (  # noqa: E402
     CostLedger,
     Stage,
@@ -58,6 +52,12 @@ from evals.harness.results import (  # noqa: E402
     TokenCounts,
     build_results,
     stage_costs_from_report,
+)
+from evals.legacy_datasets.base import (  # noqa: E402
+    LOADERS,
+    BuildCache,
+    IngestionStats,
+    sample_namespace,
 )
 from evals.run import (  # noqa: E402
     FRONTIER_LADDER,

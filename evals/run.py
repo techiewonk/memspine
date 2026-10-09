@@ -96,7 +96,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Final, cast
 
-from evals.datasets.base import LOADERS as DATASET_LOADERS
 from evals.harness.config import (
     WRITE_SIDE_ABLATIONS,
     AblationConfig,
@@ -120,6 +119,7 @@ from evals.harness.results import (
     build_results,
     utcnow,
 )
+from evals.legacy_datasets.base import LOADERS as DATASET_LOADERS
 
 __all__ = [
     "FRONTIER_LADDER",
@@ -155,7 +155,7 @@ def _check_dataset_coverage() -> None:
     missing = sorted(item.value for item in Dataset if item.value not in DATASET_LOADERS)
     if missing:
         raise HarnessConfigError(
-            "these Dataset members have no adapter in evals.datasets.base.LOADERS: "
+            "these Dataset members have no adapter in evals.legacy_datasets.base.LOADERS: "
             f"{missing} — every dataset the CLI offers must be loadable"
         )
 
@@ -173,8 +173,8 @@ _SEAM_CONTRACTS: Final[Mapping[str, str]] = {
         "\n\nThis is the ENGINE ADAPTER seam and it is not implemented yet. It must be "
         "an (optionally async) `generate(config: RunConfig)` returning RunResults, "
         "(items, builds), or a list of ItemResult. Its job: load the corpus via "
-        "evals.datasets.base.load_dataset(config.dataset.name.value, config.dataset.path), "
-        "build or reuse each sample's memory through evals.datasets.base.BuildCache "
+        "evals.legacy_datasets.base.load_dataset(config.dataset.name.value, config.dataset.path), "
+        "build or reuse each sample's memory through evals.legacy_datasets.base.BuildCache "
         "keyed on config.build_digest(), retrieve + assemble per question, call the "
         "backbone, and record per-stage cost with evals.harness.accounting.CostLedger "
         "(bridge it with evals.harness.results.stage_costs_from_report). "

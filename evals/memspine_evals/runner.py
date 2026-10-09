@@ -19,6 +19,7 @@ to mean less than they appeared to:
 from __future__ import annotations
 
 import inspect
+import logging
 import random
 import time
 from collections.abc import Callable, Mapping, Sequence
@@ -41,14 +42,21 @@ from .credentials import is_auth_error
 from .judge import Judge, recall_over_units, unit_ranking
 from .metrics import CostModel, Ledger, Stage
 from .provenance import ReaderSpec, RunManifest, RunProtocol, SystemSpec
-from .readers import reader_raw_meta
+from .readers import ServerContextExceeded, find_guard, reader_raw_meta
 from .results import ResultRow, ResultWriter, RowStatus, RunSummary, aggregate
 from .screen import coverage, coverage_summary, normalise_evidence
-from .tokens import HeuristicTokenCounter, TokenCounter, truncate_to_budget
+from .tokens import (
+    HeuristicTokenCounter,
+    TokenCounter,
+    truncate_by_rank,
+    truncate_to_budget,
+)
 from .trace import DepositTrace, TraceWriter, cycle_from_context
 
 if TYPE_CHECKING:
     from .call_cache import CacheStats
+
+log = logging.getLogger(__name__)
 
 
 class ModelCallBudgetExceeded(RuntimeError):
@@ -117,6 +125,12 @@ class RunConfig:
     #: screening: the installed :class:`~memspine_evals.call_cache.CallCache`, if any.
     #: Completions it serves are not counted as model calls and cost nothing.
     call_cache: Any = None
+    #: D4 [HAR-5]: the manifest's ``runtime`` block (versions, argv, env, server state)
+    runtime: Mapping[str, Any] = field(default_factory=dict)
+    #: D1 [HAR-1]: ``heuristic`` (default) cuts an over-budget context at the tail;
+    #: ``reader`` drops its lowest-ranked lines and records ``engine_tokens`` next to
+    #: ``context_tokens`` (counted by the runner's token counter)
+    token_count: str = "heuristic"
 
     def limits(self) -> dict[str, Any]:
         return {
@@ -185,6 +199,12 @@ class EvalRunner:
         }
         #: C-6: engine services observed (``meta["engine_services"]``), priced or not
         self.engine_services: dict[str, float] = {}
+        #: F2 [INJ-2]: records the engine quarantined at deposit
+        self.n_quarantined = 0
+        #: D2 [HAR-3]: the reader/judge context guard (None for stub or Bedrock readers) and
+        #: the rows / calls it flagged
+        self.guard = find_guard(reader)
+        self.server_truncation: dict[str, int] = {"rows": 0, "reader": 0, "judge": 0}
         self._meter, self._own_meter = self._spend_meter()
         #: screening: the call cache's counters when this arm started (per-arm deltas)
         self._cache_start = self._cache_mark()
@@ -219,6 +239,7 @@ class EvalRunner:
             token_counter=dict(self.counter.describe()),
             labels=self.config.labels,
             limits=self.config.limits(),
+            runtime=self.config.runtime,
         )
 
     # -- spend ---------------------------------------------------------------
@@ -324,6 +345,17 @@ class EvalRunner:
         )
         return audit
 
+    def rerank_check(self) -> str:
+        """B11 [RET-3]: ``FAILED`` when the arm's config asks for a reranker and the engine's
+        stats show no rerank call or any failure; ``ok`` when it ran cleanly; ``not_applicable``
+        when no reranker is configured (or no question ran)."""
+        audit = self.rerank
+        engine_cfg = dict(self.system.describe().get("config") or {})
+        mode = (engine_cfg.get("read") or {}).get("rerank") or audit["mode"]
+        if mode in (None, "off") or audit["queries"] <= 0:
+            return "not_applicable"
+        return "FAILED" if audit["calls"] == 0 or audit["failures"] > 0 else "ok"
+
     def _check_spend(self, what: str) -> None:
         """Stop before ``what`` once observed spend has reached the dollar cap."""
         if self._meter is not None:
@@ -401,6 +433,11 @@ class EvalRunner:
 
     async def run(self) -> RunSummary:
         manifest = self.build_manifest()
+        # D7 [INJ-6]: a system that writes forensic logs learns the run id (and refuses to
+        # append to another run's logs) before anything is ingested.
+        begin = getattr(self.system, "begin_run", None)
+        if begin is not None:
+            begin(self.config.run_id)
         out_dir = Path(self.config.out_dir) / self.config.run_id
         results_path = out_dir / "results.jsonl"
         trace_path = out_dir / "trace.jsonl"
@@ -595,7 +632,23 @@ class EvalRunner:
             "rerank": self.rerank_summary(),
             "rerank_unavailable": self.rerank_summary()["rerank_unavailable"],
             "spend": self._meter.summary() if self._meter is not None else None,
+            # B11 [RET-3]: a configured reranker must have run, without failing
+            "rerank_check": self.rerank_check(),
+            # F2 [INJ-2]: records the firewall quarantined at deposit
+            "n_quarantined": self.n_quarantined,
         }
+        if self.guard is not None:
+            # D2 [HAR-3]: rows / calls where prompt + completion tokens reached the server window
+            payload["server_truncation_suspected"] = {
+                **self.server_truncation,
+                **self.guard.describe(),
+            }
+        if self.n_quarantined:
+            log.warning(
+                "%s: %d record(s) were quarantined at deposit (see ingest.jsonl)",
+                self.system.system_id,
+                self.n_quarantined,
+            )
         cache = self.cache_summary()
         if cache is not None:
             # screening: completions / embeddings the disk cache served at $0
@@ -650,7 +703,12 @@ class EvalRunner:
             for i, query in enumerate(tail):
                 rows.append(await self._answer(item, query, len(item.history) + i, tracer))
                 done.add(query.query_id)
-        except (ModelCallBudgetExceeded, UnexpectedModelCall, ProviderCredentialError) as exc:
+        except (
+            ModelCallBudgetExceeded,
+            UnexpectedModelCall,
+            ProviderCredentialError,
+            ServerContextExceeded,
+        ) as exc:
             raise _Abort(
                 cause=exc,
                 item=item,
@@ -663,7 +721,12 @@ class EvalRunner:
         """Await ``call()``; a credential failure becomes ``ProviderCredentialError`` (C-3)."""
         try:
             return await call()
-        except (ModelCallBudgetExceeded, UnexpectedModelCall, ProviderCredentialError):
+        except (
+            ModelCallBudgetExceeded,
+            UnexpectedModelCall,
+            ProviderCredentialError,
+            ServerContextExceeded,
+        ):
             raise
         except Exception as exc:
             if is_auth_error(exc):
@@ -709,6 +772,7 @@ class EvalRunner:
     ) -> None:
         served = self._served(cached)
         calls = max(deposit.model_calls - served, 0)
+        self.n_quarantined += int(deposit.meta.get("n_quarantined", 0) or 0)
         self._charge_engine(Stage.DEPOSIT, deposit.meta, served)
         self._charge_services(deposit.meta, cached)
         self._account_model_calls(calls, f"{self.system.system_id}.insert")
@@ -774,6 +838,8 @@ class EvalRunner:
     async def _answer(self, item: EvalItem, query: Query, t: int, tracer: TraceWriter) -> ResultRow:
         protocol = self.config.protocol
         spend_before = self._spent()
+        if self.guard is not None:
+            self.guard.consume()  # flags left by a failed earlier question belong to no row
         try:
             self._check_spend(f"{self.system.system_id}.query")
             started = time.perf_counter()
@@ -781,6 +847,9 @@ class EvalRunner:
             set_meta = getattr(self.system, "set_query_meta", None)
             if set_meta is not None:
                 set_meta(query.meta)  # N34: e.g. the question's own date (as-of reads)
+            set_query_id = getattr(self.system, "set_query_id", None)
+            if set_query_id is not None:
+                set_query_id(query.query_id)  # D7: forensics rows join on it
             context = await self.system.query(query.text, protocol.budget_tokens, protocol.top_k)
             latency_retrieve = (time.perf_counter() - started) * 1000
             cached = self._cache_since(mark)
@@ -792,19 +861,46 @@ class EvalRunner:
 
             # The protocol owns the budget, not the system: truncate here even
             # when the system says it already did.
-            text, tokens, truncated = truncate_to_budget(
-                context.text, protocol.budget_tokens, self.counter
+            engine_tokens = context.tokens
+            by_rank = (
+                self.config.token_count == "reader"
+                and bool(context.meta.get("ranked", True))
+                and bool(context.evidence)
             )
-            if truncated:
-                # R3-7: evidence whose unit was cut away is not retrieved evidence.
-                context = type(context)(
-                    text=text,
-                    tokens=tokens,
-                    evidence=visible_evidence(context.evidence, len(text)),
-                    truncated=True,
-                    boundary_index=context.boundary_index,
-                    meta=context.meta,
+            ranked_cut = (
+                truncate_by_rank(
+                    context.text, context.evidence, protocol.budget_tokens, self.counter
                 )
+                if by_rank
+                else None
+            )
+            if ranked_cut is not None:
+                # D1 [HAR-1]: whole lowest-ranked lines go, not the tail of the text.
+                text, tokens, truncated, kept = ranked_cut
+                if truncated:
+                    context = type(context)(
+                        text=text,
+                        tokens=tokens,
+                        evidence=kept,
+                        truncated=True,
+                        boundary_index=context.boundary_index,
+                        meta=context.meta,
+                    )
+            else:
+                text, tokens, truncated = truncate_to_budget(
+                    context.text, protocol.budget_tokens, self.counter
+                )
+                if truncated:
+                    # R3-7: evidence whose unit was cut away is not retrieved evidence.
+                    context = type(context)(
+                        text=text,
+                        tokens=tokens,
+                        evidence=visible_evidence(context.evidence, len(text)),
+                        truncated=True,
+                        boundary_index=context.boundary_index,
+                        meta=context.meta,
+                    )
+            reader_tokens = tokens if self.config.token_count == "reader" else None
             self.ledger.add(Stage.RETRIEVE, latency_ms=latency_retrieve, calls=query_calls)
             if context.meta.get("cost_observable") is False:
                 self.ledger.mark_unknown(
@@ -840,6 +936,7 @@ class EvalRunner:
                 else:
                     answer = await self.reader.answer(query.text, context.text)
             reader_served = self._served(self._cache_since(mark))
+            flagged = self.guard.consume() if self.guard is not None else []
             if self._own_meter and answer.model_calls:
                 # a reader without a provider budget is charged after the fact
                 self._meter.charge(
@@ -867,6 +964,11 @@ class EvalRunner:
                 else:
                     verdict = await self.judge.score(query.text, answer.text, query.gold)
             judge_calls = max(verdict.model_calls - self._served(self._cache_since(mark)), 0)
+            flagged += self.guard.consume() if self.guard is not None else []
+            if flagged:
+                self.server_truncation["rows"] += 1
+                for who in flagged:
+                    self.server_truncation[who] = self.server_truncation.get(who, 0) + 1
             self._judge_calls += judge_calls
             self._account_model_calls(judge_calls, self.judge.spec.judge_id)
 
@@ -922,7 +1024,7 @@ class EvalRunner:
                 seed=protocol.seed,
                 answer_truncated=answer.truncated,
                 type_label=query.type_label,
-                context_tokens=context.tokens,
+                context_tokens=context.tokens if reader_tokens is None else reader_tokens,
                 context_truncated=context.truncated,
                 prompt_tokens=answer.prompt_tokens,
                 cached_prompt_tokens=answer.cached_prompt_tokens,
@@ -944,6 +1046,15 @@ class EvalRunner:
                         {"reranked": context.meta["reranked"]} if "reranked" in context.meta else {}
                     ),
                     **reader_raw_meta(answer.raw_text),
+                    **({"engine_tokens": engine_tokens} if reader_tokens is not None else {}),
+                    **(
+                        {
+                            "server_truncation_suspected": True,
+                            "server_truncation_by": sorted(set(flagged)),
+                        }
+                        if flagged
+                        else {}
+                    ),
                     **dict(answer.extra_meta),
                     **(
                         {"qa_variant": answer.prompt_variant}
@@ -953,7 +1064,12 @@ class EvalRunner:
                     **self._row_spend(spend_before),
                 },
             )
-        except (ModelCallBudgetExceeded, UnexpectedModelCall, ProviderCredentialError):
+        except (
+            ModelCallBudgetExceeded,
+            UnexpectedModelCall,
+            ProviderCredentialError,
+            ServerContextExceeded,
+        ):
             raise
         except Exception as exc:
             if is_auth_error(exc):
@@ -1018,6 +1134,8 @@ async def run_matrix(
             service_prices=config.service_prices,
             retrieval_only=config.retrieval_only,
             call_cache=config.call_cache,
+            runtime=config.runtime,
+            token_count=config.token_count,
             extra_limits={
                 **dict(config.extra_limits),
                 "model_call_cap_scope": "per-arm",

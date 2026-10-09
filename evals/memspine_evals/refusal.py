@@ -61,6 +61,7 @@ class RefusalRetryReader:
 
     def __init__(self, inner: Any, instruction: str = RETRY_INSTRUCTION) -> None:
         self.inner = inner
+        self.guard = getattr(inner, "guard", None)
         self.instruction = instruction
         self.reader_id = f"{inner.reader_id}+retry"
         self.model = inner.model
@@ -103,5 +104,10 @@ class RefusalRetryReader:
                 "first_answer": first.text,
                 "retry_answer": second.text,
                 "retry_accepted": accepted,
+                # D3 [HAR-2]: row prompt_tokens sums both calls; keep the split
+                "first_prompt_tokens": first.prompt_tokens,
+                "first_completion_tokens": first.completion_tokens,
+                "retry_prompt_tokens": second.prompt_tokens,
+                "retry_completion_tokens": second.completion_tokens,
             },
         )

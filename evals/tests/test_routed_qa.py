@@ -121,6 +121,7 @@ def _old_describe(reader: Any, bedrock: bool) -> dict[str, Any]:
             "base_url": reader.base_url,
             "temperature": reader.temperature,
             "max_tokens": reader.max_tokens,
+            "sampler": reader.sampler.describe(),  # A8: explicit sampler
             "prompt_sha256": sha,
         }
     extra = {"extract_answer": True, "answer_extractor": "v3"} if reader.extract_answer else {}

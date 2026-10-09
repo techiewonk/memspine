@@ -705,11 +705,11 @@ class BuildCache:
 #: onto these strings rather than the other way round, keeping ``datasets/`` free of
 #: any dependency on ``harness/``.
 LOADERS: Final[Mapping[str, str]] = {
-    "locomo": "evals.datasets.locomo:adapter",
-    "locomo_plus": "evals.datasets.locomo:adapter",
-    "longmemeval_s": "evals.datasets.longmemeval:adapter",
-    "longmemeval_m": "evals.datasets.longmemeval:adapter",
-    "longmemeval_oracle": "evals.datasets.longmemeval:adapter",
+    "locomo": "evals.legacy_datasets.locomo:adapter",
+    "locomo_plus": "evals.legacy_datasets.locomo:adapter",
+    "longmemeval_s": "evals.legacy_datasets.longmemeval:adapter",
+    "longmemeval_m": "evals.legacy_datasets.longmemeval:adapter",
+    "longmemeval_oracle": "evals.legacy_datasets.longmemeval:adapter",
 }
 
 

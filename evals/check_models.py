@@ -14,7 +14,8 @@ import time
 import urllib.request
 from pathlib import Path
 
-# evals/datasets (legacy) would shadow HuggingFace `datasets` for sentence-transformers.
+# The legacy folder is now evals/legacy_datasets (ENV-2), so it no longer shadows
+# HuggingFace `datasets`; the sys.path trim below stays as belt and braces.
 sys.path[:] = [p for p in sys.path if Path(p or ".").resolve() != Path(__file__).parent.resolve()]
 
 import torch  # noqa: E402

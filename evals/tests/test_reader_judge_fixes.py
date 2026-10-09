@@ -91,6 +91,11 @@ async def test_retry_runs_once_and_accounts_the_extra_call() -> None:
         "first_answer": "I do not know",
         "retry_answer": "19 May 2023",
         "retry_accepted": True,
+        # D3: the first call and the retry keep their own token counts
+        "first_prompt_tokens": 10,
+        "first_completion_tokens": 2,
+        "retry_prompt_tokens": 10,
+        "retry_completion_tokens": 2,
     }
     assert reader.retried == 1 and reader.recovered == 1
     assert reader.reader_id == "stub+retry" and reader.describe()["retry_refusal"] is True

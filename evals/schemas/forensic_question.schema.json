@@ -46,7 +46,9 @@
           "in_context": {"type": ["boolean", "null"]},
           "ingest": {"type": ["object", "null"], "properties": {
             "written": {"type": "boolean"}, "text_identical": {"type": ["boolean", "null"]},
-            "valid_from": {"type": ["string", "null"]}, "record_id": {"type": ["string", "null"]}}},
+            "valid_from": {"type": ["string", "null"]}, "record_id": {"type": ["string", "null"]},
+            "quarantined": {"type": ["boolean", "null"]}, "trust": {"type": ["number", "null"]},
+            "status": {"type": ["string", "null"]}}},
           "ranks": {"type": ["object", "null"], "description": "1-based rank of this gold turn at every stage; null = absent",
             "properties": {
               "vector": {"type": ["integer", "null"]}, "lexical": {"type": ["integer", "null"]},

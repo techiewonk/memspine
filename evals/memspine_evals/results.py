@@ -121,6 +121,8 @@ class RunSummary:
     missing_protocol_fields: tuple[str, ...]
     #: R3-8: per type, how many rows were scored, failed and never attempted
     by_type_n: Mapping[str, Mapping[str, int]] = field(default_factory=dict)
+    #: A10 [EVAL-3]: accuracy with a conversation-level cluster-bootstrap 95% CI
+    accuracy_ci: Mapping[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
@@ -161,7 +163,12 @@ def cluster_bootstrap_ci(
     by_item: dict[str, list[float]] = {}
     for row in rows:
         by_item.setdefault(row.item_id, []).append(to_unit_interval(row.score, scale))
-    clusters = list(by_item.values())
+    return _bootstrap_clusters(list(by_item.values()), seed, resamples, alpha)
+
+
+def _bootstrap_clusters(
+    clusters: list[list[float]], seed: int, resamples: int, alpha: float
+) -> tuple[float, float]:
     if len(clusters) < 2:
         flat = [v for values in clusters for v in values]
         mean = sum(flat) / len(flat) if flat else 0.0
@@ -178,6 +185,43 @@ def cluster_bootstrap_ci(
     lo = means[int((alpha / 2) * len(means))]
     hi = means[min(len(means) - 1, int((1 - alpha / 2) * len(means)))]
     return (round(lo, 4), round(hi, 4))
+
+
+ACCURACY_CI_RESAMPLES = 2000
+
+
+def accuracy_ci_block(
+    scored: Sequence[ResultRow],
+    failed: Sequence[ResultRow],
+    scale: JudgeScale,
+    failure_score: float,
+    seed: int,
+    resamples: int = ACCURACY_CI_RESAMPLES,
+    alpha: float = 0.05,
+) -> dict[str, Any]:
+    """A10 [EVAL-3]: the headline accuracy with a conversation-level cluster-bootstrap CI.
+
+    Same denominator as ``score_mean`` (failed rows count at ``failure_score``); questions are
+    resampled by item (conversation), the unit of independence. ``{}`` without rows."""
+    by_item: dict[str, list[float]] = {}
+    for row in scored:
+        by_item.setdefault(row.item_id, []).append(to_unit_interval(row.score, scale))
+    for row in failed:
+        by_item.setdefault(row.item_id, []).append(failure_score)
+    flat = [v for values in by_item.values() for v in values]
+    if not flat:
+        return {}
+    lo, hi = _bootstrap_clusters(list(by_item.values()), seed, resamples, alpha)
+    return {
+        "method": "cluster-bootstrap-by-item",
+        "accuracy": round(sum(flat) / len(flat), 4),
+        "ci95": [lo, hi],
+        "level": round(1 - alpha, 4),
+        "resamples": resamples,
+        "seed": seed,
+        "n_clusters": len(by_item),
+        "n_questions": len(flat),
+    }
 
 
 def aggregate(
@@ -273,6 +317,9 @@ def aggregate(
         admissible_d16=manifest.admissible_d16,
         missing_protocol_fields=manifest.missing_protocol_fields(),
         by_type_n=by_type_n,
+        accuracy_ci=accuracy_ci_block(
+            scored, failed, scale, failure_score, seed=manifest.protocol.seed
+        ),
     )
 
 
