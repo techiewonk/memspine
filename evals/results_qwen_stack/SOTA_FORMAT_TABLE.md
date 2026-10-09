@@ -3,6 +3,7 @@
 | qs-ebge-roff | 86.1 | 50.0 | 67.0 | 29.2 | **71.9** | 1513 | 1011 / 1800 | 1535 / 1540 |
 | qs-eq06-roff | 87.2 | 56.0 | 70.4 | 29.2 | **74.4** | 1571 | 1022 / 1874 | 1536 / 1540 |
 | qs-ejina-rjina | 85.9 | 51.8 | 64.2 | 19.8 | **71.0** | 655 | 764 / 1577 | 1538 / 1540 |
+| qs-eq06-rjina | 85.4 | 53.2 | 64.2 | 25.0 | **71.3** | 672 | 751 / 1543 | 1540 / 1540 |
 
 **Published systems, same metric (LLM-judge accuracy %, overall LoCoMo; not re-run, judge and reader differ):**
 

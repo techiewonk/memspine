@@ -139,3 +139,11 @@ Findings: (1) Qwen3-Embedding-0.6B is the best embedder on both retrieval (0.615
 bge-small. (2) Every reranker trades 1-2 sufficiency points (and 3.4 QA points for Jina v5 + Jina reranker) for 40-60%
 less context. (3) Thinking mode does not help Qwen3.5-9B here. (4) Batching halves wall-clock. (5) Weakest category is
 open-domain (20-29). Caveats: single run per arm, no confidence intervals, local 9B judge that can credit empty answers.
+
+## Qwen3-Embedding-0.6B + Jina reranker v3.5, full QA (Qwen3.5-9B Q4_K_M reader + judge, 1,540 questions)
+| System | Single-hop | Multi-hop | Temporal | Open-domain | **Overall** | Ctx tok/q | Answer p50 / p95 | Answered | Run time |
+|---|---|---|---|---|---|---|---|---|---|
+| Qwen3-Embedding-0.6B, no reranker | 87.2 | 56.0 | 70.4 | 29.2 | **74.4** | 1,571 | 1.0 s / 1.9 s | 1,536 / 1,540 | 54 min |
+| **Qwen3-Embedding-0.6B + Jina reranker v3.5** | 85.4 | 53.2 | 64.2 | 25.0 | **71.3** | 672 | 0.75 s / 1.5 s | 1,540 / 1,540 | 47 min |
+Reranking costs 3.1 QA points (mostly temporal, -6.2) for 57% less context and 20% faster runs. It is level with
+the bge-small baseline (71.9) while using 56% fewer context tokens. Only run with every question answered.

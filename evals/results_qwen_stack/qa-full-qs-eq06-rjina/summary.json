@@ -1,0 +1,341 @@
+{
+  "aborted": false,
+  "abort_reason": null,
+  "abort_message": null,
+  "manifest": {
+    "run_id": "qa-full-qs-eq06-rjina--memspine",
+    "dataset": {
+      "dataset_id": "locomo",
+      "revision_id": "sha256:79fa87e90f040813",
+      "licence": "see LoCoMo release (check before publishing a number)",
+      "source_path": "..\\data\\locomo10.json",
+      "content_sha256": "79fa87e90f04081343b8c8debecb80a9a6842b76a7aa537dc9fdf651ea698ff4",
+      "n_items": 10,
+      "n_queries": 1540,
+      "subset": "full+cat1/2/3/4",
+      "notes": "cat5-gold=abstention-v1: cat 5 gold is the refusal 'Not mentioned in the conversation', never adversarial_answer; cat 5 has no R@k gold"
+    },
+    "system": {
+      "system_id": "memspine",
+      "version": "0.0.1",
+      "config": {
+        "system_id": "memspine",
+        "version": "0.0.1",
+        "kind": "engine",
+        "template": "base",
+        "namespace": "eval",
+        "config": {
+          "read": {
+            "record_access": false,
+            "scoring": {
+              "recency_weight": 0.0,
+              "importance_weight": 0.0,
+              "utility_weight": 0.0
+            },
+            "resolve_relative_dates": true,
+            "order_by_time_for_ordering": true,
+            "assembly": {
+              "relative_floor": 0.3
+            },
+            "rerank": "jina",
+            "rerank_model": "jinaai/jina-reranker-v3.5",
+            "rerank_device": "cuda"
+          },
+          "embedding": {
+            "provider": "st",
+            "model": "Qwen/Qwen3-Embedding-0.6B",
+            "dim": 1024,
+            "device": "cuda",
+            "dtype": "bfloat16",
+            "query_instruction": "Instruct: Given a question about a user's past conversations, retrieve memories that answer it\nQuery: "
+          },
+          "storage": {
+            "path": "tempdir"
+          }
+        },
+        "record_access": false,
+        "dated_rendering": true,
+        "read_mode": "replay",
+        "build_sleep": false,
+        "sleep_calls_per_session": 1,
+        "batch_turns": 32,
+        "token_counter": {
+          "counter_id": "heuristic-chars4",
+          "chars_per_token": 4.0
+        }
+      },
+      "config_hash": "e975eb63373ad303f56e231e83283cd83a50ae144324b39911ca7da3b85a6b98"
+    },
+    "reader": {
+      "reader_id": "openai-compat:qwen3.5:9b",
+      "model": "qwen3.5:9b",
+      "makes_model_calls": true,
+      "params": {
+        "reader_id": "openai-compat:qwen3.5:9b",
+        "model": "qwen3.5:9b",
+        "base_url": "http://localhost:11434/v1",
+        "temperature": 0.0,
+        "max_tokens": 512,
+        "prompt_sha256": "83fc53c604167050b602df2b57e4b9b5971ba2a8e31612dd7f76641f86e6fe5f"
+      }
+    },
+    "judge": {
+      "judge_id": "llm-qwen3.5:9b-rubric",
+      "scale": "binary",
+      "model": "qwen3.5:9b",
+      "prompt_id": "suite:rubric",
+      "prompt_hash": "0b4b1c33826d033b48919a86f906ede996f65185d0349b3019d4ca58df860869",
+      "makes_model_calls": true,
+      "params": {
+        "endpoint": "openai-compat",
+        "base_url": "http://localhost:11434/v1",
+        "temperature": 0.0,
+        "max_tokens": null,
+        "suite": "rubric",
+        "suite_notes": "memspine rubric; abstention questions use the abstention judge",
+        "routes": {
+          "default": {
+            "prompt_id": "memspine/rubric",
+            "status": "memspine",
+            "source": "judge.py",
+            "sha256": "a648d5fa71a481951241aff4051c89a4b540e399fd82e9016bf70dd125feca25"
+          },
+          "abstention": {
+            "prompt_id": "memspine/abstention",
+            "status": "memspine",
+            "source": "judge.py",
+            "sha256": "46328d6c438f93d56a152dce4299c39636f65192d6a97b3f261b80486a5600c5"
+          }
+        }
+      }
+    },
+    "protocol": {
+      "protocol_id": "c0-1-qa",
+      "budget_tokens": 4096,
+      "top_k": 10,
+      "seed": 11,
+      "recall_ks": [
+        1,
+        5,
+        10
+      ],
+      "notes": "C0-1 verbatim-baseline gate; identical protocol across arms; harness-protocol=r3-2026-10-02"
+    },
+    "token_counter": {
+      "counter_id": "heuristic-chars4",
+      "chars_per_token": 4.0
+    },
+    "code": {
+      "memspine_git": "d71bbec-dirty",
+      "evals_version": "0.2.0"
+    },
+    "env": {
+      "python": "3.13.5",
+      "platform": "Windows-11-10.0.26340-SP0"
+    },
+    "created_at": "2026-10-09T13:21:48+00:00",
+    "harness": "memspine-evals",
+    "harness_version": "0.2.0",
+    "labels": {
+      "experiment": "C0-1",
+      "question": "does verbatim storage beat extraction on our own harness",
+      "mode": "qa",
+      "dense": false,
+      "hybrid": false,
+      "categories": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "qa_prompt": "default",
+      "judge_prompt": "rubric",
+      "arms": [
+        "memspine"
+      ],
+      "naive_dense_same_embedder": false,
+      "matched_budget_tokens": null,
+      "memspine_llm": "none",
+      "engine_llm_models": [],
+      "prices_per_mtok": {
+        "bedrock/converse/qwen.qwen3-32b-v1:0": [
+          0.16,
+          0.62
+        ]
+      },
+      "service_prices": {},
+      "paid_services": []
+    },
+    "limits": {
+      "max_items": null,
+      "max_queries_per_item": null,
+      "max_model_calls": 4000,
+      "max_usd": null,
+      "expect_model_calls": true,
+      "fail_fast": false,
+      "item_ids": null,
+      "model_call_cap_scope": "per-arm",
+      "provider_budget_scope": "per-arm"
+    },
+    "admissible_d16": true,
+    "missing_protocol_fields": [],
+    "makes_model_calls": true
+  },
+  "summary": {
+    "run_id": "qa-full-qs-eq06-rjina--memspine",
+    "n_queries": 1540,
+    "n_errors": 0,
+    "n_scheduled": 1540,
+    "n_truncated": 0,
+    "n_unattempted": 0,
+    "score_mean": 0.713,
+    "score_mean_measured": 0.713,
+    "score_ci95": [
+      0.6915,
+      0.7323
+    ],
+    "score_scale": "binary",
+    "failure_score": 0.0,
+    "cost_accounting_complete": true,
+    "by_type": {
+      "cat1": 0.5319,
+      "cat2": 0.6417,
+      "cat3": 0.25,
+      "cat4": 0.8537
+    },
+    "recall": {},
+    "context_tokens": {
+      "n": 1540,
+      "mean": 672.1532,
+      "p50": 606.5,
+      "p95": 1362.05,
+      "max": 1791.0
+    },
+    "latency_retrieve_ms": {
+      "n": 1540,
+      "mean": 175.1778,
+      "p50": 144.2803,
+      "p95": 170.5678,
+      "max": 4021.4336
+    },
+    "latency_answer_ms": {
+      "n": 1540,
+      "mean": 876.0031,
+      "p50": 750.619,
+      "p95": 1540.5579,
+      "max": 5753.8797
+    },
+    "model_calls": 3080,
+    "cost_usd": 0.0,
+    "cost_per_cycle_usd": 0.0,
+    "stages": {
+      "R": {
+        "tokens_prompt": 0,
+        "tokens_completion": 0,
+        "calls": 0,
+        "latency_ms": 269773.836,
+        "cost_usd": 0.0
+      },
+      "C": {
+        "tokens_prompt": 1035116,
+        "tokens_completion": 0,
+        "calls": 0,
+        "latency_ms": 0.0,
+        "cost_usd": 0.0
+      },
+      "G": {
+        "tokens_prompt": 1409701,
+        "tokens_completion": 57741,
+        "calls": 1540,
+        "latency_ms": 1349044.731,
+        "cost_usd": 0.0
+      },
+      "D": {
+        "tokens_prompt": 0,
+        "tokens_completion": 0,
+        "calls": 0,
+        "latency_ms": 329466.179,
+        "cost_usd": 0.0
+      },
+      "K": {
+        "tokens_prompt": 0,
+        "tokens_completion": 0,
+        "calls": 0,
+        "latency_ms": 0.058,
+        "cost_usd": 0.0
+      },
+      "complete": true
+    },
+    "admissible_d16": true,
+    "missing_protocol_fields": [],
+    "by_type_n": {
+      "cat1": {
+        "scored": 282,
+        "errors": 0,
+        "unattempted": 0
+      },
+      "cat2": {
+        "scored": 321,
+        "errors": 0,
+        "unattempted": 0
+      },
+      "cat3": {
+        "scored": 96,
+        "errors": 0,
+        "unattempted": 0
+      },
+      "cat4": {
+        "scored": 841,
+        "errors": 0,
+        "unattempted": 0
+      }
+    }
+  },
+  "score_matrix_row": {
+    "system": "memspine",
+    "dataset": "locomo",
+    "score": 0.713,
+    "n": 1540,
+    "judge_model": "qwen3.5:9b",
+    "judge_scale": "binary",
+    "backbone": "qwen3.5:9b",
+    "subset": "full+cat1/2/3/4",
+    "data_revision": "sha256:79fa87e90f040813",
+    "tokens_per_query": 4096,
+    "evidence_class": "harness-run",
+    "admissible_d16": "yes",
+    "run_id": "qa-full-qs-eq06-rjina--memspine",
+    "note": ""
+  },
+  "judge_model_calls": 1540,
+  "loop_model_calls": 1540,
+  "engine_llm_usage": {},
+  "engine_prompt_usage": {},
+  "engine_services": {},
+  "rerank": {
+    "mode": "jina",
+    "queries": 1540,
+    "reranked": 1540,
+    "calls": 1540,
+    "failures": 0,
+    "configured": true,
+    "rerank_unavailable": false
+  },
+  "rerank_unavailable": false,
+  "spend": {
+    "calls": 0,
+    "engine_calls": 0,
+    "max_calls": 4611686018427387904,
+    "max_usd": null,
+    "tokens": {
+      "qwen3.5:9b": [
+        1409701,
+        57741
+      ]
+    },
+    "cached_input_tokens": {},
+    "services": {},
+    "services_usd": 0,
+    "usd": 0.0
+  }
+}
