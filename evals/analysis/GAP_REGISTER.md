@@ -59,12 +59,12 @@ Measured on the fixed run: 148 read failures, of which ~48 are not reader errors
 |---|---|---|---|---|---|
 | C1 | Wrong line chosen (distractor) | 18 q; gold line is in the final top 5 in 89% of read failures (D) | mark/order retrieval hits (hits first or `*`, neighbours after) 4-7 q; per-shape window (2/4 only for temporal/multi-turn) 3-5 q; answer verification pass (`--verify-answer`) 3-5 q | P1 | **implemented; dev neutral** - superseded by `grounded_v2` approach (see DEV_GAP_REASONING_2026-10-10.md) |
 | C2 | Vague / wrong detail | 16 q (D) | answer-style clause "one sentence with the specific detail" 4-7 q; quote-then-answer 3-6 q | P1 | **implemented; dev screen neutral** (see C1); held-out run pre-registered |
-| C3 | Open-domain world knowledge | 12 q (D) | world-knowledge clause in prompt 3-6 q; bigger reader (27-32B) 4-8 q | P2 | **in test** - yes/no inference rule in `grounded_v2` |
+| C3 | Open-domain world knowledge | 12 q (D) | world-knowledge clause in prompt 3-6 q; bigger reader (27-32B) 4-8 q | P2 | **yes/no rule tested and REJECTED** - `grounded_v2` 81.5% vs 86.7% (+5/-17): the reader answered "No, ..." to when/what questions; rule dropped |
 | C4 | Open-domain hypothetical ("would X...") | 11 q (D) | route to an inference prompt committing to yes/no/likely with the supporting line 3-5 q; second-stage retry with a different instruction 3-6 q | P2 | open |
 | C5 | Duration / elapsed-time arithmetic | 13 q (D) | duration annotator in `temporal_resolve` ("for N years" -> `[= since YYYY]`) 3-4 q; elapsed helper: extract two anchors, code subtracts 4-6 q | P1 | **duration annotator implemented; dev screen neutral** (+0/-1; 52 annotated lines, few duration questions on dev); elapsed helper not done; held-out run pre-registered |
 | C6 | List / count incomplete | 10 q (D) | list/count clause for list-shaped questions 3-5 q; event dedup in context 1-3 q; structured fact memory with set semantics 4-6 q | P2 | **partly addressed** by `grounded_detail` list clause; screen pending |
-| C7 | Image caption ignored | 8 q (D) | prompt line on `[image: ...]` + render as its own "Photo:" sentence 3-5 q | P2 | **in test** - caption-as-evidence rule in `grounded_v2` |
-| C8 | Refusal / multi-hop link / date anchoring / conflict | 12 q (D) | implicit-date rule (line date = event date for past-tense "when") 2-4 q; coreference via previous 2 lines | P3 | **in test** - earlier-line reference rule in `grounded_v2` |
+| C7 | Image caption ignored | 8 q (D) | prompt line on `[image: ...]` + render as its own "Photo:" sentence 3-5 q | P2 | **in test** - caption rule kept in `grounded_v3` (screen queued) |
+| C8 | Refusal / multi-hop link / date anchoring / conflict | 12 q (D) | implicit-date rule (line date = event date for past-tense "when") 2-4 q; coreference via previous 2 lines | P3 | **in test** - earlier-line reference rule kept in `grounded_v3` (screen queued) |
 | C9 | Regressions from the grounded prompt + bigger context | 49 previously correct answers now wrong (lists, detail, distractors) (D 2.3) | C1 + C2 + per-shape window; screen every prompt change on dev set with paired test | P1 | open |
 | C10 | Retry limits | fired 107 times, 31 end correct; rescues none of the 32 that refuse again (D 3) | second-stage retry with a different instruction; keep first retry (pays on open-domain) | P3 | open |
 | C11 | Reader size | 9B Q4 reader; ceiling ~88% with all gold present | larger reader (Qwen3-14B/32B local) as a separate arm; thinking mode re-test (A9) | P2 | open |
@@ -118,6 +118,10 @@ Measured on the fixed run: 148 read failures, of which ~48 are not reader errors
 | H3 | Two diverged trees, duplicated runs, 20-25 one-off scripts | `memspine` vs `memspine-fixes` (132 files, 18.8k lines) (E PROC-3) | merge behind opt-in flags; one `evals/runs` + generated `runs/INDEX.md`; tag each campaign commit | P1 | **done** - `feat/locomo-fixes` and `feat/locomo-infra` merged into `feat/local-qwen-stack` (df8421f), no conflicts, engine unit suite and harness tests pass; worktrees removed, all run outputs kept in `evals/runs` |
 
 ## Progress log
+
+**2026-10-10 05:20**
+- `grounded_v2` failed (81.5% vs 86.7%, +5/-17): its yes/no rule made the reader open "when/what" answers with "No, ...".
+  `grounded_v3` = v2 without that rule, queued. Fixed `rerank_balanced` re-screen running.
 
 **2026-10-10 05:05**
 - G4 done (nothing to renormalise). A3 measured: list recall 0.63, 65 partial lists credited - reported as a metric.
