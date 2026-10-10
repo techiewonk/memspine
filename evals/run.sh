@@ -23,7 +23,7 @@ cd "$here"
 die() { echo "run.sh: $*" >&2; exit 2; }
 
 arm="" run_id="" mode="" topk="" items="" max_queries="" questions="" flags="" forensics=0
-engine_src="" data="" dataset="locomo" categories="1,2,3,4" batch_turns=32 force=0 think=off
+engine_src="" data="" dataset="locomo" categories="1,2,3,4" batch_turns=32 force=0 think=off system=memspine
 while [ $# -gt 0 ]; do
   case "$1" in
     --arm) arm=${2:?}; shift 2 ;;
@@ -42,6 +42,7 @@ while [ $# -gt 0 ]; do
     --batch-turns) batch_turns=${2:?}; shift 2 ;;
     --force) force=1; shift ;;
     --think) think=${2-}; shift 2 ;;
+    --system) system=${2:?}; shift 2 ;;  # memspine (default) | no-memory | naive-rag-* (I34)
     -h|--help) sed -n 2,14p "$0"; exit 0 ;;
     *) die "unknown argument: $1" ;;
   esac
@@ -133,7 +134,7 @@ fi
 cmd=("$py" _launch.py c0-1 --dataset "$dataset" --path "$data")
 # LoCoMo categories mean nothing to other datasets (op_bench probes are not categorised).
 [ "$dataset" = op_bench ] || cmd+=(--categories "$categories")
-cmd+=(--mode "$mode" --with-memspine --only-systems memspine --memspine-read-mode replay
+cmd+=(--mode "$mode" --with-memspine --only-systems "$system" --memspine-read-mode replay
      --memspine-config "$(cat "$arm_json")" --memspine-batch-turns "$batch_turns" --top-k "$topk")
 [ -n "$items" ] && cmd+=(--items "$items")
 if [ "$mode" = qa ]; then
@@ -164,6 +165,8 @@ fail() { echo "failed $1" > "$status"; echo "run.sh: failed $1 (see evals/$log)"
 [ "$rc" -eq 0 ] || fail "rc=$rc" "$rc"
 
 results="runs/$run_id--memspine/results.jsonl"
+if [ "$system" != memspine ]; then results=$(ls runs/"$run_id"--*/results.jsonl 2>/dev/null | grep -v -- --forensics | head -1); fi
+[ -n "$results" ] || results="runs/$run_id--$system/results.jsonl"
 [ -s "$results" ] || fail "no results.jsonl at evals/$results"
 rows=$(grep -c '"kind": *"result"' "$results" || true)
 if [ "$exact" -eq 1 ] && [ "$rows" -ne "$questions" ]; then
