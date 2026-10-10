@@ -198,6 +198,10 @@ class C01Config:
     milestones: str = ""
     #: E05: count both end days of the interval (default: the start day is not counted).
     milestones_inclusive: bool = False
+    #: E06: code-check each answer against the question's typed contract (a date for "when", a
+    #: number for "how many", a city not a country, ...) and repair a named defect with ONE
+    #: extra reader call: "" (off), ``strict`` or ``soft``. See ``slot_verify.py``.
+    verify_slots: str = ""
     #: screening: ingest and read every question as the QA run would, skip the reader
     #: and the judge, record evidence coverage per question (``screen.py``)
     retrieval_only: bool = False
@@ -807,6 +811,13 @@ def with_post_steps(
             inclusive=bool(getattr(config, "milestones_inclusive", False)),
             rounding=ms_mode,
         )
+    slots = getattr(config, "verify_slots", "")
+    if slots:
+        from .slot_verify import SLOT_VERIFY_MODES, SlotVerifyReader
+
+        if slots not in SLOT_VERIFY_MODES:
+            raise ValueError(f"verify_slots must be one of {SLOT_VERIFY_MODES}, got {slots!r}")
+        reader = SlotVerifyReader(reader, slots)
     return reader
 
 
@@ -904,6 +915,7 @@ async def run_c0_1(
                 if config.milestones
                 else {}
             ),
+            **({"verify_slots": f"v1/{config.verify_slots}"} if config.verify_slots else {}),
             "judge_prompt": config.judge_prompt if config.mode == "qa" else None,
             **({"opbench_root": config.opbench_root} if config.opbench_root else {}),
             "arms": [s.system_id for s in systems],

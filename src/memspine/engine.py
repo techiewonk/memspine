@@ -158,6 +158,15 @@ from memspine.core.privacy import (
 )
 from memspine.core.profile_pack import pack_profile, render_packed_profile
 from memspine.core.projector import Projector
+from memspine.core.query_contract import (
+    QueryContract,
+    build_contract,
+    contract_header,
+    is_ambiguous,
+    merge_contract,
+    parse_contract,
+    rerank_hint,
+)
 from memspine.core.query_shape import (
     content_words,
     core_terms,
@@ -355,6 +364,7 @@ from memspine.prompts.models import (
     FactDates,
     Insights,
     MissingInfoOut,
+    QueryContractOut,
     ReadPlan,
     RelevanceLabels,
     SufficiencyOut,
@@ -2913,6 +2923,7 @@ class Engine:
             or read.entity_check != "off"
             or read.user_header != "off"
             or read.reinjection_penalty > 0.0
+            or (read.query_contract != "off" and "header" in read.query_contract_use)
         ):
             return context
         records = list(context.records)
@@ -2973,8 +2984,19 @@ class Engine:
                 records.insert(0, self._lead_record(ns, head, parts))
                 context.boundary_index += 1
                 audit["user_header"] = head
+            answer_line: str | None = None
+            if read.query_contract != "off" and "header" in read.query_contract_use:
+                contract = await self._query_contract(query)  # A03
+                answer_line = contract_header(contract)
+                audit["query_contract"] = contract.as_meta()
+                if answer_line:
+                    records.insert(1 if head else 0, self._lead_record(ns, answer_line, parts))
+                    context.boundary_index += 1
+                    audit["query_contract_header"] = answer_line
             context.records = records
-            context.tokens_used += sum(estimate_tokens(t) for t in [*notes, head or ""])
+            context.tokens_used += sum(
+                estimate_tokens(t) for t in [*notes, head or "", answer_line or ""]
+            )
             if (fx := _FORENSICS.get()) is not None and audit:
                 fx["read_overlay"] = audit
         except Exception as exc:  # an enhancer, never a gate
@@ -5343,6 +5365,14 @@ class Engine:
         if (fx := _FORENSICS.get()) is not None:
             fx["pool"] = [(record.record_id, score) for record, score in candidates]
             fx["reranker"] = getattr(reranker, "reranker_id", None)
+        rerank_query = query
+        if read_cfg.query_contract != "off":  # A03: the contract is logged; the hint is opt-in
+            contract = await self._query_contract(query)
+            hint = rerank_hint(contract) if "rerank" in read_cfg.query_contract_use else None
+            if hint and reranker is not None:
+                rerank_query = query + hint
+            if (fx := _FORENSICS.get()) is not None:
+                fx["query_contract"] = {**contract.as_meta(), "rerank_hint": hint}
         if reranker is not None and candidates:
             documents = [concat_background(record) for record, _ in candidates]
             if read_cfg.rerank_date_prefix:
@@ -5359,7 +5389,7 @@ class Engine:
                 )
             try:
                 self._rerank_calls += 1
-                raw_scores = await reranker.rerank(query, documents)
+                raw_scores = await reranker.rerank(rerank_query, documents)
                 if len(raw_scores) > 1:
                     _RERANK_SUPPORT.set(sorted(raw_scores, reverse=True)[1])
                 if (raw_sink := _RAW_SCORES.get()) is not None:
@@ -12840,6 +12870,43 @@ class Engine:
             _log.info("read.planner_unsure", label=label, confidence=confidence, gate=gate)
             return "replay"
         return self._READ_OPTIONS[label][0]
+
+    async def _query_contract(self, query: str) -> QueryContract:
+        """A03: the typed query contract of ``query`` under ``read.query_contract``.
+
+        ``heuristic``: the rules (``core/query_contract``). ``llm``: the rules first; ONE
+        ``plan@contract`` call only when the rules are unsure of the answer type
+        (:func:`is_ambiguous`), and the reply may refine but never blank the contract; any
+        failure keeps the rules' contract. Cached per question text (bounded), so the
+        reranker hint, the reader header and the forensics share one build and one call."""
+        cache: dict[str, QueryContract] = self.__dict__.setdefault("_contract_cache", {})
+        hit = cache.get(query)
+        if hit is not None:
+            return hit
+        contract = build_contract(query)
+        if self._config().read.query_contract == "llm" and is_ambiguous(contract):
+            contract = merge_contract(contract, await self._llm_query_contract(query, contract))
+        if len(cache) >= 512:
+            cache.clear()
+        cache[query] = contract
+        return contract
+
+    async def _llm_query_contract(self, query: str, rules: QueryContract) -> QueryContract | None:
+        """One ``plan`` role call (``plan@contract``), or None (the rules' contract stands)."""
+        if self._llm is None or self._prompts is None or "plan" not in self._llm.roles:
+            _log.warning("read.query_contract_unbound", role="plan")
+            return None
+        try:
+            out = await structured_call(
+                self._llm.for_role("plan"),
+                self._prompts.select("plan", condition="contract"),
+                {"query": query},
+                QueryContractOut,
+            )
+            return parse_contract(out.model_dump(), rules)
+        except Exception as exc:  # an enhancer, never a gate
+            _log.warning("read.query_contract_failed", error=str(exc))
+            return None
 
     async def _llm_read_plan(self, query: str) -> ReadPlan | None:
         """G2a: one ``plan`` role call (counted by the router), or None (rules).

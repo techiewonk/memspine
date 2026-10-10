@@ -201,6 +201,7 @@ def apply_opbench_protocol(args: argparse.Namespace) -> list[str]:
         "duration_solve",
         "milestones",
         "verify_answer",
+        "verify_slots",
     ):
         if getattr(args, flag):
             setattr(args, flag, False)
@@ -341,6 +342,7 @@ def cmd_c0_1(args: argparse.Namespace) -> int:
         duration_solve=args.duration_solve,
         milestones=args.milestones,
         milestones_inclusive=args.milestones_inclusive,
+        verify_slots=args.verify_slots,
         retrieval_only=args.retrieval_only,
         trace_full=args.trace_full,
         cache_dir=args.cache_dir,
@@ -730,6 +732,19 @@ def build_parser() -> argparse.ArgumentParser:
         "--milestones-inclusive",
         action="store_true",
         help="E05: count both end days of the interval (default: the start day is not counted)",
+    )
+    c01.add_argument(
+        "--verify-slots",
+        nargs="?",
+        const="strict",
+        default="",
+        choices=("strict", "soft"),
+        help="E06: code-check each answer against the question's typed contract (a date for a "
+        "'when' question, a number for 'how many', a city not a country, a polarity for yes/no, "
+        "a count equal to its list) and repair a named defect with ONE extra reader call over "
+        "the same memories. An abstention is never repaired; a repair is kept only when the "
+        "defect is gone. strict (default when given): the strict checks; soft: also the noisier "
+        "unnamed-answer signals. Off by default; not the same as --verify-answer (#39)",
     )
     c01.add_argument(
         "--verify-answer",

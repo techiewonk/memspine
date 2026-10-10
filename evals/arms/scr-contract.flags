@@ -1,0 +1,16 @@
+# A03 + E06 screen arm: scr-pool-protect (BEST + perspective + pool-protect) with
+# read.query_contract: heuristic and query_contract_use [header, rerank]. NOT launched.
+# The arm file sets the engine side. Reader side is a CLI flag, not an arm key.
+# Screen order (one change at a time against scr-pool-protect):
+#   1. retrieval-only on LoCoMo 1-5 + OP-Bench: tests the rerank hint alone (the header
+#      is invisible without a reader). Drop 'rerank' from query_contract_use to test the
+#      header alone in QA.
+#   2. QA, header only:      arm scr-contract with query_contract_use [header]
+#   3. QA, header + E06:     arm scr-contract + the flag below
+--verify-slots
+# --verify-slots strict (default when given): code checks only; one extra reader call per
+# flagged answer; abstentions never repaired; a repair is kept only if the defect is gone.
+# --verify-slots soft: also the noisy unnamed-answer signals (offline precision ~16%).
+# Not the same as --verify-answer (#39, the verify_answer prompt on the judge backend);
+# the two can be combined. Read meta['slot_verify'] per row for defect, repair and cost.
+# Offline (no model) estimate: python evals/contract_offline.py <run>--trace/reads.jsonl.gz

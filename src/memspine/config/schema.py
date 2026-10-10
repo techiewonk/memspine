@@ -944,6 +944,22 @@ class ReadConfig(BaseModel):
     #: context opens with "You are the assistant. The user is <asker>. Memory lines are
     #: labelled with their speaker." No asker (LoCoMo): nothing is added, none is invented.
     user_header: Literal["off", "on"] = "off"
+    #: A03: a typed query contract built from the question (``core/query_contract``): target
+    #: subjects, predicate, answer type (person / place:city|country|... / date|time|year /
+    #: duration / count / quantity / title / name / yes-no / reason / description), time scope,
+    #: expected cardinality (one / many / count) and request kind (recall / inference /
+    #: recommendation). ``heuristic`` = rules only (English surface cues, no model, no
+    #: vocabulary of any dataset); ``llm`` = the rules first, and ONE ``plan@contract`` call
+    #: only when the rules are unsure of the answer type (the call may refine, never blank, the
+    #: contract). ``off`` (default): nothing is built. The contract is always recorded in the
+    #: forensics (``query_contract``); ``query_contract_use`` says where else it goes.
+    query_contract: Literal["off", "heuristic", "llm"] = "off"
+    #: A03: where a built contract is used. ``header`` = one lead line in the reader's context
+    #: ("Answer type: place:city; expected: one."), only when the answer type is known;
+    #: ``rerank`` = the same hint appended to the reranker's query (never to the embedder's).
+    query_contract_use: list[Literal["header", "rerank"]] = Field(
+        default_factory=lambda: ["header"]
+    )
     #: I64: with a session id, a record injected in the last ``reinjection_window`` replies of
     #: that (namespace, session) has its relevance multiplied by
     #: ``1 - penalty * uses / window`` (floor ``1 - penalty``). 0 = off. Without a session id

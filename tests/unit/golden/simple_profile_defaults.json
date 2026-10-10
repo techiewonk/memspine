@@ -195,6 +195,10 @@
       "profile_skip_temporal": false,
       "profile_slots_header": false,
       "profile_subject_card": false,
+      "query_contract": "off",
+      "query_contract_use": [
+        "header"
+      ],
       "query_encoder": "none",
       "raw_turn_floor": false,
       "recency_leg": false,

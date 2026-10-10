@@ -41,6 +41,7 @@ __all__ = [
     "Insights",
     "InstructionFlagOut",
     "MissingInfoOut",
+    "QueryContractOut",
     "ReadPlan",
     "RelevanceLabel",
     "RelevanceLabels",
@@ -453,6 +454,40 @@ class ReadPlan(BaseModel):
         return value[:3]
 
 
+class QueryContractOut(BaseModel):
+    """A03 (``plan@contract``): the typed query contract the resolver proposes for a question
+    the rules could not type. Every field is optional text: ``core.query_contract.parse_contract``
+    validates the values against the allowed sets and falls back to the rules' own."""
+
+    answer_type: str = ""
+    subtype: str = ""
+    cardinality: str = ""
+    request: str = ""
+    relation: str = ""
+    time_scope: str = ""
+    subjects: list[str] = Field(default_factory=list)
+
+    @field_validator("answer_type", "subtype", "cardinality", "request", mode="before")
+    @classmethod
+    def _label(cls, value: Any) -> Any:
+        return "" if value is None else str(_as_text(value)).strip().lower()
+
+    @field_validator("relation", "time_scope", mode="before")
+    @classmethod
+    def _plain(cls, value: Any) -> Any:
+        text = "" if value is None else str(_as_text(value)).strip()
+        return "" if text.lower() in ("none", "null") else text
+
+    @field_validator("subjects", mode="before")
+    @classmethod
+    def _names(cls, value: Any) -> Any:
+        if value is None:
+            return []
+        if isinstance(value, str):
+            value = [value]
+        return [str(_as_text(v)).strip() for v in value if v is not None and str(v).strip()]
+
+
 class InstructionFlagOut(BaseModel):
     instruction_shaped: bool
     reason: str = ""
@@ -602,6 +637,7 @@ OUTPUT_MODELS: dict[str, type[BaseModel]] = {
     "AnticipatedCues": AnticipatedCues,
     "RelevanceLabels": RelevanceLabels,
     "ReadPlan": ReadPlan,
+    "QueryContractOut": QueryContractOut,
     "SufficiencyOut": SufficiencyOut,
     "MissingInfoOut": MissingInfoOut,
     "AnswerVerdictOut": AnswerVerdictOut,

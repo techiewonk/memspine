@@ -1,0 +1,180 @@
+{
+ "rows": 1540,
+ "correct": 1239,
+ "wrong": 301,
+ "typed_questions": 1159,
+ "abstained_answers": 65,
+ "abstained_and_wrong": 58,
+ "strict": {
+  "true_flags": 1,
+  "false_flags": 0,
+  "true_flag_share_of_wrong": 0.0033,
+  "false_flag_share_of_correct": 0.0,
+  "precision": 1.0
+ },
+ "soft": {
+  "true_flags": 15,
+  "false_flags": 81,
+  "true_flag_share_of_wrong": 0.0498,
+  "false_flag_share_of_correct": 0.0654,
+  "precision": 0.1562
+ },
+ "strict_or_soft": {
+  "true_flags": 16,
+  "false_flags": 81,
+  "true_flag_share_of_wrong": 0.0532,
+  "false_flag_share_of_correct": 0.0654,
+  "precision": 0.1649
+ },
+ "by_defect_kind": {
+  "count_list_mismatch": {
+   "true_flags": 1
+  },
+  "soft_mixed_granularity": {
+   "true_flags": 1
+  },
+  "soft_unnamed": {
+   "true_flags": 14,
+   "false_flags": 81
+  }
+ },
+ "by_answer_type": {
+  "choice": {
+   "rows": 6,
+   "wrong": 3
+  },
+  "count": {
+   "rows": 37,
+   "wrong": 13,
+   "true_flags": 1
+  },
+  "date": {
+   "rows": 259,
+   "wrong": 34
+  },
+  "date:month": {
+   "rows": 3,
+   "wrong": 1
+  },
+  "date:year": {
+   "rows": 6,
+   "wrong": 2
+  },
+  "description": {
+   "rows": 96,
+   "wrong": 11
+  },
+  "duration": {
+   "rows": 38,
+   "wrong": 17
+  },
+  "entity": {
+   "rows": 413,
+   "wrong": 82
+  },
+  "name": {
+   "rows": 8,
+   "wrong": 0,
+   "false_flags": 7
+  },
+  "person": {
+   "rows": 35,
+   "wrong": 6,
+   "false_flags": 17,
+   "true_flags": 2
+  },
+  "place": {
+   "rows": 57,
+   "wrong": 16,
+   "true_flags": 7,
+   "false_flags": 22
+  },
+  "place:city": {
+   "rows": 13,
+   "wrong": 4,
+   "false_flags": 7,
+   "true_flags": 2
+  },
+  "place:country": {
+   "rows": 17,
+   "wrong": 5,
+   "false_flags": 6,
+   "true_flags": 1
+  },
+  "place:region": {
+   "rows": 8,
+   "wrong": 6,
+   "false_flags": 1
+  },
+  "quantity": {
+   "rows": 5,
+   "wrong": 1
+  },
+  "reason": {
+   "rows": 47,
+   "wrong": 4
+  },
+  "title": {
+   "rows": 70,
+   "wrong": 10,
+   "false_flags": 21,
+   "true_flags": 3
+  },
+  "unknown": {
+   "rows": 381,
+   "wrong": 75
+  },
+  "yesno": {
+   "rows": 41,
+   "wrong": 11
+  }
+ },
+ "wrong_examples": {
+  "soft_unnamed": [
+   {
+    "q": "Where did Caroline move from 4 years ago?",
+    "a": "Caroline moved from her home country 4 years ago.",
+    "gold": "Sweden"
+   },
+   {
+    "q": "What book recommendations has Joanna given to Nate?",
+    "a": "No book recommendations have been given by Joanna to Nate in the memories.",
+    "gold": "\"Little Women\",'A Court of Thorns andRoses'."
+   },
+   {
+    "q": "Where was John between August 11 and August 15 2023?",
+    "a": "John was on a trip (away from his team) between August 11 and August 15, 2023, as he mentions meeting back up with his t",
+    "gold": "Chicago"
+   },
+   {
+    "q": "What kind of game did John have a career-high in assists in?",
+    "a": "John had a career-high in assists in a big game against his rival.",
+    "gold": "basketball"
+   },
+   {
+    "q": "What kind of places have Andrew and his girlfriend checked out around the city?",
+    "a": "Andrew and his girlfriend have checked out a new cafe scene, a sushi spot, and a new cafe in town.",
+    "gold": "cafes, new places to eat, open space for hikes, pet shelter, wine tasting event,"
+   },
+   {
+    "q": "Where did Andrew go during the first weekend of August 2023?",
+    "a": "Andrew went to a nature reserve during the first weekend of August 2023 (specifically the weekend of August 19, 2023).",
+    "gold": "camping with girlfriend"
+   }
+  ],
+  "soft_mixed_granularity": [
+   {
+    "q": "Which cities has John been to?",
+    "a": "Seattle, Chicago, New York City, Italy, Paris, and Ireland.",
+    "gold": "Seattle, Chicago, New York, and Paris."
+   }
+  ],
+  "count_list_mismatch": [
+   {
+    "q": "How many pets will Andrew have, as of December 2023?",
+    "a": "Andrew will have 4 pets as of December 2023.\n\n**Reasoning:**\n1.  **Toby**: Mentioned as Andrew's dog in August 2023 ([20",
+    "gold": "three"
+   }
+  ]
+ }
+}

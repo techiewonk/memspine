@@ -4,6 +4,10 @@ All notable changes to memspine are documented here. Format: [Keep a Changelog](
 
 ## [Unreleased]
 
+### Added — typed query contract (A03) and answer-slot verifier (E06), 2026-10-11
+- `read.query_contract: off|heuristic|llm` (default `off`, reads byte-identical) and `read.query_contract_use: [header, rerank]`: a contract (subjects, relation, answer type, time scope, cardinality, request kind) built from the question by rules (`core/query_contract.py`); `llm` adds one `plan@contract` call only when the rules are unsure. Used as a one-line reader header and/or a reranker-query hint; always logged in the forensics. New prompt `plan@contract` (existing prompt ids unchanged).
+- Harness `--verify-slots [strict|soft]` (off by default): code checks of each answer against the contract (`core/answer_check.py`) and one bounded repair call per flagged answer; abstentions are never repaired. `evals/contract_offline.py` counts what the checks would flag in a finished run, with no model.
+
 ### Added — question-shape gates on the replay read path (ADR-055, 2026-10-06)
 - Six opt-in `read.*` keys, all off by default (reads byte-identical, golden `tests/unit/golden/routed_read_off.json`): `aggregate_in_replay` (A1: list/count questions in replay pool `aggregate_top_k` candidates), `list_cards_only_aggregate` (A2), `temporal_leg_event_dates` (B2: the temporal leg also matches `happened:` dates), `cards_temporal: skip|event_dates` (B3: date questions see only happened-dated cards, `[happened d · said d']`), `profile_skip_temporal` (D1), `lead_budget_share` (H12: one cap on all lead blocks, lowest priority dropped first).
 - ADR-055 addendum: opt-in `read.cards_only_aggregate` (default `false`, byte-identical). With `cards: header`, the cards header is built only for list/count questions; other non-date questions also get no mined fact in the routed read (every mode, `full` included), so they read raw turns only. Date questions keep the `cards_skip_temporal` / `cards_temporal` behaviour. Targets the mining stack's single-hop cost (screen: multi-hop +8.1, single-hop −7.9).
