@@ -20,7 +20,7 @@ cd "$here"
 die() { echo "run.sh: $*" >&2; exit 2; }
 
 arm="" run_id="" mode="" topk="" items="" max_queries="" questions="" flags="" forensics=0
-engine_src="" data="" dataset="locomo" categories="1,2,3,4" batch_turns=32 force=0
+engine_src="" data="" dataset="locomo" categories="1,2,3,4" batch_turns=32 force=0 think=off
 while [ $# -gt 0 ]; do
   case "$1" in
     --arm) arm=${2:?}; shift 2 ;;
@@ -38,6 +38,7 @@ while [ $# -gt 0 ]; do
     --categories) categories=${2:?}; shift 2 ;;
     --batch-turns) batch_turns=${2:?}; shift 2 ;;
     --force) force=1; shift ;;
+    --think) think=${2-}; shift 2 ;;
     -h|--help) sed -n 2,14p "$0"; exit 0 ;;
     *) die "unknown argument: $1" ;;
   esac
@@ -103,6 +104,12 @@ fi
 
 # Credentials: unset (env -u silently does nothing under Git Bash on Windows).
 unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_PROFILE MEMSPINE_EVAL_THINK
+# --think on: the reader (not the judge) may reason; explicit flag, recorded in the log (A9).
+case "$think" in
+  on) export MEMSPINE_EVAL_THINK=on ;;
+  off) ;;
+  *) echo "run.sh: --think must be on or off" >&2; exit 2 ;;
+esac
 export PYTHONPATH="$engine_src"
 export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}"
 [ -n "$max_queries" ] && export MEMSPINE_EVAL_MAX_QUERIES="$max_queries"
@@ -130,7 +137,7 @@ log="runs/_logs/$run_id.log"
 status="runs/$run_id.STATUS"
 {
   echo "# run.sh $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  echo "# PYTHONPATH=$PYTHONPATH MEMSPINE_FORENSICS_DIR=${MEMSPINE_FORENSICS_DIR:-} MEMSPINE_EVAL_MAX_QUERIES=${MEMSPINE_EVAL_MAX_QUERIES:-}"
+  echo "# PYTHONPATH=$PYTHONPATH MEMSPINE_FORENSICS_DIR=${MEMSPINE_FORENSICS_DIR:-} MEMSPINE_EVAL_MAX_QUERIES=${MEMSPINE_EVAL_MAX_QUERIES:-} MEMSPINE_EVAL_THINK=${MEMSPINE_EVAL_THINK:-off}"
   echo "# expected questions=$questions exact=$exact max-model-calls=$max_calls"
   printf '# command:'; printf ' %q' "${cmd[@]}"; echo
 } | tee "$log"
