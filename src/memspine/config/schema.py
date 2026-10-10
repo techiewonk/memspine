@@ -1458,6 +1458,20 @@ class AuditConfig(BaseModel):
     actions: bool = False
 
 
+class ObservabilityConfig(BaseModel):
+    """I73 diagnostics, opt-in.
+
+    - ``write_timers``: time each step of the write door (validation, firewall, redaction,
+      embedding, projection, dedup, conflict ladder, perspective / sensitivity tagging and
+      the inline LLM steps) with the monotonic clock; per step count, total, p50 and p95
+      through ``Engine.write_timers()`` and ``describe()``. Off: nothing is wrapped.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    write_timers: bool = False
+
+
 class ConsentConfig(BaseModel):
     """#50 purpose limitation and the remote-LLM gate, opt-in.
 
@@ -1631,6 +1645,7 @@ class MemspineConfig(BaseModel):
     workers: WorkersConfig = Field(default_factory=WorkersConfig)
     retention: RetentionConfig = Field(default_factory=RetentionConfig)
     audit: AuditConfig = Field(default_factory=AuditConfig)
+    observability: ObservabilityConfig = Field(default_factory=ObservabilityConfig)
     consent: ConsentConfig = Field(default_factory=ConsentConfig)
     rest: RestConfig = Field(default_factory=RestConfig)
     prompts: PromptsConfig = Field(default_factory=PromptsConfig)

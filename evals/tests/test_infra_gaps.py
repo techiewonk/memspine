@@ -579,3 +579,30 @@ def test_summary_carries_a_cluster_bootstrap_ci(tmp_path: Path) -> None:
     assert 0.0 <= lo <= block["accuracy"] <= hi <= 1.0
     assert block["accuracy"] == summary["summary"]["score_mean"]
     assert block["ci95"] == summary["summary"]["score_ci95"]  # no failed rows: same sample
+
+
+def test_ingest_rows_carry_the_batch_write_timers_only_when_on(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """I73: the batch's per-step timings ride the first ingest line; absent when off."""
+    monkeypatch.setenv("MEMSPINE_FORENSICS_DIR", str(tmp_path))
+    system = MemspineSystem()
+    system.begin_run("run-T--memspine")
+    steps = {"embed": {"count": 2, "total_ms": 3.0, "mean_ms": 1.5, "p50_ms": 1.0, "p95_ms": 2.0}}
+    calls: list[bool] = []
+
+    def write_timers(*, reset: bool = False) -> dict[str, Any]:
+        calls.append(reset)
+        return steps
+
+    system._engine = SimpleNamespace(write_timers=write_timers)
+    turns = [_turn("D1:1"), _turn("D1:2")]
+    system._write_ingest_log([_record(), _record(record_id="r-2")], turns, ["Ann: hi", "Ann: yo"])
+    path = tmp_path / "ingest.jsonl"
+    lines = [json.loads(x) for x in path.read_text(encoding="utf-8").splitlines()]
+    assert lines[0]["write_timers"] == steps and "write_timers" not in lines[1]
+    assert calls == [True]  # taken as a per-batch delta
+    system._engine = SimpleNamespace(write_timers=lambda *, reset=False: {})
+    system._write_ingest_log([_record()], [_turn()], ["Ann: hi"])
+    last = json.loads(path.read_text(encoding="utf-8").splitlines()[-1])
+    assert "write_timers" not in last

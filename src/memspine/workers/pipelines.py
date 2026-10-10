@@ -13,7 +13,7 @@ from __future__ import annotations
 import asyncio
 import re
 from collections import Counter
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from contextlib import AbstractAsyncContextManager, nullcontext
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, time, timedelta
@@ -301,6 +301,25 @@ class PipelineContext:
     #: embedder that ranks candidates. None => ``resolve: llm`` acts as ``rules``.
     resolve_entities: ResolveBatch | None = None
     embed: Embed | None = None
+    #: I72: ``(namespace, parent ids, site) -> True`` when any parent of a derived
+    #: deposit is no longer live (audited by the engine). Called under the
+    #: namespace lock right before the write. None => a local check, no audit.
+    parents_gone: Callable[[str, Sequence[str], str], Awaitable[bool]] | None = None
+
+
+async def _parents_gone(
+    ctx: PipelineContext, namespace: str, parent_ids: Sequence[str], site: str
+) -> bool:
+    """I72: True when a parent of the derived record about to be written is gone
+    (erased, archived or quarantined). Call with the namespace lock held."""
+    if ctx.parents_gone is not None:
+        return await ctx.parents_gone(namespace, parent_ids, site)
+    for parent_id in parent_ids:
+        parent = await ctx.storage.get_record(parent_id)
+        if parent is None or parent.status is not RecordStatus.ACTIVATED or parent.quarantined:
+            _log.warning("memory.derived_deposit_skipped", namespace=namespace, site=site)
+            return True
+    return False
 
 
 Pipeline = Callable[[PipelineContext], Awaitable[dict[str, object]]]
@@ -502,7 +521,8 @@ async def _consolidate_session(
     extra: dict[str, object] = {}
     if mode is not None:
         extra = {"summary_mode": mode, "open_session": still_open}
-    await _append_summary(ctx, namespace, session, summary, stale, now, extra)
+    if not await _append_summary(ctx, namespace, session, summary, stale, now, extra):
+        return summaries, superseded  # I72: a member was forgotten while summarising
     return summaries + 1, superseded + len(stale)
 
 
@@ -551,8 +571,30 @@ async def _append_summary(
     stale: list[MemoryRecord],
     now: datetime,
     extra: dict[str, object],
+) -> bool:
+    """WRITE the summary, archive the summaries it supersedes, then CONSOLIDATE.
+
+    I72: the summary text was authored outside the namespace lock, so the unit runs
+    under it and is skipped (returns False, nothing archived) when a member the
+    summary restates was forgotten meanwhile; the next sweep re-summarises the
+    surviving members."""
+    assert ctx.append_event is not None
+    async with ctx.lock(namespace):
+        if await _parents_gone(ctx, namespace, summary.source.parents, "consolidate"):
+            return False
+        await _append_summary_locked(ctx, namespace, session, summary, stale, now, extra)
+    return True
+
+
+async def _append_summary_locked(
+    ctx: PipelineContext,
+    namespace: str,
+    session: Session,
+    summary: MemoryRecord,
+    stale: list[MemoryRecord],
+    now: datetime,
+    extra: dict[str, object],
 ) -> None:
-    """WRITE the summary, archive the summaries it supersedes, then CONSOLIDATE."""
     assert ctx.append_event is not None
     # The WRITE event carries the consolidation provenance too, so even if a
     # crash tears the WRITE/CONSOLIDATE pair, member ids survive in the log.
@@ -712,7 +754,7 @@ async def _close_open_summary(
         instruction_flag=open_summary.instruction_flag,
         tags=[t for t in open_summary.tags if t != constants.SUMMARY_OPEN_TAG],
     )
-    await _append_summary(
+    appended = await _append_summary(
         ctx,
         namespace,
         session,
@@ -721,7 +763,7 @@ async def _close_open_summary(
         now,
         {"summary_mode": "close", "open_session": False},
     )
-    return 1
+    return int(appended)
 
 
 async def session_lifecycle(ctx: PipelineContext) -> dict[str, object]:
@@ -1454,6 +1496,8 @@ async def _reorganize_community(
     # idempotency read, the summary WRITE and the membership LINKs must not
     # interleave with a concurrent forget cascade in this namespace.
     async with ctx.lock(namespace):
+        if await _parents_gone(ctx, namespace, member_ids, "reorganize"):  # I72
+            return 0, key  # a member was forgotten since the community was read; next sweep
         live = {old.source.message_id: old for old in await _reorganize_summaries(ctx, namespace)}
         if key in live:
             if keeper is not None:
@@ -3234,7 +3278,7 @@ async def mine_facts(ctx: PipelineContext) -> dict[str, object]:
                     if when.date() > h.said.date():
                         when = h.said  # a plan is not the newest statement on its key
                 try:
-                    await deposit(
+                    stored = await deposit(
                         namespace,
                         text,
                         fact.entity or None,
@@ -3248,6 +3292,8 @@ async def mine_facts(ctx: PipelineContext) -> dict[str, object]:
                 except Exception as exc:  # one bad fact must not lose the rest
                     errors.append(f"{namespace}:{key}: deposit failed: {exc}")
                     continue
+                if stored is None:
+                    continue  # I72: a parent turn was forgotten meanwhile; skipped, audited
                 written += 1
         return written, errors
 
@@ -3287,11 +3333,11 @@ async def anticipate(ctx: PipelineContext) -> dict[str, object]:
         errors: list[str] = []
         for line, texts in by_line.items():
             try:
-                await deposit(namespace, members[line - 1].record_id, texts, key)
+                cues = await deposit(namespace, members[line - 1].record_id, texts, key)
             except Exception as exc:
                 errors.append(f"{namespace}:{key}: cue deposit failed: {exc}")
                 continue
-            written += len(texts)
+            written += len(cues) if isinstance(cues, list) else len(texts)  # I72: skips write 0
         return written, errors
 
     legacy = _legacy_tag_check(ctx, "semantic", lambda r, key: f"anticipated:{key}" in r.tags)
@@ -3316,10 +3362,12 @@ async def reflect_profile(ctx: PipelineContext) -> dict[str, object]:
             if not (text.strip() and ids):
                 continue
             try:
-                await deposit(namespace, text.strip(), ids, key)
+                stored = await deposit(namespace, text.strip(), ids, key)
             except Exception as exc:  # e.g. evidence forgotten mid-cycle (R2-2)
                 errors.append(f"{namespace}:{key}: reflection deposit failed: {exc}")
                 continue
+            if stored is None:
+                continue  # I72: evidence forgotten meanwhile; skipped, audited
             written += 1
         return written, errors
 
@@ -3455,7 +3503,7 @@ async def predict_calibrate(ctx: PipelineContext) -> dict[str, object]:
             kind = getattr(fact, "kind", "event") or "event"
             when = _fact_date(getattr(fact, "date", None), members[-1].valid_from)
             try:
-                await deposit(
+                stored = await deposit(
                     namespace,
                     text,
                     fact.entity or None,
@@ -3468,6 +3516,8 @@ async def predict_calibrate(ctx: PipelineContext) -> dict[str, object]:
             except Exception as exc:  # one bad fact must not lose the rest
                 errors.append(f"{namespace}:{key}: surprise deposit failed: {exc}")
                 continue
+            if stored is None:
+                continue  # I72: a parent turn was forgotten meanwhile; skipped, audited
             written += 1
         return written, errors
 

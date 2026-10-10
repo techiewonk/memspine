@@ -226,7 +226,8 @@ async def test_r2_2_reflect_on_evidence_deleted_mid_stage_does_not_raise() -> No
         turns.extend(await _session(eng))
         await consolidate(eng._pipeline_ctx())
         stats = await reflect_profile(eng._pipeline_ctx())
-        assert stats["status"] == "partial" and stats["insights"] == 1
+        # I72: a reflection whose evidence vanished is skipped (audited), not an error.
+        assert stats["status"] == "ok" and stats["insights"] == 1 and stats["errors"] == []
         refl = await eng.retrieve(namespace="a", memory_type="reflective")
         assert [r.content for r in refl] == ["Ana is a nurse"]
     finally:

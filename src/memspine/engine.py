@@ -37,6 +37,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta, tzinfo
 from pathlib import Path
+from time import perf_counter
 from typing import Any, ClassVar, Self, TypedDict, TypeVar, cast
 
 import orjson
@@ -331,6 +332,7 @@ from memspine.observability.logging import (
     get_logger,
     redact_error,
 )
+from memspine.observability.timers import StepTimers, timed
 from memspine.prompts.models import (
     AnswerVerdictOut,
     AnticipatedCue,
@@ -1162,6 +1164,12 @@ class Engine:
         #: #63: open neighbour batches per namespace (they observe every write).
         self._neighbour_batches: dict[str, list[_NeighbourBatch]] = {}
         self._last_write_action: str = "added"  # G8: read by write_ex()
+        self._write_timers: StepTimers | None = (
+            None  # I73: set only under observability.write_timers
+        )
+        self._timed_attrs: list[
+            str
+        ] = []  # engine attributes wrapped by the timers (restored at stop)
         #: B0 read ledger: (namespace, session) -> {record_id: view trust at read}
         self._read_ledger: dict[tuple[str, str], dict[str, float]] = {}
         #: B0 ``turn`` mode: ledgers a write has used since their last read. The
@@ -1425,8 +1433,52 @@ class Engine:
 
                 self._scheduler = SleepScheduler(interval, _tick)
                 self._scheduler.start()
+        self._install_write_timers(config)
         self._started = True
         return self
+
+    def _install_write_timers(self, config: MemspineConfig) -> None:
+        """I73: wrap the write-door steps with monotonic timers, only when
+        ``observability.write_timers`` is on (otherwise nothing is touched)."""
+        if not config.observability.write_timers:
+            return
+        timers = self._write_timers = StepTimers()
+        self._timed_attrs = []
+
+        def wrap(owner: object, attr: str, step: str, *, engine: bool = False) -> None:
+            fn = getattr(owner, attr, None)
+            if fn is None:
+                return
+            setattr(owner, attr, timed(timers, step, fn))
+            if engine:
+                self._timed_attrs.append(attr)
+
+        wrap(self, "write", "write_total", engine=True)
+        wrap(self, "_screen_write", "firewall", engine=True)
+        wrap(self, "_redact_fields", "redaction", engine=True)
+        wrap(self, "_assess_write", "firewall_assess", engine=True)
+        wrap(self, "_govern_write", "sensitivity_tags", engine=True)
+        wrap(self, "_grade_sensitivity", "llm_sensitivity", engine=True)
+        wrap(self, "_annotate_perspective", "perspective_tags", engine=True)
+        wrap(self, "_append_and_project", "append_and_project", engine=True)
+        wrap(self._embedder, "embed", "embed")
+        for projector in self._projectors:
+            wrap(projector, "apply", f"project:{projector.name}")
+        semantic = self._semantic
+        if semantic is not None:
+            wrap(semantic, "_write_primary", "semantic_write")
+            wrap(semantic, "_confirm_duplicate", "dedup")
+            wrap(semantic, "_resolve_conflict", "conflict_ladder")
+            wrap(getattr(semantic, "_extractor", None), "extract", "llm_extract")
+            wrap(getattr(semantic, "_write_pipeline", None), "run", "llm_edges")
+
+    def write_timers(self, *, reset: bool = False) -> dict[str, dict[str, float | int]]:
+        """I73: per-step write-path timings since ``start()`` or the last reset.
+
+        ``{step: {count, total_ms, mean_ms, p50_ms, p95_ms}}``; steps are inclusive and
+        may nest (see :mod:`memspine.observability.timers`). Empty unless
+        ``observability.write_timers`` is on."""
+        return self._write_timers.snapshot(reset=reset) if self._write_timers else {}
 
     async def stop(self) -> None:
         await self._teardown()
@@ -1453,6 +1505,10 @@ class Engine:
         ):
             if client is not None:
                 await client.close()
+        for attr in self._timed_attrs:  # I73: drop the instance wrappers, restore the methods
+            self.__dict__.pop(attr, None)
+        self._timed_attrs = []
+        self._write_timers = None
         self._started = False
 
     # ── public verbs (P0: write / retrieve / rebuild / describe) ─────────────
@@ -1513,6 +1569,8 @@ class Engine:
         ``owner_shared``), stored as ``participant:<name>`` / ``visibility:<v>`` tags. They
         matter only to a read with ``viewer=``; the namespace stays the isolation boundary.
         """
+        wt = self._write_timers  # I73: None (the default) costs one attribute read
+        t_validation = perf_counter() if wt is not None else 0.0
         session_id = ledger_id if ledger_id is not None else session_id  # I9
         if participants:
             tags = [*(tags or []), *participant_tags(participants)]
@@ -1537,6 +1595,8 @@ class Engine:
             raise ConflictError("memory_type 'shared' is engine-internal — use grant()/subscribe()")
         source = source or SourceInfo(role=actor)
         tags = _caller_tags(tags, ns)
+        if wt is not None:
+            wt.record("validation", perf_counter() - t_validation)
         if memory_type == "episodic" and self._memory_policy(self._config(), "episodic").get(
             "subject_tagging"
         ):
@@ -1735,6 +1795,8 @@ class Engine:
         source: SourceInfo | None = None,
         actor: str = "user",
         extra_tags: Sequence[str] = (),
+        *,
+        require_live: bool = False,
     ) -> list[MemoryRecord]:
         """C8': attach anticipatory cues (likely future questions) to a record.
 
@@ -1744,10 +1806,17 @@ class Engine:
         write door (firewall screening, quarantine) and its trust is capped at
         the target's, so a cue can never make content more trusted than it is,
         and a low-trust source cannot plant cues that redirect retrieval.
+
+        ``require_live`` (I72, the sleep-cycle deposit): a target that is gone or no
+        longer live (forgotten, archived, quarantined) when the cue is about to be
+        written skips the cue (audited) instead of raising.
         """
         storage = self._require_started()
         ns = validate_namespace(namespace)
         target = await storage.get_record(record_id)
+        if require_live and (target is None or target.namespace != ns):
+            await self._derived_parents_gone(ns, [record_id], "anticipate")
+            return []
         if target is None or target.namespace != ns:
             raise MemspineError(f"cue target {record_id!r} not found in namespace {ns!r}")
         # R2-4: cue text is LLM- or caller-authored, so the default role is the
@@ -1770,6 +1839,8 @@ class Engine:
             if integrity_cap:
                 cap = [*cap, *integrity_cap]
             async with self._write_locks.setdefault(ns, asyncio.Lock()):
+                if require_live and await self._derived_parents_gone(ns, [record_id], "anticipate"):
+                    break  # I72: the target was forgotten while the cues were authored
                 written.append(
                     await self._write_locked(storage, ns, record, "semantic", actor, cap)
                 )
@@ -11114,7 +11185,27 @@ class Engine:
         actor: str = "assistant",
         source: SourceInfo | None = None,
     ) -> MemoryRecord:
+        """Write a reflection derived from existing records (M13.7); see :meth:`_reflect`."""
+        written = await self._reflect(content, source_record_ids, namespace, actor, source)
+        assert written is not None  # require_live is off
+        return written
+
+    async def _reflect(
+        self,
+        content: str,
+        source_record_ids: list[str],
+        namespace: str = "default",
+        actor: str = "assistant",
+        source: SourceInfo | None = None,
+        *,
+        require_live: bool = False,
+    ) -> MemoryRecord | None:
         """Write a reflection derived from existing records (M13.7).
+
+        ``require_live`` (I72, the sleep-cycle deposit): when any evidence record is
+        no longer live under the namespace lock the reflection is skipped (audited)
+        and None is returned.
+
 
         Depth is computed from the fetched parents and hard-capped at 2;
         quarantined/deleted parents and parents outside ``namespace`` are
@@ -11130,6 +11221,10 @@ class Engine:
         ns = validate_namespace(namespace)
         views = await self._parent_trust_cap(ns, source_record_ids)
         async with self._write_locks.setdefault(ns, asyncio.Lock()):
+            if require_live and await self._derived_parents_gone(
+                ns, source_record_ids, "reflect_profile"
+            ):
+                return None
             return await self._reflective.reflect(
                 ns,
                 content,
@@ -11821,6 +11916,7 @@ class Engine:
             # D1: whether the autonomous sleep loop is active this run.
             "scheduler": self._scheduler.running if self._scheduler is not None else False,
             "strict_services": config.strict_services,
+            **({"write_timers": self.write_timers()} if self._write_timers else {}),
         }
 
     # ── thin sync wrappers (D-01) ────────────────────────────────────────────
@@ -12024,6 +12120,37 @@ class Engine:
         pipelines so their read-then-write units serialize with forget (M5)."""
         return self._write_locks.setdefault(namespace, asyncio.Lock())
 
+    async def _derived_parents_gone(
+        self, namespace: str, parents: Sequence[str], site: str
+    ) -> bool:
+        """I72: True (and audited) when any parent of a derived deposit is no longer live.
+
+        Called with the namespace lock held, immediately before a sleep-stage deposit:
+        the stage read its parents, awaited an LLM call outside the lock, and a hard
+        forget (and its cascade) may have run in between. A parent that is missing,
+        erased, archived or quarantined means the derived text may restate erased
+        content, so the deposit is skipped, never written. The skip is logged and,
+        under ``audit.actions``, recorded as a ``derived_deposit_skipped`` audit event
+        naming the site and the vanished parent ids (ids only, never content)."""
+        storage = self._require_started()
+        gone: list[str] = []
+        for parent_id in dict.fromkeys(parents):
+            parent = await storage.get_record(parent_id)
+            if parent is None or parent.status is not RecordStatus.ACTIVATED or parent.quarantined:
+                gone.append(parent_id)
+        if not gone:
+            return False
+        _log.warning("memory.derived_deposit_skipped", namespace=namespace, site=site, gone=gone)
+        await self._audit_action(
+            "derived_deposit_skipped",
+            namespace,
+            gone,
+            actor="system",
+            reason="parent_not_live",
+            site=site,
+        )
+        return True
+
     def _pipeline_ctx(self) -> PipelineContext:
         assert self._storage is not None and self._resolved is not None
         return PipelineContext(
@@ -12056,6 +12183,7 @@ class Engine:
             # graph store without the projector would reorganize a stale graph.
             graph=self._graph if self._associative is not None else None,
             lock=self._namespace_lock,
+            parents_gone=self._derived_parents_gone,
             expire_retention=self.expire_retention,
             summarize_entities=self._build_entity_summarizer(),
             resolve_entities=self._build_entity_resolver(),
@@ -12356,7 +12484,7 @@ class Engine:
         *,
         kind: str | None = None,
         **_views: Any,
-    ) -> MemoryRecord:
+    ) -> MemoryRecord | None:
         """#62: one predict-calibrate surprise through the write door.
 
         Like a mined fact (C6'): LLM-authored, so the non-privileged ``assistant``
@@ -12390,6 +12518,8 @@ class Engine:
         if integrity_cap:
             cap = [*(cap or []), *integrity_cap]
         async with self._write_locks.setdefault(ns, asyncio.Lock()):
+            if await self._derived_parents_gone(ns, parents, "predict_calibrate"):  # I72
+                return None
             return await self._write_locked(storage, ns, record, "semantic", "system", cap)
 
     async def _relevance_filter(
@@ -12445,10 +12575,10 @@ class Engine:
 
     async def _deposit_profile_reflection(
         self, namespace: str, content: str, evidence_ids: list[str], session_key: str
-    ) -> MemoryRecord:
+    ) -> MemoryRecord | None:
         """H14: a profile insight through the governed ``reflect`` door."""
         # R2-4: the insight is LLM-authored: non-privileged role, trust capped.
-        return await self.reflect(
+        return await self._reflect(
             content,
             evidence_ids,
             namespace=namespace,
@@ -12456,6 +12586,7 @@ class Engine:
             source=SourceInfo(
                 role="assistant", channel="reflection", message_id=f"reflected:{session_key}"
             ),
+            require_live=True,
         )
 
     def _build_anticipator(self) -> Any:
@@ -12485,6 +12616,7 @@ class Engine:
             source=SourceInfo(role="assistant", channel="anticipation"),
             actor="system",
             extra_tags=[f"anticipated:{session_key}"],
+            require_live=True,
         )
 
     def _build_fact_miner(self) -> Any:
@@ -12585,7 +12717,7 @@ class Engine:
         persons: list[str] | None = None,
         location: str | None = None,
         topic: str | None = None,
-    ) -> MemoryRecord:
+    ) -> MemoryRecord | None:
         """C6': one mined fact through the write door (firewall, ladder, MTI).
 
         #28: ``persons`` / ``location`` / ``topic`` (``consolidation.mine_multiview``)
@@ -12647,6 +12779,8 @@ class Engine:
         if integrity_cap:
             cap = [*(cap or []), *integrity_cap]
         async with self._write_locks.setdefault(ns, asyncio.Lock()):
+            if await self._derived_parents_gone(ns, parents, "mine_facts"):  # I72
+                return None
             written = await self._write_locked(storage, ns, record, "semantic", "system", cap)
         if planned and self._consolidation_option("auto_watch", False):
             await self._auto_watch(ns, written, sources)
@@ -12713,6 +12847,7 @@ class Engine:
                         or parent.status is not RecordStatus.ACTIVATED
                         or parent.quarantined
                     ):
+                        await self._derived_parents_gone(ns, card.parents, "list_cards")  # I72
                         return None
                     sources.append(parent)
             for record_id in replaces:

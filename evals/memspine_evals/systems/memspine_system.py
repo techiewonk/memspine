@@ -657,8 +657,12 @@ class MemspineSystem:
         by_turn = {turn_id: record for record, turn_id in _align(records, turns, texts)}
         out = Path(directory)
         out.mkdir(parents=True, exist_ok=True)
+        # I73: the batch's per-step write timings (observability.write_timers), taken as a
+        # delta and carried on the batch's first line only; absent when the timers are off.
+        taker = getattr(self._engine, "write_timers", None)
+        timers = taker(reset=True) if callable(taker) else {}
         with (out / "ingest.jsonl").open("a", encoding="utf-8") as fh:
-            for turn, text in zip(turns, texts, strict=True):
+            for position, (turn, text) in enumerate(zip(turns, texts, strict=True)):
                 record = by_turn.get(turn.turn_id)
                 stored = getattr(record, "content", None)
                 valid_from = getattr(record, "valid_from", None)
@@ -685,6 +689,7 @@ class MemspineSystem:
                             "quarantined": getattr(record, "quarantined", None),
                             "trust": getattr(record, "trust", None),
                             "status": _enum_value(getattr(record, "status", None)),
+                            **({"write_timers": timers} if timers and position == 0 else {}),
                         }
                     )
                     + "\n"
