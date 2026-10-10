@@ -80,7 +80,7 @@ def test_is_refusal() -> None:
 
 async def test_retry_runs_once_and_accounts_the_extra_call() -> None:
     inner = _Reader("I do not know", "19 May 2023")
-    reader = RefusalRetryReader(inner)
+    reader = RefusalRetryReader(inner, mode="assertive")
     out = await reader.answer("When?", CONTEXT)
     assert out.text == "19 May 2023"
     assert out.model_calls == 2 and out.prompt_tokens == 20 and out.completion_tokens == 4
@@ -96,6 +96,8 @@ async def test_retry_runs_once_and_accounts_the_extra_call() -> None:
         "first_completion_tokens": 2,
         "retry_prompt_tokens": 10,
         "retry_completion_tokens": 2,
+        "retry_mode": "assertive",
+        "retry_require_context_overlap": False,
     }
     assert reader.retried == 1 and reader.recovered == 1
     assert reader.reader_id == "stub+retry" and reader.describe()["retry_refusal"] is True

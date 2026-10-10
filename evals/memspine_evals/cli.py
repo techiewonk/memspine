@@ -109,6 +109,17 @@ def _dataset(args: argparse.Namespace) -> DatasetAdapter:
         from .datasets import MemoryAgentBenchDataset
 
         return MemoryAgentBenchDataset(args.path, revision_id=args.revision)
+    if args.dataset == "op_bench":
+        from .datasets import OPBenchDataset
+
+        tasks = tuple(t for t in (args.opbench_tasks or "").split(",") if t.strip())
+        return OPBenchDataset(
+            args.path,
+            revision_id=args.revision,
+            **({"tasks": tasks} if tasks else {}),
+            both_personas=args.both_personas,
+            per_task=args.opbench_per_task,
+        )
     if args.dataset == "locomo_plus":
         from .datasets import LoCoMoPlusDataset
 
@@ -120,6 +131,79 @@ def _dataset(args: argparse.Namespace) -> DatasetAdapter:
 
         return LongMemEvalDataset(args.path, revision_id=args.revision, variant=args.variant)
     raise SystemExit(f"unknown dataset {args.dataset!r}")
+
+
+def apply_opbench_protocol(args: argparse.Namespace) -> list[str]:
+    """OP-Bench runs use the official answer prompt and judge (``analysis/OPBENCH_PROTOCOL.md``).
+
+    Picks ``--qa-prompt opbench_assistant`` and ``--judge-prompt opbench`` when they are left
+    at their defaults, refuses a conflicting choice (they would grade open-ended assistant
+    replies as factual QA), and switches off the LoCoMo-only reader and judge fixes: the
+    refusal retry, the judge guards, the date check and the answer verifier. Returns the log
+    lines it printed.
+    """
+    notes: list[str] = []
+    qa = args.mode == "qa" and not args.retrieval_only
+    if args.dataset != "op_bench":
+        if args.qa_prompt == "opbench_assistant" or args.judge_prompt == "opbench":
+            raise SystemExit(
+                "--qa-prompt opbench_assistant / --judge-prompt opbench need --dataset op_bench"
+            )
+        return notes
+    if not qa:
+        return notes
+    if args.bedrock or args.protocol:
+        raise SystemExit("OP-Bench runs use the local reader and judge: no --bedrock / --protocol")
+    if args.qa_prompt == "default":
+        args.qa_prompt = "opbench_assistant"
+        notes.append("OP-Bench: --qa-prompt default -> opbench_assistant (official prompt)")
+    elif args.qa_prompt != "opbench_assistant":
+        raise SystemExit(
+            f"--qa-prompt {args.qa_prompt} is a factual-QA prompt; OP-Bench probes are "
+            "open-ended assistant requests: use opbench_assistant (or leave the default)"
+        )
+    if args.judge_prompt == "rubric":
+        args.judge_prompt = "opbench"
+        notes.append("OP-Bench: --judge-prompt rubric -> opbench (official OP-Bench judge)")
+    elif args.judge_prompt != "opbench":
+        raise SystemExit(f"--judge-prompt {args.judge_prompt} cannot grade OP-Bench; use opbench")
+    for flag in ("retry_refusal", "judge_guards", "judge_date_check", "verify_answer"):
+        if getattr(args, flag):
+            setattr(args, flag, False)
+            notes.append(
+                f"OP-Bench: --{flag.replace('_', '-')} ignored (a LoCoMo factual-QA fix; it "
+                "does not apply to open-ended assistant replies)"
+            )
+    for note in notes:
+        print(note, file=sys.stderr, flush=True)
+    return notes
+
+
+def finalize_opbench(
+    dataset: DatasetAdapter, summaries: list, out: Path, config: C01Config
+) -> None:
+    """After an OP-Bench run: the official aggregation (QA mode) and the retrieval proxies,
+    printed, written to ``<run>/opbench_summary.json`` and merged into ``summary.json``."""
+    from .opbench import aggregate, default_embedder, diagnostics, render_report, write_report
+    from .results import read_run
+
+    meta = {q.query_id: q.meta for item in dataset.items() for q in item.queries}
+    embed = None
+    for summary in summaries:
+        run_dir = out / summary.run_id
+        _, rows, _ = read_run(run_dir / "results.jsonl")
+        report: dict = {}
+        if config.mode == "qa" and not config.retrieval_only:
+            embed = embed or default_embedder(config.embedding_model)
+            report = aggregate(rows, embed)
+        report["diagnostics"] = diagnostics(rows, meta)
+        write_report(run_dir, report)
+        path = run_dir / "summary.json"
+        if path.exists():
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            payload["opbench"] = {k: v for k, v in report.items() if k != "per_probe"}
+            path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+        print(f"\n{summary.run_id}\n{render_report(report)}")
 
 
 def cmd_smoke(args: argparse.Namespace) -> int:
@@ -159,6 +243,13 @@ def cmd_c0_1(args: argparse.Namespace) -> int:
             file=sys.stderr,
             flush=True,
         )
+    apply_opbench_protocol(args)
+    opbench_root = None
+    if args.dataset == "op_bench" and args.mode == "qa" and not args.retrieval_only:
+        from .opbench import load_judge_prompts, resolve_root
+
+        opbench_root = str(resolve_root(args.path))
+        load_judge_prompts(opbench_root)  # fail before any ingestion if the checkout is partial
     dataset = _dataset(args)
     config = C01Config(
         # screening runs read as the QA run would, but never generate
@@ -209,6 +300,7 @@ def cmd_c0_1(args: argparse.Namespace) -> int:
         token_count=args.token_count,
         tokenizer_id=args.tokenizer_id,
         capture_runtime=not args.no_runtime_capture,
+        opbench_root=opbench_root,
         # a local Ollama is asked for its version / loaded models only when this run uses it
         probe_server=(
             not args.no_runtime_capture
@@ -290,6 +382,8 @@ def cmd_c0_1(args: argparse.Namespace) -> int:
 
     print(table)
     print(f"\nwritten: {out_dir / 'COMPARISON.md'}")
+    if args.dataset == "op_bench":
+        finalize_opbench(dataset, summaries, Path(args.out), config)
     failed = failed_rerank_checks(Path(args.out), summaries)
     if failed:
         # B11 [RET-3]: a configured reranker that never ran (or failed) voids the run
@@ -335,14 +429,38 @@ def build_parser() -> argparse.ArgumentParser:
             "locomo_plus",
             "longmemeval",
             "memoryagentbench",
+            "op_bench",
             "synthetic",
         ),
         required=True,
     )
+    c01.add_argument(
+        "--both-personas",
+        action="store_true",
+        help="op_bench: score both speakers of each conversation (the official default is the "
+        "first speaker only, 869 probes)",
+    )
+    c01.add_argument(
+        "--opbench-tasks",
+        default=None,
+        help="op_bench: comma list from irrelevance_easy,irrelevance_hard,sycophancy,diversity "
+        "(default all four)",
+    )
+    c01.add_argument(
+        "--opbench-per-task",
+        type=int,
+        default=None,
+        metavar="N",
+        help="op_bench rehearsals: keep only the first N probes of each task per persona",
+    )
     c01.add_argument("--per-stratum", type=int, default=20, help="ConvoMem items per stratum")
     c01.add_argument("--filler", type=int, default=0, help="ConvoMem filler conversations")
     c01.add_argument("--locomo-path", default=None, help="locomo10.json paired with LoCoMo-Plus")
-    c01.add_argument("--path", help="path to the dataset json")
+    c01.add_argument(
+        "--path",
+        help="path to the dataset json (op_bench: the OP-Bench checkout, e.g. "
+        "data/opbench_src, or its data/ folder)",
+    )
     c01.add_argument(
         "--revision",
         default="auto",
@@ -389,7 +507,8 @@ def build_parser() -> argparse.ArgumentParser:
             "(anscheck templates by type), omnimemeval (official OmniMemEval LoCoMo judge), "
             "mem0-official (Mem0 paper J-score judge, CORRECT/WRONG, generous on same-topic "
             "answers; vendored text, cannot grade cat-5 abstention), "
-            "rubric-guarded (rubric plus relative-date and hedged-answer rules)"
+            "rubric-guarded (rubric plus relative-date and hedged-answer rules), "
+            "opbench (official OP-Bench judge prompts; --dataset op_bench only)"
         ),
     )
     c01.add_argument(
@@ -414,6 +533,7 @@ def build_parser() -> argparse.ArgumentParser:
             "dated_planned",
             "dated_noabstain",
             "evermemos_cot",
+            "opbench_assistant",
         ),
         default="default",
         help="QA prompt variant for every arm (H7/H12); question_dated shows the question date; "

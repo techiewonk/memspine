@@ -2,8 +2,10 @@
 
 Gap analysis of a 9B reader on LoCoMo (``analysis/READER_GAPS.md``): about half of the wrong
 answers with the gold evidence in context were refusals ("not mentioned"). With
-``--retry-refusal`` a refusal is re-asked once with a firmer instruction to answer from the
-best available evidence. Off (the default) no wrapper is built and readers are unchanged.
+``--retry-refusal`` a refusal is re-asked once. I1: the default wording is neutral and asserts
+no evidence (an unanswerable question may still be refused); ``mode="assertive"`` is the old
+firmer wording, kept to reproduce earlier runs. Off (the default) no wrapper is built and
+readers are unchanged.
 
 The patterns copy ``failure_buckets.REFUSAL`` / ``DENIAL`` (that module lives outside the
 package); a test pins the two to the same source text.
@@ -18,7 +20,17 @@ from typing import Any
 from .contracts import ReaderAnswer
 from .tokens import HeuristicTokenCounter
 
-__all__ = ["DENIAL", "REFUSAL", "RETRY_INSTRUCTION", "RefusalRetryReader", "is_refusal"]
+__all__ = [
+    "DENIAL",
+    "REFUSAL",
+    "RETRY_INSTRUCTION",
+    "RETRY_INSTRUCTION_ASSERTIVE",
+    "RETRY_INSTRUCTION_NEUTRAL",
+    "RETRY_MODES",
+    "RefusalRetryReader",
+    "is_refusal",
+    "shares_content_word",
+]
 
 REFUSAL = re.compile(
     r"\b(?:i|you) do(?: not|n't) know\b"
@@ -32,14 +44,45 @@ REFUSAL = re.compile(
 #: "Melanie did not ..." as the answer's opening clause: a denial of the premise.
 DENIAL = re.compile(r"^[A-Z][\w'.]*(?: and [A-Z][\w']*)? (?:did|does|has|had|was) not\b")
 
-#: Appended to the question on the retry. The memories are said to contain relevant lines,
-#: the reader is told to commit to the best-supported answer and to compute dates.
-RETRY_INSTRUCTION = (
+#: I1: the DEFAULT retry wording is neutral. It claims nothing about the memories, so on an
+#: unanswerable question (LoCoMo cat 5, abstention probes) the reader may still refuse, and the
+#: exact refusal string is offered as the way to do it.
+RETRY_INSTRUCTION_NEUTRAL = (
+    "\n\nRe-read the memories carefully. If they contain information that answers the "
+    "question, answer it; if they truly do not, reply exactly: Not mentioned in the "
+    "conversation."
+)
+#: The original wording (``mode="assertive"``), kept only to reproduce earlier runs (the
+#: BEST_dev runs used it). It asserts the evidence exists, which is false on unanswerable
+#: questions: it can turn a correct refusal into a fabrication.
+RETRY_INSTRUCTION_ASSERTIVE = (
     "\n\nNote: the memories above do contain information relevant to this question, so do not "
     "reply that it is unknown or not mentioned. Answer from the best-supported evidence in "
     "them, even if it is indirect: resolve relative times against the date of the line they "
     "appear in, and give your most likely answer in a few words."
 )
+#: Back-compat name: the default (neutral) wording.
+RETRY_INSTRUCTION = RETRY_INSTRUCTION_NEUTRAL
+
+RETRY_MODES: dict[str, str] = {
+    "neutral": RETRY_INSTRUCTION_NEUTRAL,
+    "assertive": RETRY_INSTRUCTION_ASSERTIVE,
+}
+
+_WORD = re.compile(r"[a-z0-9]{4,}")
+_STOP_TEXT = (
+    "that this with from have has had were was been being they them their there then than what "
+    "when where which while would could should about into over also does did not mentioned "
+    "conversation"
+)
+_STOP = frozenset(_STOP_TEXT.split())
+
+
+def shares_content_word(answer: str, context: str) -> bool:
+    """True when ``answer`` has a content word (4+ letters/digits, not a stopword) that also
+    occurs in ``context``. A cheap check that a retry answer is tied to the retrieved text."""
+    words = {w for w in _WORD.findall(answer.lower()) if w not in _STOP}
+    return bool(words & set(_WORD.findall(context.lower())))
 
 
 def is_refusal(answer: str) -> bool:
@@ -52,18 +95,35 @@ def is_refusal(answer: str) -> bool:
 
 
 class RefusalRetryReader:
-    """Wraps a reader: a refusal on a non-empty context is re-asked once, firmer.
+    """Wraps a reader: a refusal on a non-empty context is re-asked once.
+
+    The decision to retry uses only the first answer's text and the context: never the gold,
+    the category or the ``abstention`` flag of the query (the reader never sees them).
 
     The retry costs one more reader call (counted in ``model_calls``, so it counts against
     ``--max-model-calls``). The retry's answer replaces the first only when it is not
     itself a refusal; both answers are kept in ``ReaderAnswer.extra_meta`` (row ``meta``).
     """
 
-    def __init__(self, inner: Any, instruction: str = RETRY_INSTRUCTION) -> None:
+    def __init__(
+        self,
+        inner: Any,
+        instruction: str | None = None,
+        *,
+        mode: str = "neutral",
+        require_context_overlap: bool = False,
+    ) -> None:
+        if mode not in RETRY_MODES:
+            raise ValueError(f"retry mode must be one of {sorted(RETRY_MODES)}, got {mode!r}")
         self.inner = inner
         self.guard = getattr(inner, "guard", None)
-        self.instruction = instruction
-        self.reader_id = f"{inner.reader_id}+retry"
+        self.mode = mode
+        #: optional safety valve (default off): accept the retry answer only when it shares a
+        #: content word with the retrieved context
+        self.require_context_overlap = require_context_overlap
+        self.instruction = RETRY_MODES[mode] if instruction is None else instruction
+        # the assertive id is the historical one, so earlier runs keep their reader identity
+        self.reader_id = f"{inner.reader_id}+retry" + ("" if mode == "assertive" else "-neutral")
         self.model = inner.model
         self.makes_model_calls = True
         self._counter = HeuristicTokenCounter()
@@ -72,7 +132,12 @@ class RefusalRetryReader:
         self.recovered = 0
 
     def describe(self) -> Mapping[str, Any]:
-        return {**self.inner.describe(), "retry_refusal": True}
+        return {
+            **self.inner.describe(),
+            "retry_refusal": True,
+            "retry_mode": self.mode,
+            "retry_require_context_overlap": self.require_context_overlap,
+        }
 
     async def answer(
         self, question: str, context: str, question_date: str | None = None
@@ -85,6 +150,8 @@ class RefusalRetryReader:
             question + self.instruction, context, question_date
         )
         accepted = not is_refusal(second.text)
+        if accepted and self.require_context_overlap:
+            accepted = shares_content_word(second.text, context)
         if accepted:
             self.recovered += 1
         winner = second if accepted else first
@@ -104,6 +171,8 @@ class RefusalRetryReader:
                 "first_answer": first.text,
                 "retry_answer": second.text,
                 "retry_accepted": accepted,
+                "retry_mode": self.mode,
+                "retry_require_context_overlap": self.require_context_overlap,
                 # D3 [HAR-2]: row prompt_tokens sums both calls; keep the split
                 "first_prompt_tokens": first.prompt_tokens,
                 "first_completion_tokens": first.completion_tokens,

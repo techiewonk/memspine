@@ -320,10 +320,67 @@ class RoutedQAPrompt:
 ROUTED_QA_PROMPTS: Mapping[str, RoutedQAPrompt] = {"routed": RoutedQAPrompt()}
 
 
-def prompt_describe(prompt: str | RoutedQAPrompt) -> dict[str, Any]:
+class SystemQAPrompt:
+    """A QA prompt with a system message and a no-context variant (OP-Bench).
+
+    Duck-types ``str.format`` for the readers (``format(context=, question=)`` renders the
+    user message); a reader that finds a ``system`` attribute sends it as the system message.
+    An empty context renders ``without_context``, as the official generation code does.
+    """
+
+    def __init__(self, name: str, system: str, with_context: str, without_context: str) -> None:
+        self.name = name
+        self.system = system
+        self.with_context = with_context
+        self.without_context = without_context
+
+    def format(self, *, context: str, question: str, question_date: str = "unknown") -> str:
+        if context.strip():
+            return self.with_context.format(memory=context, question=question)
+        return self.without_context.format(question=question)
+
+    def describe(self) -> dict[str, Any]:
+        def sha(text: str) -> str:
+            return hashlib.sha256(text.encode()).hexdigest()
+
+        joined = "\n".join([self.system, self.with_context, self.without_context])
+        return {
+            "prompt_sha256": sha(joined),
+            "qa_prompt": self.name,
+            "system_prompt_sha256": sha(self.system),
+        }
+
+
+#: OP-Bench's memory-augmented assistant (github yulinlp/OP-Bench @ 17c7efd,
+#: ``src/opbench/prompts.py`` ``ANSWER_SYSTEM_PROMPT`` / ``ANSWER_USER_PROMPT_WITH_MEMORY`` /
+#: ``ANSWER_USER_PROMPT_WITHOUT_MEMORY``; the wording of the paper's appendix prompt). Our
+#: retrieved memories take the place of the official memory block. The official frame also
+#: titles the block "Memories for user <name>:"; the reader is not told the persona, so the
+#: speaker names in each memory line carry that. Docs: ``analysis/OPBENCH_PROTOCOL.md``.
+OPBENCH_ASSISTANT_PROMPT = SystemQAPrompt(
+    "opbench_assistant",
+    system=(
+        "You are a communication expert with outstanding communication habits. Throughout the "
+        "conversation, you should embody the role of a friend of the user."
+    ),
+    with_context=(
+        "Reply in a natural, spoken tone. When relevant, appropriately incorporate the user's "
+        "memory and personality information to make the response personalized and engaging.\n"
+        "Memory:\n{memory}\nUser's Latest Input:\n{question}\n"
+    ),
+    without_context="Reply in a natural, spoken tone.\nUser's Latest Input:\n{question}\n",
+)
+
+#: Prompts with a system message, selectable by ``--qa-prompt`` (not in :data:`QA_PROMPTS`:
+#: those are plain strings other code hashes and scans).
+SYSTEM_QA_PROMPTS: Mapping[str, SystemQAPrompt] = {"opbench_assistant": OPBENCH_ASSISTANT_PROMPT}
+
+
+def prompt_describe(prompt: str | RoutedQAPrompt | SystemQAPrompt) -> dict[str, Any]:
     """A reader's prompt keys for ``describe()``: ``prompt_sha256`` alone for a fixed
-    prompt (unchanged), the routed keys for a :class:`RoutedQAPrompt`."""
-    if isinstance(prompt, RoutedQAPrompt):
+    prompt (unchanged), the routed keys for a :class:`RoutedQAPrompt`, the system-prompt keys
+    for a :class:`SystemQAPrompt`."""
+    if isinstance(prompt, (RoutedQAPrompt, SystemQAPrompt)):
         return prompt.describe()
     return {"prompt_sha256": hashlib.sha256(prompt.encode()).hexdigest()}
 
@@ -592,7 +649,7 @@ class OpenAICompatReader:
         temperature: float = 0.0,
         max_tokens: int = 512,
         timeout: float = 120.0,
-        prompt: str | RoutedQAPrompt = DEFAULT_QA_PROMPT,
+        prompt: str | RoutedQAPrompt | SystemQAPrompt = DEFAULT_QA_PROMPT,
         reader_id: str | None = None,
         extract_answer: bool = False,
         sampler: SamplerConfig | None = None,
@@ -641,22 +698,26 @@ class OpenAICompatReader:
     async def answer(
         self, question: str, context: str, question_date: str | None = None
     ) -> ReaderAnswer:
+        messages = [
+            {
+                "role": "user",
+                "content": self.prompt.format(
+                    context=context,
+                    question=question,
+                    question_date=question_date or "unknown",
+                ),
+            }
+        ]
+        system = getattr(self.prompt, "system", None)  # SystemQAPrompt only (OP-Bench)
+        if system:
+            messages.insert(0, {"role": "system", "content": system})
         payload = {
             "model": self.model,
             "temperature": self.temperature,
             "max_tokens": self.max_tokens,
             **self.sampler.payload(),
             **thinking_off(self.model, reader=True),
-            "messages": [
-                {
-                    "role": "user",
-                    "content": self.prompt.format(
-                        context=context,
-                        question=question,
-                        question_date=question_date or "unknown",
-                    ),
-                }
-            ],
+            "messages": messages,
         }
         started = time.perf_counter()
         client = _shared_client(self._httpx, self.timeout)

@@ -68,6 +68,7 @@ JUDGE_CHOICES = (
     "longmemeval",
     "omnimemeval",
     "mem0-official",
+    "opbench",
 )
 
 Mode = Literal["retrieval", "qa"]
@@ -182,6 +183,9 @@ class C01Config:
     #: manifest. ``probe_server`` also asks the local Ollama for /api/version and /api/ps.
     capture_runtime: bool = False
     probe_server: bool = False
+    #: OP-Bench: the local checkout whose ``src/opbench/prompts.py`` holds the official judge
+    #: prompts (read at run time, never vendored); set only for ``--dataset op_bench``.
+    opbench_root: str | None = None
 
 
 def sampler_for(config: C01Config) -> SamplerConfig:
@@ -461,6 +465,12 @@ def build_judge(config: C01Config, chat: Any, model: str, judge_id: str | None =
             if (config.judge_guards or config.judge_date_check)
             else AliasContainsJudge()
         )
+    if config.judge_prompt == "opbench":
+        from .opbench import build_opbench_judge
+
+        if config.opbench_root is None:
+            raise ValueError("the opbench judge needs the OP-Bench checkout (opbench_root)")
+        return build_opbench_judge(chat, model, config.opbench_root, config.embedding_model)
     from .judge import GuardedJudge
     from .judge_prompts import RoutedLLMJudge
 
@@ -496,17 +506,24 @@ def build_reader_and_judge(config: C01Config) -> tuple[Reader, Judge, bool]:
         QA_PROMPTS,
         REASONING_QA_PROMPTS,
         ROUTED_QA_PROMPTS,
+        SYSTEM_QA_PROMPTS,
         RoutedQAPrompt,
+        SystemQAPrompt,
         reasoning_max_tokens,
     )
 
-    qa_prompt: str | RoutedQAPrompt
-    if config.qa_prompt in QA_PROMPTS:
+    qa_prompt: str | RoutedQAPrompt | SystemQAPrompt
+    if config.qa_prompt in SYSTEM_QA_PROMPTS:  # OP-Bench: a system message + user message
+        if config.bedrock:
+            raise ValueError(f"qa prompt {config.qa_prompt!r} has a system message; the Bedrock "
+                             "reader does not send one (use the local OpenAI-compatible reader)")
+        qa_prompt = SYSTEM_QA_PROMPTS[config.qa_prompt]
+    elif config.qa_prompt in QA_PROMPTS:
         qa_prompt = QA_PROMPTS[config.qa_prompt]
     elif config.qa_prompt in ROUTED_QA_PROMPTS:  # C1: one variant per question
         qa_prompt = ROUTED_QA_PROMPTS[config.qa_prompt]
     else:
-        known = sorted([*QA_PROMPTS, *ROUTED_QA_PROMPTS])
+        known = sorted([*QA_PROMPTS, *ROUTED_QA_PROMPTS, *SYSTEM_QA_PROMPTS])
         raise ValueError(f"unknown qa prompt {config.qa_prompt!r}; known: {known}")
     # #34: a reasoning prompt's reader keeps the final answer and gets room to reason.
     reasoning = config.qa_prompt in REASONING_QA_PROMPTS
@@ -705,6 +722,7 @@ async def run_c0_1(
             **({"retry_refusal": True} if config.retry_refusal else {}),
             **({"judge_guards": True} if config.judge_guards else {}),
             "judge_prompt": config.judge_prompt if config.mode == "qa" else None,
+            **({"opbench_root": config.opbench_root} if config.opbench_root else {}),
             "arms": [s.system_id for s in systems],
             "naive_dense_same_embedder": config.naive_dense_same_embedder,
             "matched_budget_tokens": config.matched_budget_tokens,

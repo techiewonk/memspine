@@ -8,6 +8,9 @@
 #       [--engine-src PATH] [--data PATH] [--dataset NAME] [--categories 1,2,3,4] \
 #       [--batch-turns N] [--force]
 #
+# OP-Bench (local only, no licence): --dataset op_bench --data data/opbench_src --questions N
+# (exact probe count of the slice; --flags "--item-ids ... --opbench-per-task N ...").
+#
 # Output: runs/<run-id>--memspine/{results.jsonl,summary.json}, runs/_logs/<run-id>.log,
 #         runs/<run-id>.STATUS ("ok" or "failed rc=N" / "failed <reason>"), and with
 #         --forensics runs/<run-id>--forensics/. Exit code is non-zero on any failure.
@@ -63,12 +66,20 @@ fi
 [ -n "$py" ] || py="$(command -v python3 || command -v python)" || die "no python found; set PYTHON"
 engine_src="${engine_src:-$repo/src}"
 [ -d "$engine_src" ] || die "--engine-src not a directory: $engine_src"
-if [ -z "$data" ]; then
-  for c in "../data/locomo10.json" "../../memspine/data/locomo10.json" "data/locomo10.json"; do
-    [ -f "$c" ] && { data="$c"; break; }
-  done
+if [ "$dataset" = op_bench ]; then
+  # OP-Bench: --data is the local checkout (a directory; its data/ folder works too).
+  [ -n "$data" ] || data="data/opbench_src"
+  [ -e "$data" ] || die "OP-Bench checkout not found: $data (evals/data/opbench_src; gitignored, local only)"
+  [ -z "$max_queries" ] || die "--max-queries is LoCoMo-only; use --flags \"--opbench-per-task N\" with --items"
+  [ -n "$questions" ] || die "op_bench needs --questions N (the exact probe count of the slice; evals/analysis/OPBENCH_PROTOCOL.md section 7)"
+else
+  if [ -z "$data" ]; then
+    for c in "../data/locomo10.json" "../../memspine/data/locomo10.json" "data/locomo10.json"; do
+      [ -f "$c" ] && { data="$c"; break; }
+    done
+  fi
+  [ -f "${data:-/nonexistent}" ] || die "dataset file not found; pass --data"
 fi
-[ -f "${data:-/nonexistent}" ] || die "dataset file not found; pass --data"
 
 # Never overwrite a run silently.
 mkdir -p runs/_logs
@@ -119,8 +130,10 @@ else
   unset MEMSPINE_FORENSICS_DIR
 fi
 
-cmd=("$py" _launch.py c0-1 --dataset "$dataset" --path "$data" --categories "$categories"
-     --mode "$mode" --with-memspine --only-systems memspine --memspine-read-mode replay
+cmd=("$py" _launch.py c0-1 --dataset "$dataset" --path "$data")
+# LoCoMo categories mean nothing to other datasets (op_bench probes are not categorised).
+[ "$dataset" = op_bench ] || cmd+=(--categories "$categories")
+cmd+=(--mode "$mode" --with-memspine --only-systems memspine --memspine-read-mode replay
      --memspine-config "$(cat "$arm_json")" --memspine-batch-turns "$batch_turns" --top-k "$topk")
 [ -n "$items" ] && cmd+=(--items "$items")
 if [ "$mode" = qa ]; then

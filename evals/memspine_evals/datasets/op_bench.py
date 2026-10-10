@@ -45,10 +45,15 @@ Free (retrieval-level) measures, computed by the pure functions below from a row
 - :func:`context_repetition`: mean pairwise Jaccard overlap of the retrieved id sets within
   one diversity group (high = the same personal turns resurface for distinct questions).
 
-**Gaps, stated rather than guessed:** the paper's scores are response-level LLM-judge scores
-(``scoring.py``), not reproduced here; "observation" and "profile" strings are generated
-summaries, not turns, so injection is measured over raw turns; the paper's 1,700 verified
-instances are a filtered subset of the task file and the filter is not released.
+**Response level:** the paper's scores are response-level LLM-judge scores; they are produced
+by ``memspine_evals.opbench`` (judge, aggregation) with the ``opbench_assistant`` reader prompt
+(``--dataset op_bench --mode qa``, protocol in ``evals/analysis/OPBENCH_PROTOCOL.md``).
+``per_task`` keeps only the first N probes of each task (rehearsals).
+
+**Gaps, stated rather than guessed:** "observation" and "profile" strings are generated
+summaries, not turns, so injection is measured over raw turns. The paper's 1,700 verified
+instances are the task file minus 15 empty-list placeholders in the diversity pools, which this
+adapter skips (as ``types.py`` does): 1,700 probes for both personas, 859 for the first speaker.
 """
 
 from __future__ import annotations
@@ -85,6 +90,7 @@ class OPBenchDataset:
         revision_id: str,
         tasks: tuple[str, ...] = OPBENCH_TASKS,
         both_personas: bool = False,
+        per_task: int | None = None,
         licence: str = "no licence chosen (yulinlp/OP-Bench NOTICE.md); run locally only",
     ) -> None:
         root = Path(root)
@@ -97,7 +103,10 @@ class OPBenchDataset:
         unknown = set(tasks) - set(OPBENCH_TASKS)
         if unknown:
             raise ValueError(f"unknown OP-Bench tasks {sorted(unknown)}")
+        if per_task is not None and per_task < 1:
+            raise ValueError("per_task must be a positive int or None")
         self.tasks, self.both_personas, self.licence = tasks, both_personas, licence
+        self.per_task = per_task
         digest = hashlib.sha256()
         for path in (self.locomo_path, self.task_path):
             digest.update(path.name.encode() + b"\0" + path.read_bytes())
@@ -114,10 +123,13 @@ class OPBenchDataset:
             content_sha256=self._sha,
             n_items=len(self._items),
             n_queries=sum(len(i.queries) for i in self._items),
-            subset=f"tasks={','.join(self.tasks)},both_personas={self.both_personas}",
+            subset=(
+                f"tasks={','.join(self.tasks)},both_personas={self.both_personas}"
+                + (f",per_task={self.per_task}" if self.per_task else "")
+            ),
             notes=(
-                "retrieval proxies only (persona-turn injection, context repetition); no "
-                "R@k gold by construction; official scores are LLM-judged"
+                "retrieval proxies (persona-turn injection, context repetition); no R@k gold "
+                "by construction; official scores are LLM-judged (memspine_evals.opbench)"
             ),
         )
 
@@ -159,6 +171,8 @@ class OPBenchDataset:
             if task == "diversity":
                 groups = [g for g in entries if isinstance(g, dict)]
                 entries = [q for g in groups for q in g.get("questions") or []]
+            if self.per_task:  # a rehearsal: the first N probes of each task
+                entries = entries[: self.per_task]
             for n, raw in enumerate(entries):
                 text = raw.get("question") if isinstance(raw, dict) else raw
                 if not text:
