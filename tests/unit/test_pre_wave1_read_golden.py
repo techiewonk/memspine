@@ -95,6 +95,30 @@ def _fixed_ids(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(records, "uuid4", lambda: uuid.UUID(int=next(counter)))
 
 
+def _now() -> datetime:
+    """The fake "now": the goldens must not depend on the day they are run (recency
+    scoring, ``recorded_at`` and the read-time anchor all read the wall clock).
+    ``MEMSPINE_FAKE_NOW`` (ISO datetime) overrides it, to prove the output is date-free."""
+    now = datetime.fromisoformat(os.environ.get("MEMSPINE_FAKE_NOW", "2026-01-15T12:00:00"))
+    return now if now.tzinfo else now.replace(tzinfo=UTC)
+
+
+@pytest.fixture(autouse=True)
+def _frozen_clock(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Pin the wall-clock reads on the write/read path to one fixed instant."""
+    from memspine.core import records
+    from memspine.core.policies import scoring
+
+    class _Frozen(datetime):
+        @classmethod
+        def now(cls, tz: Any = None) -> datetime:  # type: ignore[override]
+            return _now() if tz is None else _now().astimezone(tz)
+
+    monkeypatch.setattr(records, "datetime", _Frozen)
+    monkeypatch.setattr(scoring, "datetime", _Frozen)
+    monkeypatch.setattr(records, "_last_record_time", datetime.min.replace(tzinfo=UTC))
+
+
 async def _snapshot(read: dict[str, Any]) -> dict[str, Any]:
     eng = Engine(
         template="core",
@@ -105,6 +129,7 @@ async def _snapshot(read: dict[str, Any]) -> dict[str, Any]:
         read={"record_access": False, **read},
     )
     await eng.start()
+    eng._clock = _now
     out: dict[str, Any] = {}
     try:
         for text, day in TURNS:
