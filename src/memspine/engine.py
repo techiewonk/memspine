@@ -97,9 +97,11 @@ from memspine.core.namespace import grant_allows, validate_namespace
 from memspine.core.owner_check import (
     InjectionLog,
     entity_note,
+    first_person,
     judge,
     missing_names,
     owner_marker,
+    referenced_names,
     store_vocab,
     unknown_lines,
     user_header,
@@ -522,9 +524,7 @@ def _caller_tags(tags: Sequence[str] | None, ns: str) -> list[str]:
     return kept
 
 
-def _merge_correction_tags(
-    old: Sequence[str], extra: Sequence[str] | None, ns: str
-) -> list[str]:
+def _merge_correction_tags(old: Sequence[str], extra: Sequence[str] | None, ns: str) -> list[str]:
     """Tags of a corrected record: the old ones minus ``disputed``, plus the caller's
     (reserved tags dropped); a new ``src:*`` tag replaces the old ``src:*`` ones."""
     added = _caller_tags(extra, ns)
@@ -6577,12 +6577,45 @@ class Engine:
             fx["relevance_calibration"] = entry
         return result if passed else ReadResult(result.mode, AssembledContext(abstained=True))
 
+    async def _gate_bypassed(self, query: str, ns: str | None, result: ReadResult) -> bool:
+        """I74 (``read.relevance_gate_bypass``): whether the message references the store's own
+        people / entities (``named``) or the speaker ("I", "my"; ``named_or_first_person``),
+        in which case memory is needed and the relevance gate is skipped. Recorded in the
+        forensics as ``relevance_bypass``. Fails closed to "no bypass"."""
+        read = self._config().read
+        if read.relevance_gate == "off" or read.relevance_gate_bypass == "none":
+            return False
+        if result.context.abstained:
+            return False
+        ns = ns or next((r.namespace for r in result.context.records), None)
+        entry: dict[str, Any] = {"mode": read.relevance_gate_bypass, "fired": False}
+        try:
+            names: list[str] = []
+            if ns is not None:
+                state = await self._persp_state_for(ns)
+                names = referenced_names(query, await self._entity_vocabulary(ns), state["known"])
+            if names:
+                entry.update(fired=True, kind="named", names=names)
+            elif read.relevance_gate_bypass == "named_or_first_person":
+                tok = first_person(query)
+                if tok:
+                    entry.update(fired=True, kind="first_person", names=[tok])
+        except Exception as exc:  # an enhancer, never a gate
+            _log.warning("read.relevance_bypass_failed", error=redact_error(exc))
+            entry["error"] = str(exc)
+        if (fx := _FORENSICS.get()) is not None:
+            fx["relevance_bypass"] = entry
+        return bool(entry["fired"])
+
     async def _relevance_gate(
         self, query: str, result: ReadResult, ns: str | None = None
     ) -> ReadResult:
         """I29 (``task=relevance``): when the decider is sure none of the retrieved memories
         bear on the message, inject nothing (an abstained, empty context). Off by default.
-        ``store_calibrated``: the per-namespace calibrated raw-score gate."""
+        ``store_calibrated``: the per-namespace calibrated raw-score gate.
+        I74: a message that names the store's own people / entities skips either gate."""
+        if await self._gate_bypassed(query, ns, result):
+            return result
         if self._config().read.relevance_gate == "store_calibrated":
             return await self._calibrated_gate(query, result, ns)
         if not self._decider_active("relevance") or result.context.abstained:

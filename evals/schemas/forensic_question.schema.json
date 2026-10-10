@@ -73,6 +73,15 @@
         "final": {"$ref": "#/$defs/ranked"}
       }
     },
+    "gate": {
+      "type": ["object", "null"],
+      "description": "I74: read-path decider decisions and relevance-gate info recorded by the engine (null when none ran)",
+      "properties": {
+        "decisions": {"type": "array", "items": {"type": "object"}, "description": "one entry per decider call: task, label, confidence, used, final"},
+        "relevance_calibration": {"type": "object", "description": "store_calibrated gate: thresholds, raw tops, decision"},
+        "relevance_bypass": {"type": "object", "description": "I74 bypass: mode, fired, kind (named|first_person), names"}
+      }
+    },
     "top_non_gold": {"type": ["array", "null"], "items": {"type": "object"}},
     "context_text": {"type": ["array", "null"], "items": {"type": "string"}}
   },

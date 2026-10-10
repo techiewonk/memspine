@@ -213,7 +213,7 @@ def build(args) -> None:
             "latency_answer_ms": num(r.get("latency_answer_ms")), "retrieved_turns": retrieved,
             "list_recall": None,
             "gold_turns": [], "flags": [], "primary_gap": None, "reader_bucket": None,
-            "stages": None, "top_non_gold": None, "context_text": None,
+            "stages": None, "gate": None, "top_non_gold": None, "context_text": None,
         }
         lr = list_recall(r["question"], r.get("gold"), answer) if mode == "qa" else None
         if lr is not None:
@@ -308,6 +308,9 @@ def build(args) -> None:
         if f is not None:
             entry["stages"] = {k: f[k] for k in ("vector", "lexical", "extra_legs", "fused", "pool", "reranker",
                                                   "rerank_scores", "final")}
+            # I74: the read-path decisions and relevance-gate info (absent when none ran)
+            gate = {k: f[k] for k in ("decisions", "relevance_calibration", "relevance_bypass") if k in f}
+            entry["gate"] = gate or None
             entry["top_non_gold"] = [
                 {"turn": x["turn"], "rank": x["r"], "score": x["score"],
                  "text": (turn_info.get((r["item_id"], x["turn"])) or {}).get("text")}

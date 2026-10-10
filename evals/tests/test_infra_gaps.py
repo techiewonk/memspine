@@ -348,6 +348,25 @@ def test_ingest_and_forensics_rows_carry_run_and_query_ids(
     assert fx["run_id"] == "run-A--memspine" and fx["query_id"] == "0-3"
 
 
+def test_forensics_rows_carry_decisions_and_gate_info(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """I74: the decider decisions and the relevance-gate info reach forensics.jsonl."""
+    monkeypatch.setenv("MEMSPINE_FORENSICS_DIR", str(tmp_path))
+    system = MemspineSystem()
+    system.begin_run("run-B--memspine")
+    stages = {
+        "decisions": [{"task": "relevance", "label": "irrelevant", "confidence": 0.9, "final": "irrelevant"}],
+        "relevance_bypass": {"mode": "named", "fired": False},
+        "relevance_calibration": {"decision": "empty"},
+    }
+    system._write_forensics(str(tmp_path), "what?", stages, SimpleNamespace(records=[]))
+    fx = json.loads((tmp_path / "forensics.jsonl").read_text(encoding="utf-8"))
+    assert fx["decisions"][0]["confidence"] == 0.9
+    assert fx["relevance_bypass"]["fired"] is False
+    assert fx["relevance_calibration"]["decision"] == "empty"
+
+
 def test_forensics_report_joins_on_query_id_with_text_fallback() -> None:
     import forensics_report as fr
 

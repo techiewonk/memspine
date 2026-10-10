@@ -235,6 +235,7 @@ async def test_the_decider_sees_no_gold_or_category() -> None:
         decider="opendecider",
         decider_tasks=["list_mode", "bridge_hop"],
         relevance_gate="decider",
+        relevance_gate_bypass="none",
     )
     fake = FakeDecider(
         {"list_mode": ("single", 0.9), "bridge_hop": ("hop", 0.9), "relevance": ("relevant", 0.9)}

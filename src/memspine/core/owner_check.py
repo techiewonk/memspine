@@ -182,6 +182,45 @@ def missing_names(query: str, vocab: Collection[str]) -> list[str]:
     return out
 
 
+_FIRST_PERSON = re.compile(
+    rf"(?:\bI\b|\b(?:my|me|mine|myself)\b|\bI['{_APOS}](?:m|ve|ll|d)\b)", re.I
+)
+_GENERIC_SPEAKERS = frozenset({"user", "assistant", "tool", "system"})
+
+
+_SENT_START = re.compile(r"(?:^|[.!?:;]['\")\]]*)\s*$")
+
+
+def _matches(low: str, words: Iterable[str]) -> bool:
+    return any(w == low or (len(low) >= 3 and w.startswith(low)) for w in words)
+
+
+def referenced_names(
+    query: str, vocab: Collection[str], participants: Iterable[str] = ()
+) -> list[str]:
+    """I74: the capitalised names of the question that the store knows (I60 rules: exact,
+    or a 3+ letter prefix of a stored word). A sentence-initial capital ("What", "That",
+    "It" opening a sentence) is not a name unless it is a participant: it is capitalised
+    by position, and common words are in every store. Language-light."""
+    known = {p.lower() for p in participants} - _GENERIC_SPEAKERS
+    out: list[str] = []
+    for m in _CAP.finditer(query):
+        tok = m.group(0)
+        low = tok.lower()
+        if low in _MONTHS or tok == "I" or tok in out:
+            continue
+        initial = _SENT_START.search(query[: m.start()]) is not None
+        if _matches(low, known) or (not initial and _matches(low, vocab)):
+            out.append(tok)
+    return out
+
+
+def first_person(query: str) -> str | None:
+    """I74: the first-person token of the question ("I", "my", "me", ...), else None."""
+    m = _FIRST_PERSON.search(query)
+    return m.group(0) if m else None
+
+
 def entity_note(names: Sequence[str]) -> str | None:
     if not names:
         return None

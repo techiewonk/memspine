@@ -88,7 +88,7 @@ async def _engine(
         storage={"path": ":memory:"},
         embedding={"provider": "hash"},
         memories={"episodic": {"enabled": True}},
-        read={"record_access": False, **read},
+        read={"record_access": False, "relevance_gate_bypass": "none", **read},
     )
     await eng.start()
     return eng

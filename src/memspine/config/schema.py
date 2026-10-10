@@ -1112,6 +1112,14 @@ class ReadConfig(BaseModel):
     #: top score (vector cosine, or the reranker's raw score) clears that level by
     #: ``relevance_gate_margin_sd`` standard deviations; otherwise an empty, abstained context.
     relevance_gate: Literal["off", "decider", "store_calibrated"] = "off"
+    #: I74: the personal-reference bypass of either gate. A message that names the store's
+    #: own people / entities (a participant of the namespace, or a capitalised name present
+    #: in the store, same rules as I60 ``entity_check``: exact, or a 3+ letter prefix) needs
+    #: memory, so the gate is skipped and the memories are injected as normal. ``none``: no
+    #: bypass. ``named`` (default, only acts when the gate is on): names only.
+    #: ``named_or_first_person``: also "I / my / me" (separate option: OP-Bench baiting
+    #: probes are phrased in the first person).
+    relevance_gate_bypass: Literal["none", "named", "named_or_first_person"] = "named"
     #: I29/I37: margin, in standard deviations of the off-topic probes' top raw scores, above
     #: their 95th percentile. A FIXED portable default (one value for every store, embedder
     #: and reranker); NOT tuned on any benchmark. Raise it for a stricter gate.

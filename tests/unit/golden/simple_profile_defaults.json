@@ -197,6 +197,7 @@
       "relative_week": "calendar",
       "relevance_filter": false,
       "relevance_gate": "off",
+      "relevance_gate_bypass": "named",
       "relevance_gate_candidates": 10,
       "relevance_gate_leg": "auto",
       "relevance_gate_margin_sd": 1.0,
