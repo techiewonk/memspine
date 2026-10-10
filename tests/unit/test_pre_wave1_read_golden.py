@@ -18,7 +18,10 @@ the CHANGELOG and docs/USAGE.md.
 To re-record (only against d6dccc5's source, never the current tree)::
 
     git worktree add <tmp> d6dccc5
-    PYTHONPATH=<tmp>/src MEMSPINE_UPDATE_GOLDENS=1 pytest tests/unit/test_pre_wave1_read_golden.py
+    PYTHONPATH=<tmp>/src MEMSPINE_UPDATE_PRE_WAVE1_GOLDEN=1 pytest tests/unit/test_pre_wave1_read_golden.py
+
+The generic ``MEMSPINE_UPDATE_GOLDENS=1`` deliberately does NOT re-record this file (H4,
+2026-10-10): agents refreshing other goldens on the current tree kept overwriting it.
 """
 
 from __future__ import annotations
@@ -34,7 +37,7 @@ import pytest
 from memspine import Engine
 
 GOLDEN = Path(__file__).parent / "golden" / "pre_wave1_read.json"
-_UPDATE = os.environ.get("MEMSPINE_UPDATE_GOLDENS") == "1"
+_UPDATE = os.environ.get("MEMSPINE_UPDATE_PRE_WAVE1_GOLDEN") == "1"
 
 T0 = datetime(2023, 5, 1, 9, 0, tzinfo=UTC)
 
