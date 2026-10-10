@@ -79,6 +79,12 @@ scores any unanswered or truncated question as a miss, giving think-on 54.6 vs t
 questions. The matched-question comparison above (0.806 vs 0.806 on the 103 both answered) is unaffected.
 A small judge can credit an empty answer; a stronger or rubric-checked judge is needed for publishable numbers.
 
+**Re-test 2026-10-10 (supersedes the table above, which ran at a 4,096-token server window).** Best dev config
+(`arms/BEST_dev_2026-10-10.json`, Qwen3-Reranker-4B, list mode, grounded prompt, refusal retry, judge guards + date
+check), server window 16,384, conversation 1, 152 questions. Thinking off 88.8%; thinking on 63.2% (+3/-42), with 43
+answers stopped at the 4,096-token reasoning budget (median 5,184 completion tokens, 40 s per answer vs 22 and
+0.7 s off). On the 109 questions think-on completed: on 88.1% vs off 91.7% (+3/-7). Thinking stays off (gap A9).
+
 ## Consolidated retrieval grid (full LoCoMo, 1,986 questions) - updated 2026-10-09 10:40
 Raw per-arm summaries are tracked in `evals/results_qwen_stack/<run>/` (COMPARISON.md, summary.json); the
 large `runs/` folder is gitignored. "bt32" = batched writes (`--memspine-batch-turns 32`), which halves wall-clock.
