@@ -1,1 +1,53 @@
-{"read": {"record_access": false, "scoring": {"recency_weight": 0.0, "importance_weight": 0.0, "utility_weight": 0.0}, "resolve_relative_dates": true, "order_by_time_for_ordering": true, "assembly": {"relative_floor": 0.3}, "rerank": "qwen3", "replay_window_before": 2, "replay_window_after": 4, "relative_dates_anchored": true, "temporal_leg_mentions": true, "rerank_model": "Qwen/Qwen3-Reranker-4B", "rerank_device": "cuda", "rerank_quant": "4bit", "candidate_pool": 2, "rerank_keep": 10, "rerank_floor": "skip", "list_mode": true, "agentic": true, "agentic_trigger": "multi_hop", "agentic_max_steps": 2}, "embedding": {"provider": "st", "model": "Qwen/Qwen3-Embedding-0.6B", "dim": 1024, "device": "cuda", "dtype": "bfloat16", "query_instruction": "Instruct: Given a question about a user's past conversations, retrieve memories that answer it\nQuery: "}, "storage": {"path": "tempdir"}, "llm": {"roles": {"sufficiency": {"model": "ollama/qwen3.5:9b", "api_base": "http://localhost:11434", "timeout_seconds": 120.0}}, "structured": {"retry_on_error": true}}}
+{
+ "read": {
+  "record_access": false,
+  "scoring": {
+   "recency_weight": 0.0,
+   "importance_weight": 0.0,
+   "utility_weight": 0.0
+  },
+  "resolve_relative_dates": true,
+  "order_by_time_for_ordering": true,
+  "assembly": {
+   "relative_floor": 0.3
+  },
+  "rerank": "qwen3",
+  "replay_window_before": 2,
+  "replay_window_after": 4,
+  "relative_dates_anchored": true,
+  "temporal_leg_mentions": true,
+  "rerank_model": "Qwen/Qwen3-Reranker-4B",
+  "rerank_device": "cuda",
+  "rerank_quant": "4bit",
+  "candidate_pool": 2,
+  "rerank_keep": 10,
+  "rerank_floor": "skip",
+  "list_mode": true,
+  "agentic": true,
+  "agentic_trigger": "multi_hop",
+  "agentic_max_steps": 2
+ },
+ "embedding": {
+  "provider": "st",
+  "model": "Qwen/Qwen3-Embedding-0.6B",
+  "dim": 1024,
+  "device": "cuda",
+  "dtype": "bfloat16",
+  "query_instruction": "Instruct: Given a question about a user's past conversations, retrieve memories that answer it\nQuery: "
+ },
+ "storage": {
+  "path": "tempdir"
+ },
+ "llm": {
+  "roles": {
+   "sufficiency": {
+    "model": "ollama/qwen3.5:9b",
+    "api_base": "http://127.0.0.1:11434",
+    "timeout_seconds": 120.0
+   }
+  },
+  "structured": {
+   "retry_on_error": true
+  }
+ }
+}
