@@ -14,6 +14,9 @@ Conventions. Numbers are questions out of the 1,540 LoCoMo cat 1-4 questions unl
 - **E03 (public knowledge) and E04 (dataset images + OCR/vision) are APPROVED** behind opt-in flags (section 5, wave 3). E03 searches generic public terms only, never private conversation text; external evidence is cited separately and never proves a private fact. E04 downloads only the dataset's own referenced image URLs, once, caches by content hash, and fails explicitly when the asset is unavailable.
 - On hold (user): I70 framework adapters, I71 deferred ingest. A1 second judge is deferred until after the fixes (final-claims gate, wave 4).
 
+
+> **User decisions 2026-10-11 (resolving the plan's open questions):** (1) LoCoMo cat 5 = optional GUARD slice for gate/abstention changes only, never in the headline; (2) I61 premise-tolerant answering: build opt-in, screen later with the cat-5 guard; (3) A1 second judge = wave-4 final-claims gate; (4) E03/E04 flags as proposed: `read.external_evidence`, `ingest.assets`, `read.asset_evidence` (all off by default). E03 generic public terms only, never private text; E04 dataset's own image URLs, cached by hash. Blind validation: MemoryAgentBench-CR + ConvoMem, validation only.
+
 ## 1. Status snapshot
 
 ### 1.1 Baselines (full runs, logged, `--trace-full`)

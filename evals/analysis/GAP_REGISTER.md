@@ -311,6 +311,9 @@ Source: `evals/runs/_analysis/deep_audit_2026-10-11/` (local, not committed; 25 
 
 ## Progress log
 
+**2026-10-11 02:45**
+- Plan decisions recorded (cat-5 guard only; I61 build opt-in; A1 at wave 4; E03/E04 flag names). Building: I61 + E03 + E04 (agent), M01/M02, A03+E06, E05+R02, blind wiring.
+
 **2026-10-11**
 - Gap-to-solution plan written: `docs/GAP_TO_SOLUTION_PLAN.md` (layers L0-L6, anti-overfitting protocol, waves 0-4, path to 90). Codex audit families added as section K. User decisions: E03 and E04 approved behind opt-in flags; fresh blind check = MemoryAgentBench Conflict_Resolution + ConvoMem. In progress by other agents: M01, A03+E06, E05, R02 source-family pool (I75 v2), MAB/ConvoMem wiring. Round 7 arm 1 (I75a leg-protected pool): LoCoMo 1,540 81.4 vs 80.4 (+15 net, band +-12.9, every category up, about 30% more rerank cost); OP-Bench half pending.
 
