@@ -9,7 +9,7 @@ prefix cache stays warm across turns.
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import ClassVar
 
@@ -109,23 +109,58 @@ class AssemblyPolicy(BindablePolicy):
         assert isinstance(options, AssemblyOptions)
         return options
 
-    def abstains(self, scored: list[tuple[MemoryRecord, float]]) -> bool:
+    def abstains(
+        self,
+        scored: list[tuple[MemoryRecord, float]],
+        raw_scores: Mapping[str, float] | None = None,
+    ) -> bool:
         """M12: True when no evidence scores at least ``theta_abstain``.
 
         The pinned persona is not evidence: it is context for every query, so
         it never keeps an off-topic query from abstaining.
+
+        I30: with ``raw_scores`` (record id -> the reranker's raw score, before min-max) the
+        test reads those for every record that has one, so it can fire under rerank.
         """
+        if raw_scores:
+            raw = [
+                raw_scores[r.record_id]
+                for r, _ in scored
+                if not _is_persona(r) and r.record_id in raw_scores
+            ]
+            if raw:
+                return max(raw) < self._opts().theta_abstain
         evidence = [score for record, score in scored if not _is_persona(record)]
         return not evidence or max(evidence) < self._opts().theta_abstain
 
     def apply_floor(
-        self, scored: list[tuple[MemoryRecord, float]]
+        self,
+        scored: list[tuple[MemoryRecord, float]],
+        raw_scores: Mapping[str, float] | None = None,
     ) -> list[tuple[MemoryRecord, float]]:
         """H4: drop evidence below ``relative_floor x`` the best evidence score.
 
         The best is taken over non-persona records, and the persona is never dropped.
+        I30: with ``raw_scores`` the floor is judged on the raw reranker scores of the
+        records that have one (assumes non-negative scores, e.g. probabilities); records
+        without a raw score are kept.
         """
         floor = self._opts().relative_floor
+        if raw_scores and floor > 0.0:
+            have = [
+                raw_scores[r.record_id]
+                for r, _ in scored
+                if not _is_persona(r) and r.record_id in raw_scores
+            ]
+            if have and max(have) > 0.0:
+                cut = floor * max(have)
+                return [
+                    (r, s)
+                    for r, s in scored
+                    if _is_persona(r)
+                    or r.record_id not in raw_scores
+                    or raw_scores[r.record_id] >= cut
+                ]
         evidence = [score for record, score in scored if not _is_persona(record)]
         if floor <= 0.0 or not evidence:
             return scored
@@ -146,6 +181,7 @@ class AssemblyPolicy(BindablePolicy):
         budget_tokens: int = 2048,
         compression: CompressionPolicy | None = None,
         apply_floor: bool = True,
+        raw_scores: Mapping[str, float] | None = None,
     ) -> AssembledContext:
         """Select by MMR under a token budget, then place by E2 stability order.
 
@@ -162,7 +198,7 @@ class AssemblyPolicy(BindablePolicy):
         assert isinstance(options, AssemblyOptions)
         fit_stage = compression is not None and compression.assembly_enabled()
 
-        if self.abstains(scored):
+        if self.abstains(scored, raw_scores):
             # No evidence: abstain, but the pinned persona stays (it is the stable
             # prefix of every turn, not an answer to this query).
             personas = [record for record, _ in scored if _is_persona(record)]
@@ -172,7 +208,9 @@ class AssemblyPolicy(BindablePolicy):
                 abstained=True,
                 tokens_used=sum(estimate_tokens(record.content) for record in personas),
             )
-        if apply_floor:  # read.rerank_floor="skip" turns the H4 floor off for reranked reads
+        if raw_scores:  # I30: the floor reads the raw reranker scores, min-max or not
+            scored = self.apply_floor(scored, raw_scores)
+        elif apply_floor:  # read.rerank_floor="skip" turns the H4 floor off for reranked reads
             scored = self.apply_floor(scored)
 
         # Greedy MMR selection under the token budget. Token sets are computed

@@ -16,7 +16,7 @@ import dataclasses
 import logging
 import re
 from collections.abc import Mapping, Sequence
-from datetime import UTC, datetime
+from datetime import UTC, datetime, tzinfo
 from pathlib import Path
 from typing import Any
 
@@ -55,28 +55,59 @@ def engine_version() -> str:
         return "not-installed"
 
 
-def parse_turn_time(stamp: str | None) -> datetime | None:
-    """Benchmark session stamps -> aware datetime (None if absent or unknown format)."""
+_NAIVE_WARNED: set[str] = set()
+
+
+def stamp_zone(name: str) -> tzinfo:
+    """F5: an IANA zone name -> tzinfo (``UTC`` needs no tz database)."""
+    if name.upper() == "UTC":
+        return UTC
+    from zoneinfo import ZoneInfo
+
+    return ZoneInfo(name)
+
+
+def _note_naive(zone: tzinfo) -> None:
+    """F5: benchmark stamps ("1:56 pm on 8 May, 2023") carry no offset. They are read in
+    ``zone`` (default UTC, so a stamp is stored as written); say so once per zone."""
+    key = str(zone)
+    if key not in _NAIVE_WARNED:
+        _NAIVE_WARNED.add(key)
+        logging.getLogger(__name__).warning(
+            "dataset timestamps are naive wall-clock times; reading them in %s (no conversion). "
+            "Pass --stamp-timezone <IANA name> if the dataset states its zone.",
+            key,
+        )
+
+
+def parse_turn_time(stamp: str | None, zone: tzinfo = UTC) -> datetime | None:
+    """Benchmark session stamps -> aware datetime (None if absent or unknown format).
+    A stamp without an offset is read in ``zone`` (F5; default UTC, with a one-time warning)."""
     if not stamp:
         return None
     text = re.sub(r"\s+", " ", stamp.strip())
     for fmt in _DATE_FORMATS:
         try:
-            return datetime.strptime(text, fmt).replace(tzinfo=UTC)
+            parsed = datetime.strptime(text, fmt)
         except ValueError:
             continue
+        _note_naive(zone)
+        return parsed.replace(tzinfo=zone)
     try:
         parsed = datetime.fromisoformat(text)
     except ValueError:
         return None
-    return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+    if parsed.tzinfo:
+        return parsed
+    _note_naive(zone)
+    return parsed.replace(tzinfo=zone)
 
 
-def parse_turn_stamp(turn: Turn) -> datetime | None:
+def parse_turn_stamp(turn: Turn, zone: tzinfo = UTC) -> datetime | None:
     """F3 [INJ-3]: the turn's event time. A missing stamp is None; a non-empty stamp that
     :func:`parse_turn_time` cannot read is an error, not a silent fall back to "now"."""
     stamp = turn.timestamp
-    parsed = parse_turn_time(stamp)
+    parsed = parse_turn_time(stamp, zone)
     if parsed is None and stamp and str(stamp).strip():
         raise ValueError(
             f"turn {turn.turn_id!r} (session {turn.session_id!r}) has an unparseable timestamp "
@@ -195,8 +226,11 @@ class MemspineSystem:
         mark_hits: str = "off",
         context_order: str = "chrono",
         perspective_metadata: bool | None = None,
+        stamp_timezone: str = "UTC",
     ) -> None:
         self.system_id = system_id
+        #: F5: the zone the dataset's naive wall-clock stamps are read in (IANA name).
+        self._zone = stamp_zone(stamp_timezone)
         if context_order not in CONTEXT_ORDERS:
             raise ValueError(
                 f"context_order must be one of {CONTEXT_ORDERS}, got {context_order!r}"
@@ -484,13 +518,13 @@ class MemspineSystem:
                 namespace=self.namespace,
                 session_id=session_id,
                 group_id=session_id,
-                valid_from=parse_turn_stamp(turns[0]),
+                valid_from=parse_turn_stamp(turns[0], self._zone),
             )
         else:
             messages: list[dict[str, Any]] = []
             for turn, text in zip(turns, texts, strict=True):
                 message: dict[str, Any] = self._message(turn, text)
-                stamp = parse_turn_stamp(turn)
+                stamp = parse_turn_stamp(turn, self._zone)
                 if stamp is not None:
                     message["timestamp"] = stamp
                 messages.append(message)
@@ -585,7 +619,9 @@ class MemspineSystem:
     def set_query_meta(self, meta: Mapping[str, Any]) -> None:
         """N34: the runner hands each question's metadata over before ``query``."""
         self._question_as_of = (
-            parse_question_date(meta.get("question_date")) if self._as_of_question_date else None
+            parse_question_date(meta.get("question_date"), self._zone)
+            if self._as_of_question_date
+            else None
         )
         asker = meta.get("asker") or meta.get("persona")
         self._asker = str(asker) if asker and self._perspective_metadata else None
@@ -913,8 +949,9 @@ def _merge_deposits(results: list[DepositResult]) -> DepositResult:
     )
 
 
-def parse_question_date(value: Any) -> datetime | None:
-    """N34: LongMemEval's ``question_date`` ("2023/05/30 (Tue) 23:40") as UTC, else None."""
+def parse_question_date(value: Any, zone: tzinfo = UTC) -> datetime | None:
+    """N34: LongMemEval's ``question_date`` ("2023/05/30 (Tue) 23:40") in ``zone`` (default
+    UTC, the zone the turn stamps are read in), else None."""
     import re
 
     if not value:
@@ -929,4 +966,4 @@ def parse_question_date(value: Any) -> datetime | None:
         return None
     y, mo, d = int(m[1]), int(m[2]), int(m[3])
     hh, mm = int(m[4] or 23), int(m[5] or 59)
-    return datetime(y, mo, d, hh, mm, tzinfo=UTC)
+    return datetime(y, mo, d, hh, mm, tzinfo=zone)

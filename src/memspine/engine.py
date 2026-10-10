@@ -35,7 +35,7 @@ from collections.abc import (
 from contextlib import asynccontextmanager, contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, tzinfo
 from pathlib import Path
 from typing import Any, ClassVar, Self, TypedDict, TypeVar, cast
 
@@ -184,6 +184,7 @@ from memspine.core.records import (
 )
 from memspine.core.redaction import find_pii, redact
 from memspine.core.registry import SERVICE_EXTRAS, dependency_closure, missing_services
+from memspine.core.relevance_probes import OFF_TOPIC_PROBES, Calibration, calibrate
 from memspine.core.replay import catch_up
 from memspine.core.replay import rebuild as replay_rebuild
 from memspine.core.rule_edges import BECAUSE_REL, is_why_question
@@ -548,6 +549,15 @@ def _taint_archive_delta(record: MemoryRecord) -> dict[str, object]:
     return change
 
 
+def _zone_of(name: str) -> tzinfo:
+    """F5: an IANA zone name -> tzinfo (``UTC`` needs no tz database)."""
+    if name.upper() == "UTC":
+        return UTC
+    from zoneinfo import ZoneInfo
+
+    return ZoneInfo(name)
+
+
 def _parse_event_time(value: object) -> datetime | None:
     """ISO-8601 string or datetime -> aware datetime; None when absent/unparseable."""
     if value is None:
@@ -721,6 +731,9 @@ _RERANK_SUPPORT: ContextVar[float | None] = ContextVar("memspine_rerank_support"
 #: Whether the last ``_search`` of the current read reranked its candidates
 #: (``read.rerank_floor="skip"`` needs it at assembly).
 _RERANKED: ContextVar[bool] = ContextVar("memspine_reranked", default=False)
+#: I30 (``read.abstain_on_raw``): record id -> the reranker's raw score (before min-max), merged
+#: over the searches of the current read; None outside a read or when the option is off.
+_RAW_SCORES: ContextVar[dict[str, float] | None] = ContextVar("memspine_raw_scores", default=None)
 #: B1 (``read.list_mode``): True while the routed read searches for a list / set question;
 #: the search then adds the speaker vote leg, widens the pool and skips ``rerank_keep``.
 _LIST_MODE: ContextVar[bool] = ContextVar("memspine_list_mode", default=False)
@@ -1098,6 +1111,8 @@ class Engine:
         # SF-1/ADR-018: latch so the "invalidation watches never fire under
         # event_log.mode=ephemeral" warning is logged at most once per engine.
         self._ephemeral_watch_warned = False
+        self._naive_warned = False  # F5: the naive-datetime warning is logged once
+        self._session_ticks: dict[tuple[str, str, datetime], int] = {}  # F5: session_sequence
         self._inflate: CompressionPolicy = CompressionPolicy.bind()
         self._firewall: Firewall = Firewall()
         self._query_history = QueryHistory()
@@ -1518,7 +1533,7 @@ class Engine:
             consent_tags=list(dict.fromkeys(purposes or [])),
         )
         if valid_from is not None:
-            stamp = valid_from if valid_from.tzinfo else valid_from.replace(tzinfo=UTC)
+            stamp = self._localize(valid_from)
             record = record.model_copy(update={"valid_from": stamp})
         elif self._config().read.skip_defaulted_dates:
             # I7: the event time is the write clock, not the source's; date renders skip it.
@@ -3753,7 +3768,9 @@ class Engine:
             )
             if correction is not None:
                 turn_tags.append(constants.CORRECTION_TAG)  # W17d
-            stamp = _parse_event_time(turn.get("timestamp")) or valid_from
+            stamp = self._event_time(turn.get("timestamp")) or valid_from
+            if stamp is not None and session_id and self._config().read.session_sequence:
+                stamp = self._sequenced(namespace, session_id, self._localize(stamp))
             record = await self.write(
                 content,
                 namespace=namespace,
@@ -3774,6 +3791,42 @@ class Engine:
             records.append(record)
             written_at[i] = record.record_id
         return records
+
+    def _localize(self, value: datetime) -> datetime:
+        """F5: an aware datetime is returned as is; a naive one is read in
+        ``read.naive_timezone`` (default UTC) and a warning is logged once per engine."""
+        if value.tzinfo is not None:
+            return value
+        name = self._config().read.naive_timezone
+        if not self._naive_warned:
+            self._naive_warned = True
+            _log.warning(
+                "write.naive_datetime",
+                assumed_timezone=name,
+                hint="pass an aware datetime or set read.naive_timezone to the source's zone",
+            )
+        return value.replace(tzinfo=_zone_of(name))
+
+    def _event_time(self, value: object) -> datetime | None:
+        """F5: an ISO-8601 string or datetime -> aware datetime (naive ones via
+        :meth:`_localize`); None when absent or unparseable."""
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            return self._localize(value)
+        try:
+            parsed = datetime.fromisoformat(str(value))
+        except ValueError:
+            return None
+        return self._localize(parsed)
+
+    def _sequenced(self, namespace: str, session_id: str, stamp: datetime) -> datetime:
+        """F5 (``read.session_sequence``): the n-th write of one session at the same event
+        time is stored ``n`` microseconds later, so ties keep write order."""
+        key = (namespace, session_id, stamp)
+        tick = self._session_ticks.get(key, 0)
+        self._session_ticks[key] = tick + 1
+        return stamp + timedelta(microseconds=tick)
 
     def _depositable_contents(self, messages: Sequence[Mapping[str, str]]) -> list[str]:
         """The contents ``write_messages`` will send through the door, as the
@@ -4820,6 +4873,11 @@ class Engine:
                 raw_scores = await reranker.rerank(query, documents)
                 if len(raw_scores) > 1:
                     _RERANK_SUPPORT.set(sorted(raw_scores, reverse=True)[1])
+                if (raw_sink := _RAW_SCORES.get()) is not None:
+                    for (record, _), raw in zip(candidates, raw_scores, strict=True):
+                        raw_sink[record.record_id] = max(
+                            float(raw), raw_sink.get(record.record_id, float("-inf"))
+                        )
                 if (fx := _FORENSICS.get()) is not None:
                     fx["rerank_scores"] = [
                         (record.record_id, float(raw))
@@ -5119,6 +5177,7 @@ class Engine:
             pool = max(pool, self._config().read.list_pool)
         want = top_k * pool
         _RERANKED.set(False)
+        _RAW_SCORES.set({} if self._config().read.abstain_on_raw else None)
         if self._config().read.statement_probe and (said := statement_form(query)):
             # N63 (EverMemOS multi-query, by rules): the question as a statement.
             probes = [*probes, said]
@@ -5336,7 +5395,15 @@ class Engine:
             budget_tokens=max(1, budget_tokens - lead_cost),
             compression=self._assembly_compression,
             apply_floor=not (read_cfg.rerank_floor == "skip" and _RERANKED.get()),
+            raw_scores=_RAW_SCORES.get() if read_cfg.abstain_on_raw else None,
         )
+        if read_cfg.abstain_on_raw and (fx := _FORENSICS.get()) is not None:
+            raw_seen = _RAW_SCORES.get() or {}
+            fx["abstain_on_raw"] = {
+                "n_raw": len(raw_seen),
+                "raw_top": max(raw_seen.values(), default=None),
+                "abstained": assembled.abstained,
+            }
         if standing or timelines:
             assembled = self._place_lead(assembled, standing, timelines)
         assembled.evidence = signal
@@ -5791,7 +5858,7 @@ class Engine:
         headers = self._count_section(ns, query, result.context, count_share, headers)
         headers = self._duration_section(ns, query, result.context, headers)
         return await self._relevance_gate(
-            query, ReadResult(result.mode, self._attach_headers(result.context, headers))
+            query, ReadResult(result.mode, self._attach_headers(result.context, headers)), ns
         )
 
     async def _read_routed(
@@ -6148,9 +6215,107 @@ class Engine:
             fx["bridge_gate"] = "decider" if label == "hop" else "skipped"
         return label == "hop"
 
-    async def _relevance_gate(self, query: str, result: ReadResult) -> ReadResult:
+    async def _gate_raw_tops(self, ns: str, text: str, legs: Sequence[str]) -> dict[str, float]:
+        """I29: the top RAW score of ``text`` against the namespace's live records, per leg
+        (``vector``: cosine of the best live hit; ``rerank``: the reranker's raw score over
+        the best vector candidates). Read-only: no events, no ledger, no forensics of its own.
+        Probes and real messages both go through here, so the two are always comparable."""
+        assert self._embedder is not None
+        read = self._config().read
+        [qv] = await embed_queries(self._embedder, [text])
+        hits = await self._vector_leg(ns, qv, read.relevance_gate_candidates)
+        live = await self._gate_hits(ns, [(h.record_id, h.score) for h in hits], None, None)
+        if not live:
+            return {}
+        out: dict[str, float] = {}
+        if "vector" in legs:
+            out["vector"] = max(score for _, score in live)
+        if "rerank" in legs:
+            reranker = self._rerank_provider()
+            if reranker is not None:
+                raws = await reranker.rerank(text, [concat_background(r) for r, _ in live])
+                out["rerank"] = float(max(raws))
+        return out
+
+    async def _store_calibration(
+        self, ns: str, legs: Sequence[str]
+    ) -> tuple[dict[str, Calibration], bool]:
+        """The namespace's off-topic score level per leg, computed lazily on the first
+        gated read and again when the store has grown past ``relevance_gate_regrow`` x the
+        record count it was calibrated on. Returns (calibrations, recomputed)."""
+        assert self._embedder is not None
+        read = self._config().read
+        n_records = len(await self._require_started().list_records(ns))
+        reranker = self._rerank_provider() if "rerank" in legs else None
+        key = (ns, self._embedder.embedder_id, getattr(reranker, "reranker_id", None), tuple(legs))
+        cache: dict[Any, dict[str, Calibration]] = self.__dict__.setdefault("_relevance_cal", {})
+        cached = cache.get(key)
+        if cached and n_records <= read.relevance_gate_regrow * max(
+            c.n_records for c in cached.values()
+        ):
+            return cached, False
+        tops: dict[str, list[float]] = {leg: [] for leg in legs}
+        for probe in OFF_TOPIC_PROBES:
+            for leg, value in (await self._gate_raw_tops(ns, probe, legs)).items():
+                tops[leg].append(value)
+        cal = {leg: calibrate(leg, v, n_records) for leg, v in tops.items() if v}
+        cache[key] = cal
+        return cal, True
+
+    async def _calibrated_gate(
+        self, query: str, result: ReadResult, ns: str | None = None
+    ) -> ReadResult:
+        """I29/I37 (``relevance_gate: store_calibrated``): a message passes only when its raw
+        top score exceeds the namespace's off-topic p95 by ``relevance_gate_margin_sd``
+        standard deviations; otherwise an empty abstained context. Fails open."""
+        read = self._config().read
+        if result.context.abstained or self._embedder is None:
+            return result
+        records = [r for r in result.context.records if r.source.channel != "persona"]
+        if not records:
+            return result
+        ns = ns or records[0].namespace
+        entry: dict[str, Any] = {"margin_sd": read.relevance_gate_margin_sd}
+        try:
+            has_reranker = self._rerank_provider() is not None
+            want = read.relevance_gate_leg
+            if want == "auto":
+                legs = ["rerank"] if has_reranker else ["vector"]
+            elif want == "any":
+                legs = ["vector", "rerank"] if has_reranker else ["vector"]
+            else:
+                legs = [want] if (want == "vector" or has_reranker) else ["vector"]
+            cal, recomputed = await self._store_calibration(ns, legs)
+            tops = await self._gate_raw_tops(ns, query, legs)
+            verdicts: dict[str, dict[str, Any]] = {}
+            for leg, c in cal.items():
+                if leg in tops:
+                    thr = c.threshold(read.relevance_gate_margin_sd)
+                    verdicts[leg] = {
+                        "raw_top": tops[leg],
+                        "threshold": thr,
+                        "pass": tops[leg] > thr,
+                        **c.as_meta(),
+                    }
+            entry.update(legs=verdicts, recalibrated=recomputed)
+            passed = not verdicts or any(v["pass"] for v in verdicts.values())
+            entry["decision"] = "inject" if passed else "empty"
+        except Exception as exc:  # an enhancer, never a gate: fail open
+            _log.warning("read.relevance_gate_failed", error=redact_error(exc))
+            entry.update(decision="inject", error=str(exc))
+            passed = True
+        if (fx := _FORENSICS.get()) is not None:
+            fx["relevance_calibration"] = entry
+        return result if passed else ReadResult(result.mode, AssembledContext(abstained=True))
+
+    async def _relevance_gate(
+        self, query: str, result: ReadResult, ns: str | None = None
+    ) -> ReadResult:
         """I29 (``task=relevance``): when the decider is sure none of the retrieved memories
-        bear on the message, inject nothing (an abstained, empty context). Off by default."""
+        bear on the message, inject nothing (an abstained, empty context). Off by default.
+        ``store_calibrated``: the per-namespace calibrated raw-score gate."""
+        if self._config().read.relevance_gate == "store_calibrated":
+            return await self._calibrated_gate(query, result, ns)
         if not self._decider_active("relevance") or result.context.abstained:
             return result
         records = [r for r in result.context.records if r.source.channel != "persona"]

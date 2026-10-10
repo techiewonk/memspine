@@ -449,6 +449,16 @@ class ReadConfig(BaseModel):
     #: prefix / relative-date annotation / rerank date prefix / timeline date skip it. Only
     #: records written with this key on are affected. Off: byte-identical.
     skip_defaulted_dates: bool = False
+    #: F5: the zone a NAIVE datetime (a ``valid_from`` / message ``timestamp`` without an
+    #: offset) is read in, an IANA name. Default ``UTC`` (as always); a warning is logged once
+    #: per engine whenever a naive value is seen, because labelling dataset-local wall time as
+    #: UTC shifts events near midnight onto the wrong day. Aware values are never touched.
+    naive_timezone: str = "UTC"
+    #: F5: when several turns of one session carry the SAME event time (a day-level or
+    #: session-level stamp), each later one is moved by one more microsecond so the event-time
+    #: order within the session is the write order everywhere (not only where ``recorded_at``
+    #: breaks the tie). Off: stamps are stored as given.
+    session_sequence: bool = False
     #: I23: `on` = the regex features that only know English (query shape, temporal phrases,
     #: month names, set nouns) do not fire on text a cheap script/stopword check judges
     #: non-English; they fail closed. Off: unchanged.
@@ -1041,9 +1051,32 @@ class ReadConfig(BaseModel):
     #: I29: whether retrieved memories are injected at all. ``off`` (default): always, as
     #: today. ``decider``: the decider (``read.decider: opendecider``) judges the message
     #: against the retrieved memories; when it is sure (``decider_min_confidence``) that none
-    #: bear on it, the read returns an empty, abstained context. ``store_calibrated`` (planned,
-    #: not implemented): a per-store off-topic score level, see GAP_REGISTER I29.
-    relevance_gate: Literal["off", "decider"] = "off"
+    #: bear on it, the read returns an empty, abstained context. ``store_calibrated``: the
+    #: namespace's own off-topic score level is learned lazily from a fixed set of generic
+    #: off-topic probes (``core/relevance_probes.py``) and a message passes only when its RAW
+    #: top score (vector cosine, or the reranker's raw score) clears that level by
+    #: ``relevance_gate_margin_sd`` standard deviations; otherwise an empty, abstained context.
+    relevance_gate: Literal["off", "decider", "store_calibrated"] = "off"
+    #: I29/I37: margin, in standard deviations of the off-topic probes' top raw scores, above
+    #: their 95th percentile. A FIXED portable default (one value for every store, embedder
+    #: and reranker); NOT tuned on any benchmark. Raise it for a stricter gate.
+    relevance_gate_margin_sd: float = Field(default=1.0, ge=0.0, le=10.0)
+    #: Which raw score the calibrated gate reads. ``auto``: the reranker's raw score when a
+    #: reranker is configured, else the vector cosine. ``vector`` / ``rerank`` force one.
+    #: ``any``: pass when any available leg clears its own threshold.
+    relevance_gate_leg: Literal["auto", "vector", "rerank", "any"] = "auto"
+    #: Candidates (top of the vector leg) the gate scores per message; the reranker leg
+    #: rescored only these.
+    relevance_gate_candidates: int = Field(default=10, ge=1, le=100)
+    #: Recalibrate when the namespace holds more than this multiple of the record count it
+    #: was calibrated on.
+    relevance_gate_regrow: float = Field(default=2.0, gt=1.0)
+    #: I30: judge ``assembly.theta_abstain`` and ``assembly.relative_floor`` on the RAW
+    #: reranker scores (before min-max), so they work under rerank (the min-max makes the top
+    #: candidate 1.0, which kills ``theta_abstain``). Off (default): the composite scores,
+    #: as before. Raw scores are model-specific; prefer ``relevance_gate: store_calibrated``
+    #: for a portable cut.
+    abstain_on_raw: bool = False
     decider_min_confidence: float = Field(default=0.5, ge=0.5, le=1.0)
     #: I52: graded-sensitivity read bar. ``off`` (default): every retrieved memory is
     #: eligible as today. ``on``: a record graded ``medium`` or ``high`` at write time

@@ -72,8 +72,9 @@ def test_refusal_patterns_match_failure_buckets() -> None:
 
 
 def test_is_refusal() -> None:
-    for text in ("I do not know.", "Not mentioned", "Melanie did not go.", "", "   "):
+    for text in ("I do not know.", "Not mentioned", "", "   "):
         assert is_refusal(text), text
+    assert is_refusal("Melanie did not go.", "legacy")  # I22: a negative fact now, a refusal before
     for text in ("Denver", "The Friday before 25 May 2023", "Likely yes, because she runs"):
         assert not is_refusal(text), text
 

@@ -36,6 +36,7 @@ from .judge import DEFAULT_BINARY_PROMPT, ContainsJudge, Judge
 from .metrics import CostModel, Price
 from .provenance import RunProtocol
 from .readers import (
+    NO_MEMORY_QA_PROMPT,
     ContextOnlyReader,
     CtxGuard,
     OpenAICompatReader,
@@ -107,6 +108,8 @@ class C01Config:
     memspine_as_of_question_date: bool = False
     #: C1: mark final search hits in the rendered context (off | star | rank)
     memspine_mark_hits: str = "off"
+    #: F5: the IANA zone the dataset's naive stamps are read in (default UTC = as written).
+    stamp_timezone: str = "UTC"
     #: R2-4: context line order (chrono | hits_first | hit_blocks)
     memspine_context_order: str = "chrono"
     #: run the engine's sleep cycle after ingestion (write-time stages: H2, H8, H14)
@@ -155,6 +158,12 @@ class C01Config:
     retry_guard: bool = False
     #: I32: tell the reader no memory matches an asserted past event (``no_record.py``).
     no_record_hint: bool = False
+    #: I22: ``whole`` (default) = a refusal only when the whole answer is a refusal statement;
+    #: ``legacy`` = the original substring regexes (reproduces runs before 2026-10-10).
+    refusal_match: str = "whole"
+    #: I29: a dedicated reader prompt when the retrieved context is empty (the relevance gate
+    #: or abstention fired): answer from the question alone. Off: the QA prompt is rendered.
+    no_memory_prompt: bool = False
     #: I28: ``opendecider`` replaces the ``is_refusal`` regex in the refusal retry (needs
     #: ``retry_refusal``); question and answer text only. ``heuristic`` (default): unchanged.
     decider: str = "heuristic"
@@ -403,12 +412,14 @@ def check_dollar_cap(config: C01Config) -> None:
 def _retry_decider_kwargs(config: C01Config) -> dict[str, Any]:
     """I28: ``RefusalRetryReader`` kwargs for ``--decider`` (none for the default heuristic)."""
     guard = {"guard_absent_entity": True} if config.retry_guard else {}
+    match = {"refusal_match": config.refusal_match} if config.refusal_match != "whole" else {}
     if config.decider == "heuristic":
-        return guard
+        return {**guard, **match}
     from memspine.services.decision.decider import build_decider
 
     return {
         **guard,
+        **match,
         "decider": build_decider(
             config.decider,
             config.decider_model,
@@ -462,6 +473,7 @@ def build_systems(config: C01Config) -> list[SystemAdapter]:
                 batch_turns=config.memspine_batch_turns,
                 as_of_question_date=config.memspine_as_of_question_date,
                 mark_hits=config.memspine_mark_hits,
+                stamp_timezone=config.stamp_timezone,
                 context_order=config.memspine_context_order,
             )
         )
@@ -552,8 +564,10 @@ def build_reader_and_judge(config: C01Config) -> tuple[Reader, Judge, bool]:
     qa_prompt: str | RoutedQAPrompt | SystemQAPrompt
     if config.qa_prompt in SYSTEM_QA_PROMPTS:  # OP-Bench: a system message + user message
         if config.bedrock:
-            raise ValueError(f"qa prompt {config.qa_prompt!r} has a system message; the Bedrock "
-                             "reader does not send one (use the local OpenAI-compatible reader)")
+            raise ValueError(
+                f"qa prompt {config.qa_prompt!r} has a system message; the Bedrock "
+                "reader does not send one (use the local OpenAI-compatible reader)"
+            )
         qa_prompt = SYSTEM_QA_PROMPTS[config.qa_prompt]
     elif config.qa_prompt in QA_PROMPTS:
         qa_prompt = QA_PROMPTS[config.qa_prompt]
@@ -619,6 +633,7 @@ def build_reader_and_judge(config: C01Config) -> tuple[Reader, Judge, bool]:
         extract_answer=reasoning,
         sampler=sampler,
         guard=guard,
+        **({"empty_context_prompt": NO_MEMORY_QA_PROMPT} if config.no_memory_prompt else {}),
         **({"max_tokens": reasoning_max_tokens(config.qa_prompt)} if reasoning else {}),
     )
     if config.retry_refusal:
@@ -767,6 +782,9 @@ async def run_c0_1(
             **({"retry_refusal": True} if config.retry_refusal else {}),
             **({"retry_guard": True} if config.retry_guard else {}),
             **({"no_record_hint": True} if config.no_record_hint else {}),
+            **({"refusal_match": config.refusal_match} if config.refusal_match != "whole" else {}),
+            **({"no_memory_prompt": True} if config.no_memory_prompt else {}),
+            **({"stamp_timezone": config.stamp_timezone} if config.stamp_timezone != "UTC" else {}),
             **({"decider": config.decider} if config.decider != "heuristic" else {}),
             **({"judge_guards": True} if config.judge_guards else {}),
             "judge_prompt": config.judge_prompt if config.mode == "qa" else None,

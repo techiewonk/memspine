@@ -23,14 +23,17 @@ from .tokens import HeuristicTokenCounter
 
 __all__ = [
     "DENIAL",
+    "MAX_RETRIES",
     "REFUSAL",
+    "REFUSAL_MATCH_MODES",
     "RETRY_INSTRUCTION",
     "RETRY_INSTRUCTION_ASSERTIVE",
     "RETRY_INSTRUCTION_NEUTRAL",
     "RETRY_MODES",
-    "MAX_RETRIES",
     "RefusalRetryReader",
     "is_refusal",
+    "is_refusal_legacy",
+    "is_refusal_whole",
     "named_entities",
     "names_absent_entity",
     "shares_content_word",
@@ -103,7 +106,7 @@ _NOT_NAMES = frozenset(
         "during and or but if it its he she they we you i monday tuesday wednesday thursday "
         "friday saturday sunday january february march april may june july august september "
         "october november december"
-    ).split()
+    ).split()  # noqa: SIM905
 )
 
 
@@ -134,13 +137,102 @@ def names_absent_entity(question: str, context: str) -> bool:
     return bool(names) and all(name.lower() not in low for name in names)
 
 
-def is_refusal(answer: str) -> bool:
-    """True when ``answer`` is empty, declines ("I do not know", "not mentioned", ...) or
-    opens with a denial of the premise."""
+#: I22: how ``is_refusal`` reads an answer. ``whole`` (default): only when the WHOLE answer is
+#: a refusal / abstention statement. ``legacy``: the original substring regexes, which also
+#: matched negative facts ("There is no school on Friday", "I did not go") and any answer that
+#: merely contained "there is no"; kept to reproduce earlier runs (``--refusal-match legacy``).
+REFUSAL_MATCH_MODES = ("whole", "legacy")
+
+_TAIL = r"(?:\W.{0,100})?"
+_NO_THING = (
+    r"(?:mention|specific information|information|info|record|indication|evidence|details?|"
+    r"data|reference|answer)"
+)
+_WHOLE_PATTERNS = tuple(
+    re.compile(p, re.IGNORECASE)
+    for p in (
+        # "I do not know", "I don't have that information", "we have no information"
+        r"(?:i|we) (?:do not|don't|dont|did not|didn't) "
+        r"(?:know|have (?:any |enough |that |this |the )?"
+        r"(?:information|info|details?|records?|data))" + _TAIL,
+        r"(?:i|we) (?:have|has) no (?:information|info|record|memory|idea|way)" + _TAIL,
+        r"(?:i|we) (?:do not|don't|dont) (?:recall|remember)" + _TAIL,
+        r"(?:i am|i'm) (?:not sure|unsure|unable to \w+|not able to \w+)" + _TAIL,
+        # "I cannot determine ...", "cannot be determined"
+        r"(?:i )?(?:cannot|can't|can not|couldn't|could not) (?:be )?"
+        r"(?:determine[d]?|tell|say|find|answer|identify|confirm|know)" + _TAIL,
+        r"(?:the |this |that )?[\w'-]+(?: [\w'-]+){0,2} (?:cannot|can't|can not|could not) be "
+        r"(?:determined|found|known|identified|told|answered)" + _TAIL,
+        # "Not mentioned in the conversation", "It is not specified"
+        r"(?:(?:it|that|this) (?:is|was) |it's )?(?:not|never) "
+        r"(?:mentioned|specified|stated|provided|clear|known|available|discussed|said|"
+        r"indicated|given|recorded)" + _TAIL,
+        # "There is no information about ...": the absence of INFORMATION, not of a thing
+        r"there (?:is|was|are|were|'s) (?:no|not any) " + _NO_THING + _TAIL,
+        r"no " + _NO_THING + r"(?: (?:is|was|are|were))?" + _TAIL,
+        # "The conversation does not mention ...", "Melanie did not specify ..."
+        r"(?!(?:i|we|you)\b)(?:the |this |that |these |those )?[\w'-]+(?: [\w'-]+){0,2} "
+        r"(?:does|do|did|has|have) not "
+        r"(?:mention|specify|state|say|indicate|provide|include|contain|reveal|discuss|share|"
+        r"tell|give|record|show)" + _TAIL,
+        r"(?:the )?(?:answer|information|details?) (?:is|are) (?:not|unavailable|unknown)" + _TAIL,
+        r"(?:unknown|unclear|unanswerable|n/a|not applicable|no answer|no data)",
+    )
+)
+_LEAD = re.compile(
+    r"^(?:(?:sorry|unfortunately|apologies|hmm|well|actually|answer|still|again|so)\b[,:.!]?\s*)+"
+    r"|^(?:based on|according to|from|in|per|looking at) the (?:given |provided |available |"
+    r"retrieved |above )?(?:conversation|context|memories|memory|text|passage|notes|chat|"
+    r"dialogue|transcript|information|records?)[^,:]{0,40}[,:]\s*",
+    re.IGNORECASE,
+)
+_HEDGE = re.compile(
+    r"\b(?:but|however|although|though|likely|probably|maybe|perhaps|possibly|presumably)\b",
+    re.IGNORECASE,
+)
+_SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+|\n+")
+_WRAP = "*_`\"'“” "
+
+
+def is_refusal_legacy(answer: str) -> bool:
+    """The original ``is_refusal``: a substring match, so any answer containing "there is no"
+    or opening "<Name> did not ..." counted. Kept behind ``--refusal-match legacy``."""
     text = answer.strip()
     if not text:
         return True
     return bool(REFUSAL.search(text) or DENIAL.search(text))
+
+
+def is_refusal_whole(answer: str) -> bool:
+    """I22: True when ``answer`` is empty or the WHOLE answer is a refusal / abstention
+    statement ("I do not know", "Not mentioned in the conversation", "There is no information
+    about it"). A negative fact ("There is no school on Friday", "I did not go") is an
+    answer, not a refusal, and so is a refusal that carries a guess ("I do not know, but
+    probably May"). Every sentence must be a refusal statement."""
+    text = answer.strip().strip(_WRAP)
+    if not text:
+        return True
+    sentences = [s for s in _SENTENCE_SPLIT.split(text) if s.strip()]
+    for sentence in sentences:
+        core = sentence.strip().strip(_WRAP).rstrip(".!?;: ").strip()
+        core = _LEAD.sub("", core, count=1).strip()
+        core = _LEAD.sub("", core, count=1).strip()
+        if not core:
+            continue  # a bare "Sorry." adds nothing to the verdict
+        if _HEDGE.search(core) or not any(p.fullmatch(core) for p in _WHOLE_PATTERNS):
+            return False
+    return True
+
+
+def is_refusal(answer: str, mode: str = "whole") -> bool:
+    """True when ``answer`` is empty or declines. ``mode="whole"`` (default, I22): the whole
+    answer must be a refusal statement (:func:`is_refusal_whole`). ``mode="legacy"``: the
+    original substring regexes (:func:`is_refusal_legacy`)."""
+    if mode == "legacy":
+        return is_refusal_legacy(answer)
+    if mode != "whole":
+        raise ValueError(f"refusal match mode must be one of {REFUSAL_MATCH_MODES}, got {mode!r}")
+    return is_refusal_whole(answer)
 
 
 class RefusalRetryReader:
@@ -169,7 +261,12 @@ class RefusalRetryReader:
         decider: Any = None,
         decider_min_confidence: float = 0.5,
         guard_absent_entity: bool = False,
+        refusal_match: str = "whole",
     ) -> None:
+        if refusal_match not in REFUSAL_MATCH_MODES:
+            raise ValueError(f"refusal_match must be one of {REFUSAL_MATCH_MODES}")
+        #: I22: ``whole`` (default) or ``legacy`` (the original substring regexes).
+        self.refusal_match = refusal_match
         if mode not in RETRY_MODES:
             raise ValueError(f"retry mode must be one of {sorted(RETRY_MODES)}, got {mode!r}")
         self.inner = inner
@@ -209,13 +306,14 @@ class RefusalRetryReader:
             "retry_mode": self.mode,
             "retry_require_context_overlap": self.require_context_overlap,
             **({"retry_guard_absent_entity": True} if self.guard_absent_entity else {}),
+            **({"refusal_match": self.refusal_match} if self.refusal_match != "whole" else {}),
             **({"decider": self.decider.decider_id} if self.decider is not None else {}),
         }
 
     async def _refusal(self, question: str, text: str, log: list[dict[str, Any]]) -> bool:
         """Whether ``text`` is a refusal: the decider when set and sure, else the regex.
         Every decider call is appended to ``log`` (task, label, confidence, adapter)."""
-        rule = is_refusal(text)
+        rule = is_refusal(text, self.refusal_match)
         if self.decider is None or not text.strip():
             return rule
         try:

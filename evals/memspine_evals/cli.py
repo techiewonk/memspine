@@ -167,7 +167,13 @@ def apply_opbench_protocol(args: argparse.Namespace) -> list[str]:
         notes.append("OP-Bench: --judge-prompt rubric -> opbench (official OP-Bench judge)")
     elif args.judge_prompt != "opbench":
         raise SystemExit(f"--judge-prompt {args.judge_prompt} cannot grade OP-Bench; use opbench")
-    for flag in ("retry_refusal", "retry_guard", "judge_guards", "judge_date_check", "verify_answer"):
+    for flag in (
+        "retry_refusal",
+        "retry_guard",
+        "judge_guards",
+        "judge_date_check",
+        "verify_answer",
+    ):
         if getattr(args, flag):
             setattr(args, flag, False)
             notes.append(
@@ -270,6 +276,7 @@ def cmd_c0_1(args: argparse.Namespace) -> int:
         memspine_read_mode=args.memspine_read_mode,
         memspine_as_of_question_date=args.memspine_as_of_question_date,
         memspine_mark_hits=args.memspine_mark_hits,
+        stamp_timezone=args.stamp_timezone,
         memspine_context_order=args.memspine_context_order,
         memspine_build_sleep=args.memspine_build_sleep,
         memspine_batch_turns=args.memspine_batch_turns,
@@ -288,6 +295,8 @@ def cmd_c0_1(args: argparse.Namespace) -> int:
         retry_refusal=args.retry_refusal,
         retry_guard=args.retry_guard,
         no_record_hint=args.no_record_hint,
+        refusal_match=args.refusal_match,
+        no_memory_prompt=args.no_memory_prompt,
         decider=args.decider,
         decider_model=args.decider_model,
         decider_device=args.decider_device,
@@ -569,6 +578,28 @@ def build_parser() -> argparse.ArgumentParser:
         "retrieved context never mentions (an unanswerable question; a retry can only "
         "fabricate). The retry is always capped at one re-ask on a non-empty context; off "
         "by default",
+    )
+    c01.add_argument(
+        "--no-memory-prompt",
+        action="store_true",
+        help="I29: when the retrieved context is empty (read.relevance_gate / abstention "
+        "returned nothing) the reader gets a no-memory prompt and answers from the question "
+        "alone; off by default (the QA prompt is rendered with an empty Memories block)",
+    )
+    c01.add_argument(
+        "--stamp-timezone",
+        default="UTC",
+        metavar="IANA",
+        help="F5: the zone the dataset's naive wall-clock session stamps are read in (default "
+        "UTC: stored as written, no conversion; a one-time warning says so)",
+    )
+    c01.add_argument(
+        "--refusal-match",
+        choices=("whole", "legacy"),
+        default="whole",
+        help="I22: what counts as a refusal (--retry-refusal, date check). whole (default): the "
+        "WHOLE answer is a refusal statement; legacy: the original substring regexes, which also "
+        "matched negative facts ('There is no school on Friday', 'I did not go')",
     )
     c01.add_argument(
         "--no-record-hint",

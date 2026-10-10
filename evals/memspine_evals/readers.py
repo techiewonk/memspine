@@ -300,6 +300,17 @@ DATED_NOABSTAIN_QA_PROMPT = DATED_QA_PROMPT.replace(
 #: "STEP 7: FINAL ANSWER" section, which :func:`final_answer` reads. QA only (paid). The text
 #: lives in ``vendor_judges.py`` (vendor texts kept verbatim, long lines allowed).
 
+#: I29: the reader prompt for an EMPTY context (``--no-memory-prompt``): the relevance gate
+#: (``read.relevance_gate``) or abstention returned nothing, so the reader answers from the
+#: question alone and does not invent memories. Off by default (an empty context still renders
+#: the chosen QA prompt with an empty ``Memories:`` block, as before).
+NO_MEMORY_QA_PROMPT = (
+    "No stored memories are relevant to this message. Answer it from general knowledge if "
+    "you can. If it asks about the user's or another person's personal history that you were "
+    "not told, say you do not know. Answer in one short sentence.\n\n"
+    "Question: {question}\nAnswer:"
+)
+
 QA_PROMPTS = {
     "mab_fc": MAB_FC_QA_PROMPT,
     "question_dated": QUESTION_DATED_QA_PROMPT,
@@ -770,6 +781,7 @@ class OpenAICompatReader:
         extract_answer: bool = False,
         sampler: SamplerConfig | None = None,
         guard: CtxGuard | None = None,
+        empty_context_prompt: str | None = None,
     ) -> None:
         try:
             import httpx
@@ -793,6 +805,8 @@ class OpenAICompatReader:
         self.extract_answer = extract_answer
         self.sampler = sampler or SamplerConfig()
         self.guard = guard
+        #: I29: used instead of ``prompt`` when the retrieved context is empty (None: never).
+        self.empty_context_prompt = empty_context_prompt
         self._headers = {"Authorization": f"Bearer {api_key}"}
 
     def describe(self) -> Mapping[str, Any]:
@@ -804,6 +818,7 @@ class OpenAICompatReader:
             "max_tokens": self.max_tokens,
             "sampler": self.sampler.describe(),
             **prompt_describe(self.prompt),
+            **({"empty_context_prompt": True} if self.empty_context_prompt else {}),
             **(
                 {"extract_answer": True, "answer_extractor": ANSWER_EXTRACTOR_VERSION}
                 if self.extract_answer
@@ -814,16 +829,15 @@ class OpenAICompatReader:
     async def answer(
         self, question: str, context: str, question_date: str | None = None
     ) -> ReaderAnswer:
-        messages = [
-            {
-                "role": "user",
-                "content": self.prompt.format(
-                    context=context,
-                    question=question,
-                    question_date=question_date or "unknown",
-                ),
-            }
-        ]
+        if self.empty_context_prompt and not context.strip():
+            content = self.empty_context_prompt.format(
+                context="", question=question, question_date=question_date or "unknown"
+            )
+        else:
+            content = self.prompt.format(
+                context=context, question=question, question_date=question_date or "unknown"
+            )
+        messages = [{"role": "user", "content": content}]
         system = getattr(self.prompt, "system", None)  # SystemQAPrompt only (OP-Bench)
         if system:
             messages.insert(0, {"role": "system", "content": system})
@@ -870,9 +884,7 @@ class OpenAICompatReader:
 
 #: loop -> {(httpx module, timeout): client}. Weak on the loop so an entry dies with its loop;
 #: keying by ``id()`` let a recycled address hand a new loop or fake module a stale client.
-_CLIENTS: weakref.WeakKeyDictionary[Any, dict[tuple[Any, float], Any]] = (
-    weakref.WeakKeyDictionary()
-)
+_CLIENTS: weakref.WeakKeyDictionary[Any, dict[tuple[Any, float], Any]] = weakref.WeakKeyDictionary()
 
 
 def _shared_client(httpx: Any, timeout: float) -> Any:
