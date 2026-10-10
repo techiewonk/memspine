@@ -129,7 +129,21 @@ Wrong in all 12 configurations screened on conv-26/30 (233 q). 4 are errata (0-5
 | open-domain inference | 0-22, 0-59, 0-69 | open - needs profile/inference memory (B3/I3); prompt rules failed (C3) |
 | reader: wrong line or photo-dependent | 0-151, 1-20, 1-43, 1-48 | open - candidates: mark-hits (C1, neutral), photo-only (errata review) |
 
+## Round 2 gaps (refill from the stable failures under the new default, 2026-10-10)
+
+| ID | Gap | Evidence (dev, best config) | Solution options | Status |
+|---|---|---|---|---|
+| R2-1 | Bridge question needs a second hop | 0-11: hop 1 finds "moved from my home country"; "Sweden" sits in another turn linked only by "home country" (vector rank none) | second search seeded with key noun phrases of the first-hop hits (extend `second_round`, which seeds only names/dates); cap 1 extra hop | open - engine agent |
+| R2-2 | Comparison questions about two people ("both", "in common") | 1-3: 0 of 4 gold turns retrieved; each person's facts are separate | for both/in-common questions run the speaker vote once per named person and fuse | open - engine agent |
+| R2-3 | List-mode trigger misses "How did X <verb> ..." multi-item questions | 1-23 (4 gold turns, trigger did not fire) | widen `is_set_question` to how-did/how-has questions with plural objects; measure trigger precision on all 1,540 questions | open - engine agent |
+| R2-4 | Reader picks a wrong line although the gold line is hit #1 | 1-20, 1-48 (gold rank 1, in context) | option to present the top hits first, then neighbours (chronological within each block); `*` markers alone were neutral (C1) | open - harness agent |
+| R2-5 | Photo-only or bad evidence labels among stable failures | 0-151, 1-43 (photo), 0-70 (gold D15:13 is "Did you see that band?") | errata review | open |
+| R2-6 | Open-domain inference refused | 0-22, 0-59 | profile/inference memory (B3); prompt rules failed (C3) | open |
+
 ## Progress log
+
+**2026-10-10 09:00 - round 2 refill**
+- 12 stable failures remain under the best config (list mode fixed 0-38). New gaps R2-1..R2-6 above; agents started for R2-1/2/3 (engine) and R2-4 (harness).
 
 **2026-10-10 08:40**
 - A9: think-off 88.8% on conv-26 with the best config. The wrapper's env clearing made the first think-on run a no-op; `--think on` added. Real think-on running (slow: 23-54 s per answer).
