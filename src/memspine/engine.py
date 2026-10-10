@@ -53,6 +53,7 @@ from memspine.config.schema import FirewallConfig, MemspineConfig
 from memspine.core.answer import final_answer, numbered_context, verification
 from memspine.core.audit import IntegrityReport, TaintReport, trace_taint, verify_events
 from memspine.core.concentration import collapse_concentrated
+from memspine.core.dedupe import dedupe_scored
 from memspine.core.correction import Correction, detect_correction
 from memspine.core.erasure import redact_record, retained_fields
 from memspine.core.escaping import escape_markers
@@ -4846,6 +4847,9 @@ class Engine:
                 seen[record.memory_type] = seen.get(record.memory_type, 0) + 1
                 capped.append((record, score))
             scored = capped
+        if read_cfg.dedupe != "off" and scored:
+            # I31: near-duplicates leave before assembly; the sink says what left.
+            scored = await self._dedupe_candidates(scored)
         integrity = self._integrity()
         if integrity.enabled and integrity.trust_weighted_ranking and scored:
             # Scores are composite x view trust. Abstention (theta_abstain) judges
@@ -5364,6 +5368,9 @@ class Engine:
         storage = self._require_started()
         if full_hide is None:
             full_hide = hide
+        scale = self._budget_factor(budget_tokens)
+        if scale < 1.0:  # I20: a tight budget shrinks the candidate pool with the window
+            top_k = max(1, round(top_k * scale))
         if mode in ("auto", "full"):
             live = []
             date_filter = active_date_filter()
@@ -5497,34 +5504,45 @@ class Engine:
         seen = {r.record_id for r in chosen}
         used = sum(len(r.content) // 4 + 1 for r in chosen)
         best_window: set[str] = set()
+        if read_cfg.replay_hits_first:
+            # I20: every hit (best first) is admitted before any neighbour, so the best
+            # evidence is never cut for the neighbours of a better-ranked hit.
+            for rank, hit in enumerate(episodic_hits):
+                cost = len(hit.content) // 4 + 1
+                if hit.record_id in seen or used + cost > budget_tokens:
+                    continue
+                chosen.append(hit)
+                seen.add(hit.record_id)
+                used += cost
+                if rank == 0:
+                    best_window.add(hit.record_id)
+        factor = self._budget_factor(budget_tokens)
         for rank, hit in enumerate(episodic_hits):
             session = where.get(hit.record_id)
             ids = segment_of.get(hit.record_id) or (
                 session.record_ids if session else [hit.record_id]
             )
             at = ids.index(hit.record_id) if hit.record_id in ids else 0
-            # The hit first, then its neighbours nearest first (older on a tie): a
-            # neighbour that does not fit is skipped, it never costs the hit its place.
-            before, after = self._window_sides(replay_window)
-            span = range(max(0, at - before), min(len(ids), at + after + 1))
             # B1 tier: hits past ``window_full_hits`` are single turns (no neighbours).
             single = (
                 list_fire
                 and read_cfg.window_full_hits is not None
                 and rank >= read_cfg.window_full_hits
             )
-            if single:
-                span = range(at, at + 1)
-            for index in sorted(span, key=lambda i: (i != at, abs(i - at), i)):
-                rid = ids[index]
-                if rid in seen:
-                    continue
-                turn = hit if rid == hit.record_id else await self._replay_neighbour(rid, ns)
-                if turn is None:
-                    continue
-                cost = len(turn.content) // 4 + 1
-                if used + cost > budget_tokens:
-                    continue
+            # The hit first, then its neighbours nearest first (older on a tie): a
+            # neighbour that does not fit is skipped, it never costs the hit its place.
+            for rid, turn, cost in await self._window_turns(
+                ns,
+                ids,
+                at,
+                replay_window,
+                budget_tokens=budget_tokens,
+                used=used,
+                seen=seen,
+                hit=hit,
+                single=single,
+                factor=factor,
+            ):
                 chosen.append(turn)
                 seen.add(rid)
                 used += cost
@@ -5779,6 +5797,8 @@ class Engine:
                 t.startswith("sensitive:") for t in record.tags
             ):
                 continue
+            if not self._profile_line_relevant(query, record.content):
+                continue  # I33: a slot the question does not bear on stays out
             slots.setdefault(record.entity, []).append(record)
         if not slots:
             return None
@@ -6003,6 +6023,7 @@ class Engine:
             for r, _ in hits
             if r.source.channel == "reflection"
             and (r.source.message_id or "").startswith("reflected:")
+            and self._profile_line_relevant(query, r.content)  # I33
         ]
         about = [r for r in insights if mentions_any(r.content, names)]
         kept: list[MemoryRecord] = []
@@ -6774,27 +6795,144 @@ class Engine:
         one that does not fit the budget is skipped. Returns the new token count.
         """
         seen = {r.record_id for r in chosen}
+        factor = self._budget_factor(budget_tokens)
         for hit in list(chosen):
             ids = session_ids.get(hit.record_id)
             if not ids:
                 continue
             at = ids.index(hit.record_id)
-            before, after = self._window_sides(window)
-            span = range(max(0, at - before), min(len(ids), at + after + 1))
-            for index in sorted(span, key=lambda i: (abs(i - at), i)):
-                rid = ids[index]
-                if rid in seen:
-                    continue
-                turn = await self._replay_neighbour(rid, ns)
-                if turn is None:
-                    continue
-                cost = len(turn.content) // 4 + 1
-                if used + cost > budget_tokens:
-                    continue
+            for rid, turn, cost in await self._window_turns(
+                ns,
+                ids,
+                at,
+                window,
+                budget_tokens=budget_tokens,
+                used=used,
+                seen=seen,
+                factor=factor,
+            ):
                 chosen.append(turn)
                 seen.add(rid)
                 used += cost
         return used
+
+    async def _dedupe_candidates(
+        self, scored: list[tuple[MemoryRecord, float]]
+    ) -> list[tuple[MemoryRecord, float]]:
+        """I31 (``read.dedupe``): the candidates without near-duplicates; what was dropped
+        goes to ``search_forensics()["dedupe_dropped"]`` as ``(dropped, kept, similarity)``."""
+        read_cfg = self._config().read
+        vectors: dict[str, list[float]] | None = None
+        if read_cfg.dedupe == "embedding" and self._embedder is not None:
+            try:
+                rows = await self._embedder.embed([r.content for r, _ in scored])
+                vectors = {
+                    r.record_id: [float(x) for x in row]
+                    for (r, _), row in zip(scored, rows, strict=False)
+                }
+            except Exception as exc:  # an enhancer, never a gate
+                _log.warning("read.dedupe_embedding_failed", error=str(exc))
+        kept, dropped = dedupe_scored(
+            scored,
+            read_cfg.dedupe,
+            threshold=read_cfg.dedupe_threshold,
+            keep=read_cfg.dedupe_keep,
+            vectors=vectors,
+        )
+        sink = _FORENSICS.get()
+        if sink is not None:
+            sink["dedupe_dropped"] = [(d.dropped, d.kept, d.similarity) for d in dropped]
+        return kept
+
+    def _profile_line_relevant(self, query: str, text: str) -> bool:
+        """I33 (``read.profile_relevance_gate``): whether one profile / preference line
+        bears on ``query``. ``off``: always. ``overlap``: they share a content word.
+        This is the seam for the decider's relevance check (not merged): replace the
+        body, keep the signature. A question-less call (session start) is never gated."""
+        if self._config().read.profile_relevance_gate == "off" or not query.strip():
+            return True
+        named = {n.lower() for n in query_names(query)}  # a name alone is not relevance
+        return bool((content_words(query) - named) & content_words(text))
+
+    def _budget_factor(self, budget_tokens: int) -> float:
+        """I20 (``read.replay_budget_scaling``): how much of the reference budget the
+        routed read has left, in [0.25, 1]; 1.0 when scaling is off or the budget is
+        at least the reference."""
+        read_cfg = self._config().read
+        if not read_cfg.replay_budget_scaling:
+            return 1.0
+        return max(0.25, min(1.0, budget_tokens / read_cfg.replay_budget_reference))
+
+    async def _window_turns(
+        self,
+        ns: str,
+        ids: list[str],
+        at: int,
+        window: int,
+        *,
+        budget_tokens: int,
+        used: int,
+        seen: set[str],
+        hit: MemoryRecord | None = None,
+        single: bool = False,
+        factor: float = 1.0,
+    ) -> list[tuple[str, MemoryRecord, int]]:
+        """The turns of one hit's window to add: ``(record id, turn, token cost)``, hit
+        first (when ``hit`` is given), then neighbours nearest first (older on a tie).
+
+        ``turns`` unit (default): +-``window`` turns per side (:meth:`_window_sides`,
+        scaled by ``factor`` under I20). ``tokens`` unit (I6): each side takes neighbours
+        until its token allowance is used; a neighbour that would pass it closes the
+        side. Either way a turn that is gated, already seen, or does not fit what is left
+        of ``budget_tokens`` is skipped; it never costs the hit its place."""
+        read_cfg = self._config().read
+        by_tokens = read_cfg.replay_window_unit == "tokens"
+        allowance = {
+            -1: int(read_cfg.replay_window_tokens_before * factor),
+            1: int(read_cfg.replay_window_tokens_after * factor),
+        }
+        if single:
+            order = [at]
+        elif by_tokens:
+            order = sorted(range(len(ids)), key=lambda i: (i != at, abs(i - at), i))
+        else:
+            before, after = self._window_sides(window)
+            if factor < 1.0:
+                before = max(1 if before else 0, round(before * factor))
+                after = max(1 if after else 0, round(after * factor))
+            span = range(max(0, at - before), min(len(ids), at + after + 1))
+            order = sorted(span, key=lambda i: (i != at, abs(i - at), i))
+        spent = {-1: 0, 1: 0}
+        closed: set[int] = set()
+        taken: set[str] = set()
+        out: list[tuple[str, MemoryRecord, int]] = []
+        for index in order:
+            side = 0 if index == at else (-1 if index < at else 1)
+            if by_tokens and side in closed:
+                if closed >= {-1, 1}:
+                    break
+                continue
+            rid = ids[index]
+            if rid in seen or rid in taken:
+                continue
+            turn = hit if hit is not None and rid == hit.record_id else None
+            if turn is None:
+                turn = await self._replay_neighbour(rid, ns)
+            if turn is None:
+                continue
+            cost = len(turn.content) // 4 + 1
+            if by_tokens and side != 0:
+                if spent[side] + cost > allowance[side]:
+                    closed.add(side)
+                    continue
+            if used + cost > budget_tokens:
+                continue
+            if by_tokens and side != 0:
+                spent[side] += cost
+            taken.add(rid)
+            out.append((rid, turn, cost))
+            used += cost
+        return out
 
     def _context_eligible(self, record: MemoryRecord) -> bool:
         """C7': the search-time gates, for records reached without a search (stored trust)."""

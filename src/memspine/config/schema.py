@@ -512,6 +512,41 @@ class ReadConfig(BaseModel):
     #: still switches the compose expansion off.
     replay_window_before: int | None = Field(default=None, ge=0)
     replay_window_after: int | None = Field(default=None, ge=0)
+    #: I6 / I20: the window counted in TURNS suits short chat turns; with long assistant
+    #: turns or a very long history one neighbour can be thousands of tokens. ``tokens``
+    #: expands each hit's neighbours nearest first, per side, until that side's token
+    #: allowance (``replay_window_tokens_before`` / ``_after``, per hit, 1:2 like the
+    #: turn window) is used; a neighbour that would pass it closes that side. ``turns`` =
+    #: today's behaviour, byte-identical.
+    replay_window_unit: Literal["turns", "tokens"] = "turns"
+    replay_window_tokens_before: int = Field(default=256, ge=0)
+    replay_window_tokens_after: int = Field(default=512, ge=0)
+    #: I20: scale the window and the candidate pool to the budget the routed read has
+    #: left. With ``f = min(1, budget / replay_budget_reference)`` (floored at 0.25) the
+    #: turn window, the token allowances and ``top_k`` shrink by ``f`` (a side that had a
+    #: neighbour keeps at least one turn; ``top_k`` keeps at least 1). Off: unchanged.
+    replay_budget_scaling: bool = False
+    replay_budget_reference: int = Field(default=4096, ge=1)
+    #: I20: replay admits every hit first (best score first) and only then the neighbours,
+    #: so a neighbour of the first hit can never push a lower-ranked hit out of the
+    #: budget. Off: each hit is followed at once by its own window (today's order).
+    replay_hits_first: bool = False
+    #: I31: near-duplicate removal among the candidates before assembly. ``exact`` =
+    #: equal text; ``jaccard`` = content-word Jaccard >= ``dedupe_threshold``;
+    #: ``embedding`` = record-vector cosine >= ``dedupe_threshold`` (a record with no
+    #: vector falls back to jaccard). ``dedupe_keep``: the ``best``-scored copy stays, or
+    #: the ``earliest`` (by event time, with the better score). The dropped pairs are in
+    #: ``search_forensics()["dedupe_dropped"]``. The pinned persona is never dropped.
+    dedupe: Literal["off", "exact", "jaccard", "embedding"] = "off"
+    dedupe_threshold: float = Field(default=0.9, gt=0.0, le=1.0)
+    dedupe_keep: Literal["best", "earliest"] = "best"
+    #: I33: a profile / preference line is shown only when it bears on the question, not
+    #: whatever the question is (MemOS injects up to 6 preferences at threshold 0.0).
+    #: ``overlap`` = the line shares at least one content word with the question (the
+    #: slots header, and the profile header's insights). ``off`` = today's behaviour.
+    #: The decider's relevance check will replace the overlap test through
+    #: ``Engine._profile_line_relevant``; until then it is the interface seam.
+    profile_relevance_gate: Literal["off", "overlap"] = "off"
     #: RETRIEVAL_GAPS finding 3: a reranked candidate list is min-max normalised
     #: (best 1.0, worst 0.0), so ``assembly.relative_floor`` then drops on average half
     #: of the hits (and their replay windows) however relevant the reranker found them.
