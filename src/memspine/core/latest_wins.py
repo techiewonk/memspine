@@ -93,6 +93,17 @@ def _words(record: MemoryRecord) -> frozenset[str]:
     return words or frozenset(w for w in re.findall(r"\w+", body.casefold()) if len(w) > 1)
 
 
+def _non_fact(record: MemoryRecord) -> bool:
+    """I39: a turn the perspective layer tagged as only a question, request or hypothetical
+    states no value, so it neither supersedes nor is superseded."""
+    mods = {t[4:] for t in record.tags if t.startswith("mod:")}
+    return bool(mods) and not mods & {"fact", "plan", "wish", "opinion"}
+
+
+def _subjects(record: MemoryRecord) -> frozenset[str]:
+    return frozenset(t for t in record.tags if t.startswith("sub:"))
+
+
 def _eligible(record: MemoryRecord) -> bool:
     return (
         record.memory_type in _ELIGIBLE_TYPES
@@ -100,6 +111,7 @@ def _eligible(record: MemoryRecord) -> bool:
         and not record.quarantined
         and record.status is RecordStatus.ACTIVATED
         and "retract" not in record.tags
+        and not _non_fact(record)
     )
 
 
@@ -118,6 +130,9 @@ def _same_topic(
             and (a.entity or "").casefold() == (b.entity or "").casefold()
             and (a.attribute or "").casefold() == (b.attribute or "").casefold()
         )
+    sub_a, sub_b = _subjects(a), _subjects(b)
+    if sub_a and sub_b and sub_a != sub_b:
+        return False  # I17 x I39: a value about another subject is not an update
     sa, sb = _speaker(a), _speaker(b)
     if sa[0] != sb[0] or (sa[1] and sb[1] and sa[1] != sb[1]):
         return False

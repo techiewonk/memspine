@@ -360,6 +360,9 @@ def _speaker_name(record: MemoryRecord) -> str | None:
     for tag in record.tags:
         if tag.startswith(SPEAKER_PREFIX):
             return tag[len(SPEAKER_PREFIX) :]
+    for tag in record.tags:  # I39: the perspective layer's speaker tag (a participant name)
+        if tag.startswith("spk:") and tag[4:] not in ("user", "assistant", "tool"):
+            return tag[4:]
     return speaker_of(record.content)
 
 
@@ -400,7 +403,12 @@ def _chat_role(record: MemoryRecord) -> str | None:
     """I5: ``user`` / ``assistant`` for a turn: a "user:" / "assistant:" text prefix, else the
     record's source role when that is one of the two. None for system / tool / other."""
     m = _ROLE_PREFIX.match(record.content)
-    role = m[1].lower() if m else (record.source.role or "").lower()
+    if m:
+        return m[1].lower()
+    for tag in record.tags:  # I39: the perspective layer's speaker tag beats a default role
+        if tag in ("spk:user", "spk:assistant"):
+            return tag[4:]
+    role = (record.source.role or "").lower()
     return role if role in ("user", "assistant") else None
 
 

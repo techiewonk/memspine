@@ -123,6 +123,29 @@ TASKS: dict[str, TaskSpec] = {
         "temporal",
         "not_temporal",
     ),
+    # I39 perspective axes (write time, one turn of text; see core/perspective.py)
+    "is_fact": TaskSpec(
+        "Does the text state something as a fact that holds, rather than a plan, a wish, a "
+        "hypothetical, an opinion, a question or a request?",
+        "fact",
+        "not_fact",
+    ),
+    "is_negated": TaskSpec(
+        "Does the text negate or deny what it describes (not, never, no longer, don't)?",
+        "negated",
+        "affirmed",
+    ),
+    "is_standing": TaskSpec(
+        "Does the text state a lasting trait, preference or habit of a person, rather than a "
+        "one-off event?",
+        "standing",
+        "one_off",
+    ),
+    "is_hedged": TaskSpec(
+        "Does the speaker hedge or express uncertainty about what they say?",
+        "hedged",
+        "certain",
+    ),
     "abstention": TaskSpec(
         "Can the question be answered from the context?",
         "answerable",
@@ -164,10 +187,26 @@ def default_rules() -> dict[str, Rule]:
     """The pipeline's existing rules, per task. ``refusal`` is added by the evals harness
     (its regex lives there). ``relevance`` and ``abstention`` have no rule today: the pipeline
     always injects, so the heuristic answer is "relevant" / "answerable"."""
+    from memspine.core.perspective import (
+        is_hedged,
+        is_negated,
+        scope_of,
+        sentence_modality,
+    )
     from memspine.core.query_shape import is_set_question, is_temporal
     from memspine.core.temporal_query import has_bridge_cue
 
     return {
+        "is_fact": lambda q, _c: (
+            "fact" if sentence_modality(q) in ("fact", "opinion") else "not_fact",
+            None,
+        ),
+        "is_negated": lambda q, _c: ("negated" if is_negated(q) else "affirmed", None),
+        "is_standing": lambda q, _c: (
+            "standing" if "standing" in scope_of(q) or "habit" in scope_of(q) else "one_off",
+            None,
+        ),
+        "is_hedged": lambda q, _c: ("hedged" if is_hedged(q) else "certain", None),
         "list_mode": lambda q, _c: ("set" if is_set_question(q) else "single", None),
         "bridge_hop": lambda q, _c: ("hop" if has_bridge_cue(q) else "no_hop", None),
         "temporal_intent": lambda q, _c: (

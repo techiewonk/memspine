@@ -53,8 +53,8 @@ from memspine.config.schema import FirewallConfig, MemspineConfig
 from memspine.core.answer import final_answer, numbered_context, verification
 from memspine.core.audit import IntegrityReport, TaintReport, trace_taint, verify_events
 from memspine.core.concentration import collapse_concentrated
-from memspine.core.dedupe import dedupe_scored
 from memspine.core.correction import Correction, detect_correction
+from memspine.core.dedupe import dedupe_scored
 from memspine.core.erasure import redact_record, retained_fields
 from memspine.core.escaping import escape_markers
 from memspine.core.event_date import SAID_PREFIX, date_anchor, happened_of, happened_tag
@@ -65,6 +65,7 @@ from memspine.core.fact_views import view_tags
 from memspine.core.firewall import Firewall, FirewallSignals, FirewallVerdict, QueryHistory
 from memspine.core.forget_request import forget_target, is_forget_request
 from memspine.core.integrity import IntegrityPolicy
+from memspine.core.language import language_scope
 from memspine.core.latest_wins import apply_latest_wins, recent_first
 from memspine.core.lead import (
     card_line,
@@ -84,6 +85,19 @@ from memspine.core.lead import (
     timeline_line,
 )
 from memspine.core.namespace import grant_allows, validate_namespace
+from memspine.core.perspective import (
+    PerspectiveOptions,
+    QuestionPerspective,
+    active_asker,
+    attribution_marker,
+    factor,
+    match_subject,
+    perspective_leg,
+    record_view,
+    refine_with_decider,
+    resolve_question,
+    resolve_write,
+)
 from memspine.core.policies.assembly import (
     AssembledContext,
     AssemblyPolicy,
@@ -114,7 +128,6 @@ from memspine.core.privacy import (
     read_scope,
     verify_audit_chain,
 )
-from memspine.core.language import language_scope
 from memspine.core.profile_pack import pack_profile, render_packed_profile
 from memspine.core.projector import Projector
 from memspine.core.query_shape import (
@@ -443,6 +456,15 @@ def _reply_target(turn: Mapping[str, Any], index: int, written: Mapping[int, str
     raise ValueError(
         f"messages[{index}]['reply_to'] must be a record id or the index of an earlier message"
     )
+
+
+def _attributed(record: MemoryRecord) -> MemoryRecord:
+    """I39: ``record`` shown as ``[about: Caroline's cousin] <content>`` when its subject
+    differs from its speaker (a copy; the stored record is untouched)."""
+    marker = attribution_marker(record)
+    if marker is None or record.content.startswith(marker):
+        return record
+    return record.model_copy(update={"content": f"{marker} {record.content}"})
 
 
 def _caller_tags(tags: Sequence[str] | None, ns: str) -> list[str]:
@@ -1030,6 +1052,8 @@ class Engine:
         self._word_vector_cache: dict[tuple[str, str], list[float]] = {}
         #: read.lexical_strip_names: speaker names per namespace, keyed by record count
         self._speaker_names: dict[str, tuple[int, frozenset[str]]] = {}
+        #: I39 perspective layer: per namespace, the participants seen and the last speaker
+        self._persp_state: dict[str, dict[str, Any]] = {}
         #: read.session_leg: unit vector per (record id, content)
         self._session_vectors: dict[tuple[str, str], list[float]] = {}
         # E4 (ADR-020): whether the vector leg runs the two-stage quantized
@@ -1431,6 +1455,10 @@ class Engine:
             speaker = speaker_of(content)
             if speaker and f"{SPEAKER_PREFIX}{speaker}" not in (tags or []):
                 tags = [*(tags or []), f"{SPEAKER_PREFIX}{speaker}"]
+        if memory_type == "episodic":
+            opts = self._perspective_options()
+            if opts.on:  # I39: speaker / addressee / subject / stance tags; content untouched
+                tags = await self._annotate_perspective(ns, content, source.role, tags, opts)
         implicit = self._consume_reads(ns, session_id)
         parents = list(dict.fromkeys([*(derived_from or []), *implicit]))
         if parents:
@@ -2472,6 +2500,149 @@ class Engine:
             _log.warning("read.word_vector_leg_failed", namespace=ns, error=str(exc))
             return []
 
+    def _perspective_options(self) -> PerspectiveOptions:
+        """I39: ``memories.episodic.policies.perspective`` (off unless set)."""
+        return PerspectiveOptions.parse(
+            self._memory_policy(self._config(), "episodic").get("perspective")
+        )
+
+    async def _persp_state_for(self, ns: str) -> dict[str, Any]:
+        """I39: the participants seen in ``ns`` (seeded once from the stored tags) and the
+        speaker of the latest annotated turn."""
+        state = self._persp_state.get(ns)
+        if state is None:
+            known: set[str] = set()
+            try:
+                for r in await self._records(ns):
+                    for tag in r.tags:
+                        if tag.startswith(("spk:", "addr:")):
+                            known.add(tag.split(":", 1)[1])
+                        elif tag.startswith(SPEAKER_PREFIX):
+                            known.add(tag[len(SPEAKER_PREFIX) :])
+            except Exception as exc:  # an enhancer, never a gate
+                _log.warning("perspective.seed_failed", namespace=ns, error=str(exc))
+            state = {"known": known, "last": None}
+            self._persp_state[ns] = state
+        return state
+
+    async def _annotate_perspective(
+        self,
+        ns: str,
+        content: str,
+        role: str,
+        tags: list[str] | None,
+        opts: PerspectiveOptions,
+    ) -> list[str]:
+        """I39: the tags of ``content``'s perspective. Explicit ``spk:`` / ``addr:`` tags (from
+        ``write_messages`` ``speaker`` / ``addressee``) beat the rules; a ``decider`` mode lets
+        the decider port answer the typed stance questions (``is_fact`` ...) above its
+        confidence floor. Never raises: a failure leaves the tags as they were."""
+        try:
+            state = await self._persp_state_for(ns)
+            explicit_spk = explicit_addr = None
+            kept: list[str] = []
+            for tag in tags or []:
+                if tag.startswith("spk:"):
+                    explicit_spk = tag[4:]
+                elif tag.startswith("addr:"):
+                    explicit_addr = tag[5:]
+                else:
+                    kept.append(tag)
+            p = resolve_write(
+                content,
+                speaker=explicit_spk,
+                role=role,
+                addressee=explicit_addr,
+                known=state["known"],
+                previous=state["last"],
+                axes=opts.axes,
+            )
+            read = self._config().read
+            if opts.mode == "decider" and read.decider != "heuristic":
+                adapter = self._decider_adapter()
+
+                async def decide(task: str, text: str) -> tuple[str, float | None]:
+                    d = await adapter.decide(task, text, None)
+                    return d.label, d.confidence
+
+                p = await refine_with_decider(
+                    p, content.split(":", 1)[-1], decide, read.decider_min_confidence
+                )
+            if p.spk:
+                state["known"].add(p.spk)
+                state["last"] = p.spk
+            if p.addr:
+                state["known"].add(p.addr)
+            return [*kept, *(t for t in p.tags(opts.axes) if t not in kept)]
+        except Exception as exc:  # an enhancer, never a gate
+            _log.warning("perspective.annotate_failed", namespace=ns, error=str(exc))
+            return list(tags or [])
+
+    async def _question_perspective(self, ns: str, query: str) -> QuestionPerspective:
+        """I39: who asks and who / what the question is about (see ``resolve_question``)."""
+        state = await self._persp_state_for(ns)
+        return resolve_question(
+            query,
+            asker=self._config().read.perspective_asker or active_asker(),
+            known=state["known"],
+        )
+
+    async def _perspective_leg(
+        self, ns: str, qp: QuestionPerspective, vector_hits: Sequence[Any]
+    ) -> list[list[LegHit]]:
+        """``read.perspective_mode``: the subject vote leg (records about the question's
+        subject, in the vector order)."""
+        try:
+            top_k = self._config().read.list_vote_top_k
+            records = [r for r in await self._records(ns) if not r.quarantined]
+            ids = perspective_leg(qp, records, [h.record_id for h in vector_hits], top_k)
+            leg = NamedLeg("perspective", [LegHit(rid, 1.0) for rid in ids])
+            return [leg] if leg else []
+        except Exception as exc:  # an enhancer, never a gate
+            _log.warning("read.perspective_leg_failed", namespace=ns, error=str(exc))
+            return []
+
+    def _apply_perspective(
+        self,
+        candidates: list[tuple[MemoryRecord, float]],
+        qp: QuestionPerspective,
+    ) -> list[tuple[MemoryRecord, float]]:
+        """``read.perspective_mode``: reweight each candidate's relevance by the axes in
+        ``read.perspective_axes`` (``subject_filter``: also drop candidates about someone
+        else, keeping at least ``perspective_min_keep``). Records without perspective tags
+        are neutral. The effect is recorded in the forensics as ``perspective``."""
+        read = self._config().read
+        axes = set(read.perspective_axes)
+        scored: list[tuple[MemoryRecord, float, bool]] = []
+        factors: dict[str, dict[str, float]] = {}
+        for rec, rel in candidates:
+            rv = record_view(rec)
+            mult, parts = factor(qp, rv, read.perspective_weight, axes)
+            if parts:
+                factors[rec.record_id] = {k: round(v, 3) for k, v in parts.items()}
+            about_other = (
+                "subject" in axes and qp.bound and rv.annotated and match_subject(qp, rv) == 0.0
+            )
+            scored.append((rec, rel * mult, about_other))
+        out = sorted(scored, key=lambda t: t[1], reverse=True)
+        dropped: list[str] = []
+        if read.perspective_mode == "subject_filter":
+            kept = [t for t in out if not t[2]]
+            floor = min(max(read.perspective_min_keep, 0), len(out))
+            if len(kept) < floor:
+                kept += [t for t in out if t[2]][: floor - len(kept)]
+                kept.sort(key=lambda t: t[1], reverse=True)
+            dropped = [t[0].record_id for t in out if t not in kept]
+            out = kept
+        if (fx := _FORENSICS.get()) is not None:
+            fx["perspective"] = {
+                **qp.meta(),
+                "mode": read.perspective_mode,
+                "factors": factors,
+                "dropped": dropped,
+            }
+        return [(rec, rel) for rec, rel, _ in out]
+
     async def _strip_speaker_names(self, ns: str, query: str) -> str:
         """``read.lexical_strip_names``: the query without the speaker names of ``ns``
         (the "Speaker:" prefix of its records), for the BM25 leg only. Names are cached
@@ -2573,8 +2744,14 @@ class Engine:
             if depth > fetch_k:
                 deep = await self._vector_leg(ns, query_vector, depth)
             records = [r for r in await self._records(ns) if not r.quarantined]
-            vote = subject_vector_leg if read.speaker_vote_mode == "subject" else speaker_vector_leg
+            vote = subject_vector_leg if read.speaker_vote_mode != "name" else speaker_vector_leg
             hits = vote(query, records, deep, read.list_vote_top_k)
+            if read.speaker_vote_mode == "perspective":
+                # I39: the subject vote on the resolved question perspective (subsumes "subject")
+                qp = await self._question_perspective(ns, query)
+                deep_ids = [h.record_id for h in deep]
+                ids = perspective_leg(qp, records, deep_ids, read.list_vote_top_k)
+                hits = [LegHit(rid, 1.0) for rid in ids] or hits
             if not hits:
                 # R2-2: two named speakers with a comparison cue vote once each.
                 pair = comparison_speaker_legs(query, records, deep, read.list_vote_top_k)
@@ -3452,6 +3629,14 @@ class Engine:
         records: list[MemoryRecord] = []
         written_at: dict[int, str] = {}  # G27: message index -> its record id
         fw = self._config().firewall
+        if self._perspective_options().on:
+            # I39: the call's participants are known before its first turn is annotated
+            state = await self._persp_state_for(validate_namespace(namespace))
+            for turn in messages:
+                if isinstance(turn, Mapping):
+                    who = turn.get("speaker") or turn.get("name")
+                    if isinstance(who, str) and who.strip():
+                        state["known"].add(who.strip().lower())
         for i, turn in enumerate(messages):
             try:
                 role = turn["role"]
@@ -3487,6 +3672,13 @@ class Engine:
                 )
                 continue
             turn_tags = list(tags or [])
+            if self._perspective_options().on:  # I39: explicit participants ride as tags
+                who = turn.get("speaker") or turn.get("name")
+                to = turn.get("addressee")
+                if isinstance(who, str) and who.strip():
+                    turn_tags.append(f"spk:{who.strip().lower()}")
+                if isinstance(to, str) and to.strip():
+                    turn_tags.append(f"addr:{to.strip().lower()}")
             if fw.tag_assistant_claims and role == "assistant":
                 turn_tags.append("assistant_claim")
             if (
@@ -4181,6 +4373,10 @@ class Engine:
         # a hiding search may look further down the legs than the gates alone would.
         max_widen = _SEARCH_MAX_WIDEN * (constants.HEADER_HIDE_OVERFETCH if hide else 1)
         # GP-3 (read.graph_leg): computed once, from the first widen's legs.
+        read_persp = self._config().read
+        persp_qp: QuestionPerspective | None = None
+        if read_persp.perspective_mode != "off" or read_persp.speaker_vote_mode == "perspective":
+            persp_qp = await self._question_perspective(ns, query)
         graph_leg: list[LegHit] | None = None if self._config().read.graph_leg else []
         # GP-9 (read.graph_communities): community summaries this query may read.
         community_gate: list[str] | None = None
@@ -4235,6 +4431,12 @@ class Engine:
                 extra_legs += await self._word_vector_leg(ns, query, fetch_k)
             if read_now.session_leg:
                 extra_legs += await self._session_leg(ns, query_vector, fetch_k)
+            if (
+                persp_qp is not None
+                and read_now.perspective_mode != "off"
+                and "subject" in read_now.perspective_axes
+            ):
+                extra_legs += await self._perspective_leg(ns, persp_qp, vector_hits)
             if read_now.list_mode and _LIST_MODE.get():
                 extra_legs += await self._speaker_vote_leg(
                     ns, query, query_vector, vector_hits, fetch_k
@@ -4329,6 +4531,8 @@ class Engine:
                 ]
             if hide is not None:
                 candidates = [pair for pair in candidates if not hide(pair[0])]
+            if persp_qp is not None and read_persp.perspective_mode != "off":
+                candidates = self._apply_perspective(candidates, persp_qp)
             # Exhaustion is judged on the legs (before any gate or cut).
             exhausted = len(vector_hits) < fetch_k and len(lexical_hits) < fetch_k
             if len(candidates) >= top_k or exhausted or widen >= max_widen:
@@ -5078,6 +5282,8 @@ class Engine:
         volatile, restated = apply_latest_wins(
             volatile, read_cfg.latest_wins, read_cfg.latest_wins_min_overlap
         )
+        if read_cfg.perspective_marker:
+            volatile = [_attributed(r) for r in volatile]  # I39
         priority = list(volatile)
         if read_cfg.order_by_time_for_ordering and is_ordering(query):
             volatile = sorted(volatile, key=chrono_key)
@@ -5907,7 +6113,15 @@ class Engine:
             return None
         if read_cfg.profile_scope_gate and not await self._applies_to_person(ns, query):
             return None
-        names = [n.lower() for n in query_names(query)] or ["user"]
+        names = [n.lower() for n in query_names(query)]
+        if not names:
+            names = ["user"]
+            if read_cfg.perspective_mode != "off":
+                # I39: the asker's own profile, and none for a question about someone else
+                qp = await self._question_perspective(ns, query)
+                if qp.about == "third":
+                    return None
+                names = [qp.asker or "user"]
         slots: dict[str, list[MemoryRecord]] = {}
         for record in await self._records(ns, "semantic"):
             if (

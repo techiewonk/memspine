@@ -152,6 +152,14 @@
       "novelty_exclusions": false,
       "order_by_time_for_ordering": false,
       "person_time_leg_k": 10,
+      "perspective_asker": null,
+      "perspective_axes": [
+        "subject"
+      ],
+      "perspective_marker": false,
+      "perspective_min_keep": 3,
+      "perspective_mode": "off",
+      "perspective_weight": 0.4,
       "planner": "rules",
       "planner_min_confidence": 0.0,
       "planner_version": "v1",

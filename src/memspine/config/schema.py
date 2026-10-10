@@ -835,7 +835,36 @@ class ReadConfig(BaseModel):
     #: ``user`` turns, a second-person "you" on the ``assistant`` turns (role from a
     #: "user:" / "assistant:" prefix or the record's source role; needs both roles in the
     #: store); a pronoun or mixed subject casts no vote.
-    speaker_vote_mode: Literal["name", "subject"] = "name"
+    #: I39: ``perspective`` = the vote keyed on the resolved question perspective
+    #: (``core/perspective``): a named participant, the asker (I / my), the assistant (you),
+    #: or a relation-bound third party ("my cousin"); needs the tags of
+    #: ``memories.episodic.policies.perspective``, else it falls back to the ``subject`` rules.
+    speaker_vote_mode: Literal["name", "subject", "perspective"] = "name"
+    #: I39 (perspective layer, tags written by ``memories.episodic.policies.perspective``).
+    #: ``subject_weight`` = an RRF leg of the records about the question's subject plus a
+    #: multiplier on every candidate's relevance, ``1 - perspective_weight * (1 - match)``
+    #: (about the subject 1.0, the subject speaking of others 0.6, unresolved third party 0.5,
+    #: about someone else 0.0). ``subject_filter`` = the same leg, and candidates about someone
+    #: else are dropped (never below ``perspective_min_keep`` candidates). Off: unchanged.
+    perspective_mode: Literal["off", "subject_weight", "subject_filter"] = "off"
+    perspective_weight: float = Field(default=0.4, ge=0.0, le=1.0)
+    perspective_min_keep: int = Field(default=3, ge=0)
+    #: The asker's id ("caroline", "user"); None = ``user`` when the store has user turns, a
+    #: lone participant, else unresolved (first-person questions then stay neutral).
+    perspective_asker: str | None = None
+    #: Which axes the read uses. ``subject`` = whose / about whom; ``modality`` = a plan,
+    #: wish, hypothetical, question or request is weaker evidence of a fact; ``polarity`` = a
+    #: negated statement is weaker evidence for a positive question (kept for "never / not /
+    #: ever" questions); ``scope`` = a one-off event is weaker evidence of a trait question
+    #: ("what does X like"); ``sensitivity`` = a ``sensitive:*`` record needs the question to
+    #: touch the same category. Each multiplies the relevance by ``1 - perspective_weight``
+    #: (scope: half of it).
+    perspective_axes: list[Literal["subject", "modality", "polarity", "scope", "sensitivity"]] = (
+        Field(default_factory=lambda: ["subject"])
+    )
+    #: I39: show ``[about: Caroline's cousin]`` before a record whose subject differs from its
+    #: speaker (the stored content is unchanged). Off: unchanged.
+    perspective_marker: bool = False
     list_vote_depth: int = Field(default=100, ge=1)
     list_vote_top_k: int = Field(default=30, ge=1)
     list_pool: int = Field(default=3, ge=1, le=10)

@@ -194,6 +194,7 @@ class MemspineSystem:
         as_of_question_date: bool = False,
         mark_hits: str = "off",
         context_order: str = "chrono",
+        perspective_metadata: bool | None = None,
     ) -> None:
         self.system_id = system_id
         if context_order not in CONTEXT_ORDERS:
@@ -217,6 +218,19 @@ class MemspineSystem:
         self.template = template
         self.namespace = namespace
         self.config = dict(config or {})
+        #: I5 / I39: send each turn's speaker (a LoCoMo participant name) and chat role
+        #: (``user`` / ``assistant``) to ``write_messages`` as message metadata, and the
+        #: asker (``persona`` / ``asker`` in a question's meta) to the read. The stored
+        #: text is the same either way. None = on exactly when the config enables the
+        #: perspective layer (``memories.episodic.policies.perspective``), so default runs
+        #: write what they always wrote.
+        policies = ((self.config.get("memories") or {}).get("episodic") or {}).get("policies") or {}
+        self._perspective_metadata = (
+            bool(policies.get("perspective"))
+            if perspective_metadata is None
+            else bool(perspective_metadata)
+        )
+        self._asker: str | None = None
         self._counter = counter or HeuristicTokenCounter()
         self._record_deposit_calls = record_deposit_calls
         self._dated = dated
@@ -408,6 +422,19 @@ class MemspineSystem:
             return DepositResult(meta={"buffered": len(self._buffer)})
         return _merge_deposits(results)
 
+    def _message(self, turn: Turn, text: str) -> dict[str, Any]:
+        """One ``write_messages`` entry. Default: role ``user`` for every turn (the stored
+        content carries the speaker name). With perspective metadata: ``speaker`` = the
+        turn's speaker, and the chat role when the speaker is ``user`` / ``assistant``."""
+        if not self._perspective_metadata:
+            return {"role": "user", "content": text}
+        who = str(turn.speaker or "").strip()
+        role = who.lower() if who.lower() in ("user", "assistant") else "user"
+        message: dict[str, Any] = {"role": role, "content": text}
+        if who:
+            message["speaker"] = who
+        return message
+
     async def flush(self) -> DepositResult:
         """Write the buffered turns (G9). The runner calls it before every query
         and before ``build``; ``query`` and ``build`` also call it themselves, so
@@ -430,7 +457,7 @@ class MemspineSystem:
         prompts_before = self._prompt_usage()
         if len(turns) == 1:
             records = await self._engine.write_messages(
-                [{"role": "user", "content": texts[0]}],
+                [self._message(turns[0], texts[0])],
                 namespace=self.namespace,
                 session_id=session_id,
                 group_id=session_id,
@@ -439,7 +466,7 @@ class MemspineSystem:
         else:
             messages: list[dict[str, Any]] = []
             for turn, text in zip(turns, texts, strict=True):
-                message: dict[str, Any] = {"role": "user", "content": text}
+                message: dict[str, Any] = self._message(turn, text)
                 stamp = parse_turn_stamp(turn)
                 if stamp is not None:
                     message["timestamp"] = stamp
@@ -537,6 +564,8 @@ class MemspineSystem:
         self._question_as_of = (
             parse_question_date(meta.get("question_date")) if self._as_of_question_date else None
         )
+        asker = meta.get("asker") or meta.get("persona")
+        self._asker = str(asker) if asker and self._perspective_metadata else None
 
     def _write_ingest_log(self, records: list[Any], turns: list[Turn], texts: list[str]) -> None:
         """Injection audit (``MEMSPINE_FORENSICS_DIR``): one line per record written.
@@ -653,7 +682,9 @@ class MemspineSystem:
         forensics_dir = os.environ.get("MEMSPINE_FORENSICS_DIR")
         from memspine.engine import search_forensics
 
-        with search_forensics() as stages:
+        from memspine.core.perspective import asker_scope
+
+        with search_forensics() as stages, asker_scope(self._asker):
             if self._read_mode:
                 result = await self._engine.read(
                     text,
