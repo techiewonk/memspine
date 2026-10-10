@@ -112,6 +112,8 @@
       "graph_rerank": "off",
       "graph_rerank_weight": 0.2,
       "hybrid": true,
+      "latest_wins": "off",
+      "latest_wins_min_overlap": 0.5,
       "lead_budget_share": null,
       "lead_budget_tokens": 400,
       "leg_min_scores": {},

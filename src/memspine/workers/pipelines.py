@@ -77,6 +77,7 @@ from memspine.memories.semantic.write_pipeline import (
     EdgeContext,
     ExtractEdges,
     ScreenDerived,
+    cardinality_map,
     edge_fact_key,
 )
 from memspine.observability.logging import get_logger
@@ -1914,6 +1915,8 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
     dated_events = opts.get("event_identity", "plain") == "dated"
     # G-1: an edge whose text says it ended is written already closed (valid_to).
     close_ended = bool(opts.get("close_ended", False))
+    # I17: operator-declared cardinality per relation (one: supersede, many: coexist).
+    cardinality = cardinality_map(opts.get("cardinality"))
     # G-6: a declared relation vocabulary drops edges outside it (after extraction).
     declared = opts.get("relation_types") or ()
     allowed_rels = {
@@ -2096,7 +2099,7 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
                 trusts = [p.trust for p in parents]
                 # GP-1: an event edge drops its attribute (add-only, never
                 # superseded); kind, rel and dst persist as tags.
-                attribute, tags = edge_fact_key(edge, edge.src_entity, protected)
+                attribute, tags = edge_fact_key(edge, edge.src_entity, protected, cardinality)
                 fact = MemoryRecord(
                     namespace=namespace,
                     memory_type="semantic",

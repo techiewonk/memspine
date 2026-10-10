@@ -36,7 +36,7 @@ an ``extract_edges`` LLM role), so ``profile="simple"`` is byte-identical.
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable, Collection, Sequence
+from collections.abc import Awaitable, Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Protocol
@@ -58,6 +58,7 @@ __all__ = [
     "ScreenDerived",
     "SemanticWriteOptions",
     "WritePipeline",
+    "cardinality_map",
     "edge_fact_key",
     "extraction_rounds",
 ]
@@ -123,7 +124,10 @@ class ExtractEdges(Protocol):
 
 
 def edge_fact_key(
-    edge: ExtractedEdge, entity: str, protected_keys: Collection[str] = ()
+    edge: ExtractedEdge,
+    entity: str,
+    protected_keys: Collection[str] = (),
+    cardinality: Mapping[str, str] | None = None,
 ) -> tuple[str | None, list[str]]:
     """GP-1: the ``(attribute, tags)`` an edge fact record is written with.
 
@@ -132,11 +136,34 @@ def edge_fact_key(
     superseded, unless ``entity.rel`` is a protected key (an extractor calling
     it an event must not dodge the protected-key check). The tags persist the
     kind, the relation and the destination entity on the record.
+
+    I17: ``cardinality`` (``extract_graph.cardinality``, ``{rel: "one" | "many"}``) is
+    the operator's schema and overrides the extractor's ``kind`` for the relations it
+    names. ``many`` drops the attribute (the values coexist: two pets, two employers);
+    ``one`` keeps it (a newer value supersedes and the older stays as history), even
+    when the extractor called the edge an event. A protected key is always keyed.
     """
     tags = [f"kind:{edge.kind}", f"rel:{edge.rel}", f"dst:{edge.dst_entity}"]
-    if edge.kind == "event" and f"{entity}.{edge.rel}" not in protected_keys:
+    declared = (cardinality or {}).get(edge.rel.strip().casefold())
+    single = edge.kind == "state"
+    if declared is not None:
+        single = declared == "one"
+    if not single and f"{entity}.{edge.rel}" not in protected_keys:
         return None, tags
     return edge.rel, tags
+
+
+def cardinality_map(raw: object) -> dict[str, str]:
+    """I17: a validated ``{rel: "one" | "many"}`` map from a policy option (keys
+    casefolded). Anything else in the option is ignored, so a typo cannot crash a write."""
+    if not isinstance(raw, Mapping):
+        return {}
+    out: dict[str, str] = {}
+    for rel, value in raw.items():
+        text = str(value).strip().casefold()
+        if text in ("one", "many"):
+            out[str(rel).strip().casefold()] = text
+    return out
 
 
 #: Optional entity canonicalization: a mention -> its canonical name.
@@ -163,7 +190,9 @@ class GraphWritePipeline:
         resolve_entity: ResolveEntity | None = None,
         min_confidence: float = 0.0,
         protected_keys: Collection[str] = (),
+        cardinality: Mapping[str, str] | None = None,
     ) -> None:
+        self._cardinality = dict(cardinality or {})
         self._extract_edges = extract_edges
         self._resolve_entity = resolve_entity
         self._min_confidence = min_confidence
@@ -195,7 +224,7 @@ class GraphWritePipeline:
                     entity = await self._resolve_entity(edge.src_entity) or edge.src_entity
                 except Exception as exc:  # canonicalization is best-effort (N6)
                     _log.warning("write_pipeline.resolve_failed", error=str(exc))
-            attribute, tags = edge_fact_key(edge, entity, self._protected_keys)
+            attribute, tags = edge_fact_key(edge, entity, self._protected_keys, self._cardinality)
             fact = MemoryRecord(
                 namespace=record.namespace,
                 memory_type="semantic",

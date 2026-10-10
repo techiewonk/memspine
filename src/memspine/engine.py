@@ -64,6 +64,7 @@ from memspine.core.fact_views import view_tags
 from memspine.core.firewall import Firewall, FirewallSignals, FirewallVerdict, QueryHistory
 from memspine.core.forget_request import forget_target, is_forget_request
 from memspine.core.integrity import IntegrityPolicy
+from memspine.core.latest_wins import apply_latest_wins, recent_first
 from memspine.core.lead import (
     card_line,
     count_terms,
@@ -257,6 +258,7 @@ from memspine.memories.semantic.write_pipeline import (
     EdgeContext,
     GraphWritePipeline,
     WritePipeline,
+    cardinality_map,
     extraction_rounds,
 )
 from memspine.memories.shared.grants import Grant, SharedMemory
@@ -5054,6 +5056,10 @@ class Engine:
         if read_cfg.focused_excerpt and not is_verbatim(query):
             # N13 (plan v3.2): long multi-line records shown as query-anchored excerpts.
             volatile = [_excerpted(r, query) for r in volatile]
+        # I17 (opt-in): a topic stated at several times reads as earlier / latest.
+        volatile, restated = apply_latest_wins(
+            volatile, read_cfg.latest_wins, read_cfg.latest_wins_min_overlap
+        )
         priority = list(volatile)
         if read_cfg.order_by_time_for_ordering and is_ordering(query):
             volatile = sorted(volatile, key=chrono_key)
@@ -5063,6 +5069,8 @@ class Engine:
             # N01 (plan v3.2): recorded order, so a later value of the same fact reads
             # after the earlier one (the reader takes the last as current).
             volatile = sorted(volatile, key=chrono_key)
+        if read_cfg.latest_wins == "annotate_recent_first" and restated:
+            volatile = recent_first(volatile, restated)
         if read_cfg.render != "dated":
             assembled.records = [*stable, *volatile]
             return assembled
@@ -11751,6 +11759,9 @@ class Engine:
         return GraphWritePipeline(
             self._edge_extract_callable(extraction_rounds(sem)),
             protected_keys=config.firewall.protected_keys,
+            cardinality=cardinality_map(
+                (_as_options_dict(sem.get("extract_graph")) or {}).get("cardinality")
+            ),
         )
 
     @staticmethod

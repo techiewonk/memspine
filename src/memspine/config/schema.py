@@ -874,6 +874,16 @@ class ReadConfig(BaseModel):
     #: keyed fact (entity + attribute), so the newer value reads last. An ordering
     #: question under ``order_by_time_for_ordering`` is time-ordered either way.
     present_order: Literal["relevance", "recorded", "recorded_if_shared_key"] = "relevance"
+    #: I17 (``core/latest_wins.py``): when the retrieved evidence states one topic at
+    #: several times (a keyed fact, or raw turns by one speaker with overlapping content
+    #: words), mark the newest statement ``[latest]`` and each older one ``[earlier
+    #: statement; a later one on this topic is dated D]``, keeping the older value as
+    #: history. ``annotate_recent_first`` also gathers those records, newest first.
+    #: Records tagged ``disputed`` get a disputed mark and no ordering claim. Off: unchanged.
+    latest_wins: Literal["off", "annotate", "annotate_recent_first"] = "off"
+    #: I17: overlap coefficient (shared / smaller set of content words) at which two raw
+    #: turns by one speaker count as one topic. Keyed records match on their key instead.
+    latest_wins_min_overlap: float = Field(default=0.5, gt=0.0, le=1.0)
     #: N13 (plan v3.2, Mnemon ``focused``): a retrieved record of six or more lines is
     #: shown as its two lines that best match the question, each with its next line,
     #: cuts marked "…" (``core/excerpt.py``). Never for a verbatim question. The stored
