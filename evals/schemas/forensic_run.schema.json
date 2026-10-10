@@ -19,6 +19,7 @@
     "accuracy": {"type": "number"},
     "by_category": {"type": "object", "additionalProperties": {
       "type": "object", "properties": {"n": {"type": "integer"}, "accuracy": {"type": "number"}}}},
+    "errata": {"type": ["object", "null"], "description": "A5: accuracy with and without the errata questions (gold_error, needs_image from analysis/locomo_errata.json); strict drops confirmed entries, incl_borderline also the borderline ones; each has n, n_excluded, accuracy and by_category. Null when no errata file was loaded"},
     "n_adversarial": {"type": "integer", "description": "A13: LoCoMo cat-5 rows, excluded from n_questions and accuracy"},
     "adversarial": {"type": ["object", "null"], "description": "A13: cat-5 (abstention) n and accuracy, reported apart from the headline; accuracy is null for retrieval-only runs"},
     "sufficiency_on_qa_set": {"type": ["object", "null"], "description": "A12: retrieval-only runs: share of the non-adversarial questions with all gold in context"},

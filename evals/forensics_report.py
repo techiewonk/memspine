@@ -314,13 +314,19 @@ def build(args) -> None:
             entry["context_text"] = [c["text"] for c in f["context_records"]]
         rows.append(entry)
 
-    summary = summarise(run_id, rows, manifest, ingest, turn_info)
+    no_errata = getattr(args, "no_errata", False)
+    errata = {} if no_errata else load_errata(getattr(args, "errata", DEFAULT_ERRATA))
+    summary = summarise(run_id, rows, manifest, ingest, turn_info, errata)
     validate(rows, summary)
     (out / "per_question.jsonl").write_text("\n".join(json.dumps(e) for e in rows), encoding="utf-8")
     (out / "run_summary.json").write_text(json.dumps(summary, indent=1), encoding="utf-8")
     write_markdown(out, rows, args.only_wrong_md)
     write_gap_md(out, summary)
     print(f"{run_id}: {summary['n_questions']} questions (+{summary['n_adversarial']} adversarial), accuracy {summary['accuracy']:.1%}, stage log={summary['has_stage_log']} -> {out}")
+    if summary["errata"]:
+        e = summary["errata"]["strict"]
+        print(f"  excluding errata: {e['n']} questions ({e['n_excluded']} excluded), "
+              f"accuracy {e['accuracy']:.1%}")
 
 
 #: A12: the non-adversarial LoCoMo question set (categories 1-4) every headline is over.
@@ -357,7 +363,62 @@ def recall_at_10_hits(rows: list[dict]) -> dict | None:
     return {"n": len(staged), "value": ok / len(staged)}
 
 
-def summarise(run_id: str, rows: list[dict], manifest: dict, ingest: list[dict], turn_info: dict) -> dict:
+#: A5: errata tags that make the gold answer unusable for grading (the question is dropped from the
+#: "excluding errata" headline). ``evidence_label_error`` keeps a right answer: not dropped.
+ERRATA_EXCLUDE_TAGS = ("gold_error", "needs_image")
+DEFAULT_ERRATA = HERE / "analysis" / "locomo_errata.json"
+
+
+def load_errata(path: Path | str | None = DEFAULT_ERRATA) -> dict[tuple[str, str], dict]:
+    """(item, qid) -> {"tag", "borderline"} for the entries that invalidate grading; {} if no file.
+    When one question has several entries, a non-borderline one wins."""
+    if path is None or not Path(path).exists():
+        return {}
+    out: dict[tuple[str, str], dict] = {}
+    for e in json.loads(Path(path).read_text(encoding="utf-8")).get("entries", []):
+        if e.get("tag") not in ERRATA_EXCLUDE_TAGS:
+            continue
+        key = (e["item"], e["qid"])
+        cur = out.get(key)
+        if cur is None or (cur["borderline"] and not e.get("borderline", False)):
+            out[key] = {"tag": e["tag"], "borderline": bool(e.get("borderline", False))}
+    return out
+
+
+def errata_block(rows: list[dict], errata: dict[tuple[str, str], dict]) -> dict:
+    """A5: accuracy over the categories 1-4 rows with and without the errata questions.
+    ``strict`` drops confirmed errata only; ``incl_borderline`` also drops the borderline ones."""
+    def acc(sub: list[dict]) -> float | None:
+        return (sum(r["correct"] for r in sub) / len(sub)) if sub else None
+
+    def variant(drop_borderline: bool) -> dict:
+        def hit(r: dict) -> bool:
+            e = errata.get((r["item"], r["qid"]))
+            return e is not None and (drop_borderline or not e["borderline"])
+
+        kept = [r for r in rows if not hit(r)]
+
+        def by_cat(kept: list[dict]) -> dict:
+            out = {}
+            for c in CATS:
+                total = sum(1 for r in rows if r["category"] == c)
+                sub = [r for r in kept if r["category"] == c]
+                if total:
+                    out[c] = {"n": len(sub), "n_excluded": total - len(sub), "accuracy": acc(sub)}
+            return out
+
+        return {
+            "n": len(kept), "n_excluded": len(rows) - len(kept), "accuracy": acc(kept),
+            "by_category": by_cat(kept),
+        }
+
+    return {"tags_excluded": list(ERRATA_EXCLUDE_TAGS), "n_errata_entries": len(errata),
+            "overall_accuracy": acc(rows), "n": len(rows),
+            "strict": variant(False), "incl_borderline": variant(True)}
+
+
+def summarise(run_id: str, rows: list[dict], manifest: dict, ingest: list[dict], turn_info: dict,
+              errata: dict[tuple[str, str], dict] | None = None) -> dict:
     all_rows = rows
     rows = [r for r in all_rows if r["category"] != ADVERSARIAL]  # headline: categories 1-4 only
     adv = [r for r in all_rows if r["category"] == ADVERSARIAL]
@@ -374,6 +435,7 @@ def summarise(run_id: str, rows: list[dict], manifest: dict, ingest: list[dict],
                           "judge": judge.get("model") or judge.get("judge_id")},
                "wall_clock_s": None, "n_questions": len(rows),
                "accuracy": (sum(r["correct"] for r in rows) / len(rows)) if rows else 0.0}
+    s["errata"] = errata_block(rows, errata) if errata else None
     s["n_adversarial"] = len(adv)
     s["adversarial"] = adversarial_block(adv)
     s["recall_at_10_hits"] = recall_at_10_hits(rows)
@@ -493,6 +555,18 @@ def write_gap_md(out: Path, s: dict) -> None:
          f"{s['n_questions']} questions, accuracy {pc(s['accuracy'])}", f"- models: {s['models']}\n",
          "| Category | n | accuracy |", "|---|---|---|"]
     L += [f"| {c} | {v['n']} | {pc(v['accuracy'])} |" for c, v in s["by_category"].items()]
+    er = s.get("errata")
+    if er:
+        st, ib = er["strict"], er["incl_borderline"]
+        L += [f"\n## Excluding errata ({', '.join(er['tags_excluded'])})",
+              "| Category | n | excluded | accuracy |", "|---|---|---|---|",
+              f"| overall (with errata) | {er['n']} | 0 | {pc(er['overall_accuracy'])} |",
+              f"| overall (excluding errata) | {st['n']} | {st['n_excluded']} | "
+              f"{pc(st['accuracy'])} |",
+              *[f"| {c} | {v['n']} | {v['n_excluded']} | {pc(v['accuracy'])} |"
+                for c, v in st["by_category"].items()],
+              f"\n- also excluding borderline entries: n={ib['n']} ({ib['n_excluded']} excluded), "
+              f"accuracy {pc(ib['accuracy'])}"]
     adv = s.get("adversarial")
     if adv:
         L += [f"\n- adversarial (cat 5, apart from the headline): n={adv['n']}, accuracy {pc(adv['accuracy'])}"]
@@ -526,4 +600,7 @@ if __name__ == "__main__":
     ap.add_argument("--data", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--only-wrong-md", action="store_true")
+    ap.add_argument("--errata", default=str(DEFAULT_ERRATA),
+                    help="A5: locomo_errata.json (gold_error, needs_image dropped)")
+    ap.add_argument("--no-errata", action="store_true")
     build(ap.parse_args())

@@ -3,7 +3,7 @@
  "dataset": "locomo10.json",
  "dataset_sha256_prefix": "79fa87e90f040813",
  "created": "2026-10-10",
- "note": "Questions whose LoCoMo gold contradicts the transcript, or that need the image. Found while hand-reading 148 read failures of one run, so this list is incomplete (an estimated 16-24 more exist among unread wrong answers). Report accuracy with and without these. No corpus text is stored here. 2026-10-10: added tag evidence_label_error (gold answer is right but a labelled evidence turn does not support it; correct turn id in the reason), from B2_EVIDENCE_AUDIT.md.",
+ "note": "Questions whose LoCoMo gold contradicts the transcript, or that need the image. Found while hand-reading 148 read failures of one run, so this list is incomplete (an estimated 16-24 more exist among unread wrong answers). Report accuracy with and without these. No corpus text is stored here. 2026-10-10: added tag evidence_label_error (gold answer is right but a labelled evidence turn does not support it; correct turn id in the reason), from B2_EVIDENCE_AUDIT.md. 2026-10-10 (R2-5): four more evidence_label_error entries from the stable-failure review (0-70, 1-43, 0-151, 1-48); none changes the with/without-errata accuracy, which drops only gold_error and needs_image.",
  "entries": [
   {
    "item": "conv-26",
@@ -348,6 +348,38 @@
    "borderline": true,
    "reason": "gold lists \"twisted ankle\" twice while the transcript has a twisted knee (D9:2, D11:2)",
    "source": "B2_EVIDENCE_AUDIT.md"
+  },
+  {
+   "item": "conv-26",
+   "qid": "0-70",
+   "tag": "evidence_label_error",
+   "borderline": false,
+   "reason": "gold evidence D15:13 ('Did you see that band?') is not a transgender event; the conference in the gold answer is D5:13 ('I'm going to a transgender conference this month'). The listed answer is also narrow (the transcript has other LGBTQ events). System answer lists poetry reading and conference but adds LGBTQ events, so it is still judged wrong",
+   "source": "R2-5 review 2026-10-10"
+  },
+  {
+   "item": "conv-30",
+   "qid": "1-43",
+   "tag": "evidence_label_error",
+   "borderline": true,
+   "reason": "gold turn D1:25 is Gina's question; the answer 'performing at the festival' is Jon's reply D1:26, and the photo is D1:24. The question 'the dancers in the photo' is ambiguous (several dancer photos in the conversation); the system picked a different photo (still a real system error)",
+   "source": "R2-5 review 2026-10-10"
+  },
+  {
+   "item": "conv-26",
+   "qid": "0-151",
+   "tag": "evidence_label_error",
+   "borderline": true,
+   "reason": "gold 'nature walk or hike' rests on the photo in D18:15 (caption: a woman and a child walking on a trail), which the labelled turn D18:17 ('we just did it yesterday ... relax after the road trip') refers to; D18:15 is missing from the evidence list. D18:15 was in the context and the reader still answered camping (D18:19 mentions camping trips), so the system is also wrong",
+   "source": "R2-5 review 2026-10-10"
+  },
+  {
+   "item": "conv-30",
+   "qid": "1-48",
+   "tag": "evidence_label_error",
+   "borderline": true,
+   "reason": "gold 'the space, furniture, and decor' needs D3:5 and D3:6 (furniture and decor); labelled D3:4 only says 'the space I designed'. System answered the hoodie line (D16:3), a real reader error",
+   "source": "R2-5 review 2026-10-10"
   }
  ],
  "updated": "2026-10-10"

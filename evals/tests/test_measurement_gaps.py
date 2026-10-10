@@ -389,3 +389,45 @@ def test_ollama_env_script_sets_the_five_variables() -> None:
     ):
         assert pair in text
     assert "'User'" in text and "-NoRestart" in text
+
+
+# -- A5: accuracy with and without the errata questions --------------------------------------
+
+
+def _qrow(item: str, qid: str, category: str, correct: bool) -> dict:
+    return {**_row(category, correct), "item": item, "qid": qid}
+
+
+def test_errata_block_reports_both_headlines(tmp_path) -> None:
+    path = tmp_path / "errata.json"
+    path.write_text(json.dumps({"entries": [
+        {"item": "c", "qid": "0-1", "tag": "gold_error", "borderline": False},
+        {"item": "c", "qid": "0-2", "tag": "needs_image", "borderline": True},
+        {"item": "c", "qid": "0-3", "tag": "evidence_label_error", "borderline": False},
+    ]}), encoding="utf-8")
+    errata = fr.load_errata(path)
+    assert set(errata) == {("c", "0-1"), ("c", "0-2")}  # a right answer with a wrong label is kept
+    rows = [
+        _qrow("c", "0-1", "single-hop", False),  # gold error
+        _qrow("c", "0-2", "temporal", False),  # borderline image question
+        _qrow("c", "0-3", "single-hop", False),
+        _qrow("c", "0-4", "single-hop", True),
+    ]
+    s = fr.summarise("r", rows, {}, [], {}, errata)
+    assert s["accuracy"] == 0.25
+    e = s["errata"]
+    assert e["strict"]["n"] == 3 and e["strict"]["n_excluded"] == 1
+    assert e["strict"]["accuracy"] == pytest.approx(1 / 3)
+    assert e["strict"]["by_category"]["single-hop"] == {"n": 2, "n_excluded": 1, "accuracy": 0.5}
+    assert e["incl_borderline"]["n"] == 2 and e["incl_borderline"]["accuracy"] == 0.5
+    assert fr.summarise("r", rows, {}, [], {})["errata"] is None
+    assert fr.load_errata(tmp_path / "missing.json") == {}
+
+
+def test_run_summary_schema_accepts_errata_block() -> None:
+    jsonschema = pytest.importorskip("jsonschema")
+    rows = [_qrow("c", "0-1", "single-hop", False), _qrow("c", "0-2", "temporal", True)]
+    errata = {("c", "0-1"): {"tag": "gold_error", "borderline": False}}
+    s = fr.summarise("r", rows, {}, [], {}, errata)
+    schema = json.loads((fr.HERE / "schemas" / "forensic_run.schema.json").read_text("utf-8"))
+    jsonschema.validate(json.loads(json.dumps(s)), schema)
