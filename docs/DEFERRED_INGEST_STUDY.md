@@ -22,8 +22,7 @@ Where a number is an estimate and not a measurement it says so.
 4. So the real value of deferral is narrower than the register implied: (a) take the optional inline LLM
    steps off the hot path, (b) make mined facts, cards and cues available seconds after a turn instead of
    at the next sleep (today they need a closed session: at least 3 turns and a 30-minute gap), (c) batch
-   LLM calls across turns, (d) retries, back-pressure and cost control, (e) tool writes (MCP) that must not
-   wait on an LLM. For the default config and for the benchmark path it buys nothing on latency.
+   LLM calls across turns, (d) retries, back-pressure and cost control. For the default config and for the benchmark path it buys nothing on latency.
 5. Two findings that matter whether or not I71 goes ahead: no per-step write timers exist, and a mined
    fact can be deposited after its source turn was hard-forgotten (section 4.3).
 6. Recommendation: keep I71 on hold, do the two small prerequisites (timers, parent-liveness recheck),
@@ -145,21 +144,10 @@ GPU with a second arm.
 - Verdict: worth it only if the deployment enables rows 13/15 or wants minutes-not-hours freshness. Defer
   rows 15 and 21; keep 1-12, 14, 16-19 inline.
 
-### (b) MCP and tool writes (I65 / I66, being built)
+### (b) MCP and tool writes - removed
 
-- A tool call blocks the agent turn. The survey already decided tool writes are verbatim with no LLM on the
-  hot path (`FRAMEWORK_TOOLCALL_SURVEY.md:178, 216`), so the synchronous cost is the firewall plus index,
-  the same 55-150 ms.
-- What a queue adds for tools: the optional enrichment after the tool returns, and a single place to apply
-  rate limits and a daily LLM budget per agent (an agent in a loop could otherwise call `memory_write`
-  hundreds of times and each call would trigger enrichment).
-- Constraint: tool channels are external, so trust is capped (`trust.py:41` per the survey); their
-  enrichment output must go through the same `_screen_derived` firewall (it does for mining, `engine.py:12470+`
-  via `_write_locked`).
-- The tool reply should say what is pending, for example `{"record_id": "...", "enrichment": "queued"}`,
-  so an agent that reads its own write immediately is not told derived facts exist when they do not.
-- Verdict: yes, but the first version of the MCP tools should not wait for I71: they can ship sync and the
-  queue can be added behind a flag later because the tool contract does not change.
+Out of scope by user decision (2026-10-10): MCP / agent tool writes are not a deferred-ingest scenario. Tool
+writes (I65 / I66) stay synchronous; this study makes no recommendation for them.
 
 ### (c) Bulk ingest (documents, histories)
 
@@ -216,7 +204,7 @@ GPU with a second arm.
 | Gain | Applies when | Evidence |
 |---|---|---|
 | Lower write latency | optional inline LLM or decider steps are on (rows 4, 9, 13, 15) | LLM call about 2.7 s vs hot path about 0.06-0.2 s |
-| Fresher derived memory | live agents, MCP, long sessions | today needs a closed session plus a sleep |
+| Fresher derived memory | live agents, long sessions | today needs a closed session plus a sleep |
 | LLM call batching | many short turns or sessions | mining is per session today (`pipelines.py:3173`); a queue can group |
 | Retries with backoff | flaky local model or API | today a failed stage retries at the next cycle (`pipelines.py:3064`), minutes to hours later |
 | Back-pressure and cost control | multi-tenant, tool agents | no limit on enrichment work exists; a depth cap and a daily call budget would add one |
@@ -362,7 +350,7 @@ write:
     flush_on_stop: true
 ```
 
-Tool writes (I65/I66) pass `defer=True` per call or pick it up from `mcp.write_mode`; evals never set it.
+Evals never set `defer`. MCP / tool writes are out of scope for I71 (user decision 2026-10-10).
 
 ## 7. Open questions for you
 
@@ -410,9 +398,7 @@ Each has a recommended default; none block the others unless noted.
 9. **Per-step write timers.** Approve adding timers (log-only, `write.step_timings`, default off) around
    firewall, embed, vector, lexical, evolution and tag steps. It is the data that decides 7.1 and 7.3, costs
    little, and changes no behaviour.
-10. **MCP default.** Should I65/I66 tool writes default to `deferred` once I71 exists (the survey's
-    position), or stay sync until a latency number says otherwise? Recommend sync first: the contract does
-    not change when the flag flips later.
+10. **MCP default.** Removed: MCP / tool writes are out of I71's scope (user decision 2026-10-10).
 11. **Debounce window.** 0 s (as soon as free), 5 s (a burst of turns becomes one job), or session-idle
     (30 minutes, equals today's closure rule). Shorter is fresher and costs more LLM calls on a chatty
     session; recommend 5 s only if 7.2(b) is chosen, otherwise idle.
@@ -426,4 +412,4 @@ Each has a recommended default; none block the others unless noted.
    session scope. This alone gives evals the barrier API and the "micro-sleep" without any worker.
 3. Per-namespace worker, debounce, `forget` cancel, recovery from the log, observability.
 4. Sync-versus-deferred equivalence test (stubbed LLM) and the supersede-order test (4.2 item 2).
-5. Only then wire MCP tool writes and the optional inline LLM rows (13, 15) to the queue.
+5. Only then wire the optional inline LLM rows (13, 15) to the queue.
