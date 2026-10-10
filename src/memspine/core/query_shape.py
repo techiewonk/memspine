@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import re
 
+from memspine.core.language import english_only
+
 __all__ = [
     "content_words",
     "core_terms",
@@ -150,6 +152,7 @@ _ORDERING = re.compile(
 )
 
 
+@english_only()
 def is_ordering(query: str) -> bool:
     """True when the answer depends on temporal order (H16: show evidence in time order)."""
     return bool(_ORDERING.search(query))
@@ -163,6 +166,7 @@ _TEMPORAL = re.compile(
 )
 
 
+@english_only()
 def is_temporal(query: str) -> bool:
     """True when the question asks for a date or a time span ("when did ...")."""
     return bool(_TEMPORAL.search(query))
@@ -172,6 +176,7 @@ def is_temporal(query: str) -> bool:
 _INFERENCE = re.compile(r"\b(?:would|likely|might|could)\b[^?]*\?", re.I)
 
 
+@english_only()
 def is_inference(query: str) -> bool:
     """True when the question asks what someone would, might or could do, or is likely
     to ("Would Caroline pursue writing?", "Is it likely that ...?"): a modal word, or
@@ -193,6 +198,7 @@ _VERBATIM = re.compile(
 )
 
 
+@english_only()
 def is_verbatim(query: str) -> bool:
     """True when the question asks for what someone said, in their words ("What does
     Gina say about the dancers?", "How did Jon describe the studio?", "her exact
@@ -205,6 +211,7 @@ _DURATION_UNITS = r"(?:seconds|minutes|hours|days|weeks|weekends|months|years|de
 _COUNT = re.compile(rf"\bhow (?:many|often)\b(?! {_DURATION_UNITS}\b)", re.I)
 
 
+@english_only()
 def is_set_question(question: str) -> bool:
     """B1 list-mode trigger: a question asking for a set ("What activities does X do?",
     "What do X's kids like?", "What kind of books does X read?"). Rules only. Opens with
@@ -237,6 +244,7 @@ _NOT_PLURAL = frozenset(
 )
 
 
+@english_only()
 def is_set_question_wide(question: str) -> bool:
     """R2-3: :func:`is_set_question`, plus "How did/has/does X <multi-way verb> ..." questions
     and what / which questions whose head noun is plural ("What gifts did X buy?").
@@ -297,6 +305,7 @@ def _focus_sentence(text: str) -> str:
     return (asked or parts or [text])[-1]
 
 
+@english_only()
 def is_intent_list(question: str) -> bool:
     """I4: no-model, generic list / aggregate trigger (``read.list_trigger="intent"``).
 
@@ -316,6 +325,7 @@ def is_intent_list(question: str) -> bool:
     return is_set_question_wide(question)
 
 
+@english_only()
 def is_count(query: str) -> bool:
     """True when the question asks how many times something happened or how many there
     are ("how many times ...", "how many pets ...", "how often ..."); a duration ("how
@@ -323,6 +333,7 @@ def is_count(query: str) -> bool:
     return bool(_COUNT.search(query))
 
 
+@english_only()
 def is_aggregation(query: str) -> bool:
     """True when the question asks for a count, a list or several items."""
     return bool(_AGGREGATE.search(query))
@@ -387,6 +398,7 @@ _PERSONAL = re.compile(
 )
 
 
+@english_only()
 def is_personal(query: str) -> bool:
     """W9: True when the question is about the asker or a choice they face. A
     general-knowledge question ("What is the capital of France?") is not, and gets no
@@ -432,6 +444,7 @@ _NOVELTY = re.compile(
 )
 
 
+@english_only()
 def is_novelty(query: str) -> bool:
     """G32: True when the question asks for something the asker has not had yet."""
     return bool(_NOVELTY.search(query))
@@ -446,6 +459,7 @@ _DURATION_Q = re.compile(
 )
 
 
+@english_only()
 def is_duration(query: str) -> bool:
     """N10: True when the question asks how much time lies between two events."""
     return bool(_DURATION_Q.search(query))
@@ -465,6 +479,7 @@ _YES_NO = re.compile(
 _BE = {"is", "are", "was", "were"}
 
 
+@english_only(None)
 def statement_form(query: str) -> str | None:
     """N63: the question rewritten as a statement, or None when no rule applies.
 

@@ -436,6 +436,16 @@ class ReadConfig(BaseModel):
     #: ("4bit" | "8bit" via bitsandbytes, GPU only; None = full precision).
     rerank_device: str | None = None
     rerank_quant: Literal["4bit", "8bit"] | None = None
+    #: I7: a source with no timestamps (ConvoMem, PrefEval, LaMP shapes) gets
+    #: ``valid_from`` = the write clock, so every rendered line would show today's date. On:
+    #: a write whose event time was not supplied is tagged `ts_defaulted`, and the date
+    #: prefix / relative-date annotation / rerank date prefix / timeline date skip it. Only
+    #: records written with this key on are affected. Off: byte-identical.
+    skip_defaulted_dates: bool = False
+    #: I23: `on` = the regex features that only know English (query shape, temporal phrases,
+    #: month names, set nouns) do not fire on text a cheap script/stopword check judges
+    #: non-English; they fail closed. Off: unchanged.
+    language_guard: Literal["off", "on"] = "off"
     #: Agent Zero: skip the reranker for ordering questions (first / latest / ...).
     skip_rerank_for_ordering: bool = False
     #: H22 (Mastra): with ``render: dated``, mark long gaps ("[3 weeks later]").

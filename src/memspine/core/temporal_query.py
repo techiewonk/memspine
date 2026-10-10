@@ -22,6 +22,7 @@ from datetime import UTC, datetime, timedelta
 
 from memspine.config.constants import MENTION_CACHE_MAX, TEMPORAL_SOFT_MARGIN_DAYS
 from memspine.core.event_date import happened_of, label_span
+from memspine.core.language import blocked
 from memspine.core.records import MemoryRecord, chrono_key
 from memspine.core.temporal_resolve import WeekMode, resolve
 
@@ -119,6 +120,9 @@ def query_interval(
     explicit as-of), a query with no absolute date falls back to its first relative
     phrase ("last week", "two months ago", "yesterday") resolved against ``anchor`` by
     the H1 rules. Without ``anchor`` a relative phrase names no span (unchanged)."""
+    if blocked(query):  # I23: month names / phrases are English; only an ISO date stays
+        m = _ISO.search(query)
+        return _day(int(m["y"]), int(m["m"]), int(m["d"])) if m else None
     span = _absolute_interval(query)
     if span is None and year_ref is not None:
         span = _yearless_interval(query, year_ref)

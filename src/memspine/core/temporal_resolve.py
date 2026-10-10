@@ -62,6 +62,8 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Literal
 
+from memspine.core.language import blocked
+
 __all__ = ["Resolution", "WeekMode", "annotate", "resolve"]
 
 _MONTHS = (
@@ -363,6 +365,8 @@ def resolve(
     picks the span of ``last/next week``: the calendar week (default) or the seven days
     before / after the anchor day.
     """
+    if blocked(text):  # I23: English-only phrases; non-English text fails closed
+        return []
     d = anchor.date() if isinstance(anchor, datetime) else anchor
     found: list[Resolution] = []
     taken: list[tuple[int, int]] = []

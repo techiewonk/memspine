@@ -114,6 +114,7 @@ from memspine.core.privacy import (
     read_scope,
     verify_audit_chain,
 )
+from memspine.core.language import language_scope
 from memspine.core.profile_pack import pack_profile, render_packed_profile
 from memspine.core.projector import Projector
 from memspine.core.query_shape import (
@@ -692,6 +693,7 @@ def search_forensics() -> Iterator[dict[str, Any]]:
         yield sink
     finally:
         _FORENSICS.reset(token)
+
 
 #: #63: the neighbour batch of the ``write_messages`` call running in this task.
 _NEIGHBOUR_BATCH: ContextVar[_NeighbourBatch | None] = ContextVar(
@@ -1447,6 +1449,9 @@ class Engine:
         if valid_from is not None:
             stamp = valid_from if valid_from.tzinfo else valid_from.replace(tzinfo=UTC)
             record = record.model_copy(update={"valid_from": stamp})
+        elif self._config().read.skip_defaulted_dates:
+            # I7: the event time is the write clock, not the source's; date renders skip it.
+            record = record.model_copy(update={"tags": [*record.tags, constants.UNDATED_TAG]})
         trust_cap = await self._parent_trust_cap(ns, record.source.parents)
         if trust_cap is not None and parent_weights:
             # B1 weighted lineage: a parent of weight w contributes
@@ -2445,8 +2450,12 @@ class Engine:
             [q] = await asyncio.to_thread(encoder.encode, [query])
             scored = sorted(
                 (
-                    (sum(a * b for a, b in zip(q, cache[(r.record_id, r.content)], strict=False)),
-                     r.record_id)
+                    (
+                        sum(
+                            a * b for a, b in zip(q, cache[(r.record_id, r.content)], strict=False)
+                        ),
+                        r.record_id,
+                    )
                     for r in records
                     if (r.record_id, r.content) in cache
                 ),
@@ -4158,9 +4167,7 @@ class Engine:
         # legs combine, can still enter the fused top_k.
         # The word-vector leg is a second fused leg like BM25, so it widens the window the
         # same way; without this, ``hybrid: false`` + word vectors cut the vector leg to top_k.
-        wide = (
-            use_hybrid or self._config().read.word_vector_leg or self._config().read.session_leg
-        )
+        wide = use_hybrid or self._config().read.word_vector_leg or self._config().read.session_leg
         base_fetch = top_k * constants.LEXICAL_FETCH_MULTIPLIER if wide else top_k
         allowed = await self._date_allowed(ns)
         if allowed is not None:
@@ -4389,7 +4396,9 @@ class Engine:
             if read_cfg.rerank_date_prefix:
                 # Hindsight: the cross-encoder sees when each candidate happened.
                 documents = [
-                    f"[Date: {record.valid_from:%Y-%m-%d}] {doc}"
+                    doc
+                    if constants.UNDATED_TAG in record.tags
+                    else f"[Date: {record.valid_from:%Y-%m-%d}] {doc}"
                     for (record, _), doc in zip(candidates, documents, strict=True)
                 ]
             if read_cfg.rerank_context:
@@ -4527,6 +4536,7 @@ class Engine:
             read_scope(purpose) as outer,
             date_filter_scope(as_of_filter),
             as_of_scope(as_of),
+            language_scope(self._config().read.language_guard == "on"),  # I23
             record_scope(RecordScope.build(sessions, roles, memory_types, tags_any)),  # I7/I8/G-12
         ):
             context = await self._assemble(
@@ -5285,6 +5295,7 @@ class Engine:
             read_scope(purpose) as outer,
             date_filter_scope(date_filter),
             as_of_scope(as_of),
+            language_scope(self._config().read.language_guard == "on"),  # I23
             record_scope(RecordScope.build(sessions, roles, memory_types, tags_any)),  # I7/I8/G-12
         ):
             result = await self._read(
@@ -6977,6 +6988,8 @@ class Engine:
         """H5: ``[YYYY-MM-DD Day] content`` for episodic and semantic records."""
         if record.memory_type not in ("episodic", "semantic"):
             return record
+        if constants.UNDATED_TAG in record.tags:  # I7: no real source date
+            return record
         return record.model_copy(
             update={"content": f"[{record.valid_from:%Y-%m-%d %a}] {record.content}"}
         )
@@ -6988,7 +7001,7 @@ class Engine:
         (:func:`date_anchor`), never against a ``valid_from`` moved to the event day."""
         read_cfg = self._config().read
         anchor = date_anchor(record)
-        if anchor is None:
+        if anchor is None or constants.UNDATED_TAG in record.tags:  # I7
             return record
         annotated = annotate_relative_dates(
             record.content,

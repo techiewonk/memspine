@@ -103,7 +103,11 @@ def _strip_entity(content: str, entity: str) -> str:
 def timeline_line(record: MemoryRecord, entity: str, until: datetime | None = None) -> str:
     """One dated timeline entry; a superseded or ended fact shows its end date."""
     text = escape_markers(_strip_entity(" ".join(record.content.split()), entity))
-    line = f"- {record.valid_from:%Y-%m-%d}: {text}"
+    # I7: a record with no real source date shows no date.
+    if constants.UNDATED_TAG in record.tags:
+        line = f"- {text}"
+    else:
+        line = f"- {record.valid_from:%Y-%m-%d}: {text}"
     if until is not None:
         line += f" (until {until:%Y-%m-%d})"
     return line

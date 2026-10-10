@@ -13,6 +13,7 @@ need none of them, could not be run either.
 from __future__ import annotations
 
 import dataclasses
+import logging
 import re
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
@@ -701,7 +702,10 @@ class MemspineSystem:
             # Dated rendering: absolute event dates next to every retrieved line
             # (the single largest temporal-question lever in the literature).
             when = getattr(record, "valid_from", None)
-            prefix = f"[{when:%Y-%m-%d}] " if self._dated and when is not None else ""
+            undated = "ts_defaulted" in (getattr(record, "tags", None) or ())  # I7
+            prefix = (
+                f"[{when:%Y-%m-%d}] " if self._dated and when is not None and not undated else ""
+            )
             record_id = str(record.record_id)
             line = mark_hit_line(
                 f"{prefix}{record.content}", hit_ranks.get(record_id), self._mark_hits
@@ -861,9 +865,12 @@ def parse_question_date(value: Any) -> datetime | None:
     if not value:
         return None
     m = re.match(
-        r"\s*(\d{4})/(\d{1,2})/(\d{1,2})(?:\s*\(\w+\))?(?:\s+(\d{1,2}):(\d{2}))?", str(value)
+        r"\s*(\d{4})[/-](\d{1,2})[/-](\d{1,2})(?:\s*\(\w+\))?(?:[ T]+(\d{1,2}):(\d{2}))?",
+        str(value),
     )
     if not m:
+        # I8: a question date in an unknown format must not silently drop the anchor.
+        logging.getLogger(__name__).warning("unparseable question_date %r: no as-of anchor", value)
         return None
     y, mo, d = int(m[1]), int(m[2]), int(m[3])
     hh, mm = int(m[4] or 23), int(m[5] or 59)

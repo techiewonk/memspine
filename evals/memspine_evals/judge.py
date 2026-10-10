@@ -393,6 +393,10 @@ class GuardedJudge:
         self.inner = inner
         #: gap A2: credit a single-day date match deterministically (``date_check.py``)
         self.date_check = date_check
+        if date_check:  # I12: fail at construction, not silently per answer
+            from memspine_evals.date_check import require_parser
+
+            require_parser()
         self.empty_guard = empty_guard
         self.spec = JudgeSpec(
             judge_id=inner.spec.judge_id,

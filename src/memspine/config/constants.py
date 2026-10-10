@@ -708,6 +708,9 @@ TRAJECTORY_WINDOW_CAP = 20
 #: the corrected assistant claim; least share of the negated span's words a target
 #: fact must hold.
 CORRECTION_TAG = "correction"
+#: I7: set at write time (``read.skip_defaulted_dates``) on a record whose event time was NOT
+#: supplied by the source (``valid_from`` defaulted to the write clock). Date renders skip it.
+UNDATED_TAG = "ts_defaulted"
 CORRECTION_LOOKBACK_TURNS = 5
 CORRECTION_MIN_OVERLAP = 0.5
 #: W17e: the working-memory channel of a task-state record.
