@@ -12,6 +12,7 @@ from __future__ import annotations
 import hashlib
 import re
 import time
+import weakref
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
@@ -690,7 +691,11 @@ class OpenAICompatReader:
         )
 
 
-_CLIENTS: dict[tuple[int, int, float], Any] = {}
+#: loop -> {(httpx module, timeout): client}. Weak on the loop so an entry dies with its loop;
+#: keying by ``id()`` let a recycled address hand a new loop or fake module a stale client.
+_CLIENTS: weakref.WeakKeyDictionary[Any, dict[tuple[Any, float], Any]] = (
+    weakref.WeakKeyDictionary()
+)
 
 
 def _shared_client(httpx: Any, timeout: float) -> Any:
@@ -703,10 +708,11 @@ def _shared_client(httpx: Any, timeout: float) -> Any:
     """
     import asyncio
 
-    key = (id(httpx), id(asyncio.get_running_loop()), float(timeout))
-    client = _CLIENTS.get(key)
+    per_loop = _CLIENTS.setdefault(asyncio.get_running_loop(), {})
+    key = (httpx, float(timeout))
+    client = per_loop.get(key)
     if client is None or getattr(client, "is_closed", False):
-        client = _CLIENTS[key] = httpx.AsyncClient(timeout=timeout)
+        client = per_loop[key] = httpx.AsyncClient(timeout=timeout)
     return client
 
 
