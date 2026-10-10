@@ -544,6 +544,15 @@ class ReadConfig(BaseModel):
     #: Always ``about``; vague spans ("for years", "for a while") are left alone.
     #: Off: byte-identical.
     resolve_durations: bool = False
+    #: I79: with ``resolve_relative_dates``, also annotate a bare ``on <weekday>`` against the
+    #: record's own day, by the sentence's tense: "won it on Friday" -> "[= the Friday before
+    #: 2022-07-10 (Fri 2022-07-08)]" (anchored form with ``relative_dates_anchored``). No clear
+    #: tense, the plural and the anchor's own weekday are left alone. Off: byte-identical.
+    relative_dates_weekdays: bool = False
+    #: I79: with ``resolve_relative_dates``, write each date label as "[= event <date>]" so the
+    #: date the event happened reads distinct from the line's leading said-date. Duration
+    #: labels are unchanged. Off: byte-identical.
+    relative_dates_happened: bool = False
     #: H11: assembly draws from ``candidate_pool x top_k`` search candidates, so
     #: the token budget, not a fixed K, decides how much evidence enters (LoCoMo:
     #: top-10 filled ~400 of 4,096 tokens). 1 = unchanged. Pair with

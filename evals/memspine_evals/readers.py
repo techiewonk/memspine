@@ -154,6 +154,26 @@ GROUNDED_QA_PROMPT = (
     "Memories:\n{context}\n\nQuestion: {question}\nAnswer:"
 )
 
+#: I79: ``grounded`` and ``grounded_detail`` print two concrete dates as examples ("last
+#: Saturday [= 2023-05-20]", "the week before 9 June 2023"); full-persp-loc q 3-54 answered
+#: "The week before 9 June 2023" for a question whose evidence carries no such date. These
+#: variants keep every other word and put a placeholder where the example date was. The
+#: originals stay byte-identical (prompt ids of earlier runs).
+_EXAMPLE_ANNOTATION = '"last Saturday [= 2023-05-20]"'
+_EXAMPLE_ANSWER = '(for example "the week before 9 June 2023" or "2022")'
+_NODATE_ANNOTATION = '"last Saturday [= <resolved date>]"'
+_NODATE_ANSWER = (
+    '(for example "the week before <the line\'s date>", or only the year when a year is asked)'
+)
+
+
+def _without_example_dates(prompt: str) -> str:
+    for old, new in ((_EXAMPLE_ANNOTATION, _NODATE_ANNOTATION), (_EXAMPLE_ANSWER, _NODATE_ANSWER)):
+        assert old in prompt, old
+        prompt = prompt.replace(old, new)
+    return prompt
+
+
 #: I3: a prompt for any memory benchmark (no dataset wording). Answers from the memories, treats
 #: them as optional context, lets the newest statement win a conflict unless the question is
 #: about the past, resolves relative dates against each line's own date and the question date,
@@ -280,6 +300,9 @@ GROUNDED_DETAIL_QA_PROMPT = (
     "Memories:\n{context}\n\nQuestion: {question}\nAnswer:"
 )
 
+GROUNDED_NODATE_QA_PROMPT = _without_example_dates(GROUNDED_QA_PROMPT)
+GROUNDED_DETAIL_NODATE_QA_PROMPT = _without_example_dates(GROUNDED_DETAIL_QA_PROMPT)
+
 #: N46 (MemMachine answer clause, our wording): ``dated`` plus "a plan the context
 #: states counts as done unless the context says it did not happen". QA only (paid).
 DATED_PLANNED_QA_PROMPT = DATED_QA_PROMPT.replace(
@@ -323,6 +346,8 @@ QA_PROMPTS = {
     "dated3": DATED3_QA_PROMPT,
     "grounded": GROUNDED_QA_PROMPT,
     "grounded_detail": GROUNDED_DETAIL_QA_PROMPT,
+    "grounded_nodate": GROUNDED_NODATE_QA_PROMPT,
+    "grounded_detail_nodate": GROUNDED_DETAIL_NODATE_QA_PROMPT,
     "grounded_ordered": GROUNDED_ORDERED_QA_PROMPT,
     "grounded_v2": GROUNDED_V2_QA_PROMPT,
     "grounded_v3": GROUNDED_V3_QA_PROMPT,

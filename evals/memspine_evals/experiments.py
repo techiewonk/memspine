@@ -188,6 +188,10 @@ class C01Config:
     #: I57: repair a relative or weekday date answer against the cited line's date, by code
     #: (``date_repair.py``; no model call).
     date_repair: bool = False
+    #: I76: solve a "how many months between X and Y" question by code from the cited lines'
+    #: dates: "" (off), ``rewrite`` (replace a disagreeing or refused answer; no model call)
+    #: or ``hint`` (a computed line on top of the context). See ``duration_solve.py``.
+    duration_solve: str = ""
     #: screening: ingest and read every question as the QA run would, skip the reader
     #: and the judge, record evidence coverage per question (``screen.py``)
     retrieval_only: bool = False
@@ -758,6 +762,13 @@ def with_post_steps(reader: Any, config: C01Config, make_sibling: Any) -> Any:
         from .date_repair import DateRepairReader
 
         reader = DateRepairReader(reader)
+    mode = getattr(config, "duration_solve", "")
+    if mode:
+        from .duration_solve import DURATION_SOLVE_MODES, DurationSolveReader
+
+        if mode not in DURATION_SOLVE_MODES:
+            raise ValueError(f"duration_solve must be one of {DURATION_SOLVE_MODES}, got {mode!r}")
+        reader = DurationSolveReader(reader, mode)
     return reader
 
 
@@ -846,6 +857,7 @@ async def run_c0_1(
             **({"judge_conventions": "conventions/v1"} if config.judge_conventions else {}),
             **({"count_verify": config.count_verify} if config.count_verify else {}),
             **({"date_repair": "v1"} if config.date_repair else {}),
+            **({"duration_solve": f"v1/{config.duration_solve}"} if config.duration_solve else {}),
             "judge_prompt": config.judge_prompt if config.mode == "qa" else None,
             **({"opbench_root": config.opbench_root} if config.opbench_root else {}),
             "arms": [s.system_id for s in systems],

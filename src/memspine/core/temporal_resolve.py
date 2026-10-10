@@ -53,6 +53,19 @@ resolved against the anchor day, always marked ``about``:
 
 A bare "for 3 years" with no ongoing cue ("stayed for 3 years") is left alone, as are
 "for years" and "for a while". ``N years ago`` is resolved by the base rules.
+
+I79, ``weekdays=True`` (``read.relative_dates_weekdays``): a bare ``on <weekday>`` ("won his
+fourth tournament on Friday") names a day with no phrase to hang an annotation on, and the
+reader answered with the line's own date. The tense of the sentence picks the side: a past cue
+(``won``, ``went``, a ``-ed`` verb) resolves to the most recent such weekday before the anchor
+day, a future cue (``will``, ``going to``, ``'ll``, ``plan``) to the next one after it, shown in
+the anchored form ``the Friday before 2022-07-10 (Fri 2022-07-08)``. Both cues, neither, the
+plural ("on Fridays"), and a weekday equal to the anchor's own ("on Sunday" said on a Sunday)
+are left alone: a wrong day is worse than none.
+
+I79, ``happened=True`` (``read.relative_dates_happened``): every resolved date label is written
+``[= event ...]`` so it reads as the date the event happened, distinct from the line's leading
+``[YYYY-MM-DD]`` (the date it was said). Duration labels ("since about 2020") are unchanged.
 """
 
 from __future__ import annotations
@@ -85,6 +98,21 @@ _DURATIONS: tuple[tuple[str, re.Pattern[str]], ...] = tuple(
 )
 #: an ongoing-state cue before a bare "for N years": "has been ... for 3 years".
 _ONGOING = re.compile(r"\b(?:been|have|has|'ve|am|is|are|do|does)\b(?! to\b)", re.I)
+
+#: I79: a bare ``on <weekday>``; the plural ("on Fridays") is a habit, not a day.
+_BARE_WEEKDAY = re.compile(r"\bon (?P<wd>monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b(?!s)", re.I)
+_SENTENCE_END = re.compile(r"[.!?]")
+_FUTURE_CUE = re.compile(
+    r"\b(?:will|won't|going to|gonna|planning|plans?|planned|about to|upcoming|soon|tomorrow"
+    r"|hope to|hoping|want to|wanna|would like|looking forward|can't wait|supposed to"
+    r"|scheduled|booked for)\b|'ll\b",
+    re.I,
+)
+_PAST_IRREGULAR = ["was", "were", "had", "did", "went", "got", "saw", "won", "made", "took", "came", "ran", "met", "bought", "gave", "found", "felt", "spent", "began", "became", "brought", "built", "caught", "chose", "drove", "fell", "flew", "heard", "held", "kept", "left", "lost", "paid", "sang", "sat", "slept", "spoke", "stood", "taught", "told", "thought", "threw", "wore", "wrote", "ate", "drank"]
+_NOT_PAST = frozenset(
+    ["excited", "interested", "scared", "tired", "worried", "pleased", "relaxed", "thrilled", "stoked", "amazed", "surprised", "inspired", "motivated", "determined", "need", "needed", "bored", "obsessed", "addicted", "married", "blessed", "exhausted", "stressed", "devoted", "dedicated", "used", "based", "supposed", "scheduled"]
+)
+_PAST_CUE = re.compile(rf"\b(?:{'|'.join(_PAST_IRREGULAR)}|(?P<ed>[a-z]{{3,}}ed))\b", re.I)
 
 #: #58: how ``last/next week`` resolve (see the module docstring).
 WeekMode = Literal["calendar", "preceding_7_days"]
@@ -153,6 +181,7 @@ class Resolution:
     approximate: bool = False
     relation: str = ""
     bounded: bool = True
+    kind: str = "date"  # "duration" for a C5 label (a span or a start, not an event day)
 
     @property
     def label(self) -> str:
@@ -350,6 +379,49 @@ def _duration(name: str, m: re.Match[str], text: str, d: date) -> str | None:
     return f"since about {d - timedelta(days=days):%Y-%m-%d}"
 
 
+def _sentence(text: str, pos: int) -> str:
+    """The sentence of ``text`` that holds offset ``pos`` (cut at . ! ?)."""
+    start = max((m.end() for m in _SENTENCE_END.finditer(text, 0, pos)), default=0)
+    nxt = _SENTENCE_END.search(text, pos)
+    return text[start : nxt.start() if nxt else len(text)]
+
+
+def _weekday_side(sentence: str) -> str:
+    """I79: ``"past"``, ``"future"`` or ``""`` (no cue, or both: too ambiguous to resolve)."""
+    future = bool(_FUTURE_CUE.search(sentence))
+    past = any(
+        not m["ed"] or m["ed"].lower() not in _NOT_PAST for m in _PAST_CUE.finditer(sentence)
+    )
+    if future == past:
+        return ""
+    return "future" if future else "past"
+
+
+def _bare_weekdays(
+    text: str, d: date, anchored: bool, taken: list[tuple[int, int]]
+) -> list[Resolution]:
+    """I79: ``on <weekday>`` resolved against the anchor day by the sentence's tense."""
+    out: list[Resolution] = []
+    for m in _BARE_WEEKDAY.finditer(text):
+        s, e = m.start("wd"), m.end("wd")
+        if any(s < te and ts < e for ts, te in taken):
+            continue
+        target = _WEEKDAYS.index(m["wd"].lower())
+        side = _weekday_side(_sentence(text, s))
+        if not side or target == d.weekday():
+            continue  # no clear tense, or "on Sunday" said on a Sunday: leave it
+        if side == "past":
+            x = d - timedelta(days=(d.weekday() - target) % 7 or 7)
+        else:
+            x = d + timedelta(days=(target - d.weekday()) % 7 or 7)
+        relation = ""
+        if anchored:
+            relation = f"the {m['wd'].capitalize()} {'before' if side == 'past' else 'after'} {d:%Y-%m-%d}"
+        out.append(Resolution(s, e, m["wd"], x, x, False, relation, True))
+        taken.append((s, e))
+    return out
+
+
 def resolve(
     text: str,
     anchor: datetime | date,
@@ -357,6 +429,7 @@ def resolve(
     anchored: bool = False,
     week: WeekMode = "calendar",
     durations: bool = False,
+    weekdays: bool = False,
 ) -> list[Resolution]:
     """All non-overlapping relative-time phrases in ``text``, resolved against ``anchor``.
 
@@ -387,6 +460,8 @@ def resolve(
                 Resolution(m.start(), m.end(), m.group(0), first, last, approx, relation, bounded)
             )
             taken.append((m.start(), m.end()))
+    if weekdays:  # I79: after the base phrases, so "last Friday" is never re-read
+        found.extend(_bare_weekdays(text, d, anchored, taken))
     if durations:  # C5: after the base phrases, so "3 years ago" is never re-read
         for name, rx in _DURATIONS:
             for m in rx.finditer(text):
@@ -395,7 +470,9 @@ def resolve(
                 label = _duration(name, m, text, d)
                 if label is None:
                     continue
-                found.append(Resolution(m.start(), m.end(), m.group(0), d, d, True, label, False))
+                found.append(
+                    Resolution(m.start(), m.end(), m.group(0), d, d, True, label, False, "duration")
+                )
                 taken.append((m.start(), m.end()))
     return sorted(found, key=lambda r: r.start)
 
@@ -407,12 +484,20 @@ def annotate(
     anchored: bool = False,
     week: WeekMode = "calendar",
     durations: bool = False,
+    weekdays: bool = False,
+    happened: bool = False,
 ) -> str:
-    """``text`` with ``[= <absolute date>]`` after every resolved relative phrase."""
+    """``text`` with ``[= <absolute date>]`` after every resolved relative phrase.
+
+    ``happened`` (I79) writes ``[= event <date>]`` for a date label, so it reads as the date
+    the event happened and not the date the line was said."""
     out, pos = [], 0
-    for r in resolve(text, anchor, anchored=anchored, week=week, durations=durations):
+    found = resolve(
+        text, anchor, anchored=anchored, week=week, durations=durations, weekdays=weekdays
+    )
+    for r in found:
         out.append(text[pos : r.end])
-        out.append(f" [= {r.label}]")
+        out.append(f" [= event {r.label}]" if happened and r.kind == "date" else f" [= {r.label}]")
         pos = r.end
     out.append(text[pos:])
     return "".join(out)

@@ -175,6 +175,7 @@ def apply_opbench_protocol(args: argparse.Namespace) -> list[str]:
         "judge_conventions",
         "count_verify",
         "date_repair",
+        "duration_solve",
         "verify_answer",
     ):
         if getattr(args, flag):
@@ -313,6 +314,7 @@ def cmd_c0_1(args: argparse.Namespace) -> int:
         judge_conventions=args.judge_conventions,
         count_verify=args.count_verify,
         date_repair=args.date_repair,
+        duration_solve=args.duration_solve,
         retrieval_only=args.retrieval_only,
         trace_full=args.trace_full,
         cache_dir=args.cache_dir,
@@ -547,6 +549,8 @@ def build_parser() -> argparse.ArgumentParser:
             "dated3",
             "grounded",
             "grounded_detail",
+            "grounded_nodate",
+            "grounded_detail_nodate",
             "grounded_ordered",
             "grounded_v2",
             "grounded_v3",
@@ -670,6 +674,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="I57: for a 'when' question, resolve a relative phrase or bare weekday in the "
         "answer, or fix a weekday that disagrees with its date, against the date of the cited "
         "context line (core/temporal_resolve; no model call); off by default",
+    )
+    c01.add_argument(
+        "--duration-solve",
+        nargs="?",
+        const="rewrite",
+        default="",
+        choices=("rewrite", "hint"),
+        help="I76: for 'how many months between X and Y' / 'how long since X' questions, find "
+        "the two event dates in the cited lines and subtract in code (no model call). rewrite "
+        "(default when given): replace a disagreeing or refused answer; hint: put the computed "
+        "line on top of the context. Abstains when an event cannot be named; off by default",
     )
     c01.add_argument(
         "--verify-answer",
