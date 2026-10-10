@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Mapping
+from dataclasses import replace
 from typing import Any
 
 from .contracts import ReaderAnswer
@@ -112,6 +113,8 @@ class RefusalRetryReader:
         *,
         mode: str = "neutral",
         require_context_overlap: bool = False,
+        decider: Any = None,
+        decider_min_confidence: float = 0.5,
     ) -> None:
         if mode not in RETRY_MODES:
             raise ValueError(f"retry mode must be one of {sorted(RETRY_MODES)}, got {mode!r}")
@@ -122,8 +125,15 @@ class RefusalRetryReader:
         #: content word with the retrieved context
         self.require_context_overlap = require_context_overlap
         self.instruction = RETRY_MODES[mode] if instruction is None else instruction
+        #: I28: optional ``memspine.services.decision.decider.Decider``. When set and sure
+        #: enough, it replaces the ``is_refusal`` regex on question + answer text only (never
+        #: the gold, the category or the abstention flag); otherwise the regex decides.
+        self.decider = decider
+        self.decider_min_confidence = decider_min_confidence
         # the assertive id is the historical one, so earlier runs keep their reader identity
         self.reader_id = f"{inner.reader_id}+retry" + ("" if mode == "assertive" else "-neutral")
+        if decider is not None:
+            self.reader_id += f"-{getattr(decider, 'decider_id', 'decider')}"
         self.model = inner.model
         self.makes_model_calls = True
         self._counter = HeuristicTokenCounter()
@@ -137,19 +147,40 @@ class RefusalRetryReader:
             "retry_refusal": True,
             "retry_mode": self.mode,
             "retry_require_context_overlap": self.require_context_overlap,
+            **({"decider": self.decider.decider_id} if self.decider is not None else {}),
         }
+
+    async def _refusal(self, question: str, text: str, log: list[dict[str, Any]]) -> bool:
+        """Whether ``text`` is a refusal: the decider when set and sure, else the regex.
+        Every decider call is appended to ``log`` (task, label, confidence, adapter)."""
+        rule = is_refusal(text)
+        if self.decider is None or not text.strip():
+            return rule
+        try:
+            decision = await self.decider.decide("refusal", question, text)
+        except Exception as exc:  # an enhancer, never a gate
+            log.append({"task": "refusal", "adapter": self.decider.decider_id, "error": str(exc)})
+            return rule
+        sure = (
+            decision.confidence is not None and decision.confidence >= self.decider_min_confidence
+        )
+        log.append({**decision.as_meta(used=sure), "heuristic": rule})
+        return (decision.label == "refusal") if sure else rule
 
     async def answer(
         self, question: str, context: str, question_date: str | None = None
     ) -> ReaderAnswer:
         first: ReaderAnswer = await self.inner.answer(question, context, question_date)
-        if not context.strip() or not is_refusal(first.text):
+        decisions: list[dict[str, Any]] = []
+        if not context.strip() or not await self._refusal(question, first.text, decisions):
+            if decisions:
+                first = replace(first, extra_meta={**first.extra_meta, "decisions": decisions})
             return first
         self.retried += 1
         second: ReaderAnswer = await self.inner.answer(
             question + self.instruction, context, question_date
         )
-        accepted = not is_refusal(second.text)
+        accepted = not await self._refusal(question, second.text, decisions)
         if accepted and self.require_context_overlap:
             accepted = shares_content_word(second.text, context)
         if accepted:
@@ -173,6 +204,7 @@ class RefusalRetryReader:
                 "retry_accepted": accepted,
                 "retry_mode": self.mode,
                 "retry_require_context_overlap": self.require_context_overlap,
+                **({"decisions": decisions} if decisions else {}),
                 # D3 [HAR-2]: row prompt_tokens sums both calls; keep the split
                 "first_prompt_tokens": first.prompt_tokens,
                 "first_completion_tokens": first.completion_tokens,

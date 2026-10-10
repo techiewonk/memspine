@@ -287,6 +287,14 @@ def cmd_c0_1(args: argparse.Namespace) -> int:
         verify_answer=args.verify_answer,
         retry_refusal=args.retry_refusal,
         no_record_hint=args.no_record_hint,
+        decider=args.decider,
+        decider_model=args.decider_model,
+        decider_device=args.decider_device,
+        decider_min_confidence=args.decider_min_confidence,
+        decider_threads=args.decider_threads,
+        decider_backend=args.decider_backend,
+        decider_dtype=args.decider_dtype,
+        decider_workers=args.decider_workers,
         judge_guards=args.judge_guards,
         judge_date_check=args.judge_date_check,
         retrieval_only=args.retrieval_only,
@@ -556,6 +564,22 @@ def build_parser() -> argparse.ArgumentParser:
         "context does not support it, tell the reader no matching memory was found; no extra "
         "model call; off by default",
     )
+    c01.add_argument(
+        "--decider",
+        choices=("heuristic", "opendecider"),
+        default="heuristic",
+        help="I28: who decides whether an answer is a refusal (with --retry-refusal). "
+        "heuristic (default) = the is_refusal regex; opendecider = OpenDecider-nano on the "
+        "question and the answer text only (never the gold or the category), the regex "
+        "when it is unsure or fails. Needs the [decider] extra",
+    )
+    c01.add_argument("--decider-model", default="manjunathshiva/opendecider-nano")
+    c01.add_argument("--decider-device", choices=("cpu", "cuda", "mps", "auto"), default="cpu")
+    c01.add_argument("--decider-min-confidence", type=float, default=0.5)
+    c01.add_argument("--decider-threads", type=int, default=0, help="0 = physical cores")
+    c01.add_argument("--decider-backend", choices=("torch", "onnx"), default="torch")
+    c01.add_argument("--decider-dtype", choices=("float32", "bfloat16"), default="float32")
+    c01.add_argument("--decider-workers", type=int, default=1)
     c01.add_argument(
         "--judge-guards",
         action="store_true",

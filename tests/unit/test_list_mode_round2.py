@@ -277,6 +277,8 @@ def test_bridge_cue_does_not_fire(question: str) -> None:
 
 
 def test_bridge_cue_on_dev_questions_is_rare() -> None:
+    if not LOCOMO.exists():
+        pytest.skip("LoCoMo data/locomo10.json not on disk")
     data = json.loads(LOCOMO.read_text(encoding="utf-8"))
     dev = [s for s in data if s["sample_id"] in {"conv-26", "conv-30", "conv-41", "conv-42"}]
     qs = [q["question"] for s in dev for q in s["qa"] if q["category"] in (1, 2, 3, 4)]

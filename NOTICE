@@ -1,0 +1,13 @@
+memspine
+Third-party notices
+
+services/decision/opendecider_nano.py
+  Derived from OpenDecider (https://github.com/manjunathshiva/opendecider), tag v0.8.1,
+  commit 4fa58ceb88d15fe27643d89064fecc286c3be4e9 (opendecider/nano.py, prompt.py,
+  questions.py). Copyright 2026 Manjunath Janardhan. Licensed under the Apache License,
+  Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0). Only the nano inference path was
+  ported; the `opendecider` package is not a dependency.
+
+  The model weights (https://huggingface.co/manjunathshiva/opendecider-nano, Apache-2.0) are
+  downloaded at run time, not distributed with memspine. Base model: jhu-clsp/ettin-encoder-400m
+  (MIT).

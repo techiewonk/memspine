@@ -990,6 +990,37 @@ class ReadConfig(BaseModel):
     #: chosen offline on the dev forensics (second-best score of the 233 screen questions:
     #: 31 under 0.4, 28 under 0.35, 40 under 0.5).
     bridge_hop_weak_threshold: float = Field(default=0.4, ge=0.0, le=1.0)
+    #: I28: the optional decider for read-path decisions. ``heuristic`` (default) = the
+    #: existing regexes and rules, byte-identical. ``opendecider`` asks OpenDecider-nano
+    #: (``[decider]`` extra) at the decision points named in ``decider_tasks``; a decision
+    #: below ``decider_min_confidence``, or any failure, keeps the heuristic answer. Every
+    #: decision is recorded in ``search_forensics`` under ``decisions``.
+    decider: Literal["heuristic", "opendecider"] = "heuristic"
+    decider_model: str = "manjunathshiva/opendecider-nano"
+    #: CPU by default: the GPU is usually shared with the reader.
+    decider_device: Literal["cpu", "cuda", "mps", "auto"] = "cpu"
+    decider_tasks: list[Literal["list_mode", "bridge_hop"]] = Field(
+        default_factory=lambda: ["list_mode", "bridge_hop"]
+    )
+    #: I29: whether retrieved memories are injected at all. ``off`` (default): always, as
+    #: today. ``decider``: the decider (``read.decider: opendecider``) judges the message
+    #: against the retrieved memories; when it is sure (``decider_min_confidence``) that none
+    #: bear on it, the read returns an empty, abstained context. ``store_calibrated`` (planned,
+    #: not implemented): a per-store off-topic score level, see GAP_REGISTER I29.
+    relevance_gate: Literal["off", "decider"] = "off"
+    decider_min_confidence: float = Field(default=0.5, ge=0.5, le=1.0)
+    #: CPU speed (I38). Intra-op threads of the model; 0 = the physical cores. With
+    #: ``decider_workers`` > 1 each worker gets ``cores // workers``.
+    decider_threads: int = Field(default=0, ge=0)
+    #: ``torch`` (default, fp32 as the model was evaluated) | ``onnx`` (the published 8-bit
+    #: ONNX build through ONNX Runtime, CPU only; needs ``onnxruntime``).
+    decider_backend: Literal["torch", "onnx"] = "torch"
+    #: Concurrent decision calls (a bounded thread pool). 1 keeps the engine path as it is.
+    decider_workers: int = Field(default=1, ge=1)
+    #: torch weights dtype. ``float32`` (default) is how the model was evaluated;
+    #: ``bfloat16`` was about 1.5x faster on this 16-core CPU and agreed on 300 of 300
+    #: decisions (max probability difference 0.0075).
+    decider_dtype: Literal["float32", "bfloat16"] = "float32"
     #: N06 (plan v3.2, EverMemOS clusters / HyperMem hyperedges, read-time variant): the
     #: embedding neighbourhoods of the top two hits, across sessions, join the search
     #: as RRF legs (two embeds and two vector queries per read). Off: unchanged.

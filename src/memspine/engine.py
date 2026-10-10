@@ -301,6 +301,7 @@ from memspine.prompts.models import (
 from memspine.prompts.registry import PromptRegistry
 from memspine.services.cache.base import KVCache, MemoryKV
 from memspine.services.cache.semantic import CachedEmbedding, CachedExtractor
+from memspine.services.decision.decider import Decider, build_decider
 from memspine.services.embedding.base import EmbeddingService, embed_queries
 from memspine.services.graph.base import GraphStore
 from memspine.services.graph.sqlite_adjacency import SQLiteAdjacencyGraph
@@ -4768,7 +4769,7 @@ class Engine:
                         fused_legs=legs,
                     )
                     scored = scored[:want]
-            if read_now.bridge_hop and scored and self._bridge_gate(query, read_now):
+            if read_now.bridge_hop and scored and await self._bridge_fires(query, read_now, scored):
                 # R2-1: key noun phrases of the first-hop hits (not in the question) seed
                 # one extra search; its hits join the final search as the "bridge" leg.
                 bridge = await self._bridge_leg(
@@ -5357,7 +5358,9 @@ class Engine:
         )
         headers = self._count_section(ns, query, result.context, count_share, headers)
         headers = self._duration_section(ns, query, result.context, headers)
-        return ReadResult(result.mode, self._attach_headers(result.context, headers))
+        return await self._relevance_gate(
+            query, ReadResult(result.mode, self._attach_headers(result.context, headers))
+        )
 
     async def _read_routed(
         self,
@@ -5471,7 +5474,7 @@ class Engine:
             # A1 (ADR-055): a list or count question read by replay pools more
             # candidates too; replay rendering, no compose. The budget still caps it.
             top_k = read_cfg.aggregate_top_k
-        list_fire = self._list_mode_fires(query)
+        list_fire = await self._list_fires(query)
         list_token = _LIST_MODE.set(list_fire)  # B1: the search widens for a list question
         try:
             base = await self._assemble_core(
@@ -5616,6 +5619,114 @@ class Engine:
         if read.list_trigger == "set_question_wide":
             return is_set_question_wide(query)
         return is_set_question(query)
+
+    # -- I28: the optional decider (OpenDecider-nano) at the read path's decision points --
+
+    def _decider_active(self, task: str) -> bool:
+        read = self._config().read
+        if read.decider == "heuristic":
+            return False
+        if task == "relevance":
+            return read.relevance_gate == "decider"
+        return task in read.decider_tasks
+
+    def set_decider(self, decider: Decider | None) -> None:
+        """I28: use ``decider`` for the read-path decision points configured by
+        ``read.decider_tasks`` (tests, or a shared instance). None: build from the config."""
+        self._decider_override = decider
+
+    def _decider_adapter(self) -> Decider:
+        override = getattr(self, "_decider_override", None)
+        if override is not None:
+            return override
+        cfg = self._config().read
+        key = (
+            cfg.decider,
+            cfg.decider_model,
+            cfg.decider_device,
+            cfg.decider_threads,
+            cfg.decider_backend,
+            cfg.decider_workers,
+            cfg.decider_dtype,
+        )
+        cached = getattr(self, "_decider_cache", None)
+        if cached is None or cached[0] != key:
+            kind, model, device, threads, backend, workers, dtype = key
+            cached = (
+                key,
+                build_decider(
+                    kind,
+                    model,
+                    device,
+                    threads=threads,
+                    backend=backend,
+                    workers=workers,
+                    dtype=dtype,
+                ),
+            )
+            self._decider_cache = cached
+        return cached[1]
+
+    async def _decided(self, task: str, question: str, context: str | None, heuristic: str) -> str:
+        """The label for ``task``: the decider's when it is configured for the task and sure
+        enough, else ``heuristic`` (the existing rule's label, computed by the caller). Never
+        raises. Every decision is recorded in the forensics as ``decisions``."""
+        if not self._decider_active(task):
+            return heuristic
+        read = self._config().read
+        entry: dict[str, Any] = {"task": task, "adapter": read.decider, "heuristic": heuristic}
+        label = heuristic
+        try:
+            decision = await self._decider_adapter().decide(task, question, context)
+            entry.update(decision.as_meta())
+            sure = (
+                decision.confidence is not None
+                and decision.confidence >= read.decider_min_confidence
+            )
+            if sure:
+                label = decision.label
+            entry["used"] = sure
+        except Exception as exc:  # an enhancer, never a gate
+            _log.warning("read.decider_failed", task=task, error=str(exc))
+            entry.update({"label": None, "confidence": None, "used": False, "error": str(exc)})
+        entry["final"] = label
+        if (fx := _FORENSICS.get()) is not None:
+            fx.setdefault("decisions", []).append(entry)
+        return label
+
+    async def _list_fires(self, query: str) -> bool:
+        """B1 list-mode trigger; ``task=list_mode`` of the decider replaces the regex."""
+        fired = self._list_mode_fires(query)
+        if not self._config().read.list_mode or not self._decider_active("list_mode"):
+            return fired
+        return await self._decided("list_mode", query, None, "set" if fired else "single") == "set"
+
+    async def _bridge_fires(
+        self, query: str, read: Any, scored: Sequence[tuple[MemoryRecord, float]]
+    ) -> bool:
+        """R2-1b gate; ``task=bridge_hop`` of the decider replaces ``read.bridge_hop_gate``."""
+        fired = self._bridge_gate(query, read)
+        if not self._decider_active("bridge_hop"):
+            return fired
+        snippets = chr(10).join(f"- {r.content}" for r, _ in scored[:5])
+        label = await self._decided("bridge_hop", query, snippets, "hop" if fired else "no_hop")
+        if (fx := _FORENSICS.get()) is not None:
+            fx["bridge_gate"] = "decider" if label == "hop" else "skipped"
+        return label == "hop"
+
+    async def _relevance_gate(self, query: str, result: ReadResult) -> ReadResult:
+        """I29 (``task=relevance``): when the decider is sure none of the retrieved memories
+        bear on the message, inject nothing (an abstained, empty context). Off by default."""
+        if not self._decider_active("relevance") or result.context.abstained:
+            return result
+        records = [r for r in result.context.records if r.source.channel != "persona"]
+        if not records:
+            return result
+        memories = chr(10).join(f"- {r.content}" for r in records[:10])
+        label = await self._decided("relevance", query, memories, "relevant")
+        if label == "irrelevant":
+            return ReadResult(result.mode, AssembledContext(abstained=True))
+        return result
 
     async def _replay_neighbour(self, record_id: str, ns: str) -> MemoryRecord | None:
         """C7': a replayed neighbour turn, gated, inflated and decorated; None if not shown.

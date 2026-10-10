@@ -152,6 +152,16 @@ class C01Config:
     retry_refusal: bool = False
     #: I32: tell the reader no memory matches an asserted past event (``no_record.py``).
     no_record_hint: bool = False
+    #: I28: ``opendecider`` replaces the ``is_refusal`` regex in the refusal retry (needs
+    #: ``retry_refusal``); question and answer text only. ``heuristic`` (default): unchanged.
+    decider: str = "heuristic"
+    decider_model: str = "manjunathshiva/opendecider-nano"
+    decider_device: str = "cpu"
+    decider_min_confidence: float = 0.5
+    decider_threads: int = 0  # 0 = physical cores
+    decider_backend: str = "torch"
+    decider_dtype: str = "float32"
+    decider_workers: int = 1
     #: reader-gap fix: empty answers score wrong without a judge call, and ``rubric`` becomes
     #: ``rubric-guarded`` (``judge.GuardedJudge``). Off: judges unchanged.
     judge_guards: bool = False
@@ -387,6 +397,26 @@ def check_dollar_cap(config: C01Config) -> None:
         )
 
 
+def _retry_decider_kwargs(config: C01Config) -> dict[str, Any]:
+    """I28: ``RefusalRetryReader`` kwargs for ``--decider`` (none for the default heuristic)."""
+    if config.decider == "heuristic":
+        return {}
+    from memspine.services.decision.decider import build_decider
+
+    return {
+        "decider": build_decider(
+            config.decider,
+            config.decider_model,
+            config.decider_device,
+            threads=config.decider_threads,
+            backend=config.decider_backend,
+            workers=config.decider_workers,
+            dtype=config.decider_dtype,
+        ),
+        "decider_min_confidence": config.decider_min_confidence,
+    }
+
+
 def build_systems(config: C01Config) -> list[SystemAdapter]:
     """The arms, in the order they should be read.
 
@@ -551,7 +581,9 @@ def build_reader_and_judge(config: C01Config) -> tuple[Reader, Judge, bool]:
         if config.retry_refusal:
             from .refusal import RefusalRetryReader
 
-            bedrock_reader = RefusalRetryReader(bedrock_reader)  # type: ignore[assignment]
+            bedrock_reader = RefusalRetryReader(  # type: ignore[assignment]
+                bedrock_reader, **_retry_decider_kwargs(config)
+            )
         judge = build_judge(
             config,
             litellm_chat(budget, model=QWEN3_32B),
@@ -587,7 +619,9 @@ def build_reader_and_judge(config: C01Config) -> tuple[Reader, Judge, bool]:
     if config.retry_refusal:
         from .refusal import RefusalRetryReader
 
-        reader = RefusalRetryReader(reader)  # type: ignore[assignment]
+        reader = RefusalRetryReader(  # type: ignore[assignment]
+            reader, **_retry_decider_kwargs(config)
+        )
     if config.no_record_hint:
         from .no_record import NoRecordHintReader
 
@@ -727,6 +761,7 @@ async def run_c0_1(
             **({"verify_answer": True} if config.verify_answer else {}),
             **({"retry_refusal": True} if config.retry_refusal else {}),
             **({"no_record_hint": True} if config.no_record_hint else {}),
+            **({"decider": config.decider} if config.decider != "heuristic" else {}),
             **({"judge_guards": True} if config.judge_guards else {}),
             "judge_prompt": config.judge_prompt if config.mode == "qa" else None,
             **({"opbench_root": config.opbench_root} if config.opbench_root else {}),
