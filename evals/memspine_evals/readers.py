@@ -171,6 +171,60 @@ GROUNDED_GENERIC_QA_PROMPT = (
     "Message: {question}\nAnswer:"
 )
 
+#: B3 / C4 / R2-6 (open-domain inference). "Would X ...", "Is it likely ...", "What might ..."
+#: questions were refused or answered too literally (dev: "Would Caroline likely have Dr. Seuss
+#: books?" answered "not mentioned"; "Would John be open to moving to another country?" refused).
+#: Generic wording, no dataset names. Unanswerable FACTUAL questions keep the refusal string.
+INFER_CLAUSE = (
+    "If the message asks whether something would, might or is likely to be true, or what "
+    "someone might do or be, do not refuse: give the most likely answer (yes or no, or a short "
+    "phrase) and a one-line reason that cites what the memories show about the person, using "
+    "ordinary knowledge to bridge a gap. Reply that it is not mentioned only for a factual "
+    "question (a name, date, number or place) whose answer the memories do not state. "
+)
+#: C9 (regressions from the grounded prompt with a bigger window): the short answer dropped the
+#: specific detail, and a larger window brought in other lines about the same topic.
+DETAIL_CLAUSE = (
+    "Keep the specific detail the question asks for (names, objects, places, numbers) instead of "
+    "a general description. When the memories mention similar events on several dates, use the "
+    "line that matches every detail in the question (who, what, when). "
+)
+#: C6 (incomplete lists and counts). Differs from ``grounded_detail``'s list sentence in three
+#: ways: it covers EVERY line (not just matches found), merges repeats of one item, and counts
+#: the merged set.
+LIST_CLAUSE = (
+    "If the message asks for several items or for how many, go through every memory line, "
+    "collect each distinct item found anywhere in them, merge repeated mentions of the same "
+    "item, list them all, and give the count of that merged list when a number is asked. Do "
+    "not stop at the first item and do not add items the memories do not state. "
+)
+#: I18 (preference following). A request is answered as an assistant would, using the stored
+#: preferences silently, and only the ones that relate to the request.
+PREFERENCE_CLAUSE = (
+    "If the message is a request for help, advice or a recommendation, answer it as a helpful "
+    "assistant would. When the memories record the user's preferences, dislikes, constraints "
+    "or habits that bear on the request, follow them in your answer without announcing or "
+    "quoting them; never apply a preference to a request it is unrelated to. "
+)
+_GENERIC_TAIL = "Keep the answer short."
+assert _GENERIC_TAIL in GROUNDED_GENERIC_QA_PROMPT
+GROUNDED_GENERIC_INFER_QA_PROMPT = GROUNDED_GENERIC_QA_PROMPT.replace(
+    _GENERIC_TAIL, INFER_CLAUSE + DETAIL_CLAUSE + _GENERIC_TAIL
+)
+GROUNDED_GENERIC_LIST_QA_PROMPT = GROUNDED_GENERIC_QA_PROMPT.replace(
+    _GENERIC_TAIL, LIST_CLAUSE + _GENERIC_TAIL
+)
+#: A request is not a question the memories must answer, so the exact-refusal sentence is limited
+#: to questions; the length rule is replaced (advice needs more than a phrase).
+GROUNDED_GENERIC_PREFS_QA_PROMPT = GROUNDED_GENERIC_QA_PROMPT.replace(
+    "If the memories do not contain the answer, reply exactly: Not mentioned in the "
+    "conversation.",
+    "If the message is a question whose answer the memories do not contain, reply exactly: "
+    "Not mentioned in the conversation.",
+).replace(_GENERIC_TAIL, PREFERENCE_CLAUSE)
+assert GROUNDED_GENERIC_PREFS_QA_PROMPT.count("Not mentioned") == 1
+assert PREFERENCE_CLAUSE in GROUNDED_GENERIC_PREFS_QA_PROMPT
+
 #: Dev reasoning 2026-10-10: ``grounded`` plus three rules from the read failures of the
 #: development conversations - references to earlier lines ("that book you recommended",
 #: "we did it yesterday"), photo captions as evidence, and yes/no inference questions answered
@@ -261,6 +315,9 @@ QA_PROMPTS = {
     "grounded_v2": GROUNDED_V2_QA_PROMPT,
     "grounded_v3": GROUNDED_V3_QA_PROMPT,
     "grounded_generic": GROUNDED_GENERIC_QA_PROMPT,
+    "grounded_generic_infer": GROUNDED_GENERIC_INFER_QA_PROMPT,
+    "grounded_generic_list": GROUNDED_GENERIC_LIST_QA_PROMPT,
+    "grounded_generic_prefs": GROUNDED_GENERIC_PREFS_QA_PROMPT,
     "abstain": ABSTAIN_QA_PROMPT,
     "converse": CONVERSE_QA_PROMPT,
     "dated_planned": DATED_PLANNED_QA_PROMPT,
@@ -311,11 +368,21 @@ class RoutedQAPrompt:
 
     name = "routed"
 
-    def __init__(self, variants: Mapping[str, str] = ROUTED_QA_VARIANTS) -> None:
+    def __init__(
+        self,
+        variants: Mapping[str, str] = ROUTED_QA_VARIANTS,
+        *,
+        shape_fn: Any = None,
+        router_version: str = QA_ROUTER_VERSION,
+        name: str = "routed",
+    ) -> None:
         self.variants = dict(variants)
+        self.shape_fn = qa_shape if shape_fn is None else shape_fn
+        self.router_version = router_version
+        self.name = name
 
     def variant_for(self, question: str) -> str:
-        return qa_shape(question)
+        return self.shape_fn(question)
 
     def format(self, *, context: str, question: str, question_date: str = "unknown") -> str:
         return self.variants[self.variant_for(question)].format(
@@ -328,15 +395,45 @@ class RoutedQAPrompt:
         hashes = {k: hashlib.sha256(v.encode()).hexdigest() for k, v in self.variants.items()}
         joined = "\n".join(f"{k}={hashes[k]}" for k in sorted(hashes))
         return {
-            "prompt_sha256": hashlib.sha256(f"{QA_ROUTER_VERSION}\n{joined}".encode()).hexdigest(),
+            "prompt_sha256": hashlib.sha256(f"{self.router_version}\n{joined}".encode()).hexdigest(),
             "qa_prompt": self.name,
-            "qa_router": QA_ROUTER_VERSION,
+            "qa_router": self.router_version,
             "prompt_variants_sha256": hashes,
         }
 
 
 #: Per-question QA prompts, selectable by ``--qa-prompt`` next to :data:`QA_PROMPTS`.
-ROUTED_QA_PROMPTS: Mapping[str, RoutedQAPrompt] = {"routed": RoutedQAPrompt()}
+def generic_qa_shape(question: str) -> str:
+    """The ``routed_generic`` variant: ``infer`` for a would / likely / might question,
+    ``list`` for a count or list question, else ``plain`` (dates stay with the plain generic
+    prompt, which already resolves them). Rules only, no model."""
+    from memspine.core.query_shape import is_aggregation, is_count, is_inference, is_temporal
+
+    if is_temporal(question):
+        return "plain"
+    if is_inference(question):
+        return "infer"
+    if is_count(question) or is_aggregation(question):
+        return "list"
+    return "plain"
+
+
+ROUTED_GENERIC_VARIANTS: Mapping[str, str] = {
+    "plain": GROUNDED_GENERIC_QA_PROMPT,
+    "infer": GROUNDED_GENERIC_INFER_QA_PROMPT,
+    "list": GROUNDED_GENERIC_LIST_QA_PROMPT,
+}
+ROUTED_GENERIC_ROUTER_VERSION = "generic-shape-v1"
+
+ROUTED_QA_PROMPTS: Mapping[str, RoutedQAPrompt] = {
+    "routed": RoutedQAPrompt(),
+    "routed_generic": RoutedQAPrompt(
+        ROUTED_GENERIC_VARIANTS,
+        shape_fn=generic_qa_shape,
+        router_version=ROUTED_GENERIC_ROUTER_VERSION,
+        name="routed_generic",
+    ),
+}
 
 
 class SystemQAPrompt:

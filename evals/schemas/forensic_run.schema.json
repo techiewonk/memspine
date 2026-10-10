@@ -30,6 +30,7 @@
     "by_category_all": {"type": "object", "description": "I24: per-category n, judge accuracy and refusal rate including cat 5 (adversarial)",
       "additionalProperties": {"type": "object", "properties": {"n": {"type": "integer"},
         "accuracy": {"type": "number"}, "refusal_rate": {"type": ["number", "null"]}}}},
+    "preference_adherence": {"type": ["object", "null"], "description": "I18: offline adherence scaffold over rows carrying a benchmark preference label (judged adherence, preference-turn in context, announced rate, lexical violation proxy; by form). Null when the dataset has no preference labels"},
     "memory_used": {"type": ["object", "null"], "description": "I24: share of queries with a non-empty context (n, rate, by_category)"},
     "triggers": {"type": ["object", "null"], "description": "I24: fired-rate table from the forensics rows: list_mode (speaker_vote leg), bridge_hop (+ gate_decisions when logged), rerank, per-leg rates, decider decisions when logged; accuracy_fired / accuracy_not_fired where verdicts are joined; null without a forensics log"},
     "sufficiency_on_qa_set": {"type": ["object", "null"], "description": "A12: retrieval-only runs: share of the non-adversarial questions with all gold in context"},

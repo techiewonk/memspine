@@ -107,6 +107,9 @@ def test_existing_prompt_table_is_unchanged() -> None:
         "grounded_v2",  # dev reasoning 2026-10-10
         "grounded_v3",
         "grounded_generic",  # I3
+        "grounded_generic_infer",  # B3 / C4 / R2-6 (+ C9 detail clause)
+        "grounded_generic_list",  # C6
+        "grounded_generic_prefs",  # I18
     }
 
 

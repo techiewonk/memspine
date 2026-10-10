@@ -150,6 +150,9 @@ class C01Config:
     verify_answer: bool = False
     #: reader-gap fix: re-ask once, firmer, when the reader refuses (``refusal.py``).
     retry_refusal: bool = False
+    #: C10: with ``retry_refusal``, skip the retry when the question names an entity the
+    #: retrieved context never mentions (``refusal.names_absent_entity``). Off: unchanged.
+    retry_guard: bool = False
     #: I32: tell the reader no memory matches an asserted past event (``no_record.py``).
     no_record_hint: bool = False
     #: I28: ``opendecider`` replaces the ``is_refusal`` regex in the refusal retry (needs
@@ -399,11 +402,13 @@ def check_dollar_cap(config: C01Config) -> None:
 
 def _retry_decider_kwargs(config: C01Config) -> dict[str, Any]:
     """I28: ``RefusalRetryReader`` kwargs for ``--decider`` (none for the default heuristic)."""
+    guard = {"guard_absent_entity": True} if config.retry_guard else {}
     if config.decider == "heuristic":
-        return {}
+        return guard
     from memspine.services.decision.decider import build_decider
 
     return {
+        **guard,
         "decider": build_decider(
             config.decider,
             config.decider_model,
@@ -760,6 +765,7 @@ async def run_c0_1(
             "qa_prompt": config.qa_prompt if config.mode == "qa" else None,
             **({"verify_answer": True} if config.verify_answer else {}),
             **({"retry_refusal": True} if config.retry_refusal else {}),
+            **({"retry_guard": True} if config.retry_guard else {}),
             **({"no_record_hint": True} if config.no_record_hint else {}),
             **({"decider": config.decider} if config.decider != "heuristic" else {}),
             **({"judge_guards": True} if config.judge_guards else {}),

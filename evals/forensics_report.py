@@ -28,6 +28,7 @@ from __future__ import annotations
 import argparse
 import ast
 import json
+import re
 import statistics
 import sys
 from collections import Counter, defaultdict
@@ -312,6 +313,10 @@ def build(args) -> None:
                  "text": (turn_info.get((r["item_id"], x["turn"])) or {}).get("text")}
                 for x in f["final"] if x["turn"] not in gold_ids][:5]
             entry["context_text"] = [c["text"] for c in f["context_records"]]
+        pref = preference_label(r)  # I18: from the benchmark gold, never from the run
+        if pref:
+            entry["preference"] = pref
+            entry["form"] = str(r.get("type_label") or "").split("/", 1)[0] or None
         rows.append(entry)
 
     no_errata = getattr(args, "no_errata", False)
@@ -470,6 +475,100 @@ def by_category_all(all_rows: list[dict]) -> dict:
     return out
 
 
+#: I18: result ``type_label`` prefixes of preference-following datasets (the explicit / choice /
+#: persona forms), and result-meta keys a dataset may use to carry a preference label.
+PREFERENCE_FORMS = ("explicit", "choice", "persona", "preference")
+PREFERENCE_META_KEYS = ("preference", "preference_label")
+_ANNOUNCE = re.compile(
+    r"\b(?:as you (?:mentioned|said|told me)|you (?:mentioned|said|told me) (?:that )?you|"
+    r"since you (?:like|love|prefer|enjoy|dislike|hate|don't|do not)|given your (?:preference|"
+    r"love|dislike|taste)|i remember (?:that )?you|i know (?:that )?you|based on your "
+    r"(?:preference|past))\b",
+    re.IGNORECASE,
+)
+_AVOID = re.compile(
+    r"\b(?:do(?:n't| not) (?:like|enjoy|eat|want|drink)|dislike|hate|avoid|never|allergic to|"
+    r"not a fan of|can't stand|cannot stand|no interest in)\s+(?P<obj>[^.,;!?]{2,60})",
+    re.IGNORECASE,
+)
+_PREF_STOP = frozenset(
+    "i a an the and or to of in on for with my me is am are be it that this as at by from so "
+    "do not no but you your we our they very really absolutely like enjoy eat want drink any "
+    "anything".split()
+)
+
+
+def preference_label(result: dict) -> str | None:
+    """I18: the preference a benchmark row is about, read from the benchmark's own gold (never
+    from the run): ``meta.preference`` / ``meta.preference_label`` when the dataset sets it,
+    else the ``gold`` text of a row whose ``type_label`` starts ``explicit/``, ``choice/``,
+    ``persona/`` or ``preference``. None for every other row (LoCoMo has none)."""
+    meta = result.get("meta") or {}
+    for key in PREFERENCE_META_KEYS:
+        if meta.get(key):
+            return str(meta[key])
+    label = str(result.get("type_label") or "")
+    if label.split("/", 1)[0] in PREFERENCE_FORMS and result.get("gold"):
+        return str(result["gold"])
+    return None
+
+
+def avoided_terms(preference: str) -> list[str]:
+    """Content words of what a stated preference rules out ("I don't like spicy food" ->
+    ``["spicy", "food"]``); empty when the preference states no dislike or constraint."""
+    out: list[str] = []
+    for m in _AVOID.finditer(preference):
+        for w in re.findall(r"[a-z][a-z-]{2,}", m.group("obj").lower()):
+            if w not in _PREF_STOP and w not in out:
+                out.append(w)
+    return out
+
+
+def preference_adherence_block(all_rows: list[dict]) -> dict | None:
+    """I18 scaffold, offline, no model call. Over rows carrying a ``preference`` field (set
+    from the benchmark gold by :func:`preference_label`); None when no row has one.
+
+    - ``judged_adherence``: share the run's judge marked correct (the dataset's adherence judge);
+    - ``preference_turn_in_context``: share whose gold preference turn(s) were all in the context;
+    - ``announced_rate``: share of answers that announce the preference ("as you mentioned");
+    - ``violation_proxy``: among rows whose preference states a dislike, share whose answer
+      contains one of the ruled-out words (a lexical proxy; it misses paraphrase and over-flags
+      a mention that declines the item, so read it next to ``judged_adherence``, not instead).
+    """
+    pref_rows = [r for r in all_rows if r.get("preference") and r.get("mode", "qa") == "qa"]
+    if not pref_rows:
+        return None
+
+    def block(sub: list[dict]) -> dict:
+        answered = [r for r in sub if (r.get("answer") or "").strip()]
+        with_turns = [r for r in sub if r.get("gold_turns")]
+        constrained = [(r, avoided_terms(r["preference"])) for r in answered]
+        constrained = [(r, t) for r, t in constrained if t]
+        violated = [
+            r for r, terms in constrained
+            if any(re.search(rf"\b{re.escape(t)}", r["answer"].lower()) for t in terms)
+        ]
+        return {
+            "n": len(sub),
+            "judged_adherence": sum(bool(r["correct"]) for r in sub) / len(sub),
+            "preference_turn_in_context": (
+                sum(all(g.get("in_context") for g in r["gold_turns"]) for r in with_turns) / len(with_turns)
+                if with_turns else None),
+            "announced_rate": (sum(bool(_ANNOUNCE.search(r["answer"])) for r in answered) / len(answered)
+                               if answered else None),
+            "n_constrained": len(constrained),
+            "violation_proxy": (len(violated) / len(constrained)) if constrained else None,
+        }
+
+    forms = sorted({str(r.get("form") or r.get("type_label") or "all").split("/", 1)[0] for r in pref_rows})
+    out = block(pref_rows)
+    out["by_form"] = {
+        f: block([r for r in pref_rows if str(r.get("form") or r.get("type_label") or "all").split("/", 1)[0] == f])
+        for f in forms
+    }
+    return out
+
+
 def memory_used_block(all_rows: list[dict]) -> dict | None:
     """I24: share of queries whose context was non-empty (any retrieved turn or context tokens)."""
     if not all_rows:
@@ -555,6 +654,7 @@ def summarise(run_id: str, rows: list[dict], manifest: dict, ingest: list[dict],
     s["abstention"] = abstention_block(all_rows)  # I24
     s["by_category_all"] = by_category_all(all_rows)
     s["memory_used"] = memory_used_block(all_rows)
+    s["preference_adherence"] = preference_adherence_block(all_rows)  # I18
     s["triggers"] = trigger_block(fx_rows or [])
     s["recall_at_10_hits"] = recall_at_10_hits(rows)
     s["sufficiency_on_qa_set"] = (

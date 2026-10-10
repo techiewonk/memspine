@@ -28,8 +28,11 @@ __all__ = [
     "RETRY_INSTRUCTION_ASSERTIVE",
     "RETRY_INSTRUCTION_NEUTRAL",
     "RETRY_MODES",
+    "MAX_RETRIES",
     "RefusalRetryReader",
     "is_refusal",
+    "named_entities",
+    "names_absent_entity",
     "shares_content_word",
 ]
 
@@ -86,6 +89,51 @@ def shares_content_word(answer: str, context: str) -> bool:
     return bool(words & set(_WORD.findall(context.lower())))
 
 
+#: C10: the retry limit. A refusal is re-asked AT MOST this many times (never a loop), on a
+#: non-empty context only. Measured on the 1,540-question run (``READER_GAPS_FORENSIC.md`` 3):
+#: 107 fires, 31 end correct, and a second refusal is never rescued by a third ask.
+MAX_RETRIES = 1
+
+_CAP_WORD = re.compile(r"[A-Z][a-z][\w'-]*")
+#: capitalised words that are not names: question openers, weekdays, months, pronoun-likes
+_NOT_NAMES = frozenset(
+    (
+        "what who whom whose when where which why how did does do is are was were would could "
+        "should can will has have had the a an in on at of to for with from about after before "
+        "during and or but if it its he she they we you i monday tuesday wednesday thursday "
+        "friday saturday sunday january february march april may june july august september "
+        "october november december"
+    ).split()
+)
+
+
+def named_entities(question: str) -> list[str]:
+    """Capitalised words in ``question`` that look like names: not a question opener,
+    weekday or month (an unlisted sentence opener counts as a name, which only makes the
+    guard skip a retry). Rules only; ``"Caroline's"`` gives ``"Caroline"``."""
+    out: list[str] = []
+    for w in _CAP_WORD.findall(question):
+        base = re.sub(r"'s$", "", w)
+        if base.lower() in _NOT_NAMES:
+            continue
+        if base not in out:
+            out.append(base)
+    return out
+
+
+def names_absent_entity(question: str, context: str) -> bool:
+    """C10: True when the question names at least one entity and NONE of them appears in
+    ``context``: a question about someone the memories do not mention at all. Such a question is
+    unanswerable from the store, so a retry that insists on an answer can only fabricate.
+    Requiring that all names be absent keeps world-knowledge questions ("Would Melanie enjoy
+    Vivaldi?", Vivaldi absent, Melanie present) retryable. Generic: question and context text
+    only, never the gold or the category. Limit: a swapped-speaker question (both people are in
+    the store, the pairing is wrong) is not detected."""
+    names = named_entities(question)
+    low = context.lower()
+    return bool(names) and all(name.lower() not in low for name in names)
+
+
 def is_refusal(answer: str) -> bool:
     """True when ``answer`` is empty, declines ("I do not know", "not mentioned", ...) or
     opens with a denial of the premise."""
@@ -96,7 +144,12 @@ def is_refusal(answer: str) -> bool:
 
 
 class RefusalRetryReader:
-    """Wraps a reader: a refusal on a non-empty context is re-asked once.
+    """Wraps a reader: a refusal on a non-empty context is re-asked once (``MAX_RETRIES``).
+
+    Limits (C10): one retry, never a loop; none on an empty context; with
+    ``guard_absent_entity`` none when the question names an entity the context never
+    mentions (the cat-5-shaped, unanswerable case). A retry whose answer is again a refusal
+    is discarded and the first answer kept.
 
     The decision to retry uses only the first answer's text and the context: never the gold,
     the category or the ``abstention`` flag of the query (the reader never sees them).
@@ -115,10 +168,14 @@ class RefusalRetryReader:
         require_context_overlap: bool = False,
         decider: Any = None,
         decider_min_confidence: float = 0.5,
+        guard_absent_entity: bool = False,
     ) -> None:
         if mode not in RETRY_MODES:
             raise ValueError(f"retry mode must be one of {sorted(RETRY_MODES)}, got {mode!r}")
         self.inner = inner
+        #: C10 (default off, reader ids unchanged): do not retry when the question names an
+        #: entity the context never mentions (the question cannot be answered from the store).
+        self.guard_absent_entity = guard_absent_entity
         self.guard = getattr(inner, "guard", None)
         self.mode = mode
         #: optional safety valve (default off): accept the retry answer only when it shares a
@@ -134,12 +191,16 @@ class RefusalRetryReader:
         self.reader_id = f"{inner.reader_id}+retry" + ("" if mode == "assertive" else "-neutral")
         if decider is not None:
             self.reader_id += f"-{getattr(decider, 'decider_id', 'decider')}"
+        if guard_absent_entity:
+            self.reader_id += "-entityguard"
         self.model = inner.model
         self.makes_model_calls = True
         self._counter = HeuristicTokenCounter()
         #: Refusals seen, retries that produced a non-refusal answer.
         self.retried = 0
         self.recovered = 0
+        #: Refusals left alone by ``guard_absent_entity``.
+        self.skipped = 0
 
     def describe(self) -> Mapping[str, Any]:
         return {
@@ -147,6 +208,7 @@ class RefusalRetryReader:
             "retry_refusal": True,
             "retry_mode": self.mode,
             "retry_require_context_overlap": self.require_context_overlap,
+            **({"retry_guard_absent_entity": True} if self.guard_absent_entity else {}),
             **({"decider": self.decider.decider_id} if self.decider is not None else {}),
         }
 
@@ -176,6 +238,16 @@ class RefusalRetryReader:
             if decisions:
                 first = replace(first, extra_meta={**first.extra_meta, "decisions": decisions})
             return first
+        if self.guard_absent_entity and names_absent_entity(question, context):
+            self.skipped += 1
+            return replace(
+                first,
+                extra_meta={
+                    **first.extra_meta,
+                    "retry_skipped": "question names an entity absent from the context",
+                    **({"decisions": decisions} if decisions else {}),
+                },
+            )
         self.retried += 1
         second: ReaderAnswer = await self.inner.answer(
             question + self.instruction, context, question_date

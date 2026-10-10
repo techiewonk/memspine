@@ -167,7 +167,7 @@ def apply_opbench_protocol(args: argparse.Namespace) -> list[str]:
         notes.append("OP-Bench: --judge-prompt rubric -> opbench (official OP-Bench judge)")
     elif args.judge_prompt != "opbench":
         raise SystemExit(f"--judge-prompt {args.judge_prompt} cannot grade OP-Bench; use opbench")
-    for flag in ("retry_refusal", "judge_guards", "judge_date_check", "verify_answer"):
+    for flag in ("retry_refusal", "retry_guard", "judge_guards", "judge_date_check", "verify_answer"):
         if getattr(args, flag):
             setattr(args, flag, False)
             notes.append(
@@ -286,6 +286,7 @@ def cmd_c0_1(args: argparse.Namespace) -> int:
         max_usd=args.max_usd,
         verify_answer=args.verify_answer,
         retry_refusal=args.retry_refusal,
+        retry_guard=args.retry_guard,
         no_record_hint=args.no_record_hint,
         decider=args.decider,
         decider_model=args.decider_model,
@@ -534,6 +535,10 @@ def build_parser() -> argparse.ArgumentParser:
             "grounded_v2",
             "grounded_v3",
             "grounded_generic",
+            "grounded_generic_infer",
+            "grounded_generic_list",
+            "grounded_generic_prefs",
+            "routed_generic",
             "dated_world",
             "abstain",
             "converse",
@@ -556,6 +561,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="re-ask once, with a firmer instruction, when the reader refuses (or answers "
         "empty) on a non-empty context; both answers land in the row meta, the extra call "
         "counts against --max-model-calls; off by default",
+    )
+    c01.add_argument(
+        "--retry-guard",
+        action="store_true",
+        help="C10: with --retry-refusal, do not retry when the question names an entity the "
+        "retrieved context never mentions (an unanswerable question; a retry can only "
+        "fabricate). The retry is always capped at one re-ask on a non-empty context; off "
+        "by default",
     )
     c01.add_argument(
         "--no-record-hint",
