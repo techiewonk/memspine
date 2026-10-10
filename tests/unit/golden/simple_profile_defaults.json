@@ -59,6 +59,12 @@
     },
     "read": {
       "abstain_on_raw": false,
+      "agentic": false,
+      "agentic_max_new": 6,
+      "agentic_max_steps": 2,
+      "agentic_first_share": 0.6,
+      "agentic_top_k": 8,
+      "agentic_trigger": "multi_hop",
       "aggregate_in_replay": false,
       "aggregate_top_k": null,
       "anticipatory_cues": false,

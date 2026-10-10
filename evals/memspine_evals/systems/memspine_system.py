@@ -738,6 +738,9 @@ class MemspineSystem:
                 "decisions",
                 "relevance_calibration",
                 "relevance_bypass",
+                # I67: the agentic read's steps (action, query, new ids, calls, seconds)
+                "agentic",
+                "agentic_steps",
             )
             if k in stages},
             "rerank_scores": rank(stages.get("rerank_scores", [])),

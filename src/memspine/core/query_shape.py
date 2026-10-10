@@ -21,6 +21,7 @@ __all__ = [
     "is_duration",
     "is_inference",
     "is_intent_list",
+    "is_multi_hop",
     "is_novelty",
     "is_ordering",
     "is_personal",
@@ -337,6 +338,62 @@ def is_count(query: str) -> bool:
 def is_aggregation(query: str) -> bool:
     """True when the question asks for a count, a list or several items."""
     return bool(_AGGREGATE.search(query))
+
+
+_MH_RELATION = re.compile(
+    r"\b(?:both|either|neither|same|in common|before|after|since|until|while|"
+    r"earlier|later|first|then|compared? (?:to|with)|together|as well as)\b",
+    re.I,
+)
+_MH_POSSESSIVE_CHAIN = re.compile(r"\b\w+'s\b.*\b\w+'s\b")
+_MH_NOT_NAMES = frozenset(
+    {
+        "i",
+        "january",
+        "february",
+        "march",
+        "april",
+        "may",
+        "june",
+        "july",
+        "august",
+        "september",
+        "october",
+        "november",
+        "december",
+        "monday",
+        "tuesday",
+        "wednesday",
+        "thursday",
+        "friday",
+        "saturday",
+        "sunday",
+    }
+)
+
+
+@english_only()
+def is_multi_hop(question: str) -> bool:
+    """I67 (``read.agentic_trigger: multi_hop``): the question probably needs facts from
+    more than one place. Generic surface cues only (no dataset knowledge): two or more
+    distinct capitalised names after the first word, a relation word ("both", "same",
+    "before", "after", "while", "in common"), a chain of two possessives ("Ana's
+    sister's job"), or a bridge cue (the answer's entity is described, not named)."""
+    from memspine.core.temporal_query import has_bridge_cue
+
+    words = question.strip().split()
+    names = {
+        w.strip("?.,!;:'\"()").removesuffix("'s").lower()
+        for w in words[1:]
+        if w[:1].isupper() and w.strip("?.,!;:'\"()").lower() not in _MH_NOT_NAMES
+    }
+    names.discard("")
+    return bool(
+        len(names) >= 2
+        or _MH_RELATION.search(question)
+        or _MH_POSSESSIVE_CHAIN.search(question)
+        or has_bridge_cue(question)
+    )
 
 
 def rule_read_mode(query: str) -> str | None:

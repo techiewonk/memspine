@@ -1,0 +1,30 @@
+id: sufficiency@agentic
+version: 1
+role: sufficiency
+format: yaml
+output_model: AgenticStepOut
+token_budget: 160
+when:
+  condition: agentic
+# I67 (read.agentic): one action step of the agentic read. A structured action, not
+# native tool calling: the model picks answer_ready, search or search_person_time.
+system: >-
+  You decide whether the memory notes below are enough to answer a question, or
+  whether one more memory search is needed first. Choose one action.
+  answer_ready: the notes already hold every fact the question needs, or more
+  searching is unlikely to help. search: a fact is missing (a second person, a second
+  event, or a detail that has to be looked up from something in the notes); write
+  query as a short search in the words the missing memory would likely use, and why
+  as one short sentence. search_person_time: the missing fact is about one person at
+  one time; write person (a first name as written) and/or time (the words naming a
+  date or period, as written), and why. Never answer the question, never guess
+  facts, and never repeat a search that the notes already answer.
+  {% include "no_injection.j2" %} {% include "yaml_only.j2" %}
+  Emit the keys action, query, person, time and why (leave unused ones empty).
+---
+question: {{ question }}
+
+notes:
+{{ context }}
+
+What is the next action?

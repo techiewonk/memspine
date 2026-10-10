@@ -51,6 +51,7 @@ from memspine.clients.sqlite import SQLiteClient
 from memspine.config import constants
 from memspine.config.loader import ResolvedConfig, default_template, load_config
 from memspine.config.schema import FirewallConfig, MemspineConfig
+from memspine.core.agentic import clean_query, evidence_view, fuse_new, merge_budget
 from memspine.core.answer import final_answer, numbered_context, verification
 from memspine.core.audit import IntegrityReport, TaintReport, trace_taint, verify_events
 from memspine.core.concentration import collapse_concentrated
@@ -163,6 +164,7 @@ from memspine.core.query_shape import (
     is_count,
     is_duration,
     is_intent_list,
+    is_multi_hop,
     is_novelty,
     is_ordering,
     is_personal,
@@ -336,6 +338,7 @@ from memspine.observability.logging import (
 )
 from memspine.observability.timers import StepTimers, timed
 from memspine.prompts.models import (
+    AgenticStepOut,
     AnswerVerdictOut,
     AnticipatedCue,
     AnticipatedCues,
@@ -363,8 +366,8 @@ from memspine.services.graph.base import GraphStore
 from memspine.services.graph.sqlite_adjacency import SQLiteAdjacencyGraph
 from memspine.services.lexical.base import LexicalHit, LexicalStore, minmax_fuse, rrf_fuse
 from memspine.services.lexical.projector import LexicalProjector
-from memspine.services.llm.base import LLMRouter, LLMService
 from memspine.services.llm import structured as _structured
+from memspine.services.llm.base import LLMRouter, LLMService
 from memspine.services.llm.structured import structured_call
 from memspine.services.llm.tier_gate import WITHHELD_MARKER, TierGatedLLM, is_local_provider
 from memspine.services.query_encoder import CueQueryEncoder, NoopQueryEncoder, QueryEncoder
@@ -6109,18 +6112,24 @@ class Engine:
         headers, count_share = self._cap_lead_blocks(headers, count_share, budget_tokens)
         # ADR-055 addendum: a gated question reads raw turns only, in every mode.
         gated = self._cards_gated(query, strong=strong)
+        routed_budget = budget_tokens - self._headers_cost(headers) - count_share
+        hide = self._header_hide(headers, hide_facts=gated)
         result = await self._read_routed(
             query,
             ns,
             mode,
-            budget_tokens - self._headers_cost(headers) - count_share,
+            routed_budget,
             top_k,
             replay_window,
             compose_pool,
-            hide=self._header_hide(headers, hide_facts=gated),
+            hide=hide,
             full_hide=self._header_hide(headers, all_facts=False, hide_facts=gated),
             session_id=session_id,
         )
+        if self._config().read.agentic:  # I67: opt-in; step 0 above is today's read
+            result = await self._agentic_extend(
+                query, ns, result, routed_budget, hide=hide, session_id=session_id
+            )
         headers = self._count_section(ns, query, result.context, count_share, headers)
         headers = self._duration_section(ns, query, result.context, headers)
         gated = await self._relevance_gate(
@@ -6128,6 +6137,194 @@ class Engine:
         )
         return ReadResult(
             gated.mode, await self._read_overlay(query, ns, gated.context, session_id)
+        )
+
+    async def _agentic_fires(self, query: str, read: Any, records: Sequence[MemoryRecord]) -> bool:
+        """I67 ``read.agentic_trigger``: ``always``; ``multi_hop`` (the surface heuristic);
+        ``decider`` (task ``needs_more_evidence``; the heuristic when the decider is
+        inactive, unsure or failing)."""
+        heuristic = "needs_more" if is_multi_hop(query) else "enough"
+        if read.agentic_trigger == "always":
+            return True
+        if read.agentic_trigger == "multi_hop":
+            return heuristic == "needs_more"
+        snippets = chr(10).join(f"- {r.content}" for r in records[:5])
+        label = await self._decided("needs_more_evidence", query, snippets, heuristic)
+        return label == "needs_more"
+
+    async def _agentic_extend(
+        self,
+        query: str,
+        ns: str,
+        result: ReadResult,
+        budget_tokens: int,
+        *,
+        hide: Callable[[MemoryRecord], bool] | None,
+        session_id: str | None,
+    ) -> ReadResult:
+        """I67 (``read.agentic``): step 0 is ``result`` (the normal read, untouched). Up to
+        ``read.agentic_max_steps`` times the action role sees the question and a compact
+        view of the evidence and returns one structured action (``answer_ready``,
+        ``search``, ``search_person_time``; JSON/YAML validated by ``structured_call`` with
+        its repair and retry, not native tool calling). A search runs through the same
+        gated ``_search`` of the SAME namespace (the model supplies only text, never a
+        namespace); the new hits of all steps are RRF-fused, de-duplicated by record id and
+        appended after the step-0 records under ``budget_tokens``: step-0 records inside
+        ``read.agentic_first_share`` of the budget are never displaced. Stops on
+        ``answer_ready``, ``max_steps``, ``no_new`` (a step found nothing new),
+        ``budget`` (nothing more fits), ``repeat`` (a query already run), ``error`` or
+        ``unbound`` (no action role); any of the last two keeps ``result``. Every step goes
+        to ``search_forensics()["agentic_steps"]`` and the totals to ``["agentic"]``."""
+        read = self._config().read
+        steps: list[dict[str, Any]] = []
+        info: dict[str, Any] = {
+            "trigger": read.agentic_trigger,
+            "fired": False,
+            "stop": None,
+            "llm_calls": 0,
+            "llm_s": 0.0,
+            "search_s": 0.0,
+            "new_ids": [],
+            "displaced_ids": [],
+        }
+        if (fx := _FORENSICS.get()) is not None:
+            fx["agentic"] = info
+            fx["agentic_steps"] = steps
+        context = result.context
+        if result.mode == "full" or context.abstained or not context.records:
+            info["stop"] = "full_context" if result.mode == "full" else "abstained"
+            return result
+        if not await self._agentic_fires(query, read, context.records):
+            info["stop"] = "not_triggered"
+            return result
+        llm_router = self._llm
+        role = next(
+            (r for r in ("sufficiency", "plan") if llm_router and r in llm_router.roles), None
+        )
+        if llm_router is None or role is None or self._prompts is None:
+            _log.warning("read.agentic_unbound", role="sufficiency")
+            info["stop"] = "unbound"
+            return result
+        info["fired"] = True
+        llm = llm_router.for_role(role)
+        prompt = self._prompts.select("sufficiency", condition="agentic")
+        step0 = list(context.records)
+        step0_ids = {r.record_id for r in step0}
+        rrf_k = read.rrf_k or constants.RRF_K
+        evidence = list(step0)
+        rankings: list[list[MemoryRecord]] = []
+        searched = {query.strip().lower()}
+        added: list[MemoryRecord] = []
+        displaced: list[MemoryRecord] = []
+        stop = "max_steps"
+        for number in range(1, read.agentic_max_steps + 1):
+            row: dict[str, Any] = {"step": number, "action": None, "query": None, "why": ""}
+            steps.append(row)
+            shown = self._remote_view(role, evidence)
+            calls_before = self.model_calls().get(role, 0)
+            started = perf_counter()
+            try:
+                act = await structured_call(
+                    llm,
+                    prompt,
+                    {"question": query, "context": evidence_view(shown)},
+                    AgenticStepOut,
+                )
+            except Exception as exc:  # an enhancer, never a gate
+                _log.warning("read.agentic_failed", error=str(exc))
+                row.update(action="error", error=str(exc)[:200])
+                stop = "error"
+                break
+            finally:
+                spent = perf_counter() - started
+                row["llm_s"] = round(spent, 4)
+                row["llm_calls"] = self.model_calls().get(role, 0) - calls_before
+                info["llm_s"] += spent
+                info["llm_calls"] += row["llm_calls"]
+            row.update(action=act.action, why=act.why[:200])
+            if act.action == "answer_ready":
+                stop = "answer_ready"
+                break
+            legs: list[list[LegHit]] = []
+            if act.action == "search":
+                text = clean_query(act.query)
+            else:
+                text = clean_query(f"{act.person} {act.time}")
+                plan = ReadPlan(
+                    mode="lookup",
+                    persons=[act.person] if act.person else [],
+                    time_expr=act.time or None,
+                )
+                legs = [await self._person_time_leg(ns, plan)]
+                row.update(person=act.person[:80], time=act.time[:80])
+            row["query"] = text
+            if not text or text.lower() in searched:
+                stop = "repeat"
+                break
+            searched.add(text.lower())
+            started = perf_counter()
+            sink = _FORENSICS.set(None)  # the step-0 forensics stay the first pass's
+            try:
+                hits = await self._search(
+                    text,
+                    ns,
+                    read.agentic_top_k,
+                    session_id=session_id,
+                    keep_k=read.agentic_top_k,
+                    hide=hide,
+                    probes=[],
+                    fused_legs=legs,
+                )
+                if read.facts_to_sources and hits:
+                    hits = await self._facts_to_sources(ns, hits)
+            except Exception as exc:  # an enhancer, never a gate
+                _log.warning("read.agentic_search_failed", error=str(exc))
+                row["error"] = str(exc)[:200]
+                stop = "error"
+                break
+            finally:
+                _FORENSICS.reset(sink)
+                row["search_s"] = round(perf_counter() - started, 4)
+                info["search_s"] += row["search_s"]
+            rankings.append([r for r, _ in hits if r.namespace == ns and not r.quarantined])
+            prior = {r.record_id for r in added}
+            ranked = fuse_new(rankings, step0_ids, rrf_k)
+            row["new_ids"] = [r.record_id for r in ranked if r.record_id not in prior]
+            if not row["new_ids"]:
+                stop = "no_new"
+                break
+            decorated = await self._decorate(
+                ns, [(r, 0.0) for r in ranked[: read.agentic_max_new * 2]], hide=hide
+            )
+            kept, added, displaced = merge_budget(
+                step0,
+                [r for r, _ in decorated],
+                budget_tokens,
+                share=read.agentic_first_share,
+                max_new=read.agentic_max_new,
+            )
+            evidence = [*kept, *added]
+            if {r.record_id for r in added} <= prior:
+                stop = "budget"  # nothing of this step's hits fits
+                break
+        info["stop"] = stop
+        if not added:
+            return result
+        info["new_ids"] = [r.record_id for r in added]
+        info["displaced_ids"] = [r.record_id for r in displaced]
+        gone = {r.record_id for r in displaced}
+        kept_records = [r for r in context.records if r.record_id not in gone]
+        extra = self._render(query, AssembledContext(records=list(added))).records
+        records = [*kept_records, *extra]
+        return ReadResult(
+            result.mode,
+            AssembledContext(
+                records=records,
+                boundary_index=min(context.boundary_index, len(kept_records)),
+                abstained=False,
+                tokens_used=sum(estimate_tokens(r.content) for r in records),
+                evidence=context.evidence,
+            ),
         )
 
     async def _read_routed(

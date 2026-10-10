@@ -629,6 +629,12 @@ FEEDBACK_NOTE_MAX_CHARS = 2000
 #: #38 (read.completeness_check): the most missing-information queries one
 #: completeness round adds to a compose read as extra probes.
 COMPLETENESS_MAX_QUERIES = 3
+#: I67 (read.agentic): the evidence view the action step sees is cut to this many tokens
+#: (estimated) and each line to this many characters; an LLM-written search query is cut
+#: to :data:`AGENTIC_QUERY_CHARS`.
+AGENTIC_VIEW_TOKENS = 800
+AGENTIC_LINE_CHARS = 240
+AGENTIC_QUERY_CHARS = 200
 #: #40 (read.profile_header_packing): the packed profile header's header line (it
 #: opens with :data:`PROFILE_MARKER`, so stored text cannot forge it and an echoed
 #: block is recognised as recalled memory), the section labels in their fixed order,

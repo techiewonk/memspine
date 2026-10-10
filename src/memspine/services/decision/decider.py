@@ -110,6 +110,14 @@ TASKS: dict[str, TaskSpec] = {
         "no_hop",
         "question_memories",
     ),
+    # I67: question = the question, context = the first-pass memories
+    "needs_more_evidence": TaskSpec(
+        "Do the first-pass memories leave out a fact the question needs, for example a "
+        "second person, a second event or a detail that must be looked up from the first?",
+        "needs_more",
+        "enough",
+        "question_memories",
+    ),
     "relevance": TaskSpec(
         "Do the memories contain information that is relevant and useful for answering the "
         "message?",
@@ -224,7 +232,7 @@ def default_rules() -> dict[str, Rule]:
         scope_of,
         sentence_modality,
     )
-    from memspine.core.query_shape import is_set_question, is_temporal
+    from memspine.core.query_shape import is_multi_hop, is_set_question, is_temporal
     from memspine.core.sensitivity import grade_text, query_topics
     from memspine.core.temporal_query import has_bridge_cue
 
@@ -244,6 +252,10 @@ def default_rules() -> dict[str, Rule]:
         "bridge_hop": lambda q, _c: ("hop" if has_bridge_cue(q) else "no_hop", None),
         "temporal_intent": lambda q, _c: (
             "temporal" if is_temporal(q) else "not_temporal",
+            None,
+        ),
+        "needs_more_evidence": lambda q, _c: (
+            "needs_more" if is_multi_hop(q) else "enough",
             None,
         ),
         "relevance": lambda _q, _c: ("relevant", None),

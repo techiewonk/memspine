@@ -1091,6 +1091,31 @@ class ReadConfig(BaseModel):
     #: chosen offline on the dev forensics (second-best score of the 233 screen questions:
     #: 31 under 0.4, 28 under 0.35, 40 under 0.5).
     bridge_hop_weak_threshold: float = Field(default=0.4, ge=0.0, le=1.0)
+    #: I67 (opt-in agentic read): after the normal first pass (step 0, unchanged), the
+    #: ``sufficiency`` role (else ``plan``) sees the question and a compact view of the
+    #: evidence and returns ONE structured action: ``answer_ready``, ``search`` (a query)
+    #: or ``search_person_time`` (a person and/or a time). Each search goes through the
+    #: same gated read search of the same namespace; its new hits are RRF-fused and
+    #: appended under the same token budget. Not native tool calling. Off: no call,
+    #: byte-identical. Every step is kept in ``search_forensics()["agentic_steps"]``.
+    agentic: bool = False
+    #: Most action steps per question (each is one LLM call and at most one extra search).
+    #: The schema caps it at 5.
+    agentic_max_steps: int = Field(default=2, ge=1, le=5)
+    #: When the loop fires. ``always``; ``multi_hop`` (a generic surface heuristic:
+    #: several names, a relation word such as both / same / before / after, a possessive
+    #: chain, a bridge cue); ``decider`` (the ``needs_more_evidence`` task of the
+    #: OpenDecider port, falling back to the ``multi_hop`` heuristic when the decider is
+    #: off, not listed in ``decider_tasks``, unsure or failing).
+    agentic_trigger: Literal["always", "multi_hop", "decider"] = "multi_hop"
+    #: Hits one extra search keeps (before de-duplication against the evidence).
+    agentic_top_k: int = Field(default=8, ge=1, le=20)
+    #: Most NEW records the loop adds over all steps.
+    agentic_max_new: int = Field(default=6, ge=1, le=20)
+    #: Share of the read budget reserved for the step-0 hits (taken in their order). New
+    #: records may displace only step-0 records after that share, last first, and only to
+    #: fit themselves.
+    agentic_first_share: float = Field(default=0.6, ge=0.0, le=1.0)
     #: I28: the optional decider for read-path decisions. ``heuristic`` (default) = the
     #: existing regexes and rules, byte-identical. ``opendecider`` asks OpenDecider-nano
     #: (``[decider]`` extra) at the decision points named in ``decider_tasks``; a decision
@@ -1100,9 +1125,9 @@ class ReadConfig(BaseModel):
     decider_model: str = "manjunathshiva/opendecider-nano"
     #: CPU by default: the GPU is usually shared with the reader.
     decider_device: Literal["cpu", "cuda", "mps", "auto"] = "cpu"
-    decider_tasks: list[Literal["list_mode", "bridge_hop", "about_target"]] = Field(
-        default_factory=lambda: ["list_mode", "bridge_hop"]
-    )
+    decider_tasks: list[
+        Literal["list_mode", "bridge_hop", "about_target", "needs_more_evidence"]
+    ] = Field(default_factory=lambda: ["list_mode", "bridge_hop"])
     #: I29: whether retrieved memories are injected at all. ``off`` (default): always, as
     #: today. ``decider``: the decider (``read.decider: opendecider``) judges the message
     #: against the retrieved memories; when it is sure (``decider_min_confidence``) that none

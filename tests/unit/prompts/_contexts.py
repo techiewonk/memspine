@@ -102,6 +102,7 @@ SAMPLE_PAYLOADS: dict[str, dict[str, Any]] = {
     },
     "SufficiencyOut": {"complete": False, "reason": "only one activity is described"},
     "MissingInfoOut": {"queries": ["Alice hobby", "Alice weekend activity"]},
+    "AgenticStepOut": {"action": "search", "query": "Alice weekend activity", "why": "a gap"},
     "AnswerVerdictOut": {"supported": False, "evidence": [1], "revised_answer": "Pottery"},
     "AnticipatedCues": {"cues": [{"line": 1, "cue": "What can Alice eat at the party?"}]},
     "ExtractedFacts": {

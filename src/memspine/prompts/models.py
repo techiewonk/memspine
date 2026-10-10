@@ -10,12 +10,13 @@ import re
 from datetime import date as _date
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from memspine.config import constants
 
 __all__ = [
     "OUTPUT_MODELS",
+    "AgenticStepOut",
     "AnswerVerdictOut",
     "AnticipatedCue",
     "AnticipatedCues",
@@ -499,6 +500,46 @@ class SufficiencyOut(BaseModel):
     reason: str = ""
 
 
+class AgenticStepOut(BaseModel):
+    """I67 (``sufficiency@agentic``): one action of the agentic read.
+
+    ``answer_ready``; ``search`` (needs ``query``); ``search_person_time`` (needs a
+    ``person`` and/or a ``time``). A ``search`` without a query, or a person-time search
+    with neither field, fails validation (the structured call repairs or retries once)."""
+
+    action: Literal["answer_ready", "search", "search_person_time"]
+    query: str = ""
+    person: str = ""
+    time: str = ""
+    why: str = ""
+
+    @field_validator("action", mode="before")
+    @classmethod
+    def _action_norm(cls, value: Any) -> Any:
+        if not isinstance(value, str):
+            return value
+        text = value.strip().lower().replace("-", "_").replace(" ", "_")
+        return {"done": "answer_ready", "answer": "answer_ready", "ready": "answer_ready"}.get(
+            text, text
+        )
+
+    @field_validator("query", "person", "time", "why", mode="before")
+    @classmethod
+    def _text(cls, value: Any) -> Any:
+        if value is None:
+            return ""
+        text = str(_as_text(value)).strip()
+        return "" if text.lower() in ("none", "null") else text
+
+    @model_validator(mode="after")
+    def _complete(self) -> AgenticStepOut:
+        if self.action == "search" and not self.query:
+            raise ValueError("search needs a query")
+        if self.action == "search_person_time" and not (self.person or self.time):
+            raise ValueError("search_person_time needs a person or a time")
+        return self
+
+
 class MissingInfoOut(BaseModel):
     """#38 (``sufficiency@missing``): searches for the information the context lacks.
 
@@ -564,4 +605,5 @@ OUTPUT_MODELS: dict[str, type[BaseModel]] = {
     "SufficiencyOut": SufficiencyOut,
     "MissingInfoOut": MissingInfoOut,
     "AnswerVerdictOut": AnswerVerdictOut,
+    "AgenticStepOut": AgenticStepOut,
 }
