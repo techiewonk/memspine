@@ -795,6 +795,30 @@ def _cut_missing(
             trace_sink.cut(reason, rid, **detail)
 
 
+def _leg_rank_map(
+    legs: Sequence[tuple[str, Sequence[Any]]],
+) -> dict[str, tuple[str, int]]:
+    """I78/I75a: for each record id, the (leg name, 1-based rank) of its best rank in any leg."""
+    best: dict[str, tuple[str, int]] = {}
+    for name, hits in legs:
+        for rank, hit in enumerate(hits, start=1):
+            rid = hit.record_id
+            if rid not in best or rank < best[rid][1]:
+                best[rid] = (name, rank)
+    return best
+
+
+def _protected_ids(legs: Sequence[tuple[str, Sequence[Any]]], per_leg: int) -> dict[str, str]:
+    """I75a: record id -> leg name for the top ``per_leg`` hits of every leg."""
+    out: dict[str, str] = {}
+    if per_leg <= 0:
+        return out
+    for name, hits in legs:
+        for hit in list(hits)[:per_leg]:
+            out.setdefault(hit.record_id, name)
+    return out
+
+
 @contextmanager
 def search_forensics() -> Iterator[dict[str, Any]]:
     """Capture the stage-by-stage ranking of every ``search`` inside the block.
@@ -4947,7 +4971,9 @@ class Engine:
         graph_leg: list[LegHit] | None = None if self._config().read.graph_leg else []
         # GP-9 (read.graph_communities): community summaries this query may read.
         community_gate: list[str] | None = None
+        protected: dict[str, str] = {}  # I75a: record id -> leg whose top-N it belongs to
         while True:
+            protected = {}
             fetch_k = base_fetch * widen
             vector_hits = await self._vector_leg(ns, query_vector, fetch_k)
             # Hybrid (D-25): fuse the lexical BM25 leg via RRF. Off (default),
@@ -5002,6 +5028,7 @@ class Engine:
                 persp_qp is not None
                 and read_now.perspective_mode != "off"
                 and "subject" in read_now.perspective_axes
+                and read_now.perspective_leg  # I75b: False = multiplier only, no RRF leg
             ):
                 extra_legs += await self._perspective_leg(ns, persp_qp, vector_hits)
             if read_now.list_mode and _LIST_MODE.get():
@@ -5051,7 +5078,43 @@ class Engine:
                 # than the pool size, or ``_balanced_pool`` below has nothing to choose from and
                 # is a no-op (measured: identical answers on 233 dev questions).
                 over = 3 if read_cut.rerank_balanced and read_cut.rerank != "off" else 1
+                fused_full = fused
                 fused = fused[: top_k * widen * over]
+                protect_n = read_cut.pool_protect_per_leg
+                if protect_n > 0:
+                    # I75a: keep each leg's top-N alive through the fused-list cut (bounded:
+                    # at most legs * N extra entries, in fused order).
+                    named = [
+                        ("vector", vector_hits),
+                        *([("lexical", lexical_hits)] if use_hybrid else []),
+                        *[(getattr(leg, "name", "extra"), leg) for leg in extra_legs],
+                    ]
+                    protected = _protected_ids(named, protect_n)
+                    kept_ids = {rid for rid, _ in fused}
+                    fused = fused + [
+                        (rid, sc) for rid, sc in fused_full if rid in protected and rid not in kept_ids
+                    ]
+                if _FORENSICS.get() is not None and len(fused) < len(fused_full):
+                    # I78: the fused-list cut, before any gate: where each dropped hit stood.
+                    survived = {rid for rid, _ in fused}
+                    leg_rank = _leg_rank_map(
+                        [
+                            ("vector", vector_hits),
+                            *([("lexical", lexical_hits)] if use_hybrid else []),
+                            *[(getattr(leg, "name", "extra"), leg) for leg in extra_legs],
+                        ]
+                    )
+                    for pos, (rid, _) in enumerate(fused_full, start=1):
+                        if rid not in survived:
+                            leg_name, leg_pos = leg_rank.get(rid, (None, None))
+                            trace_sink.cut(
+                                "pool_cut",
+                                rid,
+                                pool=top_k,
+                                fused_rank=pos,
+                                best_leg=leg_name,
+                                best_leg_rank=leg_pos,
+                            )
                 # F1: raw RRF scores are ~1/(k+1) (≈0.016), but the M1 composite
                 # expects relevance in [0, 1]. Normalize by the theoretical max (a
                 # record ranked #1 in EVERY non-empty leg) so the fused relevance
@@ -5145,8 +5208,37 @@ class Engine:
             # best hits in turn, so one leg cannot fill it before the cut.
             candidates = _balanced_pool(candidates, [vector_hits, lexical_hits, *extra_legs], top_k)
         _pre = _ids(candidates)
-        candidates = candidates[:top_k]
-        _cut_missing(_pre, candidates, "pool_cut", pool=top_k)
+        if protected:
+            # I75a: the fused pool plus each leg's protected top-N (at most legs * N more).
+            candidates = candidates[:top_k] + [
+                pair for pair in candidates[top_k:] if pair[0].record_id in protected
+            ]
+            if (fx := _FORENSICS.get()) is not None:
+                fx["protected"] = dict(protected)
+        else:
+            candidates = candidates[:top_k]
+        if _pre is not None:
+            # I78: a pool cut says where the dropped hit stood (fused rank, best leg and rank).
+            kept_pool = {pair[0].record_id for pair in candidates}
+            fused_rank = {rid: i for i, (rid, _) in enumerate(ranked, start=1)}
+            leg_rank = _leg_rank_map(
+                [
+                    ("vector", vector_hits),
+                    ("lexical", lexical_hits),
+                    *[(getattr(leg, "name", "extra"), leg) for leg in extra_legs],
+                ]
+            )
+            for rid in _pre:
+                if rid not in kept_pool:
+                    leg_name, leg_pos = leg_rank.get(rid, (None, None))
+                    trace_sink.cut(
+                        "pool_cut",
+                        rid,
+                        pool=top_k,
+                        fused_rank=fused_rank.get(rid),
+                        best_leg=leg_name,
+                        best_leg_rank=leg_pos,
+                    )
         # E8 stage: static prefilter (opt-in, default off).
         if candidates and self._config().read.static_prefilter:
             _pre = _ids(candidates)

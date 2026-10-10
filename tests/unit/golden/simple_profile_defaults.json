@@ -60,9 +60,9 @@
     "read": {
       "abstain_on_raw": false,
       "agentic": false,
+      "agentic_first_share": 0.6,
       "agentic_max_new": 6,
       "agentic_max_steps": 2,
-      "agentic_first_share": 0.6,
       "agentic_top_k": 8,
       "agentic_trigger": "multi_hop",
       "aggregate_in_replay": false,
@@ -173,6 +173,7 @@
       "perspective_axes": [
         "subject"
       ],
+      "perspective_leg": true,
       "perspective_marker": false,
       "perspective_min_keep": 3,
       "perspective_mode": "off",
@@ -180,6 +181,7 @@
       "planner": "rules",
       "planner_min_confidence": 0.0,
       "planner_version": "v1",
+      "pool_protect_per_leg": 0,
       "present_order": "relevance",
       "prf_expansion": false,
       "profile_budget_share": 0.15,

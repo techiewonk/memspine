@@ -441,6 +441,10 @@ class ReadConfig(BaseModel):
     #: GR-15 (Graphiti balanced shortlist): with a reranker on, the pool cut before
     #: reranking takes each leg's best hits in turn, so one leg cannot fill it.
     rerank_balanced: bool = False
+    #: I75a (leg-protected pool): each leg's top-N hits are guaranteed a slot in the pool sent to
+    #: the reranker even when their fused (RRF) rank falls outside the pool size; the rest is
+    #: filled by RRF. The pool grows by at most ``legs * N``. 0 = off (unchanged).
+    pool_protect_per_leg: int = Field(default=0, ge=0, le=20)
     #: G-10 (Graphiti MMR): None = off; a lambda in [0, 1] reorders the final hits by
     #: maximal marginal relevance on embeddings (1 = relevance only, 0 = diversity only).
     mmr_lambda: float | None = Field(default=None, ge=0.0, le=1.0)
@@ -880,6 +884,10 @@ class ReadConfig(BaseModel):
     #: else are dropped (never below ``perspective_min_keep`` candidates). Off: unchanged.
     perspective_mode: Literal["off", "subject_weight", "subject_filter"] = "off"
     perspective_weight: float = Field(default=0.4, ge=0.0, le=1.0)
+    #: I75b: False = the perspective only multiplies the relevance of candidates the other legs
+    #: found (``1 - perspective_weight * (1 - match)``); no perspective RRF leg is added.
+    #: True (default) = today's behaviour, leg plus multiplier.
+    perspective_leg: bool = True
     perspective_min_keep: int = Field(default=3, ge=0)
     #: The asker's id ("caroline", "user"); None = ``user`` when the store has user turns, a
     #: lone participant, else unresolved (first-person questions then stay neutral).
