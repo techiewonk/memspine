@@ -1,4 +1,4 @@
-"""Paired comparison of screen runs against the dev reference (date-checked): python cmp_ref.py <run-id> [...]"""
+"""Paired comparison of screen runs against the dev reference (date-checked): python cmp_ref.py [--ref <run-id>] <run-id> [...]"""
 import json
 import sys
 
@@ -19,8 +19,12 @@ def acc(x, c=None):
     return 100 * sum(sel) / max(1, len(sel))
 
 
-ref = res("rs-r0-ref-i2")
-for r in sys.argv[1:]:
+args = sys.argv[1:]
+ref_id = "rs-r0-ref-i2"
+if args[:1] == ["--ref"]:
+    ref_id, args = args[1], args[2:]
+ref = res(ref_id)
+for r in args:
     b = res(r)
     w = [q[1] for q in ref if b[q][0] and not ref[q][0]]
     lo = [q[1] for q in ref if ref[q][0] and not b[q][0]]
