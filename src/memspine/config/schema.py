@@ -875,13 +875,30 @@ class ReadConfig(BaseModel):
     #: ever" questions); ``scope`` = a one-off event is weaker evidence of a trait question
     #: ("what does X like"); ``sensitivity`` = a ``sensitive:*`` record needs the question to
     #: touch the same category. Each multiplies the relevance by ``1 - perspective_weight``
-    #: (scope: half of it).
-    perspective_axes: list[Literal["subject", "modality", "polarity", "scope", "sensitivity"]] = (
-        Field(default_factory=lambda: ["subject"])
-    )
+    #: (scope: half of it). I43 ``hearsay`` = a reported-speech record ("my mom said ...") is
+    #: weaker evidence for a question about its source (half of it); I44 ``certainty`` = a
+    #: ``cert:hedged`` record is weaker evidence for a fact question unless the question
+    #: itself hedges ("do you think ...", "maybe"); I47 ``ack`` = an assistant statement about
+    #: the user that no later user turn acknowledged is weaker evidence for a user-profile
+    #: question (dropped under ``subject_filter``).
+    perspective_axes: list[
+        Literal[
+            "subject", "modality", "polarity", "scope", "sensitivity", "hearsay", "certainty", "ack"
+        ]
+    ] = Field(default_factory=lambda: ["subject"])
     #: I39: show ``[about: Caroline's cousin]`` before a record whose subject differs from its
     #: speaker (the stored content is unchanged). Off: unchanged.
     perspective_marker: bool = False
+    #: I42: under an as-of read (``as_of``) with a question that resolves to a subject, a
+    #: superseded record that was current at that time is admitted as history only when it is
+    #: about a target (or carries no subject tags); other subjects' history stays out. Needs
+    #: ``perspective_mode != off``. Off: unchanged.
+    perspective_as_of_subject: bool = False
+    #: I50: with ``profile_slots_header``, the slots block becomes a per-subject card: the live
+    #: ``kind:state`` facts rolled up per (owner, subject) (``sub:`` tags, else the entity;
+    #: cardinality one = the latest, many = a list), injected only for the subjects the
+    #: question's resolved persons match. Off: the per-entity slots block, unchanged.
+    profile_subject_card: bool = False
     list_vote_depth: int = Field(default=100, ge=1)
     list_vote_top_k: int = Field(default=30, ge=1)
     list_pool: int = Field(default=3, ge=1, le=10)
@@ -1247,6 +1264,10 @@ class FirewallConfig(BaseModel):
     skip_injected_recall: bool = False
     #: H21: tag assistant turns ``assistant_claim``: a proposal, not an observed fact.
     tag_assistant_claims: bool = False
+    #: I43: a hearsay record (``rep:`` tag from ``memories.episodic.policies.perspective``:
+    #: "my mom said X", "I heard X") gets at most this trust, so it ranks below a first-hand
+    #: statement and, through the parent cap, so does everything derived from it. None: off.
+    hearsay_trust_cap: float | None = Field(default=None, ge=0.0, le=1.0)
     #: W2 / N20 / N22 (plan v3.2): per-signal switches (see FirewallSignalsConfig).
     signals: FirewallSignalsConfig = Field(default_factory=FirewallSignalsConfig)
 

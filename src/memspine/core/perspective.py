@@ -51,11 +51,16 @@ __all__ = [
     "QuestionPerspective",
     "RecordView",
     "Subject",
+    "acknowledges",
     "active_asker",
+    "as_of_subject_ok",
     "asker_scope",
     "attribution_marker",
     "due_to_for",
+    "due_window_for",
     "factor",
+    "hearsay_about",
+    "inherit_perspective_tags",
     "is_hedged",
     "is_negated",
     "is_past_plan",
@@ -68,6 +73,7 @@ __all__ = [
     "resolve_write",
     "scope_of",
     "sentence_modality",
+    "unacknowledged_claim",
 ]
 
 #: Record-tag prefixes written by the layer (the contract other work builds on).
@@ -82,6 +88,8 @@ TAG_CERT = "cert:hedged"
 TAG_REP = "rep:"  # reported-speech source id
 TAG_SENSITIVE = "sensitive:"  # W16 category (shared with firewall.sensitive_topics)
 TAG_DUE_TO = "due_to:"  # plan forward validity, YYYY-MM-DD (I49)
+TAG_DUE_FROM = "due_from:"  # plan window start, YYYY-MM-DD (I49)
+TAG_ACK = "ack:"  # on a user turn: the id of the assistant record it acknowledges (I47)
 
 #: The namespace owner's id when no speaker is given.
 OWNER = "user"
@@ -103,12 +111,17 @@ class PerspectiveOptions:
     #: known up front and the default asker.
     owner: str | None = None
     speakers: tuple[str, ...] = ()
+    #: I47: tag the user turn that acknowledges the assistant turn before it (``ack:<id>``);
+    #: the read axis ``ack`` then tells confirmed from merely proposed assistant claims.
+    ack: bool = False
 
     @classmethod
     def parse(cls, value: Any) -> PerspectiveOptions:
         owner: str | None = None
         speakers: tuple[str, ...] = ()
+        ack = False
         if isinstance(value, dict):
+            ack = bool(value.get("ack", False))
             mode = str(value.get("mode", "heuristic"))
             axes = tuple(a for a in value.get("axes", ALL_AXES) if a in ALL_AXES)
             ctx = value.get("context") or {}
@@ -124,6 +137,7 @@ class PerspectiveOptions:
             axes or ALL_AXES,
             owner,
             speakers,
+            ack,
         )
 
     @property
@@ -158,6 +172,7 @@ class Perspective:
     reported: str | None = None
     sensitive: tuple[str, ...] = ()
     due_to: str | None = None
+    due_from: str | None = None
 
     def tags(self, axes: Collection[str] = ALL_AXES) -> list[str]:
         out: list[str] = []
@@ -182,6 +197,8 @@ class Perspective:
             out.append(f"rep:{self.reported}")
         if "sens" in axes:
             out.extend(f"sensitive:{c}" for c in self.sensitive)
+        if "mod" in axes and self.due_from:
+            out.append(f"due_from:{self.due_from}")
         if "mod" in axes and self.due_to:
             out.append(f"due_to:{self.due_to}")
         return list(dict.fromkeys(out))
@@ -603,8 +620,9 @@ def resolve_write(
         hedged=is_hedged(body),
         reported=reported,
         sensitive=tuple(sensitive_topics(body)) if "sens" in axes else (),
-        due_to=due_to_for(body, when) if when is not None and "plan" in mods else None,
     )
+    if when is not None and "plan" in mods:
+        p.due_from, p.due_to = due_window_for(body, when)
     return p
 
 
@@ -664,6 +682,9 @@ class RecordView:
     reported: str | None = None
     sensitive: frozenset[str] = frozenset()
     due_to: str | None = None
+    due_from: str | None = None
+    #: I47: set by the engine from the namespace's ``ack:`` tags (not stored on the record).
+    acked: bool = False
 
     @property
     def annotated(self) -> bool:
@@ -692,6 +713,7 @@ def record_view(record: MemoryRecord) -> RecordView:
         reported=rep[0] if rep else None,
         sensitive=frozenset(_vals(tags, "sensitive:")),
         due_to=(_vals(tags, "due_to:") or [None])[0],
+        due_from=(_vals(tags, "due_from:") or [None])[0],
     )
 
 
@@ -709,6 +731,7 @@ class QuestionPerspective:
     wants_nonfact: bool = False
     scope: str | None = None  # trait | event
     sensitive: frozenset[str] = field(default_factory=frozenset)
+    hedged: bool = False  # the question itself hedges / asks for a belief (I44)
 
     @property
     def bound(self) -> bool:
@@ -723,6 +746,7 @@ class QuestionPerspective:
             "wants_nonfact": self.wants_nonfact,
             "scope": self.scope,
             "sensitive": sorted(self.sensitive),
+            "hedged": self.hedged,
         }
 
 
@@ -744,6 +768,11 @@ _NONFACT_Q = re.compile(
 _NEG_Q = re.compile(
     r"\b(?:not|never|no longer|n't|dislike|dislikes|hate|hates|avoid|avoids|refuse|refuses|"
     r"allergic|can't stand|cannot|without)\b|n't\b",
+    re.I,
+)
+_BELIEF_Q = re.compile(
+    r"\b(?:do you think|does \w+ think|did \w+ think|do you believe|believe|guess|"
+    r"suppose|opinion|likely|probably)\b",
     re.I,
 )
 _EVER_Q = re.compile(r"\b(?:ever|did .* not|didn't|doesn't|never)\b", re.I)
@@ -817,6 +846,7 @@ def resolve_question(
         wants_nonfact=bool(_NONFACT_Q.search(query)),
         scope=scope,
         sensitive=frozenset(sensitive_topics(query)),
+        hedged=is_hedged(query) or bool(_BELIEF_Q.search(query)),
     )
 
 
@@ -856,10 +886,42 @@ def factor(
         parts["scope"] = 1.0 - weight * 0.5
     if "sensitivity" in axes and rv.sensitive and not (rv.sensitive & qp.sensitive):
         parts["sensitivity"] = 1.0 - weight
+    if "hearsay" in axes and hearsay_about(qp, rv):
+        parts["hearsay"] = 1.0 - weight * 0.5
+    if "certainty" in axes and rv.hedged and not qp.hedged:
+        parts["certainty"] = 1.0 - weight * 0.5
+    if "ack" in axes and unacknowledged_claim(qp, rv):
+        parts["ack"] = 1.0 - weight
     out = 1.0
     for v in parts.values():
         out *= v
     return out, parts
+
+
+def hearsay_about(qp: QuestionPerspective, rv: RecordView) -> bool:
+    """I43: the record reports what someone said (``rep:``) and the question is about that
+    source (or the source is unspecified: "I heard", "apparently"): second-hand evidence."""
+    if not rv.reported or not qp.bound:
+        return False
+    if rv.reported == "unspecified":
+        return True
+    return any(rv.reported in t.keys or rv.reported == t.id for t in qp.targets)
+
+
+def unacknowledged_claim(qp: QuestionPerspective, rv: RecordView) -> bool:
+    """I47: an assistant statement that is about the user (not about the assistant itself) and
+    that no later user turn acknowledged, met by a question about the user."""
+    if rv.spk != "assistant" or rv.acked or qp.about not in ("self", "participant"):
+        return False
+    return bool(rv.subs) and "assistant" not in rv.subs and "fact" in (rv.mods or {"fact"})
+
+
+def as_of_subject_ok(qp: QuestionPerspective, rv: RecordView) -> bool:
+    """I42: may a superseded record that was current at the as-of time enter an as-of read?
+    Yes when the question names no subject, the record has no subject tags, or it is about
+    (or spoken by) a target; no when it is about someone else."""
+    m = match_subject(qp, rv)
+    return m is None or m > 0.0
 
 
 def perspective_leg(
@@ -918,6 +980,44 @@ def due_to_for(text: str, when: datetime) -> str | None:
     return (base + timedelta(days=days)).date().isoformat()
 
 
+def due_window_for(text: str, when: datetime) -> tuple[str | None, str | None]:
+    """I49: ``(due_from, due_to)`` of a plan, ``YYYY-MM-DD`` each, against the mention time.
+
+    An absolute date in the text ("on 12 March 2025", "in June 2025", ISO) is taken through
+    :func:`~memspine.core.temporal_query.query_interval` as a window if it lies after the
+    mention day (a year-less date takes its next occurrence); a relative phrase ("next week",
+    "tomorrow") gets its first day from :func:`~memspine.core.temporal_resolve.resolve` and
+    its end from :func:`due_to_for`. No horizon: ``(None, None)``, a soft deadline that never
+    lapses."""
+    from memspine.core.temporal_query import query_interval
+    from memspine.core.temporal_resolve import resolve
+
+    base = when if when.tzinfo else when.replace(tzinfo=UTC)
+    today = base.date()
+    span = query_interval(text)  # absolute dates only
+    if span is None:
+        yearless = query_interval(text, year_ref=base + timedelta(days=366))
+        if yearless is not None and yearless[0].date() >= today:
+            span = yearless
+        elif yearless is not None:  # the same date a year later
+            s0, s1 = yearless
+            try:
+                span = (s0.replace(year=s0.year + 1), s1.replace(year=s1.year + 1))
+            except ValueError:
+                span = None
+    if span is not None and span[1].date() > today:
+        first, last = max(span[0].date(), today), (span[1] - timedelta(days=1)).date()
+        return first.isoformat(), last.isoformat()
+    due_to = due_to_for(text, base)
+    if due_to is None:
+        return None, None
+    starts = [r.first for r in resolve(text, base) if not r.approximate and r.first >= today]
+    first_day = min(starts) if starts else None
+    if first_day is not None and first_day.isoformat() > due_to:
+        first_day = None
+    return (first_day.isoformat() if first_day else None), due_to
+
+
 def is_past_plan(record: MemoryRecord, now: datetime) -> bool:
     """I49: a plan (no ``mod:fact`` sentence) whose ``due_to`` day is before ``now``."""
     rv = record_view(record)
@@ -930,11 +1030,16 @@ def is_past_plan(record: MemoryRecord, now: datetime) -> bool:
     return now.date() > due
 
 
-def record_marker(record: MemoryRecord, now: datetime | None = None) -> str | None:
-    """The line marker: ``[past plan]`` (I49) and / or ``[about: ...]`` (I39)."""
+def record_marker(
+    record: MemoryRecord, now: datetime | None = None, *, hedge: bool = False
+) -> str | None:
+    """The line marker: ``[past plan]`` (I49), ``[hedged]`` (I44, with ``hedge``) and / or
+    ``[about: ...]`` (I39)."""
     parts = []
     if now is not None and is_past_plan(record, now):
         parts.append("[past plan]")
+    if hedge and "cert:hedged" in record.tags:
+        parts.append("[hedged]")
     about = attribution_marker(record)
     if about:
         parts.append(about)
@@ -961,3 +1066,57 @@ def attribution_marker(record: MemoryRecord) -> str | None:
     elif rv.subs == frozenset({"3p"}):
         shown = "a third party"
     return f"[about: {shown}]" if shown else None
+
+
+# --------------------------------------------------------------------- acknowledgement
+
+_ACK_HEAD = re.compile(
+    r"^\W*(?:yes|yeah|yep|yup|yea|right|exactly|correct|true|indeed|sure|absolutely|definitely|"
+    r"precisely|that'?s (?:right|correct|true|it|me|so)|you'?re (?:right|correct)|"
+    r"you are (?:right|correct)|i agree|agreed|good (?:point|call|guess|memory)|"
+    r"that is (?:right|correct|true)|spot on|bingo)\b",
+    re.I,
+)
+_ACK_DENY = re.compile(
+    r"^\W*(?:no|nope|nah|not really|not quite|not exactly|actually|wrong|incorrect|"
+    r"that'?s (?:not|wrong|incorrect)|you'?re (?:not|wrong|mistaken)|i (?:don'?t|do not|never)|"
+    r"hmm,? no|well,? no)\b",
+    re.I,
+)
+
+
+def acknowledges(user_text: str) -> bool:
+    """I47: does this user turn agree with the turn before it? Lexical, on the first clause
+    only ("Yes, exactly", "That's right"); a turn that opens with a denial is not an
+    acknowledgement even if a cue follows ("No, that's not right"). A decider
+    (``acknowledges`` task) may refine it."""
+    clauses = _clauses(user_text)
+    head = clauses[0] if clauses else user_text
+    if _ACK_DENY.match(head):
+        return False
+    return bool(_ACK_HEAD.match(head))
+
+
+# ------------------------------------------------------------------------ inheritance
+
+_INHERIT_PREFIXES = ("sub:", "scope:", "pol:")
+
+
+def inherit_perspective_tags(parents: Iterable[MemoryRecord]) -> list[str]:
+    """I55: the subject / scope / polarity tags a derived fact (a mined fact, a graph edge)
+    takes from its source turn(s), so the conflict ``perspective_key`` works on it.
+
+    ``sub:`` tags: the ones all parents share. ``scope:`` and ``pol:``: only when every
+    parent has exactly one of that axis and they agree (a turn that is both positive and
+    negative says nothing about one fact). Parents without tags (the layer is off) give
+    nothing, so a default run is unchanged."""
+    sets = [set(p.tags) for p in parents]
+    if not sets:
+        return []
+    out: list[str] = []
+    for prefix in _INHERIT_PREFIXES:
+        per = [{t for t in tags if t.startswith(prefix)} for tags in sets]
+        if prefix != "sub:" and any(len(x) != 1 for x in per):
+            continue
+        out.extend(sorted(set.intersection(*per)))
+    return out

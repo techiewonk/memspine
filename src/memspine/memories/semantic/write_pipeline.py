@@ -45,6 +45,7 @@ from pydantic import BaseModel
 
 from memspine.config.constants import DERIVED_ROLE
 from memspine.core.firewall import instruction_shaped
+from memspine.core.perspective import inherit_perspective_tags
 from memspine.core.records import MemoryRecord, SourceInfo
 from memspine.observability.logging import get_logger
 from memspine.prompts.models import ExtractedEdge
@@ -225,6 +226,9 @@ class GraphWritePipeline:
                 except Exception as exc:  # canonicalization is best-effort (N6)
                     _log.warning("write_pipeline.resolve_failed", error=str(exc))
             attribute, tags = edge_fact_key(edge, entity, self._protected_keys, self._cardinality)
+            # I55: the edge is about what its source turn is about (tags exist only when
+            # the perspective layer is on)
+            tags = [*tags, *(t for t in inherit_perspective_tags([record]) if t not in tags)]
             fact = MemoryRecord(
                 namespace=record.namespace,
                 memory_type="semantic",

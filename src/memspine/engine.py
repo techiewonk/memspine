@@ -34,7 +34,7 @@ from collections.abc import (
 )
 from contextlib import asynccontextmanager, contextmanager
 from contextvars import ContextVar
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta, tzinfo
 from pathlib import Path
 from typing import Any, ClassVar, Self, TypedDict, TypeVar, cast
@@ -96,8 +96,12 @@ from memspine.core.namespace import grant_allows, validate_namespace
 from memspine.core.perspective import (
     PerspectiveOptions,
     QuestionPerspective,
+    Subject,
+    acknowledges,
     active_asker,
+    as_of_subject_ok,
     factor,
+    inherit_perspective_tags,
     match_subject,
     perspective_leg,
     record_marker,
@@ -483,10 +487,13 @@ def _reply_target(turn: Mapping[str, Any], index: int, written: Mapping[int, str
     )
 
 
-def _attributed(record: MemoryRecord, now: datetime | None = None) -> MemoryRecord:
+def _attributed(
+    record: MemoryRecord, now: datetime | None = None, hedge: bool = False
+) -> MemoryRecord:
     """I39: ``record`` shown as ``[about: Caroline's cousin] <content>`` when its subject
-    differs from its speaker (a copy; the stored record is untouched)."""
-    marker = record_marker(record, now)
+    differs from its speaker (a copy; the stored record is untouched). I49 ``[past plan]``;
+    I44 ``[hedged]`` with ``hedge``."""
+    marker = record_marker(record, now, hedge=hedge)
     if marker is None or record.content.startswith(marker):
         return record
     return record.model_copy(update={"content": f"{marker} {record.content}"})
@@ -1532,6 +1539,10 @@ class Engine:
             tags=tags or [],
             consent_tags=list(dict.fromkeys(purposes or [])),
         )
+        if memory_type == "episodic" and "spk:assistant" in record.tags:
+            state = self._persp_state.get(ns)
+            if state is not None:  # I47: the turn the next user turn may acknowledge
+                state["assistant"] = (record.record_id, content[:600])
         if valid_from is not None:
             stamp = self._localize(valid_from)
             record = record.model_copy(update={"valid_from": stamp})
@@ -2569,6 +2580,7 @@ class Engine:
         state = self._persp_state.get(ns)
         if state is None:
             known: set[str] = set(self._perspective_options().speakers)  # I51
+            acked: set[str] = set()  # I47: assistant records a later user turn acknowledged
             try:
                 for r in await self._records(ns):
                     for tag in r.tags:
@@ -2576,9 +2588,11 @@ class Engine:
                             known.add(tag.split(":", 1)[1])
                         elif tag.startswith(SPEAKER_PREFIX):
                             known.add(tag[len(SPEAKER_PREFIX) :])
+                        elif tag.startswith("ack:"):
+                            acked.add(tag[4:])
             except Exception as exc:  # an enhancer, never a gate
                 _log.warning("perspective.seed_failed", namespace=ns, error=str(exc))
-            state = {"known": known, "last": None}
+            state = {"known": known, "last": None, "acked": acked, "assistant": None}
             self._persp_state[ns] = state
         return state
 
@@ -2632,7 +2646,25 @@ class Engine:
                 state["last"] = p.spk
             if p.addr:
                 state["known"].add(p.addr)
-            return [*kept, *(t for t in p.tags(opts.axes) if t not in kept)]
+            out = [*kept, *(t for t in p.tags(opts.axes) if t not in kept)]
+            if opts.ack and p.spk != "assistant" and state.get("assistant") is not None:
+                # I47: the next non-assistant turn after an assistant turn either
+                # acknowledges it (the claim becomes user-confirmed) or leaves it proposed
+                prev_id, prev_text = state["assistant"]
+                state["assistant"] = None
+                reply = re.sub(r"^\s*[\w'-]{1,30}(?: [\w'-]{1,30})?:\s+", "", content, count=1)
+                said_yes = acknowledges(reply)
+                if opts.mode == "decider" and read.decider != "heuristic":
+                    try:
+                        d = await self._decider_adapter().decide("acknowledges", reply, prev_text)
+                        if d.confidence is not None and d.confidence >= read.decider_min_confidence:
+                            said_yes = d.label == "ack"
+                    except Exception:  # the rules' answer stands
+                        pass
+                if said_yes:
+                    state["acked"].add(prev_id)
+                    out.append(f"ack:{prev_id}")
+            return out
         except Exception as exc:  # an enhancer, never a gate
             _log.warning("perspective.annotate_failed", namespace=ns, error=str(exc))
             return list(tags or [])
@@ -2676,14 +2708,26 @@ class Engine:
         axes = set(read.perspective_axes)
         scored: list[tuple[MemoryRecord, float, bool]] = []
         factors: dict[str, dict[str, float]] = {}
+        as_of = active_as_of()
         for rec, rel in candidates:
             rv = record_view(rec)
+            state = self._persp_state.get(rec.namespace)
+            if state is not None and rec.record_id in state.get("acked", ()):
+                rv = replace(rv, acked=True)  # I47: a user turn acknowledged this claim
+            if (
+                read.perspective_as_of_subject
+                and as_of is not None
+                and rec.status is not RecordStatus.ACTIVATED
+                and qp.bound
+                and not as_of_subject_ok(qp, rv)
+            ):
+                continue  # I42: another subject's history is not part of this point in time
             mult, parts = factor(qp, rv, read.perspective_weight, axes)
             if parts:
                 factors[rec.record_id] = {k: round(v, 3) for k, v in parts.items()}
             about_other = (
                 "subject" in axes and qp.bound and rv.annotated and match_subject(qp, rv) == 0.0
-            )
+            ) or "ack" in parts
             scored.append((rec, rel * mult, about_other))
         out = sorted(scored, key=lambda t: t[1], reverse=True)
         dropped: list[str] = []
@@ -3994,6 +4038,15 @@ class Engine:
             # N1 ablation arm: trust scoring only — no flags, anomaly or quarantine.
             verdict = FirewallVerdict(trust=self._firewall.policy.trust_at_write(record.source))
         record = verdict.apply(record)
+        hearsay_cap = fw.hearsay_trust_cap
+        if (
+            hearsay_cap is not None
+            and record.trust > hearsay_cap
+            and any(t.startswith("rep:") for t in record.tags)
+        ):
+            # I43: second-hand ("my mom said X") never outranks first-hand; the parent
+            # cap below carries it to everything derived from the record.
+            record = record.model_copy(update={"trust": hearsay_cap})
         if trust_cap is not None:
             # MTI-D (integrity.enabled): after the firewall has set base trust,
             # never exceed the least-trusted parent's view. Quarantine stays the
@@ -5566,7 +5619,8 @@ class Engine:
         )
         if read_cfg.perspective_marker:
             now = active_as_of() or self._clock()
-            volatile = [_attributed(r, now) for r in volatile]  # I39 / I49
+            hedge = "certainty" in read_cfg.perspective_axes
+            volatile = [_attributed(r, now, hedge) for r in volatile]  # I39 / I44 / I49
         priority = list(volatile)
         if read_cfg.order_by_time_for_ordering and is_ordering(query):
             volatile = sorted(volatile, key=chrono_key)
@@ -6506,6 +6560,8 @@ class Engine:
             return None
         if read_cfg.profile_scope_gate and not await self._applies_to_person(ns, query):
             return None
+        if read_cfg.profile_subject_card:
+            return await self._subject_card(ns, query, budget_tokens)  # I50
         names = [n.lower() for n in query_names(query)]
         if not names:
             names = ["user"]
@@ -6546,6 +6602,74 @@ class Engine:
                     break
                 lines.append(line)
                 kept.append(record)
+        if not kept:
+            return None
+        block = self._lead_record(ns, "\n".join([constants.SLOTS_MARKER, *lines]), kept)
+        return block.model_copy(update={"tags": [constants.LEAD_TAG, constants.SLOTS_TAG]})
+
+    async def _subject_card(self, ns: str, query: str, budget_tokens: int) -> MemoryRecord | None:
+        """I50 (``read.profile_subject_card``): the per-subject profile card. The live
+        ``kind:state`` facts of ``ns`` are rolled up per subject (the record's ``sub:`` tags,
+        else its entity); only the subjects the question's resolved persons name get a block
+        (a person, the asker for "I / my", the assistant for "you", ``mother@caroline`` for
+        "Caroline's mother"). One attribute holding several live values (cardinality many)
+        lists them in time order; a single-valued one is its live (latest) value. The same
+        sensitivity and I33 relevance gates as the slots block. None when no subject matches."""
+        read_cfg = self._config().read
+        qp = await self._question_perspective(ns, query)
+        targets = list(qp.targets)
+        for name in query_names(query):  # a name no turn has spoken under yet
+            low = name.lower()
+            anchor = any(k.endswith(f"@{low}") for t in targets for k in t.keys)
+            if not anchor and all(low not in t.keys for t in targets):  # "Caroline's mother"
+                targets.append(Subject(name.lower(), "named"))
+        if not targets:
+            return None
+        cards: dict[str, dict[str, list[MemoryRecord]]] = {}
+        for record in await self._records(ns, "semantic"):
+            if (
+                record.status is not RecordStatus.ACTIVATED
+                or record.quarantined
+                or record.valid_to is not None
+                or not record.entity
+                or not record.attribute
+                or "kind:state" not in record.tags
+            ):
+                continue
+            if not read_cfg.profile_sensitive and any(
+                t.startswith("sensitive:") for t in record.tags
+            ):
+                continue
+            rv = record_view(record)
+            entity = record.entity.lower()
+            for target in targets:
+                if any(k in rv.subs or k == entity for k in target.keys):
+                    if self._profile_line_relevant(query, record.content):  # I33
+                        label = target.rel or target.id
+                        cards.setdefault(label, {}).setdefault(record.attribute, []).append(record)
+                    break
+        if not cards:
+            return None
+        allowance = max(1, int(budget_tokens * read_cfg.profile_budget_share))
+        lines: list[str] = []
+        kept: list[MemoryRecord] = []
+        for label in sorted(cards):
+            head = f"[{label}]"
+            for attribute in sorted(cards[label]):
+                for record in sorted(cards[label][attribute], key=lambda r: r.valid_from):
+                    line = f"- {' '.join(record.content.split())}"
+                    trial = [
+                        constants.SLOTS_MARKER,
+                        *lines,
+                        *([] if head in lines else [head]),
+                        line,
+                    ]
+                    if estimate_tokens("\n".join(trial)) > allowance:
+                        break
+                    if head not in lines:
+                        lines.append(head)
+                    lines.append(line)
+                    kept.append(record)
         if not kept:
             return None
         block = self._lead_record(ns, "\n".join([constants.SLOTS_MARKER, *lines]), kept)
@@ -12341,6 +12465,10 @@ class Engine:
         if sources and all("assistant_claim" in r.tags for r in sources):
             # R2-11: a fact mined only from assistant turns stays an assistant claim.
             tags.append("assistant_claim")
+        if sources and self._perspective_options().on:
+            # I55: the fact is about what its source turn(s) are about, so the conflict
+            # perspective_key (subject / scope / polarity) works on it too.
+            tags.extend(t for t in inherit_perspective_tags(sources) if t not in tags)
         record = MemoryRecord(
             namespace=ns,
             memory_type="semantic",

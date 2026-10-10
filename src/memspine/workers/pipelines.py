@@ -34,6 +34,7 @@ from memspine.core.event_date import (
 )
 from memspine.core.events import EventKind, EventLogMode, MemoryEvent, fingerprint_payload
 from memspine.core.firewall import Firewall, FirewallVerdict, instruction_shaped
+from memspine.core.perspective import inherit_perspective_tags
 from memspine.core.policies.community import CommunityOptions, CommunityPolicy
 from memspine.core.policies.compression import CompressionPolicy
 from memspine.core.policies.consolidation import (
@@ -2100,6 +2101,9 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
                 # GP-1: an event edge drops its attribute (add-only, never
                 # superseded); kind, rel and dst persist as tags.
                 attribute, tags = edge_fact_key(edge, edge.src_entity, protected, cardinality)
+                # I55: the edge is about what its source turn(s) are about (tags exist
+                # only when the perspective layer is on)
+                tags = [*tags, *(t for t in inherit_perspective_tags(parents) if t not in tags)]
                 fact = MemoryRecord(
                     namespace=namespace,
                     memory_type="semantic",

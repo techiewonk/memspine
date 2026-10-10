@@ -16,6 +16,7 @@
     },
     "firewall": {
       "enabled": true,
+      "hearsay_trust_cap": null,
       "max_content_chars": null,
       "pii": "off",
       "pii_extended": false,
@@ -159,6 +160,7 @@
       "novelty_exclusions": false,
       "order_by_time_for_ordering": false,
       "person_time_leg_k": 10,
+      "perspective_as_of_subject": false,
       "perspective_asker": null,
       "perspective_axes": [
         "subject"
@@ -181,6 +183,7 @@
       "profile_sensitive": false,
       "profile_skip_temporal": false,
       "profile_slots_header": false,
+      "profile_subject_card": false,
       "query_encoder": "none",
       "raw_turn_floor": false,
       "recency_leg": false,

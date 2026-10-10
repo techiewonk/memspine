@@ -109,10 +109,15 @@ unchanged.
 
 ## 4. Not yet implemented (exact plans in `evals/analysis/GAP_REGISTER.md`)
 
-I43 hearsay trust cap, I48 inferred provenance, I50 per-subject card, I52 graded sensitivity, I53
-participants / viewer / visibility, the user-acknowledgement promotion of assistant claims (I47), mined
-facts inheriting `sub:` / `scope:` / `pol:` from their source turn (I55), write-side `person:` graph
-integration, optional use of `lexical_strip_names` over the participant set instead of text parsing.
+I48 inferred provenance, I52 graded sensitivity, I53 participants / viewer / visibility, write-side
+`person:` graph integration, optional use of `lexical_strip_names` over the participant set instead of
+text parsing, ranking past plans below standing facts, the `contradicts` decider task.
+
+Added later (opt-in, unit tested): `firewall.hearsay_trust_cap` and read axis `hearsay` (I43); read axis
+`certainty` and the `[hedged]` marker (I44); `perspective.ack` with `ack:<id>` links and read axis `ack`
+(I47: an assistant claim about the user counts as user-confirmed only after a later user turn agrees);
+`due_from:` / `due_to:` windows from absolute dates (I49); `read.profile_subject_card` (I50);
+`read.perspective_as_of_subject` (I42); mined facts and graph edges inherit `sub:` / `scope:` / `pol:` (I55).
 
 ## 5. Screen plan (retrieval-only first, free)
 

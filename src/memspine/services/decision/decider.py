@@ -160,6 +160,14 @@ TASKS: dict[str, TaskSpec] = {
         "about",
         "not_about",
     ),
+    # I47: the question slot is the user's reply, the context the assistant turn before it
+    "acknowledges": TaskSpec(
+        "Does the reply agree with, confirm or accept what the context says, rather than "
+        "deny it, correct it or change the subject?",
+        "ack",
+        "no_ack",
+        "question_context",
+    ),
     "abstention": TaskSpec(
         "Can the question be answered from the context?",
         "answerable",
@@ -202,6 +210,7 @@ def default_rules() -> dict[str, Rule]:
     (its regex lives there). ``relevance`` and ``abstention`` have no rule today: the pipeline
     always injects, so the heuristic answer is "relevant" / "answerable"."""
     from memspine.core.perspective import (
+        acknowledges,
         is_hedged,
         is_negated,
         scope_of,
@@ -222,6 +231,7 @@ def default_rules() -> dict[str, Rule]:
             None,
         ),
         "is_hedged": lambda q, _c: ("hedged" if is_hedged(q) else "certain", None),
+        "acknowledges": lambda q, _c: ("ack" if acknowledges(q) else "no_ack", None),
         "list_mode": lambda q, _c: ("set" if is_set_question(q) else "single", None),
         "bridge_hop": lambda q, _c: ("hop" if has_bridge_cue(q) else "no_hop", None),
         "temporal_intent": lambda q, _c: (
