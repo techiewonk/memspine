@@ -886,6 +886,13 @@ in the schema — or if the schema gains a key not documented here.
 | `read.multi_intent_split` | `false` | G34 (ADR-059): a multi-part question is split on discourse markers ("…, and where did he move?", "also", "additionally") and each part joins the search as an RRF probe. |
 | `read.second_round` | `false` | N04 (ADR-059): when the first search's W3 signal is weak (with `evidence_weak_below`), the names and dates its top three hits mention and the question lacks seed a second search over a doubled pool. |
 | `read.cluster_expand` | `false` | N06 (ADR-059): the embedding neighbourhoods of the top two hits (across sessions) join the search as RRF legs — read-time topic clusters (two embeds and two vector queries per read). |
+| `read.asset_evidence` | `"off"` | E04: image evidence for a question that needs what a picture shows (generic cue: what / which / who / where plus an object, title or place word, or "in the photo"). Needs `ingest.assets: on`. `cached`: only evidence already computed (no network, no model); a retrieved turn with an unresolved attachment gets an explicit "unavailable" line. `fetch`: also downloads the turn's own referenced URI once and describes it through the vision port (needs `ingest.asset_dir`). The line is `[image evidence asset:<hash>, turn <id>; …] <description>`; the source's search hint is never used. |
+| `read.asset_max_per_read` | `2` | E04: at most this many attachments are resolved for one read. |
+| `read.external_evidence` | `"off"` | E03: public knowledge for an invited inference or recommendation question only (would / likely / might / could, "recommend"; never a did / owns / when-did fact question). `cache`: cached results only (no network). `web`: also calls the provider, within `external_max_calls`. Only generic lowercase topic words of the question leave the process (every name, place, number, URL, e-mail, quoted span and capital word of the retrieved context is removed first; a final guard refuses a query that still holds one). The result is added as a `[public knowledge]` block carrying its own clause (it never shows that a person did, owns, visited or said anything), is never stored, and is ignored by the no-record check. |
+| `read.external_provider` | `"none"` | E03: `none` (inject one with `Engine.set_external_provider`) or `http`: `GET $MEMSPINE_EXTERNAL_SEARCH_URL?q=<query>&n=<count>`, optional credential in `MEMSPINE_EXTERNAL_SEARCH_KEY` (header `MEMSPINE_EXTERNAL_SEARCH_HEADER`, default `Authorization: Bearer`); no key is ever in config. Unset: each call reports `provider_unavailable` and the context is unchanged. |
+| `read.external_max_calls` | `20` | E03: network calls the engine may make in its lifetime (cache hits are free; the budget is checked before the call). |
+| `read.external_max_results` | `3` | E03: snippets kept per query. |
+| `read.external_cache_dir` | `null` | E03: directory of the persistent query cache (`external_cache.json`); null keeps it in memory. |
 | `read.sentence_leg` | `false` | N05 (ADR-059): an RRF leg ranking records by their single best-matching sentence (shared content words / √length), so one strong sentence in a long turn is not diluted. No model. |
 | `read.rerank_instruction` | `null` | N12 (ADR-059): the task instruction an instruction-conditioned reranker (`rerank: qwen3`) judges with; null keeps its memory default. |
 | `read.evidence_line` | `false` | W3 step 2 (ADR-059): with `evidence_signal`, a weak read opens its volatile part with a one-line note that memory holds no clear record answering the question. |
@@ -999,6 +1006,15 @@ in the schema — or if the schema gains a key not documented here.
 | `write.inferred_trust_cap` | `0.4` | I48: trust ceiling of an inferred record (user-stated 0.7, assistant 0.5). |
 | `write.inferred_explicit_overlap` | `0.6` | I48: share of a derived fact's content words one user turn must contain for the fact to count as stated, not inferred. |
 | `write.inferred_support_overlap` | `0.3` | I48: share of its content words a user parent turn must contain to count as support. |
+| `ingest.assets` | `"off"` | E04: a message's `attachments` (`[{"uri", "caption", "search_hint", "kind"}]`, plus `turn_id` for the source id) are ignored when off. On: each attachment's identity (source turn, original URI, source caption, availability) goes to the asset registry and the record is tagged `asset:<id>`. Nothing is downloaded at ingest. |
+| `ingest.asset_dir` | `null` | E04: cache directory (gitignored in the harness): `registry.sqlite` and the downloaded bytes under `blobs/` by content hash. Null: in-memory registry, no blobs; `read.asset_evidence: fetch` is then refused. |
+| `ingest.asset_max_bytes` | `5000000` | E04: a larger download fails explicitly (`too_large`). |
+| `ingest.asset_timeout_s` | `15.0` | E04: download timeout in seconds. |
+| `ingest.asset_allowed_mime` | `["image/jpeg", "image/png", "image/gif", "image/webp"]` | E04: types accepted; the bytes are sniffed and must agree with the declared type (`mime_mismatch`), a cross-host redirect fails (`redirected_offsite`). |
+| `ingest.asset_vision` | `"none"` | E04: the vision/OCR evidence port. `none`: no description (the arm stays text-only; evidence is `skipped`). `ollama`: a local vision model through `/api/chat`. |
+| `ingest.asset_vision_model` | `"qwen2.5vl:3b"` | E04: the Ollama model tag (documented only; the engine never pulls). |
+| `ingest.asset_vision_url` | `"http://localhost:11434"` | E04: the Ollama base URL. |
+| `ingest.asset_vision_timeout_s` | `120.0` | E04: timeout of one vision call. |
 | `integrity.corroboration_roots` | `false` | W13 (ADR-059): corroboration counts independent lineage roots: a corroborating write whose `source.parents` lineage shares a root with the quarantined record or an earlier corroborator does not count. |
 | `write(..., reply_to=)`, `write_messages` turn `reply_to` | — | G27 (ADR-061): the record a turn answers (record id, or in `write_messages` the index of an earlier message of the call). Stored as a `reply_to:<id>` tag; with associative memory a `reply_to` LINK too. A missing or foreign target is refused like a missing record. |
 | `Engine.verify_forget(probe=...)` | — | W14 (ADR-059): erasure proven on recall — the erased text, searched for, must bring back no record holding it or a near-duplicate (`residual_recall`). |
@@ -1190,6 +1206,48 @@ eng = Engine(data_profile="chat_roles,ts_none")   # or name the presets
 In the eval harness the adapter declares the shape (`DatasetInfo.shape`, or `EvalItem.meta["shape"]`), the rest
 is inferred from the history (`memspine_evals.shape`), and `MemspineSystem` passes it to the engine when the
 arm config sets `data_profile`.
+
+### Image assets and public knowledge (E04, E03; opt-in)
+
+Both ports are off by default and leave a read byte-identical when off.
+
+**E04 image assets.** `ingest.assets: on` keeps each attachment's identity at write time; `read.asset_evidence`
+resolves it at read time, only for a question that needs the picture. The adapter downloads **only the URI the
+turn itself carried**, once, caches the bytes by content hash under `ingest.asset_dir`, and runs the vision port
+once per distinct image. A missing or expired URL, an oversized file, a type mismatch or an off-site redirect is
+recorded on the registry entry (`availability: unavailable`, `error`) and shown to the reader as an explicit
+"unavailable ... do not guess" line; nothing is substituted, and the data source's search phrase is stored for
+audit but never used as evidence. Report the arm apart from text-only runs (`meta.network_calls`,
+`meta.vision_calls` per question in the harness).
+
+```python
+eng = Engine(
+    ingest={"assets": "on", "asset_dir": "evals/runs/_asset_cache",
+            "asset_vision": "ollama", "asset_vision_model": "qwen2.5vl:3b"},
+    read={"asset_evidence": "fetch"},
+)
+await eng.write_messages([{"role": "user", "content": "Look at this", "turn_id": "D1:2",
+                           "attachments": [{"uri": "https://…/pic.jpg", "caption": "a photo of a book"}]}])
+```
+
+Local vision model (documented, not pulled): `qwen2.5vl:3b` (about 3.2 GB of weights, roughly 4 to 5 GB of VRAM
+with image tokens) fits next to `qwen3.5:9b` (about 6.6 GB at Q4) on a 16 GB GPU with room for the KV cache;
+`gemma3:4b` (about 3.3 GB) is the alternative. Run vision between reader batches or after the reader is unloaded
+if both cannot stay resident.
+
+**E03 public knowledge.** `read.external_evidence: cache|web` fires only for an invited inference or a
+recommendation request. The query is built from the question's lowercase topic words after removing every name,
+place, number, URL, e-mail, quoted span, relationship word and every capital word of the retrieved context
+(`memspine.services.external.privacy`); private conversation text is never sent. Results are cached, the call
+budget is enforced, and each failure (`cache_miss`, `budget_exhausted`, `provider_unavailable`,
+`provider_error`, `filtered_empty`) leaves the context unchanged and is recorded in the forensics. The block is
+labelled `[public knowledge]`, carries the clause that it cannot prove a private event, possession or
+attribute, and is never persisted. Use the `http` provider with `MEMSPINE_EXTERNAL_SEARCH_URL` /
+`MEMSPINE_EXTERNAL_SEARCH_KEY`; report web-enabled runs apart from memory-only runs.
+
+**I61 premise-tolerant answering** is a harness reader clause, `--premise-tolerant` (no extra model call): when
+a question carries a detail that differs slightly from memory, answer the supported part and correct the detail
+instead of confirming or refusing. It trades against abstention, so screen it with the cat-5 guard slice.
 
 ## Where to go next
 

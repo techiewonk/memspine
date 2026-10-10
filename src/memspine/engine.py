@@ -1235,6 +1235,10 @@ class Engine:
         self._injections = InjectionLog()
         #: I60: word set of each namespace's records, keyed by record count
         self._entity_vocab: dict[str, tuple[int, frozenset[str]]] = {}
+        #: E04 / E03: the asset adapter and the external-evidence broker, built on first use
+        self._assets: Any = None
+        self._external: Any = None
+        self._external_provider: Any = None
         #: read.session_leg: unit vector per (record id, content)
         self._session_vectors: dict[tuple[str, str], list[float]] = {}
         # E4 (ADR-020): whether the vector leg runs the two-stage quantized
@@ -2903,6 +2907,263 @@ class Engine:
             cached = self._entity_vocab[ns] = (len(records), vocab)
         return cached[1]
 
+    # ── E04 image assets and E03 public knowledge (both opt-in, default off) ─────────
+
+    def set_asset_adapter(self, adapter: Any) -> None:
+        """E04: use ``adapter`` (an ``AssetAdapter``: tests, or a shared instance)."""
+        self._assets = adapter
+
+    def set_external_provider(self, provider: Any) -> None:
+        """E03: use ``provider`` (an ``ExternalProvider``) instead of ``read.external_provider``."""
+        self._external_provider = provider
+        self._external = None
+
+    def _asset_adapter(self) -> Any:
+        if self._assets is None:
+            from memspine.services.assets import (
+                AssetAdapter,
+                AssetRegistry,
+                HttpAssetFetcher,
+                NoopVision,
+                OllamaVision,
+            )
+
+            cfg = self._config().ingest
+            vision: Any = (
+                OllamaVision(
+                    cfg.asset_vision_model,
+                    cfg.asset_vision_url,
+                    timeout=cfg.asset_vision_timeout_s,
+                )
+                if cfg.asset_vision == "ollama"
+                else NoopVision()
+            )
+            self._assets = AssetAdapter(
+                AssetRegistry(cfg.asset_dir),
+                HttpAssetFetcher(tuple(cfg.asset_allowed_mime)),
+                vision,
+                cfg.asset_dir,
+                max_bytes=cfg.asset_max_bytes,
+                timeout=cfg.asset_timeout_s,
+            )
+        return self._assets
+
+    def asset_stats(self) -> dict[str, int]:
+        """E04 cost counters of this engine (fetches, vision calls, failures, cache hits)."""
+        if self._assets is None:
+            return {}
+        s = self._assets.stats
+        return {
+            "fetches": s.fetches,
+            "fetch_failures": s.fetch_failures,
+            "vision_calls": s.vision_calls,
+            "vision_failures": s.vision_failures,
+            "cache_hits": s.cache_hits,
+        }
+
+    def external_stats(self) -> dict[str, int]:
+        """E03 counters: network calls made, cache hits and misses, refusals, errors."""
+        if self._external is None:
+            return {}
+        s = self._external.stats
+        return {
+            "network_calls": s.network_calls,
+            "cache_hits": s.cache_hits,
+            "cache_misses": s.cache_misses,
+            "refused": s.refused,
+            "errors": s.errors,
+        }
+
+    def _attachment_refs(
+        self, turn: Mapping[str, Any], index: int, session_id: str | None
+    ) -> list[tuple[Any, str]]:
+        """``ingest.assets``: the turn's attachments with their asset ids (empty when off)."""
+        if self._config().ingest.assets != "on" or not isinstance(turn, Mapping):
+            return []
+        from memspine.services.assets import asset_id_for, parse_attachments
+
+        source = str(turn.get("turn_id") or f"{session_id or 'nosession'}:{index}")
+        refs = parse_attachments(turn.get("attachments"))
+        return [(ref, asset_id_for(source, ref.uri)) for ref in refs]
+
+    def _register_assets(
+        self,
+        refs: list[tuple[Any, str]],
+        turn: Mapping[str, Any],
+        index: int,
+        session_id: str | None,
+        record_id: str,
+    ) -> None:
+        from memspine.services.assets import AssetEntry
+
+        source = str(turn.get("turn_id") or f"{session_id or 'nosession'}:{index}")
+        adapter = self._asset_adapter()
+        for ref, aid in refs:
+            adapter.registry.register(
+                AssetEntry(
+                    asset_id=aid,
+                    source_turn_id=source,
+                    uri=ref.uri,
+                    kind=ref.kind,
+                    caption=ref.caption,
+                    search_hint=ref.search_hint,
+                    record_id=record_id,
+                )
+            )
+
+    async def _asset_overlay(
+        self, query: str, ns: str, context: AssembledContext
+    ) -> AssembledContext:
+        """E04 ``read.asset_evidence``: for a question that needs what a picture shows, each
+        retrieved turn that carries an attachment gets one evidence line after it: the
+        vision description with its ``asset:<hash>`` provenance, or an explicit note of why
+        there is none. The source's search hint is never used. Never drops a record; a
+        failure keeps the context as it was."""
+        mode = self._config().read.asset_evidence
+        if mode == "off":
+            return context
+        from memspine.services.assets import ASSET_TAG_PREFIX, needs_visual_detail
+
+        if not needs_visual_detail(query):
+            return context
+        try:
+            adapter = self._asset_adapter()
+            records = list(context.records)
+            added: list[str] = []
+            audit: list[dict[str, Any]] = []
+            budget = self._config().read.asset_max_per_read
+            offset = 0
+            for pos, record in enumerate(list(records)):
+                if budget <= 0:
+                    break
+                ids = [
+                    t[len(ASSET_TAG_PREFIX) :]
+                    for t in record.tags
+                    if t.startswith(ASSET_TAG_PREFIX)
+                ]
+                lines: list[str] = []
+                for aid in ids[:budget]:
+                    entry = await adapter.resolve(aid, allow_network=mode == "fetch")
+                    if entry is None:
+                        continue
+                    budget -= 1
+                    audit.append(
+                        {
+                            "asset": aid,
+                            "availability": entry.availability,
+                            "evidence": entry.evidence_status,
+                            "error": entry.error,
+                        }
+                    )
+                    if entry.evidence_status == "ok" and entry.evidence:
+                        lines.append(
+                            f"[image evidence {entry.provenance}, turn {entry.source_turn_id}; "
+                            f"read from the original image by a vision model, may be imperfect] "
+                            f"{entry.evidence[:600]}"
+                        )
+                    else:
+                        why = entry.error or (
+                            "not downloaded (read.asset_evidence: cached)"
+                            if entry.availability == "unfetched"
+                            else "no description"
+                        )
+                        lines.append(
+                            f"[image evidence unavailable for turn {entry.source_turn_id}: {why}; "
+                            "the picture was not seen, do not guess what it shows]"
+                        )
+                if lines:
+                    block = self._lead_record(
+                        ns, "\n".join(lines), [record], extra_tags=("asset_evidence",)
+                    )
+                    at = pos + 1 + offset
+                    records.insert(at, block)
+                    offset += 1
+                    if at <= context.boundary_index:
+                        context.boundary_index += 1
+                    added.extend(lines)
+            if added:
+                context.records = records
+                context.tokens_used += sum(estimate_tokens(t) for t in added)
+            if (fx := _FORENSICS.get()) is not None and audit:
+                fx["asset_evidence"] = audit
+        except Exception as exc:  # an enhancer, never a gate
+            _log.warning("read.asset_evidence_failed", namespace=ns, error=str(exc))
+        return context
+
+    def _external_broker(self) -> Any:
+        if self._external is None:
+            from memspine.services.external import (
+                EvidenceCache,
+                ExternalBroker,
+                HttpSearchProvider,
+                NoopProvider,
+                ProviderUnavailableError,
+            )
+
+            read = self._config().read
+            provider = self._external_provider
+            if provider is None:
+                if read.external_provider == "http":
+                    try:
+                        provider = HttpSearchProvider.from_env()
+                    except ProviderUnavailableError:
+                        provider = NoopProvider()  # reported per call as provider_unavailable
+                else:
+                    provider = NoopProvider()
+            self._external = ExternalBroker(
+                provider,
+                EvidenceCache(read.external_cache_dir),
+                max_calls=read.external_max_calls,
+                max_results=read.external_max_results,
+            )
+        return self._external
+
+    async def _external_overlay(
+        self, query: str, ns: str, context: AssembledContext
+    ) -> AssembledContext:
+        """E03 ``read.external_evidence``: for an invited inference or a recommendation
+        request only, one ``[public knowledge]`` block built from a generic public query (the
+        question's lowercase topic words, with every name, place and retrieved-context
+        capital word removed). The block carries its own clause: it never proves that a
+        person did, owns, visited or said anything. Nothing is stored. A failure or refusal
+        leaves the context as it was and is recorded in the forensics."""
+        mode = self._config().read.external_evidence
+        if mode == "off":
+            return context
+        from memspine.services.external import (
+            format_public_block,
+            invites_inference,
+            private_terms_from,
+        )
+
+        if not invites_inference(query):
+            return context
+        evidence = [r for r in context.records if constants.LEAD_TAG not in r.tags]
+        if not evidence:
+            return context  # no personal premise to join the public relation to
+        try:
+            state = await self._persp_state_for(ns)
+            private = private_terms_from((r.content for r in evidence), names=state["known"])
+            result = await self._external_broker().lookup(
+                query, private, allow_network=mode == "web"
+            )
+            if (fx := _FORENSICS.get()) is not None:
+                fx["external_evidence"] = {
+                    "status": result.status,
+                    "public_query": result.public_query,
+                    "provider": result.provider,
+                    "n_snippets": len(result.snippets),
+                }
+            if not result.usable:
+                return context
+            text = format_public_block(result)
+            block = self._lead_record(ns, text, evidence, extra_tags=("ext:public",))
+            context.records = [*context.records, block]
+            context.tokens_used += estimate_tokens(text)
+        except Exception as exc:  # an enhancer, never a gate
+            _log.warning("read.external_evidence_failed", namespace=ns, error=str(exc))
+        return context
+
     async def _read_overlay(
         self,
         query: str,
@@ -3672,7 +3933,13 @@ class Engine:
         wrap_below = integrity.untrusted_wrap_below if integrity.enabled else 0.0
         return not record.instruction_flag and record.trust >= wrap_below
 
-    def _lead_record(self, ns: str, content: str, parts: list[MemoryRecord]) -> MemoryRecord:
+    def _lead_record(
+        self,
+        ns: str,
+        content: str,
+        parts: list[MemoryRecord],
+        extra_tags: Sequence[str] = (),
+    ) -> MemoryRecord:
         """A synthetic, never-stored context record for one lead block.
 
         Its trust is the least of its entries' (a block is never more trusted than
@@ -3685,7 +3952,7 @@ class Engine:
             namespace=ns,
             memory_type="semantic",
             content=content,
-            tags=[constants.LEAD_TAG],
+            tags=[constants.LEAD_TAG, *extra_tags],
             valid_from=max(p.valid_from for p in parts),
             trust=min(p.trust for p in parts),
             source=SourceInfo(role="system", channel="lead", parents=[p.record_id for p in parts]),
@@ -4135,6 +4402,9 @@ class Engine:
             )
             if correction is not None:
                 turn_tags.append(constants.CORRECTION_TAG)  # W17d
+            asset_refs = self._attachment_refs(turn, i, session_id)
+            for _ref, aid in asset_refs:
+                turn_tags.append(f"asset:{aid}")  # E04: ingest.assets
             stamp = self._event_time(turn.get("timestamp")) or valid_from
             if stamp is not None and session_id and self._config().read.session_sequence:
                 stamp = self._sequenced(namespace, session_id, self._localize(stamp))
@@ -4153,6 +4423,8 @@ class Engine:
                     str(turn["visibility"]) if session_speakers and "visibility" in turn else None
                 ),
             )
+            if asset_refs:
+                self._register_assets(asset_refs, turn, i, session_id, record.record_id)
             if correction is not None and not record.quarantined:
                 await self._apply_correction(record.namespace, record, correction, records)
             records.append(record)
@@ -6392,9 +6664,10 @@ class Engine:
         gated = await self._relevance_gate(
             query, ReadResult(result.mode, self._attach_headers(result.context, headers)), ns
         )
-        return ReadResult(
-            gated.mode, await self._read_overlay(query, ns, gated.context, session_id)
-        )
+        overlaid = await self._read_overlay(query, ns, gated.context, session_id)
+        overlaid = await self._asset_overlay(query, ns, overlaid)  # E04, off by default
+        overlaid = await self._external_overlay(query, ns, overlaid)  # E03, off by default
+        return ReadResult(gated.mode, overlaid)
 
     async def _agentic_fires(self, query: str, read: Any, records: Sequence[MemoryRecord]) -> bool:
         """I67 ``read.agentic_trigger``: ``always``; ``multi_hop`` (the surface heuristic);

@@ -58,6 +58,33 @@ def _evidence_text(conversation: dict[str, Any], evidence: list[str]) -> str:
     return "\n".join(lines)
 
 
+def _attachment_meta(turn: dict[str, Any]) -> dict[str, Any]:
+    """E04: the turn's own attachment identity, kept beside the text (``Turn.meta``): the
+    original URI, the source's machine caption and its search phrase. The search phrase
+    (``query`` in the release) is the data collector's lookup hint, not a description of the
+    image: it travels for audit only and is never evidence. Turns without an image: ``{}``."""
+    urls = turn.get("img_url")
+    if isinstance(urls, str):
+        urls = [urls]
+    if not isinstance(urls, list) or not urls:
+        return {}
+    caption = turn.get("blip_caption")
+    hint = turn.get("query")
+    return {
+        "attachments": [
+            {
+                "uri": str(url),
+                "kind": "image",
+                "caption": str(caption) if caption else None,
+                "search_hint": str(hint) if hint else None,
+                "re_download": bool(turn.get("re-download")),
+            }
+            for url in urls
+            if isinstance(url, str) and url.strip()
+        ]
+    }
+
+
 def file_sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with Path(path).open("rb") as fh:
@@ -152,6 +179,7 @@ class LoCoMoDataset:
                             speaker=str(turn.get("speaker", "unknown")),
                             text=text,
                             timestamp=str(stamp) if stamp else None,
+                            meta=_attachment_meta(turn),
                         )
                     )
             queries: list[Query] = []

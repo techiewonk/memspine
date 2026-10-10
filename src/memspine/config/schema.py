@@ -1234,6 +1234,25 @@ class ReadConfig(BaseModel):
     #: embedding neighbourhoods of the top two hits, across sessions, join the search
     #: as RRF legs (two embeds and two vector queries per read). Off: unchanged.
     cluster_expand: bool = False
+    #: E04: image evidence for a question that needs what a picture shows (requires
+    #: ``ingest.assets: on`` at write time). ``cached``: use only evidence already computed
+    #: (no network, no model). ``fetch``: also download the turn's own referenced URI once and
+    #: describe it through the vision port (needs ``ingest.asset_dir``). Off: unchanged.
+    asset_evidence: Literal["off", "cached", "fetch"] = "off"
+    #: E04: at most this many assets are resolved for one read.
+    asset_max_per_read: int = Field(default=2, ge=1)
+    #: E03: public knowledge for an invited inference / recommendation question. ``cache``:
+    #: only cached results (no network). ``web``: also call the provider, within
+    #: ``external_max_calls``. Only generic topic words leave the process. Off: unchanged.
+    external_evidence: Literal["off", "cache", "web"] = "off"
+    #: E03: ``none`` (a provider can still be injected with ``Engine.set_external_provider``)
+    #: or ``http`` (``MEMSPINE_EXTERNAL_SEARCH_URL`` / ``_KEY`` / ``_HEADER`` from the env).
+    external_provider: Literal["none", "http"] = "none"
+    #: E03: network calls the engine may make in its lifetime (cache hits are free).
+    external_max_calls: int = Field(default=20, ge=0)
+    external_max_results: int = Field(default=3, ge=1, le=10)
+    #: E03: directory of the persistent query cache (JSON). None: in memory.
+    external_cache_dir: str | None = None
 
     @model_validator(mode="after")
     def _header_shares_leave_room(self) -> ReadConfig:
@@ -1676,6 +1695,31 @@ class WriteConfig(BaseModel):
     inferred_support_overlap: float = Field(default=0.3, gt=0.0, le=1.0)
 
 
+class IngestConfig(BaseModel):
+    """E04 attachment handling at write time. Off by default: a message's ``attachments`` are
+    ignored exactly as before. On: each attachment's identity (source turn, original URI,
+    source caption, availability) is registered and the record is tagged ``asset:<id>``;
+    nothing is downloaded at ingest."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    assets: Literal["off", "on"] = "off"
+    #: Cache directory (gitignored in the eval harness): ``registry.sqlite`` and the
+    #: downloaded bytes under ``blobs/`` by content hash. None: registry in memory, no blobs
+    #: (so ``read.asset_evidence: fetch`` is refused at start).
+    asset_dir: str | None = None
+    asset_max_bytes: int = Field(default=5_000_000, ge=1)
+    asset_timeout_s: float = Field(default=15.0, gt=0.0)
+    asset_allowed_mime: list[str] = Field(
+        default_factory=lambda: ["image/jpeg", "image/png", "image/gif", "image/webp"]
+    )
+    #: ``none``: no description is produced (text-only). ``ollama``: a local vision model.
+    asset_vision: Literal["none", "ollama"] = "none"
+    asset_vision_model: str = "qwen2.5vl:3b"
+    asset_vision_url: str = "http://localhost:11434"
+    asset_vision_timeout_s: float = Field(default=120.0, gt=0.0)
+
+
 class DataShapeConfig(BaseModel):
     """I25: facts about the data the engine will serve, declared by the data adapter (or
     the deployer). Only ``data_profile: auto`` reads them; an undeclared fact (None /
@@ -1711,6 +1755,7 @@ class MemspineConfig(BaseModel):
     llm: LLMConfig = Field(default_factory=LLMConfig)
     read: ReadConfig = Field(default_factory=ReadConfig)
     write: WriteConfig = Field(default_factory=WriteConfig)
+    ingest: IngestConfig = Field(default_factory=IngestConfig)
     decision: DecisionConfig = Field(default_factory=DecisionConfig)
     integrity: IntegrityConfig = Field(default_factory=IntegrityConfig)
     firewall: FirewallConfig = Field(default_factory=FirewallConfig)
@@ -1723,6 +1768,16 @@ class MemspineConfig(BaseModel):
     prompts: PromptsConfig = Field(default_factory=PromptsConfig)
     memories: dict[str, MemoryTypeConfig] = Field(default_factory=dict)
     namespaces: dict[str, NamespaceConfig] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def _asset_keys_agree(self) -> MemspineConfig:
+        """E04: ``read.asset_evidence`` needs the identities ``ingest.assets`` registers, and
+        ``fetch`` needs a directory to cache the downloaded bytes by content hash."""
+        if self.read.asset_evidence != "off" and self.ingest.assets != "on":
+            raise ConfigError("read.asset_evidence needs ingest.assets: on")
+        if self.read.asset_evidence == "fetch" and not self.ingest.asset_dir:
+            raise ConfigError("read.asset_evidence: fetch needs ingest.asset_dir (the cache)")
+        return self
 
     @field_validator("memories")
     @classmethod

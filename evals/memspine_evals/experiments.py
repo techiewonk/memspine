@@ -158,6 +158,10 @@ class C01Config:
     retry_guard: bool = False
     #: I32: tell the reader no memory matches an asserted past event (``no_record.py``).
     no_record_hint: bool = False
+    #: I61: tell the reader to answer the supported part and correct a mismatched detail
+    #: instead of confirming or refusing (``premise.py``). Trades against abstention: screen
+    #: it with the cat-5 guard slice before adopting.
+    premise_tolerant: bool = False
     #: I22: ``whole`` (default) = a refusal only when the whole answer is a refusal statement;
     #: ``legacy`` = the original substring regexes (reproduces runs before 2026-10-10).
     refusal_match: str = "whole"
@@ -685,6 +689,10 @@ def build_reader_and_judge(config: C01Config) -> tuple[Reader, Judge, bool]:
         from .no_record import NoRecordHintReader
 
         reader = NoRecordHintReader(reader)  # type: ignore[assignment]
+    if config.premise_tolerant:
+        from .premise import PremiseTolerantReader
+
+        reader = PremiseTolerantReader(reader)  # type: ignore[assignment]
     judge = build_judge(
         config,
         openai_compat_chat(
@@ -898,6 +906,7 @@ async def run_c0_1(
             **({"retry_refusal": True} if config.retry_refusal else {}),
             **({"retry_guard": True} if config.retry_guard else {}),
             **({"no_record_hint": True} if config.no_record_hint else {}),
+            **({"premise_tolerant": True} if config.premise_tolerant else {}),
             **({"refusal_match": config.refusal_match} if config.refusal_match != "whole" else {}),
             **({"no_memory_prompt": True} if config.no_memory_prompt else {}),
             **({"stamp_timezone": config.stamp_timezone} if config.stamp_timezone != "UTC" else {}),

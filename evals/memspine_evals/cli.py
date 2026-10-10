@@ -324,6 +324,7 @@ def cmd_c0_1(args: argparse.Namespace) -> int:
         retry_refusal=args.retry_refusal,
         retry_guard=args.retry_guard,
         no_record_hint=args.no_record_hint,
+        premise_tolerant=args.premise_tolerant,
         refusal_match=args.refusal_match,
         no_memory_prompt=args.no_memory_prompt,
         decider=args.decider,
@@ -646,6 +647,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="I32: when the question recalls a past event (first-person cues) and the retrieved "
         "context does not support it, tell the reader no matching memory was found; no extra "
         "model call; off by default",
+    )
+    c01.add_argument(
+        "--premise-tolerant",
+        action="store_true",
+        help="I61: tell the reader to answer the part memory supports and correct a detail "
+        "(date, person, item) that differs, instead of confirming or refusing; no extra model "
+        "call; off by default. Trades against abstention: screen with the cat-5 guard slice",
     )
     c01.add_argument(
         "--decider",

@@ -29,6 +29,7 @@ __all__ = [
     "NoRecordHintReader",
     "asserts_past_event",
     "event_supported",
+    "strip_public_knowledge",
 ]
 
 #: Told to the reader (prepended to the context) when the asserted event has no support.
@@ -61,6 +62,25 @@ _STOP = frozenset(
 #: Fraction of the question's content words that must occur in the context for the asserted
 #: event to count as supported: a majority, a fixed principled cut (not tuned to any dataset).
 SUPPORT_MIN_FRACTION = 0.5
+
+
+_PUBLIC_HEAD = re.compile(r"^(?:\[[^\]]*\]\s*)?\[public knowledge\]", re.IGNORECASE)
+
+
+def strip_public_knowledge(context: str) -> str:
+    """E03: the context without its ``[public knowledge]`` blocks (the marker line and the
+    ``- `` lines under it). General background never supports a past event of a person."""
+    kept: list[str] = []
+    inside = False
+    for line in context.split("\n"):
+        if _PUBLIC_HEAD.match(line):
+            inside = True
+            continue
+        if inside and line.startswith("- "):
+            continue
+        inside = False
+        kept.append(line)
+    return "\n".join(kept)
 
 
 def asserts_past_event(question: str) -> bool:
@@ -110,7 +130,7 @@ class NoRecordHintReader:
         flagged = False
         if self.detector(question):
             self.asserted += 1
-            if not self.support(question, context):
+            if not self.support(question, strip_public_knowledge(context)):
                 flagged = True
                 self.flagged += 1
                 context = f"{NO_RECORD_NOTE}\n{context}" if context.strip() else NO_RECORD_NOTE

@@ -386,6 +386,19 @@ class MemspineSystem:
         counts = getattr(self._engine, "model_calls", None)
         return sum(counts().values()) if callable(counts) else None
 
+    def _port_counts(self) -> dict[str, int]:
+        """E03 / E04: network calls (public-knowledge searches and image downloads) and vision
+        calls the engine has made so far; empty for an engine without the ports."""
+        out: dict[str, int] = {}
+        asset = getattr(self._engine, "asset_stats", None)
+        external = getattr(self._engine, "external_stats", None)
+        a = dict(asset()) if callable(asset) else {}
+        e = dict(external()) if callable(external) else {}
+        if a or e:
+            out["network_calls"] = int(a.get("fetches", 0)) + int(e.get("network_calls", 0))
+            out["vision_calls"] = int(a.get("vision_calls", 0))
+        return out
+
     def _rerank_stats(self) -> dict[str, Any] | None:
         """``Engine.rerank_stats()`` (C-5), None for an engine without it."""
         stats = getattr(self._engine, "rerank_stats", None)
@@ -507,13 +520,21 @@ class MemspineSystem:
         """One ``write_messages`` entry. Default: role ``user`` for every turn (the stored
         content carries the speaker name). With perspective metadata: ``speaker`` = the
         turn's speaker, and the chat role when the speaker is ``user`` / ``assistant``."""
+        message: dict[str, Any]
         if not self._perspective_metadata:
-            return {"role": "user", "content": text}
-        who = str(turn.speaker or "").strip()
-        role = who.lower() if who.lower() in ("user", "assistant") else "user"
-        message: dict[str, Any] = {"role": role, "content": text}
-        if who:
-            message["speaker"] = who
+            message = {"role": "user", "content": text}
+        else:
+            who = str(turn.speaker or "").strip()
+            role = who.lower() if who.lower() in ("user", "assistant") else "user"
+            message = {"role": role, "content": text}
+            if who:
+                message["speaker"] = who
+        # E04: with ``ingest.assets: on`` the turn's attachment identity (original URI, source
+        # caption, source turn id) goes to the engine; otherwise the message is as before.
+        attachments = turn.meta.get("attachments") if turn.meta else None
+        if attachments and (self.config.get("ingest") or {}).get("assets") == "on":
+            message["attachments"] = [dict(a) for a in attachments]
+            message["turn_id"] = turn.turn_id
         return message
 
     async def flush(self) -> DepositResult:
@@ -903,6 +924,7 @@ class MemspineSystem:
         usage_before = self._usage()
         prompts_before = self._prompt_usage()
         rerank_before = self._rerank_stats()
+        ports_before = self._port_counts()
         as_of = {"as_of": self._question_as_of} if self._question_as_of is not None else {}
         if self._read_session:
             as_of = {**as_of, "session_id": self._read_session}
@@ -1022,6 +1044,11 @@ class MemspineSystem:
                 **({"engine_prompts": engine_prompts} if engine_prompts else {}),
                 **rerank_meta,
                 **({"engine_services": services} if services else {}),
+                **{
+                    k: v - ports_before.get(k, 0)
+                    for k, v in self._port_counts().items()
+                    if v - ports_before.get(k, 0)
+                },
             },
         )
 

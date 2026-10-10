@@ -27,6 +27,9 @@ htmlcov/
 *.mdb
 data/
 .memspine/
+# E04 downloaded assets and their registry
+evals/runs/_asset_cache/
+*_asset_cache/
 
 # Docs build
 site/
