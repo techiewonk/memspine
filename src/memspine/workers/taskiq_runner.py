@@ -76,18 +76,19 @@ PIPELINE_PRIORITIES: dict[str, int] = {
     "consolidate": 1,
     "mine_facts": 2,  # C6': atomic facts right after their session is consolidated
     "predict_calibrate": 3,  # #62: right after mine_facts (opt-in stage)
-    "anticipate": 4,  # H8: cues right after their session is consolidated
-    "reflect_profile": 5,  # H14: profile insights right after their session
-    "extract_graph": 6,  # C2: LLM edges before communities form over them
-    "rule_edges": 7,  # W12: rule edges right after the LLM ones (opt-in stage)
-    "summarize_entities": 8,  # GP-6: entity summaries over the fresh facts
-    "reorganize": 9,
-    "session_lifecycle": 10,  # #53: idle sessions -> PASSIVE, before the decay sweep
-    "decay_sweep": 11,
-    "compress": 12,
-    "sleep_compute": 13,
-    "retention_expire": 14,  # #48: expiry is housekeeping, never urgent
-    "event_log_prune": 15,
+    "project_facts": 4,  # E01: right after mine_facts (opt-in stage)
+    "anticipate": 5,  # H8: cues right after their session is consolidated
+    "reflect_profile": 6,  # H14: profile insights right after their session
+    "extract_graph": 7,  # C2: LLM edges before communities form over them
+    "rule_edges": 8,  # W12: rule edges right after the LLM ones (opt-in stage)
+    "summarize_entities": 9,  # GP-6: entity summaries over the fresh facts
+    "reorganize": 10,
+    "session_lifecycle": 11,  # #53: idle sessions -> PASSIVE, before the decay sweep
+    "decay_sweep": 12,
+    "compress": 13,
+    "sleep_compute": 14,
+    "retention_expire": 15,  # #48: expiry is housekeeping, never urgent
+    "event_log_prune": 16,
 }
 
 #: Labels outside the known pipeline set (deployment-registered pipelines,

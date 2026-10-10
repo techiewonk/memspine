@@ -15,6 +15,7 @@ CANONICAL_CONTEXTS: dict[str, dict[str, Any]] = {
     "extract": {
         "content": "Alice lives in Berlin and works at Acme.",
         "facts": "[1] Alice moved to Berlin",
+        "question": "Where did Alice live before Berlin?",
     },
     "relevance": {
         "question": "Where does Alice live?",
@@ -52,6 +53,8 @@ CANONICAL_CONTEXTS: dict[str, dict[str, Any]] = {
     "sufficiency": {
         "question": "What activities does Alice do?",
         "context": "- [2026-01-02] Alice: I started pottery\n- [2026-02-03] Alice: I went hiking",
+        "contract": "answer type: description; about: Alice; cardinality: many",
+        "steps": "(none)",
     },
     "verify_answer": {
         "question": "What activities does Alice do?",
@@ -111,6 +114,25 @@ SAMPLE_PAYLOADS: dict[str, dict[str, Any]] = {
     "SufficiencyOut": {"complete": False, "reason": "only one activity is described"},
     "MissingInfoOut": {"queries": ["Alice hobby", "Alice weekend activity"]},
     "AgenticStepOut": {"action": "search", "query": "Alice weekend activity", "why": "a gap"},
+    "SlotStepOut": {
+        "action": "calculate",
+        "slot": "the gap between two dates",
+        "op": "date_diff",
+        "arg_a": "2026-01-02",
+        "arg_b": "2026-02-03",
+        "unit": "days",
+    },
+    "AssertionsOut": {
+        "assertions": [
+            {
+                "subject": "Alice",
+                "relation": "lives_in",
+                "object": "Berlin",
+                "line": 1,
+                "span": "Alice lives in Berlin",
+            }
+        ]
+    },
     "AnswerVerdictOut": {"supported": False, "evidence": [1], "revised_answer": "Pottery"},
     "AnticipatedCues": {"cues": [{"line": 1, "cue": "What can Alice eat at the party?"}]},
     "ExtractedFacts": {

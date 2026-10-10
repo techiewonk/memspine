@@ -33,6 +33,7 @@ from memspine.core.event_date import (
     resolve_happened,
 )
 from memspine.core.events import EventKind, EventLogMode, MemoryEvent, fingerprint_payload
+from memspine.core.fact_chain import fact_projection_on, validate_assertions
 from memspine.core.firewall import Firewall, FirewallVerdict, instruction_shaped
 from memspine.core.perspective import inherit_perspective_tags
 from memspine.core.policies.community import CommunityOptions, CommunityPolicy
@@ -82,7 +83,7 @@ from memspine.memories.semantic.write_pipeline import (
     edge_fact_key,
 )
 from memspine.observability.logging import get_logger
-from memspine.prompts.models import AnticipatedCue, ExtractedEdge, ExtractedFact
+from memspine.prompts.models import AnticipatedCue, AssertionOut, ExtractedEdge, ExtractedFact
 from memspine.services.graph.base import GraphEdge, GraphStore
 from memspine.workers.list_cards import (
     LIST_CLASSES_MARKER,
@@ -110,6 +111,7 @@ __all__ = [
     "extract_graph",
     "mine_facts",
     "predict_calibrate",
+    "project_facts",
     "reflect_profile",
     "reorganize",
     "resolve_mode",
@@ -180,6 +182,9 @@ Anticipate = Callable[[str], Awaitable[list[AnticipatedCue]]]
 DepositCues = Callable[[str, str, list[str], str], Awaitable[object]]
 #: C6': LLM fact miner (``extract`` role): session text -> atomic facts.
 MineFacts = Callable[[str], Awaitable[list[ExtractedFact]]]
+#: E01 write-time arm (``memories.semantic.policies.fact_projection``): numbered session
+#: transcript -> subject-relation-object assertions with source spans (``extract@assertions``).
+ProjectAssertions = Callable[[str], Awaitable[list[AssertionOut]]]
 #: #29: (transcript, fact statements) -> {1-based fact index: date} for the facts the
 #: model could date (one batched call).
 DateFacts = Callable[[str, list[str]], Awaitable[dict[int, str]]]
@@ -213,6 +218,7 @@ class DepositFact(Protocol):
         persons: list[str] | None = None,
         location: str | None = None,
         topic: str | None = None,
+        extra_tags: Sequence[str] = (),
     ) -> Awaitable[object]: ...
 
 
@@ -268,6 +274,8 @@ class PipelineContext:
     find_entities: FindEntities | None = None
     #: C6' atomic-fact mining. Both None => the mine_facts stage self-skips.
     mine_facts: MineFacts | None = None
+    #: E01 write-time projection. None => the project_facts stage self-skips.
+    project_assertions: ProjectAssertions | None = None
     #: #29: the batched LLM date fill (``consolidation.mine_event_dates_llm``).
     date_facts: DateFacts | None = None
     #: #30: the list-card deposit and the per-person class labeller
@@ -3306,6 +3314,65 @@ async def mine_facts(ctx: PipelineContext) -> dict[str, object]:
     return stats
 
 
+def projection_on(ctx: PipelineContext) -> bool:
+    """E01: ``memories.semantic.policies.fact_projection`` is ``on`` (a bad value is a
+    config error, raised at engine start by the builder before any cycle runs)."""
+    mem = ctx.config.memories.get("semantic")
+    return fact_projection_on(mem.policies if mem is not None else {})
+
+
+async def project_facts(ctx: PipelineContext) -> dict[str, object]:
+    """E01 write-time arm: project atomic subject-relation-object assertions from each
+    consolidated session, once, as a REBUILDABLE index over the raw turns.
+
+    Reuses the mined-fact path end to end: the deposit is ``deposit_fact`` (firewall, ladder,
+    trust capped at the source turn, the I72 parent-liveness re-check under the namespace
+    lock), the per-session done marker, and the ``atomic_fact`` tag, so cards, ``facts_to_sources``
+    and the forget cascade treat a projected assertion like any mined fact. Each assertion has
+    exactly ONE parent, the turn whose text contains its quoted span (an assertion whose span
+    is not in its line is dropped); a negated, hypothetical or uncertain assertion is not
+    projected; every projected fact is an event (never supersedes anything). It is tagged
+    ``fact_projection`` and ``projected:<session>`` and is archived with its parent when the
+    parent is forgotten, so it never outlives it and never crosses a namespace."""
+    if not projection_on(ctx):
+        return {"status": "skipped", "reason": "memories.semantic.policies.fact_projection is off"}
+    if ctx.project_assertions is None or ctx.deposit_fact is None:
+        return {"status": "skipped", "reason": "no extract LLM role bound"}
+    project, deposit = ctx.project_assertions, ctx.deposit_fact
+
+    async def work(namespace: str, key: str, members: list[MemoryRecord]) -> tuple[int, list[str]]:
+        raw = await project(_mining_transcript(members, True))
+        valid = validate_assertions(raw, [m.content for m in members])
+        written = 0
+        errors: list[str] = []
+        for a in valid:
+            if not a.joinable:
+                continue
+            parent = members[a.line - 1]
+            when = f" [{a.time}]" if a.time else ""
+            try:
+                stored = await deposit(
+                    namespace,
+                    f"{a.subject} {a.relation}: {a.object}{when}",
+                    a.subject,
+                    a.relation,
+                    [parent.record_id],
+                    parent.valid_from,
+                    f"proj:{key}",
+                    kind="event",
+                    extra_tags=[constants.FACT_PROJECTION_TAG, f"projected:{key}"],
+                )
+            except Exception as exc:  # one bad assertion must not lose the rest
+                errors.append(f"{namespace}:{key}: deposit failed: {exc}")
+                continue
+            if stored is not None:  # None: I72, the parent turn was forgotten meanwhile
+                written += 1
+        return written, errors
+
+    legacy = _legacy_tag_check(ctx, "semantic", lambda r, key: f"projected:{key}" in r.tags)
+    return await _run_session_stage(ctx, "project_facts", "projected", legacy, work)
+
+
 async def anticipate(ctx: PipelineContext) -> dict[str, object]:
     """H8: store likely future questions as cues on the turns that answer them.
 
@@ -3535,6 +3602,7 @@ PIPELINES: dict[str, Pipeline] = {
     "rule_edges": rule_edges,
     "summarize_entities": summarize_entities,
     "mine_facts": mine_facts,
+    "project_facts": project_facts,
     "predict_calibrate": predict_calibrate,
     "anticipate": anticipate,
     "reflect_profile": reflect_profile,

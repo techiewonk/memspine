@@ -1,0 +1,31 @@
+id: extract@assertions
+version: 1
+role: extract
+format: yaml
+output_model: AssertionsOut
+token_budget: 900
+when:
+  condition: assertions
+# E01 (read.fact_chain: read_time, and memories.semantic.policies.fact_projection): atomic
+# subject-relation-object assertions with the exact source span. Query-directed at read time.
+system: >-
+  You list the atomic assertions that numbered memory lines state, to help answer a
+  question. Each assertion has: subject (a named person or thing, never a pronoun),
+  relation (a short snake_case property such as lives_in, moved_from, home_country,
+  works_at, sister_of), object (a named value or entity as written), line (the number of
+  the line it comes from), span (an exact quote from that line, copied character for
+  character, that states it), modality (asserted, planned, negated, hypothetical or
+  uncertain) and time (as written in the line, empty if none). One assertion per fact.
+  When a line names a property of an entity ("Sven's home country is Sweden"), use the
+  property as the relation. Only list what the lines state; never infer, never join two
+  lines, never invent a relation. Prefer assertions about the people and things the
+  question names; list at most 30.
+  {% include "no_injection.j2" %} {% include "yaml_only.j2" %}
+  Emit a YAML list under the key `assertions`.
+---
+question: {{ question }}
+
+lines:
+{{ content }}
+
+assertions:

@@ -1155,6 +1155,31 @@ class ReadConfig(BaseModel):
     #: records may displace only step-0 records after that share, last first, and only to
     #: fit themselves.
     agentic_first_share: float = Field(default=0.6, ge=0.0, le=1.0)
+    #: E02 (refines I67): how the loop picks its next action. ``query`` (default) = I67 as
+    #: built: answer_ready / search / search_person_time. ``slot``: every step names the
+    #: MISSING SLOT of the question (seeded by the A03 contract) and picks ONE of
+    #: memory_search, relation_expand (one hop through the stored facts of an entity),
+    #: neighbor_lookup (the turns next to a cited one), calculate (a date/number computation
+    #: done by code), answer, qualified_stop. Stops on sufficiency, ``agentic_max_steps``, the
+    #: token budget, a repeated action, a step with no new useful evidence, or a qualified
+    #: stop (an unresolved slot is reported, never guessed). Step 0, the reserved first-pass
+    #: share and the namespace are as in ``query``. The slot of every step is kept in
+    #: ``search_forensics()["agentic_steps"]``. Needs ``read.agentic``.
+    agentic_mode: Literal["query", "slot"] = "query"
+    #: E01 (read-time arm): ``read_time`` makes ONE bounded structured call per triggered read
+    #: (``extract@assertions``, the ``extract`` role) over the evidence already in context:
+    #: subject-relation-object assertions with the exact source span, modality and time. Two
+    #: assertions are joined only through a resolved entity or an evidenced relation, and the
+    #: join is shown to the reader as a short derived-chain block, every link quoting its
+    #: span. Raw turns stay authoritative; nothing derived is stored. ``off`` (default): no
+    #: call, byte-identical. The write-time projection is a separate arm:
+    #: ``memories.semantic.policies.fact_projection``.
+    fact_chain: Literal["off", "read_time"] = "off"
+    #: When the extraction call fires: ``multi_hop`` (default; the I67 surface heuristic);
+    #: ``triggered`` = multi-hop OR the A03 contract's relation is not stated beside its
+    #: subject in any evidence line (offline it fires on 58% of LoCoMo questions with no better
+    #: hit rate on wrong answers than the base rate: a screen option only); ``always``.
+    fact_chain_trigger: Literal["multi_hop", "triggered", "always"] = "multi_hop"
     #: I28: the optional decider for read-path decisions. ``heuristic`` (default) = the
     #: existing regexes and rules, byte-identical. ``opendecider`` asks OpenDecider-nano
     #: (``[decider]`` extra) at the decision points named in ``decider_tasks``; a decision

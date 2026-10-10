@@ -14,11 +14,12 @@ counts — delivery stays pull-based via ``Engine.due()`` in v0.1.
 
 from __future__ import annotations
 
-from memspine.workers.pipelines import PipelineContext, rule_edges_options
+from memspine.workers.pipelines import PipelineContext, projection_on, rule_edges_options
 from memspine.workers.runner import TaskRunner
 
 __all__ = [
     "PREDICT_CALIBRATE_STAGE",
+    "PROJECT_FACTS_STAGE",
     "RETENTION_STAGE",
     "RULE_EDGES_STAGE",
     "SLEEP_CYCLE_ORDER",
@@ -65,6 +66,11 @@ PREDICT_CALIBRATE_STAGE = "predict_calibrate"
 RULE_EDGES_STAGE = "rule_edges"
 
 
+#: E01 write-time arm: runs right after ``mine_facts``, and only when
+#: ``memories.semantic.policies.fact_projection`` is ``on``, so the default cycle is unchanged.
+PROJECT_FACTS_STAGE = "project_facts"
+
+
 def _predict_calibrate_on(ctx: PipelineContext) -> bool:
     mem = ctx.config.memories.get("episodic")
     options = mem.policies.get("consolidation") if mem is not None else None
@@ -76,6 +82,9 @@ async def run_sleep_cycle(runner: TaskRunner, ctx: PipelineContext) -> dict[str,
     if _predict_calibrate_on(ctx):
         at = order.index("mine_facts") + 1
         order = (*order[:at], PREDICT_CALIBRATE_STAGE, *order[at:])
+    if projection_on(ctx):
+        at = order.index("mine_facts") + 1
+        order = (*order[:at], PROJECT_FACTS_STAGE, *order[at:])
     if rule_edges_options(ctx.config) is not None:
         at = order.index("extract_graph") + 1
         order = (*order[:at], RULE_EDGES_STAGE, *order[at:])

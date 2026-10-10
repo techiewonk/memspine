@@ -65,6 +65,14 @@ from memspine.core.event_date import SAID_PREFIX, date_anchor, happened_of, happ
 from memspine.core.events import EventKind, EventLogMode, MemoryEvent, fingerprint_payload
 from memspine.core.evidence import evidence_signal, second_round_probe
 from memspine.core.excerpt import focused_excerpt
+from memspine.core.fact_chain import (
+    fact_projection_on,
+    join_chains,
+    norm_entity,
+    relation_unresolved,
+    render_chains,
+    validate_assertions,
+)
 from memspine.core.fact_views import view_tags
 from memspine.core.firewall import Firewall, FirewallSignals, FirewallVerdict, QueryHistory
 from memspine.core.forget_request import forget_target, is_forget_request
@@ -229,6 +237,7 @@ from memspine.core.sensitivity import (
     passes_gate,
     query_topics,
 )
+from memspine.core.slot_loop import CalcError, calculate, slot_hint, slot_view, step_signature
 from memspine.core.temporal_query import (
     RECOMMENDATION_TAG,
     SPEAKER_PREFIX,
@@ -353,6 +362,8 @@ from memspine.prompts.models import (
     AnswerVerdictOut,
     AnticipatedCue,
     AnticipatedCues,
+    AssertionOut,
+    AssertionsOut,
     ConflictVerdictOut,
     EntityMatches,
     EntitySummaries,
@@ -367,6 +378,7 @@ from memspine.prompts.models import (
     QueryContractOut,
     ReadPlan,
     RelevanceLabels,
+    SlotStepOut,
     SufficiencyOut,
 )
 from memspine.prompts.registry import PromptRegistry
@@ -1477,6 +1489,10 @@ class Engine:
         self._query_encoder = None  # #61: rebuilt (and its cue index reloaded) per start
         self._extract_edges = self._build_edge_extractor(config)
         self._extract_session_edges = self._build_session_edge_extractor(config)
+        try:  # E01: a bad ``fact_projection`` fails at start, not mid-sweep
+            fact_projection_on(self._memory_policy(config, "semantic"))
+        except ValueError as exc:
+            raise ConfigError(str(exc)) from exc
         self._projectors = [
             RecordProjector(self._storage),
             VectorProjector(self._vector, self._embedder),
@@ -5431,14 +5447,14 @@ class Engine:
                     ]
                     if read_cut.pool_protect_mode == "source_family":
                         family_slots = _family_slots(named, protect_n)
-                        protected = {
-                            rid: fam for fam, ids in family_slots.items() for rid in ids
-                        }
+                        protected = {rid: fam for fam, ids in family_slots.items() for rid in ids}
                     else:
                         protected = _protected_ids(named, protect_n)
                     kept_ids = {rid for rid, _ in fused}
                     fused = fused + [
-                        (rid, sc) for rid, sc in fused_full if rid in protected and rid not in kept_ids
+                        (rid, sc)
+                        for rid, sc in fused_full
+                        if rid in protected and rid not in kept_ids
                     ]
                 if _FORENSICS.get() is not None and len(fused) < len(fused_full):
                     # I78: the fused-list cut, before any gate: where each dropped hit stood.
@@ -6659,6 +6675,8 @@ class Engine:
             result = await self._agentic_extend(
                 query, ns, result, routed_budget, hide=hide, session_id=session_id
             )
+        if self._config().read.fact_chain == "read_time":  # E01: opt-in, read-time only
+            result = await self._fact_chain_extend(query, ns, result, routed_budget)
         headers = self._count_section(ns, query, result.context, count_share, headers)
         headers = self._duration_section(ns, query, result.context, headers)
         gated = await self._relevance_gate(
@@ -6736,6 +6754,18 @@ class Engine:
             info["stop"] = "unbound"
             return result
         info["fired"] = True
+        if read.agentic_mode == "slot":  # E02: the missing-slot-driven loop
+            return await self._agentic_slot_loop(
+                query,
+                ns,
+                result,
+                budget_tokens,
+                hide=hide,
+                session_id=session_id,
+                role=role,
+                info=info,
+                steps=steps,
+            )
         llm = llm_router.for_role(role)
         prompt = self._prompts.select("sufficiency", condition="agentic")
         step0 = list(context.records)
@@ -6838,19 +6868,445 @@ class Engine:
                 stop = "budget"  # nothing of this step's hits fits
                 break
         info["stop"] = stop
-        if not added:
+        return self._agentic_assemble(query, result, added, displaced, info)
+
+    def _agentic_assemble(
+        self,
+        query: str,
+        result: ReadResult,
+        added: Sequence[MemoryRecord],
+        displaced: Sequence[MemoryRecord],
+        info: dict[str, Any],
+        notes: Sequence[MemoryRecord] = (),
+    ) -> ReadResult:
+        """The agentic read's result: the step-0 records (less the displaced ones), the
+        added records rendered, then the computed-note blocks. Nothing added => ``result``."""
+        context = result.context
+        if not added and not notes:
             return result
         info["new_ids"] = [r.record_id for r in added]
         info["displaced_ids"] = [r.record_id for r in displaced]
         gone = {r.record_id for r in displaced}
         kept_records = [r for r in context.records if r.record_id not in gone]
-        extra = self._render(query, AssembledContext(records=list(added))).records
-        records = [*kept_records, *extra]
+        extra = self._render(query, AssembledContext(records=list(added))).records if added else []
+        records = [*kept_records, *extra, *notes]
         return ReadResult(
             result.mode,
             AssembledContext(
                 records=records,
                 boundary_index=min(context.boundary_index, len(kept_records)),
+                abstained=False,
+                tokens_used=sum(estimate_tokens(r.content) for r in records),
+                evidence=context.evidence,
+            ),
+        )
+
+    async def _agentic_slot_loop(
+        self,
+        query: str,
+        ns: str,
+        result: ReadResult,
+        budget_tokens: int,
+        *,
+        hide: Callable[[MemoryRecord], bool] | None,
+        session_id: str | None,
+        role: str,
+        info: dict[str, Any],
+        steps: list[dict[str, Any]],
+    ) -> ReadResult:
+        """E02 (``read.agentic_mode: slot``): the missing-slot-driven loop.
+
+        Step 0 is ``result`` (untouched). Each step the action role sees the question, the
+        A03 contract line, the evidence with turn handles (``[T1]``...) and the earlier
+        steps, names the MISSING SLOT and picks ONE action: ``memory_search`` (the gated
+        search of the SAME namespace), ``relation_expand`` (stored facts of one entity),
+        ``neighbor_lookup`` (the turns next to a cited one), ``calculate`` (code, see
+        :func:`~memspine.core.slot_loop.calculate`), ``answer`` or ``qualified_stop``. The
+        model supplies only text: a namespace is never an argument, a turn can only be a
+        handle it was shown, and every record a tool returns is re-checked for the
+        namespace and for quarantine. New records are appended under ``budget_tokens`` with
+        the step-0 share protected (:func:`merge_budget`); computed values ride as one
+        derived note. Stops on ``sufficient``, ``qualified_stop`` (the slot is named in
+        ``info['unresolved_slot']``; nothing is guessed), ``max_steps``, ``budget``,
+        ``repeat``, ``no_new`` (a step gave no new evidence and no computed value) or
+        ``error``. A tool that fails changes nothing and ends the loop as ``no_new``. Every
+        step, with its slot, goes to ``search_forensics()["agentic_steps"]``."""
+        assert self._llm is not None and self._prompts is not None
+        read = self._config().read
+        llm = self._llm.for_role(role)
+        prompt = self._prompts.select("sufficiency", condition="agentic_slot")
+        contract = await self._query_contract(query)
+        hint = slot_hint(contract)
+        info["mode"] = "slot"
+        info["contract"] = contract.type_label
+        info["unresolved_slot"] = None
+        context = result.context
+        step0 = list(context.records)
+        step0_ids = {r.record_id for r in step0}
+        rrf_k = read.rrf_k or constants.RRF_K
+        evidence = list(step0)
+        pool: list[MemoryRecord] = []
+        pool_ids: set[str] = set()
+        computed: list[str] = []
+        log: list[str] = []
+        taken: set[tuple[str, ...]] = {step_signature("memory_search", query=query)}
+        added: list[MemoryRecord] = []
+        displaced: list[MemoryRecord] = []
+        stop = "max_steps"
+        for number in range(1, read.agentic_max_steps + 1):
+            row: dict[str, Any] = {
+                "step": number,
+                "action": None,
+                "slot": "",
+                "query": None,
+                "why": "",
+            }
+            steps.append(row)
+            view, handles = slot_view(self._remote_view(role, evidence))
+            calls_before = self.model_calls().get(role, 0)
+            started = perf_counter()
+            try:
+                act = await structured_call(
+                    llm,
+                    prompt,
+                    {
+                        "question": query,
+                        "contract": hint,
+                        "context": view,
+                        "steps": "\n".join(log) or "(none)",
+                    },
+                    SlotStepOut,
+                )
+            except Exception as exc:  # an enhancer, never a gate
+                _log.warning("read.agentic_failed", error=str(exc))
+                row.update(action="error", error=str(exc)[:200])
+                stop = "error"
+                break
+            finally:
+                spent = perf_counter() - started
+                row["llm_s"] = round(spent, 4)
+                row["llm_calls"] = self.model_calls().get(role, 0) - calls_before
+                info["llm_s"] += spent
+                info["llm_calls"] += row["llm_calls"]
+            row.update(action=act.action, slot=act.slot[:160], why=act.why[:200])
+            if act.action == "answer":
+                stop = "sufficient"
+                break
+            if act.action == "qualified_stop":
+                stop = "qualified_stop"
+                info["unresolved_slot"] = act.slot[:160]
+                break
+            text = clean_query(act.query)
+            signature = step_signature(
+                act.action,
+                query=text,
+                entity=act.entity,
+                relation=act.relation,
+                turn_id=act.turn_id,
+                op=act.op,
+                arg_a=act.arg_a,
+                arg_b=act.arg_b,
+                amount=act.amount,
+                unit=act.unit,
+                anchor=act.anchor,
+            )
+            if signature in taken or (act.action == "memory_search" and not text):
+                stop = "repeat"
+                break
+            taken.add(signature)
+            seen = step0_ids | pool_ids | {r.record_id for r in evidence}
+            fresh: list[MemoryRecord] = []
+            note = ""
+            started = perf_counter()
+            sink = _FORENSICS.set(None)  # the step-0 forensics stay the first pass's
+            try:
+                if act.action == "memory_search":
+                    row["query"] = text
+                    hits = await self._search(
+                        text,
+                        ns,
+                        read.agentic_top_k,
+                        session_id=session_id,
+                        keep_k=read.agentic_top_k,
+                        hide=hide,
+                        probes=[],
+                    )
+                    if read.facts_to_sources and hits:
+                        hits = await self._facts_to_sources(ns, hits)
+                    ranking = [r for r, _ in hits if r.namespace == ns and not r.quarantined]
+                    ranked = fuse_new([ranking], seen, rrf_k)
+                    decorated = await self._decorate(
+                        ns, [(r, 0.0) for r in ranked[: read.agentic_max_new * 2]], hide=hide
+                    )
+                    fresh = [r for r, _ in decorated]
+                elif act.action == "relation_expand":
+                    row.update(entity=act.entity[:80], relation=act.relation[:80])
+                    fresh = await self._slot_expand(ns, act.entity, act.relation, hide, seen)
+                elif act.action == "neighbor_lookup":
+                    row["turn_id"] = act.turn_id[:40]
+                    cited = handles.get(act.turn_id.strip().strip("[]").upper())
+                    if cited is None:
+                        raise ValueError("turn_id is not a handle of the evidence shown")
+                    fresh = await self._slot_neighbours(ns, cited, seen)
+                else:  # calculate: code, never the model
+                    try:
+                        note = calculate(
+                            act.op, act.arg_a, act.arg_b, act.amount, act.unit, act.anchor
+                        )
+                    except CalcError as exc:
+                        raise ValueError(f"calculation failed: {exc}") from exc
+                    row["computed"] = note
+            except Exception as exc:  # fail safe: nothing changes, the loop ends
+                _log.warning("read.agentic_slot_failed", action=act.action, error=str(exc))
+                row["error"] = str(exc)[:200]
+                log.append(f"- {act.action} for '{act.slot[:80]}' failed; do not repeat it")
+            finally:
+                _FORENSICS.reset(sink)
+                row["search_s"] = round(perf_counter() - started, 4)
+                info["search_s"] += row["search_s"]
+            fresh = [
+                r
+                for r in fresh
+                if r.record_id not in seen and r.namespace == ns and not r.quarantined
+            ]
+            row["new_ids"] = [r.record_id for r in fresh]
+            if note:
+                computed.append(note[: constants.SLOT_CALC_NOTE_CHARS])
+                log.append(
+                    f"- computed for '{act.slot[:80]}': {note[: constants.SLOT_CALC_NOTE_CHARS]}"
+                )
+            if not fresh and not note:
+                stop = "no_new"
+                break
+            if fresh:
+                log.append(
+                    f"- {act.action} for '{act.slot[:80]}': {len(fresh)} new note(s) added above"
+                )
+                pool.extend(fresh)
+                pool_ids.update(r.record_id for r in fresh)
+                reserve = sum(estimate_tokens(c) for c in computed)
+                prior = {r.record_id for r in added}
+                kept, added, displaced = merge_budget(
+                    step0,
+                    pool,
+                    max(1, budget_tokens - reserve),
+                    share=read.agentic_first_share,
+                    max_new=read.agentic_max_new,
+                )
+                evidence = [*kept, *added]
+                if {r.record_id for r in added} <= prior and not note:
+                    stop = "budget"  # nothing of this step's records fits
+                    break
+        info["stop"] = stop
+        notes: list[MemoryRecord] = []
+        if computed:
+            body = "\n".join(f"- {c}" for c in computed)
+            notes.append(
+                self._lead_record(
+                    ns,
+                    "COMPUTED (by code, from values written in the notes):\n" + body,
+                    step0,
+                    extra_tags=[constants.SLOT_NOTE_TAG],
+                )
+            )
+            info["computed"] = list(computed)
+        return self._agentic_assemble(query, result, added, displaced, info, notes)
+
+    async def _slot_expand(
+        self,
+        ns: str,
+        entity: str,
+        relation: str,
+        hide: Callable[[MemoryRecord], bool] | None,
+        seen: set[str],
+    ) -> list[MemoryRecord]:
+        """E02 ``relation_expand``: the live stored facts of one entity (one hop), in
+        ``ns`` only. A fact matches when its entity field, or its text, names the entity
+        (exact normalised match) and, when a relation is given, its attribute or text holds
+        the relation's words (five-letter prefixes). Exact entity matches first, newest
+        first, at most ``SLOT_EXPAND_MAX``; derived facts whose parents are gone are not
+        live, so they never come back."""
+        from memspine.core.fact_chain import fold
+
+        want = norm_entity(entity)
+        words = [w[:5] for w in fold(relation).split() if len(w) > 2]
+        if not want and not words:
+            return []
+        scored: list[tuple[int, datetime, MemoryRecord]] = []
+        for record in await self._records(ns, "semantic"):
+            if record.namespace != ns or record.quarantined or record.record_id in seen:
+                continue
+            if hide is not None and hide(record):
+                continue
+            text = fold(record.content)
+            exact = bool(want) and norm_entity(record.entity or "") == want
+            if want and not exact and want not in text:
+                continue
+            haystack = f"{fold(record.attribute or '')} {text}"
+            if words and not any(w in haystack for w in words):
+                continue
+            view = await self._live_view(record)
+            if view is not None:
+                scored.append((0 if exact else 1, view.valid_from, view))
+        scored.sort(key=lambda t: (t[0], -t[1].timestamp()))
+        picked = [v for _, _, v in scored[: constants.SLOT_EXPAND_MAX]]
+        decorated = await self._decorate(ns, [(r, 0.0) for r in self._inflate_all(picked, ns)])
+        return [r for r, _ in decorated]
+
+    async def _slot_neighbours(self, ns: str, record_id: str, seen: set[str]) -> list[MemoryRecord]:
+        """E02 ``neighbor_lookup``: the live turns right before and after a cited one, in the
+        namespace's chronological order of episodic turns (a mined fact stands for its first
+        source turn). Already-shown turns are skipped; each goes through the same gates as a
+        replayed neighbour."""
+        storage = self._require_started()
+        anchor = await storage.get_record(record_id)
+        if anchor is None or anchor.namespace != ns:
+            return []
+        if anchor.memory_type != "episodic":
+            parents = [p for p in anchor.source.parents]
+            anchor = await storage.get_record(parents[0]) if parents else None
+            if anchor is None or anchor.namespace != ns:
+                return []
+        turns = [r for r in await self._records(ns, "episodic") if self._context_eligible(r)]
+        turns.sort(key=chrono_key)
+        ids = [r.record_id for r in turns]
+        if anchor.record_id not in ids:
+            return []
+        at = ids.index(anchor.record_id)
+        window = constants.SLOT_NEIGHBOUR_WINDOW
+        out: list[MemoryRecord] = []
+        for index in sorted(
+            range(max(0, at - window), min(len(ids), at + window + 1)),
+            key=lambda i: (abs(i - at), i),
+        ):
+            rid = ids[index]
+            if rid == anchor.record_id or rid in seen:
+                continue
+            neighbour = await self._replay_neighbour(rid, ns)
+            if neighbour is not None:
+                out.append(neighbour)
+        return out
+
+    async def _fact_chain_extend(
+        self, query: str, ns: str, result: ReadResult, budget_tokens: int
+    ) -> ReadResult:
+        """E01 (``read.fact_chain: read_time``): query-directed atomic assertions over the
+        evidence already in context, joined into a short derived-chain block.
+
+        Fires (``read.fact_chain_trigger``) when the question is multi-hop or the A03
+        contract's relation is not stated beside its subject in any evidence line. ONE
+        bounded ``extract@assertions`` call over the numbered evidence lines; an assertion
+        whose quoted span is not in its line is dropped; two assertions are joined only
+        through a resolved entity or an evidenced relation
+        (:func:`~memspine.core.fact_chain.join_chains`). The block quotes every link and
+        names the date of its source line; it is a synthetic, never-stored record (trust =
+        the least of its sources) appended after the raw turns under the same budget rules
+        as the agentic read (the step-0 share is protected). Raw turns stay authoritative.
+        Any failure, no join, or an unbound role keeps ``result``. Forensics:
+        ``search_forensics()["fact_chain"]``."""
+        read = self._config().read
+        info: dict[str, Any] = {
+            "mode": read.fact_chain,
+            "trigger": read.fact_chain_trigger,
+            "fired": False,
+            "stop": None,
+            "llm_calls": 0,
+            "llm_s": 0.0,
+            "assertions": 0,
+            "valid": 0,
+            "chains": 0,
+        }
+        if (fx := _FORENSICS.get()) is not None:
+            fx["fact_chain"] = info
+        context = result.context
+        evidence = [
+            r
+            for r in context.records
+            if constants.LEAD_TAG not in r.tags and r.namespace == ns and not r.quarantined
+        ][: constants.FACT_CHAIN_MAX_LINES]
+        if result.mode == "full" or context.abstained or not evidence:
+            info["stop"] = "full_context" if result.mode == "full" else "no_evidence"
+            return result
+        lines = [" ".join(r.content.split())[: constants.FACT_CHAIN_LINE_CHARS] for r in evidence]
+        contract = await self._query_contract(query)
+        info["fires_on"] = (
+            "always"
+            if read.fact_chain_trigger == "always"
+            else "multi_hop"
+            if is_multi_hop(query)
+            else "relation_unresolved"
+            if read.fact_chain_trigger == "triggered" and relation_unresolved(contract, lines)
+            else None
+        )
+        if info["fires_on"] is None:
+            info["stop"] = "not_triggered"
+            return result
+        llm_router = self._llm
+        if llm_router is None or self._prompts is None or "extract" not in llm_router.roles:
+            _log.warning("read.fact_chain_unbound", role="extract")
+            info["stop"] = "unbound"
+            return result
+        info["fired"] = True
+        shown = self._remote_view("extract", evidence)
+        numbered = "\n".join(
+            f"[{i}] " + " ".join(r.content.split())[: constants.FACT_CHAIN_LINE_CHARS]
+            for i, r in enumerate(shown, 1)
+        )
+        calls_before = self.model_calls().get("extract", 0)
+        started = perf_counter()
+        try:
+            out = await structured_call(
+                llm_router.for_role("extract"),
+                self._prompts.select("extract", condition="assertions"),
+                {"question": query, "content": numbered},
+                AssertionsOut,
+            )
+        except Exception as exc:  # an enhancer, never a gate
+            _log.warning("read.fact_chain_failed", error=str(exc))
+            info["stop"] = "error"
+            return result
+        finally:
+            info["llm_s"] = round(perf_counter() - started, 4)
+            info["llm_calls"] = self.model_calls().get("extract", 0) - calls_before
+        info["assertions"] = len(out.assertions)
+        valid = validate_assertions(out.assertions, lines)
+        info["valid"] = len(valid)
+        focus = [*contract.subjects, contract.relation, query]
+        chains = join_chains(valid, focus=focus)
+        while chains:
+            text = render_chains(chains, lambda n: f"[{evidence[n - 1].valid_from:%Y-%m-%d}]")
+            if estimate_tokens(text) <= max(
+                1, int(constants.FACT_CHAIN_BLOCK_SHARE * budget_tokens)
+            ):
+                break
+            chains = chains[:-1]
+        info["chains"] = len(chains)
+        if not chains:
+            info["stop"] = "no_join"
+            return result
+        cited = sorted({n for c in chains for n in (c.first.line, c.second.line)})
+        block = self._lead_record(
+            ns, text, [evidence[n - 1] for n in cited], extra_tags=[constants.FACT_CHAIN_TAG]
+        )
+        info["chain_lines"] = cited
+        info["stop"] = "joined"
+        kept, added, displaced = merge_budget(
+            list(context.records),
+            [block],
+            budget_tokens,
+            share=read.agentic_first_share,
+            max_new=1,
+        )
+        if not added:
+            info["stop"] = "budget"
+            return result
+        info["displaced_ids"] = [r.record_id for r in displaced]
+        records = [*kept, *added]
+        return ReadResult(
+            result.mode,
+            AssembledContext(
+                records=records,
+                boundary_index=min(context.boundary_index, len(kept)),
                 abstained=False,
                 tokens_used=sum(estimate_tokens(r.content) for r in records),
                 evidence=context.evidence,
@@ -10558,6 +11014,8 @@ class Engine:
             stages: tuple[str, ...] = DERIVED_STAGES
             if self._consolidation_option("predict_calibrate", False):
                 stages = (*stages, "predict_calibrate")  # #62: only when it runs
+            if fact_projection_on(self._memory_policy(self._config(), "semantic")):
+                stages = (*stages, "project_facts")  # E01: only when it runs
             for stage in stages:
                 await self._append_and_project(
                     stage_marker(session_ns, stage, session_key, cleared=True)
@@ -12957,6 +13415,7 @@ class Engine:
                 self._entity_finder() if self._extract_session_edges is not None else None
             ),
             mine_facts=self._build_fact_miner(),
+            project_assertions=self._build_assertion_projector(),
             date_facts=self._build_fact_dater(),
             deposit_fact=self._deposit_mined_fact,
             deposit_list_card=self._deposit_list_card,
@@ -13444,6 +13903,29 @@ class Engine:
             require_live=True,
         )
 
+    def _build_assertion_projector(self) -> Any:
+        """E01 write-time arm: the ``extract@assertions`` caller of the ``project_facts``
+        stage, only when ``memories.semantic.policies.fact_projection`` is ``on`` and an
+        ``extract`` LLM role is bound. A bad value is a config error."""
+        try:
+            on = fact_projection_on(self._memory_policy(self._config(), "semantic"))
+        except ValueError as exc:
+            raise ConfigError(str(exc)) from exc
+        if not on or self._llm is None or self._prompts is None:
+            return None
+        if "extract" not in self._llm.roles:
+            return None
+        llm = self._llm.for_role("extract")
+        prompt = self._prompts.select("extract", condition="assertions")
+
+        async def project(content: str) -> list[AssertionOut]:
+            out = await structured_call(
+                llm, prompt, {"question": "(none)", "content": content}, AssertionsOut
+            )
+            return list(out.assertions)
+
+        return project
+
     def _build_fact_miner(self) -> Any:
         """C6': the atomic-fact miner, only when an ``extract`` LLM role is bound.
 
@@ -13542,8 +14024,12 @@ class Engine:
         persons: list[str] | None = None,
         location: str | None = None,
         topic: str | None = None,
+        extra_tags: Sequence[str] = (),
     ) -> MemoryRecord | None:
         """C6': one mined fact through the write door (firewall, ladder, MTI).
+
+        E01: ``extra_tags`` ride along (the write-time projection tags its facts
+        ``fact_projection`` / ``projected:<session>``); nothing else about the path changes.
 
         #28: ``persons`` / ``location`` / ``topic`` (``consolidation.mine_multiview``)
         are tagged ``person:<name>``, ``loc:<place>``, ``topic:<class>`` (normalised,
@@ -13572,6 +14058,7 @@ class Engine:
             if said:
                 tags.append(f"{SAID_PREFIX}{said}")
         tags.extend(t for t in view_tags(persons or [], location, topic) if t not in tags)
+        tags.extend(t for t in extra_tags if t not in tags)
         if kind is not None:
             tags.append(f"kind:{kind}")
             protected = self._config().firewall.protected_keys

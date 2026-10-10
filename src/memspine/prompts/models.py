@@ -20,6 +20,8 @@ __all__ = [
     "AnswerVerdictOut",
     "AnticipatedCue",
     "AnticipatedCues",
+    "AssertionOut",
+    "AssertionsOut",
     "ConflictVerdictOut",
     "ConsolidatedFact",
     "ConsolidatedFacts",
@@ -45,6 +47,7 @@ __all__ = [
     "ReadPlan",
     "RelevanceLabel",
     "RelevanceLabels",
+    "SlotStepOut",
     "SufficiencyOut",
     "view_text",
 ]
@@ -575,6 +578,136 @@ class AgenticStepOut(BaseModel):
         return self
 
 
+class SlotStepOut(BaseModel):
+    """E02 (``sufficiency@agentic_slot``): one action of the slot-driven agentic read.
+
+    Every action names the MISSING SLOT it works on (``slot``, e.g. "the start date of
+    event X", "the country for 'home country'", "the second item of the list"); only
+    ``answer`` may leave it empty. Actions: ``memory_search`` (``query``),
+    ``relation_expand`` (``entity`` and/or ``relation``), ``neighbor_lookup``
+    (``turn_id``, a handle shown beside an evidence line), ``calculate`` (``op`` and
+    ``arg_a``, executed by code), ``answer``, ``qualified_stop`` (the slot cannot be
+    resolved from memory; never a guess). A step that lacks what its action needs fails
+    validation (the structured call repairs or retries once)."""
+
+    action: Literal[
+        "memory_search",
+        "relation_expand",
+        "neighbor_lookup",
+        "calculate",
+        "answer",
+        "qualified_stop",
+    ]
+    slot: str = ""
+    query: str = ""
+    entity: str = ""
+    relation: str = ""
+    turn_id: str = ""
+    op: str = ""
+    arg_a: str = ""
+    arg_b: str = ""
+    amount: str = ""
+    unit: str = ""
+    anchor: str = ""
+    why: str = ""
+
+    @field_validator("action", mode="before")
+    @classmethod
+    def _action_norm(cls, value: Any) -> Any:
+        if not isinstance(value, str):
+            return value
+        text = value.strip().lower().replace("-", "_").replace(" ", "_")
+        return {
+            "search": "memory_search",
+            "answer_ready": "answer",
+            "done": "answer",
+            "ready": "answer",
+            "stop": "qualified_stop",
+            "give_up": "qualified_stop",
+            "expand": "relation_expand",
+            "neighbour_lookup": "neighbor_lookup",
+            "neighbors": "neighbor_lookup",
+            "calc": "calculate",
+        }.get(text, text)
+
+    @field_validator(
+        "slot", "query", "entity", "relation", "turn_id", "op", "arg_a", "arg_b", "amount",
+        "unit", "anchor", "why",
+        mode="before",
+    )  # fmt: skip
+    @classmethod
+    def _text(cls, value: Any) -> Any:
+        if value is None:
+            return ""
+        text = str(_as_text(value)).strip()
+        return "" if text.lower() in ("none", "null") else text
+
+    @model_validator(mode="after")
+    def _complete(self) -> SlotStepOut:
+        if self.action != "answer" and not self.slot:
+            raise ValueError(f"{self.action} must name the missing slot")
+        needs = {
+            "memory_search": bool(self.query),
+            "relation_expand": bool(self.entity or self.relation),
+            "neighbor_lookup": bool(self.turn_id),
+            "calculate": bool(self.op and self.arg_a),
+        }
+        if not needs.get(self.action, True):
+            raise ValueError(f"{self.action} is missing its argument")
+        return self
+
+
+class AssertionOut(BaseModel):
+    """E01 (``extract@assertions``): one subject-relation-object assertion with the exact
+    source ``span`` (a substring of numbered line ``line``), its ``modality``
+    (asserted / planned / negated / hypothetical / uncertain) and ``time`` (as written)."""
+
+    subject: str
+    relation: str
+    object: str
+    line: int = 0
+    span: str = ""
+    modality: str = "asserted"
+    time: str = ""
+
+    @field_validator("subject", "relation", "object", "span", "modality", "time", mode="before")
+    @classmethod
+    def _text(cls, value: Any) -> Any:
+        if value is None:
+            return ""
+        text = str(_as_text(value)).strip()
+        return "" if text.lower() in ("none", "null") else text
+
+    @field_validator("line", mode="before")
+    @classmethod
+    def _line(cls, value: Any) -> Any:
+        found = _positive_ints(value)
+        return found[0] if found else 0
+
+    @field_validator("modality", mode="after")
+    @classmethod
+    def _modality(cls, value: str) -> str:
+        return value.lower() or "asserted"
+
+
+class AssertionsOut(BaseModel):
+    assertions: list[AssertionOut] = Field(default_factory=list)
+
+    @field_validator("assertions", mode="before")
+    @classmethod
+    def _drop_incomplete(cls, value: Any) -> Any:
+        """A bounded list; an item missing subject, relation or object is dropped."""
+        if not isinstance(value, list):
+            return value
+        keep = [
+            v
+            for v in value
+            if isinstance(v, dict)
+            and all(str(v.get(k) or "").strip() for k in ("subject", "relation", "object"))
+        ]
+        return keep[: constants.FACT_CHAIN_MAX_ASSERTIONS]
+
+
 class MissingInfoOut(BaseModel):
     """#38 (``sufficiency@missing``): searches for the information the context lacks.
 
@@ -642,4 +775,6 @@ OUTPUT_MODELS: dict[str, type[BaseModel]] = {
     "MissingInfoOut": MissingInfoOut,
     "AnswerVerdictOut": AnswerVerdictOut,
     "AgenticStepOut": AgenticStepOut,
+    "SlotStepOut": SlotStepOut,
+    "AssertionsOut": AssertionsOut,
 }

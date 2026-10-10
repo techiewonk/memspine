@@ -635,6 +635,28 @@ COMPLETENESS_MAX_QUERIES = 3
 AGENTIC_VIEW_TOKENS = 800
 AGENTIC_LINE_CHARS = 240
 AGENTIC_QUERY_CHARS = 200
+#: E02 (read.agentic_mode: slot): neighbours taken per side by ``neighbor_lookup``; records one
+#: ``relation_expand`` returns at most; the cut of a computed-note line.
+SLOT_NEIGHBOUR_WINDOW = 1
+SLOT_EXPAND_MAX = 6
+SLOT_CALC_NOTE_CHARS = 240
+SLOT_NOTE_TAG = "slot_computed"
+#: E01 (read.fact_chain: read_time): evidence lines shown to the one extraction call, each cut
+#: to this many characters; assertions kept from the call; chains put in the derived block; the
+#: block's share of the routed read budget (a block that does not fit is left out).
+FACT_CHAIN_MAX_LINES = 24
+FACT_CHAIN_LINE_CHARS = 400
+FACT_CHAIN_MAX_ASSERTIONS = 40
+FACT_CHAIN_MAX_CHAINS = 4
+FACT_CHAIN_BLOCK_SHARE = 0.15
+FACT_CHAIN_TAG = "fact_chain"
+FACT_CHAIN_MARKER = (
+    "DERIVED CHAINS (statements joined through a shared entity or relation, each quoted "
+    "from a memory line; the raw lines are authoritative):"
+)
+#: E01 (memories.semantic.policies.fact_projection: on): tag of a projected assertion and the
+#: per-session done-marker prefix.
+FACT_PROJECTION_TAG = "fact_projection"
 #: #40 (read.profile_header_packing): the packed profile header's header line (it
 #: opens with :data:`PROFILE_MARKER`, so stored text cannot forge it and an echoed
 #: block is recognised as recalled memory), the section labels in their fixed order,
