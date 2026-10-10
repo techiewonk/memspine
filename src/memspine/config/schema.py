@@ -436,6 +436,13 @@ class ReadConfig(BaseModel):
     #: ("4bit" | "8bit" via bitsandbytes, GPU only; None = full precision).
     rerank_device: str | None = None
     rerank_quant: Literal["4bit", "8bit"] | None = None
+    #: I9: None (default, unchanged) = a long record is cut by the reranker's own context
+    #: limit (the tail is dropped). N = records longer than N characters are scored in
+    #: overlapping windows of N characters and take the max window score, so a long assistant
+    #: turn is judged on its best passage. ``rerank_chunk_overlap`` = characters shared by
+    #: neighbouring windows.
+    rerank_chunk_chars: int | None = Field(default=None, ge=64)
+    rerank_chunk_overlap: int = Field(default=0, ge=0)
     #: I7: a source with no timestamps (ConvoMem, PrefEval, LaMP shapes) gets
     #: ``valid_from`` = the write clock, so every rendered line would show today's date. On:
     #: a write whose event time was not supplied is tagged `ts_defaulted`, and the date
@@ -1153,6 +1160,15 @@ class FirewallSignalsConfig(BaseModel):
     semantic_risk: bool = False
     query_anomaly: bool = False
     query_anomaly_kappa: float = Field(default=3.0, gt=0.0)
+    #: I21 (opt-in): roles whose writes skip the MINJA prefix-repeat / embedding-outlier
+    #: signal. Default empty = unchanged. A chat assistant's templated openers share a
+    #: 96-char prefix and are otherwise quarantined (measured: 39/40 on a synthetic chat);
+    #: ``minja_bridge_exempt_roles: [assistant]`` is the chat-data setting. The exemption
+    #: removes the prefix defence for that role (instruction patterns still apply).
+    minja_bridge_exempt_roles: list[str] = Field(default_factory=list)
+    anomaly_exempt_roles: list[str] = Field(default_factory=list)
+    #: I21: shared-prefix length for the bridge signal; None = 96 (unchanged).
+    minja_bridge_prefix_chars: int | None = Field(default=None, ge=16)
 
 
 class FirewallConfig(BaseModel):
@@ -1482,10 +1498,31 @@ class WriteConfig(BaseModel):
     inferred_support_overlap: float = Field(default=0.3, gt=0.0, le=1.0)
 
 
+class DataShapeConfig(BaseModel):
+    """I25: facts about the data the engine will serve, declared by the data adapter (or
+    the deployer). Only ``data_profile: auto`` reads them; an undeclared fact (None /
+    ``unknown``) selects no preset."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    has_timestamps: bool | None = None
+    has_question_date: bool | None = None
+    speaker_kind: Literal["named", "user_assistant", "single_author", "unknown"] = "unknown"
+    turn_length: Literal["short", "medium", "long", "unknown"] = "unknown"
+    history_size: Literal["small", "medium", "large", "unknown"] = "unknown"
+    language: str | None = None
+    abstention_possible: bool | None = None
+
+
 class MemspineConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     profile: str = "simple"
+    #: I25: ``off`` (default, nothing changes) | ``auto`` (presets chosen from
+    #: ``data_shape``) | comma-separated preset names from ``config/presets/``. Presets are
+    #: a layer between the template and the user config, so explicit settings still win.
+    data_profile: str = "off"
+    data_shape: DataShapeConfig = Field(default_factory=DataShapeConfig)
     strict_services: bool = True
     event_log: EventLogConfig = Field(default_factory=EventLogConfig)
     storage: StorageConfig = Field(default_factory=StorageConfig)

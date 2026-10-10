@@ -46,6 +46,7 @@ from .provenance import ReaderSpec, RunManifest, RunProtocol, SystemSpec
 from .readers import ServerContextExceeded, find_guard, reader_raw_meta
 from .results import ResultRow, ResultWriter, RowStatus, RunSummary, aggregate
 from .screen import coverage, coverage_summary, normalise_evidence
+from .shape import shape_for_item
 from .tokens import (
     HeuristicTokenCounter,
     TokenCounter,
@@ -700,6 +701,9 @@ class EvalRunner:
         return queries
 
     async def _run_item(self, item: EvalItem, tracer: TraceWriter) -> list[ResultRow]:
+        declare = getattr(self.system, "declare_shape", None)
+        if callable(declare):  # I25: the item's data shape, for ``data_profile: auto``
+            declare(shape_for_item(item, self.dataset.info()))
         await self.system.reset(item.item_id)
         queries = self._capped_queries(item)
 

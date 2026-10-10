@@ -1,0 +1,8 @@
+# I25 preset: long turns (assistant answers of hundreds of tokens: PrefEval / BEAM / ConvoMem).
+# A window counted in turns can be thousands of tokens (I6/I20); a reranker cuts the tail of a
+# long record (I9).
+read:
+  replay_window_unit: tokens
+  replay_budget_scaling: true
+  rerank_chunk_chars: 2000
+  rerank_chunk_overlap: 200

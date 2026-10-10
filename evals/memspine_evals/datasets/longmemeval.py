@@ -25,7 +25,7 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
-from ..contracts import DatasetInfo, EvalItem, Query, Turn
+from ..contracts import DatasetInfo, DataShape, EvalItem, Query, Turn
 from .locomo import file_sha256
 
 KNOWN_REVISIONS = ("2024-original", "2025-09-cleaned", "auto")
@@ -81,6 +81,13 @@ class LongMemEvalDataset:
             if self.question_types is None
             else f"{self.subset}+types:{','.join(self.question_types)}",
             notes="one question per item; haystack inserted per item",
+            shape=DataShape(
+                has_timestamps=True,
+                has_question_date=True,
+                speaker_kind="user_assistant",
+                language="en",
+                abstention_possible=True,
+            ),
         )
 
     def items(self) -> Iterator[EvalItem]:

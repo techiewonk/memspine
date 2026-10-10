@@ -152,6 +152,21 @@ class FirewallSignals:
     semantic_risk: bool = False
     query_anomaly: bool = False
     query_anomaly_kappa: float = 3.0
+    #: I21 (opt-in, default none): source roles whose writes skip the MINJA prefix-repeat
+    #: signal / the embedding-outlier signal. Chat assistants repeat templated openers
+    #: ("Sure! Here's ..."), which collide on the 96-char prefix; measured on a synthetic
+    #: chat, 39 of 40 such turns were quarantined (tests/unit/test_firewall_chat_boilerplate.py).
+    #: Exempting a role removes that defence for the role, so it stays off by default.
+    minja_bridge_exempt_roles: tuple[str, ...] = ()
+    anomaly_exempt_roles: tuple[str, ...] = ()
+    #: I21: the shared-prefix length (characters) the bridge signal compares; None = the
+    #: shipped ``constants.MINJA_BRIDGE_PREFIX_CHARS``.
+    minja_bridge_prefix_chars: int | None = None
+
+    def __post_init__(self) -> None:
+        # the config hands lists; keep the dataclass hashable and equal to its defaults
+        object.__setattr__(self, "minja_bridge_exempt_roles", tuple(self.minja_bridge_exempt_roles))
+        object.__setattr__(self, "anomaly_exempt_roles", tuple(self.anomaly_exempt_roles))
 
 
 class QueryHistory:
@@ -294,6 +309,7 @@ class Firewall:
         anomalous = False
         if (
             signals.anomaly
+            and record.source.role not in signals.anomaly_exempt_roles
             and neighbour_similarities is not None
             and len(neighbour_similarities) >= constants.ANOMALY_MIN_NEIGHBOURS
         ):
@@ -301,12 +317,14 @@ class Firewall:
             if nearest < constants.ANOMALY_CENTROID_MIN_SIMILARITY:
                 anomalous = True
                 reasons.append(f"embedding_outlier(nearest={nearest:.3f})")
+        bridge_chars = signals.minja_bridge_prefix_chars or constants.MINJA_BRIDGE_PREFIX_CHARS
         if (
             signals.minja_bridge
+            and record.source.role not in signals.minja_bridge_exempt_roles
             and recent_contents
-            and len(record.content) >= constants.MINJA_BRIDGE_PREFIX_CHARS
+            and len(record.content) >= bridge_chars
         ):
-            prefix = record.content[: constants.MINJA_BRIDGE_PREFIX_CHARS]
+            prefix = record.content[:bridge_chars]
             if any(
                 content.startswith(prefix)
                 for content in recent_contents

@@ -1,0 +1,16 @@
+# I25 preset: user/assistant chat roles (LongMemEval / PrefEval / ConvoMem shape).
+# - perspective tags (I39), so "I / my" votes on user turns and "you" on assistant turns (I5);
+# - assistant boilerplate ("Sure! Here's ...") shares a 96-char prefix with earlier replies, and
+#   the MINJA prefix-repeat signal quarantined 39 of 40 such turns in the synthetic test
+#   (I21). The assistant role is exempt from that one signal; the instruction patterns and the
+#   embedding outlier still apply to it.
+read:
+  speaker_vote_mode: perspective
+memories:
+  episodic:
+    enabled: true
+    policies:
+      perspective: heuristic
+firewall:
+  signals:
+    minja_bridge_exempt_roles: [assistant]

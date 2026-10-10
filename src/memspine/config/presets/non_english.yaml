@@ -1,0 +1,4 @@
+# I25 preset: non-English text. The English-only regex features (query shape, temporal phrases)
+# are skipped instead of misfiring (I23).
+read:
+  language_guard: "on"

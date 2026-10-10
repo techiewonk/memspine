@@ -675,6 +675,14 @@ in the schema — or if the schema gains a key not documented here.
 |-----|---------|-------|
 | `profile` | `simple` | Behavior profile; templates set it (base→simple/core/coding/personal/voice/multi_agent/regulated_financial/assistant). |
 | `strict_services` | `true` | Missing service hard-fails naming the extra (D-10); `false` starts degraded. |
+| `data_profile` | `off` | I25: data-shape profile. `off` = nothing changes. `auto` = presets chosen from `data_shape`; or a comma-separated list of preset names from `config/presets/` (`ts_dated`, `ts_none`, `long_turns`, `large_history`, `named_speakers`, `chat_roles`, `non_english`). Presets are a layer between the template and your own settings, so anything you set wins. Not called `profile`: that key is the usage profile. See *Data-shape profiles* below. |
+| `data_shape.has_timestamps` | `null` | I25: the data carries real per-turn timestamps (`true` -> `ts_dated`, `false` -> `ts_none`; `null` = unknown, selects nothing). |
+| `data_shape.has_question_date` | `null` | I25: queries carry the date they are asked at (declared; no preset keys on it yet). |
+| `data_shape.speaker_kind` | `unknown` | I25: `named` (-> `named_speakers`) \| `user_assistant` (-> `chat_roles`) \| `single_author` \| `unknown`. |
+| `data_shape.turn_length` | `unknown` | I25: `short` \| `medium` \| `long` (-> `long_turns`) \| `unknown`. Typical (median) characters per turn: <= 300 short, >= 800 long. |
+| `data_shape.history_size` | `unknown` | I25: `small` \| `medium` \| `large` (-> `large_history`) \| `unknown`. Large = about 2,000 turns or more per item. |
+| `data_shape.language` | `null` | I25: a language code; anything not `en*` selects `non_english` (I23 guard). |
+| `data_shape.abstention_possible` | `null` | I25: some questions have no answer (declared; no preset keys on it yet). |
 | `event_log.mode` | `full` | `full` \| `rolling` (bounded window) \| `ephemeral` (nothing persisted — no rebuild/audit; taint rollback falls back to archiving the seed alone, `strict=True` raises) (D-45, #64). |
 | `event_log.retention_days` | `30` | Rolling-window retention floor; never prunes past a projector high-water mark. |
 | `event_log.compress` | `false` | zstd-compress event payloads at rest. |
@@ -724,6 +732,8 @@ in the schema — or if the schema gains a key not documented here.
 | `read.rerank_model` | `null` | LiteLLM rerank model id; required when `rerank: litellm`. For| `read.rerank` | `off` | `off` | `fastembed` | `flashrank` `[rerank]` | `litellm` | `jina` `[st]` (Jina listwise reranker; `rerank_model` defaults to `jinaai/jina-reranker-v3.5`, runs the repo's custom code) | `qwen3` `[st]`/ `qwen3` it overrides the default local model. |
 | `read.rerank_device` | `null` | `rerank: qwen3` only: torch device (`cuda`); unset = CPU float32. |
 | `read.rerank_quant` | `null` | `rerank: qwen3` only: `4bit` | `8bit` (bitsandbytes, GPU). |
+| `read.rerank_chunk_chars` | `null` | I9: `null` = a record longer than the reranker's context is cut and its tail dropped (qwen3: beyond about 8k tokens; ONNX cross-encoders: about 512). N = records longer than N characters are scored in overlapping windows of N characters and take the MAX window score. Opt-in. |
+| `read.rerank_chunk_overlap` | `0` | I9: characters shared by neighbouring windows. |
 | `read.static_prefilter` | `false` | E8 cheap lexical-overlap gate (post-vector). |
 | `read.static_embedding_prefilter` | `false` | E4 model2vec static-cosine gate `[static]`. |
 | `read.hybrid` | `true` | Fuse the lexical BM25 leg via RRF (D-25; on by default since the v0.2 flip, ADR-019); `false` = vector-only. |
@@ -931,6 +941,9 @@ in the schema — or if the schema gains a key not documented here.
 | `firewall.signals.semantic_risk` | `false` | N20 (ADR-058): flags self-claimed authority ("this information has been verified") and answer binding ("the correct answer is", "whenever anyone asks"); quarantines untrusted origins only. |
 | `firewall.signals.query_anomaly` | `false` | N22 (ADR-058): a write whose best cosine to the namespace's last 64 query vectors exceeds mean + `query_anomaly_kappa` σ of recent write scores (after 20) is anomalous. In memory. |
 | `firewall.signals.query_anomaly_kappa` | `3.0` | N22: the z-score threshold. |
+| `firewall.signals.minja_bridge_exempt_roles` | `[]` | I21: roles whose writes skip the prefix-repeat signal. Chat assistants repeat templated openers ("Sure! Here's ..."); on a synthetic chat 39 of 40 such turns were quarantined. `[assistant]` is the chat-data setting (the `chat_roles` preset); it removes the prefix defence for that role. |
+| `firewall.signals.anomaly_exempt_roles` | `[]` | I21: roles whose writes skip the embedding-outlier signal. |
+| `firewall.signals.minja_bridge_prefix_chars` | `null` | I21: the shared-prefix length the bridge signal compares (`null` = 96). |
 | `firewall.sensitive_topics` | `false` | W16 (ADR-059): tag GDPR art. 9-style topics (health, religion, sexual orientation, politics, ethnicity, legal, financial hardship; `core/sensitive.py`) as `sensitive:<topic>` and raise `pii_tier` to at least `high`. The text is kept. |
 | `write.sensitivity` | `"off"` | I52. Grade each record `none`/`low`/`medium`/`high` with a category (health, sexuality_gender, religion, ethnicity, credentials = high; politics, finance, legal, location = medium) and tag it `sens:<grade>` / `sensc:<category>` (labels only: the text is never copied into a tag, log line or forensics entry; a `high` record also gets `pii_tier` >= `high`). `heuristic`: the fixed English lexicon. `decider`: the lexicon, raised to `medium` (category `other`) by the decider `sensitivity` task when it is sure (`read.decider: opendecider`); the decider never lowers a grade. |
 | `write.participants` | `"off"` | I53. `session`: `write_messages` tags each turn `participant:<name>` for every speaker of the call (the turn's own `speaker`/`name`, else its role, first) and honours a turn's `visibility`; a derived record (mined fact) inherits its parents' participants and the strictest visibility. `write(participants=, visibility=)` sets them directly (`private` = the speaker only, `participants`, `owner_shared`). They matter only to a read with `viewer=`; the namespace stays the hard isolation boundary. |
@@ -1102,6 +1115,32 @@ with more French / German / Spanish / Italian / Portuguese / Dutch stopwords tha
 (`2023-05-30`) still resolves. It is a context variable set around `read` / `assemble`; write-time mining
 (`consolidation.mine_event_dates`) is not covered. Short or name-only text counts as English. Until a
 multilingual trigger set exists, treat these features as English-only.
+
+### Data-shape profiles (I25)
+
+The `base` template's read defaults were tuned on one shape of data: named speakers, real timestamps, short
+turns. `data_profile` (opt-in, default `off`) layers small presets from `src/memspine/config/presets/` between
+the template and your own settings, chosen from facts about the data (`data_shape`). The mapping comes from the
+gap analysis, not from benchmark scores; an undeclared fact selects nothing.
+
+| Fact | Preset | What it sets |
+|---|---|---|
+| `has_timestamps: true` | `ts_dated` | dated rendering, relative-date anchoring, event-time leg, rerank date prefix |
+| `has_timestamps: false` | `ts_none` | plain rendering, no date legs or date resolution, defaulted clocks skipped (I7) |
+| `turn_length: long` | `long_turns` | token-unit replay window, budget scaling, chunk-and-max rerank (I6, I9, I20) |
+| `history_size: large` | `large_history` | budget scaling (I20) |
+| `speaker_kind: named` | `named_speakers` | name-keyed speaker vote (I5) |
+| `speaker_kind: user_assistant` | `chat_roles` | perspective tags and vote (I39), assistant exempt from the prefix-repeat signal (I21) |
+| `language` not `en*` | `non_english` | `read.language_guard: on` (I23) |
+
+```python
+eng = Engine(data_profile="auto", data_shape={"has_timestamps": False, "speaker_kind": "user_assistant"})
+eng = Engine(data_profile="chat_roles,ts_none")   # or name the presets
+```
+
+In the eval harness the adapter declares the shape (`DatasetInfo.shape`, or `EvalItem.meta["shape"]`), the rest
+is inferred from the history (`memspine_evals.shape`), and `MemspineSystem` passes it to the engine when the
+arm config sets `data_profile`.
 
 ## Where to go next
 

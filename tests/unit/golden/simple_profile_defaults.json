@@ -24,9 +24,12 @@
       "sensitive_topics": false,
       "signals": {
         "anomaly": true,
+        "anomaly_exempt_roles": [],
         "instruction": true,
         "instruction_extended": false,
         "minja_bridge": true,
+        "minja_bridge_exempt_roles": [],
+        "minja_bridge_prefix_chars": null,
         "query_anomaly": false,
         "query_anomaly_kappa": 3.0,
         "semantic_risk": false
@@ -201,6 +204,8 @@
       "rerank": "off",
       "rerank_balanced": false,
       "rerank_blend": null,
+      "rerank_chunk_chars": null,
+      "rerank_chunk_overlap": 0,
       "rerank_context": 0,
       "rerank_date_prefix": false,
       "rerank_device": null,

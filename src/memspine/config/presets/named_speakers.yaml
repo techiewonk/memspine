@@ -1,0 +1,4 @@
+# I25 preset: named participants (LoCoMo shape). A question that names one speaker votes on
+# that speaker's turns (I5); the vote needs a name to key on.
+read:
+  speaker_vote_mode: name

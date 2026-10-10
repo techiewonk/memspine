@@ -43,6 +43,10 @@ class RerankSettings:
     #: ``qwen3``: torch device and bitsandbytes quantisation ("4bit" | "8bit").
     device: str | None = None
     quant: str | None = None
+    #: I9 (opt-in): documents longer than this many characters are scored in
+    #: overlapping windows and take the max window score. None = unchanged.
+    chunk_chars: int | None = None
+    chunk_overlap: int = 0
 
 
 #: A spec lazily constructs one Reranker from settings (imports its adapter here).
@@ -136,7 +140,12 @@ def build_reranker(settings: RerankSettings) -> Reranker | None:
     if spec is None:
         return None  # unknown mode is rejected by startup validation; be safe
     try:
-        return spec(settings)
+        built = spec(settings)
+        if settings.chunk_chars:
+            from memspine.services.rerank.chunking import ChunkMaxReranker
+
+            built = ChunkMaxReranker(built, settings.chunk_chars, settings.chunk_overlap)
+        return built
     except Exception as exc:
         _log.info(
             "rerank.unavailable",

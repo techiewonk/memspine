@@ -64,6 +64,41 @@ class EvalItem:
 
 
 @dataclass(frozen=True, slots=True)
+class DataShape:
+    """I25: facts about a dataset's shape that decide which read defaults make sense.
+
+    Declared by the adapter (``DatasetInfo.shape``, or per item in ``EvalItem.meta["shape"]``);
+    anything not declared is inferred from the history by ``memspine_evals.shape``. Values
+    mirror the engine's ``data_shape`` config (``DataShapeConfig``); ``None`` / ``unknown``
+    means "not known" and selects nothing.
+    """
+
+    has_timestamps: bool | None = None
+    has_question_date: bool | None = None
+    speaker_kind: str = "unknown"  # named | user_assistant | single_author | unknown
+    turn_length: str = "unknown"  # short | medium | long | unknown
+    history_size: str = "unknown"  # small | medium | large | unknown
+    language: str | None = None
+    abstention_possible: bool | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "has_timestamps": self.has_timestamps,
+            "has_question_date": self.has_question_date,
+            "speaker_kind": self.speaker_kind,
+            "turn_length": self.turn_length,
+            "history_size": self.history_size,
+            "language": self.language,
+            "abstention_possible": self.abstention_possible,
+        }
+
+    @classmethod
+    def from_mapping(cls, data: Mapping[str, Any]) -> DataShape:
+        known = cls.__dataclass_fields__
+        return cls(**{k: v for k, v in data.items() if k in known})
+
+
+@dataclass(frozen=True, slots=True)
 class DatasetInfo:
     """Identity of the exact bytes a run consumed.
 
@@ -83,6 +118,8 @@ class DatasetInfo:
     n_queries: int
     subset: str = "full"
     notes: str = ""
+    #: I25: the adapter-declared data shape (None = infer it from the items).
+    shape: DataShape | None = None
 
     def __post_init__(self) -> None:
         if not self.revision_id.strip():

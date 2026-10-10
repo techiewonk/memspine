@@ -9693,6 +9693,8 @@ class Engine:
                 instruction=read.rerank_instruction,
                 device=read.rerank_device,
                 quant=read.rerank_quant,
+                chunk_chars=read.rerank_chunk_chars,
+                chunk_overlap=read.rerank_chunk_overlap,
             )
         )
         if self._reranker is None:

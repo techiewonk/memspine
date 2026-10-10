@@ -41,10 +41,13 @@ jobs:
           enable-cache: true
       - name: Sync dev environment
         run: uv sync --extra dev
-      - name: Eval-only test dependencies
-        run: uv pip install pyarrow jsonschema httpx
+      # H6: pyproject's `pythonpath = ["evals"]` makes `memspine_evals` and the evals/*.py scripts
+      # importable whichever conftest wins; PYTHONPATH=src below is belt and braces. The eval-only
+      # packages ride `uv run --with` so the run never depends on a separate `uv pip install`
+      # surviving uv's re-sync. No dataset files are present in CI (data/ is gitignored): tests that
+      # need LoCoMo/OP-Bench skip or use the synthetic fixtures.
       - name: Eval harness tests
-        run: uv run pytest evals/tests -q -p no:cacheprovider
+        run: uv run --with pyarrow --with jsonschema --with httpx pytest evals/tests -q -p no:cacheprovider
         env:
           PYTHONPATH: src
           AWS_ACCESS_KEY_ID: ""

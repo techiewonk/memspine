@@ -230,6 +230,9 @@ class MemspineSystem:
             if perspective_metadata is None
             else bool(perspective_metadata)
         )
+        #: I25: left to the config (and so to a data profile's presets) unless set explicitly.
+        self._perspective_auto = perspective_metadata is None
+        self._shape: dict[str, Any] = {}
         self._asker: str | None = None
         self._counter = counter or HeuristicTokenCounter()
         self._record_deposit_calls = record_deposit_calls
@@ -276,10 +279,23 @@ class MemspineSystem:
             # Listed only when on, so default runs keep their config hash.
             **({"batch_turns": self.batch_turns} if self.batch_turns > 1 else {}),
             **({"as_of_question_date": True} if self._as_of_question_date else {}),
+            **(
+                {"data_shape": self._shape}
+                if self._shape and self.config.get("data_profile")
+                else {}
+            ),
             **({"mark_hits": self._mark_hits} if self._mark_hits != "off" else {}),
             **({"context_order": self._context_order} if self._context_order != "chrono" else {}),
             "token_counter": dict(self._counter.describe()),
         }
+
+    def declare_shape(self, shape: Any) -> None:
+        """I25: the data shape of the item about to be loaded (``DataShape`` or mapping).
+
+        Used only when the config sets ``data_profile``; it becomes the engine's
+        ``data_shape``, from which ``data_profile: auto`` picks presets. A ``data_shape``
+        already in the config is the deployer's and is never replaced."""
+        self._shape = shape.to_dict() if hasattr(shape, "to_dict") else dict(shape or {})
 
     async def _build_engine(self) -> Any:
         try:
@@ -312,8 +328,15 @@ class MemspineSystem:
         read = dict(overrides.get("read") or {})
         read.setdefault("record_access", False)
         overrides["read"] = read
+        profile_on = str(overrides.get("data_profile", "off")).strip().lower() != "off"
+        if profile_on and self._shape and "data_shape" not in overrides:
+            overrides["data_shape"] = dict(self._shape)
         engine = Engine(template=self.template, **overrides)
         await engine.start()
+        if profile_on and self._perspective_auto:
+            # a preset may have switched the perspective layer on: send speaker and role too
+            policy = engine._memory_policy(engine._config(), "episodic").get("perspective")
+            self._perspective_metadata = bool(policy)
         return engine
 
     def _calls(self) -> int | None:
@@ -680,9 +703,8 @@ class MemspineSystem:
         import os
 
         forensics_dir = os.environ.get("MEMSPINE_FORENSICS_DIR")
-        from memspine.engine import search_forensics
-
         from memspine.core.perspective import asker_scope
+        from memspine.engine import search_forensics
 
         with search_forensics() as stages, asker_scope(self._asker):
             if self._read_mode:

@@ -20,7 +20,7 @@ from typing import Any
 
 import yaml
 
-from memspine.config import constants
+from memspine.config import constants, presets
 from memspine.config.schema import MemspineConfig
 from memspine.exceptions import ConfigError
 
@@ -196,6 +196,24 @@ def default_template(
     return "base" if names_profile else constants.DEFAULT_TEMPLATE
 
 
+def _with_data_presets(
+    layers: list[tuple[str, dict[str, Any]]], *, has_template: bool
+) -> list[tuple[str, dict[str, Any]]]:
+    """I25: insert the data-profile presets right after the template layer, so they sit
+    above template defaults and below every explicit user / env / kwargs setting."""
+    probe: dict[str, Any] = {}
+    for _, data in layers:
+        probe = _deep_merge(probe, data)
+    spec = probe.get("data_profile", "off")
+    if not isinstance(spec, str) or spec.strip().lower() == "off":
+        return layers
+    shape = probe.get("data_shape")
+    names = presets.resolve_presets(spec, shape if isinstance(shape, dict) else None)
+    inserted = [(f"preset:{name}", presets.load_preset(name)) for name in names]
+    at = 1 if has_template else 0
+    return [*layers[:at], *inserted, *layers[at:]]
+
+
 def load_config(
     template: str | None = None,
     user_config: str | Path | dict[str, Any] | None = None,
@@ -220,6 +238,8 @@ def load_config(
         layers.append(("env", _env_layer(env)))
     if overrides:
         layers.append(("kwargs", overrides))
+
+    layers = _with_data_presets(layers, has_template=template is not None)
 
     merged: dict[str, Any] = {}
     sources: dict[str, str] = {}

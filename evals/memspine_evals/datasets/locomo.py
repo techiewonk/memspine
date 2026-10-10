@@ -29,7 +29,7 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
-from ..contracts import DatasetInfo, EvalItem, Query, Turn
+from ..contracts import DatasetInfo, DataShape, EvalItem, Query, Turn
 from ..judge import ABSTENTION_GOLD
 
 _SESSION = re.compile(r"^session_(\d+)$")
@@ -111,6 +111,13 @@ class LoCoMoDataset:
             if self.categories is None
             else f"{self.subset}+cat{'/'.join(map(str, self.categories))}",
             notes=CAT5_PROTOCOL_NOTE,
+            shape=DataShape(
+                has_timestamps=True,
+                speaker_kind="named",
+                turn_length="short",
+                language="en",
+                abstention_possible=True,
+            ),
         )
 
     def items(self) -> Iterator[EvalItem]:
