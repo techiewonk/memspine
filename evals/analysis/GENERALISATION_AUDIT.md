@@ -189,12 +189,15 @@ stratum; hash the split into the run manifest.
 Let `D_b` be the paired net (gained minus lost) on dev slice `b`, `F_b = 0.328 * sqrt(n_b)` its floor, `B` the set of slices
 on which the feature fires (inert slices must show byte-identical retrieved ids, which makes `D_b = 0` by construction).
 
+**User decision 2026-10-10: the rule leans on the average** ("make it more towards average and improve all"). Rule 2 (the
+aggregate and macro mean) is the primary test; rule 1 is a guard against hidden losses, not a veto on every small dip.
+
 A change is adopted only if **all** hold:
 
-1. **Non-negative on every slice:** `D_b >= 0` for every slice (retrieval-only and QA, including the cat-5 and BEAM abstention/
-   knowledge-update strata). A slice with `-F_b/2 <= D_b < 0` triggers one repeat on the pooled dev +
-   held-out items of that benchmark; adoption continues only if the pooled `D_b >= 0`. Below `-F_b/2` the change is rejected.
-2. **Positive on the aggregate beyond the floor:** the pooled sum `sum_b D_b >= F_agg`, with `F_agg = 0.328 * sqrt(sum n_b)`
+1. **No slice loses beyond its noise band (guard):** `D_b >= -F_b` for every slice (retrieval-only and QA, including the
+   cat-5 and BEAM abstention/knowledge-update strata). A slice with `-F_b <= D_b < 0` is reported and gets one repeat when
+   the change is otherwise adopted; a slice below `-F_b` rejects the change (or scopes it to a shape profile, 4.4).
+2. **Primary: positive on the aggregate beyond the floor:** the pooled sum `sum_b D_b >= F_agg`, with `F_agg = 0.328 * sqrt(sum n_b)`
    (857 dev items in the three QA slices: 9.6 q = 1.12 pts), **and** the macro mean of per-slice point deltas is positive with
    a benchmark-level bootstrap interval above zero (macro floor for the three QA slices, EST: about 1.5 pts). A gain that
    comes from one benchmark alone is a per-benchmark setting, not a default (see 4.4).
