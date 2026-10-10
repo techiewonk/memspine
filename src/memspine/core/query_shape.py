@@ -22,6 +22,7 @@ __all__ = [
     "is_ordering",
     "is_personal",
     "is_set_question",
+    "is_set_question_wide",
     "is_temporal",
     "is_verbatim",
     "question_shape",
@@ -209,6 +210,45 @@ def is_set_question(question: str) -> bool:
     what / which / who; when, how many, yes/no openers and the singular past form
     ("What book did X read ...?") do not fire."""
     return bool(_SET_QUESTION.search(question))
+
+
+#: R2-3 (``read.list_trigger="set_question_wide"``): "How did/has/does X <verb> ..." where the
+#: verb names a many-way activity ("How did Gina promote her clothes store?").
+_HOW_MULTI = re.compile(
+    r"^\s*how\s+(?:did|has|have|does|do|can|could|would|will)\s+(?:[\w'-]+\s+){1,3}?"
+    r"(?:promote|celebrate|support|help|spend|keep|cope|deal|manage|raise|express|show|use|"
+    r"prepare|improve|handle|build|contribute|make|get involved|stay|connect|bond|relax|"
+    r"unwind|reduce|honou?r|remember|encourage|inspire|engage|advertise|market|fund|"
+    r"practi[sc]e|learn|teach|share|decorate|plan|organi[sz]e)(?:e?d|s|ing)?\b",
+    re.I,
+)
+#: The head noun of a what / which question is plural: "What schools did X play in?",
+#: "Which classical musicians does X like?" (up to two modifiers, then the auxiliary).
+_PLURAL_HEAD = re.compile(
+    r"^\s*(?:what|which)\s+(?:[\w'-]+\s+){0,2}?([a-z]{3,}s)\s+"
+    r"(?:did|do|does|has|have|had|are|were|can|could|would|will)\b",
+    re.I,
+)
+_NOT_PLURAL = frozenset(
+    "does has was his its this thus always sometimes yes perhaps across less unless "  # noqa: SIM905
+    "business class glass dress process success press address guess miss mess kiss "
+    "lens bus gas plus focus status bonus campus virus days times months years".split()
+)
+
+
+def is_set_question_wide(question: str) -> bool:
+    """R2-3: :func:`is_set_question`, plus "How did/has/does X <multi-way verb> ..." questions
+    and what / which questions whose head noun is plural ("What gifts did X buy?").
+    Wider than the base trigger, so it is a separate opt-in value."""
+    if is_set_question(question):
+        return True
+    if _HOW_MULTI.search(question):
+        return True
+    m = _PLURAL_HEAD.search(question)
+    if m and not re.search(r"\bfor a living\b", question, re.I):
+        word = m.group(1).lower()
+        return word not in _NOT_PLURAL and not word.endswith(("ss", "us", "is"))
+    return False
 
 
 def is_count(query: str) -> bool:

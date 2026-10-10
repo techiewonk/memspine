@@ -32,7 +32,9 @@ __all__ = [
     "NamedLeg",
     "asks_about_assistant",
     "assistant_leg",
+    "bridge_phrases",
     "cohesion_leg",
+    "comparison_speaker_legs",
     "date_words",
     "entity_expand_leg",
     "entity_leg",
@@ -379,6 +381,100 @@ def speaker_vector_leg(
             if len(out) >= top_k:
                 break
     return out
+
+
+#: R2-2: a comparison cue in a question that names two speakers.
+_COMPARISON = re.compile(
+    r"\bboth\b|\bin common\b|\beach\b|\bshare[sd]?\b|\bsimilar(?:ly|ities)?\b|\balike\b",
+    re.I,
+)
+
+
+def comparison_speaker_legs(
+    query: str,
+    records: Iterable[MemoryRecord],
+    vector_hits: Iterable[LegHit],
+    top_k: int = 30,
+) -> list[tuple[str, list[LegHit]]]:
+    """R2-2 (``read.list_mode``): for a question naming exactly TWO known speakers with a
+    comparison cue ("both", "in common", "each"), one vote per speaker: ``[(name, hits)]``
+    in the order the names occur in the query, each as :func:`speaker_vector_leg` would
+    build for a one-speaker question. Empty otherwise."""
+    if not _COMPARISON.search(query):
+        return []
+    recs = list(records)
+    hits = list(vector_hits)
+    names = {name for r in recs if (name := _speaker_name(r))}
+    text = query.lower()
+    found = []
+    for n in names:
+        m = re.search(rf"(?<!\w){re.escape(n)}(?!\w)", text)
+        if m:
+            found.append((m.start(), n))
+    if len(found) != 2:
+        return []
+    by_id = {r.record_id: r for r in recs}
+    out: list[tuple[str, list[LegHit]]] = []
+    for _, who in sorted(found):
+        votes: list[LegHit] = []
+        for hit in hits:
+            rec = by_id.get(hit.record_id)
+            if rec is not None and _speaker_name(rec) == who:
+                votes.append(hit)
+                if len(votes) >= top_k:
+                    break
+        out.append((who, votes))
+    return out
+
+
+_BRIDGE_WORD = re.compile(r"[A-Za-z][A-Za-z'-]*")
+_BRIDGE_SPEAKER = re.compile(r"^\s*[\w .'-]{1,40}:\s")
+_BRIDGE_FILLER = frozenset(
+    "really very just also still much many some going been being were was are have has had "  # noqa: SIM905
+    "would could should will can get got gets getting like love loved want wanted yeah thanks "
+    "thank great good nice wow oh well that this these those there here what when where who "
+    "four three five six seven eight nine ten twice once ago year years month months week "
+    "weeks day days time times today yesterday tomorrow how why then than them they their "
+    "your you our its it's i'm i've don't didn't".split()
+)
+
+
+def bridge_phrases(question: str, texts: Iterable[str], limit: int = 3) -> list[str]:
+    """R2-1 (``read.bridge_hop``): up to ``limit`` key noun phrases of the first-hop hit
+    texts that the question does not contain. A phrase is the first two words of a run of adjacent
+    content words (stop words, mid-sentence names and punctuation break a run), so "moved
+    from my home country" gives "home country". Most frequent first, then first seen.
+    Deterministic."""
+    from memspine.core.query_shape import _STOP
+
+    asked = {w.lower() for w in _BRIDGE_WORD.findall(question)}
+    counts: dict[str, int] = {}
+    order: dict[str, int] = {}
+    for text in texts:
+        body = _BRIDGE_SPEAKER.sub("", text, count=1)
+        for sentence in re.split(r"[.!?;,:\n()\"]+", body):
+            run: list[str] = []
+            raw = _BRIDGE_WORD.findall(sentence)
+            for i, word in enumerate([*raw, ""]):
+                low = word.lower()
+                keep = (
+                    bool(word)
+                    and len(low) > 2
+                    and low not in _STOP
+                    and low not in _BRIDGE_FILLER
+                    and not (word[0].isupper() and i > 0)  # a name inside a sentence
+                )
+                if keep:
+                    run.append(low)
+                    continue
+                if len(run) >= 2:
+                    phrase = " ".join(run[:2])
+                    if not any(w in asked for w in run[:2]):
+                        counts[phrase] = counts.get(phrase, 0) + 1
+                        order.setdefault(phrase, len(order))
+                run = []
+    ranked = sorted(counts, key=lambda p: (-counts[p], order[p]))
+    return ranked[:limit]
 
 
 #: W11 (plan v3.2): the question asks what the ASSISTANT said ("what did you

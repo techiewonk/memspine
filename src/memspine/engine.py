@@ -125,6 +125,7 @@ from memspine.core.query_shape import (
     is_ordering,
     is_personal,
     is_set_question,
+    is_set_question_wide,
     is_temporal,
     is_verbatim,
     question_shape,
@@ -169,7 +170,9 @@ from memspine.core.temporal_query import (
     LegHit,
     NamedLeg,
     assistant_leg,
+    bridge_phrases,
     cohesion_leg,
+    comparison_speaker_legs,
     entity_expand_leg,
     entity_leg,
     forget_mentions,
@@ -2550,11 +2553,59 @@ class Engine:
                 deep = await self._vector_leg(ns, query_vector, depth)
             records = [r for r in await self._records(ns) if not r.quarantined]
             hits = speaker_vector_leg(query, records, deep, read.list_vote_top_k)
+            if not hits:
+                # R2-2: two named speakers with a comparison cue vote once each.
+                pair = comparison_speaker_legs(query, records, deep, read.list_vote_top_k)
+                legs = [
+                    NamedLeg(f"speaker_vote_{tag}", votes)
+                    for tag, (_, votes) in zip("ab", pair, strict=False)
+                ]
+                return [leg for leg in legs if leg]
             leg = NamedLeg("speaker_vote", hits)
             return [leg] if leg else []
         except Exception as exc:  # an enhancer, never a gate
             _log.warning("read.speaker_vote_leg_failed", namespace=ns, error=str(exc))
             return []
+
+    async def _bridge_leg(
+        self,
+        query: str,
+        ns: str,
+        scored: Sequence[tuple[MemoryRecord, float]],
+        *,
+        session_id: str | None,
+        keep_k: int,
+        hide: Callable[[MemoryRecord], bool] | None,
+        probes: Sequence[str],
+    ) -> NamedLeg | None:
+        """``read.bridge_hop``: one extra search for "<subject> <phrase> ..." where the
+        phrases are the key noun phrases of the top first-hop hits that the question lacks.
+        Fails soft (None). The phrases are recorded as the forensic ``bridge_phrases``."""
+        read = self._config().read
+        try:
+            phrases = bridge_phrases(
+                query, [r.content for r, _ in scored[: constants.SECOND_ROUND_TOP]]
+            )
+            if (fx := _FORENSICS.get()) is not None:
+                fx["bridge_phrases"] = list(phrases)
+            if not phrases:
+                return None
+            names = [w for w in re.findall(r"\b[A-Z][a-z][\w'-]*", query)[1:2]]
+            subject = " ".join(names) or core_terms(query)
+            extra = await self._search(
+                f"{subject} {' '.join(phrases)}".strip(),
+                ns,
+                read.bridge_hop_top_k,
+                session_id=session_id,
+                keep_k=read.bridge_hop_top_k,
+                hide=hide,
+                probes=[],
+            )
+            leg = NamedLeg("bridge", [LegHit(r.record_id, float(score)) for r, score in extra])
+            return leg if leg else None
+        except Exception as exc:  # an enhancer, never a gate
+            _log.warning("read.bridge_hop_failed", namespace=ns, error=str(exc))
+            return None
 
     async def _anchor_legs(
         self,
@@ -4148,7 +4199,9 @@ class Engine:
                 extra_legs += await self._speaker_vote_leg(
                     ns, query, query_vector, vector_hits, fetch_k
                 )
-            extra_legs += [list(leg) for leg in fused_legs if leg]
+            extra_legs += [
+                leg if isinstance(leg, NamedLeg) else list(leg) for leg in fused_legs if leg
+            ]
             floors = self._config().read.leg_min_scores
             if floors:
                 # C6 (per-leg score floors): weak hits never enter the fusion.
@@ -4670,6 +4723,30 @@ class Engine:
                         fused_legs=legs,
                     )
                     scored = scored[:want]
+            if read_now.bridge_hop and scored:
+                # R2-1: key noun phrases of the first-hop hits (not in the question) seed
+                # one extra search; its hits join the final search as the "bridge" leg.
+                bridge = await self._bridge_leg(
+                    query,
+                    ns,
+                    scored,
+                    session_id=session_id,
+                    keep_k=top_k,
+                    hide=hide,
+                    probes=probes,
+                )
+                if bridge:
+                    legs = [*legs, bridge]
+                    scored = await self._search(
+                        query,
+                        ns,
+                        want,
+                        session_id=session_id,
+                        keep_k=top_k,
+                        hide=hide,
+                        probes=probes,
+                        fused_legs=legs,
+                    )
             if self._config().read.cluster_expand and scored:
                 # N06 (plan v3.2): the vector neighbourhoods of the top hits (across
                 # sessions) join the search as extra legs: the topic cluster around
@@ -5465,6 +5542,8 @@ class Engine:
             return False
         if read.list_trigger == "aggregation":
             return is_aggregation(query) or is_count(query)
+        if read.list_trigger == "set_question_wide":
+            return is_set_question_wide(query)
         return is_set_question(query)
 
     async def _replay_neighbour(self, record_id: str, ns: str) -> MemoryRecord | None:

@@ -773,9 +773,12 @@ class ReadConfig(BaseModel):
     #: ``window_full_hits`` replay hits their neighbour window, the rest are single turns
     #: (``None``: every hit keeps its window). Other questions read exactly as before.
     list_mode: bool = False
+    #: ``set_question_wide`` (R2-3) = ``is_set_question_wide``: also "How did X <verb> ..." and
+    #: plural-object questions. Where a question names two speakers with a comparison cue
+    #: ("both", "in common", "each") the vote runs once per speaker (R2-2).
     #: ``set_question`` = ``query_shape.is_set_question``; ``aggregation`` = ``is_aggregation``
     #: or ``is_count``.
-    list_trigger: Literal["set_question", "aggregation"] = "set_question"
+    list_trigger: Literal["set_question", "set_question_wide", "aggregation"] = "set_question"
     list_vote_depth: int = Field(default=100, ge=1)
     list_vote_top_k: int = Field(default=30, ge=1)
     list_pool: int = Field(default=3, ge=1, le=10)
@@ -902,6 +905,13 @@ class ReadConfig(BaseModel):
     #: mention and the question lacks seed a second search over a doubled pool. Off:
     #: unchanged.
     second_round: bool = False
+    #: R2-1 (bridge hop): after the first search, up to three key noun phrases of the top
+    #: three hits that the question lacks ("home country") join the question subject as
+    #: one extra search (``bridge_hop_top_k`` hits), fused in as the ``bridge`` leg. One
+    #: hop at most; the phrases are recorded in ``search_forensics`` ("bridge_phrases").
+    #: Off: unchanged.
+    bridge_hop: bool = False
+    bridge_hop_top_k: int = Field(default=10, ge=1)
     #: N06 (plan v3.2, EverMemOS clusters / HyperMem hyperedges, read-time variant): the
     #: embedding neighbourhoods of the top two hits, across sessions, join the search
     #: as RRF legs (two embeds and two vector queries per read). Off: unchanged.
