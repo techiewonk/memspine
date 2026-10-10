@@ -15,8 +15,16 @@ explorer carries dataset text (questions, answers, dialogue turns) and is theref
 commit it. The optional summary is text-free (counts, ids, codes, numbers) and is checked against the data text
 before it is written. Only this generator is meant to be committed.
 
-Dev only. The held-out conversations (conv-43/44/47/48/49/50) are dropped the moment a dataset is loaded, and the
-script aborts if any result or forensics row names one.
+Dev only BY DEFAULT. The held-out conversations (conv-43/44/47/48/49/50) are dropped the moment a dataset is loaded,
+and the script aborts if any result or forensics row names one. ``--all-convs`` lifts that guard (the user decided on
+2026-10-10 to use the held-out conversations in the full logged run): all 10 conversations, categories 1-4, the
+baseline is ``--loc-ref`` (default ``full-persp-loc``, read from its ``--trace`` folder with ``trace_full``), the
+stage codes come from ``analysis/full_persp_loc_stage_labels.txt`` and the screens are the runs named with
+``--extra-run`` (a run id; ``...-opb`` ids are OP-Bench runs). Example:
+
+    python evals/build_forensics_explorer.py --all-convs --no-summary --extra-run xb-loc-dev --extra-run qa-full-qs-eq06-fix --extra-run full-persp-opb
+
+Re-run it after ``full-persp-opb`` finishes: the OP-Bench run is shown as "running" until its summary row exists.
 
 Inputs: baseline ``xb-loc-dev`` / ``xb-opb-dev`` (+ ``--forensics`` dirs), no-memory ``opb-base-dev``, every screen,
 ``analysis/catalogue/locomo_dev_failures.jsonl`` (stage codes), ``runs/_analysis/opbench_dev_failures*.jsonl``
@@ -78,6 +86,180 @@ STAGE_NAME = {
 FUNNEL_ORDER = ["recall", "fusion", "rerank", "gate", "assembly"]
 OPB_PASS = 0.5  # a probe "fails" below 0.5, the rule of the failure catalogue
 SIZE_LIMIT = 40_000_000
+ALL_CONVS = False  # set by --all-convs: all 10 conversations, cat 1-4, no held-out guard
+
+# --all-convs mode: the stage codes of analysis/full_persp_loc_stage_labels.txt, with the built feature and gaps each maps to.
+FULL_CODES = {
+    "b": (
+        "b",
+        "recall: no leg returned a gold turn",
+        ["B1", "B8", "I4", "I67"],
+        "intent list trigger, agentic multi-step read, decomposition planner",
+        "query shape + sufficiency check",
+        "read.list_trigger=intent (I4); read.agentic (I67, screen pending)",
+        "+1-3 reads per question",
+    ),
+    "cf": (
+        "c",
+        "cut at fusion: in a leg, outside the pool",
+        ["I75", "B7", "B10", "I9"],
+        "reserve pool slots for the top of every leg; perspective leg as multiplier; pool 3 + chunked rerank",
+        "per-leg top-3 floor in the pool",
+        "read.candidate_pool; rerank_chunk_chars (I9); I75 not built",
+        "pool +0 (reserved slots) or +rerank pairs",
+    ),
+    "cr": (
+        "c",
+        "cut at rerank_keep",
+        ["B10", "I9"],
+        "rerank_context 1-2; rerank_keep 15",
+        "score margin to the keep boundary",
+        "read.rerank_keep; rerank_context (B10)",
+        "+0-2 rerank pairs",
+    ),
+    "d:det": (
+        "d",
+        "reader: wrong detail (evidence in context)",
+        ["C1", "C2", "B10", "I6"],
+        "top-hit-first block, rerank_context, token window",
+        "rerank score order in the prompt",
+        "rerank_context (B10); replay_window_unit=tokens (I6)",
+        "none",
+    ),
+    "d:lst": (
+        "d",
+        "reader: incomplete list",
+        ["C6", "I56", "I4"],
+        "list-shaped prompt, enumerate then merge",
+        "is_set_question / intent trigger",
+        "routed_generic list arm; grounded_generic_list (C6)",
+        "+1 reader call on list questions",
+    ),
+    "d:cnt": (
+        "d",
+        "reader: wrong count",
+        ["I56"],
+        "enumerate-then-count with event identity",
+        "is_count",
+        "--count-verify (I56)",
+        "+1 reader call on count questions",
+    ),
+    "d:dar": (
+        "d",
+        "reader: date / duration arithmetic, wrong date",
+        ["I57", "I76", "I79"],
+        "duration solver by code, bare-weekday annotation, anchor-vs-event date",
+        "is_duration / is_temporal",
+        "--date-repair (I57, when questions only); I76 and I79 not built",
+        "none (code)",
+    ),
+    "d:ref": (
+        "d",
+        "reader: refusal or premise denial",
+        ["I1", "I61", "I3"],
+        "neutral retry, premise-tolerant answering",
+        "first answer is a refusal",
+        "retry_refusal neutral (I1, on in this run); I61 open",
+        "+1 reader call",
+    ),
+    "d:inf": (
+        "d",
+        "reader: inference refused or wrong",
+        ["I3", "C3", "C11"],
+        "inference route, larger reader",
+        "is_inference",
+        "routed_generic (I3/C6), screen pending; C11 blocked by GPU memory",
+        "+0-1 reader call",
+    ),
+    "d:dis": (
+        "d",
+        "reader: distractor line",
+        ["C1", "B10"],
+        "top-hit-first block, rerank_context",
+        "-",
+        "rerank_context (B10)",
+        "none",
+    ),
+    "d:spk": (
+        "d",
+        "reader: wrong speaker",
+        ["I59", "I63"],
+        "owner check at read, owner labels",
+        "spk / sub tags",
+        "read owner check (I59, built, opt-in)",
+        "none",
+    ),
+    "e": (
+        "e",
+        "judge: the answer states the gold fact",
+        ["I58", "I77"],
+        "judge conventions plus containment and date-range equivalence",
+        "-",
+        "--judge-conventions (I58, reported as a second column)",
+        "none",
+    ),
+    "f": (
+        "f",
+        "gold / dataset error (errata)",
+        ["I62"],
+        "report with and without errata",
+        "-",
+        "locomo_errata.json",
+        "none",
+    ),
+}
+# --all-convs mode: levers to 90 on the full 1,540 (FULL_RUN_FORENSICS_2026-10-10.md section 5); expected questions at the stated capture.
+FULL_LEVERS = [
+    dict(
+        n=1,
+        name="Leg-protected pool, perspective leg as multiplier (I75, NEW)",
+        q14=14.0,
+        q15=14.0,
+        screens=[],
+    ),
+    dict(
+        n=2,
+        name="Duration / interval solver by code + date repair (I76 NEW, I57, I79 NEW)",
+        q14=12.0,
+        q15=12.0,
+        screens=[],
+    ),
+    dict(
+        n=3,
+        name="Agentic read, intent trigger, planner for recall (I67, I4)",
+        q14=14.0,
+        q15=14.0,
+        screens=[],
+    ),
+    dict(
+        n=4,
+        name="Wider pool, chunked rerank, rerank_context (B10, I9, pool 3)",
+        q14=11.0,
+        q15=11.0,
+        screens=[],
+    ),
+    dict(
+        n=5,
+        name="Inference route, premise-tolerant answering (routed_generic, I61, I1)",
+        q14=9.0,
+        q15=9.0,
+        screens=[],
+    ),
+    dict(
+        n=6,
+        name="List and count steps (I56, C6, routed_generic list arm)",
+        q14=8.0,
+        q15=8.0,
+        screens=[],
+    ),
+    dict(
+        n=7,
+        name="Detail: top-hit-first, rerank_context, token window, owner check (B10, I6, I59)",
+        q14=7.0,
+        q15=7.0,
+        screens=[],
+    ),
+]
 LEG_CAP = 30
 
 SCREEN_DESC = {
@@ -198,10 +380,13 @@ def jlz(path: Path) -> list[dict]:
 
 
 def log_dir(run: str) -> Path:
-    """The folder with a run's stage logs: ``<run>--forensics``, else the ``--trace-full``
-    folder ``<run>--trace``."""
+    """The folder with a run's stage logs. A ``--trace-full`` folder ``<run>--trace`` that holds a
+    ``forensics.jsonl`` (or its gzip twin) wins: it carries the ``trace_full`` block that the plain
+    ``<run>--forensics`` folder of the same run lacks. Else ``<run>--forensics``, else the trace folder."""
     f = RUNS / f"{run}--forensics"
     t = RUNS / f"{run}--trace"
+    if t.is_dir() and any((t / n).exists() for n in ("forensics.jsonl", "forensics.jsonl.gz")):
+        return t
     return f if f.is_dir() or not t.is_dir() else t
 
 
@@ -217,6 +402,8 @@ def run_dir(run: str) -> Path | None:
 
 
 def check_heldout(rows: list[dict], what: str) -> None:
+    if ALL_CONVS:
+        return
     for r in rows:
         item = str(r.get("item_id") or r.get("item") or "")
         if item.split(":")[0] in HELDOUT:
@@ -238,6 +425,8 @@ def load_dev_loc():
     split = json.loads((ANALYSIS / "locomo_split.json").read_text(encoding="utf-8"))
     dev = set(split["dev_items"])
     ds = LoCoMoDataset(REPO / "data" / "locomo10.json", "auto")
+    if ALL_CONVS:
+        dev = {item.item_id for item in ds.items()}
     tt: dict[str, dict] = {}
     qs: dict[str, dict] = {}
     for item in ds.items():
@@ -247,6 +436,8 @@ def load_dev_loc():
             t.turn_id: [t.speaker, t.text, None, t.session_id, t.timestamp] for t in item.history
         }
         for q in item.queries:
+            if ALL_CONVS and q.type_label == "cat5":
+                continue  # the full logged run is categories 1-4
             ev = []
             for e in (
                 q.meta.get("distractor_evidence", ())
@@ -334,7 +525,11 @@ def discover_screens(extra: list[str]) -> list[str]:
     ids = set(extra)
     for p in RUNS.iterdir():
         n = p.name
-        if not p.is_dir() or "--" in n or n.startswith(("xb-", "opb-base", "_")):
+        if (
+            not p.is_dir()
+            or "--" in n
+            or n.startswith(("xb-", "opb-base", "_", "full-", "qa-full-"))
+        ):
             continue
         m = re.match(r"^(.+)-(loc|opb)$", n)
         if m and not n.endswith("-t2"):
@@ -353,6 +548,10 @@ def discover_screens(extra: list[str]) -> list[str]:
 
 def screen_runs(sid: str) -> dict[str, str | None]:
     out = {"loc": None, "opb": None}
+    if ALL_CONVS:  # --extra-run ids are run ids, not screen prefixes
+        if run_dir(sid):
+            out["opb" if sid.endswith("-opb") else "loc"] = sid
+        return out
     if run_dir(f"{sid}-loc"):
         out["loc"] = f"{sid}-loc"
     elif re.match(r"^wvr-(.+-)?i2$", sid) and run_dir(sid):
@@ -447,14 +646,29 @@ def fx_compact(x: dict, gold: list[str]) -> dict:
     )
 
 
+TEXT_INDEX: dict[
+    tuple[str, str], list[str]
+] = {}  # (item, question text) -> keys in dataset order (legacy logs)
+
+
 def load_fx(
     run: str, gold_by_key: dict[str, list[str]], tt: dict, ann_seen: dict
 ) -> dict[str, dict]:
     p = log_dir(run) / "forensics.jsonl"
     out = {}
+    seen: collections.Counter = collections.Counter()
     for x in jlz(p):
         check_heldout([x], run + " forensics")
-        key = f"{x['item']}:{x['query_id']}"
+        if x.get("query_id") is not None:
+            key = f"{x['item']}:{x['query_id']}"
+        else:  # older stage logs carry no query_id: pair by question text, first to first
+            tk = (x["item"], x["query"])
+            n = seen[tk]
+            seen[tk] += 1
+            cands = TEXT_INDEX.get(tk, [])
+            if n >= len(cands):
+                continue
+            key = cands[n]
         out[key] = fx_compact(x, gold_by_key.get(key, []))
         for c in x.get("context_records") or []:
             ann_seen.setdefault((x["item"], c["turn"]), c["text"])
@@ -525,20 +739,44 @@ def build(args) -> dict:
         )
 
     cat_rows = {}
-    for x in jl(ANALYSIS / "catalogue" / "locomo_dev_failures.jsonl"):
-        cat_rows[x["query_id"]] = x
+    if ALL_CONVS:
+        cc_of = {k: v["cc"] for k, v in loc_q.items()}
+        for line in (
+            (ANALYSIS / "full_persp_loc_stage_labels.txt").read_text(encoding="utf-8").splitlines()
+        ):
+            if line.startswith("#") or not line.strip():
+                continue
+            cv, qid, code = line.split()
+            k = f"{cv}:{qid}"
+            if k not in cc_of or code not in FULL_CODES:
+                continue
+            st, sub, gids, fix, mech, feat, cost = FULL_CODES[code]
+            cat_rows[k] = dict(
+                query_id=k, category=CAT_NAME[cc_of[k]], failure_code=code, failure_stage=st,
+                sub_type=sub, gap_ids=gids, generic_fix=fix, decision_mechanism=mech,
+                built_feature=feat, fix_runtime_cost=cost, evidence=None, errata_candidate=None,
+            )  # fmt: skip
+    else:
+        for x in jl(ANALYSIS / "catalogue" / "locomo_dev_failures.jsonl"):
+            cat_rows[x["query_id"]] = x
     opb_cat = {x["query_id"]: x for x in jl(OUT_DIR / "opbench_dev_failures_catalogue.jsonl")}
     opb_sig = {x["query_id"]: x for x in jl(OUT_DIR / "opbench_dev_failures.jsonl")}
 
     # ---- baseline + screens
-    n_loc_exp = sum(1 for k in loc_q if k.startswith(("conv-26:", "conv-30:")))
+    n_loc_exp = (
+        len(loc_q) if ALL_CONVS else sum(1 for k in loc_q if k.startswith(("conv-26:", "conv-30:")))
+    )
     ref = load_run(LOC_REF, len(loc_q))
     if ref["status"] != "complete" or ref["n"] != len(loc_q):
         raise SystemExit(f"baseline {LOC_REF} incomplete: {ref['n']} of {len(loc_q)}")
     opb_ref = load_run(OPB_REF, len(opb_meta))
     opb_base = load_run(OPB_BASE, len(opb_meta))
 
-    screens = discover_screens(args.extra_screen)
+    screens = (
+        [r for r in args.extra_run if run_dir(r)]
+        if ALL_CONVS
+        else discover_screens(args.extra_screen)
+    )
     sruns = {}
     for sid in screens:
         names = screen_runs(sid)
@@ -555,6 +793,9 @@ def build(args) -> dict:
     screens.sort(key=order)
 
     gold_by_key = {k: v["ev"] for k, v in loc_q.items()}
+    TEXT_INDEX.clear()
+    for k, v in loc_q.items():
+        TEXT_INDEX.setdefault((v["item"], v["q"]), []).append(k)
     ann_seen: dict = {}
     fx = {LOC_REF: load_fx(LOC_REF, gold_by_key, tt, ann_seen)}
     for sid in screens:
@@ -916,7 +1157,7 @@ def build(args) -> dict:
 
     # cross-check against eval_screen for completed LoCoMo screens (same rule, same numbers)
     for e in screen_out:
-        if e["cmp_loc"] and e["loc"]["status"] == "complete":
+        if e["cmp_loc"] and e["loc"]["status"] == "complete" and not ALL_CONVS:
             rid = e["loc"]["id"]
             ref_m = eval_screen.locomo(LOC_REF)
             path = RUNS / f"{rid}--memspine" / "results.jsonl"
@@ -1015,9 +1256,9 @@ def build(args) -> dict:
                 dict(
                     reader=rd.get("reader_calls"),
                     judge=rd.get("judge_calls"),
-                    ctxt=rd.get("context_text"),
                     qdate=rd.get("question_date"),
                     vraw=(rd.get("verdict") or {}).get("raw"),
+                    vmeta=(rd.get("verdict") or {}).get("meta"),
                     rmeta=rd.get("reader_meta"),
                 )
             )
@@ -1391,9 +1632,11 @@ def build(args) -> dict:
         ]
         have_dec = has_fx_key(dict(id=rid), "dec") if loc else False
         step["R2 gates / deciders"] = [
-            "L" if have_dec else "R",
+            "L" if (have_dec or xf) else "R",
             "decisions + I74 bypass logged"
             if have_dec
+            else "no decider task and no relevance gate in this config: nothing to log (trace_full present)"
+            if xf
             else (
                 "empty-context flag derived from the context; decider decisions / bypass not logged in this run (older commit; fix: rerun on a current commit)"
                 if loc
@@ -1433,8 +1676,10 @@ def build(args) -> dict:
             "context lines that are not final hits, attached to the nearest hit",
         ]
         step["R8 rendered context"] = [
-            "R" if (has_fx or not loc) else "M",
-            "logged record texts + the adapter render rules (dated prefix, chronological order)",
+            "L" if traced else ("R" if (has_fx or not loc) else "M"),
+            "the exact memory lines are inside the logged reader prompt (step 9)"
+            if traced
+            else "logged record texts + the adapter render rules (dated prefix, chronological order)",
         ]
         step["R9 exact reader prompt"] = [
             "L" if traced else ("R" if info.get("reader_tpl") else "M"),
@@ -1664,7 +1909,7 @@ def build(args) -> dict:
     cum = base14
     lev_out = []
     scr_by_id = {s["id"]: s for s in screen_out}
-    for lv in LEVERS:
+    for lv in FULL_LEVERS if ALL_CONVS else LEVERS:
         meas = []
         for sid in lv["screens"]:
             s = scr_by_id.get(sid)
@@ -1699,10 +1944,20 @@ def build(args) -> dict:
         target14=round(cum, 2),
         base15=round(100 * base_loc["correct"] / base_loc["n"], 2),
         target15=round(
-            100 * (base_loc["correct"] + sum(lv["q15"] for lv in LEVERS)) / base_loc["n"], 2
+            100
+            * (
+                base_loc["correct"]
+                + sum(lv["q15"] for lv in (FULL_LEVERS if ALL_CONVS else LEVERS))
+            )
+            / base_loc["n"],
+            2,
         ),
         levers=lev_out,
-        doc="FAILURE_FORENSICS_BASELINE_2026-10-10.md section 2; expected gains are capture-rate assumptions, measured where a screen has finished",
+        doc=(
+            "FULL_RUN_FORENSICS_2026-10-10.md section 5; expected gains are capture-rate assumptions on measured class sizes (counted levers only; 90 needs about twice that)"
+            if ALL_CONVS
+            else "FAILURE_FORENSICS_BASELINE_2026-10-10.md section 2; expected gains are capture-rate assumptions, measured where a screen has finished"
+        ),
     )
 
     gaps_json = {g: gaps_all[g] for g in sorted(gaps_used) if g in gaps_all}
@@ -1753,6 +2008,7 @@ def build(args) -> dict:
     meta = dict(
         generated=datetime.now().strftime("%Y-%m-%d %H:%M"),
         dev_items=dev_items,
+        all_convs=ALL_CONVS,
         loc_ref=LOC_REF,
         opb_ref=OPB_REF,
         opb_base=OPB_BASE,
@@ -1949,7 +2205,37 @@ def main() -> None:
     ap.add_argument("--summary", default=str(HERE / "reports" / "forensics_summary.html"))
     ap.add_argument("--no-summary", action="store_true")
     ap.add_argument("--extra-screen", action="append", default=[])
+    ap.add_argument(
+        "--all-convs",
+        action="store_true",
+        help="all 10 LoCoMo conversations, cat 1-4 (held-out guard off)",
+    )
+    ap.add_argument(
+        "--loc-ref",
+        default=None,
+        help="baseline LoCoMo run id (default xb-loc-dev; full-persp-loc with --all-convs)",
+    )
+    ap.add_argument(
+        "--extra-run",
+        action="append",
+        default=[],
+        help="with --all-convs: a run id to compare (...-opb ids are OP-Bench)",
+    )
     args = ap.parse_args()
+    global ALL_CONVS, LOC_REF, SIZE_LIMIT
+    ALL_CONVS = bool(args.all_convs)
+    if ALL_CONVS:
+        SIZE_LIMIT = 400_000_000
+        LOC_REF = args.loc_ref or "full-persp-loc"
+        if not args.extra_run:
+            args.extra_run = [
+                "xb-loc-dev",
+                "qa-full-qs-eq06-fix",
+                "qa-full-qs-eq06-roff-fx",
+                "full-persp-opb",
+            ]
+    elif args.loc_ref:
+        LOC_REF = args.loc_ref
     out = Path(args.out)
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     assert_ignored(out)
@@ -2084,12 +2370,12 @@ function viewOverview() {
   const bl = D.base.loc, bo = D.base.opb;
   const runs = D.screens.filter(s => /RUNNING/.test(s.verdict)).length;
   let h = `<div class="cards">
-   <div class="card"><b>${f1(100 * bl.correct / bl.n)}%</b>LoCoMo dev cat 1-5<br><small>${bl.correct}/${bl.n}, ${bl.wrong} wrong</small></div>
-   <div class="card"><b>${f1(100 * bl.c14_correct / bl.c14_n)}%</b>LoCoMo cat 1-4<br><small>${bl.c14_correct}/${bl.c14_n} (target 89.6)</small></div>
+   <div class="card"><b>${f1(100 * bl.correct / bl.n)}%</b>LoCoMo ${M.all_convs ? 'all 10 conversations, cat 1-4' : 'dev cat 1-5'} (${esc(M.loc_ref)})<br><small>${bl.correct}/${bl.n}, ${bl.wrong} wrong</small></div>
+   <div class="card"><b>${f1(100 * bl.c14_correct / bl.c14_n)}%</b>LoCoMo cat 1-4<br><small>${bl.c14_correct}/${bl.c14_n} (lever sum ${f1(D.waterfall.target14)})</small></div>
    <div class="card"><b>${f1(bo.subs.official_overall)}</b>OP-Bench overall<br><small>${bo.n} probes, ${bo.low} below 0.5</small></div>
    <div class="card"><b>${f1((bo.base || {}).official_overall)}</b>no-memory BASE<br><small>${bo.base_low} below 0.5</small></div>
    <div class="card"><b>${D.screens.length}</b>screens<br><small>${runs} running / partial</small></div>
-   <div class="card"><b>${bl.errata_n}</b>errata-flagged dev q<br><small>${bl.errata_wrong} of them wrong</small></div></div>`;
+   <div class="card"><b>${bl.errata_n}</b>errata-flagged q<br><small>${bl.errata_wrong} of them wrong</small></div></div>`;
   /* baseline scores */
   h += '<h2>Baseline scores</h2><table><tr><th>LoCoMo slice</th><th class="n">n</th><th class="n">correct</th><th class="n">accuracy</th></tr>';
   bl.cats.forEach(c => h += `<tr><td>${c.name} (${c.c})</td><td class="n">${c.n}</td><td class="n">${c.k}</td><td class="n">${f1(100 * c.k / c.n)}</td></tr>`);
@@ -2293,6 +2579,8 @@ function step(d) { const n = S.cur + d; if (n >= 0 && n < S.list.length) { if (n
 document.addEventListener('keydown', e => { if (document.getElementById('detail').hidden) return; if (e.key === 'Escape') closeQ(); else if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return; else if (e.key === 'ArrowRight') step(1); else if (e.key === 'ArrowLeft') step(-1); });
 
 function turnInfo(conv, t) { return (D.tt[conv] || {})[t]; }
+const _ridCache = {};
+function ridMap(c) { if (!_ridCache[c]) { const o = {}; Object.entries((D.mem || {})[c] || {}).forEach(([t, m]) => { if (m.rid) o[m.rid] = t; }); _ridCache[c] = o; } return _ridCache[c]; }
 function lineText(conv, t) { const x = turnInfo(conv, t); if (!x) return `[${esc(t)}] (turn not in the dataset)`; return esc(x[2] || (x[0] + ': ' + x[1])); }
 function conv(q) { return q.it.split(':')[0]; }
 function memRec(c, t) { return (D.mem[c] || {})[t]; }
@@ -2413,11 +2701,21 @@ function readTimeline(q, rid) {
   // 1 query analysis
   { const [st, note] = cv('R1'); const xq = r.xf && r.xf.query_analysis;
     const flags = (qa.flags || []).map(f => `<span class="tag s">${esc(f)}</span>`).join('') || '<span class="mut">no shape flag set</span>';
-    h += stepBox('1. Query analysis', st, note, `<div><b>Question:</b> ${esc(q.q)}</div><div><b>Question date:</b> ${isLoc || q.b === 'opb' ? 'none (the dataset gives none; the reader prompt gets "unknown")' : ''}</div><div><b>Shape flags:</b> ${flags}</div><div><b>rule_read_mode:</b> ${esc(qa.rule_read_mode)} · <b>question_shape:</b> ${esc(qa.question_shape)} · <b>statement_form:</b> ${esc(qa.statement_form)} · <b>reader prompt route:</b> qa_shape=${esc(qa.qa_shape)}, generic_qa_shape=${esc(qa.generic_qa_shape)}</div><div><b>Planner / read mode (run config):</b> ${esc(info.read_mode)}${info.read_cfg && info.read_cfg.list_mode ? ' · list_mode=' + esc(JSON.stringify(info.read_cfg.list_mode)) : ''}</div><div><b>Resolved perspective (asker / about / targets):</b> ${r.xf && r.xf.perspective ? esc(JSON.stringify(r.xf.perspective)) : '<span class="mut">not logged in this run; fix: --trace-full (forensics trace_full.perspective)</span>'}</div><div><b>Entity check:</b> <span class="mut">not logged in this run; fix: --trace-full</span></div>`, true); }
+    const xflags = xq ? Object.entries(xq.flags || {}).filter(([n, v]) => v === true).map(([n]) => `<span class="tag s">${esc(n)}</span>`).join('') || '<span class="mut">no shape flag set</span>' : flags;
+    const pp = r.xf && r.xf.perspective;
+    let ptxt = '<span class="mut">not logged in this run; fix: --trace-full (forensics trace_full.perspective)</span>';
+    if (pp) {
+      const rid2turn = ridMap(c);
+      const fac = Object.entries(pp.factors || {}).map(([id, v]) => `${esc(rid2turn[id] || id.slice(0, 8))}: ${esc(Object.entries(v).map(([a, b]) => a + ' x' + b).join(', '))}`);
+      const facHtml = fac.length ? fac.map(x => `<span class="tag e">${x}</span>`).join('') : '<span class="mut">no candidate down-weighted</span>';
+      ptxt = `asker <b>${esc(pp.asker)}</b> · about <b>${esc(pp.about)}</b> · targets <b>${esc(JSON.stringify(pp.targets))}</b> · scope ${esc(pp.scope)} · negated ${esc(pp.negated)} · mode <b>${esc(pp.mode)}</b> · dropped ${(pp.dropped || []).length}<div><b>Candidates down-weighted by the subject factor</b> (turn: factor; 0.84 = the target speaks about someone else, 0.8 = unresolved third party, 0.6 = the turn is about another person): ${facHtml}</div>`;
+    }
+    const xsplit = xq && xq.split_intents && xq.split_intents.length ? `<div><b>Split intents (logged):</b> ${xq.split_intents.map(z => esc(z)).join(' | ')}</div>` : '';
+    h += stepBox('1. Query analysis', st, note, `<div><b>Question:</b> ${esc(q.q)}</div><div><b>Question date:</b> ${isLoc || q.b === 'opb' ? 'none (the dataset gives none; the reader prompt gets "unknown")' : ''}</div><div><b>Shape flags${xq ? ' (logged by the engine)' : ' (rule code run offline)'}:</b> ${xflags}</div><div><b>rule_read_mode:</b> ${esc((xq || qa).rule_read_mode)} · <b>question_shape:</b> ${esc((xq || qa).question_shape)} · <b>statement_form:</b> ${esc((xq || qa).statement_form)} · <b>reader prompt route:</b> qa_shape=${esc((xq || qa).qa_shape)}, generic_qa_shape=${esc((xq || qa).generic_qa_shape)}</div>${xsplit}<div><b>Planner / read mode (run config):</b> ${esc(info.read_mode)}${info.read_cfg && info.read_cfg.list_mode ? ' · list_mode=' + esc(JSON.stringify(info.read_cfg.list_mode)) : ''}</div><div><b>Resolved perspective (asker / about / targets):</b> ${ptxt}</div><div><b>Entity check (I60):</b> ${r.xf ? '<span class="mut">no entity note in the trace (read.entity_check is off in this config)</span>' : '<span class="mut">not logged in this run; fix: --trace-full</span>'}</div>`, true); }
   // 2 gates
   { const [st, note] = cv('R2'); let b = '';
-    if (r.dec) b += '<div><b>Decider decisions:</b> ' + r.dec.map(d => `${esc(d.task)} = <b>${esc(d.final || d.label)}</b> (${esc(d.adapter || '')}${d.confidence != null ? ', confidence ' + f1(d.confidence, 2) : ''}${d.used === false ? ', not used' : ''}, heuristic ${esc(d.heuristic)})`).join('; ') + '</div>'; else b += '<div class="mut">decider decisions: not logged in this run</div>';
-    b += '<div><b>I74 named-entity bypass:</b> ' + (r.rb ? (r.rb.fired ? '<b>FIRED</b>' : 'not fired') + ' (' + esc(r.rb.kind || r.rb.mode || '') + (r.rb.names ? ': ' + esc(r.rb.names.join(', ')) : '') + ')' : '<span class="mut">not logged in this run</span>') + '</div>';
+    if (!r.dec && r.xf) b += '<div class="mut">no decider task is configured in this run, so no decision exists to log</div>'; else if (r.dec) b += '<div><b>Decider decisions:</b> ' + r.dec.map(d => `${esc(d.task)} = <b>${esc(d.final || d.label)}</b> (${esc(d.adapter || '')}${d.confidence != null ? ', confidence ' + f1(d.confidence, 2) : ''}${d.used === false ? ', not used' : ''}, heuristic ${esc(d.heuristic)})`).join('; ') + '</div>'; else b += '<div class="mut">decider decisions: not logged in this run</div>';
+    b += '<div><b>I74 named-entity bypass:</b> ' + (r.rb ? (r.rb.fired ? '<b>FIRED</b>' : 'not fired') + ' (' + esc(r.rb.kind || r.rb.mode || '') + (r.rb.names ? ': ' + esc(r.rb.names.join(', ')) : '') + ')' : '<span class="mut">' + (r.xf ? 'not applicable: the relevance gate is off in this config' : 'not logged in this run') + '</span>') + '</div>';
     b += `<div><b>Relevance gate outcome:</b> ${r.ce || (isLoc ? false : (r.ct === 0)) ? '<b class="r">context EMPTY: the gate closed the read</b>' : 'context returned (' + (r.ctx ? r.ctx.length : '?') + ' lines)'}</div>`;
     if (r.fl && r.fl.length) b += '<div><b>Gates that touched this question:</b> ' + r.fl.map(x => `<span class="tag s">${esc(x)}</span>`).join('') + '</div>';
     h += stepBox('2. Gates and deciders', st, note, b); }
@@ -2433,7 +2731,9 @@ function readTimeline(q, rid) {
   { const [st, note] = cv('R6'); const fin = T ? T.fin.map(x => x[0]) : (r.fin || []); const ctxS = new Set(r.ctx || []); const cut = fin.filter(t => !ctxS.has(t));
     const tok = r.tok ?? r.ct; let b = `<div>final hits: <b>${fin.length || '?'}</b> · context lines: <b>${(r.ctx || []).length}</b> · context tokens: <b>${tok ?? '?'}</b> / budget <b>${info.budget ?? M.budgets[rid] ?? '?'}</b>${r.trunc ? ' · <b class="r">context truncated by the budget</b>' : ''}</div>`;
     b += `<div><b>Final hits cut before the reader:</b> ${cut.length ? cut.map(t => `<b>${esc(t)}</b>${goldSet(q).has(t) ? ' <b class="g">GOLD</b>' : ''}`).join(', ') + ' (reason not logged; floors in config: ' + esc(JSON.stringify((info.read_cfg || {}).assembly || {})) + ', rerank_floor=' + esc((info.read_cfg || {}).rerank_floor) + ')' : 'none (every final hit reached the context)'}</div>`;
-    b += `<div><b>Dedupe drops:</b> ${r.xf && r.xf.dedupe_dropped ? esc(JSON.stringify(r.xf.dedupe_dropped)) : '<span class="mut">not logged in this run; fix: --trace-full</span>'} · <b>abstain_on_raw:</b> ${r.xf && r.xf.abstain_on_raw ? esc(JSON.stringify(r.xf.abstain_on_raw)) : '<span class="mut">not logged</span>'} · <b>owner / entity notes:</b> <span class="mut">not logged</span></div>`;
+    const offtxt = r.xf ? '<span class="mut">none in the trace (feature off in this config)</span>' : '<span class="mut">not logged in this run; fix: --trace-full</span>';
+    b += `<div><b>Dedupe drops:</b> ${r.xf && r.xf.dedupe_dropped ? esc(JSON.stringify(r.xf.dedupe_dropped)) : offtxt} · <b>abstain_on_raw:</b> ${r.xf && r.xf.abstain_on_raw ? esc(JSON.stringify(r.xf.abstain_on_raw)) : offtxt} · <b>owner / entity notes:</b> ${offtxt}</div>`;
+    if (r.xf && r.xf.cuts) b += `<div class="mut">The engine logs only the cuts of the rerank step below. A candidate that was in a leg but ranked outside the fused pool (a fusion cut, the largest retrieval loss class) has no cut entry: read it from the gold rank table in steps 3-4.</div>`;
     if (r.xf && r.xf.assembled) b += `<div><b>Assembled (engine):</b> ${esc(JSON.stringify(r.xf.assembled))}</div>`;
     if (r.xf && r.xf.cuts) b += `<div><b>Every candidate the read dropped, with the reason (engine sink):</b></div>` + (r.xf.cuts.length ? '<table><tr><th>turn</th><th>reason</th><th>detail</th></tr>' + r.xf.cuts.map(z => { const { id, turn, reason, ...rest } = z; return `<tr class="${goldSet(q).has(turn) ? 'sel' : ''}"><td><b>${esc(turn)}</b> ${goldSet(q).has(turn) ? '<b class="g">GOLD</b>' : ''}</td><td>${esc(reason)}</td><td><small>${esc(JSON.stringify(rest))}</small></td></tr>`; }).join('') + '</table>' : '<div class="mut">nothing was dropped</div>');
     h += stepBox('6. Assembly: floors, budget cuts, dedupe, owner notes', st, note, b); }
@@ -2457,12 +2757,13 @@ function readTimeline(q, rid) {
     b += `<div><b>Post-steps (count-verify, date-repair, verify):</b> ${(info.post || []).length ? esc(info.post.join(', ')) + ' enabled; their model calls ' + (tf ? 'appear above' : 'are not separately logged') : 'not enabled in this run'}</div><div><b>Final answer:</b> ${esc(r.a)}</div>`;
     h += stepBox('10. Reader raw output, retry, post-steps', 'L', tf ? 'meta.trace_full' : 'answer and retry answers logged in the row; retry prompt reconstructed', b); }
   // 11 judge
-  { const jp = judgePrompt(q, rid, r.fa != null && r.ra === false ? r.fa : r.a); const tfj = r.tfl && r.tfl.judge; const st = tfj && tfj.length ? 'L' : (jp && jp.user ? 'R' : 'M'); let b = '';
+  { const jp = judgePrompt(q, rid, r.fa != null && r.ra === false ? r.fa : r.a); const tfj = r.tfl && r.tfl.judge; const guarded = r.tfl && r.tfl.vmeta && r.tfl.vmeta.guard && !(tfj && tfj.length); const st = tfj && tfj.length ? 'L' : (guarded ? 'L' : (jp && jp.user ? 'R' : 'M')); let b = '';
     if (tfj && tfj.length) b += tfj.map((x, i) => `<b>Judge call ${i + 1}: prompt</b>${x.system ? pre('[system] ' + x.system) : ''}${pre(x.prompt)}<b>raw reply</b>${pre(x.reply)}`).join('');
+    else if (guarded) b += `<div><b>No judge call was made for this row.</b> The verdict came from a deterministic guard before the judge (verdict meta): <b>${esc(JSON.stringify(r.tfl.vmeta))}</b>; the judge prompt below is not applicable.</div>`;
     else { if (jp && jp.user) b += `<div><b>Judge prompt</b> (${esc(jp.pid)}${jp.route ? ', route ' + esc(jp.route) : ''}; source ${esc(jp.source)})</div>${jp.system ? pre('[system] ' + jp.system) : ''}${pre(jp.user)}`; else b += `<div class="mut">${jp && jp.note ? esc(jp.note) : 'no judge prompt available'}</div>`; b += `<div><b>Raw judge reply (logged${typeof r.jr === 'string' && r.jr.length >= 200 ? ', cut at 200 chars' : ''}):</b> ${typeof r.jr === 'string' ? pre(r.jr) : '<span class="mut">not logged for this row</span>'}</div>`; }
     b += `<div><b>Verdict:</b> score ${r.sc ?? r.s ?? ''} → ${r.ok ? '<b class="ok">correct / pass</b>' : '<b class="bad">wrong / fail</b>'} · judge: ${esc(info.judge_id)}${info.judge_guards ? ' (guards on)' : ''}</div>`;
     if (isLoc) b += `<div><b>Date check:</b> ${r.sd != null ? 'recorded ' + r.sd : (r.od ? 'offline recompute: same day, would flip to correct' : 'offline recompute: no flip')} · <b>Judge conventions:</b> ${r.sv != null ? 'recorded ' + r.sv : (r.ov ? 'offline recompute: credited (' + esc(r.cv || '') + ')' : 'offline recompute: no credit')} · <b>Errata flags:</b> ${(q.errs || []).map(e => esc(e.tag)).join(', ') || (q.errc ? 'candidate: ' + esc(q.errc) : 'none')}</div>`;
-    h += stepBox('11. Judge: prompt, raw reply, verdict, date check, conventions, errata', st, tfj && tfj.length ? 'meta.trace_full' : 'prompt reconstructed from the suite template; reply as logged (cut at 200 chars); exact copy needs --trace-full', b); }
+    h += stepBox('11. Judge: prompt, raw reply, verdict, date check, conventions, errata', st, tfj && tfj.length ? 'meta.trace_full' : guarded ? 'reads.jsonl verdict meta: deterministic guard, no judge call' : 'prompt reconstructed from the suite template; reply as logged (cut at 200 chars); exact copy needs --trace-full', b); }
   // 12 final
   { h += stepBox('12. Final score', 'L', 'results.jsonl', `<div>${r.ok ? '<b class="ok">CORRECT</b>' : '<b class="bad">WRONG</b>'} · score ${r.sc ?? r.s ?? ''}${r.sd != null ? ' · date-checked ' + r.sd : ''} · answer ${esc(r.a)}</div><div class="mut">tokens: prompt ${r.pt ?? '?'}, completion ${r.cpt ?? '?'}, context ${r.tok ?? r.ct ?? '?'} · model calls ${r.mc ?? '?'} · latency ms retrieve/answer/judge ${r.lat ? r.lat.join(' / ') : '?'}</div>`); }
   return `<div class="timeline">${h}</div>`;
@@ -2572,7 +2873,7 @@ let TREE = null;
 function mkNode(label, test, parentTest) { const t = parentTest ? q => parentTest(q) && test(q) : test; const nd = {label, test: t, kids: [], leaf: false}; let n = 0, c = 0; D.q.forEach(q => { if (t(q)) { n++; if (q.ok) c++; } }); nd.n = n; nd.c = c; nd.w = n - c; return nd; }
 function buildTree() {
   const roots = [];
-  const L = mkNode('LoCoMo dev', q => q.b === 'loc');
+  const L = mkNode(M.all_convs ? 'LoCoMo all 10 conversations' : 'LoCoMo dev', q => q.b === 'loc');
   ['single-hop', 'multi-hop', 'temporal', 'open-domain', 'adversarial'].forEach(cat => {
     const cn = mkNode(cat + (cat === 'adversarial' ? ' (cat 5)' : ''), q => q.cat === cat, L.test);
     M.dev_items.forEach(cv => { const k = mkNode(cv, q => q.it === cv, cn.test); k.leaf = true; if (k.n) cn.kids.push(k); });
