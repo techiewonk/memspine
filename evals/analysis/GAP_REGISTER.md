@@ -134,7 +134,7 @@ Wrong in all 12 configurations screened on conv-26/30 (233 q). 4 are errata (0-5
 
 | ID | Gap | Evidence (dev, best config) | Solution options | Status |
 |---|---|---|---|---|
-| R2-1 | Bridge question needs a second hop | 0-11: hop 1 finds "moved from my home country"; "Sweden" sits in another turn linked only by "home country" (vector rank none) | second search seeded with key noun phrases of the first-hop hits (extend `second_round`, which seeds only names/dates); cap 1 extra hop | implemented (`read.bridge_hop`; phrases recorded in forensics as `bridge_phrases`); screen queued |
+| R2-1 | Bridge question needs a second hop | 0-11: hop 1 finds "moved from my home country"; "Sweden" sits in another turn linked only by "home country" (vector rank none) | second search seeded with key noun phrases of the first-hop hits (extend `second_round`, which seeds only names/dates); cap 1 extra hop | **screened - not adopted as built.** 233 dev q: 87.6% vs 88.4% (+5/-7, within noise), search 10.8 s vs 4.7 s per question (~3x). Works on the target: 0-11 bridge leg ranks gold D3:13 + D4:3 at 1-2, answer gains "Sweden". But the hop fires on all 233 questions; losses are reader drift (counts, months) on questions that need no hop. Next: R2-1b gate the hop (multi-hop cue or weak first-pass top score) and re-screen |
 | R2-2 | Comparison questions about two people ("both", "in common") | 1-3: 0 of 4 gold turns retrieved; each person's facts are separate | for both/in-common questions run the speaker vote once per named person and fuse | implemented; fresh best-config re-run r2-best = 88.4%, identical answers to f7-list-i2 (+0/-0): no change on conv-26/30, reference reproduces exactly |
 | R2-3 | List-mode trigger misses "How did X <verb> ..." multi-item questions | 1-23 (4 gold turns, trigger did not fire) | widen `is_set_question` to how-did/how-has questions with plural objects; measure trigger precision on all 1,540 questions | **DONE - neutral, not adopted.** 233 dev q: fired on 41 vs 32 questions, context changed on all 9 extra, score 88.4% = reference (+0/-0). The 9: 7 already right, 0-70 (evidence-label erratum) and 1-23 (gold turn never retrieved, a recall gap) stay wrong. Kept as an opt-in value |
 | R2-4 | Reader picks a wrong line although the gold line is hit #1 | 1-20, 1-48 (gold rank 1, in context) | option to present the top hits first, then neighbours (chronological within each block); `*` markers alone were neutral (C1) | **DONE - rejected.** 233 dev q vs fresh reference r2-best (88.4%): hits_first 86.7% (+12/-16), hit_blocks 85.4% (+11/-18; temporal 87.3 vs 95.2). Chronological order stays. |
@@ -142,6 +142,9 @@ Wrong in all 12 configurations screened on conv-26/30 (233 q). 4 are errata (0-5
 | R2-6 | Open-domain inference refused | 0-22, 0-59 | profile/inference memory (B3); prompt rules failed (C3) | open |
 
 ## Progress log
+
+**2026-10-10 10:20**
+- R2-1 bridge hop: 87.6% vs 88.4% (+5/-7), 3x search cost, fires on every question; fixes stable failure 0-11. Not adopted; gated variant R2-1b proposed. wide+bridge screen running.
 
 **2026-10-10 09:25**
 - R2-3 wide trigger neutral (+0/-0; fires on 9 more questions, no flips). Not adopted. Bridge screens running.
