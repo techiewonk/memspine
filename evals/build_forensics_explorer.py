@@ -71,7 +71,8 @@ STAGE_NAME = {
 }
 FUNNEL_ORDER = ["recall", "fusion", "rerank", "gate", "assembly"]
 OPB_PASS = 0.5  # a probe "fails" below 0.5, the rule of the failure catalogue
-SIZE_LIMIT = 15_000_000
+SIZE_LIMIT = 40_000_000
+LEG_CAP = 30
 
 SCREEN_DESC = {
     "r3-relgate": "relevance gate with OpenDecider yes/no (I29/I37): empty context for off-topic requests",
@@ -380,8 +381,23 @@ def fx_compact(x: dict, gold: list[str]) -> dict:
     if g:
         sev = [r[9] for r in g if r[9] in FUNNEL_ORDER]
         fs = min(sev, key=FUNNEL_ORDER.index) if sev else "ok"
+
+    def lst(seq, key="score"):
+        return [[e["turn"], round(e.get(key, 0), 3)] for e in (seq or [])[:LEG_CAP]]
+
+    tr = dict(
+        v=lst(x.get("vector")),
+        l=lst(x.get("lexical")),
+        x={n: lst(m) for n, m in (x.get("extra_legs") or {}).items() if m},
+        f=lst(x.get("fused")),
+        p=[[e["turn"], round(e["score"], 3)] for e in rs],
+        fin=lst(x.get("final")),
+        pr=x.get("reranker"),
+    )
     return dict(
         g=g,
+        tr=tr,
+        tok=x.get("context_tokens"),
         fs=fs,
         ce=not ctx,
         ctx=ctx,
@@ -405,6 +421,32 @@ def load_fx(
         out[key] = fx_compact(x, gold_by_key.get(key, []))
         for c in x.get("context_records") or []:
             ann_seen.setdefault((x["item"], c["turn"]), c["text"])
+    return out
+
+
+INGEST_KNOWN = {
+    "run_id", "item", "turn", "session", "speaker", "source_timestamp", "source_text", "written",
+    "record_id", "stored_text", "text_identical", "valid_from", "memory_type", "group_id",
+    "session_id", "batch_size", "quarantined", "trust", "status",
+}  # fmt: skip
+
+
+def load_ingest(run: str) -> dict[str, dict]:
+    """Write side per turn: what the engine stored for it (ingest.jsonl)."""
+    out: dict[str, dict] = {}
+    for x in jl(RUNS / f"{run}--forensics" / "ingest.jsonl"):
+        check_heldout([x], run + " ingest")
+        rec = clean(
+            dict(
+                w=x.get("written"), q=x.get("quarantined"), tr=x.get("trust"),
+                vf=x.get("valid_from"), mt=x.get("memory_type"), g=x.get("group_id"),
+                rid=x.get("record_id"), st=x.get("status"), ti=x.get("text_identical"),
+                stx=None if x.get("text_identical") else x.get("stored_text"),
+                bs=x.get("batch_size"),
+                ex={k: v for k, v in x.items() if k not in INGEST_KNOWN} or None,
+            )
+        )  # fmt: skip
+        out[f"{x['item']}|{x['turn']}"] = rec
     return out
 
 
@@ -485,6 +527,26 @@ def build(args) -> dict:
         t = tt.get(conv, {}).get(turn)
         if t and text != f"{t[0]}: {t[1]}":
             t[2] = text
+
+    # write side: what the engine stored per turn (baseline stage log); screens compared for drift
+    ing = {LOC_REF: load_ingest(LOC_REF)}
+    for sid in screens:
+        r = sruns[sid]["loc"]
+        if r:
+            ing[r["id"]] = load_ingest(r["id"])
+    mem: dict[str, dict] = {}
+    for key, rec in ing[LOC_REF].items():
+        conv_id, turn = key.split("|", 1)
+        mem.setdefault(conv_id, {})[turn] = rec
+    ingest_diff = {}
+    for rid, rows in ing.items():
+        if rid == LOC_REF or not rows:
+            continue
+        ingest_diff[rid] = sum(
+            1
+            for k, v in rows.items()
+            if any(v.get(f) != ing[LOC_REF].get(k, {}).get(f) for f in ("w", "q", "stx", "vf"))
+        )
 
     loc_ids = [LOC_REF] + [sruns[s]["loc"]["id"] for s in screens if sruns[s]["loc"]]
     opb_ids = [OPB_BASE, OPB_REF] + [sruns[s]["opb"]["id"] for s in screens if sruns[s]["opb"]]
@@ -1039,6 +1101,8 @@ def build(args) -> dict:
                     rb=f["rb"],
                     mx=f["mx"],
                     ce=int(f["ce"]),
+                    tr=f["tr"],
+                    tok=f["tok"],
                 )
             rec["fl"] = gate_flags[rid].get(k) or None
             rr[rid] = clean({kk: v for kk, v in rec.items() if v not in ([],) and v is not False})
@@ -1260,6 +1324,15 @@ def build(args) -> dict:
         "OP-Bench runs have no --forensics stage log: context is rebuilt from retrieved_ids and the dataset (no legs, no ranks, no date annotations); persona share is computed from the persona turn ids"
     )
     data_gaps.append(
+        "Write side: ingest.jsonl exists only for LoCoMo runs; the memory view shows the baseline's stored records "
+        "(OP-Bench runs write the same conversation but keep no ingest log, so OP-Bench uses the same records). "
+        "Tags such as perspective or sensitivity appear only where an ingest row carries extra keys (none do today)."
+    )
+    data_gaps.append(
+        "Retrieval trace lists are capped at the top 30 per leg (gold-turn ranks beyond 30 are still recorded in the rank table); "
+        "the replay window expansion is not logged as such, it is inferred as context turns that are not in the final hit list"
+    )
+    data_gaps.append(
         "Retry-refusal fields (first_answer, retry_accepted) exist only for questions where the retry fired and only for runs with retry enabled"
     )
     data_gaps.append(
@@ -1286,6 +1359,12 @@ def build(args) -> dict:
         screen_ids_loc=screens_loc,
         screen_ids_opb=screens_opb,
         data_gaps=data_gaps,
+        budgets={
+            rid: ((r.get("manifest") or {}).get("protocol") or {}).get("budget_tokens")
+            for rid, r in list(loc_runs.items()) + list(opb_runs.items())
+        },
+        ingest_diff=ingest_diff,
+        leg_cap=LEG_CAP,
         stages=STAGE_NAME,
         gap_note="Gap-row text is from analysis/GAP_REGISTER.md (the repo's own text, not dataset text).",
         licence="CONTAINS DATASET TEXT (LoCoMo, OP-Bench). OP-Bench has no licence: local use only, do not share or commit.",
@@ -1299,6 +1378,7 @@ def build(args) -> dict:
         opmatrix=opmatrix,
         gates=dict(rows=gate_rows, loc_runs=meta["screens_loc"], opb_runs=meta["screens_opb"]),
         funnel=funnel,
+        mem=mem,
         waterfall=waterfall,
         gaps=gaps_json,
         tt=tt,
@@ -1321,28 +1401,8 @@ def assert_ignored(path: Path) -> None:
         raise SystemExit(f"{path} is not git-ignored; refusing to write dataset text there")
 
 
-def maybe_truncate(data: dict) -> tuple[dict, dict | None]:
-    """Over the size limit: cut long dialogue lines to 300 chars, keep the tails in a lazily parsed blob."""
-    if len(dumps(data)) <= SIZE_LIMIT:
-        return data, None
-    tails = {}
-    for conv, turns in data["tt"].items():
-        for tid, t in turns.items():
-            for idx in (1, 2):
-                if t[idx] and len(t[idx]) > 300:
-                    tails[f"{conv}|{tid}|{idx}"] = t[idx][300:]
-                    t[idx] = t[idx][:300]
-    for q in data["q"]:
-        for rid, r in q["r"].items():
-            if len(r.get("a", "")) > 1500:
-                tails[f"a|{q['k']}|{rid}"] = r["a"][1500:]
-                r["a"] = r["a"][:1500]
-    data["meta"]["truncated"] = True
-    return data, tails
-
-
-def render(data: dict, tails: dict | None) -> str:
-    return EXPLORER_HTML.replace("__DATA__", dumps(data)).replace("__TAILS__", dumps(tails or {}))
+def render(data: dict) -> str:
+    return EXPLORER_HTML.replace("__DATA__", dumps(data))
 
 
 def summary_html(data: dict) -> str:
@@ -1483,8 +1543,22 @@ def main() -> None:
     summary = None if args.no_summary else summary_html(data)
     if summary:
         verify_text_free(summary, data)
-    data, tails = maybe_truncate(data)
-    page = render(data, tails)
+    page = render(data)
+    if len(page.encode("utf-8")) > SIZE_LIMIT:
+        # too big for one file: one explorer per benchmark plus an index page
+        parts = {}
+        for bench, label in (("loc", "LoCoMo"), ("opb", "OP-Bench")):
+            sub = dict(data, q=[q for q in data["q"] if q["b"] == bench])
+            fp = out.with_name(f"{out.stem}_{bench}.html")
+            fp.write_text(render(sub), encoding="utf-8")
+            parts[label] = fp
+            print(f"explorer part: {fp} ({fp.stat().st_size / 1e6:.2f} MB)")
+        links = "".join(f'<li><a href="{p.name}">{n}</a></li>' for n, p in parts.items())
+        page = (
+            "<!doctype html><meta charset='utf-8'><title>Forensics explorer index</title>"
+            "<body style='font:14px system-ui;margin:24px'><h2>Forensics explorer (LOCAL, dataset text)</h2>"
+            f"<ul>{links}</ul></body>"
+        )
     out.write_text(page, encoding="utf-8")
     print(f"explorer: {out} ({out.stat().st_size / 1e6:.2f} MB)")
     print(
@@ -1552,6 +1626,8 @@ tr.row{cursor:pointer}tr.row:hover td{background:#eef4ff}tr.sel td{background:#f
 .ctx b.id{color:#555;font-weight:600}
 .btn{border:1px solid var(--bd);background:#fff;border-radius:4px;padding:2px 8px;cursor:pointer;font:inherit}.btn:hover{background:var(--b)}
 .legend span{margin-right:12px;white-space:nowrap}.legend i{display:inline-block;width:11px;height:12px;vertical-align:-2px;margin-right:3px;border-radius:2px}
+.qlay{display:flex;gap:12px;align-items:flex-start}.side{flex:0 0 310px;position:sticky;top:42px;max-height:calc(100vh - 50px);overflow:auto;background:#fff;border:1px solid var(--bd);border-radius:6px;padding:6px 8px;font-size:12px}.qmain{flex:1;min-width:0}.side details{margin-left:10px}.side summary{cursor:pointer;padding:1px 0}.tl{cursor:pointer}.tl:hover{background:#eef4ff}.tl.on{background:#ffe9a8;font-weight:600}.tleaf{margin-left:14px}.leaves{margin-left:10px;line-height:1.8}.leaves a{font-size:11px;text-decoration:none;margin-right:2px}
+table.trace td{min-width:170px;max-width:240px;font-size:11px}table.trace td.gold{background:#c9f0d2}table.trace td.dist{background:#ffe0b5}table.trace td.gp{background:#f4faf5}.runsel{font-weight:600}tr.sel td{background:#fff6d6}
 .warn{background:#fff3cd;border:1px solid #e6cf7a;padding:6px 10px;border-radius:4px;margin:8px 0}
 svg text{font:11px system-ui,sans-serif}
 </style></head><body>
@@ -1560,12 +1636,9 @@ svg text{font:11px system-ui,sans-serif}
 <main id="view"></main>
 <aside id="detail" hidden></aside>
 <script id="data" type="application/json">__DATA__</script>
-<script id="tails" type="application/json">__TAILS__</script>
 <script>
 "use strict";
 const D = JSON.parse(document.getElementById('data').textContent);
-let TAILS = null;
-const tails = () => TAILS || (TAILS = JSON.parse(document.getElementById('tails').textContent));
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const f1 = (x, d = 1) => x == null ? '-' : Number(x).toFixed(d);
 const sg = (x, d = 1) => x == null ? '-' : (x > 0 ? '+' : '') + Number(x).toFixed(d);
@@ -1578,15 +1651,16 @@ const STAGE = M.stages;
 const OUTNAME = {F: 'fixed', B: 'broke', R: 'same-right', W: 'same-wrong', '-': 'not in screen / not run'};
 
 /* ------------------------------------------------------------------ state */
-const S = {tab: 'overview', f: {bench: '', cat: '', base: '', stage: '', code: '', gap: '', screen: '', flip: '', errata: false, text: '', gate: null}, shown: 200, list: [], cur: -1};
+const S = {tab: 'overview', f: {bench: '', cat: '', base: '', stage: '', code: '', gap: '', screen: '', flip: '', errata: false, text: '', gate: null}, shown: 200, list: [], cur: -1, node: null, open: {}, run: '', mem: null, memScroll: null};
 
 function setTab(t) { S.tab = t; render(); window.scrollTo(0, 0); }
 function render() {
-  document.getElementById('tabs').innerHTML = [['overview', 'Overview'], ['matrix', 'Failure matrix'], ['gates', 'Which gate breaks it'], ['questions', 'Questions'], ['gaps', 'Data gaps']]
+  document.getElementById('tabs').innerHTML = [['overview', 'Overview'], ['matrix', 'Failure matrix'], ['gates', 'Which gate breaks it'], ['questions', 'Questions'], ['memory', 'Memory added (write side)'], ['gaps', 'Data gaps']]
     .map(([k, l]) => `<button class="${S.tab === k ? 'on' : ''}" onclick="setTab('${k}')">${l}</button>`).join('');
   const v = document.getElementById('view');
-  v.innerHTML = ({overview: viewOverview, matrix: viewMatrix, gates: viewGates, questions: viewQuestions, gaps: viewGaps})[S.tab]();
+  v.innerHTML = ({overview: viewOverview, matrix: viewMatrix, gates: viewGates, questions: viewQuestions, memory: viewMemory, gaps: viewGaps})[S.tab]();
   if (S.tab === 'questions') fillTable();
+  if (S.tab === 'memory' && S.memScroll) { const e = document.getElementById(S.memScroll); if (e) e.scrollIntoView({block: 'center'}); S.memScroll = null; }
 }
 
 /* ------------------------------------------------------------------ overview */
@@ -1678,7 +1752,7 @@ function viewWaterfall() {
 }
 
 /* ------------------------------------------------------------------ matrix */
-function goQ(f) { S.f = Object.assign({bench: '', cat: '', base: '', stage: '', code: '', gap: '', screen: '', flip: '', errata: false, text: '', gate: null}, f); S.shown = 200; setTab('questions'); }
+function goQ(f) { S.node = null; S.f = Object.assign({bench: '', cat: '', base: '', stage: '', code: '', gap: '', screen: '', flip: '', errata: false, text: '', gate: null}, f); S.shown = 200; setTab('questions'); }
 function viewMatrix() {
   const X = D.matrix; let h = '<h2>LoCoMo: failure stage x category (baseline, wrong answers)</h2><div class="mut">Click any count to filter the question table. Stage codes: ' + Object.values(STAGE).join('; ') + '. Row labels are the sub-types of the failure catalogue (evals/analysis/catalogue/locomo_dev_failures.jsonl).</div>';
   h += '<table><tr><th>stage</th><th>code</th><th>sub-type</th>' + X.cats.map(c => `<th class="n">${c.name}<br><small>${c.wrong} wrong / ${c.n}</small></th>`).join('') + '<th class="n">total</th></tr>';
@@ -1736,7 +1810,7 @@ function viewQuestions() {
   const stages = Object.keys(STAGE).concat(['x']);
   const codes = [...new Set(D.q.filter(q => q.code).map(q => q.code))].sort();
   const gaps = [...new Set(D.q.flatMap(q => q.gaps || []))].sort();
-  let h = `<h2>Questions</h2><div class="legend mut"><span><i class="oF"></i>fixed</span><span><i class="oB"></i>broke</span><span><i class="oR"></i>same-right</span><span><i class="oW"></i>same-wrong</span><span><i class="o-"></i>not in screen / not run</span>
+  let h = `<div class="qlay"><aside class="side"><b>Sections</b> <small class="mut">n  &#10003;correct  &#10007;wrong (baseline). Click a name to filter, the arrow to expand; expanding a conversation / persona lists its questions.</small>${treeHtml()}</aside><div class="qmain"><h2>Questions</h2><div class="legend mut"><span><i class="oF"></i>fixed</span><span><i class="oB"></i>broke</span><span><i class="oR"></i>same-right</span><span><i class="oW"></i>same-wrong</span><span><i class="o-"></i>not in screen / not run</span>
    <br>strip LoCoMo: ${M.screen_ids_loc.map((s, i) => `${i + 1}=${esc(s)}`).join(' &nbsp;')} <br>strip OP-Bench: ${M.screen_ids_opb.map((s, i) => `${i + 1}=${esc(s)}`).join(' &nbsp;')}</div>`;
   h += `<div class="flt">
    <label>benchmark<select onchange="S.f.bench=this.value;redo()">${opts(['loc', 'opb'], f.bench, 'all')}</select></label>
@@ -1750,12 +1824,13 @@ function viewQuestions() {
    <label>errata<select onchange="S.f.errata=this.value==='1';redo()"><option value="">all</option><option value="1" ${f.errata ? 'selected' : ''}>flagged only</option></select></label>
    <label>search id / question / gold / answer<input type="text" size="26" value="${esc(f.text)}" oninput="S.f.text=this.value;clearTimeout(window._t);window._t=setTimeout(redo,250)"></label>
    ${f.gate ? `<label>gate filter<span class="tag s">${esc(f.gate.id)} in ${esc(f.gate.run)} <a href="#" onclick="S.f.gate=null;redo();return false">x</a></span></label>` : ''}
-   <button class="btn" onclick="goQ({})">reset</button> <b id="cnt"></b></div>
-   <table id="qt"><thead><tr><th>id</th><th>bench</th><th>category / type</th><th>base</th><th>stage / sub-type</th><th>gaps</th><th>proposed generic fix</th><th>screens</th><th>flags</th></tr></thead><tbody></tbody></table><button class="btn" id="more" onclick="S.shown+=300;fillTable()">show more</button>`;
+   <button class="btn" onclick="goQ({})">reset</button> ${S.node ? '<span class="tag s">section: ' + esc(NODES[S.node].label) + '</span>' : ''} <b id="cnt"></b></div>
+   <table id="qt"><thead><tr><th>id</th><th>bench</th><th>category / type</th><th>base</th><th>stage / sub-type</th><th>gaps</th><th>proposed generic fix</th><th>screens</th><th>flags</th></tr></thead><tbody></tbody></table><button class="btn" id="more" onclick="S.shown+=300;fillTable()">show more</button></div></div>`;
   return h;
 }
 function redo() { S.shown = 200; const y = window.scrollY; render(); window.scrollTo(0, y); }
 function matchQ(q, f) {
+  if (S.node && !NODES[S.node].test(q)) return false;
   if (f.bench && q.b !== f.bench) return false;
   if (f.cat && q.cat !== f.cat) return false;
   if (f.base === 'wrong' && q.ok) return false;
@@ -1795,42 +1870,47 @@ function fillTable() {
 
 /* ------------------------------------------------------------------ detail */
 function openQ(n) { S.cur = n; const q = D.q[S.list[n]]; const el = document.getElementById('detail'); el.hidden = false; el.innerHTML = detail(q, n); el.scrollTop = 0; }
+function rerenderDetail() { const el = document.getElementById('detail'); const st = el.scrollTop; el.innerHTML = detail(D.q[S.list[S.cur]], S.cur); el.scrollTop = st; }
+function setRun(v) { S.run = v; rerenderDetail(); }
+function openKey(b, k) { const qi = QI[b + '|' + k]; S.list = [qi]; S.cur = 0; openQ(0); }
 function closeQ() { document.getElementById('detail').hidden = true; }
 function step(d) { const n = S.cur + d; if (n >= 0 && n < S.list.length) { if (n >= S.shown) { S.shown = n + 50; fillTable(); } openQ(n); } }
 document.addEventListener('keydown', e => { if (document.getElementById('detail').hidden) return; if (e.key === 'Escape') closeQ(); else if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return; else if (e.key === 'ArrowRight') step(1); else if (e.key === 'ArrowLeft') step(-1); });
 
 function turnInfo(conv, t) { return (D.tt[conv] || {})[t]; }
-function lineText(conv, t, tailKey) {
-  const x = turnInfo(conv, t); if (!x) return `[${esc(t)}] (turn not in the dataset)`;
-  const txt = x[2] || (x[0] + ': ' + x[1]);
-  if (M.truncated && txt.length >= 300) { const k = conv + '|' + t + '|' + (x[2] ? 2 : 1); if (tails()[k]) return esc(txt) + `<a href="#" onclick="this.outerHTML=esc(tails()['${k}']);return false"> …[expand]</a>`; }
-  return esc(txt);
-}
-function ansTxt(q, rid, a) { if (M.truncated && a && a.length >= 1500) { const k = 'a|' + q.k + '|' + rid; if (tails()[k]) return esc(a) + `<a href="#" onclick="this.outerHTML=esc(tails()['${k}']);return false"> …[expand]</a>`; } return esc(a); }
+function lineText(conv, t) { const x = turnInfo(conv, t); if (!x) return `[${esc(t)}] (turn not in the dataset)`; return esc(x[2] || (x[0] + ': ' + x[1])); }
 function conv(q) { return q.it.split(':')[0]; }
-function fmtRank(g) { return g ? [g[1] == null ? '-' : g[1], g[2] == null ? '-' : g[2]] : ['-', '-']; }
-
-function narrate(q) {
-  if (q.b !== 'loc') return '';
-  const base = q.r[M.loc_ref] || {}; const g = base.g || []; const out = [];
+function memRec(c, t) { return (D.mem[c] || {})[t]; }
+function memBadge(c, t) {
+  const m = memRec(c, t); if (!m) return '<small class="mut">(no write record)</small>';
+  const p = [m.w === false ? '<b class="r">NOT WRITTEN</b>' : 'stored', m.q ? '<b class="r">QUARANTINED</b>' : null, m.mt, m.tr != null ? 'trust ' + m.tr : null, m.st, m.stx ? '<b class="o">text altered</b>' : null].filter(Boolean);
+  return `<small class="mut">${p.join(' · ')}</small>`;
+}
+function turnNo(t) { const m = /^D(\d+):(\d+)$/.exec(t); return m ? [+m[1], +m[2]] : null; }
+function anchorOf(t, fin) { const a = turnNo(t); if (!a) return null; let best = null, bd = 1e9; fin.forEach(f => { const b = turnNo(f); if (b && b[0] === a[0]) { const d = Math.abs(b[1] - a[1]); if (d < bd) { bd = d; best = f; } } }); return best; }
+function goldSet(q) { return new Set(q.ev || []); }
+function narrateRun(q, rid) {
+  const r = q.r[rid] || {}; const g = r.g || []; const out = [];
   g.forEach(x => {
-    const [t, v, l, xr, f, rr, rs, fin, c, lost] = x;
-    let s = `gold ${t}: ` + ({ok: 'reached the context', rescued: 'lost by the search but rescued into the context by neighbour expansion', recall: 'returned by NO leg (recall): vector rank ' + (v ?? 'none') + ', lexical ' + (l ?? 'none'), fusion: 'in a leg (vector ' + (v ?? 'none') + ', lexical ' + (l ?? 'none') + (xr ? ', extra ' + JSON.stringify(xr) : '') + ') but outside the fused pool', rerank: `in the reranker pool (fused ${f}) but demoted out of the final list (rerank rank ${rr ?? '-'}, score ${rs == null ? '-' : f1(rs, 3)})`, gate: `in the final list (rank ${fin}) but a gate returned an empty context`, assembly: `in the final list (rank ${fin}) but cut before the context (budget/floor)`}[lost] || lost);
-    out.push(s);
+    const [t, v, lx, xr, f, rr, rs, fin, c, lost] = x;
+    out.push(`gold ${t}: ` + ({ok: 'reached the context', rescued: 'lost by the search but rescued into the context by neighbour expansion', recall: 'returned by NO leg (recall): vector rank ' + (v ?? 'none') + ', lexical ' + (lx ?? 'none'), fusion: 'in a leg (vector ' + (v ?? 'none') + ', lexical ' + (lx ?? 'none') + (xr ? ', extra ' + JSON.stringify(xr) : '') + ') but outside the fused pool', rerank: `in the reranker pool (fused ${f}) but demoted out of the final list (rerank rank ${rr ?? '-'}, score ${rs == null ? '-' : f1(rs, 3)})`, gate: `in the final list (rank ${fin}) but a gate returned an empty context`, assembly: `in the final list (rank ${fin}) but cut before the context (budget/floor)`}[lost] || lost));
   });
-  if (q.ok) return out.join('; ') || 'answered correctly';
-  if (q.st === 'd' || q.st === 'e') out.push(q.st === 'd' ? 'all answer-bearing turns reached the context, so the break is in the reader: ' + (q.sub || '') : 'right under the judge conventions: ' + (q.sub || ''));
-  if (q.st === 'f') out.push('dataset/gold error: ' + (q.sub || ''));
   return out.join('; ');
 }
+function narrate(q) {
+  if (q.b !== 'loc') return '';
+  const base = narrateRun(q, M.loc_ref); const out = [base];
+  if (!q.ok) { if (q.st === 'd') out.push('all answer-bearing turns reached the context, so the break is in the reader: ' + (q.sub || '')); if (q.st === 'e') out.push('right under the judge conventions: ' + (q.sub || '')); if (q.st === 'f') out.push('dataset/gold error: ' + (q.sub || '')); }
+  return out.filter(Boolean).join('; ') || (q.ok ? 'answered correctly' : '');
+}
 
-function answersTable(q, runs) {
+function answersTable(q, runs, sel) {
   const base = q.r[runs[0]] || {};
   let h = '<table><tr><th>run</th><th>result</th><th>answer</th><th>judge</th><th>date-check</th><th>conventions</th><th>retry</th></tr>';
   runs.forEach((rid, i) => {
     const r = q.r[rid]; if (!r) return;
     const isb = i === 0; const o = isb ? '' : (r.ok && !base.ok ? 'fixed' : base.ok && !r.ok ? 'broke' : r.ok ? 'same-right' : 'same-wrong');
-    h += `<tr><td>${esc(rid)}</td><td class="${r.ok ? 'ok' : 'bad'}">${r.ok ? '&#10003;' : '&#10007;'} <small>${o}</small></td><td>${ansTxt(q, rid, r.a)}</td><td><small>${esc(typeof r.jr === 'string' ? r.jr : '')} score=${r.sc ?? ''}</small></td>`;
+    h += `<tr class="${rid === sel ? 'sel' : ''}"><td>${esc(rid)}</td><td class="${r.ok ? 'ok' : 'bad'}">${r.ok ? '&#10003;' : '&#10007;'} <small>${o}</small></td><td>${esc(r.a)}</td><td><small>${esc(typeof r.jr === 'string' ? r.jr : '')} score=${r.sc ?? ''}</small></td>`;
     h += `<td><small>${r.sd != null ? 'recorded ' + r.sd : (r.od ? 'offline: same day, would flip to correct' : 'offline: no flip')}</small></td>`;
     h += `<td><small>${r.sv != null ? 'recorded ' + r.sv : (r.ov ? 'offline: credited, ' + esc(r.cv || '') : 'offline: no credit')}</small></td>`;
     h += `<td><small>${r.rt === true || r.fa != null ? 'retry fired' + (r.ra != null ? ', accepted=' + r.ra : '') + (r.fa ? '; first answer: ' + esc(r.fa) : '') : ''}</small></td></tr>`;
@@ -1839,69 +1919,198 @@ function answersTable(q, runs) {
 }
 function ranksTable(q, runs) {
   let rows = '';
-  runs.forEach(rid => { const r = q.r[rid]; if (!r || !r.g) return; r.g.forEach(g => { rows += `<tr><td>${esc(rid)}</td><td>${esc(g[0])}</td><td class="n">${g[1] ?? '-'}</td><td class="n">${g[2] ?? '-'}</td><td>${g[3] ? esc(Object.entries(g[3]).map(([k, v]) => k + ' ' + v).join(', ')) : '-'}</td><td class="n">${g[4] ?? '-'}</td><td class="n">${g[5] ?? '-'}${g[6] != null ? ' <small>(' + f1(g[6], 3) + ')</small>' : ''}</td><td class="n">${g[7] ?? '-'}</td><td>${g[8] ? 'yes' : '<b class="r">no</b>'}</td><td>${esc(g[9])}</td></tr>`; }); });
+  runs.forEach(rid => { const r = q.r[rid]; if (!r || !r.g) return; r.g.forEach(g => { rows += `<tr><td>${esc(rid)}</td><td><b class="g">GOLD</b> ${esc(g[0])}</td><td class="n">${g[1] ?? '-'}</td><td class="n">${g[2] ?? '-'}</td><td>${g[3] ? esc(Object.entries(g[3]).map(([k, v]) => k + ' ' + v).join(', ')) : '-'}</td><td class="n">${g[4] ?? '-'}</td><td class="n">${g[5] ?? '-'}${g[6] != null ? ' <small>(' + f1(g[6], 3) + ')</small>' : ''}</td><td class="n">${g[7] ?? '-'}</td><td>${g[8] ? 'yes' : '<b class="r">no</b>'}</td><td>${esc(g[9])}</td></tr>`; }); });
   if (!rows) return '<div class="nl" style="padding:4px">no gold turns (cat 5) or no forensics stage log for these runs</div>';
   return '<table><tr><th>run</th><th>gold turn</th><th>vector rank</th><th>lexical rank</th><th>extra legs</th><th>fused rank</th><th>rerank rank (score)</th><th>final rank</th><th>in context</th><th>lost at</th></tr>' + rows + '</table>';
 }
-function ctxBlock(q, rid, mode) {
-  const r = q.r[rid]; if (!r || !r.ctx) return '<div class="nl" style="padding:4px">no context recorded for this run</div>';
-  const c = conv(q), gold = new Set(q.ev || []), dist = new Set(q.dv || []), fin = r.fin || [];
-  let h = `<div class="ctx">`;
-  const persona = q.persona;
-  let np = 0;
-  r.ctx.forEach((t, i) => {
-    const x = turnInfo(c, t); const isg = gold.has(t), isd = dist.has(t), isp = persona && x && x[0] === persona; if (isp) np++;
-    const fr = fin.indexOf(t);
-    h += `<div class="${isg ? 'gold' : isd ? 'dist' : isp ? 'pers' : ''}"><b class="id">${esc(t)}</b> ${isg ? '<b class="g">[GOLD]</b> ' : ''}${isd ? '<b class="o">[distractor source]</b> ' : ''}${isp ? '<b>[persona]</b> ' : ''}${fr >= 0 ? `<small>(final #${fr + 1})</small> ` : ''}${lineText(c, t)}</div>`;
+
+/* retrieval trace: every leg side by side, gold marked, exact gold position per leg */
+function traceBlock(q, rid) {
+  const r = q.r[rid];
+  if (!r || !r.tr) return `<div class="nl" style="padding:6px">No stage log for ${esc(rid)}${q.b === 'opb' ? ' (OP-Bench runs keep no forensics rows: only the retrieved ids below)' : ' (this run predates the forensics logging)'}.</div>`;
+  const T = r.tr, c = conv(q), gold = goldSet(q), dist = new Set(q.dv || []), cap = M.leg_cap;
+  const pool = T.p.slice().sort((a, b) => b[1] - a[1]).slice(0, cap);
+  const gi = {v: 1, l: 2, f: 4, rr: 5, fin: 7};
+  const cols = [['Vector leg (cosine)', T.v, 'v'], ['Lexical leg (BM25)', T.l, 'l']];
+  Object.entries(T.x || {}).forEach(([n, l]) => cols.push(['Extra leg: ' + n, l, 'x:' + n]));
+  cols.push(['Fused (RRF) = rerank pool', T.f, 'f'], ['Reranker order (score)' + (T.pr ? ' ' + T.pr : ''), pool, 'rr'], ['Final hits (top-k)', T.fin, 'fin']);
+  const rows = Math.max(...cols.map(x => x[1].length));
+  let h = `<div class="mut">Top ${cap} per leg (exact gold ranks below each header, from the full 60-deep lists). Green = gold evidence${dist.size ? ', orange = the turn the cat-5 distractor answer was built from' : ''}.</div><div style="overflow:auto"><table class="trace"><tr>` + cols.map(x => `<th>${esc(x[0])}<br><small class="mut">${x[1].length} shown</small></th>`).join('') + '</tr>';
+  if (r.g && r.g.length) h += '<tr>' + cols.map(x => { const k = x[2]; const p = r.g.map(g => { const v = k.startsWith('x:') ? (g[3] || {})[k.slice(2)] : g[gi[k]]; return `${g[0]} ${v == null ? '<span class="r">-</span>' : '#' + v}`; }).join('<br>'); return `<td class="gp"><b class="g">GOLD</b><br>${p}</td>`; }).join('') + '</tr>';
+  for (let i = 0; i < rows; i++) {
+    h += '<tr>' + cols.map(x => {
+      const e = x[1][i]; if (!e) return '<td></td>';
+      const isg = gold.has(e[0]), isd = dist.has(e[0]);
+      return `<td class="${isg ? 'gold' : isd ? 'dist' : ''}"><small class="mut">#${i + 1}</small> <b>${esc(e[0])}</b> ${isg ? '<b class="g">GOLD</b> ' : ''}${isd ? '<b class="o">DIST</b> ' : ''}<small>${f1(e[1], 3)}</small><br><small class="mut">${snippet(c, e[0])}</small></td>`;
+    }).join('') + '</tr>';
+  }
+  h += '</table></div>';
+  const info = [];
+  if (r.dec) info.push('decisions: ' + r.dec.map(d => `${d.task} = ${d.final || d.label} (${d.adapter || ''}${d.confidence != null ? ', conf ' + f1(d.confidence, 2) : ''}${d.used === false ? ', not used' : ''})`).join('; '));
+  if (r.rb) info.push('relevance bypass: ' + (r.rb.fired ? 'FIRED' : 'not fired') + ' (' + (r.rb.kind || r.rb.mode || '') + (r.rb.names ? ': ' + r.rb.names.join(', ') : '') + ')');
+  if (r.legs) info.push('extra legs fired: ' + r.legs.join(', '));
+  if (r.ce) info.push('<b class="r">context came back EMPTY (a gate closed it)</b>');
+  if (!info.length && !(r.dec || r.rb)) info.push('<span class="mut">gate / decider decisions: not logged in this run</span>');
+  return h + `<div style="margin-top:4px">${info.join('<br>')}</div>`;
+}
+function snippet(c, t) { const x = turnInfo(c, t); if (!x) return ''; const s = x[0] + ': ' + x[1]; return esc(s.length > 70 ? s.slice(0, 69) + '…' : s); }
+
+/* final context: full text of every line, hit vs replay-window neighbour, date, speaker, write record */
+function ctxBlock(q, rid) {
+  const r = q.r[rid]; if (!r || !r.ctx || !r.ctx.length) return `<div class="nl" style="padding:4px">${r && r.ce ? '<b class="r">empty context</b> (the reader got nothing)' : 'no context recorded for this run'}</div>`;
+  const c = conv(q), gold = goldSet(q), dist = new Set(q.dv || []), fin = r.tr ? r.tr.fin.map(x => x[0]) : (r.fin || []);
+  const persona = q.persona; let np = 0, ng = 0;
+  const finRank = {}; fin.forEach((t, i) => { finRank[t] = i + 1; });
+  let h = '<div class="ctx">';
+  r.ctx.forEach(t => {
+    const x = turnInfo(c, t); const isg = gold.has(t), isd = dist.has(t), isp = persona && x && x[0] === persona; if (isp) np++; if (isg) ng++;
+    const role = finRank[t] ? `<b>HIT #${finRank[t]}</b>` : (fin.length ? `window of ${esc(anchorOf(t, fin) || '?')}` : '');
+    h += `<div class="${isg ? 'gold' : isd ? 'dist' : isp ? 'pers' : ''}"><b class="id">${esc(t)}</b> ${isg ? '<b class="g">[GOLD]</b> ' : ''}${isd ? '<b class="o">[distractor source]</b> ' : ''}${isp ? '<b>[persona]</b> ' : ''}<small>${role}${x ? ' · ' + esc(x[3]) + ' · ' + esc(x[4] || '') : ''}</small> ${memBadge(c, t)}<br>${lineText(c, t)}</div>`;
   });
   h += '</div>';
-  return `<div class="mut">${r.ctx.length} lines${persona ? `, ${np} spoken by the persona (${esc(persona)}): ${f1(100 * np / Math.max(1, r.ctx.length), 0)}%` : ''}${r.ce ? ', <b class="r">context empty</b>' : ''}. ${mode === 'opb' ? 'Rebuilt from retrieved_ids and the dataset (no stage log for OP-Bench).' : 'Annotated text as the reader saw it (relative dates resolved) for turns seen in a stage log.'}</div>` + h;
+  const tok = r.tok ?? r.ct, bud = (M.budgets || {})[rid];
+  const goldTxt = q.ev && q.ev.length ? `; ${ng} of ${new Set(q.ev).size} gold turns present` : '';
+  return `<div class="mut">${r.ctx.length} lines, ${tok ?? '?'} tokens${bud ? ' / budget ' + bud : ''}${goldTxt}${persona ? `; ${np} spoken by the persona (${esc(persona)}): ${f1(100 * np / Math.max(1, r.ctx.length), 0)}%` : ''}. Lines are shown as the reader saw them (relative dates resolved where the stage log has the annotated text). HIT = in the final top-k; window = neighbour added by replay expansion${fin.length ? '' : ' (no stage log: hits unknown)'}.</div>` + h;
 }
-function pickCtx(sel) { const qi = S.list[S.cur], q = D.q[qi]; document.getElementById('ctxbox').innerHTML = ctxBlock(q, sel.value, q.b); }
-
 function gapBlock(q) {
   if (!q.gaps) return '';
   return q.gaps.map(g => { const x = D.gaps[g] || {}; return `<details><summary><span class="tag gap">${g}</span> ${esc(x.t || '')}</summary><div class="box"><b>Evidence.</b> ${esc(x.e || '')}\n<b>Solution options.</b> ${esc(x.s || '')}\n<b>Status.</b> ${esc(x.st || '')}</div></details>`; }).join('');
 }
 
 function detail(q, n) {
+  const runsAll = q.b === 'loc' ? M.loc_runs : M.opb_runs, runs = runsAll.filter(r => q.r[r]);
+  const baseRun = q.b === 'loc' ? M.loc_ref : M.opb_ref;
+  const rid = q.r[S.run] ? S.run : baseRun;
   const nav = `<div style="float:right"><button class="btn" onclick="step(-1)">&larr; prev</button> <button class="btn" onclick="step(1)">next &rarr;</button> <button class="btn" onclick="closeQ()">close (Esc)</button> <small class="mut">${n + 1} / ${S.list.length}</small></div>`;
-  return q.b === 'loc' ? detailLoc(q, nav) : detailOpb(q, nav);
+  const sel = `<label class="runsel">run: <select onchange="setRun(this.value)">${runs.map(r => `<option ${r === rid ? 'selected' : ''}>${esc(r)}</option>`).join('')}</select></label> <button class="btn" onclick="openMem(${JSON.stringify(q.b)},${JSON.stringify(q.k)},${JSON.stringify(rid)})">open in memory view</button>`;
+  return q.b === 'loc' ? detailLoc(q, nav, sel, runs, rid) : detailOpb(q, nav, sel, runs, rid);
 }
-function detailLoc(q, nav) {
-  const runs = M.loc_runs.filter(r => q.r[r]); const base = q.r[M.loc_ref];
+function detailLoc(q, nav, sel, runs, rid) {
   const c = conv(q);
-  let h = nav + `<h2>${esc(q.id)} <small class="mut">LoCoMo ${esc(q.cat)}</small> <span class="${q.ok ? 'ok' : 'bad'}">${q.ok ? 'baseline correct' : 'baseline WRONG'}</span></h2>`;
+  let h = nav + `<h2>${esc(q.k)} <small class="mut">LoCoMo ${esc(q.cat)}</small> <span class="${q.ok ? 'ok' : 'bad'}">${q.ok ? 'baseline correct' : 'baseline WRONG'}</span></h2><div>${sel}</div>`;
   h += (q.errs || []).map(e => `<div class="warn"><b>Errata: ${esc(e.tag)}</b>${e.borderline ? ' (borderline)' : ''}. ${esc(e.reason)} <small class="mut">${esc(e.source || '')}</small></div>`).join('') + (q.errc ? `<div class="warn"><b>Errata candidate (not yet in locomo_errata.json):</b> ${esc(q.errc)}</div>` : '');
   h += `<div class="sec"><h3>Question</h3><div class="box">${esc(q.q)}</div><h3>Gold answer</h3><div class="box">${esc(q.g)}</div>`;
-  h += `<h3>${q.cc === 'cat5' ? 'Evidence of the distractor (the turn the wrong answer is built from; not gold)' : 'Evidence turns'}</h3><div class="ctx">` + ((q.cc === 'cat5' ? q.dv : q.ev) || []).map(t => { const x = turnInfo(c, t); return `<div class="${q.cc === 'cat5' ? 'dist' : 'gold'}"><b class="id">${esc(t)}</b> ${x ? `<small>${esc(x[3])}, ${esc(x[4] || '')}</small> ` : ''}${lineText(c, t)}</div>`; }).join('') + '</div></div>';
-  h += `<div class="sec"><h3>Our answer, in the baseline and in each screen</h3>${answersTable(q, runs)}</div>`;
+  h += `<h3>${q.cc === 'cat5' ? 'Evidence of the distractor (the turn the wrong answer is built from; not gold)' : 'Evidence (gold) turns, as stored'}</h3><div class="ctx">` + ((q.cc === 'cat5' ? q.dv : q.ev) || []).map(t => { const x = turnInfo(c, t); return `<div class="${q.cc === 'cat5' ? 'dist' : 'gold'}"><b class="id">${esc(t)}</b> ${q.cc === 'cat5' ? '' : '<b class="g">[GOLD]</b> '}<small>${x ? esc(x[3]) + ', ' + esc(x[4] || '') : ''}</small> ${memBadge(c, t)}<br>${lineText(c, t)}</div>`; }).join('') + '</div></div>';
+  h += `<div class="sec"><h3>Our answer, in the baseline and in each screen</h3>${answersTable(q, runs, rid)}</div>`;
   h += `<div class="sec"><h3>Forensics: where and why it broke</h3>`;
   if (q.st) h += `<div><b>Stage ${esc(q.st)}</b> (${esc(STAGE[q.st] || '')}) &mdash; ${esc(q.sub || '')} <span class="mut">[code ${esc(q.code)}]</span></div>`; else h += '<div class="g">Answered correctly in the baseline; no failure class.</div>';
   h += `<div style="margin:4px 0">${esc(narrate(q))}</div>`;
+  if (rid !== M.loc_ref) h += `<div style="margin:4px 0"><b>In ${esc(rid)}:</b> ${esc(narrateRun(q, rid)) || '<span class="mut">no gold turns or no stage log</span>'}</div>`;
   if (q.fix) h += `<div><b>Generic fix:</b> ${esc(q.fix)}</div><div><b>Decision mechanism:</b> ${esc(q.mech || '')}</div><div><b>Built feature:</b> ${esc(q.feat || '')}</div><div><b>Runtime cost:</b> ${esc(q.cost || '')}</div>`;
   h += gapBlock(q) + '</div>';
-  h += `<div class="sec"><h3>Gold-turn position in every leg, per run</h3><div class="mut">vector / lexical = rank in that leg (top 60); fused = rank after fusion; rerank = rank by reranker score within the pool; final = rank in the final list; in context = reached the reader.</div>${ranksTable(q, runs)}</div>`;
+  h += `<div class="sec"><h3>Gold-turn position in every leg, every run (where each gold turn dropped out)</h3><div class="mut">vector / lexical = rank in that leg (top 60); fused = rank after fusion; rerank = rank by reranker score within the pool; final = rank in the final list; in context = reached the reader.</div>${ranksTable(q, runs)}</div>`;
+  h += `<div class="sec"><h3>Retrieval trace: ${esc(rid)}</h3>${traceBlock(q, rid)}</div>`;
+  h += `<div class="sec"><h3>Final context sent to the reader: ${esc(rid)}</h3>${ctxBlock(q, rid)}</div>`;
   const fl = runs.map(r => (q.r[r].fl || []).length ? `${esc(r)}: ` + q.r[r].fl.map(x => `<span class="tag s">${x}</span>`).join('') : '').filter(Boolean);
-  h += `<div class="sec"><h3>Gates that touched this question</h3>${fl.join('<br>') || '<span class="mut">none</span>'}<div class="mut">Legs/decisions logged: ` + runs.map(r => { const x = q.r[r]; const p = []; if (x.legs) p.push('legs ' + x.legs.join('+')); if (x.dec) p.push('decisions ' + x.dec.map(d => d.task + '=' + (d.final || d.label)).join(',')); if (x.rb) p.push('bypass ' + (x.rb.fired ? 'fired' : 'not fired')); if (x.mx != null) p.push('top rerank ' + f1(x.mx, 3)); return p.length ? esc(r) + ': ' + esc(p.join('; ')) : ''; }).filter(Boolean).join(' | ') + '</div></div>';
-  h += `<div class="sec"><h3>Retrieved context</h3>Run: <select onchange="pickCtx(this)">${runs.filter(r => q.r[r].ctx).map(r => `<option>${esc(r)}</option>`).join('')}</select><div id="ctxbox">${ctxBlock(q, M.loc_ref, 'loc')}</div></div>`;
+  h += `<div class="sec"><h3>Gates that touched this question</h3>${fl.join('<br>') || '<span class="mut">none</span>'}</div>`;
   return h;
 }
-function detailOpb(q, nav) {
-  const runs = M.opb_runs.filter(r => q.r[r]);
-  let h = nav + `<h2>${esc(q.id)} <small class="mut">OP-Bench ${esc(q.cat)}</small> <span class="${q.ok ? 'ok' : 'bad'}">${q.ok ? 'baseline passes (>= 0.5)' : 'baseline below 0.5'}</span></h2>`;
+function detailOpb(q, nav, sel, runs, rid) {
+  let h = nav + `<h2>${esc(q.k)} <small class="mut">OP-Bench ${esc(q.cat)}</small> <span class="${q.ok ? 'ok' : 'bad'}">${q.ok ? 'baseline passes (>= 0.5)' : 'baseline below 0.5'}</span></h2><div>${sel}</div>`;
   h += `<div class="warn">OP-Bench has no licence: this view is local only.</div>`;
   h += `<div class="sec"><h3>Probe</h3><div class="box">${esc(q.q)}</div><div class="mut">persona: ${esc(q.persona)}; item ${esc(q.it)}</div></div>`;
   h += `<div class="sec"><h3>Answers and judge scores: BASE (no memory), baseline, screens</h3><table><tr><th>run</th><th>judge score</th><th>pass</th><th>persona share of context</th><th>context lines / tokens</th><th>answer</th></tr>`;
-  runs.forEach(rid => { const r = q.r[rid]; h += `<tr><td>${esc(rid)}${rid === M.opb_base ? ' <small>(no memory)</small>' : ''}</td><td class="n">${f1(r.s, 2)}</td><td class="${r.ok ? 'ok' : 'bad'}">${r.ok ? '&#10003;' : '&#10007;'}</td><td class="n">${r.ps == null ? '-' : f1(100 * r.ps, 0) + '%'}</td><td class="n">${r.n ?? ''} / ${r.ct ?? ''}${(r.fl || []).length ? ' ' + r.fl.map(x => `<span class="tag s">${x}</span>`).join('') : ''}</td><td>${ansTxt(q, rid, r.a)}</td></tr>`; });
+  runs.forEach(r0 => { const r = q.r[r0]; h += `<tr class="${r0 === rid ? 'sel' : ''}"><td>${esc(r0)}${r0 === M.opb_base ? ' <small>(no memory)</small>' : ''}</td><td class="n">${f1(r.s, 2)}</td><td class="${r.ok ? 'ok' : 'bad'}">${r.ok ? '&#10003;' : '&#10007;'}</td><td class="n">${r.ps == null ? '-' : f1(100 * r.ps, 0) + '%'}</td><td class="n">${r.n ?? ''} / ${r.ct ?? ''}${(r.fl || []).length ? ' ' + r.fl.map(x => `<span class="tag s">${x}</span>`).join('') : ''}</td><td>${esc(r.a)}</td></tr>`; });
   h += '</table></div>';
   h += `<div class="sec"><h3>Forensics: failure class</h3>`;
   if (q.st) { h += `<div><b>${esc(q.sub)}</b> <span class="mut">[${esc(q.code)}]</span></div>`; const s = q.sig; if (s) h += `<div class="mut">signals: persona share ${s.persona_share}, leaked context tokens re-used in the answer ${s.leak_n}, second-person reference cues ${s.ref_cues}, best question/context word overlap ${s.best_overlap}, affirmation ${s.affirm}, role inversion ${s.role_inv}</div>`; h += `<div><b>Generic fix:</b> ${esc(q.fix || '')}</div><div><b>Decision mechanism:</b> ${esc(q.mech || '')}</div><div><b>Built feature:</b> ${esc(q.feat || '')}</div><div><b>Runtime cost:</b> ${esc(q.cost || '')}</div>`; }
   else h += '<div class="g">Probe passes in the baseline (score &ge; 0.5): no failure class.</div>';
   h += gapBlock(q) + '</div>';
-  h += `<div class="sec"><h3>Retrieved context</h3>Run: <select onchange="pickCtx(this)">${runs.filter(r => q.r[r].ctx && q.r[r].ctx.length).map(r => `<option ${r === M.opb_ref ? 'selected' : ''}>${esc(r)}</option>`).join('')}</select><div id="ctxbox">${ctxBlock(q, M.opb_ref, 'opb')}</div></div>`;
+  h += `<div class="sec"><h3>Retrieval trace: ${esc(rid)}</h3>${traceBlock(q, rid)}</div>`;
+  h += `<div class="sec"><h3>Records injected into the reader context: ${esc(rid)} (persona's own turns highlighted)</h3>${ctxBlock(q, rid)}</div>`;
   return h;
 }
+
+/* ------------------------------------------------------------------ memory (write side) */
+function openMem(b, k, rid) {
+  const q = D.q[QI[b + '|' + k]], r = q.r[rid] || {};
+  S.mem = Object.assign(S.mem || {}, {conv: conv(q), qk: [b, k], run: rid, gold: new Set(q.ev || []), dist: new Set(q.dv || []), ctx: new Set(r.ctx || []), persona: q.persona || null, only: false});
+  closeQ(); setTab('memory');
+}
+function memFilter(k, v) { S.mem[k] = v; const y = window.scrollY; render(); window.scrollTo(0, y); }
+function viewMemory() {
+  const m = S.mem = S.mem || {conv: M.dev_items[0]};
+  m.gold = m.gold || new Set(); m.dist = m.dist || new Set(); m.ctx = m.ctx || new Set();
+  const turns = Object.entries(D.tt[m.conv] || {}), rec = D.mem[m.conv] || {};
+  const spk = [...new Set(turns.map(t => t[1][0]))], ses = [...new Set(turns.map(t => t[1][3]))];
+  let written = 0, quar = 0; turns.forEach(([t]) => { const x = rec[t]; if (x && x.w !== false) written++; if (x && x.q) quar++; });
+  let h = `<h2>Memory added (write side): conversation ${esc(m.conv)}</h2><div class="mut">Every turn of the conversation as the engine stored it (baseline stage log <code>ingest.jsonl</code>). ${turns.length} turns, ${written} written, ${quar} quarantined. ${Object.keys(M.ingest_diff || {}).length ? 'Write-side drift of screens against the baseline (turns whose written / quarantined / stored text / valid_from differ): ' + Object.entries(M.ingest_diff).map(([r, n]) => esc(r) + ' ' + n).join(', ') + '.' : ''} OP-Bench personas are the first speaker of these same conversations (the OP-Bench runs keep no ingest log).</div>`;
+  h += `<div class="flt"><label>conversation<select onchange="memFilter('conv',this.value);S.mem.gold=new Set();S.mem.ctx=new Set();S.mem.dist=new Set();S.mem.qk=null;S.mem.persona=null;render()">${M.dev_items.map(c => `<option ${c === m.conv ? 'selected' : ''}>${c}</option>`).join('')}</select></label>
+   <label>speaker<select onchange="memFilter('spk',this.value)"><option value="">all</option>${spk.map(s => `<option ${m.spk === s ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select></label>
+   <label>session<select onchange="memFilter('ses',this.value)"><option value="">all</option>${ses.map(s => `<option ${m.ses === s ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select></label>
+   <label>show<select onchange="memFilter('only',this.value==='1')"><option value="">all turns</option><option value="1" ${m.only ? 'selected' : ''}>highlighted only</option></select></label>
+   <label>search<input type="text" size="24" value="${esc(m.text || '')}" onchange="memFilter('text',this.value)"></label>
+   ${m.qk ? `<span class="tag s">highlighting ${esc(m.qk[1])} (${esc(m.run)}): ${m.gold.size} gold, ${m.ctx.size} in context <a href="#" onclick="openKey('${m.qk[0]}','${m.qk[1]}');return false">back to question</a> <a href="#" onclick="S.mem.qk=null;S.mem.gold=new Set();S.mem.ctx=new Set();S.mem.dist=new Set();S.mem.persona=null;render();return false">clear</a></span>` : '<span class="mut">open a question and press "open in memory view" to highlight its gold turns and the records it used</span>'}</div>
+   <div class="legend mut"><span><i style="background:#c9f0d2"></i>gold evidence</span><span><i style="background:#ffe0b5"></i>distractor source</span><span><i style="background:#cfe0ff"></i>used in the context</span><span><i style="background:#eaf1ff"></i>persona's own turn (OP-Bench)</span></div>`;
+  h += '<table><tr><th>turn</th><th>session / date</th><th>speaker</th><th>written</th><th>trust / type / group</th><th>valid_from</th><th>record id</th><th>stored text (full)</th></tr>';
+  let shown = 0, first = null;
+  turns.forEach(([t, x]) => {
+    const isg = m.gold.has(t), isd = m.dist.has(t), isc = m.ctx.has(t), isp = m.persona && x[0] === m.persona;
+    if (m.spk && x[0] !== m.spk) return; if (m.ses && x[3] !== m.ses) return;
+    if (m.only && !(isg || isd || isc)) return;
+    if (m.text && !(x[1] + ' ' + t).toLowerCase().includes(m.text.toLowerCase())) return;
+    const r = rec[t] || {};
+    const bg = isg ? '#c9f0d2' : isd ? '#ffe0b5' : isc ? '#cfe0ff' : isp ? '#eaf1ff' : '';
+    if (!first && (isg || isc)) first = t;
+    shown++;
+    h += `<tr id="m_${esc(t.replace(':', '_'))}" style="${bg ? 'background:' + bg : ''}"><td><b>${esc(t)}</b>${isg ? ' <b class="g">GOLD</b>' : ''}${isc ? ' <small>used</small>' : ''}</td><td><small>${esc(x[3])}<br>${esc(x[4] || '')}</small></td><td>${esc(x[0])}</td><td>${r.w === false ? '<b class="r">no</b>' : r.w ? 'yes' : '-'}${r.q ? ' <b class="r">quarantined</b>' : ''}</td><td><small>${r.tr ?? ''} ${esc(r.mt || '')} ${esc(r.g || '')} ${r.ex ? esc(JSON.stringify(r.ex)) : ''}</small></td><td><small>${esc((r.vf || '').replace('+00:00', ''))}</small></td><td><small class="mut">${esc(r.rid || '')}</small></td><td>${esc(r.stx || x[1])}${r.stx ? '<br><small class="o">stored text differs from source: ' + esc(x[1]) + '</small>' : ''}${x[2] ? '<br><small class="mut">reader-side: ' + esc(x[2]) + '</small>' : ''}</td></tr>`;
+  });
+  h += `</table><div class="mut">${shown} rows shown.</div>`;
+  S.memScroll = first ? 'm_' + first.replace(':', '_') : null;
+  return h;
+}
+
+/* ------------------------------------------------------------------ sidebar tree */
+let TREE = null;
+function mkNode(label, test, parentTest) { const t = parentTest ? q => parentTest(q) && test(q) : test; const nd = {label, test: t, kids: [], leaf: false}; let n = 0, c = 0; D.q.forEach(q => { if (t(q)) { n++; if (q.ok) c++; } }); nd.n = n; nd.c = c; nd.w = n - c; return nd; }
+function buildTree() {
+  const roots = [];
+  const L = mkNode('LoCoMo dev', q => q.b === 'loc');
+  ['single-hop', 'multi-hop', 'temporal', 'open-domain', 'adversarial'].forEach(cat => {
+    const cn = mkNode(cat + (cat === 'adversarial' ? ' (cat 5)' : ''), q => q.cat === cat, L.test);
+    M.dev_items.forEach(cv => { const k = mkNode(cv, q => q.it === cv, cn.test); k.leaf = true; if (k.n) cn.kids.push(k); });
+    L.kids.push(cn);
+  });
+  const O = mkNode('OP-Bench dev', q => q.b === 'opb');
+  ['irrelevance_easy', 'irrelevance_hard', 'sycophancy', 'diversity'].forEach(task => {
+    const tn = mkNode(task, q => q.cc === task, O.test);
+    const subs = [...new Set(D.q.filter(q => q.b === 'opb' && q.cc === task).map(q => q.cat))].sort();
+    const addPersonas = parent => { [...new Set(D.q.filter(q => q.b === 'opb' && parent.test(q)).map(q => q.it))].sort().forEach(p => { const k = mkNode(p, q => q.it === p, parent.test); k.leaf = true; parent.kids.push(k); }); };
+    if (subs.length === 1 && subs[0] === task) addPersonas(tn);
+    else subs.forEach(sb => { const sn = mkNode(sb.replace(task + '/', ''), q => q.cat === sb, tn.test); addPersonas(sn); tn.kids.push(sn); });
+    O.kids.push(tn);
+  });
+  roots.push(L, O);
+  const ST = mkNode('By stage (LoCoMo failures, OP-Bench classes)', q => !!q.st);
+  Object.keys(STAGE).forEach(s => { const sn = mkNode(STAGE[s], q => q.b === 'loc' && q.st === s, ST.test); if (!sn.n) return; [...new Set(D.q.filter(q => q.b === 'loc' && q.st === s).map(q => q.code))].sort().forEach(cd => { const k = mkNode(cd + ' ' + (D.q.find(q => q.b === 'loc' && q.code === cd) || {}).sub, q => q.code === cd, sn.test); sn.kids.push(k); }); ST.kids.push(sn); });
+  const op = mkNode('OP-Bench failure class', q => q.b === 'opb' && !!q.st, ST.test);
+  [...new Set(D.q.filter(q => q.b === 'opb' && q.st).map(q => q.code))].sort().forEach(cd => op.kids.push(mkNode(cd, q => q.code === cd, op.test)));
+  ST.kids.push(op);
+  roots.push(ST);
+  const G = mkNode('By gap id', q => (q.gaps || []).length > 0);
+  [...new Set(D.q.flatMap(q => q.gaps || []))].sort().forEach(g => G.kids.push(mkNode(g + ' ' + ((D.gaps[g] || {}).t || '').slice(0, 40), q => (q.gaps || []).includes(g), G.test)));
+  roots.push(G);
+  let id = 0; const num = (nd, p) => { nd.id = p; nd.kids.forEach((k, i) => num(k, p + '.' + i)); }; roots.forEach((r, i) => num(r, 't' + i));
+  return roots;
+}
+const NODES = {}; function indexNodes(arr) { arr.forEach(n => { NODES[n.id] = n; indexNodes(n.kids); }); }
+function treeHtml() {
+  if (!TREE) { TREE = buildTree(); indexNodes(TREE); }
+  const one = nd => {
+    const lab = `<span class="tl ${S.node === nd.id ? 'on' : ''}" onclick="event.preventDefault();event.stopPropagation();selNode('${nd.id}')">${esc(nd.label)} <small class="mut">${nd.n} <b class="g">${nd.c}&#10003;</b> <b class="r">${nd.w}&#10007;</b></small></span>`;
+    if (!nd.kids.length && !nd.leaf) return `<div class="tleaf">${lab}</div>`;
+    const open = S.open[nd.id] || (S.node && S.node.startsWith(nd.id + '.')) ? 'open' : '';
+    return `<details ${open} ontoggle="S.open['${nd.id}']=this.open;${nd.leaf ? `fillLeaf('${nd.id}',this)` : ''}"><summary>${lab}</summary>${nd.kids.map(one).join('')}${nd.leaf ? '<div class="leaves"></div>' : ''}</details>`;
+  };
+  return TREE.map(one).join('');
+}
+function selNode(id) { S.node = S.node === id ? null : id; S.shown = 200; const y = window.scrollY; render(); window.scrollTo(0, y); }
+function fillLeaf(id, el) {
+  const box = el.querySelector('.leaves'); if (!el.open || box.dataset.done) return; box.dataset.done = 1;
+  const nd = NODES[id]; const qs = D.q.map((q, i) => [q, i]).filter(([q]) => nd.test(q));
+  box.innerHTML = qs.map(([q, i]) => `<a href="#" class="${q.ok ? 'ok' : 'bad'}" title="${esc(q.q || '')}" onclick="leafOpen('${id}',${i});return false">${esc(q.b === 'loc' ? q.id : q.id.split(':').slice(-2).join(':'))}</a>`).join(' ');
+}
+function leafOpen(id, qi) { S.node = id; S.shown = 100000; render(); const n = S.list.indexOf(qi); if (n >= 0) openQ(n); }
 
 /* ------------------------------------------------------------------ data gaps */
 function viewGaps() {
