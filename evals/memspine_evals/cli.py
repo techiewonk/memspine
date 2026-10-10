@@ -179,6 +179,7 @@ def cmd_c0_1(args: argparse.Namespace) -> int:
         memspine_read_mode=args.memspine_read_mode,
         memspine_as_of_question_date=args.memspine_as_of_question_date,
         memspine_mark_hits=args.memspine_mark_hits,
+        memspine_context_order=args.memspine_context_order,
         memspine_build_sleep=args.memspine_build_sleep,
         memspine_batch_turns=args.memspine_batch_turns,
         qa_prompt=args.qa_prompt,
@@ -401,6 +402,7 @@ def build_parser() -> argparse.ArgumentParser:
             "dated3",
             "grounded",
             "grounded_detail",
+            "grounded_ordered",
             "grounded_v2",
             "grounded_v3",
             "dated_world",
@@ -488,6 +490,14 @@ def build_parser() -> argparse.ArgumentParser:
         default="off",
         help="memspine arm: mark the context lines that are final search hits for the reader "
         "(star: '* ' prefix; rank: '[hit k] ' prefix); neighbour lines stay unmarked (C1)",
+    )
+    c01.add_argument(
+        "--memspine-context-order",
+        choices=("chrono", "hits_first", "hit_blocks"),
+        default="chrono",
+        help="memspine arm: order of the rendered context lines (R2-4). chrono: as read; "
+        "hits_first: final search hits in rank order, then the rest chronologically; "
+        "hit_blocks: each hit with its neighbour lines, blocks in rank order",
     )
     c01.add_argument(
         "--memspine-read-mode",

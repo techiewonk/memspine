@@ -106,6 +106,8 @@ class C01Config:
     memspine_as_of_question_date: bool = False
     #: C1: mark final search hits in the rendered context (off | star | rank)
     memspine_mark_hits: str = "off"
+    #: R2-4: context line order (chrono | hits_first | hit_blocks)
+    memspine_context_order: str = "chrono"
     #: run the engine's sleep cycle after ingestion (write-time stages: H2, H8, H14)
     memspine_build_sleep: bool = False
     #: G9: turns of one session per write_messages call (1 = one call per turn)
@@ -419,6 +421,7 @@ def build_systems(config: C01Config) -> list[SystemAdapter]:
                 batch_turns=config.memspine_batch_turns,
                 as_of_question_date=config.memspine_as_of_question_date,
                 mark_hits=config.memspine_mark_hits,
+                context_order=config.memspine_context_order,
             )
         )
     if config.only_systems:

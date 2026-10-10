@@ -103,6 +103,7 @@ def test_existing_prompt_table_is_unchanged() -> None:
         "evermemos_cot",  # N65
         "grounded",  # reader-gap fix
         "grounded_detail",  # C2
+        "grounded_ordered",  # R2-4
         "grounded_v2",  # dev reasoning 2026-10-10
         "grounded_v3",
     }

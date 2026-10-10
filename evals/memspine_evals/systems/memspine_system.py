@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import dataclasses
 import re
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -132,6 +132,48 @@ def mark_hit_line(line: str, rank: int | None, mode: str) -> str:
     raise ValueError(f"unknown mark_hits mode {mode!r}")
 
 
+#: R2-4: how the rendered context lines are ordered.
+CONTEXT_ORDERS = ("chrono", "hits_first", "hit_blocks")
+#: Separator line between the ranked hits and the rest (``hits_first``).
+OTHER_LINES_HEADER = "Other related conversation:"
+
+
+def order_context(
+    record_ids: Sequence[str], ranks: Mapping[str, int], order: str
+) -> list[int | str]:
+    """Order the context lines; entries are indices into ``record_ids`` or a literal line.
+
+    ``chrono`` (and any order without hit ranks) keeps the engine's order. ``hits_first``:
+    the hits in rank order, a header line, then the other lines in engine order.
+    ``hit_blocks``: per hit in rank order its block (the hit plus the non-hit lines nearest
+    to it in the context, ties to the higher rank, engine order inside the block), blocks
+    separated by a blank line; every line appears once. Non-hit lines in a context with no
+    hit stay in engine order.
+    """
+    if order not in CONTEXT_ORDERS:
+        raise ValueError(f"unknown context_order {order!r}")
+    n = len(record_ids)
+    hits = sorted(
+        (i for i in range(n) if record_ids[i] in ranks), key=lambda i: ranks[record_ids[i]]
+    )
+    if order == "chrono" or not hits:
+        return list(range(n))
+    rest = [i for i in range(n) if record_ids[i] not in ranks]
+    if order == "hits_first":
+        return [*hits, *([OTHER_LINES_HEADER, *rest] if rest else [])]
+    blocks: dict[int, list[int]] = {h: [h] for h in hits}
+    for i in rest:
+        # nearest hit by position; hits is rank-ordered so min() breaks ties by rank
+        owner = min(hits, key=lambda h: abs(h - i))
+        blocks[owner].append(i)
+    out: list[int | str] = []
+    for h in hits:
+        if out:
+            out.append("")
+        out.extend(sorted(blocks[h]))
+    return out
+
+
 class MemspineSystem:
     """Drives ``memspine.Engine`` through the two-verb contract."""
 
@@ -150,8 +192,15 @@ class MemspineSystem:
         batch_turns: int = 1,
         as_of_question_date: bool = False,
         mark_hits: str = "off",
+        context_order: str = "chrono",
     ) -> None:
         self.system_id = system_id
+        if context_order not in CONTEXT_ORDERS:
+            raise ValueError(
+                f"context_order must be one of {CONTEXT_ORDERS}, got {context_order!r}"
+            )
+        #: R2-4: line order of the rendered context (chrono | hits_first | hit_blocks).
+        self._context_order = context_order
         if mark_hits not in MARK_HITS_MODES:
             raise ValueError(f"mark_hits must be one of {MARK_HITS_MODES}, got {mark_hits!r}")
         #: C1: mark the lines that are final search hits (``star`` | ``rank``); the
@@ -213,6 +262,7 @@ class MemspineSystem:
             **({"batch_turns": self.batch_turns} if self.batch_turns > 1 else {}),
             **({"as_of_question_date": True} if self._as_of_question_date else {}),
             **({"mark_hits": self._mark_hits} if self._mark_hits != "off" else {}),
+            **({"context_order": self._context_order} if self._context_order != "chrono" else {}),
             "token_counter": dict(self._counter.describe()),
         }
 
@@ -635,7 +685,19 @@ class MemspineSystem:
         # None = neighbour line) so a replay-mode context can be truncated by hit rank.
         all_hit_ranks = hit_rank_map(stages) if "final" in stages else None
         hit_ranks = all_hit_ranks if self._mark_hits != "off" and all_hit_ranks else {}
-        for rank, record in enumerate(assembled.records):
+        records = list(assembled.records)
+        # R2-4: line order. Entries are record indices, or literal separator lines that carry
+        # no evidence; spans below are offsets in the final text, whatever the order.
+        entries = order_context(
+            [str(r.record_id) for r in records], all_hit_ranks or {}, self._context_order
+        )
+        for entry in entries:
+            if isinstance(entry, str):
+                lines.append(entry)
+                offset += len(entry) + 1
+                continue
+            rank = entry
+            record = records[rank]
             # Dated rendering: absolute event dates next to every retrieved line
             # (the single largest temporal-question lever in the literature).
             when = getattr(record, "valid_from", None)

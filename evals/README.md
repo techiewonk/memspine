@@ -155,6 +155,7 @@ Always recorded, no flag:
 - **E3** `evals/ollama_env.ps1` sets `OLLAMA_FLASH_ATTENTION=1`, `OLLAMA_KV_CACHE_TYPE=q8_0`, `OLLAMA_CONTEXT_LENGTH=8192`,
   `OLLAMA_NUM_PARALLEL=2`, `OLLAMA_KEEP_ALIVE=-1` as user environment variables and restarts Ollama (`-NoRestart` to only set
   them). It interrupts any run using Ollama; do not run it mid-benchmark.
+- **R2-4** `--memspine-context-order {chrono,hits_first,hit_blocks}` (default `chrono`, unchanged) reorders the memspine context: `hits_first` puts the final search hits first in rank order, then "Other related conversation:" and the rest chronologically; `hit_blocks` renders each hit with its nearest neighbour lines, blocks in rank order separated by a blank line (a shared line appears once, in the higher-ranked block). Pair with `--qa-prompt grounded_ordered`. Recorded in `describe()` only when not `chrono`.
 
 ## Run it
 

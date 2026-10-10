@@ -159,10 +159,10 @@ GROUNDED_QA_PROMPT = (
 #: single-hop questions).
 GROUNDED_V2_QA_PROMPT = GROUNDED_QA_PROMPT.replace(
     "Give a short, direct answer. ",
-    "A memory may refer back to something said earlier (\"that book you recommended\", \"we "
-    "did it yesterday\", a photo): find the earlier line it refers to and use its details. "
+    'A memory may refer back to something said earlier ("that book you recommended", "we '
+    'did it yesterday", a photo): find the earlier line it refers to and use its details. '
     "Text in [image: ...] describes a photo shared in that line and counts as evidence. For "
-    "questions like \"would X likely...\" or \"is X...\", answer yes or no from what the "
+    'questions like "would X likely..." or "is X...", answer yes or no from what the '
     "memories show together with general knowledge, then give the reason in a few words. "
     "Give a short, direct answer. ",
 )
@@ -173,11 +173,20 @@ assert GROUNDED_V2_QA_PROMPT != GROUNDED_QA_PROMPT
 #: earlier-line reference rule and captions as evidence.
 GROUNDED_V3_QA_PROMPT = GROUNDED_QA_PROMPT.replace(
     "Give a short, direct answer. ",
-    "A memory may refer back to something said earlier (\"that book you recommended\", \"we "
-    "did it yesterday\", a photo): find the earlier line it refers to and use its details. "
+    'A memory may refer back to something said earlier ("that book you recommended", "we '
+    'did it yesterday", a photo): find the earlier line it refers to and use its details. '
     "Text in [image: ...] describes a photo shared in that line and counts as evidence. "
     "Give a short, direct answer. ",
 )
+
+#: R2-4: ``grounded`` plus one sentence for ``--memspine-context-order hits_first|hit_blocks``
+#: (the first lines are the most relevant memories).
+GROUNDED_ORDERED_QA_PROMPT = GROUNDED_QA_PROMPT.replace(
+    "Give a short, direct answer. ",
+    "The first lines are the memories retrieved as most relevant to the question, most "
+    "relevant first. Give a short, direct answer. ",
+)
+assert GROUNDED_ORDERED_QA_PROMPT != GROUNDED_QA_PROMPT
 
 #: C2: ``grounded`` plus the hit-marker legend (``--memspine-mark-hits``), a one-sentence
 #: answer that keeps the specific detail, and exhaustive lists for multi-item questions.
@@ -229,6 +238,7 @@ QA_PROMPTS = {
     "dated3": DATED3_QA_PROMPT,
     "grounded": GROUNDED_QA_PROMPT,
     "grounded_detail": GROUNDED_DETAIL_QA_PROMPT,
+    "grounded_ordered": GROUNDED_ORDERED_QA_PROMPT,
     "grounded_v2": GROUNDED_V2_QA_PROMPT,
     "grounded_v3": GROUNDED_V3_QA_PROMPT,
     "abstain": ABSTAIN_QA_PROMPT,
