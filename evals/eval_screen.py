@@ -69,11 +69,12 @@ def main() -> None:
     ap.add_argument("screen")
     ap.add_argument("--loc-ref", default="xb-loc-dev")
     ap.add_argument("--opb-ref", default="xb-opb-dev")
+    ap.add_argument("--loc-suffix", default="loc", help="LoCoMo run suffix: loc (304-q screens) or full (1,540 q)")
     a = ap.parse_args()
     deltas = []
     guard_ok = True
 
-    loc_run = f"{a.screen}-loc"
+    loc_run = f"{a.screen}-{a.loc_suffix}"
     if (RUNS / f"{loc_run}--memspine" / "results.jsonl").exists():
         ref, new = locomo(a.loc_ref), locomo(loc_run)
         qs = [q for q in new if q in ref]
