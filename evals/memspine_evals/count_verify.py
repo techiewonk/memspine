@@ -38,9 +38,9 @@ from .contracts import ReaderAnswer
 
 __all__ = [
     "COUNT_VERIFY_MODES",
-    "CountVerifyReader",
     "ENUMERATE_PROMPT",
     "SINGLE_PROMPT",
+    "CountVerifyReader",
     "ListedItem",
     "dedupe_items",
     "parse_listing",
@@ -79,8 +79,7 @@ _FENCE = re.compile(r"```(?:json)?", re.I)
 _MODEL_COUNT = re.compile(r"\bcount\s*[:=]\s*(\d+)", re.I)
 _WORD = re.compile(r"[a-z0-9]+")
 _STOP = frozenset(
-    "the a an his her their my our its of to in on at and or for with by from as is was were "
-    "that this".split()
+    ["the", "a", "an", "his", "her", "their", "my", "our", "its", "of", "to", "in", "on", "at", "and", "or", "for", "with", "by", "from", "as", "is", "was", "were", "that", "this"]
 )
 _EVENT_COUNT = re.compile(r"\bhow (?:many times|often)\b", re.I)
 
@@ -211,6 +210,7 @@ class CountVerifyReader:
         mode: str = "two_call",
         *,
         is_count: Callable[[str], bool] | None = None,
+        table: Any = None,
     ) -> None:
         if mode not in COUNT_VERIFY_MODES:
             raise ValueError(f"count-verify mode must be one of {COUNT_VERIFY_MODES}, got {mode!r}")
@@ -221,9 +221,12 @@ class CountVerifyReader:
         self.inner = inner
         self.enumerator = enumerator
         self.mode = mode
+        #: A06: an ``evidence_table.EvidenceTableBuilder``; when set, the table (validated rows,
+        #: identity dedupe, reconciled with explicit totals) replaces the enumerator's listing.
+        self.table = table
         self._is_count = is_count
         self.guard = getattr(inner, "guard", None)
-        self.reader_id = f"{inner.reader_id}+count-{mode.replace('_', '')}"
+        self.reader_id = f"{inner.reader_id}+count-{'table' if table else mode.replace('_', '')}"
         self.model = inner.model
         self.makes_model_calls = True
         #: counters for the run log: count questions seen, answers replaced, replies that did
@@ -238,7 +241,10 @@ class CountVerifyReader:
             **self.inner.describe(),
             "count_verify": self.mode,
             "count_verify_version": COUNT_VERIFY_VERSION,
-            "count_prompt": "enumerate" if self.mode == "two_call" else "single",
+            "count_prompt": "table"
+            if self.table is not None
+            else ("enumerate" if self.mode == "two_call" else "single"),
+            **(dict(self.table.describe()) if self.table is not None else {}),
         }
 
     async def answer(
@@ -247,6 +253,8 @@ class CountVerifyReader:
         if not self._is_count(question) or not context.strip():
             return await self.inner.answer(question, context, question_date)
         self.seen += 1
+        if self.table is not None:
+            return await self._answer_from_table(question, context, question_date)
         first: ReaderAnswer | None = None
         if self.mode == "two_call":
             first = await self.inner.answer(question, context, question_date)
@@ -288,4 +296,46 @@ class CountVerifyReader:
             raw_text=base.raw_text,
             prompt_variant=base.prompt_variant,
             extra_meta={**dict(base.extra_meta), "count_verify": meta},
+        )
+
+    async def _answer_from_table(
+        self, question: str, context: str, question_date: str | None
+    ) -> ReaderAnswer:
+        """A06: the normal reader answers (the fallback); the evidence table is built (one
+        structured call, shared with ``slot_verify`` through the builder's memo) and, when it holds
+        a usable count (``resolved`` or ``range``), the answer becomes the table's items with
+        their count. ``empty`` / ``unresolved`` / a failed call leave the reader's answer."""
+        first: ReaderAnswer = await self.inner.answer(question, context, question_date)
+        self.extra_calls += 1
+        table, p_tok, c_tok, calls = await self.table.build(question, context)
+        meta: dict[str, Any] = {
+            "mode": "table",
+            "version": COUNT_VERIFY_VERSION,
+            "inner_answer": first.text,
+        }
+        text = first.text
+        if table is None:
+            meta["fallback"] = "no_table"
+        else:
+            meta["table"] = table.as_meta()
+            if table.usable:
+                from .evidence_table import render_table_answer
+
+                self.replaced += 1
+                text = render_table_answer(table)
+            else:
+                self.fallbacks += 1
+                meta["fallback"] = table.status
+        return ReaderAnswer(
+            text=text,
+            prompt_tokens=first.prompt_tokens + p_tok,
+            completion_tokens=first.completion_tokens + c_tok,
+            latency_ms=first.latency_ms,
+            model_calls=first.model_calls + calls,
+            truncated=first.truncated,
+            cached_prompt_tokens=first.cached_prompt_tokens,
+            finish_reason=first.finish_reason,
+            raw_text=first.raw_text,
+            prompt_variant=first.prompt_variant,
+            extra_meta={**dict(first.extra_meta), "count_verify": meta},
         )

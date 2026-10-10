@@ -202,6 +202,7 @@ def apply_opbench_protocol(args: argparse.Namespace) -> list[str]:
         "milestones",
         "verify_answer",
         "verify_slots",
+        "evidence_table",
     ):
         if getattr(args, flag):
             setattr(args, flag, False)
@@ -344,6 +345,8 @@ def cmd_c0_1(args: argparse.Namespace) -> int:
         milestones=args.milestones,
         milestones_inclusive=args.milestones_inclusive,
         verify_slots=args.verify_slots,
+        evidence_table=args.evidence_table,
+        assertion_check=args.assertion_check,
         retrieval_only=args.retrieval_only,
         trace_full=args.trace_full,
         cache_dir=args.cache_dir,
@@ -753,6 +756,30 @@ def build_parser() -> argparse.ArgumentParser:
         "the same memories. An abstention is never repaired; a repair is kept only when the "
         "defect is gone. strict (default when given): the strict checks; soft: also the noisier "
         "unnamed-answer signals. Off by default; not the same as --verify-answer (#39)",
+    )
+    c01.add_argument(
+        "--evidence-table",
+        action="store_true",
+        help="A04/A06: for list and count questions, ONE structured call builds a provenance-"
+        "linked table (item, source line, exact span, actor, predicate match, status, date); "
+        "code validates every row, filters by actor / predicate / status / time scope, dedupes by "
+        "identity (a repeated activity on another day is a new event unless the text says it is "
+        "the same) and reconciles explicit running totals (range or unresolved on conflict). "
+        "Feeds --count-verify (counts the distinct rows) and --verify-slots (list completeness); "
+        "needs one of them. Off by default",
+    )
+    c01.add_argument(
+        "--assertion-check",
+        nargs="?",
+        const="rules",
+        default="",
+        choices=("rules", "llm"),
+        help="P03: when the user message asserts a past event, a recalled conversation or a habit "
+        "('I went', 'remember when', 'as I told you', 'I always'), classify it against the "
+        "retrieved memory as supported / contradicted / unknown and give the reader a precise "
+        "note (proceed / correct the premise with the memory line / say there is no record). A "
+        "preference stated now is never challenged. rules (default when given): code only; llm: "
+        "one small decider call per claim first, the rules as fallback. Off by default",
     )
     c01.add_argument(
         "--verify-answer",

@@ -206,6 +206,15 @@ class C01Config:
     #: number for "how many", a city not a country, ...) and repair a named defect with ONE
     #: extra reader call: "" (off), ``strict`` or ``soft``. See ``slot_verify.py``.
     verify_slots: str = ""
+    #: A04 + A06: one structured call builds a provenance-linked evidence table (item, line, span,
+    #: actor, predicate, status, date) for list/count questions; ``count_verify`` counts distinct
+    #: qualifying rows from it and ``verify_slots`` checks list completeness against it. Needs one
+    #: of them. See ``evidence_table.py``. Off: unchanged.
+    evidence_table: bool = False
+    #: P03: check a past event / habit the user asserts against the retrieved memory (supported /
+    #: contradicted / unknown) and give the reader a precise note: "" (off), ``rules`` or ``llm``
+    #: (a decider call first, the rules as fallback). See ``assertion_check.py``.
+    assertion_check: str = ""
     #: screening: ingest and read every question as the QA run would, skip the reader
     #: and the judge, record evidence coverage per question (``screen.py``)
     retrieval_only: bool = False
@@ -689,6 +698,28 @@ def build_reader_and_judge(config: C01Config) -> tuple[Reader, Judge, bool]:
         from .no_record import NoRecordHintReader
 
         reader = NoRecordHintReader(reader)  # type: ignore[assignment]
+    if config.assertion_check:
+        from .assertion_check import ASSERTION_CHECK_MODES, AssertionCheckReader, chat_decider
+
+        if config.assertion_check not in ASSERTION_CHECK_MODES:
+            raise ValueError(
+                f"assertion_check must be one of {ASSERTION_CHECK_MODES}, "
+                f"got {config.assertion_check!r}"
+            )
+        decider = None
+        if config.assertion_check == "llm":
+            decider = chat_decider(
+                openai_compat_chat(
+                    config.reader_model,
+                    base_url=config.base_url,
+                    api_key=api_key,
+                    sampler=sampler,
+                    guard=guard,
+                )
+            )
+        reader = AssertionCheckReader(  # type: ignore[assignment]
+            reader, config.assertion_check, decider=decider
+        )
     if config.premise_tolerant:
         from .premise import PremiseTolerantReader
 
@@ -780,6 +811,15 @@ def with_post_steps(
     """I56 / I57: the opt-in answer post-steps, outermost. ``--count-verify`` first (count
     questions: enumerate, dedupe, count), then ``--date-repair`` (date questions). Neither flag:
     ``reader`` comes back unchanged."""
+    table = None
+    if getattr(config, "evidence_table", False):
+        if not (config.count_verify or getattr(config, "verify_slots", "")):
+            raise ValueError("evidence_table feeds count_verify / verify_slots; enable one of them")
+        if make_chat is None:
+            raise ValueError("evidence_table needs a chat backend for the extraction call")
+        from .evidence_table import EvidenceTableBuilder
+
+        table = EvidenceTableBuilder(make_chat())
     if config.count_verify:
         from .count_verify import (
             COUNT_VERIFY_MODES,
@@ -793,7 +833,12 @@ def with_post_steps(
                 f"count_verify must be one of {COUNT_VERIFY_MODES}, got {config.count_verify!r}"
             )
         prompt = ENUMERATE_PROMPT if config.count_verify == "two_call" else SINGLE_PROMPT
-        reader = CountVerifyReader(reader, make_sibling(prompt), config.count_verify)
+        reader = CountVerifyReader(
+            reader,
+            None if table is not None else make_sibling(prompt),
+            config.count_verify,
+            table=table,
+        )
     if config.date_repair:
         from .date_repair import DateRepairReader
 
@@ -825,7 +870,7 @@ def with_post_steps(
 
         if slots not in SLOT_VERIFY_MODES:
             raise ValueError(f"verify_slots must be one of {SLOT_VERIFY_MODES}, got {slots!r}")
-        reader = SlotVerifyReader(reader, slots)
+        reader = SlotVerifyReader(reader, slots, table=table)
     return reader
 
 
@@ -925,6 +970,12 @@ async def run_c0_1(
                 else {}
             ),
             **({"verify_slots": f"v1/{config.verify_slots}"} if config.verify_slots else {}),
+            **({"evidence_table": "v1"} if config.evidence_table else {}),
+            **(
+                {"assertion_check": f"v1/{config.assertion_check}"}
+                if config.assertion_check
+                else {}
+            ),
             "judge_prompt": config.judge_prompt if config.mode == "qa" else None,
             **({"opbench_root": config.opbench_root} if config.opbench_root else {}),
             "arms": [s.system_id for s in systems],

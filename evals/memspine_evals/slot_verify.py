@@ -23,6 +23,7 @@ recorded in the row's ``meta["slot_verify"]`` and added to the answer's token co
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable, Mapping
 from dataclasses import replace
 from typing import Any
@@ -62,6 +63,41 @@ def repair_question(question: str, previous: str, defects_text: str, type_line: 
     )
 
 
+_NUMBER_WORDS = {
+    w: i
+    for i, w in enumerate(
+        ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"]
+    )
+}
+_STATED = re.compile(rf"\b(\d+|{'|'.join(_NUMBER_WORDS)})\b", re.I)
+
+
+def _count_defects(table: Any, text: str) -> list[Any]:
+    """A04/A06: the number a count answer states against the evidence table's. A stated number
+    below the table's count (or, for a ``range``, below its low end), or different from a
+    ``resolved`` table's count, is a defect that names the table's items; a number above a
+    range's low end stays (the lines state a larger total). An answer with no number is not
+    judged here."""
+    from memspine.core.answer_check import Defect
+
+    m = _STATED.search(text)
+    if not m:
+        return []
+    tok = m.group(1).lower()
+    stated = int(tok) if tok.isdigit() else _NUMBER_WORDS[tok]
+    ok = stated >= table.low if table.status == "range" else stated == table.count
+    if ok:
+        return []
+    names = "; ".join(table.item_names()[:10])
+    return [
+        Defect(
+            "count_table_mismatch",
+            f"the answer says {stated} but the memories support {table.count} distinct "
+            f"item(s): {names}",
+        )
+    ]
+
+
 def _is_abstention(text: str) -> bool:
     from memspine.core.answer_check import is_abstention
 
@@ -79,6 +115,7 @@ class SlotVerifyReader:
         mode: str = "strict",
         *,
         contract_fn: Callable[[str], Any] | None = None,
+        table: Any = None,
     ) -> None:
         if mode not in SLOT_VERIFY_MODES:
             raise ValueError(f"slot-verify mode must be one of {SLOT_VERIFY_MODES}, got {mode!r}")
@@ -89,6 +126,9 @@ class SlotVerifyReader:
         self.inner = inner
         self.mode = mode
         self._contract = contract_fn
+        #: E06 + A04: an ``evidence_table.EvidenceTableBuilder``; for a many/count question its
+        #: supported items are the evidence the answer's list is checked against.
+        self.table = table
         self.guard = getattr(inner, "guard", None)
         self.reader_id = f"{inner.reader_id}+slots-{mode}"
         self.model = inner.model
@@ -105,6 +145,7 @@ class SlotVerifyReader:
             **self.inner.describe(),
             "slot_verify": self.mode,
             "slot_verify_version": SLOT_VERIFY_VERSION,
+            **(dict(self.table.describe()) if self.table is not None else {}),
         }
 
     async def answer(
@@ -113,11 +154,19 @@ class SlotVerifyReader:
         first: ReaderAnswer = await self.inner.answer(question, context, question_date)
         self.seen += 1
         meta: dict[str, Any] = {"version": SLOT_VERIFY_VERSION, "mode": self.mode}
+        cost = {"p": 0, "c": 0, "n": 0}  # the evidence-table call, when this row paid for it
         try:
-            result = await self._verify(question, context, question_date, first, meta)
+            result = await self._verify(question, context, question_date, first, meta, cost)
         except Exception as exc:  # an enhancer, never a gate: the reader's answer stands
             meta.update({"outcome": "error", "error": str(exc)[:200]})
             result = first
+        if cost["n"]:
+            result = replace(
+                result,
+                prompt_tokens=result.prompt_tokens + cost["p"],
+                completion_tokens=result.completion_tokens + cost["c"],
+                model_calls=result.model_calls + cost["n"],
+            )
         return replace(result, extra_meta={**dict(result.extra_meta), "slot_verify": meta})
 
     async def _verify(
@@ -127,6 +176,7 @@ class SlotVerifyReader:
         question_date: str | None,
         first: ReaderAnswer,
         meta: dict[str, Any],
+        cost: dict[str, int] | None = None,
     ) -> ReaderAnswer:
         from memspine.core.answer_check import check_answer, defect_instruction
 
@@ -139,9 +189,43 @@ class SlotVerifyReader:
             meta["outcome"] = "skipped_abstention"  # an unknown stays unknown
             return first
         soft = self.mode == "soft"
-        defects = check_answer(
-            contract, first.text, explanation=first.raw_text or "", abstained=False, soft=soft
-        )
+        evidence: list[str] = []
+        count_table: Any = None
+        if self.table is not None and contract.cardinality in ("many", "count"):
+            table, p_tok, c_tok, calls = await self.table.build(question, context)
+            if cost is not None:
+                cost["p"] += p_tok
+                cost["c"] += c_tok
+                cost["n"] += calls
+            if table is not None:
+                meta["evidence_table"] = {
+                    "status": table.status,
+                    "low": table.low,
+                    "high": table.high,
+                    "items": [r.as_meta() for r in table.items],
+                    "note": table.note,
+                }
+                # only a table without conflict is evidence; an unresolved one is not
+                if table.usable:
+                    if contract.cardinality == "many":
+                        evidence = table.evidence_keys()
+                    else:
+                        count_table = table
+
+        def table_defects(text: str) -> list[Any]:
+            return _count_defects(count_table, text) if count_table is not None else []
+
+        defects = [
+            *check_answer(
+                contract,
+                first.text,
+                explanation=first.raw_text or "",
+                evidence_items=evidence,
+                abstained=False,
+                soft=soft,
+            ),
+            *table_defects(first.text),
+        ]
         if not defects:
             meta["outcome"] = "clean"
             return first
@@ -167,12 +251,16 @@ class SlotVerifyReader:
         else:
             again = {
                 d.kind
-                for d in check_answer(
-                    contract,
-                    fixed.text,
-                    explanation=fixed.raw_text or "",
-                    abstained=False,
-                    soft=soft,
+                for d in (
+                    *check_answer(
+                        contract,
+                        fixed.text,
+                        explanation=fixed.raw_text or "",
+                        evidence_items=evidence,
+                        abstained=False,
+                        soft=soft,
+                    ),
+                    *table_defects(fixed.text),
                 )
             }
             if again & {d.kind for d in defects}:
