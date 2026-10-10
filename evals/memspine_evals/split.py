@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Iterable, Iterator, Sequence
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -36,10 +36,14 @@ class Split:
     content_sha256: str
     dev_items: tuple[str, ...]
     heldout_items: tuple[str, ...]
-    seed: int
+    seed: int | None
     created_at: str = ""
     category_balance: dict[str, dict[str, int]] = field(default_factory=dict)
     note: str = ""
+    #: I15: what one unit is ("conversation", "user", "persona", ...) and a hash of the
+    #: (sorted dev ids, sorted held-out ids) pair, so a split file cannot be edited silently.
+    unit: str = ""
+    split_sha256: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
@@ -66,7 +70,16 @@ class Split:
             created_at=payload.get("created_at", ""),
             category_balance=payload.get("category_balance", {}),
             note=payload.get("note", ""),
+            unit=payload.get("unit", ""),
+            split_sha256=payload.get("split_sha256", ""),
         )
+
+    def verify_ids(self) -> None:
+        """Refuse a split file whose id lists no longer match its recorded hash (if it has one)."""
+        if self.split_sha256 and self.split_sha256 != ids_hash(self.dev_items, self.heldout_items):
+            raise ValueError("split ids do not match split_sha256: the file was edited")
+        if set(self.dev_items) & set(self.heldout_items):
+            raise ValueError("a unit is in both dev and held-out")
 
     def check(self, info: DatasetInfo) -> None:
         """Refuse to apply a split to different bytes than it was made from."""
@@ -76,6 +89,77 @@ class Split:
                 f"(sha {self.content_sha256[:12]}), but this file hashes "
                 f"{info.content_sha256[:12]} — a split does not transfer across data revisions"
             )
+
+
+def ids_hash(dev: Iterable[str], heldout: Iterable[str]) -> str:
+    """sha256 over the sorted dev ids, a separator, and the sorted held-out ids."""
+    blob = "\n".join(sorted(dev)) + "\n--\n" + "\n".join(sorted(heldout))
+    return hashlib.sha256(blob.encode("utf-8")).hexdigest()
+
+
+def file_sha256(*paths: str | Path) -> str:
+    """sha256 of the bytes of the source file(s), in the order given."""
+    h = hashlib.sha256()
+    for p in paths:
+        h.update(Path(p).read_bytes())
+    return h.hexdigest()
+
+
+def split_ids(
+    ids: Sequence[str],
+    *,
+    dataset_id: str,
+    content_sha256: str,
+    unit: str = "item",
+    dev: Sequence[str] | None = None,
+    n_dev: int | None = None,
+    seed: int | None = 0,
+    group_of: Callable[[str], str] | None = None,
+    revision_id: str = "",
+    category_balance: dict[str, dict[str, int]] | None = None,
+    note: str = "",
+) -> Split:
+    """I15: a dev / held-out split of any benchmark's units, by id, with a content hash.
+
+    ``ids`` are the units (conversation, user, persona, haystack, ...). Either name the
+    development ids (``dev``) or let the hash pick ``n_dev`` of them (``n_dev`` + ``seed``;
+    stable on any machine). ``group_of`` maps a unit to its cluster (e.g. the conversation of
+    a ``conv-26:Caroline`` persona) and keeps a cluster whole on one side: two personas of
+    one conversation never straddle the split. Everything not in dev is held out.
+    """
+    units = sorted(set(ids))
+    if len(units) != len(ids):
+        raise ValueError("duplicate unit ids")
+    group = group_of or (lambda u: u)
+    if dev is not None:
+        missing = [d for d in dev if d not in set(units)]
+        if missing:
+            raise ValueError(f"dev ids not among the units: {missing}")
+        dev_groups = {group(d) for d in dev}
+    elif n_dev is not None:
+        groups = sorted({group(u) for u in units}, key=lambda g: _rank(g, seed or 0))
+        if not 0 < n_dev < len(groups):
+            raise ValueError(f"n_dev={n_dev} must leave a non-empty dev and held-out of {len(groups)} groups")
+        dev_groups = set(groups[:n_dev])
+    else:
+        raise ValueError("give dev ids or n_dev")
+    dev_ids = tuple(u for u in units if group(u) in dev_groups)
+    held = tuple(u for u in units if group(u) not in dev_groups)
+    if not dev_ids or not held:
+        raise ValueError("a split needs a non-empty dev and held-out side")
+    return Split(
+        dataset_id=dataset_id,
+        revision_id=revision_id or f"sha256:{content_sha256[:16]}",
+        content_sha256=content_sha256,
+        dev_items=dev_ids,
+        heldout_items=held,
+        seed=seed,
+        created_at=datetime.now(UTC).isoformat(timespec="seconds"),
+        category_balance=category_balance or {},
+        note=note,
+        unit=unit,
+        split_sha256=ids_hash(dev_ids, held),
+    )
 
 
 def _rank(item_id: str, seed: int) -> str:

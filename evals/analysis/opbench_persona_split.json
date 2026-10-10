@@ -1,0 +1,25 @@
+{
+  "dataset_id": "op_bench",
+  "revision_id": "sha256:79fa87e90f040813",
+  "content_sha256": "79fa87e90f04081343b8c8debecb80a9a6842b76a7aa537dc9fdf651ea698ff4",
+  "dev_items": [
+    "conv-26:Caroline",
+    "conv-30:Jon",
+    "conv-41:John",
+    "conv-42:Joanna"
+  ],
+  "heldout_items": [
+    "conv-43:Tim",
+    "conv-44:Audrey",
+    "conv-47:James",
+    "conv-48:Deborah",
+    "conv-49:Evan",
+    "conv-50:Calvin"
+  ],
+  "seed": null,
+  "created_at": "2026-10-10T07:12:13+00:00",
+  "category_balance": {},
+  "note": "OP-Bench personas = first speaker of each LoCoMo conversation; dev = the four dev conversations of locomo_split.json, held-out = the other six. content_sha256 is of locomo10.json (the OP-Bench task file is not fetched locally; pass --opbench-tasks to confirm the first speakers).",
+  "unit": "persona",
+  "split_sha256": "5b963d1ad67d949cbcfbc863380c2c3032435aaea096ac95c0cf941764f44d0d"
+}

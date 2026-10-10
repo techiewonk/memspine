@@ -622,6 +622,8 @@ class MemspineSystem:
             "fused": rank(stages.get("fused", [])),
             "pool": rank(stages.get("pool", [])),
             "reranker": stages.get("reranker"),
+            # I24: trigger decisions the engine records (absent when the path did not run)
+            **{k: stages[k] for k in ("bridge_gate", "bridge_phrases", "decider") if k in stages},
             "rerank_scores": rank(stages.get("rerank_scores", [])),
             "final": rank(stages.get("final", [])),
             "context_records": [

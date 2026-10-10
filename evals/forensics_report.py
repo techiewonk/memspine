@@ -316,7 +316,9 @@ def build(args) -> None:
 
     no_errata = getattr(args, "no_errata", False)
     errata = {} if no_errata else load_errata(getattr(args, "errata", DEFAULT_ERRATA))
-    summary = summarise(run_id, rows, manifest, ingest, turn_info, errata)
+    verdict = {(e["item"], e["qid"]): e["correct"] for e in rows}
+    fx_joined = [dict(f, **({"_correct": verdict[k]} if k in verdict else {})) for k, f in fx_by_q.items()]
+    summary = summarise(run_id, rows, manifest, ingest, turn_info, errata, fx_joined)
     validate(rows, summary)
     (out / "per_question.jsonl").write_text("\n".join(json.dumps(e) for e in rows), encoding="utf-8")
     (out / "run_summary.json").write_text(json.dumps(summary, indent=1), encoding="utf-8")
@@ -371,18 +373,11 @@ DEFAULT_ERRATA = HERE / "analysis" / "locomo_errata.json"
 
 def load_errata(path: Path | str | None = DEFAULT_ERRATA) -> dict[tuple[str, str], dict]:
     """(item, qid) -> {"tag", "borderline"} for the entries that invalidate grading; {} if no file.
-    When one question has several entries, a non-borderline one wins."""
-    if path is None or not Path(path).exists():
-        return {}
-    out: dict[tuple[str, str], dict] = {}
-    for e in json.loads(Path(path).read_text(encoding="utf-8")).get("entries", []):
-        if e.get("tag") not in ERRATA_EXCLUDE_TAGS:
-            continue
-        key = (e["item"], e["qid"])
-        cur = out.get(key)
-        if cur is None or (cur["borderline"] and not e.get("borderline", False)):
-            out[key] = {"tag": e["tag"], "borderline": bool(e.get("borderline", False))}
-    return out
+    I14: delegates to the generic ``memspine_evals.errata`` (any benchmark; a file may carry its
+    own ``exclude_tags``, else ``ERRATA_EXCLUDE_TAGS`` applies here)."""
+    from memspine_evals.errata import load_errata as _load
+
+    return _load(path, exclude_tags=ERRATA_EXCLUDE_TAGS)
 
 
 def errata_block(rows: list[dict], errata: dict[tuple[str, str], dict]) -> dict:
@@ -417,8 +412,127 @@ def errata_block(rows: list[dict], errata: dict[tuple[str, str], dict]) -> dict:
             "strict": variant(False), "incl_borderline": variant(True)}
 
 
+def _prf(tp: int, fp: int, fn: int) -> dict:
+    p = tp / (tp + fp) if tp + fp else None
+    r = tp / (tp + fn) if tp + fn else None
+    f1 = 2 * p * r / (p + r) if p and r else (0.0 if p is not None and r is not None else None)
+    return {"tp": tp, "fp": fp, "fn": fn, "precision": p, "recall": r, "f1": f1}
+
+
+def abstention_block(all_rows: list[dict]) -> dict | None:
+    """I24: abstention precision / recall / F1, from the saved answers (no judge).
+
+    The positive class is "the system refused" (``refusal.is_refusal`` on the answer: empty,
+    declines, or denies the premise). A refusal is *right* on LoCoMo category 5 (gold is the
+    refusal) and *wrong* on categories 1-4 (the gold is an answer). Recall = share of cat-5
+    questions refused; precision = share of refusals that were on cat-5 questions; the
+    answer-when-answerable rate is the share of cat-1-4 questions answered (1 - false refusal
+    rate). None for retrieval-only runs (no answers) or runs without a cat-5 row.
+    """
+    from memspine_evals.refusal import is_refusal
+
+    qa = [r for r in all_rows if r["mode"] == "qa" and r.get("status") == "completed"
+          and r.get("answer") is not None]
+    if not qa or not any(r["category"] == ADVERSARIAL for r in qa):
+        return None
+    tp = fp = fn = tn = 0
+    for r in qa:
+        refused = is_refusal(r["answer"])
+        should = r["category"] == ADVERSARIAL
+        tp += refused and should
+        fp += refused and not should
+        fn += (not refused) and should
+        tn += (not refused) and not should
+    out = _prf(tp, fp, fn)
+    out.update(
+        n=len(qa), n_should_refuse=tp + fn, n_answerable=fp + tn,
+        answer_rate_when_answerable=tn / (fp + tn) if fp + tn else None,
+        false_refusal_rate=fp / (fp + tn) if fp + tn else None,
+        note="positive = refused (is_refusal on the answer text); cat 5 should refuse, cats 1-4 should answer",
+    )
+    return out
+
+
+def by_category_all(all_rows: list[dict]) -> dict:
+    """I24: per-category table including cat 5 (adversarial), judge accuracy and refusal rate."""
+    from memspine_evals.refusal import is_refusal
+
+    out: dict[str, dict] = {}
+    for c in CATS + [ADVERSARIAL]:
+        sub = [r for r in all_rows if r["category"] == c]
+        if not sub:
+            continue
+        answered = [r for r in sub if r["mode"] == "qa" and r.get("answer") is not None]
+        out[c] = {
+            "n": len(sub), "accuracy": sum(r["correct"] for r in sub) / len(sub),
+            "refusal_rate": (sum(is_refusal(r["answer"]) for r in answered) / len(answered)) if answered else None,
+        }
+    return out
+
+
+def memory_used_block(all_rows: list[dict]) -> dict | None:
+    """I24: share of queries whose context was non-empty (any retrieved turn or context tokens)."""
+    if not all_rows:
+        return None
+
+    def used(r: dict) -> bool:
+        return bool(r.get("retrieved_turns")) or bool(r.get("context_tokens"))
+
+    cats = sorted({r["category"] for r in all_rows})
+    return {"n": len(all_rows), "rate": sum(used(r) for r in all_rows) / len(all_rows),
+            "by_category": {c: sum(used(r) for r in all_rows if r["category"] == c)
+                            / sum(1 for r in all_rows if r["category"] == c) for c in cats}}
+
+
+def trigger_block(fx_rows: list[dict]) -> dict | None:
+    """I24: how often each optional retrieval trigger fired, from the forensics rows.
+
+    list mode = the ``speaker_vote*`` leg is present (only added when the question matched
+    ``read.list_trigger``); session leg / temporal / bridge / cohesion legs = their extra leg has
+    hits; bridge gate = the recorded ``bridge_gate`` decisions (always / cue / weak / skipped;
+    absent in logs written before 2026-10-10); decider = the recorded ``decider`` values, if any.
+    A trigger absent from every row is reported as ``logged: false`` rather than a rate of 0.
+    """
+    if not fx_rows:
+        return None
+    n = len(fx_rows)
+    legs = Counter()
+    for f in fx_rows:
+        for name, hits in (f.get("extra_legs") or {}).items():
+            if hits:
+                legs[name] += 1
+    list_n = sum(1 for f in fx_rows if any(k.startswith("speaker_vote") and v for k, v in (f.get("extra_legs") or {}).items()))
+    gates = Counter(str(f["bridge_gate"]) for f in fx_rows if f.get("bridge_gate") is not None)
+    bridge_fired = sum(1 for f in fx_rows if (f.get("extra_legs") or {}).get("bridge"))
+    deciders = Counter(json.dumps(f["decider"], sort_keys=True) if not isinstance(f["decider"], str)
+                       else f["decider"] for f in fx_rows if f.get("decider") is not None)
+    reranked = sum(1 for f in fx_rows if f.get("rerank_scores"))
+
+    def row(count: int) -> dict:
+        return {"fired": count, "rate": count / n}
+
+    out: dict = {
+        "n": n,
+        "list_mode": row(list_n),
+        "bridge_hop": {**row(bridge_fired), "gate_logged": bool(gates),
+                       "gate_decisions": dict(gates)},
+        "rerank": row(reranked),
+        "legs": {k: row(v) for k, v in sorted(legs.items())},
+        "decider": {"logged": bool(deciders), "decisions": dict(deciders)},
+    }
+    if any("_correct" in f for f in fx_rows):
+        def acc(flag) -> dict:
+            on = [bool(f["_correct"]) for f in fx_rows if "_correct" in f and flag(f)]
+            off = [bool(f["_correct"]) for f in fx_rows if "_correct" in f and not flag(f)]
+            return {"accuracy_fired": (sum(on) / len(on)) if on else None, "n_fired": len(on),
+                    "accuracy_not_fired": (sum(off) / len(off)) if off else None, "n_not_fired": len(off)}
+        out["list_mode"].update(acc(lambda f: any(k.startswith("speaker_vote") and v for k, v in (f.get("extra_legs") or {}).items())))
+        out["bridge_hop"].update(acc(lambda f: bool((f.get("extra_legs") or {}).get("bridge"))))
+    return out
+
+
 def summarise(run_id: str, rows: list[dict], manifest: dict, ingest: list[dict], turn_info: dict,
-              errata: dict[tuple[str, str], dict] | None = None) -> dict:
+              errata: dict[tuple[str, str], dict] | None = None, fx_rows: list[dict] | None = None) -> dict:
     all_rows = rows
     rows = [r for r in all_rows if r["category"] != ADVERSARIAL]  # headline: categories 1-4 only
     adv = [r for r in all_rows if r["category"] == ADVERSARIAL]
@@ -438,6 +552,10 @@ def summarise(run_id: str, rows: list[dict], manifest: dict, ingest: list[dict],
     s["errata"] = errata_block(rows, errata) if errata else None
     s["n_adversarial"] = len(adv)
     s["adversarial"] = adversarial_block(adv)
+    s["abstention"] = abstention_block(all_rows)  # I24
+    s["by_category_all"] = by_category_all(all_rows)
+    s["memory_used"] = memory_used_block(all_rows)
+    s["triggers"] = trigger_block(fx_rows or [])
     s["recall_at_10_hits"] = recall_at_10_hits(rows)
     s["sufficiency_on_qa_set"] = (
         {"n": len(rows), "value": sum(r["correct"] for r in rows) / len(rows),
@@ -570,6 +688,33 @@ def write_gap_md(out: Path, s: dict) -> None:
     adv = s.get("adversarial")
     if adv:
         L += [f"\n- adversarial (cat 5, apart from the headline): n={adv['n']}, accuracy {pc(adv['accuracy'])}"]
+    if s.get("by_category_all"):
+        L += ["\n## Per category, including cat 5 (adversarial)", "| Category | n | judge accuracy | refusal rate |",
+              "|---|---|---|---|",
+              *[f"| {c} | {v['n']} | {pc(v['accuracy'])} | {pc(v['refusal_rate'])} |"
+                for c, v in s["by_category_all"].items()]]
+    ab = s.get("abstention")
+    if ab:
+        L += ["\n## Abstention (refused = positive; cat 5 should refuse, cats 1-4 should answer)",
+              f"- precision {pc(ab['precision'])}, recall {pc(ab['recall'])}, F1 {pc(ab['f1'])} "
+              f"(tp {ab['tp']}, fp {ab['fp']}, fn {ab['fn']})",
+              f"- answers when answerable: {pc(ab['answer_rate_when_answerable'])} "
+              f"(false refusal rate {pc(ab['false_refusal_rate'])}, n={ab['n_answerable']})"]
+    mu = s.get("memory_used")
+    if mu:
+        L += [f"\n- memory used (non-empty context): {pc(mu['rate'])} of {mu['n']} queries; "
+              + ", ".join(f"{c} {pc(v)}" for c, v in mu["by_category"].items())]
+    tr = s.get("triggers")
+    if tr:
+        L += [f"\n## Trigger fired rates (n={tr['n']} forensics rows)", "| trigger | fired | rate | acc fired | acc not fired |",
+              "|---|---|---|---|---|"]
+        for name in ("list_mode", "bridge_hop", "rerank"):
+            v = tr[name]
+            L.append(f"| {name} | {v['fired']} | {pc(v['rate'])} | {pc(v.get('accuracy_fired'))} | "
+                     f"{pc(v.get('accuracy_not_fired'))} |")
+        L += [f"| leg:{k} | {v['fired']} | {pc(v['rate'])} | | |" for k, v in tr["legs"].items()]
+        L += [f"- bridge gate decisions: {tr['bridge_hop']['gate_decisions'] or 'not logged in this run'}",
+              f"- decider decisions: {tr['decider']['decisions'] or 'not logged in this run'}"]
     if s.get("sufficiency_on_qa_set"):
         suff = s["sufficiency_on_qa_set"]
         L += [f"- sufficiency on the QA set: {pc(suff['value'])} (n={suff['n']})"]

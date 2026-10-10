@@ -953,3 +953,12 @@ The objective is retrieval-only coverage (`ev_all`, $0, local embedder). The rep
 (`SPINETUNE.md`, `spinetune.json`) lists every trial and the held-out and guard tests. A
 result is labelled **auto-tuned** and reported next to the hand-built baseline, never in
 place of it. A default changes only through an ADR, after U5 (two independent corpora).
+
+## Offline measurement tools (no model calls)
+
+- `python -m memspine_evals.second_view prepare --run runs/<run>--memspine/results.jsonl --out <batch.jsonl>`: Mem0-official judge prompts for a finished run (I35); `score` answers them on a GPU job, `collect` summarises. See the module docstring.
+- `python evals/make_split.py ...`: dev / held-out split by conversation / user / persona with a content hash (I15); `--check` verifies.
+- `memspine_evals/errata.py`: `errata/v1` errata files for any dataset (I14).
+- `python evals/noise_floor.py --a <run> --b <same-config repeat>`: measured noise floor (I16).
+- `python -m memspine_evals.leakage`: two-user namespace leakage probe, exit 1 on any leak (I19).
+- `forensics_report.py` now also writes abstention P/R/F1, a per-category table with cat 5, trigger fired rates and the memory-used rate (I24).

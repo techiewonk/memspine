@@ -121,6 +121,7 @@ select = ["E", "F", "I", "UP", "B", "SIM", "ASYNC", "RUF"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+pythonpath = ["evals"]  # H6: evals/*.py scripts (run_chunked, ...) importable whichever conftest wins
 addopts = "-q"
 markers = [
     "shipped_default: run with the shipped Engine() default template (ADR-032), not the pinned pre-ADR default",

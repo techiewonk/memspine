@@ -52,6 +52,10 @@ def _rank(*turns: str) -> list[dict[str, Any]]:
 
 @pytest.fixture
 def report() -> Any:
+    # H6: restore sys.path exactly as it was. Importing forensics_report trims and re-appends
+    # evals/, and a bare ``remove`` afterwards dropped the entry for the whole session, so
+    # ``import run_chunked`` failed in every evals test that ran later in the same process.
+    saved_path = list(sys.path)
     sys.path.insert(0, str(EVALS))
     try:
         spec = importlib.util.spec_from_file_location(
@@ -64,8 +68,7 @@ def report() -> Any:
     except ModuleNotFoundError as exc:  # harness dependencies not installed
         pytest.skip(f"evals harness not importable: {exc}")
     finally:
-        if str(EVALS) in sys.path:
-            sys.path.remove(str(EVALS))
+        sys.path[:] = saved_path
     return mod
 
 
