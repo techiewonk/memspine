@@ -215,6 +215,20 @@ class LLMRoleConfig(BaseModel):
     no_think: bool | None = None
 
 
+class StructuredConfig(BaseModel):
+    """I69: recovery for a structured-output reply that fails validation. Both default
+    off (measure first: ``Engine.structured_stats()``)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    #: Re-prompt ONCE with the validation error appended.
+    retry_on_error: bool = False
+    #: On that retry only, ask the backend for JSON-schema constrained decoding
+    #: (``response_format`` json_schema: OpenAI-compatible servers, Ollama via LiteLLM,
+    #: llama.cpp); a backend that refuses it falls back to a plain retry.
+    constrained_retry: bool = False
+
+
 class LLMConfig(BaseModel):
     """Per-role providers: extract / judge / chat (M14). Roles absent here are
     disabled; the engine only requires them when a feature needs the role."""
@@ -222,6 +236,7 @@ class LLMConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     roles: dict[str, LLMRoleConfig] = Field(default_factory=dict)
+    structured: StructuredConfig = Field(default_factory=StructuredConfig)
 
 
 class PromptsConfig(BaseModel):

@@ -37,8 +37,9 @@ _ROLE_TRUST: dict[str, float] = {
 #: documents, web pages, third-party messages, INGESTED FILES, and REST callers
 #: (the no-authn REST protocol forces this channel so a caller-supplied role can
 #: never escalate trust — ADR-018/SEC-C1). Capped, never boosted: an ingested
-#: PDF is exactly the RAG poisoning surface E1 defends.
-_EXTERNAL_CHANNELS = frozenset({"retrieved", "web", "external", "email", "mcp", "ingest", "rest"})
+#: PDF is exactly the RAG poisoning surface E1 defends. ``agent_tool`` (I65) is a
+#: model's own memory tool call: its text is model output, capped like the rest.
+_EXTERNAL_CHANNELS = frozenset({"retrieved", "web", "external", "email", "mcp", "ingest", "rest", "agent_tool"})
 
 
 class TrustOptions(PolicyOptions):

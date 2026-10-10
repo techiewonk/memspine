@@ -45,7 +45,6 @@ graph      = ["ladybug>=0.21,<0.22"]                 # embedded Cypher graph eng
 kuzu       = ["kuzu>=0.11"]                         # deprecated alias provider (ADR-034)
 cache      = ["cashews[redis,diskcache]>=7.0"]       # unified disk + redis/valkey cache (D-09, ADR-022)
 ingest     = ["markitdown>=0.1", "chonkie>=1.0"]    # multi-format ingest + chunking (D-29)
-structured = ["instructor>=1.9"]                    # schema-validated LLM output (D-31)
 ner        = ["gliner2[local]>=1.2,<2"]                # local CPU entity extraction (D-28); [local] = torch+transformers+peft (gliner2 2.x moved them there; 2.x[local] needs transformers<5)
 decider    = ["torch>=2.4", "transformers>=5.0", "safetensors>=0.4", "huggingface-hub>=0.23"]  # I28: OpenDecider-nano inference (own port, no `opendecider` package); ~0.8 GB weights, CPU ok
 community  = ["graspologic-native>=1.3,<1.4"]        # graph community detection — Rust Leiden, MIT (D-40, ADR-043; needs numpy+scipy, no numpy ceiling)
@@ -73,7 +72,7 @@ local      = ["memspine[graph,cache,dbos,ingest,ner]"]
 prod-aws   = ["memspine[aws,taskiq,rest]"]
 # `community` (graspologic-native) declares no numpy ceiling (ADR-028/035), so it does not conflict
 # with `ingest` (numpy>=2.1) and is included in `all` — `--all-extras` is unblocked.
-all        = ["memspine[graph,cache,ingest,structured,ner,community,compress,llmlocal,opensearch,dbos,taskiq,rest,rerank,static,aws,postgres,weaviate,neo4j]"]
+all        = ["memspine[graph,cache,ingest,ner,community,compress,llmlocal,opensearch,dbos,taskiq,rest,rerank,static,aws,postgres,weaviate,neo4j]"]
 
 dev = [
     "pytest>=8.3",

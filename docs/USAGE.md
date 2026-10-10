@@ -25,8 +25,8 @@ just check        # ruff + mypy --strict + pytest
 ```
 
 Common extras: `kuzu` (graph), `ingest` (markitdown+chonkie), `ner` (gliner2),
-`structured` (instructor), `compress` (llmlingua, E5), `rerank` (flashrank, E8),
-`community` (graspologic-native), `rest` (FastAPI), `dbos`/`taskiq` (durable/brokered workers). See the
+`compress` (llmlingua, E5), `rerank` (flashrank, E8),
+`community` (graspologic-native), `rest` (FastAPI), no extra for the MCP server or the agent tools (stdlib only), `dbos`/`taskiq` (durable/brokered workers). See the
 [README extras table](../README.md#-install--extras) for the full set.
 
 > A feature that needs a missing extra raises `MissingServiceError` naming the
@@ -427,6 +427,20 @@ into each result's `meta["engine_prompts"]` and the run summary's
 `engine_prompt_usage` (per loop stage, per prompt), which is how cost per cycle is
 attributed to stages.
 
+### Structured-output health (I69)
+```python
+engine.structured_stats()            # {"extract@2": {"calls": 40, "clean": 37, "repaired": 2,
+                                     #   "validation_failed": 1, "llm_errors": 0, "retried": 0,
+                                     #   "repair_rate": 0.05, "failure_rate": 0.025, ...}}
+engine.structured_stats(reset=True)  # snapshot, then clear
+```
+Every extraction, planner and judge call parses the reply (YAML or JSON), repairs it
+when the strict parse fails, and validates it. The counters say how often each prompt
+needed a repair or failed outright (process-wide, in memory). If `failure_rate` is
+under about 1% per prompt, leave the recovery switches off. Otherwise enable
+`llm.structured.retry_on_error` (one re-prompt with the validation error) and, for
+backends that support it, `llm.structured.constrained_retry`. The `[structured]`
+extra (instructor) was removed: nothing imported it.
 ---
 
 ## CLI
@@ -450,6 +464,9 @@ memspine forget <record_id> --db ./memspine.db -n <namespace>
 memspine forget <record_id> --hard --verify        # provable erasure; exits 1 if not clean
 memspine export --db ./memspine.db -n user/ana --out ana.jsonl   # subject-access export (#46)
 memspine export -n user/ana --subject ana --events --no-history --out ana.jsonl
+# Agent tools over MCP (I66; see docs/AGENT_TOOLS.md)
+memspine mcp -n user/ana -c ./memspine.yaml        # stdio MCP server, namespace fixed here
+memspine mcp -n user/ana --profile read_only       # search only
 ```
 
 `config`/`prompts` commands accept `-t/--template` and `-c/--config`.
@@ -726,6 +743,8 @@ in the schema — or if the schema gains a key not documented here.
 | `llm.roles.*.aws_region` | `null` | Bedrock region. |
 | `llm.roles.*.timeout_seconds` | `60.0` | Per-call timeout. |
 | `llm.roles.*.no_think` | `null` | Qwen3 thinking switch: `true` appends ` /no_think` to the last user message; `null` = on for model ids containing `qwen3`, off otherwise. `<think>…</think>` blocks are always stripped from replies. |
+| `llm.structured.retry_on_error` | `false` | I69: when a structured reply fails validation, re-prompt ONCE with the validation error appended. Measure first with `engine.structured_stats()`. |
+| `llm.structured.constrained_retry` | `false` | I69: on that retry only, request JSON-schema constrained decoding (`response_format`; OpenAI-compatible servers, Ollama via LiteLLM, llama.cpp); a backend that refuses it falls back to a plain retry. |
 | `read.scoring` | `{}` | Options for `ScoringPolicy.bind` (M1 composite). |
 | `read.assembly` | `{}` | Options for `AssemblyPolicy.bind` (E2 placement / MMR). |
 | `read.rerank` | `off` | `off` | `fastembed` | `flashrank` `[rerank]` | `litellm` | `jina` `[st]` (Jina listwise reranker; `rerank_model` defaults to `jinaai/jina-reranker-v3.5`, runs the repo's custom code) | `qwen3` `[st]`\| `fastembed` \| `flashrank` `[rerank]` \| `litellm` \| `qwen3` `[st]` (Qwen3-Reranker, `rerank_model` defaults to `Qwen/Qwen3-Reranker-0.6B`) — E8 cross-encoder (D-51). |

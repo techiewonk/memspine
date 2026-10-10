@@ -360,6 +360,7 @@ from memspine.services.graph.sqlite_adjacency import SQLiteAdjacencyGraph
 from memspine.services.lexical.base import LexicalHit, LexicalStore, minmax_fuse, rrf_fuse
 from memspine.services.lexical.projector import LexicalProjector
 from memspine.services.llm.base import LLMRouter, LLMService
+from memspine.services.llm import structured as _structured
 from memspine.services.llm.structured import structured_call
 from memspine.services.llm.tier_gate import WITHHELD_MARKER, TierGatedLLM, is_local_provider
 from memspine.services.query_encoder import CueQueryEncoder, NoopQueryEncoder, QueryEncoder
@@ -517,6 +518,18 @@ def _caller_tags(tags: Sequence[str] | None, ns: str) -> list[str]:
         dropped = sorted({tag for tag in tags or [] if tag in constants.RESERVED_TAGS})
         _log.warning("memory.reserved_tags_dropped", namespace=ns, tags=dropped)
     return kept
+
+
+def _merge_correction_tags(
+    old: Sequence[str], extra: Sequence[str] | None, ns: str
+) -> list[str]:
+    """Tags of a corrected record: the old ones minus ``disputed``, plus the caller's
+    (reserved tags dropped); a new ``src:*`` tag replaces the old ``src:*`` ones."""
+    added = _caller_tags(extra, ns)
+    keep = [t for t in old if t != "disputed"]
+    if any(t.startswith("src:") for t in added):
+        keep = [t for t in keep if not t.startswith("src:")]
+    return [*keep, *(t for t in added if t not in keep)]
 
 
 #: A thousands separator between digit groups ("1,000", "1_000").
@@ -9049,6 +9062,7 @@ class Engine:
         reason: str = "",
         namespace: str = "default",
         source: SourceInfo | None = None,
+        tags: Sequence[str] | None = None,
     ) -> MemoryRecord:
         """#47 user-direct correction (rectification): supersede a live record.
 
@@ -9060,6 +9074,10 @@ class Engine:
         (``contest_lower_trust``). The firewall still screens the new value
         (redaction, instruction flags); a quarantined correction supersedes nothing.
         Disputes on the key are cleared. Returns the new record.
+
+        ``tags`` (I65) are added to the new record; a ``src:*`` tag among them replaces
+        the old record's ``src:*`` tags (``memory_confirm`` flips ``src:assistant-proposed``
+        to ``src:user-confirmed``). Engine-reserved tags are dropped.
         """
         storage = self._require_started()
         ns = validate_namespace(namespace)
@@ -9087,7 +9105,7 @@ class Engine:
                 entity=existing.entity,
                 attribute=existing.attribute,
                 group_id=existing.group_id,
-                tags=[t for t in existing.tags if t != "disputed"],
+                tags=_merge_correction_tags(existing.tags, tags, ns),
                 pii_tier=existing.pii_tier,
                 consent_tags=list(existing.consent_tags),
                 valid_from=now,
@@ -11684,6 +11702,17 @@ class Engine:
         """
         return self._llm.prompt_usage(reset=reset) if self._llm is not None else {}
 
+    def structured_stats(self, *, reset: bool = False) -> dict[str, dict[str, Any]]:
+        """I69: structured-output outcomes per prompt version: ``calls``, ``clean``,
+        ``repaired`` (strict parse failed, the repair net rescued it), ``validation_failed``,
+        ``llm_errors``, ``retried`` / ``retry_ok`` / ``retry_failed`` (``llm.structured``),
+        ``constrained_retries``, plus ``repair_rate`` and ``failure_rate``. Process-wide
+        (shared by engines in one process), in memory only."""
+        snapshot = _structured.structured_stats()
+        if reset:
+            _structured.reset_structured_stats()
+        return snapshot
+
     def llm(self, role: str) -> LLMService:
         """The provider bound to a role (D-07/D-22): extract / judge / chat.
 
@@ -13263,6 +13292,7 @@ class Engine:
         goes through the unified LiteLLM adapter. litellm is imported lazily so a
         default engine with no LLM role never pays its import cost."""
         providers: dict[str, LLMService] = {}
+        _structured.configure(config.llm.structured.model_dump())  # I69 (process-wide)
         for role, role_config in config.llm.roles.items():
             model = role_config.model
             if model.startswith("llamacpp/"):

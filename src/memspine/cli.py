@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import typer
 import yaml
@@ -236,6 +236,66 @@ def export_cmd(
     lines = asyncio.run(_inner())
     out.write_text("\n".join(lines) + "\n", encoding="utf-8")
     typer.echo(f"exported {len(lines) - 1} lines to {out}")
+
+
+@app.command("mcp")
+def mcp_cmd(
+    namespace: Annotated[
+        str, typer.Option("--namespace", "-n", help="Fixed tenant namespace (never model-set)")
+    ],
+    config_file: FileOpt = None,
+    template: TemplateOpt = None,
+    db: Annotated[Path | None, typer.Option("--db", help="SQLite path (overrides config)")] = None,
+    profile: Annotated[
+        str, typer.Option("--profile", help="read_only | standard | operator")
+    ] = "standard",
+    principal: Annotated[str, typer.Option("--principal", help="Writer identity")] = "mcp-agent",
+    session: Annotated[
+        str | None, typer.Option("--session", help="Session id for confirm-quote lookup")
+    ] = None,
+    session_writes: Annotated[int, typer.Option("--session-writes", min=0)] = 30,
+    turn_writes: Annotated[
+        int, typer.Option("--turn-writes", min=0, help="Burst cap; MCP has no turn signal (0=off)")
+    ] = 0,
+) -> None:
+    """Serve the agent memory tools over MCP (stdio JSON-RPC). Stdout is protocol only."""
+    import asyncio
+    import sys
+
+    from memspine import Engine
+    from memspine.protocols.mcp import McpServer, serve_stdio
+    from memspine.protocols.tools import AgentMemoryTools, ToolContext
+
+    try:
+        ctx = ToolContext(
+            namespace=namespace,
+            principal=principal,
+            session_id=session,
+            profile=profile,
+            session_write_budget=session_writes,
+            turn_write_budget=turn_writes or None,
+        )
+    except ValueError as exc:
+        typer.secho(f"invalid: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+    protocol_out = sys.stdout
+    sys.stdout = sys.stderr  # a stray print must never corrupt the protocol stream
+
+    async def _inner() -> None:
+        overrides: dict[str, Any] = {"storage": {"path": str(db)}} if db else {}
+        engine = Engine(template=template, user_config=config_file, **overrides)
+        await engine.start()
+        try:
+            server = McpServer(AgentMemoryTools(engine, ctx))
+            await serve_stdio(server, sys.stdin, protocol_out)
+        finally:
+            await engine.stop()
+
+    try:
+        asyncio.run(_inner())
+    except ConfigError as exc:
+        typer.secho(f"invalid: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
 
 
 if __name__ == "__main__":  # pragma: no cover
