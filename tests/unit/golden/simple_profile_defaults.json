@@ -127,6 +127,8 @@
       "graph_rerank": "off",
       "graph_rerank_weight": 0.2,
       "hybrid": true,
+      "inferred_gate": "off",
+      "inferred_min_support": 2,
       "language_guard": "off",
       "latest_wins": "off",
       "latest_wins_min_overlap": 0.5,
@@ -216,6 +218,7 @@
       "scoring": {},
       "second_round": false,
       "section_captions": false,
+      "sensitivity_gate": "off",
       "sentence_leg": false,
       "session_cap": null,
       "session_digest": false,
@@ -276,6 +279,14 @@
     },
     "retention": {
       "classes": []
+    },
+    "write": {
+      "inferred": "off",
+      "inferred_explicit_overlap": 0.6,
+      "inferred_support_overlap": 0.3,
+      "inferred_trust_cap": 0.4,
+      "participants": "off",
+      "sensitivity": "off"
     }
   },
   "policy_options": {
@@ -326,6 +337,7 @@
       "contest_ties": false,
       "contest_trust_margin": 0.05,
       "contest_window_seconds": 0.0,
+      "inferred_defers": false,
       "interval_order": false,
       "merge_containment": false,
       "perspective_key": false,

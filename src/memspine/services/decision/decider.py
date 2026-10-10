@@ -146,6 +146,20 @@ TASKS: dict[str, TaskSpec] = {
         "hedged",
         "certain",
     ),
+    "sensitivity": TaskSpec(
+        "Does the text disclose a sensitive personal detail about a person, such as health, "
+        "sexuality or gender identity, religion, politics, finances, legal trouble, a home "
+        "address or a credential?",
+        "sensitive",
+        "not_sensitive",
+    ),
+    "sensitivity_scope": TaskSpec(
+        "Is the message asking about the user's own sensitive personal details, such as "
+        "health, sexuality or gender identity, religion, politics, finances, legal matters, "
+        "a home address or credentials?",
+        "about",
+        "not_about",
+    ),
     "abstention": TaskSpec(
         "Can the question be answered from the context?",
         "answerable",
@@ -194,6 +208,7 @@ def default_rules() -> dict[str, Rule]:
         sentence_modality,
     )
     from memspine.core.query_shape import is_set_question, is_temporal
+    from memspine.core.sensitivity import grade_text, query_topics
     from memspine.core.temporal_query import has_bridge_cue
 
     return {
@@ -215,6 +230,14 @@ def default_rules() -> dict[str, Rule]:
         ),
         "relevance": lambda _q, _c: ("relevant", None),
         "abstention": lambda _q, _c: ("answerable", None),
+        "sensitivity": lambda q, _c: (
+            "sensitive" if grade_text(q).grade != "none" else "not_sensitive",
+            None,
+        ),
+        "sensitivity_scope": lambda q, _c: (
+            "about" if query_topics(q) else "not_about",
+            None,
+        ),
     }
 
 

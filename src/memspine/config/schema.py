@@ -1038,6 +1038,19 @@ class ReadConfig(BaseModel):
     #: not implemented): a per-store off-topic score level, see GAP_REGISTER I29.
     relevance_gate: Literal["off", "decider"] = "off"
     decider_min_confidence: float = Field(default=0.5, ge=0.5, le=1.0)
+    #: I52: graded-sensitivity read bar. ``off`` (default): every retrieved memory is
+    #: eligible as today. ``on``: a record graded ``medium`` or ``high`` at write time
+    #: (``write.sensitivity``; the W16 ``sensitive:*`` tags count as a grade too) is injected
+    #: only when the question is about its category, names its subject (medium) or shares
+    #: enough content words with it (1 for medium, 2 for high). ``decider``: as ``on``, and
+    #: when the question names no sensitive topic the ``sensitivity_scope`` decider task may
+    #: open the gate (it never closes it). See ``core/sensitivity.py``.
+    sensitivity_gate: Literal["off", "on", "decider"] = "off"
+    #: I48: records tagged ``src:inferred`` (``write.inferred``) are used only once they
+    #: have ``inferred_min_support`` distinct supporting user turns. ``off`` (default): used
+    #: as any record.
+    inferred_gate: Literal["off", "on"] = "off"
+    inferred_min_support: int = Field(default=2, ge=1)
     #: CPU speed (I38). Intra-op threads of the model; 0 = the physical cores. With
     #: ``decider_workers`` > 1 each worker gets ``cores // workers``.
     decider_threads: int = Field(default=0, ge=0)
@@ -1442,6 +1455,33 @@ class RestConfig(BaseModel):
     rate_limit: RestRateLimitConfig | None = None
 
 
+class WriteConfig(BaseModel):
+    """Write-time governance tags (I48, I52, I53). Every key is off by default: a record is
+    stored exactly as it was before. The tags are labels only (never the text)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    #: I52: grade each record none/low/medium/high with a category (``core/sensitivity.py``)
+    #: and tag it ``sens:<grade>`` / ``sensc:<category>``. ``heuristic``: the fixed lexicon.
+    #: ``decider``: the lexicon, raised by the decider ``sensitivity`` task when it is sure
+    #: (``read.decider: opendecider``); the decider can raise a grade, never lower it.
+    sensitivity: Literal["off", "heuristic", "decider"] = "off"
+    #: I53: ``session``: ``write_messages`` tags each turn ``participant:<name>`` for every
+    #: speaker of the call (the turn's own speaker first; a turn's ``name``/``speaker`` key,
+    #: else its role), and a derived record (mined fact, summary) inherits the union of its
+    #: parents' participants and the strictest visibility. ``viewer`` reads then filter.
+    participants: Literal["off", "session"] = "off"
+    #: I48: tag engine-derived facts ``src:inferred`` (mined / reflected / consolidated, or
+    #: assistant-proposed with no user turn behind them), cap their trust at
+    #: ``inferred_trust_cap`` and record the distinct supporting user turns as ``support:<id>``.
+    #: A mined fact whose words are at least ``inferred_explicit_overlap`` contained in one user
+    #: turn is that user's statement, not an inference, and is left alone.
+    inferred: Literal["off", "on"] = "off"
+    inferred_trust_cap: float = Field(default=0.4, ge=0.0, le=1.0)
+    inferred_explicit_overlap: float = Field(default=0.6, gt=0.0, le=1.0)
+    inferred_support_overlap: float = Field(default=0.3, gt=0.0, le=1.0)
+
+
 class MemspineConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -1455,6 +1495,7 @@ class MemspineConfig(BaseModel):
     graph: GraphConfig = Field(default_factory=GraphConfig)
     llm: LLMConfig = Field(default_factory=LLMConfig)
     read: ReadConfig = Field(default_factory=ReadConfig)
+    write: WriteConfig = Field(default_factory=WriteConfig)
     decision: DecisionConfig = Field(default_factory=DecisionConfig)
     integrity: IntegrityConfig = Field(default_factory=IntegrityConfig)
     firewall: FirewallConfig = Field(default_factory=FirewallConfig)

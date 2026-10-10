@@ -26,7 +26,16 @@ from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-__all__ = ["CONFIGS", "LeakReport", "ProbeResult", "main", "probe", "run_all"]
+__all__ = [
+    "CONFIGS",
+    "LeakReport",
+    "ProbeResult",
+    "ViewerResult",
+    "main",
+    "probe",
+    "probe_viewer",
+    "run_all",
+]
 
 NS_A, NS_B = "user-a", "user-b"
 T0 = datetime(2023, 5, 1, 9, 0, tzinfo=UTC)
@@ -217,6 +226,92 @@ async def probe(
                     audit(list(ctx.records), str(getattr(ctx, "text", "") or ""))
             except Exception as exc:  # a crash is a finding, not a pass
                 res.errors.append(f"{q!r}: {type(exc).__name__}: {exc}")
+    finally:
+        await eng.stop()
+    return res
+
+
+#: I53 viewer cases: (text template, participants, visibility). Same names in both users.
+_VIEWER_SEEDS = (
+    ("Sam private diary about the garden {c}", ["Sam", "Pat"], "private"),
+    ("Pat private note about the garden {c}", ["Pat", "Sam"], "private"),
+    ("Household garden plan {c}", ["Sam"], "owner_shared"),
+    ("Sam and Pat chat about the garden {c}", ["Sam", "Pat"], None),
+    ("Lee remark about the garden {c}", ["Lee"], None),
+)
+#: viewer -> indexes into _VIEWER_SEEDS it may see
+_VIEWER_EXPECT = {"Sam": {0, 2, 3}, "Pat": {1, 2, 3}, "Lee": {2, 4}}
+
+
+@dataclass(slots=True)
+class ViewerResult:
+    """``cross_namespace``: user-B records returned to a viewer in A (must be 0).
+    ``hidden_shown``: records a viewer may not see that came back (must be 0).
+    ``visible_missed``: records a viewer may see that never came back (probe vacuity guard)."""
+
+    cross_namespace: int = 0
+    hidden_shown: int = 0
+    visible_missed: int = 0
+    errors: list[str] = field(default_factory=list)
+
+    @property
+    def leaked(self) -> bool:
+        return bool(self.cross_namespace or self.hidden_shown)
+
+
+async def probe_viewer(
+    *,
+    engine_factory: Callable[[Mapping[str, Any]], Any] = _make_engine,
+    modes: Sequence[str] = READ_MODES,
+) -> ViewerResult:
+    """I53: the namespace stays the hard boundary and ``viewer`` narrows inside it.
+
+    Both users hold records for the same viewers (Sam, Pat, Lee) with the same wording; as
+    each viewer in A the probe must get exactly the records that viewer may see, none of B's."""
+    res = ViewerResult()
+    eng = engine_factory({})
+    await eng.start()
+    try:
+        for ns, tag in ((NS_A, "zqa"), (NS_B, "zqb")):
+            for i, (tpl, people, vis) in enumerate(_VIEWER_SEEDS):
+                await eng.write(
+                    tpl.format(c=f"{tag}v{i}"),
+                    namespace=ns,
+                    memory_type="episodic",
+                    participants=people,
+                    visibility=vis,
+                    valid_from=T0 + timedelta(minutes=i),
+                )
+        for viewer, allowed in _VIEWER_EXPECT.items():
+            want = {f"zqav{i}" for i in allowed}
+            everything = {f"zqav{i}" for i in range(len(_VIEWER_SEEDS))}
+            try:
+                got: set[str] = set()
+                outs: list[Sequence[Any]] = [
+                    [
+                        r
+                        for r, _ in await eng.search(
+                            "garden", namespace=NS_A, top_k=20, viewer=viewer
+                        )
+                    ]
+                ]
+                for mode in modes:
+                    read = await eng.read(
+                        "garden", namespace=NS_A, mode=mode, top_k=20, viewer=viewer
+                    )
+                    outs.append(list(read.context.records))
+                for records in outs:
+                    for rec in records:
+                        text = str(rec.content).lower()
+                        if "zqb" in text or getattr(rec, "namespace", NS_A) != NS_A:
+                            res.cross_namespace += 1
+                        for mark in everything - want:
+                            if mark in text:
+                                res.hidden_shown += 1
+                        got.update(m for m in want if m in text)
+                res.visible_missed += len(want - got)
+            except Exception as exc:
+                res.errors.append(f"{viewer}: {type(exc).__name__}: {exc}")
     finally:
         await eng.stop()
     return res

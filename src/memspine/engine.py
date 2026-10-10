@@ -64,6 +64,14 @@ from memspine.core.excerpt import focused_excerpt
 from memspine.core.fact_views import view_tags
 from memspine.core.firewall import Firewall, FirewallSignals, FirewallVerdict, QueryHistory
 from memspine.core.forget_request import forget_target, is_forget_request
+from memspine.core.inference import (
+    INFERRED_CHANNELS,
+    INFERRED_TAG,
+    classify,
+    is_inferred,
+    support_count,
+    support_tags,
+)
 from memspine.core.integrity import IntegrityPolicy
 from memspine.core.language import language_scope
 from memspine.core.latest_wins import apply_latest_wins, recent_first
@@ -181,6 +189,15 @@ from memspine.core.replay import rebuild as replay_rebuild
 from memspine.core.rule_edges import BECAUSE_REL, is_why_question
 from memspine.core.rule_miner import mine_rules
 from memspine.core.sensitive import sensitive_topics
+from memspine.core.sensitivity import (
+    GRADE_TAG_PREFIX,
+    grade_rank,
+    grade_text,
+    label_of,
+    label_tags,
+    passes_gate,
+    query_topics,
+)
 from memspine.core.temporal_query import (
     RECOMMENDATION_TAG,
     SPEAKER_PREFIX,
@@ -209,6 +226,13 @@ from memspine.core.temporal_resolve import annotate as annotate_relative_dates
 from memspine.core.temporal_resolve import resolve
 from memspine.core.ties import settle_ties
 from memspine.core.vetting import VetFlag, draft_sentences, vet_sentences
+from memspine.core.visibility import (
+    PARTICIPANT_PREFIX,
+    VISIBILITY_PREFIX,
+    inherit_tags,
+    participant_tags,
+    visibility_tag,
+)
 from memspine.exceptions import (
     ConfigError,
     ConflictError,
@@ -868,6 +892,11 @@ def _jaccard(a: Collection[str], b: Collection[str]) -> float:
     return len(sa & sb) / len(sa | sb) if sa and sb else 0.0
 
 
+def _speaker_of(turn: Mapping[str, str]) -> str:
+    """I53: who spoke a message: its ``speaker`` or ``name`` key, else its role."""
+    return str(turn.get("speaker") or turn.get("name") or turn.get("role") or "")
+
+
 def _turn_content(turn: Mapping[str, str]) -> str:
     """G30 (plan v3.2): a turn's text, with an image or attachment ``caption`` (when
     the turn carries one) appended as ``[image: caption]``, so it is embedded, indexed
@@ -1399,6 +1428,8 @@ class Engine:
         parent_weights: Mapping[str, float] | None = None,
         purposes: Sequence[str] | None = None,
         reply_to: str | None = None,
+        participants: Sequence[str] | None = None,
+        visibility: str | None = None,
     ) -> MemoryRecord:
         """Append a WRITE event through the single door; projection materializes it.
 
@@ -1427,8 +1458,17 @@ class Engine:
         can show the answered message beside a replayed reply; with associative
         memory on, a ``reply_to`` LINK (reply -> answered) is written too, unless
         either end is held or at its link budget (logged, the write stands).
+
+        ``participants`` / ``visibility`` (I53): the speakers present (the first is the
+        speaker of this record) and who may see it (``private`` | ``participants`` |
+        ``owner_shared``), stored as ``participant:<name>`` / ``visibility:<v>`` tags. They
+        matter only to a read with ``viewer=``; the namespace stays the isolation boundary.
         """
         session_id = ledger_id if ledger_id is not None else session_id  # I9
+        if participants:
+            tags = [*(tags or []), *participant_tags(participants)]
+        if visibility is not None:
+            tags = [*(tags or []), visibility_tag(visibility)]
         if extraction_hint:  # G-8: rides as a tag; extract_graph passes it to the prompt
             tags = [*(tags or []), constants.EXTRACTION_HINT_PREFIX + extraction_hint.strip()]
         storage = self._require_started()
@@ -3643,6 +3683,11 @@ class Engine:
                     who = turn.get("speaker") or turn.get("name")
                     if isinstance(who, str) and who.strip():
                         state["known"].add(who.strip().lower())
+        session_speakers = (  # I53: everyone present in this call, in order of first turn
+            list(dict.fromkeys(_speaker_of(t) for t in messages if isinstance(t, Mapping)))
+            if self._config().write.participants == "session"
+            else []
+        )
         for i, turn in enumerate(messages):
             try:
                 role = turn["role"]
@@ -3719,6 +3764,10 @@ class Engine:
                 tags=turn_tags or None,
                 valid_from=stamp,
                 reply_to=reply_to,
+                participants=([_speaker_of(turn), *session_speakers] if session_speakers else None),
+                visibility=(
+                    str(turn["visibility"]) if session_speakers and "visibility" in turn else None
+                ),
             )
             if correction is not None and not record.quarantined:
                 await self._apply_correction(record.namespace, record, correction, records)
@@ -3860,6 +3909,7 @@ class Engine:
         """The firewall half of the write door: the stamped record and its verdict."""
         fw = self._config().firewall
         record = self._redact_fields(record, fw)
+        record = await self._govern_write(record)  # I48 / I52 / I53 (all off by default)
         # Memory Firewall gate (E1/M17): every write of every type passes the
         # deterministic trust/anomaly/instruction assessment BEFORE the door.
         if fw.enabled:
@@ -3902,6 +3952,10 @@ class Engine:
             factor = await self.principal_reputation(record.source.principal)
             if factor < 1.0:
                 record = record.model_copy(update={"trust": record.trust * factor})
+        if INFERRED_TAG in record.tags:  # I48: an inference is never as trusted as a statement
+            cap = self._config().write.inferred_trust_cap
+            if record.trust > cap:
+                record = record.model_copy(update={"trust": cap})
         return record, verdict
 
     def _redact_fields(self, record: MemoryRecord, fw: FirewallConfig) -> MemoryRecord:
@@ -3973,6 +4027,141 @@ class Engine:
         if tier is not record.pii_tier:
             update["pii_tier"] = tier
         return record.model_copy(update=update) if update else record
+
+    # -- I48 / I52 / I53: governance labels (tags only; the text is never copied out) --
+
+    async def _grade_sensitivity(self, content: str, mode: str) -> tuple[str, tuple[str, ...]]:
+        """I52: the (grade, categories) of ``content``. The lexicon grades it; under
+        ``decider`` the ``sensitivity`` task may raise an ungraded text to ``medium`` (category
+        ``other``) when it is sure. It never lowers a grade, and a failure keeps the lexicon."""
+        label = grade_text(content)
+        if mode != "decider" or label.grade != "none":
+            return label.grade, label.categories
+        read = self._config().read
+        try:
+            decision = await self._decider_adapter().decide("sensitivity", content[:2000], None)
+            if (
+                decision.label == "sensitive"
+                and decision.confidence is not None
+                and decision.confidence >= read.decider_min_confidence
+            ):
+                return "medium", ("other",)
+        except Exception as exc:  # an enhancer, never a gate; log the class, not the text
+            _log.warning("write.sensitivity_decider_failed", error=type(exc).__name__)
+        return label.grade, label.categories
+
+    async def _govern_write(self, record: MemoryRecord) -> MemoryRecord:
+        """I48 / I52 / I53: the write-time labels. Every key is off by default (unchanged)."""
+        wc = self._config().write
+        if wc.sensitivity == "off" and wc.participants == "off" and wc.inferred == "off":
+            return record
+        tags = list(record.tags)
+        update: dict[str, Any] = {}
+        if wc.sensitivity != "off" and not any(t.startswith(GRADE_TAG_PREFIX) for t in tags):
+            grade, categories = await self._grade_sensitivity(record.content, wc.sensitivity)
+            if grade != "none":
+                tags.extend(t for t in label_tags((grade, categories)) if t not in tags)
+                if grade == "high" and _PII_RANK[record.pii_tier] < _PII_RANK[PiiTier.HIGH]:
+                    update["pii_tier"] = PiiTier.HIGH
+                _log.info(  # label and category only, never the text
+                    "memory.sensitivity_graded",
+                    namespace=record.namespace,
+                    grade=grade,
+                    categories=list(categories),
+                )
+        parents: list[MemoryRecord] = []
+        if record.source.parents and (wc.participants != "off" or wc.inferred != "off"):
+            storage = self._require_started()
+            got = [await storage.get_record(p) for p in record.source.parents]
+            parents = [p for p in got if p is not None and p.namespace == record.namespace]
+        if wc.participants != "off" and parents:
+            has_people = any(t.startswith(PARTICIPANT_PREFIX) for t in tags)
+            has_vis = any(t.startswith(VISIBILITY_PREFIX) for t in tags)
+            for tag in inherit_tags([p.tags for p in parents]):
+                is_person = tag.startswith(PARTICIPANT_PREFIX)
+                if tag not in tags and not (has_people if is_person else has_vis):
+                    tags.append(tag)
+        if wc.inferred != "off" and INFERRED_TAG not in tags:
+            marked = self._mark_inferred(record, parents, wc)
+            if marked is not None:
+                tags.extend(t for t in marked if t not in tags)
+                _log.info("memory.inferred_tagged", namespace=record.namespace)
+        if tags != record.tags:
+            update["tags"] = tags
+        return record.model_copy(update=update) if update else record
+
+    @staticmethod
+    def _mark_inferred(
+        record: MemoryRecord, parents: Sequence[MemoryRecord], wc: Any
+    ) -> list[str] | None:
+        """I48: the tags of an engine-derived record that states something no user turn
+        does, else None (a stated or non-derived record is left alone)."""
+        derived = record.source.channel in INFERRED_CHANNELS or (
+            record.source.role == "assistant" and bool(parents)
+        )
+        if not derived or record.memory_type == "episodic":
+            return None
+        inferred, support = classify(
+            record.content,
+            [(p.record_id, p.source.role, p.content) for p in parents],
+            explicit_overlap=wc.inferred_explicit_overlap,
+            support_overlap=wc.inferred_support_overlap,
+        )
+        return [INFERRED_TAG, *support_tags(support)] if inferred else None
+
+    async def review_inferred(
+        self, namespace: str = "default", *, include_supported: bool = False
+    ) -> list[MemoryRecord]:
+        """I48: the review list. Live records tagged ``src:inferred`` that have fewer than
+        ``read.inferred_min_support`` distinct supporting user turns (all inferred records
+        with ``include_supported``), lowest support first."""
+        ns = validate_namespace(namespace)
+        need = self._config().read.inferred_min_support
+        out = [
+            r
+            for r in await self._records(ns)
+            if is_inferred(r.tags)
+            and r.status is RecordStatus.ACTIVATED
+            and not r.quarantined
+            and (include_supported or support_count(r.tags) < need)
+        ]
+        return sorted(out, key=lambda r: (support_count(r.tags), r.recorded_at))
+
+    async def _sensitivity_scope_open(self, query: str) -> bool:
+        """I52 (``read.sensitivity_gate: decider``): is the message about the user's own
+        sensitive details? Only a sure ``about`` answer opens the gate; anything else keeps it."""
+        if self._config().read.decider == "heuristic":
+            return False
+        return await self._decided("sensitivity_scope", query, None, "not_about") == "about"
+
+    async def _scope_check(self, query: str) -> Callable[[MemoryRecord], bool] | None:
+        """I48 / I52: the per-record read predicate for ``query``, or None when both gates are
+        off. Sensitive records need a topic, subject or word match with the question
+        (:func:`~memspine.core.sensitivity.passes_gate`); inferred ones need their support."""
+        read = self._config().read
+        sens = read.sensitivity_gate != "off"
+        infer = read.inferred_gate != "off"
+        if not (sens or infer):
+            return None
+        topics = query_topics(query) if sens else frozenset()
+        opened = (
+            sens
+            and read.sensitivity_gate == "decider"
+            and not topics
+            and await self._sensitivity_scope_open(query)
+        )
+        need = read.inferred_min_support
+
+        def check(record: MemoryRecord) -> bool:
+            if sens and not opened:
+                label = label_of(record.tags)
+                if grade_rank(label.grade) >= 2 and not passes_gate(
+                    label, record.content, record.entity, query, topics
+                ):
+                    return False
+            return not (infer and is_inferred(record.tags) and support_count(record.tags) < need)
+
+        return check
 
     async def _write_screened(
         self,
@@ -4094,6 +4283,7 @@ class Engine:
         recorded_after: DateBound | None = None,
         recorded_before: DateBound | None = None,
         date_filter_mode: str = "and",
+        viewer: str | None = None,
     ) -> list[tuple[MemoryRecord, float]]:
         """Semantic retrieval (P1 + E8 opt-in stages, D-51):
         ``[static_prefilter?] → vector/hybrid → [rerank?] → score`` (MMR and
@@ -4150,7 +4340,16 @@ class Engine:
         with (
             read_scope(purpose) as outer,
             date_filter_scope(date_filter),
-            record_scope(RecordScope.build(sessions, roles, memory_types, tags_any)),  # I7/I8/G-12
+            record_scope(  # I7/I8/G-12, I53 viewer, I48/I52 bars
+                RecordScope.build(
+                    sessions,
+                    roles,
+                    memory_types,
+                    tags_any,
+                    viewer=viewer,
+                    check=await self._scope_check(query),
+                )
+            ),
         ):
             scored = await self._search(
                 query,
@@ -4720,6 +4919,7 @@ class Engine:
         include_passive: bool = False,
         *,
         as_of: DateBound | None = None,
+        viewer: str | None = None,
     ) -> AssembledContext:
         """Retrieval + M12/E2 assembly: MMR-selected, cache-aware-ordered context.
 
@@ -4748,7 +4948,16 @@ class Engine:
             date_filter_scope(as_of_filter),
             as_of_scope(as_of),
             language_scope(self._config().read.language_guard == "on"),  # I23
-            record_scope(RecordScope.build(sessions, roles, memory_types, tags_any)),  # I7/I8/G-12
+            record_scope(  # I7/I8/G-12, I53 viewer, I48/I52 bars
+                RecordScope.build(
+                    sessions,
+                    roles,
+                    memory_types,
+                    tags_any,
+                    viewer=viewer,
+                    check=await self._scope_check(query),
+                )
+            ),
         ):
             context = await self._assemble(
                 query, namespace, budget_tokens, top_k, shared=shared, session_id=session_id
@@ -5440,6 +5649,7 @@ class Engine:
         recorded_before: DateBound | None = None,
         date_filter_mode: str = "and",
         as_of: DateBound | None = None,
+        viewer: str | None = None,
     ) -> ReadResult:
         """C7': mode-routed read. Rules decide; no model on the read path.
 
@@ -5510,7 +5720,16 @@ class Engine:
             date_filter_scope(date_filter),
             as_of_scope(as_of),
             language_scope(self._config().read.language_guard == "on"),  # I23
-            record_scope(RecordScope.build(sessions, roles, memory_types, tags_any)),  # I7/I8/G-12
+            record_scope(  # I7/I8/G-12, I53 viewer, I48/I52 bars
+                RecordScope.build(
+                    sessions,
+                    roles,
+                    memory_types,
+                    tags_any,
+                    viewer=viewer,
+                    check=await self._scope_check(query),
+                )
+            ),
         ):
             result = await self._read(
                 query,
@@ -5841,6 +6060,8 @@ class Engine:
             return False
         if task == "relevance":
             return read.relevance_gate == "decider"
+        if task == "sensitivity_scope":
+            return read.sensitivity_gate == "decider"
         return task in read.decider_tasks
 
     def set_decider(self, decider: Decider | None) -> None:

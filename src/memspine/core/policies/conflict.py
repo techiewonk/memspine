@@ -38,6 +38,7 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import ClassVar
 
+from memspine.core.inference import INFERRED_TAG
 from memspine.core.policies.base import BindablePolicy, PolicyOptions
 from memspine.core.query_shape import content_words
 from memspine.core.records import MemoryRecord
@@ -81,6 +82,10 @@ class ConflictOptions(PolicyOptions):
     #: unless trust or time already decides it as the ladder does. Records without those tags
     #: behave as before. Off: unchanged.
     perspective_key: bool = False
+    #: I48: an engine-inferred fact (``src:inferred``) never changes a stated one on the same
+    #: key (NOOP), and a stated fact supersedes an inferred one whatever their event times.
+    #: Off: unchanged.
+    inferred_defers: bool = False
 
 
 class ConflictPolicy(BindablePolicy):
@@ -153,6 +158,14 @@ class ConflictPolicy(BindablePolicy):
             return ConflictVerdict.ADD  # independent facts coexist
         if options.perspective_key and self.coexists(incoming, existing):
             return ConflictVerdict.ADD  # another subject / scope: both hold
+
+        # I48 — stated beats inferred: an inference never overrides a statement.
+        if options.inferred_defers:
+            inc_inf = INFERRED_TAG in incoming.tags
+            if inc_inf and INFERRED_TAG not in existing.tags:
+                return ConflictVerdict.NOOP
+            if not inc_inf and INFERRED_TAG in existing.tags and "retract" not in incoming.tags:
+                return ConflictVerdict.UPDATE
 
         # R1 — trust gate (E1): markedly less-trusted writes cannot displace
         # the current fact; the store records the rejection as a CONFLICT event.

@@ -23,7 +23,7 @@ come first.
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable, Iterator, Sequence
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, fields
@@ -33,6 +33,7 @@ from typing import Literal
 from memspine.core.records import MemoryRecord
 from memspine.core.temporal_query import LegHit, query_interval
 from memspine.core.temporal_resolve import WeekMode, resolve
+from memspine.core.visibility import visible_to
 
 __all__ = [
     "PERSON_TAG_PREFIX",
@@ -280,6 +281,11 @@ class RecordScope:
     roles: frozenset[str] | None = None
     memory_types: frozenset[str] | None = None
     tags_any: frozenset[str] | None = None
+    #: I53: the reader; only records that reader may see (``core/visibility.py``).
+    viewer: str | None = None
+    #: I48 / I52: an extra per-record read predicate (the sensitivity bar and the
+    #: inferred-support bar), built by the engine for the question in hand.
+    check: Callable[[MemoryRecord], bool] | None = None
 
     @classmethod
     def build(
@@ -288,14 +294,17 @@ class RecordScope:
         roles: Iterable[str] | None = None,
         memory_types: Iterable[str] | None = None,
         tags_any: Iterable[str] | None = None,
+        *,
+        viewer: str | None = None,
+        check: Callable[[MemoryRecord], bool] | None = None,
     ) -> RecordScope | None:
-        values = [
+        a, b, c, d = (
             frozenset(v) if v is not None else None
             for v in (sessions, roles, memory_types, tags_any)
-        ]
-        if all(v is None for v in values):
+        )
+        if a is b is c is d is None and viewer is None and check is None:
             return None
-        return cls(*values)
+        return cls(a, b, c, d, viewer=viewer, check=check)
 
     def matches(self, record: MemoryRecord) -> bool:
         if self.sessions is not None and (record.source.message_id or "") not in self.sessions:
@@ -304,7 +313,11 @@ class RecordScope:
             return False
         if self.memory_types is not None and record.memory_type not in self.memory_types:
             return False
-        return self.tags_any is None or not self.tags_any.isdisjoint(record.tags)
+        if self.tags_any is not None and self.tags_any.isdisjoint(record.tags):
+            return False
+        if self.viewer is not None and not visible_to(record.tags, self.viewer):
+            return False
+        return self.check is None or self.check(record)
 
 
 _SCOPE: ContextVar[RecordScope | None] = ContextVar("memspine_record_scope", default=None)

@@ -3,7 +3,15 @@
 from __future__ import annotations
 
 import pytest
-from memspine_evals.leakage import CONFIGS, LeakReport, ProbeResult, probe, run_all
+from memspine_evals.leakage import (
+    CONFIGS,
+    LeakReport,
+    ProbeResult,
+    ViewerResult,
+    probe,
+    probe_viewer,
+    run_all,
+)
 
 
 @pytest.mark.parametrize("name", sorted(CONFIGS))
@@ -24,8 +32,9 @@ async def test_report_aggregates_and_flags_a_leak() -> None:
 
 async def test_probe_exercises_the_list_bridge_session_and_rerank_paths() -> None:
     """Guards against a vacuous pass: the legs the probe claims to cover really ran."""
-    from memspine.engine import search_forensics
     from memspine_evals import leakage as lk
+
+    from memspine.engine import search_forensics
 
     lk._register_reranker()
     eng = lk._make_engine(CONFIGS["rerank_bridge_list"])
@@ -64,3 +73,38 @@ async def test_probe_detects_a_planted_leak() -> None:
 
     res = await probe("planted", {}, engine_factory=factory, modes=())
     assert res.leaked_records > 0
+
+
+async def test_viewer_cases_stay_inside_the_namespace_and_the_visibility() -> None:
+    """I53: a viewer sees exactly the records visible to them, and never another namespace's."""
+    res = await probe_viewer()
+    assert not res.errors, res.errors
+    assert res.cross_namespace == 0 and res.hidden_shown == 0, res
+    assert res.visible_missed == 0, f"vacuous viewer probe: {res}"
+    assert not res.leaked
+
+
+async def test_viewer_probe_detects_a_planted_visibility_leak() -> None:
+    from memspine_evals.leakage import _make_engine
+
+    from memspine import Engine
+
+    class Ignores:
+        def __init__(self, inner: Engine) -> None:
+            self._inner = inner
+
+        def __getattr__(self, item: str):
+            return getattr(self._inner, item)
+
+        async def search(self, query: str, namespace: str = "default", **kw):
+            kw.pop("viewer", None)  # a store that forgets the viewer
+            return await self._inner.search(query, namespace=namespace, **kw)
+
+        async def read(self, query: str, namespace: str = "default", **kw):
+            kw.pop("viewer", None)
+            return await self._inner.read(query, namespace=namespace, **kw)
+
+    res = await probe_viewer(
+        engine_factory=lambda read: Ignores(_make_engine(read)), modes=("full",)
+    )
+    assert res.leaked and isinstance(res, ViewerResult)
