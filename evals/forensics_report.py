@@ -41,6 +41,7 @@ sys.path.append(str(HERE))
 
 from failure_buckets import _list_items, _session_date, _words, bucket_failure  # noqa: E402
 from memspine_evals.datasets import LoCoMoDataset  # noqa: E402
+from memspine_evals.evidence import normalise_evidence  # noqa: E402
 
 CAT = {"cat1": "multi-hop", "cat2": "temporal", "cat3": "open-domain", "cat4": "single-hop", "cat5": "adversarial"}
 CATS = ["single-hop", "multi-hop", "temporal", "open-domain"]
@@ -167,11 +168,14 @@ def build(args) -> None:
     ds = LoCoMoDataset(args.data, revision_id="auto", categories=(1, 2, 3, 4, 5))  # cat 5 is reported apart (A13)
     turn_info: dict[tuple[str, str], dict] = {}
     gold_by_q: dict[tuple[str, str], list[str]] = {}
+    evidence_by_q: dict[tuple[str, str], object] = {}  # M02: reversible view next to the official label
     for item in ds.items():
+        known = {t.turn_id for t in item.history}
         for t in item.history:
             turn_info[(item.item_id, t.turn_id)] = {"text": f"{t.speaker}: {t.text}", "ts": t.timestamp}
         for q in item.queries:
             gold_by_q[(item.item_id, q.query_id)] = gold_turns(list(q.gold_turn_ids))
+            evidence_by_q[(item.item_id, q.query_id)] = normalise_evidence(list(q.gold_turn_ids), known)
 
     results = [r for r in load_jsonl(run_dir / "results.jsonl") if r.get("kind") == "result"]
     manifest = {}
@@ -203,6 +207,14 @@ def build(args) -> None:
             correct = score is not None and score >= 1.0 and r.get("status") == "completed" and bool((answer or "").strip())
         else:
             correct = bool(gold_ids) and all(g in in_ctx for g in gold_ids)
+        ev_view = evidence_by_q.get(key)
+        evidence = None
+        if ev_view is not None and ev_view.status != "ok":
+            adj = list(ev_view.resolved_ids)
+            evidence = {"status": ev_view.status, "raw": list(ev_view.raw), "resolved": adj,
+                        "unresolved": list(ev_view.unresolved_tokens),
+                        "adjudicated_correct": (all(g in in_ctx for g in adj) if adj else None)
+                        if mode == "retrieval" else None}
         entry = {
             "schema_version": "forensic_question/v1", "run_id": run_id, "mode": mode,
             "item": r["item_id"], "qid": r["query_id"], "category": CAT.get(r.get("type_label"), "other"),
@@ -212,6 +224,7 @@ def build(args) -> None:
             "context_tokens": num(r.get("context_tokens")), "latency_retrieve_ms": num(r.get("latency_retrieve_ms")),
             "latency_answer_ms": num(r.get("latency_answer_ms")), "retrieved_turns": retrieved,
             "list_recall": None,
+            "evidence": evidence,
             "gold_turns": [], "flags": [], "primary_gap": None, "reader_bucket": None,
             "stages": None, "gate": None, "top_non_gold": None, "context_text": None,
         }
@@ -397,6 +410,24 @@ def load_errata(
     from memspine_evals.errata import load_errata as _load
 
     return _load(path, exclude_tags=ERRATA_EXTENDED_TAGS if extended else ERRATA_EXCLUDE_TAGS)
+
+
+def evidence_block(rows: list[dict]) -> dict:
+    """M02: questions whose raw evidence is malformed or names no turn of the conversation
+    (``memspine_evals.evidence``). Official labels and scores are not changed: the QA score never
+    reads evidence, and the retrieval-only ``correct`` keeps the raw label (an unresolvable token is
+    a miss). ``adjudicated_correct`` is the separate diagnostic over the resolved ids."""
+    bad = [r for r in rows if r.get("evidence")]
+    by_status: dict[str, int] = {}
+    for r in bad:
+        by_status[r["evidence"]["status"]] = by_status.get(r["evidence"]["status"], 0) + 1
+    retr = [r for r in bad if r["mode"] == "retrieval"]
+    return {"version": "evidence/v1", "n_questions": len(rows), "n_flagged": len(bad),
+            "by_status": by_status,
+            "retrieval_only": {"n": len(retr),
+                               "official_correct": sum(1 for r in retr if r["correct"]),
+                               "adjudicated_correct": sum(1 for r in retr if r["evidence"]["adjudicated_correct"])},
+            "items": [{"item": r["item"], "qid": r["qid"], **r["evidence"]} for r in bad]}
 
 
 def conventions_block(rows: list[dict]) -> dict | None:
@@ -695,6 +726,7 @@ def summarise(run_id: str, rows: list[dict], manifest: dict, ingest: list[dict],
                "accuracy": (sum(r["correct"] for r in rows) / len(rows)) if rows else 0.0}
     s["errata"] = errata_block(rows, errata) if errata else None
     s["conventions"] = conventions_block(rows)  # I58: second column
+    s["evidence"] = evidence_block(all_rows)  # M02: official label untouched, diagnostic beside it
     s["n_adversarial"] = len(adv)
     s["adversarial"] = adversarial_block(adv)
     s["abstention"] = abstention_block(all_rows)  # I24

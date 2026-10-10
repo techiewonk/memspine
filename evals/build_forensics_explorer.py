@@ -56,6 +56,7 @@ sys.path.append(str(HERE))
 
 import eval_screen  # noqa: E402  (scoring conventions: SUBS, OPB_BAND, ok-rule)
 from memspine_evals import judge_prompts as JP  # noqa: E402
+from memspine_evals import evidence as EV  # noqa: E402
 from memspine_evals import opbench as OB  # noqa: E402
 from memspine_evals import readers as RD  # noqa: E402
 from memspine_evals import refusal as RF  # noqa: E402
@@ -438,13 +439,15 @@ def load_dev_loc():
         for q in item.queries:
             if ALL_CONVS and q.type_label == "cat5":
                 continue  # the full logged run is categories 1-4
-            ev = []
-            for e in (
+            raw_ev = list(
                 q.meta.get("distractor_evidence", ())
                 if q.meta.get("adversarial")
                 else q.gold_turn_ids
-            ):
-                ev += [p.strip() for p in str(e).split(";") if p.strip()]
+            )
+            # M02: reversible evidence view. The raw label is untouched; `ev` (what the explorer
+            # looks up) is the resolved ids, `evv` carries raw + status for non-ok references.
+            view = EV.normalise_evidence(raw_ev, tt[item.item_id])
+            ev = list(view.resolved_ids)
             qs[f"{item.item_id}:{q.query_id}"] = dict(
                 item=item.item_id,
                 id=q.query_id,
@@ -453,6 +456,9 @@ def load_dev_loc():
                 adv=bool(q.meta.get("adversarial")),
                 ev=[] if q.meta.get("adversarial") else ev,
                 dv=ev if q.meta.get("adversarial") else [],
+                evv=None if view.status == "ok" else [r.to_dict() for r in view.refs if r.status != "ok"],
+                evs=view.status,
+                evr=list(view.raw),
             )
     del ds
     return sorted(dev), tt, qs
@@ -1233,8 +1239,16 @@ def build(args) -> dict:
 
     # OP-Bench rows
     opb_c: dict[str, dict[str, dict]] = {}
+    opb_recon: dict[str, dict] = {}
     for rid, run in opb_runs.items():
         rows = {}
+        # M01: finalised per_probe scores (opbench_summary.json) when the run has them; the
+        # results.jsonl value is provisional for repetition (running pool mean) and is kept as `sp`.
+        osum = run["dir"] and (run["dir"] / "opbench_summary.json")
+        osum = json.loads(osum.read_text(encoding="utf-8")) if osum and osum.exists() else None
+        if osum:
+            opb_recon[rid] = OB.reconcile(run["rows"].values(), osum)  # raises on any mismatch
+        final = osum["per_probe"] if osum else None
         for r in run["rows"].values():
             qid = r.get("query_id")
             m = opb_meta.get(qid)
@@ -1242,12 +1256,14 @@ def build(args) -> dict:
                 continue
             ids = r.get("retrieved_ids") or []
             ps = persona_share(ids, m["qm"])
+            dg = OB.diagnose_row(r, final, pass_at=OPB_PASS)
             rows[qid] = clean(
                 dict(
-                    s=r.get("score"),
-                    ok=int(
-                        float(r.get("score") or 0) >= OPB_PASS and r.get("status") == "completed"
-                    ),
+                    s=dg["score"],
+                    sp=dg["provisional"] if dg["differs"] or dg["basis"] == "pending" else None,
+                    sb=dg["basis"],
+                    ds=dg["state"],
+                    ok=dg["ok"],
                     a=r.get("answer") or "",
                     ps=None if ps is None else round(ps, 3),
                     ct=r.get("context_tokens"),
@@ -1261,6 +1277,11 @@ def build(args) -> dict:
                 )
             )
         opb_c[rid] = rows
+        if osum:  # M01: the displayed rows ARE the summary's finalised scores (exact, not close)
+            shown = {q: x["s"] for q, x in rows.items() if x.get("sb") == "final"}
+            assert all(osum["per_probe"][q] == v for q, v in shown.items()), rid
+            if len(rows) == len(run["rows"]):  # every probe shown (all personas)
+                assert len(shown) == len(osum["per_probe"]) == osum["n_probes"], (rid, len(shown))
     reads_seen: dict[str, int] = {}
     for rid, rows_c in list(loc_c.items()) + list(opb_c.items()):
         for rd in jlz(RUNS / f"{rid}--trace" / "reads.jsonl"):
@@ -1792,6 +1813,9 @@ def build(args) -> dict:
                     g=loc_runs[LOC_REF]["rows"][k].get("gold"),
                     ev=q["ev"],
                     dv=q["dv"] or None,
+                    evs=None if q["evs"] == "ok" else q["evs"],
+                    evr=q["evr"] if q["evs"] != "ok" else None,
+                    evv=q["evv"],
                     ok=base["ok"],
                     st=cat["failure_stage"] if cat else None,
                     code=cat["failure_code"] if cat else None,
@@ -1930,6 +1954,8 @@ def build(args) -> dict:
         n=len(opb_c[OPB_REF]),
         low=sum(1 for v in opb_c[OPB_REF].values() if not v["ok"]),
         base_low=sum(1 for v in opb_c[OPB_BASE].values() if not v["ok"]),
+        reconcile=opb_recon.get(OPB_REF),  # M01: totals checked against opbench_summary.json
+        states=dict(collections.Counter(v.get("ds") for v in opb_c[OPB_REF].values())),
     )
 
     # ---- waterfall
@@ -2058,6 +2084,10 @@ def build(args) -> dict:
         screen_ids_loc=screens_loc,
         screen_ids_opb=screens_opb,
         data_gaps=data_gaps,
+        opb_reconcile=opb_recon,
+        evidence=EV.status_counts(
+            EV.normalise_evidence(q["evr"], tt[q["item"]]) for q in loc_q.values()
+        ),
         budgets={
             rid: ((r.get("manifest") or {}).get("protocol") or {}).get("budget_tokens")
             for rid, r in list(loc_runs.items()) + list(opb_runs.items())
@@ -2815,6 +2845,7 @@ function detailLoc(q, nav, sel, runs, rid) {
   let h = nav + `<h2>${esc(q.k)} <small class="mut">LoCoMo ${esc(q.cat)}</small> <span class="${q.ok ? 'ok' : 'bad'}">${q.ok ? 'baseline correct' : 'baseline WRONG'}</span></h2><div>${sel}</div>`;
   h += (q.errs || []).map(e => `<div class="warn"><b>Errata: ${esc(e.tag)}</b>${e.borderline ? ' (borderline)' : ''}. ${esc(e.reason)} <small class="mut">${esc(e.source || '')}</small></div>`).join('') + (q.errc ? `<div class="warn"><b>Errata candidate (not yet in locomo_errata.json):</b> ${esc(q.errc)}</div>` : '');
   h += `<div class="sec"><h3>Question</h3><div class="box">${esc(q.q)}</div><h3>Gold answer</h3><div class="box">${esc(q.g)}</div>`;
+  if (q.evs) h += `<div class="warn"><b>Evidence reference ${esc(q.evs)}</b> (M02 normaliser; the official label is unchanged). Raw: <code>${esc(JSON.stringify(q.evr))}</code>. ` + (q.evv || []).map(r => esc(r.raw) + ' &rarr; ' + (r.resolved.length ? esc(r.resolved.join(', ')) : 'no turn') + (r.unresolved.length ? ' (unresolved: ' + esc(r.unresolved.join(', ')) + ')' : '') + ' [' + esc(r.status) + ']').join('; ') + `. The official recall counts a malformed token as a miss; the diagnostic column does not.</div>`;
   h += `<h3>${q.cc === 'cat5' ? 'Evidence of the distractor (the turn the wrong answer is built from; not gold)' : 'Evidence (gold) turns, as stored'}</h3><div class="ctx">` + ((q.cc === 'cat5' ? q.dv : q.ev) || []).map(t => { const x = turnInfo(c, t); return `<div class="${q.cc === 'cat5' ? 'dist' : 'gold'}"><b class="id">${esc(t)}</b> ${q.cc === 'cat5' ? '' : '<b class="g">[GOLD]</b> '}<small>${x ? esc(x[3]) + ', ' + esc(x[4] || '') : ''}</small> ${memBadge(c, t)}<br>${lineText(c, t)}</div>`; }).join('') + '</div></div>';
   h += `<div class="sec"><h3>Our answer, in the baseline and in each screen</h3>${answersTable(q, runs, rid)}</div>`;
   h += `<div class="sec"><h3>Forensics: where and why it broke</h3>`;
@@ -2832,7 +2863,7 @@ function detailOpb(q, nav, sel, runs, rid) {
   h += `<div class="warn">OP-Bench has no licence: this view is local only.</div>`;
   h += `<div class="sec"><h3>Probe</h3><div class="box">${esc(q.q)}</div><div class="mut">persona: ${esc(q.persona)}; item ${esc(q.it)}${q.ho ? ' <b class="o">[held-out persona]</b>' : ' [dev persona]'}</div></div>`;
   h += `<div class="sec"><h3>Answers and judge scores: BASE (no memory), baseline, screens</h3><table><tr><th>run</th><th>judge score</th><th>pass</th><th>persona share of context</th><th>context lines / tokens</th><th>answer</th></tr>`;
-  runs.forEach(r0 => { const r = q.r[r0]; h += `<tr class="${r0 === rid ? 'sel' : ''}"><td>${esc(r0)}${r0 === M.opb_base ? ' <small>(no memory)</small>' : ''}</td><td class="n">${f1(r.s, 2)}</td><td class="${r.ok ? 'ok' : 'bad'}">${r.ok ? '&#10003;' : '&#10007;'}</td><td class="n">${r.ps == null ? '-' : f1(100 * r.ps, 0) + '%'}</td><td class="n">${r.n ?? ''} / ${r.ct ?? ''}${(r.fl || []).length ? ' ' + r.fl.map(x => `<span class="tag s">${x}</span>`).join('') : ''}</td><td>${esc(r.a)}</td></tr>`; });
+  runs.forEach(r0 => { const r = q.r[r0]; h += `<tr class="${r0 === rid ? 'sel' : ''}"><td>${esc(r0)}${r0 === M.opb_base ? ' <small>(no memory)</small>' : ''}</td><td class="n">${f1(r.s, 2)}${r.sb ? ' <small class="mut" title="score basis: final = per_probe in opbench_summary.json; judge = the probe own judge score; pending = repetition probe with no final score">' + r.sb + '</small>' : ''}${r.sp != null ? ' <small class="mut" title="provisional value in results.jsonl">prov ' + f1(r.sp, 2) + '</small>' : ''}</td><td class="${r.ok ? 'ok' : 'bad'}">${r.ds && r.ds !== 'complete' ? '<small class="mut">' + r.ds + '</small>' : (r.ok ? '&#10003;' : '&#10007;')}</td><td class="n">${r.ps == null ? '-' : f1(100 * r.ps, 0) + '%'}</td><td class="n">${r.n ?? ''} / ${r.ct ?? ''}${(r.fl || []).length ? ' ' + r.fl.map(x => `<span class="tag s">${x}</span>`).join('') : ''}</td><td>${esc(r.a)}</td></tr>`; });
   h += '</table></div>';
   h += `<div class="sec"><h3>Forensics: failure class</h3>`;
   if (q.st) { h += `<div><b>${esc(q.sub)}</b> <span class="mut">[${esc(q.code)}]</span></div>`; const s = q.sig; if (s) h += `<div class="mut">signals: persona share ${s.persona_share}, leaked context tokens re-used in the answer ${s.leak_n}, second-person reference cues ${s.ref_cues}, best question/context word overlap ${s.best_overlap}, affirmation ${s.affirm}, role inversion ${s.role_inv}</div>`; h += `<div><b>Generic fix:</b> ${esc(q.fix || '')}</div><div><b>Decision mechanism:</b> ${esc(q.mech || '')}</div><div><b>Built feature:</b> ${esc(q.feat || '')}</div><div><b>Runtime cost:</b> ${esc(q.cost || '')}</div>`; }

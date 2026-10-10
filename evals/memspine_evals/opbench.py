@@ -48,13 +48,17 @@ from .judge import JudgeScale, JudgeSpec, Verdict
 __all__ = [
     "OFFICIAL_REVISION",
     "OPBenchJudge",
+    "ReconcileError",
     "aggregate",
+    "answer_state",
     "build_opbench_judge",
     "compare",
     "default_embedder",
+    "diagnose_row",
     "diagnostics",
     "load_judge_prompts",
     "parse_score",
+    "reconcile",
     "render_report",
     "resolve_root",
     "write_report",
@@ -490,6 +494,144 @@ def compare(ref: Mapping[str, Any], new: Mapping[str, Any], eps: float = 0.05) -
             "losses": sum(d < -eps for d in diffs),
         }
     return out
+
+
+# -- M01: display-side score contract (the official formula above is untouched) -----------------
+
+
+class ReconcileError(AssertionError):
+    """The explorer's OP-Bench totals disagree with ``opbench_summary.json``."""
+
+
+#: row states that are not an answer: kept apart, never counted as a pass or a fail
+ANSWER_STATES = ("complete", "truncated", "empty", "failed", "retrieval_only", "pending")
+
+
+def answer_state(row: Mapping[str, Any]) -> str:
+    """Completion state of a result row. Only ``complete`` (status completed, no error, no
+    truncation, non-empty answer) can be an answer-pass; the rest are reported apart."""
+    meta = row.get("meta") or {}
+    status = str(row.get("status") or "")
+    if meta.get("retrieval_only") or status == "retrieval_only":
+        return "retrieval_only"
+    if status in ("", "pending", "running", "unattempted"):
+        return "pending"
+    if row.get("error") or status in ("failed", "error") or meta.get("judge_failed"):
+        return "failed"
+    if status == "truncated" or row.get("answer_truncated") is True:
+        return "truncated"
+    if status == "completed":
+        return "complete" if str(row.get("answer") or "").strip() else "empty"
+    return "failed"
+
+
+def diagnose_row(
+    row: Mapping[str, Any],
+    final: Mapping[str, float] | None,
+    *,
+    pass_at: float = 0.5,
+) -> dict[str, Any]:
+    """Display score for one probe: the finalised ``per_probe`` score when the run has one, with
+    the row's own (provisional) score kept beside it.
+
+    * ``score`` / ``basis``: ``final`` (``per_probe``), ``judge`` (a judge-scored probe of a run
+      without a summary: the row score is the official one), or ``pending`` (a repetition probe
+      with no final score: its row value is provisional, an order-dependent running mean, and is
+      not used).
+    * ``provisional``: the row's recorded score, ``differs`` when it is not the displayed one.
+    * ``state``: ``answer_state``; ``ok`` = complete answer and ``score >= pass_at``.
+    """
+    qid = str(row.get("query_id"))
+    task = str(row.get("type_label") or "").partition("/")[0]
+    prov = None if row.get("score") is None else float(row["score"])
+    if final is not None and qid in final:
+        score, basis = float(final[qid]), "final"
+    elif task == "diversity":
+        score, basis = None, "pending"
+    else:
+        score, basis = prov, "judge"
+    state = answer_state(row)
+    return {
+        "score": score,
+        "basis": basis,
+        "provisional": prov,
+        "differs": score is not None and prov is not None and abs(score - prov) > 1e-12,
+        "state": state,
+        "ok": int(state == "complete" and score is not None and score >= pass_at),
+    }
+
+
+def reconcile(rows: Iterable[Mapping[str, Any]], summary: Mapping[str, Any]) -> dict[str, Any]:
+    """Assert that the rows' finalised scores reproduce ``opbench_summary.json`` and return the
+    totals. Checks: every ``per_probe`` id is a row and the displayed score equals it exactly;
+    a row without a final score is a repetition probe with no valid answer; ``n_probes``; the
+    per-subtype probe means; the per-task macro for every task but repetition (its group score
+    is a pairwise cosine, not a mean of per-probe values: taken from the summary). Raises
+    ``ReconcileError`` on any difference; the official formula is not recomputed or changed."""
+    final = summary["per_probe"]
+    rows = [r for r in rows if r.get("status") != "unattempted"]
+    by_q = {str(r["query_id"]): r for r in rows}
+    missing = sorted(set(final) - set(by_q))
+    if missing:
+        raise ReconcileError(f"per_probe ids with no result row: {missing[:5]} ({len(missing)})")
+    sub_vals: dict[str, list[float]] = defaultdict(list)
+    groups: dict[tuple[str, str], list[float]] = defaultdict(list)
+    n_final = n_differ = 0
+    prov_rep: list[float] = []
+    final_rep: list[float] = []
+    states: dict[str, int] = defaultdict(int)
+    for qid, r in by_q.items():
+        d = diagnose_row(r, final)
+        states[d["state"]] += 1
+        task, _, sub = str(r.get("type_label") or "").partition("/")
+        if d["basis"] == "pending":
+            if d["state"] == "complete":
+                raise ReconcileError(f"{qid}: complete repetition answer with no final score")
+            continue
+        if d["basis"] == "final":
+            n_final += 1
+            if d["score"] != final[qid]:
+                raise ReconcileError(f"{qid}: displayed {d['score']!r} != per_probe {final[qid]!r}")
+        if task == "diversity":
+            n_differ += int(d["differs"])
+            if d["provisional"] is not None:
+                prov_rep.append(d["provisional"])
+            final_rep.append(d["score"])
+        key = f"{task}/{sycophancy_route(sub or None)}" if task == "sycophancy" else task
+        sub_vals[key].append(d["score"])
+        groups[(str(r["item_id"]), task)].append(d["score"])
+    if n_final != len(final) or len(final) != summary["n_probes"]:
+        raise ReconcileError(
+            f"probe counts: displayed final {n_final}, per_probe {len(final)}, "
+            f"summary n_probes {summary['n_probes']}"
+        )
+    for key, vals in sub_vals.items():
+        want = summary["probe_mean"].get(key)
+        if want is None or abs(sum(vals) / len(vals) - want) > 1e-12:
+            raise ReconcileError(f"probe mean {key}: {sum(vals) / len(vals)!r} != {want!r}")
+    by_task: dict[str, list[float]] = defaultdict(list)
+    for (_, task), vals in sorted(groups.items()):
+        if task != "diversity":
+            by_task[task].append(sum(vals) / len(vals))
+    official = summary["official"]["by_task_type"]
+    for task, vals in by_task.items():
+        got, want = sum(vals) / len(vals), official[task]["average"]
+        if abs(got - want) > 1e-12:
+            raise ReconcileError(f"task macro {task}: {got!r} != {want!r}")
+    return {
+        "n_rows": len(rows),
+        "n_probes": summary["n_probes"],
+        "n_final": n_final,
+        "states": dict(states),
+        "repetition": {
+            "n": len(final_rep),
+            "n_provisional_differs_from_final": n_differ,
+            "provisional_mean": sum(prov_rep) / len(prov_rep) if prov_rep else None,
+            "final_probe_mean": sum(final_rep) / len(final_rep) if final_rep else None,
+            "official_macro": official.get("diversity", {}).get("average"),
+        },
+        "task_macro_checked": sorted(by_task),
+    }
 
 
 def _main(argv: list[str] | None = None) -> int:
