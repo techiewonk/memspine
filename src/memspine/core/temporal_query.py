@@ -44,11 +44,13 @@ __all__ = [
     "metadata_leg",
     "named_terms",
     "query_interval",
+    "question_subject",
     "sentence_leg",
     "sentences",
     "speaker_leg",
     "speaker_of",
     "speaker_vector_leg",
+    "subject_vector_leg",
     "temporal_leg",
     "view_tag_leg",
 ]
@@ -378,6 +380,70 @@ def speaker_vector_leg(
     for hit in vector_hits:
         rec = by_id.get(hit.record_id)
         if rec is not None and _speaker_name(rec) == who:
+            out.append(hit)
+            if len(out) >= top_k:
+                break
+    return out
+
+
+#: I5: a "user:" / "assistant:" text prefix (loaders that fold the role into the text).
+_ROLE_PREFIX = re.compile(r"^\s*(user|assistant)\s*:\s", re.I)
+_FIRST_PERSON = re.compile(r"\b(?:i|my|me|mine|myself)\b", re.I)
+_SECOND_PERSON = re.compile(r"\b(?:you|your|yours|yourself|you're|you've)\b", re.I)
+
+
+def _chat_role(record: MemoryRecord) -> str | None:
+    """I5: ``user`` / ``assistant`` for a turn: a "user:" / "assistant:" text prefix, else the
+    record's source role when that is one of the two. None for system / tool / other."""
+    m = _ROLE_PREFIX.match(record.content)
+    role = m[1].lower() if m else (record.source.role or "").lower()
+    return role if role in ("user", "assistant") else None
+
+
+def question_subject(query: str) -> str | None:
+    """I5: the chat role a question's subject points at: a first-person "I / my / me" -> ``user``;
+    a second-person "you / your" -> ``assistant``. Both, or neither (a pronoun "she / they",
+    a named person) -> None: unresolved, no vote."""
+    first = bool(_FIRST_PERSON.search(query))
+    second = bool(_SECOND_PERSON.search(query))
+    if first == second:
+        return None
+    return "user" if first else "assistant"
+
+
+def subject_vector_leg(
+    query: str,
+    records: Iterable[MemoryRecord],
+    vector_hits: Iterable[LegHit],
+    top_k: int = 30,
+) -> list[LegHit]:
+    """I5 (``read.speaker_vote_mode="subject"``): the speaker vote keyed on the question's
+    subject. A named person who is a known speaker (``speaker:`` tag, else the "Name:" prefix)
+    votes as :func:`speaker_vector_leg` does. With no named speaker, a first-person subject
+    votes on the ``user`` turns and a second-person subject on the ``assistant`` turns (a
+    "user:" / "assistant:" text prefix, else the record's source role), but only when the
+    store holds turns of both roles; otherwise the vote could not tell turns apart. A pronoun
+    ("she", "they") or a mixed subject is unresolved and casts no vote."""
+    recs = list(records)
+    hits = list(vector_hits)
+    named = speaker_vector_leg(query, recs, hits, top_k)
+    if named:
+        return named
+    text = query.lower()
+    names = {n for r in recs if (n := _speaker_name(r)) and n not in ("user", "assistant")}
+    if any(re.search(rf"(?<!\w){re.escape(n)}(?!\w)", text) for n in names):
+        return []  # a known speaker is named (alone with no hits, or one of several)
+    target = question_subject(query)
+    if target is None:
+        return []
+    roles = {_chat_role(r) for r in recs} - {None}
+    if len(roles) < 2:
+        return []
+    by_id = {r.record_id: r for r in recs}
+    out: list[LegHit] = []
+    for hit in hits:
+        rec = by_id.get(hit.record_id)
+        if rec is not None and _chat_role(rec) == target:
             out.append(hit)
             if len(out) >= top_k:
                 break

@@ -204,6 +204,7 @@
       "skip_rerank_for_ordering": false,
       "span_line": false,
       "speaker_probe": false,
+      "speaker_vote_mode": "name",
       "standing_instructions": false,
       "standing_min_trust": 0.7,
       "standing_patterns": "narrow",

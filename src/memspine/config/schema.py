@@ -813,7 +813,19 @@ class ReadConfig(BaseModel):
     #: ("both", "in common", "each") the vote runs once per speaker (R2-2).
     #: ``set_question`` = ``query_shape.is_set_question``; ``aggregation`` = ``is_aggregation``
     #: or ``is_count``.
-    list_trigger: Literal["set_question", "set_question_wide", "aggregation"] = "set_question"
+    #: ``intent`` (I4) = ``query_shape.is_intent_list``, a no-model generic trigger: counts,
+    #: totals, "so far", "all the", "each", "both", plural answer heads, enumerating
+    #: conjunctions; it stays quiet on one-item "most recent / last / favourite" questions.
+    list_trigger: Literal["set_question", "set_question_wide", "aggregation", "intent"] = (
+        "set_question"
+    )
+    #: I5: how the list-mode speaker vote picks its speaker. ``name`` (default) = the one
+    #: speaker the question names (``speaker:`` tag or capitalised "Name:" prefix). ``subject``
+    #: = that, and otherwise the question's subject: a first-person "I / my" votes on the
+    #: ``user`` turns, a second-person "you" on the ``assistant`` turns (role from a
+    #: "user:" / "assistant:" prefix or the record's source role; needs both roles in the
+    #: store); a pronoun or mixed subject casts no vote.
+    speaker_vote_mode: Literal["name", "subject"] = "name"
     list_vote_depth: int = Field(default=100, ge=1)
     list_vote_top_k: int = Field(default=30, ge=1)
     list_pool: int = Field(default=3, ge=1, le=10)

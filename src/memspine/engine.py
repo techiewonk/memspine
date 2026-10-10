@@ -123,6 +123,7 @@ from memspine.core.query_shape import (
     is_aggregation,
     is_count,
     is_duration,
+    is_intent_list,
     is_novelty,
     is_ordering,
     is_personal,
@@ -186,6 +187,7 @@ from memspine.core.temporal_query import (
     speaker_leg,
     speaker_of,
     speaker_vector_leg,
+    subject_vector_leg,
     temporal_leg,
     view_tag_leg,
 )
@@ -2561,7 +2563,8 @@ class Engine:
             if depth > fetch_k:
                 deep = await self._vector_leg(ns, query_vector, depth)
             records = [r for r in await self._records(ns) if not r.quarantined]
-            hits = speaker_vector_leg(query, records, deep, read.list_vote_top_k)
+            vote = subject_vector_leg if read.speaker_vote_mode == "subject" else speaker_vector_leg
+            hits = vote(query, records, deep, read.list_vote_top_k)
             if not hits:
                 # R2-2: two named speakers with a comparison cue vote once each.
                 pair = comparison_speaker_legs(query, records, deep, read.list_vote_top_k)
@@ -5597,6 +5600,8 @@ class Engine:
             return False
         if read.list_trigger == "aggregation":
             return is_aggregation(query) or is_count(query)
+        if read.list_trigger == "intent":
+            return is_intent_list(query)
         if read.list_trigger == "set_question_wide":
             return is_set_question_wide(query)
         return is_set_question(query)

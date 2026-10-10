@@ -18,6 +18,7 @@ __all__ = [
     "is_count",
     "is_duration",
     "is_inference",
+    "is_intent_list",
     "is_novelty",
     "is_ordering",
     "is_personal",
@@ -249,6 +250,70 @@ def is_set_question_wide(question: str) -> bool:
         word = m.group(1).lower()
         return word not in _NOT_PLURAL and not word.endswith(("ss", "us", "is"))
     return False
+
+
+#: I4 (``read.list_trigger="intent"``): explicit aggregation cues. Each one asks for a count,
+#: a sum or an enumeration whatever the rest of the sentence says, so no singular cue vetoes
+#: them. Vocabulary is general English aggregation, not any benchmark's phrasing.
+_INTENT_STRONG = re.compile(
+    r"\bhow many\b(?! (?:more |fewer |less )?" + _DURATION_UNITS + r"\b)"
+    r"|\bhow much\b.*\b(?:in total|total|altogether|in all|combined|overall|so far)\b"
+    r"|\b(?:total|combined|overall) (?:number|amount|count|cost|sum)\b"
+    r"|\b(?:number|count|sum) of\b|\bin total\b|\baltogether\b|\bso far\b|\bin all\b"
+    r"|\b(?:list|enumerate|name) (?:all|every|each|the|some)\b|(?<!the )\blist(?:s)?\b(?! of)"
+    r"|\ball (?:of )?(?:the|my|his|her|their|our|your)\b|\beverything\b|\ball\b(?= \w+s\b)"
+    r"|\bevery\b(?! " + _HABIT + r")|\beach\b(?! " + _HABIT + r")"
+    r"|\bboth\b|\bin common\b|\bsimilarit(?:y|ies)\b|\balike\b|\bdifferences?\b"
+    r"|\bhow many different\b|\bdifferent (?:kinds|types|ways)\b"
+    # A sum over occasions: "How much have I spent on ...", "how much did we raise".
+    r"|\bhow much (?:have|did|do|had) (?:i|we|you|they)\b[^?]*\b(?:spen[dt]|mak(?:e|ing)|made|"
+    r"earn(?:ed)?|pa(?:y|id)|sav(?:e|ed)|rais(?:e|ed)|donat(?:e|ed)|gain(?:ed)?|los[et])\b"
+    r"|\b(?:the )?order of\b",
+    re.I,
+)
+#: Weak cues, vetoed by a singular-answer cue: a plural head noun, "what kind/type of X".
+_INTENT_KIND = re.compile(r"^\s*(?:what|which)\s+(?:kind|kinds|type|types|sort|sorts)\s+of\b", re.I)
+#: The asker wants one item picked by recency or rank ("most recently", "the last", "first").
+_INTENT_SINGULAR = re.compile(
+    r"\b(?:most recent(?:ly)?|recently|latest|last|first|newest|previous(?:ly)?|currently|"
+    r"most|favou?rite|biggest|main|only|"
+    r"current|now)\b|\bat the moment\b|\bright now\b|\bthe one\b",
+    re.I,
+)
+#: A comma-separated enumeration in a wh-question ("A, B, and C") or two wh-clauses joined by
+#: "and": the question itself names several things to be answered.
+_INTENT_CONJ = re.compile(
+    r"^\s*(?:what|which|who)\b[^?]*,\s*(?:[^,?]+,\s*)?(?:and|or)\s+\w+"
+    r"|^\s*(?:what|which|who|how)\b[^?]*\band\s+(?:what|which|who|how|where|when)\b",
+    re.I,
+)
+
+
+def _focus_sentence(text: str) -> str:
+    """The sentence that carries the question: the last one with a question mark, else the
+    last one ("I read about X. How many books have I read?" -> the second)."""
+    parts = [p for p in re.split(r"(?<=[.!?])\s+", text.strip()) if p]
+    asked = [p for p in parts if "?" in p]
+    return (asked or parts or [text])[-1]
+
+
+def is_intent_list(question: str) -> bool:
+    """I4: no-model, generic list / aggregate trigger (``read.list_trigger="intent"``).
+
+    Fires on an explicit aggregation cue (count, total, "so far", "all the", "each", "both",
+    "in common", "list"), on a plural answer head ("What gifts did X buy?"), on
+    "what kind/type of X" and on an enumerating conjunction. The weak cues (plural head,
+    kind/type) do not fire when the question asks for one item by recency or rank ("What type
+    of camera lens did I purchase most recently?"). Language-light: punctuation and short
+    function words only; a non-English question simply does not fire."""
+    question = _focus_sentence(question)
+    if _INTENT_STRONG.search(question) or _INTENT_CONJ.search(question):
+        return True
+    if _INTENT_SINGULAR.search(question):
+        return False
+    if _INTENT_KIND.search(question):
+        return True
+    return is_set_question_wide(question)
 
 
 def is_count(query: str) -> bool:
