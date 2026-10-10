@@ -320,7 +320,13 @@ def build(args) -> None:
         rows.append(entry)
 
     no_errata = getattr(args, "no_errata", False)
-    errata = {} if no_errata else load_errata(getattr(args, "errata", DEFAULT_ERRATA))
+    errata = (
+        {}
+        if no_errata
+        else load_errata(
+            getattr(args, "errata", DEFAULT_ERRATA), extended=getattr(args, "errata_extended", False)
+        )
+    )
     verdict = {(e["item"], e["qid"]): e["correct"] for e in rows}
     fx_joined = [dict(f, **({"_correct": verdict[k]} if k in verdict else {})) for k, f in fx_by_q.items()]
     summary = summarise(run_id, rows, manifest, ingest, turn_info, errata, fx_joined)
@@ -373,16 +379,52 @@ def recall_at_10_hits(rows: list[dict]) -> dict | None:
 #: A5: errata tags that make the gold answer unusable for grading (the question is dropped from the
 #: "excluding errata" headline). ``evidence_label_error`` keeps a right answer: not dropped.
 ERRATA_EXCLUDE_TAGS = ("gold_error", "needs_image")
+#: I62: opt-in (`--errata-extended`): also drop questions whose premise contradicts the transcript and
+#: cat-5 questions the transcript answers. `bad_evidence_id` keeps a right answer (recall metrics only).
+ERRATA_EXTENDED_TAGS = (*ERRATA_EXCLUDE_TAGS, "premise_error", "cat5_answerable")
 DEFAULT_ERRATA = HERE / "analysis" / "locomo_errata.json"
 
 
-def load_errata(path: Path | str | None = DEFAULT_ERRATA) -> dict[tuple[str, str], dict]:
+def load_errata(
+    path: Path | str | None = DEFAULT_ERRATA, *, extended: bool = False
+) -> dict[tuple[str, str], dict]:
     """(item, qid) -> {"tag", "borderline"} for the entries that invalidate grading; {} if no file.
     I14: delegates to the generic ``memspine_evals.errata`` (any benchmark; a file may carry its
     own ``exclude_tags``, else ``ERRATA_EXCLUDE_TAGS`` applies here)."""
     from memspine_evals.errata import load_errata as _load
 
-    return _load(path, exclude_tags=ERRATA_EXCLUDE_TAGS)
+    return _load(path, exclude_tags=ERRATA_EXTENDED_TAGS if extended else ERRATA_EXCLUDE_TAGS)
+
+
+def conventions_block(rows: list[dict]) -> dict | None:
+    """I58: accuracy over the categories 1-4 rows under the LLM judge alone and under the judge OR
+    the deterministic conventions (``memspine_evals.judge_conventions``: numeral, typo, list
+    superset). Two columns for every run; the credits are listed so each can be read."""
+    qa = [r for r in rows if r.get("mode") == "qa" and (r.get("answer") or "").strip()]
+    if not qa:
+        return None
+    from memspine_evals.judge_conventions import check_conventions
+
+    credits = []
+    for r in qa:
+        if r["correct"]:
+            continue
+        hit = check_conventions(r["question"], r["answer"], r.get("gold_answer"))
+        if hit is not None:
+            credits.append({"item": r["item"], "qid": r["qid"], "category": r["category"],
+                            "rule": hit.rule})
+    n = len(rows)
+    base = sum(r["correct"] for r in rows)
+    by_cat = {}
+    for c in CATS:
+        sub = [r for r in rows if r["category"] == c]
+        if sub:
+            extra = sum(1 for x in credits if x["category"] == c)
+            by_cat[c] = {"n": len(sub), "judge": sum(r["correct"] for r in sub) / len(sub),
+                         "judge_or_conventions": (sum(r["correct"] for r in sub) + extra) / len(sub)}
+    return {"version": "conventions/v1", "n": n, "judge": base / n,
+            "judge_or_conventions": (base + len(credits)) / n, "n_credits": len(credits),
+            "credits": credits, "by_category": by_cat}
 
 
 def errata_block(rows: list[dict], errata: dict[tuple[str, str], dict]) -> dict:
@@ -412,7 +454,7 @@ def errata_block(rows: list[dict], errata: dict[tuple[str, str], dict]) -> dict:
             "by_category": by_cat(kept),
         }
 
-    return {"tags_excluded": list(ERRATA_EXCLUDE_TAGS), "n_errata_entries": len(errata),
+    return {"tags_excluded": sorted({e["tag"] for e in errata.values()}) or list(ERRATA_EXCLUDE_TAGS), "n_errata_entries": len(errata),
             "overall_accuracy": acc(rows), "n": len(rows),
             "strict": variant(False), "incl_borderline": variant(True)}
 
@@ -649,6 +691,7 @@ def summarise(run_id: str, rows: list[dict], manifest: dict, ingest: list[dict],
                "wall_clock_s": None, "n_questions": len(rows),
                "accuracy": (sum(r["correct"] for r in rows) / len(rows)) if rows else 0.0}
     s["errata"] = errata_block(rows, errata) if errata else None
+    s["conventions"] = conventions_block(rows)  # I58: second column
     s["n_adversarial"] = len(adv)
     s["adversarial"] = adversarial_block(adv)
     s["abstention"] = abstention_block(all_rows)  # I24
@@ -785,6 +828,15 @@ def write_gap_md(out: Path, s: dict) -> None:
                 for c, v in st["by_category"].items()],
               f"\n- also excluding borderline entries: n={ib['n']} ({ib['n_excluded']} excluded), "
               f"accuracy {pc(ib['accuracy'])}"]
+    cv = s.get("conventions")
+    if cv:
+        L += [f"\n## Judge conventions, I58 ({cv['version']}; the LLM verdict is unchanged)",
+              "| Category | n | judge | judge or conventions |", "|---|---|---|---|",
+              f"| overall | {cv['n']} | {pc(cv['judge'])} | {pc(cv['judge_or_conventions'])} |",
+              *[f"| {c} | {v['n']} | {pc(v['judge'])} | {pc(v['judge_or_conventions'])} |"
+                for c, v in cv['by_category'].items()],
+              f"\n- {cv['n_credits']} credits: " + ", ".join(
+                  f"{x['item']}/{x['qid']} ({x['rule']})" for x in cv['credits'])]
     adv = s.get("adversarial")
     if adv:
         L += [f"\n- adversarial (cat 5, apart from the headline): n={adv['n']}, accuracy {pc(adv['accuracy'])}"]
@@ -848,4 +900,6 @@ if __name__ == "__main__":
     ap.add_argument("--errata", default=str(DEFAULT_ERRATA),
                     help="A5: locomo_errata.json (gold_error, needs_image dropped)")
     ap.add_argument("--no-errata", action="store_true")
+    ap.add_argument("--errata-extended", action="store_true",
+                    help="I62: also drop premise_error and cat5_answerable questions")
     build(ap.parse_args())

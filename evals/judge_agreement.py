@@ -107,13 +107,50 @@ def _kind_block(sub: list[dict[str, Any]], judged: dict[str, str]) -> dict[str, 
     return {"n": len(sub), "human_vs_judge": {f"{h}/{j}": n for (h, j), n in sorted(c.items())}}
 
 
+def with_conventions(rows: list[dict[str, Any]], judged: dict[str, str]) -> dict[str, Any]:
+    """I58: agreement of ``judge OR convention`` with the human verdicts, the credits the layer
+    gave (each with the human verdict, so a false positive is visible), and the layer alone."""
+    sys.path.insert(0, str(Path(__file__).parent))
+    from memspine_evals.judge_conventions import check_conventions
+
+    rows = [r for r in rows if r["id"] in judged]
+    credited: dict[str, str] = {}
+    layered = dict(judged)
+    alone = {r["id"]: "WRONG" for r in rows}
+    credits = []
+    for r in rows:
+        hit = check_conventions(r["question"], r["answer"], r["gold"])
+        if hit is not None:
+            alone[r["id"]] = "CORRECT"
+            credits.append({"id": r["id"], "rule": hit.rule, "human": r["human_verdict"],
+                            "judge": judged[r["id"]], "new": judged[r["id"]] != "CORRECT"})
+            if judged[r["id"]] != "CORRECT":
+                layered[r["id"]] = "CORRECT"
+                credited[r["id"]] = hit.rule
+    new = [c for c in credits if c["new"]]
+    return {
+        "judge_alone": score(rows, judged),
+        "judge_or_conventions": score(rows, layered),
+        "conventions_alone": score(rows, alone),
+        "credits": credits,
+        "new_credits": len(new),
+        "new_false_positives": sum(c["human"] != "CORRECT" for c in new),
+        "new_true_positives": sum(c["human"] == "CORRECT" for c in new),
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--set", default=str(DEFAULT_SET))
     src = ap.add_mutually_exclusive_group(required=True)
     src.add_argument("--run")
     src.add_argument("--labels")
+    src.add_argument("--from-set", action="store_true",
+                     help="use the judge label stored in the set (source_judge_label)")
     ap.add_argument("--runs-dir", default=str(Path(__file__).parent / "runs"))
+    ap.add_argument("--conventions", action="store_true",
+                    help="I58: also report the judge OR the deterministic convention layer "
+                    "(judge_conventions.py), next to the judge alone, and list every credit")
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--fail-below", type=float, default=None, help="exit 1 when kappa (all rows) is below this")
     args = ap.parse_args(argv)
@@ -128,6 +165,8 @@ def main(argv: list[str] | None = None) -> int:
                 judged[r["id"]] = hit[0]
             else:
                 unmatched += 1
+    elif args.from_set:
+        judged = {r["id"]: r["source_judge_label"] for r in rows}
     else:
         judged = {}
         for line in Path(args.labels).read_text(encoding="utf-8").splitlines():
@@ -138,6 +177,8 @@ def main(argv: list[str] | None = None) -> int:
     res = score(rows, judged)
     res["set_size"] = len(rows)
     res["unmatched"] = unmatched
+    if args.conventions:
+        res["conventions"] = with_conventions(rows, judged)
     if args.json:
         print(json.dumps(res, indent=1))
     else:
@@ -152,6 +193,19 @@ def main(argv: list[str] | None = None) -> int:
                   f"refusal credited={b['refusal_credit_rate']} (n={b['n_refusal']})")
         for k, v in res["by_kind"].items():
             print(f"  {k:16s} n={v['n']:2d} {v['human_vs_judge']}")
+    if "conventions" in res:
+        c = res["conventions"]
+        for name in ("judge_alone", "judge_or_conventions", "conventions_alone"):
+            for sub in ("all", "without_borderline"):
+                b = c[name][sub]
+                kappa = "n/a" if b["kappa"] is None else f"{b['kappa']:.3f}"
+                agree = "n/a" if b["agreement"] is None else f"{b['agreement']:.1%}"
+                print(f"[{name} / {sub}] binary n={b['n_binary']} agreement={agree} kappa={kappa} "
+                      f"FN={b['false_negatives']} FP={b['false_positives']} "
+                      f"partial credited={b['partial_credit_rate']} (n={b['n_partial']})")
+        print(f"conventions: {c['new_credits']} new credits over the judge "
+              f"({c['new_true_positives']} human CORRECT, {c['new_false_positives']} not); "
+              f"all credits: {c['credits']}")
     kappa_all = res["all"]["kappa"]
     if args.fail_below is not None and (kappa_all is None or kappa_all < args.fail_below):
         return 1

@@ -172,6 +172,9 @@ def apply_opbench_protocol(args: argparse.Namespace) -> list[str]:
         "retry_guard",
         "judge_guards",
         "judge_date_check",
+        "judge_conventions",
+        "count_verify",
+        "date_repair",
         "verify_answer",
     ):
         if getattr(args, flag):
@@ -307,6 +310,9 @@ def cmd_c0_1(args: argparse.Namespace) -> int:
         decider_workers=args.decider_workers,
         judge_guards=args.judge_guards,
         judge_date_check=args.judge_date_check,
+        judge_conventions=args.judge_conventions,
+        count_verify=args.count_verify,
+        date_repair=args.date_repair,
         retrieval_only=args.retrieval_only,
         cache_dir=args.cache_dir,
         cache_reader=args.cache_reader,
@@ -637,6 +643,32 @@ def build_parser() -> argparse.ArgumentParser:
         help="gap A2: before the LLM judge, credit an answer whose first date is the single day "
         "the "
         "gold names (e.g. 'the Friday before 15 July 2023'); refusals and denials never credited",
+    )
+    c01.add_argument(
+        "--judge-conventions",
+        action="store_true",
+        help="I58: also record the verdict under the deterministic judge conventions (a number "
+        "word equals its digit, a one-letter typo in a proper noun, a list holding every gold "
+        "item plus uncontradicted extras) as score_conventions; the LLM verdict (score) is "
+        "unchanged, so every run has two columns; off by default",
+    )
+    c01.add_argument(
+        "--count-verify",
+        nargs="?",
+        const="two_call",
+        default="",
+        choices=("two_call", "single"),
+        help="I56: count questions (how many ...): the reader lists the distinct items with "
+        "their dates as JSON, code merges repeats and counts. two_call (default when given): "
+        "+1 reader call on count questions; single: one call that lists, then counts. "
+        "Off by default",
+    )
+    c01.add_argument(
+        "--date-repair",
+        action="store_true",
+        help="I57: for a 'when' question, resolve a relative phrase or bare weekday in the "
+        "answer, or fix a weekday that disagrees with its date, against the date of the cited "
+        "context line (core/temporal_resolve; no model call); off by default",
     )
     c01.add_argument(
         "--verify-answer",

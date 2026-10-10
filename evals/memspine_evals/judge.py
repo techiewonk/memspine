@@ -389,8 +389,19 @@ class GuardedJudge:
     attributes of the inner judge stay readable.
     """
 
-    def __init__(self, inner: Any, *, date_check: bool = False, empty_guard: bool = True) -> None:
+    def __init__(
+        self,
+        inner: Any,
+        *,
+        date_check: bool = False,
+        empty_guard: bool = True,
+        conventions: bool = False,
+    ) -> None:
         self.inner = inner
+        #: I58: record, next to the unchanged LLM verdict, whether a deterministic convention
+        #: (numeral, typo, list superset: ``judge_conventions.py``) would credit a wrong
+        #: verdict. ``score`` itself is never changed: the run has two columns.
+        self.conventions = conventions and inner.spec.scale is JudgeScale.BINARY
         #: gap A2: credit a single-day date match deterministically (``date_check.py``)
         self.date_check = date_check
         if date_check:  # I12: fail at construction, not silently per answer
@@ -409,6 +420,7 @@ class GuardedJudge:
                 **dict(inner.spec.params),
                 "empty_answer_guard": empty_guard,
                 **({"date_check": "date_check/v1"} if date_check else {}),
+                **({"conventions": "conventions/v1"} if self.conventions else {}),
             },
         )
         self.handles_abstention = getattr(inner, "handles_abstention", False)
@@ -429,13 +441,46 @@ class GuardedJudge:
             return Verdict(score=1.0, scale=self.spec.scale, meta={"guard": "date_equivalent"})
         return None
 
+    def _with_conventions(
+        self, verdict: Verdict, question: str, answer: str, gold: str | None
+    ) -> Verdict:
+        """``verdict`` with ``score_conventions`` (and the rule) in its meta; ``score`` unchanged."""
+        if not self.conventions:
+            return verdict
+        from memspine_evals.judge_conventions import check_conventions
+
+        rule = None if verdict.score >= 1.0 else check_conventions(question, answer, gold)
+        meta = {
+            **dict(verdict.meta),
+            "score_conventions": 1.0 if (verdict.score >= 1.0 or rule is not None) else 0.0,
+            **({"convention": rule.rule} if rule is not None else {}),
+        }
+        return Verdict(
+            score=verdict.score,
+            scale=verdict.scale,
+            raw=verdict.raw,
+            latency_ms=verdict.latency_ms,
+            model_calls=verdict.model_calls,
+            meta=meta,
+        )
+
     async def score(self, question: str, answer: str, gold: str | None) -> Verdict:
         if self.empty_guard and not answer.strip():
             return self._empty()
-        return self._dated(gold, answer) or await self.inner.score(question, answer, gold)
+        dated = self._dated(gold, answer)
+        if dated is not None:
+            return self._with_conventions(dated, question, answer, gold)
+        verdict = await self.inner.score(question, answer, gold)
+        return self._with_conventions(verdict, question, answer, gold)
 
     async def _score_query(self, query: Any, answer: str) -> Verdict:
         if self.empty_guard and not answer.strip():
             return self._empty()
-        dated = self._dated(getattr(query, "gold", None), answer)
-        return dated or await self.inner.score_query(query, answer)
+        gold = getattr(query, "gold", None)
+        dated = self._dated(gold, answer)
+        if dated is not None:
+            return self._with_conventions(dated, getattr(query, "text", ""), answer, gold)
+        verdict = await self.inner.score_query(query, answer)
+        if getattr(query, "meta", {}) and query.meta.get("abstention"):
+            return verdict  # an abstention gold is a refusal: no convention applies
+        return self._with_conventions(verdict, getattr(query, "text", ""), answer, gold)

@@ -179,6 +179,15 @@ class C01Config:
     judge_guards: bool = False
     #: gap A2: deterministic single-day date equivalence before the LLM judge
     judge_date_check: bool = False
+    #: I58: record, next to the unchanged LLM verdict, the verdict under the deterministic
+    #: conventions (numeral, typo, list superset): two columns, ``score`` never changes.
+    judge_conventions: bool = False
+    #: I56: enumerate-then-count for count questions: "" (off), ``two_call`` (+1 call on count
+    #: questions) or ``single`` (list then count in one call). See ``count_verify.py``.
+    count_verify: str = ""
+    #: I57: repair a relative or weekday date answer against the cited line's date, by code
+    #: (``date_repair.py``; no model call).
+    date_repair: bool = False
     #: screening: ingest and read every question as the QA run would, skip the reader
     #: and the judge, record evidence coverage per question (``screen.py``)
     retrieval_only: bool = False
@@ -510,8 +519,9 @@ def build_judge(config: C01Config, chat: Any, model: str, judge_id: str | None =
                 AliasContainsJudge(),
                 date_check=config.judge_date_check,
                 empty_guard=config.judge_guards,
+                conventions=config.judge_conventions,
             )
-            if (config.judge_guards or config.judge_date_check)
+            if (config.judge_guards or config.judge_date_check or config.judge_conventions)
             else AliasContainsJudge()
         )
     if config.judge_prompt == "opbench":
@@ -529,9 +539,12 @@ def build_judge(config: C01Config, chat: Any, model: str, judge_id: str | None =
     judge = RoutedLLMJudge(chat, model=model, suite=suite, judge_id=judge_id)
     if judge.spec.prompt_hash == sha256_text(DEFAULT_BINARY_PROMPT):  # pragma: no cover
         raise ValueError("the default binary judge prompt is not allowed in QA mode")
-    if config.judge_guards or config.judge_date_check:
+    if config.judge_guards or config.judge_date_check or config.judge_conventions:
         return GuardedJudge(
-            judge, date_check=config.judge_date_check, empty_guard=config.judge_guards
+            judge,
+            date_check=config.judge_date_check,
+            empty_guard=config.judge_guards,
+            conventions=config.judge_conventions,
         )
     return judge
 
@@ -610,14 +623,16 @@ def build_reader_and_judge(config: C01Config) -> tuple[Reader, Judge, bool]:
             judge_id=f"qwen3-32b-{config.judge_prompt}",
         )
         if config.verify_answer:
-            return (
-                with_verifier(
-                    bedrock_reader, litellm_chat(budget, model=QWEN3_32B, max_tokens=192)
-                ),
-                judge,
-                True,
+            bedrock_reader = with_verifier(
+                bedrock_reader, litellm_chat(budget, model=QWEN3_32B, max_tokens=192)
             )
-        return bedrock_reader, judge, True
+
+        def make_bedrock_sibling(prompt: str) -> Any:
+            return LiteLLMReader(
+                budget, model=QWEN3_32B, temperature=0.0, max_tokens=512, prompt=prompt
+            )
+
+        return with_post_steps(bedrock_reader, config, make_bedrock_sibling), judge, True
     import os
 
     # Local OpenAI-compatible servers ignore the key; hosted endpoints (e.g. the
@@ -665,8 +680,21 @@ def build_reader_and_judge(config: C01Config) -> tuple[Reader, Judge, bool]:
             sampler=sampler,
             guard=guard,
         )
-        return with_verifier(reader, chat), judge, True
-    return reader, judge, True
+        reader = with_verifier(reader, chat)  # type: ignore[assignment]
+
+    def make_sibling(prompt: str) -> Any:
+        """A reader like ``reader`` (model, sampler, guard) with another prompt (count_verify)."""
+        return OpenAICompatReader(
+            model=config.reader_model,
+            base_url=config.base_url,
+            api_key=api_key,
+            prompt=prompt,
+            sampler=sampler,
+            guard=guard,
+            max_tokens=512,
+        )
+
+    return with_post_steps(reader, config, make_sibling), judge, True
 
 
 def _openai_compat_labels(config: C01Config, calls: bool) -> dict[str, Any]:
@@ -703,6 +731,31 @@ def build_token_counter(config: C01Config) -> Any:
 
     counter = load_reader_tokenizer_counter(config.tokenizer_id)
     return counter if counter is not None else HeuristicTokenCounter()
+
+
+def with_post_steps(reader: Any, config: C01Config, make_sibling: Any) -> Any:
+    """I56 / I57: the opt-in answer post-steps, outermost. ``--count-verify`` first (count
+    questions: enumerate, dedupe, count), then ``--date-repair`` (date questions). Neither flag:
+    ``reader`` comes back unchanged."""
+    if config.count_verify:
+        from .count_verify import (
+            COUNT_VERIFY_MODES,
+            ENUMERATE_PROMPT,
+            SINGLE_PROMPT,
+            CountVerifyReader,
+        )
+
+        if config.count_verify not in COUNT_VERIFY_MODES:
+            raise ValueError(
+                f"count_verify must be one of {COUNT_VERIFY_MODES}, got {config.count_verify!r}"
+            )
+        prompt = ENUMERATE_PROMPT if config.count_verify == "two_call" else SINGLE_PROMPT
+        reader = CountVerifyReader(reader, make_sibling(prompt), config.count_verify)
+    if config.date_repair:
+        from .date_repair import DateRepairReader
+
+        reader = DateRepairReader(reader)
+    return reader
 
 
 def with_verifier(reader: Any, chat: Any) -> Any:
@@ -787,6 +840,9 @@ async def run_c0_1(
             **({"stamp_timezone": config.stamp_timezone} if config.stamp_timezone != "UTC" else {}),
             **({"decider": config.decider} if config.decider != "heuristic" else {}),
             **({"judge_guards": True} if config.judge_guards else {}),
+            **({"judge_conventions": "conventions/v1"} if config.judge_conventions else {}),
+            **({"count_verify": config.count_verify} if config.count_verify else {}),
+            **({"date_repair": "v1"} if config.date_repair else {}),
             "judge_prompt": config.judge_prompt if config.mode == "qa" else None,
             **({"opbench_root": config.opbench_root} if config.opbench_root else {}),
             "arms": [s.system_id for s in systems],

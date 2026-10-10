@@ -3,7 +3,7 @@
  "dataset": "locomo10.json",
  "dataset_sha256_prefix": "79fa87e90f040813",
  "created": "2026-10-10",
- "note": "Questions whose LoCoMo gold contradicts the transcript, or that need the image. Found while hand-reading 148 read failures of one run, so this list is incomplete (an estimated 16-24 more exist among unread wrong answers). Report accuracy with and without these. No corpus text is stored here. 2026-10-10: added tag evidence_label_error (gold answer is right but a labelled evidence turn does not support it; correct turn id in the reason), from B2_EVIDENCE_AUDIT.md. 2026-10-10 (R2-5): four more evidence_label_error entries from the stable-failure review (0-70, 1-43, 0-151, 1-48); none changes the with/without-errata accuracy, which drops only gold_error and needs_image.",
+ "note": "Questions whose LoCoMo gold contradicts the transcript, or that need the image. Found while hand-reading 148 read failures of one run, so this list is incomplete (an estimated 16-24 more exist among unread wrong answers). Report accuracy with and without these. No corpus text is stored here. 2026-10-10: added tag evidence_label_error (gold answer is right but a labelled evidence turn does not support it; correct turn id in the reason), from B2_EVIDENCE_AUDIT.md. 2026-10-10 (R2-5): four more evidence_label_error entries from the stable-failure review (0-70, 1-43, 0-151, 1-48); none changes the with/without-errata accuracy, which drops only gold_error and needs_image. 2026-10-10 (I62): five new entries of three new classes. premise_error (question premise contradicts the transcript, gold still right), bad_evidence_id (malformed evidence id, QA unaffected), cat5_answerable (a cat-5 question the transcript answers, abstention gold wrong). Reviewed and rejected: 1-63 (question says May 23, the acceptance is mentioned on 27 May as 'just got accepted'; the transcript does not date the acceptance, so nothing is contradicted). None of the new tags is excluded by default (DEFAULT_EXCLUDE_TAGS is unchanged); `forensics_report.py --errata-extended` also drops premise_error and cat5_answerable (non-borderline), reported as a second column.",
  "entries": [
   {
    "item": "conv-26",
@@ -380,6 +380,46 @@
    "borderline": true,
    "reason": "gold 'the space, furniture, and decor' needs D3:5 and D3:6 (furniture and decor); labelled D3:4 only says 'the space I designed'. System answered the hoodie line (D16:3), a real reader error",
    "source": "R2-5 review 2026-10-10"
+  },
+  {
+   "item": "conv-41",
+   "qid": "2-68",
+   "tag": "premise_error",
+   "borderline": false,
+   "reason": "question says December 2023; 'Just started doing aerial yoga' is D1:3 of 17 December 2022 and the conversation ends in August 2023, so December 2023 never occurs. The gold 'aerial yoga' is still right, so a reader that answers it is graded fairly (same class as the gold_error 2-69)",
+   "source": "I62 review 2026-10-10"
+  },
+  {
+   "item": "conv-42",
+   "qid": "3-88",
+   "tag": "bad_evidence_id",
+   "borderline": false,
+   "reason": "evidence list is [D1:18, 'D', D1:20]: 'D' is not a turn id (probably a truncated D1:19 or D1:16, where the film is described). Gold answer is right; only R@k / R_all@k over the labelled turns is affected (the unmatched id can never be retrieved)",
+   "source": "I62 review 2026-10-10"
+  },
+  {
+   "item": "conv-26",
+   "qid": "0-184",
+   "tag": "cat5_answerable",
+   "borderline": false,
+   "reason": "cat 5, adversarial answer 'clarinet and violin' (Melanie's instruments), but Caroline says 'Guitar's mostly my thing' (D15:19) and 'I started playing acoustic guitar about five years ago' (D15:21); she is also 'just learning the piano' (D5:5). The question is answerable from the transcript, so an abstention gold is wrong",
+   "source": "I62 review 2026-10-10"
+  },
+  {
+   "item": "conv-26",
+   "qid": "0-186",
+   "tag": "cat5_answerable",
+   "borderline": true,
+   "reason": "cat 5, adversarial answer 'Ed Sheeran' (Melanie, D15:28). Caroline names '\"Brave\" by Sara Bareilles has a lot of significance for me' (D15:23) when asked for a song with deep meaning; she never says she is a 'fan' of an artist, so this is answerable only by a loose reading",
+   "source": "I62 review 2026-10-10"
+  },
+  {
+   "item": "conv-42",
+   "qid": "3-244",
+   "tag": "cat5_answerable",
+   "borderline": false,
+   "reason": "cat 5, adversarial answer 'her turtles' (Nate's, D24:3). Joanna says of the stuffed animal dog 'Tilly helps me stay focused and brings me so much joy' (D24:8) and 'she's always with me while I write' (D24:4). The question is answerable from the transcript",
+   "source": "I62 review 2026-10-10"
   }
  ],
  "updated": "2026-10-10"

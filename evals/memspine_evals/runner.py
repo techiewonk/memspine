@@ -1083,6 +1083,11 @@ class EvalRunner:
                         if verdict.meta.get("prompt_id")
                         else {}
                     ),
+                    **{  # I58: the second column of --judge-conventions
+                        k: verdict.meta[k]
+                        for k in ("score_conventions", "convention")
+                        if k in verdict.meta
+                    },
                     **(
                         {"reranked": context.meta["reranked"]} if "reranked" in context.meta else {}
                     ),
