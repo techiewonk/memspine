@@ -168,6 +168,14 @@ TASKS: dict[str, TaskSpec] = {
         "no_ack",
         "question_context",
     ),
+    # I59: question = the question, context = one memory line
+    "about_target": TaskSpec(
+        "Does the memory line state something about the person the question asks about, "
+        "rather than about someone else?",
+        "about",
+        "not_about",
+        "question_context",
+    ),
     "abstention": TaskSpec(
         "Can the question be answered from the context?",
         "answerable",
@@ -240,6 +248,7 @@ def default_rules() -> dict[str, Rule]:
         ),
         "relevance": lambda _q, _c: ("relevant", None),
         "abstention": lambda _q, _c: ("answerable", None),
+        "about_target": lambda _q, _c: ("about", None),
         "sensitivity": lambda q, _c: (
             "sensitive" if grade_text(q).grade != "none" else "not_sensitive",
             None,

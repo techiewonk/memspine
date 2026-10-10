@@ -93,6 +93,16 @@ from memspine.core.lead import (
     timeline_line,
 )
 from memspine.core.namespace import grant_allows, validate_namespace
+from memspine.core.owner_check import (
+    InjectionLog,
+    entity_note,
+    judge,
+    missing_names,
+    owner_marker,
+    store_vocab,
+    unknown_lines,
+    user_header,
+)
 from memspine.core.perspective import (
     PerspectiveOptions,
     QuestionPerspective,
@@ -1103,6 +1113,10 @@ class Engine:
         self._speaker_names: dict[str, tuple[int, frozenset[str]]] = {}
         #: I39 perspective layer: per namespace, the participants seen and the last speaker
         self._persp_state: dict[str, dict[str, Any]] = {}
+        #: I64: record ids injected in the last replies, per (namespace, session)
+        self._injections = InjectionLog()
+        #: I60: word set of each namespace's records, keyed by record count
+        self._entity_vocab: dict[str, tuple[int, frozenset[str]]] = {}
         #: read.session_leg: unit vector per (record id, content)
         self._session_vectors: dict[tuple[str, str], list[float]] = {}
         # E4 (ADR-020): whether the vector leg runs the two-stage quantized
@@ -2679,6 +2693,116 @@ class Engine:
             or self._perspective_options().owner,
             known=state["known"],
         )
+
+    def _penalise_reinjected(
+        self, candidates: list[tuple[MemoryRecord, float]], ns: str, session_id: str
+    ) -> list[tuple[MemoryRecord, float]]:
+        """I64: relevance x ``1 - penalty * uses / window`` for records injected in the
+        last ``read.reinjection_window`` replies of this (namespace, session)."""
+        pen = self._config().read.reinjection_penalty
+        out = [
+            (rec, rel * self._injections.factor(ns, session_id, rec.record_id, pen))
+            for rec, rel in candidates
+        ]
+        out.sort(key=lambda t: t[1], reverse=True)
+        return out
+
+    async def _entity_vocabulary(self, ns: str) -> frozenset[str]:
+        records = [r for r in await self._records(ns) if not r.quarantined]
+        cached = self._entity_vocab.get(ns)
+        if cached is None or cached[0] != len(records):
+            state = await self._persp_state_for(ns)
+            vocab = store_vocab((r.content for r in records), state["known"])
+            cached = self._entity_vocab[ns] = (len(records), vocab)
+        return cached[1]
+
+    async def _read_overlay(
+        self,
+        query: str,
+        ns: str,
+        context: AssembledContext,
+        session_id: str | None,
+        *,
+        shared: bool = False,
+    ) -> AssembledContext:
+        """I59 / I60 / I63 / I64: the read-side attribution layer, after retrieval and before
+        the reader. Marks lines with speaker and subject, adds reader notes (nobody in the
+        context is about the named person; a named person is not in the store) and the
+        user header; records which memories were injected. Never drops a record. All off by
+        default; a failure keeps the context as it was."""
+        read = self._config().read
+        if shared or not (
+            read.owner_check != "off"
+            or read.entity_check != "off"
+            or read.user_header != "off"
+            or read.reinjection_penalty > 0.0
+        ):
+            return context
+        records = list(context.records)
+
+        def is_evidence(r: MemoryRecord) -> bool:
+            return constants.LEAD_TAG not in r.tags and r.source.channel not in ("lead", "persona")
+
+        evid = [i for i, r in enumerate(records) if is_evidence(r)]
+        if not evid:
+            return context
+        try:
+            if read.reinjection_penalty > 0.0 and session_id:  # I64
+                self._injections.record(
+                    ns, session_id, [records[i].record_id for i in evid], read.reinjection_window
+                )
+            notes: list[str] = []
+            audit: dict[str, Any] = {}
+            if read.owner_check != "off":
+                qp = await self._question_perspective(ns, query)
+                views = [record_view(records[i]) for i in evid]
+                tagged = [v if v.annotated else None for v in views]
+                verdict = judge(qp, tagged)
+                if qp.bound and self._decider_active("about_target"):
+                    overrides: dict[int, bool] = {}
+                    for j in unknown_lines(verdict)[:10]:
+                        label = await self._decided(
+                            "about_target", query, records[evid[j]].content, "about"
+                        )
+                        overrides[j] = label == "about"
+                    if overrides:
+                        verdict = judge(qp, tagged, overrides=overrides)
+                if read.owner_check in ("mark", "both"):
+                    for j, i in enumerate(evid):
+                        marker = owner_marker(views[j]) if views[j].annotated else None
+                        if marker and not records[i].content.startswith(marker):
+                            records[i] = records[i].model_copy(
+                                update={"content": f"{marker} {records[i].content}"}
+                            )
+                if read.owner_check in ("note", "both") and verdict.note:
+                    notes.append(verdict.note)
+                audit["owner"] = {"labels": verdict.labels, "note": verdict.note}
+            if read.entity_check != "off":
+                names = missing_names(query, await self._entity_vocabulary(ns))
+                text = entity_note(names)
+                if text:
+                    notes.append(text)
+                audit["entity_missing"] = names
+            parts = [records[i] for i in evid]
+            at = min(context.boundary_index, len(records))
+            for k, text in enumerate(notes):
+                records.insert(at + k, self._lead_record(ns, text, parts))
+            head = (
+                user_header(read.perspective_asker or active_asker())
+                if read.user_header == "on"
+                else None
+            )
+            if head:
+                records.insert(0, self._lead_record(ns, head, parts))
+                context.boundary_index += 1
+                audit["user_header"] = head
+            context.records = records
+            context.tokens_used += sum(estimate_tokens(t) for t in [*notes, head or ""])
+            if (fx := _FORENSICS.get()) is not None and audit:
+                fx["read_overlay"] = audit
+        except Exception as exc:  # an enhancer, never a gate
+            _log.warning("read.overlay_failed", namespace=ns, error=str(exc))
+        return context
 
     async def _perspective_leg(
         self, ns: str, qp: QuestionPerspective, vector_hits: Sequence[Any]
@@ -4844,6 +4968,8 @@ class Engine:
                 candidates = [pair for pair in candidates if not hide(pair[0])]
             if persp_qp is not None and read_persp.perspective_mode != "off":
                 candidates = self._apply_perspective(candidates, persp_qp)
+            if read_persp.reinjection_penalty > 0.0 and session_id:  # I64
+                candidates = self._penalise_reinjected(candidates, ns, session_id)
             # Exhaustion is judged on the legs (before any gate or cut).
             exhausted = len(vector_hits) < fetch_k and len(lexical_hits) < fetch_k
             if len(candidates) >= top_k or exhausted or widen >= max_widen:
@@ -5121,7 +5247,9 @@ class Engine:
             rendered = self._place_procedural(rendered, pinned, lessons)
         headers = self._count_section(ns, query, rendered, count_share, headers)
         headers = self._duration_section(ns, query, rendered, headers)
-        return self._attach_headers(rendered, headers)
+        return await self._read_overlay(
+            query, ns, self._attach_headers(rendered, headers), session_id, shared=shared
+        )
 
     async def _procedural_blocks(
         self, ns: str, query: str, session_id: str | None
@@ -5911,8 +6039,11 @@ class Engine:
         )
         headers = self._count_section(ns, query, result.context, count_share, headers)
         headers = self._duration_section(ns, query, result.context, headers)
-        return await self._relevance_gate(
+        gated = await self._relevance_gate(
             query, ReadResult(result.mode, self._attach_headers(result.context, headers)), ns
+        )
+        return ReadResult(
+            gated.mode, await self._read_overlay(query, ns, gated.context, session_id)
         )
 
     async def _read_routed(

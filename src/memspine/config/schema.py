@@ -889,6 +889,29 @@ class ReadConfig(BaseModel):
     #: I39: show ``[about: Caroline's cousin]`` before a record whose subject differs from its
     #: speaker (the stored content is unchanged). Off: unchanged.
     perspective_marker: bool = False
+    #: I59: the read-side owner check, after retrieval and before the reader. Each context line
+    #: is judged against the person the question names (``core/owner_check``). ``mark`` = prefix
+    #: ``[Melanie, about Melanie]`` (speaker, subject) on every tagged line; ``note`` = when NO
+    #: line is about the named person and some line is about someone else, add one reader note
+    #: ("none of the memories describe X doing this; the matching memories are about Y"); ``both``
+    #: = both. Never drops a line; a question naming two people keeps both. Needs the tags of
+    #: ``memories.episodic.policies.perspective``. With ``decider_tasks`` containing
+    #: ``about_target`` an untagged line is judged by the decider. Off: unchanged.
+    owner_check: Literal["off", "mark", "note", "both"] = "off"
+    #: I60: a capitalised name in the question that occurs nowhere in the store (no record text,
+    #: no participant; exact match, a 3+ letter prefix of a stored word counts as present) adds
+    #: the reader note "<name> is not mentioned in the memories". Off: unchanged.
+    entity_check: Literal["off", "note"] = "off"
+    #: I63: with a known asker (``perspective_asker`` or the harness's persona / asker), the
+    #: context opens with "You are the assistant. The user is <asker>. Memory lines are
+    #: labelled with their speaker." No asker (LoCoMo): nothing is added, none is invented.
+    user_header: Literal["off", "on"] = "off"
+    #: I64: with a session id, a record injected in the last ``reinjection_window`` replies of
+    #: that (namespace, session) has its relevance multiplied by
+    #: ``1 - penalty * uses / window`` (floor ``1 - penalty``). 0 = off. Without a session id
+    #: nothing is tracked or penalised, so independent QA is untouched.
+    reinjection_penalty: float = Field(default=0.0, ge=0.0, le=1.0)
+    reinjection_window: int = Field(default=5, ge=1)
     #: I42: under an as-of read (``as_of``) with a question that resolves to a subject, a
     #: superseded record that was current at that time is admitted as history only when it is
     #: about a target (or carries no subject tags); other subjects' history stays out. Needs
@@ -1062,7 +1085,7 @@ class ReadConfig(BaseModel):
     decider_model: str = "manjunathshiva/opendecider-nano"
     #: CPU by default: the GPU is usually shared with the reader.
     decider_device: Literal["cpu", "cuda", "mps", "auto"] = "cpu"
-    decider_tasks: list[Literal["list_mode", "bridge_hop"]] = Field(
+    decider_tasks: list[Literal["list_mode", "bridge_hop", "about_target"]] = Field(
         default_factory=lambda: ["list_mode", "bridge_hop"]
     )
     #: I29: whether retrieved memories are injected at all. ``off`` (default): always, as

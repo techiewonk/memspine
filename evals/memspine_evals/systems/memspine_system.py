@@ -268,6 +268,7 @@ class MemspineSystem:
         self._perspective_auto = perspective_metadata is None
         self._shape: dict[str, Any] = {}
         self._asker: str | None = None
+        self._read_session: str | None = None
         self._counter = counter or HeuristicTokenCounter()
         self._record_deposit_calls = record_deposit_calls
         self._dated = dated
@@ -624,7 +625,20 @@ class MemspineSystem:
             else None
         )
         asker = meta.get("asker") or meta.get("persona")
-        self._asker = str(asker) if asker and self._perspective_metadata else None
+        read_cfg = self.config.get("read") or {}
+        wants_asker = (
+            self._perspective_metadata
+            or read_cfg.get("user_header") == "on"
+            or read_cfg.get("owner_check", "off") != "off"
+        )
+        self._asker = str(asker) if asker and wants_asker else None
+        #: I64: the session a re-injection penalty counts in: the question's own session id,
+        #: else the persona / asker (one OP-Bench persona = one conversation); LoCoMo has
+        #: neither, so the penalty never applies there.
+        sid = meta.get("session_id") or asker
+        self._read_session = (
+            str(sid) if sid and float(read_cfg.get("reinjection_penalty") or 0.0) > 0.0 else None
+        )
 
     def _write_ingest_log(self, records: list[Any], turns: list[Turn], texts: list[str]) -> None:
         """Injection audit (``MEMSPINE_FORENSICS_DIR``): one line per record written.
@@ -736,6 +750,8 @@ class MemspineSystem:
         prompts_before = self._prompt_usage()
         rerank_before = self._rerank_stats()
         as_of = {"as_of": self._question_as_of} if self._question_as_of is not None else {}
+        if self._read_session:
+            as_of = {**as_of, "session_id": self._read_session}
         import os
 
         forensics_dir = os.environ.get("MEMSPINE_FORENSICS_DIR")
