@@ -7,7 +7,7 @@ Priority: P0 = blocks trustworthy numbers, P1 = next, P2/P3 = later. Status: ope
 
 ## Current scope and decisions (user, 2026-10-10)
 
-- **Run only LoCoMo categories 1-5 + OP-Bench for now**; other benchmarks are added slowly, one at a time, later.
+- **Run only LoCoMo categories 1-4 + OP-Bench for now** (user 2026-10-10 20:00: category 5 removed from runs; it was added only to experiment and evaluate, measured 69.4% dev baseline; not part of the target); other benchmarks are added slowly, one at a time, later.
 - **All section-I gaps are in scope as engine work** (incl. I10, I14-I21, I26): the memory server must handle every data shape; only their benchmark runs wait.
 - **LongMemEval excluded** (never run). MemoryAgentBench, ConvoMem, PrefEval, BEAM, PerLTQA, PersonaBench, HaluMem: data downloaded and loading, **deferred** (not wired, not run).
 - **No overfitting to one eval:** every engine change is judged on all in-scope slices (LoCoMo cat 1-4, LoCoMo cat 5, OP-Bench).
@@ -265,6 +265,10 @@ Wrong in all 12 configurations screened on conv-26/30 (233 q). 4 are errata (0-5
 | R2-6 | Open-domain inference refused | 0-22, 0-59 | profile/inference memory (B3); prompt rules failed (C3) | **prompt built, screen pending** - `grounded_generic_infer` / `routed_generic` target 0-22, 0-59 (0-59 is a judgement call, may stay wrong); retrieval-miss cases unaffected (`analysis/READER_OPEN_GAPS_2026-10-10.md` 2) |
 
 ## Progress log
+
+**2026-10-10 20:00**
+- User: category 5 dropped from runs (LoCoMo cat 1-4 only, 1,540 q all convs). Queue r3e/r3c/r4/r5/r6 stopped; r3b stops after r3-persp-opb. Next: full logged run of the perspective config (BEST + subject_weight) on ALL 10 LoCoMo conversations cat 1-4 + ALL 10 OP-Bench personas, with `--trace-full`. **Held-out used by user decision**: later held-out numbers are no longer unseen.
+- r3-persp LoCoMo (304 q, cat 1-5): 83.2 vs 81.6 (+16/-11), multi-hop 81.4 vs 69.8.
 
 **2026-10-10 19:50**
 - I67 built (commit see git log): opt-in `read.agentic` multi-step read, Cognee-style structured action step (answer_ready / search / search_person_time) on the `sufficiency` role, fused under the same budget with a reserved step-0 share, every step in `search_forensics` (`agentic`, `agentic_steps`). Tests: `tests/unit/test_agentic_read.py` (fake LLM, 30 tests); suite 2924 passed. `multi_hop` trigger fires on 28% of LoCoMo questions (about 0.45 extra LLM calls per question). Screen NOT launched: `evals/run_screens_r6.sh` is queued behind r5.
