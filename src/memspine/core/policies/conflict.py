@@ -139,12 +139,18 @@ class ConflictPolicy(BindablePolicy):
         return incoming.trust < existing.trust - options.trust_margin
 
     def resolve(self, incoming: MemoryRecord, existing: MemoryRecord) -> ConflictVerdict:
+        return self.decide(incoming, existing)[0]
+
+    def decide(
+        self, incoming: MemoryRecord, existing: MemoryRecord
+    ) -> tuple[ConflictVerdict, str]:
+        """:meth:`resolve` plus the rung that fired (for the write forensics)."""
         options = self.options
         assert isinstance(options, ConflictOptions)
 
         # R0 — identical statement: nothing to do.
         if incoming.content_fingerprint == existing.content_fingerprint:
-            return ConflictVerdict.NOOP
+            return ConflictVerdict.NOOP, "R0_identical_statement"
 
         # B-1: an attribute-less record has no (entity, attribute) key, so two
         # such records about one entity are independent facts, not a conflict.
@@ -155,49 +161,50 @@ class ConflictPolicy(BindablePolicy):
             and incoming.attribute == existing.attribute
         )
         if not same_key:
-            return ConflictVerdict.ADD  # independent facts coexist
+            return ConflictVerdict.ADD, "B1_no_fact_key"  # independent facts coexist
         if options.perspective_key and self.coexists(incoming, existing):
-            return ConflictVerdict.ADD  # another subject / scope: both hold
+            # another subject / scope: both hold
+            return ConflictVerdict.ADD, "I55_other_subject_or_scope"
 
         # I48 — stated beats inferred: an inference never overrides a statement.
         if options.inferred_defers:
             inc_inf = INFERRED_TAG in incoming.tags
             if inc_inf and INFERRED_TAG not in existing.tags:
-                return ConflictVerdict.NOOP
+                return ConflictVerdict.NOOP, "I48_inferred_never_overrides_stated"
             if not inc_inf and INFERRED_TAG in existing.tags and "retract" not in incoming.tags:
-                return ConflictVerdict.UPDATE
+                return ConflictVerdict.UPDATE, "I48_stated_beats_inferred"
 
         # R1 — trust gate (E1): markedly less-trusted writes cannot displace
         # the current fact; the store records the rejection as a CONFLICT event.
         if self.trust_gated(incoming, existing):
-            return ConflictVerdict.NOOP
+            return ConflictVerdict.NOOP, "R1_trust_gate"
 
         if options.perspective_key:
             pol_in = {t for t in incoming.tags if t.startswith("pol:")}
             pol_ex = {t for t in existing.tags if t.startswith("pol:")}
             if pol_in and pol_ex and pol_in != pol_ex and len(pol_in) == len(pol_ex) == 1:
-                return ConflictVerdict.CONTEST  # a polarity flip on one key
+                return ConflictVerdict.CONTEST, "I55_polarity_flip"  # a polarity flip on one key
         # R1' — lower-trust contest (opt-in): inside the margin, but less trusted
         # than the current fact, so it may neither supersede nor retract it.
         if options.contest_lower_trust and incoming.trust < existing.trust - 1e-9:
-            return ConflictVerdict.CONTEST
+            return ConflictVerdict.CONTEST, "R1p_lower_trust_contest"
 
         # R2' — explicit retraction (FORK-A6): a trust-gated write tagged
         # ``retract`` on the same key ends the fact with NO successor. Tag-based,
         # so the rung is deterministic; no LLM decides what a negation is.
         if "retract" in incoming.tags:
-            return ConflictVerdict.INVALIDATE
+            return ConflictVerdict.INVALIDATE, "R2p_explicit_retraction"
 
         # W6 merge (opt-in): a restatement adds no new value.
         if options.merge_containment:
             mine = content_words(incoming.content)
             if mine and mine <= content_words(existing.content):
-                return ConflictVerdict.NOOP
+                return ConflictVerdict.NOOP, "W6_merge_containment"
 
         # Graphiti overlap rule: an incoming statement whose validity interval is
         # closed and ended before the current fact began cannot contradict it.
         if incoming.valid_to is not None and incoming.valid_to <= existing.valid_from:
-            return ConflictVerdict.ADD
+            return ConflictVerdict.ADD, "graphiti_interval_ended_before_current"
 
         # R2'' — contest (H9, opt-in): nothing orders the two statements.
         if options.contest_ties:
@@ -206,15 +213,15 @@ class ConflictPolicy(BindablePolicy):
                 gap <= options.contest_window_seconds
                 and abs(incoming.trust - existing.trust) <= options.contest_trust_margin
             ):
-                return ConflictVerdict.CONTEST
+                return ConflictVerdict.CONTEST, "R2pp_contest_tie"
 
         # R3 — temporal: the biased-newer statement supersedes the current one.
         incoming_newer = incoming.valid_from >= existing.valid_from
         if options.bias == "oldest":
             incoming_newer = not incoming_newer
         if incoming_newer:
-            return ConflictVerdict.UPDATE
+            return ConflictVerdict.UPDATE, "R3_newer_supersedes"
 
         # R4 — historical backfill: keep the current fact, add the older one
         # with closed validity (the store sets valid_to = existing.valid_from).
-        return ConflictVerdict.ADD
+        return ConflictVerdict.ADD, "R4_historical_backfill"

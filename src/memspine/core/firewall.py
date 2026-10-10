@@ -27,6 +27,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 
 from memspine.config import constants
+from memspine.core import trace_sink
 from memspine.core.policies.trust import TrustPolicy
 from memspine.core.records import MemoryRecord, RecordStatus
 
@@ -346,6 +347,41 @@ class Firewall:
             reasons.append(f"pending_evidence(tier={self._policy.source_tier(stamped)})")
         if quarantine:
             reasons.append("quarantined")
+        if trace_sink.write_active():  # opt-in write forensics: every signal and the verdict
+            nearest_sim = max(neighbour_similarities) if neighbour_similarities else None
+            trace_sink.write_note(
+                "firewall",
+                record_id=record.record_id,
+                role=record.source.role,
+                channel=record.source.channel,
+                trust=trust,
+                trust_tier=self._policy.source_tier(stamped),
+                instruction_screen=(
+                    "extended" if signals.instruction_extended
+                    else "base" if signals.instruction else "off"
+                ),
+                instruction_flag=flagged,
+                semantic_risk=semantic_risk(record.content) if signals.semantic_risk else None,
+                embedding_outlier=dict(
+                    on=signals.anomaly and record.source.role not in signals.anomaly_exempt_roles,
+                    nearest_similarity=nearest_sim,
+                    n_neighbours=len(neighbour_similarities or []),
+                    min_neighbours=constants.ANOMALY_MIN_NEIGHBOURS,
+                    threshold=constants.ANOMALY_CENTROID_MIN_SIMILARITY,
+                    flagged=any(r.startswith("embedding_outlier") for r in reasons),
+                ),
+                minja_bridge=dict(
+                    on=signals.minja_bridge
+                    and record.source.role not in signals.minja_bridge_exempt_roles,
+                    prefix_chars=bridge_chars,
+                    n_recent=len(recent_contents or []),
+                    flagged="minja_bridge_prefix" in reasons,
+                ),
+                query_anomaly_z=query_anomaly,
+                anomalous=anomalous,
+                quarantine=quarantine,
+                reasons=list(reasons),
+            )
         return FirewallVerdict(
             trust=trust,
             instruction_flag=flagged,

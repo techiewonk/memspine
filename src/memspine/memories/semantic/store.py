@@ -19,6 +19,7 @@ from typing import ClassVar
 from datasketch import MinHashLSH
 
 from memspine.config.constants import CUE_TAG
+from memspine.core import trace_sink
 from memspine.core.events import EventKind, MemoryEvent
 from memspine.core.policies.conflict import ConflictPolicy, ConflictVerdict
 from memspine.core.policies.dedup import DedupPolicy
@@ -179,6 +180,10 @@ class SemanticMemory(BaseMemory):
         # M5 stage-1: LSH candidates; stage-2: cosine confirm via embeddings.
         duplicate = await self._confirm_duplicate(index, record)
         if duplicate is not None:
+            trace_sink.write_note(
+                "conflict", record_id=record.record_id, incumbent=duplicate.record_id,
+                verdict="merge", rule="duplicate_lsh_cosine", key=[record.entity, record.attribute],
+            )  # fmt: skip
             return await self._merge(duplicate, record)
 
         # M13.3: entity resolution BEFORE conflict detection. The prompt that
@@ -216,6 +221,11 @@ class SemanticMemory(BaseMemory):
             if existing is not None:
                 return await self._resolve_conflict(index, record, existing)
 
+        trace_sink.write_note(
+            "conflict", record_id=record.record_id, incumbent=None, verdict="add",
+            rule="no_incumbent" if record.entity is not None and record.attribute is not None
+            else "unkeyed_record", key=[record.entity, record.attribute],
+        )  # fmt: skip
         await self._write_through(index, record)
         return SemanticWriteResult(record=record, action="added")
 
@@ -348,7 +358,16 @@ class SemanticMemory(BaseMemory):
             and not self._conflict.trust_gated(incoming, existing)
         ):
             return await self._merge(existing, incoming)
-        verdict = self._conflict.resolve(incoming, existing)
+        decide = getattr(self._conflict, "decide", None)
+        if decide is not None:
+            verdict, rule = decide(incoming, existing)
+        else:
+            verdict, rule = self._conflict.resolve(incoming, existing), "resolve"
+        trace_sink.write_note(
+            "conflict", record_id=incoming.record_id, incumbent=existing.record_id,
+            verdict=verdict.value, rule=rule, key=[incoming.entity, incoming.attribute],
+            trust_incoming=incoming.trust, trust_incumbent=existing.trust,
+        )  # fmt: skip
         #: #19: the world-time end a superseded/retracted fact gets (None = off).
         ended = {"invalid_at": incoming.valid_from} if interval else {}
         result: SemanticWriteResult

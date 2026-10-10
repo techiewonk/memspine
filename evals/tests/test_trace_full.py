@@ -294,10 +294,15 @@ def test_real_engine_run_writes_the_whole_trace_folder(tmp_path: Path) -> None:
     assert {"write_trace.jsonl", "ingest.jsonl", "forensics.jsonl", "reads.jsonl"} <= set(names)
     writes = [json.loads(x) for x in (folder / "write_trace.jsonl").read_text().splitlines()]
     assert writes and writes[0]["written"] and "tags" in writes[0]["stored"]
+    kinds = {e["kind"] for w in writes for e in w["engine_events"]}
+    assert "firewall" in kinds  # the engine's write sink reached the harness
+    fw = next(e for w in writes for e in w["engine_events"] if e["kind"] == "firewall")
+    assert {"embedding_outlier", "minja_bridge", "reasons", "quarantine"} <= set(fw)
     assert any(w.get("write_timers") for w in writes)  # observability.write_timers was switched on
     fx = [json.loads(x) for x in (folder / "forensics.jsonl").read_text().splitlines()]
     block = fx[0]["trace_full"]
     assert {"query_analysis", "records", "final_not_in_context", "assembled"} <= set(block)
+    assert {"cuts", "window"} <= set(block)
     assert fx[0]["vector"] and fx[0]["context_records"]
     reads = [json.loads(x) for x in (folder / "reads.jsonl").read_text().splitlines()]
     assert len(reads) == len(fx) and reads[0]["reader_calls"][0]["prompt"]

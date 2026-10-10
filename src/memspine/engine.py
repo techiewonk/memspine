@@ -28,6 +28,7 @@ from collections.abc import (
     Callable,
     Collection,
     Coroutine,
+    Iterable,
     Iterator,
     Mapping,
     Sequence,
@@ -51,6 +52,7 @@ from memspine.clients.sqlite import SQLiteClient
 from memspine.config import constants
 from memspine.config.loader import ResolvedConfig, default_template, load_config
 from memspine.config.schema import FirewallConfig, MemspineConfig
+from memspine.core import trace_sink
 from memspine.core.agentic import clean_query, evidence_view, fuse_new, merge_budget
 from memspine.core.answer import final_answer, numbered_context, verification
 from memspine.core.audit import IntegrityReport, TaintReport, trace_taint, verify_events
@@ -757,7 +759,7 @@ _FOCAL_ENTITY: ContextVar[str | None] = ContextVar("memspine_focal_entity", defa
 #: :func:`search_forensics`, ``Engine._search`` records the ranked ``(record_id, score)``
 #: list of every stage: each leg, the fusion, the gated candidate pool, the reranker's raw
 #: scores and the final cut. Unset (the default) the hook is a single ``is not None`` test.
-_FORENSICS: ContextVar[dict[str, Any] | None] = ContextVar("memspine_forensics", default=None)
+_FORENSICS = trace_sink.FORENSICS  # the same ContextVar, shared with the policies
 
 #: R2-1b: the raw reranker score of the second-best candidate of the latest ``_search`` in
 #: this task (None: no rerank ran, fewer than two candidates, or the rerank failed). The
@@ -772,6 +774,25 @@ _RAW_SCORES: ContextVar[dict[str, float] | None] = ContextVar("memspine_raw_scor
 #: B1 (``read.list_mode``): True while the routed read searches for a list / set question;
 #: the search then adds the speaker vote leg, widens the pool and skips ``rerank_keep``.
 _LIST_MODE: ContextVar[bool] = ContextVar("memspine_list_mode", default=False)
+
+
+def _ids(pairs: Iterable[tuple[Any, Any]]) -> list[str] | None:
+    """Record ids of ``(record, score)`` pairs, only while a forensics sink is installed."""
+    if _FORENSICS.get() is None:
+        return None
+    return [pair[0].record_id for pair in pairs]
+
+
+def _cut_missing(
+    before: list[str] | None, after: Iterable[tuple[Any, Any]], reason: str, **detail: Any
+) -> None:
+    """Record every id in ``before`` that ``after`` no longer holds as cut for ``reason``."""
+    if before is None:
+        return
+    kept = {pair[0].record_id for pair in after}
+    for rid in before:
+        if rid not in kept:
+            trace_sink.cut(reason, rid, **detail)
 
 
 @contextmanager
@@ -4771,12 +4792,18 @@ class Engine:
         """The E1 / EI-1 / C8' / D2 gates of :meth:`search`, in ranked order."""
         storage = self._require_started()
         candidates: list[tuple[MemoryRecord, float]] = []
+        tracing = _FORENSICS.get() is not None
         for record_id, relevance in ranked:
             record = await storage.get_record(record_id)
             if record is None or (
                 record.status is not RecordStatus.ACTIVATED
                 and not _current_at(record, active_as_of())
             ):
+                if tracing:
+                    trace_sink.cut(
+                        "status_or_missing", record_id,
+                        status=None if record is None else str(record.status),
+                    )  # fmt: skip
                 # Only live facts reach a context window: DELETED/QUARANTINED are
                 # excluded (E1), and ARCHIVED/superseded history never surfaces as
                 # current truth — a promoted-then-superseded record cannot re-enter.
@@ -4784,13 +4811,19 @@ class Engine:
                 # the current one then, and is admitted.
                 continue
             if record.quarantined:
+                if tracing:
+                    trace_sink.cut("quarantine", record_id)
                 continue  # defense in depth: quarantined never reaches assembly
             if not self._consent_ok(record):
+                if tracing:
+                    trace_sink.cut("consent_purpose", record_id)
                 continue  # #50: the record's purposes do not allow this read
             if record.memory_type == "shared":
                 # EI-1: grant/subscription bookkeeping is authorization state, not
                 # memory content — it must never occupy retrieval slots (shared_search
                 # already hides foreign ones; this hides the reader's own).
+                if tracing:
+                    trace_sink.cut("shared_bookkeeping", record_id)
                 continue
             if CUE_TAG in record.tags:
                 # C8': a cue is a key, never content. Off, cues are invisible; on,
@@ -4798,6 +4831,8 @@ class Engine:
                 # same gates as any other hit.
                 read_cfg = self._config().read
                 if not read_cfg.anticipatory_cues or record.trust < read_cfg.cue_min_trust:
+                    if tracing:
+                        trace_sink.cut("cue_not_content", record_id)
                     continue
                 parents = record.source.parents
                 target = await storage.get_record(parents[0]) if parents else None
@@ -4807,16 +4842,26 @@ class Engine:
                     or target.quarantined
                     or not self._consent_ok(target)
                 ):
+                    if tracing:
+                        trace_sink.cut("cue_target_unavailable", record_id)
                     continue
                 record = target
             # D2 sub-scoping gate: narrow to a group and/or records carrying all tags.
             if group_id is not None and record.group_id != group_id:
+                if tracing:
+                    trace_sink.cut("group_filter", record_id, group=group_id)
                 continue
             if _passive_hidden(record, group_id):
+                if tracing:
+                    trace_sink.cut("passive_session", record_id)
                 continue  # #53: an archived (PASSIVE) session stays out of default reads
             if tags and not set(tags).issubset(record.tags):
+                if tracing:
+                    trace_sink.cut("tag_filter", record_id)
                 continue
             if memory_type is not None and record.memory_type != memory_type:
+                if tracing:
+                    trace_sink.cut("memory_type_filter", record_id)
                 continue
             try:
                 record = self._inflate.inflate(record)  # cold-tier content restored (M6)
@@ -5036,25 +5081,33 @@ class Engine:
             if community_gate is not None:
                 # GP-9: a community summary no seed entity belongs to is never read.
                 admitted = set(community_gate)
+                _pre = _ids(candidates)
                 candidates = [
                     pair
                     for pair in candidates
                     if pair[0].source.channel != "reorganize" or pair[0].record_id in admitted
                 ]
+                _cut_missing(_pre, candidates, "community_gate")
             if allowed is not None:
                 # A cue passed the leg filter as a key; its resolved target is judged here.
                 date_filter = active_date_filter()
                 scope = active_record_scope()  # I7 / I8
+                _pre = _ids(candidates)
                 candidates = [
                     pair
                     for pair in candidates
                     if (date_filter is None or date_filter.matches(pair[0]))
                     and (scope is None or scope.matches(pair[0]))
                 ]
+                _cut_missing(_pre, candidates, "date_or_session_scope")
             if hide is not None:
+                _pre = _ids(candidates)
                 candidates = [pair for pair in candidates if not hide(pair[0])]
+                _cut_missing(_pre, candidates, "header_hide")
             if persp_qp is not None and read_persp.perspective_mode != "off":
+                _pre = _ids(candidates)
                 candidates = self._apply_perspective(candidates, persp_qp)
+                _cut_missing(_pre, candidates, "perspective_filter")
             if read_persp.reinjection_penalty > 0.0 and session_id:  # I64
                 candidates = self._penalise_reinjected(candidates, ns, session_id)
             # Exhaustion is judged on the legs (before any gate or cut).
@@ -5091,10 +5144,14 @@ class Engine:
             # GR-15 (Graphiti d40da88): the pool the reranker sees takes the legs'
             # best hits in turn, so one leg cannot fill it before the cut.
             candidates = _balanced_pool(candidates, [vector_hits, lexical_hits, *extra_legs], top_k)
+        _pre = _ids(candidates)
         candidates = candidates[:top_k]
+        _cut_missing(_pre, candidates, "pool_cut", pool=top_k)
         # E8 stage: static prefilter (opt-in, default off).
         if candidates and self._config().read.static_prefilter:
+            _pre = _ids(candidates)
             candidates = _static_prefilter(query, candidates)
+            _cut_missing(_pre, candidates, "static_prefilter")
         # E4 stage: model2vec static-embedding prefilter (opt-in, default off).
         # A cheap static-cosine gate that narrows the candidate set before the
         # expensive rerank/score; a missing [static] extra self-disables it.
@@ -5105,7 +5162,9 @@ class Engine:
         # ran, so a reranker can only reorder live content, never resurface
         # held content. Failures degrade loudly to the vector ordering.
         if candidates and self._config().read.relevance_filter:
+            _pre = _ids(candidates)
             candidates = await self._relevance_filter(query, candidates)
+            _cut_missing(_pre, candidates, "relevance_filter")
         reranker = self._rerank_provider()
         gate = self._config().read.rerank_max_top_k
         if gate is not None and keep_k > gate:
@@ -5183,11 +5242,13 @@ class Engine:
             scored = live
         if integrity.enabled:
             # MTI read door, own namespace: view trust is the record's trust.
+            _pre = _ids(scored)
             scored = [
                 (record, integrity.ranked(score, record.trust))
                 for record, score in scored
                 if integrity.admits(record.trust)
             ]
+            _cut_missing(_pre, scored, "integrity_admission_theta")
         scored = rank_pairs(scored)
         mmr_lambda = self._config().read.mmr_lambda
         if mmr_lambda is not None and len(scored) > 2:
@@ -5201,7 +5262,9 @@ class Engine:
             and not _LIST_MODE.get()  # B1: list mode keeps the whole reranked pool
         ):
             # G5b: the wider pool fed the reranker; only its best few go on.
+            _pre = _ids(scored)
             scored = scored[: read_cfg.rerank_keep]
+            _cut_missing(_pre, scored, "rerank_keep", keep=read_cfg.rerank_keep)
         if scored and self._config().read.record_access:
             # Reinforcement stats via the log (M1): last_accessed_at + access_count.
             await self._append_and_project(
@@ -6772,6 +6835,9 @@ class Engine:
             passed = True
         if (fx := _FORENSICS.get()) is not None:
             fx["relevance_calibration"] = entry
+            if not passed:
+                for r in records:
+                    trace_sink.cut("relevance_gate_calibrated", r.record_id)
         return result if passed else ReadResult(result.mode, AssembledContext(abstained=True))
 
     async def _gate_bypassed(self, query: str, ns: str | None, result: ReadResult) -> bool:
@@ -6823,6 +6889,9 @@ class Engine:
         memories = chr(10).join(f"- {r.content}" for r in records[:10])
         label = await self._decided("relevance", query, memories, "relevant")
         if label == "irrelevant":
+            if _FORENSICS.get() is not None:
+                for r in records:
+                    trace_sink.cut("relevance_gate_decider", r.record_id)
             return ReadResult(result.mode, AssembledContext(abstained=True))
         return result
 
@@ -8145,6 +8214,8 @@ class Engine:
         sink = _FORENSICS.get()
         if sink is not None:
             sink["dedupe_dropped"] = [(d.dropped, d.kept, d.similarity) for d in dropped]
+            for d in dropped:
+                trace_sink.cut("dedupe", d.dropped, kept=d.kept, similarity=d.similarity)
         return kept
 
     def _profile_line_relevant(self, query: str, text: str) -> bool:
@@ -8209,6 +8280,8 @@ class Engine:
         closed: set[int] = set()
         taken: set[str] = set()
         out: list[tuple[str, MemoryRecord, int]] = []
+        fx = _FORENSICS.get()
+        skipped: dict[str, str] = {}
         for index in order:
             side = 0 if index == at else (-1 if index < at else 1)
             if by_tokens and side in closed:
@@ -8217,24 +8290,40 @@ class Engine:
                 continue
             rid = ids[index]
             if rid in seen or rid in taken:
+                if fx is not None:
+                    skipped[rid] = "already in the context"
                 continue
             turn = hit if hit is not None and rid == hit.record_id else None
             if turn is None:
                 turn = await self._replay_neighbour(rid, ns)
             if turn is None:
+                if fx is not None:
+                    skipped[rid] = "not visible (gates: status, quarantine, consent, scope)"
                 continue
             cost = len(turn.content) // 4 + 1
             if by_tokens and side != 0:
                 if spent[side] + cost > allowance[side]:
                     closed.add(side)
+                    if fx is not None:
+                        skipped[rid] = "side token allowance used"
                     continue
             if used + cost > budget_tokens:
+                if fx is not None:
+                    skipped[rid] = f"over budget ({used}+{cost}>{budget_tokens})"
                 continue
             if by_tokens and side != 0:
                 spent[side] += cost
             taken.add(rid)
             out.append((rid, turn, cost))
             used += cost
+        if fx is not None:
+            fx.setdefault("window", []).append(
+                {
+                    "anchor": ids[at],
+                    "neighbours": [rid for rid, _, _ in out if rid != ids[at]],
+                    "skipped": skipped,
+                }
+            )
         return out
 
     def _context_eligible(self, record: MemoryRecord) -> bool:

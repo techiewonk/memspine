@@ -525,17 +525,18 @@ class MemspineSystem:
         turns, self._buffer = self._buffer, []
         return await self._deposit(turns)
 
-    async def _deposit(self, turns: list[Turn]) -> DepositResult:
-        """One ``write_messages`` call for turns of ONE session."""
-        # The speaker NAME is content ("Caroline: ..."), not a provenance role:
-        # passing it as the role dropped names from the stored text and gave
-        # every speaker an unknown-role trust. The session stamp becomes the
-        # record's event time (valid_from), so dated questions are answerable.
-        session_id = turns[0].session_id
-        texts = [f"{turn.speaker}: {turn.text}" for turn in turns]
-        before = self._calls()
-        usage_before = self._usage()
-        prompts_before = self._prompt_usage()
+    def _write_scope(self) -> Any:
+        """``--trace-full``: capture the engine's write-side events (firewall signals and
+        verdict, conflict-ladder rule) of the write inside the block; a no-op otherwise."""
+        import contextlib
+
+        from memspine.core import trace_sink
+
+        return trace_sink.write_forensics() if self._trace_dir else contextlib.nullcontext([])
+
+    async def _engine_write(
+        self, turns: list[Turn], texts: list[str], session_id: str
+    ) -> list[Any]:
         if len(turns) == 1:
             records = await self._engine.write_messages(
                 [self._message(turns[0], texts[0])],
@@ -558,6 +559,22 @@ class MemspineSystem:
                 session_id=session_id,
                 group_id=session_id,
             )
+        return list(records)
+
+    async def _deposit(self, turns: list[Turn]) -> DepositResult:
+        """One ``write_messages`` call for turns of ONE session."""
+        # The speaker NAME is content ("Caroline: ..."), not a provenance role:
+        # passing it as the role dropped names from the stored text and gave
+        # every speaker an unknown-role trust. The session stamp becomes the
+        # record's event time (valid_from), so dated questions are answerable.
+        session_id = turns[0].session_id
+        texts = [f"{turn.speaker}: {turn.text}" for turn in turns]
+        before = self._calls()
+        usage_before = self._usage()
+        prompts_before = self._prompt_usage()
+        with self._write_scope() as write_events:
+            records = await self._engine_write(turns, texts, session_id)
+        self._write_events = write_events
         ids: list[str] = []
         for record, turn_id in _align(records, turns, texts):
             record_id = str(record.record_id)
@@ -724,12 +741,22 @@ class MemspineSystem:
         if self._trace_dir:
             # --trace-full: the stored record's tags / firewall stamp + deterministic signals
             rows = []
+            events = list(getattr(self, "_write_events", None) or [])
+            used: set[int] = set()
             for turn, text in zip(turns, texts, strict=True):
                 row = trace_full.write_trace_row(by_turn.get(turn.turn_id), turn.turn_id, text)
                 row.update(run_id=self._run_id, item=getattr(self, "_item_id", None))
+                rid = row.get("record_id")
+                mine = [i for i, e in enumerate(events) if rid and e.get("record_id") == rid]
+                used.update(mine)
+                row["engine_events"] = [events[i] for i in mine]
                 if timers and turn is turns[0]:
                     row["write_timers"] = timers
                 rows.append(row)
+            if rows:
+                rows[0]["engine_events_unmatched"] = [
+                    e for i, e in enumerate(events) if i not in used
+                ]
             _append_jsonl(Path(self._trace_dir) / "write_trace.jsonl", rows)
 
     async def _write_derived_trace(self) -> None:
@@ -840,10 +867,20 @@ class MemspineSystem:
                     for e in row["final"]
                     if e["turn"] not in {c["turn"] for c in row["context_records"]}
                 ],
-                "assembly_cut_reasons": (
-                    "not recorded by the engine (floors, budget and lead-block cuts "
-                    "are decided inside assemble)"
-                ),
+                "cuts": [
+                    {**c, "turn": self._origin.get(str(c["id"]), str(c["id"]))}
+                    for c in stages.get("cuts", [])
+                ],
+                "window": [
+                    {
+                        "anchor": self._origin.get(str(w["anchor"]), str(w["anchor"])),
+                        "neighbours": [self._origin.get(str(n), str(n)) for n in w["neighbours"]],
+                        "skipped": {
+                            self._origin.get(str(k), str(k)): v for k, v in w["skipped"].items()
+                        },
+                    }
+                    for w in stages.get("window", [])
+                ],
                 "assembled": {
                     "abstained": getattr(assembled, "abstained", None),
                     "tokens_used": getattr(assembled, "tokens_used", None),
@@ -1024,7 +1061,7 @@ def _append_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
     if rows:
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("a", encoding="utf-8") as fh:
-            fh.writelines(json.dumps(r) + chr(10) for r in rows)
+            fh.writelines(json.dumps(r, default=str) + chr(10) for r in rows)
 
 
 def _jsonable(value: Any) -> Any:

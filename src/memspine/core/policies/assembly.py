@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from typing import ClassVar
 
 from memspine.config import constants
+from memspine.core import trace_sink
 from memspine.core.evidence import EvidenceSignal
 from memspine.core.policies.base import BindablePolicy, PolicyOptions
 from memspine.core.policies.compression import CompressionPolicy
@@ -198,7 +199,15 @@ class AssemblyPolicy(BindablePolicy):
         assert isinstance(options, AssemblyOptions)
         fit_stage = compression is not None and compression.assembly_enabled()
 
+        tracing = trace_sink.FORENSICS.get() is not None
         if self.abstains(scored, raw_scores):
+            if tracing:
+                for record, score in scored:
+                    if not _is_persona(record):
+                        trace_sink.cut(
+                            "theta_abstain", record.record_id, score=round(score, 4),
+                            theta=options.theta_abstain,
+                        )  # fmt: skip
             # No evidence: abstain, but the pinned persona stays (it is the stable
             # prefix of every turn, not an answer to this query).
             personas = [record for record, _ in scored if _is_persona(record)]
@@ -208,10 +217,17 @@ class AssemblyPolicy(BindablePolicy):
                 abstained=True,
                 tokens_used=sum(estimate_tokens(record.content) for record in personas),
             )
+        before_floor = [r.record_id for r, _ in scored] if tracing else []
         if raw_scores:  # I30: the floor reads the raw reranker scores, min-max or not
             scored = self.apply_floor(scored, raw_scores)
         elif apply_floor:  # read.rerank_floor="skip" turns the H4 floor off for reranked reads
             scored = self.apply_floor(scored)
+        if tracing:
+            kept_ids = {r.record_id for r, _ in scored}
+            reason = "rerank_floor_raw" if raw_scores else "relative_floor"
+            for rid in before_floor:
+                if rid not in kept_ids:
+                    trace_sink.cut(reason, rid, floor=options.relative_floor)
 
         # Greedy MMR selection under the token budget. Token sets are computed
         # once per record — jaccard over pre-split sets, not raw strings.
@@ -237,6 +253,8 @@ class AssemblyPolicy(BindablePolicy):
                     _jaccard(pair[0], chosen) >= options.dedupe_jaccard for chosen, _ in selected
                 ):
                     remaining.remove(pair)  # H23 applies to the guaranteed slots too
+                    if tracing:
+                        trace_sink.cut("jaccard_dedupe", pair[0].record_id, slot="latest")
                     continue
                 cost = estimate_tokens(pair[0].content)
                 if selected and tokens_used + cost > budget_tokens:
@@ -259,6 +277,8 @@ class AssemblyPolicy(BindablePolicy):
             if options.dedupe_jaccard < 1.0 and any(
                 _jaccard(candidate, chosen) >= options.dedupe_jaccard for chosen, _ in selected
             ):
+                if tracing:
+                    trace_sink.cut("jaccard_dedupe", candidate.record_id)
                 continue
             cost = estimate_tokens(candidate.content)
             # E5 on: admit everything in MMR order — the compression stage
@@ -266,15 +286,37 @@ class AssemblyPolicy(BindablePolicy):
             # over budget: stop — unless nothing is selected yet, in which
             # case admit this one record so assembly never returns empty.
             if not fit_stage and tokens_used + cost > budget_tokens and selected:
+                if tracing:
+                    trace_sink.cut(
+                        "budget", candidate.record_id, cost=cost, used=tokens_used,
+                        budget=budget_tokens,
+                    )  # fmt: skip
+                    for rest, _ in remaining:
+                        trace_sink.cut(
+                            "budget", rest.record_id, used=tokens_used, budget=budget_tokens,
+                            note="not reached: the budget closed before it",
+                        )  # fmt: skip
                 break
             selected.append((candidate, score))
             tokens_used += cost
             if not fit_stage and tokens_used >= budget_tokens:
+                if tracing:
+                    for rest, _ in remaining:
+                        trace_sink.cut(
+                            "budget", rest.record_id, used=tokens_used, budget=budget_tokens,
+                            note="not reached: the budget filled before it",
+                        )  # fmt: skip
                 break
 
         if fit_stage:
             assert compression is not None
+            before_fit = [r.record_id for r, _ in selected] if tracing else []
             selected = compression.fit_assembly(selected, budget_tokens, estimate_tokens)
+            if tracing:
+                kept_fit = {r.record_id for r, _ in selected}
+                for rid in before_fit:
+                    if rid not in kept_fit:
+                        trace_sink.cut("compression_fit", rid, budget=budget_tokens)
             tokens_used = sum(estimate_tokens(record.content) for record, _ in selected)
 
         # E2 placement: stability rank first; within a rank, score descending.
