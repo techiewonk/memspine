@@ -20,6 +20,7 @@ from datetime import UTC, datetime, tzinfo
 from pathlib import Path
 from typing import Any
 
+from .. import trace_full
 from ..contracts import DepositResult, Evidence, RetrievedContext, Turn
 from ..tokens import HeuristicTokenCounter, TokenCounter
 
@@ -117,7 +118,7 @@ def parse_turn_stamp(turn: Turn, zone: tzinfo = UTC) -> datetime | None:
 
 
 #: D7 [INJ-6]: the forensic logs ``MEMSPINE_FORENSICS_DIR`` collects.
-FORENSIC_LOGS = ("forensics.jsonl", "ingest.jsonl")
+FORENSIC_LOGS = ("forensics.jsonl", "ingest.jsonl", "write_trace.jsonl")
 
 
 def prepare_forensics_dir(directory: str, environ: Mapping[str, str] | None = None) -> None:
@@ -297,6 +298,9 @@ class MemspineSystem:
         self._run_id: str | None = None
         self._query_id: str | None = None
         self._forensics_ready = False
+        #: ``--trace-full``: the run's trace folder (None: off). Set by the runner.
+        self._trace_dir: str | None = None
+        self._trace_ready = False
 
     def describe(self) -> Mapping[str, Any]:
         return {
@@ -357,6 +361,9 @@ class MemspineSystem:
         # Never load a .env: the harness passes only what a run needs (a repo .env
         # can hold unrelated secrets, and a benchmark must not depend on it).
         overrides.setdefault("dotenv_path", None)
+        if self._trace_dir:  # --trace-full: per-step write timings (I73), timing only
+            observability = dict(overrides.get("observability") or {})
+            overrides["observability"] = {**observability, "write_timers": True}
         # Questions must be independent: with access recording on, every search
         # refreshes last_accessed_at, so records retrieved for early questions
         # rank higher (recency) for later ones. Off unless a run asks for it.
@@ -449,6 +456,22 @@ class MemspineSystem:
         if directory and not self._forensics_ready:
             prepare_forensics_dir(directory)
             self._forensics_ready = True
+        if self._trace_dir and not self._trace_ready:
+            prepare_forensics_dir(self._trace_dir)
+            self._trace_ready = True
+
+    def set_trace_dir(self, path: str | None) -> None:
+        """``--trace-full``: the runner names the run's trace folder before anything is ingested.
+        Turns on the per-record write trace, the extra read-path fields and the engine's
+        write timers (``observability.write_timers``)."""
+        self._trace_dir = str(path) if path else None
+
+    def _log_dirs(self) -> list[str]:
+        """Where per-record / per-question logs go: the forensics dir and the trace folder."""
+        import os
+
+        dirs = [os.environ.get("MEMSPINE_FORENSICS_DIR"), self._trace_dir]
+        return [d for i, d in enumerate(dirs) if d and d not in dirs[:i]]
 
     def set_query_id(self, query_id: str) -> None:
         """D7: the id of the question about to be asked (forensics rows carry it)."""
@@ -584,6 +607,8 @@ class MemspineSystem:
         the synthesise (K) bucket; queries pinned mid-stream run before it.
         """
         flushed = await self.flush()
+        if self._engine is not None:
+            await self._write_derived_trace()
         if not self._build_sleep or self._engine is None:
             return flushed
         estimate = self.sleep_calls_per_session * max(len(self._sessions), 1)
@@ -602,6 +627,7 @@ class MemspineSystem:
         usage_before = self._usage()
         prompts_before = self._prompt_usage()
         stats = await self._engine.sleep()
+        await self._write_derived_trace()  # --trace-full: what the sleep cycle derived
         after = self._calls()
         meta: dict[str, Any] = {"sleep": {name: dict(stage) for name, stage in stats.items()}}
         engine_llm = self._usage_delta(usage_before, self._usage())
@@ -648,52 +674,90 @@ class MemspineSystem:
         to a write-side defect (dropped or merged turn, wrong date, altered text).
         """
         import json
-        import os
         from pathlib import Path
 
-        directory = os.environ.get("MEMSPINE_FORENSICS_DIR")
-        if not directory:
+        directories = self._log_dirs()
+        if not directories:
             return
         by_turn = {turn_id: record for record, turn_id in _align(records, turns, texts)}
-        out = Path(directory)
-        out.mkdir(parents=True, exist_ok=True)
         # I73: the batch's per-step write timings (observability.write_timers), taken as a
         # delta and carried on the batch's first line only; absent when the timers are off.
         taker = getattr(self._engine, "write_timers", None)
         timers = taker(reset=True) if callable(taker) else {}
-        with (out / "ingest.jsonl").open("a", encoding="utf-8") as fh:
-            for position, (turn, text) in enumerate(zip(turns, texts, strict=True)):
-                record = by_turn.get(turn.turn_id)
-                stored = getattr(record, "content", None)
-                valid_from = getattr(record, "valid_from", None)
-                fh.write(
-                    json.dumps(
-                        {
-                            "run_id": self._run_id,
-                            "item": getattr(self, "_item_id", None),
-                            "turn": turn.turn_id,
-                            "session": turn.session_id,
-                            "speaker": turn.speaker,
-                            "source_timestamp": turn.timestamp,
-                            "source_text": text,
-                            "written": record is not None,
-                            "record_id": str(record.record_id) if record is not None else None,
-                            "stored_text": stored,
-                            "text_identical": stored == text if stored is not None else None,
-                            "valid_from": valid_from.isoformat() if valid_from else None,
-                            "memory_type": str(getattr(record, "memory_type", None)),
-                            "group_id": getattr(record, "group_id", None),
-                            "session_id": getattr(record, "session_id", None),
-                            "batch_size": len(turns),
-                            # F2 [INJ-2]: what the firewall did with the record
-                            "quarantined": getattr(record, "quarantined", None),
-                            "trust": getattr(record, "trust", None),
-                            "status": _enum_value(getattr(record, "status", None)),
-                            **({"write_timers": timers} if timers and position == 0 else {}),
-                        }
-                    )
-                    + "\n"
+        lines = []
+        for position, (turn, text) in enumerate(zip(turns, texts, strict=True)):
+            record = by_turn.get(turn.turn_id)
+            stored = getattr(record, "content", None)
+            valid_from = getattr(record, "valid_from", None)
+            lines.append(
+                json.dumps(
+                    {
+                        "run_id": self._run_id,
+                        "item": getattr(self, "_item_id", None),
+                        "turn": turn.turn_id,
+                        "session": turn.session_id,
+                        "speaker": turn.speaker,
+                        "source_timestamp": turn.timestamp,
+                        "source_text": text,
+                        "written": record is not None,
+                        "record_id": str(record.record_id) if record is not None else None,
+                        "stored_text": stored,
+                        "text_identical": stored == text if stored is not None else None,
+                        "valid_from": valid_from.isoformat() if valid_from else None,
+                        "memory_type": str(getattr(record, "memory_type", None)),
+                        "group_id": getattr(record, "group_id", None),
+                        "session_id": getattr(record, "session_id", None),
+                        "batch_size": len(turns),
+                        # F2 [INJ-2]: what the firewall did with the record
+                        "quarantined": getattr(record, "quarantined", None),
+                        "trust": getattr(record, "trust", None),
+                        "status": _enum_value(getattr(record, "status", None)),
+                        **({"write_timers": timers} if timers and position == 0 else {}),
+                    }
                 )
+            )
+        for directory in directories:
+            out = Path(directory)
+            out.mkdir(parents=True, exist_ok=True)
+            with (out / "ingest.jsonl").open("a", encoding="utf-8") as fh:
+                fh.writelines(line + "\n" for line in lines)
+        if self._trace_dir:
+            # --trace-full: the stored record's tags / firewall stamp + deterministic signals
+            rows = []
+            for turn, text in zip(turns, texts, strict=True):
+                row = trace_full.write_trace_row(by_turn.get(turn.turn_id), turn.turn_id, text)
+                row.update(run_id=self._run_id, item=getattr(self, "_item_id", None))
+                if timers and turn is turns[0]:
+                    row["write_timers"] = timers
+                rows.append(row)
+            _append_jsonl(Path(self._trace_dir) / "write_trace.jsonl", rows)
+
+    async def _write_derived_trace(self) -> None:
+        """--trace-full: records in the store that no source turn produced (mined facts, cards,
+        summaries) with their parents; one ``derived`` line each, appended to write_trace.jsonl.
+        Called before and after the sleep cycle; ids already written are not repeated."""
+        from pathlib import Path
+
+        directory = self._trace_dir
+        if not directory or self._engine is None:
+            return
+        seen = getattr(self, "_derived_seen", None)
+        if seen is None:
+            seen = self._derived_seen = set()
+        try:
+            records = await self._engine._storage.list_records(self.namespace)
+        except Exception:  # an engine whose storage is not reachable from here
+            return
+        rows = []
+        for record in records:
+            rid = str(record.record_id)
+            if rid in self._origin or rid in seen:
+                continue
+            seen.add(rid)
+            row = trace_full.derived_row(record, self._origin)
+            row.update(run_id=self._run_id, item=getattr(self, "_item_id", None))
+            rows.append(row)
+        _append_jsonl(Path(directory) / "write_trace.jsonl", rows)
 
     def _write_forensics(
         self, directory: str, query: str, stages: dict[str, Any], assembled: Any
@@ -751,6 +815,42 @@ class MemspineSystem:
             ],
             "context_tokens": getattr(assembled, "tokens_used", None),
         }
+        if self._trace_dir and str(Path(directory)) == str(Path(self._trace_dir)):
+            # --trace-full: the read-path facts the sink holds but the default row drops
+            row["trace_full"] = {
+                "query_analysis": trace_full.query_analysis(query),
+                **{
+                    k: _jsonable(stages[k])
+                    for k in ("perspective", "read_overlay", "abstain_on_raw", "dedupe_dropped")
+                    if k in stages
+                },
+                "records": [
+                    {
+                        "turn": self._origin.get(str(r.record_id), str(r.record_id)),
+                        "record_id": str(r.record_id),
+                        "tags": list(getattr(r, "tags", []) or []),
+                        "valid_from": trace_full._iso(getattr(r, "valid_from", None)),
+                        "trust": getattr(r, "trust", None),
+                        "memory_type": str(getattr(r, "memory_type", None)),
+                    }
+                    for r in getattr(assembled, "records", []) or []
+                ],
+                "final_not_in_context": [
+                    e["turn"]
+                    for e in row["final"]
+                    if e["turn"] not in {c["turn"] for c in row["context_records"]}
+                ],
+                "assembly_cut_reasons": (
+                    "not recorded by the engine (floors, budget and lead-block cuts "
+                    "are decided inside assemble)"
+                ),
+                "assembled": {
+                    "abstained": getattr(assembled, "abstained", None),
+                    "tokens_used": getattr(assembled, "tokens_used", None),
+                    "boundary_index": getattr(assembled, "boundary_index", None),
+                    "n_records": len(getattr(assembled, "records", []) or []),
+                },
+            }
         out = Path(directory)
         out.mkdir(parents=True, exist_ok=True)
         with (out / "forensics.jsonl").open("a", encoding="utf-8") as fh:
@@ -769,9 +869,8 @@ class MemspineSystem:
         as_of = {"as_of": self._question_as_of} if self._question_as_of is not None else {}
         if self._read_session:
             as_of = {**as_of, "session_id": self._read_session}
-        import os
 
-        forensics_dir = os.environ.get("MEMSPINE_FORENSICS_DIR")
+        log_dirs = self._log_dirs()
         from memspine.core.perspective import asker_scope
         from memspine.engine import search_forensics
 
@@ -794,8 +893,8 @@ class MemspineSystem:
                     top_k=top_k,
                     **as_of,
                 )
-        if forensics_dir:
-            self._write_forensics(forensics_dir, text, stages, assembled)
+        for log_dir in log_dirs:
+            self._write_forensics(log_dir, text, stages, assembled)
         after = self._calls()
         engine_llm = self._usage_delta(usage_before, self._usage())
         engine_prompts = self._prompt_delta(prompts_before, self._prompt_usage())
@@ -917,6 +1016,30 @@ class MemspineSystem:
 
             shutil.rmtree(tempdir, ignore_errors=True)
             self._tempdir = None
+
+
+def _append_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
+    import json
+
+    if rows:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as fh:
+            fh.writelines(json.dumps(r) + chr(10) for r in rows)
+
+
+def _jsonable(value: Any) -> Any:
+    """Plain JSON data for a forensics sink value (tuples, enums, dataclasses)."""
+    import dataclasses
+
+    if dataclasses.is_dataclass(value) and not isinstance(value, type):
+        return _jsonable(dataclasses.asdict(value))
+    if isinstance(value, dict):
+        return {str(k): _jsonable(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple, set, frozenset)):
+        return [_jsonable(v) for v in value]
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    return _enum_value(value) if hasattr(value, "value") else str(value)
 
 
 def _enum_value(value: Any) -> Any:

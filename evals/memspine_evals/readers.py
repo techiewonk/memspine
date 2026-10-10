@@ -17,6 +17,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
+from . import trace_full
 from .contracts import ReaderAnswer
 from .timing import extract_server_timing
 from .tokens import HeuristicTokenCounter, TokenCounter
@@ -861,6 +862,9 @@ class OpenAICompatReader:
         choice = body["choices"][0]
         finish = str(choice.get("finish_reason") or "")
         text = choice["message"]["content"].strip()
+        trace_full.record(  # --trace-full: the exact prompt and the raw reply
+            "reader", model=self.model, system=system, prompt=content, reply=text, finish=finish
+        )
         prompt_tokens = int(usage.get("prompt_tokens", 0))
         completion_tokens = int(usage.get("completion_tokens", 0))
         if self.guard is not None:
@@ -944,7 +948,9 @@ def openai_compat_chat(
             guard.check(
                 int(usage.get("prompt_tokens", 0)), int(usage.get("completion_tokens", 0)), "judge"
             )
-        return str(body["choices"][0]["message"]["content"])
+        reply = str(body["choices"][0]["message"]["content"])
+        trace_full.record("llm", model=model, system=system, prompt=prompt, reply=reply)
+        return reply
 
     # R3-11: the judge records these in its spec.
     chat.params = {  # type: ignore[attr-defined]

@@ -314,6 +314,7 @@ def cmd_c0_1(args: argparse.Namespace) -> int:
         count_verify=args.count_verify,
         date_repair=args.date_repair,
         retrieval_only=args.retrieval_only,
+        trace_full=args.trace_full,
         cache_dir=args.cache_dir,
         cache_reader=args.cache_reader,
         presence_penalty=args.presence_penalty,
@@ -763,6 +764,14 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="dollar cap per arm (reader + judge + engine); a call whose worst case would "
         "cross it is refused and the arm stops with UNATTEMPTED rows",
+    )
+    c01.add_argument(
+        "--trace-full",
+        action="store_true",
+        help="log, per question, the exact reader prompt, the raw reader reply, every retry / "
+        "post-step call and the judge prompt and raw reply (row meta.trace_full); with "
+        "MEMSPINE_FORENSICS_DIR the memspine adapter also writes write_trace.jsonl and extra "
+        "read-path fields. Off by default (size); scoring is unchanged",
     )
     c01.add_argument(
         "--retrieval-only",

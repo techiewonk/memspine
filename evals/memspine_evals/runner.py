@@ -28,6 +28,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from . import trace_full
 from .call_cache import reader_scope
 from .contracts import (
     DatasetAdapter,
@@ -103,6 +104,10 @@ class RunConfig:
     out_dir: Path = Path("runs")
     cost_model: CostModel = field(default_factory=CostModel)
     include_trace_content: bool = False
+    #: ``--trace-full``: write the exact reader / judge prompts and raw replies per question,
+    #: and the per-record write trace, to ``<out_dir>/<id>--trace/`` (off by default: size;
+    #: result rows and scoring are untouched, see trace_full.py)
+    trace_full: bool = False
     max_items: int | None = None
     max_queries_per_item: int | None = None
     max_model_calls: int | None = None
@@ -436,8 +441,28 @@ class EvalRunner:
 
     # -- run -----------------------------------------------------------------
 
+    @property
+    def trace_dir(self) -> Path | None:
+        """``runs/<id>--trace`` next to ``runs/<id>--<system>`` (None unless ``--trace-full``)."""
+        if not self.config.trace_full:
+            return None
+        base = self.config.run_id.split("--")[0]
+        return Path(self.config.out_dir) / f"{base}--trace"
+
     async def run(self) -> RunSummary:
+        try:
+            return await self._run()
+        finally:
+            if self.trace_dir is not None:
+                trace_full.finalize(self.trace_dir)
+
+    async def _run(self) -> RunSummary:
         manifest = self.build_manifest()
+        if self.trace_dir is not None:
+            self.trace_dir.mkdir(parents=True, exist_ok=True)
+            set_trace_dir = getattr(self.system, "set_trace_dir", None)
+            if set_trace_dir is not None:
+                set_trace_dir(str(self.trace_dir))  # engine-side write / read trace
         # D7 [INJ-6]: a system that writes forensic logs learns the run id (and refuses to
         # append to another run's logs) before anything is ingested.
         begin = getattr(self.system, "begin_run", None)
@@ -967,7 +992,7 @@ class EvalRunner:
             # R3-6: the date the question is asked, for readers whose prompt uses it.
             question_date = query.meta.get("question_date")
             mark = self._cache_mark()
-            with reader_scope():
+            with reader_scope(), trace_full.capture(self.config.trace_full) as reader_calls:
                 if self._reader_takes_date:
                     answer = await self.reader.answer(
                         query.text,
@@ -999,7 +1024,7 @@ class EvalRunner:
 
             score_query = getattr(self.judge, "score_query", None)
             mark = self._cache_mark()
-            with reader_scope():
+            with reader_scope(), trace_full.capture(self.config.trace_full) as judge_calls_log:
                 if score_query is not None:
                     verdict = await score_query(query, answer.text)
                 else:
@@ -1047,6 +1072,37 @@ class EvalRunner:
                     include_content=self.config.include_trace_content,
                 )
             )
+            if self.trace_dir is not None:
+                trace_full.write_read(
+                    self.trace_dir,
+                    dict(
+                        run_id=self.config.run_id,
+                        item_id=item.item_id,
+                        query_id=query.query_id,
+                        question=query.text,
+                        question_date=None if question_date is None else str(question_date),
+                        gold=query.gold,
+                        type_label=query.type_label,
+                        context_text=context.text,
+                        context_tokens=context.tokens,
+                        context_truncated=context.truncated,
+                        answer=answer.text,
+                        reader_raw=answer.raw_text,
+                        reader_calls=reader_calls,
+                        judge_calls=judge_calls_log,
+                        verdict=dict(
+                            score=verdict.score,
+                            scale=verdict.scale.value,
+                            raw=verdict.raw,
+                            meta={
+                                k: v
+                                for k, v in dict(verdict.meta).items()
+                                if isinstance(v, (str, int, float, bool, type(None)))
+                            },
+                        ),
+                        reader_meta=dict(answer.extra_meta),
+                    ),
+                )
             return ResultRow(
                 run_id=self.config.run_id,
                 item_id=item.item_id,
@@ -1198,6 +1254,7 @@ async def run_matrix(
             out_dir=config.out_dir,
             cost_model=config.cost_model,
             include_trace_content=config.include_trace_content,
+            trace_full=config.trace_full,
             max_items=config.max_items,
             max_queries_per_item=config.max_queries_per_item,
             max_model_calls=config.max_model_calls,

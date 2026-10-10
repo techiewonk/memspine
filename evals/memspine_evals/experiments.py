@@ -191,6 +191,9 @@ class C01Config:
     #: screening: ingest and read every question as the QA run would, skip the reader
     #: and the judge, record evidence coverage per question (``screen.py``)
     retrieval_only: bool = False
+    #: ``--trace-full``: log exact prompts, raw replies and the per-record write trace
+    #: (``trace_full.py``); off by default
+    trace_full: bool = False
     #: screening: a directory for the disk cache of paid embedding and engine-role
     #: completion calls (``call_cache.py``). None = no cache.
     cache_dir: str | None = None
@@ -856,6 +859,7 @@ async def run_c0_1(
             "paid_services": [f"{k}:{m}" for k, m in paid_services(config)],
             # screening (listed only when on, so other runs keep their labels)
             **({"retrieval_only": True} if config.retrieval_only else {}),
+            **({"trace_full": True} if config.trace_full else {}),
             **(
                 {"call_cache": {"dir": config.cache_dir, "cache_reader": config.cache_reader}}
                 if config.cache_dir
@@ -864,6 +868,7 @@ async def run_c0_1(
         },
         extra_limits={"item_ids": list(config.item_ids) if config.item_ids else None},
         retrieval_only=config.retrieval_only,
+        trace_full=config.trace_full,
         runtime=_capture_runtime(config),
         token_count=config.token_count,
     )
