@@ -22,9 +22,9 @@ baseline is ``--loc-ref`` (default ``full-persp-loc``, read from its ``--trace``
 stage codes come from ``analysis/full_persp_loc_stage_labels.txt`` and the screens are the runs named with
 ``--extra-run`` (a run id; ``...-opb`` ids are OP-Bench runs). Example:
 
-    python evals/build_forensics_explorer.py --all-convs --no-summary --extra-run xb-loc-dev --extra-run qa-full-qs-eq06-fix --extra-run full-persp-opb
+    python evals/build_forensics_explorer.py --all-convs --no-summary --extra-run xb-loc-dev --extra-run qa-full-qs-eq06-fix --extra-run xb-opb-dev
 
-Re-run it after ``full-persp-opb`` finishes: the OP-Bench run is shown as "running" until its summary row exists.
+OP-Bench: with --all-convs the baseline is ``--opb-ref`` (default ``full-persp-opb``, all 859 probes of the 10 personas, read from its --trace folder); xb-opb-dev (dev personas only) is a comparison run.
 
 Inputs: baseline ``xb-loc-dev`` / ``xb-opb-dev`` (+ ``--forensics`` dirs), no-memory ``opb-base-dev``, every screen,
 ``analysis/catalogue/locomo_dev_failures.jsonl`` (stage codes), ``runs/_analysis/opbench_dev_failures*.jsonl``
@@ -464,11 +464,14 @@ def load_dev_opb():
     ds = OPBenchDataset(HERE / "data" / "opbench_src", "auto")
     meta: dict[str, dict] = {}
     for item in ds.items():
-        if item.item_id not in dev:
+        if item.item_id not in dev and not ALL_CONVS:
             continue
         for q in item.queries:
             meta[q.query_id] = dict(
-                item=item.item_id, persona=item.meta.get("persona"), qm=dict(q.meta)
+                item=item.item_id,
+                persona=item.meta.get("persona"),
+                qm=dict(q.meta),
+                dev=item.item_id in dev,
             )
     del ds
     return meta
@@ -550,7 +553,7 @@ def screen_runs(sid: str) -> dict[str, str | None]:
     out = {"loc": None, "opb": None}
     if ALL_CONVS:  # --extra-run ids are run ids, not screen prefixes
         if run_dir(sid):
-            out["opb" if sid.endswith("-opb") else "loc"] = sid
+            out["opb" if re.search(r"-opb(-|$)", sid) else "loc"] = sid
         return out
     if run_dir(f"{sid}-loc"):
         out["loc"] = f"{sid}-loc"
@@ -770,6 +773,8 @@ def build(args) -> dict:
     if ref["status"] != "complete" or ref["n"] != len(loc_q):
         raise SystemExit(f"baseline {LOC_REF} incomplete: {ref['n']} of {len(loc_q)}")
     opb_ref = load_run(OPB_REF, len(opb_meta))
+    if ALL_CONVS and opb_ref["n"] == 0:
+        raise SystemExit(f"OP-Bench baseline {OPB_REF} has no rows")
     opb_base = load_run(OPB_BASE, len(opb_meta))
 
     screens = (
@@ -828,11 +833,22 @@ def build(args) -> dict:
         )
 
     loc_ids = [LOC_REF] + [sruns[s]["loc"]["id"] for s in screens if sruns[s]["loc"]]
+    opb_fx_runs = [OPB_REF] + [sruns[s]["opb"]["id"] for s in screens if sruns[s]["opb"]]
     opb_ids = [OPB_BASE, OPB_REF] + [sruns[s]["opb"]["id"] for s in screens if sruns[s]["opb"]]
     loc_runs = {LOC_REF: ref}
     loc_runs.update({sruns[s]["loc"]["id"]: sruns[s]["loc"] for s in screens if sruns[s]["loc"]})
     opb_runs = {OPB_BASE: opb_base, OPB_REF: opb_ref}
     opb_runs.update({sruns[s]["opb"]["id"]: sruns[s]["opb"] for s in screens if sruns[s]["opb"]})
+
+    # OP-Bench stage logs (full runs keep forensics.jsonl with trace_full), keyed by query id
+    for rid in opb_fx_runs:
+        d = {}
+        for x in jlz(log_dir(rid) / "forensics.jsonl"):
+            qid = x.get("query_id")
+            if qid in opb_meta:
+                d[qid] = fx_compact(x, [])
+        if d:
+            fx[rid] = d
 
     # ---- gate definitions: fn(row, fxc) -> True/False/None ; logged(run) -> bool
     def rt_logged(run):
@@ -1097,6 +1113,8 @@ def build(args) -> dict:
         new = opb_subs(run["dir"])
         if not (new and opb_sub_ref):
             return None
+        if ALL_CONVS and run["n"] != opb_ref["n"]:
+            return None  # different probe sets: the official aggregates are not comparable
         subs = {
             k: dict(new=new[k], ref=opb_sub_ref[k], d=round(new[k] - opb_sub_ref[k], 2))
             for k in eval_screen.SUBS
@@ -1795,7 +1813,10 @@ def build(args) -> dict:
         )
 
     for qid, m in opb_meta.items():
-        row = opb_c[OPB_REF].get(qid)
+        # union of probes: the baseline row, else the first run that has one
+        row = opb_c[OPB_REF].get(qid) or next(
+            (opb_c[r][qid] for r in opb_ids if qid in opb_c.get(r, {})), None
+        )
         if row is None:
             continue
         cat = opb_cat.get(qid)
@@ -1806,7 +1827,14 @@ def build(args) -> dict:
         for rid in opb_ids:
             rw = opb_c[rid].get(qid)
             if rw is not None:
-                rr[rid] = clean(dict(rw, fl=gate_flags[rid].get(qid) or None))
+                rec_o = dict(rw, fl=gate_flags[rid].get(qid) or None)
+                f = (fx.get(rid) or {}).get(qid)
+                if f:
+                    rec_o.update(
+                        fs=f["fs"], fin=f["fin"], legs=f["legs"] or None, dec=f["dec"], rb=f["rb"],
+                        mx=f["mx"], ce=int(f["ce"]), tr=f["tr"], tok=f["tok"], xf=f["xf"],
+                    )  # fmt: skip
+                rr[rid] = clean(rec_o)
         o = "".join(outcome(row["ok"], opb_c[sruns[s]["opb"]["id"]], qid) for s in screens_opb)
         qm = m["qm"]
         ty = qm["task"] + ("/" + qm["subtype"] if qm.get("subtype") else "")
@@ -1848,6 +1876,7 @@ def build(args) -> dict:
                         else None
                     ),
                     persona=m["persona"],
+                    ho=None if m["dev"] else 1,
                     o=o,
                     qa=qa_of.get(qid),
                     jrt=route_of.get(qid),
@@ -2009,6 +2038,12 @@ def build(args) -> dict:
         generated=datetime.now().strftime("%Y-%m-%d %H:%M"),
         dev_items=dev_items,
         all_convs=ALL_CONVS,
+        split_dev=json.loads((ANALYSIS / "locomo_split.json").read_text(encoding="utf-8"))[
+            "dev_items"
+        ],
+        split_dev_personas=json.loads(
+            (ANALYSIS / "opbench_persona_split.json").read_text(encoding="utf-8")
+        )["dev_items"],
         loc_ref=LOC_REF,
         opb_ref=OPB_REF,
         opb_base=OPB_BASE,
@@ -2216,23 +2251,29 @@ def main() -> None:
         help="baseline LoCoMo run id (default xb-loc-dev; full-persp-loc with --all-convs)",
     )
     ap.add_argument(
+        "--opb-ref",
+        default=None,
+        help="baseline OP-Bench run id (default xb-opb-dev; full-persp-opb with --all-convs)",
+    )
+    ap.add_argument(
         "--extra-run",
         action="append",
         default=[],
         help="with --all-convs: a run id to compare (...-opb ids are OP-Bench)",
     )
     args = ap.parse_args()
-    global ALL_CONVS, LOC_REF, SIZE_LIMIT
+    global ALL_CONVS, LOC_REF, OPB_REF, SIZE_LIMIT
     ALL_CONVS = bool(args.all_convs)
     if ALL_CONVS:
         SIZE_LIMIT = 400_000_000
         LOC_REF = args.loc_ref or "full-persp-loc"
+        OPB_REF = args.opb_ref or "full-persp-opb"
         if not args.extra_run:
             args.extra_run = [
                 "xb-loc-dev",
                 "qa-full-qs-eq06-fix",
                 "qa-full-qs-eq06-roff-fx",
-                "full-persp-opb",
+                "xb-opb-dev",
             ]
     elif args.loc_ref:
         LOC_REF = args.loc_ref
@@ -2757,13 +2798,13 @@ function readTimeline(q, rid) {
     b += `<div><b>Post-steps (count-verify, date-repair, verify):</b> ${(info.post || []).length ? esc(info.post.join(', ')) + ' enabled; their model calls ' + (tf ? 'appear above' : 'are not separately logged') : 'not enabled in this run'}</div><div><b>Final answer:</b> ${esc(r.a)}</div>`;
     h += stepBox('10. Reader raw output, retry, post-steps', 'L', tf ? 'meta.trace_full' : 'answer and retry answers logged in the row; retry prompt reconstructed', b); }
   // 11 judge
-  { const jp = judgePrompt(q, rid, r.fa != null && r.ra === false ? r.fa : r.a); const tfj = r.tfl && r.tfl.judge; const guarded = r.tfl && r.tfl.vmeta && r.tfl.vmeta.guard && !(tfj && tfj.length); const st = tfj && tfj.length ? 'L' : (guarded ? 'L' : (jp && jp.user ? 'R' : 'M')); let b = '';
+  { const jp = judgePrompt(q, rid, r.fa != null && r.ra === false ? r.fa : r.a); const tfj = r.tfl && r.tfl.judge; const guarded = r.tfl && r.tfl.vmeta && r.tfl.vmeta.guard && !(tfj && tfj.length); const nojudge = !isLoc && q.cc === 'diversity'; const st = tfj && tfj.length ? 'L' : (guarded || nojudge ? 'L' : (jp && jp.user ? 'R' : 'M')); let b = '';
     if (tfj && tfj.length) b += tfj.map((x, i) => `<b>Judge call ${i + 1}: prompt</b>${x.system ? pre('[system] ' + x.system) : ''}${pre(x.prompt)}<b>raw reply</b>${pre(x.reply)}`).join('');
     else if (guarded) b += `<div><b>No judge call was made for this row.</b> The verdict came from a deterministic guard before the judge (verdict meta): <b>${esc(JSON.stringify(r.tfl.vmeta))}</b>; the judge prompt below is not applicable.</div>`;
     else { if (jp && jp.user) b += `<div><b>Judge prompt</b> (${esc(jp.pid)}${jp.route ? ', route ' + esc(jp.route) : ''}; source ${esc(jp.source)})</div>${jp.system ? pre('[system] ' + jp.system) : ''}${pre(jp.user)}`; else b += `<div class="mut">${jp && jp.note ? esc(jp.note) : 'no judge prompt available'}</div>`; b += `<div><b>Raw judge reply (logged${typeof r.jr === 'string' && r.jr.length >= 200 ? ', cut at 200 chars' : ''}):</b> ${typeof r.jr === 'string' ? pre(r.jr) : '<span class="mut">not logged for this row</span>'}</div>`; }
     b += `<div><b>Verdict:</b> score ${r.sc ?? r.s ?? ''} → ${r.ok ? '<b class="ok">correct / pass</b>' : '<b class="bad">wrong / fail</b>'} · judge: ${esc(info.judge_id)}${info.judge_guards ? ' (guards on)' : ''}</div>`;
     if (isLoc) b += `<div><b>Date check:</b> ${r.sd != null ? 'recorded ' + r.sd : (r.od ? 'offline recompute: same day, would flip to correct' : 'offline recompute: no flip')} · <b>Judge conventions:</b> ${r.sv != null ? 'recorded ' + r.sv : (r.ov ? 'offline recompute: credited (' + esc(r.cv || '') + ')' : 'offline recompute: no credit')} · <b>Errata flags:</b> ${(q.errs || []).map(e => esc(e.tag)).join(', ') || (q.errc ? 'candidate: ' + esc(q.errc) : 'none')}</div>`;
-    h += stepBox('11. Judge: prompt, raw reply, verdict, date check, conventions, errata', st, tfj && tfj.length ? 'meta.trace_full' : guarded ? 'reads.jsonl verdict meta: deterministic guard, no judge call' : 'prompt reconstructed from the suite template; reply as logged (cut at 200 chars); exact copy needs --trace-full', b); }
+    h += stepBox('11. Judge: prompt, raw reply, verdict, date check, conventions, errata', st, tfj && tfj.length ? 'meta.trace_full' : guarded ? 'reads.jsonl verdict meta: deterministic guard, no judge call' : nojudge ? 'repetition probe: the official score is an embedding cosine over the probe group, there is no judge call' : 'prompt reconstructed from the suite template; reply as logged (cut at 200 chars); exact copy needs --trace-full', b); }
   // 12 final
   { h += stepBox('12. Final score', 'L', 'results.jsonl', `<div>${r.ok ? '<b class="ok">CORRECT</b>' : '<b class="bad">WRONG</b>'} · score ${r.sc ?? r.s ?? ''}${r.sd != null ? ' · date-checked ' + r.sd : ''} · answer ${esc(r.a)}</div><div class="mut">tokens: prompt ${r.pt ?? '?'}, completion ${r.cpt ?? '?'}, context ${r.tok ?? r.ct ?? '?'} · model calls ${r.mc ?? '?'} · latency ms retrieve/answer/judge ${r.lat ? r.lat.join(' / ') : '?'}</div>`); }
   return `<div class="timeline">${h}</div>`;
@@ -2789,15 +2830,16 @@ function detailLoc(q, nav, sel, runs, rid) {
 function detailOpb(q, nav, sel, runs, rid) {
   let h = nav + `<h2>${esc(q.k)} <small class="mut">OP-Bench ${esc(q.cat)}</small> <span class="${q.ok ? 'ok' : 'bad'}">${q.ok ? 'baseline passes (>= 0.5)' : 'baseline below 0.5'}</span></h2><div>${sel}</div>`;
   h += `<div class="warn">OP-Bench has no licence: this view is local only.</div>`;
-  h += `<div class="sec"><h3>Probe</h3><div class="box">${esc(q.q)}</div><div class="mut">persona: ${esc(q.persona)}; item ${esc(q.it)}</div></div>`;
+  h += `<div class="sec"><h3>Probe</h3><div class="box">${esc(q.q)}</div><div class="mut">persona: ${esc(q.persona)}; item ${esc(q.it)}${q.ho ? ' <b class="o">[held-out persona]</b>' : ' [dev persona]'}</div></div>`;
   h += `<div class="sec"><h3>Answers and judge scores: BASE (no memory), baseline, screens</h3><table><tr><th>run</th><th>judge score</th><th>pass</th><th>persona share of context</th><th>context lines / tokens</th><th>answer</th></tr>`;
   runs.forEach(r0 => { const r = q.r[r0]; h += `<tr class="${r0 === rid ? 'sel' : ''}"><td>${esc(r0)}${r0 === M.opb_base ? ' <small>(no memory)</small>' : ''}</td><td class="n">${f1(r.s, 2)}</td><td class="${r.ok ? 'ok' : 'bad'}">${r.ok ? '&#10003;' : '&#10007;'}</td><td class="n">${r.ps == null ? '-' : f1(100 * r.ps, 0) + '%'}</td><td class="n">${r.n ?? ''} / ${r.ct ?? ''}${(r.fl || []).length ? ' ' + r.fl.map(x => `<span class="tag s">${x}</span>`).join('') : ''}</td><td>${esc(r.a)}</td></tr>`; });
   h += '</table></div>';
   h += `<div class="sec"><h3>Forensics: failure class</h3>`;
   if (q.st) { h += `<div><b>${esc(q.sub)}</b> <span class="mut">[${esc(q.code)}]</span></div>`; const s = q.sig; if (s) h += `<div class="mut">signals: persona share ${s.persona_share}, leaked context tokens re-used in the answer ${s.leak_n}, second-person reference cues ${s.ref_cues}, best question/context word overlap ${s.best_overlap}, affirmation ${s.affirm}, role inversion ${s.role_inv}</div>`; h += `<div><b>Generic fix:</b> ${esc(q.fix || '')}</div><div><b>Decision mechanism:</b> ${esc(q.mech || '')}</div><div><b>Built feature:</b> ${esc(q.feat || '')}</div><div><b>Runtime cost:</b> ${esc(q.cost || '')}</div>`; }
-  else h += '<div class="g">Probe passes in the baseline (score &ge; 0.5): no failure class.</div>';
+  else if (q.ok) h += '<div class="g">Probe passes in the baseline (score &ge; 0.5): no failure class.</div>';
+  else h += '<div class="mut">Below 0.5 in the baseline, no failure class assigned: the OP-Bench failure catalogue covers the dev personas only' + (q.ho ? ' (this is a held-out persona)' : '') + '.</div>';
   h += gapBlock(q) + '</div>';
-  h += `<div class="sec"><h3>Read pipeline, step by step: ${esc(rid)}</h3><div class="mut">OP-Bench runs keep no forensics stage log, so legs, fusion and rerank are not logged; the official assistant prompt, the answer and the OP-Bench judge are reconstructed from the official templates.</div>${readTimeline(q, rid)}</div>`;
+  h += `<div class="sec"><h3>Read pipeline, step by step: ${esc(rid)}</h3><div class="mut">${(q.r[rid] || {}).tr ? 'This run kept a --trace-full stage log: legs, fusion, rerank, assembly, the exact assistant prompt, the raw reply and the judge prompt are logged.' : 'This run keeps no forensics stage log, so legs, fusion and rerank are not logged; the official assistant prompt, the answer and the OP-Bench judge are reconstructed from the official templates.'}</div>${readTimeline(q, rid)}</div>`;
   return h;
 }
 
@@ -2876,14 +2918,14 @@ function buildTree() {
   const L = mkNode(M.all_convs ? 'LoCoMo all 10 conversations' : 'LoCoMo dev', q => q.b === 'loc');
   ['single-hop', 'multi-hop', 'temporal', 'open-domain', 'adversarial'].forEach(cat => {
     const cn = mkNode(cat + (cat === 'adversarial' ? ' (cat 5)' : ''), q => q.cat === cat, L.test);
-    M.dev_items.forEach(cv => { const k = mkNode(cv, q => q.it === cv, cn.test); k.leaf = true; if (k.n) cn.kids.push(k); });
+    M.dev_items.forEach(cv => { const k = mkNode(cv + (M.all_convs ? (M.split_dev.includes(cv) ? ' [dev]' : ' [held-out]') : ''), q => q.it === cv, cn.test); k.leaf = true; if (k.n) cn.kids.push(k); });
     L.kids.push(cn);
   });
-  const O = mkNode('OP-Bench dev', q => q.b === 'opb');
+  const O = mkNode(M.all_convs ? 'OP-Bench all 10 personas' : 'OP-Bench dev', q => q.b === 'opb');
   ['irrelevance_easy', 'irrelevance_hard', 'sycophancy', 'diversity'].forEach(task => {
     const tn = mkNode(task, q => q.cc === task, O.test);
     const subs = [...new Set(D.q.filter(q => q.b === 'opb' && q.cc === task).map(q => q.cat))].sort();
-    const addPersonas = parent => { [...new Set(D.q.filter(q => q.b === 'opb' && parent.test(q)).map(q => q.it))].sort().forEach(p => { const k = mkNode(p, q => q.it === p, parent.test); k.leaf = true; parent.kids.push(k); }); };
+    const addPersonas = parent => { [...new Set(D.q.filter(q => q.b === 'opb' && parent.test(q)).map(q => q.it))].sort().forEach(p => { const k = mkNode(p + (M.all_convs ? (M.split_dev_personas.includes(p) ? ' [dev]' : ' [held-out]') : ''), q => q.it === p, parent.test); k.leaf = true; parent.kids.push(k); }); };
     if (subs.length === 1 && subs[0] === task) addPersonas(tn);
     else subs.forEach(sb => { const sn = mkNode(sb.replace(task + '/', ''), q => q.cat === sb, tn.test); addPersonas(sn); tn.kids.push(sn); });
     O.kids.push(tn);
