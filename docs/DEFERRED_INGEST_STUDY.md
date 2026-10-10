@@ -359,7 +359,7 @@ Each has a recommended default; none block the others unless noted.
 1. **Is I71 worth doing now?**
    - Do it: gains freshness and multi-tenant fairness; costs an M-size module and new tests.
    - Hold (recommended): the default config has no inline LLM and the benchmark path gets nothing; do the
-     two small prerequisites first (7.8, 7.9) and revisit when MCP tools exist and you can see real
+     two small prerequisites first (7.8, 7.9) and revisit when you can see real live-chat or multi-tenant
      traffic.
 2. **What counts as "ready" for mining an open session?** Today: closed session (>= 3 turns, 30-minute
    gap). Options: (a) keep that rule and only run it sooner/automatically after the gap (small change,
