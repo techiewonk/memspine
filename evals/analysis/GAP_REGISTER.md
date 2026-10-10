@@ -17,7 +17,7 @@ Priority: P0 = blocks trustworthy numbers, P1 = next, P2/P3 = later. Status: ope
 | A6 | Tuning on the test set | tuned on conv-26: fixes +10.5 there vs +5.1 on the rest; no split file (E EVAL-4) | dev/held-out split or 2-fold cross-fit saved in repo (tune on conv-26/30/41/42, report the other 6); external check on LongMemEval / LoCoMo-Plus; pre-registration note before each tuning round | P0 | **split saved** (`locomo_split.json`: dev conv-26/30/41/42, held-out 6); screens now on dev only |
 | A7 | Fix run changes 5 things at once | prompt, retry, judge rubric, window, server context (E HAR-4) | re-judge baseline with guarded rubric and fix answers with original rubric (judge-only, ~15 min each); 2x2 {engine old/new} x {reader+judge old/new}; headline = judge-controlled number | P0 | open |
 | A8 | Hidden sampler | Ollama applied `presence_penalty 1.5` (64-token window) to all 6,341 calls, judge included (E SRV-2) | send `presence_penalty 0`, `top_p`, `seed` explicitly and record them; derived Modelfile with correct defaults; measure effect by re-judging 300 answers | P0 | **implemented** - sampler sent and recorded on every call; default presence_penalty 0 (old runs = `--presence-penalty 1.5`) (merged, verified live) |
-| A9 | Thinking-mode conclusion is an artefact | all 49 "truncated" think-on answers hit the old 4,096 server window (E SRV-1) | re-run those 49 questions at 16K context (~12 min); mark the result "confounded" in `QWEN_STACK_RESULTS.md` | P0 | open |
+| A9 | Thinking-mode conclusion is an artefact | all 49 "truncated" think-on answers hit the old 4,096 server window (E SRV-1) | re-run those 49 questions at 16K context (~12 min); mark the result "confounded" in `QWEN_STACK_RESULTS.md` | P0 | **re-testing** - Ollama window 16384; best config, conv-26 (152 q): thinking off 88.8%. First think-on run did not think (run.sh cleared MEMSPINE_EVAL_THINK; fixed with explicit `--think on`). Real think-on: ~3,000-7,000 reasoning tokens and 23-54 s per answer (vs 0.7 s); full 152-q run in progress (~1.5-2 h) |
 | A10 | No confidence intervals | single runs; measured noise is tiny (identical retrieval 1,540/1,540, 2 judge flips) but question-sampling CI is +-2.2 pts (77.7-82.7 around 80.1) (E EVAL-3/8) | cluster-bootstrap CI + paired test in every summary (code exists); never print a bare % | P0 | **implemented** - `accuracy_ci` (conversation cluster bootstrap) in every summary (merged, verified live) |
 | A11 | Small ablations overstated gains | one-conversation ablation 84.2% vs full 80.1% (E) | ablate on held-out dev set with paired tests; full run before any claim | P1 | **addressed** - screens now paired on dev conversations; held-out run pre-registered (`prereg/2026-10-10_heldout_reader_fixes.md`) |
 | A12 | "Sufficiency" vs QA accuracy differ in denominator and context size | retrieval-only on 1,986 incl. adversarial; QA on 1,540 (E EVAL-5) | report sufficiency on the same 1,540; at matched tokens; add R@10 before expansion | P1 | **implemented** - `sufficiency_on_qa_set`, `recall_at_10_hits` in run summaries |
@@ -130,6 +130,9 @@ Wrong in all 12 configurations screened on conv-26/30 (233 q). 4 are errata (0-5
 | reader: wrong line or photo-dependent | 0-151, 1-20, 1-43, 1-48 | open - candidates: mark-hits (C1, neutral), photo-only (errata review) |
 
 ## Progress log
+
+**2026-10-10 08:40**
+- A9: think-off 88.8% on conv-26 with the best config. The wrapper's env clearing made the first think-on run a no-op; `--think on` added. Real think-on running (slow: 23-54 s per answer).
 
 **2026-10-10 08:10 - round 1 result**
 - Dev (584 q, 4 conversations, date-checked): reference 82.9% -> **list mode 84.1%** (adopted); list+balanced 84.1% with 3x churn (not adopted).
