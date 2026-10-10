@@ -195,15 +195,15 @@ goals: score on the two benchmarks, adoption, and safety posture):
 
 | Rank | Adoption | Value | Cost | Gap id |
 |---|---|---|---|---|
-| 1 | Agent memory tool-set + agent-write guard | high (enables 2, 3, 4, 7) | M | I56 |
-| 2 | MCP server surface (zero-dependency stdio + optional SDK transport) | high (adoption, N1 demo surface) | M | I57 |
-| 3 | Agent-gated memory use for OP-Bench (agent decides whether to search) | high for irrelevance 15.0 and baiting 3.0, if the hypothesis holds | S after 1 | I59 |
-| 4 | Structured output: measure first, then constrained-decoding retry; drop the unused extra | medium (parse failures on small Qwen) | S | I60 |
-| 5 | Agentic multi-step retrieval read mode, opt-in, step-budgeted | medium-high for multi-hop 64.0; low for open-domain 40.6 | M | I58 |
-| 6 | Deferred (queued) ingest enrichment | medium (latency of tool writes, throughput) | M | I62 |
-| 7 | Optional adapters: LangGraph `BaseStore`, LlamaIndex memory block, OpenAI Agents `Session` | medium (adoption only, no benchmark effect) | M | I61 |
+| 1 | Agent memory tool-set + agent-write guard | high (enables 2, 3, 4, 7) | M | I65 |
+| 2 | MCP server surface (zero-dependency stdio + optional SDK transport) | high (adoption, N1 demo surface) | M | I66 |
+| 3 | Agent-gated memory use for OP-Bench (agent decides whether to search) | high for irrelevance 15.0 and baiting 3.0, if the hypothesis holds | S after 1 | I68 |
+| 4 | Structured output: measure first, then constrained-decoding retry; drop the unused extra | medium (parse failures on small Qwen) | S | I69 |
+| 5 | Agentic multi-step retrieval read mode, opt-in, step-budgeted | medium-high for multi-hop 64.0; low for open-domain 40.6 | M | I67 |
+| 6 | Deferred (queued) ingest enrichment | medium (latency of tool writes, throughput) | M | I71 |
+| 7 | Optional adapters: LangGraph `BaseStore`, LlamaIndex memory block, OpenAI Agents `Session` | medium (adoption only, no benchmark effect) | M | I70 |
 
-### 4.1 Memory tool-set for agents, with the firewall applied (I56)
+### 4.1 Memory tool-set for agents, with the firewall applied (I65)
 
 Design: a new module `memspine/agent_tools` with no third-party imports. It defines a neutral function
 list (OpenAI-style `{"name","description","parameters":{JSON Schema}}`, which every framework and MCP can
@@ -236,7 +236,7 @@ Risks: the agent fabricates writes (mitigated by trust cap, `assistant-proposed`
 read content), runaway loops (step budget). Resource: pure Python, no new dependency; about 300 lines plus
 tests; tool definitions add about 600 prompt tokens per call when exposed.
 
-### 4.2 MCP server (I57)
+### 4.2 MCP server (I66)
 
 Two layers. Layer 1 (core, zero dependency): a minimal stdio JSON-RPC handler for `initialize`,
 `tools/list`, `tools/call`, written the way Mem0's `agent-plugin-core/python/mcp_server.py:152-215` does it
@@ -252,7 +252,7 @@ Benefit: adoption by Claude Desktop, Cursor and others; a demo surface for N1. R
 tools in loops, so the dispatcher rate limit (4.1) is mandatory. Resource: layer 1 free; layer 2 one
 optional wheel.
 
-### 4.3 Agent-gated memory use (I59) and what it can do for OP-Bench
+### 4.3 Agent-gated memory use (I68) and what it can do for OP-Bench
 
 Idea: instead of always injecting retrieved context (which LoCoMo rewards and OP-Bench punishes,
 GAP_REGISTER progress log 14:25), expose `memory_search` as a tool and let the model decide whether to call
@@ -265,7 +265,7 @@ already-built `relevance_gate: store_calibrated` (I29/I30/I37), which gets the s
 model call. Treat the tool-gated arm as a research comparison; if the gate already closes the gap, do not ship
 the tool-gated mode. Cost: one extra model turn when memory is needed. Needs 4.1 first.
 
-### 4.4 Agentic multi-step retrieval, opt-in (I58)
+### 4.4 Agentic multi-step retrieval, opt-in (I67)
 
 Add `read.mode: agentic` beside the existing planner and bridge hop, never as default. Loop (cap
 `max_steps=3`, hard limit 5, plus a token cap):
@@ -287,7 +287,7 @@ Risks: latency (up to 3 model calls plus 3 searches per question on the local GP
 (+N model calls; unmeasured), non-determinism; keep temperature 0 and log every step in
 `search_forensics`. Resource: no dependency; about 250 lines plus one prompt pair.
 
-### 4.5 Structured outputs (I60)
+### 4.5 Structured outputs (I69)
 
 Do not add instructor (the unwired extra is a liability: remove it, or update the docstring). Steps:
 (1) measure first: count `structured.yaml_parse_failed` and `LLMError` per prompt on the Qwen stack runs;
@@ -300,7 +300,7 @@ regenerating can come later). Benefit: fewer dropped extractions on small models
 because lost facts are lost recall. Risk: constrained decoding changes output distribution; behind a flag,
 default off. Resource: S, zero dependencies.
 
-### 4.6 Deferred write and background split (I62)
+### 4.6 Deferred write and background split (I71)
 
 MemSpine's background story (sleep cycle) is strong; the gap is ingest. Add `write.mode: sync|deferred`.
 `deferred` returns after the raw verbatim record and firewall verdict (cheap, deterministic), and queues
@@ -312,7 +312,7 @@ idempotent and replayable from the event log (already how pipelines work, `pipel
 `flush()` barrier for evals so benchmark runs are not racy. Benefit: latency and throughput, no benchmark
 score effect. Risk: eventual consistency of derived facts; test with the flush barrier. Resource: M, no dependency.
 
-### 4.7 Optional framework adapters (I61)
+### 4.7 Optional framework adapters (I70)
 
 Each adapter is a thin module, imported lazily, in its own extra (`[langgraph]`, `[llamaindex]`,
 `[openai-agents]`), or a separate distribution in the Zep style (`zep-langgraph` is its own package,
