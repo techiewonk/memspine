@@ -199,6 +199,7 @@ def apply_opbench_protocol(args: argparse.Namespace) -> list[str]:
         "count_verify",
         "date_repair",
         "duration_solve",
+        "milestones",
         "verify_answer",
     ):
         if getattr(args, flag):
@@ -338,6 +339,8 @@ def cmd_c0_1(args: argparse.Namespace) -> int:
         count_verify=args.count_verify,
         date_repair=args.date_repair,
         duration_solve=args.duration_solve,
+        milestones=args.milestones,
+        milestones_inclusive=args.milestones_inclusive,
         retrieval_only=args.retrieval_only,
         trace_full=args.trace_full,
         cache_dir=args.cache_dir,
@@ -708,6 +711,25 @@ def build_parser() -> argparse.ArgumentParser:
         "the two event dates in the cited lines and subtract in code (no model call). rewrite "
         "(default when given): replace a disagreeing or refused answer; hint: put the computed "
         "line on top of the context. Abstains when an event cannot be named; off by default",
+    )
+    c01.add_argument(
+        "--milestones",
+        nargs="?",
+        const="nearest",
+        default="",
+        choices=("nearest", "floor"),
+        help="E05: for a duration question ('how long did it take', 'after how many weeks', "
+        "'the first ... the second ...', 'how many months since'), ONE structured model call "
+        "extracts the start/end milestones (actor, event, status, source line, exact span); code "
+        "resolves their dates, validates them (status, actor, ordinal, conflicts) and computes the "
+        "elapsed time. The value is the rounding (nearest, or floor = completed units). Replaces a "
+        "disagreeing or refused answer only; fails closed; skips what --duration-solve settled; "
+        "off by default",
+    )
+    c01.add_argument(
+        "--milestones-inclusive",
+        action="store_true",
+        help="E05: count both end days of the interval (default: the start day is not counted)",
     )
     c01.add_argument(
         "--verify-answer",

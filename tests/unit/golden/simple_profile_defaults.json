@@ -181,6 +181,7 @@
       "planner": "rules",
       "planner_min_confidence": 0.0,
       "planner_version": "v1",
+      "pool_protect_mode": "per_leg",
       "pool_protect_per_leg": 0,
       "present_order": "relevance",
       "prf_expansion": false,

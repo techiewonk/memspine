@@ -128,3 +128,61 @@ async def test_perspective_multiplier_only_adds_no_leg() -> None:
 def test_defaults() -> None:
     assert ReadConfig().perspective_leg is True
     assert ReadConfig().pool_protect_per_leg == 0
+    assert ReadConfig().pool_protect_mode == "per_leg"
+
+
+# ---- R02 / I75 v2: source-family protection ------------------------------------------------
+
+
+class _H:
+    def __init__(self, rid: str) -> None:
+        self.record_id = rid
+
+
+def _hits(*ids: str) -> list[_H]:
+    return [_H(i) for i in ids]
+
+
+def test_families_group_correlated_legs() -> None:
+    from memspine.engine import _leg_family
+
+    assert _leg_family("vector") == _leg_family("perspective") == "semantic"
+    assert _leg_family("speaker_vote_x") == "semantic"
+    assert _leg_family("lexical") == "lexical"
+    assert _leg_family("temporal_x") == "temporal"
+    assert _leg_family("something_new") == "other"
+
+
+def test_correlated_votes_count_once() -> None:
+    from memspine.engine import _family_slots
+
+    legs = [
+        ("vector", _hits("a", "b", "c", "d")),
+        ("lexical", _hits("z", "a")),
+        ("perspective", _hits("a", "b", "d")),  # replays the vector order, filtered
+    ]
+    slots = _family_slots(legs, 3)
+    assert slots["semantic"] == ["a", "b", "c"]  # a and b voted twice, one slot each
+    assert slots["lexical"] == ["z", "a"]  # an independent family may hold the same id
+    assert _family_slots(legs, 0) == {}
+
+
+async def test_source_family_pool_is_fixed_and_gold_survives() -> None:
+    off_in, _, _ = await _state()
+    assert not off_in
+    on_in, _, fx = await _state(pool_protect_per_leg=3, pool_protect_mode="source_family")
+    assert on_in
+    assert fx["protected"][fx["gold_id"]] == "lexical"
+    assert len(fx["pool"]) == _POOL  # fixed, not _POOL + protected
+    info = fx["pool_family"]
+    assert info["pool_size"] == _POOL
+    assert fx["gold_id"] in info["slots"]["lexical"]
+    assert info["evicted"]
+    assert fx["gold_id"] not in info["evicted"]
+    per_leg = await _state(pool_protect_per_leg=3)
+    assert len(per_leg[2]["pool"]) > _POOL  # control: I75a grows the pool
+
+
+async def test_per_leg_mode_leaves_no_family_log() -> None:
+    _, _, fx = await _state(pool_protect_per_leg=1)
+    assert "pool_family" not in fx

@@ -819,6 +819,51 @@ def _protected_ids(legs: Sequence[tuple[str, Sequence[Any]]], per_leg: int) -> d
     return out
 
 
+#: R02 / I75 v2: legs that vote from the same evidence form one *source family*. A leg that
+#: replays or re-filters another leg's order (the perspective leg replays the vector order by
+#: subject) is not an independent vote; keyword legs and temporal legs are separate evidence.
+_FAMILY_EXACT = {
+    "vector": "semantic", "perspective": "semantic", "maxsim": "semantic",
+    "word_vector": "semantic", "session": "semantic", "graph_nodes": "semantic",
+    "lexical": "lexical", "entity": "lexical", "view_tags": "lexical",
+}  # fmt: skip
+_FAMILY_PREFIX = (("speaker_vote", "semantic"), ("temporal", "temporal"))
+
+
+def _leg_family(name: str) -> str:
+    """R02: the source family of a leg name (``lexical`` | ``semantic`` | ``temporal`` | ``other``)."""
+    if name in _FAMILY_EXACT:
+        return _FAMILY_EXACT[name]
+    for prefix, fam in _FAMILY_PREFIX:
+        if name.startswith(prefix):
+            return fam
+    return "other"
+
+
+def _family_slots(
+    legs: Sequence[tuple[str, Sequence[Any]]], per_family: int
+) -> dict[str, list[str]]:
+    """R02: family -> its top ``per_family`` record ids, each id counted once per family.
+
+    The member legs of a family are merged by best rank (ties: the leg listed first, so the
+    base leg of the family leads); an id that several correlated legs vote for takes one slot.
+    """
+    if per_family <= 0:
+        return {}
+    best: dict[str, dict[str, tuple[int, int]]] = {}
+    for order, (name, hits) in enumerate(legs):
+        fam = best.setdefault(_leg_family(name), {})
+        for rank, hit in enumerate(hits):
+            key = (rank, order)
+            if hit.record_id not in fam or key < fam[hit.record_id]:
+                fam[hit.record_id] = key
+    return {
+        fam: [rid for rid, _ in sorted(ids.items(), key=lambda kv: kv[1])[:per_family]]
+        for fam, ids in best.items()
+        if ids
+    }
+
+
 @contextmanager
 def search_forensics() -> Iterator[dict[str, Any]]:
     """Capture the stage-by-stage ranking of every ``search`` inside the block.
@@ -4972,6 +5017,7 @@ class Engine:
         # GP-9 (read.graph_communities): community summaries this query may read.
         community_gate: list[str] | None = None
         protected: dict[str, str] = {}  # I75a: record id -> leg whose top-N it belongs to
+        family_slots: dict[str, list[str]] = {}  # R02: family -> protected ids (source_family)
         while True:
             protected = {}
             fetch_k = base_fetch * widen
@@ -5089,7 +5135,13 @@ class Engine:
                         *([("lexical", lexical_hits)] if use_hybrid else []),
                         *[(getattr(leg, "name", "extra"), leg) for leg in extra_legs],
                     ]
-                    protected = _protected_ids(named, protect_n)
+                    if read_cut.pool_protect_mode == "source_family":
+                        family_slots = _family_slots(named, protect_n)
+                        protected = {
+                            rid: fam for fam, ids in family_slots.items() for rid in ids
+                        }
+                    else:
+                        protected = _protected_ids(named, protect_n)
                     kept_ids = {rid for rid, _ in fused}
                     fused = fused + [
                         (rid, sc) for rid, sc in fused_full if rid in protected and rid not in kept_ids
@@ -5208,7 +5260,27 @@ class Engine:
             # best hits in turn, so one leg cannot fill it before the cut.
             candidates = _balanced_pool(candidates, [vector_hits, lexical_hits, *extra_legs], top_k)
         _pre = _ids(candidates)
-        if protected:
+        if protected and self._config().read.pool_protect_mode == "source_family":
+            # R02: the pool stays ``top_k``: family-protected hits first, then RRF order; the
+            # lowest-ranked unprotected candidates are evicted, never a protected one.
+            held = [pair for pair in candidates if pair[0].record_id in protected][:top_k]
+            held_ids = {pair[0].record_id for pair in held}
+            room = max(top_k - len(held), 0)
+            rest = [pair for pair in candidates if pair[0].record_id not in held_ids]
+            keep_ids = held_ids | {pair[0].record_id for pair in rest[:room]}
+            evicted = [pair[0].record_id for pair in rest[room:]]
+            candidates = [pair for pair in candidates if pair[0].record_id in keep_ids]
+            if (fx := _FORENSICS.get()) is not None:
+                fx["protected"] = {rid: protected[rid] for rid in held_ids}
+                fx["pool_family"] = {
+                    "slots": {
+                        fam: [rid for rid in ids if rid in held_ids]
+                        for fam, ids in family_slots.items()
+                    },
+                    "evicted": evicted,
+                    "pool_size": len(candidates),
+                }
+        elif protected:
             # I75a: the fused pool plus each leg's protected top-N (at most legs * N more).
             candidates = candidates[:top_k] + [
                 pair for pair in candidates[top_k:] if pair[0].record_id in protected

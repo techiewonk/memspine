@@ -445,6 +445,12 @@ class ReadConfig(BaseModel):
     #: the reranker even when their fused (RRF) rank falls outside the pool size; the rest is
     #: filled by RRF. The pool grows by at most ``legs * N``. 0 = off (unchanged).
     pool_protect_per_leg: int = Field(default=0, ge=0, le=20)
+    #: R02 / I75 v2: how ``pool_protect_per_leg`` counts. ``per_leg`` (default) = I75a: every leg
+    #: protects its own top-N, so the pool grows. ``source_family`` groups legs into independent
+    #: families (lexical; semantic = vector + perspective + other vector-derived legs; temporal;
+    #: other), protects the top-N per FAMILY with correlated votes counted once, and keeps the
+    #: pool at its normal size by evicting the lowest-RRF unprotected candidates.
+    pool_protect_mode: Literal["per_leg", "source_family"] = "per_leg"
     #: G-10 (Graphiti MMR): None = off; a lambda in [0, 1] reorders the final hits by
     #: maximal marginal relevance on embeddings (1 = relevance only, 0 = diversity only).
     mmr_lambda: float | None = Field(default=None, ge=0.0, le=1.0)

@@ -192,6 +192,12 @@ class C01Config:
     #: dates: "" (off), ``rewrite`` (replace a disagreeing or refused answer; no model call)
     #: or ``hint`` (a computed line on top of the context). See ``duration_solve.py``.
     duration_solve: str = ""
+    #: E05: one structured milestone-extraction call for a duration question, then dates and the
+    #: elapsed time by code: "" (off), ``nearest`` or ``floor`` (the rounding of the computed
+    #: amount). Replaces a disagreeing or refused answer only; see ``milestones.py``.
+    milestones: str = ""
+    #: E05: count both end days of the interval (default: the start day is not counted).
+    milestones_inclusive: bool = False
     #: screening: ingest and read every question as the QA run would, skip the reader
     #: and the judge, record evidence coverage per question (``screen.py``)
     retrieval_only: bool = False
@@ -639,7 +645,14 @@ def build_reader_and_judge(config: C01Config) -> tuple[Reader, Judge, bool]:
                 budget, model=QWEN3_32B, temperature=0.0, max_tokens=512, prompt=prompt
             )
 
-        return with_post_steps(bedrock_reader, config, make_bedrock_sibling), judge, True
+        def make_bedrock_chat() -> Any:
+            return litellm_chat(budget, model=QWEN3_32B, max_tokens=900)
+
+        return (
+            with_post_steps(bedrock_reader, config, make_bedrock_sibling, make_bedrock_chat),
+            judge,
+            True,
+        )
     import os
 
     # Local OpenAI-compatible servers ignore the key; hosted endpoints (e.g. the
@@ -701,7 +714,16 @@ def build_reader_and_judge(config: C01Config) -> tuple[Reader, Judge, bool]:
             max_tokens=512,
         )
 
-    return with_post_steps(reader, config, make_sibling), judge, True
+    def make_chat() -> Any:
+        return openai_compat_chat(
+            config.reader_model,
+            base_url=config.base_url,
+            api_key=api_key,
+            sampler=sampler,
+            guard=guard,
+        )
+
+    return with_post_steps(reader, config, make_sibling, make_chat), judge, True
 
 
 def _openai_compat_labels(config: C01Config, calls: bool) -> dict[str, Any]:
@@ -740,7 +762,9 @@ def build_token_counter(config: C01Config) -> Any:
     return counter if counter is not None else HeuristicTokenCounter()
 
 
-def with_post_steps(reader: Any, config: C01Config, make_sibling: Any) -> Any:
+def with_post_steps(
+    reader: Any, config: C01Config, make_sibling: Any, make_chat: Any = None
+) -> Any:
     """I56 / I57: the opt-in answer post-steps, outermost. ``--count-verify`` first (count
     questions: enumerate, dedupe, count), then ``--date-repair`` (date questions). Neither flag:
     ``reader`` comes back unchanged."""
@@ -769,6 +793,20 @@ def with_post_steps(reader: Any, config: C01Config, make_sibling: Any) -> Any:
         if mode not in DURATION_SOLVE_MODES:
             raise ValueError(f"duration_solve must be one of {DURATION_SOLVE_MODES}, got {mode!r}")
         reader = DurationSolveReader(reader, mode)
+    ms_mode = getattr(config, "milestones", "")
+    if ms_mode:
+        from .milestones import ROUNDINGS, MilestoneReader
+
+        if ms_mode not in ROUNDINGS:
+            raise ValueError(f"milestones must be one of {ROUNDINGS}, got {ms_mode!r}")
+        if make_chat is None:
+            raise ValueError("milestones needs a chat backend for the extraction call")
+        reader = MilestoneReader(
+            reader,
+            make_chat(),
+            inclusive=bool(getattr(config, "milestones_inclusive", False)),
+            rounding=ms_mode,
+        )
     return reader
 
 
@@ -858,6 +896,14 @@ async def run_c0_1(
             **({"count_verify": config.count_verify} if config.count_verify else {}),
             **({"date_repair": "v1"} if config.date_repair else {}),
             **({"duration_solve": f"v1/{config.duration_solve}"} if config.duration_solve else {}),
+            **(
+                {
+                    "milestones": f"v1/{config.milestones}"
+                    + ("/inclusive" if config.milestones_inclusive else "")
+                }
+                if config.milestones
+                else {}
+            ),
             "judge_prompt": config.judge_prompt if config.mode == "qa" else None,
             **({"opbench_root": config.opbench_root} if config.opbench_root else {}),
             "arms": [s.system_id for s in systems],
