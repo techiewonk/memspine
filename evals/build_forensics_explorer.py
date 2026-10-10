@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import argparse
 import collections
+import contextlib
 import html
 import json
 import math
@@ -46,6 +47,11 @@ sys.path[:] = [p for p in sys.path if Path(p or ".").resolve() != HERE]
 sys.path.append(str(HERE))
 
 import eval_screen  # noqa: E402  (scoring conventions: SUBS, OPB_BAND, ok-rule)
+from memspine_evals import judge_prompts as JP  # noqa: E402
+from memspine_evals import opbench as OB  # noqa: E402
+from memspine_evals import readers as RD  # noqa: E402
+from memspine_evals import refusal as RF  # noqa: E402
+from memspine_evals import trace_full as TF  # noqa: E402
 from memspine_evals.datasets import LoCoMoDataset  # noqa: E402
 from memspine_evals.datasets.op_bench import OPBenchDataset, persona_share  # noqa: E402
 from memspine_evals.date_check import date_equivalent  # noqa: E402
@@ -167,6 +173,36 @@ def jl(path: Path) -> list[dict]:
             except json.JSONDecodeError:
                 continue
     return out
+
+
+def jlz(path: Path) -> list[dict]:
+    """``jl`` that also reads the gzipped twin a ``--trace-full`` run leaves for big files."""
+    if path.exists():
+        return jl(path)
+    gz = Path(f"{path}.gz")
+    if not gz.exists():
+        return []
+    import gzip
+    import io
+
+    out: list[dict] = []
+    with gzip.open(gz, "rt", encoding="utf-8", errors="replace") as fh:
+        for line in io.StringIO(fh.read()):
+            line = line.strip()
+            if line:
+                try:
+                    out.append(json.loads(line))
+                except json.JSONDecodeError:
+                    continue
+    return out
+
+
+def log_dir(run: str) -> Path:
+    """The folder with a run's stage logs: ``<run>--forensics``, else the ``--trace-full``
+    folder ``<run>--trace``."""
+    f = RUNS / f"{run}--forensics"
+    t = RUNS / f"{run}--trace"
+    return f if f.is_dir() or not t.is_dir() else t
 
 
 def clean(d: dict) -> dict:
@@ -395,6 +431,7 @@ def fx_compact(x: dict, gold: list[str]) -> dict:
         pr=x.get("reranker"),
     )
     return dict(
+        xf=x.get("trace_full"),
         g=g,
         tr=tr,
         tok=x.get("context_tokens"),
@@ -413,9 +450,9 @@ def fx_compact(x: dict, gold: list[str]) -> dict:
 def load_fx(
     run: str, gold_by_key: dict[str, list[str]], tt: dict, ann_seen: dict
 ) -> dict[str, dict]:
-    p = RUNS / f"{run}--forensics" / "forensics.jsonl"
+    p = log_dir(run) / "forensics.jsonl"
     out = {}
-    for x in jl(p):
+    for x in jlz(p):
         check_heldout([x], run + " forensics")
         key = f"{x['item']}:{x['query_id']}"
         out[key] = fx_compact(x, gold_by_key.get(key, []))
@@ -434,7 +471,7 @@ INGEST_KNOWN = {
 def load_ingest(run: str) -> dict[str, dict]:
     """Write side per turn: what the engine stored for it (ingest.jsonl)."""
     out: dict[str, dict] = {}
-    for x in jl(RUNS / f"{run}--forensics" / "ingest.jsonl"):
+    for x in jlz(log_dir(run) / "ingest.jsonl"):
         check_heldout([x], run + " ingest")
         rec = clean(
             dict(
@@ -443,7 +480,8 @@ def load_ingest(run: str) -> dict[str, dict]:
                 rid=x.get("record_id"), st=x.get("status"), ti=x.get("text_identical"),
                 stx=None if x.get("text_identical") else x.get("stored_text"),
                 bs=x.get("batch_size"),
-                ex={k: v for k, v in x.items() if k not in INGEST_KNOWN} or None,
+                ex={k: v for k, v in x.items() if k not in INGEST_KNOWN and k != "write_timers"} or None,
+                wt=x.get("write_timers"),
             )
         )  # fmt: skip
         out[f"{x['item']}|{x['turn']}"] = rec
@@ -741,6 +779,20 @@ def build(args) -> dict:
             ct=r.get("context_tokens"),
             trunc=bool(r.get("context_truncated")),
             err=r.get("error"),
+            pt=r.get("prompt_tokens"),
+            cpt=r.get("completion_tokens"),
+            lat=[
+                round(r.get(k) or 0)
+                for k in ("latency_retrieve_ms", "latency_answer_ms", "latency_judge_ms")
+            ],
+            mc=r.get("model_calls"),
+            rta=meta.get("retry_answer") if meta.get("retry_refusal") else None,
+            fpt=meta.get("first_prompt_tokens"),
+            rpt=meta.get("retry_prompt_tokens"),
+            qv=meta.get("qa_variant"),
+            rraw=meta.get("reader_raw"),
+            rdec=meta.get("decisions"),
+            tfl=meta.get("trace_full"),
         )
         row["dchg"] = (sd is not None and sd != sc) if sd is not None else bool(od)
         row["vchg"] = (sv is not None and sv != sc) if sv is not None else bool(hit)
@@ -944,9 +996,32 @@ def build(args) -> dict:
                     ctx=ids,
                     jr=(r.get("meta") or {}).get("judge_raw"),
                     st=r.get("status"),
+                    pt=r.get("prompt_tokens"),
+                    cpt=r.get("completion_tokens"),
+                    tfl=(r.get("meta") or {}).get("trace_full"),
                 )
             )
         opb_c[rid] = rows
+    reads_seen: dict[str, int] = {}
+    for rid, rows_c in list(loc_c.items()) + list(opb_c.items()):
+        for rd in jlz(RUNS / f"{rid}--trace" / "reads.jsonl"):
+            key = (
+                f"{rd.get('item_id')}:{rd.get('query_id')}" if rid in loc_c else rd.get("query_id")
+            )
+            row = rows_c.get(key)
+            if row is None:
+                continue
+            row["tfl"] = clean(
+                dict(
+                    reader=rd.get("reader_calls"),
+                    judge=rd.get("judge_calls"),
+                    ctxt=rd.get("context_text"),
+                    qdate=rd.get("question_date"),
+                    vraw=(rd.get("verdict") or {}).get("raw"),
+                    rmeta=rd.get("reader_meta"),
+                )
+            )
+            reads_seen[rid] = reads_seen.get(rid, 0) + 1
     for entry in gate_rows:
         if entry["id"] == "relgate":
             base_rows = opb_c[OPB_REF]
@@ -1059,6 +1134,334 @@ def build(args) -> dict:
         ),
     )
 
+    # ---- pipeline reconstruction material: templates, per-run settings, offline signals
+    def reader_tpl(manifest: dict | None) -> dict | None:
+        labels = (manifest or {}).get("labels") or {}
+        name = labels.get("qa_prompt")
+        obj = RD.QA_PROMPTS.get(name) or RD.SYSTEM_QA_PROMPTS.get(name)
+        if obj is None:
+            return None
+        if isinstance(obj, str):
+            return dict(name=name, kind="str", text=obj)
+        if isinstance(obj, RD.RoutedQAPrompt):
+            shape = "generic" if obj.shape_fn is RD.generic_qa_shape else "qa"
+            return dict(name=name, kind="routed", variants=obj.variants, shape=shape)
+        return dict(
+            name=name, kind="system", system=obj.system, with_context=obj.with_context,
+            without_context=obj.without_context,
+        )  # fmt: skip
+
+    tpl_reader: dict[str, dict] = {}
+    tpl_judge: dict[str, dict] = {}
+    tpl_prompts: dict[str, dict] = {}
+    runinfo: dict[str, dict] = {}
+    opb_prompts: dict[str, str] = {}
+    with contextlib.suppress(Exception):
+        opb_prompts = OB.load_judge_prompts(HERE / "data" / "opbench_src")
+    all_runs = {**loc_runs, **opb_runs}
+    for rid, run in all_runs.items():
+        mf = run.get("manifest") or {}
+        labels = mf.get("labels") or {}
+        sysc = ((mf.get("system") or {}).get("config") or {}).get("config") or {}
+        top = (mf.get("system") or {}).get("config") or {}
+        rdr = (mf.get("reader") or {}).get("params") or {}
+        jdg = mf.get("judge") or {}
+        info = dict(
+            system=(mf.get("system") or {}).get("system_id"),
+            reader_model=(mf.get("reader") or {}).get("model"),
+            reader_id=(mf.get("reader") or {}).get("reader_id"),
+            judge_id=jdg.get("judge_id"),
+            suite=(jdg.get("params") or {}).get("suite"),
+            qa_prompt=labels.get("qa_prompt"),
+            dated=top.get("dated_rendering"),
+            read_mode=top.get("read_mode"),
+            build_sleep=top.get("build_sleep"),
+            batch_turns=top.get("batch_turns"),
+            embedding=sysc.get("embedding"),
+            read_cfg={
+                k: v
+                for k, v in (sysc.get("read") or {}).items()
+                if k
+                in (
+                    "rerank", "rerank_model", "candidate_pool", "rerank_keep", "rerank_floor",
+                    "list_mode", "relevance_gate", "speaker_vote_mode", "assembly",
+                    "replay_window_before", "replay_window_after", "abstain_on_raw",
+                )
+            },
+            perspective=bool(
+                json.dumps(sysc).find("perspective") >= 0
+                and (sysc.get("memories", {}).get("episodic", {}).get("policies", {}).get("perspective"))
+            ),
+            retry=dict(on=bool(rdr.get("retry_refusal")), mode=rdr.get("retry_mode")),
+            post=[k for k in ("count_verify", "date_repair", "verify_answer", "judge_date_check", "judge_conventions") if labels.get(k)],
+            judge_guards=bool(labels.get("judge_guards")),
+            no_memory_prompt=bool(labels.get("no_memory_prompt")),
+            budget=((mf.get("protocol") or {}).get("budget_tokens")),
+            top_k=((mf.get("protocol") or {}).get("top_k")),
+            trace_full=bool(labels.get("trace_full")),
+            max_tokens=rdr.get("max_tokens"),
+            temperature=rdr.get("temperature"),
+        )  # fmt: skip
+        t = reader_tpl(mf)
+        if t:
+            tpl_reader[t["name"]] = t
+            info["reader_tpl"] = t["name"]
+        if info["retry"]["on"] and info["retry"]["mode"] in RF.RETRY_MODES:
+            info["retry"]["instruction"] = RF.RETRY_MODES[info["retry"]["mode"]]
+        suite = info.get("suite")
+        if suite in JP.JUDGE_SUITES:
+            st = JP.JUDGE_SUITES[suite]
+            tpl_judge[suite] = dict(routes=dict(st.routes), notes=st.notes)
+            for pid in st.routes.values():
+                jp = JP.JUDGE_PROMPTS.get(pid)
+                if jp is not None and jp.text is not None:
+                    tpl_prompts[pid] = dict(
+                        text=jp.text,
+                        system=jp.system,
+                        fields=jp.fields,
+                        parse=jp.parse,
+                        source=jp.source,
+                    )
+        runinfo[rid] = info
+    if opb_prompts:
+        for route, text in opb_prompts.items():
+            tpl_prompts[f"opbench/{route}"] = dict(
+                text=text,
+                system=None,
+                fields="opbench",
+                parse="score",
+                source="OP-Bench src/opbench/prompts.py (local checkout)",
+            )
+    no_memory_tpl = RD.NO_MEMORY_QA_PROMPT
+
+    # per-question: query analysis (offline rule code) and the judge route per suite
+    from memspine_evals.contracts import Query as _Q
+
+    qa_of: dict[str, dict] = {}
+    route_of: dict[str, dict] = {}
+    suites_used = {i["suite"] for i in runinfo.values() if i.get("suite") in JP.JUDGE_SUITES}
+    for k, q in loc_q.items():
+        a = TF.query_analysis(q["q"])
+        a["flags"] = [n for n, v in a["flags"].items() if v is True]
+        a.pop("split_intents", None)
+        qa_of[k] = a
+        fake = _Q(
+            query_id=q["id"],
+            text=q["q"],
+            gold="x",
+            type_label=q["cc"],
+            meta={
+                "abstention": q["adv"],
+                "adversarial": q["adv"],
+                "category": int(q["cc"][3:]),
+                "benchmark": "locomo",
+                "judge_evidence": "",
+            },
+        )
+        route_of[k] = {}
+        for su in suites_used:
+            with contextlib.suppress(Exception):
+                route_of[k][su] = JP.JUDGE_SUITES[su].router(fake)
+    for qid, m in opb_meta.items():
+        a = TF.query_analysis(
+            opb_runs[OPB_REF]["rows"].get(f"{m['item']}:{qid}", {}).get("question") or ""
+        )
+        a["flags"] = [n for n, v in a["flags"].items() if v is True]
+        a.pop("split_intents", None)
+        qa_of[qid] = a
+        task = m["qm"]["task"]
+        route_of[qid] = {
+            "opbench": "irrelevance"
+            if task.startswith("irrelevance")
+            else (
+                OB.sycophancy_route(m["qm"].get("subtype")) if task == "sycophancy" else "diversity"
+            )
+        }
+
+    # write side: deterministic signals per stored turn (offline, labelled reconstructed)
+    wsig: dict[str, dict] = {}
+    for conv_id, turns in tt.items():
+        wsig[conv_id] = {}
+        for tid, t in turns.items():
+            w = TF.write_signals(f"{t[0]}: {t[1]}")
+            wsig[conv_id][tid] = clean(
+                dict(
+                    i=int(w["instruction_shaped"]) or None, ie=int(w["instruction_extended"]) or None,
+                    sr=w["semantic_risk"] or None, pii=w["pii"] or None,
+                    sg=w["sensitivity"]["grade"] if w["sensitivity"]["grade"] != "none" else None,
+                    sc=w["sensitivity"]["categories"] or None, n=w["validation"]["chars"],
+                )
+            )  # fmt: skip
+
+    # --trace-full write trace of a run, when it kept one (future runs)
+    wtrace: dict[str, dict] = {}
+    derived: dict[str, dict] = {}
+    for rid in loc_ids:
+        for row in jlz(RUNS / f"{rid}--trace" / "write_trace.jsonl"):
+            if row.get("derived"):
+                derived.setdefault(rid, {}).setdefault(row.get("item"), []).append(row)
+            else:
+                wtrace.setdefault(rid, {}).setdefault(row.get("item"), {})[row["turn"]] = row
+
+    # ---- pipeline coverage per run: which step is logged (L), reconstructed (R) or missing (M)
+    def any_row(rid, pred):
+        rows = loc_c.get(rid) or opb_c.get(rid) or {}
+        return any(pred(r) for r in rows.values())
+
+    def any_fx(rid, key):
+        return any(c.get(key) is not None for c in (fx.get(rid) or {}).values())
+
+    def coverage(rid: str, kind: str) -> dict[str, list]:
+        info = runinfo.get(rid, {})
+        has_fx = rid in fx
+        traced = any_row(rid, lambda r: r.get("tfl"))
+        wtr = bool(wtrace.get(rid))
+        xcuts = any(
+            (c.get("xf") or {}).get("cuts") is not None for c in (fx.get(rid) or {}).values()
+        )
+        xwin = any(
+            (c.get("xf") or {}).get("window") is not None for c in (fx.get(rid) or {}).values()
+        )
+        xf = any(c.get("xf") for c in (fx.get(rid) or {}).values())
+        wt_logged = any(v.get("wt") for v in ing.get(rid, {}).values())
+        step = {}
+        loc = kind == "loc"
+        step["W1 input turn"] = ["L", "dataset + ingest.jsonl source_text"]
+        step["W2 validation"] = ["R", "offline: empty / length checks"]
+        step["W3 firewall decision"] = [
+            "L" if (loc or wtr) else "R",
+            (
+                "firewall signals and verdict logged per write (write_trace.jsonl engine_events)"
+                if wtr
+                else "quarantined / trust / status stamped on the record (ingest.jsonl); scores of the embedding-outlier and MINJA signals and the verdict reasons are not persisted (fix: engine hook; --trace-full logs the stamp, instruction_flag and deterministic screens)"
+                if loc
+                else "no ingest log for OP-Bench runs; deterministic screens reconstructed"
+            ),
+        ]
+        step["W4 redaction / PII"] = [
+            "L" if loc else "R",
+            "text_identical (source vs stored text) is logged; PII hits reconstructed offline",
+        ]
+        step["W5 tags (perspective, sensitivity, src, trust)"] = [
+            "L" if wtr else "M",
+            "write_trace.jsonl (--trace-full)"
+            if wtr
+            else "record tags are not in ingest.jsonl; fix: --trace-full (write_trace.jsonl)"
+            + (
+                "; perspective tagging is ON in this config, tags reconstructable"
+                if info.get("perspective")
+                else "; perspective tagging is off in this config, so none are written"
+            ),
+        ]
+        step["W6 embedding"] = ["L", "model and dim from the manifest (no vector dump by design)"]
+        step["W7 vector + lexical index"] = [
+            "L",
+            "implied by written=true; index settings from the manifest",
+        ]
+        step["W8 dedup / conflict verdict"] = [
+            "L" if wtr else "M",
+            "conflict-ladder verdict, rule and incumbent logged for semantic writes (episodic turns have no ladder)"
+            if wtr
+            else "ADD/UPDATE/NOOP/CONTEST is not logged in this run; fix: --trace-full (engine write sink)",
+        ]
+        step["W9 write timings"] = [
+            "L" if wt_logged else "M",
+            "I73 write_timers ride the first ingest line of a batch"
+            if wt_logged
+            else "observability.write_timers is off in this run; fix: enable it in the engine config",
+        ]
+        step["W10 derived (sleep-cycle) records"] = [
+            "L" if (info.get("build_sleep") is False or wtr) else "M",
+            "sleep cycle off (build_sleep=false): none were derived"
+            if info.get("build_sleep") is False
+            else (
+                "derived rows in write_trace.jsonl"
+                if wtr
+                else "sleep on: derived records are not logged; fix: --trace-full (write_trace.jsonl derived rows)"
+            ),
+        ]
+        step["R1 query analysis"] = [
+            "L" if xf else "R",
+            "shape flags from the engine rule code run offline on the question text"
+            + (
+                ""
+                if xf
+                else "; resolved perspective / entity check / planner mode: not logged (fix: --trace-full)"
+            ),
+        ]
+        have_dec = has_fx_key(dict(id=rid), "dec") if loc else False
+        step["R2 gates / deciders"] = [
+            "L" if have_dec else "R",
+            "decisions + I74 bypass logged"
+            if have_dec
+            else (
+                "empty-context flag derived from the context; decider decisions / bypass not logged in this run (older commit; fix: rerun on a current commit)"
+                if loc
+                else "context_tokens==0 is the only gate signal (no stage log for OP-Bench)"
+            ),
+        ]
+        step["R3 retrieval legs"] = [
+            "L" if has_fx else "M",
+            "forensics.jsonl (top 60, shown top 30)"
+            if has_fx
+            else "no forensics stage log; fix: run with MEMSPINE_FORENSICS_DIR set",
+        ]
+        step["R4 fusion (RRF)"] = [
+            "L" if has_fx else "M",
+            "fused list with scores" if has_fx else "no forensics stage log",
+        ]
+        step["R5 rerank pool + scores"] = [
+            "L" if has_fx else "M",
+            (
+                "scores as logged by the engine (one scale); raw vs min-max: "
+                + (
+                    "raw logged (abstain_on_raw)"
+                    if xf
+                    else "only one kind is logged; fix: --trace-full"
+                )
+            )
+            if has_fx
+            else "no forensics stage log",
+        ]
+        step["R6 assembly (floors, budget, dedupe, owner)"] = [
+            "L" if xcuts else ("R" if has_fx else "M"),
+            "final hits vs context lines vs budget derived; cut reasons / dedupe drops / owner notes "
+            + ("logged only with --trace-full" if not xf else "logged (trace_full block)"),
+        ]
+        step["R7 replay window expansion"] = [
+            "L" if xwin else ("R" if has_fx else "M"),
+            "context lines that are not final hits, attached to the nearest hit",
+        ]
+        step["R8 rendered context"] = [
+            "R" if (has_fx or not loc) else "M",
+            "logged record texts + the adapter render rules (dated prefix, chronological order)",
+        ]
+        step["R9 exact reader prompt"] = [
+            "L" if traced else ("R" if info.get("reader_tpl") else "M"),
+            "meta.trace_full"
+            if traced
+            else "template id + context + question (+ date); fix for an exact copy: --trace-full",
+        ]
+        step["R10 reader raw output + retry"] = [
+            "L",
+            "answer; retry first/second answers and accepted flag are in the row meta"
+            + (
+                ""
+                if traced
+                else "; raw reply of non-extracting prompts equals the answer; retry prompt reconstructed (question + retry instruction)"
+            ),
+        ]
+        step["R11 judge (prompt, raw reply, verdict)"] = [
+            "L" if traced else "R",
+            "meta.trace_full"
+            if traced
+            else "prompt reconstructed from the suite template; raw reply truncated to 200 chars in the row (meta.judge_raw); fix for full text: --trace-full",
+        ]
+        step["R12 final score"] = ["L", "results.jsonl"]
+        return step
+
+    coverage_out = {rid: coverage(rid, "loc" if rid in loc_runs else "opb") for rid in all_runs}
+
     # ---- questions
     gaps_used = set()
     qlist = []
@@ -1103,6 +1506,7 @@ def build(args) -> dict:
                     ce=int(f["ce"]),
                     tr=f["tr"],
                     tok=f["tok"],
+                    xf=f["xf"],
                 )
             rec["fl"] = gate_flags[rid].get(k) or None
             rr[rid] = clean({kk: v for kk, v in rec.items() if v not in ([],) and v is not False})
@@ -1138,6 +1542,8 @@ def build(args) -> dict:
                     errs=errata.get(k) or None,
                     errc=cat.get("errata_candidate") if cat else None,
                     o=o,
+                    qa=qa_of.get(k),
+                    jrt=route_of.get(k),
                     r=rr,
                 )
             )
@@ -1198,6 +1604,8 @@ def build(args) -> dict:
                     ),
                     persona=m["persona"],
                     o=o,
+                    qa=qa_of.get(qid),
+                    jrt=route_of.get(qid),
                     r=rr,
                 )
             )
@@ -1379,6 +1787,12 @@ def build(args) -> dict:
         gates=dict(rows=gate_rows, loc_runs=meta["screens_loc"], opb_runs=meta["screens_opb"]),
         funnel=funnel,
         mem=mem,
+        wsig=wsig,
+        wtrace=wtrace,
+        derived=derived,
+        tpl=dict(reader=tpl_reader, judge=tpl_judge, prompts=tpl_prompts, no_memory=no_memory_tpl),
+        runinfo=runinfo,
+        coverage=coverage_out,
         waterfall=waterfall,
         gaps=gaps_json,
         tt=tt,
@@ -1628,6 +2042,7 @@ tr.row{cursor:pointer}tr.row:hover td{background:#eef4ff}tr.sel td{background:#f
 .legend span{margin-right:12px;white-space:nowrap}.legend i{display:inline-block;width:11px;height:12px;vertical-align:-2px;margin-right:3px;border-radius:2px}
 .qlay{display:flex;gap:12px;align-items:flex-start}.side{flex:0 0 310px;position:sticky;top:42px;max-height:calc(100vh - 50px);overflow:auto;background:#fff;border:1px solid var(--bd);border-radius:6px;padding:6px 8px;font-size:12px}.qmain{flex:1;min-width:0}.side details{margin-left:10px}.side summary{cursor:pointer;padding:1px 0}.tl{cursor:pointer}.tl:hover{background:#eef4ff}.tl.on{background:#ffe9a8;font-weight:600}.tleaf{margin-left:14px}.leaves{margin-left:10px;line-height:1.8}.leaves a{font-size:11px;text-decoration:none;margin-right:2px}
 table.trace td{min-width:170px;max-width:240px;font-size:11px}table.trace td.gold{background:#c9f0d2}table.trace td.dist{background:#ffe0b5}table.trace td.gp{background:#f4faf5}.runsel{font-weight:600}tr.sel td{background:#fff6d6}
+.step{border:1px solid var(--bd);border-radius:4px;margin:4px 0;background:#fff}.step>summary{cursor:pointer;padding:4px 8px}.sb{padding:4px 10px 8px 22px}.timeline{border-left:3px solid #c9d6ee;padding-left:8px}.dot{display:inline-block;width:10px;height:10px;border-radius:5px;margin-right:4px}.dL{background:#1b8a3a}.dR{background:#d9a21b}.dM{background:#999}.bd{font-size:11px;border-radius:9px;padding:0 7px;margin-left:6px}.bL{background:#cfeed6}.bR{background:#ffe9a8}.bM{background:#e4e4e4;color:#555}td.cov{text-align:center;font-weight:700}td.cL{background:#cfeed6}td.cR{background:#ffe9a8}td.cM{background:#e4e4e4;color:#777}tr.wrow>td{background:#f7f9fd}
 .warn{background:#fff3cd;border:1px solid #e6cf7a;padding:6px 10px;border-radius:4px;margin:8px 0}
 svg text{font:11px system-ui,sans-serif}
 </style></head><body>
@@ -1924,35 +2339,6 @@ function ranksTable(q, runs) {
   return '<table><tr><th>run</th><th>gold turn</th><th>vector rank</th><th>lexical rank</th><th>extra legs</th><th>fused rank</th><th>rerank rank (score)</th><th>final rank</th><th>in context</th><th>lost at</th></tr>' + rows + '</table>';
 }
 
-/* retrieval trace: every leg side by side, gold marked, exact gold position per leg */
-function traceBlock(q, rid) {
-  const r = q.r[rid];
-  if (!r || !r.tr) return `<div class="nl" style="padding:6px">No stage log for ${esc(rid)}${q.b === 'opb' ? ' (OP-Bench runs keep no forensics rows: only the retrieved ids below)' : ' (this run predates the forensics logging)'}.</div>`;
-  const T = r.tr, c = conv(q), gold = goldSet(q), dist = new Set(q.dv || []), cap = M.leg_cap;
-  const pool = T.p.slice().sort((a, b) => b[1] - a[1]).slice(0, cap);
-  const gi = {v: 1, l: 2, f: 4, rr: 5, fin: 7};
-  const cols = [['Vector leg (cosine)', T.v, 'v'], ['Lexical leg (BM25)', T.l, 'l']];
-  Object.entries(T.x || {}).forEach(([n, l]) => cols.push(['Extra leg: ' + n, l, 'x:' + n]));
-  cols.push(['Fused (RRF) = rerank pool', T.f, 'f'], ['Reranker order (score)' + (T.pr ? ' ' + T.pr : ''), pool, 'rr'], ['Final hits (top-k)', T.fin, 'fin']);
-  const rows = Math.max(...cols.map(x => x[1].length));
-  let h = `<div class="mut">Top ${cap} per leg (exact gold ranks below each header, from the full 60-deep lists). Green = gold evidence${dist.size ? ', orange = the turn the cat-5 distractor answer was built from' : ''}.</div><div style="overflow:auto"><table class="trace"><tr>` + cols.map(x => `<th>${esc(x[0])}<br><small class="mut">${x[1].length} shown</small></th>`).join('') + '</tr>';
-  if (r.g && r.g.length) h += '<tr>' + cols.map(x => { const k = x[2]; const p = r.g.map(g => { const v = k.startsWith('x:') ? (g[3] || {})[k.slice(2)] : g[gi[k]]; return `${g[0]} ${v == null ? '<span class="r">-</span>' : '#' + v}`; }).join('<br>'); return `<td class="gp"><b class="g">GOLD</b><br>${p}</td>`; }).join('') + '</tr>';
-  for (let i = 0; i < rows; i++) {
-    h += '<tr>' + cols.map(x => {
-      const e = x[1][i]; if (!e) return '<td></td>';
-      const isg = gold.has(e[0]), isd = dist.has(e[0]);
-      return `<td class="${isg ? 'gold' : isd ? 'dist' : ''}"><small class="mut">#${i + 1}</small> <b>${esc(e[0])}</b> ${isg ? '<b class="g">GOLD</b> ' : ''}${isd ? '<b class="o">DIST</b> ' : ''}<small>${f1(e[1], 3)}</small><br><small class="mut">${snippet(c, e[0])}</small></td>`;
-    }).join('') + '</tr>';
-  }
-  h += '</table></div>';
-  const info = [];
-  if (r.dec) info.push('decisions: ' + r.dec.map(d => `${d.task} = ${d.final || d.label} (${d.adapter || ''}${d.confidence != null ? ', conf ' + f1(d.confidence, 2) : ''}${d.used === false ? ', not used' : ''})`).join('; '));
-  if (r.rb) info.push('relevance bypass: ' + (r.rb.fired ? 'FIRED' : 'not fired') + ' (' + (r.rb.kind || r.rb.mode || '') + (r.rb.names ? ': ' + r.rb.names.join(', ') : '') + ')');
-  if (r.legs) info.push('extra legs fired: ' + r.legs.join(', '));
-  if (r.ce) info.push('<b class="r">context came back EMPTY (a gate closed it)</b>');
-  if (!info.length && !(r.dec || r.rb)) info.push('<span class="mut">gate / decider decisions: not logged in this run</span>');
-  return h + `<div style="margin-top:4px">${info.join('<br>')}</div>`;
-}
 function snippet(c, t) { const x = turnInfo(c, t); if (!x) return ''; const s = x[0] + ': ' + x[1]; return esc(s.length > 70 ? s.slice(0, 69) + '…' : s); }
 
 /* final context: full text of every line, hit vs replay-window neighbour, date, speaker, write record */
@@ -1985,6 +2371,103 @@ function detail(q, n) {
   const sel = `<label class="runsel">run: <select onchange="setRun(this.value)">${runs.map(r => `<option ${r === rid ? 'selected' : ''}>${esc(r)}</option>`).join('')}</select></label> <button class="btn" onclick="openMem(${JSON.stringify(q.b)},${JSON.stringify(q.k)},${JSON.stringify(rid)})">open in memory view</button>`;
   return q.b === 'loc' ? detailLoc(q, nav, sel, runs, rid) : detailOpb(q, nav, sel, runs, rid);
 }
+/* ------------------------------------------------------------------ pipeline timeline (read side) */
+const STEPTXT = {L: 'logged', R: 'reconstructed', M: 'not logged in this run'};
+function stepBox(title, st, note, body, open) {
+  return `<details class="step" ${open ? 'open' : ''}><summary><span class="dot d${st}"></span> <b>${esc(title)}</b> <span class="bd b${st}">${STEPTXT[st]}</span></summary><div class="sb">${note ? `<div class="mut" style="margin-bottom:4px">${esc(note)}</div>` : ''}${body || ''}</div></details>`;
+}
+function covOf(rid, key) { const c = (D.coverage[rid] || {}); const k = Object.keys(c).find(x => x.startsWith(key + ' ')); return k ? c[k] : ['M', '']; }
+function fmt(t, m) { return t.replace(/\{\{|\}\}|\{(\w+)\}/g, (x, k) => x === '{{' ? '{' : x === '}}' ? '}' : (k in m ? m[k] : x)); }
+function ctxLines(q, rid) {
+  const r = q.r[rid], info = D.runinfo[rid] || {}, c = conv(q);
+  return (r.ctx || []).map(t => { const x = turnInfo(c, t), m = memRec(c, t) || {}; const txt = x ? (x[2] || (x[0] + ': ' + x[1])) : t; const pre = info.dated && m.vf ? `[${m.vf.slice(0, 10)}] ` : ''; return pre + txt; });
+}
+function readerPrompt(q, rid, question) {
+  const info = D.runinfo[rid] || {}, r = q.r[rid]; const tpl = D.tpl.reader[info.reader_tpl]; if (!tpl) return null;
+  const ctx = (r.ctx && r.ctx.length) ? ctxLines(q, rid).join('\n') : ''; const m = {context: ctx, question, question_date: 'unknown', memory: ctx};
+  if (!ctx && info.no_memory_prompt) return {user: fmt(D.tpl.no_memory, m), note: 'no-memory prompt (empty context)'};
+  if (tpl.kind === 'str') return {user: fmt(tpl.text, m)};
+  if (tpl.kind === 'routed') { const sh = tpl.shape === 'generic' ? (q.qa || {}).generic_qa_shape : (q.qa || {}).qa_shape; return {user: fmt(tpl.variants[sh] || tpl.variants.plain || Object.values(tpl.variants)[0], m), note: 'routed variant: ' + sh}; }
+  return {system: tpl.system, user: ctx ? fmt(tpl.with_context, m) : fmt(tpl.without_context, m)};
+}
+function judgePrompt(q, rid, answer) {
+  const info = D.runinfo[rid] || {}, suite = info.suite; if (!suite) return null;
+  const route = (q.jrt || {})[suite]; let pid, p;
+  if (suite === 'opbench') { pid = 'opbench/' + route; p = D.tpl.prompts[pid]; if (!p) return {note: route === 'diversity' ? 'repetition: no judge call (embedding cosine over the group)' : 'prompt template not available'}; return {pid, user: p.text.replace('{question}', () => q.q).replace('{response}', () => answer), source: p.source}; }
+  const st = D.tpl.judge[suite]; if (!st) return null; pid = st.routes[route] || st.routes.default; p = D.tpl.prompts[pid]; if (!p) return null;
+  const m = {question: q.q, gold: q.g, answer, pred: answer, evidence: '', golden_answer: q.g, response: answer, expected_answer: q.g, ai_response: answer, generated_answer: answer};
+  return {pid, route, system: p.system, user: fmt(p.text, m), source: p.source};
+}
+function pre(s) { return `<div class="box">${esc(s)}</div>`; }
+function legTable(cols, q, r, cap) {
+  const c = conv(q), gold = goldSet(q), dist = new Set(q.dv || []); const rows = Math.max(0, ...cols.map(x => x[1].length));
+  let h = '<div style="overflow:auto"><table class="trace"><tr>' + cols.map(x => `<th>${esc(x[0])}<br><small class="mut">${x[1].length} shown</small></th>`).join('') + '</tr>';
+  if (r.g && r.g.length) h += '<tr>' + cols.map(x => { const k = x[2]; const gi = {v: 1, l: 2, f: 4, rr: 5, fin: 7}; const p = r.g.map(g => { const v = k.startsWith('x:') ? (g[3] || {})[k.slice(2)] : g[gi[k]]; return `${g[0]} ${v == null ? '<span class="r">-</span>' : '#' + v}`; }).join('<br>'); return `<td class="gp"><b class="g">GOLD</b><br>${p}</td>`; }).join('') + '</tr>';
+  for (let i = 0; i < rows; i++) h += '<tr>' + cols.map(x => { const e = x[1][i]; if (!e) return '<td></td>'; const isg = gold.has(e[0]), isd = dist.has(e[0]); return `<td class="${isg ? 'gold' : isd ? 'dist' : ''}"><small class="mut">#${i + 1}</small> <b>${esc(e[0])}</b> ${isg ? '<b class="g">GOLD</b> ' : ''}${isd ? '<b class="o">DIST</b> ' : ''}<small>${f1(e[1], 3)}</small><br><small class="mut">${snippet(c, e[0])}</small></td>`; }).join('') + '</tr>';
+  return h + '</table></div>';
+}
+function readTimeline(q, rid) {
+  const r = q.r[rid], info = D.runinfo[rid] || {}, c = conv(q), isLoc = q.b === 'loc';
+  const T = r.tr, cap = M.leg_cap, qa = q.qa || {};
+  const cv = k => covOf(rid, k); let h = '';
+  // 1 query analysis
+  { const [st, note] = cv('R1'); const xq = r.xf && r.xf.query_analysis;
+    const flags = (qa.flags || []).map(f => `<span class="tag s">${esc(f)}</span>`).join('') || '<span class="mut">no shape flag set</span>';
+    h += stepBox('1. Query analysis', st, note, `<div><b>Question:</b> ${esc(q.q)}</div><div><b>Question date:</b> ${isLoc || q.b === 'opb' ? 'none (the dataset gives none; the reader prompt gets "unknown")' : ''}</div><div><b>Shape flags:</b> ${flags}</div><div><b>rule_read_mode:</b> ${esc(qa.rule_read_mode)} · <b>question_shape:</b> ${esc(qa.question_shape)} · <b>statement_form:</b> ${esc(qa.statement_form)} · <b>reader prompt route:</b> qa_shape=${esc(qa.qa_shape)}, generic_qa_shape=${esc(qa.generic_qa_shape)}</div><div><b>Planner / read mode (run config):</b> ${esc(info.read_mode)}${info.read_cfg && info.read_cfg.list_mode ? ' · list_mode=' + esc(JSON.stringify(info.read_cfg.list_mode)) : ''}</div><div><b>Resolved perspective (asker / about / targets):</b> ${r.xf && r.xf.perspective ? esc(JSON.stringify(r.xf.perspective)) : '<span class="mut">not logged in this run; fix: --trace-full (forensics trace_full.perspective)</span>'}</div><div><b>Entity check:</b> <span class="mut">not logged in this run; fix: --trace-full</span></div>`, true); }
+  // 2 gates
+  { const [st, note] = cv('R2'); let b = '';
+    if (r.dec) b += '<div><b>Decider decisions:</b> ' + r.dec.map(d => `${esc(d.task)} = <b>${esc(d.final || d.label)}</b> (${esc(d.adapter || '')}${d.confidence != null ? ', confidence ' + f1(d.confidence, 2) : ''}${d.used === false ? ', not used' : ''}, heuristic ${esc(d.heuristic)})`).join('; ') + '</div>'; else b += '<div class="mut">decider decisions: not logged in this run</div>';
+    b += '<div><b>I74 named-entity bypass:</b> ' + (r.rb ? (r.rb.fired ? '<b>FIRED</b>' : 'not fired') + ' (' + esc(r.rb.kind || r.rb.mode || '') + (r.rb.names ? ': ' + esc(r.rb.names.join(', ')) : '') + ')' : '<span class="mut">not logged in this run</span>') + '</div>';
+    b += `<div><b>Relevance gate outcome:</b> ${r.ce || (isLoc ? false : (r.ct === 0)) ? '<b class="r">context EMPTY: the gate closed the read</b>' : 'context returned (' + (r.ctx ? r.ctx.length : '?') + ' lines)'}</div>`;
+    if (r.fl && r.fl.length) b += '<div><b>Gates that touched this question:</b> ' + r.fl.map(x => `<span class="tag s">${esc(x)}</span>`).join('') + '</div>';
+    h += stepBox('2. Gates and deciders', st, note, b); }
+  // 3-5 legs
+  const nolog = '<div class="nl" style="padding:6px">No stage log for this run.</div>';
+  { const [st, note] = cv('R3'); let b = nolog;
+    if (T) { const cols = [['Vector leg (cosine)', T.v, 'v'], ['Lexical leg (BM25)', T.l, 'l']]; Object.entries(T.x || {}).forEach(([n, l]) => cols.push(['Extra leg: ' + n, l, 'x:' + n])); b = legTable(cols, q, r, cap) + `<div class="mut">Top ${cap} per leg shown; exact gold ranks come from the full 60-deep lists. ${(r.legs || []).length ? 'Extra legs fired: ' + esc(r.legs.join(', ')) : 'No extra leg fired.'}</div>`; }
+    h += stepBox('3. Retrieval legs (hits with scores)', st, note, b, true); }
+  { const [st, note] = cv('R4'); h += stepBox('4. Fusion (RRF ranks)', st, note, T ? legTable([['Fused (RRF), the rerank pool', T.f, 'f']], q, r, cap) : nolog); }
+  { const [st, note] = cv('R5'); const pool = T ? T.p.slice().sort((a, b) => b[1] - a[1]).slice(0, cap) : [];
+    h += stepBox('5. Rerank pool and scores', st, note, T ? `<div class="mut">Reranker: ${esc(T.pr || 'none')}. Scores are the engine's logged scale (one kind). Floor / cut config: ${esc(JSON.stringify(info.read_cfg || {}))}</div>` + legTable([['Reranker order (score)', pool, 'rr'], ['Final hits (top-k)', T.fin, 'fin']], q, r, cap) : nolog); }
+  // 6 assembly
+  { const [st, note] = cv('R6'); const fin = T ? T.fin.map(x => x[0]) : (r.fin || []); const ctxS = new Set(r.ctx || []); const cut = fin.filter(t => !ctxS.has(t));
+    const tok = r.tok ?? r.ct; let b = `<div>final hits: <b>${fin.length || '?'}</b> · context lines: <b>${(r.ctx || []).length}</b> · context tokens: <b>${tok ?? '?'}</b> / budget <b>${info.budget ?? M.budgets[rid] ?? '?'}</b>${r.trunc ? ' · <b class="r">context truncated by the budget</b>' : ''}</div>`;
+    b += `<div><b>Final hits cut before the reader:</b> ${cut.length ? cut.map(t => `<b>${esc(t)}</b>${goldSet(q).has(t) ? ' <b class="g">GOLD</b>' : ''}`).join(', ') + ' (reason not logged; floors in config: ' + esc(JSON.stringify((info.read_cfg || {}).assembly || {})) + ', rerank_floor=' + esc((info.read_cfg || {}).rerank_floor) + ')' : 'none (every final hit reached the context)'}</div>`;
+    b += `<div><b>Dedupe drops:</b> ${r.xf && r.xf.dedupe_dropped ? esc(JSON.stringify(r.xf.dedupe_dropped)) : '<span class="mut">not logged in this run; fix: --trace-full</span>'} · <b>abstain_on_raw:</b> ${r.xf && r.xf.abstain_on_raw ? esc(JSON.stringify(r.xf.abstain_on_raw)) : '<span class="mut">not logged</span>'} · <b>owner / entity notes:</b> <span class="mut">not logged</span></div>`;
+    if (r.xf && r.xf.assembled) b += `<div><b>Assembled (engine):</b> ${esc(JSON.stringify(r.xf.assembled))}</div>`;
+    if (r.xf && r.xf.cuts) b += `<div><b>Every candidate the read dropped, with the reason (engine sink):</b></div>` + (r.xf.cuts.length ? '<table><tr><th>turn</th><th>reason</th><th>detail</th></tr>' + r.xf.cuts.map(z => { const { id, turn, reason, ...rest } = z; return `<tr class="${goldSet(q).has(turn) ? 'sel' : ''}"><td><b>${esc(turn)}</b> ${goldSet(q).has(turn) ? '<b class="g">GOLD</b>' : ''}</td><td>${esc(reason)}</td><td><small>${esc(JSON.stringify(rest))}</small></td></tr>`; }).join('') + '</table>' : '<div class="mut">nothing was dropped</div>');
+    h += stepBox('6. Assembly: floors, budget cuts, dedupe, owner notes', st, note, b); }
+  // 7 window
+  { const [st, note] = cv('R7'); const fin = T ? T.fin.map(x => x[0]) : (r.fin || []); const win = (r.ctx || []).filter(t => !fin.includes(t));
+    const wx = r.xf && r.xf.window ? '<div><b>Window expansion (engine sink, logged):</b></div>' + (r.xf.window.length ? r.xf.window.map(w => `<div class="box">anchor <b>${esc(w.anchor)}</b> ${goldSet(q).has(w.anchor) ? '<b class="g">GOLD</b>' : ''} → added ${w.neighbours.map(n => `<b>${esc(n)}</b>${goldSet(q).has(n) ? ' <b class="g">GOLD</b>' : ''}`).join(', ') || 'none'}${Object.keys(w.skipped || {}).length ? '<br><small>skipped: ' + esc(JSON.stringify(w.skipped)) + '</small>' : ''}</div>`).join('') : '<div class="mut">no window turns were added</div>') : '';
+    h += stepBox('7. Replay window expansion', st, note, wx + `<div class="mut">window before/after (config): ${esc((info.read_cfg || {}).replay_window_before)} / ${esc((info.read_cfg || {}).replay_window_after)}</div>` + (fin.length ? `<div class="ctx">${win.map(t => { const x = turnInfo(c, t); return `<div class="${goldSet(q).has(t) ? 'gold' : ''}"><b class="id">${esc(t)}</b> ${goldSet(q).has(t) ? '<b class="g">[GOLD]</b> ' : ''}<small>added around ${esc(anchorOf(t, fin) || '?')}</small> ${x ? esc(x[0]) : ''}</div>`; }).join('') || '<div class="mut">no neighbour lines were added</div>'}</div>` : '<div class="nl" style="padding:6px">hits unknown without a stage log</div>')); }
+  // 8 rendered context
+  { const [st, note] = cv('R8'); let extra = '';
+    if (!isLoc && q.cc === 'diversity') { const grp = D.q.filter(z => z.b === 'opb' && z.it === q.it && z.cc === 'diversity' && z.k !== q.k); const mine = new Set(r.ctx || []); const js = grp.map(z => { const o = new Set((z.r[rid] || {}).ctx || []); let i = 0; mine.forEach(t => { if (o.has(t)) i++; }); const u = mine.size + o.size - i; return u ? i / u : 0; }); extra = `<div><b>Repetition group:</b> ${grp.length + 1} probes of ${esc(q.it)}; this probe's context overlaps the others by Jaccard mean <b>${js.length ? f1(js.reduce((a, b) => a + b, 0) / js.length, 2) : '-'}</b> (max ${js.length ? f1(Math.max(...js), 2) : '-'}); the official repetition score has no judge call.</div>`; }
+    h += stepBox('8. Rendered context (memory lines the reader gets)', st, note, extra + ctxBlock(q, rid)); }
+  // 9 prompt
+  { const logged = r.tfl && r.tfl.reader && r.tfl.reader[0]; const rp = readerPrompt(q, rid, q.q); const st = logged ? 'L' : (rp ? 'R' : 'M'); let b = '';
+    const p = logged ? {system: logged.system, user: logged.prompt} : rp;
+    if (p) { b += (p.system ? '<b>System message</b>' + pre(p.system) : '') + '<b>User message</b>' + pre(p.user) + `<div class="mut">${p.user.length} chars ≈ ${Math.round(p.user.length / 4)} tokens by chars/4; the server counted <b>${r.fpt ?? r.pt ?? '?'}</b> prompt tokens${p.note ? ' · ' + esc(p.note) : ''}. Reader ${esc(info.reader_model)}, temperature ${esc(info.temperature)}, max_tokens ${esc(info.max_tokens)}.</div>`; } else b = '<div class="nl" style="padding:6px">The prompt template of this run is not known to the generator.</div>';
+    h += stepBox('9. EXACT reader prompt', st, logged ? 'meta.trace_full (exact)' : 'template ' + (info.qa_prompt || '?') + ' + the logged records + question; exact copy needs --trace-full', b); }
+  // 10 reader output + retry + post
+  { const tf = r.tfl && r.tfl.reader; let b = '';
+    if (tf && tf.length) b += tf.map((x, i) => `<b>Reader call ${i + 1} (raw reply)</b>${pre(x.reply)}`).join(''); else b += `<b>Reader reply (the stored answer; for non-extracting prompts it is the raw reply)</b>${pre(r.rraw || (r.fa != null ? r.fa : r.a))}`;
+    if (r.rt || r.fa != null) { const instr = (info.retry || {}).instruction || ''; const rp = readerPrompt(q, rid, q.q + instr); b += `<div><b>Refusal retry fired</b>: first answer: ${esc(r.fa)}</div><b>Retry prompt (question + ${esc((info.retry || {}).mode || '')} instruction)${tf && tf[1] ? ' [logged]' : ' [reconstructed]'}</b>${rp ? pre(tf && tf[1] ? tf[1].prompt : rp.user) : ''}<div>Retry answer: ${esc(r.rta)} · accepted: <b>${r.ra}</b> · tokens first/retry: ${r.fpt ?? '?'} / ${r.rpt ?? '?'}</div>`; } else b += `<div class="mut">refusal retry: ${(info.retry || {}).on ? 'enabled in this run, did not fire for this question' : 'not enabled in this run'}</div>`;
+    b += `<div><b>Post-steps (count-verify, date-repair, verify):</b> ${(info.post || []).length ? esc(info.post.join(', ')) + ' enabled; their model calls ' + (tf ? 'appear above' : 'are not separately logged') : 'not enabled in this run'}</div><div><b>Final answer:</b> ${esc(r.a)}</div>`;
+    h += stepBox('10. Reader raw output, retry, post-steps', 'L', tf ? 'meta.trace_full' : 'answer and retry answers logged in the row; retry prompt reconstructed', b); }
+  // 11 judge
+  { const jp = judgePrompt(q, rid, r.fa != null && r.ra === false ? r.fa : r.a); const tfj = r.tfl && r.tfl.judge; const st = tfj && tfj.length ? 'L' : (jp && jp.user ? 'R' : 'M'); let b = '';
+    if (tfj && tfj.length) b += tfj.map((x, i) => `<b>Judge call ${i + 1}: prompt</b>${x.system ? pre('[system] ' + x.system) : ''}${pre(x.prompt)}<b>raw reply</b>${pre(x.reply)}`).join('');
+    else { if (jp && jp.user) b += `<div><b>Judge prompt</b> (${esc(jp.pid)}${jp.route ? ', route ' + esc(jp.route) : ''}; source ${esc(jp.source)})</div>${jp.system ? pre('[system] ' + jp.system) : ''}${pre(jp.user)}`; else b += `<div class="mut">${jp && jp.note ? esc(jp.note) : 'no judge prompt available'}</div>`; b += `<div><b>Raw judge reply (logged${typeof r.jr === 'string' && r.jr.length >= 200 ? ', cut at 200 chars' : ''}):</b> ${typeof r.jr === 'string' ? pre(r.jr) : '<span class="mut">not logged for this row</span>'}</div>`; }
+    b += `<div><b>Verdict:</b> score ${r.sc ?? r.s ?? ''} → ${r.ok ? '<b class="ok">correct / pass</b>' : '<b class="bad">wrong / fail</b>'} · judge: ${esc(info.judge_id)}${info.judge_guards ? ' (guards on)' : ''}</div>`;
+    if (isLoc) b += `<div><b>Date check:</b> ${r.sd != null ? 'recorded ' + r.sd : (r.od ? 'offline recompute: same day, would flip to correct' : 'offline recompute: no flip')} · <b>Judge conventions:</b> ${r.sv != null ? 'recorded ' + r.sv : (r.ov ? 'offline recompute: credited (' + esc(r.cv || '') + ')' : 'offline recompute: no credit')} · <b>Errata flags:</b> ${(q.errs || []).map(e => esc(e.tag)).join(', ') || (q.errc ? 'candidate: ' + esc(q.errc) : 'none')}</div>`;
+    h += stepBox('11. Judge: prompt, raw reply, verdict, date check, conventions, errata', st, tfj && tfj.length ? 'meta.trace_full' : 'prompt reconstructed from the suite template; reply as logged (cut at 200 chars); exact copy needs --trace-full', b); }
+  // 12 final
+  { h += stepBox('12. Final score', 'L', 'results.jsonl', `<div>${r.ok ? '<b class="ok">CORRECT</b>' : '<b class="bad">WRONG</b>'} · score ${r.sc ?? r.s ?? ''}${r.sd != null ? ' · date-checked ' + r.sd : ''} · answer ${esc(r.a)}</div><div class="mut">tokens: prompt ${r.pt ?? '?'}, completion ${r.cpt ?? '?'}, context ${r.tok ?? r.ct ?? '?'} · model calls ${r.mc ?? '?'} · latency ms retrieve/answer/judge ${r.lat ? r.lat.join(' / ') : '?'}</div>`); }
+  return `<div class="timeline">${h}</div>`;
+}
+
 function detailLoc(q, nav, sel, runs, rid) {
   const c = conv(q);
   let h = nav + `<h2>${esc(q.k)} <small class="mut">LoCoMo ${esc(q.cat)}</small> <span class="${q.ok ? 'ok' : 'bad'}">${q.ok ? 'baseline correct' : 'baseline WRONG'}</span></h2><div>${sel}</div>`;
@@ -1999,10 +2482,7 @@ function detailLoc(q, nav, sel, runs, rid) {
   if (q.fix) h += `<div><b>Generic fix:</b> ${esc(q.fix)}</div><div><b>Decision mechanism:</b> ${esc(q.mech || '')}</div><div><b>Built feature:</b> ${esc(q.feat || '')}</div><div><b>Runtime cost:</b> ${esc(q.cost || '')}</div>`;
   h += gapBlock(q) + '</div>';
   h += `<div class="sec"><h3>Gold-turn position in every leg, every run (where each gold turn dropped out)</h3><div class="mut">vector / lexical = rank in that leg (top 60); fused = rank after fusion; rerank = rank by reranker score within the pool; final = rank in the final list; in context = reached the reader.</div>${ranksTable(q, runs)}</div>`;
-  h += `<div class="sec"><h3>Retrieval trace: ${esc(rid)}</h3>${traceBlock(q, rid)}</div>`;
-  h += `<div class="sec"><h3>Final context sent to the reader: ${esc(rid)}</h3>${ctxBlock(q, rid)}</div>`;
-  const fl = runs.map(r => (q.r[r].fl || []).length ? `${esc(r)}: ` + q.r[r].fl.map(x => `<span class="tag s">${x}</span>`).join('') : '').filter(Boolean);
-  h += `<div class="sec"><h3>Gates that touched this question</h3>${fl.join('<br>') || '<span class="mut">none</span>'}</div>`;
+  h += `<div class="sec"><h3>Read pipeline, step by step: ${esc(rid)}</h3><div class="mut">Each step says whether the run logged it, whether the explorer reconstructed it offline from the logged data and the code, or whether it is missing (with the fix). The write side of the gold turns is in the memory view (button above).</div>${readTimeline(q, rid)}</div>`;
   return h;
 }
 function detailOpb(q, nav, sel, runs, rid) {
@@ -2016,9 +2496,34 @@ function detailOpb(q, nav, sel, runs, rid) {
   if (q.st) { h += `<div><b>${esc(q.sub)}</b> <span class="mut">[${esc(q.code)}]</span></div>`; const s = q.sig; if (s) h += `<div class="mut">signals: persona share ${s.persona_share}, leaked context tokens re-used in the answer ${s.leak_n}, second-person reference cues ${s.ref_cues}, best question/context word overlap ${s.best_overlap}, affirmation ${s.affirm}, role inversion ${s.role_inv}</div>`; h += `<div><b>Generic fix:</b> ${esc(q.fix || '')}</div><div><b>Decision mechanism:</b> ${esc(q.mech || '')}</div><div><b>Built feature:</b> ${esc(q.feat || '')}</div><div><b>Runtime cost:</b> ${esc(q.cost || '')}</div>`; }
   else h += '<div class="g">Probe passes in the baseline (score &ge; 0.5): no failure class.</div>';
   h += gapBlock(q) + '</div>';
-  h += `<div class="sec"><h3>Retrieval trace: ${esc(rid)}</h3>${traceBlock(q, rid)}</div>`;
-  h += `<div class="sec"><h3>Records injected into the reader context: ${esc(rid)} (persona's own turns highlighted)</h3>${ctxBlock(q, rid)}</div>`;
+  h += `<div class="sec"><h3>Read pipeline, step by step: ${esc(rid)}</h3><div class="mut">OP-Bench runs keep no forensics stage log, so legs, fusion and rerank are not logged; the official assistant prompt, the answer and the OP-Bench judge are reconstructed from the official templates.</div>${readTimeline(q, rid)}</div>`;
   return h;
+}
+
+/* ------------------------------------------------------------------ write timeline (per stored record) */
+function pickWT(c, t) { for (const r of Object.keys(D.wtrace || {})) { const x = ((D.wtrace[r] || {})[c] || {})[t]; if (x) return x; } return null; }
+function allDerived(c) { let out = []; for (const r of Object.keys(D.derived || {})) out = out.concat((D.derived[r] || {})[c] || []); return out; }
+function evOf(wt, kind) { return ((wt && wt.engine_events) || []).filter(e => e.kind === kind); }
+function toggleW(conv, t, btn) {
+  const tr = btn.closest('tr'); const nx = tr.nextElementSibling;
+  if (nx && nx.classList.contains('wrow')) { nx.remove(); return; }
+  const n = document.createElement('tr'); n.className = 'wrow'; n.innerHTML = `<td colspan="8">${writeSteps(conv, t)}</td>`; tr.after(n);
+}
+function writeSteps(c, t) {
+  const rid = M.loc_ref, x = turnInfo(c, t), m = memRec(c, t) || {}, sg = (D.wsig[c] || {})[t] || {}, wt = pickWT(c, t), info = D.runinfo[rid] || {};
+  const cv = k => covOf(rid, k); const bw = wt ? 'L' : null; let h = '';
+  const ch = (name, v) => v ? `<span class="tag e">${esc(name)}</span>` : '';
+  { const [st, note] = cv('W1'); h += stepBox('W1. Input turn', st, note, `<div><b>${esc(t)}</b> · ${esc(x[3])} · ${esc(x[4] || '')} · speaker <b>${esc(x[0])}</b> (role: ${x[0] === 'assistant' ? 'assistant' : 'human participant'})</div>${pre(x[1])}`, true); }
+  { const [st, note] = cv('W2'); h += stepBox('W2. Validation', st, note, `<div>non-empty: <b>${sg.n === 0 ? 'no' : 'yes'}</b> · ${sg.n ?? x[1].length} characters · written: <b>${m.w === false ? 'NO' : 'yes'}</b> (logged)</div>`); }
+  { const [st, note] = cv('W3'); h += stepBox('W3. Firewall decision and signals', st, note, `<div><b>Decision (logged):</b> ${m.q ? '<b class="r">QUARANTINED</b>' : 'passed'} · trust <b>${m.tr ?? '?'}</b> · status <b>${esc(m.st || '?')}</b>${wt && wt.stored ? ' · instruction_flag ' + esc(wt.stored.instruction_flag) : ''}</div><div><b>Deterministic screens (reconstructed with the engine's own rule code):</b> instruction-shaped ${sg.i ? '<b class="r">YES</b>' : 'no'} · extended patterns ${sg.ie ? '<b class="r">YES</b>' : 'no'} · semantic risk ${esc((sg.sr || []).join(', ') || 'none')}</div>${(() => { const f = evOf(wt, 'firewall')[0]; if (!f) return '<div class="mut">Embedding-outlier and MINJA prefix-repeat scores and the verdict reasons: not logged in this run (fix: rerun with --trace-full on this commit).</div>'; return `<div><b>Engine signals (logged):</b> role ${esc(f.role)} · trust tier ${esc(f.trust_tier)} · trust ${f.trust} · instruction screen ${esc(f.instruction_screen)} flag ${f.instruction_flag} · semantic risk ${esc(JSON.stringify(f.semantic_risk))}</div><div>embedding outlier: nearest similarity ${f.embedding_outlier.nearest_similarity == null ? '-' : f1(f.embedding_outlier.nearest_similarity, 3)} (threshold ${f.embedding_outlier.threshold}, ${f.embedding_outlier.n_neighbours}/${f.embedding_outlier.min_neighbours} neighbours, on=${f.embedding_outlier.on}) flagged <b>${f.embedding_outlier.flagged}</b> · MINJA prefix (${f.minja_bridge.prefix_chars} chars, ${f.minja_bridge.n_recent} recent, on=${f.minja_bridge.on}) flagged <b>${f.minja_bridge.flagged}</b> · query-anomaly z ${f.query_anomaly_z ?? '-'}</div><div><b>Decision:</b> quarantine ${f.quarantine}, anomalous ${f.anomalous}; reasons: ${esc((f.reasons || []).join(', ') || 'none')}</div>`; })()}`); }
+  { const [st, note] = cv('W4'); h += stepBox('W4. Redaction / PII', st, note, `<div>stored text identical to source: <b>${m.ti === false ? 'NO (altered)' : m.ti ? 'yes (no redaction applied)' : '?'}</b></div>${m.stx ? '<div>stored: ' + esc(m.stx) + '</div>' : ''}<div>PII hits (reconstructed): ${esc((sg.pii || []).join(', ') || 'none')}</div>`); }
+  { const st = wt ? 'L' : 'M'; const tags = wt && wt.stored ? wt.stored.tags : null; h += stepBox('W5. Tags (perspective spk/addr/sub/mod/pol/scope, sensitivity, participants, src, trust)', st, wt ? 'write_trace.jsonl (--trace-full)' : cv('W5')[1], tags ? `<div>tags: ${tags.map(z => `<span class="tag s">${esc(z)}</span>`).join('') || 'none'}</div><div>pii_tier ${esc(wt.stored.pii_tier)} · source ${esc(JSON.stringify(wt.stored.source))}</div>` : `<div><b>Reconstructed sensitivity grade of the text:</b> ${esc(sg.sg || 'none')} ${esc((sg.sc || []).join(', '))} <span class="mut">(applies only if sensitivity tagging is on)</span></div><div class="mut">record tags, participants / visibility and src provenance: not logged in this run; fix: --trace-full (write_trace.jsonl).</div>`); }
+  { const [st, note] = cv('W6'); const e = info.embedding || {}; h += stepBox('W6. Embedding', st, note, `<div>model <b>${esc(e.model)}</b> · dim <b>${esc(e.dim)}</b> · device ${esc(e.device)} · dtype ${esc(e.dtype)} <span class="mut">(vectors are not dumped)</span></div>`); }
+  { const [st, note] = cv('W7'); h += stepBox('W7. Vector + lexical index', st, note, `<div>record id <small>${esc(m.rid || '-')}</small> · type ${esc(m.mt || '?')} · group ${esc(m.g || '?')} · batch size ${esc(m.bs ?? '?')}</div>`); }
+  { const [st, note] = cv('W8'); const ce = evOf(wt, 'conflict'); h += stepBox('W8. Dedup / conflict-ladder verdict (ADD / UPDATE / NOOP / INVALIDATE / CONTEST)', st, note, `<div>record status <b>${esc(m.st || '?')}</b></div>` + (ce.length ? ce.map(e => `<div><b>${esc(e.verdict)}</b> by rule <b>${esc(e.rule)}</b> · incumbent ${esc(e.incumbent || 'none')} · key ${esc(JSON.stringify(e.key))}${e.trust_incumbent != null ? ' · trust in/incumbent ' + e.trust_incoming + ' / ' + e.trust_incumbent : ''}</div>`).join('') : `<div class="mut">${wt ? 'no conflict event: an episodic turn does not pass the keyed conflict ladder' : 'not logged in this run; fix: --trace-full'}</div>`)); }
+  { const has = !!m.wt; h += stepBox('W9. Timings (I73 write_timers)', has ? 'L' : 'M', has ? 'carried on the first record of its batch' : cv('W9')[1], has ? `<pre class="box">${esc(JSON.stringify(m.wt, null, 1))}</pre>` : '<div class="mut">no timer lines for this record</div>'); }
+  { const d = allDerived(c).filter(z => (z.parent_turns || []).includes(t)); h += stepBox('W10. Derived records (sleep cycle) with this turn as a parent', cv('W10')[0], cv('W10')[1], d.length ? d.map(z => `<div class="box">${esc(z.content)}<br><small>${esc(z.stored && z.stored.memory_type)} · parents ${esc((z.parent_turns || []).join(', '))}</small></div>`).join('') : '<div class="mut">none</div>'); }
+  return `<div class="timeline">${h}</div>`;
 }
 
 /* ------------------------------------------------------------------ memory (write side) */
@@ -2053,9 +2558,11 @@ function viewMemory() {
     const bg = isg ? '#c9f0d2' : isd ? '#ffe0b5' : isc ? '#cfe0ff' : isp ? '#eaf1ff' : '';
     if (!first && (isg || isc)) first = t;
     shown++;
-    h += `<tr id="m_${esc(t.replace(':', '_'))}" style="${bg ? 'background:' + bg : ''}"><td><b>${esc(t)}</b>${isg ? ' <b class="g">GOLD</b>' : ''}${isc ? ' <small>used</small>' : ''}</td><td><small>${esc(x[3])}<br>${esc(x[4] || '')}</small></td><td>${esc(x[0])}</td><td>${r.w === false ? '<b class="r">no</b>' : r.w ? 'yes' : '-'}${r.q ? ' <b class="r">quarantined</b>' : ''}</td><td><small>${r.tr ?? ''} ${esc(r.mt || '')} ${esc(r.g || '')} ${r.ex ? esc(JSON.stringify(r.ex)) : ''}</small></td><td><small>${esc((r.vf || '').replace('+00:00', ''))}</small></td><td><small class="mut">${esc(r.rid || '')}</small></td><td>${esc(r.stx || x[1])}${r.stx ? '<br><small class="o">stored text differs from source: ' + esc(x[1]) + '</small>' : ''}${x[2] ? '<br><small class="mut">reader-side: ' + esc(x[2]) + '</small>' : ''}</td></tr>`;
+    h += `<tr id="m_${esc(t.replace(':', '_'))}" style="${bg ? 'background:' + bg : ''}"><td><b>${esc(t)}</b>${isg ? ' <b class="g">GOLD</b>' : ''}${isc ? ' <small>used</small>' : ''}<br><button class="btn" onclick="toggleW('${m.conv}','${t}',this)">write pipeline</button></td><td><small>${esc(x[3])}<br>${esc(x[4] || '')}</small></td><td>${esc(x[0])}</td><td>${r.w === false ? '<b class="r">no</b>' : r.w ? 'yes' : '-'}${r.q ? ' <b class="r">quarantined</b>' : ''}</td><td><small>${r.tr ?? ''} ${esc(r.mt || '')} ${esc(r.g || '')} ${r.ex ? esc(JSON.stringify(r.ex)) : ''}</small></td><td><small>${esc((r.vf || '').replace('+00:00', ''))}</small></td><td><small class="mut">${esc(r.rid || '')}</small></td><td>${esc(r.stx || x[1])}${r.stx ? '<br><small class="o">stored text differs from source: ' + esc(x[1]) + '</small>' : ''}${x[2] ? '<br><small class="mut">reader-side: ' + esc(x[2]) + '</small>' : ''}</td></tr>`;
   });
   h += `</table><div class="mut">${shown} rows shown.</div>`;
+  const dv = allDerived(m.conv);
+  h += `<h3>Derived records (sleep cycle) of ${esc(m.conv)}</h3>` + (dv.length ? dv.map(z => `<div class="box">${esc(z.content)}<br><small>${esc(z.stored && z.stored.memory_type)} · parents ${esc((z.parent_turns || []).join(', '))} · tags ${esc(((z.stored || {}).tags || []).join(', '))}</small></div>`).join('') : `<div class="mut">none: ${(D.runinfo[M.loc_ref] || {}).build_sleep === false ? 'the sleep cycle is off in this run (build_sleep=false), so no fact, card, summary or graph edge was derived, and no derived record was skipped (I72 concerns the sleep-cycle deposit)' : 'not logged in this run; fix: --trace-full writes derived rows into write_trace.jsonl'}</div>`);
   S.memScroll = first ? 'm_' + first.replace(':', '_') : null;
   return h;
 }
@@ -2114,7 +2621,9 @@ function leafOpen(id, qi) { S.node = id; S.shown = 100000; render(); const n = S
 
 /* ------------------------------------------------------------------ data gaps */
 function viewGaps() {
-  return '<h2>Data gaps found while building this file</h2><ul>' + M.data_gaps.map(x => `<li>${esc(x)}</li>`).join('') + `</ul><h2>Notes</h2><ul><li>${esc(M.licence)}</li><li>${esc(M.gap_note)}</li><li>Failure stages for LoCoMo come from the hand-read catalogue of the baseline (154 wrong answers); for screens the explorer shows the outcome (fixed / broke / same) and the mechanical gold-turn funnel, not a re-read.</li><li>Running screens are listed with their progress; their finished rows already appear in the question strips, but no verdict is computed until the run writes its summary row. Re-run the generator to refresh.</li></ul>`;
+  const runs = Object.keys(D.coverage), steps = Object.keys(D.coverage[runs[0]]);
+  let cov = `<h2>Pipeline coverage per run (L logged, R reconstructed, M missing)</h2><div class="mut">Hover a cell for the note. Write steps W1-W10 are per stored record, read steps R1-R12 per question.</div><div style="overflow:auto"><table><tr><th>step</th>${runs.map(r => `<th><small>${esc(r)}</small></th>`).join('')}</tr>` + steps.map(st => `<tr><td>${esc(st)}</td>${runs.map(r => { const c = D.coverage[r][st] || ['M', '']; return `<td class="cov c${c[0]}" title="${esc(c[1])}">${c[0]}</td>`; }).join('')}</tr>`).join('') + '</table></div>';
+  return cov + '<h2>Data gaps found while building this file</h2><ul>' + M.data_gaps.map(x => `<li>${esc(x)}</li>`).join('') + `</ul><h2>Notes</h2><ul><li>${esc(M.licence)}</li><li>${esc(M.gap_note)}</li><li>Failure stages for LoCoMo come from the hand-read catalogue of the baseline (154 wrong answers); for screens the explorer shows the outcome (fixed / broke / same) and the mechanical gold-turn funnel, not a re-read.</li><li>Running screens are listed with their progress; their finished rows already appear in the question strips, but no verdict is computed until the run writes its summary row. Re-run the generator to refresh.</li></ul>`;
 }
 render();
 </script></body></html>
