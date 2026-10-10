@@ -311,6 +311,9 @@ Source: `evals/runs/_analysis/deep_audit_2026-10-11/` (local, not committed; 25 
 
 ## Progress log
 
+**2026-10-11 02:55**
+- **r7-protect (I75a, pool_protect_per_leg 3) complete:** LoCoMo full 1,540 q 81.4 vs 80.4 (+30/-15, net +15 > band 12.9; every category up); OP-Bench dev 20.6 vs 20.6 (+0.0). Rule verdict NEUTRAL (macro +0.49 < 1) because OP-Bench is unaffected by design; treated as LoCoMo gain + OP-Bench safe -> combined-config CANDIDATE pending blind validation (MAB-CR + ConvoMem). Cost ~30% more rerank; R02 source-family pool (fixed size) in build.
+
 **2026-10-11 (wave 0 measurement, M01/M02)**
 - M01 and M02 of the gap-to-solution plan built (work/m01): the OP-Bench explorer shows finalised `per_probe` scores with the provisional value, basis and a completion state beside them, and aborts if its totals differ from `opbench_summary.json` (440 repetition probes differ, 118 -> 108 pass@0.5 on `full-persp-opb`, official 0.2349 unchanged); a generic reversible evidence-reference normaliser (`memspine_evals/evidence.py`, wired into `errata.py`, the explorer and `forensics_report.py`) resolves 5 of the 8 malformed LoCoMo references mechanically and leaves 3 unresolved. Official labels and the benchmark formula are unchanged. Links: I27, I62.
 
