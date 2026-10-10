@@ -1,0 +1,31 @@
+{
+  "dataset_id": "memoryagentbench_conflict_resolution",
+  "revision_id": "sha256:24d5c3f09ce0ce15",
+  "content_sha256": "24d5c3f09ce0ce15625cb9f8a98f44f0d864ca6c94d7b4ad04eb697ca3a5ff45",
+  "dev_items": [
+    "factconsolidation_mh_32k",
+    "factconsolidation_mh_6k",
+    "factconsolidation_sh_32k",
+    "factconsolidation_sh_6k"
+  ],
+  "heldout_items": [
+    "factconsolidation_mh_262k",
+    "factconsolidation_mh_64k",
+    "factconsolidation_sh_262k",
+    "factconsolidation_sh_64k"
+  ],
+  "seed": null,
+  "created_at": "2026-10-10T20:58:23+00:00",
+  "category_balance": {},
+  "note": "BLIND - validation only, never inspect per-question failures for design. Never used for tuning. dev_items = blind_items = the slice; heldout_items = the rest, unused. 6k + 32k items, sh and mh: 400 q.",
+  "unit": "item (context size)",
+  "split_sha256": "0f4df379dd583330da9b5ee9b14070424873dcd99f7483d6818e703795c9bcca",
+  "blind": true,
+  "blind_items": [
+    "factconsolidation_mh_32k",
+    "factconsolidation_mh_6k",
+    "factconsolidation_sh_32k",
+    "factconsolidation_sh_6k"
+  ],
+  "status": "BLIND - validation only, never inspect per-question failures for design. Never used for tuning. dev_items = blind_items = the slice; heldout_items = the rest, unused."
+}

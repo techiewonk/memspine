@@ -83,6 +83,29 @@ def parse_service_prices(specs: list[str] | None) -> tuple[tuple[str, str, float
 DEFAULT_OUT = Path(__file__).resolve().parents[1] / "runs"
 
 
+def parse_item_ids(value: str | None) -> tuple[str, ...] | None:
+    """``--item-ids``: a comma list, or ``@path`` to a frozen split file / one-id-per-line file.
+
+    A split JSON (``dev_items``, or ``blind_items`` for the blind validation slices) is read
+    as its id list, so a run names the frozen slice instead of pasting 200 ids.
+    """
+    if not value:
+        return None
+    if not value.startswith("@"):
+        return tuple(value.split(","))
+    path = Path(value[1:])
+    text = path.read_text(encoding="utf-8")
+    if text.lstrip().startswith("{"):
+        payload = json.loads(text)
+        ids = payload.get("blind_items") or payload.get("dev_items")
+        if not ids:
+            raise SystemExit(f"--item-ids {value}: no blind_items / dev_items in the file")
+        return tuple(str(i) for i in ids)
+    if text.lstrip().startswith("["):
+        return tuple(str(i) for i in json.loads(text))
+    return tuple(ln.strip() for ln in text.splitlines() if ln.strip())
+
+
 def _dataset(args: argparse.Namespace) -> DatasetAdapter:
     if args.dataset == "synthetic":
         from .datasets import SyntheticDataset
@@ -287,7 +310,7 @@ def cmd_c0_1(args: argparse.Namespace) -> int:
         qa_prompt=args.qa_prompt,
         judge_prompt=args.judge_prompt,
         only_systems=tuple(args.only_systems.split(",")) if args.only_systems else None,
-        item_ids=tuple(args.item_ids.split(",")) if args.item_ids else None,
+        item_ids=parse_item_ids(args.item_ids),
         categories=resolve_categories(args) if args.dataset == "locomo" else None,
         naive_dense_same_embedder=args.naive_dense_same_embedder,
         matched_budget_tokens=args.matched_budget_tokens,

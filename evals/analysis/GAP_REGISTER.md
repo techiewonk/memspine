@@ -247,6 +247,14 @@ One row per subscore of the baseline runs `xb-opb-dev` (OP-Bench dev, 331 probes
 
 Guards for the good subscores (J3, J4, J8, J10): the adoption rule (average-led; macro mean across slices must improve beyond noise; no slice may lose more than its noise band, `GENERALISATION_AUDIT.md` 4.3) is applied to every screen, and each screen already runs LoCoMo dev cat 1-5 and OP-Bench dev together, so a change that wins J1 by emptying contexts but loses J3/J4 or LoCoMo recall is rejected by the per-slice floor. The specific risks are: (1) a relevance gate that fires on fact or value probes and moves the reader to its no-memory path (expected to help, since BASE is 91.6 / 91.8, but unmeasured on our reader: I34); (2) anything that pushes the reader to "use the memories" (`routed_generic`, `grounded_generic_infer`, I3) raising memory citation in fact and value replies: the OP-Bench reader prompt is separate (`opbench_assistant`), but the engine-level context change is not; (3) the owner check (I59) abstaining on single-hop questions whose evidence is stated by the other speaker, which is the J8 floor; (4) the judge rule (I58) must not change cat 5 or OP-Bench scoring (they have their own judges). Read each screen's per-type subscores, not only the macro mean.
 
+## V. Validation sets (user decision 2026-10-11)
+
+Every adopted engine change must pass a BLIND validation on MemoryAgentBench Conflict_Resolution and ConvoMem. BLIND - validation only: never used for tuning, never inspect per-question failures for design; only the aggregate output of `eval_blind.py` is read.
+
+| ID | Item | Detail | Status |
+|---|---|---|---|
+| V03 | blind validation sets (MAB-CR + ConvoMem) | Frozen id lists with content hashes: `analysis/blind_split_mab.json` (400 q: the 6k and 32k FactConsolidation items, sh and mh; judge `alias`, deterministic; supersession-order rate via `mab_gold`) and `analysis/blind_split_convomem.json` (200 q stratified over the 6 evidence types, 34/34/33/33/33/33, picked by sha256 rank; judge `rubric`, abstention items routed to the abstention judge). Cut by `freeze_blind_slices.py` (engine of `make_split.py`), run by `run_blind_validation.sh <arm>` (2-question checks first), scored by `eval_blind.py <arm> --ref <ref>` (aggregates only, same net-vs-band guard as `eval_screen.py`). About 40 + 20 min plus ingestion at ~6 s/q. | built (not yet run) |
+
 ## Stable dev failures (target set for the next round, 2026-10-10)
 
 Wrong in all 12 configurations screened on conv-26/30 (233 q). 4 are errata (0-5, 0-23, 1-9, 1-44). The 13 real ones:
@@ -305,6 +313,9 @@ Source: `evals/runs/_analysis/deep_audit_2026-10-11/` (local, not committed; 25 
 
 **2026-10-11**
 - Gap-to-solution plan written: `docs/GAP_TO_SOLUTION_PLAN.md` (layers L0-L6, anti-overfitting protocol, waves 0-4, path to 90). Codex audit families added as section K. User decisions: E03 and E04 approved behind opt-in flags; fresh blind check = MemoryAgentBench Conflict_Resolution + ConvoMem. In progress by other agents: M01, A03+E06, E05, R02 source-family pool (I75 v2), MAB/ConvoMem wiring. Round 7 arm 1 (I75a leg-protected pool): LoCoMo 1,540 81.4 vs 80.4 (+15 net, band +-12.9, every category up, about 30% more rerank cost); OP-Bench half pending.
+
+**2026-10-11 (V03 blind validation sets built)**
+- MAB-CR (400 q) and ConvoMem (200 q) wired into `run.sh` / `cli.py` (directory `--data`, `--item-ids @split.json`, auto judge and `--per-stratum 1000`), slices frozen with content hashes, `run_blind_validation.sh` and aggregate-only `eval_blind.py` added; ConvoMem abstention items now flagged `abstention` so the abstention judge grades them. BLIND - validation only, never inspect per-question failures for design. Nothing run on the GPU.
 
 **2026-10-10 23:58**
 - **FULL logged run (perspective config, 22b97b9) done.** LoCoMo all 10 convs cat 1-4 (1,540 q): **80.4%** (single 88.7, multi 66.3, temporal 81.0, open 46.9; dev 82.7, held-out 79.0; vs earlier full fixed config 80.1%, +89/-85). OP-Bench all 10 personas (859): **23.5** overall (irrelevant 14.1, baiting 8.2, syc fact/value/memory 76.4/74.9/20.1, repetition 23.9; dev 20.6, held-out 25.5); injection rate 1.0 (no relevance gate in this config).

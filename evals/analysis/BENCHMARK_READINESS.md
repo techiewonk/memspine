@@ -236,3 +236,8 @@ bash evals/run.sh --arm ARM --run-id pb-dev-ret --mode retrieval --topk 10 --dat
    PrefEval so a retrieval run is bounded.
 7. **ConvoMem and MemoryAgentBench split files:** approve the proposed rule (every 5th sorted id as dev; whole size
    tiers as dev / held-out) before any tuning on them.
+
+## 9. Blind validation slices (V03, 2026-10-11)
+
+BLIND - validation only, never inspect per-question failures for design. MAB-CR (6k + 32k items, 400 q) and a 200 q ConvoMem stratified sample are frozen in `analysis/blind_split_mab.json` and `analysis/blind_split_convomem.json`; both datasets run through `run.sh` (directory `--data` allowed, `--item-ids @file`). This supersedes the proposed dev / held-out rule in sections 7 and 8 for these two datasets. Run: `bash evals/run_blind_validation.sh ARM`; score: `python evals/eval_blind.py ARM --ref REF --mab-data data/mab/Conflict_Resolution.parquet` (aggregates only).
+

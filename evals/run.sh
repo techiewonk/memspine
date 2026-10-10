@@ -8,6 +8,10 @@
 #       [--engine-src PATH] [--data PATH] [--dataset NAME] [--categories 1,2,3,4] \
 #       [--batch-turns N] [--force]
 #
+# MemoryAgentBench / ConvoMem (V03 blind validation): --dataset memoryagentbench --data
+# data/mab/Conflict_Resolution.parquet | --dataset convomem --data data/convomem, with a required
+# --questions N and --flags "--item-ids @analysis/blind_split_mab.json" (see run_blind_validation.sh).
+#
 # OP-Bench (local only, no licence): --dataset op_bench --data data/opbench_src --questions N
 # (exact probe count of the slice; --flags "--item-ids ... --opbench-per-task N ...").
 #
@@ -79,8 +83,19 @@ else
       [ -f "$c" ] && { data="$c"; break; }
     done
   fi
-  [ -f "${data:-/nonexistent}" ] || die "dataset file not found; pass --data"
+  [ -e "${data:-/nonexistent}" ] || die "dataset file not found; pass --data"
 fi
+# Blind-validation datasets (V03): a directory is fine for ConvoMem; the judge and the sampling
+# are fixed unless --flags names them. memoryagentbench: the deterministic alias judge (scores
+# supersession by answer match; the supersession-order metric is computed by eval_blind.py).
+# convomem: the default rubric judge routes abstention items to the abstention judge;
+# --per-stratum 1000 keeps every question so item ids are stable (the default 20 would not).
+case "$dataset" in
+  memoryagentbench)
+    case " $flags " in *" --judge-prompt "*) ;; *) flags="$flags --judge-prompt alias" ;; esac ;;
+  convomem)
+    case " $flags " in *" --per-stratum "*) ;; *) flags="$flags --per-stratum 1000" ;; esac ;;
+esac
 
 # Never overwrite a run silently.
 mkdir -p runs/_logs
