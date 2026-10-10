@@ -211,11 +211,33 @@ class SemanticMemory(BaseMemory):
             existing = await self._storage.find_active_fact(
                 record.namespace, record.entity, record.attribute
             )
+            if existing is not None and getattr(self._conflict, "perspective_key", False):
+                existing = await self._incumbent_for_subject(record, existing)
             if existing is not None:
                 return await self._resolve_conflict(index, record, existing)
 
         await self._write_through(index, record)
         return SemanticWriteResult(record=record, action="added")
+
+    async def _incumbent_for_subject(
+        self, record: MemoryRecord, existing: MemoryRecord
+    ) -> MemoryRecord | None:
+        """I55 (``conflict.perspective_key``): the active fact the incoming statement competes
+        with: the newest active record on its key with the same subject and scope. When the
+        latest active fact is about another subject / scope, look for one that is not."""
+        if not self._conflict.coexists(record, existing):
+            return existing
+        rivals = [
+            r
+            for r in await self._storage.list_records(record.namespace, "semantic")
+            if r.entity == record.entity
+            and r.attribute == record.attribute
+            and r.valid_to is None
+            and r.status is RecordStatus.ACTIVATED
+            and not r.quarantined
+            and not self._conflict.coexists(record, r)
+        ]
+        return max(rivals, key=lambda r: r.recorded_at) if rivals else None
 
     # ── stages ───────────────────────────────────────────────────────────────
 

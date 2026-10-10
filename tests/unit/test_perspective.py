@@ -244,10 +244,16 @@ async def test_write_tags_and_content_unchanged() -> None:
     try:
         recs = await eng.write_messages(
             [
-                {"role": "user", "content": "Caroline: My cousin is looking for a club.",
-                 "speaker": "Caroline"},
-                {"role": "user", "content": "Melanie: That is great, do you like clubs?",
-                 "speaker": "Melanie"},
+                {
+                    "role": "user",
+                    "content": "Caroline: My cousin is looking for a club.",
+                    "speaker": "Caroline",
+                },
+                {
+                    "role": "user",
+                    "content": "Melanie: That is great, do you like clubs?",
+                    "speaker": "Melanie",
+                },
             ],
             namespace="a",
         )
@@ -295,15 +301,27 @@ async def test_off_writes_no_perspective_tags() -> None:
 async def _store(eng: Engine) -> None:
     await eng.write_messages(
         [
-            {"role": "user", "speaker": "Caroline",
-             "content": "Caroline: I love volunteering in my community and getting involved."},
-            {"role": "user", "speaker": "Melanie",
-             "content": "Melanie: Nice! Do you like to get involved in the community?"},
-            {"role": "user", "speaker": "Caroline",
-             "content": "Caroline: My cousin is looking for ways to get involved in their "
-             "community."},
-            {"role": "user", "speaker": "Melanie",
-             "content": "Melanie: Tell your cousin about the food bank."},
+            {
+                "role": "user",
+                "speaker": "Caroline",
+                "content": "Caroline: I love volunteering in my community and getting involved.",
+            },
+            {
+                "role": "user",
+                "speaker": "Melanie",
+                "content": "Melanie: Nice! Do you like to get involved in the community?",
+            },
+            {
+                "role": "user",
+                "speaker": "Caroline",
+                "content": "Caroline: My cousin is looking for ways to get involved in their "
+                "community.",
+            },
+            {
+                "role": "user",
+                "speaker": "Melanie",
+                "content": "Melanie: Tell your cousin about the food bank.",
+            },
         ],
         namespace="a",
     )
@@ -320,7 +338,7 @@ async def _ids(
 
 
 async def test_subject_confusion_filter_prefers_the_cousin_record() -> None:
-    """OP-Bench shape: "my cousin ..." must not retrieve the owner's self-only statement first."""
+    """OP-Bench shape: "my cousin ..." must not rank the owner's self-only statement first."""
     query = "My cousin is looking for ways to get involved in their community"
     off = _engine()
     await off.start()
@@ -337,7 +355,9 @@ async def test_subject_confusion_filter_prefers_the_cousin_record() -> None:
         top = records[ids[0]]
         assert "sub:cousin@caroline" in top.tags
         self_only = [
-            i for i in ids if "sub:caroline" in records[i].tags and "sub:cousin@caroline" not in records[i].tags
+            i
+            for i in ids
+            if "sub:caroline" in records[i].tags and "sub:cousin@caroline" not in records[i].tags
         ]
         assert not self_only
         assert fx["perspective"]["about"] == "third"

@@ -89,10 +89,10 @@ from memspine.core.perspective import (
     PerspectiveOptions,
     QuestionPerspective,
     active_asker,
-    attribution_marker,
     factor,
     match_subject,
     perspective_leg,
+    record_marker,
     record_view,
     refine_with_decider,
     resolve_question,
@@ -458,10 +458,10 @@ def _reply_target(turn: Mapping[str, Any], index: int, written: Mapping[int, str
     )
 
 
-def _attributed(record: MemoryRecord) -> MemoryRecord:
+def _attributed(record: MemoryRecord, now: datetime | None = None) -> MemoryRecord:
     """I39: ``record`` shown as ``[about: Caroline's cousin] <content>`` when its subject
     differs from its speaker (a copy; the stored record is untouched)."""
-    marker = attribution_marker(record)
+    marker = record_marker(record, now)
     if marker is None or record.content.startswith(marker):
         return record
     return record.model_copy(update={"content": f"{marker} {record.content}"})
@@ -1458,7 +1458,9 @@ class Engine:
         if memory_type == "episodic":
             opts = self._perspective_options()
             if opts.on:  # I39: speaker / addressee / subject / stance tags; content untouched
-                tags = await self._annotate_perspective(ns, content, source.role, tags, opts)
+                tags = await self._annotate_perspective(
+                    ns, content, source.role, tags, opts, valid_from
+                )
         implicit = self._consume_reads(ns, session_id)
         parents = list(dict.fromkeys([*(derived_from or []), *implicit]))
         if parents:
@@ -2511,7 +2513,7 @@ class Engine:
         speaker of the latest annotated turn."""
         state = self._persp_state.get(ns)
         if state is None:
-            known: set[str] = set()
+            known: set[str] = set(self._perspective_options().speakers)  # I51
             try:
                 for r in await self._records(ns):
                     for tag in r.tags:
@@ -2532,6 +2534,7 @@ class Engine:
         role: str,
         tags: list[str] | None,
         opts: PerspectiveOptions,
+        when: datetime | None = None,
     ) -> list[str]:
         """I39: the tags of ``content``'s perspective. Explicit ``spk:`` / ``addr:`` tags (from
         ``write_messages`` ``speaker`` / ``addressee``) beat the rules; a ``decider`` mode lets
@@ -2556,6 +2559,7 @@ class Engine:
                 known=state["known"],
                 previous=state["last"],
                 axes=opts.axes,
+                when=when or self._clock(),
             )
             read = self._config().read
             if opts.mode == "decider" and read.decider != "heuristic":
@@ -2583,7 +2587,9 @@ class Engine:
         state = await self._persp_state_for(ns)
         return resolve_question(
             query,
-            asker=self._config().read.perspective_asker or active_asker(),
+            asker=self._config().read.perspective_asker
+            or active_asker()
+            or self._perspective_options().owner,
             known=state["known"],
         )
 
@@ -5283,7 +5289,8 @@ class Engine:
             volatile, read_cfg.latest_wins, read_cfg.latest_wins_min_overlap
         )
         if read_cfg.perspective_marker:
-            volatile = [_attributed(r) for r in volatile]  # I39
+            now = active_as_of() or self._clock()
+            volatile = [_attributed(r, now) for r in volatile]  # I39 / I49
         priority = list(volatile)
         if read_cfg.order_by_time_for_ordering and is_ordering(query):
             volatile = sorted(volatile, key=chrono_key)

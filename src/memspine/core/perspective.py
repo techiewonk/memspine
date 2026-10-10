@@ -36,6 +36,7 @@ from collections.abc import Awaitable, Callable, Collection, Iterable, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
+from datetime import UTC, date, datetime, timedelta
 from typing import Any, Protocol
 
 from memspine.core.records import MemoryRecord
@@ -53,11 +54,14 @@ __all__ = [
     "active_asker",
     "asker_scope",
     "attribution_marker",
+    "due_to_for",
     "factor",
     "is_hedged",
     "is_negated",
+    "is_past_plan",
     "match_subject",
     "perspective_leg",
+    "record_marker",
     "record_view",
     "refine_with_decider",
     "resolve_question",
@@ -65,6 +69,19 @@ __all__ = [
     "scope_of",
     "sentence_modality",
 ]
+
+#: Record-tag prefixes written by the layer (the contract other work builds on).
+TAG_SPK = "spk:"  # speaker id
+TAG_ADDR = "addr:"  # addressee id
+TAG_SUB = "sub:"  # subject id or ``<relation>@<anchor>``; ``3p`` = unresolved third party
+TAG_ASK = "ask:"  # asker id (question / request turns)
+TAG_MOD = "mod:"  # fact plan wish hypo opinion question request
+TAG_POL = "pol:"  # neg / pos
+TAG_SCOPE = "scope:"  # event habit standing
+TAG_CERT = "cert:hedged"
+TAG_REP = "rep:"  # reported-speech source id
+TAG_SENSITIVE = "sensitive:"  # W16 category (shared with firewall.sensitive_topics)
+TAG_DUE_TO = "due_to:"  # plan forward validity, YYYY-MM-DD (I49)
 
 #: The namespace owner's id when no speaker is given.
 OWNER = "user"
@@ -82,17 +99,32 @@ class PerspectiveOptions:
 
     mode: str = "off"
     axes: tuple[str, ...] = ALL_AXES
+    #: I51: optional namespace context ``{"owner": id, "speakers": [ids]}``: the participants
+    #: known up front and the default asker.
+    owner: str | None = None
+    speakers: tuple[str, ...] = ()
 
     @classmethod
     def parse(cls, value: Any) -> PerspectiveOptions:
+        owner: str | None = None
+        speakers: tuple[str, ...] = ()
         if isinstance(value, dict):
             mode = str(value.get("mode", "heuristic"))
             axes = tuple(a for a in value.get("axes", ALL_AXES) if a in ALL_AXES)
+            ctx = value.get("context") or {}
+            if isinstance(ctx, dict):
+                owner = str(ctx["owner"]).strip().lower() if ctx.get("owner") else None
+                speakers = tuple(str(s).strip().lower() for s in ctx.get("speakers") or ())
         elif isinstance(value, str):
             mode, axes = value, ALL_AXES
         else:
             return cls()
-        return cls(mode if mode in ("heuristic", "decider") else "off", axes or ALL_AXES)
+        return cls(
+            mode if mode in ("heuristic", "decider") else "off",
+            axes or ALL_AXES,
+            owner,
+            speakers,
+        )
 
     @property
     def on(self) -> bool:
@@ -125,6 +157,7 @@ class Perspective:
     hedged: bool = False
     reported: str | None = None
     sensitive: tuple[str, ...] = ()
+    due_to: str | None = None
 
     def tags(self, axes: Collection[str] = ALL_AXES) -> list[str]:
         out: list[str] = []
@@ -149,6 +182,8 @@ class Perspective:
             out.append(f"rep:{self.reported}")
         if "sens" in axes:
             out.extend(f"sensitive:{c}" for c in self.sensitive)
+        if "mod" in axes and self.due_to:
+            out.append(f"due_to:{self.due_to}")
         return list(dict.fromkeys(out))
 
 
@@ -463,6 +498,7 @@ def resolve_write(
     known: Collection[str] = (),
     previous: str | None = None,
     axes: Collection[str] = ALL_AXES,
+    when: datetime | None = None,
 ) -> Perspective:
     """The perspective of one stored turn. ``known`` = the participants seen so far in the
     namespace (lower-case ids), ``previous`` = the speaker of the preceding turn."""
@@ -513,7 +549,7 @@ def resolve_write(
     if first and (human or spk is None):
         add(Subject(me, "self"))
     elif first and spk == "assistant":
-        add(Subject("assistant", "self"))
+        add(Subject("assistant", "agent"))  # I47: a fact about the assistant itself
     if second:
         add(Subject(addr or "addressee", "addressee"))
     for name in _participant_names(rest, set(known) | ({addr} if addr else set())):
@@ -567,6 +603,7 @@ def resolve_write(
         hedged=is_hedged(body),
         reported=reported,
         sensitive=tuple(sensitive_topics(body)) if "sens" in axes else (),
+        due_to=due_to_for(body, when) if when is not None and "plan" in mods else None,
     )
     return p
 
@@ -626,6 +663,7 @@ class RecordView:
     hedged: bool = False
     reported: str | None = None
     sensitive: frozenset[str] = frozenset()
+    due_to: str | None = None
 
     @property
     def annotated(self) -> bool:
@@ -653,6 +691,7 @@ def record_view(record: MemoryRecord) -> RecordView:
         hedged="cert:hedged" in tags,
         reported=rep[0] if rep else None,
         sensitive=frozenset(_vals(tags, "sensitive:")),
+        due_to=(_vals(tags, "due_to:") or [None])[0],
     )
 
 
@@ -842,6 +881,64 @@ def perspective_leg(
             if len(out) >= top_k:
                 break
     return out
+
+
+_DUE_DAYS = (
+    (re.compile(r"\b(?:tomorrow|tonight|later today)\b", re.I), 1),
+    (re.compile(r"\b(?:this week|next few days|this weekend)\b", re.I), 7),
+    (re.compile(r"\bnext week\b", re.I), 14),
+    (re.compile(r"\bthis month\b", re.I), 31),
+    (re.compile(r"\bnext month\b", re.I), 62),
+    (re.compile(r"\bthis (?:year|summer|winter)\b", re.I), 366),
+    (re.compile(r"\bnext year\b", re.I), 731),
+)
+_DUE_IN = re.compile(
+    r"\bin (\d{1,3}|a|an|one|two|three|four|five|six) (day|week|month|year)s?\b", re.I
+)
+_WORDNUM = {"a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6}
+
+
+def due_to_for(text: str, when: datetime) -> str | None:
+    """I49: the end of a plan's forward validity window, ``YYYY-MM-DD``, from a relative
+    phrase ("tomorrow", "next week", "in 3 months") counted from the mention time ``when``.
+    None for a plan with no stated horizon (a soft deadline: it never lapses)."""
+    days: int | None = None
+    m = _DUE_IN.search(text)
+    if m:
+        n = int(m[1]) if m[1].isdigit() else _WORDNUM[m[1].lower()]
+        days = n * {"day": 1, "week": 7, "month": 31, "year": 366}[m[2].lower()]
+    else:
+        for pattern, d in _DUE_DAYS:
+            if pattern.search(text):
+                days = d
+                break
+    if days is None:
+        return None
+    base = when if when.tzinfo else when.replace(tzinfo=UTC)
+    return (base + timedelta(days=days)).date().isoformat()
+
+
+def is_past_plan(record: MemoryRecord, now: datetime) -> bool:
+    """I49: a plan (no ``mod:fact`` sentence) whose ``due_to`` day is before ``now``."""
+    rv = record_view(record)
+    if not rv.due_to or "plan" not in rv.mods or "fact" in rv.mods:
+        return False
+    try:
+        due = date.fromisoformat(rv.due_to)
+    except ValueError:
+        return False
+    return now.date() > due
+
+
+def record_marker(record: MemoryRecord, now: datetime | None = None) -> str | None:
+    """The line marker: ``[past plan]`` (I49) and / or ``[about: ...]`` (I39)."""
+    parts = []
+    if now is not None and is_past_plan(record, now):
+        parts.append("[past plan]")
+    about = attribution_marker(record)
+    if about:
+        parts.append(about)
+    return " ".join(parts) or None
 
 
 def attribution_marker(record: MemoryRecord) -> str | None:

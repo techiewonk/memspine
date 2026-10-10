@@ -74,6 +74,13 @@ class ConflictOptions(PolicyOptions):
     #: fact's ("Jon works at the bank" after "Jon works as a teller at the city bank")
     #: is a restatement: NOOP instead of superseding the richer fact. Off: unchanged.
     merge_containment: bool = False
+    #: I55 (perspective layer): the conflict key also carries the subject, scope and polarity
+    #: tags (``sub:`` / ``scope:`` / ``pol:``). Two same-key statements about different
+    #: subjects or of different scope (an event vs a standing preference) coexist (ADD); a
+    #: polarity flip on the same subject and scope is a CONTEST (both kept, tagged disputed)
+    #: unless trust or time already decides it as the ladder does. Records without those tags
+    #: behave as before. Off: unchanged.
+    perspective_key: bool = False
 
 
 class ConflictPolicy(BindablePolicy):
@@ -86,6 +93,24 @@ class ConflictPolicy(BindablePolicy):
         options = self.options
         assert isinstance(options, ConflictOptions)
         return options.interval_order
+
+    @property
+    def perspective_key(self) -> bool:
+        """I55: whether the key also carries subject and scope (``sub:`` / ``scope:`` tags)."""
+        options = self.options
+        assert isinstance(options, ConflictOptions)
+        return options.perspective_key
+
+    @staticmethod
+    def coexists(incoming: MemoryRecord, existing: MemoryRecord) -> bool:
+        """I55: two same-key statements about different subjects, or of different scope
+        (an event vs a standing preference), both hold: neither supersedes the other."""
+        for prefix in ("sub:", "scope:"):
+            a = {t for t in incoming.tags if t.startswith(prefix)}
+            b = {t for t in existing.tags if t.startswith(prefix)}
+            if a and b and a != b:
+                return True
+        return False
 
     @staticmethod
     def same_endpoints(incoming: MemoryRecord, existing: MemoryRecord) -> bool:
@@ -126,12 +151,19 @@ class ConflictPolicy(BindablePolicy):
         )
         if not same_key:
             return ConflictVerdict.ADD  # independent facts coexist
+        if options.perspective_key and self.coexists(incoming, existing):
+            return ConflictVerdict.ADD  # another subject / scope: both hold
 
         # R1 — trust gate (E1): markedly less-trusted writes cannot displace
         # the current fact; the store records the rejection as a CONFLICT event.
         if self.trust_gated(incoming, existing):
             return ConflictVerdict.NOOP
 
+        if options.perspective_key:
+            pol_in = {t for t in incoming.tags if t.startswith("pol:")}
+            pol_ex = {t for t in existing.tags if t.startswith("pol:")}
+            if pol_in and pol_ex and pol_in != pol_ex and len(pol_in) == len(pol_ex) == 1:
+                return ConflictVerdict.CONTEST  # a polarity flip on one key
         # R1' — lower-trust contest (opt-in): inside the margin, but less trusted
         # than the current fact, so it may neither supersede nor retract it.
         if options.contest_lower_trust and incoming.trust < existing.trust - 1e-9:
