@@ -286,6 +286,7 @@ def cmd_c0_1(args: argparse.Namespace) -> int:
         max_usd=args.max_usd,
         verify_answer=args.verify_answer,
         retry_refusal=args.retry_refusal,
+        no_record_hint=args.no_record_hint,
         judge_guards=args.judge_guards,
         judge_date_check=args.judge_date_check,
         retrieval_only=args.retrieval_only,
@@ -524,6 +525,7 @@ def build_parser() -> argparse.ArgumentParser:
             "grounded_ordered",
             "grounded_v2",
             "grounded_v3",
+            "grounded_generic",
             "dated_world",
             "abstain",
             "converse",
@@ -546,6 +548,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="re-ask once, with a firmer instruction, when the reader refuses (or answers "
         "empty) on a non-empty context; both answers land in the row meta, the extra call "
         "counts against --max-model-calls; off by default",
+    )
+    c01.add_argument(
+        "--no-record-hint",
+        action="store_true",
+        help="I32: when the question recalls a past event (first-person cues) and the retrieved "
+        "context does not support it, tell the reader no matching memory was found; no extra "
+        "model call; off by default",
     )
     c01.add_argument(
         "--judge-guards",

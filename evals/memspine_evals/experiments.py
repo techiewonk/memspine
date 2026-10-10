@@ -150,6 +150,8 @@ class C01Config:
     verify_answer: bool = False
     #: reader-gap fix: re-ask once, firmer, when the reader refuses (``refusal.py``).
     retry_refusal: bool = False
+    #: I32: tell the reader no memory matches an asserted past event (``no_record.py``).
+    no_record_hint: bool = False
     #: reader-gap fix: empty answers score wrong without a judge call, and ``rubric`` becomes
     #: ``rubric-guarded`` (``judge.GuardedJudge``). Off: judges unchanged.
     judge_guards: bool = False
@@ -586,6 +588,10 @@ def build_reader_and_judge(config: C01Config) -> tuple[Reader, Judge, bool]:
         from .refusal import RefusalRetryReader
 
         reader = RefusalRetryReader(reader)  # type: ignore[assignment]
+    if config.no_record_hint:
+        from .no_record import NoRecordHintReader
+
+        reader = NoRecordHintReader(reader)  # type: ignore[assignment]
     judge = build_judge(
         config,
         openai_compat_chat(
@@ -720,6 +726,7 @@ async def run_c0_1(
             "qa_prompt": config.qa_prompt if config.mode == "qa" else None,
             **({"verify_answer": True} if config.verify_answer else {}),
             **({"retry_refusal": True} if config.retry_refusal else {}),
+            **({"no_record_hint": True} if config.no_record_hint else {}),
             **({"judge_guards": True} if config.judge_guards else {}),
             "judge_prompt": config.judge_prompt if config.mode == "qa" else None,
             **({"opbench_root": config.opbench_root} if config.opbench_root else {}),

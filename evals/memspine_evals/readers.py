@@ -153,6 +153,24 @@ GROUNDED_QA_PROMPT = (
     "Memories:\n{context}\n\nQuestion: {question}\nAnswer:"
 )
 
+#: I3: a prompt for any memory benchmark (no dataset wording). Answers from the memories, treats
+#: them as optional context, lets the newest statement win a conflict unless the question is
+#: about the past, resolves relative dates against each line's own date and the question date,
+#: and refuses with the neutral I1 string when the memories lack the answer.
+GROUNDED_GENERIC_QA_PROMPT = (
+    "Respond to the user's message using the memories below, which are notes from earlier "
+    "conversations. Each line may start with [YYYY-MM-DD], the date it was said. Treat the "
+    "memories as optional context: use a memory only when it bears on the request, and do not "
+    "bring in personal details that are unrelated to it. When two statements conflict, prefer "
+    "the most recent one unless the question asks about the past. Resolve relative times "
+    "(yesterday, last week) against the date of the line they appear in; if a question date is "
+    "given, resolve times in the question against it. If the memories do not contain the "
+    "answer, reply exactly: Not mentioned in the conversation. Never invent specifics "
+    "(names, dates, numbers) the memories do not state. Keep the answer short.\n\n"
+    "Memories:\n{context}\n\nQuestion date: {question_date}\n"
+    "Message: {question}\nAnswer:"
+)
+
 #: Dev reasoning 2026-10-10: ``grounded`` plus three rules from the read failures of the
 #: development conversations - references to earlier lines ("that book you recommended",
 #: "we did it yesterday"), photo captions as evidence, and yes/no inference questions answered
@@ -242,6 +260,7 @@ QA_PROMPTS = {
     "grounded_ordered": GROUNDED_ORDERED_QA_PROMPT,
     "grounded_v2": GROUNDED_V2_QA_PROMPT,
     "grounded_v3": GROUNDED_V3_QA_PROMPT,
+    "grounded_generic": GROUNDED_GENERIC_QA_PROMPT,
     "abstain": ABSTAIN_QA_PROMPT,
     "converse": CONVERSE_QA_PROMPT,
     "dated_planned": DATED_PLANNED_QA_PROMPT,

@@ -729,6 +729,15 @@ DOCTYPE_TAG_PREFIX = "doctype:"
 #: ... add an instruction to the query"). Used as ``embedding.query_instruction``.
 BGE_QUERY_INSTRUCTION = "Represent this sentence for searching relevant passages: "
 
+#: I10: a task-neutral Qwen3-Embedding query instruction for requests, preference queries and
+#: descriptions as well as questions (the common one names "a question about a user's past
+#: conversations"). Opt-in via ``embedding.query_instruction``; it changes the query embedding,
+#: so any arm that sets it must be screened (retrieval-only) before it is trusted.
+GENERIC_QWEN_QUERY_INSTRUCTION = (
+    "Instruct: Given a user message, retrieve memories that are relevant to responding to it\n"
+    "Query: "
+)
+
 #: N44 (gaps plan 2026-10-08, Dakera soft date proximity): a soft temporal span widens
 #: by one span length, and by at least this many days (a one-day span by 3 days).
 TEMPORAL_SOFT_MARGIN_DAYS = 3
