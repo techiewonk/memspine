@@ -176,6 +176,7 @@ from memspine.core.temporal_query import (
     entity_expand_leg,
     entity_leg,
     forget_mentions,
+    has_bridge_cue,
     is_recommendation,
     metadata_leg,
     sentence_leg,
@@ -659,6 +660,11 @@ _FOCAL_ENTITY: ContextVar[str | None] = ContextVar("memspine_focal_entity", defa
 #: list of every stage: each leg, the fusion, the gated candidate pool, the reranker's raw
 #: scores and the final cut. Unset (the default) the hook is a single ``is not None`` test.
 _FORENSICS: ContextVar[dict[str, Any] | None] = ContextVar("memspine_forensics", default=None)
+
+#: R2-1b: the raw reranker score of the second-best candidate of the latest ``_search`` in
+#: this task (None: no rerank ran, fewer than two candidates, or the rerank failed). The
+#: ``bridge_hop_gate = "weak"`` signal: a lone confident anchor with no support.
+_RERANK_SUPPORT: ContextVar[float | None] = ContextVar("memspine_rerank_support", default=None)
 #: Whether the last ``_search`` of the current read reranked its candidates
 #: (``read.rerank_floor="skip"`` needs it at assembly).
 _RERANKED: ContextVar[bool] = ContextVar("memspine_reranked", default=False)
@@ -2567,6 +2573,26 @@ class Engine:
             _log.warning("read.speaker_vote_leg_failed", namespace=ns, error=str(exc))
             return []
 
+    @staticmethod
+    def _bridge_gate(query: str, read: Any) -> bool:
+        """R2-1b (``read.bridge_hop_gate``): whether the bridge hop fires for this read.
+        ``always`` (default) fires; ``cue``: the question describes its answer's entity;
+        ``weak``: the first pass found one confident anchor without support (the
+        second-best raw reranker score is under ``bridge_hop_weak_threshold``);
+        ``cue_or_weak``: either. Records ``bridge_gate`` ("always" / "cue" / "weak" /
+        "skipped") in the forensics."""
+        gate = read.bridge_hop_gate
+        why = "always" if gate == "always" else "skipped"
+        if gate in ("cue", "cue_or_weak") and has_bridge_cue(query):
+            why = "cue"
+        elif gate in ("weak", "cue_or_weak"):
+            support = _RERANK_SUPPORT.get()
+            if support is not None and support < read.bridge_hop_weak_threshold:
+                why = "weak"
+        if (fx := _FORENSICS.get()) is not None:
+            fx["bridge_gate"] = why
+        return why != "skipped"
+
     async def _bridge_leg(
         self,
         query: str,
@@ -4348,6 +4374,7 @@ class Engine:
         if read_cfg.skip_rerank_for_ordering and is_ordering(query):
             reranker = None  # Agent Zero: a relevance reranker scrambles temporal order
         reranked = False
+        _RERANK_SUPPORT.set(None)
         if (fx := _FORENSICS.get()) is not None:
             fx["pool"] = [(record.record_id, score) for record, score in candidates]
             fx["reranker"] = getattr(reranker, "reranker_id", None)
@@ -4366,6 +4393,8 @@ class Engine:
             try:
                 self._rerank_calls += 1
                 raw_scores = await reranker.rerank(query, documents)
+                if len(raw_scores) > 1:
+                    _RERANK_SUPPORT.set(sorted(raw_scores, reverse=True)[1])
                 if (fx := _FORENSICS.get()) is not None:
                     fx["rerank_scores"] = [
                         (record.record_id, float(raw))
@@ -4723,7 +4752,7 @@ class Engine:
                         fused_legs=legs,
                     )
                     scored = scored[:want]
-            if read_now.bridge_hop and scored:
+            if read_now.bridge_hop and scored and self._bridge_gate(query, read_now):
                 # R2-1: key noun phrases of the first-hop hits (not in the question) seed
                 # one extra search; its hits join the final search as the "bridge" leg.
                 bridge = await self._bridge_leg(

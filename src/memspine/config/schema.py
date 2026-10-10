@@ -912,6 +912,17 @@ class ReadConfig(BaseModel):
     #: Off: unchanged.
     bridge_hop: bool = False
     bridge_hop_top_k: int = Field(default=10, ge=1)
+    #: R2-1b: when the hop fires. ``always`` (default): every read. ``cue``: only when the
+    #: question describes its answer's entity ("home country", "where ... move from",
+    #: "the studio that X opened", "her son's"). ``weak``: only when the first pass found
+    #: one confident anchor without support (second-best raw reranker score under
+    #: ``bridge_hop_weak_threshold``). ``cue_or_weak``: either. The decision is recorded
+    #: in ``search_forensics`` as ``bridge_gate``.
+    bridge_hop_gate: Literal["always", "cue", "weak", "cue_or_weak"] = "always"
+    #: Second-best raw reranker score below which the first pass counts as weak. 0.4 was
+    #: chosen offline on the dev forensics (second-best score of the 233 screen questions:
+    #: 31 under 0.4, 28 under 0.35, 40 under 0.5).
+    bridge_hop_weak_threshold: float = Field(default=0.4, ge=0.0, le=1.0)
     #: N06 (plan v3.2, EverMemOS clusters / HyperMem hyperedges, read-time variant): the
     #: embedding neighbourhoods of the top two hits, across sessions, join the search
     #: as RRF legs (two embeds and two vector queries per read). Off: unchanged.

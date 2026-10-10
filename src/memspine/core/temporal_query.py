@@ -39,6 +39,7 @@ __all__ = [
     "entity_expand_leg",
     "entity_leg",
     "forget_mentions",
+    "has_bridge_cue",
     "is_recommendation",
     "metadata_leg",
     "named_terms",
@@ -437,6 +438,39 @@ _BRIDGE_FILLER = frozenset(
     "weeks day days time times today yesterday tomorrow how why then than them they their "
     "your you our its it's i'm i've don't didn't".split()
 )
+
+_CUE_REL = (
+    r"(?:son|daughter|kid|child|husband|wife|spouse|partner|boyfriend|girlfriend|fianc\w+|"
+    r"brother|sister|mother|father|mom|dad|parent|grand\w+|cousin|aunt|uncle|friend|boss|"
+    r"colleague|neighbou?r|roommate|teacher|coach|mentor)"
+)
+_CUE_THING = (
+    r"(?:city|town|place|country|state|school|company|store|shop|restaurant|studio|caf[eé]|"
+    r"hospital|neighbou?rhood|village|house|gym|club|group|event|trip|job|business|app|book|"
+    r"movie|film|song|show|game|album|podcast|article|gift|painting|poem|class|course|"
+    r"festival|concert)"
+)
+_BRIDGE_CUE = re.compile(
+    r"\bhome ?(?:country|town|city|state|land)\b|\bhometown\b|\bnative (?:country|city|town|land)\b"
+    r"|\bwhere\b[^?]*\b(?:mov(?:e|ed|es|ing)|relocat\w+|came|come|grew|grow\w*|originally)\b"
+    r"[^?]*\bfrom\b"
+    rf"|\bthe {_CUE_THING}\s+(?:where|in which)\b"
+    rf"|\bthe {_CUE_THING}\s+(?:that|which)\s+(?:[A-Z]\w+|he|she|they)\s+"
+    r"(?:(?:has|had|have|did)\s+)?(?:recommend\w*|suggest\w*|mention\w*|read|watch\w*|"
+    r"visit\w*|attend\w*|join\w*|bought|got|gave|made|painted|wrote|opened|started|"
+    r"founded|moved)\b"
+    rf"|\b(?:her|his|their|my|\w+'s)\s+{_CUE_REL}'s?\b",
+    re.IGNORECASE,
+)
+
+
+def has_bridge_cue(question: str) -> bool:
+    """R2-1b (``read.bridge_hop_gate``): the question describes its answer's entity instead
+    of naming it ("home country", "where ... move from", "the studio that X opened", a
+    possessive + relation noun like "her son's"), so a second hop may be needed to find
+    the entity first. Deliberately conservative: it fires on about 1 of 80 LoCoMo
+    questions."""
+    return bool(_BRIDGE_CUE.search(question))
 
 
 def bridge_phrases(question: str, texts: Iterable[str], limit: int = 3) -> list[str]:
