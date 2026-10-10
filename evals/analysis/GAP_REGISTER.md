@@ -134,14 +134,17 @@ Wrong in all 12 configurations screened on conv-26/30 (233 q). 4 are errata (0-5
 
 | ID | Gap | Evidence (dev, best config) | Solution options | Status |
 |---|---|---|---|---|
-| R2-1 | Bridge question needs a second hop | 0-11: hop 1 finds "moved from my home country"; "Sweden" sits in another turn linked only by "home country" (vector rank none) | second search seeded with key noun phrases of the first-hop hits (extend `second_round`, which seeds only names/dates); cap 1 extra hop | open - engine agent |
-| R2-2 | Comparison questions about two people ("both", "in common") | 1-3: 0 of 4 gold turns retrieved; each person's facts are separate | for both/in-common questions run the speaker vote once per named person and fuse | open - engine agent |
-| R2-3 | List-mode trigger misses "How did X <verb> ..." multi-item questions | 1-23 (4 gold turns, trigger did not fire) | widen `is_set_question` to how-did/how-has questions with plural objects; measure trigger precision on all 1,540 questions | open - engine agent |
+| R2-1 | Bridge question needs a second hop | 0-11: hop 1 finds "moved from my home country"; "Sweden" sits in another turn linked only by "home country" (vector rank none) | second search seeded with key noun phrases of the first-hop hits (extend `second_round`, which seeds only names/dates); cap 1 extra hop | implemented (`read.bridge_hop`; phrases recorded in forensics as `bridge_phrases`); screen queued |
+| R2-2 | Comparison questions about two people ("both", "in common") | 1-3: 0 of 4 gold turns retrieved; each person's facts are separate | for both/in-common questions run the speaker vote once per named person and fuse | implemented inside list mode (per-speaker votes for both/in-common questions); screen queued with a fresh best-config reference |
+| R2-3 | List-mode trigger misses "How did X <verb> ..." multi-item questions | 1-23 (4 gold turns, trigger did not fire) | widen `is_set_question` to how-did/how-has questions with plural objects; measure trigger precision on all 1,540 questions | implemented (`list_trigger: set_question_wide`): fires on 327 vs 254 of the 1,540 questions; 40-question sample mixed precision; screen queued |
 | R2-4 | Reader picks a wrong line although the gold line is hit #1 | 1-20, 1-48 (gold rank 1, in context) | option to present the top hits first, then neighbours (chronological within each block); `*` markers alone were neutral (C1) | implemented (`--memspine-context-order hits_first|hit_blocks`, `grounded_ordered` prompt, tests); screen queued after A9 |
 | R2-5 | Photo-only or bad evidence labels among stable failures | 0-151, 1-43 (photo), 0-70 (gold D15:13 is "Did you see that band?") | errata review | open |
 | R2-6 | Open-domain inference refused | 0-22, 0-59 | profile/inference memory (B3); prompt rules failed (C3) | open |
 
 ## Progress log
+
+**2026-10-10 09:40**
+- Round 2 code done: R2-1, R2-2, R2-3 (engine), R2-4 (harness); all tests pass. GPU queue: A9 think-on -> R2-4 orders -> R2 engine (fresh best reference, wide trigger, bridge, both).
 
 **2026-10-10 09:00 - round 2 refill**
 - 12 stable failures remain under the best config (list mode fixed 0-38). New gaps R2-1..R2-6 above; agents started for R2-1/2/3 (engine) and R2-4 (harness).
