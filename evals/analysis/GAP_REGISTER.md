@@ -271,6 +271,11 @@ Wrong in all 12 configurations screened on conv-26/30 (233 q). 4 are errata (0-5
 
 ## Progress log
 
+**2026-10-10 23:58**
+- **FULL logged run (perspective config, 22b97b9) done.** LoCoMo all 10 convs cat 1-4 (1,540 q): **80.4%** (single 88.7, multi 66.3, temporal 81.0, open 46.9; dev 82.7, held-out 79.0; vs earlier full fixed config 80.1%, +89/-85). OP-Bench all 10 personas (859): **23.5** overall (irrelevant 14.1, baiting 8.2, syc fact/value/memory 76.4/74.9/20.1, repetition 23.9; dev 20.6, held-out 25.5); injection rate 1.0 (no relevance gate in this config).
+- Full-run forensics (dc94b21): reader ceiling 87.1% with complete evidence; 56 fusion-pool cuts; temporal held-out weak (duration arithmetic). Offline I76/I79 estimate only ~+4 q (not +12).
+- Round 7 (overnight, 5409774) started 23:54: pool protect (I75a), multiplier+protect (I75), post-steps (I56/I57/I76), owner check (I59/I60) on all 1,540 + OP-Bench dev. Combined best config to include the relevance gate + named bypass (r3d, OP-Bench 43.2).
+
 **2026-10-10 (I75/I78 built)**
 - I75a `read.pool_protect_per_leg` (leg-protected pool), I75b `read.perspective_leg: false` (multiplier only) and I78 `pool_cut` logging (fused rank, best leg, leg rank) built, opt-in, defaults unchanged; arms `scr-pool-protect`, `scr-persp-mult`, `scr-persp-mult-protect` written, nothing launched. Tests `tests/unit/test_pool_protect.py`.
 
