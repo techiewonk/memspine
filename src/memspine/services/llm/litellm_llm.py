@@ -18,6 +18,7 @@ for unclosed or stray tags apply only to thinking models (see ``strip_think``).
 
 from __future__ import annotations
 
+import asyncio
 import re
 from typing import Any
 
@@ -119,8 +120,12 @@ class LiteLLMLLM:
             kwargs["aws_region_name"] = self._aws_region
         kwargs.update(options)
         try:
+            # A hard wall-clock bound per attempt: a request the server accepts but never answers
+            # (f-gc3, 2026-10-12: 30+ min silent hang inside a sleep stage) becomes a TimeoutError,
+            # which retry_transient treats as transient and bounds by its total deadline.
             response = await retry_transient(
-                lambda: litellm.acompletion(**kwargs), what=f"chat:{self._model}"
+                lambda: asyncio.wait_for(litellm.acompletion(**kwargs), timeout=self._timeout * 2),
+                what=f"chat:{self._model}",
             )
             content = response.choices[0].message.content
         except Exception as exc:

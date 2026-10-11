@@ -14,8 +14,11 @@ counts — delivery stays pull-based via ``Engine.due()`` in v0.1.
 
 from __future__ import annotations
 
+from memspine.observability.logging import get_logger
 from memspine.workers.pipelines import PipelineContext, projection_on, rule_edges_options
 from memspine.workers.runner import TaskRunner
+
+_log = get_logger(__name__)
 
 __all__ = [
     "PREDICT_CALIBRATE_STAGE",
@@ -90,4 +93,9 @@ async def run_sleep_cycle(runner: TaskRunner, ctx: PipelineContext) -> dict[str,
         order = (*order[:at], RULE_EDGES_STAGE, *order[at:])
     if ctx.config.retention.classes:
         order = (RETENTION_STAGE, *order)
-    return {name: await runner.run(name, ctx) for name in order}
+    stats: dict[str, dict[str, object]] = {}
+    for name in order:
+        # one line per stage, so a silent stall names its stage (f-gc3, 2026-10-12)
+        _log.info("sleep.stage", stage=name)
+        stats[name] = await runner.run(name, ctx)
+    return stats
