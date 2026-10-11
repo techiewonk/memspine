@@ -1,0 +1,633 @@
+{
+  "slug": "mnemon",
+  "name": "Mnemon (memory agent, research snapshot)",
+  "repo": "https://github.com/Grivn/mnemon-memory-agent",
+  "commit": "18760c8",
+  "version": "dsh-mnemon 0.5.13 + 225 research commits (research branch codex/jev-replica-practice at 50a6831d, frozen 2026-09-29); DeepSeek Harness 0.1.5-rc.1; Jev jev-1.13.0",
+  "licence": "MIT (code); the paper in docs/paper is all rights reserved; benchmark text in runs/ keeps each benchmark's licence",
+  "one_line": "A read-time memory agent: raw dated conversation chunks with no LLM on the write path, a small LLM plans five searches and up to three needs, a hosted System-1 decision model (Jev) screens and judges the hits in a bounded loop, and a background LLM pass folds the journal once into topic timelines, value histories and standing instructions that link back to the records; the main model sees a fixed-budget View of about 3.8k tokens.",
+  "locomo": [
+    {
+      "score": "91.7",
+      "protocol": "Standard setting: gpt-4.1-mini (2025-04-14, temp 0) as answerer and planner, Jev 1.13 as judge of records, gpt-4.1-mini grader with the Mem0 lenient prompt; 1,540 q (cat 1-4, original labels); DeepSeek-V4.1-Flash grader gives 91.4 on the same answers; mean answer input 3,814 tokens, 14.3 View items",
+      "who": "vendor",
+      "source": "README.md Results table; docs/paper/data/results.json final.standard.locomo.final (dir steps/mini-simple-consolidated/locomo)"
+    },
+    {
+      "score": "92.2",
+      "protocol": "Reasoning setting: DeepSeek-V4.1-Flash answering with thinking, planning without; DeepSeek grader (gpt-4.1-mini grader 92.8); 1,539 of 1,540 q scored; 95.3 on the authors' revised labels (44 questions dropped, 25 gold answers corrected)",
+      "who": "vendor",
+      "source": "README.md Highlights and best-published table; docs/paper/data/results.json final.reasoning.locomo.final"
+    },
+    {
+      "score": "89.2",
+      "protocol": "Same standard setting without consolidation (core 'simple' configuration): 3,017 answer input tokens, 15.9 items; DeepSeek grader 88.8. Consolidation adds +2.5 points (95% CI 1.1-3.9), mostly multi-hop +6.4 and temporal +5.9",
+      "who": "vendor",
+      "source": "docs/paper/data/results.json final.standard.locomo.core and .paired / .paired_by_type"
+    },
+    {
+      "score": "84.4 (Jev-Mem, not Mnemon)",
+      "protocol": "The author re-ran the released Jev-Mem code (write-time Jev graph) under Mnemon's protocol: gpt-4.1-mini answering once, gpt-4.1-mini grader, 1,540 q; Mnemon 91.7 on the same protocol, paired diff 7.3 (95% CI 5.5-9.2)",
+      "who": "vendor",
+      "source": "README.md 'Raw records or a write-time graph'; docs/paper/data/results.json jevmem; docs/paper/scripts/jevmem_locomo.py"
+    }
+  ],
+  "rows": {
+    "arch.product": {
+      "s": "",
+      "t": "Research snapshot, not a product: a set of DSH (DeepSeek Harness) plugins forked from the dsh-mnemon product (three-tier memory control plane, v0.5.13). Mnemon runs as a second 'replica' DSH instance beside the unchanged main agent and publishes one View per user turn. The README states the work will be folded step by step into mnemon-dev/mnemon and dsh-mnemon; this repo stays frozen.",
+      "e": "README.md 'Components and versions', 'From research to product', 'About this snapshot'; docs/paper/sections/implementation.tex:4-6 (doc)"
+    },
+    "arch.truth": {
+      "s": "Y",
+      "t": "The raw journal records are the only evidence. The consolidated index is an overlay that points back to record ids and can be redone from the records; nothing about a record is decided at write time.",
+      "e": "plugins/dsh-mnemon-strategy-jev-optmem/src/consolidation.ts:6-13 (read); docs/paper/sections/system.tex:66-78 (doc)"
+    },
+    "arch.stores": {
+      "s": "",
+      "t": "Journal Source: one JSON file per collection (records.json, format mnemon-records/v1, default cap 10,000 records / 32 MiB, raised to 200,000 / 1 GiB for BEAM-10M). Consolidation state: one JSON file per workspace (mnemon-consolidation/v1). Replica ledger and channel store as JSON files. Vectors and BM25 index are in-process memory caches, not persisted.",
+      "e": "src/sdk/source/records.ts:77-126 (read); consolidation.ts:33-41,160-179 (read); src/sdk/source/vectors.ts:49-80 (read); src/sdk/source/source.ts:322-333 (read)"
+    },
+    "arch.graphdb": {
+      "s": "N",
+      "t": "No graph database. The only links are index items (events, values, directives) holding lists of record ids.",
+      "e": "consolidation.ts:27-31 (read)"
+    },
+    "arch.scope": {
+      "s": "P",
+      "t": "Scope is the DSH workspace (workspaceId) plus record scope 'project' or 'daily'; journal records are tagged with the git branch. Ledger and consolidation state are per workspace (sha256 of workspaceId). No user/tenant model beyond workspace; the benchmark runs one workspace per conversation.",
+      "e": "plugins/dsh-mnemon-source-journal/src/source.ts:7-17 (read); consolidation.ts:163 (read); scripts/bench/seed.ts:45-46 (read)"
+    },
+    "write.entry": {
+      "s": "Y",
+      "t": "Records enter through the Source mutate API: 'batch-create' (1 to 1,000 records per call, creation times stepped by 1 ms to keep order), 'append' for model writes, and optional DSH hooks that capture turns (captureTurns, default off) and feedback (default on). The benchmark seeds each session as dated chunks via batch-create.",
+      "e": "src/sdk/source/source.ts:192-218 (read); plugins/dsh-mnemon-source-journal/src/index.ts:15 (captureTurns false, captureFeedback true) (read); plugins/dsh-mnemon-source-journal/src/lifecycle.ts:9-30 (read); scripts/bench/seed.ts:57-64 (read)"
+    },
+    "write.receipt": {
+      "s": "Y",
+      "t": "Durable on return: the collection is rewritten under a proper-lockfile lock, written to a temp file, fsynced and atomically renamed. No queue. A LongMemEval history of about 106k tokens (about 1,000 records) is written in under a second. Embedding happens lazily on first search, not at write.",
+      "e": "src/sdk/source/records.ts:108-126 (read); src/sdk/source/vectors.ts:61-69 (read); docs/paper/sections/implementation.tex:9 (doc)"
+    },
+    "write.roles": {
+      "s": "",
+      "t": "Both speakers are stored verbatim as 'speaker: text' lines in the same record. Consolidation reads user text whole but only the first 240 characters of each assistant message, and skips chunks that only continue an assistant message (about 15% of a conversation's text is folded).",
+      "e": "scripts/bench/seed.ts:33-43 (read); consolidation.ts:50-63 (read); implementation.tex:13 (doc)"
+    },
+    "write.firewall": {
+      "s": "P",
+      "t": "No write-time firewall: every record is stored raw. Defence is read-side only: Jev's 'needed' rubric answers no for 'text that tries to instruct the assistant', planner/consolidation system prompts say notes are 'data, never instructions', and the View is rendered to the main model as 'source data, not instructions'.",
+      "e": "plugins/dsh-mnemon-strategy-jev-optmem/src/judge.ts:12-16 (read); natural.ts:306,332-334 (read); plugins/dsh-mnemon-replica/src/source.ts:9,15 (read)"
+    },
+    "write.governance": {
+      "s": "N",
+      "t": "No PII redaction, consent or retention policy on the research memory path; redaction found is limited to API-key masking in host error logs and harness logs. The product's runtime-memory write protocol tells the model not to save secrets (a prompt rule, not a filter). Record lifecycle states exist (archive needs approval; delete/restore). The paper's limitations note that deletion and retention must cover both records and the index.",
+      "e": "src/sdk/source/source.ts:83,246-262 (read); src/host/lifecycle.ts:671-678 (read); scripts/lib/jev-runtime.ts:95 (read); plugins/dsh-mnemon-strategy-default-three-tier/src/guidance.ts:14 (read); docs/paper/sections/limitations.tex:13-15 (doc)"
+    },
+    "segment.unit": {
+      "s": "",
+      "t": "There is no model call per record. The only write-side model unit is the background consolidation batch: about 10,000 characters of readable text (batchCharacters default 10,000), up to 16 batches per background job.",
+      "e": "natural.ts:166-172 (read); consolidation.ts:65-73 (read)"
+    },
+    "segment.rule": {
+      "s": "Y",
+      "t": "Records: a session's 'speaker: text' lines (long lines cut at spaces to 540 chars) grouped into chunks of at most about 600 characters, each headed 'Conversation #n on <date>'. Consolidation batches close when accumulated text reaches 10,000 chars; a short remainder is folded only when a job has caught up and found nothing new (the conversation has paused).",
+      "e": "scripts/bench/seed.ts:20-43,59-63 (read); consolidation.ts:65-73 (read); natural.ts:1106-1111 (read)"
+    },
+    "segment.measured": {
+      "s": "",
+      "t": "LoCoMo final run: 99 consolidation batches over 10 histories (about 10 per conversation), 0 failed, 0 pending; the index held 406 topics, 1,153 events, 766 values and 0 instructions. Record count per LoCoMo history not reported (about 1,000 records for a 106k-token LongMemEval history).",
+      "e": "docs/paper/data/results.json final.standard.locomo.write (read); implementation.tex:9 (doc)"
+    },
+    "extract.calls": {
+      "s": "O",
+      "t": "Zero LLM calls on the record write path. Consolidation (opt-in, on in the 91.7 run) makes one DeepSeek-V4.1-Flash call (no thinking, max 8,192 output tokens) per ~10k-char batch, about 10 per LoCoMo conversation, in background jobs that run before the first question (--warm 12/20).",
+      "e": "natural.ts:1095-1100 (read); results.json final.standard.locomo.write (read); docs/reports/phase03-preregistration-20260925.md:1053,1154 (doc)"
+    },
+    "extract.facts": {
+      "s": "O",
+      "t": "Consolidation writes 'facts' as changeable values keyed 'thing · attribute' (number, date, place, status, version, name) with a dated history, plus one-sentence events (at most 30 words) on topic threads; each item carries the ids of its source records.",
+      "e": "consolidation.ts:75-82,129-150 (read)"
+    },
+    "extract.episode": {
+      "s": "N",
+      "t": "No episode narratives. The closest are per-topic timelines of short events.",
+      "e": "consolidation.ts:183-267 (read)"
+    },
+    "extract.dates": {
+      "s": "Y",
+      "t": "Every record is headed with its session date; every event, value and directive is stored with the session date (YYYY/MM/DD). Relative dates are not resolved at write time; the answer prompt tells the reader to resolve 'last week' from the conversation date. Opt-in read-time notes (materialize, not in the final run) do resolve relative dates.",
+      "e": "scripts/bench/seed.ts:61 (read); consolidation.ts:81 (read); scripts/lib/jev-runtime.ts:92 (read); natural.ts:449-453 (read)"
+    },
+    "extract.neighbours": {
+      "s": "Y",
+      "t": "Each fold prompt lists the existing threads (with event count and last date), every state key with its latest value, and the directives, so the model reuses thread ids and repeats a key to record a change. For very long memories (indexLimit, BEAM-10M) it shows at most 120 threads, 240 values and 60 directives: half by word overlap with the batch, half by recency.",
+      "e": "consolidation.ts:84-115 (read); scripts/lib/jev-runtime.ts:237 (read); implementation.tex:15 (doc)"
+    },
+    "extract.failure": {
+      "s": "Y",
+      "t": "A reply that does not parse is asked again once (two attempts), then the batch is split in halves and each half gets up to two attempts of its own; a half that still fails is counted failed. An exception restores the pre-batch memory and stops folding until the next job. State is saved after every batch. Records stay searchable regardless, so consolidation lag or failure loses no evidence.",
+      "e": "natural.ts:1095-1117 (read); system.tex:77 (doc)"
+    },
+    "graph.entities": {
+      "s": "N",
+      "t": "No entity extraction.",
+      "e": "consolidation.ts:75-82 (read)"
+    },
+    "graph.resolution": {
+      "s": "P",
+      "t": "No entity resolution. Only thread reuse (by id, or by case-insensitive title match for 'new: <title>') and fact-key reuse (lower-cased exact key).",
+      "e": "consolidation.ts:137-149 (read)"
+    },
+    "graph.edges": {
+      "s": "N",
+      "t": "No relationship edges. Index-to-record links (records[]) are the only links.",
+      "e": "consolidation.ts:28-30 (read)"
+    },
+    "graph.communities": {
+      "s": "P",
+      "t": "Topic threads act as clusters: the fold model assigns each event to one specific sub-topic thread (it is told to split a project into parts). LoCoMo produced 406 threads over 10 conversations.",
+      "e": "consolidation.ts:77 (read); results.json final.standard.locomo.write (read)"
+    },
+    "time.fields": {
+      "s": "P",
+      "t": "Records: createdAt, updatedAt, date (day), version, state, signals, and a history of up to 50 earlier versions (title, content, state, data) appended on every revision. Index: session date per event, value and directive; value history as dated list with a conflict flag. No valid-from/valid-to intervals.",
+      "e": "src/sdk/source/source.ts:136-138 (read); src/sdk/source/records.ts:136-145 (read); consolidation.ts:28-30 (read)"
+    },
+    "time.update": {
+      "s": "Y",
+      "t": "Three mechanisms. (1) At read, Jev answers 'no longer current?' per judged record with peers visible; at p>=0.5 the record leaves the View and is listed under 'No longer current' (auto mode keeps it, marked). (2) Consolidation appends a new dated value under the same key and sets conflict=true when a value contradicts an earlier one without a stated change. (3) The Source SDK supports explicit supersedes {id, version} revisions.",
+      "e": "judge.ts:26-30 (read); natural.ts:187-218,1039 (read); plugins/dsh-mnemon-replica/src/source.ts:13-17 (read); consolidation.ts:78,146-150 (read); src/sdk/source/source.ts:60,143-147 (read)"
+    },
+    "time.dedup": {
+      "s": "P",
+      "t": "Raw records written by create, append or batch-create are not deduplicated. A model 'propose' that exactly repeats an existing record in the same state (same scope, date, kind, title, content and data) is merged into it with a 'repeat-proposal' revision and signals+1. The View drops items whose whitespace-normalised text repeats; directives restating an existing one (>=80% word overlap) are skipped; captured events are idempotent by eventKey.",
+      "e": "src/sdk/source/source.ts:198-201 (read); natural.ts:191-194 (read); consolidation.ts:124-126,153 (read); plugins/dsh-mnemon-source-journal/src/lifecycle.ts:28 (read)"
+    },
+    "derive.session": {
+      "s": "O",
+      "t": "No session summary in the reported system. A separate 'notes' memory mode (bench arm) writes per-session notes with DeepSeek-V4.1-Flash; the paper's final configuration uses raw-records and reports raw beat notes.",
+      "e": "scripts/bench/run.ts:13-14,213 (read); scripts/bench/notes.ts (read); docs/pr-assets/phase01-20260925/raw-vs-notes.svg (doc)"
+    },
+    "derive.profile": {
+      "s": "P",
+      "t": "No user profile object. Consolidation keeps 'directives': standing instructions and lasting preferences the user states, shown first in every View (budget 1,500 chars). LoCoMo produced 0 directives.",
+      "e": "consolidation.ts:79,220-226 (read); results.json final.standard.locomo.write (read)"
+    },
+    "derive.entity": {
+      "s": "N",
+      "t": "No entity summaries. Per-topic text for ranking is title, span and latest three events.",
+      "e": "consolidation.ts:189-192 (read)"
+    },
+    "derive.background": {
+      "s": "O",
+      "t": "Replica background jobs (trigger 'background') expand unread stubs, merge the ledger and, with consolidation configured, read the journal after a watermark and fold it; when caught up they pre-embed thread and value texts so no View waits. In the benchmark, 12-20 warm jobs run before the first question.",
+      "e": "natural.ts:868-878,1071-1127 (read); scripts/bench/run.ts:141-151 (read)"
+    },
+    "derive.forget": {
+      "s": "N",
+      "t": "No decay or forgetting. Records only leave by archive (approval) or delete (soft, restorable). Stale facts are handled at read by Jev's 'no longer current' judgment.",
+      "e": "src/sdk/source/source.ts:83,246-262 (read)"
+    },
+    "index.embed": {
+      "s": "O",
+      "t": "nomic-embed-text served locally through an Ollama-compatible /api/embed endpoint, with search_query/search_document prefixes; off unless an embedding endpoint is configured (on in all reported final runs).",
+      "e": "consolidation.ts:279-295 (read); plugins/dsh-mnemon-source-journal/src/index.ts:16-17 (read); scripts/lib/jev-runtime.ts:209,240 (embedding and hybrid set only when --embed-url is given) (read); cordis.patch.yml:37-40 embedding.enabled false (read); README.md components table (doc)"
+    },
+    "index.lexical": {
+      "s": "Y",
+      "t": "In-process BM25 (k1 1.2, b 0.75) with CJK bigrams and literal codes over title, content and data of each record; optionally cached per snapshot (searchCache) for large journals; also offers pseudo-relevance feedback terms.",
+      "e": "src/sdk/source/lexical.ts:1,42 (read); src/sdk/source/source.ts:322-337 (read)"
+    },
+    "index.vector": {
+      "s": "O",
+      "t": "Brute-force cosine over every record held in an in-memory map (embedded lazily on first search, 2,048 at a time for large journals); no ANN. Search latency 14-18 ms warm on LoCoMo/LME, 248 ms on BEAM-10M's 108,810-record history.",
+      "e": "src/sdk/source/vectors.ts:49-80 (read); README.md 'Every benchmark and tier' table (doc)"
+    },
+    "read.rewrite": {
+      "s": "Y",
+      "t": "The planner (System 2 LLM, reads only the last six messages) writes three searches worded as a stored record would word them plus one invented answering note (HyDE); with the raw message that gives five searches. The loop may ask for one reworded search per unmet need.",
+      "e": "natural.ts:345-373,398-406 (read); system.tex:83-88 (doc)"
+    },
+    "read.analysis": {
+      "s": "Y",
+      "t": "A parallel need-plan call lists at most three needs, 'NEED:' or 'ALL:' (every instance: count, total, list); a regex on count words also marks ALL in non-simple modes. An optional intent label (fact/collect/suggest) exists but is off in the final run.",
+      "e": "natural.ts:374-396,917-918 (read)"
+    },
+    "read.legs": {
+      "s": "Y",
+      "t": "Each search runs BM25 over the journal and, when an embedding endpoint is configured (hybrid; on in all final runs), cosine ranking of record content cut at depth 200, fused by RRF (k 60); 20 hits per page. The per-search lists are mixed into a pool of at most 48 with an equal quota per search, then summed reciprocal rank. Jev screens the whole pool.",
+      "e": "src/sdk/source/source.ts:333-339 (read); src/sdk/source/vectors.ts:62-88 (read); scripts/lib/jev-runtime.ts:240 (read); natural.ts:411-417,572-591,922-928 (read)"
+    },
+    "read.temporal": {
+      "s": "P",
+      "t": "No temporal retrieval leg. Records carry session dates in their text; the route supports since/until filters but the planner does not use them. Dates and arithmetic are left to the answering model; consolidation timelines give ordered dated events.",
+      "e": "src/sdk/source/source.ts:314-317 (read); system.tex:99 (doc)"
+    },
+    "read.traversal": {
+      "s": "P",
+      "t": "No graph traversal. Bottom-up 'light-up': index topics and values linked to the View's own records are proposed, plus the 12 nearest topics and 16 nearest values to the message; records linked from shown index items may be re-read and added (up to 8) if Jev calls them needed.",
+      "e": "consolidation.ts:183,201-210 (read); natural.ts:1135-1189 (read)"
+    },
+    "rank.fusion": {
+      "s": "Y",
+      "t": "RRF k=60 at two levels: BM25 vs vector within a search, and across searches when pooling.",
+      "e": "src/sdk/source/vectors.ts:83-88 (read); natural.ts:411-417 (read)"
+    },
+    "rank.rerank": {
+      "s": "P",
+      "t": "No cross-encoder. Jev (hosted proprietary System-1 decision model) plays the reranker: a compact 'needed?' screen over the 48-record pool (120-600 char excerpts), then a joint judgment of up to 40 records per call on 'needed' and 'no longer current', each returned as a probability.",
+      "e": "judge.ts:44-80 (read); natural.ts:270-282,977-986 (read); implementation.tex:20 (doc)"
+    },
+    "rank.gate": {
+      "s": "Y",
+      "t": "In simple mode (the reported system) the View rules use only Jev's p>=0.5 decision and its order (calibration-invariant by construction; simple mode sets enter, stay and withdraw to 0.5). Records judged no longer current are withdrawn; when the need plan names no need, the View shows only what Jev calls needed. A separate gate republishes the previous View unchanged (one short Jev call) when nothing changed and Jev's 'need more?' is under 0.3, which keeps the main prompt cache warm; that 0.3 line is hand-set and outside the invariance claim.",
+      "e": "natural.ts:144,883-896,1034-1044 (read); system.tex:104-118 (doc)"
+    },
+    "rank.agentic": {
+      "s": "O",
+      "t": "Bounded judge-act loop (on in the final run: --loop 3 --simple): Jev tables which judged records satisfy each need; an unmet single need pages the search that ranked its lead, then asks the planner for one new search, then is dropped; an ALL need keeps paging while new positives appear. Default loop is 0 in code.",
+      "e": "natural.ts:696-795,152 (read); docs/reports/phase03-preregistration-20260925.md:520,612 (doc)"
+    },
+    "answer.shape": {
+      "s": "",
+      "t": "One View, coarse to fine: standing instructions (<=1,500 chars), a one-line topic directory (<=1,500), chosen topic timelines (<=3,500, <=1,500 per thread, events linked to the View's records kept first), value histories (<=1,500), then raw records (Jev's yes, then Jev's order) up to 16 items and 12,000 characters in total, trimmed from the end to make room for the index; superseded items listed in a short 'No longer current' block.",
+      "e": "consolidation.ts:183,213-267 (read); natural.ts:1039,1135-1197 (read); scripts/lib/jev-runtime.ts:242 (read); plugins/dsh-mnemon-replica/src/source.ts:11-17 (read)"
+    },
+    "answer.size": {
+      "s": "",
+      "t": "LoCoMo final: 3,814 answer-model input tokens per question (14.3 View items); 3,017 without consolidation; 1,173-1,544 for earlier, smaller Views. Jev separately reads about 35k tokens per question (34,956) at $0.042/M.",
+      "e": "docs/paper/data/results.json final.standard.locomo and gpt41mini_chain.locomo.runs (read)"
+    },
+    "answer.prompt": {
+      "s": "",
+      "t": "Short QA system prompt per benchmark: answer briefly from the stored memory in context, give dates resolving relative times from the conversation date, say 'not mentioned' if absent. Main model sees the View as a memory fragment marked as source data, not instructions.",
+      "e": "scripts/lib/jev-runtime.ts:86-92,275 (read); plugins/dsh-mnemon-replica/src/source.ts:15 (read)"
+    },
+    "eval.best": {
+      "s": "",
+      "t": "91.7 (gpt-4.1-mini answer and grader, 1,540 q, original labels); 92.2 in the reasoning setting (DeepSeek-V4.1-Flash, DeepSeek grader); 95.3 on author-revised labels.",
+      "e": "README.md; docs/paper/data/results.json final (read)"
+    },
+    "eval.outside": {
+      "s": "N",
+      "t": "No independent re-run of Mnemon. Baselines are OmniMemEval's published numbers (gpt-4o-mini grader), not re-runs, so comparisons carry a 1-2 point grader gap. The author did re-run Jev-Mem's released code under Mnemon's protocol (84.4 vs 91.7).",
+      "e": "docs/paper/sections/protocol.tex:18-22 (doc); README.md (doc)"
+    },
+    "eval.models": {
+      "s": "",
+      "t": "Reader and planner gpt-4.1-mini (temp 0); judge Jev 1.13; consolidation DeepSeek-V4.1-Flash (no thinking); grader gpt-4.1-mini (primary) and DeepSeek-V4.1-Flash, agreeing on 96-97% of answers (Cohen's kappa 0.85-0.89).",
+      "e": "docs/paper/sections/protocol.tex:11-18 (doc); docs/run-commits.json (read)"
+    },
+    "eval.rigour": {
+      "s": "P",
+      "t": "Strong on reproducibility: run records, per-run commits, data checksums and a collect.py that recomputes results.json byte for byte. Weak on held-out status: the limitations say the system was developed on LoCoMo and LongMemEval and consolidation designed after seeing HaluMem and BEAM-100K, so no benchmark is held out; each configuration ran once and two identical runs differed by up to 2.6 points; failed or empty-View questions were answered once more; the final LoCoMo run spans two code commits.",
+      "e": "docs/paper/sections/limitations.tex:4-8 (doc); protocol.tex:26 (doc); docs/run-commits.json phase03-20260925/steps/mini-simple-consolidated/locomo (read)"
+    },
+    "cost.write": {
+      "s": "",
+      "t": "Record write: zero LLM calls, embeddings only (local). Consolidation for all 10 LoCoMo histories: 99 DeepSeek calls, $0.13 total, $0.013 per history at off-peak list prices. Jev-Mem's write-time graph cost $0.12 per history (12,041 Jev calls).",
+      "e": "results.json final.standard.locomo.write and jevmem.construction (read)"
+    },
+    "cost.read": {
+      "s": "",
+      "t": "Per LoCoMo question (median): 2 parallel planner calls + 1 answer call (+1 reworded-search call for 6-31% of questions), about 5 Jev calls in 4 waves (5.24 mean), 7 searches; $3.27 per 1,000 questions covering answer, planner and Jev; p50 latency 9.6 s on a shared laptop with public APIs.",
+      "e": "README.md 'Every benchmark and tier' and 'Work per question' (doc); results.json final.standard.locomo.final (read)"
+    },
+    "cost.where": {
+      "s": "",
+      "t": "Hosted: gpt-4.1-mini (OpenAI), DeepSeek-V4.1-Flash (DeepSeek API), Jev (TypeSafe API, proprietary). Local: nomic-embed-text, BM25, storage.",
+      "e": "README.md components and keys tables (doc); limitations.tex:10-11 (doc)"
+    },
+    "trust.provenance": {
+      "s": "P",
+      "t": "Every index item lists the record ids it came from, and every View item carries sourceTypeId, resourceId, revision and a content digest; shown items are re-read from the Source before publication. No trust score or speaker-provenance class.",
+      "e": "consolidation.ts:28-30 (read); natural.ts:250-251,1045-1052 (read)"
+    },
+    "trust.erasure": {
+      "s": "P",
+      "t": "Delete and archive change record state (soft, restorable). The consolidation index is not updated when a record is deleted, so derived text about it survives (inferred; the paper says deletion must cover both).",
+      "e": "src/sdk/source/source.ts:246-262 (read); consolidation.ts (no delete path found, inferred); limitations.tex:15 (doc)"
+    },
+    "trust.auth": {
+      "s": "P",
+      "t": "Host management RPCs default to loopback authority (remoteAccess 'read-only'; 'trusted-host' opt-in). No per-user auth on memory in the research path.",
+      "e": "src/host/plugin.ts:150-155 (read); src/host/config.ts:201 (read)"
+    },
+    "trust.sharing": {
+      "s": "P",
+      "t": "The replica (a second agent instance with the same Sources) publishes a versioned View into the main instance through a file-based channel store with leases; the product line also ships team-coordination and memory-space plugins (not traced here).",
+      "e": "plugins/dsh-mnemon-replica/src/index.ts:13-40 (read); package.json dependencies (read)"
+    }
+  },
+  "layers": {
+    "raw": "Y",
+    "segment": "Y",
+    "episode": "N",
+    "facts": "O",
+    "graph": "N",
+    "bitemporal": "N",
+    "session_summary": "O",
+    "entity_summary": "N",
+    "profile": "P",
+    "prospective": "N",
+    "procedural": "N",
+    "reflection": "N",
+    "shared": "P",
+    "firewall": "P",
+    "provenance": "P"
+  },
+  "extras": [
+    {
+      "phase": "rank",
+      "param": "System-1 decision model (Jev)",
+      "t": "A hosted model answers typed yes/no propositions with a probability, up to 40 records per call, about 0.34 s per wave; AUC 0.942 separating gold evidence on 14,359 records vs DeepSeek 0.900 and gpt-4.1-mini 0.853 at 3-11x the latency.",
+      "e": "README.md 'System 1 against LLMs' (doc); judge.ts (read)"
+    },
+    {
+      "phase": "rank",
+      "param": "Calibration invariance",
+      "t": "All rules compare probabilities only with each other or with 0.5, so any monotone recalibration fixing 0.5 leaves the View unchanged; the judge can be swapped without retuning. Holds for the simple-mode rules; the defaults outside simple mode (enter 0.4, stay 0.3, withdraw 0.6, best-of filter 0.1) and the unchanged-View gate (0.3) are hand-set lines.",
+      "e": "docs/paper/sections/system.tex:104-118 (doc); natural.ts:141,144,635,1039 (read)"
+    },
+    {
+      "phase": "read",
+      "param": "Need table",
+      "t": "Jev scores each judged record against each planner-named need (24 records per call), and the loop acts only on open needs: met, page, re-search, or give up.",
+      "e": "natural.ts:707-795 (read)"
+    },
+    {
+      "phase": "answer",
+      "param": "Unchanged-View gate for prompt cache",
+      "t": "When nothing in the store changed and Jev says the current View is enough (need-more < 0.3), the same View is republished so the main model's prompt prefix stays cached.",
+      "e": "natural.ts:881-896 (read)"
+    },
+    {
+      "phase": "read",
+      "param": "Fast mode without planner (--feedback)",
+      "t": "Searches the question, then pseudo-relevance-feedback words of its best hits (the Source's 'expand'); no System-2 planning call. LoCoMo 88.4 at 3.3 s p50 (simple-fast) and 88.7 at 2.9 s (older fast arm), vs 89.2 at 7.7 s for the planner version (no consolidation).",
+      "e": "natural.ts:96-102,909-915 (read); src/sdk/source/lexical.ts:59-71 (read); results.json gpt41mini_chain.locomo.runs fast and simple-fast (read)"
+    },
+    {
+      "phase": "extract",
+      "param": "Read-time notes (materialize)",
+      "t": "Opt-in: only records that reach Jev's short list are rewritten into dated notes by the recall model, once per revision, four per call; not in the final configuration.",
+      "e": "natural.ts:63-67,449-479 (read)"
+    },
+    {
+      "phase": "read",
+      "param": "Cached-prefix LLM listing recall",
+      "t": "Older 'llm' recall mode: the whole ledger as one stable, append-only prompt prefix so the provider cache hits, the dialogue last; superseded by bounded cue recall because it grows with memory.",
+      "e": "natural.ts:307-330 (read)"
+    },
+    {
+      "phase": "index",
+      "param": "Large-journal mode (BEAM-10M)",
+      "t": "Journal sized to 200,000 records / 1 GiB, word index cached per snapshot, vectors embedded in 2,048 chunks, a warm question builds the index; cost per question grows 1.11x from BEAM-100K to BEAM-10M (80x records).",
+      "e": "scripts/bench/run.ts:45-47 (read); src/sdk/source/vectors.ts:61-69 (read); README.md Highlights (doc)"
+    },
+    {
+      "phase": "eval",
+      "param": "Effective cost index (ECI)",
+      "t": "ECI = (1 - accuracy) + context / full-context tokens, the expected cost when each error is repaired by one full-context answer; Mnemon 0.259 on LoCoMo vs next best 0.337 (mem9).",
+      "e": "README.md Results (doc)"
+    },
+    {
+      "phase": "eval",
+      "param": "Revised LoCoMo labels",
+      "t": "Authors drop 44 unusable questions and correct 25 gold answers; reported beside, not instead of, original-label scores.",
+      "e": "docs/paper/sections/protocol.tex:9 (doc)"
+    },
+    {
+      "phase": "answer",
+      "param": "Stable View rendering and delta delivery",
+      "t": "With delivery 'stable' (used in all benchmark runs) the same selection renders as the same text: no per-input counters, items sorted by source and id, superseded items named in a fixed block; the main Host can deliver only the changed part ('delta'). Both keep the answer model's prompt prefix reusable.",
+      "e": "plugins/dsh-mnemon-replica/src/source.ts:6-18 (read); scripts/bench/run.ts:224 (read); scripts/lib/jev-runtime.ts:42-43 (read)"
+    },
+    {
+      "phase": "read",
+      "param": "Exact-snapshot pinned read grants",
+      "t": "A View pins the record snapshot it was composed from (at most 16 snapshots / 64 MiB); every search in that View reads the pinned copy, and eviction fails closed ('compose a new View') rather than substituting newer data.",
+      "e": "src/sdk/source/source.ts:101-122,310 (read)"
+    },
+    {
+      "phase": "read",
+      "param": "Re-read before publish",
+      "t": "Items the main model currently sees are re-read each turn (up to 20 ids in one call) so edits and deletions leave the View promptly; anything selected but not observed this turn is re-read and dropped if gone.",
+      "e": "natural.ts:846-865,1045-1051 (read)"
+    },
+    {
+      "phase": "read",
+      "param": "Ledger with sweeps and backfill cursors",
+      "t": "The replica keeps a per-workspace ledger of items seen; complete Sources are swept (default every 60 s, background jobs) to retire deletions, and Sources too large to enumerate are marked partial and read backwards by creation-time cursor.",
+      "e": "natural.ts:139,797-843 (read)"
+    },
+    {
+      "phase": "rank",
+      "param": "Hysteresis outside simple mode",
+      "t": "Default View rules: an item enters at Jev needed>=0.4, stays at >=0.3, and is withdrawn when 'no longer current' >=0.6, so a View does not flicker turn to turn. Simple mode (the reported system) replaces all three with 0.5.",
+      "e": "natural.ts:140-141,187-218,1039 (read)"
+    },
+    {
+      "phase": "rank",
+      "param": "Tailored rubric for suggestion requests",
+      "t": "Opt-in intent label: for 'suggest' requests Jev is asked whether an item tells how to fit the user (tastes, habits, past choices) rather than whether the reply should use it; added because the plain rubric surfaced 6.7% of such evidence in phase 1.",
+      "e": "judge.ts:17-25 (read); natural.ts:921 (read)"
+    },
+    {
+      "phase": "rank",
+      "param": "Compact screening request",
+      "t": "The pool screen states the rubric once, shows the last four messages at 300 chars, strips JSON metadata lines and UUIDs from excerpts and references candidates by id (about half the tokens per the code comment); positional references were found to collapse Jev's discrimination.",
+      "e": "judge.ts:10-11,71-84 (read)"
+    },
+    {
+      "phase": "rank",
+      "param": "Focused excerpts (opt-in)",
+      "t": "For long items, Jev judges the title lines plus the lines sharing most words with the searches, each with the following line (the answer usually follows the question), within a character budget.",
+      "e": "natural.ts:418-448 (read)"
+    },
+    {
+      "phase": "rank",
+      "param": "Auto mode with change marks (opt-in)",
+      "t": "Keeps items Jev calls both needed and no longer current, prefixed with a 'Changed later' mark, since questions about changes or order need the earlier version; Jev's order fills the View only where it is unsure.",
+      "e": "natural.ts:220-246 (read)"
+    },
+    {
+      "phase": "cost",
+      "param": "Hard per-turn budgets",
+      "t": "Jev agent loop: at most 128 decision calls, 160 steps and 90 s per turn; search Route: 16 calls per View (32 in auto mode), 20 results and 12,000 characters per read; pool 48; need table 24 records per Jev call.",
+      "e": "scripts/lib/jev-runtime.ts:211,220 (read); src/sdk/source/source.ts:87-89 (read); natural.ts:135,628 (read)"
+    },
+    {
+      "phase": "write",
+      "param": "Reviewed revisions and revision fencing",
+      "t": "Model writes can be proposals that stay inactive until a human approves; a revision must cite supersedes {id, version} and the model must have read the full original in this View; approval archives the original with a back-link. Writes are fenced by an expected collection revision.",
+      "e": "src/sdk/source/source.ts:40-43,140-157,387 (read); src/sdk/source/records.ts:115 (read)"
+    },
+    {
+      "phase": "derive",
+      "param": "Idle review (product line)",
+      "t": "In the dsh-mnemon product, after a turn ends and the agent is idle (idleReviewMs 30,000 in the shipped profile, with a minimum interval and a per-session cap), a guarded review subagent maintains three-tier memory; only for the default-three-tier strategy, not the research replica.",
+      "e": "src/host/lifecycle.ts:522-560 (read); cordis.patch.yml:31 (read); src/host/review-tools.ts:26-81 (read)"
+    },
+    {
+      "phase": "derive",
+      "param": "Runtime hot memory USER.md / MEMORY.md (product line)",
+      "t": "The default product keeps a compact always-injected profile (USER.md) and project memory (MEMORY.md) edited only through add/replace/remove tool actions with importance levels and optional git-branch scoping; when MEMORY.md is full, committed entries are archived to Memory Spaces and compacted atomically.",
+      "e": "plugins/dsh-mnemon-strategy-default-three-tier/src/guidance.ts:1-21 (read)"
+    },
+    {
+      "phase": "arch",
+      "param": "Memory Spaces with pluggable providers (product line)",
+      "t": "The product mounts nine long-term memory providers as Memory Spaces (mnemon-native, OpenViking, Honcho, Mem0, Hindsight, Holographic, RetainDB, ByteRover, Supermemory) behind recall-quality policy strict-v1: low 0.25, high 0.6, candidates x3, at most 4 medium and 2 unscored results.",
+      "e": "cordis.patch.yml:40-73 (read); plugins/dsh-mnemon-source-memory-spaces/src/recall-quality/policies.ts:9-40 (read)"
+    },
+    {
+      "phase": "index",
+      "param": "Navigation tree with content-addressed summaries (earlier strategy)",
+      "t": "The earlier jev-optmem 'maintained' strategy built a navigation tree whose node summaries are extractive and content-addressed, so unchanged subtrees are reused on rebuild; nodes are hints, never evidence. Not used in the reported system.",
+      "e": "plugins/dsh-mnemon-strategy-jev-optmem/src/navigation.ts:1-30 (read); plugins/dsh-mnemon-strategy-jev-optmem/src/maintained.ts:1-30 (read)"
+    },
+    {
+      "phase": "index",
+      "param": "Embedding caches",
+      "t": "Query vectors cached (256), record vectors keyed by content digest so each content is embedded once; the consolidation embedder caches up to 50,000 texts, truncates to 1,500 chars and sends batches of 64.",
+      "e": "src/sdk/source/vectors.ts:49-80 (read); consolidation.ts:279-295 (read)"
+    },
+    {
+      "phase": "eval",
+      "param": "Prompt-cache prefix accounting",
+      "t": "The harness records, per model request, how many leading characters (system, tools, messages) match an earlier request of the session and which part broke the prefix, so cache reuse is measured rather than assumed; context size counts cached and uncached input.",
+      "e": "scripts/lib/jev-runtime.ts:96-127 (read)"
+    },
+    {
+      "phase": "read",
+      "param": "Literal name runs for Chinese",
+      "t": "Outside cue recall, search-term proposals keep runs of 3-8 single Han characters that a word segmenter split apart (names), filtered by a stop-character list.",
+      "e": "natural.ts:256-268,956-959 (read)"
+    }
+  ],
+  "token_economy": {
+    "t": "The answer model never sees retrieved text beyond a hard View budget: at most 16 items and 12,000 characters in benchmark mode (8 items / 6,000 chars by default), with the consolidated index blocks counted inside the same budget (instructions 1,500, directory 1,500, timelines 3,500, values 1,500 chars) and records trimmed from the end to make room. Measured: 3,814 answer input tokens per LoCoMo question (3,017 without index; 1.2-1.5k for earlier sparser Views). What keeps the View small is that the broad reading is offloaded to a cheap System-1 model: Jev reads about 35k tokens per question (9-19x what the answerer reads) at about a tenth of the price per token, and only Jev-approved records (p>=0.5, then Jev's order) enter. The planner reads only the last six messages (600 chars each), never the store, so planning cost is flat. Records are about 600-char raw chunks, so each item is small; consolidation reads only user text plus 240 chars of each assistant message (about 15% of the text). Index items are short (events <=30 words). An unchanged-View gate preserves the answer model's prompt cache. Total $3.27 per 1,000 LoCoMo questions plus $0.013 consolidation per history.",
+    "e": "scripts/lib/jev-runtime.ts:242; natural.ts:138,1039,883-896; consolidation.ts:50-63,183; results.json final.standard.locomo; README.md 'Every benchmark and tier'"
+  },
+  "speed": {
+    "t": "Write: synchronous, LLM-free, about 1,000 records written in under a second; embedding is lazy at first search; consolidation runs in background replica jobs, saved per batch, and pre-embeds index texts when caught up. Read: planner and need-plan calls run in parallel; Jev judgments are batched (40 records a call) and parallel across chunks, 4-7 sequential waves of about 0.34 s (1.4-2.4 s total); warm search 14-18 ms, mostly query embedding; per-question critical-path work is bounded by budgets (3 needs, pool 48, 3 rounds, pages of 20) and does not grow with history except the brute-force search (248 ms on 108,810 records). Reported p50 end-to-end 9.6 s on LoCoMo with consolidation (shared laptop, public APIs); the planner-free fast mode was 2.9-3.3 s p50.",
+    "e": "README.md 'Work per question'; implementation.tex:9-16; natural.ts:917-918,977-986; results.json gpt41mini_chain.locomo.runs"
+  },
+  "keep": [
+    "Keep raw dated chunks as the only evidence and make every derived layer an overlay with record links that can be rebuilt; write path stays LLM-free and durable in under a second.",
+    "Enforce a hard per-question View budget (items and characters) with index blocks inside the same budget; 3.8k tokens reached 91.7 on LoCoMo.",
+    "Move broad read-time screening to a cheap judge (batched yes/no with probabilities) and let rules use only its 0.5 decision and order, so the judge is swappable.",
+    "Plan searches from the recent dialogue only (three record-worded searches + HyDE note + the message, plus at most three NEED/ALL needs) so planning cost never grows with memory.",
+    "Background fold into topic timelines, keyed value histories with conflict flags, and standing instructions, lit up from the View's own records; it bought +6.4 multi-hop and +5.9 temporal for about 0.8k tokens."
+  ],
+  "avoid": [
+    "Hard dependence on a hosted proprietary judge (Jev); no substitute was tested in the full system.",
+    "No benchmark is held out: developed on LoCoMo/LongMemEval, single runs with up to 2.6-point run-to-run variance, and baselines are OmniMemEval's published numbers under a different grader.",
+    "No write-time firewall or redaction; raw records keep everything, and deleting a record does not touch the derived index.",
+    "Brute-force vector search and whole-collection JSON rewrites per write; fine to 10k records, needs ANN and append storage beyond that."
+  ],
+  "in_progress": [
+    "Repo Grivn/mnemon-memory-agent is a frozen snapshot: one branch (master), no pull requests, last push 2026-09-30 (18760c89, paper linked on arXiv and Hugging Face). The research branch codex/jev-replica-practice (50a6831d) is not published. Evidence: gh api repos/Grivn/mnemon-memory-agent (branches, commits) and gh pr list, checked 2026-10-11; README.md 'About this snapshot'.",
+    "Roadmap: results to be brought step by step into mnemon-dev/mnemon and dsh-mnemon, with DSH as a micro agent kernel and Mnemon as a memory agent on it (commit 392b2761, 2026-09-28). Evidence: README.md 'From research to product'.",
+    "Convergence of dsh-mnemon into mnemon-dev/mnemon: draft PR #154 in mnemon-dev/mnemon brings dsh-mnemon under dsh/ (2026-10-08), and draft PR #350 in omdsh-dev/dsh-mnemon (branch claude/converge-into-mnemon) turns that repo into a pointer. Evidence: gh pr list on both repos, 2026-10-11.",
+    "The dsh-mnemon product has moved on to v0.5.27 release branches (the snapshot forked from 0.5.13); open PRs cover git sync UX (#365), data-directory migration (#355) and background work following the conversation's model (#354); none touches the replica, the Jev loop or consolidation. Evidence: gh api repos/omdsh-dev/dsh-mnemon/branches and gh pr list, 2026-10-11.",
+    "mnemon-dev/mnemon (separate CLI engine, not used by the evaluated system): early-October commits optimise exact retrieval and batch writes (#153, 2026-10-03) and recall cold start (#148); open PR #126 adds a built-in MCP memory server. Evidence: gh api repos/mnemon-dev/mnemon/commits and gh pr list, 2026-10-11."
+  ],
+  "specialities": [
+    {
+      "name": "System 1 / System 2 read path with a hosted decision model",
+      "t": "Broad reading is moved off the answering LLM: Jev, a hosted yes/no decision model, screens a 48-record pool and jointly judges up to 40 records per call on 'needed' and 'no longer current', returning probabilities; LLM calls are limited to planning and answering. Jev reads about 35k tokens per question so the answerer reads about 3.8k.",
+      "e": "judge.ts:44-70 (read); natural.ts:270-282,977-986 (read); results.json final.standard.locomo.final jev_tokens 34956 (read); README.md 'System 1 against LLMs' (doc)",
+      "phase": "rank"
+    },
+    {
+      "name": "Calibration-invariant rules",
+      "t": "In the reported (simple) mode every View and loop rule compares Jev's probabilities only with each other or with 0.5, so any monotone recalibration fixing 0.5 leaves the View unchanged and the judge can be swapped without retuning; stated and proved as a proposition in the paper.",
+      "e": "natural.ts:723,745,1039 (read); docs/paper/sections/system.tex:104-118 (doc)",
+      "phase": "rank"
+    },
+    {
+      "name": "Need table driving a bounded judge-act loop",
+      "t": "A parallel planner call names up to three needs (NEED or ALL); Jev tables candidate x need, and each open need takes one step a round: met, page the search that ranked its lead, ask for one reworded search, or give up; ALL needs keep paging while new positives appear. Every step is budgeted so work per turn does not grow with memory.",
+      "e": "natural.ts:374-396,696-795 (read); judge.ts:103-119 (read)",
+      "phase": "rank"
+    },
+    {
+      "name": "Raw records as sole evidence, consolidated index as a rebuildable overlay",
+      "t": "The write path is LLM-free and durable (lock, fsync, atomic rename); a background fold produces topic timelines, keyed value histories with conflict flags and standing instructions that only point to record ids and can be redone. At read time the index is lit up bottom-up from the View's own records, plus the 12 nearest topics and 16 nearest values.",
+      "e": "src/sdk/source/records.ts:102-133 (read); consolidation.ts:6-13,129-157,201-210 (read); natural.ts:1135-1197 (read)",
+      "phase": "derive"
+    },
+    {
+      "name": "One fixed coarse-to-fine View budget",
+      "t": "Instructions (1,500 chars), topic directory (1,500), timelines (3,500, 1,500 per thread, linked events kept first), value histories (1,500) and raw records share one 16-item / 12,000-char budget, with records trimmed from the end; 3,814 answer input tokens per LoCoMo question at 91.7.",
+      "e": "consolidation.ts:183,213-267 (read); natural.ts:1164-1171 (read); scripts/lib/jev-runtime.ts:242 (read); results.json final.standard.locomo.final (read)",
+      "phase": "answer"
+    },
+    {
+      "name": "Prompt-cache-preserving View delivery",
+      "t": "When nothing in the store changed and Jev's 'need more?' is under 0.3, the previous View is republished unchanged for one short Jev call, and 'stable' rendering makes the same selection produce identical text, so the main model's cached prefix survives small-talk turns.",
+      "e": "natural.ts:881-896 (read); plugins/dsh-mnemon-replica/src/source.ts:6-18 (read)",
+      "phase": "answer"
+    },
+    {
+      "name": "Memory agent as a separate harness replica",
+      "t": "Memory selection runs in a second, unmodified DSH instance with the same Sources; it publishes versioned Views over a file channel with leases, and the main instance accepts a View only within freshness bounds (revision lag, age, input digest).",
+      "e": "plugins/dsh-mnemon-replica/src/index.ts:13-45 (read); plugins/dsh-mnemon-replica/src/source.ts:20-44 (read); docs/paper/sections/implementation.tex:4-6 (doc)",
+      "phase": "arch"
+    }
+  ],
+  "verification": {
+    "date": "2026-10-11",
+    "commit": "18760c8 (18760c898781c24b93b2c1b5ab7216e8c86f6c83, committed 2026-09-30)",
+    "rows_checked": 57,
+    "corrections": [
+      "write.entry: evidence was journal index.ts:41,60-64 (index.ts has 57 lines; line 41 is activity capture) -> now index.ts:15, where the captureTurns/captureFeedback defaults live",
+      "index.embed: evidence was journal index.ts:42-43 and cordis.patch.yml without a line -> now index.ts:16-17, jev-runtime.ts:209,240 and cordis.patch.yml:37-40",
+      "extract.failure: was 'each half folded once' -> now each half gets up to two attempts (the attempt loop at natural.ts:1097 also runs for the halves, 1103)",
+      "time.dedup: was 'No record-level dedup' -> now notes that exact duplicate proposals are merged with signals+1 (source.ts:198-201); create/append/batch-create stay undeduplicated",
+      "time.dedup: evidence lifecycle.ts:27 -> lifecycle.ts:28 (the eventKey check), and source.ts:198-201 added",
+      "time.fields: omitted the per-record version history (up to 50 prior versions) -> added",
+      "time.fields: evidence source.ts:310-317 pointed at query filters, not the record fields -> now source.ts:136-138 and records.ts:136-145",
+      "rank.gate: claimed all rules use only 0.5 -> now scoped to simple mode (natural.ts:1039) and flags the gate's hand-set 0.3 line (natural.ts:144,887) as outside calibration invariance",
+      "rank.gate: evidence extended with natural.ts:144 (gate default 0.3)",
+      "read.legs: did not say the vector leg depends on an embedding endpoint and is cut at depth 200 -> added (source.ts:334-336; jev-runtime.ts:240)",
+      "read.legs: evidence extended with jev-runtime.ts:240 (hybrid only with embedUrl)",
+      "write.governance: said 'the only redaction found is API-key masking in error logs' -> adds harness key redaction (jev-runtime.ts:95) and the product prompt rule against saving secrets (guidance.ts:14)",
+      "write.governance: evidence extended",
+      "extras 'Calibration invariance': stated without scope -> now notes the non-0.5 defaults (natural.ts:141,144,635) that sit outside it",
+      "extras 'Fast mode': was '88.4 at 2.9-3.3 s p50' -> now 88.4 at 3.3 s (simple-fast) and 88.7 at 2.9 s (fast), per results.json"
+    ],
+    "added": [
+      "extra (answer): Stable View rendering and delta delivery",
+      "extra (read): Exact-snapshot pinned read grants",
+      "extra (read): Re-read before publish",
+      "extra (read): Ledger with sweeps and backfill cursors",
+      "extra (rank): Hysteresis outside simple mode",
+      "extra (rank): Tailored rubric for suggestion requests",
+      "extra (rank): Compact screening request",
+      "extra (rank): Focused excerpts (opt-in)",
+      "extra (rank): Auto mode with change marks (opt-in)",
+      "extra (cost): Hard per-turn budgets",
+      "extra (write): Reviewed revisions and revision fencing",
+      "extra (derive): Idle review (product line)",
+      "extra (derive): Runtime hot memory USER.md / MEMORY.md (product line)",
+      "extra (arch): Memory Spaces with pluggable providers (product line)",
+      "extra (index): Navigation tree with content-addressed summaries (earlier strategy)",
+      "extra (index): Embedding caches",
+      "extra (eval): Prompt-cache prefix accounting",
+      "extra (read): Literal name runs for Chinese",
+      "specialities: 7 entries",
+      "in_progress refreshed from gh (5 entries)"
+    ],
+    "unverified": [
+      "Jev AUC 0.942 vs DeepSeek 0.900 and gpt-4.1-mini 0.853, and about 0.34 s per wave: README only; the scoring data were not recomputed.",
+      "Latencies (9.6 s p50, 14-18 ms warm search, 248 ms on BEAM-10M) and 'about 1,000 records written in under a second': from results.json, README and implementation.tex; not timed here (code not run).",
+      "'About 15% of a conversation's text is folded' by consolidation: paper statement (implementation.tex:13); the 240-char assistant cut is confirmed in code, the share is not.",
+      "Whether the unchanged-View gate ever fired in benchmark runs (a question may start with no previous View on its channel): not determined from code alone.",
+      "results.json values were read as published; collect.py was not run to recompute them.",
+      "Product-line plugins (team coordination, memory-spaces providers, playbooks/skills, sync, learning) were only skimmed; their internals are not traced and none is on the evaluated research path."
+    ]
+  }
+}

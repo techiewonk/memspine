@@ -1,0 +1,443 @@
+{
+ "slug": "mem0",
+ "name": "Mem0 OSS",
+ "repo": "https://github.com/mem0ai/mem0",
+ "commit": "b7ad69a",
+ "version": "2.2.1 (Python SDK); 3.3.1 (TypeScript SDK)",
+ "licence": "Apache-2.0",
+ "one_line": "One ADD-only extraction call per add() over the payload, 10 neighbour memories and the last 10 messages; zero-LLM hybrid read (dense + BM25 + entity boost, additive fusion).",
+ "rows": {
+  "arch.product": {
+   "s": "",
+   "t": "Python library (Memory / AsyncMemory) plus a TypeScript OSS SDK with the same pipeline, a self-hosted FastAPI REST server with a Next.js dashboard, and an OpenAI-compatible chat proxy. The managed Platform is a separate product reached through MemoryClient.",
+   "e": "read: pyproject.toml:7; mem0/memory/main.py:487,2193; mem0-ts/package.json:3; mem0-ts/src/oss/src/memory/index.ts:25,72; server/main.py:120-143; mem0/proxy/main.py:23; mem0/client/main.py"
+  },
+  "arch.truth": {
+   "s": "P",
+   "t": "The vector-store payload (text, hash, lemmatised text, scope ids, timestamps, attributed_to) is the only copy of a memory. SQLite holds an ADD/UPDATE/DELETE history log with old and new text, and a rolling window of the last 10 raw messages per scope; no full raw-turn archive on the default infer=True path.",
+   "e": "read: mem0/memory/main.py:1031-1041,1057-1061,1079-1098; mem0/memory/storage.py:108-119,134,279-290"
+  },
+  "arch.stores": {
+   "s": "",
+   "t": "Qdrant by default (local path /tmp/qdrant) out of 25 configurable backends; a memory collection plus a sibling '<collection>_entities' collection in the same backend; SQLite history.db (history + messages tables). The REST server defaults to pgvector.",
+   "e": "read: mem0/vector_stores/configs.py:9,14-38; mem0/configs/vector_stores/qdrant.py:16; mem0/memory/main.py:422-424,559-580; mem0/configs/base.py:42-45; server/main.py:122-131"
+  },
+  "arch.graphdb": {
+   "s": "N",
+   "t": "External graph store (Neo4j etc.) removed from OSS in v3; graph memory is now Platform-only. OSS keeps an entity collection whose linked_memory_ids back-pointers act only as a retrieval boost.",
+   "e": "doc: docs/migration/oss-v2-to-v3.mdx:19,41; read: mem0/memory/main.py:1747-1827"
+  },
+  "arch.scope": {
+   "s": "",
+   "t": "At least one of user_id, agent_id or run_id is required on add, search, get_all and delete_all; search and get_all take them only inside filters. Identity keys in caller metadata are stripped so metadata cannot place a memory in another scope; optional actor_id narrows queries.",
+   "e": "read: mem0/memory/main.py:360-404,1295-1321,1449-1475,165-172"
+  },
+  "write.entry": {
+   "s": "",
+   "t": "add(messages, user_id/agent_id/run_id, metadata, expiration_date, infer=True, memory_type, prompt); messages may be a string, dict or list. The caller decides whether one turn or a whole session is one add(). infer=False stores each non-system message verbatim with no LLM call.",
+   "e": "read: mem0/memory/main.py:760-773,839-851,881-916"
+  },
+  "write.receipt": {
+   "s": "Y",
+   "t": "Synchronous: add() returns after the vector insert. Batch insert with a one-by-one fallback; only records confirmed stored are returned; raises VectorStoreError if none persisted. History and entity-linking failures are logged and swallowed.",
+   "e": "read: mem0/memory/main.py:1047-1076,1090-1098,1203-1204"
+  },
+  "write.roles": {
+   "s": "Y",
+   "t": "Both user and assistant messages go to the extractor (system messages too, as 'system:' lines); each fact carries attributed_to user or assistant. Agent-only scope (agent_id without user_id) appends an agent-perspective suffix. role and actor_id are stored only on the infer=False path.",
+   "e": "read: mem0/memory/main.py:943-946,1038-1039,896-901; mem0/memory/utils.py:61-76; mem0/configs/prompts.py:474,947-957"
+  },
+  "write.firewall": {
+   "s": "N",
+   "t": "Not found: no injection or poisoning check on input or extracted facts. Only input-shape validation and identity-key stripping from metadata.",
+   "e": "read: mem0/memory/main.py:143-162,831-851,881-1220 (no filter step)"
+  },
+  "write.governance": {
+   "s": "P",
+   "t": "Per-memory expiration_date (YYYY-MM-DD) hides expired rows from search and get_all unless show_expired; no PII redaction, consent or retention policy. Anonymous PostHog telemetry is on by default (MEM0_TELEMETRY), with secret-like config fields redacted.",
+   "e": "read: mem0/memory/main.py:427-451,820-829,1684-1685,254-298; mem0/memory/telemetry.py:14-20"
+  },
+  "segment.unit": {
+   "s": "N",
+   "t": "No segmentation: whatever the caller passes to one add() call becomes one extraction call.",
+   "e": "read: mem0/memory/main.py:918-964"
+  },
+  "segment.rule": {
+   "s": "",
+   "t": "None; no boundary detection. Session continuity comes only from the rolling 10-message window keyed by the user/agent/run scope string.",
+   "e": "read: mem0/memory/main.py:412-419,921-922; mem0/memory/storage.py:279-290"
+  },
+  "segment.measured": {
+   "s": "",
+   "t": "Not run (no segmentation to measure).",
+   "e": "not found"
+  },
+  "extract.calls": {
+   "s": "",
+   "t": "1 LLM call per add() (default gpt-5-mini, JSON mode) with a static system prompt of about 33,900 characters (roughly 8.5k tokens); plus one vision call per image when enable_vision is set. Procedural path is also 1 call.",
+   "e": "read: mem0/memory/main.py:942-964,866-869,2027-2028; mem0/configs/prompts.py:468-944; mem0/llms/openai.py:40"
+  },
+  "extract.facts": {
+   "s": "Y",
+   "t": "The only derived layer: self-contained 15-80 word facts (up to 100 when detail-rich) from both speakers, ADD-only, with relative dates resolved against an Observation Date.",
+   "e": "read: mem0/configs/prompts.py:472,631,934-936"
+  },
+  "extract.episode": {
+   "s": "N",
+   "t": "Not found.",
+   "e": "not found"
+  },
+  "extract.dates": {
+   "s": "P",
+   "t": "The prompt converts relative to absolute dates against an Observation Date, but OSS never passes one: timestamp is refused and the Observation Date defaults to the run date, so replayed history is dated wrongly; live use is correct.",
+   "e": "read: mem0/configs/prompts.py:524-540,635,1007-1013; mem0/memory/main.py:817-818,950-955"
+  },
+  "extract.neighbours": {
+   "s": "Y",
+   "t": "Top 10 existing memories (by one embedding of the whole payload) re-numbered '0'-'9', and the last 10 messages truncated to 300 characters each. The model's linked_memory_ids are never read; the Summary and Recently Extracted slots are always empty in OSS.",
+   "e": "read: mem0/memory/main.py:922-940,950-955,994,1038; mem0/configs/prompts.py:513,965-972,1036-1038"
+  },
+  "extract.failure": {
+   "s": "P",
+   "t": "An LLM call failure raises LLMError (no silent empty list), but an unparseable JSON response is logged and treated as 'nothing extracted': messages are saved and [] is returned.",
+   "e": "read: mem0/memory/main.py:957-991"
+  },
+  "graph.entities": {
+   "s": "P",
+   "t": "spaCy (en_core_web_sm) rule-based mentions typed PROPER, QUOTED, TOPIC or IDENTIFIER, with NER label allow/deny lists; no LLM. Run in batch over all new facts in an add().",
+   "e": "read: mem0/utils/entity_extraction.py:15,100-121; mem0/utils/spacy_models.py:30-35; mem0/memory/main.py:1100-1114"
+  },
+  "graph.resolution": {
+   "s": "P",
+   "t": "Merge on exact normalised text (lists up to 10,000 entities in scope) or top-1 cosine >= 0.95; otherwise a new entity. Scoped by user/agent/run.",
+   "e": "read: mem0/memory/main.py:583-603,1148-1167,1182-1191"
+  },
+  "graph.edges": {
+   "s": "N",
+   "t": "None between entities; only entity-to-memory back-pointers (linked_memory_ids).",
+   "e": "read: mem0/memory/main.py:1168-1191"
+  },
+  "graph.communities": {
+   "s": "N",
+   "t": "Not found.",
+   "e": "not found"
+  },
+  "time.fields": {
+   "s": "N",
+   "t": "created_at (now, UTC) and updated_at, plus optional expiration_date; no event or validity time. A caller-supplied metadata created_at survives into the payload but does not reach the extractor.",
+   "e": "read: mem0/memory/main.py:1035-1037,828-829; inferred: main.py:363-365 strips identity keys only"
+  },
+  "time.update": {
+   "s": "N",
+   "t": "Extraction is ADD-only: old and new facts both survive with no supersession or contradiction check. Manual update(memory_id, text) rewrites in place and logs UPDATE in history.",
+   "e": "read: mem0/configs/prompts.py:472; mem0/memory/main.py:1829-1881,2052-2112; doc: README.md:57"
+  },
+  "time.dedup": {
+   "s": "P",
+   "t": "MD5 exact-text match against the 10 retrieved neighbours and within the batch; semantic near-duplicates are left to the extractor prompt.",
+   "e": "read: mem0/memory/main.py:1007-1026; mem0/configs/prompts.py:511"
+  },
+  "derive.session": {
+   "s": "N",
+   "t": "None in OSS; the prompt's Summary slot is always passed empty.",
+   "e": "read: mem0/memory/main.py:950-955; mem0/configs/prompts.py:1036"
+  },
+  "derive.profile": {
+   "s": "N",
+   "t": "None in OSS. User Profiles v1 (get/generate profile jobs) exist only on the Platform client.",
+   "e": "read: mem0/client/main.py:807-955; grep finds no profile code in mem0/memory/"
+  },
+  "derive.entity": {
+   "s": "N",
+   "t": "Not found; entity rows hold only text, type and linked ids.",
+   "e": "read: mem0/memory/main.py:1186-1191"
+  },
+  "derive.background": {
+   "s": "N",
+   "t": "None in OSS; all work is inline in add(). The chat proxy runs add() in a daemon thread.",
+   "e": "read: mem0/memory/main.py:881-1220; mem0/proxy/main.py:149-161"
+  },
+  "derive.forget": {
+   "s": "P",
+   "t": "Delete by id, delete_all by scope (batched 1,000), reset, and expiry hiding. No decay: project.update(decay=True) raises a Platform-only error.",
+   "e": "read: mem0/memory/main.py:1883-1958,2144-2174,442-451,469-471,136"
+  },
+  "index.embed": {
+   "s": "",
+   "t": "OpenAI text-embedding-3-small by default; facts and entities embedded in batches.",
+   "e": "read: mem0/embeddings/openai.py:15; mem0/embeddings/configs.py:9; mem0/memory/main.py:996,1122"
+  },
+  "index.lexical": {
+   "s": "",
+   "t": "spaCy-lemmatised text stored per memory; on Qdrant a fastembed Qdrant/bm25 sparse vector (disabled if fastembed is missing). 15 of 25 backends implement keyword_search; others fall back to semantic only with a warning.",
+   "e": "read: mem0/utils/lemmatization.py:22-50; mem0/vector_stores/qdrant.py:93-109,456-477; mem0/vector_stores/base.py:68; mem0/memory/main.py:543-550"
+  },
+  "index.vector": {
+   "s": "",
+   "t": "Qdrant default; 25 backends (pgvector, Chroma, Pinecone, Milvus, Elasticsearch, OpenSearch, Redis, Valkey, FAISS, S3 Vectors, Turbopuffer and others).",
+   "e": "read: mem0/vector_stores/configs.py:14-38"
+  },
+  "read.rewrite": {
+   "s": "N",
+   "t": "Not found; the query is only trimmed and lemmatised.",
+   "e": "read: mem0/memory/main.py:1454,1648"
+  },
+  "read.analysis": {
+   "s": "P",
+   "t": "spaCy lemmas (for BM25 and query-length-adaptive sigmoid) and up to 8 query entities; a regex temporal detector only triggers a Platform notice.",
+   "e": "read: mem0/memory/main.py:1648-1649,1761; mem0/utils/scoring.py:16-40; mem0/memory/notices.py:920-931"
+  },
+  "read.legs": {
+   "s": "",
+   "t": "Dense top max(4 x top_k, 60) (80 at default top_k 20); a keyword leg with the same limit; entity leg searches the entity store (top 500 per entity, sim >= 0.5). Only dense candidates are scored: keyword and entity hits outside the dense pool are dropped.",
+   "e": "read: mem0/memory/main.py:1655-1691,1787-1808"
+  },
+  "read.temporal": {
+   "s": "N",
+   "t": "reference_date is refused in OSS; the Platform's temporal-intent scoring is documented but not in the clone.",
+   "e": "read: mem0/memory/main.py:1446-1447; doc: docs/core-concepts/memory-evaluation.mdx:52"
+  },
+  "read.traversal": {
+   "s": "N",
+   "t": "Not found.",
+   "e": "not found"
+  },
+  "rank.fusion": {
+   "s": "Y",
+   "t": "Additive: semantic + sigmoid-normalised BM25 + entity boost (max 0.5), divided by the best reachable sum (1, 1.5, 2 or 2.5 depending on which signals fired), capped at 1.",
+   "e": "read: mem0/utils/scoring.py:43-57,94-119"
+  },
+  "rank.rerank": {
+   "s": "O",
+   "t": "Optional, needs both a reranker config and rerank=True per call: Cohere, sentence-transformer, ZeroEntropy (zerank-1), HuggingFace or LLM reranker; on failure the fused order is kept.",
+   "e": "read: mem0/utils/factory.py:234-241; mem0/memory/main.py:505-511,1513-1519; mem0/reranker/zero_entropy_reranker.py:34"
+  },
+  "rank.gate": {
+   "s": "P",
+   "t": "Semantic score threshold 0.1 applied before fusion, so BM25 or entity signals cannot rescue a weak dense match; no abstain signal.",
+   "e": "read: mem0/utils/scoring.py:110-112; mem0/memory/main.py:1399"
+  },
+  "rank.agentic": {
+   "s": "N",
+   "t": "Single pass by design.",
+   "e": "read: mem0/memory/main.py:1507-1536; doc: README.md:54"
+  },
+  "answer.shape": {
+   "s": "",
+   "t": "A list of memory dicts (text, score, scope ids, attributed_to, metadata; score_details when explain=True); the caller formats. The proxy joins memory texts into one 'Relevant Memories/Facts' line.",
+   "e": "read: mem0/memory/main.py:1703-1745; mem0/proxy/main.py:176-186"
+  },
+  "answer.size": {
+   "s": "",
+   "t": "Vendor runs: mean 6,956 tokens per LoCoMo query at top_200 (Platform). OSS default top_k is 20 facts, roughly 0.4k-2k tokens.",
+   "e": "doc: docs/core-concepts/memory-evaluation.mdx:131; README.md:49; read: mem0/memory/main.py:1397; inferred size from 15-80 word facts"
+  },
+  "answer.prompt": {
+   "s": "",
+   "t": "MEMORY_ANSWER_PROMPT ships in the clone and is used by the chat proxy; it asks for concise answers and tells the model not to say no information was found (no abstention). Benchmark answer prompts live in the separate memory-benchmarks repo.",
+   "e": "read: mem0/configs/prompts.py:4-13; mem0/proxy/main.py:144-147"
+  },
+  "eval.best": {
+   "s": "",
+   "t": "92.5 (1,425/1,540) at top_200 and 91.8 at top_50, vendor, managed Platform with proprietary optimisations.",
+   "e": "doc: README.md:45-54; mem0ai/memory-benchmarks README (Results, LoCoMo)"
+  },
+  "eval.outside": {
+   "s": "",
+   "t": "77.68 OmniMemEval; 64.9 T-Mem; 48.91 strict judge (LoCoMo-Refined).",
+   "e": "our notes (OmniMemEval results.md; BENCHMARKS_UPDATE_2026-10-02); not re-checked in this pass"
+  },
+  "eval.models": {
+   "s": "",
+   "t": "Not stated for the Platform runs ('production-representative model stack'). The harness defaults to gpt-4o answerer and judge; GPT-5 answerer and judge are stated only for the OSS LongMemEval extraction-model comparison.",
+   "e": "doc: docs/core-concepts/memory-evaluation.mdx:140,190-191; mem0ai/memory-benchmarks README (CLI options; OSS with Different Extraction Models)"
+  },
+  "eval.rigour": {
+   "s": "P",
+   "t": "Harness is public (mem0ai/memory-benchmarks, empty submodule here) with full 1,540 q, top-k cutoffs 10/20/50/200 and a stated ±1 judge interval; but headline numbers come from the Platform, models are unstated and category scores average across cutoffs.",
+   "e": ".gitmodules; doc: docs/core-concepts/memory-evaluation.mdx:136-144,188-189; memory-benchmarks README"
+  },
+  "cost.write": {
+   "s": "",
+   "t": "272 (one add() per session) to 5,882 (turn by turn) extraction calls, each re-sending the ~8.5k-token system prompt; plus per add() one payload embedding, one fact batch embedding and one entity batch embedding.",
+   "e": "inferred from mem0/memory/main.py:927,958,996,1122"
+  },
+  "cost.read": {
+   "s": "",
+   "t": "0 LLM calls; 1 query embedding, 1 batch embedding for up to 8 entities, a dense search, a keyword search and up to 8 entity searches. An LLM reranker, if enabled, adds calls.",
+   "e": "read: mem0/memory/main.py:1648-1678,1761-1796"
+  },
+  "cost.where": {
+   "s": "",
+   "t": "Hosted by default (OpenAI gpt-5-mini and text-embedding-3-small); spaCy and fastembed BM25 run locally; local LLMs and embedders (Ollama, HuggingFace, etc.) are configurable.",
+   "e": "read: mem0/llms/openai.py:40; mem0/embeddings/openai.py:15; mem0/utils/factory.py:156"
+  },
+  "trust.provenance": {
+   "s": "P",
+   "t": "Each fact carries attributed_to (user or assistant), and history logs ADD/UPDATE/DELETE with actor and role; there is no link from a memory to its source turn or message id.",
+   "e": "read: mem0/memory/main.py:1038-1039,1079-1098; mem0/memory/storage.py:108-119"
+  },
+  "trust.erasure": {
+   "s": "P",
+   "t": "delete removes the vector and strips entity links, but the SQLite history row keeps the deleted text (old_memory, is_deleted=1) and the last 10 raw messages persist; only reset() drops everything.",
+   "e": "read: mem0/memory/main.py:2114-2142,2144-2174; mem0/memory/storage.py:279-290"
+  },
+  "trust.auth": {
+   "s": "P",
+   "t": "Library has none. The REST server offers JWT, hashed API keys, an admin key and a rate limiter (AUTH_DISABLED switch), but the authenticated principal is not bound to user_id, so any key can read or write any scope.",
+   "e": "read: server/auth.py:19-22,104-167; server/rate_limit.py:4; server/main.py:367-375,411-419"
+  },
+  "trust.sharing": {
+   "s": "N",
+   "t": "Scope ids only (user/agent/run combinations, optional actor_id filter); no ACLs or cross-agent sharing model.",
+   "e": "read: mem0/memory/main.py:314-404"
+  }
+ },
+ "layers": {
+  "raw": "P",
+  "segment": "N",
+  "episode": "N",
+  "facts": "Y",
+  "graph": "P",
+  "bitemporal": "N",
+  "session_summary": "N",
+  "entity_summary": "N",
+  "profile": "N",
+  "prospective": "P",
+  "procedural": "P",
+  "reflection": "N",
+  "shared": "N",
+  "firewall": "N",
+  "provenance": "P"
+ },
+ "keep": [
+  "Zero-LLM read path with explainable additive scoring (explain=True returns each signal)",
+  "Anti-hub entity penalty: 1 / (1 + 0.001(n-1)^2) on the entity boost",
+  "Integer re-numbering of neighbour memories in the extraction prompt to stop UUID hallucination",
+  "Batch-phased write: one embed batch for facts, one for entities, one insert, with per-item fallbacks",
+  "Raises on LLM call failure instead of returning an empty list"
+ ],
+ "avoid": [
+  "linked_memory_ids requested from the model, then discarded; the prompt even promises UUIDs while integer ids are sent",
+  "Observation date is the run date in OSS, so replayed history gets wrong absolute dates",
+  "Candidates come only from the dense leg; exact-hash dedup only; ADD-only keeps stale facts",
+  "Delete leaves the old text in the SQLite history table; REST auth not bound to user scope",
+  "Chat proxy passes user_id top-level to search(), which the OSS Memory rejects (inferred breakage)"
+ ],
+ "extras": [
+  {"phase": "write", "param": "infer=False raw store", "t": "Stores each non-system message verbatim with role and actor name, no LLM call; the only raw-turn layer.", "e": "read: mem0/memory/main.py:881-916"},
+  {"phase": "write", "param": "procedural memory", "t": "memory_type='procedural_memory' with agent_id writes one LLM summary of an agent's execution history; flagged for removal.", "e": "read: mem0/memory/main.py:853-856,2007-2050; mem0/configs/prompts.py:326-364"},
+  {"phase": "write", "param": "vision messages", "t": "With enable_vision, image parts are described by the LLM before extraction.", "e": "read: mem0/memory/main.py:866-869; mem0/memory/utils.py:161-233"},
+  {"phase": "write", "param": "scope-safe metadata", "t": "Identity keys (user_id, agent_id, run_id, actor_id) in caller metadata are dropped with a warning; immutable on update.", "e": "read: mem0/memory/main.py:140-162,360-365,2074"},
+  {"phase": "extract", "param": "custom instructions", "t": "Config-level or per-call prompt text is appended as highest-priority Custom Instructions; the server can generate them from a use-case description with one LLM call.", "e": "read: mem0/memory/main.py:948; mem0/configs/prompts.py:1044-1045; server/main.py:340-364"},
+  {"phase": "extract", "param": "language requirement (dormant)", "t": "Builder has a same-language/script section for CJK and mixed languages, but OSS never enables it and project.update(multilingual) raises.", "e": "read: mem0/configs/prompts.py:1047-1059; mem0/memory/main.py:461-471"},
+  {"phase": "extract", "param": "agent-perspective suffix", "t": "Agent-only scope reframes facts as agent knowledge while keeping attributed_to as the true source.", "e": "read: mem0/configs/prompts.py:947-957; mem0/memory/main.py:943-946"},
+  {"phase": "read", "param": "advanced metadata filters", "t": "AND/OR/NOT plus eq, ne, in, nin, gt(e), lt(e), contains, icontains and wildcard, translated per backend.", "e": "read: mem0/memory/main.py:1538-1640"},
+  {"phase": "rank", "param": "explain mode", "t": "Returns semantic, BM25, entity, raw and normalised scores per result.", "e": "read: mem0/utils/scoring.py:126-135"},
+  {"phase": "rank", "param": "query-length-adaptive BM25 sigmoid", "t": "Sigmoid midpoint 5-12 and steepness 0.7-0.5 chosen by lemmatised query length so long queries do not saturate.", "e": "read: mem0/utils/scoring.py:16-54"},
+  {"phase": "answer", "param": "OpenAI-compatible chat proxy", "t": "Retrieves with the last 6 messages as query, prepends memories to the user turn and adds the conversation in a background thread.", "e": "read: mem0/proxy/main.py:144-186"},
+  {"phase": "arch", "param": "TypeScript OSS parity", "t": "mem0-ts 3.3.1 ports the additive prompt, BM25 lemmatisation, scoreAndRank and the entity store; 26 vector-store adapters (adds in-memory and Cloudflare Vectorize).", "e": "read: mem0-ts/src/oss/src/memory/index.ts:25,66,72,218-342; mem0-ts/src/oss/src/vector_stores/"},
+  {"phase": "arch", "param": "agent plugins and CLI", "t": "16 integration packages (Claude Code, Codex, Cursor, OpenCode, Vercel AI SDK, n8n, Zapier, Strands and others) plus Python and Node CLIs.", "e": "read: integrations/; cli/"},
+  {"phase": "trust", "param": "REST server and dashboard", "t": "FastAPI server with request logging, X-Request-ID, API-key management, admin-only /configure and a Next.js dashboard.", "e": "read: server/main.py:292-337; server/routers/; server/dashboard/"},
+  {"phase": "trust", "param": "default-on telemetry", "t": "PostHog events on init/add/search; with telemetry on, a separate 'mem0migrations' vector collection is created.", "e": "read: mem0/memory/telemetry.py:14-20; mem0/memory/main.py:516-542"},
+  {"phase": "eval", "param": "Platform upsell notices", "t": "OSS raises or prints notices for Platform-only features (timestamp, reference_date, decay) and at scale thresholds: 2,000 memories, top_k >= 50, queries over 2 s.", "e": "read: mem0/memory/notices.py:104-127,774-783; mem0/memory/main.py:817-818,1446-1447,1525-1533"},
+  {"phase": "derive", "param": "Platform temporal pass and profiles", "t": "Platform runs a separate temporal-metadata pass at write and query temporal-intent scoring at read, and offers User Profiles v1; none of this is in OSS.", "e": "doc: docs/core-concepts/memory-evaluation.mdx:31,52; read: mem0/client/main.py:807-955"}
+ ],
+ "specialities": [
+  {"name": "Single-call ADD-only extraction", "t": "One JSON-mode call per add() sees the payload, 10 neighbours and the last 10 messages and only emits new facts; nothing is updated or deleted, which removes the UPDATE/DELETE decision step entirely.", "e": "read: mem0/memory/main.py:918-991; mem0/configs/prompts.py:468-476", "phase": "extract"},
+  {"name": "Integer-id anti-hallucination mapping", "t": "Neighbour UUIDs are swapped for '0'-'9' before the prompt and mapped back, so the model cannot invent ids.", "e": "read: mem0/memory/main.py:935-940", "phase": "extract"},
+  {"name": "Normalised additive multi-signal fusion", "t": "Semantic, sigmoid BM25 and entity boost are summed and divided by the maximum reachable score for the signals that fired, giving a bounded, explainable score with no LLM.", "e": "read: mem0/utils/scoring.py:60-139", "phase": "rank"},
+  {"name": "Anti-hub entity boost", "t": "Entity boost = similarity x 0.5 x 1/(1 + 0.001(n-1)^2), where n is the number of memories linked to the entity, so hub entities stop flooding results; max over query entities.", "e": "read: mem0/memory/main.py:1805-1822", "phase": "read"},
+  {"name": "Batch-phased write pipeline", "t": "Facts embedded in one batch, entities deduplicated globally then embedded and searched in batches, one bulk insert; each phase falls back to per-item work on failure.", "e": "read: mem0/memory/main.py:993-1204", "phase": "write"},
+  {"name": "Rolling per-scope message window", "t": "SQLite keeps exactly the last 10 raw messages per scope string, used as pronoun/coreference context for the next extraction.", "e": "read: mem0/memory/storage.py:257-312; mem0/memory/main.py:921-922", "phase": "extract"},
+  {"name": "Token-budget reporting", "t": "Vendor results report accuracy against context tokens at top-k cutoffs 10/20/50/200 (92.5 at top_200 vs 91.8 at top_50).", "e": "doc: docs/core-concepts/memory-evaluation.mdx:10-16,129-134; memory-benchmarks README", "phase": "eval"}
+ ],
+ "token_economy": {
+  "t": "Each memory is a 15-80 word fact; OSS search defaults to top_k 20 (roughly 0.4k-2k tokens), while vendor runs use top_200 at a mean of 6,956 tokens on LoCoMo (91.8 vs 92.5 at top_50). Write prompts stay bounded: 10 neighbours, last 10 messages cut to 300 characters each. The ~8.5k-token static system prompt is re-sent on every add(); no explicit prompt caching in code (it sits first, so provider prefix caching may apply, inferred).",
+  "e": "read: mem0/configs/prompts.py:468-944,631,965-972; mem0/memory/main.py:922,928-933,1397; doc: docs/core-concepts/memory-evaluation.mdx:129-134; grep finds no cache_control in mem0/"
+ },
+ "speed": {
+  "t": "Read: zero LLM; entity-store searches run on a 4-thread pool; one query embedding plus one batch for entities. Write: one LLM call, batch embeddings, bulk insert. AsyncMemory wraps the sync steps in asyncio.to_thread (no extra parallelism within an add()). Slow-query notice above 2 s. Vendor p50 latency 0.88 s on LoCoMo (Platform).",
+  "e": "read: mem0/memory/main.py:1787-1803,993-1061,2604-2671; mem0/memory/notices.py:127; doc: README.md:49"
+ },
+ "in_progress": [
+  "PR #7599 (open): batch_add, batch_update and batch_delete on Memory and AsyncMemory",
+  "PR #7600 (open): serialise AsyncMemory store writes on embedded backends (write contention)",
+  "PR #7578 (open): opt-in conversation provenance on memory writes in the Hermes plugin",
+  "PR #7525 (open): cross-SDK error_class taxonomy for partial add() failures; PR #7562 skips embedding on Qdrant metadata-only updates",
+  "Merged 2026-09-23 (#7340): User Profiles v1 SDK methods, Platform client only",
+  "Code TODO: remove procedural-memory support in a future breaking release (mem0/memory/main.py:853)",
+  "Docs: open-domain LoCoMo (72.7) 'actively being tuned'; temporal reasoning remains Platform-only (memory-evaluation.mdx:81)"
+ ],
+ "locomo": [
+  {
+   "score": "92.5",
+   "protocol": "managed Platform, top_200 memories (mean 6,956 tokens), single-pass retrieval, 1,425/1,540 q (cat 1-4); reader and judge not stated (harness defaults gpt-4o)",
+   "who": "vendor",
+   "source": "README.md:45-54; docs/core-concepts/memory-evaluation.mdx:71-79,131; mem0ai/memory-benchmarks README"
+  },
+  {
+   "score": "91.8",
+   "protocol": "managed Platform, top_50 memories, 1,414/1,540 q (cat 1-4); reader and judge not stated",
+   "who": "vendor",
+   "source": "mem0ai/memory-benchmarks README (Results, LoCoMo)"
+  },
+  {
+   "score": "77.68",
+   "protocol": "OmniMemEval cloud, gpt-4.1-mini / gpt-4o-mini",
+   "who": "independent (competitor-run)",
+   "source": "OmniMemEval results.md"
+  },
+  {
+   "score": "48.91",
+   "protocol": "LoCoMo-Refined strict Qwen3-14B judge, 1,382 q",
+   "who": "independent",
+   "source": "BENCHMARKS_UPDATE_2026-10-02"
+  }
+ ],
+ "verification": {
+  "date": "2026-10-11",
+  "commit": "b7ad69a",
+  "rows_checked": 57,
+  "corrections": [
+   "arch.stores: 24 backends -> 25 configured providers; entity collection named '<collection>_entities'; server defaults to pgvector",
+   "index.vector: Qdrant and 23 others -> Qdrant and 24 others (25)",
+   "index.lexical: added that BM25 sparse vectors are Qdrant-specific and only 15 of 25 backends implement keyword_search",
+   "extract.dates: N -> P; dates ARE written into fact text, but anchored to the run date in OSS",
+   "extract.failure: Y -> P; LLM call errors raise, but unparseable JSON silently returns []",
+   "extract.neighbours: added that the Summary and Recently Extracted slots are always empty and past messages are cut to 300 characters",
+   "extract.calls: added default model gpt-5-mini and measured prompt size (~33,900 chars)",
+   "rank.rerank: four providers -> five (ZeroEntropy added); needs config plus rerank=True",
+   "answer.prompt: 'not in the clone' -> MEMORY_ANSWER_PROMPT exists (prompts.py:4) and discourages abstention",
+   "answer.size: 'about 7k' -> mean 6,956 tokens at top_200 (Platform); OSS default top_k is 20",
+   "eval.models: 'gpt-5 for both' -> not stated for Platform runs; harness default gpt-4o; GPT-5 only for OSS LongMemEval comparison",
+   "eval.rigour: N -> P; harness is public in mem0ai/memory-benchmarks (empty submodule here)",
+   "eval.best: added 1,425/1,540 and 91.8 at top_50",
+   "trust.provenance: N -> P; attributed_to source class plus actor/role in history, though no source-turn link",
+   "trust.erasure: delete by id -> delete leaves old text in SQLite history and the 10-message window; only reset() is complete",
+   "trust.auth: added that server auth is not bound to user scope",
+   "write.governance: added default-on PostHog telemetry",
+   "write.roles: added that system messages reach the extractor and role/actor_id are stored only with infer=False",
+   "derive.profile: added that User Profiles v1 exist on the Platform client only",
+   "cost.where: added default models gpt-5-mini / text-embedding-3-small",
+   "layers.provenance: N -> P (follows trust.provenance)",
+   "repo: commit moved out of the repo string into the commit key; added licence and version"
+  ],
+  "added": [
+   "17 extras: infer=False raw store, procedural memory, vision, scope-safe metadata, custom instructions, dormant language section, agent suffix, advanced filters, explain mode, adaptive BM25 sigmoid, chat proxy, TS parity, agent plugins/CLI, REST server, telemetry, Platform notices, Platform temporal pass and profiles",
+   "7 specialities with evidence",
+   "token_economy and speed rewritten with file:line evidence",
+   "in_progress from open PRs (#7599, #7600, #7578, #7525, #7562), merged #7340 and a code TODO",
+   "locomo: added 91.8 at top_50 and the 1,425/1,540 count",
+   "keep/avoid: integer-id mapping, batch write; history retention on delete, proxy breakage"
+  ],
+  "unverified": [
+   "eval.outside figures (77.68 OmniMemEval, 64.9 T-Mem, 48.91 strict) come from our notes and were not re-checked against their sources",
+   "Reader and judge models for the vendor 92.5 run are not published",
+   "Chat proxy breakage against OSS Memory (top-level user_id to search, filters to add) is inferred from code, not run",
+   "OSS context size per question (0.4k-2k tokens at top_k 20) is an estimate from fact length",
+   "memory-benchmarks repo content read from its README via the GitHub API at 4b61c5d, not cloned or code-traced"
+  ]
+ },
+ "source_doc": "consolidated from the earlier engine documents; second-pass code verification against b7ad69a on 2026-10-11"
+}

@@ -1,0 +1,585 @@
+{
+  "slug": "memmachine",
+  "name": "MemMachine",
+  "repo": "https://github.com/MemMachine/MemMachine",
+  "commit": "ab96a9d",
+  "version": "0.4.0 (latest tag v0.4.0 = ad8ff24; packages use setuptools-scm dynamic versions, HEAD ab96a9d of 2026-10-09 is on main after that tag)",
+  "licence": "Apache-2.0",
+  "one_line": "Self-hosted FastAPI memory server (uv workspace: memmachine-server, -common, -client, plus a meta package and TS client) that keeps raw episodes as ground truth, indexes them with zero write-time LLM calls, adds a rolling short-term summary and an LLM-maintained profile (per project by default), and offers an optional LLM retrieval agent ('agent mode').",
+  "locomo": [
+    {
+      "score": "91.69",
+      "protocol": "agent mode (ToolSelect/CoQ retrieval agent), gpt-4.1-mini reader, gpt-4o-mini judge, cat 1-4 = 1,540 q; SH 95.12 / MH 88.30 / T 91.59 / OD 71.88; 8.57M input tokens for the run",
+      "who": "vendor",
+      "source": "MemMachine blog 2025-12-01 'MemMachine v0.2 Delivers Top Scores and Efficiency on LoCoMo'; arXiv 2604.04853 Table 10"
+    },
+    {
+      "score": "91.23",
+      "protocol": "memory mode (plain search), gpt-4.1-mini reader, gpt-4o-mini judge, 1,540 q; SH 94.41 / MH 89.72 / T 89.10 / OD 75.00; 4.20M input tokens for the run",
+      "who": "vendor",
+      "source": "same blog and arXiv 2604.04853 Table 10"
+    },
+    {
+      "score": "88.12 / 87.47",
+      "protocol": "agent / memory mode with gpt-4o-mini reader and gpt-4o-mini judge, 1,540 q",
+      "who": "vendor",
+      "source": "arXiv 2604.04853 Table 10; blog 2025-12-01"
+    },
+    {
+      "score": "73.90",
+      "protocol": "OmniMemEval, run LOCALLY (the only locally run engine in that table), gpt-4.1-mini reader, gpt-4o-mini judge, 1,540 q, cat 5 excluded; SH 83.47 / MH 53.19 / T 71.96 / OD 57.29; 2,577 context tokens per question; MemMachine version and reranker used in that run not stated",
+      "who": "independent (harness run by MemTensor, the MemOS maker)",
+      "source": "MemTensor/OmniMemEval docs/user_memory/results.md as transcribed in memspine/evals/analysis/SOTA_MEMU_MEMOS_LOCOMO.md:329"
+    }
+  ],
+  "rows": {
+    "arch.product": {
+      "s": "",
+      "t": "Self-hosted server (FastAPI REST v2 + MCP over stdio and HTTP) with Python and TypeScript clients; hosted MemMachine Platform also exists. uv workspace members packages/client, packages/common, packages/server; packages/meta is the umbrella 'memmachine' package.",
+      "e": "pyproject.toml:1-3; packages/*/pyproject.toml:6; README.md:41-48,99-110 (read)"
+    },
+    "arch.truth": {
+      "s": "Y",
+      "t": "Raw episodes are the source of truth: every add writes the verbatim message to the SQL 'episodestore' table (content, producer_id, producer_role, produced_for_id, created_at, metadata); the event backend hydrates search hits back from this table. The paper calls this 'ground-truth-preserving'.",
+      "e": "main/memmachine.py:796-801; common/episode_store/episode_sqlalchemy_store.py:83-104; episodic_memory/long_term_memory/long_term_memory.py:387 (read); arXiv 2604.04853 abstract (doc)"
+    },
+    "arch.stores": {
+      "s": "Y",
+      "t": "Four layers: (1) SQL episode store; (2) short-term memory = in-process deque of recent episodes plus a rolling LLM summary persisted per session; (3) long-term episodic memory, either 'declarative' backend (VectorGraphStore: Neo4j or Nebula, Episode + Derivative nodes) or 'event' backend (SQL segment store + vector store: Qdrant, Milvus, sqlite-vec, SQLite); (4) semantic/profile memory = Postgres+pgvector 'feature' table (or relational DB + vector store).",
+      "e": "episodic_memory/episodic_memory.py:209-239; episodic_memory/long_term_memory/long_term_memory.py:109-166; common/vector_store/*.py; semantic_memory/storage/sqlalchemy_pgvector_semantic.py:87-110 (read)"
+    },
+    "arch.graphdb": {
+      "s": "O",
+      "t": "Neo4j (or NebulaGraph) is used only by the legacy 'declarative' backend, and only as a vector store with DERIVED_FROM edges from derivative to episode; no entity graph. The docker-compose default profile is 'event' (Qdrant + Postgres, no graph DB), while code parse-time default for a missing backend field is still 'declarative'.",
+      "e": "episodic_memory/declarative_memory/declarative_memory.py:94-97,180-211; common/configuration/episodic_config.py:13-44; sample_configs/env.dockercompose:33; sample_configs/configuration.event.yml:28-43 (read)"
+    },
+    "arch.scope": {
+      "s": "P",
+      "t": "REST v2 session_key is '<org_id>/<project_id>', so episodic memory is partitioned per project, not per user or conversation; per-user separation inside a project relies on producer_id / metadata filters. Each episode is registered to up to three default semantic sets (org-wide, org-level 'User Profile' set keyed by producer_id, and project set), but with shipped defaults only the project set carries a category (profile_prompt), so the profile is per project and shared by every producer in it.",
+      "e": "server/api_v2/service.py:44-50; semantic_memory/semantic_session_manager.py:374-407,729-770; common/configuration/__init__.py:246-257,305-323; sample_configs/configuration.event.yml:59-61 (read)"
+    },
+    "write.entry": {
+      "s": "Y",
+      "t": "POST /memories (REST v2), MemMachine.add_episodes(), MCP tool add_memory, and framework integrations (LangChain, LangGraph, CrewAI, LlamaIndex, Strands, n8n, Dify, FastGPT, OpenClaw). target_memories selects episodic and/or semantic.",
+      "e": "server/api_v2/router.py:294; main/memmachine.py:728-822; server/api_v2/mcp.py:414-475; integrations/ (read)"
+    },
+    "write.receipt": {
+      "s": "P",
+      "t": "Episode store, short-term append, long-term embedding + index write and semantic enqueue run in one asyncio.gather and the call returns after all finish, so the raw and indexed episode are durable on return; the short-term summary and profile extraction are queued (background summary worker; profile poller every 2 s). The three backends are not transactional (TODO #1738), so partial failures can drift.",
+      "e": "main/memmachine.py:796-822; episodic_memory/short_term_memory/short_term_memory.py:518-525; semantic_memory/semantic_memory.py:97-102,806-862 (read)"
+    },
+    "write.roles": {
+      "s": "P",
+      "t": "All roles are stored verbatim in episodic memory with producer_id and producer_role. Every episode, assistant turns included, is routed to the semantic sets; by default only the project set has a category, so user and assistant turns all feed one shared project profile. Producer ('User Profile') sets get no extraction unless categories are configured; there is no user-only role filter.",
+      "e": "semantic_memory/semantic_session_manager.py:117-136,729-770; common/configuration/__init__.py:246-257; semantic_memory/semantic_ingestion.py:136-145; long_term_memory.py:807-817 (read)"
+    },
+    "write.firewall": {
+      "s": "N",
+      "t": "No content firewall or prompt-injection defence. The only write-time guards are identity ones: '_'-prefixed user metadata keys are rejected on the event backend to stop cross-producer / cross-session impersonation, and null bytes are stripped before Postgres insertion.",
+      "e": "episodic_memory/long_term_memory/long_term_memory.py:798-831; semantic_memory/storage/text_sanitizer.py:8-22 (read)"
+    },
+    "write.governance": {
+      "s": "N",
+      "t": "No PII redaction, consent or retention policy found; deletion is by episode id, session or feature id only. A payload_codec module exists with only a plaintext codec.",
+      "e": "common/payload_codec/plaintext_payload_codec.py; main/memmachine.py:1219-1290 (read)"
+    },
+    "segment.unit": {
+      "s": "",
+      "t": "Long-term memory makes no write-time model call. Unit of indexing is the episode (one message): passthrough segmenter = one segment per episode by default; optional TextSegmenter splits at 500 code points. Short-term summarisation batches all episodes in the window when it overflows; profile extraction is one message at a time.",
+      "e": "common/configuration/episodic_config.py:135-171,238-244; episodic_memory/event_memory/segmenter/text_segmenter.py:22-31; semantic_memory/semantic_ingestion.py:217-239 (read)"
+    },
+    "segment.rule": {
+      "s": "",
+      "t": "No topic or session boundary detection. Short-term memory triggers a summary when total characters (episodes + summary) exceed message_capacity (default 64,000 chars; shipped samples use 500); profile ingestion triggers when a set has at least 5 un-ingested messages or a message older than 5 minutes.",
+      "e": "common/configuration/episodic_config.py:92-93; sample_configs/configuration.event.yml:43; short_term_memory.py:176-242; semantic_memory/semantic_memory.py:101-102,820-827 (read)"
+    },
+    "segment.measured": {
+      "s": "N",
+      "t": "not found; no published count of write-time units or calls on LoCoMo.",
+      "e": "evaluation/ (read); arXiv 2604.04853 (doc)"
+    },
+    "extract.calls": {
+      "s": "",
+      "t": "Long-term episodic: 0 LLM calls (embeddings only). Short-term: 1 summary call each time the character window overflows (recursive halving on context-length errors). Profile: 1 structured LLM call per message per (set x category); with shipped defaults that is 1 call per message (project set, category 'profile'); the poller takes at most 5 un-ingested messages per set per pass. Plus a consolidation call per tag once a tag holds 20 or more features.",
+      "e": "declarative_memory.py:136-150; event_memory.py:234-271; short_term_memory.py:613-679; semantic_ingestion.py:128-135,214-277,348-403; common/configuration/__init__.py:246-257 (read)"
+    },
+    "extract.facts": {
+      "s": "Y",
+      "t": "Profile 'features' (category, tag, feature, value) extracted by LLM into 37 fixed profile tags (for example Hobbies & Interests, Health & Wellness, Relationship & Family Context); stored with a pgvector embedding of the value. These are profile facts, not general event facts.",
+      "e": "server/prompt/profile_prompt.py:8-46,68-76; semantic_ingestion.py:309-323; sqlalchemy_pgvector_semantic.py:87-110 (read)"
+    },
+    "extract.episode": {
+      "s": "P",
+      "t": "No per-episode narrative. The only narrative is the short-term rolling session summary (max length about message_capacity/16 words, rounded to 100), which replaces evicted turns.",
+      "e": "short_term_memory.py:147-156,224-242 (read)"
+    },
+    "extract.dates": {
+      "s": "N",
+      "t": "Derived text carries no resolved dates: profile extraction sees only message.content (no timestamp, no speaker). Episodes keep created_at, and the event backend prefixes the timestamp in the embedded derivative text only when format options request it (default time_style None for embedding).",
+      "e": "semantic_ingestion.py:234-239; semantic_llm.py:77-87; event_memory/deriver/text_deriver.py:37-53 (read)"
+    },
+    "extract.neighbours": {
+      "s": "Y",
+      "t": "Profile update is neighbour-aware: up to 50 existing features of the same set and category are passed as OLD_PROFILE and the LLM returns ADD/DELETE commands. Episodic indexing has no neighbour awareness.",
+      "e": "semantic_ingestion.py:86-94,225-239; semantic_llm.py:70-101 (read)"
+    },
+    "extract.failure": {
+      "s": "P",
+      "t": "Profile: context-length errors skip and mark the message ingested; other errors leave it un-ingested for retry with exponential backoff to 60 s; missing episodes retried for a 30 s grace period then delisted. Consolidation gets up to 2 attempts (one retry) and is skipped on context-length errors. Short-term summary splits batches in half (or a single oversize episode at its midpoint) on context-window errors, otherwise keeps the old summary and logs.",
+      "e": "semantic_ingestion.py:36,156-208,240-259,405-464; semantic_memory.py:840-862; short_term_memory.py:594-679 (read)"
+    },
+    "graph.entities": {
+      "s": "N",
+      "t": "not found; no entity extraction (a 'kg_experiment' branch exists, last commit 2025-12-16).",
+      "e": "code search of packages/server (read); gh api branches/kg_experiment (read)"
+    },
+    "graph.resolution": {
+      "s": "N",
+      "t": "not found.",
+      "e": "packages/server (read)"
+    },
+    "graph.edges": {
+      "s": "P",
+      "t": "Only structural DERIVED_FROM edges (derivative to episode) in the declarative backend; temporal neighbours are found by ordering on (timestamp, uid), not edges. No semantic relationship edges.",
+      "e": "declarative_memory.py:97,180-211,443-497 (read)"
+    },
+    "graph.communities": {
+      "s": "N",
+      "t": "No communities. Semantic-memory clustering code (ClusterManager, ClusterSplitter, cluster store) exists but is not wired into ingestion; only tests import it.",
+      "e": "semantic_memory/cluster_manager.py:1-40; grep of packages for cluster_manager imports (read)"
+    },
+    "time.fields": {
+      "s": "P",
+      "t": "Episodes: created_at (client-suppliable) plus SQL timestamps; segments/derivatives: _timestamp; profile features: created_at and updated_at. No valid-time or as-of reads.",
+      "e": "episode_sqlalchemy_store.py:83-104; event_memory.py:111-129; sqlalchemy_pgvector_semantic.py:98-108 (read)"
+    },
+    "time.update": {
+      "s": "P",
+      "t": "Episodes are append-only. Profile contradictions are handled by the LLM issuing DELETE (by feature + tag) then ADD; old values are destroyed and features keep no version history. (Migration adb5618bd4ee dropped a 'history' table that held message copies, now kept in the episode store; it was not feature history.)",
+      "e": "semantic_ingestion.py:299-346; semantic_memory/storage/alembic_pg/versions/adb5618bd4ee_remove_history_table.py:23-33 (read)"
+    },
+    "time.dedup": {
+      "s": "P",
+      "t": "Profile: LLM consolidation per tag once 20+ features accumulate (keeps listed ids, merges the rest with citations carried over; the consolidation LLM may not change the tag). The SemanticService consolidation_threshold parameter is not forwarded to IngestionService, so 20 is effectively fixed. Episodic: no write-time dedup; read-time dedup by episode uid across short- and long-term results and across over-fetched segments (4x over-fetch).",
+      "e": "semantic_ingestion.py:83,348-403,466-544; semantic_memory.py:97,806-816; episodic_memory.py:449-457; long_term_memory.py:102-106,371-382 (read)"
+    },
+    "derive.session": {
+      "s": "Y",
+      "t": "Short-term memory keeps recent episodes plus a rolling summary of evicted turns, built by a single background worker with dynamic batching and persisted via SessionDataManager. Default summariser 'gpt-4.1' if not configured. On re-creation only the summary is reloaded; the deque of recent episodes is not restored (open ToDo).",
+      "e": "short_term_memory.py:158-174,468-577,641-647; main/memmachine.py:251-261 (read)"
+    },
+    "derive.profile": {
+      "s": "Y",
+      "t": "Semantic memory = profile of tagged features maintained by background LLM ingestion. With shipped defaults the 'profile' category runs only on the project set, so it is a per-project profile; org and producer sets exist but have no default categories. Categories, tags and set types are user-configurable via API (category templates, set types keyed by metadata).",
+      "e": "semantic_memory/semantic_memory.py:88-160,524-568; common/resource_manager/semantic_manager.py:232-236; common/configuration/__init__.py:246-257; main/memmachine.py:1387-1735 (read)"
+    },
+    "derive.entity": {
+      "s": "N",
+      "t": "not found.",
+      "e": "packages/server (read)"
+    },
+    "derive.background": {
+      "s": "Y",
+      "t": "Two background loops: short-term summary worker (per session, asyncio task) and semantic ingestion poller (every 2 s, dirty sets with 5+ messages or 5-minute age, concurrent across sets and categories, purges ingested rows).",
+      "e": "short_term_memory.py:518-553; semantic_memory.py:806-862 (read)"
+    },
+    "derive.forget": {
+      "s": "N",
+      "t": "No decay or automatic forgetting; short-term eviction only removes turns from the window after summarising (they remain in the episode store and long-term index).",
+      "e": "short_term_memory.py:224-242 (read)"
+    },
+    "index.embed": {
+      "s": "Y",
+      "t": "Configurable (OpenAI, Bedrock Titan, sentence-transformers, any OpenAI-compatible); samples use text-embedding-3-small at 1,536 dims.",
+      "e": "common/embedder/*.py; sample_configs/configuration.event.yml:96-104 (read)"
+    },
+    "index.lexical": {
+      "s": "P",
+      "t": "No persistent lexical index. BM25 is applied only as a reranker over the vector candidate set; shipped samples fuse identity (vector order) and BM25 rerankers by RRF (k=60).",
+      "e": "common/reranker/bm25_reranker.py; common/reranker/rrf_hybrid_reranker.py; common/configuration/reranker_conf.py:18-26,120; sample_configs/configuration.event.yml:112-122 (read)"
+    },
+    "index.vector": {
+      "s": "Y",
+      "t": "Declarative: Neo4j vector index (created lazily once a collection reaches 10,000 nodes; filtered ANN over-fetches 4x and falls back to exact search when it returns under 50% of the limit) or Nebula; event: Qdrant, Milvus, sqlite-vec, SQLite with hnswlib/usearch engines; profile: pgvector or a vector store.",
+      "e": "common/vector_graph_store/neo4j_vector_graph_store.py:82-165; common/vector_store/ (read)"
+    },
+    "read.rewrite": {
+      "s": "O",
+      "t": "Only in agent mode: ChainOfQuery rewrites the query up to 3 times after an LLM sufficiency check; SplitQuery decomposes into sub-queries; RaRag (optional optimised CoQ) splits multi-hop queries with spaCy or LLM.",
+      "e": "retrieval_agent/agents/coq_agent.py:139,197-262,292-357; split_query_agent.py:159-213; rarag_query_agent.py:170-491 (read)"
+    },
+    "read.analysis": {
+      "s": "O",
+      "t": "Agent mode only: one LLM call (ToolSelectAgent) routes the query to SplitQuery, ChainOfQuery (default) or direct MemMachine search.",
+      "e": "retrieval_agent/agents/tool_select_agent.py:144-197; retrieval_agent/service_locator.py:84-95 (read)"
+    },
+    "read.legs": {
+      "s": "Y",
+      "t": "Parallel legs per search: short-term (most recent window episodes up to the limit, filtered, no ranking, plus the summary), long-term episodic (dense over derivatives, then neighbour expansion and rerank) and semantic profile (dense over features in each of the org, producer and project sets, top_k per set; REST default 10, the service-level default of 30 applies only when no limit is passed).",
+      "e": "episodic_memory.py:396-427; main/memmachine.py:1067-1105; semantic_session_manager.py:161-187; semantic_memory.py:172-232; server/api_v2/service.py:115 (read)"
+    },
+    "read.temporal": {
+      "s": "P",
+      "t": "No temporal query parsing; filters on created_at/timestamp are possible through the filter language, and expand_context pulls chronological neighbours (1/3 backward, 2/3 forward).",
+      "e": "declarative_memory.py:398-400; event_memory.py:450-460; long_term_memory.py:94-96 (read)"
+    },
+    "read.traversal": {
+      "s": "P",
+      "t": "No graph traversal; 'contextualised retrieval' walks timeline neighbours of each nucleus hit (expand_context, default 0 in the API, 3 in the LoCoMo script).",
+      "e": "declarative_memory.py:443-497; common/api/spec.py:614-617; evaluation/episodic_memory/locomo_search.py:92 (read)"
+    },
+    "rank.fusion": {
+      "s": "P",
+      "t": "No cross-leg fusion: episodic and semantic results are returned side by side. Within episodic, RRF fusion happens only if the configured reranker is the rrf-hybrid one (identity + BM25 in samples).",
+      "e": "main/memmachine.py:824-828,1102-1105; common/reranker/rrf_hybrid_reranker.py (read)"
+    },
+    "rank.rerank": {
+      "s": "Y",
+      "t": "Declarative backend requires a reranker (LTM is disabled without one); it scores each expanded context window as a string, not single hits. Providers: cross-encoder (default model cross-encoder/qnli-electra-base), Cohere (rerank-english-v3.0), Bedrock (Cohere rerank-v3.5 used in the LoCoMo config), BM25, embedder, identity, RRF. Event backend reranker optional (falls back to vector score).",
+      "e": "main/memmachine.py:186-200; declarative_memory.py:499-514; event_memory.py:474-486; common/configuration/reranker_conf.py:65,87-88; evaluation/episodic_memory/locomo_config.yaml:41-46 (read)"
+    },
+    "rank.gate": {
+      "s": "O",
+      "t": "Optional score_threshold (default none; direction-aware for euclidean vs cosine); agent mode's CoQ stops when the LLM judges evidence sufficient with confidence. No abstain signal to the caller.",
+      "e": "long_term_memory.py:254-286,462-475; coq_agent.py:339-347 (read)"
+    },
+    "rank.agentic": {
+      "s": "O",
+      "t": "agent_mode=false by default; when true and a retrieval-agent LLM + reranker are configured, long-term search is run through ToolSelect -> CoQ/Split/direct with QueryPolicy max_attempts 3 and max_return_len 10,000; agent-returned episodes get a flat score of 1.0.",
+      "e": "common/api/spec.py:638-641; main/memmachine.py:326-361,948-981,1014-1033 (read)"
+    },
+    "answer.shape": {
+      "s": "",
+      "t": "Engine returns structured JSON (short-term episodes + summary, long-term scored episodes, profile features). formalize_query_with_context renders <Summary>, <Episodes> as '[Weekday, Month DD, YYYY at HH:MM AM] producer: \"content\"' lines in chronological order, then <Query>.",
+      "e": "episodic_memory.py:291-306,479-551; common/episode_store/episode_model.py:67-92 (read)"
+    },
+    "answer.size": {
+      "s": "P",
+      "t": "No token budget in the engine (limit is an episode count: API top_k default 10, internal default 20; short-term returns up to the same limit of most recent window episodes plus the summary). Measured: 2,577 context tokens per question in OmniMemEval; vendor run implies about 2,727 input tokens per question in memory mode and about 5,566 in agent mode (4.20M and 8.57M over 1,540 q).",
+      "e": "common/api/spec.py:567-590; episodic_memory.py:390; short_term_memory.py:396-443; SOTA_MEMU_MEMOS_LOCOMO.md:329 (doc); arXiv 2604.04853 Table 8 (doc, per-question division inferred)"
+    },
+    "answer.prompt": {
+      "s": "P",
+      "t": "No answer generation in the engine; the LoCoMo script uses its own ANSWER_PROMPT (adapted from Mem0's evaluation prompt) over the formatted episodes and summary with limit 30, expand_context 3.",
+      "e": "evaluation/episodic_memory/locomo_search.py:17-30,85-115 (read)"
+    },
+    "eval.best": {
+      "s": "",
+      "t": "91.69 (agent mode, gpt-4.1-mini reader, gpt-4o-mini judge, 1,540 q), vendor-run; 91.23 memory mode.",
+      "e": "arXiv 2604.04853 Table 10; blog 2025-12-01 (doc)"
+    },
+    "eval.outside": {
+      "s": "",
+      "t": "73.90 on OmniMemEval (same reader and judge, 1,540 q, run locally by MemTensor), a 17.3 to 17.8 point drop; multi-hop collapses to 53.19 versus 88.30 to 89.72 self-reported.",
+      "e": "SOTA_MEMU_MEMOS_LOCOMO.md:329 citing OmniMemEval results.md (doc)"
+    },
+    "eval.models": {
+      "s": "",
+      "t": "Vendor: gpt-4.1-mini or gpt-4o-mini reader, gpt-4o-mini judge (llm_judge.py default, overridable by OPENAI_MODEL_NAME); embeddings text-embedding-3-small; reranker Cohere rerank-v3.5 via Bedrock in the shipped LoCoMo config; Neo4j declarative backend.",
+      "e": "evaluation/episodic_memory/llm_judge.py:19; locomo_config.yaml:25-51 (read); blog 2025-12-01 (doc)"
+    },
+    "eval.rigour": {
+      "s": "P",
+      "t": "Scripts are public and skip category 5 (cat 1-4 only); single judge pass, no confidence interval; scores depend on a paid reranker. The episodic and retrieval-agent LoCoMo harnesses build EpisodicMemory directly and accept only the declarative backend, so profile memory is not exercised there; a separate REST v2 harness (top-k 50 default, both memory types) exists, and which harness produced the published numbers is not stated. Results files are not committed.",
+      "e": "evaluation/episodic_memory/llm_judge.py:96-104; restapiv2_locomo_search.py:183-185,257-262; evaluation/utils/agent_utils.py:408-441 (read)"
+    },
+    "cost.write": {
+      "s": "",
+      "t": "Episodic: 0 LLM calls and about 5,882 embedding inputs (one per turn with passthrough/whole-text; more with sentence chunking). Short-term: one summary call per window overflow per session (depends on message_capacity). Profile (when enabled): about 5,882 extraction calls with shipped defaults (one per message, project set only) plus consolidation calls; each extra set with a category adds another 5,882. Not used in the vendor LoCoMo run.",
+      "e": "event_memory.py:234-271; semantic_ingestion.py:214-239; common/configuration/__init__.py:246-257 (read); counts inferred"
+    },
+    "cost.read": {
+      "s": "",
+      "t": "Memory mode: 1 query embedding + 1 reranker call over up to min(5N,200) expanded windows, 0 LLM calls (plus 1 embedding for the profile leg). Agent mode: 1 tool-select LLM call + up to 3 CoQ sufficiency/rewrite LLM calls (or 1 split call), each round with its own search and rerank, plus a final rerank.",
+      "e": "declarative_memory.py:348-418; tool_select_agent.py:179-197; coq_agent.py:312-357 (read)"
+    },
+    "cost.where": {
+      "s": "",
+      "t": "Hosted APIs by default (OpenAI gpt-4o-mini / gpt-4.1, text-embedding-3-small, Cohere/Bedrock rerank); local options via sentence-transformers, cross-encoder, Ollama or any OpenAI-compatible endpoint.",
+      "e": "sample_configs/episodic_memory_config.cpu.sample:150-220 (read)"
+    },
+    "trust.provenance": {
+      "s": "P",
+      "t": "Profile features carry citations (episode uids) and merges keep the union of citations; no trust score or source class. Derivatives link to episodes by DERIVED_FROM edge or segment uuid.",
+      "e": "semantic_ingestion.py:322-323,503-537; declarative_memory.py:180-192 (read)"
+    },
+    "trust.erasure": {
+      "s": "P",
+      "t": "delete_episodes removes the episode from the episode store, short- and long-term memory and the semantic history/citation rows, but profile features derived from it are not deleted or re-derived, so extracted facts survive erasure of their source.",
+      "e": "main/memmachine.py:1219-1269; semantic_memory/storage/sqlalchemy_pgvector_semantic.py:549-563 (read)"
+    },
+    "trust.auth": {
+      "s": "N",
+      "t": "No authentication or authorisation in the open-source server (only access-log and metrics middleware); the hosted Platform is separate.",
+      "e": "server/middleware.py:17-66; grep for auth/bearer/jwt in packages/server/src (read)"
+    },
+    "trust.sharing": {
+      "s": "P",
+      "t": "Agents share memory by writing into the same org/project session_key; producer_id / produced_for_id fields and metadata filters separate speakers. The default profile lives in the project set and is shared by every producer in the project; org-wide and producer sets are searched too but are empty unless categories are configured. No per-agent permissions.",
+      "e": "server/api_v2/service.py:44-50; semantic_session_manager.py:374-407,729-770 (read)"
+    }
+  },
+  "layers": {
+    "raw": "Y",
+    "segment": "O",
+    "episode": "N",
+    "facts": "P",
+    "graph": "N",
+    "bitemporal": "N",
+    "session_summary": "Y",
+    "entity_summary": "N",
+    "profile": "Y",
+    "prospective": "N",
+    "procedural": "N",
+    "reflection": "N",
+    "shared": "P",
+    "firewall": "N",
+    "provenance": "P"
+  },
+  "extras": [
+    {
+      "phase": "read",
+      "param": "agent_mode retrieval agent",
+      "t": "ToolSelectAgent routes to ChainOfQuery (iterative sufficiency check + rewrite), SplitQuery or direct search; RaragQueryAgent is an opt-in optimised multi-hop variant with spaCy decomposition (uv dependency group 'multihop').",
+      "e": "retrieval_agent/service_locator.py:21-95; pyproject.toml multihop group (read)"
+    },
+    {
+      "phase": "read",
+      "param": "contextualised retrieval",
+      "t": "Each nucleus hit is expanded with timeline neighbours (1/3 back, 2/3 forward) and the whole window is reranked as one string; windows are then unified best-first under an episode cap with forward-weighted proximity.",
+      "e": "declarative_memory.py:398-441,616-683; long_term_memory.py:647-770 (read)"
+    },
+    {
+      "phase": "arch",
+      "param": "MCP server",
+      "t": "fastmcp server with add_memory, search_memory, delete_memory tools over stdio and HTTP; add writes to both episodic and profile memory.",
+      "e": "server/api_v2/mcp.py:414-560; server/mcp_stdio.py; server/mcp_http.py (read)"
+    },
+    {
+      "phase": "arch",
+      "param": "uv workspace packaging",
+      "t": "Server, common and client are separate PyPI packages in one uv workspace with a shared lock; optional heavy deps (spaCy) kept in a dependency group rather than server install deps.",
+      "e": "pyproject.toml:1-48 (read)"
+    },
+    {
+      "phase": "index",
+      "param": "segment store shared tables",
+      "t": "Accepted design (2026-08-31) moving the event segment store from per-tenant Postgres partitions to shared tables with incarnation-scoped tenant keys, after per-tenant DDL broke FKs and generic plans locked all partitions (HTTP 500 at 128-way concurrency).",
+      "e": "design/segment_store_shared_tables.md:1-20 (read)"
+    },
+    {
+      "phase": "derive",
+      "param": "configurable profile schema",
+      "t": "Semantic categories, tags, set types (keyed by metadata such as producer_id) and category templates are editable via REST; ships domain prompts (CRM, health, financial analyst, writing, coding style).",
+      "e": "main/memmachine.py:1387-1735; server/prompt/*.py (read)"
+    },
+    {
+      "phase": "read",
+      "param": "instance LRU cache",
+      "t": "Episodic memory instances per session are reference-counted and optionally kept in an LRU cache; instance_cache_size defaults to 0 (idle caching off) in code and the shipped event sample.",
+      "e": "episodic_memory/instance_lru_cache.py; common/configuration/__init__.py:75-79; sample_configs/configuration.event.yml:55-57 (read)"
+    },
+    {
+      "phase": "index",
+      "param": "chunked long-input embedding",
+      "t": "Over-long inputs are cut into greedy max-size chunks, requests are packed under the provider's input-count and length caps, and a text's embedding is the length-weighted average of its chunk embeddings, so no input is truncated.",
+      "e": "common/embedder/openai_embedder.py:73-75,140-160,200; common/utils.py:121,226 (read)"
+    },
+    {
+      "phase": "read",
+      "param": "union-find context merge",
+      "t": "Overlapping expanded segment windows are merged into connected components with a union-find, sorted chronologically and rendered once, so neighbour expansion does not repeat shared turns.",
+      "e": "episodic_memory/event_memory/event_memory.py:595-653 (read)"
+    },
+    {
+      "phase": "read",
+      "param": "single-query neighbour windows",
+      "t": "On PostgreSQL the segment store fetches backward and forward context for all seed hits in one LATERAL query over an (incarnation, timestamp, event, index, offset) index; SQLite has a separate path.",
+      "e": "episodic_memory/event_memory/segment_store/sqlalchemy_segment_store.py:185-199,410-470 (read)"
+    },
+    {
+      "phase": "arch",
+      "param": "incarnation-keyed tenants + purge queue",
+      "t": "Event segment rows are keyed by a partition incarnation UUID with no FK to the registry, so deleting a session is one registry write and a queue reclaims rows asynchronously in batches.",
+      "e": "sqlalchemy_segment_store.py:146-249; design/segment_store_shared_tables.md (read)"
+    },
+    {
+      "phase": "rank",
+      "param": "time-aware rerank input",
+      "t": "Embedding text has no timestamp by default, but the reranker scores context strings rendered with short timestamps and producer names, so dates reach the reranker without polluting the vectors.",
+      "e": "event_memory.py:475-486,555-560; event_memory/deriver/text_deriver.py:37-53 (read)"
+    },
+    {
+      "phase": "write",
+      "param": "speaker-prefixed embedding text",
+      "t": "Derivative text embeds the producer name before the (JSON-escaped) message, so speaker identity is part of the vector.",
+      "e": "declarative_memory.py:228-240; event_memory/deriver/text_deriver.py:24-46 (read)"
+    },
+    {
+      "phase": "rank",
+      "param": "RaRag multi-hop agent",
+      "t": "Optional CoQ replacement: decomposes a multi-hop query (spaCy or LLM), searches hops in parallel, keeps overlapping memories, builds combined queries and returns up to 200 deduplicated episodes.",
+      "e": "retrieval_agent/agents/rarag_query_agent.py:1-7,170-200 (read)"
+    },
+    {
+      "phase": "index",
+      "param": "Neo4j lazy indexing",
+      "t": "Range and vector indexes are created only once a collection or relation reaches 10,000 entities; filtered ANN uses a 4x fudge factor with exact-search fallback.",
+      "e": "common/vector_graph_store/neo4j_vector_graph_store.py:119-165 (read)"
+    },
+    {
+      "phase": "arch",
+      "param": "caching decorators",
+      "t": "CountCachingEpisodeStorage caches per-session episode counts in memory; CachingSemanticConfigStorage caches semantic set/category config (with_config_cache default true).",
+      "e": "common/episode_store/count_caching_episode_storage.py:1-40; common/resource_manager/resource_manager.py:295; common/configuration/__init__.py:154-157; semantic_manager.py:187-190 (read)"
+    },
+    {
+      "phase": "arch",
+      "param": "SQL leased read-write locks",
+      "t": "Database-backed leased read-write locks for multi-replica deployments, merged 2026-10-06.",
+      "e": "common/sql_lease_lock/; commit c99bc0e (#1722) (read)"
+    },
+    {
+      "phase": "arch",
+      "param": "agent skill package and tools",
+      "t": "Ships an agent skill (SKILL.md plus references) for coding agents, a deployment sizing calculator (servers, GPUs, RAM, Postgres connections from a design peak) and a ChatGPT-export importer.",
+      "e": "packages/skills/memmachine-memory/SKILL.md; tools/sizing/README.md; tools/chatgpt2memmachine/ (read)"
+    },
+    {
+      "phase": "eval",
+      "param": "multi-benchmark harness",
+      "t": "Evaluation scripts for LoCoMo, LongMemEval, BEAM, HotpotQA and WikiMultiHop, with LoCoMo and WikiMultiHop data bundled; judge model and endpoint taken from the environment.",
+      "e": "evaluation/episodic_memory/; evaluation/retrieval_agent/{beam,hotpotQA_test.py,wikimultihop_*.py}; evaluation/data/ (read)"
+    }
+  ],
+  "token_economy": {
+    "t": "Small context comes from raw episodes, not compression: no write-time extraction, retrieval returns a count-capped set of verbatim turns (top_k default 10) with optional neighbour expansion, deduplicated across short- and long-term legs, plus a rolling session summary capped at about message_capacity/16 words. Profile extraction caps the existing-feature list at 50 per call and consolidates a tag once it holds 20 features. There is no token budget, so expand_context and limit directly scale context. Measured: 2,577 tokens per question (OmniMemEval); vendor claims about 80% fewer input tokens than Mem0 (4.20M vs 19.21M over 1,540 q in memory mode), agent mode roughly doubles it (8.57M).",
+    "e": "short_term_memory.py:147-156; semantic_ingestion.py:86-94,379-384; common/api/spec.py:567-570; arXiv 2604.04853 Table 8 (doc); SOTA_MEMU_MEMOS_LOCOMO.md:329 (doc)"
+  },
+  "speed": {
+    "t": "Write: episode store, episodic index and semantic enqueue run concurrently (asyncio.gather); embeddings batched per add; no LLM on the synchronous path; summaries and profile extraction in background workers (single summary worker per session with dynamic batching; semantic poller every 2 s with backoff to 60 s). Read: short-term, long-term and profile legs run concurrently; neighbour expansion and derivative-to-episode lookups gathered in parallel; per-phase latency histograms (Prometheus). Vendor claims up to 75% faster add/search than Mem0; no absolute latency published in the repo.",
+    "e": "main/memmachine.py:796-822,1067-1105; episodic_memory.py:412-427; event_memory.py:165-177,295-316; blog 2025-12-01 (doc)"
+  },
+  "keep": [
+    "Keep raw turns as ground truth and index them with zero write-time LLM calls; derive lossy layers (summary, profile) asynchronously off the hot path.",
+    "Contextualised retrieval: expand each hit with forward-weighted timeline neighbours and rerank the whole window, then fill a cap best-first.",
+    "Rolling short-term summary with a single background worker, dynamic batching and recursive halving on context-length errors.",
+    "Neighbour-aware profile updates (pass up to 50 existing features, emit ADD/DELETE) plus threshold-triggered consolidation that carries citations.",
+    "Per-phase timing histograms on encode and query, and a 4x over-fetch to survive dedup when one episode yields many segments."
+  ],
+  "avoid": [
+    "Outside-harness collapse: 91.69 self-reported vs 73.90 on OmniMemEval, with multi-hop at 53.19; vendor scores depend on a paid reranker and skip profile memory.",
+    "Erasure leaves derived profile features in place after their source episode is deleted (only citation rows are removed).",
+    "No auth, no firewall, no redaction; scope is org/project and the default profile is one per project, so in a multi-user project every user's (and the assistant's) extracted facts merge into one profile; extraction is not role-filtered.",
+    "Non-transactional parallel writes to episode store, index and semantic queue (open TODO #1738) allow index/storage drift."
+  ],
+  "in_progress": [
+    "PR #1804 feat/bounded-progressive-retrieval (open, updated 2026-10-08): opt-in progressive CoQ that widens retrieval windows and bounds rounds and admitted episodes; authors note candidate limits do not bound tokens and quality/cost are unmeasured (gh pr view 1804).",
+    "Event-memory stack on feat/horizontal-scaling (drafts, updated 2026-10-10): #1684 time bounds, sources and expansion; #1686 encode inside one store transaction; #1685 evict near-duplicate derivatives at ingest; #1687/#1692 block kinds for tool calls, tool results, injected text and thinking; #1715 sessions; #1688 render ids (gh pr list).",
+    "Coding-agent memory (drafts): #1690 v1 event-memory API with tenants; #1691 memory_query / memory_expand over MCP at /v1/mcp; #1693 Claude Code and Codex installer plus Stop-hook transcript capture (tool output capped at 8,192 bytes). Design #1579 server redesign (tenants, lifecycle, schema management).",
+    "Retrieval changes: #1475 hybrid vector + full-text search (open, not draft); #1436 temporal scoring (draft; authors say it does not stack with the reranker on LoCoMo); #1663 cosine scores for every vector search; #1599 turbovec 4-bit quantised scan engine; #1602 selectivity-routed filtered queries (deferred).",
+    "Scale-out and safety: #1778 horizontal scaling, #1774 scale-out session deletion, #1759 replica-safe by default, #1810 reject process-local graph backends; SQL leased read-write locks already merged (c99bc0e, #1722). Encryption: #1365 encryption infrastructure, #1370/#1371 KMS clients (OS keyring, Vault/OpenBao), all drafts.",
+    "Backend default: #1518 makes the event backend the default in static configs (the configuration wizard already writes backend 'event', installation/configuration_wizard.py:178); docker-compose default profile is already 'event'.",
+    "Semantic memory: #1513 stop unbounded LLM retry storm, #1708 configurable poll interval, #1242 semantic eval harness (branch eval-harness, last commit 2026-04-24); clustering (ClusterManager / ClusterSplitter / cluster store) coded and tested but not wired into ingestion.",
+    "Branches kg_experiment (knowledge-graph experiment, last committed 2025-12-16), multimodal-client-sdk (2026-02-02), epbench (2026-01-27), semantic-similarity (2026-02-10), speedkick; integrations for Google ADK (#1763) and Agno (#1762) open (gh api branches)."
+  ],
+  "specialities": [
+    {
+      "name": "Contextualised retrieval with window reranking",
+      "t": "Each vector hit becomes a nucleus expanded with timeline neighbours (1/3 back, 2/3 forward); the reranker scores the whole window as one string, and windows are unified best-first under an episode cap, trimming by forward-weighted proximity to the nucleus.",
+      "e": "declarative_memory.py:398-441,616-683; long_term_memory.py:647-700 (read)",
+      "phase": "read"
+    },
+    {
+      "name": "Zero-LLM write path over verbatim episodes",
+      "t": "The synchronous add stores the raw message and its embedding only; summaries and profile extraction run in background workers, so ingest cost is embeddings and every derived layer can be rebuilt from ground truth.",
+      "e": "main/memmachine.py:796-822; event_memory.py:234-292; semantic_memory.py:806-862 (read)",
+      "phase": "write"
+    },
+    {
+      "name": "Combined sufficiency-and-rewrite retrieval agent",
+      "t": "An LLM router picks ChainOfQuery, SplitQuery or direct search; CoQ does the sufficiency check, evidence selection and next-hop rewrite in one call per round, accumulates evidence, stops at confidence 0.8 or 3 rounds, then reranks against all queries used.",
+      "e": "retrieval_agent/agents/tool_select_agent.py:144-197; coq_agent.py:139-140,197-261,312-357 (read)",
+      "phase": "rank"
+    },
+    {
+      "name": "Incarnation-scoped tenant keys",
+      "t": "Segment data is keyed by a per-incarnation UUID decoupled from the registry, making tenant deletion an O(1) registry write with asynchronous purge; adopted after measured Postgres partition-lock blow-ups (HTTP 500 at 128-way concurrency).",
+      "e": "sqlalchemy_segment_store.py:182-249; design/segment_store_shared_tables.md:1-20 (read)",
+      "phase": "arch"
+    },
+    {
+      "name": "Length-weighted chunk-averaged embeddings",
+      "t": "Inputs longer than the embedder limit are split greedily and their chunk vectors averaged by length, with requests packed to provider caps; no silent truncation of long turns.",
+      "e": "common/embedder/openai_embedder.py:140-160,200 (read)",
+      "phase": "index"
+    },
+    {
+      "name": "Neighbour-aware profile with cited consolidation",
+      "t": "Profile updates show the LLM up to 50 existing features and take ADD/DELETE commands; once a tag holds 20 features an LLM merges them, keeps the union of source-episode citations and is not allowed to change the tag.",
+      "e": "semantic_ingestion.py:86-94,225-269,348-403,466-544 (read)",
+      "phase": "derive"
+    },
+    {
+      "name": "Self-healing rolling summariser",
+      "t": "A single background worker drains a dynamic batch into the rolling summary; on context-window errors it halves the batch, or splits a single oversize episode at its midpoint, recursively, so no turn is dropped.",
+      "e": "short_term_memory.py:468-553,594-679 (read)",
+      "phase": "derive"
+    }
+  ],
+  "verification": {
+    "date": "2026-10-11",
+    "commit": "ab96a9d",
+    "rows_checked": 57,
+    "corrections": [
+      "one_line: said 'per-producer profile' -> now 'profile (per project by default)'",
+      "arch.scope: was 'profile sets are org-level, keyed by producer_id, one profile per producer across projects' -> now 'three default sets per episode, but only the project set has the profile category by default, so the profile is per project'",
+      "write.roles: was 'an assistant gets its own profile' -> now 'user and assistant turns all feed the shared project profile; producer sets get no default extraction'",
+      "extract.calls: was '1 call per message per semantic category' -> now 'per message per (set x category), default 1 call via the project set; at most 5 messages per set per pass'",
+      "extract.facts: was '36 fixed profile tags' -> now '37' (profile_prompt.py:9-45)",
+      "extract.failure: was 'consolidation retried twice' -> now 'up to 2 attempts (one retry)' (_MAX_CONSOLIDATION_ATTEMPTS = 2)",
+      "time.update: was 'no history retained (history table removed by migration adb5618bd4ee)' implying feature history was removed -> now 'features never had version history; the dropped table held message copies'",
+      "time.dedup: added that the configurable consolidation_threshold is not wired through (20 is effectively hard-coded)",
+      "derive.session: added that only the summary survives a restart (short_term_memory.py:170 ToDo)",
+      "derive.profile: was 'per-producer profile' -> now 'per-project profile by default; producer sets have no default categories'",
+      "read.legs: was 'top 30 per set by default' -> now 'top_k per set (REST default 10); 30 is only the service default when no limit is given'",
+      "index.vector: was 'exact-search fallback below a threshold' -> now states the 0.5 ratio, 4x fudge factor and 10,000-node lazy index threshold",
+      "answer.size: was 'short-term returns all window episodes unless limited' -> now 'short-term returns up to the same limit of most recent episodes' (limit always set, 20 if None)",
+      "answer.prompt: added that the answer prompt is adapted from Mem0's evaluation prompt (locomo_search.py:17-18)",
+      "eval.rigour: was 'the LoCoMo harness builds EpisodicMemory directly, so profile memory is not exercised' -> now notes declarative-only agent harness plus a REST v2 harness that can exercise both memory types",
+      "cost.write: clarified that the 5,882 profile calls assume the default project-set-only category and scale with configured sets",
+      "trust.sharing: was 'org-level profile sets are shared across projects' -> now 'the default profile is project-level and shared by all producers in the project'",
+      "extras[instance LRU cache]: phase was 'answer' and implied on -> now phase 'read', default instance_cache_size 0 (off)",
+      "avoid[2]: said 'every producer (assistant included) gets a profile' -> now 'one default profile per project that mixes all producers'"
+    ],
+    "added": [
+      "extra (index): chunked long-input embedding",
+      "extra (read): union-find context merge",
+      "extra (read): single-query neighbour windows",
+      "extra (arch): incarnation-keyed tenants + purge queue",
+      "extra (rank): time-aware rerank input",
+      "extra (write): speaker-prefixed embedding text",
+      "extra (rank): RaRag multi-hop agent",
+      "extra (index): Neo4j lazy indexing",
+      "extra (arch): caching decorators",
+      "extra (arch): SQL leased read-write locks",
+      "extra (arch): agent skill package and tools",
+      "extra (eval): multi-benchmark harness",
+      "speciality (read): Contextualised retrieval with window reranking",
+      "speciality (write): Zero-LLM write path over verbatim episodes",
+      "speciality (rank): Combined sufficiency-and-rewrite retrieval agent",
+      "speciality (arch): Incarnation-scoped tenant keys",
+      "speciality (index): Length-weighted chunk-averaged embeddings",
+      "speciality (derive): Neighbour-aware profile with cited consolidation",
+      "speciality (derive): Self-healing rolling summariser",
+      "in_progress refreshed from gh pr list / branches (2026-10-11)"
+    ],
+    "unverified": [
+      "LoCoMo vendor scores (91.69 / 91.23 / 88.12 / 87.47) and token totals from the 2025-12-01 blog and arXiv 2604.04853 were not re-read in this pass; nothing in the repo README or committed results confirms them.",
+      "OmniMemEval 73.90 and 2,577 tokens per question rest on our transcription in SOTA_MEMU_MEMOS_LOCOMO.md:329; the MemMachine version, backend and reranker used there are unknown.",
+      "Which harness and backend (declarative episodic script, agent script or REST v2) produced the published numbers is not stated in code.",
+      "Vendor claims of about 80% fewer input tokens and up to 75% faster add/search than Mem0 are doc-only.",
+      "Per-question token figures in answer.size are divisions of run totals (inferred)."
+    ]
+  }
+}

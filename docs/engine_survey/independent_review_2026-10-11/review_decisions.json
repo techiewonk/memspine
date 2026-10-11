@@ -1,0 +1,222 @@
+[
+  {
+    "id": "RV01",
+    "layer": "L0 → L1/L3",
+    "gaps": "G-W27, G-W49",
+    "title": "Durable derivation before online graph writes",
+    "finding": "Confirmed: deque jobs and pending edges are process-local; take_edges clears before downstream acknowledgement; overflow removes oldest batches. Raw turns surviving is not equivalent to derived work surviving.",
+    "evidence": "workers/windows.py:326,433,554,608,808",
+    "solution": "Persist membership, source versions, attempts, leases and result/outbox state. Use at-least-once execution with idempotent visible effects, then acknowledge. Preserve replayable raw inputs. Put caps on backlog age and size; coalesce without dropping evidence.",
+    "gate": "Faults after inference, after each deposit, before acknowledgement, on restart and during forget must not lose eligible inputs or duplicate visible effects. Model calls can repeat; do not promise exactly-once inference."
+  },
+  {
+    "id": "RV02",
+    "layer": "L1/L3",
+    "gaps": "G-W49, G-P2",
+    "title": "Citations do not prove entailment",
+    "finding": "Confirmed: facts pass a normalised substring check; edges only need valid line indices. A matching quote may support a different person, polarity or relationship.",
+    "evidence": "workers/windows.py:148,199,236",
+    "solution": "Store evidence spans per assertion and per endpoint, with resolved aliases and source role. Validate numbers, units, qualifiers, polarity and entity binding; retain uncertain assertions without promoting them to positive facts. Use semantic adjudication selectively for ambiguity.",
+    "gate": "Labelled multilingual and cross-domain precision/recall, including short valid quotes, pronouns, paraphrases and misleading common-word spans. Reject a rigid minimum-span or literal-endpoint rule as sufficient proof."
+  },
+  {
+    "id": "RV03",
+    "layer": "L1/L3",
+    "gaps": "G-W49, G-P2, G-P6",
+    "title": "Schema needs consumers, not just a shorter prompt",
+    "finding": "Confirmed: current fact deposit ignores speaker/subject/confidence but uses persons/location/topic. Edge confidence affects weights. Proposed fact/mode/neg/until need explicit consumers.",
+    "evidence": "workers/windows.py:829; workers/pipelines.py:2198; prompts/models.py",
+    "solution": "Define a versioned assertion envelope; compile optional graph edges from it. Keep literal-valued, list-valued and n-ary facts without forcing fake entity nodes. Carry assertion source, modality and negation through storage, retrieval and answer generation. Unknown enum values fail visibly.",
+    "gate": "Every emitted field has a storage and read consumer or is explicitly transient. Round-trip fixtures preserve negation, attribution, lists, quantities, event roles and temporal precision."
+  },
+  {
+    "id": "RV04",
+    "layer": "L1/L3 temporal",
+    "gaps": "G-P6, G-W50",
+    "title": "Separate utterance, ingestion and event time",
+    "finding": "Confirmed: window fact date uses _fact_date with a window fallback; episode deposit uses the first record date. Coarse precision must not imply exact day one.",
+    "evidence": "workers/windows.py:854,894; workers/pipelines.py:2924",
+    "solution": "Carry recorded_at, source timestamp and effective event interval with precision and uncertainty. Store future plans as plans. Resolve relative dates against the cited utterance. Keep unknown dates unknown. State changes require effective-time semantics as well as observation history.",
+    "gate": "Backfilled history, month/year-only dates, future plans, late corrections, multiple source dates and start/end duration joins. Do not replace all state ordering with utterance time."
+  },
+  {
+    "id": "RV05",
+    "layer": "L3 identity/history",
+    "gaps": "G-W50, G-W49",
+    "title": "Edge identity must distinguish occurrences and state returns",
+    "finding": "Confirmed: base key omits kind; dated event variant uses day and numerals. Existing key short-circuits before the conflict ladder.",
+    "evidence": "workers/pipelines.py:1882,2214",
+    "solution": "Version keys and separate assertion identity, event occurrence and semantic deduplication. Same triple is not necessarily the same event. Preserve A→B→A states. Use source occurrence evidence plus event resolution; re-mentions can support one event rather than create duplicates. Define migration and old-key aliases.",
+    "gate": "Repeated same-day events, repeated mention of one event, state/event same triple, A→B→A and replay of an old-key store. No duplicated facts on migration."
+  },
+  {
+    "id": "RV06",
+    "layer": "L3 online projection",
+    "gaps": "G-W49",
+    "title": "Extracting the graph writer is a real refactor",
+    "finding": "Confirmed: emit is a closure in a namespace sweep with captured state and counters. Calling the entire sweep per batch would repeat broad scans.",
+    "evidence": "workers/pipelines.py:2047,2198; memories/associative/resolution.py",
+    "solution": "Separate pure edge decisions from persistence and sweep orchestration. Add indexed lookups, a bounded incremental entity cache, namespace locking, live-parent checks and transactional outbox/projection recovery.",
+    "gate": "Characterisation equivalence for existing graph behaviour; scaling tests across namespace sizes; races with erase, updates and simultaneous sleep. Estimate effort after this design, not from moving a function."
+  },
+  {
+    "id": "RV07",
+    "layer": "All derived layers",
+    "gaps": "G-W27, G-W49",
+    "title": "Cache lineage must survive restart",
+    "finding": "Risk from code reading, not reproduced: reply-to-source membership is process-local; persistent cache backends can outlive it. A future KNOWN/context input also changes cache identity.",
+    "evidence": "workers/windows.py:650,573; services/cache/cashews_cache.py:37",
+    "solution": "Scope cache by tenant, source IDs/versions, prompt/schema/model, all input blocks and derivation policy. Persist reverse lineage or validate cached dependencies on use. Tombstones and generation checks prevent stale publication after forget.",
+    "gate": "Process restart with persistent cache, cross-tenant identical text, altered KNOWN input, changed prompt, forget during inference and hard erase. Check absence of retained payloads, not only absence of search hits."
+  },
+  {
+    "id": "RV08",
+    "layer": "Read context",
+    "gaps": "G-W25",
+    "title": "Fix packing separately from budget-share experiments",
+    "finding": "Confirmed: oversize item after a selection breaks packing; first selected item can exceed the budget when no fit stage applies. Fixed 60/20/10/10 shares are unmeasured.",
+    "evidence": "core/policies/assembly.py:288-299",
+    "solution": "Skip oversize candidates and continue; define truncation/fallback for the first item, count headers and provenance, then enforce final reader-token budget. Test dynamic shares with unused-capacity redistribution separately.",
+    "gate": "Adversarial long-first/long-middle fixtures, exact total prompt tokens and source integrity; paired category outcomes at equal budget. Token limit compliance is necessary but not evidence of answer improvement."
+  },
+  {
+    "id": "RV09",
+    "layer": "L1/L2 payload",
+    "gaps": "G-W26, G-W28, G-W8",
+    "title": "Three gaps are partly implemented",
+    "finding": "Confirmed: episode summary exists but _store_episode keeps title+narrative. facts/facts_graph mode does not ask for episode summary. rerank_context and facts_to_sources already exist as settings.",
+    "evidence": "workers/windows.py:894; config/schema.py:440,1014; prompts/defaults/window_extract.yaml",
+    "solution": "Describe remaining work as summary persistence/attachment and bounded integration of existing rerank/lifting features. Store summary once with a pointer, preserve direct evidence, deduplicate parent windows.",
+    "gate": "Same evidence coverage with fewer tokens; no duplication or stale summaries. Compare enabled existing configuration before proposing a replacement."
+  },
+  {
+    "id": "RV10",
+    "layer": "Performance",
+    "gaps": "G-W49, G-W13, G-W45",
+    "title": "Token and latency claims need a reproducible manifest",
+    "finding": "Confirmed arithmetic: 2.7s / 55–210ms is about 13–49× call cost, not uniformly 50×. The latency study used a different completion workload. Prompt v1 and v2 differ.",
+    "evidence": "docs/DEFERRED_INGEST_STUDY.md:113,123; gap_plan.json G-W49",
+    "solution": "Record rendered prompt hash, actual tokenizer/template, prefix-cache state, input/output tokens, retries and queue delay. Compare end-to-end p50/p95 and freshness at matched load. Keep 309/353/958 as historical unverified counts until reproduced.",
+    "gate": "Equal data/model/hardware/concurrency and quality; include output decoding, embeddings, graph writes, cache misses and backlog. No claim of speed-up from prompt length alone."
+  },
+  {
+    "id": "RV11",
+    "layer": "Extraction repair",
+    "gaps": "G-P4, G-W49",
+    "title": "One-call design is a target, not a hard observed total",
+    "finding": "Confirmed: split mode and errors complicate counts; repair is proposed. A unified item list should not turn one invalid item into loss of the whole batch.",
+    "evidence": "workers/windows.py:618,628,698; gap_plan.json G-P4",
+    "solution": "Use per-item validation; bound attempts, elapsed time and output budget. Persist failure reason and retry eligibility. Guard against truncation; a cap must expose coverage loss or schedule remaining content rather than silently discard it.",
+    "gate": "Malformed JSON, mixed valid/invalid items, oversized lists, timeouts and schema mismatch; report useful assertions per token and dropped coverage, not only parse success."
+  },
+  {
+    "id": "RV12",
+    "layer": "Evaluation",
+    "gaps": "G-E1, BD-1",
+    "title": "f-slot is one inconclusive quality result with high observed cost",
+    "finding": "Register reports +1/−4 on 437, fired on 150; changes outside fired cases need attribution checks. Pre-I80 absolute results are contaminated; relative deltas are not automatically immune.",
+    "evidence": "evals/analysis/GAP_REGISTER.md:222,343,723",
+    "solution": "Keep historical runs labelled; use clean pinned paired references, conversation-level uncertainty and per-slice losses. Separate adoption decision from general claims about all agentic retrieval. Pre-register non-inferiority margins and cost limits.",
+    "gate": "All required blind sets present; matched manifests; repeated null controls estimate false adoption rate. Do not promise that a random seed swap can never pass a statistical gate."
+  },
+  {
+    "id": "RV13",
+    "layer": "Question evidence / external knowledge",
+    "gaps": "E01–E06; BD-8",
+    "title": "Treat user examples as hypotheses, not new answer keys",
+    "finding": "Scope includes all saved questions. Implicit country relation, likely book ownership, image-supported title and duration calculations require different evidence contracts.",
+    "evidence": "deep_audit_2026-10-11/question_review.jsonl; all_scope_coverage.json",
+    "solution": "Join cited facts for multi-hop relations; distinguish likely from known ownership. Use external sources only for general world knowledge, never invent private history. Route unresolved visual evidence to an opt-in image extraction path; store asset hash and uncertainty. Compute durations from compatible endpoints with precision bounds.",
+    "gate": "Benchmark mode obeys allowed tools; external-tool and text-only results are separate. Test both gains and regressions across all categories, not just the 13 examples. Preserve original gold and record disputed references separately."
+  },
+  {
+    "id": "RV14",
+    "layer": "All phases",
+    "gaps": "Survey / prompt matrix",
+    "title": "Complete cells are not verified implementations",
+    "finding": "All 15×57 survey rows and 15×23 prompt cells can be inventoried. Prompt instruction presence is not enforcement; snapshot scores do not certify current OSS code or cloud products.",
+    "evidence": "docs/engine_survey/SPEC.md; prompt_matrix.json; per-engine records",
+    "solution": "Track code/default/opt-in/doc/branch/measured independently; include commit, data/reader/judge/budget. Mark uninspected claims as inherited. Replace blanket best/fastest/no-other-engine language with scoped evidence.",
+    "gate": "All evidence links and pins traceable; an independent reader can distinguish historical survey assertions from this review’s confirmed findings."
+  },
+  {
+    "id": "RV15",
+    "layer": "L1 quality",
+    "gaps": "Wave A, G-P1, G-P3, G-P4, G-P6",
+    "title": "CPU-testable does not mean quality-neutral",
+    "finding": "Plan calls Wave A CPU-only with no screen. Language rules, length limits, date spans and repair alter model outputs or their interpretation.",
+    "evidence": "gap_plan.json waves; G-P1, G-P3, G-P4, G-P6",
+    "solution": "Separate deterministic infrastructure tests from extraction and downstream quality screens. Avoid universal hard 40-word limits that erase lists or conditions. Evaluate completeness and fidelity per fact type.",
+    "gate": "CPU tests first; held-out extraction precision/recall and downstream non-inferiority before enabling quality-affecting changes. No guaranteed improvement for every individual question."
+  },
+  {
+    "id": "RV16",
+    "layer": "Historical question register",
+    "gaps": "E01, A01, A02, R02",
+    "title": "Implementation statuses have aged",
+    "finding": "Read-time fact chain, event ledger and source lifting have code/config hooks; older register calls every hypothesis not implemented. A hook alone still does not implement the complete proposed solution.",
+    "evidence": "config/schema.py:1014,1191,1207; prompts/models.py:666,717",
+    "solution": "Use partial/built-off with named hooks and remaining work, separate from experimentally successful. Preserve the frozen per-question answers and scores; add a current-status overlay.",
+    "gate": "All 25 historical hypotheses linked to the current plan and reviewed status; automated checks must not mistake existence of a symbol for full implementation."
+  },
+  {
+    "id": "RV17",
+    "layer": "L3 resolution / consolidation",
+    "gaps": "G-W29, G-W49",
+    "title": "Similarity thresholds are different mechanisms",
+    "finding": "Name MinHash trigram Jaccard and embedding cosine are distinct. A 0.9 threshold is not transferable across them or across embedding models. Same name can refer to different entities.",
+    "evidence": "memories/associative/resolution.py; config/constants.py:461; synthesis.json",
+    "solution": "Preserve ambiguous entities; resolve with scoped type and context. Calibrate candidate generation and merge thresholds independently. Search contradictions by subject/predicate/time as well as high cosine similarity.",
+    "gate": "Held-out alias/homonym pairs, negations and low-similarity contradictions; report false merges separately from missed merges. No auto-merge based only on shared spelling."
+  },
+  {
+    "id": "RV18",
+    "layer": "Borrowed graph design",
+    "gaps": "G-W49, G-W50",
+    "title": "Graphiti call counts depend on the entry point",
+    "finding": "Source checks confirm separate node/edge extraction on add_episode and combined extraction by default on bulk. Edge resolution skips dedupe when no candidates or when text/endpoints match verbatim; timestamps, attributes and unresolved identities add conditional calls.",
+    "evidence": "graphiti @964bb11: graphiti_core/graphiti.py:1103,1469,1597; utils/maintenance/edge_operations.py:906,940",
+    "solution": "Pin version and entry point. Count extraction + unresolved-node resolution + eligible edge adjudications + timestamp/attribute/summary work, including retries. Borrow provenance and conditional resolution, not a fixed call-count claim. Repeated mentions can reuse an edge and append provenance; semantic dedup is not solely text identity.",
+    "gate": "Trace counters by stage on the actual integration before claiming cost parity. Combined’s older embedded Graphiti snapshot is a separate version."
+  },
+  {
+    "id": "RV19",
+    "layer": "Durability survey",
+    "gaps": "G-W27",
+    "title": "Failure modes must be distinguished",
+    "finding": "Source checks: MemOS returns before raw deletion on a raised fine-transfer exception, but can fall through to deletion on empty results. Nemori can delete skipped small groups; semantic generation exceptions are swallowed while the episode may survive. This is narrower than all failures lose raw turns.",
+    "evidence": "memos mem_read_handler.py:171,398; nemori memory_system.py:116,158,164",
+    "solution": "Classify raised failure, swallowed failure, malformed reply, valid empty reply, size-based skip and partial commit. Retain raw sources and explicit derivation status. A validated empty extraction may be acknowledged as a no-op; do not retry valid empty windows forever.",
+    "gate": "Fault fixtures for each outcome with documented source/episode/fact survival and bounded retry. Code-path analysis here is not an executed loss reproduction."
+  },
+  {
+    "id": "RV20",
+    "layer": "Survey versions / cost",
+    "gaps": "G-W13, G-W49, G-P7",
+    "title": "Stage, variant and deployment labels are required",
+    "finding": "The records themselves say Mnemon’s raw record path has zero LLM calls and optional consolidation; its small answer context excludes auxiliary model reading. Memori prompt cells frequently describe legacy v2, while current extraction is hosted. The inherited one-call/example-free summary is not reliable.",
+    "evidence": "mnemon.json extract.calls and token_economy; prompt_matrix.json F18 and Memori variants; memori.json",
+    "solution": "Label OSS/cloud, current/legacy/experiment/host-agent and exact entry point per claim. Report answer tokens and auxiliary read tokens separately. 1,127 windows / 5,882 turns is segmentation density, not measured total calls per turn. Do not show one vendor score as the pinned code’s score.",
+    "gate": "Full-path accounting includes split/repair, session close, sleep, planner, reranker and reader. Unknown hosted behaviour stays unknown. Prompt presence must not be conflated with storage semantics."
+  },
+  {
+    "id": "RV21",
+    "layer": "Isolation / erasure",
+    "gaps": "Survey security claims",
+    "title": "Untraced scope conditions must stay visible",
+    "finding": "Claude flagged that an EverMemOS row ID omits app/project, but actual collision depends on entry-ID uniqueness and write semantics. Likewise, an erasure path does not certify all caches and derived views. These end-to-end claims were not reproduced in this review.",
+    "evidence": "survey Claude F-11/F-12; engine Claude F6",
+    "solution": "State conditional risks rather than proven exploits. Test identical IDs/text in separate tenants, source deletion after restart, and every derived projection/cache. Distinguish soft removal from hard erasure and retention policy.",
+    "gate": "Isolation tests cover write/search/update/delete and cache hits. Erasure checks cover residual content plus lineage and scheduled jobs. Recheck current code before presenting historical security claims as current facts."
+  },
+  {
+    "id": "RV22",
+    "layer": "Documentation consistency",
+    "gaps": "G-W32, all waves",
+    "title": "The synthesis and gap inventory drift",
+    "finding": "The current plan has 41 gap cards. G-W32 appears in the synthesis but has no card in this plan snapshot. Five by-design IDs have no wave; that need not mean missing work.",
+    "evidence": "synthesis.json section 7; gap_plan.json gaps and waves",
+    "solution": "Keep an explicit unresolved cross-reference ledger. Treat G-W32 as a design candidate overlapping summary pointers/observation dedup, not an implemented or silently retired feature. Derive counts and require an explicit unscheduled/by-design reason.",
+    "gate": "Validator reports dangling IDs, duplicate IDs, missing row evidence and incompatible variant claims. Resolve semantics manually rather than enforcing brittle keyword checks."
+  }
+]

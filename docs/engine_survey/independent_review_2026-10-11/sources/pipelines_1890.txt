@@ -1,0 +1,7 @@
+1890:     parts: list[object] = [namespace, edge.src_entity, edge.rel, edge.dst_entity]
+1891:     if dated and edge.kind == "event":
+1892:         day = (edge.valid_from or "")[:10]
+1893:         numbers = sorted(set(_NUMERAL.findall(edge.fact)))
+1894:         parts += [day, numbers]
+1895:     return fingerprint_payload({"extract_graph": parts})
+1896: 

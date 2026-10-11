@@ -1,0 +1,39 @@
+{
+  "head": "7a0fa68266e8ece6d46622bd37008e99fc436b42",
+  "engines": 15,
+  "phase_count": 14,
+  "rows_per_engine": 57,
+  "survey_cells": 855,
+  "prompt_features": 23,
+  "prompt_cells": 345,
+  "current_gaps": 41,
+  "review_decisions": 22,
+  "claude_reviews": 2,
+  "structural_errors": [],
+  "semantic_certification_of_all_claims": false,
+  "browser_render_check": false,
+  "unresolved_synthesis_gap_ids": [
+    "G-W32"
+  ],
+  "gaps_without_wave": [
+    "BD-1",
+    "BD-4",
+    "BD-5",
+    "BD-6",
+    "BD-8"
+  ],
+  "historical_audit_source": {
+    "frozen_explorer_sha256": "75b63dbecbe99fde7da247af1e06b8796a0462175527c83511bef14d56ff7bde",
+    "current_explorer_sha256": "52f56b8e59151386217dcfbe1b542a0d1d599e53e4d98b22a0d9df33862273dd",
+    "source_matches_frozen_audit": false
+  },
+  "codex_source_engines": 16,
+  "codex_scoped_source_claims": 43,
+  "codex_gap_dispositions": 41,
+  "codex_source_references_hash_checked": 84,
+  "inherited_cells_explicitly_not_certified": 1200,
+  "rendered_input_strings_checked": 9646,
+  "local_links_checked": 18,
+  "javascript_syntax_checked": 1,
+  "html_sha256": "942ecf583362007f19488d03f2a33b3bbcd3f417f9953b96c7275ca44f108541"
+}

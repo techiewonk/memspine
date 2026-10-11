@@ -1,0 +1,698 @@
+{
+ "slug": "memspine",
+ "name": "MemSpine",
+ "repo": "https://github.com/techiewonk/memspine (feat/local-qwen-stack)",
+ "commit": "ea1b797",
+ "version": "0.0.1",
+ "licence": "Apache-2.0",
+ "one_line": "Event-sourced memory library: raw turns in an append-only log are the truth, every index is a rebuildable projection, derived layers (window facts, graph, summaries, profile) are opt-in and carry lineage and trust.",
+ "locomo": [
+  {
+   "score": "81.4",
+   "protocol": "leg-protected pool (scr-pool-protect), Qwen3-Embedding-0.6B + Qwen3-Reranker-4B 4-bit keep 10, Qwen3.5-9B Q4_K_M reader and judge (rubric + guards), cat 1-4, 1,540 q; absolute value contaminated by the I80 prompt (relative deltas stand)",
+   "who": "ours",
+   "source": "evals/analysis/GAP_REGISTER.md progress log (r7-protect); docs/MEMSPINE_ENGINE_AND_LOCOMO.html"
+  },
+  {
+   "score": "80.4",
+   "protocol": "perspective config (scr-persp-w), same stack, 1,540 q; same I80 caveat",
+   "who": "ours",
+   "source": "evals/analysis/GAP_REGISTER.md progress log; FULL_RUN_FORENSICS_2026-10-10.md"
+  },
+  {
+   "score": "F1 42.0",
+   "protocol": "official LoCoMo QA F1 port on the 81.4 run, cat 1-4",
+   "who": "ours",
+   "source": "evals/analysis/GAP_REGISTER.md G-C7"
+  }
+ ],
+ "rows": {
+  "arch.product": {
+   "s": "Y",
+   "t": "Embeddable async Python library (Engine) over an append-only event log, with an optional FastAPI REST app and a stdio JSON-RPC MCP server (memspine mcp) exposing five agent tools; Apache-2.0, v0.0.1.",
+   "e": "read: src/memspine/protocols/rest/app.py:209; src/memspine/protocols/mcp.py:69; src/memspine/cli.py:241; pyproject.toml:3,7"
+  },
+  "arch.truth": {
+   "s": "Y",
+   "t": "One append-only memory_events log (SQLite by default, Postgres optional); every projection (read model, vectors, BM25, graph) is replayed from per-projector high-water marks at start-up and can be rebuilt. Log mode defaults to full; rolling and ephemeral modes give up rebuildability.",
+   "e": "read: src/memspine/config/schema.py:48; src/memspine/core/replay.py:34,74"
+  },
+  "arch.stores": {
+   "s": "Y",
+   "t": "Event log and read model in SQLite (or Postgres); LanceDB is the only vector store (shared table with namespace prefilter, per_namespace tables opt-in); Tantivy BM25 lexical store (OpenSearch optional); graph store LadybugDB when installed, else SQLite adjacency, Neo4j available.",
+   "e": "read: src/memspine/config/schema.py:88,170,340"
+  },
+  "arch.graphdb": {
+   "s": "O",
+   "t": "Graph store built only when associative memory is enabled, which the base/assistant templates do not do; graph.provider auto picks LadybugDB if installed, else SQLite adjacency. The graph and benchmark templates turn it on; the LoCoMo arms run on template base with no associative memory, so the graph is off there.",
+   "e": "read: src/memspine/config/schema.py:174-186; src/memspine/config/templates/graph.yaml:13; evals/memspine_evals/systems/memspine_system.py:215,376; evals/arms/scr-pool-protect-jina.json (inferred for arms)"
+  },
+  "arch.scope": {
+   "s": "Y",
+   "t": "The namespace (a / path of lowercase segments, at most 16 deep) is the isolation boundary; a parent gets no access to its children; grant_allows is the only cross-namespace check. group_id, tags and the viewer visibility are filters inside a namespace, not isolation.",
+   "e": "read: src/memspine/core/namespace.py:21-22,56-84; src/memspine/core/visibility.py:1-16"
+  },
+  "write.entry": {
+   "s": "Y",
+   "t": "write / write_ex (single record), write_messages / write_episode (per turn, batched embedding and projection), ingest, and send (agent to agent). REST /write and /write_messages call the same doors on the trust-capped rest channel; MCP exposes five verbs (memory_write goes through write_ex on the capped agent_tool channel, no write_messages).",
+   "e": "read: src/memspine/engine.py:1672,4270; src/memspine/protocols/tools.py:7-29"
+  },
+  "write.receipt": {
+   "s": "Y",
+   "t": "The event is appended to the log before projectors run; write returns the record and write_ex also an action (added, merged, updated, rejected, quarantined). Batch offsets are checkpointed at flush and catch_up replays the tail after a crash. Window extraction (if on) runs after write returns, in a non-durable per-namespace queue.",
+   "e": "read: src/memspine/engine.py:13479-13501,1886,1561; src/memspine/workers/windows.py:86-87,554-569"
+  },
+  "write.roles": {
+   "s": "Y",
+   "t": "Each turn becomes one episodic record with source.role set to its role; perspective tags (I39), speaker tagging (W8), skip_message_roles and tag_assistant_claims are opt-in.",
+   "e": "read: src/memspine/engine.py:4281-4290,2830-2834; src/memspine/config/schema.py:1444"
+  },
+  "write.firewall": {
+   "s": "Y",
+   "t": "Role trust matrix (operator/system 0.9, user 0.7, assistant 0.5, tool 0.4; external channels capped at 0.3). Three default signals: instruction-shape regex, embedding outlier (nearest cosine below 0.05 with at least 8 neighbours), MINJA 96-character shared-prefix bridge. Quarantine below trust 0.25, on anomaly from a non-privileged role, or on instruction flag from external/tool/assistant authors; release after 2 corroborations from operator/system/user at trust >= 0.5, by admin, or approve_quarantined.",
+   "e": "read: src/memspine/core/firewall.py:149-155; src/memspine/core/policies/trust.py:28-42,139-166; src/memspine/config/constants.py:137-148"
+  },
+  "write.governance": {
+   "s": "O",
+   "t": "Off by default: secret and PII redaction (redact_secrets, pii), purpose consent tags (consent.enforce), retention classes, and a hash-chained audit of reads and actions. The multi_agent and regulated_financial templates turn redaction on.",
+   "e": "read: src/memspine/config/schema.py:1424-1441,1584-1639; src/memspine/config/templates/multi_agent.yaml:21-28"
+  },
+  "segment.unit": {
+   "s": "O",
+   "t": "Opt-in adaptive window (write.window_extract = facts | facts_graph | all; default off): consecutive turns of one session in one namespace, closed at the first of topic shift, 6 turns, 1,500 tokens (4 characters per token), 120 s idle (async mode), session end or flush. With it off no write-time model call is made and the unit is the single turn.",
+   "e": "read: src/memspine/config/schema.py:1757-1767; src/memspine/core/window.py:64-71,155-179; docs/adr/ADR-066-adaptive-window-write.md"
+  },
+  "segment.rule": {
+   "s": "",
+   "t": "Topic shift = cosine of consecutive turn embeddings below the store's own running (Welford) mean - 2 sd, per namespace, only after 20 learned pairs and with at least 2 turns open; never tested across a session change; no tuned threshold. Separately, consolidate derives 30-minute-gap sessions at sleep time.",
+   "e": "read: src/memspine/core/window.py:108-124,148-173; src/memspine/config/constants.py:170,501,504"
+  },
+  "segment.measured": {
+   "s": "",
+   "t": "Offline segmenter run, no LLM (Qwen3-Embedding-0.6B on CPU): 1,127 windows on 5,882 turns / 272 sessions = 0.192 calls per turn, 5.22 turns per window, 4.14 windows per session; closes by turn cap 72.3%, session end 19.9%, topic 7.2%, flush 0.6%; the 1,500-token cap never fired (max 530). No live engine run yet.",
+   "e": "doc: evals/analysis/WINDOW_STATS_2026-10-11.json; docs/ENGINE_COMPARISON_AND_WRITE_PATH_DESIGN.html (D6); evals/analysis/GAP_REGISTER.md section M W1"
+  },
+  "extract.calls": {
+   "s": "",
+   "t": "0 by default. Window mode: one call per window (about 0.19 per turn), two when split. Sleep-time calls all opt-in: mine_facts (1 per session, or per topic segment), extract_graph, summarize_entities (30 per call), anticipate, reflect_profile; consolidate makes 1 call per closed session only if a summarize role is bound.",
+   "e": "read: src/memspine/workers/windows.py:641-681; src/memspine/core/policies/consolidation.py:63-124; src/memspine/workers/pipelines.py:3303-3323"
+  },
+  "extract.facts": {
+   "s": "O",
+   "t": "Window facts section: atomic dated facts that must cite valid lines and quote a verbatim span, else dropped (facts_ungrounded / facts_uncited); parents = cited turns; deposited through the mined-fact door (firewall, trust cap, ladder, liveness re-check). Alternative: sleep-time mine_facts (LLM or rule miner), parents = the session or the cited lines (mine_evidence_turns).",
+   "e": "read: src/memspine/workers/windows.py:148-153,199-222,840-870; src/memspine/core/policies/consolidation.py:63-68"
+  },
+  "extract.episode": {
+   "s": "O",
+   "t": "Episode-fragment section only in window mode all: a semantic record (channel window_episode, at most 4,000 characters) with the cited turns as parents. The stitched session narrative belongs to call 2, which is a stub (session_close records a marker).",
+   "e": "read: src/memspine/workers/windows.py:78-83,883-910; src/memspine/workers/pipelines.py:3669-3699"
+  },
+  "extract.dates": {
+   "s": "Y",
+   "t": "Every record carries valid_from. Window facts write 'expression (YYYY-MM-DD)' from each line's own date, valid_from = stated date else window start. Read-time '[= date]' annotation (resolve_relative_dates) is on in the base template (off in the bare schema); sleep miner dating (mine_event_dates, happened: tags) is opt-in.",
+   "e": "read: src/memspine/prompts/defaults/window_extract.yaml:22-25; src/memspine/workers/windows.py:854; src/memspine/config/schema.py:533; src/memspine/config/templates/base.yaml:21"
+  },
+  "extract.neighbours": {
+   "s": "N",
+   "t": "The window call sees only its own turns: no earlier facts, no adjacent windows (G-W4 not built); the window covers coreference and relative dates only.",
+   "e": "read: src/memspine/workers/windows.py:709-714; doc: docs/ENGINE_COMPARISON_AND_WRITE_PATH_DESIGN.html (G-W4)"
+  },
+  "extract.failure": {
+   "s": "O",
+   "t": "Window mode only: each section fails closed alone; auto-split into facts+edges / episode once 25% of the last 8 joint calls failed; a bad window never stops the queue (jobs_failed); liveness re-check cancels a window whose member turn vanished; window_stats exposes about 40 counters. Default write path makes no model call, so nothing to fail.",
+   "e": "read: src/memspine/workers/windows.py:474-488,628-639,718-742,877-880; src/memspine/config/constants.py:507-508"
+  },
+  "graph.entities": {
+   "s": "O",
+   "t": "Off by default (entity_extraction: off). Opt-in sources: LLM extractor via the extract role (cached by prompt version and content hash), GLiNER2 fastino/gliner2-base-v1 ([ner] extra), or edge entities from extract_edges (sleep), write_pipeline: graph, or the window facts_graph edge section. Nodes ent:<ns>:<canonical> (NFKC + casefold) with a junk-name blocklist.",
+   "e": "read: src/memspine/engine.py:14787-14810; src/memspine/memories/associative/entities.py:59-66,84-114; src/memspine/config/schema.py:1751-1757"
+  },
+  "graph.resolution": {
+   "s": "O",
+   "t": "extract_graph.resolve off (default) | rules | llm, run in the sleep-time extract_graph sweep. Ladder: exact, alias table, top-15 candidates by embedding cosine, entropy gate, MinHash Jaccard >= 0.9 (Roman-numeral and plural variants never string-merged), then one resolve_entity@batch call per chunk of 50 unresolved names. A merge across a trust gap > 0.2 becomes contested.",
+   "e": "read: src/memspine/memories/associative/resolution.py:7-33,97-111,231-253; src/memspine/config/constants.py:460-481; src/memspine/workers/pipelines.py:1673-1682"
+  },
+  "graph.edges": {
+   "s": "O",
+   "t": "Each edge (src, rel, dst, fact) becomes a semantic record keyed (entity=src, attribute=rel), tagged kind:, rel:, dst:; event edges coexist; edges pass dedup and the conflict ladder and link to their source by an asserted LINK. Sources: sleep extract_graph, synchronous write_pipeline: graph, or window call-1 edges.",
+   "e": "read: src/memspine/memories/semantic/write_pipeline.py:1-31; src/memspine/workers/pipelines.py:1983-2023"
+  },
+  "graph.communities": {
+   "s": "O",
+   "t": "reorganize sleep stage: auto = Leiden (seed 1, resolution 1.0, needs the [community] extra) plus 10 LPA refinement passes, or LPA alone with a collapse guard (largest share > 0.5 rejected at >= 100 nodes); communities of >= 3 get a summary parent; read.graph_communities off.",
+   "e": "read: src/memspine/workers/pipelines.py:1075-1084,1176-1220; src/memspine/config/constants.py:72-117"
+  },
+  "time.fields": {
+   "s": "Y",
+   "t": "valid_from, valid_to, recorded_at (strictly increasing in a process), superseded_at, plus invalid_at under conflict.interval_order; reads accept as_of and valid-time / record-time range filters.",
+   "e": "read: src/memspine/core/records.py:199-210; src/memspine/core/read_filters.py:245-260; src/memspine/engine.py:6595-6602"
+  },
+  "time.update": {
+   "s": "Y",
+   "t": "Deterministic conflict ladder of 13 rungs (14 labelled outcomes) with verdicts NOOP / ADD / UPDATE / INVALIDATE / CONTEST, each verdict naming its rung; 7 rungs on by default (identical, no fact key, trust gate margin 0.3, retract tag, interval ended, newer supersedes, historical backfill); CONTEST rungs, LLM judge escalation and cross-key invalidate_edge are opt-in.",
+   "e": "read: src/memspine/core/policies/conflict.py:57-88,144-227; src/memspine/config/constants.py:866-869; src/memspine/workers/pipelines.py:2022-2023"
+  },
+  "time.dedup": {
+   "s": "Y",
+   "t": "Semantic write door: MinHash LSH (128 permutations, threshold 0.6) proposes, cosine >= 0.92 confirms a union-preserving merge; 64-bit simhash stored. Read-time dedupe (exact / jaccard / embedding 0.9) is opt-in.",
+   "e": "read: src/memspine/config/constants.py:54-57; src/memspine/core/policies/dedup.py:1-30,98-108; src/memspine/memories/semantic/store.py:257-289"
+  },
+  "derive.session": {
+   "s": "Y",
+   "t": "consolidate (triggers session_end + sleep_cycle) writes one summary per closed session of >= 3 turns (30-minute gap) on every sleep(): extractive (first sentence per turn, 600 characters) without a summarize role, one LLM call with it; idempotent by membership fingerprint. The call-2 session-close slot is a stub.",
+   "e": "read: src/memspine/core/policies/consolidation.py:43,50-59,127-142; src/memspine/workers/pipelines.py:435-490"
+  },
+  "derive.profile": {
+   "s": "O",
+   "t": "reflect_profile (off) derives insights into reflective memory; read.profile_header_packing (off) packs summaries, insights and hits under a PROFILE NOTES header. The persona is caller-set (set_persona), pinned first and never dropped.",
+   "e": "read: src/memspine/core/policies/consolidation.py:117; src/memspine/config/schema.py:679,777; src/memspine/core/profile_pack.py:1-9; src/memspine/engine.py:9611"
+  },
+  "derive.entity": {
+   "s": "O",
+   "t": "summarize_entities (off, needs the graph): entities whose dated lines fit 2,000 characters are summarised with no call; longer ones go to summarize_entity in batches of 30; membership watermark skips unchanged entities; trust = minimum of members.",
+   "e": "read: src/memspine/workers/pipelines.py:2621-2650; src/memspine/config/constants.py:439-440"
+  },
+  "derive.background": {
+   "s": "O",
+   "t": "sleep() flushes the window queue, then runs 13 ordered stages plus up to 4 conditional ones (17); it runs only when called (background scheduler off). On the base template only consolidate (extractive), decay_sweep, compress and check_watches do work. Window extraction, when on, runs as an async per-namespace queue after write().",
+   "e": "read: src/memspine/workers/schedule.py:29-93; src/memspine/workers/scheduler.py:17; src/memspine/engine.py:13314-13324; src/memspine/workers/windows.py:433-488"
+  },
+  "derive.forget": {
+   "s": "Y",
+   "t": "Idle-based decay tiers (hot to warm 7 d, warm to cold 30 d, cold to dormant 90 d) on each sleep(); access restores hot; cold tier zstd-compressed. Forget is soft by default; hard forget cascades through source.parents, redacts log payloads, purges caches and vector history, and drops the turn from open and queued windows and cached window replies.",
+   "e": "read: src/memspine/config/constants.py:131-133; src/memspine/workers/pipelines.py:868-918; src/memspine/engine.py:9657-9697,9854-9862; src/memspine/workers/windows.py:573-606"
+  },
+  "index.embed": {
+   "s": "",
+   "t": "Default fastembed (ONNX, CPU) BAAI/bge-small-en-v1.5, 384-d, no query instruction. LoCoMo arms: Qwen3-Embedding-0.6B via sentence-transformers, 1,024-d, bf16, CUDA, with an asymmetric query instruction.",
+   "e": "read: src/memspine/config/schema.py:103-104,136; src/memspine/services/embedding/fastembed_local.py:17; evals/gen_qwen_stack_arms.py:17-41"
+  },
+  "index.lexical": {
+   "s": "",
+   "t": "Tantivy BM25 (default provider) over every record's content, not only turns; default analyser (alphanumeric, lower-case) has no stemming; English stemmer (read.lexical_analyzer: english) and date-word indexing (lexical_dates) are opt-in.",
+   "e": "read: src/memspine/services/lexical/tantivy.py:159-175; src/memspine/config/schema.py:303-304,340-351"
+  },
+  "index.vector": {
+   "s": "",
+   "t": "LanceDB, cosine; quantization auto follows the embedder manifest (none by default), so search is an exact flat float32 scan; int8 builds IVF_HNSW_SQ and binary IVF_PQ from 256 rows up; namespace BITMAP index and per-namespace tables opt-in.",
+   "e": "read: src/memspine/config/schema.py:148-170; src/memspine/services/vector/lancedb_store.py:269-291,340-360"
+  },
+  "read.rewrite": {
+   "s": "O",
+   "t": "Off in practice: the base template pins default_mode replay, so the rules planner routes only under mode=auto. Rule probes (statement, speaker, pseudo-relevance feedback, multi-intent, second round, bridge hop, cluster expand) and LLM planner subqueries / compose_rewrites are opt-in.",
+   "e": "read: src/memspine/config/schema.py:503,1034-1039; src/memspine/engine.py:6064-6171; src/memspine/config/templates/base.yaml:19"
+  },
+  "read.analysis": {
+   "s": "Y",
+   "t": "Rule-based question shape on (ordering drives time order, set questions drive list mode); temporal phrases parsed by rules. The typed query contract is off by default (heuristic or llm opt-in; llm makes one call only when the rules are unsure).",
+   "e": "read: src/memspine/core/query_shape.py:157-558; src/memspine/config/schema.py:970; src/memspine/core/query_contract.py:86"
+  },
+  "read.legs": {
+   "s": "",
+   "t": "Engine default: vector, BM25, temporal (bare schema: vector, BM25). LoCoMo BEST_dev arm adds speaker vote (list questions); the 80.4 and 81.4 arms add a perspective leg. 22 further leg kinds are built and off (entity, graph, graph nodes, session, sentence, recency, view tags, maxsim, word vector, bridge, cluster expand, person-time and others), plus 5 probe sources that add vector+BM25 legs.",
+   "e": "read: src/memspine/engine.py:5390-5452,2397-2504,3575-3609"
+  },
+  "read.temporal": {
+   "s": "Y",
+   "t": "Temporal leg on through the base template (schema default off): absolute date spans only; relative phrases in the question (temporal_relative) and yearless dates are opt-in; date mentions inside turns are arm-only; records' relative dates annotated at read.",
+   "e": "read: src/memspine/config/schema.py:363-385; src/memspine/config/templates/base.yaml:21,23; src/memspine/engine.py:2430-2462"
+  },
+  "read.traversal": {
+   "s": "O",
+   "t": "Graph leg = BFS over entity hops (seed_expand), depth 2 (cap 3), max degree 50, at most 10 hits, trust-gated; PPR is a separate opt-in graph rerank (graph_rerank: ppr). Both off; the graph template turns the leg on.",
+   "e": "read: src/memspine/config/schema.py:699-719; src/memspine/engine.py:2609-2675; src/memspine/config/constants.py:413-418"
+  },
+  "rank.fusion": {
+   "s": "Y",
+   "t": "RRF k = 60 whenever hybrid is on (default); alternatives minmax, per-leg and per-shape weights. The leg-protected pool (_protected_ids, top N of each leg survive the fused cut, or source_family mode) is opt-in: pool_protect_per_leg defaults to 0, N = 3 in the protect arms.",
+   "e": "read: src/memspine/config/constants.py:12; src/memspine/config/schema.py:420,447-453,842; src/memspine/engine.py:861,893,5473-5519"
+  },
+  "rank.rerank": {
+   "s": "O",
+   "t": "Off by default (engine keeps the whole pool). Providers fastembed, flashrank, litellm, qwen3 (default Qwen3-Reranker-0.6B), jina (default jina-reranker-v3.5). Best and full runs use Qwen3-Reranker-4B 4-bit, screens use Jina; arms keep 10 of a pool of about 20 (skipped for list questions).",
+   "e": "read: src/memspine/config/schema.py:333,412; src/memspine/services/rerank/factory.py:108-114; src/memspine/engine.py:5810-5818; evals/arms/scr-pool-protect.json:14-23"
+  },
+  "rank.gate": {
+   "s": "O",
+   "t": "Store-calibrated relevance gate (off): scores 20 fixed off-topic probes and passes a message only if its raw top score is above p95 + 1.0 sd of the probes; named-entity bypass relevance_gate_bypass: named (default once the gate is on). Separately, an always-on assembly abstention theta_abstain = 0.25 on composite scores (defeated by min-max reranking unless abstain_on_raw).",
+   "e": "read: src/memspine/config/schema.py:1231-1259; src/memspine/core/relevance_probes.py:15-36,65-67; src/memspine/engine.py:7959-8036; src/memspine/config/constants.py:125"
+  },
+  "rank.agentic": {
+   "s": "O",
+   "t": "All off: agentic loop (agentic_mode query or slot; at most 2 steps, multi-hop trigger, 0.6 of the budget kept for step 0), read-time fact chain, event ledger, and the decision port (decider heuristic; OpenDecider opt-in). Slot loop screened net -3 at about 8x cost, not adopted.",
+   "e": "read: src/memspine/config/schema.py:1154-1222; src/memspine/engine.py:6744-6751; doc: evals/analysis/GAP_REGISTER.md progress log 2026-10-11 16:20"
+  },
+  "answer.shape": {
+   "s": "",
+   "t": "One ranked list expanded into neighbour windows (engine default 2 turns each side; 2 before / 4 after in the arms), chronological in replay mode; dated lines come from the harness adapter (engine render plain); base template selects the chat@dated prompt; stable prefix placed before volatile records.",
+   "e": "read: src/memspine/engine.py:6583; src/memspine/config/schema.py:574-575,625; evals/memspine_evals/systems/memspine_system.py:1062; src/memspine/core/policies/assembly.py:80-85"
+  },
+  "answer.size": {
+   "s": "",
+   "t": "Engine default budget 2,048 tokens, top_k 16; LoCoMo harness gives retrieval 4,096 of an 8,192 window, top_k 10. Measured: 672 tokens per question with the Jina reranker, 1,571 without a reranker (1,540 q).",
+   "e": "read: src/memspine/config/constants.py:210-212; evals/harness/config.py:245-250; doc: evals/QWEN_STACK_RESULTS.md:149-153"
+  },
+  "answer.prompt": {
+   "s": "",
+   "t": "Reader prompt lives in the harness: clean grounded prompt (post-I80, gold-lint tested); neutral refusal retry (--retry-refusal), date repair and duration solving are harness flags. The engine ships chat@dated and an optional verify_answer / answer checker off the read path.",
+   "e": "read: evals/memspine_evals/cli.py:610-700,771-778; src/memspine/core/answer_check.py:1-25; src/memspine/engine.py:6529; tests/unit/test_prompt_gold_lint.py:95"
+  },
+  "eval.best": {
+   "s": "",
+   "t": "81.4% judge accuracy (leg-protected pool, scr-pool-protect, Qwen3-Reranker-4B) vs 80.4% for the perspective config, +30/-15 (net +15 > band 12.9) on 1,540 q; absolute values contaminated by the I80 prompt (deltas stand). Official LoCoMo F1 42.0 on the same run.",
+   "e": "doc: evals/analysis/GAP_REGISTER.md progress log (r7-protect), G-C7; docs/MEMSPINE_ENGINE_AND_LOCOMO.html lines 70-71"
+  },
+  "eval.outside": {
+   "s": "",
+   "t": "Own harness only; no third-party run. Clean post-I80 re-baseline (clean-jina-full = scr-pool-protect-jina, Jina reranker, 1,540 q) is queued in evals/run_screens_fast_jina.sh; blind validation on MemoryAgentBench-CR and ConvoMem is frozen and pending.",
+   "e": "read: evals/run_clean_baseline.sh:1-12; evals/freeze_blind_slices.py; evals/eval_blind.py:83"
+  },
+  "eval.models": {
+   "s": "",
+   "t": "Qwen3.5-9B Q4_K_M via Ollama as both reader and judge, thinking off, sampler sent explicitly (presence_penalty 0); same-model confound declared (A1, second judge deferred). Official Mem0 judge prompt available via --judge-prompt mem0-official.",
+   "e": "doc: evals/QWEN_STACK_RESULTS.md:130,149; evals/analysis/GAP_REGISTER.md A1, A4, A8"
+  },
+  "eval.rigour": {
+   "s": "Y",
+   "t": "Errata file (47 entries) with both headlines; dev / held-out split; conversation cluster-bootstrap CI in every summary; paired flip and noise-floor tools (screen deltas within about +-5 net treated as noise); stage forensics; gold-text lint over every prompt; deterministic date pre-judge; official F1 port (0 mismatches on 1,748 cases); frozen blind slices.",
+   "e": "read: evals/memspine_evals/errata.py:77; evals/memspine_evals/results.py:148; evals/paired_regressions.py:72; evals/noise_floor.py:46; evals/full_run_forensics.py:112; tests/unit/test_prompt_gold_lint.py:95; evals/memspine_evals/locomo_f1.py:80; evals/memspine_evals/date_check.py:78"
+  },
+  "cost.write": {
+   "s": "",
+   "t": "0 write-time calls by default. Window facts on a LoCoMo-sized store: 1,127 calls, estimated 66 / 89 / 118 min on one Ollama server (from measured 4,869 tok/s prefill, 115 tok/s decode; decode about 90% of time) - an estimate, not a run. Per-session miner for comparison: about 270 calls, est. about 55 min.",
+   "e": "doc: docs/ENGINE_COMPARISON_AND_WRITE_PATH_DESIGN.html (D6); evals/analysis/WINDOW_STATS_2026-10-11.json; evals/analysis/GAP_REGISTER.md section M W1"
+  },
+  "cost.read": {
+   "s": "",
+   "t": "0 LLM calls on a read by default; one query embedding (cached per query instruction); in the arms one rerank over a pool of about 20-36 (4B about 0.6 s per 30 pairs, Jina about 0.15 s). Opt-in extras: planner 1, contract <= 1, relevance filter 1, agentic <= 2, fact chain 1, event ledger 1.",
+   "e": "read: src/memspine/engine.py:5350; src/memspine/services/cache/semantic.py:64-76; doc: evals/QWEN_STACK_RESULTS.md:36-60"
+  },
+  "cost.where": {
+   "s": "",
+   "t": "Local by default: fastembed bge-small on CPU, no LLM roles bound, $0 per call; LoCoMo stack local on one RTX 5080 (Qwen3 embedder/reranker, Ollama Qwen3.5-9B). Hosted options opt-in: litellm embedder, litellm reranker (Cohere, Voyage, Jina, Bedrock), litellm LLM roles.",
+   "e": "read: src/memspine/config/schema.py:104-105,333-336; src/memspine/config/templates/benchmark.yaml:69-76"
+  },
+  "trust.provenance": {
+   "s": "Y",
+   "t": "Every derived record carries source.parents (lineage DAG); engine-made derivations (summaries, reorganisations, window facts, lead blocks) take the minimum trust of their members and keep the instruction flag. Caller-declared derived_from caps trust only with integrity.enabled (off).",
+   "e": "read: src/memspine/workers/pipelines.py:600-613; src/memspine/engine.py:4238-4248; src/memspine/core/integrity.py:51"
+  },
+  "trust.erasure": {
+   "s": "Y",
+   "t": "forget is soft by default; hard=True honours legal holds, cascades transitively through source.parents and consolidation members, redacts log payloads, purges embedding and extraction caches and window replies, cleans older LanceDB versions and checkpoints the WAL; erase_subject, erase_namespace and verify_forget complete the set.",
+   "e": "read: src/memspine/engine.py:9657-9697,9822-9860,10230; src/memspine/workers/windows.py:573-606"
+  },
+  "trust.auth": {
+   "s": "P",
+   "t": "rest.auth.mode defaults to none; reference modes API key (HMAC constant-time, namespace globs, admin flag) and OIDC JWT (issuer and audience pinned, no alg none, no HS/asymmetric mixing); per-principal rate limit opt-in; MCP takes namespace and principal from its launch context.",
+   "e": "read: src/memspine/config/schema.py:1688-1713; src/memspine/protocols/rest/auth.py:160-200; src/memspine/protocols/tools.py:18-19"
+  },
+  "trust.sharing": {
+   "s": "O",
+   "t": "Shared memory is off in base and on in the multi_agent template: revocable grants scoped by memory type, foreign records capped at trust 0.3 (or trust x kappa 0.5 with integrity on), pull-only subscriptions (standing queries); revocation propagates with integrity.live_reevaluation (off).",
+   "e": "read: src/memspine/memories/shared/grants.py:158-199; src/memspine/memories/shared/subscriptions.py:9-13; src/memspine/core/integrity.py:44-49"
+  }
+ },
+ "layers": {
+  "raw": "Y",
+  "segment": "O",
+  "episode": "O",
+  "facts": "O",
+  "graph": "O",
+  "bitemporal": "Y",
+  "session_summary": "Y",
+  "entity_summary": "O",
+  "profile": "O",
+  "prospective": "O",
+  "procedural": "O",
+  "reflection": "O",
+  "shared": "O",
+  "firewall": "Y",
+  "provenance": "Y"
+ },
+ "extras": [
+  {
+   "phase": "write",
+   "param": "Window write verbs",
+   "t": "Engine.flush_windows (batch drain, called by sleep()), Engine.close_session (cuts the session window, drains the namespace queue in order, fires call 2) and Engine.window_stats / describe()['window_write'] (about 40 counters: calls by layer, calls per turn, cache hits, split, parse failures, ungrounded/uncited items, windows by reason, forget cancellations, per-store topic level).",
+   "e": "read: src/memspine/engine.py:13757,13771,13788; src/memspine/workers/windows.py:515-542,914-971"
+  },
+  {
+   "phase": "extract",
+   "param": "write.window_extract keys",
+   "t": "off | facts | facts_graph | all; window_max_turns 6, window_max_tokens 1500, window_topic_k 2.0, window_idle_s 120, window_split auto, window_async true, window_cache true; role window_extract; start() fails hard if the role or episodic+semantic memory is missing.",
+   "e": "read: src/memspine/config/schema.py:1757-1777; src/memspine/engine.py:13705-13713"
+  },
+  {
+   "phase": "extract",
+   "param": "Window input exclusion and call cache",
+   "t": "Quarantined, instruction-flagged or non-live turns never enter a window; replies cached by (model, prompt version, sections, transcript, participants) so re-runs are free.",
+   "e": "read: src/memspine/workers/windows.py:397-403,648-667,683-696"
+  },
+  {
+   "phase": "graph",
+   "param": "Call-3 wiring",
+   "t": "Window edges feed extract_graph (resolution, contradiction check) and the turns they cover skip a second LLM edge pass; an edge citing a forgotten turn is dropped.",
+   "e": "read: src/memspine/workers/pipelines.py:2087-2108; src/memspine/engine.py:13690-13694"
+  },
+  {
+   "phase": "write",
+   "param": "Extra firewall signals (opt-in)",
+   "t": "Extended instruction patterns, semantic-risk patterns (authority claims, answer binding), query-history anomaly z-score (kappa 3), max_content_chars and protected_keys quarantine.",
+   "e": "read: src/memspine/core/firewall.py:78-125,173-209; src/memspine/config/schema.py:1440-1441"
+  },
+  {
+   "phase": "write",
+   "param": "Sensitivity grading and remote-LLM gate",
+   "t": "Records graded none/low/medium/high with GDPR art. 9 topic tags and a read-time bar; records above consent.remote_llm_max_tier are kept out of prompts sent to remote LLMs. Off by default.",
+   "e": "read: src/memspine/config/schema.py:1268,1439,1638,1735; src/memspine/engine.py:10803"
+  },
+  {
+   "phase": "trust",
+   "param": "Integrity / trust horizon",
+   "t": "Per-edge kappa attenuation across grants, admission threshold, trust-weighted ranking, implicit parents (a session's reads become parents of its next write so a paraphrase cannot launder trust), untrusted-note wrapper, principal reputation. Off by default (implicit parents on in the protected template).",
+   "e": "read: src/memspine/config/schema.py:1484-1494,1507-1528; src/memspine/core/integrity.py:44-55; src/memspine/engine.py:1936,9586"
+  },
+  {
+   "phase": "trust",
+   "param": "Taint audit, rollback and repair",
+   "t": "audit_taint, rollback_taint, repair_taint and quarantine verbs walk the log from a poisoned record through its descendants.",
+   "e": "read: src/memspine/engine.py:10841-10912; src/memspine/core/audit.py:1-8"
+  },
+  {
+   "phase": "trust",
+   "param": "Whole-log integrity check",
+   "t": "verify_integrity recomputes a SHA-256 or HMAC chain and the trust invariant from the log alone.",
+   "e": "read: src/memspine/engine.py:11087"
+  },
+  {
+   "phase": "trust",
+   "param": "Governance verbs",
+   "t": "forget (soft/hard), erase_subject, erase_namespace, verify_forget, export (subject access, JSONL, admin-only over REST), forget requests detected in dialogue (candidates only, nothing deleted until confirmed), legal holds.",
+   "e": "read: src/memspine/engine.py:9657,10230,10515; src/memspine/core/forget_request.py:1-9; src/memspine/protocols/rest/app.py:584"
+  },
+  {
+   "phase": "trust",
+   "param": "Agent-to-agent send and authorize",
+   "t": "Messages follow grant edges with attenuated trust; authorize gates an action on the current trust of its evidence.",
+   "e": "read: src/memspine/engine.py:2084,2193"
+  },
+  {
+   "phase": "trust",
+   "param": "Event-sourced replay",
+   "t": "Every projection rebuildable from the append-only log; catch_up at start-up and rebuild per projector with a rebuildability assertion.",
+   "e": "read: src/memspine/core/replay.py:34,54,74"
+  },
+  {
+   "phase": "arch",
+   "param": "Decision port (OpenDecider)",
+   "t": "HeuristicDecider by default or OpenDecider-nano (about 400M, ModernBERT, CPU); it only adds to the heuristic and never gates on its own.",
+   "e": "read: src/memspine/services/decision/decider.py:197; src/memspine/config/schema.py:1216"
+  },
+  {
+   "phase": "arch",
+   "param": "SQLCipher and per-namespace vector tables",
+   "t": "Optional encryption of the SQLite file (not vector or lexical stores); vector.isolation per_namespace lets erase_namespace drop a tenant's table.",
+   "e": "read: src/memspine/config/schema.py:53-77,170; src/memspine/engine.py:9744"
+  },
+  {
+   "phase": "arch",
+   "param": "Nine memory types",
+   "t": "working, episodic, semantic, associative, procedural, prospective (watch / due), reflective (reflect), resource, shared; base template enables working, episodic, semantic.",
+   "e": "read: src/memspine/memories/; src/memspine/engine.py:12672,12776,12827"
+  },
+  {
+   "phase": "derive",
+   "param": "Sleep stages",
+   "t": "Fixed order: consolidate, mine_facts, anticipate, reflect_profile, extract_graph, summarize_entities, reorganize, check_watches, session_lifecycle, decay_sweep, compress, sleep_compute (hook), event_log_prune; conditional: retention_expire, predict_calibrate, project_facts, rule_edges. Idempotent by fingerprints and watermarks.",
+   "e": "read: src/memspine/workers/schedule.py:29-93"
+  },
+  {
+   "phase": "derive",
+   "param": "mine_facts options",
+   "t": "LLM or rule miner, mining_cache, mine_by_topic, list_cards, auto_watch (plans become prospective watches), mine_event_dates (rules) and mine_event_dates_llm. All off.",
+   "e": "read: src/memspine/core/policies/consolidation.py:63-109"
+  },
+  {
+   "phase": "time",
+   "param": "Temporal resolution",
+   "t": "resolve_relative_dates appends '[= date]' to relative phrases (anchored-span mode); happened: event-date tags; latest_wins marks [latest]/[earlier] or disputed without dropping history; interval_order sets invalid_at for out-of-order statements.",
+   "e": "read: src/memspine/core/temporal_resolve.py:1-30; src/memspine/core/event_date.py:1-10; src/memspine/core/latest_wins.py:1-22; src/memspine/core/policies/conflict.py:27-33"
+  },
+  {
+   "phase": "graph",
+   "param": "Rule and reference edges, turn mentions",
+   "t": "Causal and kinship edges by rules, reply and deictic antecedent edges, proper nouns and years in turns as entity mentions without a model; entity index on LadybugDB (exact cosine + FTS fused by RRF, no HNSW). All off.",
+   "e": "read: src/memspine/core/rule_edges.py:1-25; src/memspine/core/reference_edges.py:1-20; src/memspine/memories/associative/entities.py:90-93; src/memspine/services/graph/ladybug.py:389-393"
+  },
+  {
+   "phase": "read",
+   "param": "Perspective layer",
+   "t": "Write-side axes speaker, addressee, subject, asker, modality, polarity, hearsay, certainty, scope; read side resolves the asker and target, adds an RRF leg and a multiplier 1 - w(1 - match) with w = 0.4. perspective_mode off by default (subject_weight in the 80.4 / 81.4 arms).",
+   "e": "read: src/memspine/core/perspective.py:104-207; src/memspine/config/schema.py:914-940; src/memspine/engine.py:5439-5445,5593-5596; doc: docs/PERSPECTIVE_LAYER.md:33-73"
+  },
+  {
+   "phase": "read",
+   "param": "Query contract",
+   "t": "Typed contract (target subjects, relation, answer type) from rules or one LLM call when rules are unsure; feeds the header and rerank; off by default.",
+   "e": "read: src/memspine/core/query_contract.py:86,316,352; src/memspine/config/schema.py:961-975"
+  },
+  {
+   "phase": "read",
+   "param": "Widen loop",
+   "t": "Legs look 4x deeper (up to 64x) until top_k candidates survive the trust and quarantine gates. On.",
+   "e": "read: src/memspine/engine.py:5373-5603"
+  },
+  {
+   "phase": "rank",
+   "param": "Protected pool",
+   "t": "pool_protect_per_leg N keeps the top N of every leg through the fused cut; source_family mode protects per independent source family at a fixed pool size; pool_cut forensics. +15 net on 1,540 q at N = 3. Off by default.",
+   "e": "read: src/memspine/engine.py:861,893,5500-5519,5634-5660; src/memspine/config/schema.py:842"
+  },
+  {
+   "phase": "rank",
+   "param": "Relevance gate + named bypass",
+   "t": "Store-calibrated gate from 20 off-topic probes (p95 + 1.0 sd), recalibrated when the namespace doubles, fails open; relevance_gate_bypass named skips it when the message names someone in the store (I74). Off.",
+   "e": "read: src/memspine/core/relevance_probes.py:15-67; src/memspine/config/schema.py:1231-1259; src/memspine/engine.py:7959-8036"
+  },
+  {
+   "phase": "rank",
+   "param": "Agentic, slot, fact chain, event ledger",
+   "t": "agentic_mode query | slot (bounded loop, max 2 steps), fact_chain read_time (prompt extract@assertions), event_ledger (extract@events); all opt-in, one to two extra calls each.",
+   "e": "read: src/memspine/core/agentic.py:22-66; src/memspine/core/slot_loop.py:35-72; src/memspine/core/fact_chain.py:142; src/memspine/core/event_ledger.py:115; src/memspine/config/schema.py:1182-1206"
+  },
+  {
+   "phase": "rank",
+   "param": "Read-side safety filters",
+   "t": "concentration_filter collapses poisoned near-duplicate clusters, sensitivity_gate and inferred_gate, reinjection_penalty; graph walks never enter quarantined or low-trust records. Filters off by default.",
+   "e": "read: src/memspine/core/concentration.py:31; src/memspine/config/schema.py:981,1113,1268-1273; src/memspine/engine.py:2533-2566"
+  },
+  {
+   "phase": "answer",
+   "param": "Lead headers with budget shares",
+   "t": "Cards 0.25, profile 0.15, count 0.10, recent turns 0.15 of the budget, 400-token lead section; shares must sum below 1; context annotations latest_wins, owner_check, entity_check, perspective_marker. All off.",
+   "e": "read: src/memspine/config/schema.py:657-687,1313-1330,943-956,1094"
+  },
+  {
+   "phase": "eval",
+   "param": "Errata",
+   "t": "LoCoMo errata file (47 entries: gold_error, needs_image, evidence_label_error) validated by code; reports give both headlines and per-category exclusions.",
+   "e": "read: evals/memspine_evals/errata.py:77-143; doc: evals/analysis/locomo_errata.json"
+  },
+  {
+   "phase": "eval",
+   "param": "Paired flips, noise floor, CI",
+   "t": "paired_regressions compares two runs question by question; noise_floor estimates the paired flip band; conversation cluster-bootstrap CI printed in every summary.",
+   "e": "read: evals/paired_regressions.py:72; evals/noise_floor.py:46-141; evals/memspine_evals/results.py:148-169"
+  },
+  {
+   "phase": "eval",
+   "param": "Stage forensics",
+   "t": "Every wrong answer attributed to recall, fusion cut, rerank cut, reader, judge or errata from the full trace (cuts logged with fused and leg ranks).",
+   "e": "read: evals/full_run_forensics.py:112; evals/forensics_report.py"
+  },
+  {
+   "phase": "eval",
+   "param": "Gold-text lint",
+   "t": "Test fails if any engine or harness prompt contains a distinctive LoCoMo gold answer or speaker name (added after I80).",
+   "e": "read: tests/unit/test_prompt_gold_lint.py:49-95"
+  },
+  {
+   "phase": "eval",
+   "param": "Official LoCoMo F1 port",
+   "t": "Independent port of the upstream QA F1 (stemmed tokens, category rules), 0 mismatches on 1,748 differential cases; nothing copied (upstream CC BY-NC 4.0).",
+   "e": "read: evals/memspine_evals/locomo_f1.py:55-114; doc: evals/analysis/GAP_REGISTER.md G-C7"
+  },
+  {
+   "phase": "eval",
+   "param": "Judge controls",
+   "t": "Deterministic date pre-judge (credits exact single-day matches of relative gold, never refusals), judge conventions column, rejudge of stored answers, official Mem0 judge prompt, explicit sampler logging.",
+   "e": "read: evals/memspine_evals/date_check.py:78; evals/memspine_evals/judge_conventions.py:130; evals/memspine_evals/rejudge.py:36; doc: evals/analysis/GAP_REGISTER.md A2, A4, A8"
+  },
+  {
+   "phase": "eval",
+   "param": "Blind validation and SpineTune",
+   "t": "Frozen blind slices (MemoryAgentBench-CR, ConvoMem) with a verdict script; SpineTune knob search space with config hashing.",
+   "e": "read: evals/freeze_blind_slices.py:53; evals/eval_blind.py:83; evals/memspine_evals/spinetune.py:77-119"
+  }
+ ],
+ "specialities": [
+  {
+   "name": "LLM-free write firewall with corroboration release",
+   "t": "Role trust matrix plus instruction-shape, embedding-outlier and MINJA prefix-bridge signals quarantine suspicious writes deterministically; only 2 independent operator/system/user corroborators (not assistant or tool, not a replayed source signature) can release them.",
+   "e": "read: src/memspine/core/firewall.py:149-155; src/memspine/core/policies/trust.py:139-166; src/memspine/engine.py:1041,11366-11432",
+   "phase": "write"
+  },
+  {
+   "name": "Trust that only falls along lineage",
+   "t": "Every derived record carries its parents and takes the minimum trust of its members; with integrity on, kappa attenuates trust across grants and implicit parents stop paraphrase laundering, so a poisoned record's reach is bounded.",
+   "e": "read: src/memspine/workers/pipelines.py:600-613; src/memspine/core/integrity.py:44-55; src/memspine/config/schema.py:1507",
+   "phase": "trust"
+  },
+  {
+   "name": "Erasure inside an append-only log",
+   "t": "A hard forget cascades through the derivation DAG, redacts log payloads, purges vector history and caches, and even pulls the turn out of open and queued write windows and cached window replies; verify_forget checks the result.",
+   "e": "read: src/memspine/engine.py:9822-9860,10230; src/memspine/workers/windows.py:573-606",
+   "phase": "trust"
+  },
+  {
+   "name": "Tamper-evident audit and taint repair",
+   "t": "Hash-chained audit, verify_integrity recomputing the chain and trust invariant from the log alone, and audit/rollback/repair_taint verbs that walk a poisoning's descendants.",
+   "e": "read: src/memspine/engine.py:10492,10841-10912,11087",
+   "phase": "trust"
+  },
+  {
+   "name": "Store-learned topic boundary",
+   "t": "The adaptive write window closes on a topic shift defined by the namespace's own running mean - 2 sd of consecutive-turn similarity, so no threshold is tuned per dataset (learned levels 0.30-0.46 across the 10 LoCoMo stores).",
+   "e": "read: src/memspine/core/window.py:108-173; doc: evals/analysis/WINDOW_STATS_2026-10-11.json",
+   "phase": "segment"
+  },
+  {
+   "name": "Grounded, cited window facts with fail-closed sections",
+   "t": "Each window fact must cite its lines and quote a verbatim span or it is dropped; each output section fails closed on its own, the call auto-splits after repeated parse failures, and every outcome is counted.",
+   "e": "read: src/memspine/workers/windows.py:199-222,628-639,914-971",
+   "phase": "extract"
+  },
+  {
+   "name": "Deterministic, named-rung conflict ladder",
+   "t": "Supersede, contest, retract and backfill are decided by 13 rule rungs whose name is recorded on each verdict; an LLM judge is only an optional escalation.",
+   "e": "read: src/memspine/core/policies/conflict.py:144-227",
+   "phase": "time"
+  },
+  {
+   "name": "Store-calibrated relevance gate with named bypass",
+   "t": "Learns each store's off-topic score level from 20 generic probes (p95 + 1 sd), fails open, and skips itself when the message names someone in the store; no per-benchmark threshold.",
+   "e": "read: src/memspine/core/relevance_probes.py:15-67; src/memspine/engine.py:7959-8036",
+   "phase": "rank"
+  },
+  {
+   "name": "Leg-protected fusion pool",
+   "t": "Top N of every retrieval leg (or of every independent source family) survive the fused cut before reranking, with every cut logged; +15 net on 1,540 LoCoMo questions.",
+   "e": "read: src/memspine/engine.py:861-893,5500-5519; doc: evals/analysis/GAP_REGISTER.md progress log r7-protect",
+   "phase": "rank"
+  },
+  {
+   "name": "Measurement discipline",
+   "t": "Errata, dev/held-out split, cluster-bootstrap CI, paired flips and a measured noise band, stage forensics, gold-text lint over prompts and an official F1 port make every LoCoMo delta auditable.",
+   "e": "read: evals/memspine_evals/errata.py:77; evals/memspine_evals/results.py:148; evals/noise_floor.py:46; tests/unit/test_prompt_gold_lint.py:95; evals/memspine_evals/locomo_f1.py:80",
+   "phase": "eval"
+  }
+ ],
+ "token_economy": {
+  "t": "Read: engine budget 2,048 tokens / top_k 16 (harness 4,096 retrieved of an 8,192 window, top_k 10); tokens estimated as characters / 4; always-on greedy word-overlap MMR (lambda 0.7) and relative floor 0.3; reranker keeps 10, giving 672 tokens per question with Jina vs 1,571 without (1,540 q); opt-in dedupe, focused excerpts, gists, token-based windows and lead headers with budget shares; stable prefix placed first for cache reuse. Write: no model call by default; window mode uses one call for up to three layers (facts, edges, episode) on at most 6 turns / 1,500 tokens (LoCoMo mean 186, max 530), cached by window text; window edges replace the extract_graph pass over the same turns; entity summaries under 2,000 characters and the extractive session summary cost no call; fingerprints and watermarks stop repeat calls.",
+  "e": "read: src/memspine/config/constants.py:164,210-212; src/memspine/core/policies/assembly.py:50-51,80-85,232-273; evals/harness/config.py:245-250; src/memspine/workers/windows.py:85,648-667; src/memspine/workers/pipelines.py:2087-2108,2621-2650; doc: evals/QWEN_STACK_RESULTS.md:149-153; evals/analysis/WINDOW_STATS_2026-10-11.json"
+ },
+ "speed": {
+  "t": "Zero LLM calls on write and read by default. Write: batched embedding and projection in write_messages (GPU embedders 80-90x cheaper per token at batch 32); window calls run after write() returns in an asyncio task per namespace with one ordered queue, idle debounce and flush barrier (results identical to sync), auto-disabled on :memory: SQLite, 5 s stop grace, not durable (jobs_abandoned counted); call cache makes re-runs free; sleep stages batch entity summaries 30 and resolution 50 per call and compress off the event loop. Read: legs and probes run sequentially (no gather); per-read snapshot and several vocabulary/vector caches; query vectors cached; reranker batches of 8 in a worker thread; Jina 196 pairs/s vs Qwen3-Reranker-4B 4-bit 35 pairs/s; full 1,540-q QA run 47-58 min on one RTX 5080.",
+  "e": "read: src/memspine/engine.py:4270,1821-1825,13719-13727,739-776,1268-1300; src/memspine/workers/windows.py:86-87,433-488,554-569; src/memspine/config/constants.py:440,478; src/memspine/workers/pipelines.py:943; src/memspine/services/rerank/qwen3_rerank.py:18,74; doc: evals/QWEN_STACK_RESULTS.md:36-60,149-153"
+ },
+ "keep": [
+  "Lossless event log with lineage and minimum-of-parents trust on every derived record",
+  "Write firewall, consent, retention and an erasure cascade that reaches the write queue",
+  "Leg-protected fusion pool before the cross-encoder (+15 net on 1,540)",
+  "Measurement discipline: errata, paired flips, noise bands, forensics, gold lint, official F1"
+ ],
+ "avoid": [
+  "LoCoMo arms use raw turns only; every derived layer (window facts, graph, summaries, profile) is unscreened",
+  "Absolute LoCoMo numbers before 8cebf97 contaminated by a gold example in the reader prompt (I80)",
+  "Reader and judge are the same 9B model",
+  "Window queue is not durable (jobs abandoned on stop) until G-W27"
+ ],
+ "in_progress": [
+  "Adaptive-window write W1 (ADR-066, 0eb2fd7): call 1 built and fake-LLM tested (38 + 3 tests, CPU smoke passed); arm scr-window-facts-jina written, queue run_screens_window.sh pinned 0eb2fd7 waits for the GC queue (register section M, progress log 2026-10-11 16:20)",
+  "Write-path rollout: step 1 facts section as a retrieval leg (screen queued); call 2 session-close content (summary, stitched episode, guarded profile operations) is a stub; call 3 edge wiring built; G-W13 counters still missing for sleep-time layers; G-W4 neighbour-aware extraction not built (register M W1, W1h, W1c, G-W13)",
+  "Clean post-I80 re-baseline clean-jina-full (scr-pool-protect-jina, Jina reranker, 1,540 q) queued in evals/run_screens_fast_jina.sh (evals/run_clean_baseline.sh is an older 4B-reranker variant, not queued); blind validation (MemoryAgentBench-CR, ConvoMem) pending before the protected pool becomes default",
+  "G-C2 (window-free mined facts leg), G-C3 (fact-edge graph leg + entity summaries) and G-C9 (rolling summary + profile block) arms written, schema-validated, CPU smoke passed; screen queue run_screens_gc.sh not yet run (register section L)",
+  "Proposals from the engine survey, none built: G-W25 hard context budget with per-block shares and token rank-order packing; G-W26 window-summary section attached to window facts; G-W27 durable window queue; G-W28 contextualised window rerank; G-W29 value histories with conflict flag + similarity-gated consolidation; G-W30 capped typed profile card; G-W31 optional local transcript compression before call 1; G-W32 pointer-style notes + prefer-observations dedup; G-W33 rule-based temporal window leg and router (register progress log, engine survey entry)",
+  "Other built, unscreened opt-ins: R02 source-family pool (scr-pool-family), screening reranker arm scr-pool-protect-lightrr, E03 Wikipedia provider, E04 asset pre-compute (register I75, I84, E03/E04)"
+ ],
+ "verification": {
+  "date": "2026-10-11",
+  "commit": "ea1b797",
+  "rows_checked": 57,
+  "corrections": [
+   "arch.product: no status -> Y; adds MCP five-verb surface, licence and version",
+   "arch.truth: added Postgres option and log modes (rolling/ephemeral lose rebuildability)",
+   "arch.stores: no status -> Y; added Postgres, OpenSearch and Neo4j options",
+   "arch.graphdb: clarified graph store exists only when associative memory is on (off in base/assistant and in the LoCoMo arms on template base)",
+   "arch.scope: no status -> Y; 'only security boundary' kept, added 16-segment limit and that parents get no child access",
+   "write.entry: no status -> Y; 'REST and MCP call the same doors' -> REST yes, MCP exposes five verbs via write_ex, no write_messages",
+   "write.receipt: added write_ex action outcomes and that window extraction runs after the receipt in a non-durable queue",
+   "write.firewall: added trust values, signal thresholds and corroboration rule (2 from operator/system/user at >= 0.5)",
+   "segment.unit: Y -> O (write.window_extract defaults to off); added 120 s idle cut",
+   "segment.rule: '30-minute derived sessions at read' -> derived at sleep time by consolidate; added 20-pair warm-up",
+   "segment.measured: marked as an offline segmenter run (doc), added cut shares and that the token cap never fired",
+   "extract.calls: added per-session miner and all sleep-time call sources",
+   "extract.facts: 'ungrounded facts dropped' limited to the window path; sleep miner parents are the session",
+   "extract.dates: base template turns the read-time annotation on; window fact valid_from rule stated",
+   "extract.failure: Y -> O (fail-closed handling exists only on the opt-in window path); added split threshold 25% of last 8",
+   "graph.resolution: '50 names per sweep' -> per chunk of 50 within the extract_graph sweep; added top-15, Jaccard 0.9, trust guard 0.2",
+   "graph.communities: stated the [community] extra and LPA collapse guard",
+   "time.fields: added invalid_at and range filters",
+   "time.update: 13 rungs confirmed but 14 outcomes, only 7 rungs on by default and CONTEST opt-in",
+   "time.dedup: added LSH threshold 0.6 and the separate opt-in read dedupe",
+   "derive.session: O -> Y (consolidate writes an extractive summary per closed session on every sleep() in the base template)",
+   "derive.profile: persona is caller-set, not derived; both profile switches off",
+   "derive.entity: added the no-call path under 2,000 characters",
+   "derive.background: Y -> O; '13+ stages' -> 13 fixed + 4 conditional; nothing runs in the background unless sleep() is called or the scheduler is enabled",
+   "derive.forget: decay runs only at sleep; hard forget (not default soft) cascades",
+   "index.embed: added 384-d and fastembed ONNX provider for the default",
+   "index.lexical: 'over turn content, no stemming' -> over every record, English stemmer opt-in",
+   "read.rewrite: planner is effectively bypassed by the base default_mode replay, not 'rules by default'",
+   "read.analysis: query contract is wholly opt-in (heuristic or llm), not on with LLM opt-in",
+   "read.legs: perspective is arm-only, not in BEST_dev; '20+ more' -> exactly 22 leg kinds plus 5 probe sources",
+   "read.temporal: temporal leg on via base template, not the bare schema; relative question phrases opt-in",
+   "read.traversal: 'PPR / BFS' -> leg is BFS; PPR is a separate opt-in rerank",
+   "rank.fusion: protected pool is opt-in (default 0), not on by default; RRF stays Y",
+   "rank.rerank: Y -> O (engine reranker off by default); 81.4 run used Qwen3-Reranker-4B 4-bit, screens Jina",
+   "rank.gate: 'abstain below 0.25' was a different mechanism (theta_abstain); gate threshold is p95 + 1.0 sd of 20 off-topic probes",
+   "answer.shape: 2 before / 4 after is arm-only; engine default 2 each side; dated lines come from the harness",
+   "answer.size: 'budget 4,096' is the harness; engine default is 2,048; measured 672 (Jina) to 1,571 (no reranker) tokens",
+   "answer.prompt: prompt, refusal retry and date/duration repair are harness features, not engine",
+   "eval.best: '80.4 base' -> 80.4 is the perspective config; added reranker and paired counts",
+   "eval.outside: re-baseline wording made explicit: the queued run is clean-jina-full (scr-pool-protect-jina, Jina reranker); coordinator re-checked run_screens_fast_jina.sh",
+   "cost.write: marked as estimate, added miner baseline (about 270 calls)",
+   "cost.where: added opt-in hosted providers",
+   "trust.provenance: 'trust = minimum of parents' holds for engine-made derivations; caller-declared derived_from caps trust only with integrity on",
+   "trust.erasure: cascade only on hard forget (default forget is soft); added window cleanup",
+   "trust.sharing: Y -> O (shared memory off in base); 'live views' removed (a context-eligibility check, not sharing)",
+   "layers: segment Y -> O, session_summary O -> Y, shared Y -> O",
+   "header: repo commit 0eb2fd7 -> ea1b797; added commit, version, licence fields"
+  ],
+  "added": [
+   "evidence file:line on all 57 rows (was 'see engine document')",
+   "34 extras (was 3): window write verbs and keys, call cache, call-3 wiring, firewall signals, sensitivity gate, integrity/trust horizon, taint audit, integrity check, governance verbs, send/authorize, event-sourced replay, decision port, SQLCipher, nine memory types, sleep stages, miner options, temporal resolution, rule/reference edges, perspective layer, query contract, widen loop, protected pool, relevance gate + named bypass, agentic/slot/fact chain/event ledger, read safety filters, lead headers, errata, paired flips/noise/CI, forensics, gold lint, official F1, judge controls, blind validation and SpineTune",
+   "10 specialities",
+   "token_economy and speed rewritten with code evidence (write and read paths)",
+   "in_progress refreshed: window rollout, clean re-baseline, GC screens, G-W25..G-W33, other unscreened opt-ins"
+  ],
+  "unverified": [
+   "segment.measured, cost.write: window counts and 66/89/118 min ingest are offline statistics and an estimate; no live window run exists",
+   "eval.best / locomo: 81.4, 80.4 and F1 42.0 taken from the register and engine document; run outputs under evals/runs were not opened (out of scope)",
+   "Clean re-baseline and window/GC queue state taken from scripts and register; whether any has since started was not checked",
+   "speed: throughput numbers (196 / 35 pairs/s, 47-58 min run) are from QWEN_STACK_RESULTS.md measurements on a shared GPU, not re-measured",
+   "OpenDecider-nano size (about 400M, ModernBERT) from the module docstring only"
+  ]
+ },
+ "source_doc": "code-traced at ea1b797 (second pass); docs/MEMSPINE_ENGINE_AND_LOCOMO.html, docs/ENGINE_COMPARISON_AND_WRITE_PATH_DESIGN.html, ADR-066, evals/analysis/GAP_REGISTER.md"
+}

@@ -1,0 +1,7 @@
+219:             out.ungrounded += 1
+220:             continue
+221:         if not grounded(fact.span, [line_texts[n - 1] for n in lines]):
+222:             out.ungrounded += 1
+223:             continue
+224:         out.facts.append((fact, lines))
+225:     return out

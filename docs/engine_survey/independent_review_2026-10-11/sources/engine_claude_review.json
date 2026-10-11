@@ -1,0 +1,572 @@
+{
+  "summary": "Review of the MemSpine snapshot on branch feat/local-qwen-stack (HEAD 2df543d; the brief says 2f9c3e4, and G-W50 and G-E1 landed after it). I found no G-W49 code in the tree. It is a proposal in gap_plan.json:540-551, the Codex brief and prompt v2. The existing window write (workers/windows.py, core/window.py) is built but opt-in (schema.py:1757 default 'off'). The direction of G-W49 is plausible. Several load-bearing claims are unsupported, internally contradicted, or depend on infrastructure that does not exist. (1) The speed case rests on prompt size and on a latency ratio that does not fit the source study. (2) The online deposit cannot reuse `emit` as it is. (3) Durability is weaker than 'retry-safe' wording suggests. Some forget and cache paths also depend on in-process state. (4) Span grounding is a weak check. (5) The earlier deep_audit hypothesis docs apply a blanket 'not implemented' status to capabilities that exist. They also report regex-generated applicability decisions as 'exhaustive review'. Nothing was executed. No result files, credentials or settings were read.",
+  "findings": [
+    {
+      "id": "F1",
+      "severity": "high",
+      "claim": "A 309-token prompt versus 958 tokens is the speed lever for G-W49.",
+      "verdict": "unsupported and contradicted by the repo's own plan",
+      "evidence": [
+        {
+          "path": "docs/engine_survey/gap_plan.json",
+          "line": 545,
+          "note": "958 and 309 appear only here and in prose. No tokenizer output or script was found by grep in docs/."
+        },
+        {
+          "path": "docs/engine_survey/gap_plan.json",
+          "line": 286,
+          "note": "G-W45 says prefill is about 10% of call time and the window prompt has a static system part."
+        },
+        {
+          "path": "src/memspine/prompts/defaults/window_extract.yaml",
+          "line": 12,
+          "note": "The 958 prompt is a Jinja template. Its token count depends on the sections variable and the no_injection.j2 partial."
+        },
+        {
+          "path": "scratchpad/doc/graph_call_prompt_v2.txt",
+          "line": 1,
+          "note": "v2 adds CONTEXT, mode, neg, until, a 'fact' kind and a two-line accept rule. It is clearly longer than the 309 draft (about 1.3-1.5x by word count, not measured)."
+        }
+      ],
+      "correction": "G-W45 (prefill about 10%) undercuts G-W49's speed argument. The gain is mostly output tokens (one item list instead of facts plus edges, no speaker, subject, persons, location, topic or confidence). The 309 figure belongs to a superseded draft. The 958 figure has no recorded method.",
+      "proposed_generic_solution": "Report tokens per call by role from the tokenizer actually served: static prefix, variable input, completion. Rank cost by completion tokens times decode speed plus uncached prefill. Pin the prompt hash with its measured count.",
+      "validation_gate": "A manifest records prompt hash, tokenizer, static and variable tokens, completion tokens and wall time per call for both arms on the same windows. The ≥30% gate is on completion tokens and p50 latency, with prefix-cache state recorded."
+    },
+    {
+      "id": "F2",
+      "severity": "high",
+      "claim": "An inline call costs about 50x the hot path (2.7 s versus 55-210 ms).",
+      "verdict": "misquoted and misapplied",
+      "evidence": [
+        {
+          "path": "docs/DEFERRED_INGEST_STUDY.md",
+          "line": 123,
+          "note": "The 2.7 s is a mean at 2k context and about 34 completion tokens on qwen3.5:9b/Ollama (bench_llm.jsonl, not read here). The study itself says mining answers are longer."
+        },
+        {
+          "path": "docs/DEFERRED_INGEST_STUDY.md",
+          "line": 113,
+          "note": "Hot path is 52-60 ms batched and 150-210 ms unbatched, from traces where two arms shared a GPU."
+        }
+      ],
+      "correction": "2.7/0.055 is about 49x. 2.7/0.21 is about 13x. 50x holds only for the batched best case. A structured item list with spans for 6 lines will have far more than 34 completion tokens, so the real call is probably several seconds. The Codex gate 'turn-to-edge under 10 s at max_turns 1' has no latency basis. The 2.7 s is also inconsistent with the study's 'several seconds to tens of seconds' estimate.",
+      "proposed_generic_solution": "Measure the actual call distribution (completion tokens, latency, queue wait) from the existing window runs. State the hot-path ratio as a range. Define the freshness SLO from the measured p95.",
+      "validation_gate": "The doc quotes p50 and p95 call latency with completion-token counts and the hardware sharing state. The 10 s turn-to-edge gate is set from that p95 plus the queue wait under the load described in F4."
+    },
+    {
+      "id": "F3",
+      "severity": "high",
+      "claim": "`emit` can be factored out of extract_graph and called per batch online (G-W49 step 4).",
+      "verdict": "not as written; large refactor and an O(N) cost per deposit",
+      "evidence": [
+        {
+          "path": "src/memspine/workers/pipelines.py",
+          "line": 2198,
+          "note": "`emit` is a closure inside the per-namespace loop. It mutates nonlocal counters and relies on `existing`, `cardinality`, `protected` and `contradictions`."
+        },
+        {
+          "path": "src/memspine/workers/pipelines.py",
+          "line": 2047,
+          "note": "`existing` and `known` are built by list_records over every episodic and semantic record of the namespace on each sweep."
+        },
+        {
+          "path": "src/memspine/workers/pipelines.py",
+          "line": 1739,
+          "note": "The resolver is rebuilt with `_known_entities(known)` per sweep, and `_candidates` (resolution.py:263) embeds every known entity name on first use."
+        }
+      ],
+      "correction": "Per-batch use needs an indexed key lookup (message_id on extract_graph records) and an incrementally maintained entity table with cached vectors. As written, every batch would rescan the namespace. The refactor is probably larger than effort 'M' in the plan.",
+      "proposed_generic_solution": "Split into a pure function (edge, parents, state) → decision and a thin sweep driver. Back `existing` and the entity table by a store lookup or a projection updated on write.",
+      "validation_gate": "Characterisation test: sweep output is identical before and after the refactor on a fixed fixture. Benchmark shows deposit cost does not grow with namespace size."
+    },
+    {
+      "id": "F4",
+      "severity": "high",
+      "claim": "The async-after-write queue is safe and fast enough with window_max_turns = 1.",
+      "verdict": "unbounded and not durable",
+      "evidence": [
+        {
+          "path": "src/memspine/workers/windows.py",
+          "line": 326,
+          "note": "`queue: deque[_Job]` has no bound. One serial worker per namespace (run_lock, :474)."
+        },
+        {
+          "path": "src/memspine/workers/windows.py",
+          "line": 554,
+          "note": "stop() abandons queued windows and only counts them."
+        },
+        {
+          "path": "docs/adr/ADR-066-adaptive-window-write.md",
+          "line": 58,
+          "note": "ADR states the queue is not durable. G-W27 (gap_plan.json:72) is still 'missing'."
+        },
+        {
+          "path": "src/memspine/engine.py",
+          "line": 13719,
+          "note": "Async is silently switched off on a ':memory:' database."
+        }
+      ],
+      "correction": "At one call per turn and several seconds per call, a chat arriving faster than the model builds an in-memory backlog with no back-pressure and no age metric. A crash loses it. Per-turn windows also remove the coreference and relative-date context that ADR-066 gives as the reason for windows.",
+      "proposed_generic_solution": "Add a queue depth and age cap with a defined overflow policy (coalesce into larger windows rather than drop). Persist window membership and state as events and re-enqueue on start.",
+      "validation_gate": "Kill-and-restart test: every window is processed exactly once, or provably skipped. A load test with arrival faster than service shows bounded depth and a reported oldest-job age."
+    },
+    {
+      "id": "F5",
+      "severity": "high",
+      "claim": "Edges are 'immediately persisted' and the call is 'retry-safe' (proposal wording).",
+      "verdict": "today's edges are pending in memory and handed over destructively; the proposal does not yet define atomicity or retry",
+      "evidence": [
+        {
+          "path": "src/memspine/workers/windows.py",
+          "line": 608,
+          "note": "take_edges swaps pending for [] before the sleep stage has processed it; an exception in the sweep loses the batches."
+        },
+        {
+          "path": "src/memspine/workers/windows.py",
+          "line": 810,
+          "note": "Batches over WINDOW_PENDING_EDGES_MAX (5000) are dropped oldest-first, counted only."
+        },
+        {
+          "path": "src/memspine/workers/pipelines.py",
+          "line": 2104,
+          "note": "Covered turns are marked done even when a batch had zero edges, so they are never re-extracted."
+        },
+        {
+          "path": "src/memspine/workers/pipelines.py",
+          "line": 2178,
+          "note": "With no extract_edges role, turns lost with a crashed queue are skipped, not re-extracted."
+        }
+      ],
+      "correction": "Deposit-per-item is not atomic: a crash between the model reply and the last emit leaves a partial window. The proposal needs a window_done marker written after the deposits, keyed by the window's member fingerprint. It also needs idempotent item keys. The in-code claim at pipelines.py:208 ('the sleep stage then extracts the uncovered turns') holds only if an extract_edges role is bound.",
+      "proposed_generic_solution": "Treat the event log as the outbox. Write window_started, then the items, then window_done(members_fp). On start, re-run windows lacking window_done. Make take_edges peek-then-ack.",
+      "validation_gate": "Fault-injection tests at each step (after call, mid-deposit, before marker) end with no loss and no duplicate."
+    },
+    {
+      "id": "F6",
+      "severity": "high",
+      "claim": "'Raw persistence before inference' protects against loss.",
+      "verdict": "true for turns; false for derived outputs and the replies that carry them",
+      "evidence": [
+        {
+          "path": "docs/engine_survey/memspine.json",
+          "line": 62,
+          "note": "The receipt is durable; the window queue is not."
+        },
+        {
+          "path": "src/memspine/workers/windows.py",
+          "line": 573,
+          "note": "on_forget purges cached replies through `_keys_by_record`, an in-process dict (:377)."
+        },
+        {
+          "path": "src/memspine/services/cache/cashews_cache.py",
+          "line": 37,
+          "note": "A persistent cache backend is possible. The key-to-record map would not survive a restart (reasoned from the code; not tested)."
+        }
+      ],
+      "correction": "Raw turns survive, but a cache entry holding model-derived text from a later-forgotten turn is purged only if the same process saw the write. With a durable cache, a forget after restart can leave the reply in the cache. A re-run on identical window text would resurrect it unless the window content changed. G-W49 also adds a KNOWN list to the prompt, so the cache key (windows.py:650) must include it.",
+      "proposed_generic_solution": "Key cache entries by the member record ids in a durable index (or store the ids inside the cached value). Include the KNOWN set and prompt version in the key. Purge by id at forget regardless of process history.",
+      "validation_gate": "Test: write, process, restart, hard-forget a member, re-run the window. No derived record or cached reply restates the forgotten turn."
+    },
+    {
+      "id": "F7",
+      "severity": "high",
+      "claim": "Exact span grounding is sufficient to prevent bad items.",
+      "verdict": "weak: it proves a string occurs, not that the item is supported",
+      "evidence": [
+        {
+          "path": "src/memspine/workers/windows.py",
+          "line": 148,
+          "note": "`grounded` compares casefolded word tokens and accepts any substring of any cited line. There is no minimum length."
+        },
+        {
+          "path": "src/memspine/workers/windows.py",
+          "line": 236,
+          "note": "Edges are not span-checked at all today: validate_edges only needs a valid cited line."
+        },
+        {
+          "path": "scratchpad/doc/G-W49_codex_brief.md",
+          "line": 59,
+          "note": "The prompt asks for 'a few exact words', which a 9B model can satisfy with a single common word."
+        }
+      ],
+      "correction": "A one-word span passes, and the subject, object, negation and date may not appear in it. Because case and punctuation are ignored, negation placement or quote marks are invisible. G-W49 makes the grounding gate the sole defence for edges.",
+      "proposed_generic_solution": "Require a minimum span length and that the span covers the s and o strings (or their resolved aliases), or that both occur in the cited line. Check the item's numbers and dates occur in the cited lines. Count 'weakly grounded' separately.",
+      "validation_gate": "Run on a hand-labelled sample of items from at least two unrelated domains. Report precision of items passing the check versus failing, with a bootstrap interval."
+    },
+    {
+      "id": "F8",
+      "severity": "medium",
+      "claim": "Fact fields speaker, subject and confidence are unused ('dead').",
+      "verdict": "partly right; the fields are also not dead everywhere",
+      "evidence": [
+        {
+          "path": "src/memspine/workers/windows.py",
+          "line": 829,
+          "note": "_store_facts reads entity, attribute, value, date, kind, persons, location, topic. It does not read speaker, subject or confidence."
+        },
+        {
+          "path": "src/memspine/workers/pipelines.py",
+          "line": 2099,
+          "note": "Edge confidence is used (min_conf, and link weight at :2308)."
+        },
+        {
+          "path": "src/memspine/workers/pipelines.py",
+          "line": 2188,
+          "note": "The default min_confidence is 0.0 (:2025), so the filter is inert unless configured."
+        }
+      ],
+      "correction": "Confirmed for the facts section. For edges, confidence feeds link weight and a threshold, so dropping it from the unified schema changes link weights. Model-reported confidence is uncalibrated and defaults to 1.0, so it carries little signal anyway.",
+      "proposed_generic_solution": "Remove unused fields from the prompt. For edge weight, derive from code-side signals (trust of parents, grounding strength) instead of self-reported confidence.",
+      "validation_gate": "Link-weight distribution before and after is compared. Counts of edges removed by min_conf are reported."
+    },
+    {
+      "id": "F9",
+      "severity": "high",
+      "claim": "A single `when` field and 'a plan is dated to the line it was said on' handle event time.",
+      "verdict": "conflates event time and utterance time",
+      "evidence": [
+        {
+          "path": "src/memspine/workers/windows.py",
+          "line": 854,
+          "note": "`when = _fact_date(fact.date, latest) or start`; no happened or said tags are passed to the deposit."
+        },
+        {
+          "path": "src/memspine/engine.py",
+          "line": 14441,
+          "note": "The mined-fact door supports happened: and said: tags 'so a read resolves them against that day'. Window facts do not set them."
+        },
+        {
+          "path": "src/memspine/workers/pipelines.py",
+          "line": 2933,
+          "note": "A date past the window's latest line plus a slack is rejected, so future-dated plans fall back to the window start."
+        },
+        {
+          "path": "src/memspine/core/records.py",
+          "line": 200,
+          "note": "valid_from defaults to ingestion time; the transcript date (windows.py:182) is valid_from."
+        },
+        {
+          "path": "docs/engine_survey/gap_plan.json",
+          "line": 519,
+          "note": "G-P6 acknowledges coarse dates parse as day one and that no happened/said is passed."
+        }
+      ],
+      "correction": "When a caller does not supply a timestamp, the line date in the transcript is the ingestion date, so relative-date resolution is anchored to ingestion for backfilled history. Year or month precision becomes day one. Supersession ordering of state edges uses valid_from, so a utterance-dated plan can supersede or lose to an event-dated fact incorrectly.",
+      "proposed_generic_solution": "Carry two times per item: said (line date, always known) and happened (an interval with a precision flag, or null). Order state supersession by said; answer temporal queries by the happened interval. Warn when the transcript date equals the ingestion time of a bulk write.",
+      "validation_gate": "Unit tests: backfilled history with explicit timestamps, year-only and month-only dates, future plans, A→B→A state changes."
+    },
+    {
+      "id": "F10",
+      "severity": "high",
+      "claim": "Edge identity is solved by the existing key; G-W50 is a small prerequisite (effort S).",
+      "verdict": "G-W50 is correctly identified but understated",
+      "evidence": [
+        {
+          "path": "src/memspine/workers/pipelines.py",
+          "line": 1882,
+          "note": "`_edge_key` has no kind; undated event keys have no occurrence part; the dated variant is opt-in (event_identity: dated, :2012)."
+        },
+        {
+          "path": "src/memspine/workers/pipelines.py",
+          "line": 2214,
+          "note": "A key already in `existing` (including archived/superseded records, chosen at :2057-2064) short-circuits to provenance, skipping the conflict ladder."
+        },
+        {
+          "path": "src/memspine/workers/pipelines.py",
+          "line": 2223,
+          "note": "Event edges drop their attribute (GP-1), so repeated events rely entirely on this key."
+        }
+      ],
+      "correction": "Verified. A state sequence A→B→A is skipped on the return to A. Two same-day events collapse in dated mode. The fix also changes stored keys, so existing stores need a migration or a versioned key to keep re-runs idempotent. G-W50's gate does not mention migration.",
+      "proposed_generic_solution": "Version the key. Include kind and an occurrence id derived from the cited turn ids. Route archived or superseded matches through the ladder. Keep the old key as an alias for rerun idempotency.",
+      "validation_gate": "Unit tests as in G-W50, plus an old-key store re-run that writes nothing new."
+    },
+    {
+      "id": "F11",
+      "severity": "medium",
+      "claim": "A 0.9 similarity threshold governs online entity resolution in rules mode.",
+      "verdict": "mislabelled; it is a 64-permutation MinHash estimate of character-trigram Jaccard on names, and rules mode merges little",
+      "evidence": [
+        {
+          "path": "src/memspine/config/constants.py",
+          "line": 461,
+          "note": "SHINGLE 3, NUM_PERM 64, JACCARD 0.9; the standard error of a 64-perm estimate near 0.9 is about 0.04."
+        },
+        {
+          "path": "src/memspine/memories/associative/resolution.py",
+          "line": 205,
+          "note": "MinHash applies only to high-entropy names (:97, min 6 chars or 2 tokens)."
+        },
+        {
+          "path": "src/memspine/memories/associative/resolution.py",
+          "line": 7,
+          "note": "The docstring example (a short and a long form of one given name become one entity) cannot happen in rules mode: the short form is gated out, and its trigram Jaccard with the long form is about 0.2."
+        },
+        {
+          "path": "src/memspine/memories/associative/resolution.py",
+          "line": 32,
+          "note": "Names new in the same sweep are not resolved against each other."
+        }
+      ],
+      "correction": "In rules mode only case, whitespace, NFKC and near-identical long-name spelling variants are merged. Nickname versus full name is not. G-W49 therefore relies on the model's KNOWN-name reuse (rule 6) for the common case, which is unverified. G-W29 uses a different 0.9 (embedding similarity, gap_plan.json:157), also uncalibrated. The two thresholds are easy to confuse in the docs.",
+      "proposed_generic_solution": "Name the thresholds by what they measure. Calibrate each on a labelled set of same and different entity pairs from unrelated domains. Refresh the known-entity table after each deposit so names are resolved against earlier batches.",
+      "validation_gate": "Pairwise precision and recall of rules-mode resolution on a held-out entity-pair set, reported per length bucket. A duplicate-entity rate over a long stream is tracked between sleeps."
+    },
+    {
+      "id": "F12",
+      "severity": "medium",
+      "claim": "The hard 60/20/10/10 budget shares (G-W25) are an evidence-based design.",
+      "verdict": "proposal only; no measured basis found",
+      "evidence": [
+        {
+          "path": "docs/engine_survey/gap_plan.json",
+          "line": 209,
+          "note": "'raw >= 60%, notes <= 20%, summary/profile <= 10%, timelines <= 10%' comes with no run, ablation or citation."
+        },
+        {
+          "path": "docs/engine_survey/gap_plan.json",
+          "line": 40,
+          "note": "The flow calls it a 'hard budget'; the shares mix a floor and ceilings."
+        },
+        {
+          "path": "src/memspine/core/policies/assembly.py",
+          "line": 288,
+          "note": "Real defect confirmed: assembly breaks at the first oversize item. Existing per-block shares are 0.15 for fact chain and event ledger (constants.py:671,680), 0.5 profile (:705), 0.1 session digest (:840), 0.15 recent (:847)."
+        }
+      ],
+      "correction": "Shares are not measured defaults. Treat them as a starting hypothesis. The early-break fix is independent and should land first, since it affects every arm. The shares sum to 100 only if every block is full; unused share handling is unspecified.",
+      "proposed_generic_solution": "Replace the early break with skip-and-continue packing. Make shares configurable with redistribution of unused share. Choose defaults by sweeping on a dev set and checking on blind sets.",
+      "validation_gate": "Paired per-question comparison with confidence interval per dataset. Context tokens per question do not rise."
+    },
+    {
+      "id": "F13",
+      "severity": "medium",
+      "claim": "Schema repair and call caps: 'section-fail-closed plus split' is enough, and G-P4 repair retry is small.",
+      "verdict": "no cap or budget exists; repair is untested for the new schema",
+      "evidence": [
+        {
+          "path": "src/memspine/workers/windows.py",
+          "line": 628,
+          "note": "Auto-split activates after 25% of the last 8 calls fail. The window_extract prompt's token_budget is 4096 output tokens (yaml:6)."
+        },
+        {
+          "path": "src/memspine/workers/windows.py",
+          "line": 841,
+          "note": "No cap on items per window or on deposits per window."
+        },
+        {
+          "path": "docs/engine_survey/gap_plan.json",
+          "line": 495,
+          "note": "G-P4 proposes one repair retry carrying validator errors. Nothing exists yet."
+        },
+        {
+          "path": "src/memspine/workers/windows.py",
+          "line": 668,
+          "note": "calls is counted but there is no per-namespace or daily budget."
+        }
+      ],
+      "correction": "With a unified list there is one section, so 'fails closed alone' becomes all-or-nothing for facts and edges together. The split mode (facts+edges versus episode) does not apply. A single malformed item should drop only that item. The proposed gate does not state an items-per-window cap or a call budget.",
+      "proposed_generic_solution": "Item-level validation with per-item drop counters. Cap items per line and per window. Add a per-namespace call budget with a reported 'skipped for budget' count. One repair retry only for whole-reply parse failures.",
+      "validation_gate": "Fuzzed model replies (truncated, duplicated keys, wrong types) never raise, never write ungrounded items, and respect the caps."
+    },
+    {
+      "id": "F14",
+      "severity": "medium",
+      "claim": "Window facts and sleep-time mining/graph extraction coexist without duplication.",
+      "verdict": "unverified; no suppression found",
+      "evidence": [
+        {
+          "path": "src/memspine/workers/windows.py",
+          "line": 851,
+          "note": "Window facts carry a window_fact tag and channel 'mining', the same channel as sleep mining (engine.py:14486)."
+        },
+        {
+          "path": "src/memspine/workers/pipelines.py",
+          "line": 2057,
+          "note": "Only the edge path excludes covered turns (:2107). A grep of pipelines.py found no reference to the window_fact tag for mine_facts."
+        }
+      ],
+      "correction": "If mine_facts is also enabled, the same statements may be extracted twice, with the semantic dedup (M5) as the only guard. G-W49 would add a third source of edges for the same turns (window items, window edges, sleep extract_edges). I read only the parts of pipelines.py around extract_graph, so this is a coverage-limited finding.",
+      "proposed_generic_solution": "Record which turns each derivation covered, with a marker per source, and have later stages skip covered turns or only add what is missing.",
+      "validation_gate": "Run with window and sleep extraction both on. Duplicate-fact rate stays below a stated bound and total calls per turn are reported."
+    },
+    {
+      "id": "F15",
+      "severity": "medium",
+      "claim": "The agentic (slot) read is shown not to help: 'f-slot net -3 at 8x time'.",
+      "verdict": "a net of -3 on 437 questions with +1/-4 flips is not evidence of harm; the cost argument stands",
+      "evidence": [
+        {
+          "path": "evals/analysis/GAP_REGISTER.md",
+          "line": 723,
+          "note": "44.4 vs 45.1, +1/-4; fired on 150 of 437; 3 h 25 min versus about 25 min."
+        },
+        {
+          "path": "docs/engine_survey/gap_plan.json",
+          "line": 352,
+          "note": "BD-1 cites 'net -3 at 8x time' as a reason."
+        },
+        {
+          "path": "evals/analysis/GAP_REGISTER.md",
+          "line": 343,
+          "note": "I80: the default reader prompts quoted a gold answer; 'relative comparisons stand' is asserted without a stated check. A re-baseline is listed as needed."
+        }
+      ],
+      "correction": "Five discordant questions are statistically a null. One configuration (max 2 steps, one trigger) was tried. The valid conclusion is 'no demonstrated gain at 8x cost'. The I80 sentence claims relative comparisons are safe. That needs evidence that the leaked answer did not interact with arms differently. I did not open the result files, so I cannot confirm what the clean re-baseline shows.",
+      "proposed_generic_solution": "Cite flips with an interval and state the cost ratio separately. For I80, rerun the key reference arms on the clean prompt and report the paired difference.",
+      "validation_gate": "The docs list for each comparison: arm, reference, n, flips, interval, prompt version (pre- or post-fix)."
+    },
+    {
+      "id": "F16",
+      "severity": "medium",
+      "claim": "The gates (focus slice vs f-jref-i2, full set within ±12.9 net, blind MAB-CR 400 q and ConvoMem 200 q, no-example prompt, gold-lint) prevent overfitting.",
+      "verdict": "insufficient as specified; G-E1 acknowledges some gaps",
+      "evidence": [
+        {
+          "path": "docs/engine_survey/gap_plan.json",
+          "line": 566,
+          "note": "G-E1 lists unpaired comparisons, a missing blind set that can still confirm, and a pooled 0.328*sqrt(n) band; status 'missing'."
+        },
+        {
+          "path": "docs/engine_survey/gap_plan.json",
+          "line": 508,
+          "note": "G-P5: gold-lint catches multi-word answers and speaker names in defaults/*.yaml only, not partials or single-word tokens."
+        },
+        {
+          "path": "evals/analysis/GAP_REGISTER.md",
+          "line": 319,
+          "note": "The focus reference f-jref-i2 was written before the clean re-baseline was launched (line text: 'NOT launched; the coordinator queues it after the clean re-baseline'). I did not confirm its run date versus the I80 fix."
+        }
+      ],
+      "correction": "The 437-question focus slice is selected from the same dataset the prompt is developed against. The gates do not require a non-English or non-chat check, although the prompt now states a same-language rule. 'No-example prompt' is not a test, because rule wording can still carry benchmark phrasing. A ±12.9 net band on 1,540 questions would hide a loss of several points on a category.",
+      "proposed_generic_solution": "Adopt G-E1 first. Add a synthetic multi-language and multi-domain write test (items, dates, negations, lists) scored by exact-field checks, not by the reader. Report per-category results with intervals.",
+      "validation_gate": "A seed-swap change is not adopted. A missing blind set blocks confirmation. Every adoption lists per-category deltas with intervals."
+    },
+    {
+      "id": "F17",
+      "severity": "medium",
+      "claim": "Earlier hypothesis docs (deep_audit_2026-10-11) accurately report what is not yet built.",
+      "verdict": "stale and blanket status; the 'exhaustive' coverage is rule-generated",
+      "evidence": [
+        {
+          "path": "evals/runs/_analysis/deep_audit_2026-10-11/build_engine_gap_register.py",
+          "line": 41,
+          "note": "Every entry gets the same status string 'documented hypothesis; not implemented or shown to improve the engine'."
+        },
+        {
+          "path": "evals/runs/_analysis/deep_audit_2026-10-11/engine_gap_solution_register.json",
+          "line": 10638,
+          "note": "E01 proposes assertions with exact spans, modality and time and a read-time comparison first."
+        },
+        {
+          "path": "src/memspine/prompts/models.py",
+          "line": 666,
+          "note": "AssertionOut already has span, modality and time (E01), and EventOut (A02, :717) exists."
+        },
+        {
+          "path": "src/memspine/config/schema.py",
+          "line": 1191,
+          "note": "fact_chain: read_time and event_ledger exist, off by default."
+        },
+        {
+          "path": "docs/engine_survey/gap_plan.json",
+          "line": 263,
+          "note": "Source-family pool (R02) is recorded as built, while R02 in the register is listed as unimplemented."
+        },
+        {
+          "path": "evals/runs/_analysis/deep_audit_2026-10-11/all_scope_review.py",
+          "line": 45,
+          "note": "Candidate flags are regex and category rules (for example E01 = any multi-hop or multiple-evidence question); the file itself states at :79 and :127 that this is not semantic adjudication."
+        },
+        {
+          "path": "evals/runs/_analysis/deep_audit_2026-10-11/all_scope_coverage.json",
+          "line": 77,
+          "note": "V01 and V02 are 'candidate' for all 2,399 questions."
+        }
+      ],
+      "correction": "Mark E01/A01/A02/R02 as 'built, off by default' or 'partial', with the config key. The counts of '343,224 decisions' measure rule evaluations, not reviews. Candidate counts such as 740 for E01 measure how many questions match a regex or category, not how many need the capability. V01 and V02 at 100% mean nothing. I did not run the generators; this is from reading them.",
+      "proposed_generic_solution": "Add a 'current implementation' column generated by a script that checks for the named prompt, config key or function, with a manual override. Rename the coverage fields to 'rule matches'. Keep the semantic-adjudication flag visible in every summary.",
+      "validation_gate": "A script fails when a register entry marked 'not implemented' matches a shipped prompt id or config key."
+    },
+    {
+      "id": "F18",
+      "severity": "low",
+      "claim": "Prompt v2 rules are unambiguous for a 9B local model.",
+      "verdict": "several rules are ambiguous or invite regressions; unmeasured",
+      "evidence": [
+        {
+          "path": "scratchpad/doc/graph_call_prompt_v2.txt",
+          "line": 4,
+          "note": "'A reply that accepts a proposal adopts its details (cite both lines)' interacts with 'span from those lines': one span can only be checked against one line under grounded() (windows.py:148 accepts any cited line)."
+        },
+        {
+          "path": "scratchpad/doc/graph_call_prompt_v2.txt",
+          "line": 14,
+          "note": "'kind: fact' is added to state|event, but ExtractedFact/ExtractedEdge coerce unknown kinds to 'event' (models.py:263,391), so a 'fact' kind would silently become an event."
+        },
+        {
+          "path": "scratchpad/doc/graph_call_prompt_v2.txt",
+          "line": 15,
+          "note": "mode, neg and until have no consumer in the current deposit path. G-P2 plans them as a Wave B item."
+        },
+        {
+          "path": "src/memspine/config/constants.py",
+          "line": 508,
+          "note": "Auto-split cannot help a unified list."
+        }
+      ],
+      "correction": "Do not add output fields that nothing reads; this is the same defect G-W49 criticises in the old schema. If neg is kept, a negated item must not be deposited as a positive state or event edge, which the proposal does not describe.",
+      "proposed_generic_solution": "Add a field only together with its consumer and a test. Define the deposit rule for negated and planned items. Decide how a cross-line span is checked.",
+      "validation_gate": "Every prompt field maps to a code reader (lint). Fixtures for negation and plan items show correct non-positive storage."
+    }
+  ],
+  "checked_files": [
+    "docs/engine_survey/gap_plan.json (lines 1-640)",
+    "docs/engine_survey/memspine.json (grep hits only)",
+    "docs/engine_survey/synthesis.json (grep hits only)",
+    "docs/DEFERRED_INGEST_STUDY.md (full)",
+    "docs/adr/ADR-066-adaptive-window-write.md (full)",
+    "src/memspine/workers/windows.py (full)",
+    "src/memspine/core/window.py (full)",
+    "src/memspine/workers/pipelines.py (lines 196-220, 1713-1790, 1860-2370, 2900-2950; grep elsewhere)",
+    "src/memspine/memories/associative/resolution.py (lines 1-276)",
+    "src/memspine/prompts/defaults/window_extract.yaml (full)",
+    "src/memspine/prompts/models.py (lines 150-470, 640-900)",
+    "src/memspine/engine.py (lines 13670-13850, 14420-14570; grep elsewhere)",
+    "src/memspine/core/policies/assembly.py (lines 240-330)",
+    "src/memspine/config/constants.py and schema.py (grep hits only)",
+    "src/memspine/core/records.py (valid_from, recorded_at hits)",
+    "scratchpad/doc/G-W49_codex_brief.md (full)",
+    "scratchpad/doc/graph_call_prompt_v2.txt (full)",
+    "evals/analysis/GAP_REGISTER.md (grep-matched lines only: f-slot, I80, f-jref-i2)",
+    "evals/runs/_analysis/deep_audit_2026-10-11/all_scope_review.py (lines 1-130)",
+    "evals/runs/_analysis/deep_audit_2026-10-11/all_scope_coverage.json (lines 1-110)",
+    "evals/runs/_analysis/deep_audit_2026-10-11/engine_gap_solution_register.json (grep plus lines 10636-10700)",
+    "evals/runs/_analysis/deep_audit_2026-10-11/solution_catalog.json (grep status lines only)",
+    "evals/runs/_analysis/deep_audit_2026-10-11/build_engine_gap_register.py (grep only)"
+  ],
+  "coverage_limitations": [
+    "Not read in this pass: s2_extraction.clean.md, s3_retrieval.clean.md, s7_waveA.clean.md, s8_waveB.clean.md, s9_waveC.md. The prior-draft conclusions were not checked.",
+    "Not read: ADR-026, ADR-064, ADR-065; build_gap_plan.py; build_comparison.py; prompt_matrix.json; combined.json; the other 14 engine records. Claims about Graphiti and other engines (calls per episode, dedupe behaviour) are unverified here, and the clones were not opened.",
+    "Not read: the rest of engine.py, the sleep scheduler, the read path (RRF, rerank), the semantic store and conflict ladder internals, the cache base module, and the write entry point (so how a caller supplies timestamps is inferred only from the valid_from default in records.py:200).",
+    "Token counts (309, 958) and all latency figures could not be recomputed with the allowed tools. F1 and F2 rest on the documents' own wording.",
+    "Measured results were not re-examined: only single summary lines of GAP_REGISTER.md were seen via grep. I did not open trace.jsonl, bench_llm.jsonl, per-question audit files, or any eval result summary. The f-slot and I80 findings therefore comment on how the numbers are used, not on the numbers.",
+    "Nothing was run: no tests, no models, no evaluations. Behaviours labelled 'reasoned' (F6 cache restart, F14 duplication) are from code reading only.",
+    "The f-slot/I80 register hits at GAP_REGISTER.md lines 221-222 and 319 were truncated by the tool; I used only the readable fragments."
+  ],
+  "recommended_doc_changes": [
+    "gap_plan.json G-W49: replace 309 with the measured count of the final prompt (v2 is longer), state the method, and reframe the speed rationale around completion tokens. Reconcile with G-W45 (prefill about 10%).",
+    "gap_plan.json G-W49 'why': change '50x' to the measured range (about 13x to 49x), cite that the 2.7 s was at about 34 completion tokens, and remove the 10 s turn-to-edge gate until a p95 is measured.",
+    "gap_plan.json G-W49 and G-W50: add as prerequisites G-W27 (durable queue with window_done marker), a queue depth and age cap, indexed `existing` and entity-table lookups, and a versioned edge key with migration. Upgrade G-W50 effort and note that `emit` is a closure.",
+    "gap_plan.json G-W49: replace 'exact span' grounding with a stated minimum (span covers s and o, numbers and dates present) and apply it to edges as well as facts. Define how negated, planned and uncertain items are stored.",
+    "gap_plan.json G-W49 proposal: specify two times (said, happened with precision) and tie it to G-P6.",
+    "gap_plan.json G-W25: label 60/20/10/10 as an unmeasured hypothesis. List the early-break fix at assembly.py:288 as a separate, first item.",
+    "gap_plan.json BD-1 and GAP_REGISTER.md line 723/343: restate f-slot as 'no demonstrated gain at 8x cost' with the flip counts, and mark the I80 'relative comparisons stand' sentence as asserted pending a clean paired re-run.",
+    "resolution.py module docstring: correct the short-name example (it only resolves in resolve: llm mode). Name ENTITY_RESOLVE_JACCARD as a 64-permutation MinHash trigram Jaccard, and distinguish it from the 0.9 embedding threshold in G-W29.",
+    "deep_audit_2026-10-11 generators and JSON: replace the blanket status string at build_engine_gap_register.py:41 with per-entry implementation status (E01, A01, A02, R02 and fact_chain/event_ledger exist). Rename 'decisions' to 'rule matches' in all_scope_coverage.json and remove V01/V02 from candidate counts.",
+    "Land G-E1 before any G-W49 adoption screen, and add the multi-language and multi-domain write fixtures to its gate."
+  ],
+  "reviewer_models": [
+    "claude-sonnet-5-5"
+  ]
+}

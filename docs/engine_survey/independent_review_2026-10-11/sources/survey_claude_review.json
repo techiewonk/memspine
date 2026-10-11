@@ -1,0 +1,692 @@
+{
+  "summary": "Structure is complete: all 15 records have 57 rows and 15 layers, and the prompt matrix has 345 cells (15 × 23). Evidence tags are mostly explicit, but only at row level. The genuine-evidence problems are in the synthesis, the gap plan and the builders. I re-checked about 20 high-consequence claims in source. Most record-level facts held: Mem0 keeps deleted text in history, MemMachine profile facts survive source deletion, Hindsight deletes cascade to observations, Cognee's per-turn analysis call is on by default, and Honcho's dream thresholds match. The weak points are generalizations built on top of the records. The main ones: 'lose turns on failed extraction' (Nemori, MemOS), 'small contexts come from a hard budget', the Graphiti call and identity description in G-W49/G-W50, 'example-free' prompts, the 60/20/10/10 shares, and 'wave A needs no screen'. The builders also show a vendor LoCoMo number under each engine that can describe different code, a different version, or a different harness than the cells below it. The SPEC has no status for closed, hosted or legacy, so N conflates 'absent' with 'not inspectable'. All conclusions are pinned to the local snapshots; none were run.",
+  "findings": [
+    {
+      "id": "F-01",
+      "severity": "high",
+      "claim": "G-W49 'others': Graphiti makes 2 calls per episode plus one dedupe call per new fact; each edge occurrence keeps its own uuid and episode list (G-W50).",
+      "verdict": "partly wrong, and unpinned to a version",
+      "evidence": [
+        {
+          "path": "clones/graphiti/pyproject.toml",
+          "line": 4,
+          "note": "graphiti-core 0.31.0; HEAD 964bb11 (.git/refs/heads/main). No survey record pins this commit; the combined record covers an older vendored copy."
+        },
+        {
+          "path": "clones/graphiti/graphiti_core/graphiti.py",
+          "line": "1469-1503",
+          "note": "add_episode: extract_nodes, then resolve nodes, then _extract_and_resolve_edges (separate calls). This part matches '2 calls'."
+        },
+        {
+          "path": "clones/graphiti/graphiti_core/graphiti.py",
+          "line": "1103, 1597",
+          "note": "The bulk path defaults use_combined_extraction=True, so one combined node+edge call. 'Graphiti = 2 calls' holds only for add_episode (or the flag off)."
+        },
+        {
+          "path": "clones/graphiti/graphiti_core/utils/maintenance/edge_operations.py",
+          "line": "906-938",
+          "note": "With no candidate edges there is no dedupe call; the path runs the timestamp call and an optional attribute call."
+        },
+        {
+          "path": "clones/graphiti/graphiti_core/utils/maintenance/edge_operations.py",
+          "line": "940-951",
+          "note": "A verbatim fact-text match reuses the existing edge and appends the episode uuid. No LLM call."
+        },
+        {
+          "path": "clones/graphiti/graphiti_core/utils/maintenance/edge_operations.py",
+          "line": "982-1011, 1074-1076",
+          "note": "Otherwise one dedupe+contradiction call. A duplicate resolves to the existing edge and appends to its episodes list. Timestamps come from a further call only if the edge has none (786-831)."
+        },
+        {
+          "path": "clones/graphiti/graphiti_core/utils/maintenance/node_operations.py",
+          "line": "816-891",
+          "note": "Node resolution: embedding candidates, exact and MinHash matching, then ONE batched LLM call for the unresolved remainder."
+        },
+        {
+          "path": "clones/graphiti/graphiti_core/utils/maintenance/dedup_helpers.py",
+          "line": "326-377",
+          "note": "The exact-name, entropy-gate and MinHash claim is correct."
+        },
+        {
+          "path": "docs/engine_survey/gap_plan.json",
+          "line": "544, 557",
+          "note": "The text being checked."
+        }
+      ],
+      "correction": "Say: 'graphiti-core 0.31.0 @964bb11. add_episode: 1 node call + 1 edge call + 0..1 batched node-resolution call + per new edge 0..1 dedupe/contradiction call (skipped on verbatim match or no candidates) + 0..1 timestamp call + optional attribute and summary calls. add_episode_bulk defaults to one combined extraction call.' Replace 'each occurrence with its own uuid' with: 'one edge per distinct fact text; repeat mentions append the episode uuid to edge.episodes; the LLM prompt forbids merging facts that differ in numbers or dates.' The G-W50 conclusion (MemSpine's key collisions) still stands, because it rests on MemSpine code, not on the Graphiti description.",
+      "proposed_generic_solution": "Add a 'borrowed-from' pin (repo, commit, version, entry point such as add_episode vs bulk) to every gap row whose 'others' text states call counts. State call counts as a formula with the guarding conditions, not a single number.",
+      "validation_gate": "A reviewer can re-derive each 'others' call count by reading only the pinned file:line cited in the row; the row names the entry point; a script fails if a gap row quotes a count with no pin."
+    },
+    {
+      "id": "F-02",
+      "severity": "high",
+      "claim": "Synthesis section 4 and G-W27: 'Nemori and MemOS lose turns when they delete the buffer or raw window after a failed or skipped extraction.'",
+      "verdict": "overgeneralized; internally contradicted by the records themselves",
+      "evidence": [
+        {
+          "path": "clones/nemori/nemori/core/memory_system.py",
+          "line": "106-119, 158-160",
+          "note": "A group smaller than episode_min_messages is skipped with `continue`, then ALL buffer ids are marked processed (deleted). An exception from episode generation propagates before mark_processed, so the buffer survives."
+        },
+        {
+          "path": "clones/nemori/nemori/core/memory_system.py",
+          "line": "164-195",
+          "note": "A semantic-generation failure is caught and logged, and the buffer is then deleted. Facts are lost silently; the episode is kept."
+        },
+        {
+          "path": "clones/nemori/nemori/config.py",
+          "line": "72-76",
+          "note": "episode_min_messages=2, buffer_size_min=2. A one-message batch is skipped and deleted. The record notes the LoCoMo harness uses buffer_size_min=1; the effect there was not traced."
+        },
+        {
+          "path": "docs/engine_survey/nemori.json",
+          "line": "86-87",
+          "note": "The record says 'a crash leaves turns for the next flush', which overstates safety given the two paths above."
+        },
+        {
+          "path": "clones/memos/src/memos/mem_scheduler/task_schedule_modules/handlers/mem_read_handler.py",
+          "line": "171-183, 398-413",
+          "note": "An exception returns early and the raw node survives. An empty or malformed result falls through to text_mem.delete of the raw/working ids."
+        },
+        {
+          "path": "docs/engine_survey/memos.json",
+          "line": "476, 550",
+          "note": "The 'keep' bullet says a failed extraction degrades to raw-window recall. The corrected extract.failure row says the raw window is deleted. The two contradict."
+        },
+        {
+          "path": "docs/engine_survey/synthesis.json",
+          "line": "136, 158",
+          "note": "'Deleting the raw window when extraction fails' is broader than the code."
+        }
+      ],
+      "correction": "Nemori: turns are lost when a group falls under episode_min_messages and when semantic extraction raises (swallowed); an episode-generation exception keeps them. MemOS: the raw window is deleted when fine extraction returns nothing or malformed output; an exception keeps it. Fix the memos.json 'keep' bullet, and correct the nemori.json write.receipt wording.",
+      "proposed_generic_solution": "Reusable gap 'derivation-failure taxonomy': for every derived write, classify the failure outcomes as raised, swallowed, empty-result or skipped-by-size, and state whether source rows survive each. Fold into G-W27 as an acceptance test per outcome.",
+      "validation_gate": "Kill-and-restart plus fault-injection tests for each of the four outcomes: raw turns never deleted before the derived commit; a window with an empty result stays queued and is counted."
+    },
+    {
+      "id": "F-03",
+      "severity": "high",
+      "claim": "Synthesis section 1: 'Small contexts come from a hard budget, not from luck: Mnemon..., Hindsight token-denominated packing, MemOS..., Nemori two compact layers (2.7k).'",
+      "verdict": "unsupported generalization; the records contradict it",
+      "evidence": [
+        {
+          "path": "docs/engine_survey/synthesis.json",
+          "line": "12"
+        },
+        {
+          "path": "docs/engine_survey/mnemon.json",
+          "line": "258, 293",
+          "note": "3.8k is the answer-model input only. A hosted decision model separately reads about 35k tokens per question, with 2 planner calls and about 5 judge calls."
+        },
+        {
+          "path": "docs/engine_survey/hindsight.json",
+          "line": "265",
+          "note": "Default recall cap is 4,096, but the benchmark runs used about 36k and 24.7k, from 'our notes, not re-verified'."
+        },
+        {
+          "path": "docs/engine_survey/nemori.json",
+          "line": "274",
+          "note": "2,745 tokens is a paper figure, 'not re-measured'. No hard budget is recorded."
+        },
+        {
+          "path": "docs/engine_survey/memmachine.json",
+          "line": "258",
+          "note": "'No token budget in the engine' (episode-count limit)."
+        },
+        {
+          "path": "docs/engine_survey/lightmem.json",
+          "line": "264",
+          "note": "About 2.6k comes from top-60 facts, a count limit."
+        },
+        {
+          "path": "docs/engine_survey/mem0.json",
+          "line": "356",
+          "note": "Vendor run: top_200 at a mean of 6,956 tokens."
+        },
+        {
+          "path": "docs/engine_survey/honcho.json",
+          "line": "246",
+          "note": "get_context cap is 100,000 tokens."
+        }
+      ],
+      "correction": "Replace with: 'Only Mnemon enforces a character budget on the answer context, and that figure excludes about 35k tokens of judge reading. MemMachine, LightMem and Nemori reach 2.6-2.7k through count limits (top-k) or short derived records. Hindsight caps recall at 4,096 by default, yet its published runs used about 24-36k.' Add a 'total model tokens per question (answer + planner + judge)' line to the token-economy cards.",
+      "proposed_generic_solution": "Reusable gap 'full-path token ledger': record, per engine and per question, answer-context tokens, auxiliary read-time model tokens and calls, and write-time tokens per store. Quote a context size only beside its enforcing mechanism (character cap, token cap, count cap, none).",
+      "validation_gate": "Every context-size statement carries the mechanism and a total-tokens figure, or is labelled 'answer-only'."
+    },
+    {
+      "id": "F-04",
+      "severity": "high",
+      "claim": "Synthesis section 3 / G-W25 / read_target: a fixed block split (raw windows >= 60%, notes <= 20%, summary/profile <= 10%, timelines <= 10%) under a 4,096 cap, 'target 2.5k-3.8k used', with sources listed as Hindsight, MemSpine, MIRIX and Mnemon.",
+      "verdict": "proposal presented as if sourced; contradicted by the owner's own measurements",
+      "evidence": [
+        {
+          "path": "docs/engine_survey/synthesis.json",
+          "line": "86-124"
+        },
+        {
+          "path": "docs/engine_survey/gap_plan.json",
+          "line": "36-41, 202-213"
+        },
+        {
+          "path": "src/memspine/config/schema.py",
+          "line": "1041-1050",
+          "note": "A lead_budget_share cap already exists (default None). The comment says the 4K budget was not binding on LoCoMo (about 1.7K used) and that search slots were."
+        },
+        {
+          "path": "src/memspine/config/schema.py",
+          "line": "1051-1054",
+          "note": "Headers (cards, profile, graph facts) cut LoCoMo quote questions from 92 to 68-74. This is direct evidence of risk from derived blocks and is absent from the synthesis."
+        },
+        {
+          "path": "docs/engine_survey/memspine.json",
+          "line": "252",
+          "note": "Measured 672 / 1,571 tokens per question versus the 2.5-3.8k target."
+        },
+        {
+          "path": "docs/engine_survey/mnemon.json",
+          "line": "253, 564",
+          "note": "Mnemon's actual split is per-block character caps inside one 16-item / 12,000-char limit. No engine uses these four percentages."
+        }
+      ],
+      "correction": "Mark the shares 'MemSpine hypothesis, untested; no surveyed engine uses these percentages.' Drop the engine names from the Source column of the share table, or cite them only for the mechanism (rank-order packing). State that the early break at src/memspine/core/policies/assembly.py:288-299 (the file lives under core/policies/, not core/) is the verified defect. Cite the quote-question regression as a risk. G-W25 'now' should mention lead_budget_share (H12).",
+      "proposed_generic_solution": "Gap 'block shares as a sweep, not a constant': implement per-block caps as config, then sweep three share settings on the focus slice plus quote-type questions. Adopt the shares only where a non-inferiority margin holds.",
+      "validation_gate": "Quote and verbatim questions not worse than the no-header arm; the focus slice has no net loss; tokens per question are reported with a per-block breakdown."
+    },
+    {
+      "id": "F-05",
+      "severity": "medium",
+      "claim": "G-W49 'others': Honcho, Mnemon and LightMem use 'one static, example-free call per token-gated batch with cited lines'.",
+      "verdict": "false for two of the three; contradicted by the survey's own matrix",
+      "evidence": [
+        {
+          "path": "docs/engine_survey/prompt_matrix.json",
+          "line": "1461-1463",
+          "note": "Mnemon is the only example-free one: N."
+        },
+        {
+          "path": "docs/engine_survey/prompt_matrix.json",
+          "line": "1642-1645",
+          "note": "Honcho: P, inline illustrative examples."
+        },
+        {
+          "path": "docs/engine_survey/prompt_matrix.json",
+          "line": "2945-2948",
+          "note": "LightMem: Y, with a locomo/event few-shot that reproduces a benchmark conversation."
+        },
+        {
+          "path": "docs/engine_survey/gap_plan.json",
+          "line": "544"
+        },
+        {
+          "path": "docs/engine_survey/honcho.json",
+          "line": "89-92",
+          "note": "Honcho's calls are per observed peer per window, so cost scales with the number of peers. Summary calls are separate."
+        }
+      ],
+      "correction": "Rewrite as: 'Mnemon uses an example-free prompt; Honcho and LightMem use examples. All three batch by token window.' Note that Honcho's one call is per observed peer.",
+      "proposed_generic_solution": "Generate the 'others' text of a gap row from the prompt matrix and records (a template that quotes matrix cells), so a claim cannot drift from the scored cell.",
+      "validation_gate": "A CI check that any engine named beside a prompt trait has a matrix cell with that status."
+    },
+    {
+      "id": "F-06",
+      "severity": "medium",
+      "claim": "Wave A is labelled 'Small, CPU only, no screen needed'.",
+      "verdict": "contradicted by the wave's own gates",
+      "evidence": [
+        {
+          "path": "docs/engine_survey/gap_plan.json",
+          "line": "587-604",
+          "note": "Wave A includes G-W26, G-P1, G-P3, G-P4 and G-P6."
+        },
+        {
+          "path": "docs/engine_survey/gap_plan.json",
+          "line": "69, 459, 485, 498, 524",
+          "note": "These gates require a focus slice, grounding rate or temporal result. Each changes call-1 prompt text or its output."
+        }
+      ],
+      "correction": "Split wave A into (a) pure engineering with unit-test gates (G-W27, G-W36, G-W38, G-W13, G-P5) and (b) prompt or output changes that need a model run (G-W26, G-P1, G-P3, G-P4, G-P6). Move (b) to a screened wave or rename the wave 'no new model call'.",
+      "proposed_generic_solution": "Add a field `needs_model_run: yes|no` and `gate_type: unit|screen|blind` to every gap row, and let the page builder group by it.",
+      "validation_gate": "Builder fails if a row with gate text containing 'focus slice', 'grounding' or 'blind' is placed in a no-screen wave."
+    },
+    {
+      "id": "F-07",
+      "severity": "medium",
+      "claim": "Comparison header shows 'LoCoMo <score>' under every engine; the callout says it is 'the first one the engine's record lists, not a ranking'.",
+      "verdict": "the header is a vendor number that can belong to different code than the pinned commit, a different version, or a leaky harness",
+      "evidence": [
+        {
+          "path": "docs/engine_survey/build_comparison.py",
+          "line": "68-72, 88-97",
+          "note": "best_score returns the first entry regardless of `who` or protocol."
+        },
+        {
+          "path": "docs/engine_survey/memu.json",
+          "line": "11-14, 131",
+          "note": "92.09 is a v1 experiment repo run (profile injected, cat 5 excluded), not the pinned v2 engine, which has no LoCoMo harness."
+        },
+        {
+          "path": "docs/engine_survey/mem0.json",
+          "line": "242-248",
+          "note": "92.5 is the managed Platform; the code read is the OSS SDK; the independent figures are marked 'our notes, not re-checked'."
+        },
+        {
+          "path": "docs/engine_survey/memori.json",
+          "line": "61, 121",
+          "note": "87.0 is vendor-run on precomputed memories; an independent run scored 41.34."
+        },
+        {
+          "path": "clones/mirix/evals/task_agent.py",
+          "line": "229-265",
+          "note": "The only harness in the repo embeds benchmark-specific names and gold-style answer shapes in prompts. The header shows the paper's 85.38."
+        },
+        {
+          "path": "docs/engine_survey/memspine.json",
+          "line": "260-263",
+          "note": "81.4 is contaminated by the I80 prompt; only deltas stand."
+        },
+        {
+          "path": "docs/engine_survey/prompt_matrix.json",
+          "line": "816-818, 1063-1066, 2776-2778, 2945-2948",
+          "note": "EverMemOS, MemOS, Nemori and LightMem engine prompts carry benchmark-style examples."
+        }
+      ],
+      "correction": "Change the header to show a code-matched, labelled figure, or replace it with a typed badge: `[vendor|independent] [pinned-code|other-version|cloud|harness-leak]`. Hide the number when `codes_match_pinned` is false. Add a leak flag per engine, driven by the F18 matrix cells.",
+      "proposed_generic_solution": "Extend each `locomo[]` entry with `applies_to` (pinned_commit | other_version | cloud | not_reproducible), `harness_in_repo`, `prompt_leak_risk` and `reproducibility`. The builder renders only entries with applies_to=pinned_commit in the header.",
+      "validation_gate": "No header number appears for an engine whose chosen entry has applies_to != pinned_commit; a unit test covers memU, Mem0, Memori and MIRIX."
+    },
+    {
+      "id": "F-08",
+      "severity": "medium",
+      "claim": "Prompt-matrix and gap rows treat Memori as one engine.",
+      "verdict": "version mix: legacy v2 prompts scored beside a closed hosted current product",
+      "evidence": [
+        {
+          "path": "docs/engine_survey/prompt_matrix.json",
+          "line": "2470-2630",
+          "note": "Nearly every Memori cell cites memori_v2/ paths (legacy tag v2.1.1). The current extractor is hosted and closed. The cells score F9, F14, F15, F16 and F23 as Y from the legacy code."
+        },
+        {
+          "path": "docs/engine_survey/memori.json",
+          "line": "4, 28, 42",
+          "note": "The record itself declares the v2 trace and says importance and promotion flags were legacy-only."
+        },
+        {
+          "path": "docs/engine_survey/gap_plan.json",
+          "line": "531",
+          "note": "G-P7 cites 'Memori importance and promotion flags' as a current engine feature."
+        },
+        {
+          "path": "docs/engine_survey/prompt_matrix.json",
+          "line": "3069-3073",
+          "note": "The F15 'best example' is also the legacy v2 file."
+        },
+        {
+          "path": "docs/engine_survey/memu.json",
+          "line": "17-31, 94-106",
+          "note": "memU cells likewise mix host-agent job templates (no engine LLM call) with v1 experiment prompts. A job file for an autonomous agent is scored against structured-output extractors."
+        }
+      ],
+      "correction": "Add a variant tag to each matrix cell: `current | legacy | experiment | host-agent | closed`. Score closed or hosted prompts as 'not inspectable', not N or Y. Re-attribute G-P7 to 'Memori v2 (legacy)'.",
+      "proposed_generic_solution": "Add a status `U` (closed or not inspectable) and a `variant` field to SPEC rows and matrix cells. N is reserved for 'inspected and absent'.",
+      "validation_gate": "No cell scored from a non-current variant renders without a variant badge; a hosted-extractor engine has no Y/N on prompt-content rows."
+    },
+    {
+      "id": "F-09",
+      "severity": "medium",
+      "claim": "Synthesis: write-time LLM work is 'batched by token window or episode, never per turn' and the L1 stack costs '~0.19 per turn'.",
+      "verdict": "the 0.19 is an offline segmenter count with no live run; the 'never per turn' list omits per-message and per-exchange engines",
+      "evidence": [
+        {
+          "path": "docs/engine_survey/synthesis.json",
+          "line": "10, 39"
+        },
+        {
+          "path": "docs/engine_survey/memspine.json",
+          "line": "92, 97",
+          "note": "1,127 windows / 5,882 turns = 0.192, from a no-LLM segmenter run, 'no live engine run yet'. 72.3% of windows close by the turn cap and 7.2% by topic, so the 'adaptive' window is mostly a fixed cap of about 5 turns. 'Two when split' is excluded from 0.19."
+        },
+        {
+          "path": "docs/engine_survey/memmachine.json",
+          "line": "103",
+          "note": "The profile stage makes 1 structured call per message."
+        },
+        {
+          "path": "docs/engine_survey/memori.json",
+          "line": "28",
+          "note": "One hosted call per wrapped LLM call (per exchange)."
+        },
+        {
+          "path": "docs/engine_survey/honcho.json",
+          "line": "89-92",
+          "note": "Calls scale per observed peer, plus summary calls every 20 and 60 messages."
+        },
+        {
+          "path": "docs/engine_survey/mem0.json",
+          "line": "78, 356",
+          "note": "One call per add() with an 8.5k-token static prompt."
+        }
+      ],
+      "correction": "Say 'call 1 only: about 0.19 per turn at the offline segmentation, an estimate (set when the window cap is 5-6 turns; excludes splits, call 2, call 3 and failures). Total stack calls per turn: not measured.' Qualify the claim to extraction-stage batching, and list per-message or per-exchange write calls (MemMachine profile, Memori, Mem0 per add).",
+      "proposed_generic_solution": "Report write cost as calls and tokens per 1,000 turns per stage, labelled measured or estimated, and measure it in a live run.",
+      "validation_gate": "A live LoCoMo-sized run produces per-stage counters. Any 'per turn' figure in the doc is linked to that run."
+    },
+    {
+      "id": "F-10",
+      "severity": "medium",
+      "claim": "G-W50 'now': _edge_key keys (ns, src, rel, dst) without kind, and archived state keys short-circuit before the conflict ladder.",
+      "verdict": "confirmed in MemSpine code, with two refinements",
+      "evidence": [
+        {
+          "path": "src/memspine/workers/pipelines.py",
+          "line": "1882-1895",
+          "note": "In the default 'plain' mode kind is not in the key. In 'dated' mode an event key includes the day and the sorted numerals, so same-day repeats collapse only when the numbers match."
+        },
+        {
+          "path": "src/memspine/workers/pipelines.py",
+          "line": "2012",
+          "note": "event_identity defaults to plain."
+        },
+        {
+          "path": "src/memspine/workers/pipelines.py",
+          "line": "2059-2064, 2213-2221",
+          "note": "existing[] holds archived records. `if key in existing` skips and only adds provenance, so A, then B, then A is never offered to the ladder. A re-mention also attaches provenance to the archived or superseded fact."
+        },
+        {
+          "path": "src/memspine/workers/pipelines.py",
+          "line": "2216",
+          "note": "The comment says 'same src, rel, dst and kind', but the key has no kind."
+        }
+      ],
+      "correction": "Add: 'dated mode already keys events on day and numerals; default is plain.' Note that the provenance add on archived records is a second defect, and fix the code comment.",
+      "proposed_generic_solution": "Gap 'idempotency key is not identity': separate the idempotency fingerprint (replay safety) from record identity (state vs event, occurrence id), and route a hit on a non-live record into the ladder.",
+      "validation_gate": "Tests: A-B-A returns to A; two same-day events stay two; a re-mention does not add provenance to an archived record; reruns stay idempotent."
+    },
+    {
+      "id": "F-11",
+      "severity": "medium",
+      "claim": "Tenant and scope facts (EverMemOS index key defect; Nemori shared Qdrant collection with deletes by id).",
+      "verdict": "key construction confirmed; the cross-project overwrite is plausible but not fully traced",
+      "evidence": [
+        {
+          "path": "clones/evermemos-everos/src/everos/memory/cascade/handlers/episode.py",
+          "line": "105",
+          "note": "id=f\"{owner_id}_{entry.entry_id}\", with app_id and project_id as separate fields."
+        },
+        {
+          "path": "clones/evermemos-everos/src/everos/memory/cascade/handlers/_daily_log_base.py",
+          "line": "250",
+          "note": "A nearby docstring scopes this operation by (app_id, project_id, owner_id, entry_id). Mixed scoping."
+        },
+        {
+          "path": "docs/engine_survey/evermemos.json",
+          "line": "65",
+          "note": "The claim depends on entry_id repeating across projects and on upsert-by-id. Neither was verified here."
+        },
+        {
+          "path": "docs/engine_survey/synthesis.json",
+          "line": "161",
+          "note": "Stated as an unqualified 'Do not copy'."
+        }
+      ],
+      "correction": "Rewrite: 'the LanceDB row id omits app/project; whether two projects collide depends on entry_id uniqueness, which was not traced; tracked in open PR #481.' The default is pinned to the everos 1.4.1 / fcd41b5 snapshot.",
+      "proposed_generic_solution": "Add an 'isolation test matrix' gap: two tenants, identical entry ids, write/search/delete across every store, asserted for MemSpine and used as a checklist for borrowed designs.",
+      "validation_gate": "Two-tenant collision tests pass on every projection and index in MemSpine; the survey states 'traced' or 'not traced' for each borrowed isolation claim."
+    },
+    {
+      "id": "F-12",
+      "severity": "medium",
+      "claim": "Erasure rows: Hindsight Y, MemSpine Y, Mem0 P, MemMachine P.",
+      "verdict": "Mem0 and MemMachine confirmed; the Y rows need bounds",
+      "evidence": [
+        {
+          "path": "clones/mem0/mem0/memory/main.py",
+          "line": "2114-2142",
+          "note": "Delete removes the vector but writes the deleted text to history with is_deleted=1."
+        },
+        {
+          "path": "clones/mem0/mem0/memory/storage.py",
+          "line": "279-291",
+          "note": "The last 10 messages per scope persist. This is OSS SQLite behaviour; the hosted Platform is not covered."
+        },
+        {
+          "path": "clones/memmachine/packages/server/src/memmachine_server/main/memmachine.py",
+          "line": "1219-1269",
+          "note": "Deleting an episode calls delete_history, which removes only the history and citation rows (storage/sqlalchemy_pgvector_semantic.py:549-563). Profile features survive."
+        },
+        {
+          "path": "clones/hindsight/hindsight-api-slim/hindsight_api/engine/memory_engine.py",
+          "line": "10751-10833",
+          "note": "A document delete sweeps observations before and after the cascade. Standing mental models and reflect caches were not traced."
+        },
+        {
+          "path": "docs/engine_survey/memspine.json",
+          "line": "300-303",
+          "note": "Y, but forget is soft by default and hard=True is required."
+        }
+      ],
+      "correction": "Qualify Hindsight 'Y' to 'documents, memory units and observations; mental models not traced.' Qualify MemSpine 'Y' to 'hard=True path'. Mark Mem0 'OSS SQLite history, platform not covered'.",
+      "proposed_generic_solution": "Add a cascade completeness check: after an erase, scan every derived store, cache and summary for the removed source id or text.",
+      "validation_gate": "verify_forget-style scan finds zero residual text or lineage in MemSpine; the survey records the same probe result per engine, or 'not probed'."
+    },
+    {
+      "id": "F-13",
+      "severity": "medium",
+      "claim": "'No LLM call on the hot read path' for Hindsight, Honcho, MemMachine, Memori, Nemori, memU, Mem0.",
+      "verdict": "holds for the inspected default OSS read paths; unverified for hosted or cloud reads",
+      "evidence": [
+        {
+          "path": "docs/engine_survey/synthesis.json",
+          "line": "9"
+        },
+        {
+          "path": "docs/engine_survey/memori.json",
+          "line": "66",
+          "note": "Cloud mode is one HTTP call to a closed service."
+        },
+        {
+          "path": "docs/engine_survey/mem0.json",
+          "line": "242, 267",
+          "note": "The vendor result is the managed Platform with proprietary optimisations."
+        },
+        {
+          "path": "docs/engine_survey/memu.json",
+          "line": "181",
+          "note": "The hosted backend is unverified. The host agent's own turn pays for reading."
+        },
+        {
+          "path": "clones/cognee/cognee/infrastructure/databases/cache/config.py",
+          "line": "40-58",
+          "note": "Cognee correctly excluded: with a session, auto_feedback defaults on and adds a structured LLM call per turn. Both caching and auto_feedback default True."
+        }
+      ],
+      "correction": "Say 'zero engine LLM calls on the default OSS read path of the pinned commit; cloud paths unverified; memU reads through the host agent's model.' Keep the Cognee and MIRIX exclusions.",
+      "proposed_generic_solution": "Each cost row records `deployment: oss | cloud | both`, with `traced: yes|no` for each.",
+      "validation_gate": "The 'zero-LLM read' claim in a synthesis list requires deployment=oss traced=yes, or an explicit caveat."
+    },
+    {
+      "id": "F-14",
+      "severity": "low",
+      "claim": "G-W31 'LightMem compresses each message 20-40% with LLMLingua-2'; synthesis 'similarity-gated consolidation: only pairs above about 0.9 go to the LLM'.",
+      "verdict": "off-by-default status and the threshold choice are omitted",
+      "evidence": [
+        {
+          "path": "docs/engine_survey/lightmem.json",
+          "line": "433",
+          "note": "pre_compress and topic_segment default False; user_only message use."
+        },
+        {
+          "path": "docs/engine_survey/lightmem.json",
+          "line": "164, 349",
+          "note": "The update threshold is 0.9 in the LoCoMo script and 0.8 in the README. Update is offline and hard-deletes on conflict with no history; the compression rate 0.8 is the default, 0.6 in the LoCoMo script."
+        },
+        {
+          "path": "docs/engine_survey/gap_plan.json",
+          "line": "102"
+        },
+        {
+          "path": "docs/engine_survey/synthesis.json",
+          "line": "133"
+        }
+      ],
+      "correction": "State 'opt-in (pre_compress=False); rate 0.6-0.8; 20-40% is a paper claim (doc).' State both thresholds. Add that LightMem's offline update deletes without history, which conflicts with MemSpine BD-4.",
+      "proposed_generic_solution": "Use the O status explicitly in 'others' text. Print the default value beside every borrowed constant.",
+      "validation_gate": "Every borrowed constant in a gap row shows its default and its source."
+    },
+    {
+      "id": "F-15",
+      "severity": "low",
+      "claim": "Bookkeeping: '38 gaps'; synthesis proposes G-W32; 'G-W33' appears in both documents.",
+      "verdict": "drift",
+      "evidence": [
+        {
+          "path": "docs/engine_survey/gap_plan.json",
+          "line": "44-577",
+          "note": "41 gaps (G-W49, G-W50 and G-E1 were added after the 38 count). 36 are in waves and 5 are unscheduled."
+        },
+        {
+          "path": "docs/engine_survey/synthesis.json",
+          "line": "216-219",
+          "note": "G-W32 (pointer-style notes) has no gap_plan row. The section 7 table lists G-W25..G-W33 only."
+        },
+        {
+          "path": "docs/engine_survey/build_gap_plan.py",
+          "line": "36-37, 65-70"
+        }
+      ],
+      "correction": "Update the count to 41, add a G-W32 row or retire it, and remove duplicated rows from the synthesis table in favour of the gap plan.",
+      "proposed_generic_solution": "Derive counts from the JSON at build time. Make the builder fail on any ID referenced in synthesis but missing from the gap plan.",
+      "validation_gate": "The builder exits non-zero on a dangling gap ID or on a count in prose that differs from the data."
+    },
+    {
+      "id": "F-16",
+      "severity": "low",
+      "claim": "'Agentic reading cost about 8x the time for net -3' (synthesis, BD-1, G-W41) and 'f-slot net -3 at 8x cost' (G-W41, memspine.json).",
+      "verdict": "unit drift between time and cost; no measured gate attribution",
+      "evidence": [
+        {
+          "path": "docs/engine_survey/synthesis.json",
+          "line": "13"
+        },
+        {
+          "path": "docs/engine_survey/gap_plan.json",
+          "line": "273, 351"
+        },
+        {
+          "path": "docs/engine_survey/memspine.json",
+          "line": "242",
+          "note": "'8x cost'."
+        }
+      ],
+      "correction": "Choose one measured quantity (calls, tokens, or wall-clock on a stated server) and cite the run id. I found no instance of elapsed wall time attributed to a gate that did not fire in these files. The closest items are correctly labelled: the 1,500-token cap that never fired (memspine.json:92), MemOS's schedule that never runs (memos.json:551), and Mnemon's unchanged-View gate, listed as unverified (mnemon.json:628).",
+      "proposed_generic_solution": "Add a 'gate-fired counter' to every screen log, so any time or cost delta can be tied to the gate that actually triggered.",
+      "validation_gate": "A screen report lists gate trigger counts next to the delta."
+    },
+    {
+      "id": "F-17",
+      "severity": "medium",
+      "claim": "Selection and structure: 'every open-source system scoring 78 or more on LoCoMo'; statuses Y/O/P/N; evidence tags read/doc/inferred.",
+      "verdict": "inclusion unsupported; status and tag models too coarse for the claims made",
+      "evidence": [
+        {
+          "path": "docs/engine_survey/build_comparison.py",
+          "line": "346",
+          "note": "The selection criterion is a vendor-reported score, which the callout itself calls unreliable. No candidate list or exclusions are given. Graphiti is read for gap text but is not a record."
+        },
+        {
+          "path": "docs/engine_survey/SPEC.md",
+          "line": "14, 47-49",
+          "note": "Tags are meant per claim; in practice they are per row. Status has no value for closed, hosted, cloud-only or legacy."
+        },
+        {
+          "path": "docs/engine_survey/honcho.json",
+          "line": "332-437",
+          "note": "Extras and token/speed evidence are untagged paths mixed with CHANGELOG and blog references."
+        },
+        {
+          "path": "docs/engine_survey/mem0.json",
+          "line": "73, 88, 123, 203, 248",
+          "note": "Three 'not found' with no search scope, plus 'our notes'."
+        },
+        {
+          "path": "docs/engine_survey/hindsight.json",
+          "line": "265",
+          "note": "'From our notes, not re-verified'."
+        },
+        {
+          "path": "docs/engine_survey/build_comparison.py",
+          "line": "117",
+          "note": "Evidence text 'see engine document' is silently hidden."
+        }
+      ],
+      "correction": "Replace the lede with the actual selection method, or list the candidates considered and the reason for exclusion. Add a fourth tag `notes` (secondary, unverified) and require a search scope with every 'not found'. Re-tag extras and token/speed blocks.",
+      "proposed_generic_solution": "A record linter that checks: 57 rows and 15 layers present; every `e` contains a tag; every N row carries a scope or marks U; every `locomo[]` entry has applies_to; the commit matches a pinned clone; JSON load errors fail the build rather than skipping the engine (build_comparison.py:51-65 currently prints and continues).",
+      "validation_gate": "The linter passes on all 15 records, and a deliberately broken sample record fails the build."
+    }
+  ],
+  "checked_files": {
+    "fully_read": [
+      "docs/engine_survey/SPEC.md",
+      "docs/engine_survey/build_comparison.py",
+      "docs/engine_survey/build_gap_plan.py",
+      "docs/engine_survey/gap_plan.json",
+      "docs/engine_survey/synthesis.json",
+      "docs/engine_survey/memu.json",
+      "docs/engine_survey/mnemon.json (header, locomo block, verification block)"
+    ],
+    "partly_read_records": [
+      "mem0.json (all e-lines, plus erasure, scope, calls, eval and token-economy rows)",
+      "memos.json (scope, receipt, failure, erasure, keep, verification)",
+      "nemori.json (scope, receipt, time, provenance)",
+      "memori.json (token economy, speed, avoid, in_progress, specialities start)",
+      "honcho.json (segment, extract, rank, answer, cost rows; extras evidence)",
+      "hindsight.json (scope, receipt, calls, background, erasure, answer.size, cost.read)",
+      "cognee.json (read.rewrite, answer.size, cost.read, extras)",
+      "lightmem.json (scattered rows and defaults)",
+      "memmachine.json (agentic, answer.size, cost.read, erasure, provenance)",
+      "mirix.json (read and cost rows)",
+      "evermemos.json (scope, calls, extras)",
+      "memspine.json (scope, firewall, governance, update, read, rank, answer, eval, cost, erasure, auth)",
+      "combined.json (grep only)"
+    ],
+    "prompt_matrix": "Header and feature list; memspine, memu (prompt list) and memori blocks fully; memspine_gaps; F18 cells for all 15 engines; engine-block line index. The other F-cells were not read.",
+    "structural_checks": "Per-record counts by regex: 57 row ids and 15 layer ids in each of the 15 records; 345 matrix cells; counts of `e` lines versus tagged `e` lines per record.",
+    "source_rechecks": [
+      "graphiti (graphiti.py, combined_extraction.py, edge_operations.py, node_operations.py, dedup_helpers.py, dedupe_edges.py prompt, pyproject)",
+      "mem0 (main.py 2114-2173, storage.py 257-330)",
+      "memos (mem_read_handler.py 150-200, 370-430)",
+      "nemori (memory_system.py 60-218, config.py)",
+      "memmachine (memmachine.py 1215-1274, sqlalchemy_pgvector_semantic.py 540-580)",
+      "evermemos-everos (episode.py, cascade grep)",
+      "cognee (cache/config.py, session grep)",
+      "honcho (config.py grep)",
+      "hindsight (memory_engine.py 10751-10860)",
+      "mirix (evals/task_agent.py grep)",
+      "memspine own code (pipelines.py 1882-1895 and 2000-2304, assembly.py 270-315, schema.py 1040-1055 and auth grep, windows.py grep)"
+    ]
+  },
+  "coverage_limitations": [
+    "I did not read every line. Most rows of the 15 records were not individually re-verified; what I report is a prioritised sample (truth/durability, deletion, scope, defaults, cost, and cross-document generalizations).",
+    "Several long cells are shown as 'Omitted long line' by the search tool and were not read in full (e.g. memos extract.calls and extract.failure text, memori rows 26/31/58/59/62, hindsight and lightmem token_economy text).",
+    "No engine outside Graphiti, Mem0, MemOS, Nemori, MemMachine, EverMemOS, Cognee, Honcho, Hindsight, MIRIX and MemSpine was source-rechecked. Mnemon, memU, LightMem, Memori and the Combined engine were audited from their records only (Mnemon, memU and Memori cross-checked against the matrix and gap text).",
+    "I did not verify any LoCoMo number, hosted-cloud behaviour, or the 'our notes' figures. Nothing was run, and Mnemon's hosted decision model cannot be read from the repo.",
+    "The prompt-matrix scores were checked only for structure, variant handling, and the F18 column. The F1-F23 judgements for most engines were not re-derived.",
+    "Graphiti was read at 0.31.0 / 964bb11 only. The vendored copy under combined-src is an older version and was not diffed against it.",
+    "MemSpine own-code checks covered the cited G-W25, G-W27, G-W50, G-P6 and default-auth claims. The other 'now' corrections (15 reported) were not re-checked, nor was the claimed 958-token / 309-token prompt sizes.",
+    "The EverMemOS cross-project overwrite and the Nemori one-message-batch loss under the LoCoMo harness settings were not traced to the end."
+  ],
+  "recommended_doc_changes": [
+    "gap_plan.json G-W49 'others': replace the Graphiti sentence with the version-pinned formula in F-01, and the 'example-free' sentence with the matrix-backed one in F-05. G-W50 'others': one edge per fact with an episodes list, not an edge per occurrence.",
+    "gap_plan.json G-W25 'now': mention lead_budget_share (schema.py:1041-1044); add the 'slots, not tokens, were binding' and 'headers hurt quote questions' evidence as risks; fix the assembly.py path to core/policies/assembly.py.",
+    "gap_plan.json: rename or split wave A (F-06); update the gap count to 41; add or retire G-W32; re-attribute G-P7 to Memori v2 (legacy); add 'opt-in' to the LightMem text of G-W31.",
+    "synthesis.json: rewrite the 'hard budget' bullet (F-03), the 'never per turn' bullet (F-09), the 'lose turns' bullets (F-02) and the 'no LLM on read' bullet (F-13). Label the section 3 shares as an untested hypothesis. Remove engine names from the Source column of the shares table.",
+    "memos.json: fix the 'keep' bullet at line 476 to match the corrected extract.failure row. nemori.json: qualify write.receipt (min-size skip and swallowed semantic failure).",
+    "SPEC.md: add status U (closed or not inspectable); add a `variant` field (current|legacy|experiment|host-agent|closed) and `deployment` (oss|cloud); add the evidence tag `notes`; require per-claim tags and a search scope for every 'not found'; extend `locomo[]` with applies_to, harness_in_repo and prompt_leak_risk.",
+    "build_comparison.py: pick the header score by applies_to=pinned_commit, not by list order; fail the build on JSON load errors, a missing row or layer, an untagged `e`, or a status outside Y/O/P/N/U; stop hiding 'see engine document'; derive the lede counts from data and state the actual selection method.",
+    "build_gap_plan.py: add a build check that every ID in synthesis exists in gap_plan; render `variant` and `needs_model_run` on matrix dots and cards.",
+    "Add reusable MemSpine gap rows (no leaderboard): derivation-failure taxonomy and tests (F-02); full-path token ledger per stage (F-03); block-shares sweep with quote-question non-inferiority (F-04); idempotency key vs identity separation plus provenance-on-archived fix (F-10); two-tenant isolation test matrix (F-11); erasure cascade scan (F-12); gate-fired counters in screens (F-16); record linter (F-17).",
+    "Add a licence column for borrowed ideas (Honcho is AGPL-3.0, Mnemon's paper is all rights reserved, and LightMem's licence is inconsistent in its own repo), so 'keep/learn' items are never read as 'port the code'."
+  ],
+  "reviewer_models": [
+    "claude-sonnet-5-5"
+  ]
+}

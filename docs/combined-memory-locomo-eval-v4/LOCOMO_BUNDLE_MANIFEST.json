@@ -1,0 +1,18 @@
+{
+  "git_revision": "070ccd91d859afa478d5ed50ead1fb3c07a69870",
+  "created_at": "2026-10-11T07:14:01.095930+00:00",
+  "standalone": false,
+  "files": {
+    "module/locomo_eval/__init__.py": "083711e5e4a5d1d4bc63c593599fc8e4369ca137b654413b9f96126cb452c0f5",
+    "module/locomo_eval/__main__.py": "b472b413b506601ca1370f3a46661f97f249302688830a657a087f4a6dad743f",
+    "module/locomo_eval/backend.py": "d0bea8899f6b275b356494858a90d8980727a9c835b365adad442d085b38316e",
+    "module/locomo_eval/dataset.py": "83b5de06e909fdfad44c3a32b1414dbae88911dde57c313800e5e345d5a5bc03",
+    "module/locomo_eval/metrics.py": "76c6342d1bb69605bdbe02efca398fe117c71e902b0fea0acbe0891bc1b06cc8",
+    "module/locomo_eval/runner.py": "e4634c06b45ea1dfb4c6e73bc1027553cea715ab23047b26c52af5b00ba88ce1",
+    "tests/locomo_eval/test_combined_eval.py": "49613ca39a306c6cfe92aac64c20adda186783ef77527c5f46939c00a55eaf49",
+    "tests/locomo_eval/test_bundle.py": "40c45f7537ba92336ce182248a770ec1f897d9cf344ee792867a5b80a2894bac",
+    "docs/COMBINED_MEMORY_ENGINE_AND_LOCOMO.html": "656978278e96b6c4235c4bac595cc124c2c7aaafd8291b2d09ff4808252f5a3b",
+    "module/locomo_eval/data/locomo10.json": "79fa87e90f04081343b8c8debecb80a9a6842b76a7aa537dc9fdf651ea698ff4",
+    "LOCOMO_BUNDLE_README.txt": "6668c147328fe54f41c84d5613ba5459f2494b701536230075b22343029dda63"
+  }
+}

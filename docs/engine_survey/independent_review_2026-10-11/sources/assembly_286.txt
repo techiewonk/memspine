@@ -1,0 +1,15 @@
+286:             # over budget: stop — unless nothing is selected yet, in which
+287:             # case admit this one record so assembly never returns empty.
+288:             if not fit_stage and tokens_used + cost > budget_tokens and selected:
+289:                 if tracing:
+290:                     trace_sink.cut(
+291:                         "budget", candidate.record_id, cost=cost, used=tokens_used,
+292:                         budget=budget_tokens,
+293:                     )  # fmt: skip
+294:                     for rest, _ in remaining:
+295:                         trace_sink.cut(
+296:                             "budget", rest.record_id, used=tokens_used, budget=budget_tokens,
+297:                             note="not reached: the budget closed before it",
+298:                         )  # fmt: skip
+299:                 break
+300:             selected.append((candidate, score))
