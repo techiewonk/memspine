@@ -65,6 +65,12 @@ from memspine.core.event_date import SAID_PREFIX, date_anchor, happened_of, happ
 from memspine.core.events import EventKind, EventLogMode, MemoryEvent, fingerprint_payload
 from memspine.core.evidence import evidence_signal, second_round_probe
 from memspine.core.excerpt import focused_excerpt
+from memspine.core.event_ledger import (
+    is_event_question,
+    link_mentions,
+    render_ledger,
+    validate_events,
+)
 from memspine.core.fact_chain import (
     fact_projection_on,
     join_chains,
@@ -365,6 +371,7 @@ from memspine.prompts.models import (
     AnticipatedCues,
     AssertionOut,
     AssertionsOut,
+    EventsOut,
     ConflictVerdictOut,
     EntityMatches,
     EntitySummaries,
@@ -6726,6 +6733,8 @@ class Engine:
             )
         if self._config().read.fact_chain == "read_time":  # E01: opt-in, read-time only
             result = await self._fact_chain_extend(query, ns, result, routed_budget)
+        if self._config().read.event_ledger == "on":  # A02: opt-in, read-time only
+            result = await self._event_ledger_extend(query, ns, result, routed_budget)
         headers = self._count_section(ns, query, result.context, count_share, headers)
         headers = self._duration_section(ns, query, result.context, headers)
         gated = await self._relevance_gate(
@@ -7339,6 +7348,123 @@ class Engine:
         )
         info["chain_lines"] = cited
         info["stop"] = "joined"
+        kept, added, displaced = merge_budget(
+            list(context.records),
+            [block],
+            budget_tokens,
+            share=read.agentic_first_share,
+            max_new=1,
+        )
+        if not added:
+            info["stop"] = "budget"
+            return result
+        info["displaced_ids"] = [r.record_id for r in displaced]
+        records = [*kept, *added]
+        return ReadResult(
+            result.mode,
+            AssembledContext(
+                records=records,
+                boundary_index=min(context.boundary_index, len(kept)),
+                abstained=False,
+                tokens_used=sum(estimate_tokens(r.content) for r in records),
+                evidence=context.evidence,
+            ),
+        )
+
+    async def _event_ledger_extend(
+        self, query: str, ns: str, result: ReadResult, budget_tokens: int
+    ) -> ReadResult:
+        """A02 (``read.event_ledger: on``): a source-backed event ledger over the evidence
+        already in context, for a question about events or state.
+
+        ONE bounded ``extract@events`` call over the numbered evidence lines; code validates
+        every span, resolves the event time from the quoted phrase, links repeated mentions
+        only on identity evidence and renders a compact block (a synthetic, never-stored
+        record, trust = the least of its sources) appended after the raw turns under the same
+        budget rules as the fact chain. Any failure, no valid mention or an unbound role keeps
+        ``result``. Forensics: ``search_forensics()["event_ledger"]``."""
+        read = self._config().read
+        info: dict[str, Any] = {
+            "trigger": read.event_ledger_trigger,
+            "fired": False,
+            "stop": None,
+            "llm_calls": 0,
+            "llm_s": 0.0,
+            "mentions": 0,
+            "valid": 0,
+            "events": 0,
+        }
+        if (fx := _FORENSICS.get()) is not None:
+            fx["event_ledger"] = info
+        context = result.context
+        evidence = [
+            r
+            for r in context.records
+            if constants.LEAD_TAG not in r.tags and r.namespace == ns and not r.quarantined
+        ][: constants.EVENT_LEDGER_MAX_LINES]
+        if result.mode == "full" or context.abstained or not evidence:
+            info["stop"] = "full_context" if result.mode == "full" else "no_evidence"
+            return result
+        if read.event_ledger_trigger == "event_questions":
+            contract = await self._query_contract(query)
+            if not is_event_question(query, contract.answer_type):
+                info["stop"] = "not_triggered"
+                return result
+        llm_router = self._llm
+        if llm_router is None or self._prompts is None or "extract" not in llm_router.roles:
+            _log.warning("read.event_ledger_unbound", role="extract")
+            info["stop"] = "unbound"
+            return result
+        info["fired"] = True
+        shown = self._remote_view("extract", evidence)
+        lines = [
+            " ".join(r.content.split())[: constants.EVENT_LEDGER_LINE_CHARS] for r in shown
+        ]
+        numbered = "\n".join(f"[{i}] {text}" for i, text in enumerate(lines, 1))
+        calls_before = self.model_calls().get("extract", 0)
+        started = perf_counter()
+        try:
+            out = await structured_call(
+                llm_router.for_role("extract"),
+                self._prompts.select("extract", condition="events"),
+                {"question": query, "content": numbered},
+                EventsOut,
+            )
+        except Exception as exc:  # an enhancer, never a gate
+            _log.warning("read.event_ledger_failed", error=str(exc))
+            info["stop"] = "error"
+            return result
+        finally:
+            info["llm_s"] = round(perf_counter() - started, 4)
+            info["llm_calls"] = self.model_calls().get("extract", 0) - calls_before
+        info["mentions"] = len(out.events)
+        mentions, dropped = validate_events(
+            out.events, lines, [r.valid_from for r in shown]
+        )
+        info["valid"] = len(mentions)
+        info["dropped"] = dropped
+        if not mentions:
+            info["stop"] = "no_valid_mention"
+            return result
+        events, refused = link_mentions(mentions, lines)
+        info["refused_links"] = refused
+        text, events = render_ledger(
+            events,
+            heading=constants.EVENT_LEDGER_MARKER,
+            max_events=constants.EVENT_LEDGER_MAX_EVENTS,
+            fits=lambda t: estimate_tokens(t)
+            <= max(1, int(constants.EVENT_LEDGER_BLOCK_SHARE * budget_tokens)),
+        )
+        info["events"] = len(events)
+        if not events:
+            info["stop"] = "budget"
+            return result
+        cited = sorted({m.line for ev in events for m in ev.mentions})
+        block = self._lead_record(
+            ns, text, [shown[n - 1] for n in cited], extra_tags=[constants.EVENT_LEDGER_TAG]
+        )
+        info["ledger_lines"] = cited
+        info["stop"] = "built"
         kept, added, displaced = merge_budget(
             list(context.records),
             [block],

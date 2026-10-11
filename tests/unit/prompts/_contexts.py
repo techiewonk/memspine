@@ -133,6 +133,18 @@ SAMPLE_PAYLOADS: dict[str, dict[str, Any]] = {
             }
         ]
     },
+    "EventsOut": {
+        "events": [
+            {
+                "actor": "Alice",
+                "action": "attend the workshop",
+                "status": "planned",
+                "line": 1,
+                "span": "Alice lives in Berlin",
+                "when": "",
+            }
+        ]
+    },
     "AnswerVerdictOut": {"supported": False, "evidence": [1], "revised_answer": "Pottery"},
     "AnticipatedCues": {"cues": [{"line": 1, "cue": "What can Alice eat at the party?"}]},
     "ExtractedFacts": {

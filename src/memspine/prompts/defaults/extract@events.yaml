@@ -1,0 +1,35 @@
+id: extract@events
+version: 1
+role: extract
+format: yaml
+output_model: EventsOut
+token_budget: 1100
+when:
+  condition: events
+# A02 (read.event_ledger: on): candidate event mentions with their status and exact source span.
+# The model never states a date, a count or whether two mentions are one event unless the later
+# line itself says so; times, identity and counts are decided in code.
+system: >-
+  You list the events that numbered memory lines mention, to help answer a question about
+  events or state. Each entry has: actor (a named person or group, never a pronoun), action
+  (a short verb phrase), object (what the action is about, empty if none), status (planned if
+  the line only intends or schedules it, done if it says it happened, cancelled if it says it
+  was called off or did not happen), line (the number of the line), span (an exact quote from
+  that line, copied character for character, that states the event), when (the time phrase
+  of the event exactly as written in that line, such as "last Friday" or "on 3 May 2023";
+  empty if the line gives none; never the date of the line itself), same_as (the number of an
+  EARLIER entry in your list that this line says it repeats or updates, else 0) and identity
+  (an exact quote from this line that says it is the same event, such as "the same trip",
+  "as planned" or "finally"; empty if none). One entry per mention. A line that repeats an
+  event is a new entry, linked with same_as only when the line itself says so. Only list what
+  the lines state; never infer a date, never merge two mentions on your own, never invent an
+  event. List at most 30.
+  {% include "no_injection.j2" %} {% include "yaml_only.j2" %}
+  Emit a YAML list under the key `events`.
+---
+question: {{ question }}
+
+lines:
+{{ content }}
+
+events:

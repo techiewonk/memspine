@@ -1194,6 +1194,20 @@ class ReadConfig(BaseModel):
     #: subject in any evidence line (offline it fires on 58% of LoCoMo questions with no better
     #: hit rate on wrong answers than the base rate: a screen option only); ``always``.
     fact_chain_trigger: Literal["multi_hop", "triggered", "always"] = "multi_hop"
+    #: A02 (read-time): ``on`` makes ONE bounded structured call per triggered read
+    #: (``extract@events``, the ``extract`` role) over the evidence already in context for
+    #: candidate event mentions (actor, action, object, status planned / done / cancelled, exact
+    #: source span, the quoted time phrase). Code validates every span, resolves the EVENT time
+    #: from the quoted phrase (never from the mention date), links repeated mentions into one
+    #: event only on identity evidence (the later line says so, same actor, no conflicting
+    #: interval) and shows the reader a compact ledger block: event, state, event time, mention
+    #: times, source lines. Raw turns stay authoritative; nothing is stored. Any failure, no
+    #: valid mention or an unbound ``extract`` role keeps the read unchanged. Off (default): no
+    #: call, byte-identical. Forensics: ``search_forensics()["event_ledger"]``.
+    event_ledger: Literal["off", "on"] = "off"
+    #: When the ledger call fires: ``event_questions`` (default; a date / duration / count
+    #: question, or one that uses the grammar of plans and outcomes) or ``always``.
+    event_ledger_trigger: Literal["event_questions", "always"] = "event_questions"
     #: I28: the optional decider for read-path decisions. ``heuristic`` (default) = the
     #: existing regexes and rules, byte-identical. ``opendecider`` asks OpenDecider-nano
     #: (``[decider]`` extra) at the decision points named in ``decider_tasks``; a decision

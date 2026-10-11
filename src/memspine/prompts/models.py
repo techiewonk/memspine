@@ -31,6 +31,8 @@ __all__ = [
     "EntityResolutionOut",
     "EntitySummaries",
     "EntitySummary",
+    "EventOut",
+    "EventsOut",
     "ExtractedEdge",
     "ExtractedEdges",
     "ExtractedFact",
@@ -708,6 +710,54 @@ class AssertionsOut(BaseModel):
         return keep[: constants.FACT_CHAIN_MAX_ASSERTIONS]
 
 
+class EventOut(BaseModel):
+    """A02 (``extract@events``): one event mention with its ``status`` (as the model wrote it;
+    the code normalises it), the exact source ``span``, the quoted time phrase ``when``, the
+    1-based number of an earlier entry it repeats (``same_as``, 0 = none) and the quoted
+    ``identity`` phrase that says so."""
+
+    actor: str
+    action: str
+    object: str = ""
+    status: str = ""
+    line: int = 0
+    span: str = ""
+    when: str = ""
+    same_as: int = 0
+    identity: str = ""
+
+    @field_validator("actor", "action", "object", "status", "span", "when", "identity", mode="before")
+    @classmethod
+    def _text(cls, value: Any) -> Any:
+        if value is None:
+            return ""
+        text = str(_as_text(value)).strip()
+        return "" if text.lower() in ("none", "null") else text
+
+    @field_validator("line", "same_as", mode="before")
+    @classmethod
+    def _number(cls, value: Any) -> Any:
+        found = _positive_ints(value)
+        return found[0] if found else 0
+
+
+class EventsOut(BaseModel):
+    events: list[EventOut] = Field(default_factory=list)
+
+    @field_validator("events", mode="before")
+    @classmethod
+    def _drop_incomplete(cls, value: Any) -> Any:
+        """A bounded list; an entry missing actor or action is dropped."""
+        if not isinstance(value, list):
+            return value
+        keep = [
+            v
+            for v in value
+            if isinstance(v, dict) and all(str(v.get(k) or "").strip() for k in ("actor", "action"))
+        ]
+        return keep[: constants.EVENT_LEDGER_MAX_MENTIONS]
+
+
 class MissingInfoOut(BaseModel):
     """#38 (``sufficiency@missing``): searches for the information the context lacks.
 
@@ -777,4 +827,5 @@ OUTPUT_MODELS: dict[str, type[BaseModel]] = {
     "AgenticStepOut": AgenticStepOut,
     "SlotStepOut": SlotStepOut,
     "AssertionsOut": AssertionsOut,
+    "EventsOut": EventsOut,
 }

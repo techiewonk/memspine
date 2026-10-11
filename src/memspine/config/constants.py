@@ -650,6 +650,20 @@ FACT_CHAIN_MAX_ASSERTIONS = 40
 FACT_CHAIN_MAX_CHAINS = 4
 FACT_CHAIN_BLOCK_SHARE = 0.15
 FACT_CHAIN_TAG = "fact_chain"
+#: A02 (read.event_ledger: on): evidence lines shown to the one extraction call (each cut to
+#: ``EVENT_LEDGER_LINE_CHARS``), mentions kept from it, events shown, and the block's share of
+#: the routed read budget (a block that does not fit loses its last events, then is left out).
+EVENT_LEDGER_MAX_LINES = 24
+EVENT_LEDGER_LINE_CHARS = 400
+EVENT_LEDGER_MAX_MENTIONS = 30
+EVENT_LEDGER_MAX_EVENTS = 12
+EVENT_LEDGER_BLOCK_SHARE = 0.15
+EVENT_LEDGER_TAG = "event_ledger"
+EVENT_LEDGER_MARKER = (
+    "EVENT LEDGER (events and plans found in the lines above, each with its status and the "
+    "time of the event as distinct from the time it was mentioned; a repeated mention is one "
+    "event only where a line says so; the raw lines are authoritative):"
+)
 FACT_CHAIN_MARKER = (
     "DERIVED CHAINS (statements joined through a shared entity or relation, each quoted "
     "from a memory line; the raw lines are authoritative):"
