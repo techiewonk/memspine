@@ -753,3 +753,7 @@ Source: `docs/ENGINE_COMPARISON_AND_WRITE_PATH_DESIGN.html` ("Decided design", B
 - Relaunched in order through `pinned_run.sh`: f-jref2 (Jina reference again, same-environment reference for every later screen), f-contract, clean-jina-full (888b888); then GC screens (88294e0); then f-win (0eb2fd7). Screens from here on are compared with f-jref2-i2, not f-jref-i2.
 
 - 20:00 f-jref2-i2 (same arm, new environment) vs f-jref-i2: 45.1 vs 45.1, +0/-0 on all 437 questions, same context tokens and model calls. The run is deterministic and the 18:17 package changes did not move it, so every earlier focus comparison stands; f-chain-i2 vs f-jref2-i2 is also net -1.
+
+**2026-10-11 20:17 (A03 query contract, focus screen)**
+- f-contract-i2 (`scr-contract-jina`, A03 typed query contract) vs f-jref2-i2 on the 437-q focus slice, paired: 47.1 vs 45.1, +15/-6, net +9 (single +6/-2, multi +2/-3, temporal +2/-1, open +5/-0). Model calls 2.04 vs 2.03 per question, context 2,168 vs 2,162 tokens: no extra cost. Above the slice band (about +-7 = 0.328*sqrt(437)); multi-hop -1 net stays inside its band.
+- Verdict: CANDIDATE (not adopted). Next per section 3: full 1,540 q against clean-jina-full (queued after the GC and window screens), then the MAB-CR and ConvoMem blind sets; adoption only if the macro mean rises beyond the band and no category drops beyond its own band.
