@@ -757,3 +757,7 @@ Source: `docs/ENGINE_COMPARISON_AND_WRITE_PATH_DESIGN.html` ("Decided design", B
 **2026-10-11 20:17 (A03 query contract, focus screen)**
 - f-contract-i2 (`scr-contract-jina`, A03 typed query contract) vs f-jref2-i2 on the 437-q focus slice, paired: 47.1 vs 45.1, +15/-6, net +9 (single +6/-2, multi +2/-3, temporal +2/-1, open +5/-0). Model calls 2.04 vs 2.03 per question, context 2,168 vs 2,162 tokens: no extra cost. Above the slice band (about +-7 = 0.328*sqrt(437)); multi-hop -1 net stays inside its band.
 - Verdict: CANDIDATE (not adopted). Next per section 3: full 1,540 q against clean-jina-full (queued after the GC and window screens), then the MAB-CR and ConvoMem blind sets; adoption only if the macro mean rises beyond the band and no category drops beyond its own band.
+
+**2026-10-11 20:58 (clean re-baseline, Jina)**
+- clean-jina-full (`scr-pool-protect-jina`, clean `grounded` prompt after the I80 fix, jina-reranker-v3.5, commit 888b888) on all 1,540 LoCoMo cat 1-4: **81.4% (1,253)**. By category: multi-hop (cat1, 282) 66.7, temporal (cat2, 321) 83.2, open-domain (cat3, 96) 42.7, single-hop (cat4, 841) 90.0. Context 2,097 tokens mean, p50 latency 764 ms, 41 min wall.
+- This is the new absolute reference for full-set comparisons (the contaminated 80.4 / 81.4 numbers stay relative only). Next on the queue: GC screens, f-win, then contract-jina-full against this run.
