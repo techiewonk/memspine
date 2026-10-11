@@ -14,6 +14,15 @@ abstention and the code check no longer finds the defect; otherwise the first an
 An answer that already abstains ("not mentioned", "cannot be determined") is never repaired:
 an evidence-based unknown must not become a guess.
 
+G01 (``diagnosed`` mode): a retry only for a DIAGNOSED defect. On top of the strict checks the
+code diagnoses an unsupported claim (a name no memory line contains), an operand / result
+inconsistency (``a - b = c`` that does not hold, a duration its own two dates do not give) and an
+unjustified refusal (an abstention although a context line names every subject and the relation;
+see ``defect_diagnosis.py``). The retry uses the same context, names the defect (and quotes the
+evidence line for a refusal), is kept only when the defect is gone, and a retry that answers a
+refusal must be supported by the cited line, so an evidence-based unknown (no such line) is never
+turned into a guess. Cost (calls and tokens) is recorded in ``meta["slot_verify"]["retry_cost"]``.
+
 Reader-agnostic: it needs only ``question``, ``context`` and the inner reader's ``answer``;
 nothing is read from the gold, the dataset or the category (rule I37). Off (the default) no
 wrapper is built, so rows are byte-identical. Cost: one extra reader call per flagged answer,
@@ -29,6 +38,7 @@ from dataclasses import replace
 from typing import Any
 
 from .contracts import ReaderAnswer
+from .defect_diagnosis import DIAGNOSIS_VERSION, supported_by
 
 __all__ = [
     "SLOT_VERIFY_MODES",
@@ -39,8 +49,10 @@ __all__ = [
 
 SLOT_VERIFY_VERSION = "v1"
 #: ``strict`` repairs only the strict defects; ``soft`` also acts on the noisier ``soft_*``
-#: signals (an unnamed place / person / title).
-SLOT_VERIFY_MODES = ("strict", "soft")
+#: signals (an unnamed place / person / title); ``diagnosed`` (G01) is ``strict`` plus the
+#: diagnoses of ``defect_diagnosis.py`` (unsupported claim, operand / result mismatch,
+#: unjustified refusal).
+SLOT_VERIFY_MODES = ("strict", "soft", "diagnosed")
 
 REPAIR_TEMPLATE = (
     "{question}\n\n"
@@ -139,12 +151,17 @@ class SlotVerifyReader:
         self.repaired = 0
         self.rejected = 0
         self.extra_calls = 0
+        #: G01: defects diagnosed, by kind, and the tokens the retries cost
+        self.diagnosed: dict[str, int] = {}
+        self.retry_prompt_tokens = 0
+        self.retry_completion_tokens = 0
 
     def describe(self) -> Mapping[str, Any]:
         return {
             **self.inner.describe(),
             "slot_verify": self.mode,
             "slot_verify_version": SLOT_VERIFY_VERSION,
+            **({"diagnosis_version": DIAGNOSIS_VERSION} if self.mode == "diagnosed" else {}),
             **(dict(self.table.describe()) if self.table is not None else {}),
         }
 
@@ -182,12 +199,31 @@ class SlotVerifyReader:
 
         contract = self._contract(question)
         meta["contract"] = contract.as_meta()
-        if not contract.known:
+        diagnosed = self.mode == "diagnosed"
+        if not contract.known and not diagnosed:  # the G01 diagnoses need no answer type
             meta["outcome"] = "skipped_unknown_type"
             return first
+        refusal_evidence: list[str] = []
+        refusal_defects: list[Any] = []
         if not first.text.strip() or _is_abstention(first.text):
-            meta["outcome"] = "skipped_abstention"  # an unknown stays unknown
-            return first
+            if not (diagnosed and first.text.strip()):
+                meta["outcome"] = "skipped_abstention"  # an unknown stays unknown
+                return first
+            from .defect_diagnosis import diagnose
+
+            found = diagnose(
+                question,
+                context,
+                first.text,
+                subjects=contract.subjects,
+                relation=contract.relation,
+                abstained=True,
+            )
+            if not found.defects:
+                meta["outcome"] = "skipped_abstention"  # no evidence line: an evidence-based unknown
+                meta["refusal_diagnosis"] = "no_evidence"
+                return first
+            refusal_defects, refusal_evidence = found.defects, found.evidence
         soft = self.mode == "soft"
         evidence: list[str] = []
         count_table: Any = None
@@ -215,27 +251,58 @@ class SlotVerifyReader:
         def table_defects(text: str) -> list[Any]:
             return _count_defects(count_table, text) if count_table is not None else []
 
-        defects = [
-            *check_answer(
-                contract,
-                first.text,
-                explanation=first.raw_text or "",
-                evidence_items=evidence,
+        def diagnosed_defects(text: str, raw: str | None) -> list[Any]:
+            if not diagnosed:
+                return []
+            from .defect_diagnosis import diagnose
+
+            return diagnose(
+                question,
+                context,
+                text,
+                subjects=contract.subjects,
+                relation=contract.relation,
                 abstained=False,
-                soft=soft,
-            ),
-            *table_defects(first.text),
-        ]
+                explanation=raw or "",
+            ).defects
+
+        if refusal_defects:  # G01: the abstention itself is the diagnosed defect
+            defects = list(refusal_defects)
+        else:
+            defects = [
+                *check_answer(
+                    contract,
+                    first.text,
+                    explanation=first.raw_text or "",
+                    evidence_items=evidence,
+                    abstained=False,
+                    soft=soft,
+                ),
+                *table_defects(first.text),
+                *diagnosed_defects(first.text, first.raw_text),
+            ]
         if not defects:
             meta["outcome"] = "clean"
             return first
         self.flagged += 1
         meta["defects"] = [d.as_meta() for d in defects]
+        for d in defects:
+            if diagnosed:
+                self.diagnosed[d.kind] = self.diagnosed.get(d.kind, 0) + 1
         meta["previous_answer"] = first.text
         type_line = f"The answer should be a {contract.type_label.replace(':', ' ')}."
         asked = repair_question(question, first.text, defect_instruction(defects), type_line)
         fixed: ReaderAnswer = await self.inner.answer(asked, context, question_date)
         self.extra_calls += max(fixed.model_calls, 1)
+        if diagnosed:
+            self.retry_prompt_tokens += fixed.prompt_tokens
+            self.retry_completion_tokens += fixed.completion_tokens
+            meta["diagnosis"] = {"version": DIAGNOSIS_VERSION, "kinds": [d.kind for d in defects]}
+            meta["retry_cost"] = {
+                "model_calls": max(fixed.model_calls, 1),
+                "prompt_tokens": fixed.prompt_tokens,
+                "completion_tokens": fixed.completion_tokens,
+            }
         meta["repair"] = {
             "answer": fixed.text,
             "model_calls": fixed.model_calls,
@@ -261,10 +328,13 @@ class SlotVerifyReader:
                         soft=soft,
                     ),
                     *table_defects(fixed.text),
+                    *diagnosed_defects(fixed.text, fixed.raw_text),
                 )
             }
             if again & {d.kind for d in defects}:
                 meta["outcome"] = "rejected_still_defective"
+            elif refusal_evidence and not supported_by(fixed.text, refusal_evidence, question):
+                meta["outcome"] = "rejected_unsupported"  # a guess never replaces an unknown
             else:
                 meta["outcome"] = "repaired"
                 kept = fixed

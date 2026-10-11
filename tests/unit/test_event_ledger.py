@@ -212,10 +212,7 @@ class _EventsStub:
             for needle, fields in self.rules:
                 if needle in line:
                     body = {**fields, "line": int(n)}
-                    out.append(
-                        "  - " + "\n    ".join(f"{k}: {v!r}" for k, v in body.items()) if False else
-                        "  - " + "\n    ".join(f"{k}: {str(v)!r}" for k, v in body.items())
-                    )
+                    out.append("  - " + "\n    ".join(f"{k}: {str(v)!r}" for k, v in body.items()))
         return "\n".join(out) if len(out) > 1 else "events: []"
 
 

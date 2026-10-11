@@ -798,13 +798,18 @@ def build_parser() -> argparse.ArgumentParser:
         nargs="?",
         const="strict",
         default="",
-        choices=("strict", "soft"),
+        choices=("strict", "soft", "diagnosed"),
         help="E06: code-check each answer against the question's typed contract (a date for a "
         "'when' question, a number for 'how many', a city not a country, a polarity for yes/no, "
         "a count equal to its list) and repair a named defect with ONE extra reader call over "
         "the same memories. An abstention is never repaired; a repair is kept only when the "
         "defect is gone. strict (default when given): the strict checks; soft: also the noisier "
-        "unnamed-answer signals. Off by default; not the same as --verify-answer (#39)",
+        "unnamed-answer signals; diagnosed (G01): strict plus a retry only for a diagnosed defect "
+        "(a name no memory line contains, an a - b = c that does not hold, a duration its own "
+        "dates do not give, a refusal although a context line names the subject and the relation); "
+        "a retry answering a refusal must be supported by that line, an evidence-based unknown is "
+        "never retried, the retry cost is recorded. Off by default; not the same as "
+        "--verify-answer (#39)",
     )
     c01.add_argument(
         "--evidence-table",
