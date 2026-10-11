@@ -1,0 +1,835 @@
+[
+  {
+    "id": "G-01",
+    "choice": "C",
+    "combined": "",
+    "verdict": "ok",
+    "conflicts": [],
+    "needs": "",
+    "impact": {
+      "quality": "+ (no more false PROMOTE; estimate)",
+      "latency": "0 at runtime",
+      "cost": "+1 GPU blind run per adoption (estimate)",
+      "risk": "- large: closes G-E1 (reference printed PROMOTE 2026-10-11)"
+    },
+    "v1_locations": [
+      "evals/eval_focus.py:98",
+      "evals/eval_focus.py:107",
+      "evals/eval_blind.py:15",
+      "evals/eval_blind.py:59",
+      "evals/eval_screen.py"
+    ],
+    "v2_component": "memspine.evals.gate (AdoptionGate)",
+    "operators": [
+      "R",
+      "C",
+      "G",
+      "D",
+      "K_C",
+      "K_P"
+    ],
+    "memory_types": [
+      "working",
+      "episodic",
+      "semantic",
+      "reflective",
+      "procedural",
+      "resource",
+      "shared"
+    ]
+  },
+  {
+    "id": "G-02",
+    "choice": "D",
+    "combined": "",
+    "verdict": "ok",
+    "conflicts": [],
+    "needs": "PrefEval loader and sealed hash split must be built; MAB-CR and ConvoMem blind runs have never run",
+    "impact": {
+      "quality": "+ (preference and generic-behaviour regressions now block)",
+      "latency": "0 at runtime",
+      "cost": "+ three blind sets per frozen candidate (estimate)",
+      "risk": "- (fewer benchmark-shaped adoptions)"
+    },
+    "v1_locations": [
+      "evals/run_blind_validation.sh",
+      "evals/freeze_blind_slices.py",
+      "evals/make_split.py"
+    ],
+    "v2_component": "memspine.evals.suite (DatasetRoles registry)",
+    "operators": [
+      "R",
+      "K_P"
+    ],
+    "memory_types": [
+      "episodic",
+      "semantic",
+      "reflective"
+    ]
+  },
+  {
+    "id": "G-03",
+    "choice": "C",
+    "combined": "",
+    "verdict": "ok",
+    "conflicts": [],
+    "needs": "one same-config repeat run per dataset (judge on) to calibrate the band",
+    "impact": {
+      "quality": "+ (band right per dataset)",
+      "latency": "0",
+      "cost": "+ one repeat run per dataset, once (estimate)",
+      "risk": "- (fewer noise adoptions)"
+    },
+    "v1_locations": [
+      "evals/eval_blind.py:59",
+      "evals/eval_screen.py",
+      "evals/noise_floor.py",
+      "evals/memspine_evals/metrics.py"
+    ],
+    "v2_component": "memspine.evals.uncertainty",
+    "operators": [
+      "R",
+      "G"
+    ],
+    "memory_types": [
+      "working",
+      "episodic",
+      "semantic",
+      "reflective",
+      "procedural",
+      "resource",
+      "shared"
+    ]
+  },
+  {
+    "id": "G-04",
+    "choice": "C",
+    "combined": "",
+    "verdict": "ok",
+    "conflicts": [],
+    "needs": "suite must be built before G-06 C and G-21 B can be gated",
+    "impact": {
+      "quality": "+ (generic behaviour guarded)",
+      "latency": "0 at runtime; CI +minutes",
+      "cost": "small reader budget for reader variants (estimate)",
+      "risk": "- (blocks renaming-sensitive and leaking changes)"
+    },
+    "v1_locations": [
+      "evals/ (I19 leakage probe only)",
+      "docs/GAP_TO_SOLUTION_PLAN.md rule 8"
+    ],
+    "v2_component": "memspine.evals.behavioural (BehaviouralSuite)",
+    "operators": [
+      "R",
+      "C",
+      "G"
+    ],
+    "memory_types": [
+      "working",
+      "episodic",
+      "semantic",
+      "reflective",
+      "procedural",
+      "resource",
+      "shared"
+    ]
+  },
+  {
+    "id": "G-05",
+    "choice": "D",
+    "combined": "",
+    "verdict": "ok",
+    "conflicts": [],
+    "needs": "utility judge for loop gain; episode protocol must state drain/barrier policy under the inline runner (G-19)",
+    "impact": {
+      "quality": "+ (loop claims measured)",
+      "latency": "0 at runtime",
+      "cost": "+ small reader budget per episode run (estimate)",
+      "risk": "- (recall gains that leak forgotten content are blocked)"
+    },
+    "v1_locations": [
+      "evals/memspine_evals/metrics.py:128",
+      "evals/README.md (cost_per_cycle)"
+    ],
+    "v2_component": "memspine.evals.loop_metrics (EpisodeRunner)",
+    "operators": [
+      "D",
+      "K_C",
+      "K_P"
+    ],
+    "memory_types": [
+      "episodic",
+      "semantic",
+      "reflective"
+    ]
+  },
+  {
+    "id": "G-06",
+    "choice": "C",
+    "combined": "A + C: today's three signals (instruction, embedding outlier, MINJA bridge) stay on for every channel as the base layer; instruction_extended and semantic_risk are added on top by default; query_anomaly stays opt-in; the assistant-role bridge exemption (C's B part) ships in the chat data-shape preset rather than as a global default",
+    "verdict": "ok-combined",
+    "conflicts": [],
+    "needs": "false-positive screen on generic chat from the G-04 suite before C's extra signals become default; owner to confirm the assistant exemption lives in the chat preset, not globally",
+    "impact": {
+      "quality": "0 on dev sets; - on chat without the chat preset (39/40 assistant turns quarantined, I21, measured)",
+      "latency": "+ <1 ms per write (regex; estimate)",
+      "cost": "0",
+      "risk": "- (stronger N1 defence)"
+    },
+    "v1_locations": [
+      "src/memspine/config/schema.py:1376",
+      "src/memspine/config/schema.py:1407",
+      "src/memspine/core/firewall.py:128",
+      "src/memspine/core/firewall.py:134",
+      "src/memspine/core/firewall.py:229",
+      "src/memspine/core/firewall.py:275"
+    ],
+    "v2_component": "memspine.trust.firewall (layered SignalStack)",
+    "operators": [
+      "D"
+    ],
+    "memory_types": [
+      "episodic",
+      "semantic",
+      "shared"
+    ]
+  },
+  {
+    "id": "G-07",
+    "choice": "B",
+    "combined": "",
+    "verdict": "ok",
+    "conflicts": [
+      "G-08"
+    ],
+    "needs": "",
+    "impact": {
+      "quality": "0 single-namespace; trust-aware ranking only in shared stores",
+      "latency": "+ small per foreign candidate (estimate)",
+      "cost": "0",
+      "risk": "- large: N1 bound holds in every shared store"
+    },
+    "v1_locations": [
+      "src/memspine/config/schema.py:1458",
+      "src/memspine/core/integrity.py:19",
+      "src/memspine/config/constants.py:138",
+      "src/memspine/config/templates/multi_agent.yaml"
+    ],
+    "v2_component": "memspine.trust.horizon (THI auto-armed by GrantRegistry)",
+    "operators": [
+      "R",
+      "D"
+    ],
+    "memory_types": [
+      "shared"
+    ]
+  },
+  {
+    "id": "G-08",
+    "choice": "B",
+    "combined": "",
+    "verdict": "ok",
+    "conflicts": [
+      "G-07"
+    ],
+    "needs": "lineage recording must be decoupled from integrity.enabled (v1 only records implicit parents when THI is on)",
+    "impact": {
+      "quality": "0 (estimate)",
+      "latency": "+ negligible (in-memory ledger)",
+      "cost": "0",
+      "risk": "- (closes read-then-write trust laundering)"
+    },
+    "v1_locations": [
+      "src/memspine/config/schema.py:1507",
+      "src/memspine/engine.py:1916",
+      "src/memspine/engine.py:1936"
+    ],
+    "v2_component": "memspine.trust.lineage (ReadLedger)",
+    "operators": [
+      "D",
+      "K_C"
+    ],
+    "memory_types": [
+      "semantic",
+      "reflective",
+      "shared"
+    ]
+  },
+  {
+    "id": "G-09",
+    "choice": "D",
+    "combined": "",
+    "verdict": "ok",
+    "conflicts": [],
+    "needs": "count wrapped blocks on dev sets (expected 0) before shipping",
+    "impact": {
+      "quality": "0 (estimate)",
+      "latency": "0",
+      "cost": "+ ~20 tokens per wrapped block (estimate)",
+      "risk": "- (instruction framing contained)"
+    },
+    "v1_locations": [
+      "src/memspine/config/schema.py:1510",
+      "src/memspine/config/schema.py:1517"
+    ],
+    "v2_component": "memspine.compose.trust_render",
+    "operators": [
+      "C"
+    ],
+    "memory_types": [
+      "working",
+      "episodic",
+      "semantic"
+    ]
+  },
+  {
+    "id": "G-10",
+    "choice": "C",
+    "combined": "",
+    "verdict": "ok",
+    "conflicts": [],
+    "needs": "define 'remote provider' classification and how assemble() learns the destination",
+    "impact": {
+      "quality": "0 local; - on personal-detail questions with a hosted reader (estimate)",
+      "latency": "+ <1 ms per write (estimate)",
+      "cost": "0",
+      "risk": "- large at the remote boundary"
+    },
+    "v1_locations": [
+      "src/memspine/config/schema.py:1425",
+      "src/memspine/config/schema.py:1430",
+      "src/memspine/config/schema.py:1638"
+    ],
+    "v2_component": "memspine.trust.privacy (Redactor, EgressGate)",
+    "operators": [
+      "D",
+      "C"
+    ],
+    "memory_types": [
+      "episodic",
+      "semantic",
+      "resource"
+    ]
+  },
+  {
+    "id": "G-11",
+    "choice": "C",
+    "combined": "",
+    "verdict": "ok",
+    "conflicts": [],
+    "needs": "",
+    "impact": {
+      "quality": "0",
+      "latency": "0",
+      "cost": "0",
+      "risk": "- (user control over O3 profiling)"
+    },
+    "v1_locations": [
+      "src/memspine/config/schema.py:1620",
+      "src/memspine/core/privacy.py:128"
+    ],
+    "v2_component": "memspine.trust.consent",
+    "operators": [
+      "R",
+      "K_P"
+    ],
+    "memory_types": [
+      "semantic",
+      "reflective"
+    ]
+  },
+  {
+    "id": "G-12",
+    "choice": "B",
+    "combined": "",
+    "verdict": "ok",
+    "conflicts": [],
+    "needs": "",
+    "impact": {
+      "quality": "0",
+      "latency": "0",
+      "cost": "0",
+      "risk": "- (multi-party reads fail closed)"
+    },
+    "v1_locations": [
+      "src/memspine/core/namespace.py:25",
+      "src/memspine/core/namespace.py:56",
+      "src/memspine/core/visibility.py:81",
+      "src/memspine/core/visibility.py:96"
+    ],
+    "v2_component": "memspine.scope (Scope, ViewerPolicy)",
+    "operators": [
+      "R"
+    ],
+    "memory_types": [
+      "shared",
+      "episodic"
+    ]
+  },
+  {
+    "id": "G-13",
+    "choice": "C",
+    "combined": "",
+    "verdict": "ok",
+    "conflicts": [],
+    "needs": "re-derivation needs a bound model role; with none bound (D-03), fall back to deleting the derived item",
+    "impact": {
+      "quality": "+ (summaries survive erasure)",
+      "latency": "0 on reads; erasure slower",
+      "cost": "+ model calls per erasure when a role is bound (estimate)",
+      "risk": "- (restart and in-flight races closed, RV07)"
+    },
+    "v1_locations": [
+      "src/memspine/engine.py:9657",
+      "src/memspine/engine.py:9699",
+      "src/memspine/engine.py:9731",
+      "src/memspine/engine.py:10230",
+      "src/memspine/core/erasure.py:120",
+      "src/memspine/core/erasure.py:167"
+    ],
+    "v2_component": "memspine.trust.erasure (ReverseLineageIndex)",
+    "operators": [
+      "K_C",
+      "D"
+    ],
+    "memory_types": [
+      "working",
+      "episodic",
+      "semantic",
+      "reflective",
+      "procedural",
+      "resource",
+      "shared"
+    ]
+  },
+  {
+    "id": "G-14",
+    "choice": "D",
+    "combined": "",
+    "verdict": "ok",
+    "conflicts": [],
+    "needs": "",
+    "impact": {
+      "quality": "0",
+      "latency": "0",
+      "cost": "- storage growth in assistant profile (estimate)",
+      "risk": "- (storage limitation by default)"
+    },
+    "v1_locations": [
+      "src/memspine/core/events.py:33",
+      "src/memspine/config/schema.py:43",
+      "src/memspine/config/schema.py:1575"
+    ],
+    "v2_component": "memspine.ops.retention (RetentionProfile)",
+    "operators": [
+      "K_C"
+    ],
+    "memory_types": [
+      "working",
+      "episodic",
+      "semantic"
+    ]
+  },
+  {
+    "id": "G-15",
+    "choice": "D",
+    "combined": "",
+    "verdict": "ok",
+    "conflicts": [],
+    "needs": "",
+    "impact": {
+      "quality": "0",
+      "latency": "0 personal; + per read in shared/regulated (estimate)",
+      "cost": "+ log growth with read audit (estimate)",
+      "risk": "- (every destructive act attributable)"
+    },
+    "v1_locations": [
+      "src/memspine/config/schema.py:1587",
+      "src/memspine/engine.py:10511",
+      "src/memspine/core/audit.py:71"
+    ],
+    "v2_component": "memspine.trust.audit",
+    "operators": [
+      "R",
+      "D"
+    ],
+    "memory_types": [
+      "working",
+      "episodic",
+      "semantic",
+      "reflective",
+      "procedural",
+      "resource",
+      "shared"
+    ]
+  },
+  {
+    "id": "G-16",
+    "choice": "D",
+    "combined": "",
+    "verdict": "ok",
+    "conflicts": [],
+    "needs": "owner to confirm the package path (proposal: new import package memspine, v1 package frozen)",
+    "impact": {
+      "quality": "0",
+      "latency": "0",
+      "cost": "0",
+      "risk": "- (scope mistakes hard to make)"
+    },
+    "v1_locations": [
+      "src/memspine/engine.py:1672",
+      "src/memspine/engine.py:5035",
+      "src/memspine/engine.py:5843",
+      "src/memspine/protocols/tools.py:223"
+    ],
+    "v2_component": "memspine.api (Engine facade, ScopedHandle)",
+    "operators": [
+      "R",
+      "C",
+      "D",
+      "K_C",
+      "K_P"
+    ],
+    "memory_types": [
+      "working",
+      "episodic",
+      "semantic",
+      "reflective",
+      "procedural",
+      "resource",
+      "shared"
+    ]
+  },
+  {
+    "id": "G-17",
+    "choice": "C",
+    "combined": "",
+    "verdict": "ok",
+    "conflicts": [
+      "G-19"
+    ],
+    "needs": "assumption of a separate server mode with a worker process is dropped under G-19 A; the REST app hosts the library and its inline runner",
+    "impact": {
+      "quality": "0",
+      "latency": "0",
+      "cost": "0",
+      "risk": "- large (no default-open server)"
+    },
+    "v1_locations": [
+      "src/memspine/protocols/rest/app.py:86",
+      "src/memspine/protocols/rest/app.py:212",
+      "src/memspine/protocols/rest/auth.py",
+      "src/memspine/config/schema.py:1683",
+      "src/memspine/protocols/mcp.py:130"
+    ],
+    "v2_component": "memspine.protocols.rest, memspine.protocols.mcp",
+    "operators": [
+      "R",
+      "D"
+    ],
+    "memory_types": [
+      "shared"
+    ]
+  },
+  {
+    "id": "G-18",
+    "choice": "A",
+    "combined": "",
+    "verdict": "ok",
+    "conflicts": [],
+    "needs": "",
+    "impact": {
+      "quality": "0",
+      "latency": "0",
+      "cost": "0",
+      "risk": "0"
+    },
+    "v1_locations": [
+      "src/memspine/protocols/tools.py:223",
+      "src/memspine/protocols/mcp.py:47"
+    ],
+    "v2_component": "none in v2 core (later: memspine-adapters extra)",
+    "operators": [
+      "R",
+      "D"
+    ],
+    "memory_types": [
+      "shared",
+      "working"
+    ]
+  },
+  {
+    "id": "G-19",
+    "choice": "A",
+    "combined": "",
+    "verdict": "needs-owner",
+    "conflicts": [
+      "W-02",
+      "W-10",
+      "W-13",
+      "W-25",
+      "O-01",
+      "O-02",
+      "O-03",
+      "O-10",
+      "P-21",
+      "P-25",
+      "M-04",
+      "G-12",
+      "G-14",
+      "G-17"
+    ],
+    "needs": "Option A states derived work is lost on crash, yet W-02 D, W-10 B+C and W-13 C require a durable outbox: do you accept a durable local outbox inside the library (which is option B in substance), or did you mean derived work to stay non-durable by default?",
+    "impact": {
+      "quality": "+ if outbox kept (no lost derivations); - otherwise",
+      "latency": "+ ~1 SQL insert per write for the outbox row (estimate)",
+      "cost": "0 (no extra service)",
+      "risk": "- with outbox; + without (RV01 stays open)"
+    },
+    "v1_locations": [
+      "src/memspine/config/schema.py:265",
+      "src/memspine/config/schema.py:278",
+      "src/memspine/workers/inline.py",
+      "src/memspine/workers/windows.py:326",
+      "src/memspine/workers/windows.py:568",
+      "src/memspine/workers/windows.py:808",
+      "src/memspine/workers/scheduler.py:38"
+    ],
+    "v2_component": "memspine.runtime (InlineRunner draining DerivationOutbox)",
+    "operators": [
+      "D",
+      "K_C"
+    ],
+    "memory_types": [
+      "working",
+      "episodic"
+    ]
+  },
+  {
+    "id": "G-20",
+    "choice": "C",
+    "combined": "",
+    "verdict": "ok",
+    "conflicts": [],
+    "needs": "",
+    "impact": {
+      "quality": "0",
+      "latency": "+ negligible counters (estimate)",
+      "cost": "0",
+      "risk": "- (failures visible per layer)"
+    },
+    "v1_locations": [
+      "src/memspine/engine.py:13279",
+      "src/memspine/engine.py:13292",
+      "src/memspine/engine.py:13375",
+      "src/memspine/engine.py:1629",
+      "src/memspine/config/schema.py:1606"
+    ],
+    "v2_component": "memspine.ops.ledger (StageLedger), memspine[otel] extra",
+    "operators": [
+      "R",
+      "C",
+      "G",
+      "D",
+      "K_C",
+      "K_P"
+    ],
+    "memory_types": [
+      "working",
+      "episodic",
+      "semantic",
+      "reflective",
+      "procedural",
+      "resource",
+      "shared"
+    ]
+  },
+  {
+    "id": "G-21",
+    "choice": "B",
+    "combined": "",
+    "verdict": "ok",
+    "conflicts": [],
+    "needs": "each base setting must re-pass G-01/G-04 or move to a preset; harness must name its preset",
+    "impact": {
+      "quality": "0 generic; possible LoCoMo default drop until the dated-chat preset is selected (estimate)",
+      "latency": "0",
+      "cost": "0",
+      "risk": "- (no benchmark-shaped globals)"
+    },
+    "v1_locations": [
+      "src/memspine/config/schema.py:232",
+      "src/memspine/config/constants.py:548",
+      "src/memspine/config/templates/base.yaml"
+    ],
+    "v2_component": "memspine.config.profiles (base + shape presets)",
+    "operators": [
+      "R",
+      "C",
+      "D"
+    ],
+    "memory_types": [
+      "working",
+      "episodic",
+      "semantic",
+      "reflective",
+      "procedural",
+      "resource",
+      "shared"
+    ]
+  },
+  {
+    "id": "G-22",
+    "choice": "C",
+    "combined": "",
+    "verdict": "ok",
+    "conflicts": [],
+    "needs": "",
+    "impact": {
+      "quality": "0",
+      "latency": "0",
+      "cost": "0",
+      "risk": "- (fewer untested combinations)"
+    },
+    "v1_locations": [
+      "src/memspine/config/schema.py:288",
+      "evals/analysis/GAP_REGISTER.md"
+    ],
+    "v2_component": "memspine.config.flags (FlagRegistry)",
+    "operators": [
+      "R",
+      "C",
+      "D"
+    ],
+    "memory_types": [
+      "working",
+      "episodic",
+      "semantic",
+      "reflective",
+      "procedural",
+      "resource",
+      "shared"
+    ]
+  },
+  {
+    "id": "G-23",
+    "choice": "C",
+    "combined": "",
+    "verdict": "ok",
+    "conflicts": [],
+    "needs": "",
+    "impact": {
+      "quality": "+ (no stale v1 derived records)",
+      "latency": "one-off rebuild",
+      "cost": "+ re-extraction model calls on migration (estimate)",
+      "risk": "- (replay rebuild, no mixing)"
+    },
+    "v1_locations": [
+      "src/memspine/core/events.py:122",
+      "src/memspine/services/storage/sqlite/alembic/versions/",
+      "src/memspine/engine.py:13357"
+    ],
+    "v2_component": "memspine.migrate (V1Upcaster, ReplayBuilder, v1 compat shim)",
+    "operators": [
+      "D",
+      "K_C"
+    ],
+    "memory_types": [
+      "working",
+      "episodic",
+      "semantic",
+      "reflective",
+      "procedural",
+      "resource",
+      "shared"
+    ]
+  },
+  {
+    "id": "G-24",
+    "choice": "C",
+    "combined": "",
+    "verdict": "ok",
+    "conflicts": [],
+    "needs": "prerequisite: regenerate uv.lock so huggingface-hub >= 1.31 (lock still pins 1.16.1); a per-run venv built from today's lock reproduces the 18:17 failure",
+    "impact": {
+      "quality": "0",
+      "latency": "+ seconds per run (uv cache; estimate)",
+      "cost": "+ disk per run",
+      "risk": "- large (shared-venv syncs can no longer change a run)"
+    },
+    "v1_locations": [
+      "evals/pinned_run.sh:2",
+      "evals/pinned_run.sh:23",
+      "uv.lock:1542",
+      "uv.lock:1555"
+    ],
+    "v2_component": "memspine.evals.env (RunEnv)",
+    "operators": [
+      "R",
+      "G"
+    ],
+    "memory_types": []
+  },
+  {
+    "id": "G-25",
+    "choice": "D",
+    "combined": "",
+    "verdict": "ok",
+    "conflicts": [],
+    "needs": "",
+    "impact": {
+      "quality": "+ (comparisons checkable)",
+      "latency": "0",
+      "cost": "0",
+      "risk": "- (contaminated or drifted runs detectable)"
+    },
+    "v1_locations": [
+      "evals/README.md (summary table)",
+      "evals/pinned_run.sh:23"
+    ],
+    "v2_component": "memspine.evals.manifest (RunManifest)",
+    "operators": [
+      "R",
+      "C",
+      "G",
+      "D"
+    ],
+    "memory_types": []
+  },
+  {
+    "id": "G-26",
+    "choice": "C",
+    "combined": "",
+    "verdict": "ok",
+    "conflicts": [],
+    "needs": "N1 enforcement-on reruns and attack/utility frontier; MAB-CR and ConvoMem blind runs",
+    "impact": {
+      "quality": "+ (claims defensible)",
+      "latency": "0",
+      "cost": "+ blind and N1 runs (estimate)",
+      "risk": "- (no dev-pool headlines)"
+    },
+    "v1_locations": [
+      "docs/RESEARCH_NOVELTY.md",
+      "evals/analysis/GAP_REGISTER.md:765"
+    ],
+    "v2_component": "paper claims register (docs/v2, no code)",
+    "operators": [
+      "R",
+      "C",
+      "G",
+      "D",
+      "K_C",
+      "K_P"
+    ],
+    "memory_types": [
+      "working",
+      "episodic",
+      "semantic",
+      "reflective",
+      "procedural",
+      "resource",
+      "shared"
+    ]
+  }
+]

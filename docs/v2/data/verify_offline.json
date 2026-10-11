@@ -1,0 +1,714 @@
+[
+ {
+  "id": "O-01",
+  "choice": "B",
+  "combined": "",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "+1 fresher session artefacts (estimate)",
+   "latency": "0 hot path; tiers 2-3 off the write path",
+   "cost": "0 work moves, does not grow",
+   "risk": "second scheduling path to test"
+  },
+  "v1_locations": [
+   "workers/schedule.py:29",
+   "workers/schedule.py:80",
+   "workers/pipelines.py:3669",
+   "engine.py:13753",
+   "engine.py:13771"
+  ],
+  "v2_component": "memspine.derive.scheduler.DerivationScheduler",
+  "operators": [
+   "K_C",
+   "K_P"
+  ],
+  "memory_types": [
+   "episodic",
+   "semantic",
+   "reflective",
+   "associative",
+   "working"
+  ]
+ },
+ {
+  "id": "O-02",
+  "choice": "C",
+  "combined": "",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "Under G-19 A the trigger is checked at deposit commit, by an in-process idle timer and at engine open",
+  "impact": {
+   "quality": "+1 for long-lived deployments; evals unchanged (off by default)",
+   "latency": "0",
+   "cost": "+1 vs fixed interval; idle namespaces cost nothing",
+   "risk": "three knobs; a short-lived process defers work to the next open"
+  },
+  "v1_locations": [
+   "workers/scheduler.py:37",
+   "config/schema.py:285",
+   "core/policies/consolidation.py:30",
+   "workers/pipelines.py:416",
+   "engine.py:13314"
+  ],
+  "v2_component": "memspine.derive.triggers.TriggerPolicy",
+  "operators": [
+   "K_C"
+  ],
+  "memory_types": [
+   "episodic",
+   "semantic",
+   "reflective",
+   "associative",
+   "prospective",
+   "procedural",
+   "working"
+  ]
+ },
+ {
+  "id": "O-03",
+  "choice": "B",
+  "combined": "",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "0",
+   "latency": "+1 cost proportional to change",
+   "cost": "+1 vs O(store) sweep",
+   "risk": "+1 resume from per-stage watermark; lease persisted in the store (G-19 A)"
+  },
+  "v1_locations": [
+   "workers/schedule.py:80",
+   "workers/pipelines.py:2947"
+  ],
+  "v2_component": "memspine.derive.job.NamespaceJob (NamespaceLease, StageWatermark)",
+  "operators": [
+   "K_C"
+  ],
+  "memory_types": [
+   "episodic",
+   "semantic",
+   "reflective",
+   "associative",
+   "prospective",
+   "procedural",
+   "working"
+  ]
+ },
+ {
+  "id": "O-04",
+  "choice": "B",
+  "combined": "",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "Observation stage removed from the B list (O-15 A); dependency graph (C) later",
+  "impact": {
+   "quality": "+1 derived layers read reconciled state (estimate)",
+   "latency": "0",
+   "cost": "0",
+   "risk": "removes the build-on-invalidated-facts hazard"
+  },
+  "v1_locations": [
+   "workers/schedule.py:29"
+  ],
+  "v2_component": "memspine.derive.stages.STAGE_ORDER",
+  "operators": [
+   "K_C",
+   "K_P"
+  ],
+  "memory_types": [
+   "episodic",
+   "semantic",
+   "reflective",
+   "associative",
+   "prospective",
+   "procedural",
+   "working"
+  ]
+ },
+ {
+  "id": "O-05",
+  "choice": "C",
+  "combined": "",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "Shares the persisted ledger with P-22 C and W-26 D; D fast paths run first",
+  "impact": {
+   "quality": "0 normally; low-priority layers lag under a tight budget",
+   "latency": "0",
+   "cost": "+2 bounded spend",
+   "risk": "deferred coverage must be reported (RV11)"
+  },
+  "v1_locations": [
+   "engine.py:13788",
+   "config/constants.py:439"
+  ],
+  "v2_component": "memspine.derive.budget.DerivationBudget",
+  "operators": [
+   "K_C",
+   "K_P"
+  ],
+  "memory_types": [
+   "episodic",
+   "semantic",
+   "reflective",
+   "associative",
+   "working"
+  ]
+ },
+ {
+  "id": "O-06",
+  "choice": "B",
+  "combined": "",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "+1 raw outranks a stale derivation",
+   "latency": "0 one integer comparison",
+   "cost": "0",
+   "risk": "+1 readers can tell stale from missing"
+  },
+  "v1_locations": [],
+  "v2_component": "covers_seq field on derived records + memspine.read.freshness",
+  "operators": [
+   "K_C",
+   "R"
+  ],
+  "memory_types": [
+   "semantic",
+   "reflective",
+   "associative",
+   "working"
+  ]
+ },
+ {
+  "id": "O-07",
+  "choice": "B",
+  "combined": "Default B: one call 2 at session close with summary / episode / profile_ops sections, each validated and deposited independently. Fallback A: the sleep-time session path (consolidate, reflect_profile) runs only for sessions without a committed call-2 result (failure, no model, budget spent, idle-closed). One idempotency key per (session, membership fingerprint); the session tier owns the artefact, sleep is its catch-up executor.",
+  "verdict": "ok-combined",
+  "conflicts": [
+   "M-02"
+  ],
+  "needs": "M-02 must be read as B + D (summary and episode layers opt-in)",
+  "impact": {
+   "quality": "+1 session artefacts at close (estimate)",
+   "latency": "0 hot path; ~2.7 s per 9B call off path (G-W49 measurement)",
+   "cost": "~+1 call per session, ~+0.05 calls/turn on LoCoMo at 4.14 windows/session (estimate)",
+   "risk": "the fallback can hide call-2 failures; they are counted"
+  },
+  "v1_locations": [
+   "workers/pipelines.py:3669",
+   "workers/pipelines.py:435",
+   "workers/pipelines.py:3484",
+   "engine.py:13771"
+  ],
+  "v2_component": "memspine.derive.session.SessionCloser + SessionCatchUp",
+  "operators": [
+   "K_C",
+   "K_P"
+  ],
+  "memory_types": [
+   "episodic",
+   "semantic",
+   "working"
+  ]
+ },
+ {
+  "id": "O-08",
+  "choice": "C",
+  "combined": "",
+  "verdict": "conflict",
+  "conflicts": [
+   "M-02"
+  ],
+  "needs": "M-02 literal D drops summaries; holds under the B + D reading (summaries an opt-in layer)",
+  "impact": {
+   "quality": "+1 guards small-model loops (estimate)",
+   "latency": "0",
+   "cost": "0",
+   "risk": "lower: degenerate outputs rejected, old summary kept"
+  },
+  "v1_locations": [
+   "workers/pipelines.py:721",
+   "config/constants.py:175",
+   "config/constants.py:709"
+  ],
+  "v2_component": "memspine.derive.session.SummaryGuard",
+  "operators": [
+   "K_C"
+  ],
+  "memory_types": [
+   "episodic",
+   "semantic"
+  ]
+ },
+ {
+  "id": "O-09",
+  "choice": "B",
+  "combined": "Base A: window fragments stay live searchable episode keys lifted to source turns (R-10). Stitch B: call 2 joins a session's fragments into one dated narrative citing its windows, fragments as parents, never deleted. Both lift to the same turns (one evidence group). Fallback: fragments only when call 2 is off.",
+  "verdict": "ok-combined",
+  "conflicts": [
+   "M-02"
+  ],
+  "needs": "",
+  "impact": {
+   "quality": "+1 cross-window events become one unit (estimate)",
+   "latency": "0",
+   "cost": "0 part of call 2; +1 key per session",
+   "risk": "+1 non-destructive (BD-4)"
+  },
+  "v1_locations": [
+   "workers/windows.py:883"
+  ],
+  "v2_component": "memspine.derive.session.EpisodeStitcher + memspine.read.legs.episode",
+  "operators": [
+   "K_C"
+  ],
+  "memory_types": [
+   "episodic"
+  ]
+ },
+ {
+  "id": "O-10",
+  "choice": "B",
+  "combined": "Base A: every regular sleep drains the whole pending-merge backlog. Early pass B: the persisted backlog (W-13 outbox in the store) fires a reconcile-only job through the O-02 trigger when its size or age cap is exceeded (bypasses idle, keeps spacing). Acknowledged after the merge commits.",
+  "verdict": "ok-combined",
+  "conflicts": [],
+  "needs": "Confirm with the write area that the W-13 outbox lives in the store under G-19 A",
+  "impact": {
+   "quality": "+1 bounded duplicate-entity window (estimate)",
+   "latency": "0",
+   "cost": "0 same merges, earlier",
+   "risk": "+1 survives restart (RV01)"
+  },
+  "v1_locations": [
+   "workers/pipelines.py:1983"
+  ],
+  "v2_component": "memspine.derive.reconcile.BacklogReconciler",
+  "operators": [
+   "K_C"
+  ],
+  "memory_types": [
+   "associative",
+   "semantic"
+  ]
+ },
+ {
+  "id": "O-11",
+  "choice": "C",
+  "combined": "Staged ladder: stage 1 rules (A: exact, alias, MinHash 0.9, entropy gate; also online with llm=None per W-19); stage 2 scoping by type and co-mentions (C); stage 3 batched LLM for the unresolved with one evidence line per side (B + C); low confidence gives a possible-same link. Rules-only mode when on_missing_model=rules or the budget is spent.",
+  "verdict": "ok-combined",
+  "conflicts": [],
+  "needs": "Calibrate thresholds per mechanism (RV17)",
+  "impact": {
+   "quality": "+1 homonyms kept apart, nicknames caught (estimate)",
+   "latency": "0",
+   "cost": "-1 vs B (~+20-40% tokens per resolve call, estimate)",
+   "risk": "+1 ambiguity preserved"
+  },
+  "v1_locations": [
+   "memories/associative/resolution.py:164",
+   "config/constants.py:460"
+  ],
+  "v2_component": "memspine.derive.resolve.EntityResolver (v2, ResolutionStage list)",
+  "operators": [
+   "K_C"
+  ],
+  "memory_types": [
+   "associative"
+  ]
+ },
+ {
+  "id": "O-12",
+  "choice": "C",
+  "combined": "Stage 1 A: deterministic same-key ladder always first. Stage 2: candidate set = union of word-overlap (B) and subject + predicate family + time + embedding (C), deduplicated, capped at ~5 per new fact. Stage 3: batched adjudication giving supersede / contest / coexist, history kept. Stage-1-only mode without a model or budget.",
+  "verdict": "ok-combined",
+  "conflicts": [],
+  "needs": "Measure candidate recall and calls per new fact",
+  "impact": {
+   "quality": "+1 cross-key contradictions caught (estimate)",
+   "latency": "0",
+   "cost": "-1 more adjudications, bounded by the cap and O-05",
+   "risk": "+1 reversible through history"
+  },
+  "v1_locations": [
+   "workers/pipelines.py:1902",
+   "workers/pipelines.py:1983",
+   "config/constants.py:869"
+  ],
+  "v2_component": "memspine.derive.contradict.ContradictionSweep",
+  "operators": [
+   "K_C"
+  ],
+  "memory_types": [
+   "semantic",
+   "associative"
+  ]
+ },
+ {
+  "id": "O-13",
+  "choice": "B",
+  "combined": "",
+  "verdict": "needs-measurement",
+  "conflicts": [],
+  "needs": "Calibrate the cosine threshold per embedding model on paraphrase / numeric-variant pairs (RV17); gate: zero wrong numeric merges, MAB-CR no loss",
+  "impact": {
+   "quality": "+1 fewer paraphrased repeats; main overlap control under O-15 A",
+   "latency": "+1 no call",
+   "cost": "+1 no call",
+   "risk": "qualifier guard blocks number / date / negation merges"
+  },
+  "v1_locations": [
+   "config/constants.py:55"
+  ],
+  "v2_component": "memspine.derive.dedupe.NearDuplicateMerger + QualifierGuard",
+  "operators": [
+   "K_C"
+  ],
+  "memory_types": [
+   "semantic"
+  ]
+ },
+ {
+  "id": "O-14",
+  "choice": "B",
+  "combined": "Source of truth A: superseded / contested records with validity stay authoritative and serve as-of reads. Derived B: a deterministic, rebuildable per-(subject, attribute) value-history view (no LLM, no new facts), used as the default note for before/after questions.",
+  "verdict": "ok-combined",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "+1 compact before/after notes (estimate)",
+   "latency": "+1",
+   "cost": "+1 no call",
+   "risk": "+1 projection only"
+  },
+  "v1_locations": [],
+  "v2_component": "memspine.derive.history.ValueHistoryView",
+  "operators": [
+   "K_C"
+  ],
+  "memory_types": [
+   "semantic"
+  ]
+ },
+ {
+  "id": "O-15",
+  "choice": "A",
+  "combined": "",
+  "verdict": "conflict",
+  "conflicts": [
+   "M-13",
+   "M-19",
+   "O-21"
+  ],
+  "needs": "Owner: M-13 D chose observations for patterns while O-15 chose none; drop M-13's observation half, or allow observations for patterns only?",
+  "impact": {
+   "quality": "0 to -1 on pattern / preference questions vs B (estimate)",
+   "latency": "0",
+   "cost": "+2 no grouping calls",
+   "risk": "lower inference creep; simpler forget cascade"
+  },
+  "v1_locations": [
+   "workers/schedule.py:59"
+  ],
+  "v2_component": "none (no memspine.derive.observations)",
+  "operators": [
+   "K_C"
+  ],
+  "memory_types": [
+   "semantic",
+   "reflective"
+  ]
+ },
+ {
+  "id": "O-16",
+  "choice": "B",
+  "combined": "",
+  "verdict": "conflict",
+  "conflicts": [
+   "M-02"
+  ],
+  "needs": "M-02 literal D drops the graph; holds under the B + D reading; M-19 note keeps entity summaries as an extra",
+  "impact": {
+   "quality": "+1 entity-centric reads (estimate)",
+   "latency": "0",
+   "cost": "+1 fast path, batches of 30",
+   "risk": "stale between sleeps (reported via O-06)"
+  },
+  "v1_locations": [
+   "workers/pipelines.py:2621",
+   "config/constants.py:439"
+  ],
+  "v2_component": "memspine.derive.entity_summary.EntitySummariser",
+  "operators": [
+   "K_C"
+  ],
+  "memory_types": [
+   "associative",
+   "semantic"
+  ]
+ },
+ {
+  "id": "O-17",
+  "choice": "B",
+  "combined": "",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "M-19 A + D: keep communities, entity summaries as an extra grouping; no read leg until a global-question workload",
+  "impact": {
+   "quality": "0 until a read leg exists",
+   "latency": "0",
+   "cost": "0 off by default",
+   "risk": "0"
+  },
+  "v1_locations": [
+   "workers/pipelines.py:1176",
+   "config/constants.py:94"
+  ],
+  "v2_component": "memspine.derive.communities.Reorganiser",
+  "operators": [
+   "K_C"
+  ],
+  "memory_types": [
+   "associative"
+  ]
+ },
+ {
+  "id": "O-18",
+  "choice": "B",
+  "combined": "Kept base A: the caller-set persona stays a separate pinned block never edited by ops; per-session reflections still stored as cited records. Default B: call-2 profile_ops (add / update / delete / none, date, stated vs inferred) applied by code only if newer, cited and within caps; delete = supersede. Reflections reach the card only through ops; the PROFILE NOTES header is retired when the card is on. Fallback: persona + reflections when call 2 is off.",
+  "verdict": "ok-combined",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "+1 bounded auditable profile (estimate)",
+   "latency": "0",
+   "cost": "0 ops ride on call 2",
+   "risk": "+1 guards against wrong ops"
+  },
+  "v1_locations": [
+   "engine.py:9611",
+   "engine.py:8544",
+   "workers/pipelines.py:3484",
+   "config/constants.py:327"
+  ],
+  "v2_component": "memspine.derive.profile.ProfileOps -> ProfileCard",
+  "operators": [
+   "K_P"
+  ],
+  "memory_types": [
+   "working",
+   "reflective",
+   "semantic"
+  ]
+ },
+ {
+  "id": "O-19",
+  "choice": "B",
+  "combined": "",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "+1 no leak into unrelated answers (estimate)",
+   "latency": "+1",
+   "cost": "+1",
+   "risk": "+2 stated-only, cited, capped"
+  },
+  "v1_locations": [
+   "config/constants.py:705"
+  ],
+  "v2_component": "memspine.memories.profile.ProfileCard",
+  "operators": [
+   "K_P"
+  ],
+  "memory_types": [
+   "working",
+   "semantic"
+  ]
+ },
+ {
+  "id": "O-20",
+  "choice": "B",
+  "combined": "",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "0 to +1 (estimate)",
+   "latency": "0",
+   "cost": "~1 call per session when on; lowest budget priority",
+   "risk": "+1 cited, depth-capped"
+  },
+  "v1_locations": [
+   "workers/pipelines.py:3484",
+   "memories/reflective/reflections.py:59",
+   "config/constants.py:122"
+  ],
+  "v2_component": "memspine.derive.reflect.Reflector",
+  "operators": [
+   "K_P"
+  ],
+  "memory_types": [
+   "reflective"
+  ]
+ },
+ {
+  "id": "O-21",
+  "choice": "B",
+  "combined": "",
+  "verdict": "ok",
+  "conflicts": [
+   "O-15"
+  ],
+  "needs": "Inputs change to facts, value histories and summaries (no observations); later scope",
+  "impact": {
+   "quality": "+1 stable answers for registered questions",
+   "latency": "+2 no LLM at read for registered questions",
+   "cost": "one refresh call per changed answer",
+   "risk": "staleness and forget cascade handled by O-06 / M-25"
+  },
+  "v1_locations": [],
+  "v2_component": "memspine.derive.standing.StandingAnswers",
+  "operators": [
+   "K_P"
+  ],
+  "memory_types": [
+   "reflective",
+   "semantic"
+  ]
+ },
+ {
+  "id": "O-22",
+  "choice": "B",
+  "combined": "",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "0 lossless",
+   "latency": "0",
+   "cost": "+1 storage (zstd cold)",
+   "risk": "low; pinned facts exempt from any eviction"
+  },
+  "v1_locations": [
+   "workers/pipelines.py:868",
+   "workers/pipelines.py:921",
+   "config/constants.py:131"
+  ],
+  "v2_component": "memspine.derive.lifecycle.TierSweep",
+  "operators": [
+   "K_C"
+  ],
+  "memory_types": [
+   "episodic",
+   "semantic",
+   "resource"
+  ]
+ },
+ {
+  "id": "O-23",
+  "choice": "B",
+  "combined": "Always on A: watches only from stated plans, pull delivery via due(), check_watches at sleep. Opt-in B: the anticipate stage writes question cues as retrieval keys (firewall-screened, never content). Independent; watches first, then cues. No predicted states, no push.",
+  "verdict": "ok-combined",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "+1 recall on indirect phrasing when cues are on (estimate)",
+   "latency": "0",
+   "cost": "~1 call per session when cues are on",
+   "risk": "+1 no speculation stored as fact (BD-6)"
+  },
+  "v1_locations": [
+   "workers/pipelines.py:977",
+   "workers/pipelines.py:3446",
+   "engine.py:12827"
+  ],
+  "v2_component": "memspine.derive.prospective.Watches + CueWriter",
+  "operators": [
+   "K_C"
+  ],
+  "memory_types": [
+   "prospective"
+  ]
+ },
+ {
+  "id": "O-24",
+  "choice": "B",
+  "combined": "Always on A: template lessons from outcome receipts (advisory). Added B when trajectory capture is enabled: slot-filled procedure cases (steps, preconditions, outcome) rendered by template, ADVISORY stage only; shared lesson keys so receipts and trajectories reinforce one lesson. No model-written skills.",
+  "verdict": "ok-combined",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "+1 for the agent template (estimate)",
+   "latency": "0",
+   "cost": "one extraction call per trajectory",
+   "risk": "+1 template-bound (BD-2)"
+  },
+  "v1_locations": [
+   "memories/procedural/lessons.py:52",
+   "memories/procedural/lessons.py:73",
+   "memories/procedural/lessons.py:117"
+  ],
+  "v2_component": "memspine.derive.procedural.LessonBuilder + CaseExtractor",
+  "operators": [
+   "K_C"
+  ],
+  "memory_types": [
+   "procedural"
+  ]
+ },
+ {
+  "id": "O-25",
+  "choice": "A",
+  "combined": "",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "0",
+   "latency": "0",
+   "cost": "0",
+   "risk": "no self-reinforcement"
+  },
+  "v1_locations": [
+   "engine.py:11620"
+  ],
+  "v2_component": "unchanged feedback verb on the scoped handle (G-16 D)",
+  "operators": [
+   "K_P"
+  ],
+  "memory_types": [
+   "semantic",
+   "procedural"
+  ]
+ },
+ {
+  "id": "O-26",
+  "choice": "B",
+  "combined": "",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "Matches M-24 C; multi-agent template only",
+  "impact": {
+   "quality": "+1 theory-of-mind answers in the multi-agent template (estimate)",
+   "latency": "0",
+   "cost": "scales with observer pairs, bounded by O-05",
+   "risk": "+1 grant isolation tests (N1)"
+  },
+  "v1_locations": [
+   "core/perspective.py:163"
+  ],
+  "v2_component": "memspine.derive.views.ObserverViews",
+  "operators": [
+   "K_P"
+  ],
+  "memory_types": [
+   "shared",
+   "semantic"
+  ]
+ }
+]

@@ -1,0 +1,470 @@
+[
+  {
+    "id": "W-01",
+    "choice": "D",
+    "combined": "",
+    "verdict": "ok",
+    "conflicts": [],
+    "needs": "",
+    "impact": {
+      "quality": "+ small (estimate): one stamping path removes per-door drift in time, scope and trust; per-segment raw keeps line-level citation",
+      "latency": "0 (estimate): same per-segment append and projection work as today",
+      "cost": "0: no model call added",
+      "risk": "+ safer: idempotency, versioning and lineage defined once; refactor risk on three public doors, contained by adapters"
+    },
+    "v1_locations": ["src/memspine/engine.py:1672", "src/memspine/engine.py:4270", "src/memspine/engine.py:4368", "src/memspine/engine.py:4578", "src/memspine/engine.py:11778", "src/memspine/memories/resource/store.py:54"],
+    "v2_component": "intake.SourceEnvelope + intake.IntakeGateway (write_messages / ingest / write_episode as adapters)",
+    "operators": ["D"],
+    "memory_types": ["episodic", "resource"]
+  },
+  {
+    "id": "W-02",
+    "choice": "D",
+    "combined": "",
+    "verdict": "ok",
+    "conflicts": [],
+    "needs": "",
+    "impact": {
+      "quality": "+ small (estimate): derived-layer loss becomes visible and recoverable instead of silent",
+      "latency": "about 0 (estimate): one extra row in the same SQL transaction; hot path stays in the 55-210 ms band measured for G-W49",
+      "cost": "0",
+      "risk": "+ much safer: receipt is honest about pending / done / failed per layer (RV01)"
+    },
+    "v1_locations": ["src/memspine/engine.py:13479", "src/memspine/workers/windows.py:326"],
+    "v2_component": "intake.Receipt + derive.DerivationIntent (status call per layer)",
+    "operators": ["D"],
+    "memory_types": ["episodic"]
+  },
+  {
+    "id": "W-03",
+    "choice": "D",
+    "combined": "",
+    "verdict": "ok",
+    "conflicts": [],
+    "needs": "",
+    "impact": {
+      "quality": "+ small: no duplicated raw turns after retries, so no duplicated derived facts",
+      "latency": "about 0 (estimate): one indexed key lookup per segment",
+      "cost": "+ small saving: retried batches do not re-trigger extraction",
+      "risk": "+ much safer: at-least-once delivery with idempotent effects (RV01); edits become versions, never silent overwrites"
+    },
+    "v1_locations": ["src/memspine/engine.py:1672", "src/memspine/engine.py:4302", "src/memspine/engine.py:4977"],
+    "v2_component": "intake.IdempotencyKey (caller id, else fingerprint of namespace, source, segment index, content) + intake.SourceVersioner",
+    "operators": ["D"],
+    "memory_types": ["episodic", "resource"]
+  },
+  {
+    "id": "W-04",
+    "choice": "C",
+    "combined": "Owner note 'B + C'. C already contains B, so the combined design is: B's three clocks as the base (source_at nullable, recorded_at, effective event interval with precision on derived items; no fallback to now) plus C's declared source time zone (caller-declared zone or the literal 'unknown'). Order at intake: (1) take source_at from the segment, else leave null; (2) take the zone from the segment, else the source envelope, else 'unknown'; (3) a naive datetime with zone 'unknown' is stored as wall-clock time flagged tz_unknown, never shifted by read.naive_timezone; (4) recorded_at is always the engine clock. Compatible with M-10 'B + C' (tri-temporal on every record, plus the four bi-temporal stamps on graph edges).",
+    "verdict": "ok-combined",
+    "conflicts": [],
+    "needs": "",
+    "impact": {
+      "quality": "+ (estimate): backfilled histories keep their real dates; relative phrases anchor to the cited utterance in its own zone; unknown dates stop masquerading as 'now'",
+      "latency": "0",
+      "cost": "0",
+      "risk": "+ safer; readers and the temporal leg must handle null source_at and tz_unknown (R-07, R-24)"
+    },
+    "v1_locations": ["src/memspine/engine.py:4478", "src/memspine/engine.py:4506", "src/memspine/engine.py:4521", "src/memspine/engine.py:4534", "src/memspine/config/schema.py:481"],
+    "v2_component": "intake.ClockStamper (source_at, source_tz, recorded_at; event interval + precision filled at derivation)",
+    "operators": ["D"],
+    "memory_types": ["episodic"]
+  },
+  {
+    "id": "W-05",
+    "choice": "C",
+    "combined": "Owner note 'also keep participant tag too'. Combined design: C (raw records carry spk and addr as typed columns from structured input; every extracted item carries asserter and subject, validated against the cited line's speaker) plus the session participant set kept on every raw record. Reading: participants become a typed list column on the raw record (always on, filled from the envelope's declared participants or the speakers seen so far in the session), and the v1 'participant:<name>' tag form is still written for v1 readers and free filtering during the G-23 dual-read period. Per-observer fan-out (D) stays later via M-24 C.",
+    "verdict": "ok-combined",
+    "conflicts": [],
+    "needs": "",
+    "impact": {
+      "quality": "+ much better (estimate): separates 'Bram said Ilse moved' from 'Ilse said she moved'; participants allow 'who was present' filters and visibility checks",
+      "latency": "0: fields come from input and from the existing extraction call",
+      "cost": "0 to small: a few output tokens per item for asserter and subject",
+      "risk": "+ safer; fields need read consumers (RV03) or they repeat the v1 unread-field defect"
+    },
+    "v1_locations": ["src/memspine/engine.py:4434", "src/memspine/config/schema.py:1740", "src/memspine/workers/windows.py:199"],
+    "v2_component": "intake.RoleStamper (spk, addr, participants[]) + derive.AsserterSubjectCheck",
+    "operators": ["D"],
+    "memory_types": ["episodic", "shared"]
+  },
+  {
+    "id": "W-06",
+    "choice": "B",
+    "combined": "",
+    "verdict": "ok",
+    "conflicts": [],
+    "needs": "",
+    "impact": {
+      "quality": "+ small (estimate): stops recalled memory re-entering as new evidence; tool facts and assent stay visible",
+      "latency": "0",
+      "cost": "+ small saving: system text and echoes no longer reach extraction",
+      "risk": "+ much safer: closes the G to D self-contamination loop that the N1 claim relies on"
+    },
+    "v1_locations": ["src/memspine/config/schema.py:1444", "src/memspine/config/schema.py:1447", "src/memspine/config/schema.py:1449", "src/memspine/engine.py:4417"],
+    "v2_component": "intake.RolePolicy (raw keeps all roles; derivation filter: assistant=proposed, tool=evidence, system=excluded, echo guard on)",
+    "operators": ["D"],
+    "memory_types": ["episodic", "working"]
+  },
+  {
+    "id": "W-07",
+    "choice": "C",
+    "combined": "",
+    "verdict": "ok",
+    "conflicts": [],
+    "needs": "",
+    "impact": {
+      "quality": "0 to slightly negative (estimate): quarantined turns no longer feed extraction, so a false hold also hides its facts",
+      "latency": "0: input filter and cap are code checks",
+      "cost": "0",
+      "risk": "+ much safer: closes the extraction laundering path and keeps the N1 reach bound valid under online extraction"
+    },
+    "v1_locations": ["src/memspine/engine.py:4670", "src/memspine/engine.py:4655", "src/memspine/engine.py:4717", "src/memspine/core/firewall.py:292"],
+    "v2_component": "firewall.WriteGates (gate 1 raw, gate 2 extraction input filter, gate 3 derived + parent trust cap always on)",
+    "operators": ["D"],
+    "memory_types": ["episodic", "semantic", "shared"]
+  },
+  {
+    "id": "W-08",
+    "choice": "C",
+    "combined": "Owner note 'combine B + C'. C contains B; combined design runs in two stages: stage 1 (B) the extraction item carries a source label user_stated / assistant_proposed / user_confirmed / tool, mapped to src(m), with assistant_proposed trust capped; stage 2 (C) a code assent check promotes to user_confirmed only when a cited user line shows assent (not acknowledgement) and binds the proposal, otherwise downgrades to assistant_proposed. If the checker cannot run (no cited user line, unsupported language), the B label stands but user_confirmed is downgraded. Adds M-07 C's support count per record.",
+    "verdict": "ok-combined",
+    "conflicts": [],
+    "needs": "",
+    "impact": {
+      "quality": "+ (estimate): assistant suggestions stop becoming user facts; agent self-knowledge kept as proposals",
+      "latency": "0: code check only",
+      "cost": "0 to small: one label per item",
+      "risk": "+ much safer: guards against sycophantic promotion; assent rules must be language-neutral"
+    },
+    "v1_locations": ["src/memspine/core/firewall.py:292", "src/memspine/config/schema.py:1746", "src/memspine/config/schema.py:1272"],
+    "v2_component": "provenance.SourceClassifier + provenance.AssentChecker",
+    "operators": ["D"],
+    "memory_types": ["semantic", "reflective"]
+  },
+  {
+    "id": "W-09",
+    "choice": "D",
+    "combined": "",
+    "verdict": "ok",
+    "conflicts": [],
+    "needs": "",
+    "impact": {
+      "quality": "+ small: every typed record has raw parents, so citation and lineage hold",
+      "latency": "0",
+      "cost": "0",
+      "risk": "+ safer: erasure cascades and trust caps follow lineage; callers relying on the semantic default must move to keyed writes (breaking change, covered by the G-23 shim)"
+    },
+    "v1_locations": ["src/memspine/engine.py:1672", "src/memspine/engine.py:4965"],
+    "v2_component": "intake.TypeRouter (unkeyed -> episodic/resource raw; keyed entity/attribute, skill, plan -> typed write with parents)",
+    "operators": ["D"],
+    "memory_types": ["episodic", "semantic", "procedural", "prospective", "resource"]
+  },
+  {
+    "id": "W-10",
+    "choice": "C",
+    "combined": "Owner note 'Combine B + C'. Default is C (split): SQL, lexical, and vector when the embedding is cached, apply inline in the append transaction; graph and derived projections go through the transactional outbox. B (outbox for all projections) is kept as a mode, projection.mode = outbox_all, for high-throughput or server deployments and whenever a projector sits outside the SQL transaction. A projector that is external (Neo4j per the M-04 note) is always outbox-driven. Under G-19 A the outbox workers run in-process on the inline runner; no broker.",
+    "verdict": "ok-combined",
+    "conflicts": [],
+    "needs": "",
+    "impact": {
+      "quality": "+ small: raw turns stay searchable at return in the default mode; projection recovery after crash",
+      "latency": "0 default (estimate); outbox_all mode makes writes faster but raw is not searchable until the worker applies",
+      "cost": "0",
+      "risk": "+ safer: RV06/RV07 projection recovery; two modes to test"
+    },
+    "v1_locations": ["src/memspine/engine.py:13479", "src/memspine/engine.py:13576", "src/memspine/core/replay.py:34"],
+    "v2_component": "log.ProjectionRouter (hot inline set + log.Outbox; mode split | outbox_all)",
+    "operators": ["D"],
+    "memory_types": ["episodic", "associative"]
+  },
+  {
+    "id": "W-11",
+    "choice": "E",
+    "combined": "Owner note 'B + E'. E defines segment boundaries (adaptive window: topic, 6 turns, 1,500 tokens, 120 s idle, session end, plus a new source-time gap cut learned per store or a calendar-day change); B is the dispatch stage on top: closed windows of one namespace accumulate until a token cap or a maximum age, then one extraction call carries them as separately numbered blocks (windows never merge into one segment, so citations stay window-precise). Per-turn mode (window_max_turns 1) stays a setting. Compatible.",
+    "verdict": "needs-measurement",
+    "conflicts": [],
+    "needs": "Screen B-batching on top of E: calls per turn, grounding rate and facts per turn versus E alone on the free retrieval screens and a labelled cross-domain extraction set; gate = calls down with grounding and recall inside the noise band (G-01). Time-gap cut screened separately.",
+    "impact": {
+      "quality": "+ small (estimate) from the time-gap cut; batching risks topic mixing in one call, held off by per-window blocks",
+      "latency": "turn-to-searchable rises by up to the batch max age (estimate)",
+      "cost": "+ saving (estimate): fewer calls than one per ~186-token window",
+      "risk": "0: boundaries stay deterministic and zero-call"
+    },
+    "v1_locations": ["src/memspine/core/window.py:128", "src/memspine/core/window.py:197", "src/memspine/config/schema.py:1758", "src/memspine/config/schema.py:1760", "src/memspine/config/schema.py:1767"],
+    "v2_component": "derive.Segmenter (E boundaries) + derive.CallBatcher (B token/age gate)",
+    "operators": ["D"],
+    "memory_types": ["episodic"]
+  },
+  {
+    "id": "W-12",
+    "choice": "D",
+    "combined": "",
+    "verdict": "conflict",
+    "conflicts": ["M-02"],
+    "needs": "Owner: under M-02 'B + D' (two layers, raw + facts), does the graph survive as a code-compiled projection of the fact layer (so online edges deposit with facts), or is the graph dropped and W-12 reduced to online facts only?",
+    "impact": {
+      "quality": "+ (estimate): facts and edges fresh within seconds instead of after sleep",
+      "latency": "0 on write; reads that pass wait_for_pending pay up to the barrier timeout (a 9B call is about 2.7 s measured, G-W49)",
+      "cost": "0 versus today (same call, earlier)",
+      "risk": "+ safer than inline; barrier needs a bounded timeout and a status reply"
+    },
+    "v1_locations": ["src/memspine/config/schema.py:1774", "src/memspine/workers/windows.py:608", "src/memspine/workers/windows.py:808", "src/memspine/workers/pipelines.py:1983", "src/memspine/engine.py:13757"],
+    "v2_component": "derive.OnlineExtractor + read.PendingBarrier (wait_for_pending with timeout)",
+    "operators": ["D", "R"],
+    "memory_types": ["semantic", "associative"]
+  },
+  {
+    "id": "W-13",
+    "choice": "C",
+    "combined": "",
+    "verdict": "ok",
+    "conflicts": [],
+    "needs": "",
+    "impact": {
+      "quality": "+ small: no silent gaps in derived layers after restart",
+      "latency": "about 0 (estimate): one SQL row update per state change",
+      "cost": "0; retries after crash cost a repeated call",
+      "risk": "+ much safer: at-least-once with idempotent deposit and ack after commit (RV01); under G-19 A the lease guards crash recovery of the in-process worker rather than many workers"
+    },
+    "v1_locations": ["src/memspine/workers/windows.py:326", "src/memspine/workers/windows.py:554", "src/memspine/workers/windows.py:568", "src/memspine/workers/windows.py:608", "src/memspine/workers/windows.py:808", "src/memspine/config/schema.py:265"],
+    "v2_component": "derive.DerivationOutbox (SQL table: membership, source versions, attempts, lease, state)",
+    "operators": ["D"],
+    "memory_types": ["semantic", "associative", "episodic"]
+  },
+  {
+    "id": "W-14",
+    "choice": "C",
+    "combined": "",
+    "verdict": "ok",
+    "conflicts": [],
+    "needs": "",
+    "impact": {
+      "quality": "+ (estimate): valid items survive one bad sibling; truncated windows rescheduled, not lost",
+      "latency": "- small: one bounded re-ask on invalid items only",
+      "cost": "- small: one extra call when repair is needed; P-04 constrained decoding should make it rare",
+      "risk": "+ much safer: failure classes and dead letters make coverage loss visible (RV11, RV19)"
+    },
+    "v1_locations": ["src/memspine/workers/windows.py:199", "src/memspine/workers/windows.py:236", "src/memspine/workers/windows.py:375", "src/memspine/workers/windows.py:618", "src/memspine/config/constants.py:507"],
+    "v2_component": "derive.ItemValidator + derive.RepairAsk + derive.FailureLedger (dead-letter list)",
+    "operators": ["D"],
+    "memory_types": ["semantic", "associative"]
+  },
+  {
+    "id": "W-15",
+    "choice": "C",
+    "combined": "Owner note 'B + C'. B is the model-facing wire schema (the compact G-W49 item list {s, r, o, text, kind, mode, neg, when, until, lines, span}); C is the stored versioned assertion envelope, compiled in code from the B item plus intake fields (spk, source_at, source_tz, src class, evidence spans, prompt hash) and an optional graph projection. B is declared envelope v1. The model never emits the full envelope. Compatible and matches M-06 B.",
+    "verdict": "ok-combined",
+    "conflicts": [],
+    "needs": "",
+    "impact": {
+      "quality": "+ much better (estimate): one contract for facts and graph; literal and n-ary facts without fake entity nodes; unread fields removed",
+      "latency": "+ small: shorter replies than separate facts and edges sections",
+      "cost": "+ small saving: fewer output tokens, no duplicate relations",
+      "risk": "+ safer: unknown enum values fail closed per item; every field needs a named consumer"
+    },
+    "v1_locations": ["src/memspine/workers/windows.py:199", "src/memspine/workers/windows.py:236", "src/memspine/workers/pipelines.py:1882", "src/memspine/engine.py:13794"],
+    "v2_component": "schema.ItemV1 (wire) -> schema.AssertionEnvelope (stored), compiler in derive.EnvelopeCompiler",
+    "operators": ["D"],
+    "memory_types": ["semantic", "associative"]
+  },
+  {
+    "id": "W-16",
+    "choice": "B",
+    "combined": "",
+    "verdict": "ok",
+    "conflicts": [],
+    "needs": "",
+    "impact": {
+      "quality": "+ (estimate): fixes pronouns and name drift across windows",
+      "latency": "- small: a few CONTEXT lines and one KNOWN line per call",
+      "cost": "- small: extra input tokens per call (estimate tens of tokens)",
+      "risk": "+ safer: CONTEXT is never extracted from; KNOWN suggests identity, never overrides evidence. Supplies no replaces alias (see W-21)"
+    },
+    "v1_locations": ["src/memspine/workers/windows.py:148"],
+    "v2_component": "derive.PromptContextBuilder (NEW, CONTEXT, KNOWN; KNOWN fed by the P-23 pre-pass and the online resolver)",
+    "operators": ["D"],
+    "memory_types": ["semantic", "associative"]
+  },
+  {
+    "id": "W-17",
+    "choice": "C",
+    "combined": "",
+    "verdict": "needs-measurement",
+    "conflicts": [],
+    "needs": "Labelled cross-domain grounding set (invented names, several languages) to calibrate the rule checks and the adjudication trigger; gate = grounding >= 95% (G-W49) with adjudication calls below a stated share of items.",
+    "impact": {
+      "quality": "+ much better (estimate): catches quotes that support another person, polarity or number",
+      "latency": "- small: model time only for ambiguous bindings",
+      "cost": "- small: adjudication on a minority of items (estimate)",
+      "risk": "+ safer: failing items kept as uncertain, not promoted"
+    },
+    "v1_locations": ["src/memspine/workers/windows.py:148", "src/memspine/workers/windows.py:199", "src/memspine/workers/windows.py:236"],
+    "v2_component": "derive.GroundingChecker (spans per assertion and endpoint, rule checks) + derive.Adjudicator (local entailment or decider)",
+    "operators": ["D"],
+    "memory_types": ["semantic", "associative"]
+  },
+  {
+    "id": "W-18",
+    "choice": "C",
+    "combined": "",
+    "verdict": "needs-measurement",
+    "conflicts": [],
+    "needs": "RV15: screen each partial on its own (same_language, coarse-date span, soft length warning) on the free retrieval screens; gate = English output unchanged on the focus slice and grounding unchanged; reproduce the 353-token count with a manifest (RV10).",
+    "impact": {
+      "quality": "+ (estimate): fixes language, coarse-date and assent gaps",
+      "latency": "+ small: prompt about 353 tokens versus 958 (unverified, RV10)",
+      "cost": "+ saving: fewer input tokens per call",
+      "risk": "+ safer: prompt hash on every derived item; gold-lint covers partials"
+    },
+    "v1_locations": ["src/memspine/workers/pipelines.py:2912"],
+    "v2_component": "prompts.write_extract v2 + prompts/_partials (same_language.j2, coarse_date.j2) + prompts.PromptIdentity",
+    "operators": ["D"],
+    "memory_types": ["semantic", "associative"]
+  },
+  {
+    "id": "W-19",
+    "choice": "B",
+    "combined": "",
+    "verdict": "needs-measurement",
+    "conflicts": [],
+    "needs": "RV17: calibrate MinHash and cosine thresholds separately on held-out alias and homonym pairs before enabling online merges; gate = no homonym merges above a stated rate and pending_merge backlog bounded (O-10).",
+    "impact": {
+      "quality": "+ (estimate): fewer duplicate entities visible between sleeps",
+      "latency": "- small: ladder in code with cached per-namespace vectors",
+      "cost": "0: no model call online",
+      "risk": "+ safer: uncertain names marked pending_merge; homonyms kept apart by type and context"
+    },
+    "v1_locations": ["src/memspine/memories/associative/resolution.py:164", "src/memspine/memories/associative/resolution.py:183", "src/memspine/memories/associative/resolution.py:122"],
+    "v2_component": "graph.OnlineResolver (EntityResolver with llm=None, bounded cache, pending_merge output)",
+    "operators": ["D", "K_C"],
+    "memory_types": ["associative", "semantic"]
+  },
+  {
+    "id": "W-20",
+    "choice": "C",
+    "combined": "",
+    "verdict": "ok",
+    "conflicts": [],
+    "needs": "",
+    "impact": {
+      "quality": "+ much better (estimate): A-B-A returns to A; two same-day events stay two; a re-mention corroborates instead of duplicating",
+      "latency": "0 to small: occurrence matching on date and qualifiers in code",
+      "cost": "0",
+      "risk": "+ safer after migration; key-version migration with old-key aliases is the main risk (RV05)"
+    },
+    "v1_locations": ["src/memspine/workers/pipelines.py:1882"],
+    "v2_component": "identity.AssertionKey (versioned; kind; occurrence id) + identity.OccurrenceResolver",
+    "operators": ["D"],
+    "memory_types": ["associative", "episodic", "semantic"]
+  },
+  {
+    "id": "W-21",
+    "choice": "B",
+    "combined": "",
+    "verdict": "conflict",
+    "conflicts": ["W-16"],
+    "needs": "W-21 B assumed W-16 C for the replaces alias; with W-16 B the ladder is seeded only by kind, the 'changed from A to B' transition and cardinality; the replaces seed waits for W-16 C (advanced). Proposal: accept the reduced hint set now, add replaces when W-16 C passes its gate.",
+    "impact": {
+      "quality": "+ small now, + more once replaces lands (estimate)",
+      "latency": "0",
+      "cost": "0",
+      "risk": "+ safer: model proposes, ladder disposes and names the rung; supersede only at cardinality one"
+    },
+    "v1_locations": ["src/memspine/core/policies/conflict.py:91", "src/memspine/core/policies/conflict.py:144", "src/memspine/workers/pipelines.py:2015", "src/memspine/memories/semantic/write_pipeline.py:141"],
+    "v2_component": "integrate.ConflictLadder (hint-seeded) with deferral to K_C when hints are absent",
+    "operators": ["D", "K_C"],
+    "memory_types": ["semantic", "associative"]
+  },
+  {
+    "id": "W-22",
+    "choice": "D",
+    "combined": "",
+    "verdict": "conflict",
+    "conflicts": ["M-12"],
+    "needs": "M-12 B says unknown attributes default to many (coexist); W-22 D says an undeclared state contests. Proposal: the M-12 registry stays the single authority (unknown -> coexist), learned cardinality from W-22 enters the registry only as reviewable proposals, and contest applies to undeclared states only when the extractor marks a transition. Needs owner confirmation.",
+    "impact": {
+      "quality": "+ (estimate): a second employer or pet no longer silently retires the first",
+      "latency": "0",
+      "cost": "0",
+      "risk": "+ safer: no silent loss; readers must present coexisting and disputed values (R-20)"
+    },
+    "v1_locations": ["src/memspine/core/policies/conflict.py:60", "src/memspine/workers/pipelines.py:2015"],
+    "v2_component": "integrate.CardinalityRegistry (M-12) + integrate.DefaultVerdict",
+    "operators": ["D", "K_C"],
+    "memory_types": ["semantic", "associative"]
+  },
+  {
+    "id": "W-23",
+    "choice": "B",
+    "combined": "Owner note 'B + C'. One AssetDescriber port with two triggers, both off by default (BD-8 hold): B at ingest (opt-in; a local vision model writes a caption as a derived resource record with asset hash, model and prompt as provenance) and C on demand at read (when a read needs unresolved visual evidence, the same port describes the asset and deposits the caption the same way, so it is paid once). Ingest-time captions win when both are on; a read never re-describes an asset that already has a caption for the same model and prompt hash. Compatible.",
+    "verdict": "ok-combined",
+    "conflicts": [],
+    "needs": "",
+    "impact": {
+      "quality": "+ (estimate): visual evidence becomes searchable (B) or answerable (C)",
+      "latency": "B adds a vision call per asset at ingest; C adds one on the first read that needs it (estimate seconds)",
+      "cost": "B pays per asset; C pays only when used",
+      "risk": "0: vision errors become memory, contained by derived trust caps and provenance"
+    },
+    "v1_locations": ["src/memspine/config/schema.py:1780", "src/memspine/config/schema.py:1799", "src/memspine/engine.py:3031", "src/memspine/engine.py:4464"],
+    "v2_component": "intake.AssetDescriber port (triggers: ingest | on_read)",
+    "operators": ["D", "R"],
+    "memory_types": ["resource", "episodic"]
+  },
+  {
+    "id": "W-24",
+    "choice": "C",
+    "combined": "",
+    "verdict": "ok",
+    "conflicts": [],
+    "needs": "",
+    "impact": {
+      "quality": "+ (estimate): stale derived facts retired with their source version; as-of reads see old versions",
+      "latency": "+ on re-ingest: unchanged chunks reused",
+      "cost": "+ much saving on re-ingest of edited documents",
+      "risk": "+ much safer: one versioning mechanism for documents and message edits; migration of existing resource records needed"
+    },
+    "v1_locations": ["src/memspine/memories/resource/store.py:54", "src/memspine/engine.py:11778"],
+    "v2_component": "intake.SourceVersioner (chunk diff + version events; derived items re-pointed or retired)",
+    "operators": ["D", "K_C"],
+    "memory_types": ["resource", "semantic"]
+  },
+  {
+    "id": "W-25",
+    "choice": "B",
+    "combined": "",
+    "verdict": "ok",
+    "conflicts": [],
+    "needs": "",
+    "impact": {
+      "quality": "+ (estimate): no evidence dropped under load; coverage kept, freshness degrades",
+      "latency": "derived freshness worsens under load by design; raw intake unaffected",
+      "cost": "+ small saving: coalesced windows mean fewer calls",
+      "risk": "+ much safer: replaces drop-oldest above 5,000 pending edge batches"
+    },
+    "v1_locations": ["src/memspine/workers/windows.py:808", "src/memspine/workers/windows.py:812", "src/memspine/config/constants.py:511", "src/memspine/engine.py:4302"],
+    "v2_component": "derive.Backpressure (coalesce, age and size caps, underived marker in the outbox)",
+    "operators": ["D", "K_C"],
+    "memory_types": ["episodic", "semantic"]
+  },
+  {
+    "id": "W-26",
+    "choice": "D",
+    "combined": "",
+    "verdict": "ok",
+    "conflicts": [],
+    "needs": "",
+    "impact": {
+      "quality": "0, or - small when a budget is hit (freshness drops, nothing lost)",
+      "latency": "0",
+      "cost": "+ much better control: hard ceiling for hosted extractors; budget off by default",
+      "risk": "+ safer: cost claims reproducible (RV10, RV20)"
+    },
+    "v1_locations": ["src/memspine/engine.py:13788", "src/memspine/engine.py:13257"],
+    "v2_component": "ledger.WriteCostLedger (shared with P-22 C) + ledger.Budget (pause -> underived)",
+    "operators": ["D", "K_C", "K_P"],
+    "memory_types": ["episodic", "semantic", "associative", "procedural", "reflective"]
+  }
+]

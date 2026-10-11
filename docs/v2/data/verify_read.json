@@ -1,0 +1,725 @@
+[
+ {
+  "id": "R-01",
+  "choice": "B",
+  "combined": "A + B: config sets default depth (fast) and allowed tiers; per-call depth overrides within the allowed set",
+  "verdict": "ok-combined",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "0 at default; + where deep pays (unproven)",
+   "latency": "0 at default",
+   "cost": "0 at default; deep paid on request",
+   "risk": "low; per-tier call caps (BD-1)"
+  },
+  "v1_locations": [
+   "src/memspine/config/schema.py:1154-1222",
+   "src/memspine/engine.py:6576"
+  ],
+  "v2_component": "read.tiers (TierPolicy)",
+  "operators": [
+   "R"
+  ],
+  "memory_types": [
+   "working",
+   "episodic",
+   "semantic"
+  ]
+ },
+ {
+  "id": "R-02",
+  "choice": "C",
+  "combined": "",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "+small on aggregation/change questions (estimate)",
+   "latency": "0",
+   "cost": "notes within +30% tokens",
+   "risk": "low; raw stays authoritative"
+  },
+  "v1_locations": [
+   "src/memspine/config/templates/base.yaml:19",
+   "src/memspine/config/schema.py:427",
+   "src/memspine/engine.py:6037"
+  ],
+  "v2_component": "compose.bundle (EvidenceBundle)",
+  "operators": [
+   "C"
+  ],
+  "memory_types": [
+   "episodic",
+   "semantic",
+   "reflective"
+  ]
+ },
+ {
+  "id": "R-03",
+  "choice": "B",
+  "combined": "",
+  "verdict": "needs-measurement",
+  "conflicts": [],
+  "needs": "contract-jina-full (1,540) vs clean-jina-full 81.4, then MAB-CR and ConvoMem blind; no category beyond its band (focus slice net +9 at no extra cost)",
+  "impact": {
+   "quality": "about +0.5 to +1 pt LoCoMo (estimate from +9/437)",
+   "latency": "0 (measured)",
+   "cost": "0 (2.04 vs 2.03 calls, 2,168 vs 2,162 tokens)",
+   "risk": "rules English-shaped; unknown contract falls back"
+  },
+  "v1_locations": [
+   "src/memspine/core/query_contract.py:86",
+   "src/memspine/core/query_contract.py:316-443",
+   "src/memspine/config/schema.py:970",
+   "src/memspine/engine.py:5718",
+   "src/memspine/engine.py:14016-14036"
+  ],
+  "v2_component": "read.contract (QueryContract)",
+  "operators": [
+   "R"
+  ],
+  "memory_types": [
+   "working"
+  ]
+ },
+ {
+  "id": "R-04",
+  "choice": "D",
+  "combined": "",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "+ where routes are screened",
+   "latency": "0 hot path; +1 call in deep",
+   "cost": "0 hot path",
+   "risk": "silent misroutes; log route reason"
+  },
+  "v1_locations": [
+   "src/memspine/config/schema.py:503",
+   "src/memspine/engine.py:13976",
+   "src/memspine/engine.py:2339",
+   "src/memspine/engine.py:6064-6171"
+  ],
+  "v2_component": "read.router (Router)",
+  "operators": [
+   "R"
+  ],
+  "memory_types": [
+   "working"
+  ]
+ },
+ {
+  "id": "R-05",
+  "choice": "D",
+  "combined": "",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "0 to +small (estimate)",
+   "latency": "flat at default; bounded by R-25",
+   "cost": "0",
+   "risk": "depends on router; each leg screened"
+  },
+  "v1_locations": [
+   "src/memspine/engine.py:2397-2504",
+   "src/memspine/engine.py:5310",
+   "src/memspine/config/schema.py:919"
+  ],
+  "v2_component": "read.legs (Leg registry with families)",
+  "operators": [
+   "R"
+  ],
+  "memory_types": [
+   "episodic",
+   "semantic",
+   "associative"
+  ]
+ },
+ {
+  "id": "R-06",
+  "choice": "D",
+  "combined": "",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "0 English; + non-Latin text",
+   "latency": "0",
+   "cost": "0",
+   "risk": "low; one tokeniser port"
+  },
+  "v1_locations": [
+   "src/memspine/engine.py:5196",
+   "src/memspine/engine.py:15020-15027",
+   "src/memspine/config/schema.py:860"
+  ],
+  "v2_component": "read.legs.lexical (Tokeniser port)",
+  "operators": [
+   "R"
+  ],
+  "memory_types": [
+   "episodic",
+   "semantic"
+  ]
+ },
+ {
+  "id": "R-07",
+  "choice": "D",
+  "combined": "",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "+small on temporal (today 83.2), estimate; B4 once showed no gain",
+   "latency": "0",
+   "cost": "0",
+   "risk": "depends on M-10 event time; falls back to B"
+  },
+  "v1_locations": [
+   "src/memspine/core/temporal_query.py:106",
+   "src/memspine/core/temporal_query.py:181",
+   "src/memspine/config/schema.py:363-385",
+   "src/memspine/engine.py:2430-2462",
+   "src/memspine/config/templates/base.yaml:21-23"
+  ],
+  "v2_component": "read.legs.temporal (TimeWindow)",
+  "operators": [
+   "R"
+  ],
+  "memory_types": [
+   "episodic",
+   "prospective"
+  ]
+ },
+ {
+  "id": "R-08",
+  "choice": "B",
+  "combined": "",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "+small on named multi-hop (estimate)",
+   "latency": "+ one indexed lookup when routed",
+   "cost": "0",
+   "risk": "curve constant per store size (RV17)"
+  },
+  "v1_locations": [
+   "src/memspine/core/temporal_query.py:745",
+   "src/memspine/config/schema.py:1033",
+   "src/memspine/engine.py:2481-2486"
+  ],
+  "v2_component": "read.legs.entity",
+  "operators": [
+   "R"
+  ],
+  "memory_types": [
+   "associative",
+   "semantic"
+  ]
+ },
+ {
+  "id": "R-09",
+  "choice": "C",
+  "combined": "",
+  "verdict": "conflict",
+  "conflicts": [
+   "M-02"
+  ],
+  "needs": "Owner to confirm the M-02 'B + D' reading: graph is an optional projection, off by default; graph leg router-activated only when it exists",
+  "impact": {
+   "quality": "+ multi-hop when graph on (estimate)",
+   "latency": "bounded by leg timeout",
+   "cost": "0 calls",
+   "risk": "graph freshness (G-W49); unscreened (G-C3)"
+  },
+  "v1_locations": [
+   "src/memspine/engine.py:2568-2675",
+   "src/memspine/engine.py:3681",
+   "src/memspine/config/schema.py:699-719"
+  ],
+  "v2_component": "read.legs.graph (OneHopConvergent)",
+  "operators": [
+   "R"
+  ],
+  "memory_types": [
+   "associative"
+  ]
+ },
+ {
+  "id": "R-10",
+  "choice": "B",
+  "combined": "",
+  "verdict": "conflict",
+  "conflicts": [
+   "M-02",
+   "M-14",
+   "O-09"
+  ],
+  "needs": "Owner to confirm episodes are an optional M-02 layer; episode leg only when that layer exists",
+  "impact": {
+   "quality": "+small multi-hop/open (estimate)",
+   "latency": "+ one vector search",
+   "cost": "0",
+   "risk": "low; derived text never shown"
+  },
+  "v1_locations": [
+   "src/memspine/config/schema.py:875",
+   "src/memspine/config/schema.py:1003",
+   "src/memspine/config/schema.py:1014",
+   "src/memspine/core/temporal_query.py:854",
+   "src/memspine/engine.py:6210"
+  ],
+  "v2_component": "read.legs.episode + read.lift",
+  "operators": [
+   "R"
+  ],
+  "memory_types": [
+   "episodic",
+   "reflective"
+  ]
+ },
+ {
+  "id": "R-11",
+  "choice": "C",
+  "combined": "A + C: legs merged within source family (max rank), then RRF k=60 with equal weights across families; plain RRF kept as a mode and identical when one leg per family",
+  "verdict": "ok-combined",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "0 at default; + with routed legs (estimate)",
+   "latency": "0",
+   "cost": "0",
+   "risk": "low"
+  },
+  "v1_locations": [
+   "src/memspine/services/lexical/base.py:80",
+   "src/memspine/services/lexical/base.py:119",
+   "src/memspine/engine.py:5473-5555",
+   "src/memspine/engine.py:877-878",
+   "src/memspine/config/constants.py:12",
+   "src/memspine/config/schema.py:833-842"
+  ],
+  "v2_component": "read.fusion (FamilyRRF)",
+  "operators": [
+   "R"
+  ],
+  "memory_types": [
+   "episodic",
+   "semantic"
+  ]
+ },
+ {
+  "id": "R-12",
+  "choice": "C",
+  "combined": "",
+  "verdict": "needs-measurement",
+  "conflicts": [],
+  "needs": "Focus slice C (source_family) vs B (per_leg 3, the clean-jina-full arm): non-inferior within band, rerank pairs <= B",
+  "impact": {
+   "quality": "about equal to B's +15 net (estimate)",
+   "latency": "0",
+   "cost": "rerank pairs below B's +30%",
+   "risk": "pool bounded as legs grow"
+  },
+  "v1_locations": [
+   "src/memspine/config/schema.py:447",
+   "src/memspine/config/schema.py:453",
+   "src/memspine/engine.py:5386",
+   "src/memspine/engine.py:5500-5509",
+   "src/memspine/engine.py:5634"
+  ],
+  "v2_component": "read.pool (FamilyPool)",
+  "operators": [
+   "R"
+  ],
+  "memory_types": [
+   "episodic",
+   "semantic"
+  ]
+ },
+ {
+  "id": "R-13",
+  "choice": "C",
+  "combined": "",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "+ recall on large stores at standard",
+   "latency": "about +0.2 s for 40 Jina pairs on GPU (estimate)",
+   "cost": "grows with tier",
+   "risk": "floors calibrated per store and model (RV17)"
+  },
+  "v1_locations": [
+   "src/memspine/config/schema.py:566",
+   "src/memspine/config/schema.py:1024",
+   "src/memspine/config/schema.py:1253",
+   "src/memspine/core/relevance_probes.py:80"
+  ],
+  "v2_component": "read.pool (PoolPolicy)",
+  "operators": [
+   "R"
+  ],
+  "memory_types": [
+   "episodic",
+   "semantic"
+  ]
+ },
+ {
+  "id": "R-14",
+  "choice": "B",
+  "combined": "standing owner decision: jina-reranker-v3.5 is the only reranker; the 4B quality tier is dropped",
+  "verdict": "conflict",
+  "conflicts": [
+   "P-18"
+  ],
+  "needs": "Owner: Jina on every read (R-14) or only when the P-18 gate fires? Research: jina v3.5 licence for commercial use",
+  "impact": {
+   "quality": "baseline 81.4 measured (clean-jina-full)",
+   "latency": "+0.1-0.3 s on GPU (estimate)",
+   "cost": "reader tokens about halved (1,571 to 672, I84)",
+   "risk": "licence unchecked"
+  },
+  "v1_locations": [
+   "src/memspine/config/schema.py:333-336",
+   "src/memspine/engine.py:11676",
+   "src/memspine/engine.py:5703-5750"
+  ],
+  "v2_component": "read.rerank (RerankStage)",
+  "operators": [
+   "R"
+  ],
+  "memory_types": [
+   "episodic",
+   "semantic"
+  ]
+ },
+ {
+  "id": "R-15",
+  "choice": "A",
+  "combined": "",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "0 vs today; forgoes the small estimated gain of C; context-dependent turns score low (multi-hop 66.7)",
+   "latency": "0 (cheaper than C)",
+   "cost": "0",
+   "risk": "low; G-W28 not taken"
+  },
+  "v1_locations": [
+   "src/memspine/config/schema.py:440",
+   "src/memspine/config/schema.py:469",
+   "src/memspine/config/schema.py:429",
+   "src/memspine/engine.py:5744-5750"
+  ],
+  "v2_component": "read.rerank (unit = hit)",
+  "operators": [
+   "R"
+  ],
+  "memory_types": [
+   "episodic"
+  ]
+ },
+ {
+  "id": "R-16",
+  "choice": "B",
+  "combined": "",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "0 to +small (estimate); off until screened",
+   "latency": "0",
+   "cost": "0",
+   "risk": "band cannot override relevance"
+  },
+  "v1_locations": [
+   "src/memspine/config/templates/base.yaml:24-27",
+   "src/memspine/core/policies/scoring.py",
+   "src/memspine/config/schema.py:1494",
+   "src/memspine/config/schema.py:1040"
+  ],
+  "v2_component": "read.rerank.boosts (BoundedBoost)",
+  "operators": [
+   "R"
+  ],
+  "memory_types": [
+   "semantic",
+   "reflective"
+  ]
+ },
+ {
+  "id": "R-17",
+  "choice": "B",
+  "combined": "",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "+small (estimate)",
+   "latency": "0",
+   "cost": "tokens within +30%",
+   "risk": "needs lineage on derived rows (M-09)"
+  },
+  "v1_locations": [
+   "src/memspine/config/schema.py:1014",
+   "src/memspine/engine.py:6210-6213"
+  ],
+  "v2_component": "read.lift",
+  "operators": [
+   "R"
+  ],
+  "memory_types": [
+   "episodic",
+   "semantic",
+   "associative",
+   "reflective"
+  ]
+ },
+ {
+  "id": "R-18",
+  "choice": "D",
+  "combined": "B (skip-and-continue, exact reader tokens) adopted now as a correctness fix; dynamic block shares after a screen",
+  "verdict": "needs-measurement",
+  "conflicts": [],
+  "needs": "Shares vs no shares at equal budget on the focus slice (RV08); the step-1 fix needs no screen",
+  "impact": {
+   "quality": "+small from the fix (estimate)",
+   "latency": "0",
+   "cost": "tokens equal or lower",
+   "risk": "context never exceeds budget"
+  },
+  "v1_locations": [
+   "src/memspine/core/policies/assembly.py:179",
+   "src/memspine/core/policies/assembly.py:288-309",
+   "src/memspine/config/constants.py:210-212",
+   "src/memspine/engine.py:5910"
+  ],
+  "v2_component": "compose.packer (BudgetPacker)",
+  "operators": [
+   "C"
+  ],
+  "memory_types": [
+   "working"
+  ]
+ },
+ {
+  "id": "R-19",
+  "choice": "C",
+  "combined": "",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "0 to +small (estimate)",
+   "latency": "0",
+   "cost": "tokens more predictable",
+   "risk": "low"
+  },
+  "v1_locations": [
+   "src/memspine/config/schema.py:574-594",
+   "src/memspine/engine.py:9319",
+   "src/memspine/engine.py:9428"
+  ],
+  "v2_component": "compose.windows (TokenWindow)",
+  "operators": [
+   "C"
+  ],
+  "memory_types": [
+   "episodic"
+  ]
+ },
+ {
+  "id": "R-20",
+  "choice": "D",
+  "combined": "",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "+ (A03 header measured +9 on focus slice)",
+   "latency": "0",
+   "cost": "about +7% tokens for dates (D1)",
+   "risk": "lower; inference vs observation visible"
+  },
+  "v1_locations": [
+   "src/memspine/config/schema.py:625",
+   "src/memspine/config/schema.py:1087",
+   "src/memspine/core/policies/assembly.py:80-85",
+   "src/memspine/engine.py:3244-3306"
+  ],
+  "v2_component": "compose.render (Renderer)",
+  "operators": [
+   "C"
+  ],
+  "memory_types": [
+   "working"
+  ]
+ },
+ {
+  "id": "R-21",
+  "choice": "C",
+  "combined": "",
+  "verdict": "needs-measurement",
+  "conflicts": [],
+  "needs": "Never screened: OP-Bench gain and no recall loss beyond band on MAB-CR, ConvoMem, LoCoMo; fired rate per slice",
+  "impact": {
+   "quality": "+ on irrelevant-request sets (decider form +22 OP-Bench); may suppress multi-hop",
+   "latency": "0 per read",
+   "cost": "0 calls",
+   "risk": "recall loss on on-topic sets"
+  },
+  "v1_locations": [
+   "src/memspine/config/schema.py:1231",
+   "src/memspine/engine.py:8038",
+   "src/memspine/engine.py:14144",
+   "src/memspine/core/relevance_probes.py:80",
+   "src/memspine/config/constants.py:125",
+   "src/memspine/engine.py:6230-6285"
+  ],
+  "v2_component": "read.gate (StoreCalibratedGate)",
+  "operators": [
+   "R"
+  ],
+  "memory_types": [
+   "working",
+   "semantic"
+  ]
+ },
+ {
+  "id": "R-22",
+  "choice": "B",
+  "combined": "deep tier only: one sufficiency judge, at most one rewrite round (reuses the R-04 rewrite); slot loop and fact chain retired",
+  "verdict": "needs-measurement",
+  "conflicts": [],
+  "needs": "New f-suff screen on the 437-q focus slice vs f-jref2-i2: net > band (about +7), no category loss, wall <= 2x; the E02 slot loop was net -3 at about 8x",
+  "impact": {
+   "quality": "0 to +small where it fires (estimate); unproven",
+   "latency": "deep about 2-3x standard (estimate)",
+   "cost": "+1 to 2 calls per deep read",
+   "risk": "none for default reads; deep cost variance"
+  },
+  "v1_locations": [
+   "src/memspine/config/schema.py:1154-1222",
+   "src/memspine/engine.py:6762-7228",
+   "src/memspine/core/slot_loop.py",
+   "src/memspine/core/fact_chain.py:239"
+  ],
+  "v2_component": "read.deep (SufficiencyRound)",
+  "operators": [
+   "R",
+   "C"
+  ],
+  "memory_types": [
+   "working",
+   "episodic"
+  ]
+ },
+ {
+  "id": "R-23",
+  "choice": "B",
+  "combined": "",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "+ on invited-inference questions",
+   "latency": "+ where it fires",
+   "cost": "+ calls (budget 20)",
+   "risk": "query leakage; privacy filter"
+  },
+  "v1_locations": [
+   "src/memspine/config/schema.py:1300",
+   "src/memspine/engine.py:3147-3178"
+  ],
+  "v2_component": "read.external",
+  "operators": [
+   "R"
+  ],
+  "memory_types": [
+   "resource"
+  ]
+ },
+ {
+  "id": "R-24",
+  "choice": "C",
+  "combined": "",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "+small on change questions (estimate)",
+   "latency": "0",
+   "cost": "+1 line per keyed value",
+   "risk": "wrong contract scope; history-line fallback"
+  },
+  "v1_locations": [
+   "src/memspine/core/read_filters.py:245-260",
+   "src/memspine/engine.py:1097",
+   "src/memspine/engine.py:6595-6602"
+  ],
+  "v2_component": "read.timeview (TimeView)",
+  "operators": [
+   "R"
+  ],
+  "memory_types": [
+   "semantic",
+   "episodic"
+  ]
+ },
+ {
+  "id": "R-25",
+  "choice": "C",
+  "combined": "",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "0",
+   "latency": "+ near slowest leg instead of sum (p50 764 ms today, clean-jina-full)",
+   "cost": "0",
+   "risk": "store thread safety; determinism test"
+  },
+  "v1_locations": [
+   "src/memspine/engine.py:5310"
+  ],
+  "v2_component": "read.exec (LegExecutor)",
+  "operators": [
+   "R"
+  ],
+  "memory_types": [
+   "working"
+  ]
+ },
+ {
+  "id": "R-26",
+  "choice": "D",
+  "combined": "",
+  "verdict": "ok",
+  "conflicts": [],
+  "needs": "",
+  "impact": {
+   "quality": "0",
+   "latency": "small gain on hosted readers (local prefill about 10%)",
+   "cost": "+ with hosted provider cache",
+   "risk": "none added; B and C deferred"
+  },
+  "v1_locations": [
+   "src/memspine/engine.py:739-776",
+   "src/memspine/engine.py:1268-1300",
+   "src/memspine/config/schema.py:1368-1369",
+   "src/memspine/core/policies/assembly.py:80-85"
+  ],
+  "v2_component": "read.cache + compose.render layout",
+  "operators": [
+   "C"
+  ],
+  "memory_types": [
+   "working"
+  ]
+ }
+]
