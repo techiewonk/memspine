@@ -58,6 +58,8 @@ def load():
         except json.JSONDecodeError as exc:
             print(f"skip {f.name}: {exc}", file=sys.stderr)
             continue
+        if "rows" not in r:  # synthesis, gap plan, prompt matrix: not engine records
+            continue
         recs[r.get("slug", f.stem)] = r
     order = [s for s in ORDER if s in recs] + sorted(s for s in recs if s not in ORDER)
     return [recs[s] for s in order]
