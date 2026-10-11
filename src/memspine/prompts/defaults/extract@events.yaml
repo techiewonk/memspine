@@ -16,7 +16,7 @@ system: >-
   the line only intends or schedules it, done if it says it happened, cancelled if it says it
   was called off or did not happen), line (the number of the line), span (an exact quote from
   that line, copied character for character, that states the event), when (the time phrase
-  of the event exactly as written in that line, such as "last Friday" or "on 3 May 2023";
+  of the event exactly as written in that line, such as "last Friday" or "on 12 March 2021";
   empty if the line gives none; never the date of the line itself), same_as (the number of an
   EARLIER entry in your list that this line says it repeats or updates, else 0) and identity
   (an exact quote from this line that says it is the same event, such as "the same trip",
