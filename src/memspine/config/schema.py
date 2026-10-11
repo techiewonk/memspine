@@ -731,6 +731,20 @@ class ReadConfig(BaseModel):
     #: also shows the message it answers (gated like any replayed neighbour, within
     #: the budget). Off: byte-identical.
     reply_links: bool = False
+    #: A07: reply / reference edges inferred from the turn order. ``on``: at write time
+    #: (``write_messages``) a short reply from another speaker, and a turn that opens with a
+    #: deictic reference ("this", "that", "these", "those", "we"), is linked to the immediately
+    #: preceding turn through ``reply_to:<id>`` plus a ``ref:short_reply`` / ``ref:deictic``
+    #: tag; an explicit ``reply_to`` is never overridden. At read time (replay) the antecedent
+    #: of a retrieved turn that carries such a tag is attached (same namespace, within the
+    #: budget, at most ``reference_max_per_read`` per read) and every decision is logged in
+    #: the forensics as ``reference_edges``. Off: byte-identical.
+    reference_edges: Literal["off", "on"] = "off"
+    #: A07: a turn of at most this many words (speaker prefix excluded), by another speaker
+    #: than the previous turn, counts as a short reply.
+    reference_short_words: int = Field(default=6, ge=1, le=20)
+    #: A07: the most antecedents one read attaches.
+    reference_max_per_read: int = Field(default=4, ge=1, le=16)
     #: GP-6 (#17): an "About <Name>: …" block of the entity summaries
     #: (``summarize_entities`` stage) of the entities the query names (the graph
     #: leg's seeds), within ``cards_budget_share`` after the cards and the graph

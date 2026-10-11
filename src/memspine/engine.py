@@ -225,6 +225,7 @@ from memspine.core.registry import SERVICE_EXTRAS, dependency_closure, missing_s
 from memspine.core.relevance_probes import OFF_TOPIC_PROBES, Calibration, calibrate
 from memspine.core.replay import catch_up
 from memspine.core.replay import rebuild as replay_rebuild
+from memspine.core.reference_edges import REF_PREFIX, antecedent_kind, reference_kinds
 from memspine.core.rule_edges import BECAUSE_REL, is_why_question
 from memspine.core.rule_miner import mine_rules
 from memspine.core.sensitive import sensitive_topics
@@ -4358,6 +4359,8 @@ class Engine:
         the write door on its own, with its own firewall and ladder decisions."""
         records: list[MemoryRecord] = []
         written_at: dict[int, str] = {}  # G27: message index -> its record id
+        ref_cfg = self._config().read  # A07
+        prev_turn: tuple[str, str] | None = None  # (record id, speaker) of the last turn written
         fw = self._config().firewall
         if self._perspective_options().on:
             # I39: the call's participants are known before its first turn is annotated
@@ -4440,6 +4443,17 @@ class Engine:
             asset_refs = self._attachment_refs(turn, i, session_id)
             for _ref, aid in asset_refs:
                 turn_tags.append(f"asset:{aid}")  # E04: ingest.assets
+            if ref_cfg.reference_edges == "on" and reply_to is None and prev_turn is not None:
+                # A07: a short reply / deictic turn answers the turn right before it
+                ref_kind = antecedent_kind(
+                    content,
+                    _speaker_of(turn),
+                    prev_turn[1],
+                    max_words=ref_cfg.reference_short_words,
+                )
+                if ref_kind is not None:
+                    reply_to = prev_turn[0]
+                    turn_tags.append(f"{REF_PREFIX}{ref_kind}")
             stamp = self._event_time(turn.get("timestamp")) or valid_from
             if stamp is not None and session_id and self._config().read.session_sequence:
                 stamp = self._sequenced(namespace, session_id, self._localize(stamp))
@@ -4464,6 +4478,8 @@ class Engine:
                 await self._apply_correction(record.namespace, record, correction, records)
             records.append(record)
             written_at[i] = record.record_id
+            if not record.quarantined:
+                prev_turn = (record.record_id, _speaker_of(turn))
         return records
 
     def _localize(self, value: datetime) -> datetime:
@@ -7565,6 +7581,10 @@ class Engine:
                     used += cost
                     if rank == 0:
                         best_window.add(answered)
+        if read_cfg.reference_edges == "on":
+            used = await self._attach_antecedents(
+                ns, episodic_hits, chosen, seen, best_window, used, budget_tokens, read_cfg
+            )
         stable = [r for r in chosen if r.memory_type != "episodic"]
         turns = sorted(
             (r for r in chosen if r.memory_type == "episodic"),
@@ -7590,6 +7610,55 @@ class Engine:
                 budget_tokens,
             ),
         )
+
+    async def _attach_antecedents(
+        self,
+        ns: str,
+        hits: Sequence[MemoryRecord],
+        chosen: list[MemoryRecord],
+        seen: set[str],
+        best_window: set[str],
+        used: int,
+        budget_tokens: int,
+        read_cfg: Any,
+    ) -> int:
+        """A07 (``read.reference_edges``): the antecedent of each retrieved turn that carries a
+        ``ref:`` tag joins the evidence, best hit first, at most ``reference_max_per_read``,
+        same namespace, within the budget. Each decision is logged (``reference_edges`` in the
+        forensics): attached, already present, over budget, over the cap, or missing. Never
+        raises: a failure leaves the evidence as it was. Returns the updated token use."""
+        fx = _FORENSICS.get()
+        attached = 0
+        try:
+            for rank, hit in enumerate(hits):
+                kinds = reference_kinds(hit.tags)
+                if not kinds:
+                    continue
+                for answered in _reply_targets(hit):
+                    entry = {"hit": hit.record_id, "antecedent": answered, "kind": kinds[0]}
+                    if answered in seen:
+                        outcome = "present"
+                    elif attached >= read_cfg.reference_max_per_read:
+                        outcome = "over_cap"
+                    else:
+                        turn = await self._replay_neighbour(answered, ns)
+                        if turn is None or turn.namespace != ns:
+                            outcome = "missing"
+                        elif used + len(turn.content) // 4 + 1 > budget_tokens:
+                            outcome = "over_budget"
+                        else:
+                            outcome = "attached"
+                            chosen.append(turn)
+                            seen.add(answered)
+                            used += len(turn.content) // 4 + 1
+                            attached += 1
+                            if rank == 0:
+                                best_window.add(answered)
+                    if fx is not None:
+                        fx.setdefault("reference_edges", []).append({**entry, "outcome": outcome})
+        except Exception as exc:  # an enhancer, never a gate
+            _log.warning("read.reference_edges_failed", namespace=ns, error=str(exc))
+        return used
 
     def _list_mode_fires(self, query: str) -> bool:
         """B1: ``read.list_mode`` is on and the question matches ``read.list_trigger``."""
