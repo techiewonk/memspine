@@ -57,6 +57,14 @@ KNOWN_GOLD = (
     "2023-07-14",
     "Charlotte's Web",
     "Lake Tahoe",
+    # 2026-10-11: single-word gold answers that sat in prompt examples (G-P5)
+    "Gamecube",
+    "Hobbit",
+    "Dune",
+    "Sweden",
+    "religious",
+    "church",
+    "magical",
 )
 KNOWN_SPEAKERS = (
     "Caroline",

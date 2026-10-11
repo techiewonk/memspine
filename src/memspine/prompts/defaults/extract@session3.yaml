@@ -21,7 +21,7 @@ system: >-
   date the fact refers to in `date` as YYYY-MM-DD (or YYYY-MM or YYYY when only that
   is known; leave it empty if no time is involved);
   (4) keep names, numbers, titles and places exactly as stated; never generalise a
-  specific detail ("a Gamecube", not "a console");
+  specific detail ("a Sega Saturn", not "a console");
   (5) never invent facts;
   (6) classify each fact as `kind: state` or `kind: event`. A state is single-valued
   and current, so a newer value replaces it: where someone lives, their job, their

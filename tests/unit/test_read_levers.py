@@ -206,9 +206,9 @@ def test_plan_v2_prompt_is_a_variant() -> None:
     assert registry.select("plan").id == "plan"
     v2 = registry.select("plan", condition="v2")
     assert (v2.id, v2.version) == ("plan@v2", 3)
-    system = v2.render({"query": "Is Caroline religious?"})[0]["content"]
+    system = v2.render({"query": "Is Ilse sporty?"})[0]["content"]
     assert "For lookup and replay, write one or two short subqueries" in system
-    assert "Ben church" in system
+    assert "Ben fencing" in system
 
 
 # -- #60: count dedupe ----------------------------------------------------------------

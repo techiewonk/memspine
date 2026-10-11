@@ -134,7 +134,7 @@ DATED3_QA_PROMPT = (
     'date in the style the question asks: a year for "which year", a month for "which '
     "month\", a day otherwise; relative to the line's date when the context gives no more "
     '("the week before 2024-03-14"). Use the specific detail from the context, quoting its '
-    'words (a name, a title, a phrase such as "magical") rather than paraphrasing it. For a '
+    'words (a name, a title, a phrase such as "whimsical") rather than paraphrasing it. For a '
     '"how many" question, merge repeated mentions of the same event (the same thing on the '
     "same date) and count distinct events. First write one or two short sentences of "
     "reasoning that point at the context lines you use. Then write a final line that starts "

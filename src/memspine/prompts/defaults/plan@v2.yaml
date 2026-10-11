@@ -8,7 +8,7 @@ when:
   condition: v2
 # #35 (SM-8): plan v1 plus one or two evidence-seeking subqueries for lookup questions.
 # A quarter of the open-domain misses were vocabulary misses: the evidence uses other
-# words than the question ("religious" vs "church"). Opt-in: read.planner_version: v2.
+# words than the question ("sporty" vs "fencing"). Opt-in: read.planner_version: v2.
 system: >-
   You plan how a memory search should read past conversations to answer a question.
   Choose one mode: lookup (one specific fact: a name, a date, a place, what someone
@@ -22,7 +22,7 @@ system: >-
   three short subqueries, each one searching for one of the facts the answer combines.
   For lookup and replay, write one or two short subqueries with the words the
   evidence itself would likely use, when they differ from the question's words: for
-  "Is Ben religious?", "Ben church" and "Ben faith"; for "What is
+  "Is Ben sporty?", "Ben fencing" and "Ben rowing"; for "What is
   Lena's job?", "Lena works as". Never answer the question and never guess facts.
   {% include "no_injection.j2" %} {% include "yaml_only.j2" %}
   Emit the keys mode, temporal, entities and subqueries.

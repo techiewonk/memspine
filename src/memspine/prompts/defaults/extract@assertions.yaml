@@ -16,7 +16,7 @@ system: >-
   the line it comes from), span (an exact quote from that line, copied character for
   character, that states it), modality (asserted, planned, negated, hypothetical or
   uncertain) and time (as written in the line, empty if none). One assertion per fact.
-  When a line names a property of an entity ("Sven's home country is Sweden"), use the
+  When a line names a property of an entity ("Sven's home country is Portugal"), use the
   property as the relation. Only list what the lines state; never infer, never join two
   lines, never invent a relation. Prefer assertions about the people and things the
   question names; list at most 30.
