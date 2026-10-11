@@ -535,6 +535,19 @@
       "effort": "S",
       "wave": "D",
       "gate": "Off by default."
+    },
+    {
+      "id": "G-W49",
+      "area": "extract",
+      "title": "Online graph call: one short item list per batch of turns",
+      "status": "missing",
+      "others": "Graphiti: 2 calls per episode plus one dedupe call per new fact, resolution by exact name, entropy gate and MinHash before any LLM; Hindsight and Cognee take entities and relations from the same call; Honcho, Mnemon and LightMem use one static, example-free call per token-gated batch with cited lines.",
+      "now": "Steps 1-5 make no model call. W1 (off) emits facts and edges separately (958-token prompt in facts_graph; every relation written twice; speaker/subject/confidence never read); edges wait in an in-memory buffer for the extract_graph sleep stage; the entity resolver runs only at sleep.",
+      "why": "An inline call costs about 50x the hot path (2.7 s per 9B call vs 55-210 ms), so the call runs right after the write; LLM merges and contradiction checks stay at sleep (ADR-066 call 3).",
+      "proposal": "window_extract: graph mode. One item list {s, r, o, text, kind, when, lines, span}; 309-token example-free prompt with a KNOWN names line; every item span-grounded; names resolved in code (rules mode, no LLM); deposit through emit factored out of extract_graph (state supersedes, event adds); window_max_turns 1 gives per-turn.",
+      "effort": "M",
+      "wave": "B",
+      "gate": "Prompt ~300 tokens, output tokens per window down >=30%, p50 call latency down, turn-to-edge under 10 s at max_turns 1; focus slice vs f-jref-i2, full set within noise, MAB-CR and ConvoMem not down; gold-lint clean."
     }
   ],
   "leads": [
@@ -573,7 +586,8 @@
         "G-W33",
         "G-W40",
         "G-W6",
-        "G-P2"
+        "G-P2",
+        "G-W49"
       ],
       "time": "about 1 day build + screens after f-win"
     },
