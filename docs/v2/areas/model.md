@@ -545,7 +545,16 @@ GraphProjection (existing GraphStore protocol, services/graph/base.py:88, extend
 | M-05 / M-24 isolation | I19 leakage probe extended to every key, cache and grant | 0 leaks |
 | M-25 erasure | verify_forget after restart and during inference | No retained payloads (RV07) |
 
+
+## Owner follow-up (2026-10-12)
+
+- **Q1 Layer field, two layers on** (as proposed): Every record has an explicit `layer` field; raw (L0) and facts (L1) are populated by default; episodes, summaries, graph, profile, observations and communities are opt-in layers.
+- **Q3 Value histories plus pattern observations** (changed): Build the deterministic value-history view AND an observation layer for recurring patterns only (code-grouped, model-worded only for groups that changed). O-15 is reopened from 'none' to 'patterns only'; observations are an opt-in L4 layer (Q1). M-13 becomes histories plus pattern observations; M-19 keeps communities and entity summaries; observation scopes are allowed for patterns.
+- **Q4 Neo4j is the server graph** (changed): Embedded profile: auto Ladybug else SQL adjacency (M-18 A). Server profile: Postgres + pgvector + Postgres full text for records, Neo4j for the graph, fed only through the outbox. M-04/M-18: server profile = Postgres + pgvector + Postgres FTS + Neo4j graph; embedded profile unchanged. The GraphProjection contract must cover apply, neighbours, erase, rebuild and scope_check on Neo4j.
+- **Q7 Coexist unless marked** (as proposed): Undeclared attributes coexist (registry default); a new value contests the old one only when extraction marks a change; learned cardinality only as reviewable proposals.
+
 ## Change log
 
 - 2026-10-11: first version; 26 decisions verified against the owner's answers and the write, offline,
   read, model-service and governance areas.
+- 2026-10-12: owner follow-up answers recorded (Q1, Q3, Q4, Q7).

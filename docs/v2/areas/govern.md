@@ -787,6 +787,13 @@ planned in `docs/v2/` and judged by its own gate against a frozen v1 reference (
 | Environment pin | A per-run venv from the regenerated lock; a concurrent sync of the shared venv | Freeze hash unchanged; f-jref2-i2 reproduces +0/-0 (G-24) |
 | N1 with enforcement on | N1 attack set with THI armed, compared with utility | Attack/utility frontier for the paper (G-26) |
 
+
+## Owner follow-up (2026-10-12)
+
+- **Q2 Durable outbox** (as proposed): Library-first inline runner draining a durable outbox in the same store; leftover work resumes on the next open; dbos and taskiq are optional drainers.
+- **Q4 Neo4j is the server graph** (changed): Embedded profile: auto Ladybug else SQL adjacency (M-18 A). Server profile: Postgres + pgvector + Postgres full text for records, Neo4j for the graph, fed only through the outbox. G-13: the reverse-lineage erasure index must reach Neo4j; isolation and erasure probes run on the server profile as an exit gate.
+- **Q8 Assistant exemption in the chat preset only** (as proposed): Base firewall signals on every channel, extended and semantic on top; the assistant-role exemption only in the chat data-shape preset.
+
 ## Change log
 
 - 2026-10-11: Chapter written. 26 questions verified: 24 ok, 1 ok-combined (G-06 A + C), 1 needs-owner (G-19 A
@@ -794,3 +801,4 @@ planned in `docs/v2/` and judged by its own gate against a frozen v1 reference (
   11853ed, the 18:17 `uv sync` incident and the lock pin of huggingface_hub 1.16.1, and proposes the separation of
   v2 and v1 (`memspine`, `engine: v1|v2`).
 - 2026-10-11 (later): owner decided v2 stays inside `memspine` (same package and principles, plan in `docs/v2/` only); separation passages rewritten.
+- 2026-10-12: owner follow-up answers recorded (Q2, Q4, Q8).

@@ -198,3 +198,18 @@ Legend: **rec** = took the recommendation; **diff** = chose another option; **+*
 | G-24 | Environment pinning for runs and installs | C · Per-run isolated environment (rec) | C · Per-run isolated environment |  |
 | G-25 | Run manifest and comparability key | D · C plus cost and latency fields (rec) | D · C plus cost and latency fields |  |
 | G-26 | Claims policy for the MemSpine paper | C · B plus mechanism claims tied to loop metrics (rec) | C · B plus mechanism claims tied to loop metrics |  |
+
+## Owner follow-up answers (2026-10-12)
+
+These refine the answers above where they conflicted; see `VERIFY.md` section 0.
+
+| # | Answer | Changes |
+|---|---|---|
+| Q1 | Layer field, two layers on | M-02, W-12, R-09, R-10, O-08, O-16 |
+| Q2 | Durable outbox | G-19, P-21, W-02, W-10, W-13, W-25 ... |
+| Q3 | Value histories plus pattern observations | M-13, O-15, O-04, O-05, O-21, R-17 ... |
+| Q4 | Neo4j is the server graph | M-04, M-18, W-10, G-13, M-25, M-05 ... |
+| Q5 | Jina on every read if installed | R-14, P-18 |
+| Q6 | Jina if installed, permissive fallback | R-14, P-17, P-18 |
+| Q7 | Coexist unless marked | W-22, M-12 |
+| Q8 | Assistant exemption in the chat preset only | G-06 |

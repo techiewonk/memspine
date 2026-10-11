@@ -337,6 +337,14 @@ class NamespaceJob:                            # memspine.derive.job
 | Anticipated cues (O-23) | LoCoMo+cat5 blind slice | Gain or no loss; cues never in the assembled context |
 | Stitched episodes (O-09) | Focus slice, episode leg against facts-only (G-W1 gate) | Beats facts-only on focus, or adds value on the blind slice |
 
+
+## Owner follow-up (2026-10-12)
+
+- **Q1 Layer field, two layers on** (as proposed): Every record has an explicit `layer` field; raw (L0) and facts (L1) are populated by default; episodes, summaries, graph, profile, observations and communities are opt-in layers.
+- **Q2 Durable outbox** (as proposed): Library-first inline runner draining a durable outbox in the same store; leftover work resumes on the next open; dbos and taskiq are optional drainers.
+- **Q3 Value histories plus pattern observations** (changed): Build the deterministic value-history view AND an observation layer for recurring patterns only (code-grouped, model-worded only for groups that changed). O-15 is reopened from 'none' to 'patterns only'; observations are an opt-in L4 layer (Q1). New stage `observe_patterns` after value histories in O-04; budgeted under O-05; observations are cited records (L4, opt-in), refreshed only for changed groups; O-21 standing answers may cite them.
+
 ## Change log
 
 - 2026-10-11: First version. 26 offline decisions verified against the owner's answers. Combinations defined for O-07, O-09, O-10, O-11, O-12, O-14, O-18, O-23 and O-24. O-15 A consequences traced (conflict with M-13). M-02 "B + D" reading proposed (needs owner). G-19 A inline-runner effects on O-02, O-03 and O-10 resolved through state persisted in the store.
+- 2026-10-12: owner follow-up answers recorded (Q1, Q2, Q3).

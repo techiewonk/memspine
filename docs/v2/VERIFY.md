@@ -11,6 +11,25 @@ Six area reviews checked every answer against the owner's other answers, the v1 
 | conflict | 13 | Clashes with another answer; a reconciling reading is proposed (most resolve with the owner points below) |
 | needs-owner | 3 | Cannot be settled without the owner |
 
+## 0. Owner answers to Q1-Q9 (2026-10-12)
+
+| # | Answer | As proposed? | What it settles |
+|---|---|---|---|
+| Q1 | **Layer field, two layers on**. Every record has an explicit `layer` field; raw (L0) and facts (L1) are populated by default; episodes, summaries, graph, profile, observations and communities are opt-in layers. | yes | M-02, W-12, R-09, R-10, O-08, O-16 |
+| Q2 | **Durable outbox**. Library-first inline runner draining a durable outbox in the same store; leftover work resumes on the next open; dbos and taskiq are optional drainers. | yes | G-19, P-21, W-02, W-10, W-13, W-25, O-01, O-02, O-03, O-10, P-25, G-12, G-14, G-17 |
+| Q3 | **Value histories plus pattern observations**. Build the deterministic value-history view AND an observation layer for recurring patterns only (code-grouped, model-worded only for groups that changed). O-15 is reopened from 'none' to 'patterns only'; observations are an opt-in L4 layer (Q1). | **no, changed** | M-13, O-15, O-04, O-05, O-21, R-17, M-19 |
+| Q4 | **Neo4j is the server graph**. Embedded profile: auto Ladybug else SQL adjacency (M-18 A). Server profile: Postgres + pgvector + Postgres full text for records, Neo4j for the graph, fed only through the outbox. | **no, changed** | M-04, M-18, W-10, G-13, M-25, M-05, R-09 |
+| Q5 | **Jina on every read if installed**. Jina v3.5 reranks every read wherever the model is installed; the pre-run gate is a CPU-only mode; the eval harness forces it on. | yes | R-14, P-18 |
+| Q6 | **Jina if installed, permissive fallback**. Jina stays for research and evaluation; the library default is 'Jina if installed', with a permissively licensed reranker named as the commercial fallback (licence check is a research task). | yes | R-14, P-17, P-18 |
+| Q7 | **Coexist unless marked**. Undeclared attributes coexist (registry default); a new value contests the old one only when extraction marks a change; learned cardinality only as reviewable proposals. | yes | W-22, M-12 |
+| Q8 | **Assistant exemption in the chat preset only**. Base firewall signals on every channel, extended and semantic on top; the assistant-role exemption only in the chat data-shape preset. | yes | G-06 |
+| Q9 | **v2 stays inside `memspine`**, same package and principles (2026-10-11) | changed from the proposal | G-16, G-23, G-25 |
+
+Two answers differ from the proposal and add work:
+
+- **Q3 pattern observations:** O-15 moves from 'none' to 'patterns only'. A sleep stage `observe_patterns` runs after value histories: code groups records by (subject, predicate family) and recurrence, and the model words only groups that changed since the last cycle, citing every member. Needs measurement before default: OP-Bench, PrefEval and MAB-CR non-inferior, sleep calls per turn within the O-05 budget (estimate: under 0.05 extra calls per turn when worded only on change).
+- **Q4 Neo4j server graph:** the server profile spans two systems (Postgres for records, Neo4j for the graph). Required with it: a real Neo4j adapter (v1's is a stub, `services/graph/neo4j.py:16-18`) fed only through the outbox (W-10); erasure through the reverse-lineage index must delete in Neo4j and prove it (G-13, M-25); scope keys in every Neo4j node and edge (M-05); encryption and backup per system; a rebuild of Neo4j from the event log (M-01). Gate: isolation, erasure and rebuild tests pass on the server profile before it ships.
+
 ## 1. Points for the owner (Q9 answered; Q1-Q8 settle 15 of the 16 conflict and needs-owner verdicts)
 
 | # | Question | Proposed reading | Settles |
@@ -87,3 +106,4 @@ be used for these (it printed PROMOTE for both arm and reference on 2026-10-11).
 ## Change log
 - 2026-10-11: first verification of all 155 answers across six areas.
 - 2026-10-11 (later): Q9 answered by the owner (v2 inside `memspine`); lock file bumped (huggingface-hub 1.33.0, commit 1d15194), so the G-24 prerequisite is met.
+- 2026-10-12: owner answered Q1-Q8 (six as proposed; Q3 pattern observations and Q4 Neo4j server graph changed).

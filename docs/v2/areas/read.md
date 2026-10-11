@@ -741,6 +741,14 @@ class Leg(Protocol):            # one retrieval leg (R-05)
 | R-05, R-08, R-09, R-10 routed legs | Focus slice per leg (router-activated), then one blind set each | G-01 C per leg. Tokens within +30% (R-10/R-17). |
 | R-25 tier SLOs | CI latency job on pinned hardware | p95 per tier within target. Parallel output byte-identical to sequential. |
 
+
+## Owner follow-up (2026-10-12)
+
+- **Q1 Layer field, two layers on** (as proposed): Every record has an explicit `layer` field; raw (L0) and facts (L1) are populated by default; episodes, summaries, graph, profile, observations and communities are opt-in layers.
+- **Q3 Value histories plus pattern observations** (changed): Build the deterministic value-history view AND an observation layer for recurring patterns only (code-grouped, model-worded only for groups that changed). O-15 is reopened from 'none' to 'patterns only'; observations are an opt-in L4 layer (Q1). R-17: observation lines join the capped notes block, lifted to their member records under one score.
+- **Q5 Jina on every read if installed** (as proposed): Jina v3.5 reranks every read wherever the model is installed; the pre-run gate is a CPU-only mode; the eval harness forces it on.
+- **Q6 Jina if installed, permissive fallback** (as proposed): Jina stays for research and evaluation; the library default is 'Jina if installed', with a permissively licensed reranker named as the commercial fallback (licence check is a research task).
+
 ## Change log
 
 - 2026-10-11: First version. All 26 read-area answers were verified:
@@ -748,3 +756,4 @@ class Leg(Protocol):            # one retrieval leg (R-05)
   - R-15 A and R-22 B (choices that differ from the recommendation) were traced to every dependent
     decision;
   - cross-area effects of M-02, O-15 and P-18 were recorded.
+- 2026-10-12: owner follow-up answers recorded (Q1, Q3, Q5, Q6).

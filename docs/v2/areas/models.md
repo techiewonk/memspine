@@ -502,8 +502,16 @@ class Fingerprint(NamedTuple):      # provenance.fingerprint
 | Capped thinking on background roles (P-15) | Conflict and resolution cases (MAB-CR) | Gain beyond band at a stated cost before enabling |
 | Deep-tier sufficiency + rewrite cost (P-14/P-21, owned by R-22) | Focus slice, deep tier vs fast tier | Within the deep-tier budget; adoption per G-01 |
 
+
+## Owner follow-up (2026-10-12)
+
+- **Q2 Durable outbox** (as proposed): Library-first inline runner draining a durable outbox in the same store; leftover work resumes on the next open; dbos and taskiq are optional drainers.
+- **Q5 Jina on every read if installed** (as proposed): Jina v3.5 reranks every read wherever the model is installed; the pre-run gate is a CPU-only mode; the eval harness forces it on.
+- **Q6 Jina if installed, permissive fallback** (as proposed): Jina stays for research and evaluation; the library default is 'Jina if installed', with a permissively licensed reranker named as the commercial fallback (licence check is a research task).
+
 ## Change log
 
 - 2026-10-11: first version. Verified P-01 to P-25 (all took the recommendation) against G-19 A, M-02 B + D, R-22 B,
   O-15 A, R-14 B, R-15 A and the standing Jina decision; recorded the 11853ed contamination fix as prompt-lint rules
   (P-07, P-13) and the 18:17 `uv sync` incident as a G-24 item with a fingerprint consequence (P-12).
+- 2026-10-12: owner follow-up answers recorded (Q2, Q5, Q6).

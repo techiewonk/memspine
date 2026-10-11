@@ -331,6 +331,15 @@ ItemV1{s?, r?, o?, text, kind: state|event|fact, mode, neg, when?, until?, lines
 | W-12 online deposit and barrier | a load test at stated rates | p95 turn-to-searchable-edge, queue delay and barrier timeouts reported (G-W49, RV10, P-21) |
 | W-13 durable queue | fault injection after inference and after a partial deposit (RV01) | exactly one deposit after restart and no lost windows |
 
+
+## Owner follow-up (2026-10-12)
+
+- **Q1 Layer field, two layers on** (as proposed): Every record has an explicit `layer` field; raw (L0) and facts (L1) are populated by default; episodes, summaries, graph, profile, observations and communities are opt-in layers.
+- **Q2 Durable outbox** (as proposed): Library-first inline runner draining a durable outbox in the same store; leftover work resumes on the next open; dbos and taskiq are optional drainers.
+- **Q4 Neo4j is the server graph** (changed): Embedded profile: auto Ladybug else SQL adjacency (M-18 A). Server profile: Postgres + pgvector + Postgres full text for records, Neo4j for the graph, fed only through the outbox. W-10: the Neo4j projection is always fed through the outbox, never inline.
+- **Q7 Coexist unless marked** (as proposed): Undeclared attributes coexist (registry default); a new value contests the old one only when extraction marks a change; learned cardinality only as reviewable proposals.
+
 ## Change log
 
 - 2026-10-11: first version. All 26 write-path answers verified (13 ok, 6 ok-combined, 4 needs-measurement, 3 conflict with M-02, M-12 and W-16); the seven owner notes are defined, and the cross-area effects of M-02, G-19, M-18/M-04 and M-12 are recorded.
+- 2026-10-12: owner follow-up answers recorded (Q1, Q2, Q4, Q7).

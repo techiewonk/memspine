@@ -39,7 +39,7 @@ flowchart TD
    derived item, with trust capped at the weakest parent (W-07, G-06).
 4. **One commit, one receipt.** Event, hot projections and outbox rows in one SQL transaction; the receipt returns a
    derivation intent id whose status can be read (W-02, W-10).
-5. **Durable derivation (Q2).** A leased outbox in the same store, drained by the inline runner; acknowledged only
+5. **Durable derivation (Q2: decided).** A leased outbox in the same store, drained by the inline runner; acknowledged only
    after the deposit commits; under load windows are coalesced and marked underived, never dropped (W-13, W-25, G-19).
 6. **Segmentation.** Adaptive window plus a time-gap cut; closed windows batched by tokens into one call, each a
    numbered block; per-turn mode stays a setting (W-11).
@@ -50,7 +50,7 @@ flowchart TD
    and names; entity ladder online without a model, uncertain names `pending_merge`; key = (scope, src, rel, dst,
    kind) plus occurrence (W-17, W-19, W-20, M-17).
 9. **Integration.** Conflict ladder seeded by kind and transition wording; the cardinality registry sets the default
-   for undeclared attributes (Q7); unresolved cases deferred to K_C (W-21, W-22, M-12).
+   for undeclared attributes (Q7: decided); unresolved cases deferred to K_C (W-21, W-22, M-12).
 10. **Cost ledger** per call, layer and namespace, with an optional budget that defers rather than drops (W-26, P-22).
 
 ## 2. Store and layers: `areas/model.md`
@@ -58,18 +58,18 @@ flowchart TD
 - **Truth** is the append-only event log; SQL records, vectors, lexical index and graph are replayed projections; a
   one-way Markdown export per namespace (M-01).
 - **One record shape with an explicit `layer` field** (L0 raw ... L5 standing answers). Base template fills L0 and L1
-  only; the rest are opt-in **(Q1)**. The nine memory types become a `type` tag mapped onto layers (M-02, M-03).
+  only; the rest are opt-in (Q1: decided). The nine memory types become a `type` tag mapped onto layers (M-02, M-03).
 - **Assertion envelope**: text, typed value, evidence spans, asserter and subject, modality and polarity, kind and
   occurrence, tri-temporal times with precision, provenance class and trust, support count, derivation fingerprint
   (M-06, M-07, M-08, M-10, P-12).
 - **Two storage profiles from one event schema**: embedded (SQLite, LanceDB, Tantivy, Ladybug or SQL adjacency) and
-  server (Postgres, pgvector, Postgres FTS, Postgres graph tables; Neo4j optional **(Q4)**) (M-04, M-18).
+  server (Postgres, pgvector, Postgres FTS for records; **Neo4j for the graph**, fed only through the outbox; erasure, isolation and rebuild proven on both systems) (M-04, M-18, Q4).
 - **Scope** tuple (tenant, user, agent, session) in every row and every key; a viewer is mandatory for multi-party
   reads (M-05, G-12).
 - **Lineage** table both ways; erasure cascades through it and re-derives survivors (M-09, M-25, G-13).
 - **Relations** are assertion-centric: edges compiled from assertions, n-ary facts as reified nodes, untyped links as
   a second projection (M-16). Communities and entity summaries stay opt-in (M-19).
-- **Value histories** as a deterministic view; **no observation layer** for now **(Q3)** (M-13, O-14, O-15).
+- **Value histories** as a deterministic view, plus **pattern observations**: an opt-in L4 layer that groups recurring patterns in code and has the model word only changed groups, citing every member (M-13, O-14, O-15, Q3).
 - **Profile card**: typed, capped, stated-only by default, each entry citing facts (M-20).
 - **Compression**: gist, note and full pointer per derived unit; raw stays authoritative (M-22).
 
@@ -97,7 +97,7 @@ flowchart TD
 - **Legs**: vector, BM25 (language-aware), temporal (event intervals) always; entity (inverse-degree penalty),
   graph (one hop), episode (lifted to turns) when the router turns them on and the layer exists (R-05..R-10).
 - **Fusion** within source families, then RRF k=60 across them; protected pool slots per family (R-11, R-12).
-- **Rerank** with Jina v3.5 on the single hit **(Q5, Q6)**; recency and reinforcement band built but off until
+- **Rerank** with Jina v3.5 on the single hit (Q5, Q6: decided); recency and reinforcement band built but off until
   screened (R-14, R-15, R-16).
 - **Lift, gate, pack**: derived hits lifted to their turns under one score; store-calibrated relevance gate with a
   named-reference bypass; windows expanded after rerank; rank-order packer that skips oversize items (fixes the v1
@@ -128,7 +128,7 @@ flowchart TD
 - **Privacy, consent, erasure, audit** per profile (G-10, G-11, G-13..G-15).
 - **API**: a small loop-verb core on a scoped handle; REST on loopback unless auth is set; MCP over stdio; framework
   adapters deferred (G-16..G-18).
-- **Runtime**: embedded library, inline runner draining the durable outbox **(Q2)** (G-19).
+- **Runtime**: embedded library, inline runner draining the durable outbox (Q2: decided) (G-19).
 - **Reproducibility**: full run manifest with environment freeze hash; a venv per pinned run from a corrected lock
   (G-24, G-25).
 
@@ -141,3 +141,4 @@ keep `memspine.compat.v1` aliases for one release; stores migrate by replaying t
 ## Change log
 - 2026-10-11: first version from the 155 answered decisions and the six area reviews.
 - 2026-10-11 (later): section 7 rewritten for Q9 (v2 inside `memspine`).
+- 2026-10-12: owner answers Q1-Q8 applied (pattern observations; Neo4j server graph).

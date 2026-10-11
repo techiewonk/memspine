@@ -6,7 +6,7 @@ estimated here; they are set when Phase 0 closes.
 
 ## Phase 0: settle and prepare (v1 branch and this plan; no v2 code)
 
-- **Owner answers Q1-Q9** in `VERIFY.md`; update the affected area chapters and `DECISIONS.md`.
+- **Owner answers Q1-Q9**: done (2026-10-12); chapters, decisions and architecture updated.
 - **Fix the environment**: done 2026-10-11 (`1d15194`: huggingface-hub 1.33.0, click override for deepeval);
   next, per-run environments (G-24).
 - **Harden the gate first** (G-01, G-E1 in v1): paired comparison against a named reference, all sets required,
@@ -21,7 +21,7 @@ estimated here; they are set when Phase 0 closes.
 - Event log and upcasters; the record shape with `layer`, envelope, tri-temporal times, scope tuple, lineage table,
   identity key with kind and occurrence (M-01, M-02, M-05, M-06, M-09, M-10, M-17, M-26).
 - Durable local outbox and inline runner (Q2; W-10, W-13, G-19); run manifest and ledger (G-25, P-22).
-- Storage profiles: embedded first; server later in the phase (M-04, M-18, Q4).
+- Storage profiles: embedded first; server later in the phase with Postgres for records and a real Neo4j graph adapter fed through the outbox, with erasure, isolation and rebuild tests on both systems (M-04, M-18, Q4).
 - Migration: replay a v1 event log into a fresh v2 store (G-23).
 - **Exit gate**: v1 data migrated and replayed byte-stably; fault-injection tests pass (crash after inference, after a
   partial deposit, before acknowledgement, during forget); a raw-only v2 read is non-inferior to the v1 raw read on
@@ -48,7 +48,7 @@ estimated here; they are set when Phase 0 closes.
 
 - Scheduler, triggers, namespace jobs with leases and watermarks (O-01..O-06).
 - Call 2 at session close, stitched episodes, summaries (opt-in layers per Q1) (O-07..O-09).
-- Reconcile backlog, staged entity resolution and contradictions, near-duplicate merge, value histories (O-10..O-14;
+- Reconcile backlog, staged entity resolution and contradictions, near-duplicate merge, value histories, pattern observations behind a screen (Q3) (O-10..O-15;
   calibrations O-13, W-19 first).
 - Profile card operations, reflection, communities and entity summaries opt-in, prospective and procedural memory as
   decided (O-16..O-26).
@@ -71,3 +71,4 @@ estimated here; they are set when Phase 0 closes.
 ## Change log
 - 2026-10-11: first version.
 - 2026-10-11 (later): v2 lands inside `memspine` (Q9); lock fix done.
+- 2026-10-12: Q1-Q9 answered; pattern observations (Phase 4) and the Neo4j server graph (Phase 1) added.
