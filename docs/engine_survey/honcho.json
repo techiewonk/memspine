@@ -21,63 +21,291 @@
     }
   ],
   "rows": {
-    "arch.product": {"s": "", "t": "Hosted service (api.honcho.dev) plus AGPL self-host: a FastAPI API process and separate deriver worker process(es) sharing Postgres; Python/TS SDKs, CLI, MCP server and agent plugins (Hermes, Kilo). Version 3.3.0 (2026-10-09).", "e": "read: src/main.py, src/deriver/__main__.py, sdks/, mcp/; CHANGELOG.md [3.3.0]"},
-    "arch.truth": {"s": "Y", "t": "Raw messages in Postgres are the source of truth. Conclusions (the documents table) are derived and carry message ids and source links. Vectors in external stores are synced from Postgres by a reconciler (sync_state pending/synced/failed).", "e": "read: src/models.py:213-290 (Message), 400-455 (Document sync_state), src/reconciler/sync_vectors.py"},
-    "arch.stores": {"s": "Y", "t": "Postgres tables: workspaces, peers, sessions, messages, message_embeddings, collections (one per observer-observed pair), documents (conclusions at levels explicit/deductive/inductive/contradiction), document_sources (reasoning-tree edges), queue, active_queue_sessions. Summaries and peer cards live in JSONB metadata on sessions and peers. Vector store: pgvector by default, or turbopuffer, LanceDB, Qdrant or ChromaDB. Redis cache optional (off by default).", "e": "read: src/models.py:104-685; src/utils/types.py:294; src/config.py:1469 (VECTOR_STORE.TYPE default pgvector), 1324 (CACHE.ENABLED False); src/utils/summarizer.py:760-790; src/crud/peer_card.py:55-123"},
-    "arch.graphdb": {"s": "N", "t": "No graph database and no entity graph. The only graph is a reasoning DAG: document_sources links each derived conclusion to its premise conclusions, traversed by the get_reasoning_chain tool.", "e": "read: src/models.py:556-580 (DocumentSource 'one reasoning-tree edge'); src/utils/agent_tools.py:659"},
-    "arch.scope": {"s": "Y", "t": "Workspace > peer > session. Memory is stored per (observer, observed) collection inside a workspace, so peer A's view of B is separate from B's self-representation. Named 'scopes' (a hidden peer named scope.<name> that observes member sessions) give curated cross-session views; per-request session allowlists narrow recall.", "e": "read: src/models.py:352-400 (Collection observer/observed); src/crud/scope.py:1-16; src/routers/sessions.py:750-772"},
-    "write.entry": {"s": "Y", "t": "POST /v3/workspaces/{w}/sessions/{s}/messages (batch) and a file-upload variant. Each message has a peer_name, and peers are either user or agent. Direct conclusion CRUD goes through /conclusions.", "e": "read: src/routers/messages.py:100-186, 187-260; src/routers/conclusions.py"},
-    "write.receipt": {"s": "P", "t": "Messages are committed to Postgres before the 201 return. Queue rows (deriver work) and immediate embeddings are scheduled as FastAPI BackgroundTasks after the response, so derivation is asynchronous and the receipt does not mean the message is queued. The reconciler backfills missing embeddings; nothing found re-enqueues lost deriver work.", "e": "read: src/routers/messages.py:121-180 (background_tasks.add_task(enqueue,...)); inferred for lost-queue gap"},
-    "write.roles": {"s": "Y", "t": "Each message is attributed to the speaking peer. Messages from a peer with observe_me (default on) create one representation task, whose observer list is the sender (self-view) plus every session peer with observe_others=true. The deriver extracts facts only from target='true' messages and uses others' turns as context only.", "e": "read: src/deriver/enqueue.py:257-395; src/deriver/prompts.py:77-80"},
-    "write.firewall": {"s": "P", "t": "Light structural defence only. Message content has '<message' tags neutralised so it cannot forge batch boundaries, and the prompt forbids deriving target facts from other peers' turns. There is no injection classifier, trust score or quarantine.", "e": "read: src/deriver/prompts.py:16-34, 78"},
-    "write.governance": {"s": "P", "t": "Per-workspace, session, message and peer configuration can disable reasoning (reasoning.enabled), observation (observe_me) or summaries, and add custom instructions. Errored queue items are kept 30 days. No PII redaction, consent model or TTL retention for memories was found.", "e": "read: src/deriver/deriver.py:99-101; src/deriver/enqueue.py:257-293; src/config.py:917-920; CHANGELOG 3.3.0 custom_instructions"},
-    "segment.unit": {"s": "", "t": "A work unit is (workspace, session, observed peer). A claimed unit is drained in windows capped at REPRESENTATION_BATCH_TARGET_INPUT_TOKENS (default 1,024) of queued plus interleaved context messages, and each window costs one deriver LLM call.", "e": "read: src/utils/work_unit.py:44-60; src/config.py:955-970; src/deriver/queue_manager.py:837-860"},
-    "segment.rule": {"s": "Y", "t": "Token-accumulation gate: a unit becomes claimable after 512 pending tokens (REPRESENTATION_BATCH_WORK_UNIT_TARGET_TOKENS), or once its oldest item is 1,800 s old. FLUSH_ENABLED bypasses the gate. No topic or episode boundary detection.", "e": "read: src/config.py:948-976; src/deriver/queue_manager.py:322-420"},
-    "segment.measured": {"s": "P", "t": "Blog LoCoMo configuration used a 128-token batch (1-5 messages per deriver call). No call count was published.", "e": "doc: Plastic Labs blog 2025-12-19"},
-    "extract.calls": {"s": "Y", "t": "One structured-output LLM call per batch window per observed peer, shared across all observer collections (default model gpt-5.4-mini; blog used gemini-2.5-flash-lite). Input is capped at 25,000 tokens and retried 3 times. Summary calls fire every 20 messages (short) and every 60 (long) per session.", "e": "read: src/deriver/deriver.py:159-189, 230-246; src/config.py:925-941, 1202-1203"},
-    "extract.facts": {"s": "Y", "t": "Explicit atomic 'conclusions' only, as a PromptRepresentation with a single explicit list: one fact per conclusion, qualifiers attached, the peer id as subject, pronouns resolved, no conversational mechanics.", "e": "read: src/deriver/prompts.py:66-99; src/utils/representation.py:140-157"},
-    "extract.episode": {"s": "N", "t": "No episode narrative. Rolling session summaries are the closest equivalent (see derive.session).", "e": "read: src/deriver/prompts.py (explicit only)"},
-    "extract.dates": {"s": "Y", "t": "The prompt asks the model to resolve relative dates against each message's time attribute and write absolute dates. Each conclusion is also stored with the message created_at, which is printed as a [timestamp] prefix at read time.", "e": "read: src/deriver/prompts.py:29-32, 72; src/utils/representation.py:162-168"},
-    "extract.neighbours": {"s": "N", "t": "The deriver is not shown existing conclusions; the module docstring says 'NO peer card instructions, NO working representation'. Neighbour-aware work is deferred to the dreamer and to write-time dedup.", "e": "read: src/deriver/prompts.py:1-6"},
-    "extract.failure": {"s": "Y", "t": "Transient errors get 3 attempts per work unit, with the budget shared across instances via the oldest queue item. Terminal errors mark the first queue item errored (kept 30 days). If saves fail for every observer, a RepresentationSaveError is raised. Zero conclusions are logged, not retried.", "e": "read: src/deriver/queue_manager.py:65-67, 561-635; src/deriver/deriver.py:221-228, 369-383"},
-    "graph.entities": {"s": "N", "t": "No entity extraction. Peers are the only first-class entities, declared by the client.", "e": "read: src/models.py (no entity table)"},
-    "graph.resolution": {"s": "P", "t": "Identity is by client-supplied peer name only. The peer card's 'IDENTITY: Aliases' entries are free text, and nothing in code resolves them.", "e": "read: src/dreamer/specialists.py:78-100"},
-    "graph.edges": {"s": "P", "t": "No entity relationships beyond free-text 'RELATIONSHIP:' peer-card lines. Typed edges exist only as premise to conclusion links (document_sources).", "e": "read: src/dreamer/specialists.py:96-99; src/models.py:556-580"},
-    "graph.communities": {"s": "N", "t": "not found", "e": "not found in src/"},
-    "time.fields": {"s": "P", "t": "Single created_at per conclusion (set from the source message time) plus deleted_at for soft deletes. No valid_from/valid_to or event-time fields.", "e": "read: src/models.py:414-427"},
-    "time.update": {"s": "P", "t": "Not handled at write time. The dream deduction specialist is told to create an 'update' deduction and delete the outdated conclusion, and to flag true conflicts as 'contradiction'-level conclusions. This is LLM-driven and batch, and the old value is not kept as history.", "e": "read: src/dreamer/specialists.py:633-650; src/utils/types.py:294"},
-    "time.dedup": {"s": "Y", "t": "On by default (DERIVER.DEDUPLICATE). Exact normalised-text dedup, then semantic dedup at cosine distance <=0.05 (top-1, same level, and same session for explicit). The richer text wins (unique tokens weighted 10x) and the survivor's times_derived is bumped as a reinforcement count. Candidates are fetched in one batched query.", "e": "read: src/config.py:937; src/crud/document.py:236-251, 1409-1425, 1577-1618; CHANGELOG 3.3.0 #1202"},
-    "derive.session": {"s": "Y", "t": "Rolling recursive summaries: a short one every 20 messages (cap 1,500 tokens, prompt targets 60%) and a long one every 60 (cap 6,000), each folding in the previous summary. They are stored in session metadata. Degenerate repetitive outputs (<35% distinct 4-grams) are rejected and the old summary kept.", "e": "read: src/config.py:1202-1230; src/utils/summarizer.py:97-116, 147-220, 700-725; src/deriver/enqueue.py:330-339"},
-    "derive.profile": {"s": "Y", "t": "Peer card: at most 40 prefixed entries (IDENTITY/ATTRIBUTE/RELATIONSHIP/INSTRUCTION) held per observer-observed pair. Only the dream deduction specialist (or a card_refresh dream) writes it, through update_peer_card; behavioural traits are pushed to conclusions instead.", "e": "read: src/dreamer/specialists.py:78-132, 585-597; src/crud/peer_card.py:22-123; src/config.py:1002-1005"},
-    "derive.entity": {"s": "N", "t": "No per-entity summaries. The peer card plus the 'representation' (a selection of conclusions) stand in for one per peer.", "e": "read: src/crud/representation.py:102-280"},
-    "derive.background": {"s": "Y", "t": "The Postgres-backed queue (task types representation, summary, dream, deletion, reconciler, scope_backfill, scope_removal) is consumed by deriver workers with adaptive polling and jitter. Dreams are scheduled once 50 new conclusions accrue, after 60 min idle, and at least 8 h apart. New activity cancels pending dreams. The dream runs a deduction agent (12 tool rounds) and then an induction agent (10 rounds). Optional surprisal pre-sampling (tree-based geometric surprisal) is off by default.", "e": "read: src/utils/types.py:283-292; src/config.py:886-912, 1358-1395; src/dreamer/orchestrator.py:1-12; src/dreamer/specialists.py:608-612, 690-700; src/deriver/enqueue.py:35-52"},
-    "derive.forget": {"s": "P", "t": "No decay or TTL. Forgetting happens only through dreamer deletion of outdated or duplicate conclusions, semantic-dup replacement, and explicit deletes; soft-deleted rows are hard-deleted by the reconciler after more than 5 min.", "e": "read: src/crud/document.py:1600-1625 (cleanup_soft_deleted_documents older_than_minutes=5); src/utils/agent_tools.py:715"},
-    "index.embed": {"s": "Y", "t": "text-embedding-3-small (OpenAI), 1,536 dims, 8,192 max input tokens, at most 10 concurrent embed calls. Messages are embedded immediately after the write (EMBED_MESSAGES true) and conclusions in a batch at save time.", "e": "read: src/config.py:808-832, 1585; src/crud/representation.py:118-140"},
-    "index.lexical": {"s": "P", "t": "Messages only: Postgres FTS (to_tsvector english + plainto_tsquery, with a materialised tsvector index) with an ILIKE fallback backed by a pg_trgm GIN index (3.3.0), plus a grep_messages tool. Conclusions have no lexical index.", "e": "read: src/utils/search.py:251-310; src/models.py:271-275; CHANGELOG 3.3.0 #1335"},
-    "index.vector": {"s": "Y", "t": "pgvector HNSW (m=16, ef_construction=64, cosine) on documents and message_embeddings by default. External stores sit behind a VectorStore interface with namespaces per observer-observed pair.", "e": "read: src/models.py:520-528; src/vector_store/__init__.py; src/utils/agent_tools.py:669-673"},
-    "read.rewrite": {"s": "N", "t": "No query rewriting stage. In the dialectic the agent model writes its own tool queries. Open PR #1338 adds semantic_query to separate retrieval text from the chat question.", "e": "read: src/dialectic/core.py:229-300; gh PR #1338"},
-    "read.analysis": {"s": "N", "t": "No explicit query classifier. The caller chooses the reasoning_level (minimal/low/medium/high/max, default low), which sets the tool loadout and iteration budget.", "e": "read: src/schemas/api.py:809-812; src/config.py:1046-1090"},
-    "read.legs": {"s": "Y", "t": "get_context: summary, recent messages and a 'representation' blended from semantic top-k, most-derived (times_derived) and recent conclusions, plus peer cards. Dialectic prefetch: two vector searches (explicit; deductive/inductive/contradiction), 25 each (10 at minimal). Agent tools add semantic, FTS and grep message search.", "e": "read: src/crud/representation.py:188-280; src/dialectic/core.py:229-300; src/utils/agent_tools.py:651-667"},
-    "read.temporal": {"s": "P", "t": "Tool-level only: get_messages_by_date_range and search_messages_temporal (semantic search plus a date filter) over messages. Conclusions carry timestamps in their text but no temporal index.", "e": "read: src/utils/agent_tools.py:657-658"},
-    "read.traversal": {"s": "P", "t": "get_reasoning_chain walks premise and conclusion links in the reasoning DAG, and get_observation_context fetches the source messages around a conclusion. No entity traversal.", "e": "read: src/utils/agent_tools.py:654, 659; src/dialectic/prompts.py:14-27"},
-    "rank.fusion": {"s": "P", "t": "Reciprocal rank fusion (k=60) merges FTS and semantic results for message search. Conclusions are ranked by cosine alone, and the representation is a fixed-quota blend (thirds or halves) of semantic, most-derived and recent conclusions.", "e": "read: src/utils/search.py:36-75; src/crud/representation.py:207-280"},
-    "rank.rerank": {"s": "N", "t": "not found", "e": "not found in src/"},
-    "rank.gate": {"s": "P", "t": "Optional search_max_distance cut-off on semantic conclusion search in get_context. No abstain logic beyond the answering agent's own judgement.", "e": "read: src/routers/sessions.py:780-784; src/crud/document.py:366-369"},
-    "rank.agentic": {"s": "Y", "t": "Dialectic chat (POST /peers/{id}/chat, optional SSE stream) runs a tool loop with 1/5/2/4/10 max iterations for minimal/low/medium/high/max, plus 3 extra for workspace-wide chat. Tools: search_memory, search_messages, grep_messages, date-range and temporal message search, get_observation_context, get_reasoning_chain. Output cap 8,192, input cap 100,000.", "e": "read: src/config.py:1046-1110; src/utils/agent_tools.py:651-683; src/routers/peers.py:257-395"},
-    "answer.shape": {"s": "", "t": "get_context returns a structured object: the chosen summary (short or long), recent messages, the peer representation as timestamped conclusion lines (deductive with premises, inductive with confidence, and contradictions), and peer cards. The dialectic answers in natural language from its system prompt (peer cards and tool docs), a prefetched conclusion block and up to 4,096 tokens of session history.", "e": "read: src/routers/sessions.py:710-830; src/utils/representation.py:159-290; src/dialectic/core.py:185-230, 369-400; src/config.py:1111-1115"},
-    "answer.size": {"s": "P", "t": "get_context caps total tokens (default 100,000) with a 40% summary / 60% recent-messages split. Representation size is not yet bounded by the tokens value (open PR #1256). Dialectic: 50 conclusions + cards + at most 4,096 history tokens + tool outputs (each at most 10,000 chars). The blog reports mean retrieved context at 11% (median 5%) of the 115k-token LongMemEval-S haystack, about 12.6k tokens. No LoCoMo per-question figure.", "e": "read: src/routers/sessions.py:217-265, 796-805; src/config.py:797, 1580, 1111-1115; gh PR #1256; doc: blog 2025-12-19"},
-    "answer.prompt": {"s": "Y", "t": "Pair-scoped dialectic system prompt built from grouped tool docs, the observer and observed peer cards, and custom instructions (dialectic level). In the LoCoMo harness the dialectic answer is the final answer; get_context + claude-sonnet-4-5 is an alternative mode.", "e": "read: src/dialectic/prompts.py:1-130; tests/bench/locomo.py:53, 392-406"},
-    "eval.best": {"s": "", "t": "LoCoMo 89.9% (vendor, cat 1-4, 1,540 q). LongMemEval-S 90.4%, Oracle 91.8%, M 88.8%. BEAM 100K-10M 0.630/0.649/0.631/0.406.", "e": "doc: Plastic Labs blog 2025-12-19; docs/v3/guides/migrations/mem0.mdx:16"},
-    "eval.outside": {"s": "N", "t": "No independent or stricter-harness LoCoMo run found in the repo or blog.", "e": "inferred: not found"},
-    "eval.models": {"s": "", "t": "Reader claude-haiku-4-5 (dialectic), ingest gemini-2.5-flash-lite, dream models unnamed. The LoCoMo judge is unnamed in the blog; the repo harness judge is gpt-4o-mini, lenient to verbose answers. LongMemEval judge GPT-4o.", "e": "doc: blog 2025-12-19; read: tests/bench/locomo_common.py:371-401"},
-    "eval.rigour": {"s": "P", "t": "An open harness (tests/bench/locomo.py, longmem.py, beam.py) records full deriver, dialectic and dream settings with each run. However: single vendor run, unnamed LoCoMo judge, a lenient judge prompt, a LoCoMo-specific 128-token batch setting, and per-category counts (1,378/1,540 = 89.5%) that do not reproduce the headline 89.9%.", "e": "read: tests/bench/locomo.py:495-506; tests/bench/locomo_common.py:378-381; doc: blog"},
-    "cost.write": {"s": "", "t": "Inferred for 272 sessions / 5,882 turns: one deriver call per 128-1,024-token window per speaker, so about 1,500-5,900 calls at the blog's 128-token batches (fewer at the 1,024 default). Plus about 270-300 short and some long summary calls (every 20/60 messages), plus agentic dreams (up to 12 + 10 tool rounds each) per collection every 50 conclusions, 8 h apart. Embeddings: one per message, plus batched conclusion embeddings.", "e": "inferred from src/config.py:948-970, 1202-1203, 1390-1392; src/dreamer/specialists.py:608-612, 690-700"},
-    "cost.read": {"s": "", "t": "get_context: 0 LLM calls, 0-1 embedding. Dialectic: 1 embedding + 1-2 LLM calls at minimal, up to 6 at low (default), up to 11 at max.", "e": "read: src/config.py:1066-1090; src/dialectic/core.py:251-260"},
-    "cost.where": {"s": "", "t": "Hosted APIs by default: OpenAI gpt-5.4-mini for deriver, summary, dialectic and dreams, and OpenAI embeddings. Anthropic, Gemini and OpenAI-compatible base URLs (so local vLLM/Ollama-style endpoints) are configurable per module, with fallbacks. A mock provider exists for tests.", "e": "read: src/config.py:777-805, 925-934, 1059-1065, 1400-1420; src/mock_provider/"},
-    "trust.provenance": {"s": "Y", "t": "Explicit conclusions keep their source message ids and session. Derived conclusions must cite existing conclusion ids (document_sources, ordered), and invented ids are discarded. Conclusions record level and times_derived; telemetry links the triggering message and queue ids. No trust score.", "e": "read: src/models.py:441-480, 556-580; src/utils/agent_tools.py:745-746; src/dreamer/specialists.py:665-669; src/deriver/deriver.py:180-183"},
-    "trust.erasure": {"s": "P", "t": "Delete endpoints for workspace, session (cascades queue items and documents in batches) and single conclusions, plus scope-membership removal. Deletes are soft, then hard-deleted with vectors by the reconciler. No peer delete route was found. Derived conclusions whose premises are deleted are only removed on scope removal (open PR #1040 extends the session cascade).", "e": "read: src/routers/workspaces.py:122, sessions.py:409, conclusions.py:166, scopes.py:139; src/crud/session.py:579-600; src/crud/scope.py:10-16; gh PR #1040"},
-    "trust.auth": {"s": "O", "t": "HS256 JWT keys scoped to admin, workspace, peer or session (claims ad/w/p/s), with optional expiry. AUTH.USE_AUTH defaults to false in self-host. Named-scope API keys are an open PR (#1341).", "e": "read: src/config.py:753-757; src/security.py:40-140; gh PR #1341"},
-    "trust.sharing": {"s": "Y", "t": "Multi-peer by design: any peer with observe_others builds its own (observer, observed) collection from shared sessions, which gives theory-of-mind views. Scopes pool memory across sessions, and workspace-level dialectic routes across peers.", "e": "read: src/deriver/enqueue.py:349-372; src/crud/scope.py:1-16; src/dialectic/workspace.py; src/utils/agent_tools.py:669-683"}
+    "arch.product": {
+      "s": "",
+      "t": "Hosted service (api.honcho.dev) plus AGPL self-host: a FastAPI API process and separate deriver worker process(es) sharing Postgres; Python/TS SDKs, CLI, MCP server and agent plugins (Hermes, Kilo). Version 3.3.0 (2026-10-09).",
+      "e": "read: src/main.py, src/deriver/__main__.py, sdks/, mcp/; CHANGELOG.md [3.3.0]"
+    },
+    "arch.truth": {
+      "s": "Y",
+      "t": "Raw messages in Postgres are the source of truth. Conclusions (the documents table) are derived and carry message ids and source links. Vectors in external stores are synced from Postgres by a reconciler (sync_state pending/synced/failed).",
+      "e": "read: src/models.py:213-290 (Message), 400-455 (Document sync_state), src/reconciler/sync_vectors.py"
+    },
+    "arch.stores": {
+      "s": "Y",
+      "t": "Postgres tables: workspaces, peers, sessions, messages, message_embeddings, collections (one per observer-observed pair), documents (conclusions at levels explicit/deductive/inductive/contradiction), document_sources (reasoning-tree edges), queue, active_queue_sessions. Summaries and peer cards live in JSONB metadata on sessions and peers. Vector store: pgvector by default, or turbopuffer, LanceDB, Qdrant or ChromaDB. Redis cache optional (off by default).",
+      "e": "read: src/models.py:104-685; src/utils/types.py:294; src/config.py:1469 (VECTOR_STORE.TYPE default pgvector), 1324 (CACHE.ENABLED False); src/utils/summarizer.py:760-790; src/crud/peer_card.py:55-123"
+    },
+    "arch.graphdb": {
+      "s": "N",
+      "t": "No graph database and no entity graph. The only graph is a reasoning DAG: document_sources links each derived conclusion to its premise conclusions, traversed by the get_reasoning_chain tool.",
+      "e": "read: src/models.py:556-580 (DocumentSource 'one reasoning-tree edge'); src/utils/agent_tools.py:659"
+    },
+    "arch.scope": {
+      "s": "Y",
+      "t": "Workspace > peer > session. Memory is stored per (observer, observed) collection inside a workspace, so peer A's view of B is separate from B's self-representation. Named 'scopes' (a hidden peer named scope.<name> that observes member sessions) give curated cross-session views. Per-request session allowlists narrow recall fail-closed: only explicit conclusions, no peer card, no reasoning-chain tool.",
+      "e": "read: src/models.py:352-392; src/crud/scope.py:1-16; src/utils/scopes.py:1-17; src/routers/sessions.py:757-780, 985-1015; src/crud/representation.py:505-512; src/dialectic/core.py:145-162"
+    },
+    "write.entry": {
+      "s": "Y",
+      "t": "POST /v3/workspaces/{w}/sessions/{s}/messages (batch) and a file-upload variant. Each message has a peer_name, and peers are either user or agent. Direct conclusion CRUD goes through /conclusions.",
+      "e": "read: src/routers/messages.py:100-186, 187-260; src/routers/conclusions.py"
+    },
+    "write.receipt": {
+      "s": "P",
+      "t": "Messages are committed to Postgres before the 201 return. Queue rows (deriver work) and immediate embeddings are scheduled as FastAPI BackgroundTasks after the response, so derivation is asynchronous and the receipt does not mean the message is queued. The reconciler backfills missing embeddings; nothing found re-enqueues lost deriver work.",
+      "e": "read: src/routers/messages.py:121-180 (background_tasks.add_task(enqueue,...)); inferred for lost-queue gap"
+    },
+    "write.roles": {
+      "s": "Y",
+      "t": "Each message is attributed to the speaking peer. Messages from a peer with observe_me (default on) create one representation task, whose observer list is the sender (self-view) plus every session peer with observe_others=true. The deriver extracts facts only from target='true' messages and uses others' turns as context only.",
+      "e": "read: src/deriver/enqueue.py:257-395; src/deriver/prompts.py:77-80"
+    },
+    "write.firewall": {
+      "s": "P",
+      "t": "Light structural defence only. Message content has '<message' tags neutralised so it cannot forge batch boundaries, and the prompt forbids deriving target facts from other peers' turns. There is no injection classifier, trust score or quarantine.",
+      "e": "read: src/deriver/prompts.py:16-34, 78"
+    },
+    "write.governance": {
+      "s": "P",
+      "t": "Per-workspace, session, message and peer configuration can disable reasoning (reasoning.enabled), observation (observe_me) or summaries, and add custom instructions. Errored queue items are kept 30 days. No PII redaction, consent model or TTL retention for memories was found.",
+      "e": "read: src/deriver/deriver.py:99-101; src/deriver/enqueue.py:257-293; src/config.py:917-920; CHANGELOG 3.3.0 custom_instructions"
+    },
+    "segment.unit": {
+      "s": "",
+      "t": "A work unit is (workspace, session, observed peer). A claimed unit is drained in windows capped at REPRESENTATION_BATCH_TARGET_INPUT_TOKENS (default 1,024) of queued plus interleaved context messages, and each window costs one deriver LLM call.",
+      "e": "read: src/utils/work_unit.py:44-60; src/config.py:955-970; src/deriver/queue_manager.py:837-860"
+    },
+    "segment.rule": {
+      "s": "Y",
+      "t": "Token-accumulation gate: a unit becomes claimable after 512 pending tokens (REPRESENTATION_BATCH_WORK_UNIT_TARGET_TOKENS), or once its oldest item is 1,800 s old. FLUSH_ENABLED bypasses the gate. No topic or episode boundary detection.",
+      "e": "read: src/config.py:948-976; src/deriver/queue_manager.py:322-420"
+    },
+    "segment.measured": {
+      "s": "P",
+      "t": "Blog LoCoMo configuration used a 128-token batch (1-5 messages per deriver call). No call count was published.",
+      "e": "doc: Plastic Labs blog 2025-12-19"
+    },
+    "extract.calls": {
+      "s": "Y",
+      "t": "One structured-output LLM call per batch window per observed peer, shared across all observer collections (default model gpt-5.4-mini; blog used gemini-2.5-flash-lite). Input is capped at 25,000 tokens and retried 3 times. Summary calls fire every 20 messages (short) and every 60 (long) per session.",
+      "e": "read: src/deriver/deriver.py:159-189, 230-246; src/config.py:925-941, 1202-1203"
+    },
+    "extract.facts": {
+      "s": "Y",
+      "t": "Explicit atomic 'conclusions' only, as a PromptRepresentation with a single explicit list: one fact per conclusion, qualifiers attached, the peer id as subject, pronouns resolved, no conversational mechanics.",
+      "e": "read: src/deriver/prompts.py:66-99; src/utils/representation.py:140-157"
+    },
+    "extract.episode": {
+      "s": "N",
+      "t": "No episode narrative. Rolling session summaries are the closest equivalent (see derive.session).",
+      "e": "read: src/deriver/prompts.py (explicit only)"
+    },
+    "extract.dates": {
+      "s": "Y",
+      "t": "The prompt asks the model to resolve relative dates against each message's time attribute and write absolute dates. Each conclusion is also stored with the message created_at, which is printed as a [timestamp] prefix at read time.",
+      "e": "read: src/deriver/prompts.py:29-32, 72; src/utils/representation.py:162-168"
+    },
+    "extract.neighbours": {
+      "s": "N",
+      "t": "The deriver is not shown existing conclusions; the module docstring says 'NO peer card instructions, NO working representation'. Neighbour-aware work is deferred to the dreamer and to write-time dedup.",
+      "e": "read: src/deriver/prompts.py:1-6"
+    },
+    "extract.failure": {
+      "s": "Y",
+      "t": "Transient errors get 3 attempts per work unit, with the budget shared across instances via the oldest queue item. Terminal errors mark the first queue item errored (kept 30 days). A retryable save error for any observer is re-raised so the batch retries; if saves fail for every observer a RepresentationSaveError is raised. Zero-conclusion outputs are logged and the work is consumed, not retried (open PR #1169).",
+      "e": "read: src/deriver/queue_manager.py:64-68, 561-635; src/deriver/deriver.py:221-228, 369-383; gh PR #1169"
+    },
+    "graph.entities": {
+      "s": "N",
+      "t": "No entity extraction. Peers are the only first-class entities, declared by the client.",
+      "e": "read: src/models.py (no entity table)"
+    },
+    "graph.resolution": {
+      "s": "P",
+      "t": "Identity is by client-supplied peer name only. The peer card's 'IDENTITY: Aliases' entries are free text, and nothing in code resolves them.",
+      "e": "read: src/dreamer/specialists.py:78-100"
+    },
+    "graph.edges": {
+      "s": "P",
+      "t": "No entity relationships beyond free-text 'RELATIONSHIP:' peer-card lines. Typed edges exist only as premise to conclusion links (document_sources).",
+      "e": "read: src/dreamer/specialists.py:96-99; src/models.py:556-580"
+    },
+    "graph.communities": {
+      "s": "N",
+      "t": "not found",
+      "e": "not found in src/"
+    },
+    "time.fields": {
+      "s": "P",
+      "t": "Two times per conclusion: the row created_at is the insertion time (Postgres server default), and internal_metadata.message_created_at holds the source message time; reads print the message time and fall back to created_at. deleted_at marks soft deletes. No valid_from/valid_to or event-time fields.",
+      "e": "read: src/models.py:414-427; src/crud/document.py:1308-1345 (created_at not set); src/crud/representation.py:196-201 (message_created_at); src/utils/representation.py:615-650"
+    },
+    "time.update": {
+      "s": "P",
+      "t": "Not handled at write time. The dream deduction specialist is told to create an 'update' deduction and delete the outdated conclusion, and to flag true conflicts as 'contradiction'-level conclusions. This is LLM-driven and batch, and the old value is not kept as history.",
+      "e": "read: src/dreamer/specialists.py:633-650; src/utils/types.py:294"
+    },
+    "time.dedup": {
+      "s": "Y",
+      "t": "Exact normalised-text dedup (trim + lower-case, same level, same session for explicit) always runs; DERIVER.DEDUPLICATE (on by default) adds semantic dedup at cosine distance <=0.05 (top-1, same level, same session for explicit). The richer text wins (unique tokens weighted 10x) and the survivor's times_derived is bumped as a reinforcement count. Candidates for a whole batch are fetched in one query.",
+      "e": "read: src/config.py:937; src/crud/document.py:236-251, 547-700, 1409-1425, 1577-1618; CHANGELOG 3.3.0 #1202"
+    },
+    "derive.session": {
+      "s": "Y",
+      "t": "Rolling recursive summaries: a short one every 20 messages (cap 1,500 tokens, prompt targets 60%) and a long one every 60 (cap 6,000), each folding in the previous summary. They are stored in session metadata. Degenerate repetitive outputs (<35% distinct 4-grams) are rejected and the old summary kept.",
+      "e": "read: src/config.py:1202-1230; src/utils/summarizer.py:97-116, 147-220, 700-725; src/deriver/enqueue.py:330-339"
+    },
+    "derive.profile": {
+      "s": "Y",
+      "t": "Peer card held per observer-observed pair in the observer peer's JSONB metadata. Code enforces the four prefixes (IDENTITY/ATTRIBUTE/RELATIONSHIP/INSTRUCTION), 200 characters per entry and at most 40 entries (extra entries truncated). Only the dream deduction specialist or a card_refresh dream writes it, through update_peer_card; behavioural traits are pushed to conclusions instead.",
+      "e": "read: src/dreamer/specialists.py:78-132, 585-597, 841-870; src/utils/agent_tools.py:45-75, 1540-1565; src/crud/peer_card.py:22-123; src/config.py:1002-1005"
+    },
+    "derive.entity": {
+      "s": "N",
+      "t": "No per-entity summaries. The peer card plus the 'representation' (a selection of conclusions) stand in for one per peer.",
+      "e": "read: src/crud/representation.py:102-280"
+    },
+    "derive.background": {
+      "s": "Y",
+      "t": "The Postgres-backed queue (task types webhook, summary, representation, dream, deletion, reconciler, scope_backfill, scope_removal) is consumed by deriver workers with adaptive polling and jitter. A dream is due once 50 new explicit conclusions accrue in a collection, the newest is 60 min old, and the last dream was at least 8 h ago; due dreams are listed every 300 s and also checked at save time. New messages cancel pending dreams. The 'omni' dream runs a deduction agent (12 tool rounds) then an induction agent (10 rounds). Optional surprisal pre-sampling (tree-based geometric surprisal) is off by default.",
+      "e": "read: src/utils/types.py:283-294; src/config.py:886-912, 1384-1398; src/dreamer/dream_due.py:35-115; src/crud/representation.py:233-237; src/dreamer/orchestrator.py:1-12; src/dreamer/specialists.py:609-610, 742-743; src/deriver/enqueue.py:33-52"
+    },
+    "derive.forget": {
+      "s": "P",
+      "t": "No decay or TTL. Forgetting happens only through dreamer deletion of outdated or duplicate conclusions, semantic-dup replacement, and explicit deletes; soft-deleted rows are hard-deleted by the reconciler after more than 5 min.",
+      "e": "read: src/crud/document.py:1600-1625 (cleanup_soft_deleted_documents older_than_minutes=5); src/utils/agent_tools.py:715"
+    },
+    "index.embed": {
+      "s": "Y",
+      "t": "text-embedding-3-small (OpenAI), 1,536 dims, 8,192 max input tokens, at most 10 concurrent embed calls. Messages are embedded immediately after the write (EMBED_MESSAGES true) and conclusions in a batch at save time.",
+      "e": "read: src/config.py:808-832, 1585; src/crud/representation.py:118-140"
+    },
+    "index.lexical": {
+      "s": "P",
+      "t": "Messages only: Postgres FTS (to_tsvector english + plainto_tsquery, ranked by ts_rank) over an expression GIN index, so ts_rank re-parses content at query time; an ILIKE fallback is backed by a pg_trgm GIN index (3.3.0); plus a grep_messages tool. Conclusions have no lexical index. A materialised tsvector column is only an open PR (#958).",
+      "e": "read: src/utils/search.py:252-315; src/models.py:270-285; CHANGELOG 3.3.0 #1335; gh PR #958 (open)"
+    },
+    "index.vector": {
+      "s": "Y",
+      "t": "pgvector HNSW (m=16, ef_construction=64, cosine) on documents and message_embeddings by default. External stores sit behind a VectorStore interface with namespaces per observer-observed pair.",
+      "e": "read: src/models.py:520-528; src/vector_store/__init__.py; src/utils/agent_tools.py:669-673"
+    },
+    "read.rewrite": {
+      "s": "N",
+      "t": "No query rewriting stage. In the dialectic the agent model writes its own tool queries. Open PR #1338 adds semantic_query to separate retrieval text from the chat question.",
+      "e": "read: src/dialectic/core.py:229-300; gh PR #1338"
+    },
+    "read.analysis": {
+      "s": "N",
+      "t": "No explicit query classifier. The caller chooses the reasoning_level (minimal/low/medium/high/max, default low), which sets the tool loadout and iteration budget.",
+      "e": "read: src/schemas/api.py:809-812; src/config.py:1046-1090"
+    },
+    "read.legs": {
+      "s": "Y",
+      "t": "get_context: summary, recent messages and a 'representation' of up to 100 conclusions blended from semantic top-k, optional most-derived (times_derived, off by default) and recent conclusions, plus peer cards. Dialectic prefetch: two vector searches (explicit; deductive/inductive/contradiction), 25 each (10 at minimal). Agent tools add semantic, FTS and grep message search.",
+      "e": "read: src/crud/representation.py:327-420; src/routers/sessions.py:796-800; src/dialectic/core.py:228-330; src/utils/agent_tools.py:650-667"
+    },
+    "read.temporal": {
+      "s": "P",
+      "t": "Tool-level only: get_messages_by_date_range and search_messages_temporal (semantic search plus a date filter) over messages. Conclusions carry timestamps in their text but no temporal index.",
+      "e": "read: src/utils/agent_tools.py:657-658"
+    },
+    "read.traversal": {
+      "s": "P",
+      "t": "get_reasoning_chain walks premise and conclusion links in the reasoning DAG, and get_observation_context fetches the source messages around a conclusion. No entity traversal.",
+      "e": "read: src/utils/agent_tools.py:654, 659; src/dialectic/prompts.py:14-27"
+    },
+    "rank.fusion": {
+      "s": "P",
+      "t": "Reciprocal rank fusion (k=60) merges FTS and semantic results for message search. Conclusions are ranked by cosine alone. The representation takes semantic hits (total/3 or search_top_k), optionally most-derived conclusions (include_most_frequent, off by default; total/3 or total/2), then fills the remainder with the most recent conclusions.",
+      "e": "read: src/utils/search.py:36-75; src/crud/representation.py:340-420; src/routers/sessions.py:796-800"
+    },
+    "rank.rerank": {
+      "s": "N",
+      "t": "not found",
+      "e": "not found in src/"
+    },
+    "rank.gate": {
+      "s": "P",
+      "t": "Optional search_max_distance cut-off on semantic conclusion search in get_context. No abstain logic beyond the answering agent's own judgement.",
+      "e": "read: src/routers/sessions.py:780-784; src/crud/document.py:366-369"
+    },
+    "rank.agentic": {
+      "s": "Y",
+      "t": "Dialectic chat (POST /peers/{id}/chat, optional SSE stream) runs a tool loop with 1/5/2/4/10 max iterations for minimal/low/medium/high/max, plus 3 extra for workspace-wide chat. Tools: search_memory, search_messages, grep_messages, date-range and temporal message search, get_observation_context, get_reasoning_chain. Output cap 8,192, input cap 100,000.",
+      "e": "read: src/config.py:1046-1110; src/utils/agent_tools.py:651-683; src/routers/peers.py:257-395"
+    },
+    "answer.shape": {
+      "s": "",
+      "t": "get_context returns a structured object: the chosen summary (short or long), recent messages, the peer representation as timestamped conclusion lines (deductive with premises, inductive with confidence, and contradictions), and peer cards. The dialectic answers in natural language from its system prompt (peer cards and tool docs), a prefetched conclusion block and up to 4,096 tokens of session history.",
+      "e": "read: src/routers/sessions.py:709-1045; src/utils/representation.py:159-290, 600-650; src/dialectic/core.py:185-330; src/config.py:1111-1115"
+    },
+    "answer.size": {
+      "s": "P",
+      "t": "get_context caps total tokens (default 100,000) with a 40% summary / 60% recent-messages split. Representation size is not yet bounded by the tokens value (open PR #1256). Dialectic: 50 conclusions + cards + at most 4,096 history tokens + tool outputs (each at most 10,000 chars). The blog reports mean retrieved context at 11% (median 5%) of the 115k-token LongMemEval-S haystack, about 12.6k tokens. No LoCoMo per-question figure.",
+      "e": "read: src/routers/sessions.py:217-265, 1020-1033; src/crud/representation.py:340-420; src/config.py:797, 1580, 1111-1115; gh PR #1256; doc: blog 2025-12-19"
+    },
+    "answer.prompt": {
+      "s": "Y",
+      "t": "Pair-scoped dialectic system prompt built from grouped tool docs, the observer and observed peer cards, and custom instructions (dialectic level). In the LoCoMo harness the dialectic answer is the final answer; get_context + claude-sonnet-4-5 is an alternative mode.",
+      "e": "read: src/dialectic/prompts.py:1-130; tests/bench/locomo.py:53, 392-406"
+    },
+    "eval.best": {
+      "s": "",
+      "t": "LoCoMo 89.9% (vendor, cat 1-4, 1,540 q; per-category counts sum to 89.5%). LongMem S 90.4%, Oracle 91.8%, M 88.8% (M on 98 questions only). BEAM 100K/500K/1M/10M 0.630/0.649/0.631/0.406.",
+      "e": "doc: Plastic Labs blog 2025-12-19; docs/v3/guides/migrations/mem0.mdx:16"
+    },
+    "eval.outside": {
+      "s": "N",
+      "t": "No independent or stricter-harness LoCoMo run found in the repo or blog.",
+      "e": "inferred: not found"
+    },
+    "eval.models": {
+      "s": "",
+      "t": "Reader claude-haiku-4-5 (dialectic), ingest gemini-2.5-flash-lite, dream models unnamed. The LoCoMo judge is unnamed in the blog; the repo harness judge is gpt-4o-mini, lenient to verbose answers. LongMemEval judge GPT-4o.",
+      "e": "doc: blog 2025-12-19; read: tests/bench/locomo_common.py:371-401"
+    },
+    "eval.rigour": {
+      "s": "P",
+      "t": "An open harness (tests/bench/locomo.py, longmem.py, beam.py) records full deriver, dialectic and dream settings with each run. However: single vendor run; unnamed LoCoMo judge; the repo judge prompt must pass any answer containing the gold text and may overrule a gold answer it finds unsupported by the evidence; per-benchmark ingestion settings (128-token batches with dreaming on for LoCoMo, 16,384 with dreaming off for LongMem); and per-category counts (1,378/1,540 = 89.5%) that do not reproduce the headline 89.9%.",
+      "e": "read: tests/bench/locomo.py:356-361, 495-506; tests/bench/locomo_common.py:300-345, 371-401; doc: blog 2025-12-19"
+    },
+    "cost.write": {
+      "s": "",
+      "t": "Inferred for 272 sessions / 5,882 turns: one deriver call per 128-1,024-token window per speaker, so about 1,500-5,900 calls at the blog's 128-token batches (fewer at the 1,024 default). Plus about 270-300 short and some long summary calls (every 20/60 messages), plus agentic dreams (up to 12 + 10 tool rounds each) per collection every 50 conclusions, 8 h apart. Embeddings: one per message, plus batched conclusion embeddings.",
+      "e": "inferred from src/config.py:948-970, 1202-1203, 1390-1392; src/dreamer/specialists.py:609-610, 742-743; src/dreamer/dream_due.py:97-110"
+    },
+    "cost.read": {
+      "s": "",
+      "t": "get_context: 0 LLM calls, 0-1 embedding. Dialectic: 1 embedding + 1-2 LLM calls at minimal, up to 6 at low (default), up to 11 at max.",
+      "e": "read: src/config.py:1066-1090; src/dialectic/core.py:251-260"
+    },
+    "cost.where": {
+      "s": "",
+      "t": "Hosted APIs by default: OpenAI gpt-5.4-mini for deriver, summary, dialectic and dreams, and OpenAI embeddings. Anthropic, Gemini and OpenAI-compatible base URLs (so local vLLM/Ollama-style endpoints) are configurable per module, with fallbacks. A mock provider exists for tests.",
+      "e": "read: src/config.py:777-805, 925-934, 1059-1065, 1400-1420; src/mock_provider/"
+    },
+    "trust.provenance": {
+      "s": "Y",
+      "t": "Explicit conclusions keep their source message ids and session. Derived conclusions must cite existing conclusion ids (document_sources, ordered), and invented ids are discarded. Conclusions record level and times_derived; telemetry links the triggering message and queue ids. No trust score.",
+      "e": "read: src/models.py:441-480, 556-580; src/utils/agent_tools.py:745-746; src/dreamer/specialists.py:665-669; src/deriver/deriver.py:180-183"
+    },
+    "trust.erasure": {
+      "s": "P",
+      "t": "Workspace and session deletes return 202, mark the session inactive and enqueue a 'deletion' queue task that hard-deletes queue items, embeddings, documents and messages in batches. Single conclusions are soft-deleted and purged with their vectors by the reconciler after more than 5 min. No message or peer delete route was found. Derived conclusions whose premises are deleted are only removed on scope removal (open PR #1040 extends the session cascade).",
+      "e": "read: src/routers/sessions.py:409-450; src/routers/workspaces.py:122-152; src/routers/conclusions.py:166; src/routers/scopes.py:139; src/crud/session.py:578-600; src/crud/document.py:1621-1660; src/crud/scope.py:1-16; gh PR #1040"
+    },
+    "trust.auth": {
+      "s": "O",
+      "t": "HS256 JWT keys scoped to admin, workspace, peer or session (claims ad/w/p/s), with optional expiry. AUTH.USE_AUTH defaults to false in self-host. Named-scope API keys are an open PR (#1341).",
+      "e": "read: src/config.py:753-757; src/security.py:40-140; gh PR #1341"
+    },
+    "trust.sharing": {
+      "s": "Y",
+      "t": "Multi-peer by design: any peer with observe_others builds its own (observer, observed) collection from shared sessions, which gives theory-of-mind views. Scopes pool memory across sessions, and workspace-level dialectic routes across peers.",
+      "e": "read: src/deriver/enqueue.py:349-372; src/crud/scope.py:1-16; src/dialectic/workspace.py; src/utils/agent_tools.py:669-683"
+    }
   },
   "layers": {
     "raw": "Y",
@@ -97,16 +325,117 @@
     "provenance": "Y"
   },
   "extras": [
-    {"phase": "derive", "param": "Dreamer (sleep-time compute)", "t": "Idle-triggered agentic consolidation: deduction (updates, implications, contradictions, deletes, peer card) then induction (patterns with confidence). Optional surprisal sampling uses cover/RP/LSH trees over embeddings to hint at high-surprisal conclusions.", "e": "src/dreamer/orchestrator.py:1-12; src/dreamer/surprisal.py; src/dreamer/trees/"},
-    {"phase": "time", "param": "times_derived reinforcement", "t": "Each duplicate or re-derivation increments times_derived, and get_context can pull the 'most derived' conclusions as a salience leg.", "e": "src/crud/document.py:184-216, 1398; src/crud/representation.py:253-265"},
-    {"phase": "arch", "param": "Observer/observed perspectives", "t": "Per-pair collections give each peer its own model of every other peer (theory of mind), with separate vector namespaces per pair.", "e": "src/models.py:352-400; src/utils/agent_tools.py:669-673"},
-    {"phase": "rank", "param": "Reasoning levels", "t": "Five caller-selected levels trade cost for depth: tool set, iteration cap and prefetch size per level, with per-level model overrides.", "e": "src/config.py:1012-1090; src/dialectic/core.py:145-160, 251"},
-    {"phase": "answer", "param": "Prompt caching", "t": "Provider prompt-cache policy, including a Gemini cached-content store, for repeated prompt prefixes. Deriver prefix-caching branches are in progress.", "e": "src/llm/caching.py; src/config.py:141; branches adavya/deriver-prefix-caching, adavya/deriver-prompt-caching"},
-    {"phase": "write", "param": "Webhooks and MCP", "t": "Webhook task type for queue and memory events. Hosted MCP server (Cloudflare worker) and agent plugins (Hermes, Kilo Code, Claude Code skills).", "e": "src/webhooks/; mcp/; hermes-plugin-honcho/; kilo-honcho/"},
-    {"phase": "derive", "param": "Custom instructions per module", "t": "Workspace/session/message-level instructions for deriver, summary, dialectic, dream and peer card (at most 2,000 tokens), resolved hierarchically.", "e": "CHANGELOG 3.3.0 #1303; src/config.py:942-944"}
+    {
+      "phase": "derive",
+      "param": "Dreamer (sleep-time compute)",
+      "t": "Idle-triggered agentic consolidation: deduction (updates, implications, contradictions, deletes, peer card) then induction (patterns with confidence). Optional surprisal sampling uses cover/RP/LSH trees over embeddings to hint at high-surprisal conclusions.",
+      "e": "src/dreamer/orchestrator.py:1-12; src/dreamer/surprisal.py; src/dreamer/trees/"
+    },
+    {
+      "phase": "time",
+      "param": "times_derived reinforcement",
+      "t": "Each duplicate or re-derivation increments times_derived, and get_context can pull the 'most derived' conclusions as a salience leg.",
+      "e": "src/crud/document.py:184-216, 1398; src/crud/representation.py:253-265"
+    },
+    {
+      "phase": "arch",
+      "param": "Observer/observed perspectives",
+      "t": "Per-pair collections give each peer its own model of every other peer (theory of mind), with separate vector namespaces per pair.",
+      "e": "src/models.py:352-400; src/utils/agent_tools.py:669-673"
+    },
+    {
+      "phase": "rank",
+      "param": "Reasoning levels",
+      "t": "Five caller-selected levels trade cost for depth: tool set, iteration cap and prefetch size per level, with per-level model overrides.",
+      "e": "src/config.py:1012-1090; src/dialectic/core.py:145-160, 251"
+    },
+    {
+      "phase": "answer",
+      "param": "Prompt caching",
+      "t": "Anthropic calls always mark the system prompt cache_control ephemeral; other providers use a per-model PromptCachePolicy (none by default, or prefix / Gemini cached-content store). Deriver prefix-caching branches are in progress.",
+      "e": "src/llm/backends/anthropic.py:62-68, 156-163; src/config.py:141-151; src/llm/caching.py; branches adavya/deriver-prefix-caching, adavya/deriver-prompt-caching"
+    },
+    {
+      "phase": "write",
+      "param": "Webhooks and MCP",
+      "t": "Webhook task type for queue and memory events. Hosted MCP server (Cloudflare worker) and agent plugins (Hermes, Kilo Code, Claude Code skills).",
+      "e": "src/webhooks/; mcp/; hermes-plugin-honcho/; kilo-honcho/"
+    },
+    {
+      "phase": "derive",
+      "param": "Custom instructions per module",
+      "t": "Workspace/session/message-level instructions for deriver, summary, dialectic, dream and peer card (at most 2,000 tokens), resolved hierarchically.",
+      "e": "CHANGELOG 3.3.0 #1303; src/config.py:942-944"
+    },
+    {
+      "phase": "answer",
+      "param": "Tool-loop context truncation",
+      "t": "Before each agent iteration the conversation is trimmed to the input cap by dropping the oldest units first, keeping tool-use/tool-result pairs intact and the system prompt preserved.",
+      "e": "src/llm/conversation.py:127-160; src/llm/tool_loop.py:386-391, 666-673"
+    },
+    {
+      "phase": "answer",
+      "param": "Passive evidence collation",
+      "t": "Opt-in include_evidence on chat returns the conclusions and message ids the agent actually read, gathered from rows already loaded, so no extra queries or model citations are needed.",
+      "e": "src/utils/evidence.py:1-21; src/schemas/api.py:823, 960"
+    },
+    {
+      "phase": "rank",
+      "param": "Forced recall in workspace chat",
+      "t": "Workspace-wide chat keeps a forced tool choice until a recall tool runs cleanly (at most 3 forced rounds), so answers rest on at least one search; an empty model reply triggers one nudge retry.",
+      "e": "src/utils/agent_tools.py:694-704; src/llm/tool_loop.py:317, 365-371, 478-494; CHANGELOG 3.2.1 #1210"
+    },
+    {
+      "phase": "write",
+      "param": "Bounded immediate-embed fast path",
+      "t": "New messages are embedded straight after the response, capped at 50 in-flight tasks per process; when saturated the reconciler embeds them on its next 300 s cycle.",
+      "e": "src/config.py:826-832, 1521-1523; src/routers/messages.py:168-179; src/reconciler/embed_now.py"
+    },
+    {
+      "phase": "derive",
+      "param": "Adaptive summary target and fallback",
+      "t": "Short summaries target 60% of min(input tokens, cap), long ones 60% of their cap; an unusable output falls back to a deterministic one-line summary or keeps the previous one.",
+      "e": "src/utils/summarizer.py:99-145, 261-302"
+    },
+    {
+      "phase": "derive",
+      "param": "card_refresh dream",
+      "t": "A card-only dream type rebuilds the peer card (optionally from scratch) with no observation-mutating tools; used after scope backfills.",
+      "e": "src/dreamer/specialists.py:841-870; src/deriver/scope_backfill.py:13, 594"
+    },
+    {
+      "phase": "trust",
+      "param": "Scope backfill and removal jobs",
+      "t": "Adding a session to a scope copies its explicit conclusions into the scope's collections; removing it soft-deletes those and dependent derived conclusions.",
+      "e": "src/crud/scope.py:1-16; src/deriver/scope_backfill.py"
+    },
+    {
+      "phase": "extract",
+      "param": "Per-call token accounting",
+      "t": "Each deriver call emits scaffold, queued-message and extra-context token counts, dedup counts and cap hits, so batching and prompt overhead can be tuned from telemetry.",
+      "e": "src/deriver/deriver.py:125-137, 302-367"
+    },
+    {
+      "phase": "arch",
+      "param": "Session clone at a cutoff",
+      "t": "A session can be cloned up to a given message, copying messages and peers within the workspace.",
+      "e": "src/routers/sessions.py:455-470; CHANGELOG 3.3.0 #1284"
+    },
+    {
+      "phase": "index",
+      "param": "Embedding wire and batch tuning",
+      "t": "base64 encoding is used automatically on hosts known to support it, dimensions are forwarded only when safe, and max_batch_size caps texts per request for smaller providers.",
+      "e": "src/config.py:388-396, 845-876; CHANGELOG 3.0.12 #983"
+    }
   ],
-  "token_economy": {"t": "Write side: tiny static extraction prompt with no existing-memory context; batching by token windows (512-token gate, 1,024-token window) amortises the prompt; one call serves all observers; aggressive dedup (exact + cosine <=0.05) keeps the store small. Read side: get_context packs to a caller token budget (40% summary, 60% recent messages) with zero LLM calls; the representation is capped at 100 conclusions via a fixed semantic/most-derived/recent quota; peer cards are capped at 40 entries; the dialectic prefetches 25+25 conclusions (10+10 at minimal), caps history at 4,096 tokens and tool outputs at 10,000 chars (truncating whole snippets), and the minimal level exposes only 2 tools. Summaries target 60% of a 1,500/6,000-token cap. The blog reports retrieved context averaging 11% (median 5%) of the haystack on LongMemEval-S (about 12.6k of 115k tokens) and about 0.5% at BEAM 10M.", "e": "src/config.py:941-970, 1102-1115, 1229-1230, 1580, 797; src/routers/sessions.py:217-265; src/dialectic/core.py:229-260; src/dreamer/specialists.py:132; CHANGELOG 3.3.0 #1265; blog 2025-12-19"},
-  "speed": {"t": "Writes return after the Postgres commit. Queueing and immediate embedding run as post-response background tasks (embedding is capped per process, with the reconciler as fallback). Separate deriver workers claim work units with FOR UPDATE SKIP LOCKED-style ownership (active_queue_sessions), with adaptive polling backoff (1 s to 30 s, multiplier 2, ±50% jitter). Embeddings are batched, at most 10 concurrent. Batched semantic-dedup lookup. Optional Redis cache and keyset pagination. Dreams run only when idle. Published micro-benchmarks are in the changelog (for example, the peer-sessions index cut 28.9 ms to 0.15 ms; the materialised tsvector cut 48 s to 0.9 s). No end-to-end read latency was published in code or docs.", "e": "src/routers/messages.py:165-180; src/deriver/queue_manager.py:140-560; src/config.py:886-912, 828-832; CHANGELOG 3.2.2 #1237; gh PR #958"},
+  "token_economy": {
+    "t": "Write side: tiny static extraction prompt with no existing-memory context; batching by token windows (512-token gate, 1,024-token window) amortises the prompt; one call serves all observers; aggressive dedup (exact + cosine <=0.05) keeps the store small. Read side: get_context packs to a caller token budget (40% summary, 60% recent messages) with zero LLM calls; the representation is capped at 100 conclusions (semantic share, optional most-derived share, recent fills the rest) but is subtracted from, not bounded by, the tokens budget (open PR #1256); peer cards are capped at 40 entries; the dialectic prefetches 25+25 conclusions (10+10 at minimal), caps history at 4,096 tokens and tool outputs at 10,000 chars (truncating whole snippets), and the minimal level exposes only 2 tools. Summaries target 60% of a 1,500/6,000-token cap. The blog reports retrieved context averaging 11% (median 5%) of the haystack on LongMemEval-S (about 12.6k of 115k tokens) and about 0.5% at BEAM 10M.",
+    "e": "src/config.py:941-970, 1102-1115, 1229-1230, 1580, 797; src/routers/sessions.py:217-265; src/dialectic/core.py:229-260; src/dreamer/specialists.py:132; CHANGELOG 3.3.0 #1265; blog 2025-12-19"
+  },
+  "speed": {
+    "t": "Writes return after the Postgres commit. Queueing and immediate embedding run as post-response background tasks; the embed fast path is capped at 50 in-flight tasks per process and otherwise left to the reconciler. Separate deriver workers claim work units by inserting into active_queue_sessions with ON CONFLICT DO NOTHING; reconciler and embedding claims use FOR UPDATE SKIP LOCKED. Polling backs off adaptively (1 s to 30 s, multiplier 2, +/-50% jitter, 30 s start-up jitter). Embeddings are batched, at most 10 concurrent, base64 wire format where supported. Semantic-dedup candidates are fetched once per batch. Optional Redis cache, keyset cursor pagination and an offset-to-keyset shim. Dreams run only when idle. Changelog micro-benchmark: the peer-sessions index cut 28.9 ms to 0.15 ms; a pg_trgm index removed 10 s+ ILIKE scans. The 48 s to 0.9 s tsvector figure is from open PR #958, not shipped. No end-to-end read latency was published.",
+    "e": "src/routers/messages.py:165-180; src/config.py:826-832, 862-912; src/deriver/queue_manager.py:421-445, 462-500; src/reconciler/embed_now.py:16, 184; CHANGELOG 3.2.2 #1237, 3.3.0 #1326 #1335; gh PR #958 (open)"
+  },
   "keep": [
     "Two read paths: a zero-LLM, token-budgeted get_context (summary + recent turns + bounded representation) for the hot path, and an agentic dialectic with caller-chosen reasoning levels for hard questions.",
     "A cheap minimal deriver (explicit facts only, no neighbours, token-window batching, one call shared across observers), with all expensive reasoning (updates, contradictions, induction, profile) deferred to idle-time dreams.",
@@ -122,11 +451,103 @@
   ],
   "in_progress": [
     "PR #1338 (2026-10-08): semantic_query separates retrieval text from the dialectic chat query.",
-    "PR #1256 (2026-10-09): make get_context's tokens bound the peer representation.",
-    "PR #1341 (2026-10-09): named-scope API keys for recall and ingestion. PR #1264: shared tenants (feat/shared-tenants branch, CI gates added in #1332).",
-    "PR #1251: enable pgvector HNSW iterative scan by default. PR #1037: cross-peer semantic conclusion query on pgvector.",
-    "PR #1040: cascade session delete to derived conclusions with no session_name. PR #1228: peer-card overflow rejection and bounded correction attempts.",
+    "PR #1256 (2026-10-09): make get_context's tokens bound the peer representation (summary first, then card, then a binary-searched representation, then messages).",
+    "PR #1341 (2026-10-09): named-scope API keys for recall and ingestion. PR #1264: shared tenants (feat/shared-tenants branch, CI gates #1332).",
+    "PR #1251: enable pgvector HNSW iterative scan by default. PR #1037: cross-peer semantic conclusion query on pgvector. PR #958: materialised message tsvector (48 s to 0.9 s).",
+    "PR #1169: never consume a work unit on an empty structured response. PR #930: heartbeat to keep active work-unit claims alive. PR #1228: peer-card overflow rejection and bounded correction attempts.",
+    "PR #1040: cascade session delete to derived conclusions with no session_name. PR #992: clear dangling session hints on pending dreams at session delete.",
+    "Embedding work: #951 and #779 asymmetric query/document embeddings, #917 MRL truncation, #957 'none' embedding transport and EMBED_OBSERVATIONS gate. PR #969: OpenTelemetry memory semantic conventions. PR #1305: single launcher for api, deriver and migrate.",
     "Older open PRs: #485 observation categories for scoped retrieval, #599 lifecycle-native memory filtering, #1035 configurable representation order, #935 message-to-conclusion source indices, #961 exclude agent self-narration from extraction.",
-    "Branches: adavya/deriver-prefix-caching and adavya/deriver-prompt-caching (prompt caching for the deriver), kass/summarizer-priority-prompt, vince/deriver-decontextuality-updates, adavya/dreamer-target-peer-prompt (262 branches in total)."
-  ]
+    "Open issues that change the picture: #1306 session-scoped key can read a peer's workspace-wide representation through get_context; #1325 summariser has no input token cap; #1307 dream due-listing sorts every explicit document each poll; #1301 control events ingested as human prose pollute memory; #1347 truncate_messages_to_fit can drop the only user turn.",
+    "Branches: adavya/deriver-prefix-caching and adavya/deriver-prompt-caching, fix/prefix-based-cache-optim, kass/summarizer-priority-prompt, vince/deriver-decontextuality-updates, adavya/dreamer-target-peer-prompt (262 branches, 66 open PRs on 2026-10-11)."
+  ],
+  "specialities": [
+    {
+      "name": "Perspective-scoped memory (theory of mind)",
+      "t": "Every conclusion lives in an (observer, observed) collection with its own vector namespace, so each peer holds its own model of every other peer. One deriver call per observed-peer window is fanned out to all observers, so extra perspectives cost storage, not LLM calls.",
+      "e": "read: src/deriver/enqueue.py:330-372; src/utils/work_unit.py:52-55; src/deriver/deriver.py:230-247; src/config.py:1476-1480",
+      "phase": "arch"
+    },
+    {
+      "name": "Idle-time dreaming with grounded premises",
+      "t": "Expensive reasoning is deferred to idle-triggered deduction then induction agents. Every derived conclusion must cite existing conclusion ids, which are checked and dropped if they do not resolve, and stored as ordered reasoning-tree edges that agents can traverse.",
+      "e": "read: src/dreamer/dream_due.py:35-115; src/dreamer/specialists.py:612-678; src/utils/agent_tools.py:745-775; src/models.py:556-579",
+      "phase": "derive"
+    },
+    {
+      "name": "Reinforcement count as a retrieval leg",
+      "t": "Duplicates and re-derivations increment times_derived instead of adding rows, and get_context can pull the most-derived conclusions as a salience leg alongside semantic and recent ones.",
+      "e": "read: src/crud/document.py:184-216, 1398, 1603-1611; src/crud/representation.py:395-406",
+      "phase": "time"
+    },
+    {
+      "name": "Richer-text-wins semantic dedup",
+      "t": "Near-duplicates (cosine distance <=0.05, same level and session) are resolved by scoring token sets with unique tokens weighted 10x, so the more specific wording survives and inherits the reinforcement count.",
+      "e": "read: src/crud/document.py:236-251, 1409-1425",
+      "phase": "time"
+    },
+    {
+      "name": "Code-enforced identity card",
+      "t": "The peer card is restricted in code to four typed prefixes, 200 characters per entry and 40 entries, and the prompt pushes behaviour and volatile facts out to conclusions, giving a small stable profile block.",
+      "e": "read: src/utils/agent_tools.py:45-75, 1540-1565; src/dreamer/specialists.py:78-132",
+      "phase": "derive"
+    },
+    {
+      "name": "Fail-closed provenance scoping on reads",
+      "t": "When recall is confined to a session allowlist, only explicit conclusions (whose provenance sits in one session) are returned, the peer card is omitted and the reasoning-chain tool is removed, because cross-session syntheses cannot be proven to stay inside the allowlist.",
+      "e": "read: src/routers/sessions.py:994-1016; src/crud/representation.py:505-512; src/dialectic/core.py:145-162",
+      "phase": "read"
+    },
+    {
+      "name": "Two cost tiers on read",
+      "t": "get_context assembles summary, recent turns, representation and card under a token budget with zero LLM calls, while the dialectic exposes five caller-chosen reasoning levels; the minimal level ships only two tool definitions and smaller prefetches to save prompt tokens.",
+      "e": "read: src/routers/sessions.py:217-265, 1020-1033; src/config.py:1054-1090; src/utils/agent_tools.py:662-668; src/dialectic/core.py:250-251",
+      "phase": "rank"
+    }
+  ],
+  "verification": {
+    "date": "2026-10-11",
+    "commit": "3922af8",
+    "rows_checked": 57,
+    "corrections": [
+      "time.fields: was 'single created_at set from the source message time' -> now row created_at = insertion time plus message_created_at in metadata, which reads prefer",
+      "index.lexical: was 'with a materialised tsvector index' -> now expression GIN index; materialised tsvector is open PR #958, not shipped",
+      "trust.erasure: was 'deletes are soft, then hard-deleted by the reconciler' -> now workspace/session deletes are queued hard cascades; only conclusions are soft-deleted then purged; no message delete route",
+      "derive.background: was '50 new conclusions, 60 min idle' with induction evidence at specialists.py:690-700 -> now counts explicit conclusions only, idle measured from newest conclusion, 300 s due-poll; induction iterations at specialists.py:742-743",
+      "rank.fusion: was 'fixed-quota blend (thirds or halves) of semantic, most-derived and recent' -> now most-derived is opt-in and recent fills whatever capacity is left",
+      "read.legs: was most-derived leg presented as always on with evidence representation.py:188-280 -> now opt-in (include_most_frequent default false), evidence 327-420",
+      "time.dedup: was 'on by default (DERIVER.DEDUPLICATE)' for both stages -> now exact dedup is unconditional; the flag gates only semantic dedup",
+      "extract.failure: was silent on per-observer retryable re-raise and on consuming empty outputs -> now both stated, with PR #1169",
+      "derive.profile: was 40-entry cap sourced to the prompt only -> now enforced in code with a 200-char entry cap and prefix validation (agent_tools.py:45-75, 1551-1558)",
+      "eval.rigour: was 'lenient judge prompt' -> now names the gold-containment rule and the judge's licence to overrule gold answers, plus per-benchmark configs",
+      "eval.best: was 'LongMemEval-S 90.4%, Oracle 91.8%, M 88.8%' -> now notes M covers 98 questions only and the 89.5% recount",
+      "answer.size: evidence was sessions.py:796-805 (a query-parameter description) -> now 1020-1033, where representation and card tokens are subtracted from the budget",
+      "answer.shape: evidence range sessions.py:710-830 stopped before the assembly code -> now 709-1045",
+      "cost.write: induction-round evidence was specialists.py:690-700 -> now 742-743",
+      "arch.scope: was 'per-request session allowlists narrow recall' -> now states the fail-closed rule (explicit-only, card and reasoning chain dropped)",
+      "speed: was 'FOR UPDATE SKIP LOCKED-style ownership' and '48 s to 0.9 s' as shipped -> now INSERT ... ON CONFLICT DO NOTHING claims, and the tsvector figure attributed to open PR #958",
+      "token_economy: was 'fixed semantic/most-derived/recent quota' -> now remainder-filled blend that the tokens budget does not bound",
+      "extras 'Prompt caching': was implied on generally -> now policy default 'none', Anthropic system prompt always cached"
+    ],
+    "added": [
+      "extra (answer): Tool-loop context truncation",
+      "extra (answer): Passive evidence collation",
+      "extra (rank): Forced recall in workspace chat",
+      "extra (write): Bounded immediate-embed fast path",
+      "extra (derive): Adaptive summary target and fallback",
+      "extra (derive): card_refresh dream",
+      "extra (trust): Scope backfill and removal jobs",
+      "extra (extract): Per-call token accounting",
+      "extra (arch): Session clone at a cutoff",
+      "extra (index): Embedding wire and batch tuning",
+      "specialities: 7 entries added",
+      "in_progress: PRs #1169, #930, #958, #992, #951, #779, #917, #957, #969, #1305 and open issues #1306, #1325, #1307, #1301, #1347"
+    ],
+    "unverified": [
+      "LoCoMo 89.9%/86.9%, LongMem and BEAM figures are blog-only (re-read 2026-10-11); no results files in the repo, and the blog does not name the LoCoMo judge.",
+      "Hosted api.honcho.dev may run different models and settings from the self-host defaults read here.",
+      "cost.write call counts are inferred from config, not measured.",
+      "No end-to-end read or write latency figure exists in code or docs."
+    ]
+  }
 }

@@ -148,6 +148,27 @@ def main():
         f'<tr data-e="{esc(e["slug"])}"><td>{esc(ph)}</td><th scope="row" class="param">{esc(e["name"])}</th>'
         f'<td><b>{esc(x.get("param"))}</b> {esc(x.get("t"))}</td><td class="ev">{esc(x.get("e"))}</td></tr>' for ph, e, x in extras)
 
+    specs = "".join(
+        f'<article class="ecard" data-e="{esc(e["slug"])}"><h3>{esc(e["name"])}</h3><ul>'
+        + "".join(f'<li><b>{esc(s.get("name"))}</b> {esc(s.get("t"))}<span class="ev">{esc(s.get("phase", ""))} · {esc(s.get("e", ""))}</span></li>'
+                  for s in e["specialities"]) + "</ul></article>"
+        for e in engines if e.get("specialities"))
+
+    def vstamp(e):
+        v = e.get("verification") or {}
+        if not v:
+            return '<p class="ev">Second-pass verification: not yet run</p>'
+        return (f'<p class="ev">Verified {esc(v.get("date", ""))} at {esc(v.get("commit", ""))}: {esc(v.get("rows_checked", ""))} rows checked, '
+                f'{len(v.get("corrections") or [])} corrected, {len(v.get("added") or [])} added, {len(v.get("unverified") or [])} unverified</p>')
+
+    verify_rows = "".join(
+        f'<tr data-e="{esc(e["slug"])}"><th scope="row" class="param">{esc(e["name"])}</th>'
+        f'<td>{esc((e.get("verification") or {}).get("commit", "-"))}</td>'
+        f'<td>{"<br>".join(esc(c) for c in (e.get("verification") or {}).get("corrections") or []) or "-"}</td>'
+        f'<td>{"<br>".join(esc(c) for c in (e.get("verification") or {}).get("added") or []) or "-"}</td>'
+        f'<td>{"<br>".join(esc(c) for c in (e.get("verification") or {}).get("unverified") or []) or "-"}</td></tr>'
+        for e in engines)
+
     progress = "".join(
         f'<article class="ecard" data-e="{esc(e["slug"])}"><h3>{esc(e["name"])}</h3><ul>'
         + "".join(f"<li>{esc(p)}</li>" for p in e["in_progress"]) + "</ul></article>"
@@ -155,7 +176,7 @@ def main():
 
     keep = "".join(
         f'<article class="ecard" data-e="{esc(e["slug"])}"><h3>{esc(e["name"])}</h3><p class="ev">{esc(e.get("repo", ""))}'
-        f'{(" @ " + esc(e["commit"])) if e.get("commit") else ""}</p>'
+        f'{(" @ " + esc(e["commit"])) if e.get("commit") else ""}</p>{vstamp(e)}'
         f'<h4>Keep or learn</h4><ul>{"".join(f"<li>{esc(k)}</li>" for k in e.get("keep") or [])}</ul>'
         f'<h4>Avoid</h4><ul class="neg">{"".join(f"<li>{esc(k)}</li>" for k in e.get("avoid") or [])}</ul></article>'
         for e in engines)
@@ -180,7 +201,7 @@ def main():
         css=CSS, n=len(engines), tiles=tiles, layer_head=thead("Layer"), layer_rows="".join(layer_rows),
         nav="".join(nav), sections="".join(sections), locomo_rows="".join(locomo_rows),
         tokens=cardlist("token_economy"), speed=cardlist("speed"), extra_rows=extra_rows, progress=progress,
-        keep=keep, synth=synth_html, js=JS, decision_nav='<a href="#decision" class="navchip"><span class="num">··</span>Decision</a>' if synth else "",
+        keep=keep, synth=synth_html, specs=specs, verify_rows=verify_rows, js=JS, decision_nav='<a href="#decision" class="navchip"><span class="num">··</span>Decision</a>' if synth else "",
     )
     OUT.write_text(page, encoding="utf-8")
     print(f"wrote {OUT} ({len(page):,} bytes, {len(engines)} engines: {', '.join(slugs)})")
@@ -326,7 +347,7 @@ PAGE = """<title>Memory Engine Comparison</title>
 </header>
 
 <div class="tools">
-  <nav class="navrow" aria-label="Sections"><a href="#layers" class="navchip"><span class="num">··</span>Layers</a>{decision_nav}{nav}<a href="#locomo" class="navchip"><span class="num">··</span>LoCoMo</a><a href="#tokens" class="navchip"><span class="num">··</span>Token economy</a><a href="#speed" class="navchip"><span class="num">··</span>Speed</a><a href="#extras" class="navchip"><span class="num">··</span>Extras</a><a href="#progress" class="navchip"><span class="num">··</span>In progress</a><a href="#keep" class="navchip"><span class="num">··</span>Keep / avoid</a></nav>
+  <nav class="navrow" aria-label="Sections"><a href="#layers" class="navchip"><span class="num">··</span>Layers</a>{decision_nav}{nav}<a href="#locomo" class="navchip"><span class="num">··</span>LoCoMo</a><a href="#specialities" class="navchip"><span class="num">··</span>Specialities</a><a href="#tokens" class="navchip"><span class="num">··</span>Token economy</a><a href="#speed" class="navchip"><span class="num">··</span>Speed</a><a href="#extras" class="navchip"><span class="num">··</span>Extras</a><a href="#progress" class="navchip"><span class="num">··</span>In progress</a><a href="#keep" class="navchip"><span class="num">··</span>Keep / avoid</a><a href="#verification" class="navchip"><span class="num">··</span>Verification</a></nav>
   <div class="filters">
     <input type="search" id="q" placeholder="Filter rows, e.g. temporal, rerank, provenance" aria-label="Filter rows">
     <label><input type="checkbox" id="diff"> Only rows where the shown engines differ</label>
@@ -348,6 +369,8 @@ PAGE = """<title>Memory Engine Comparison</title>
 <p class="pintro">None of these is comparable with another unless reader, judge, budget and question set match.</p></div>
 <div class="tablewrap"><table class="plain"><thead><tr><th scope="col" class="param">Engine</th><th scope="col">Score</th><th scope="col">Who ran it</th><th scope="col">Protocol</th><th scope="col">Source</th></tr></thead><tbody>{locomo_rows}</tbody></table></div></section>
 
+<section class="phase" id="specialities"><div class="phead"><span class="pnum">Specialities</span><h2>What each engine does that others don't</h2><p class="pintro">Distinctive ideas, mechanisms and engineering tricks, confirmed in code unless marked doc.</p></div><div class="cards">{specs}</div></section>
+
 <section class="phase" id="tokens"><div class="phead"><span class="pnum">Token economy</span><h2>How each engine keeps context small</h2></div><div class="cards">{tokens}</div></section>
 
 <section class="phase" id="speed"><div class="phead"><span class="pnum">Engineering</span><h2>Speed: async, batching, caching, parallelism</h2></div><div class="cards">{speed}</div></section>
@@ -358,6 +381,9 @@ PAGE = """<title>Memory Engine Comparison</title>
 <section class="phase" id="progress"><div class="phead"><span class="pnum">Moving parts</span><h2>Work in progress</h2><p class="pintro">Branches, open pull requests, roadmaps and recent commits that change the picture.</p></div><div class="cards">{progress}</div></section>
 
 <section class="phase" id="keep"><div class="phead"><span class="pnum">Per engine</span><h2>What to keep, and what to avoid</h2></div><div class="cards">{keep}</div></section>
+
+<section class="phase" id="verification"><div class="phead"><span class="pnum">Audit</span><h2>Second-pass verification log</h2><p class="pintro">Each record was re-checked row by row against its pinned commit. Corrections, additions and anything that could not be confirmed are listed here.</p></div>
+<div class="tablewrap"><table class="plain"><thead><tr><th scope="col" class="param">Engine</th><th scope="col">Commit</th><th scope="col">Corrected</th><th scope="col">Added</th><th scope="col">Not confirmed</th></tr></thead><tbody>{verify_rows}</tbody></table></div></section>
 
 <footer class="pintro"><h4>Sources</h4><p>Records live in <code>memspine/docs/engine_survey/*.json</code> (one per engine, schema in SPEC.md) and are built by <code>build_comparison.py</code>. Clones were read only, never installed or run. Earlier engine documents: MEMSPINE_ENGINE_AND_LOCOMO, MEM0_ENGINE, EVERMEMOS_ENGINE, ENGINE_COMPARISON_AND_WRITE_PATH_DESIGN, and the combined engine guide.</p></footer>
 </div>

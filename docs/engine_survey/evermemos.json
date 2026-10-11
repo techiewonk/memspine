@@ -1,293 +1,329 @@
 {
  "slug": "evermemos",
  "name": "EverMemOS (EverOS)",
- "repo": "https://github.com/EverMind-AI/EverOS @ fcd41b5 + EverAlgo 7746a87",
- "one_line": "LLM-written episodes and facts; LLM decider on the read side.",
+ "repo": "https://github.com/EverMind-AI/EverOS (chassis) + https://github.com/EverMind-AI/EverAlgo (algorithms and prompts)",
+ "commit": "EverOS fcd41b5 (2026-10-10) + EverAlgo 7746a87 (2026-09-16)",
+ "version": "everos 1.4.1; pins everalgo-user-memory 0.4.0, agent-memory 0.4.0, rank 0.4.1, boundary 0.2.1 (EverAlgo HEAD: user-memory 0.8.0rc9, boundary 0.3.0)",
+ "licence": "Apache-2.0",
+ "one_line": "Markdown-first memory engine: LLM-cut MemCells become LLM-written dated episodes (facts, profile, agent cases and skills derived in background), indexed in LanceDB, read by hybrid RRF or an LLM decider loop.",
+ "evidence_note": "Paths without a prefix are in the EverOS clone; paths prefixed 'EverAlgo:' are in the EverAlgo clone. Tags: read = seen in code; doc = docs/README/results file only; external = EverAlgo HEAD code, which is newer than the wheels EverOS pins; inferred.",
+ "locomo": [
+  {
+   "score": "94.42",
+   "protocol": "EverOS benchmark runner, llm_multiround, top-20 episodes, decider deepseek-v4-flash-0731 (README) with full-text decider, gpt-4.1-mini answers (7-step CoT, 32,768 max tokens), gpt-4o-mini judge with 1 run and a lenient prompt, cat 1-4 = 1,540 q",
+   "who": "vendor",
+   "source": "doc: benchmarks/README.md:100; benchmarks/configs/locomo.toml:29-63; benchmarks/adapters/locomo.py:32,184"
+  },
+  {
+   "score": "93.51",
+   "protocol": "EverAlgo 7-stage benchmark, agentic retrieval (hybrid + Qwen3-Reranker + multi-query), top-10, gpt-4.1-mini extract and answer, gpt-4o-mini judge x3 majority (93.33 mean of runs), avg 2,596 context tokens, reflection off, user-memory 0.3.0, 1,540 q",
+   "who": "vendor",
+   "source": "doc: EverAlgo:benchmarks/results/locomo-93.51/report.txt:1-90, REPRODUCTION.md:1-30"
+  },
+  {
+   "score": "93.05",
+   "protocol": "EverAlgo historical 5-stage run, agentic, gpt-4.1-mini, gpt-4o-mini x3 majority, avg 2,294 context tokens, 1,540 q",
+   "who": "vendor",
+   "source": "doc: EverAlgo:benchmarks/results/locomo-93.05/report.txt:1-20"
+  },
+  {
+   "score": "82.75",
+   "protocol": "OmniMemEval against the EverOS cloud API (not the OSS engine), gpt-4.1-mini reader, gpt-4o-mini judge, 8,559 context tokens, 1,540 q",
+   "who": "independent (competitor-run, MemTensor)",
+   "source": "OmniMemEval results.md via memspine/evals/analysis/SOTA_MEMU_MEMOS_LOCOMO.md (not in clone)"
+  },
+  {
+   "score": "58.25",
+   "protocol": "LoCoMo-Refined strict judge, Qwen3-14B reader, 1,382 revised q",
+   "who": "independent",
+   "source": "BENCHMARKS_UPDATE_2026-10-02 (not in clone)"
+  }
+ ],
  "rows": {
   "arch.product": {
    "s": "",
-   "t": "Chassis (API, buffer, storage, search) plus the separate EverAlgo algorithm library",
-   "e": "see engine document"
+   "t": "Self-hosted FastAPI service plus CLI/TUI (everos 1.4.1). The repo is only the chassis (API, buffer, storage, OME scheduler, cascade, search); every extractor, ranker and prompt lives in the separate EverAlgo library consumed as pinned everalgo-* wheels.",
+   "e": "read: pyproject.toml:3,90-109; src/everos/entrypoints/{api,cli,tui}; doc: docs/architecture.md"
   },
   "arch.truth": {
    "s": "Y",
-   "t": "Markdown + YAML files; LanceDB is a rebuildable index",
-   "e": "see engine document"
+   "t": "Markdown + YAML frontmatter files are the source of truth, written atomically (tmp file, fsync, os.replace); SQLite and LanceDB are derived, and deleting .index/ loses no memory.",
+   "e": "doc: docs/how-memory-works.md:26-39; read: src/everos/core/persistence/markdown/writer.py:1-11"
   },
   "arch.stores": {
    "s": "",
-   "t": "Markdown tree; SQLite buffer, memcell ledger, clusters, cascade queue; LanceDB or Milvus",
-   "e": "see engine document"
+   "t": "Markdown tree (users/<id>/user.md, episode daily logs, .atomic_facts, .foresights, agents/<id>/.cases, skills/*/SKILL.md, knowledge/); SQLite for unprocessed buffer, memcell ledger, clusters, cascade queue, OME records; LanceDB (default) or remote Milvus for vectors + BM25 + scalar filters.",
+   "e": "read: src/everos/config/default.toml:45-66; src/everos/infra/persistence/{markdown,sqlite,lancedb,milvus}; doc: docs/how-memory-works.md:57-79"
   },
   "arch.graphdb": {
    "s": "N",
-   "t": "None; parent_id pointers and cluster membership only",
-   "e": "see engine document"
+   "t": "No graph store. Relations are parent_id pointers (fact -> episode -> memcell; merged episode -> cluster) and SQLite cluster membership.",
+   "e": "read: src/everos/infra/persistence/lancedb/tables/episode.py:45; src/everos/memory/strategies/trigger_profile_clustering.py:96-114"
   },
   "arch.scope": {
-   "s": "",
-   "t": "app and project, then owner partition; deprecated rows filtered",
-   "e": "see engine document"
+   "s": "P",
+   "t": "app_id/project_id then owner (user_id XOR agent_id) pinned into every LanceDB predicate, plus deprecated_by IS NULL for users. Defect at this commit: index rows are keyed on owner_id + entry_id only, so a second project for the same owner can overwrite the first project's index rows (open PR #481).",
+   "e": "read: src/everos/memory/search/dto.py:59-67; src/everos/memory/search/filters.py:51-67; src/everos/infra/persistence/lancedb/tables/episode.py:28-29; core/persistence/lancedb/repository.py:484-487; doc: PR #481"
   },
   "write.entry": {
    "s": "",
-   "t": "POST /add and /flush under a per-session lock (360 s timeout)",
-   "e": "see engine document"
+   "t": "POST /api/v2/memory/add and /flush (flush forces is_final). Each call holds a per-session asyncio lock under a 360 s asyncio.timeout. defer_extraction=true only buffers the messages (zero LLM calls) until a later flush.",
+   "e": "read: src/everos/entrypoints/api/routes/memorize.py:182,201; src/everos/service/memorize.py:180-252; src/everos/config/settings.py:445"
   },
   "write.receipt": {
    "s": "P",
-   "t": "Episode file on disk before return; facts, profile and index lag (eventual, about 10-15 s)",
-   "e": "see engine document"
+   "t": "Returns status accumulated|extracted after boundary detection and the episode markdown write; atomic facts, profile, foresight and agent cases run later in OME, and search reads LanceDB, which lags markdown (docs: sub-second typically, about 10-15 s under load).",
+   "e": "read: src/everos/service/memorize.py:269-299; doc: docs/how-memory-works.md:262"
   },
   "write.roles": {
    "s": "P",
-   "t": "Tool rows dropped in chat mode; facts and profile re-run per user sender",
-   "e": "see engine document"
+   "t": "Default mode is agent: tool rows kept, AgentBoundaryDetector, user and agent pipelines both run; chat mode drops tool rows. Episodes are copied to every role=user sender; agent cases are written per assistant sender. Assistant-only or tool-only batches wait in the buffer.",
+   "e": "read: src/everos/config/default.toml:161-167; src/everos/service/_boundary.py:144-149,227-232; src/everos/memory/extract/pipeline/user_memory.py:140-190; src/everos/memory/strategies/extract_agent_case.py:51-66"
   },
   "write.firewall": {
    "s": "N",
-   "t": "None",
-   "e": "see engine document"
+   "t": "Not found: no injection or poisoning check on write; content goes straight to the boundary and episode LLMs.",
+   "e": "read: grep for inject/sanitize/untrusted in src/everos/memory and src/everos/service finds none on the write path"
   },
   "write.governance": {
    "s": "N",
-   "t": "None",
-   "e": "see engine document"
+   "t": "Not found: no PII redaction, consent or retention policy on memories. The only redaction hook is for telemetry span content (capture_content off by default).",
+   "e": "read: src/everos/core/observability/tracing/attributes.py:46-64; src/everos/config/default.toml:219-230"
   },
   "segment.unit": {
    "s": "Y",
-   "t": "LLM boundary detection over the buffer, 'default to merging'",
-   "e": "see engine document"
+   "t": "The MemCell: one LLM batch call over the merged session buffer returns all boundaries; each closed segment becomes a memcell (mc_<12 hex>) stored whole as JSON in SQLite; the trailing segment stays buffered unless the call is final.",
+   "e": "read: src/everos/service/_boundary.py:119-221,497-524; EverAlgo:packages/everalgo-boundary/src/everalgo/boundary/chat.py"
   },
   "segment.rule": {
    "s": "",
-   "t": "Day change, topic change, task done plus new topic, gap over 4 h; hard split at 65,536 tokens or 500 messages",
-   "e": "see engine document"
+   "t": "Prompt principle 'default to merging, split cautiously': split on calendar-day change (highest priority), substantive topic change, task done plus new topic, gap over 4 h plus new topic; hard split at 65,536 tokens or 500 messages.",
+   "e": "external: EverAlgo:packages/everalgo-boundary/src/everalgo/boundary/prompts/en/chat.py:14-41; read: src/everos/config/default.toml:156-159"
   },
   "segment.measured": {
    "s": "",
-   "t": "Not run by us",
-   "e": "see engine document"
+   "t": "Not run by us. EverAlgo's committed LoCoMo profile gives whole-run extraction totals (379,832 prompt + 165,249 completion tokens, 1,348 s) but no per-cell count.",
+   "e": "doc: EverAlgo:benchmarks/results/locomo-93.51/report.txt:23-30"
   },
   "extract.calls": {
    "s": "",
-   "t": "1 boundary per add batch, 1 episode per cell, 1 fact call per user-sender copy (+ profile if on)",
-   "e": "see engine document"
+   "t": "1 boundary call per /add or /flush that reaches the detector (up to 3 attempts); 1 episode call per cell; 1 atomic-fact call per EpisodeExtracted event, i.e. per user-sender copy; 1 profile call per owner per new episode (on by default); foresight off by default; agent case 0-3 calls per agent memcell.",
+   "e": "read: src/everos/service/_boundary.py:239-290; src/everos/memory/extract/pipeline/user_memory.py:112-137,180-190; src/everos/memory/strategies/extract_atomic_facts.py:38-50; extract_user_profile.py:74,212-320; extract_foresight.py:76-83"
   },
   "extract.facts": {
    "s": "Y",
-   "t": "Atomic facts derived from the episode narrative, not from raw turns",
-   "e": "see engine document"
+   "t": "Atomic facts are extracted from the LLM-written episode text (not raw turns), one batched md write per event with parent_type=episode; always on because VECTOR and AGENTIC search use them.",
+   "e": "read: src/everos/memory/strategies/extract_atomic_facts.py:44-107; src/everos/config/default_ome.toml:29-30"
   },
   "extract.episode": {
    "s": "Y",
-   "t": "LLM-written episode per cell (title, summary, narrative); the retrieved unit",
-   "e": "see engine document"
+   "t": "One generic LLM call per cell writes title and third-person content; the narrative is the retrieved unit. With the pinned user-memory 0.4.0 the summary is the first 200 characters of the episode; a model-written summary capped at 400 width units arrived in 0.5.0.",
+   "e": "read: src/everos/memory/extract/pipeline/user_memory.py:112-137,296-317; doc: EverAlgo:packages/everalgo-user-memory/CHANGELOG.md:164-185; external: EverAlgo:.../user_memory/episode.py:35-42"
   },
   "extract.dates": {
    "s": "Y",
-   "t": "'last Friday (2023-05-12)' dual format with UTC labels",
-   "e": "see engine document"
+   "t": "Episode prompt resolves relative times in the dual format 'last Friday (2023-05-12)' from each message's own timestamp, with UTC labels on clock times; the fact prompt appends the resolved absolute date in parentheses.",
+   "e": "external: EverAlgo:packages/everalgo-user-memory/src/everalgo/user_memory/prompts/en/episode.py:73-78; prompts/en/atomic_fact_from_text.py:53,171"
   },
   "extract.neighbours": {
    "s": "P",
-   "t": "Buffer tail carries context across calls",
-   "e": "see engine document"
+   "t": "Episode and fact extractors see only the current cell or episode, never existing memories. Only the profile UPDATE call sees the stored profile, and reflection's update mode sees the prior merged narrative.",
+   "e": "read: src/everos/memory/extract/pipeline/user_memory.py:296-317; src/everos/memory/strategies/extract_user_profile.py:316-320"
   },
   "extract.failure": {
    "s": "P",
-   "t": "Boundary retries, 3-tier summary repair; silent decider fallback on read",
-   "e": "see engine document"
+   "t": "Boundary: 3 attempts on JSON ValueError. Episode: 2 retries plus a final attempt. OME strategies: max_retries 2. Read side: after 4 failed decider attempts the loop falls back to the top 3 fused candidates, logs an error and flags the trace, but the API still returns a normal-looking result.",
+   "e": "read: src/everos/service/_boundary.py:239-290; src/everos/memory/extract/pipeline/user_memory.py:41,296-317; src/everos/memory/search/llm_multiround.py:330-392"
   },
   "graph.entities": {
    "s": "N",
-   "t": "None; names live in text",
-   "e": "see engine document"
+   "t": "Not found: no entity extraction; names live only in episode and fact text.",
+   "e": "read: no entity table in src/everos/infra/persistence/lancedb/tables/"
   },
   "graph.resolution": {
    "s": "N",
-   "t": "None",
-   "e": "see engine document"
+   "t": "Not found: no identity resolution beyond caller-supplied sender_id.",
+   "e": "read: src/everos/memory/extract/pipeline/user_memory.py:140-150"
   },
   "graph.edges": {
    "s": "N",
-   "t": "None",
-   "e": "see engine document"
+   "t": "Not found: no relationship edges.",
+   "e": "read: src/everos/infra/persistence/lancedb/tables/"
   },
   "graph.communities": {
    "s": "P",
-   "t": "Embedding clusters (cosine 0.65 within 7 days), no LLM",
-   "e": "see engine document"
+   "t": "Geometry clustering with no LLM: each new episode is embedded again and merged into the nearest cluster at cosine 0.65 within a 7-day window; clusters feed profile selection, agentic cluster-scoped retrieval and reflection.",
+   "e": "read: src/everos/memory/strategies/trigger_profile_clustering.py:30-114; src/everos/config/default.toml:193-199"
   },
   "time.fields": {
    "s": "P",
-   "t": "One timestamp per row; foresight has its own window",
-   "e": "see engine document"
+   "t": "One timestamp per row (cell's last-message time); no valid-from or valid-to. Foresight alone carries start_time, end_time and duration_days; profile items carry an observation time (EverAlgo HEAD).",
+   "e": "read: src/everos/infra/persistence/lancedb/tables/episode.py:39-45; src/everos/memory/strategies/extract_foresight.py:132-155; external: EverAlgo:.../user_memory/profile.py:945-948"
   },
   "time.update": {
    "s": "P",
-   "t": "None for facts; profile has add/update/delete; weekly re-merge (off)",
-   "e": "see engine document"
+   "t": "Facts and episodes are append-only, so contradictions coexist. The profile applies add/update/delete/none ops (an older observation cannot overwrite a newer item in HEAD). Opt-in weekly reflection merges a cluster keeping the latest state.",
+   "e": "read: src/everos/memory/strategies/extract_atomic_facts.py:44-107; src/everos/memory/strategies/reflect_episodes.py:50-56; external: EverAlgo:.../user_memory/profile.py:945-948, prompts/en/reflect.py:22-60"
   },
   "time.dedup": {
-   "s": "N",
-   "t": "None",
-   "e": "see engine document"
+   "s": "P",
+   "t": "Buffer dedupes messages by message_id. No duplicate check on episodes or facts (content_sha256 only skips re-embedding unchanged entries). Profile item dedup exists from user-memory 0.4.1, after the pinned 0.4.0.",
+   "e": "read: src/everos/service/_boundary.py:442-450; src/everos/memory/cascade/handlers/_daily_log_base.py:1-20; doc: EverAlgo:packages/everalgo-user-memory/CHANGELOG.md:202-215"
   },
   "derive.session": {
    "s": "P",
-   "t": "Summary field inside each episode",
-   "e": "see engine document"
+   "t": "No session summary; each episode carries a short summary field (200-character slice in the pinned version).",
+   "e": "read: src/everos/memory/extract/pipeline/user_memory.py:239-293; doc: EverAlgo:packages/everalgo-user-memory/CHANGELOG.md:164-185"
   },
   "derive.profile": {
    "s": "Y",
-   "t": "Profile operations (add/update/delete/none), caps 60 items; off in the benchmark",
-   "e": "see engine document"
+   "t": "On by default: per-owner profile (explicit_info, implicit_traits) rebuilt from raw memcell payloads by INIT or update ops under a per-owner lock. Caps are 60 items and 8 per category in EverAlgo HEAD (0.7.0+); the pinned 0.4.0 predates that rewrite. The LoCoMo run extracts it but does not read it.",
+   "e": "read: src/everos/memory/strategies/extract_user_profile.py:212-330; benchmarks/configs/locomo.toml:32; external: EverAlgo:.../user_memory/profile.py:61-63; doc: CHANGELOG.md:110-120"
   },
   "derive.entity": {
    "s": "N",
-   "t": "None",
-   "e": "see engine document"
+   "t": "Not found: no entity summaries.",
+   "e": "read: src/everos/memory/strategies/ (no entity strategy)"
   },
   "derive.background": {
    "s": "Y",
-   "t": "OME strategies, cascade daemon, weekly reflection cron",
-   "e": "see engine document"
+   "t": "OME (Offline Memory Engine): in-process strategies with Immediate, Cron, Idle and Counter triggers, retries and a hot-reloaded ome.toml; cascade daemon embeds markdown changes; reflection cron (off).",
+   "e": "read: src/everos/infra/ome/triggers.py:21-41; src/everos/infra/ome/gates.py:14; src/everos/config/default_ome.toml:1-71"
   },
   "derive.forget": {
-   "s": "P",
-   "t": "Soft deprecation after reflection",
-   "e": "see engine document"
+   "s": "N",
+   "t": "No decay, TTL or importance. Reflection (opt-in) soft-deprecates merged source episodes via deprecated_by, which is consolidation rather than forgetting.",
+   "e": "read: src/everos/memory/reflection/orchestrator.py:640-660; src/everos/memory/search/filters.py:67"
   },
   "index.embed": {
    "s": "",
-   "t": "Qwen3-Embedding-4B, 1,024-d (hosted)",
-   "e": "see engine document"
+   "t": "Qwen/Qwen3-Embedding-4B via DeepInfra, truncated client-side to 1,024 dimensions; episode body and subject embedded concurrently.",
+   "e": "read: src/everos/config/default.toml:128-138; src/everos/component/embedding/openai_provider.py:145-146; src/everos/memory/cascade/handlers/episode.py:82-90"
   },
   "index.lexical": {
    "s": "",
-   "t": "BM25 over app-tokenised columns, OR mode",
-   "e": "see engine document"
+   "t": "BM25 (LanceDB full-text index) over an app-tokenised column (jieba cut_for_search); queries are OR-mode, one SHOULD clause per term.",
+   "e": "read: src/everos/component/tokenizer/jieba_provider.py:3,116; src/everos/memory/search/recall/episode.py:48-68; tables/episode.py:26,60"
   },
   "index.vector": {
    "s": "",
-   "t": "LanceDB; IVF_FLAT only after 2,000 rows",
-   "e": "see engine document"
+   "t": "LanceDB vector columns (vector, subject_vector); IVF_FLAT index built only after 2,000 non-null rows (since 1.4.0), brute-force scan below; Milvus optional.",
+   "e": "read: src/everos/infra/persistence/lancedb/tables/episode.py:82-83; src/everos/config/settings.py:521; src/everos/config/default.toml:52-58"
   },
   "read.rewrite": {
    "s": "P",
-   "t": "Sub-queries from the agentic or decider loop",
-   "e": "see engine document"
+   "t": "None in the default hybrid method. AGENTIC writes 2-3 queries (keyword, question, HyDE statement) when a sufficiency check fails; LLM_MULTIROUND's decider issues up to 3 sub-queries per round.",
+   "e": "read: src/everos/memory/search/agentic.py:55-67; src/everos/config/default.toml:101-104; external: EverAlgo:packages/everalgo-rank/src/everalgo/rank/prompts/en/multi_query.py:45"
   },
   "read.analysis": {
    "s": "N",
-   "t": "None in hybrid mode",
-   "e": "see engine document"
+   "t": "No query classification or date parsing; agentic's sufficiency LLM call judges whether round-1 results suffice.",
+   "e": "read: src/everos/memory/search/manager.py:362-460"
   },
   "read.legs": {
    "s": "",
-   "t": "BM25 + vector on episodes; facts attached by parent; fact MaxSim in agentic",
-   "e": "see engine document"
+   "t": "Hybrid: BM25 + dense on episodes, facts attached by parent_id. VECTOR ranks episodes via fact MaxSim. Agentic adds subject-vector and fact MaxSim legs plus cluster expansion. Profile is a KV fetch; the unprocessed buffer is returned verbatim with a session filter.",
+   "e": "read: src/everos/memory/search/manager.py:224-232,285-304,404-456,692-730; src/everos/memory/search/agentic.py:119"
   },
   "read.temporal": {
    "s": "P",
-   "t": "Timestamp filters; date checks inside the LLM sufficiency step",
-   "e": "see engine document"
+   "t": "Timestamp range filters only; no time-window boost. Dates live in the episode text; agentic's sufficiency and multi-query prompts handle relative time.",
+   "e": "read: src/everos/memory/search/filters.py:38-48,167; external: EverAlgo:.../rank/prompts/en/sufficiency.py"
   },
   "read.traversal": {
    "s": "N",
-   "t": "None",
-   "e": "see engine document"
+   "t": "Not found: no graph traversal (cluster-scoped expansion in agentic is the nearest analogue).",
+   "e": "read: src/everos/memory/search/agentic.py:1-14"
   },
   "rank.fusion": {
    "s": "Y",
-   "t": "RRF then logistic calibration; facts and episodes compete in one score (heap-expand)",
-   "e": "see engine document"
+   "t": "Hybrid: RRF (k=60) orders expansion and logistic calibration (LR over dense and sparse) scores items; heap-expand lets facts compete with episodes in one score. Agentic uses RRF k=40.",
+   "e": "read: src/everos/memory/search/hierarchy.py:48-193; src/everos/memory/search/manager.py:439-456; src/everos/memory/search/agentic.py:57"
   },
   "rank.rerank": {
    "s": "P",
-   "t": "Qwen3-Reranker in agentic mode only; net-negative in the published method",
-   "e": "see engine document"
+   "t": "Qwen3-Reranker-4B (DeepInfra) in agentic episode search, agent case/skill search and knowledge search; not in hybrid episodes or llm_multiround, whose header calls the cross-encoder net-negative.",
+   "e": "read: src/everos/memory/search/agentic.py:72-76; src/everos/memory/search/manager.py:614; src/everos/memory/search/llm_multiround.py:20,79; src/everos/config/default.toml:140-154"
   },
   "rank.gate": {
    "s": "P",
-   "t": "min_score floor",
-   "e": "see engine document"
+   "t": "With the default top_k=-1 (cap 100) a cosine radius of 0.5 filters dense hits; an optional min_score floor applies to the calibrated hybrid score. No abstain.",
+   "e": "read: src/everos/memory/search/manager.py:107-122,987-1005; src/everos/memory/search/dto.py:94-104"
   },
   "rank.agentic": {
-   "s": "Y",
-   "t": "llm_multiround decider: 1-3 calls, reads full text of 50+ episodes per round",
-   "e": "see engine document"
+   "s": "O",
+   "t": "Two opt-in methods (default is hybrid): agentic (1 sufficiency call, +1 multi-query call if needed) and llm_multiround (up to 3 rounds, one decider call each, reading episode summaries by default or full text when full_text=true, as in the LoCoMo config).",
+   "e": "read: src/everos/memory/search/dto.py:31-38,69; src/everos/config/default.toml:83-112; benchmarks/configs/locomo.toml:29,47"
   },
   "answer.shape": {
    "s": "",
-   "t": "Episode blocks 'subject: episode'; top 20, core first",
-   "e": "see engine document"
+   "t": "Engine returns structured episodes (subject, summary, text, timestamp), nested facts in hybrid, optional profile and unprocessed buffer. Only the benchmark harness renders 'subject: episode' blocks; llm_multiround orders core first, then each sub-query's top hit, then max-RRF fill.",
+   "e": "read: src/everos/memory/search/manager.py:224-243; src/everos/memory/search/llm_multiround.py:904-1030; benchmarks/run.py:1661-1690"
   },
   "answer.size": {
    "s": "",
-   "t": "About 2.3k (top 10, older) to 8.6k (cloud, outside harness)",
-   "e": "see engine document"
+   "t": "EverAlgo committed runs: 2,596 avg context tokens (93.51, top 10) and 2,294 (93.05). EverOS 94.42 run injects top 20 episodes (not measured). OmniMemEval measured 8,559 for the cloud API.",
+   "e": "doc: EverAlgo:benchmarks/results/locomo-93.51/report.txt:5, locomo-93.05/report.txt:5; benchmarks/configs/locomo.toml:30"
   },
   "answer.prompt": {
    "s": "",
-   "t": "7-step chain of thought that encourages inference, up to 32k output tokens",
-   "e": "see engine document"
+   "t": "Benchmark-side 7-step chain-of-thought prompt that pushes inference ('Do not dismiss reasonable inferences'), with a time-calculation step and up to 32,768 output tokens; no answer prompt in the engine.",
+   "e": "read: benchmarks/adapters/locomo.py:94-160; benchmarks/configs/locomo.toml:51-57"
   },
   "eval.best": {
    "s": "",
-   "t": "94.42 (vendor, decider read, lenient judge)",
-   "e": "see engine document"
+   "t": "94.42 (vendor, llm_multiround, lenient single judge); EverAlgo committed 93.51 majority-of-3.",
+   "e": "doc: benchmarks/README.md:100; EverAlgo:benchmarks/results/locomo-93.51/report.txt:8"
   },
   "eval.outside": {
    "s": "",
-   "t": "82.75 OmniMemEval (cloud); 58.25 strict judge",
-   "e": "see engine document"
+   "t": "82.75 OmniMemEval (cloud API, competitor-run); 58.25 under a strict judge.",
+   "e": "doc: SOTA_MEMU_MEMOS_LOCOMO.md; BENCHMARKS_UPDATE_2026-10-02 (outside clone)"
   },
   "eval.models": {
    "s": "",
-   "t": "gpt-4.1-mini answers, gpt-4o-mini judge, separate decider model",
-   "e": "see engine document"
+   "t": "gpt-4.1-mini extracts and answers; gpt-4o-mini judges; a separate decider model (README names deepseek-v4-flash-0731, config comment says published numbers used qwen3.6-27B).",
+   "e": "read: benchmarks/configs/locomo.toml:16-27,51-63; doc: benchmarks/README.md:100"
   },
   "eval.rigour": {
    "s": "P",
-   "t": "Vendor harness; max of runs; internal inconsistencies",
-   "e": "see engine document"
+   "t": "Vendor harnesses only. Lenient judge ('touches on the same topic'); runner reports max over judge runs; prompt comment cites 90.58 while README says 94.42. EverAlgo's 93.51 note says 103 judge failures were counted wrong, but only 100 answers are wrong. The two repos label LoCoMo categories differently.",
+   "e": "read: benchmarks/adapters/locomo.py:32,94,184; benchmarks/run.py:2431; doc: EverAlgo:benchmarks/results/locomo-93.51/REPRODUCTION.md:20-30, report.txt:8-12"
   },
   "cost.write": {
    "s": "",
-   "t": "About 3 per closed cell plus a boundary call per batch",
-   "e": "see engine document"
+   "t": "About 3 LLM calls per closed two-speaker cell (1 episode + 1 fact call per sender copy) plus a boundary call per batch, profile calls on top; EverAlgo measured 379,832 prompt + 165,249 completion tokens to extract all of LoCoMo (about $9 for its full run).",
+   "e": "inferred from read call sites (user_memory.py:140-190, extract_atomic_facts.py:38); doc: EverAlgo:benchmarks/results/locomo-93.51/report.txt:23-30, REPRODUCTION.md:14"
   },
   "cost.read": {
    "s": "",
-   "t": "1-3 decider calls in the published method",
-   "e": "see engine document"
+   "t": "Hybrid: 0 LLM, 1 embed. Agentic: 1-2 LLM calls plus reranker batches (EverAlgo measured about 2.8k search prompt tokens per question). llm_multiround: 1-3 decider calls with up to 50 candidates in round 0.",
+   "e": "read: src/everos/memory/search/manager.py:404-456; src/everos/memory/search/llm_multiround.py:83; doc: EverAlgo:benchmarks/results/locomo-93.51/report.txt:28"
   },
   "cost.where": {
    "s": "",
-   "t": "Hosted (OpenAI-compatible, DeepInfra)",
-   "e": "see engine document"
+   "t": "Hosted by default: LLM gpt-4.1-mini via OpenRouter, Qwen3 embedding and reranker via DeepInfra, multimodal via a separate Gemini Flash model; any OpenAI-compatible endpoint works, including local vLLM or SGLang for the decider and a vllm rerank shape.",
+   "e": "read: src/everos/config/default.toml:68-154"
   },
   "trust.provenance": {
    "s": "P",
-   "t": "parent_id chain fact → episode → memcell; no trust model",
-   "e": "see engine document"
+   "t": "parent_id chain fact -> episode -> memcell (raw turns in SQLite), sender_ids on episodes, parent_type cluster for merged episodes; no trust score or source class.",
+   "e": "read: src/everos/memory/extract/pipeline/user_memory.py:140-150; src/everos/memory/strategies/extract_atomic_facts.py:62-107"
   },
   "trust.erasure": {
    "s": "P",
-   "t": "Soft deprecation",
-   "e": "see engine document"
+   "t": "No memory delete API (only knowledge documents have DELETE). Editing or deleting markdown entries hard-deletes the matching index rows through the cascade, but the SQLite memcell ledger keeps the raw turns; reflection only soft-deprecates.",
+   "e": "read: src/everos/entrypoints/api/routes/knowledge.py:621; src/everos/memory/cascade/handlers/_daily_log_base.py:128-212"
   },
   "trust.auth": {
    "s": "N",
-   "t": "Unauthenticated; loopback by default",
-   "e": "see engine document"
+   "t": "No built-in auth; binds to 127.0.0.1 by default and tells users to put their own gateway in front.",
+   "e": "read: src/everos/config/default.toml:19-26; doc: SECURITY.md"
   },
   "trust.sharing": {
    "s": "N",
-   "t": "Owner partitions only",
-   "e": "see engine document"
+   "t": "Owner partitions only (user or agent). Multi-speaker cells are copied into each user sender's partition rather than shared.",
+   "e": "read: src/everos/memory/search/dto.py:59-63; src/everos/memory/extract/pipeline/user_memory.py:140-150"
   }
  },
  "layers": {
@@ -300,7 +336,7 @@
   "session_summary": "P",
   "entity_summary": "N",
   "profile": "Y",
-  "prospective": "P",
+  "prospective": "O",
   "procedural": "Y",
   "reflection": "O",
   "shared": "N",
@@ -309,63 +345,112 @@
  },
  "keep": [
   "LLM-written episodes with dates resolved inside the text",
-  "Decider loop with a pinned core and per-sub-query RRF blocks",
-  "Profile as guarded operations with item caps"
+  "Decider loop with a pinned core and per-sub-query RRF blocks, behind a pluggable decider interface that logs traces for training",
+  "Profile as guarded operations with item caps",
+  "Markdown source of truth with entry-level content-hash re-embedding",
+  "Facts and episodes competing in one calibrated score (heap-expand)"
  ],
  "avoid": [
   "Facts derived from the narrative, so a dropped detail is lost",
   "Duplicate fact and profile calls per user sender",
-  "Silent decider fallback that still reports a complete result",
-  "Foresight written but never read"
+  "Decider fallback that still returns a complete-looking result (only an error log and trace flag)",
+  "Foresight written but never read",
+  "Index rows keyed without app/project, so projects can overwrite each other"
  ],
  "extras": [
-  {
-   "phase": "derive",
-   "param": "Foresight",
-   "t": "Up to 10 predictions per cell with time windows; written but never read",
-   "e": "extract_foresight.py"
-  },
-  {
-   "phase": "rank",
-   "param": "Heap-expand",
-   "t": "Facts and episodes compete in one calibrated score; a winning fact evicts its parent",
-   "e": "search/hierarchy.py"
-  },
-  {
-   "phase": "arch",
-   "param": "Markdown source of truth",
-   "t": "Human-editable files with entry-level content-hash diffing",
-   "e": "docs/how-memory-works.md"
-  }
+  {"phase": "derive", "param": "Foresight", "t": "Up to 10 predictions per sender per cell with start/end/duration windows; disabled by default since 1.2.3 because nothing reads it.", "e": "read: src/everos/memory/strategies/extract_foresight.py:14-24,76-83; src/everos/config/default_ome.toml:32-39"},
+  {"phase": "rank", "param": "Heap-expand", "t": "Facts and episodes compete in one calibrated score; a winning fact evicts its parent; stops after 10 rounds with no change.", "e": "read: src/everos/memory/search/hierarchy.py:48-193"},
+  {"phase": "arch", "param": "Markdown source of truth", "t": "Human-editable files; cascade re-embeds only entries whose content_sha256 changed; durable SQLite change queue.", "e": "read: src/everos/memory/cascade/handlers/_daily_log_base.py:1-20; doc: docs/how-memory-works.md:26-39"},
+  {"phase": "arch", "param": "Chassis/algorithm split with version skew", "t": "EverOS pins user-memory 0.4.0 while EverAlgo HEAD is 0.8.0rc9; summary, profile caps and dedup in HEAD are not what an installed engine runs.", "e": "read: pyproject.toml:90-109; EverAlgo:packages/everalgo-user-memory/pyproject.toml"},
+  {"phase": "arch", "param": "GitHub is a packaged export", "t": "Internal GitLab dev is the source of truth; GitHub main receives packaged exports with no shared history, so public commits are coarse.", "e": "doc: docs/github-sync.md:1-12"},
+  {"phase": "write", "param": "Deferred extraction", "t": "/add with defer_extraction only appends to the buffer (no LLM); clients call /flush on idle or a threshold.", "e": "read: src/everos/service/memorize.py:186-252"},
+  {"phase": "write", "param": "User-anchor gate", "t": "Batches without a role=user message wait in the buffer with no boundary call.", "e": "read: src/everos/service/_boundary.py:144-149"},
+  {"phase": "write", "param": "Agent cases and skills", "t": "Agent mode (default) extracts cases per assistant sender (filter, pre-compress, extract with quality score), clusters them and distils SKILL.md skills with a maturity score.", "e": "read: src/everos/memory/strategies/extract_agent_case.py:51-77, trigger_skill_clustering.py:39-82; external: EverAlgo:packages/everalgo-agent-memory/src/everalgo/agent_memory/{case,skill,skill_ops}.py"},
+  {"phase": "write", "param": "Multimodal ingest", "t": "Optional everalgo-parser turns image, PDF, audio and video items into text with a separate multimodal LLM, max concurrency 4.", "e": "read: src/everos/config/default.toml:114-126; src/everos/memory/extract/ingest/multimodal.py"},
+  {"phase": "extract", "param": "Prompt slots", "t": "Boundary and episode prompts can be overridden through YAML slots layered over bundled defaults (shipped empty).", "e": "read: src/everos/memory/prompt_slots/loader.py:1-45; src/everos/config/prompt_slots/"},
+  {"phase": "extract", "param": "Summary width cap with repair", "t": "HEAD only: summary capped at 400 width units, repaired by one compress call, then sentence-boundary truncation.", "e": "external: EverAlgo:packages/everalgo-user-memory/src/everalgo/user_memory/episode.py:35-42,206-241"},
+  {"phase": "derive", "param": "OME strategy engine", "t": "Declarative @offline_strategy with Immediate/Cron/Idle/Counter triggers, retries, cooldown gates; ome.toml hot-reloads in about 2 s and rejects unknown keys; manual POST /ome/trigger.", "e": "read: src/everos/infra/ome/triggers.py:21-41; src/everos/config/default_ome.toml:1-25; src/everos/entrypoints/api/routes/ome.py:78"},
+  {"phase": "derive", "param": "Reflection", "t": "Opt-in Monday 02:00 cron: Select, Merge, Re-extract facts, Deprecate originals; at most 10 clusters per owner per run; docs call each run a lossy re-merge.", "e": "read: src/everos/memory/reflection/orchestrator.py:1,41; src/everos/memory/strategies/reflect_episodes.py:50-56"},
+  {"phase": "derive", "param": "Profile historical pass", "t": "HEAD: an update batch straddling the stored profile time is split into an additions-only historical pass and a current pass, so old narratives cannot rewrite newer values.", "e": "doc: EverAlgo:packages/everalgo-user-memory/CHANGELOG.md:9-21"},
+  {"phase": "index", "param": "Cascade daemon", "t": "Filesystem watcher plus a 30 s full scan, durable queue, LanceDB optimise/prune/rebuild cadences, and a quiesce endpoint that drains the queue.", "e": "read: src/everos/config/default.toml:202-217; src/everos/entrypoints/api/routes/cascade.py:71"},
+  {"phase": "index", "param": "MRL truncation", "t": "Embeddings truncated client-side to the 1,024-d column, with an optional server-side dimensions parameter.", "e": "read: src/everos/component/embedding/openai_provider.py:5-8,129-146"},
+  {"phase": "read", "param": "Agentic method", "t": "Fact MaxSim, hybrid, cluster-scoped expansion, Qwen3 rerank to 10, then an LLM sufficiency check and a multi-query round (cap 40) if needed.", "e": "read: src/everos/memory/search/agentic.py:1-76"},
+  {"phase": "read", "param": "Paginated get", "t": "POST /memory/get lists any memory type by filter, page_size up to 100, sorted by timestamp or updated_at.", "e": "read: src/everos/entrypoints/api/routes/get.py:18; src/everos/memory/get/dto.py:77-79"},
+  {"phase": "read", "param": "Knowledge API", "t": "Separate document memory: parse, classify, topic-tree extract, split/merge; search recalls 200, reranks 50, then blends a category-mass boost (lambda 0.1).", "e": "read: src/everos/service/knowledge.py:1360-1362; src/everos/config/default.toml:169-183; external: EverAlgo:packages/everalgo-rank/src/everalgo/rank/category.py:53-110"},
+  {"phase": "rank", "param": "Decider trace dump", "t": "EVEROS_LLMMR_TRACE_DUMP writes per-round JSONL in the MemoryRL schema for behaviour-cloning and GRPO cold start; zero cost when unset.", "e": "read: src/everos/memory/search/llm_multiround.py:144-160,1031-1112"},
+  {"phase": "eval", "param": "Four-benchmark runner", "t": "One runner for LoCoMo, LongMemEval (94.00), EverMemBench (66.67) and SubtleMemory (71.75); run_spec.json records served models and package versions; SubtleMemory routes answer prompts on detected conflicts.", "e": "doc: benchmarks/README.md:85-120; read: benchmarks/adapters/subtlememory.py:164,587"},
+  {"phase": "trust", "param": "OTLP tracing", "t": "Vendor-neutral OpenTelemetry export, off by default; content capture off by default with a redaction hook.", "e": "read: src/everos/config/default.toml:219-230; src/everos/core/observability/tracing/attributes.py:46-64"}
+ ],
+ "specialities": [
+  {"name": "Markdown-first store with rebuildable index", "t": "Memory is plain Markdown + YAML written atomically; LanceDB/Milvus is a derived index rebuilt by a cascade daemon that re-embeds only entries whose content hash changed, so humans can edit memory and the index follows.", "e": "read: src/everos/core/persistence/markdown/writer.py:1-11; src/everos/memory/cascade/handlers/_daily_log_base.py:1-20,128-212; doc: docs/how-memory-works.md:26-39", "phase": "arch"},
+  {"name": "Decider loop as an RL environment", "t": "llm_multiround fuses each sub-query's recall independently, a decider pins core items and asks gap-filling sub-queries, and final injection is core-first with a per-sub-query guarantee. The decider is a pluggable RoundDecider whose traces feed policy training.", "e": "read: src/everos/memory/search/llm_multiround.py:1-45,192-296,904-1030,144-160", "phase": "rank"},
+  {"name": "Heap-expand fact/episode competition", "t": "Facts and their parent episodes are scored on one logistic-calibrated scale; a fact that enters the top-N evicts its parent, so precise sentences can displace long narratives.", "e": "read: src/everos/memory/search/hierarchy.py:48-193", "phase": "rank"},
+  {"name": "Dual-format write-time dates", "t": "Relative times are kept and resolved in place ('original expression (absolute date)') from each message's own timestamp, with UTC labels, so BM25 and embeddings match dates with no schema change.", "e": "external: EverAlgo:packages/everalgo-user-memory/src/everalgo/user_memory/prompts/en/episode.py:73-78", "phase": "extract"},
+  {"name": "Guarded profile operations", "t": "Profile changes are add/update/delete/none ops against an indexed snapshot, with item caps, per-category regrouping and an observation-time guard; the prompt defines a profile as a portrait, not a log.", "e": "external: EverAlgo:packages/everalgo-user-memory/src/everalgo/user_memory/profile.py:61-63,489-626,945-948; prompts/en/profile.py:124-158", "phase": "derive"},
+  {"name": "Declarative offline strategy engine", "t": "Background work is declared as strategies with typed event, cron, idle or counter triggers and retries, toggled by a hot-reloaded TOML that rejects typos.", "e": "read: src/everos/infra/ome/triggers.py:21-41; src/everos/infra/ome/gates.py:14; src/everos/config/default_ome.toml:1-25", "phase": "derive"}
  ],
  "token_economy": {
-  "t": "Episodes replace raw turns as the retrieved unit (about 2.3k tokens for top 10 in the older harness, 8.6k in the cloud run); episode summary capped at about 50 words with a 3-tier repair; the decider reads full text of 50+ candidates per round, so read-side tokens are large.",
-  "e": "EVERMEMOS_ENGINE.html 4, 8.3, 12"
+  "t": "Episodes replace raw turns as the retrieved unit: EverAlgo's committed agentic runs inject 2,294-2,596 tokens per question for top 10; the EverOS 94.42 run injects top 20 (not measured), and the cloud measured 8,559. HEAD caps the summary at about 50 words / 400 width units with a 3-tier repair. Embeddings are MRL-truncated to 1,024-d. The read side is heavy: EverAlgo agentic search used about 2.8k prompt tokens per question, and llm_multiround with full_text reads up to 50 full episodes in round 0.",
+  "e": "doc: EverAlgo:benchmarks/results/locomo-93.51/report.txt:5,28, locomo-93.05/report.txt:5; read: benchmarks/configs/locomo.toml:30,47; src/everos/memory/search/llm_multiround.py:83; external: EverAlgo:.../user_memory/episode.py:35-42"
  },
  "speed": {
-  "t": "Episode written inline before /add returns; facts, profile and index built in background (OME + cascade daemon, eventual ~10-15 s); per-session locks; boundary detector re-reads the buffer on each add.",
-  "e": "EVERMEMOS_ENGINE.html 3, 5, 12"
+  "t": "Episode written inline before /add returns; facts, profile and index built in background (OME + cascade daemon; docs say sub-second, up to about 10-15 s under load); per-session locks with 360 s timeout; per-owner partition locks for profile; embedding batches of 10 with 5 concurrent; episode body and subject embedded concurrently; search legs run under asyncio.gather. EverAlgo's LoCoMo profile: extraction 1,348 s, search 1,280 s, answer 912 s for the whole set at 10 conversations in parallel.",
+  "e": "read: src/everos/service/memorize.py:229-236; src/everos/config/default.toml:132-138; src/everos/memory/cascade/handlers/episode.py:82-90; src/everos/memory/search/manager.py:224,683; doc: docs/how-memory-works.md:262; EverAlgo:benchmarks/results/locomo-93.51/report.txt:23-30"
  },
- "in_progress": [],
- "locomo": [
-  {
-   "score": "94.42",
-   "protocol": "vendor harness, llm_multiround decider, top-20 episodes, gpt-4.1-mini answers, lenient judge, 1,540 q",
-   "who": "vendor",
-   "source": "benchmarks/README.md:100"
-  },
-  {
-   "score": "82.75",
-   "protocol": "OmniMemEval cloud",
-   "who": "independent (competitor-run)",
-   "source": "OmniMemEval results.md"
-  },
-  {
-   "score": "58.25",
-   "protocol": "LoCoMo-Refined strict judge",
-   "who": "independent",
-   "source": "BENCHMARKS_UPDATE_2026-10-02"
-  }
+ "in_progress": [
+  "PR #481 (open): key derived-index rows on (app_id, project_id, id) to stop cross-project overwrites (also PR #430, #407 on the same defect).",
+  "PR #383 (open): belief layer for atomic-fact conflict resolution, Bayesian update with provenance-capped evidential weight.",
+  "PR #424 (open) + EverAlgo PR #6: Decision memory kind with Principle meta-memory (extract, persist, index, search, reflect).",
+  "PR #445 (open): reflection batches source deprecation, reverts on failure and caps sources per merge (large clusters hit the 15 s LanceDB write-lock deadline).",
+  "PR #451 (open): apply cosine radius across iterative recall paths.",
+  "PR #484 (open): MCP access via a separate official everos-mcp server (no MCP server in this repo).",
+  "PR #324 / #365 (open): configurable embedding dimension; Ollama LLM and embedding providers.",
+  "EverAlgo PR #4 (open): target-aware profile extraction with an anti-bloat rule; PR #7: contrastive insights in skill consolidation.",
+  "Branches feat/derived-index-backends and fix/search-seed-parent-linkage exist on GitHub; CHANGELOG Unreleased only fixes knowledge category moves.",
+  "Version skew: upgrading the pinned user-memory 0.4.0 to EverAlgo 0.8.x would bring model-written summaries, 60/8 profile caps, profile dedup and the historical pass."
  ],
- "source_doc": "consolidated from the earlier engine documents"
+ "verification": {
+  "date": "2026-10-11",
+  "commit": "EverOS fcd41b5 + EverAlgo 7746a87 (fresh shallow clones; both HEADs equal the reference commits, so nothing changed since EVERMEMOS_ENGINE.html)",
+  "rows_checked": 57,
+  "corrections": [
+   "arch.scope: status '' -> P; added the index primary-key defect (id = owner_id + entry_id, no app/project) that lets projects overwrite each other.",
+   "write.roles: said tool rows dropped in chat mode -> now states default mode is agent (tool rows kept, agent pipeline runs), episodes copied per user sender, cases per assistant sender.",
+   "write.receipt: added that the return status is accumulated|extracted and lag is doc-stated.",
+   "extract.calls: 'profile if on' -> profile is on by default; foresight off by default.",
+   "extract.episode: 'title, summary, narrative' -> pinned user-memory 0.4.0 slices the first 200 characters as summary; model-written summary only from 0.5.0.",
+   "extract.neighbours: 'buffer tail carries context' (that is a segmentation detail) -> extractors see no existing memories; only profile update and reflection update see prior state.",
+   "extract.failure: 'silent decider fallback' -> 4 attempts (1 + 3 retries), then top-3 fallback logged at error level and flagged in the trace, but the API result looks normal.",
+   "time.dedup: N -> P; buffer dedupes by message_id; profile dedup exists only from user-memory 0.4.1 (after the pin).",
+   "derive.profile: 'caps 60 items; off in the benchmark' -> caps 60/8 are EverAlgo HEAD 0.7.0+, not the pinned 0.4.0; the benchmark still extracts the profile but does not read it (include_profile=false).",
+   "derive.forget: P -> N; reflection deprecation is opt-in consolidation, not forgetting.",
+   "rank.rerank: 'agentic mode only' -> also agent case/skill search and knowledge search.",
+   "rank.gate: 'min_score floor' -> default cosine radius 0.5 on dense hits when top_k=-1, plus opt-in min_score.",
+   "rank.agentic: Y -> O (default method is hybrid); decider reads summaries by default and full text only with full_text=true (set in the LoCoMo config).",
+   "answer.size: '2.3k (older)' -> sourced to EverAlgo committed reports (2,294 and 2,596 tokens).",
+   "eval.rigour: added the EverAlgo judge-failure arithmetic inconsistency and the cross-repo category label mismatch.",
+   "cost.where: 'Hosted (OpenAI-compatible, DeepInfra)' -> LLM via OpenRouter, embedding/rerank via DeepInfra, multimodal via a separate Gemini model, local vLLM/SGLang possible.",
+   "trust.erasure: 'soft deprecation' -> no memory delete API; markdown edits hard-delete index rows via the cascade; SQLite memcell ledger keeps raw turns.",
+   "layers.prospective: P -> O (foresight built but disabled by default).",
+   "extras.Foresight: 'up to 10 predictions per cell' -> per sender per cell, disabled by default since 1.2.3."
+  ],
+  "added": [
+   "Evidence lines for all 57 rows, token_economy and speed.",
+   "LoCoMo: EverAlgo committed results 93.51 (majority of 3, 2,596 ctx tokens) and 93.05; evidence for existing figures.",
+   "19 extras: version skew, GitHub export model, deferred extraction, user-anchor gate, agent cases/skills, multimodal ingest, prompt slots, summary cap repair, OME engine, reflection, profile historical pass, cascade daemon, MRL truncation, agentic method, paginated get, knowledge API with category-mass boost, decider trace dump, four-benchmark runner, OTLP tracing.",
+   "6 specialities: markdown-first store, decider loop as RL environment, heap-expand, dual-format dates, guarded profile ops, declarative OME engine.",
+   "in_progress from 10 open PRs/branches in EverOS and EverAlgo.",
+   "Top-level commit, version, licence; keep/avoid extended."
+  ],
+  "unverified": [
+   "82.75 (OmniMemEval) and 58.25 (strict judge): not in either clone; taken from memspine notes.",
+   "94.42: no result files in EverOS; decider identity conflicts between README and config comment.",
+   "Prompt behaviour of the pinned wheels (user-memory 0.4.0, boundary 0.2.1): only EverAlgo HEAD prompts were read.",
+   "Doubled fact and profile calls on two-speaker input: inferred from code paths, not measured.",
+   "'~10-15 s' index lag: docs only.",
+   "Watcher 500 ms debounce from the earlier study: not located in the cascade code this pass.",
+   "Session-lock 360 s: code default confirmed in settings.py; the default.toml line sits under the [knowledge.search] table, so whether TOML overrides reach [memorize] was not checked."
+  ]
+ },
+ "source_doc": "memspine/docs/EVERMEMOS_ENGINE.html (code-traced at the same commits), re-verified against fresh clones"
 }

@@ -5,7 +5,7 @@
   "commit": "0ec7a9f",
   "version": "1.6.3",
   "licence": "Apache-2.0",
-  "one_line": "Open-source Python memory/knowledge-graph engine: add() ingests documents, cognify() chunks them and runs one LLM graph-extraction call plus one LLM summary call per chunk into graph + vector + relational stores, memify()/improve() run opt-in enrichment and session-to-graph stages, and search()/recall() offer some 20 retrieval types (default HYBRID_COMPLETION).",
+  "one_line": "Open-source Python memory/knowledge-graph engine: add() ingests documents, cognify() chunks them and runs one LLM graph-extraction call plus one LLM summary call per chunk into graph + vector + relational stores, memify() runs opt-in enrichment and improve() (auto-run after remember()) bridges session data into the graph, and search()/recall() offer some 20 retrieval types (default HYBRID_COMPLETION).",
   "locomo": [
     {
       "score": "83.48",
@@ -21,63 +21,291 @@
     }
   ],
   "rows": {
-    "arch.product": {"s": "", "t": "Python library (pip package cognee) plus FastAPI server, CLI, MCP server (cognee-mcp), web UI and a hosted cloud (api.cognee.ai). Public verbs: add, cognify, memify, improve, remember, recall, search, forget.", "e": "read: cognee/api/v1/ (add, cognify, memify, improve, remember, recall, search, forget); cognee-mcp/; README.md"},
-    "arch.truth": {"s": "", "t": "Relational DB holds the source of truth for ingested raw data (Data/Dataset rows with content hash, stored file); graph and vector stores are derived and rebuildable by re-cognify. Session memory lives in a separate cache store.", "e": "read: cognee/tasks/ingestion/ingest_data.py:235-327 (content-hash rows); cognee/infrastructure/databases/cache/config.py:53"},
-    "arch.stores": {"s": "Y", "t": "Three stores plus a cache: relational (default sqlite, Postgres option), vector (default LanceDB; pgvector, Turso), graph (default Ladybug, a Kuzu fork; Neo4j, Neptune, Kuzu, Turso, Postgres demo), session cache (default sqlite; redis, fs, postgres, turso, tapes).", "e": "read: cognee/infrastructure/databases/relational/config.py:22; vector/config.py:32; graph/config.py:47; cache/config.py:53"},
-    "arch.graphdb": {"s": "Y", "t": "Embedded Ladybug graph DB by default (Cypher); adapters for Neo4j, Neptune / Neptune Analytics (hybrid graph+vector), Kuzu, Turso. Graph nodes are DataPoints (DocumentChunk, Entity, EntityType, Timestamp, TextSummary, Event).", "e": "read: cognee/infrastructure/databases/graph/{ladybug,neo4j_driver,neptune_driver,kuzu,turso}; cognee/infrastructure/databases/hybrid/neptune_analytics"},
-    "arch.scope": {"s": "Y", "t": "User / tenant / role principals with per-dataset ACL (read, write, delete, share). With ENABLE_BACKEND_ACCESS_CONTROL (on by default when the graph and vector backends support it) each dataset is mapped to its own graph and vector database. Sessions keyed by (session_id, user_id).", "e": "read: cognee/context_global_variables.py:48-107; cognee/modules/users/permissions/permission_types.py:1; cognee/api/v1/recall/recall.py:96-115"},
-    "write.entry": {"s": "Y", "t": "add() (ingest only) then cognify() (graph build); remember() = add+cognify without a session_id, or a session-cache write with session_id that then triggers improve() in the background. MCP and REST mirror these (POST /api/v1/remember).", "e": "read: cognee/api/v1/remember/remember.py:887-930; cognee/api/v1/cognify/cognify.py:112"},
-    "write.receipt": {"s": "P", "t": "cognify() blocks until the pipeline finishes unless run_in_background=True (then returns a run handle immediately). Session remember() returns after the cache write; the graph bridge (improve) runs as a background task, debounced by IMPROVE_DEBOUNCE_ENTRIES / IMPROVE_DEBOUNCE_SECONDS (defaults 1 entry, 0 s = every call). No timer: entries below threshold wait for the next call.", "e": "read: cognee/api/v1/cognify/cognify.py:122,478; cognee/api/v1/remember/auto_improve_debounce.py:1-40; cognee/modules/improve/config.py:31-38"},
-    "write.roles": {"s": "P", "t": "No speaker/role routing in the document path: text is chunked as-is (OmniMemEval prefixes timestamp to each line). Session path stores typed entries (QA entry, agent trace, feedback) per session; improve stages route Q&A, traces, feedback and stated preferences to different subgraphs.", "e": "read: cognee/api/v1/remember/remember.py:431-600 (_dispatch_session_entry); cognee/modules/improve/stages.py:80-330"},
-    "write.firewall": {"s": "N", "t": "Not found: no prompt-injection or poisoning defence at write. Closest is opt-in presort PII detection (regex + optional LLM) for local folder ingestion, which produces a report, not a block.", "e": "read: cognee/tasks/presort/detect_pii.py:1-15; cognee/api/v1/remember/remember.py:173-211 (PRESORT_FOLDERS_ENABLED opt-in)"},
-    "write.governance": {"s": "P", "t": "forget() deletes by data_id, dataset or everything (memory_only option); per-dataset ACL; PII presort report opt-in. No consent model or retention policy found; session cache purge interval 900 s.", "e": "read: cognee/api/v1/forget/forget.py:18-40; cognee/infrastructure/databases/cache/config.py:55"},
-    "segment.unit": {"s": "", "t": "One document chunk. Each add() item becomes a Document; TextChunker groups paragraphs up to max_chunk_size tokens; one extraction call and one summary call per chunk.", "e": "read: cognee/api/v1/cognify/cognify.py:602-627; cognee/modules/chunking/TextChunker.py:16-105"},
-    "segment.rule": {"s": "Y", "t": "Paragraph-batched size cap. Default chunk size = min(embedding input limit, half the LLM max completion tokens): with text-embedding-3-large (8,191) and llm_max_completion_tokens 16,384 that is about 8,191 tokens. No overlap by default; LangchainChunker, CSV, JSON-list (one item per chunk) chunkers selectable.", "e": "read: cognee/infrastructure/llm/utils.py:14-63; cognee/infrastructure/llm/config.py:150; cognee/infrastructure/databases/vector/embeddings/config.py:20; cognee/modules/chunking/"},
-    "segment.measured": {"s": "N", "t": "Not found in repo. Inferred for the OmniMemEval run: one remember() per session (272 documents); a LoCoMo session is far below the ~8K-token cap, so about one chunk per session.", "e": "inferred: OmniMemEval cognee_client.py add() (one input.txt per session) + chunk cap above"},
-    "extract.calls": {"s": "Y", "t": "Two LLM calls per chunk by default, run concurrently: structured-output graph extraction (extract_content_graph) and chunk summary (summarize_text). summary_method='from_extraction' drops the second call. Optional extra calls: contradiction detection (off), temporal event pipeline, GLiNER local extractor (no LLM).", "e": "read: cognee/tasks/graph/extract_graph_and_summarize.py:26-60; cognee/tasks/graph/extract_graph_from_data.py:254-266; cognee/modules/cognify/config.py:19-35"},
-    "extract.facts": {"s": "P", "t": "No separate atomic-fact record: facts are graph edges (subject --relation--> object) with an optional edge_text description written by the extractor ('dry and efficient', using endpoint names).", "e": "read: cognee/infrastructure/llm/prompts/generate_graph_prompt.txt (header); cognee/modules/graph/utils/resolve_edges_to_text.py:79-94"},
-    "extract.episode": {"s": "P", "t": "A per-chunk TextSummary is generated (default 'llm' method) and indexed; no explicit episode narrative object beyond the chunk summary.", "e": "read: cognee/tasks/summarization/summarize_text.py:16; cognee/modules/cognify/config.py:19"},
-    "extract.dates": {"s": "Y", "t": "Default graph prompt makes dates Timestamp leaf nodes normalised to YYYY / YYYY-MM / YYYY-MM-DD (periods as start/end) linked by {verb}_at / {verb}_during edges; the chunker attaches per-document TEMPORAL_NORMALIZATION_HINTS so relative dates can be normalised.", "e": "read: cognee/infrastructure/llm/prompts/generate_graph_prompt.txt (section 2 Timestamps); cognee/tasks/graph/extract_graph_from_data.py:64-87"},
-    "extract.neighbours": {"s": "N", "t": "Not found: the extractor sees only the chunk text (and date hints); existing graph memories are not shown to it. Integration happens afterwards by deterministic name-based ids.", "e": "read: cognee/infrastructure/llm/extraction/knowledge_graph/extract_content_graph.py:18-62"},
-    "extract.failure": {"s": "P", "t": "Pipeline-level error classification; cognify raises unless run_in_background or raise_on_error=False; incremental_loading skips already-processed data on rerun. Contradiction task swallows its own errors.", "e": "read: cognee/api/v1/cognify/cognify.py:64-110,123,546-556; cognee/tasks/graph/detect_contradictions.py:1-20"},
-    "graph.entities": {"s": "Y", "t": "LLM extracts typed nodes (basic types such as Person; id, name, type, description) and edges in one call; optional OWL ontology resolver canonicalises and enriches matches (modes annotate / strict). Custom Pydantic graph_model supported.", "e": "read: cognee/shared/data_models.py:40-77; cognee/tasks/graph/extract_graph_from_data.py:115-210; cognee/modules/ontology/"},
-    "graph.resolution": {"s": "P", "t": "Deterministic name-based ids (Entity.id_for(lower-cased name)) merge same-name entities across chunks and ingestions; same name within one chunk with different types gets chunk-scoped ids. Fuzzy merging is an explicit memify pipeline (consolidate_entities, similarity 0.85), not default.", "e": "read: cognee/modules/graph/utils/expand_with_nodes_and_edges.py:88-150; cognee/modules/engine/utils/generate_node_name.py:1; cognee/memify_pipelines/consolidate_entities.py:22-27"},
-    "graph.edges": {"s": "Y", "t": "Free-form snake_case relationship names with optional edge_text; DocumentChunk --contains--> Entity edges carry 'chunk mentions X: description'. Edges already in the store are not re-attached.", "e": "read: cognee/modules/graph/utils/expand_with_nodes_and_edges.py:155-175; cognee/tasks/graph/extract_graph_from_data.py:196-210"},
-    "graph.communities": {"s": "O", "t": "No community detection by default. Opt-in global_context_index builds a tree of bucket and root summaries (vector or graph bucketing) via memify/improve.", "e": "read: cognee/memify_pipelines/global_context_index.py:1-30; cognee/modules/improve/stages.py:458-485"},
-    "time.fields": {"s": "P", "t": "DataPoint carries created_at, updated_at, version, valid_to, importance_weight, feedback_weight and source_* provenance fields; event time lives in Timestamp nodes, not on edges. No full bi-temporal edge validity by default.", "e": "read: cognee/infrastructure/engine/models/DataPoint.py:64-92"},
-    "time.update": {"s": "O", "t": "Both off by default: detect_contradictions (LLM compares facts in the touched 1-hop neighbourhood and adds a 'contradicts' edge, non-destructive) and resolve_temporal_contradictions (for caller-declared functional relationships, keeps the newest and tags older edges superseded / superseded_by). Otherwise conflicting facts coexist.", "e": "read: cognee/tasks/graph/detect_contradictions.py:1-20; cognee/tasks/graph/resolve_temporal_contradictions.py:1-20; cognee/modules/cognify/config.py:24-29"},
-    "time.dedup": {"s": "Y", "t": "Raw data deduplicated by content hash at add(); entities by deterministic id; edges by identity check against storage; duplicate extracted nodes removed per chunk.", "e": "read: cognee/tasks/ingestion/ingest_data.py:235-327; cognee/tasks/graph/extract_graph_from_data.py:44-62,196-210"},
-    "derive.session": {"s": "O", "t": "No session summary of documents. For session memory, distill_sessions (improve stage) turns gated guidance into 'lessons' documents and re-cognifies them; needs session_ids and an LLM.", "e": "read: cognee/modules/improve/stages.py:228-283; cognee/modules/session_distillation/"},
-    "derive.profile": {"s": "O", "t": "update_user_preferences stage folds rated turns and stated preferences into a per-user 'prefers' subgraph with weights; decay computed on read from a turn counter. Gated by PERSONALIZATION_ENABLED (default false).", "e": "read: cognee/modules/user_preferences/update.py:1-25; cognee/modules/improve/stages.py:285-300; cognee/base_config.py:53"},
-    "derive.entity": {"s": "P", "t": "Entity description comes from the extractor (later chunks may overwrite on upsert, inferred). LLM consolidation of entity descriptions is an explicit memify pipeline (consolidate_entity_descriptions).", "e": "read: cognee/memify_pipelines/consolidate_entity_descriptions.py; cognee/modules/graph/utils/expand_with_nodes_and_edges.py:100-108"},
-    "derive.background": {"s": "Y", "t": "improve() runs nine gated stages in order (feedback_weights, persist_session_qa, persist_agent_traces, extract_agent_context, distill_sessions, update_user_preferences, build_truth_subspace, triplet_enrichment, global_context_index) under a per-session/dataset lock; auto-launched in background after session remember().", "e": "read: cognee/api/v1/improve/improve.py:1-25,116-135; cognee/modules/improve/stages.py"},
-    "derive.forget": {"s": "P", "t": "No decay of graph memories; explicit forget() deletion only. Preference weights decay on read; feedback_weight moved by an EMA from ratings (feedback_alpha).", "e": "read: cognee/api/v1/forget/forget.py; cognee/modules/user_preferences/update.py:18-20; cognee/modules/improve/config.py:42"},
-    "index.embed": {"s": "Y", "t": "openai/text-embedding-3-large by default (LiteLLM; fastembed / Ollama / others configurable). Indexed fields: Entity name, EntityType name, DocumentChunk text, TextSummary text, EdgeType relationship_name; optional triplet embeddings.", "e": "read: cognee/infrastructure/databases/vector/embeddings/config.py:19-20; cognee/modules/retrieval/utils/brute_force_triplet_search.py:292-310"},
-    "index.lexical": {"s": "O", "t": "CHUNKS_LEXICAL: in-process Okapi BM25 (and a Jaccard variant) over chunks loaded from the graph; not part of the default hybrid path.", "e": "read: cognee/modules/retrieval/bm25_retriever.py:8-90; cognee/modules/search/methods/get_search_type_retriever_instance.py:353"},
-    "index.vector": {"s": "Y", "t": "LanceDB collections per indexed field (Entity_name, TextSummary_text, DocumentChunk_text, ...), embedded on add_data_points in batches.", "e": "read: cognee/infrastructure/databases/vector/lancedb; cognee/tasks/storage/add_data_points.py:78-110"},
-    "read.rewrite": {"s": "O", "t": "None on default path. GRAPH_COMPLETION_COT generates follow-up questions (max_iter 4); GRAPH_COMPLETION_DECOMPOSITION splits the query; FEELING_LUCKY lets an LLM pick the search type.", "e": "read: cognee/modules/retrieval/graph_completion_cot_retriever.py:70,203; graph_completion_decomposition_retriever.py; get_search_type_retriever_instance.py:408"},
-    "read.analysis": {"s": "Y", "t": "recall() uses a rule-based router (no LLM): non-question inputs to special types, absolute-date questions to TEMPORAL, everything else HYBRID_COMPLETION.", "e": "read: cognee/api/v1/recall/query_router.py:1-50"},
-    "read.legs": {"s": "Y", "t": "Default HYBRID_COMPLETION: chunk vector + chunk-summary vector (RRF-paired), entity vector with up to max_edges_per_entity facts each, facts top-k, optional global-context prelude, user preference text, session cache. Defaults chunks/entities/facts top-k 5. GRAPH_COMPLETION: vector seeds (wide_search_top_k 100) over 5 collections, graph projection, top-k 5 triplets by node+edge distance (missing-hop penalty 6.5).", "e": "read: cognee/modules/retrieval/hybrid_retriever.py:64-102; cognee/modules/retrieval/graph_completion_retriever.py:57-97; brute_force_triplet_search.py:224-310"},
-    "read.temporal": {"s": "Y", "t": "TEMPORAL type: one LLM call extracts a query time interval, then hybrid candidates are reranked by date-window overlap with expansion; falls back to plain hybrid when no window is found.", "e": "read: cognee/modules/retrieval/temporal_hybrid_retriever.py:1-25,200-210; cognee/modules/retrieval/temporal_hybrid/matching.py:43"},
-    "read.traversal": {"s": "Y", "t": "Graph projection around vector-hit nodes; optional k-hop neighbourhood from up to 10 seed nodes; CONTEXT_EXTENSION expands iteratively; CYPHER and NATURAL_LANGUAGE (LLM to Cypher) query the graph directly.", "e": "read: cognee/modules/retrieval/utils/brute_force_triplet_search.py:50-118; graph_completion_context_extension_retriever.py; cypher_search_retriever.py; natural_language_retriever.py"},
-    "rank.fusion": {"s": "Y", "t": "RRF over (chunk vector rank, summary rank) with optional importance, truth-subspace and personal-preference factors; triplet score = summed vector distances of nodes and edge.", "e": "read: cognee/modules/retrieval/hybrid/ranking.py:6-60; brute_force_triplet_search.py:205-220"},
-    "rank.rerank": {"s": "N", "t": "Not found: no cross-encoder reranker; only the temporal rerank by date overlap.", "e": "read: grep rerank/cross-encoder over cognee/modules/retrieval returns only temporal_hybrid"},
-    "rank.gate": {"s": "N", "t": "No relevance threshold or abstain gate; top-k always returned (NoDataError only when the store is empty). Answer prompt just says to answer briefly.", "e": "read: cognee/modules/retrieval/exceptions; cognee/infrastructure/llm/prompts/answer_simple_question.txt"},
-    "rank.agentic": {"s": "O", "t": "AGENTIC_COMPLETION: tool-calling loop over the graph (max_iter 6) with skills/tools; COT retriever (max_iter 4). Not default.", "e": "read: cognee/modules/retrieval/agentic_retriever.py:68-99"},
-    "answer.shape": {"s": "", "t": "GRAPH_COMPLETION renders 'Nodes:' (each node's full content; for a DocumentChunk node that is the whole chunk text) then 'Connections:' as source --[rel]--> target (edge_text). HYBRID renders chunk, entity-fact and summary sections plus optional global-context prelude and preferences.", "e": "read: cognee/modules/graph/utils/resolve_edges_to_text.py:32-106; cognee/modules/retrieval/hybrid/context.py"},
-    "answer.size": {"s": "", "t": "32,532 mean answer-stage tokens per question in OmniMemEval LoCoMo (GRAPH_COMPLETION, topK 20). Cause (inferred from code): every triplet touching a DocumentChunk (the default 'contains' edges) inlines the full chunk text, chunks default to ~8K tokens, and one LoCoMo session is one chunk, so 20 triplets pull many whole sessions; no budget or truncation exists. Other OmniMemEval runs: 10,305 (LME), 33,065-40,914 (BEAM).", "e": "doc: OmniMemEval results.md; read: resolve_edges_to_text.py:46-53; cognee/infrastructure/llm/utils.py:56-61"},
-    "answer.prompt": {"s": "Y", "t": "Default system prompt answer_simple_question.txt (one line: answer from context, as brief as possible); user prompt graph_context_for_question.txt. Benchmark runs swap in per-type prompts.", "e": "read: cognee/infrastructure/llm/prompts/answer_simple_question.txt; graph_completion_retriever.py:59-60"},
-    "eval.best": {"s": "", "t": "LoCoMo 83.48 on OmniMemEval (1,540 q, cloud, gpt-4.1-mini / gpt-4o-mini). Vendor's own 90.7 is on a non-standard 1,762-q set (PR #5622, unmerged).", "e": "doc: OmniMemEval results.md; PR #5622"},
-    "eval.outside": {"s": "Y", "t": "OmniMemEval same-harness run (by MemTensor). Also BEAM 100K 0.79 / 10M 0.67 (vendor, small question sets; 10M in-sample tuned).", "e": "doc: OmniMemEval results.md; cognee/eval_framework/beam/REPORT.md:7-11,89-92"},
-    "eval.models": {"s": "", "t": "OmniMemEval: gpt-4.1-mini reader, gpt-4o-mini judge. Vendor LoCoMo PR: gpt-5-mini reader, gpt-5.1 judge. BEAM: gpt-5 judge.", "e": "doc: OmniMemEval results.md:25-27; PR #5622 body; beam/REPORT.md:139"},
-    "eval.rigour": {"s": "P", "t": "OmniMemEval: one harness, fixed models, context tokens reported, but run by a competitor and adapter not tuned by Cognee. Vendor LoCoMo: single run, excludes 143 golds and open-domain, adds cat 5. BEAM 10M result selected on the reported questions.", "e": "doc: OmniMemEval results.md:11-16; PR #5622; beam/REPORT.md:43,116"},
-    "cost.write": {"s": "", "t": "Inferred: about 272 chunks, so about 544 LLM calls (272 extraction + 272 summary) plus embeddings; 272 with summary_method='from_extraction'. Contradiction detection would add calls per batch.", "e": "inferred from extract_graph_and_summarize.py:26-60 and the one-document-per-session OmniMemEval adapter"},
-    "cost.read": {"s": "", "t": "0 engine LLM calls with only_context (OmniMemEval) + 1 reader call; default completion types 1 call; TEMPORAL +1 interval call; COT up to 4 rounds; agentic up to 6.", "e": "read: temporal_retriever.py:101; graph_completion_cot_retriever.py:70; agentic_retriever.py:99"},
-    "cost.where": {"s": "", "t": "Hosted OpenAI by default (LLM openai/gpt-5.6-luna, text-embedding-3-large via LiteLLM); fully local possible (Ollama, fastembed, GLiNER extractor demo with no LLM). Default stores are embedded files.", "e": "read: cognee/infrastructure/llm/config.py:109-110; cognee/api/v1/cognify/cognify.py:148,231-245"},
-    "trust.provenance": {"s": "P", "t": "Every DataPoint has source_pipeline, source_task, source_node_set, source_user, source_content_hash; record_provenance task (off by default) stamps graphs; chunks link to their Document; contradicts / superseded edges keep both facts. No trust score.", "e": "read: cognee/infrastructure/engine/models/DataPoint.py:86-90; cognee/tasks/provenance/record_provenance.py:99; cognee/modules/cognify/config.py:29"},
-    "trust.erasure": {"s": "Y", "t": "forget(data_id | dataset | everything, memory_only) removes data and its derived graph/vector artefacts, under a dataset lock; chunk-scoped ownership refs decide what is orphaned.", "e": "read: cognee/api/v1/forget/forget.py:18-40; cognee/tasks/storage/add_data_points.py:209-245"},
-    "trust.auth": {"s": "Y", "t": "FastAPI-users authentication, API keys, roles, tenants and tenant-scoped capabilities; cloud uses X-Api-Key.", "e": "read: cognee/modules/users/{authentication,api_key,roles,tenants}; permission_types.py"},
-    "trust.sharing": {"s": "Y", "t": "Datasets can be shared through the 'share' permission; sessions readable by others through a dataset read grant; agent traces and skills stored as shared memory. No cross-agent reach bound.", "e": "read: cognee/modules/users/permissions/permission_types.py:1; cognee/api/v1/recall/recall.py:96-115"}
+    "arch.product": {
+      "s": "",
+      "t": "Python library (pip package cognee) plus FastAPI server, CLI, MCP server (cognee-mcp), web UI and a hosted cloud (api.cognee.ai). Public verbs: add, cognify, memify, improve, remember, recall, search, update, delete, forget, prune, export, push, session; plus an @agent_memory decorator and importers from Mem0, Zep/Graphiti and Letta exports.",
+      "e": "read: cognee/__init__.py:40-113; cognee/api/v1/; cognee/migration/__init__.py:1-20; cognee-mcp/src/server.py; README.md"
+    },
+    "arch.truth": {
+      "s": "",
+      "t": "Relational DB holds the source of truth for ingested raw data (Data/Dataset rows with content hash, stored file); graph and vector stores are derived and rebuildable by re-cognify. Session memory lives in a separate cache store.",
+      "e": "read: cognee/tasks/ingestion/ingest_data.py:235-327 (content-hash rows); cognee/infrastructure/databases/cache/config.py:53"
+    },
+    "arch.stores": {
+      "s": "Y",
+      "t": "Three stores plus a cache: relational (default sqlite, Postgres option), vector (default LanceDB; pgvector, Turso), graph (default Ladybug, a Kuzu fork; Neo4j, Neptune, Kuzu, Turso, Postgres demo), session cache (default sqlite; redis, fs, postgres, turso, tapes).",
+      "e": "read: cognee/infrastructure/databases/relational/config.py:22; vector/config.py:32; graph/config.py:47; cache/config.py:53"
+    },
+    "arch.graphdb": {
+      "s": "Y",
+      "t": "Embedded Ladybug graph DB by default (Cypher); adapters for Neo4j, Neptune / Neptune Analytics (hybrid graph+vector), Kuzu, Turso. Graph nodes are DataPoints (DocumentChunk, Entity, EntityType, Timestamp, TextSummary, Event).",
+      "e": "read: cognee/infrastructure/databases/graph/{ladybug,neo4j_driver,neptune_driver,kuzu,turso}; cognee/infrastructure/databases/hybrid/neptune_analytics"
+    },
+    "arch.scope": {
+      "s": "Y",
+      "t": "User / tenant / role principals with per-dataset ACL (read, write, delete, share). With ENABLE_BACKEND_ACCESS_CONTROL (on by default when the graph and vector backends support it) each dataset is mapped to its own graph and vector database. Sessions keyed by (session_id, user_id).",
+      "e": "read: cognee/context_global_variables.py:48-107; cognee/modules/users/permissions/permission_types.py:1; cognee/api/v1/recall/recall.py:96-115"
+    },
+    "write.entry": {
+      "s": "Y",
+      "t": "add() (ingest only) then cognify() (graph build). remember() without session_id = add + cognify + an automatic improve() (IMPROVE_AUTO_ENABLED default true, host admission hook may skip it); with session_id it is a session-cache write whose improve bridge runs in the background. On the document path most improve stages need session ids, so that improve is near a no-op by default. MCP and REST mirror these.",
+      "e": "read: cognee/api/v1/remember/remember.py:887-930,1853-1896,1898-1977,1986-2041; cognee/modules/improve/config.py:31; cognee/modules/improve/stages.py:84,118,143,179,238,289,335"
+    },
+    "write.receipt": {
+      "s": "P",
+      "t": "cognify() blocks until the pipeline finishes unless run_in_background=True (then returns a run handle immediately). Session remember() returns after the cache write; the graph bridge (improve) runs as a background task, debounced by IMPROVE_DEBOUNCE_ENTRIES / IMPROVE_DEBOUNCE_SECONDS (defaults 1 entry, 0 s = every call). No timer: entries below threshold wait for the next call.",
+      "e": "read: cognee/api/v1/cognify/cognify.py:122,478; cognee/api/v1/remember/remember.py:1913-1977,2048-2064; cognee/api/v1/remember/auto_improve_debounce.py; cognee/modules/improve/config.py:37-38"
+    },
+    "write.roles": {
+      "s": "P",
+      "t": "No speaker/role routing in the document path: text is chunked as-is (OmniMemEval prefixes timestamp to each line). Session path stores typed entries (QA entry, agent trace, feedback) per session; improve stages route Q&A, traces, feedback and stated preferences to different subgraphs.",
+      "e": "read: cognee/api/v1/remember/remember.py:431-600 (_dispatch_session_entry); cognee/modules/improve/stages.py:80-330"
+    },
+    "write.firewall": {
+      "s": "N",
+      "t": "Not found: no prompt-injection or poisoning defence at write. Closest is opt-in presort PII detection (regex + optional LLM) for local folder ingestion, which produces a report, not a block.",
+      "e": "read: cognee/tasks/presort/detect_pii.py:1-15; cognee/api/v1/remember/remember.py:173-211 (PRESORT_FOLDERS_ENABLED opt-in)"
+    },
+    "write.governance": {
+      "s": "P",
+      "t": "forget() deletes by data_id, dataset or everything (memory_only option); per-dataset ACL; PII presort report opt-in. Session tier has a retention TTL of 604,800 s (7 days) swept every 900 s, so session turns never bridged by improve expire. No consent model found.",
+      "e": "read: cognee/api/v1/forget/forget.py:22-45; cognee/infrastructure/databases/cache/config.py:55,69"
+    },
+    "segment.unit": {
+      "s": "",
+      "t": "One document chunk. Each add() item becomes a Document; TextChunker groups paragraphs up to max_chunk_size tokens; one extraction call and one summary call per chunk.",
+      "e": "read: cognee/api/v1/cognify/cognify.py:602-627; cognee/modules/chunking/TextChunker.py:16-105"
+    },
+    "segment.rule": {
+      "s": "Y",
+      "t": "Paragraph-batched size cap. Default chunk size = min(embedding input limit, half the LLM max completion tokens): with text-embedding-3-large (8,191) and llm_max_completion_tokens 16,384 that is about 8,191 tokens. No overlap by default; LangchainChunker, CSV, JSON-list (one item per chunk) chunkers selectable.",
+      "e": "read: cognee/infrastructure/llm/utils.py:14-63; cognee/infrastructure/llm/config.py:150; cognee/infrastructure/databases/vector/embeddings/config.py:20; cognee/modules/chunking/"
+    },
+    "segment.measured": {
+      "s": "N",
+      "t": "Not found in repo. Inferred for the OmniMemEval run: one remember() per session (272 documents); a LoCoMo session is far below the ~8K-token cap, so about one chunk per session.",
+      "e": "inferred: OmniMemEval cognee_client.py add() (one input.txt per session) + chunk cap above"
+    },
+    "extract.calls": {
+      "s": "Y",
+      "t": "Two LLM calls per chunk by default, run concurrently with asyncio.gather: structured-output graph extraction (extract_content_graph) and chunk summary (summarize_text). summary_method='from_extraction' drops the second call. GRAPH_EXTRACTOR='auto' switches to the local GLiNER demo (no LLM) when no LLM key is set. Contradiction detection adds calls when on (off). The old temporal event pipeline is gone: temporal_cognify is accepted and ignored and get_temporal_tasks has no caller.",
+      "e": "read: cognee/tasks/graph/extract_graph_and_summarize.py:26-63; cognee/tasks/graph/extract_graph_from_data.py:252-265; cognee/modules/cognify/config.py:19-35; cognee/api/v1/cognify/cognify.py:332-335,705"
+    },
+    "extract.facts": {
+      "s": "P",
+      "t": "No separate atomic-fact record: facts are graph edges (subject --relation--> object) with an optional edge_text description written by the extractor ('dry and efficient', using endpoint names).",
+      "e": "read: cognee/infrastructure/llm/prompts/generate_graph_prompt.txt (header); cognee/modules/graph/utils/resolve_edges_to_text.py:79-94"
+    },
+    "extract.episode": {
+      "s": "P",
+      "t": "A per-chunk TextSummary is generated (default 'llm' method) and indexed; no explicit episode narrative object beyond the chunk summary.",
+      "e": "read: cognee/tasks/summarization/summarize_text.py:16; cognee/modules/cognify/config.py:19"
+    },
+    "extract.dates": {
+      "s": "Y",
+      "t": "Default graph prompt makes dates Timestamp leaf nodes normalised to YYYY / YYYY-MM / YYYY-MM-DD (periods as start/end) linked by {verb}_at / {verb}_during edges; the chunker attaches per-document TEMPORAL_NORMALIZATION_HINTS so relative dates can be normalised.",
+      "e": "read: cognee/infrastructure/llm/prompts/generate_graph_prompt.txt (section 2 Timestamps); cognee/tasks/graph/extract_graph_from_data.py:64-87"
+    },
+    "extract.neighbours": {
+      "s": "P",
+      "t": "Document path: not found; the extractor sees only the chunk text and date hints, and integration happens afterwards by deterministic name-based ids. Session path: distill_sessions vector-searches similar existing lessons and entity names and shows them to the writer/rejecter LLM before a lesson is accepted.",
+      "e": "read: cognee/infrastructure/llm/extraction/knowledge_graph/extract_content_graph.py:18-62; cognee/modules/session_distillation/distill.py:303-375"
+    },
+    "extract.failure": {
+      "s": "P",
+      "t": "Pipeline-level error classification; cognify raises unless run_in_background or raise_on_error=False; incremental_loading skips already-processed data on rerun. Contradiction task swallows its own errors.",
+      "e": "read: cognee/api/v1/cognify/cognify.py:64-110,123,546-556; cognee/tasks/graph/detect_contradictions.py:1-20"
+    },
+    "graph.entities": {
+      "s": "Y",
+      "t": "LLM extracts typed nodes (basic types such as Person; id, name, type, description) and edges in one call; optional OWL ontology resolver canonicalises and enriches matches (modes annotate / strict). Custom Pydantic graph_model supported.",
+      "e": "read: cognee/shared/data_models.py:40-77; cognee/tasks/graph/extract_graph_from_data.py:115-210; cognee/modules/ontology/"
+    },
+    "graph.resolution": {
+      "s": "P",
+      "t": "Deterministic name-based ids (Entity.id_for(lower-cased name)) merge same-name entities across chunks and ingestions; same name within one chunk with different types gets chunk-scoped ids. Fuzzy merging is an explicit memify pipeline (consolidate_entities, similarity 0.85), not default.",
+      "e": "read: cognee/modules/graph/utils/expand_with_nodes_and_edges.py:88-150; cognee/modules/engine/utils/generate_node_name.py:1; cognee/memify_pipelines/consolidate_entities.py:22-27"
+    },
+    "graph.edges": {
+      "s": "Y",
+      "t": "Free-form snake_case relationship names with optional edge_text; DocumentChunk --contains--> Entity edges carry 'chunk mentions X: description'. Edges already in the store are not re-attached.",
+      "e": "read: cognee/modules/graph/utils/expand_with_nodes_and_edges.py:155-175; cognee/tasks/graph/extract_graph_from_data.py:196-210"
+    },
+    "graph.communities": {
+      "s": "O",
+      "t": "No community detection by default. Opt-in global_context_index builds a tree of bucket and root summaries (vector or graph bucketing) via memify/improve.",
+      "e": "read: cognee/memify_pipelines/global_context_index.py:1-30; cognee/modules/improve/stages.py:458-485"
+    },
+    "time.fields": {
+      "s": "P",
+      "t": "DataPoint carries created_at, updated_at, version, valid_to, importance_weight, feedback_weight and source_* provenance fields; event time lives in Timestamp nodes, not on edges. valid_to is stamped only by a close_node helper that no default pipeline calls, so there is no bi-temporal edge validity by default.",
+      "e": "read: cognee/infrastructure/engine/models/DataPoint.py:64-92; cognee/tasks/storage/close_node.py:1-41"
+    },
+    "time.update": {
+      "s": "O",
+      "t": "Both off by default: detect_contradictions (LLM compares facts in the touched 1-hop neighbourhood and adds a 'contradicts' edge, non-destructive) and resolve_temporal_contradictions (for caller-declared functional relationships, keeps the newest and tags older edges superseded / superseded_by). Otherwise conflicting facts coexist.",
+      "e": "read: cognee/tasks/graph/detect_contradictions.py:1-20; cognee/tasks/graph/resolve_temporal_contradictions.py:1-20; cognee/modules/cognify/config.py:24-29"
+    },
+    "time.dedup": {
+      "s": "Y",
+      "t": "Raw data deduplicated by content hash at add(); entities by deterministic id; edges by identity check against storage; duplicate extracted nodes removed per chunk.",
+      "e": "read: cognee/tasks/ingestion/ingest_data.py:235-327; cognee/tasks/graph/extract_graph_from_data.py:44-62,196-210"
+    },
+    "derive.session": {
+      "s": "P",
+      "t": "No session summary. On the session path, improve's distill_sessions stage runs by default whenever an LLM is configured: a curator LLM packs the session into lessons, a writer/rejecter LLM accepts them against prior lessons, and accepted lessons are re-cognified into a session_learnings node set. Only gated context entries (net helpfulness >= 0, confidence threshold) are distilled.",
+      "e": "read: cognee/modules/improve/stages.py:228-283; cognee/modules/session_distillation/distill.py:1-14,136-143"
+    },
+    "derive.profile": {
+      "s": "O",
+      "t": "update_user_preferences stage folds rated turns and stated preferences into a per-user 'prefers' subgraph with weights; decay computed on read from a turn counter. Gated by PERSONALIZATION_ENABLED (default false).",
+      "e": "read: cognee/modules/user_preferences/update.py:1-25; cognee/modules/improve/stages.py:285-300; cognee/base_config.py:53"
+    },
+    "derive.entity": {
+      "s": "P",
+      "t": "Entity description comes from the extractor (later chunks may overwrite on upsert, inferred). LLM consolidation of entity descriptions is an explicit memify pipeline (consolidate_entity_descriptions).",
+      "e": "read: cognee/memify_pipelines/consolidate_entity_descriptions.py; cognee/modules/graph/utils/expand_with_nodes_and_edges.py:100-108"
+    },
+    "derive.background": {
+      "s": "Y",
+      "t": "improve() runs nine gated stages in order (feedback_weights, persist_session_qa, persist_agent_traces, extract_agent_context, distill_sessions, update_user_preferences, build_truth_subspace, triplet_enrichment, global_context_index) under a per-session/dataset lock; auto-launched in background after session remember().",
+      "e": "read: cognee/api/v1/improve/improve.py:1-25,116-135; cognee/modules/improve/stages.py"
+    },
+    "derive.forget": {
+      "s": "P",
+      "t": "No decay of graph memories; explicit forget() deletion only. Preference weights decay on read from a turn counter; feedback_weight is moved by an EMA from ratings (feedback_alpha 0.1). Session-cache entries expire after the 7-day TTL.",
+      "e": "read: cognee/api/v1/forget/forget.py; cognee/modules/user_preferences/update.py:18-22; cognee/modules/improve/constants.py:20; cognee/infrastructure/databases/cache/config.py:69"
+    },
+    "index.embed": {
+      "s": "Y",
+      "t": "openai/text-embedding-3-large by default (LiteLLM; fastembed / Ollama / others configurable). Indexed fields: Entity name, EntityType name, DocumentChunk text, TextSummary text, EdgeType relationship_name; optional triplet embeddings.",
+      "e": "read: cognee/infrastructure/databases/vector/embeddings/config.py:19-20; cognee/modules/retrieval/utils/brute_force_triplet_search.py:292-310"
+    },
+    "index.lexical": {
+      "s": "O",
+      "t": "CHUNKS_LEXICAL: in-process Okapi BM25 (and a Jaccard variant) over chunks loaded from the graph; not part of the default hybrid path.",
+      "e": "read: cognee/modules/retrieval/bm25_retriever.py:8-90; cognee/modules/search/methods/get_search_type_retriever_instance.py:353"
+    },
+    "index.vector": {
+      "s": "Y",
+      "t": "LanceDB collections per indexed field (Entity_name, TextSummary_text, DocumentChunk_text, EdgeType_relationship_name, ...), embedded on add_data_points in batches of 36 with a semaphore capping in-flight points at 150; vector store compacted at the end of a cognify run.",
+      "e": "read: cognee/infrastructure/databases/vector/lancedb; cognee/tasks/storage/add_data_points.py:335-346; cognee/tasks/storage/index_data_points.py:14-68; cognee/infrastructure/databases/vector/embeddings/config.py:157-158; cognee/infrastructure/databases/vector/compact_vector_store.py"
+    },
+    "read.rewrite": {
+      "s": "O",
+      "t": "None on the default document path. With a session_id and AUTO_FEEDBACK on (default), a per-turn LLM analysis returns a query_to_answer; it drives retrieval only in session_search_mode='sequential' (default 'concurrent' applies it from the next turn). GRAPH_COMPLETION_COT generates follow-up questions (max_iter 4); GRAPH_COMPLETION_DECOMPOSITION splits the query; FEELING_LUCKY lets an LLM pick the search type.",
+      "e": "read: cognee/infrastructure/session/feedback_models.py:11-41; cognee/infrastructure/databases/cache/config.py:43-58; cognee/modules/retrieval/graph_completion_cot_retriever.py:70,203; graph_completion_decomposition_retriever.py"
+    },
+    "read.analysis": {
+      "s": "Y",
+      "t": "recall() uses a rule-based router (no LLM): non-question inputs to special types, absolute-date questions to TEMPORAL, everything else HYBRID_COMPLETION.",
+      "e": "read: cognee/api/v1/recall/query_router.py:1-18,77-128; cognee/api/v1/recall/recall.py:356,647-664"
+    },
+    "read.legs": {
+      "s": "Y",
+      "t": "Default HYBRID_COMPLETION: chunk vector (2x candidates) + chunk-summary vector RRF-paired, entity vector with up to 10 edges each, facts (EdgeType) lane, optional global-context prelude, user preference text, session cache. Retriever class defaults are 5 per lane, but search()/recall() pass top_k=15, which is capped to 10 per lane. GRAPH_COMPLETION: vector seeds (wide_search_top_k 100) over 5 node collections plus EdgeType, graph projection, top_k triplets (15 via the API) by node+edge distance, missing-hop penalty 6.5.",
+      "e": "read: cognee/modules/retrieval/hybrid_retriever.py:54,64-102; cognee/modules/search/methods/get_search_type_retriever_instance.py:41-51,77,135-162; cognee/api/v1/search/search.py:43,49; cognee/modules/retrieval/hybrid/chunks.py:120-126; brute_force_triplet_search.py:224-310"
+    },
+    "read.temporal": {
+      "s": "Y",
+      "t": "TEMPORAL type: one LLM call extracts a query time interval, then hybrid candidates are reranked by date-window overlap with expansion; falls back to plain hybrid when no window is found.",
+      "e": "read: cognee/modules/retrieval/temporal_hybrid_retriever.py:1-25,200-210; cognee/modules/retrieval/temporal_hybrid/matching.py:43"
+    },
+    "read.traversal": {
+      "s": "Y",
+      "t": "Graph projection around vector-hit nodes; optional k-hop neighbourhood from up to 10 seed nodes; CONTEXT_EXTENSION expands iteratively; CYPHER and NATURAL_LANGUAGE (LLM to Cypher) query the graph directly.",
+      "e": "read: cognee/modules/retrieval/utils/brute_force_triplet_search.py:50-118; graph_completion_context_extension_retriever.py; cypher_search_retriever.py; natural_language_retriever.py"
+    },
+    "rank.fusion": {
+      "s": "Y",
+      "t": "RRF over (chunk vector rank, summary rank) with optional importance, truth-subspace and personal-preference factors; triplet score = summed vector distances of nodes and edge.",
+      "e": "read: cognee/modules/retrieval/hybrid/ranking.py:6-60; brute_force_triplet_search.py:205-220"
+    },
+    "rank.rerank": {
+      "s": "N",
+      "t": "Not found: no cross-encoder reranker; only the temporal rerank by date overlap.",
+      "e": "read: grep rerank/cross-encoder over cognee/modules/retrieval returns only temporal_hybrid"
+    },
+    "rank.gate": {
+      "s": "N",
+      "t": "No relevance threshold or abstain gate; top-k always returned. Only guard: hybrid, graph and triplet retrievers skip the answer LLM call when every lane comes back empty (skip_completion_on_empty_context). Answer prompt just says to answer briefly.",
+      "e": "read: cognee/modules/retrieval/hybrid_retriever.py:62,289; graph_completion_retriever.py:55,406; cognee/infrastructure/llm/prompts/answer_simple_question.txt"
+    },
+    "rank.agentic": {
+      "s": "O",
+      "t": "AGENTIC_COMPLETION: tool-calling loop over the graph (max_iter 6) with skills/tools; COT retriever (max_iter 4). Not default.",
+      "e": "read: cognee/modules/retrieval/agentic_retriever.py:68-99"
+    },
+    "answer.shape": {
+      "s": "",
+      "t": "GRAPH_COMPLETION renders 'Nodes:' (each node's full content; for a DocumentChunk node that is the whole chunk text, titled by its first 7 words plus 3 frequent words) then 'Connections:' as source --[rel]--> target (edge_text). HYBRID renders an optional global-context prelude, '## Relevant passages' (full chunk text), '## Relevant entities' (description plus edges) and facts; chunk summaries are a ranking signal only and are not rendered.",
+      "e": "read: cognee/modules/graph/utils/resolve_edges_to_text.py:25-106; cognee/modules/retrieval/hybrid/context.py:8-27,76-85; cognee/infrastructure/llm/prompts/hybrid_context_for_question.txt"
+    },
+    "answer.size": {
+      "s": "",
+      "t": "32,532 mean answer-stage tokens per question in OmniMemEval LoCoMo (GRAPH_COMPLETION, topK 20). Cause (inferred from code): every triplet touching a DocumentChunk (the default 'contains' edges) inlines the full chunk text, chunks default to ~8K tokens, and one LoCoMo session is one chunk, so 20 triplets pull many whole sessions; no budget or truncation exists. Other OmniMemEval runs: 10,305 (LME), 33,065-40,914 (BEAM).",
+      "e": "doc: OmniMemEval results.md; read: resolve_edges_to_text.py:46-53; cognee/infrastructure/llm/utils.py:56-61"
+    },
+    "answer.prompt": {
+      "s": "Y",
+      "t": "Default system prompt answer_simple_question.txt (one line: answer from context, as brief as possible); user prompt graph_context_for_question.txt. Benchmark runs swap in per-type prompts.",
+      "e": "read: cognee/infrastructure/llm/prompts/answer_simple_question.txt; graph_completion_retriever.py:59-60"
+    },
+    "eval.best": {
+      "s": "",
+      "t": "LoCoMo 83.48 on OmniMemEval (1,540 q, cloud, gpt-4.1-mini / gpt-4o-mini). Vendor's own 90.7 is on a non-standard 1,762-q set (PR #5622, unmerged).",
+      "e": "doc: OmniMemEval results.md; PR #5622"
+    },
+    "eval.outside": {
+      "s": "Y",
+      "t": "OmniMemEval same-harness run (by MemTensor). Also BEAM 100K 0.79 / 10M 0.67 (vendor, small question sets; 10M in-sample tuned).",
+      "e": "doc: OmniMemEval results.md; cognee/eval_framework/beam/REPORT.md:7-11,89-92"
+    },
+    "eval.models": {
+      "s": "",
+      "t": "OmniMemEval: gpt-4.1-mini reader, gpt-4o-mini judge. Vendor LoCoMo PR: gpt-5-mini reader, gpt-5.1 judge. BEAM: gpt-5 reader and gpt-5 rubric judge (ingestion gpt-5 at 100K, gpt-5-mini at 10M).",
+      "e": "doc: OmniMemEval results.md:25-27; PR #5622 body; cognee/eval_framework/beam/REPORT.md:137-140"
+    },
+    "eval.rigour": {
+      "s": "P",
+      "t": "OmniMemEval: one harness, fixed models, context tokens reported, but run by a competitor and adapter not tuned by Cognee. Vendor LoCoMo: single run, excludes 143 golds and open-domain, adds cat 5. BEAM 10M: settings chosen on the reported questions and routed by BEAM's own question-type labels, so in-sample.",
+      "e": "doc: OmniMemEval results.md:11-16; PR #5622; cognee/eval_framework/beam/REPORT.md:11,43,114-116"
+    },
+    "cost.write": {
+      "s": "",
+      "t": "Inferred: about 272 chunks, so about 544 LLM calls (272 extraction + 272 summary) plus embeddings; 272 with summary_method='from_extraction'. Contradiction detection would add calls per batch.",
+      "e": "inferred from extract_graph_and_summarize.py:26-60 and the one-document-per-session OmniMemEval adapter"
+    },
+    "cost.read": {
+      "s": "",
+      "t": "0 engine LLM calls with only_context (OmniMemEval) + 1 reader call; default completion types 1 call (skipped when context is empty); with a session_id +1 turn-analysis call per turn (AUTO_FEEDBACK default on); TEMPORAL +1 interval call (concurrent with candidate fetch); COT up to 4 rounds; agentic up to 6.",
+      "e": "read: cognee/infrastructure/databases/cache/config.py:57-58; cognee/infrastructure/session/session_concurrent_turn.py:1-8; temporal_retriever.py:101; graph_completion_cot_retriever.py:70; agentic_retriever.py:99"
+    },
+    "cost.where": {
+      "s": "",
+      "t": "Hosted OpenAI by default (LLM openai/gpt-5.6-luna, text-embedding-3-large via LiteLLM). With no LLM key it auto-falls back to fully local: GLiNER demo extractor and fastembed BAAI/bge-small-en-v1.5 embeddings; Ollama also supported. Default stores are embedded files (sqlite, LanceDB, Ladybug).",
+      "e": "read: cognee/infrastructure/llm/config.py:109-110; cognee/modules/cognify/config.py:30-35; cognee/infrastructure/databases/vector/embeddings/config.py:20-29"
+    },
+    "trust.provenance": {
+      "s": "P",
+      "t": "Every DataPoint has source_pipeline, source_task, source_node_set, source_user, source_content_hash; record_provenance task (off by default) stamps graphs; chunks link to their Document; contradicts / superseded edges keep both facts. No trust score.",
+      "e": "read: cognee/infrastructure/engine/models/DataPoint.py:86-90; cognee/tasks/provenance/record_provenance.py:99; cognee/modules/cognify/config.py:29"
+    },
+    "trust.erasure": {
+      "s": "Y",
+      "t": "forget(data_id | dataset | everything, memory_only) removes data and its derived graph/vector artefacts, under a dataset lock; chunk-scoped ownership refs decide what is orphaned.",
+      "e": "read: cognee/api/v1/forget/forget.py:18-40; cognee/tasks/storage/add_data_points.py:209-245"
+    },
+    "trust.auth": {
+      "s": "Y",
+      "t": "FastAPI-users authentication, API keys, roles, tenants and tenant-scoped capabilities; cloud uses X-Api-Key.",
+      "e": "read: cognee/modules/users/{authentication,api_key,roles,tenants}; permission_types.py"
+    },
+    "trust.sharing": {
+      "s": "Y",
+      "t": "Datasets can be shared through the 'share' permission; sessions readable by others through a dataset read grant; agent traces and skills stored as shared memory. No cross-agent reach bound.",
+      "e": "read: cognee/modules/users/permissions/permission_types.py:1; cognee/api/v1/recall/recall.py:96-115"
+    }
   },
   "layers": {
     "raw": "Y",
@@ -86,7 +314,7 @@
     "facts": "P",
     "graph": "Y",
     "bitemporal": "N",
-    "session_summary": "O",
+    "session_summary": "P",
     "entity_summary": "P",
     "profile": "O",
     "prospective": "N",
@@ -97,17 +325,153 @@
     "provenance": "P"
   },
   "extras": [
-    {"phase": "read", "param": "~20 search types", "t": "SUMMARIES, CHUNKS, CHUNKS_LEXICAL, RAG_COMPLETION, HYBRID_COMPLETION (default), TRIPLET_COMPLETION, GRAPH_COMPLETION, _DECOMPOSITION, _COT, _CONTEXT_EXTENSION, GRAPH_SUMMARY_COMPLETION, CYPHER, NATURAL_LANGUAGE, FEELING_LUCKY, TEMPORAL, CODING_RULES, AGENTIC_COMPLETION, CODE, GRAPH_REPORT, SKILLS; dev adds BROAD.", "e": "read: cognee/modules/search/types/SearchType.py; dev commit 0ccaf32"},
-    {"phase": "write", "param": "session memory + auto improve", "t": "remember(session_id) writes to a fast session cache; improve() bridges Q&A, traces and feedback into the graph in the background, debounced.", "e": "read: cognee/api/v1/remember/remember.py:916-935; auto_improve_debounce.py"},
-    {"phase": "derive", "param": "global context index", "t": "Hierarchical bucket/root summaries over chunk summaries (bucket size 4 in improve, 20 in memify), prepended to retrieval as a short prelude (top 3).", "e": "read: cognee/memify_pipelines/global_context_index.py; graph_completion_retriever.py:74,296-305"},
-    {"phase": "rank", "param": "truth subspace + feedback weights", "t": "Opt-in truth subspace built from distilled learnings and EMA feedback weights from user ratings feed the hybrid ranking factor.", "e": "read: cognee/modules/truth_subspace/; cognee/modules/retrieval/hybrid/ranking.py:1-20"},
-    {"phase": "graph", "param": "ontology grounding", "t": "OWL ontology resolver (file path or env), annotate or strict mode; ontology_valid / ontology_uri on DataPoints.", "e": "read: cognee/modules/ontology/; DataPoint.py:71-77"},
-    {"phase": "extract", "param": "GLiNER local extractor", "t": "extractor='gliner_demo' builds entities and summaries with a small local model, no LLM calls.", "e": "read: cognee/api/v1/cognify/cognify.py:148,231-238,450-462"},
-    {"phase": "write", "param": "dry_run cost estimate", "t": "cognify/remember dry_run estimates the LLM extraction cost before running.", "e": "read: cognee/api/v1/cognify/cognify.py:336-340"},
-    {"phase": "arch", "param": "MCP server + connectors", "t": "cognee-mcp and many data-source connectors (DLT, Notion, Slack, Linear; Google Drive etc. in PRs); code-graph pipeline for repositories.", "e": "read: cognee-mcp/; cognee/modules/integrations/; cognify.py:489-497"}
+    {
+      "phase": "read",
+      "param": "~20 search types",
+      "t": "SUMMARIES, CHUNKS, CHUNKS_LEXICAL, RAG_COMPLETION, HYBRID_COMPLETION (default), TRIPLET_COMPLETION, GRAPH_COMPLETION, _DECOMPOSITION, _COT, _CONTEXT_EXTENSION, GRAPH_SUMMARY_COMPLETION, CYPHER, NATURAL_LANGUAGE, FEELING_LUCKY, TEMPORAL, CODING_RULES, AGENTIC_COMPLETION, CODE, GRAPH_REPORT, SKILLS; dev adds BROAD.",
+      "e": "read: cognee/modules/search/types/SearchType.py; dev commit 0ccaf32"
+    },
+    {
+      "phase": "write",
+      "param": "session memory + auto improve",
+      "t": "remember(session_id) writes to a fast session cache; improve() bridges Q&A, traces and feedback into the graph in the background, debounced.",
+      "e": "read: cognee/api/v1/remember/remember.py:916-935; auto_improve_debounce.py"
+    },
+    {
+      "phase": "derive",
+      "param": "global context index",
+      "t": "Hierarchical bucket/root summaries over chunk summaries (bucket size 4 in improve, 20 in memify), prepended to retrieval as a short prelude (top 3).",
+      "e": "read: cognee/memify_pipelines/global_context_index.py; graph_completion_retriever.py:74,296-305"
+    },
+    {
+      "phase": "rank",
+      "param": "truth subspace + feedback weights",
+      "t": "Opt-in truth subspace built from distilled learnings and EMA feedback weights from user ratings feed the hybrid ranking factor.",
+      "e": "read: cognee/modules/truth_subspace/; cognee/modules/retrieval/hybrid/ranking.py:1-20"
+    },
+    {
+      "phase": "graph",
+      "param": "ontology grounding",
+      "t": "OWL ontology resolver (file path or env), annotate or strict mode; ontology_valid / ontology_uri on DataPoints.",
+      "e": "read: cognee/modules/ontology/; DataPoint.py:71-77"
+    },
+    {
+      "phase": "extract",
+      "param": "GLiNER local extractor",
+      "t": "extractor='gliner_demo' builds entities and summaries with a small local model, no LLM calls; GRAPH_EXTRACTOR='auto' (default) picks it automatically when no LLM key is set, auto-installing CPU torch.",
+      "e": "read: cognee/modules/cognify/config.py:30-47; cognee/api/v1/cognify/cognify.py:133,231-241,435-462"
+    },
+    {
+      "phase": "write",
+      "param": "dry_run cost estimate",
+      "t": "cognify/remember dry_run estimates the LLM extraction cost before running.",
+      "e": "read: cognee/api/v1/cognify/cognify.py:130,212,422-432; cognee/modules/cognify/estimator.py"
+    },
+    {
+      "phase": "arch",
+      "param": "MCP server + connectors",
+      "t": "cognee-mcp and many data-source connectors (DLT, Notion, Slack, Linear; Google Drive etc. in PRs); code-graph pipeline for repositories.",
+      "e": "read: cognee-mcp/; cognee/modules/integrations/; cognify.py:489-497"
+    },
+    {
+      "phase": "write",
+      "param": "chunk-level incremental update()",
+      "t": "update() diffs new text against stored chunks, re-extracts only changed regions (plus chunks whose date hints changed), validates that kept and new chunks reassemble the new text byte-for-byte, then publishes in one transaction; a crash fails closed into a full rebuild.",
+      "e": "read: cognee/api/v1/update/incremental.py:1-39; cognee/modules/chunking/incremental_chunking.py:1-17; cognee/modules/chunking/chunk_policy.py:1-26"
+    },
+    {
+      "phase": "trust",
+      "param": "chunk-scoped ownership refs",
+      "t": "Every node and edge is stamped with the chunk(s) that produced it (source_ref v2); deletion retires a chunk's refs and shared entities survive until their last owner goes.",
+      "e": "read: cognee/tasks/storage/add_data_points.py:205-248"
+    },
+    {
+      "phase": "read",
+      "param": "session turn analysis",
+      "t": "With a session_id, one LLM call per turn rates the previous answer (1-5), rates up to 3 served context entries, proposes up to 3 context updates and extracts the question to answer; runs concurrently with the answer by default (30 s timeout).",
+      "e": "read: cognee/infrastructure/session/feedback_models.py:11-41; cognee/infrastructure/session/session_concurrent_turn.py:1-40; cognee/infrastructure/databases/cache/config.py:57-58"
+    },
+    {
+      "phase": "derive",
+      "param": "session distillation into lessons",
+      "t": "Curator LLM batches a finished session into proposed lessons; per lesson a writer/rejecter LLM checks novelty against similar existing lessons; accepted lessons are cognified; a watermark avoids re-distilling and failures do not advance it.",
+      "e": "read: cognee/modules/session_distillation/distill.py:1-14,303-375,471-491"
+    },
+    {
+      "phase": "rank",
+      "param": "adaptive RRF k and importance factor",
+      "t": "Hybrid RRF uses k = clamp(20 + 2 x top_k, 30, 60) and multiplies by 0.75 + 0.5 x importance_weight; an empty entity lane hands its edge budget to the facts lane.",
+      "e": "read: cognee/modules/retrieval/hybrid/ranking.py:20-67; cognee/modules/retrieval/hybrid/facts.py:43-52"
+    },
+    {
+      "phase": "read",
+      "param": "GRAPH_REPORT",
+      "t": "Structural report over the graph with networkx: hub nodes by degree and PageRank, and surprising connections across node sets, plus LLM-suggested questions.",
+      "e": "read: cognee/modules/retrieval/graph_report_retriever.py:49-55,130-151,198"
+    },
+    {
+      "phase": "graph",
+      "param": "cross_connect_entities",
+      "t": "Opt-in memify pipeline that proposes new entity-entity edges by embedding similarity (0.5) and neighbourhood overlap (0.2), at most 5 new edges per node above confidence 0.7.",
+      "e": "read: cognee/memify_pipelines/cross_connect_entities.py:9-30"
+    },
+    {
+      "phase": "derive",
+      "param": "procedural skills with proposals",
+      "t": "Skills are stored as graph nodes; SKILLS search returns metadata only (progressive disclosure, bodies loaded later) and remember() can file proposal-first skill improvements with a confidence and rationale.",
+      "e": "read: cognee/modules/retrieval/skills_retriever.py:13-25; cognee/modules/memify/skill_improvement.py:1-26; cognee/api/v1/remember/remember.py:475-490"
+    },
+    {
+      "phase": "arch",
+      "param": "memory migration and export",
+      "t": "Importers for Mem0, Zep/Graphiti and Letta exports via remember(Source); export to typed snapshot, GraphML or COGX archive for Cognee-to-Cognee restore.",
+      "e": "read: cognee/migration/__init__.py:1-20"
+    },
+    {
+      "phase": "arch",
+      "param": "@agent_memory decorator",
+      "t": "Wraps an agent function so it retrieves memory context before the call and persists a sanitised trace after, scoped to the agent's datasets.",
+      "e": "read: cognee/modules/agent_memory/decorator.py; cognee/modules/agent_memory/runtime.py"
+    },
+    {
+      "phase": "derive",
+      "param": "improve watermarks and locks",
+      "t": "improve() holds a per-session/dataset lock, a losing run asks the holder for one more pass, and triplet enrichment is skipped when no write pipeline completed since the last improve.",
+      "e": "read: cognee/api/v1/improve/improve.py:34-40,76-90,183-207; cognee/modules/improve/stages.py:378-456"
+    },
+    {
+      "phase": "write",
+      "param": "host admission hook for auto-improve",
+      "t": "An embedding application can veto the automatic improve (for example a tenant out of LLM budget) before it starts; data is stored either way and the reason is reported.",
+      "e": "read: cognee/api/v1/remember/remember.py:1874-1896; cognee/modules/improve/admission.py"
+    },
+    {
+      "phase": "read",
+      "param": "temporal anchor expansion and tightness rank",
+      "t": "TEMPORAL fetches 4x candidates, adds chunks attached to Timestamp nodes inside the query window, puts anchored candidates first and ranks by how tightly the matched date fits the window.",
+      "e": "read: cognee/modules/retrieval/temporal_hybrid_retriever.py:1-22; cognee/modules/search/methods/get_search_type_retriever_instance.py:325-331"
+    },
+    {
+      "phase": "trust",
+      "param": "CYPHER kept out of auto-routing",
+      "t": "The router deliberately never routes to CYPHER because recall only checks read permission and raw Cypher could mutate the graph.",
+      "e": "read: cognee/api/v1/recall/query_router.py:77-84"
+    },
+    {
+      "phase": "eval",
+      "param": "token-cost break-even model and sweeps",
+      "t": "token_usage_analysis models cumulative cost of full-context prompting versus ingestion-plus-retrieval across text densities and chunk sizes; a retriever sweep runner and BEAM, HotpotQA, MuSiQue, 2Wiki adapters exist.",
+      "e": "read: cognee/eval_framework/token_usage_analysis/README.md:1-30; cognee/eval_framework/sweeps/retriever_sweep_runner.py; cognee/eval_framework/benchmark_adapters/"
+    }
   ],
-  "token_economy": {"t": "Weak by design on the graph path. No context budget, truncation or compression at answer time; GRAPH_COMPLETION inlines whole chunk texts for any chunk node on a retrieved triplet, and chunks default to about 8K tokens (min of embedding limit and half LLM output limit), giving 32,532 tokens per LoCoMo question in OmniMemEval (versus 1,862 for Zep and about 5K for MemOS). Mitigations that exist: top-k caps (5 by default; OmniMemEval used 20), chunk summaries as a separate retrievable layer (SUMMARIES, GRAPH_SUMMARY_COMPLETION), global-context prelude, explicit chunk_size, summary_method='from_extraction' to halve write calls, and dedup of nodes in the rendered context. Prompt caching not found.", "e": "doc: OmniMemEval results.md; read: resolve_edges_to_text.py:32-106; cognee/infrastructure/llm/utils.py:14-63; graph_completion_retriever.py:62"},
-  "speed": {"t": "Write: chunks processed in batches (chunks_per_batch default 2,000 in the standard list, 10 in temporal) with extraction and summary calls fired concurrently via asyncio.gather; data_per_batch 20 items; incremental loading skips processed items; run_in_background; optional LLM rate limiter (60 rpm default when on, 10 for local); distributed Modal runner (distributed/). Read: hybrid lanes fetched concurrently, session search concurrent, graph warm-up, zero-LLM router. No published latency numbers found.", "e": "read: cognify.py:122-126,591-594,673-676,725-727; extract_graph_from_data.py:254; extract_graph_and_summarize.py:46; hybrid/chunks.py:58; cache/config.py:58; cognee/modules/recall/methods/graph_warmup.py; distributed/"},
+  "token_economy": {
+    "t": "Weak by design on the graph path. No context budget, truncation or compression at answer time; GRAPH_COMPLETION inlines whole chunk texts for any chunk node on a retrieved triplet, and chunks default to about 8K tokens (min of embedding limit and half LLM output limit), giving 32,532 tokens per LoCoMo question in OmniMemEval (versus 1,862 for Zep and about 5K for MemOS). Mitigations that exist: top-k caps (5 by default; OmniMemEval used 20), chunk summaries as a separate retrievable layer (SUMMARIES, GRAPH_SUMMARY_COMPLETION), global-context prelude, explicit chunk_size, summary_method='from_extraction' to halve write calls, and dedup of nodes in the rendered context. Prompt caching not found.",
+    "e": "doc: OmniMemEval results.md; read: resolve_edges_to_text.py:32-106; cognee/infrastructure/llm/utils.py:14-63; graph_completion_retriever.py:62"
+  },
+  "speed": {
+    "t": "Write: chunks processed in batches (chunks_per_batch default 2,000) with extraction and summary calls fired concurrently via asyncio.gather; data_per_batch 20 items; incremental loading skips processed items; run_in_background; optional LLM rate limiter (60 rpm default when on, 10 for local); distributed Modal runner (distributed/). Embedding in batches of 36, at most 150 points in flight; per-row source-ref writes in one statement (measured 8x faster on the default backend, code comment). Read: hybrid lanes fetched concurrently, temporal interval extraction concurrent with candidate fetch, session turn analysis concurrent with the answer, session search concurrent, graph warm-up, zero-LLM router. No published latency numbers found.",
+    "e": "read: cognify.py:122-126,591-594,673-676,725-727; extract_graph_from_data.py:254; extract_graph_and_summarize.py:46; hybrid/chunks.py:58; cache/config.py:58; cognee/modules/recall/methods/graph_warmup.py; distributed/; cognee/tasks/storage/index_data_points.py:14-68; cognee/tasks/storage/add_data_points.py:245-248; cognee/infrastructure/session/session_concurrent_turn.py:1-8"
+  },
   "keep": [
     "A rule-based, zero-LLM query router (date-scoped questions to a temporal rerank, rest to hybrid) is cheap routing worth copying.",
     "Pair each chunk with an LLM summary and fuse chunk-vector and summary-vector ranks with RRF: a second, compact layer at no read cost.",
@@ -122,10 +486,119 @@
     "Vendor LoCoMo number (90.7) uses a non-standard question set (cat 5 in, open-domain and 143 golds out), so it is not comparable."
   ],
   "in_progress": [
-    "PR #5622 (open, 2026-10-09) adds a LoCoMo runner: remember() over dated 6-turn windows, HYBRID_COMPLETION top-k 20 per lane, gpt-5-mini reader, gpt-5.1 judge, 90.7% on 1,762 q (non-standard set).",
-    "dev is 10 commits ahead of main: BROAD search over whole datasets (SDK-324, 0ccaf32) and fact-conflict review shown in search (SDK-880, 200aa80).",
-    "Temporal retrieval work landed 2026-10-07 (SDK-828: rank dates relative to the window, until/since inclusive); branches feat/sdk-821-temporal-tightness-rank, feat/sdk-828-temporal-context-notes, feature/cog-2617-temporal-graph-poc open.",
-    "Branches feat/memory-promotion-20260905, feat/memory-accuracy-score, combine-graph-summary-extraction, feat/clo-416-budget-fail-fast suggest memory tiering, scoring and single-call extraction work (contents not traced).",
-    "PR #5604 queues improve calls like cognify; several data-source connector PRs (Google Drive, Pocket, Substack, Hacker News, Raindrop)."
-  ]
+    "PR #5622 (open, updated 2026-10-09) adds a LoCoMo runner: remember() over dated 6-turn windows, HYBRID_COMPLETION top-k 20 per lane, gpt-5-mini reader, gpt-5.1 judge, 90.7% on 1,762 q (non-standard set).",
+    "dev is 10 commits ahead of main (main still 0ec7a9f): BROAD search over whole datasets (SDK-324, 0ccaf32) and fact-conflict review shown in search (SDK-880, 200aa80).",
+    "PR #5352 (open) adds opt-in idle-session consolidation: bridges sessions to the graph before the 7-day session TTL expires, fixing turns lost by debounce or recall-only sessions.",
+    "PR #5432 removes the old temporal flow (SDK-830); in this commit temporal_cognify is already ignored and get_temporal_tasks is dead code.",
+    "Improve concurrency fixes open: #5604 (queue improve like cognify), #5579 (defer cross-session collisions), #5621 (finish background improve that fails before stages).",
+    "Provenance and erasure: #5350 hardens the audit ledger with tombstones and a read surface; #5316 returns a verifiable receipt from delete_data; #5629 prunes DETACH-deleted EdgeType artefacts.",
+    "Other feature PRs: #5362 Headroom session backend (cross-agent memory store), #5416 EntityType categories, #5404 content dedup scoped by node_set, #5435 GLiNER on a remote worker, #5446 maintenance job harness, #5263/#5264 LanceDB indexing and lighter searches.",
+    "Branches feat/memory-promotion-20260905 (last commit 2026-10-06), feat/sdk-821-temporal-tightness-rank (2026-10-06), feat/sdk-828-temporal-context-notes (2026-10-01), feat/memory-accuracy-score and feat/clo-416-budget-fail-fast (2026-08) exist; contents not traced.",
+    "Many data-source connector PRs open (Google Drive #5611, Pocket, Substack, Hacker News, Raindrop, Intercom, Readwise, Calendly, Klaviyo, Airtable, Todoist)."
+  ],
+  "specialities": [
+    {
+      "name": "Byte-verified incremental re-cognify",
+      "t": "update() diffs a document against its stored chunks and re-extracts only changed regions (and chunks whose inferred dates changed), then checks that kept and fresh chunks reassemble the new text exactly before an atomic publish. Edits cost LLM calls proportional to the change, not the document.",
+      "e": "read: cognee/api/v1/update/incremental.py:1-39; cognee/modules/chunking/incremental_chunking.py:1-17",
+      "phase": "write"
+    },
+    {
+      "name": "Chunk-scoped reference-counted erasure",
+      "t": "Each graph node and edge records which chunks produced it, so deleting data retires only that chunk's ownership and shared entities survive until their last producer is gone.",
+      "e": "read: cognee/tasks/storage/add_data_points.py:205-248",
+      "phase": "trust"
+    },
+    {
+      "name": "Zero-LLM recall router with safety exclusions",
+      "t": "recall() routes by ordered regex rules: quoted phrase to BM25, coding-rule intent to CODING_RULES, absolute-date questions to TEMPORAL, all else HYBRID; CYPHER is excluded on purpose so request text cannot mutate the graph.",
+      "e": "read: cognee/api/v1/recall/query_router.py:1-18,77-128",
+      "phase": "read"
+    },
+    {
+      "name": "Implicit feedback from conversation",
+      "t": "Each session turn runs one LLM analysis, concurrent with the answer, that rates the previous answer and the served context; ratings move feedback_weight by EMA (alpha 0.1), feed preference subgraphs and gate which context is distilled into lessons.",
+      "e": "read: cognee/infrastructure/session/feedback_models.py:11-41; cognee/modules/improve/stages.py:80-108; cognee/modules/session_distillation/distill.py:136-143",
+      "phase": "derive"
+    },
+    {
+      "name": "Truth subspace reranking",
+      "t": "Distilled lessons are replayed into deterministic centroid slots; chunks get coordinates in that subspace and hybrid ranking multiplies by an alignment factor, trusted only when the chunk's epoch matches the live centroids (commit-last ordering).",
+      "e": "read: cognee/modules/truth_subspace/build.py:1-17; cognee/modules/truth_subspace/align.py:1-7; cognee/modules/retrieval/hybrid/ranking.py:37-40",
+      "phase": "rank"
+    },
+    {
+      "name": "Timestamp-tightness temporal rerank",
+      "t": "Dates become normalised Timestamp leaf nodes at write; at read the query window is extracted concurrently with the hybrid fetch, chunks anchored to in-window Timestamps are added and ranked by how exactly their date fits.",
+      "e": "read: cognee/infrastructure/llm/prompts/generate_graph_prompt.txt:21-41; cognee/modules/retrieval/temporal_hybrid_retriever.py:1-22",
+      "phase": "read"
+    },
+    {
+      "name": "Keyless local mode",
+      "t": "With no LLM key, GRAPH_EXTRACTOR='auto' selects a local GLiNER extractor and embeddings fall back to fastembed bge-small, so the full add/cognify/search loop runs offline with zero LLM extraction calls.",
+      "e": "read: cognee/modules/cognify/config.py:30-47; cognee/infrastructure/databases/vector/embeddings/config.py:22-29",
+      "phase": "cost"
+    },
+    {
+      "name": "Skills with progressive disclosure",
+      "t": "Procedural skills live in the graph; search returns metadata only and bodies are loaded on demand, and skill changes go through proposal objects with rationale and confidence rather than silent rewrites.",
+      "e": "read: cognee/modules/retrieval/skills_retriever.py:13-25; cognee/modules/memify/skill_improvement.py:1-26",
+      "phase": "derive"
+    }
+  ],
+  "verification": {
+    "date": "2026-10-11",
+    "commit": "0ec7a9f",
+    "rows_checked": 57,
+    "corrections": [
+      "arch.product: verb list omitted update/delete/prune/export/push, the agent_memory decorator and the migration importers -> now listed with __init__.py:40-113 evidence",
+      "write.entry: said remember() without session_id = add+cognify -> it is add+cognify+automatic improve (auto_enabled=True), with a host admission skip hook",
+      "write.governance: said no retention policy found -> session cache has a 7-day TTL (session_ttl_seconds 604800) swept every 900 s",
+      "extract.calls: listed the temporal event pipeline as an optional extra call -> temporal_cognify is removed (kwarg popped at cognify.py:335, get_temporal_tasks unreferenced); added GRAPH_EXTRACTOR auto fallback to GLiNER",
+      "extract.neighbours: was N -> now P (session distillation writer is shown similar existing lessons and a glossary; document extraction still blind)",
+      "time.fields: implied valid_to is a live field -> clarified it is only set by the close_node helper, which no default pipeline calls",
+      "derive.session: was O (opt-in) -> now P (distill_sessions is gated only on LLM availability and runs by default on the session path; still no session summary)",
+      "index.vector: evidence add_data_points.py:78-110 pointed at the docstring -> now add_data_points.py:335-346 and index_data_points.py:14-68 (batch 36, 150 in flight)",
+      "read.rewrite: omitted the session turn analysis (query_to_answer) that is on by default with a session_id -> added; status O kept because it only rewrites in sequential mode",
+      "read.analysis: evidence query_router.py:1-50 covered only the header -> now 77-128 (the rule table) plus recall.py auto_route call site",
+      "read.legs: said defaults chunks/entities/facts top-k 5 -> class default is 5 but the public search()/recall() top_k=15 is capped to 10 per hybrid lane (DEFAULT_HYBRID_LANE_TOP_K); GRAPH_COMPLETION gets 15",
+      "rank.gate: said NoDataError only on an empty store -> the real guard is skip_completion_on_empty_context (no LLM call when all lanes are empty); status N kept",
+      "answer.shape: said HYBRID renders a summary section -> summaries only feed RRF ranking; rendered sections are prelude, passages, entities and facts",
+      "eval.models: BEAM listed only the judge -> added gpt-5 reader and ingestion models (REPORT.md:137-140)",
+      "eval.rigour: BEAM note lacked that 10M routing uses the benchmark's question-type labels -> added",
+      "cost.read: omitted the per-turn session analysis LLM call (auto_feedback default true) -> added",
+      "cost.where: did not mention the automatic keyless fallback (GLiNER + fastembed bge-small) -> added",
+      "speed: cited a temporal chunks_per_batch of 10 for a pipeline that is no longer reachable -> removed; added embedding batching and concurrent turn analysis",
+      "extras dry_run cost estimate: evidence cognify.py:336-340 was the GLiNER guard -> now cognify.py:422-432 (estimate_cognify_dry_run)",
+      "layers.session_summary: was O -> now P, matching derive.session",
+      "one_line: called improve() opt-in -> it runs automatically after remember() by default"
+    ],
+    "added": [
+      "extras: chunk-level incremental update()",
+      "extras: chunk-scoped ownership refs",
+      "extras: session turn analysis",
+      "extras: session distillation into lessons",
+      "extras: adaptive RRF k and importance factor",
+      "extras: GRAPH_REPORT",
+      "extras: cross_connect_entities",
+      "extras: procedural skills with proposals",
+      "extras: memory migration and export",
+      "extras: @agent_memory decorator",
+      "extras: improve watermarks and locks",
+      "extras: host admission hook for auto-improve",
+      "extras: temporal anchor expansion and tightness rank",
+      "extras: CYPHER kept out of auto-routing",
+      "extras: token-cost break-even model and sweeps",
+      "specialities: 8 entries (incremental update, chunk-scoped erasure, zero-LLM router, implicit feedback, truth subspace, temporal tightness rerank, keyless local mode, skills progressive disclosure)",
+      "in_progress refreshed from gh (open PRs, dev vs main compare, branch dates)"
+    ],
+    "unverified": [
+      "OmniMemEval scores, per-type numbers and the 32,532-token context size were not re-fetched in this pass (external results.md).",
+      "PR #5622 per-type LoCoMo numbers come from the PR branch report file, not re-read; PR body re-checked (90.7% of 1,762 q, single run).",
+      "answer.size cause and cost.write call counts remain inferred from code, not measured.",
+      "Zep 1,862 and MemOS ~5K token comparisons in token_economy come from OmniMemEval, not this repo.",
+      "derive.entity: overwrite of entity descriptions across batches on upsert is inferred; within a batch the first description wins (expand_with_nodes_and_edges.py:95-98).",
+      "Contents of the memory-promotion, accuracy-score and budget-fail-fast branches not traced."
+    ]
+  }
 }

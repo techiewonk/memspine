@@ -142,6 +142,18 @@ Phase `trust` Provenance and safety:
 `profile` Profile · `prospective` Prospective / foresight · `procedural` Procedural · `reflection` Reflection ·
 `shared` Shared memory · `firewall` Write firewall · `provenance` Provenance + trust
 
+## Specialities and verification (added 2026-10-11, second pass)
+
+Two more top-level keys:
+
+```json
+"specialities": [{"name": "short name", "t": "what makes it distinctive and how it works, 1-3 sentences", "e": "evidence", "phase": "<phase id>"}],
+"verification": {"date": "2026-10-11", "commit": "<commit re-checked>", "rows_checked": 57, "corrections": ["row id: what was wrong -> what it says now"], "added": ["what was added"], "unverified": ["claims that could not be confirmed in code"]}
+```
+
+`specialities` lists what the engine does that is unusual or best-in-field (an idea, a mechanism or an engineering
+trick), not ordinary features. Every speciality must be confirmed in code (`read`) or marked `doc`.
+
 ## Extras
 
 Anything the engine has that the rows above miss (for example KV-cache memory, memory scheduler, token

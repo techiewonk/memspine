@@ -7,70 +7,323 @@
   "licence": "MIT (LICENSE file and GitHub API); pyproject.toml declares Apache-2.0, an inconsistency",
   "one_line": "ZJUNLP research library (ICLR 2026) that runs an Atkinson-Shiffrin pipeline: LLMLingua-2 token compression of incoming turns (sensory), attention+embedding topic segmentation into a token-capped short-term buffer, one batched LLM fact-extraction call per buffer flush, a Qdrant fact store, and an offline 'sleep-time' update pass; the repo also hosts StructMem, FluxMem and EM2Mem.",
   "locomo": [
-    {"score": "71.95", "protocol": "LightMem(512, 0.7): sensory buffer 512 tokens, LLMLingua-2 rate 0.7; gpt-4o-mini extractor and reader, gpt-4o-mini judge (Mem0-style 'generous' prompt), top-60 retrieved facts, cat 1-4 = 1,540 q, single run; 73.90 with qwen2.5-32b-instruct judge", "who": "vendor", "source": "experiments/locomo/readme.md (Results on LoCoMo table); search_locomo.py:373 skips category 5"},
-    {"score": "72.99", "protocol": "LightMem(768, 0.8), same protocol as above; 74.35 with qwen2.5-32b judge. Best vendor number in repo for flat mode", "who": "vendor", "source": "experiments/locomo/readme.md"},
-    {"score": "72.60", "protocol": "LightMem(1024, 0.8), qwen3-30b-a3b-instruct-2507 backbone, gpt-4o-mini judge, 1,540 q", "who": "vendor", "source": "experiments/locomo/readme.md"},
-    {"score": "per-category only (event+summary: multi 68.77, open 46.88, single 81.09, temporal 81.62)", "protocol": "StructMem mode (512, 0.8), gpt-4o-mini reader and judge, text-embedding-3-small; no overall published in repo", "who": "vendor", "source": "experiments/locomo/readme.md (StructMem Results)"},
-    {"score": "79.08", "protocol": "JustMem harness, gpt-4.1-mini reader, judge not published, cat 1-4; run by the authors of a competing system", "who": "independent (competitor)", "source": "JustMem arXiv 2609.19877 as recorded in memory-research paper_aamas27/SOTA_SWEEP_2026-09-30.md:197; primary source not re-checked in this pass"}
+    {
+      "score": "71.95",
+      "protocol": "LightMem(512, 0.7): sensory buffer 512 tokens, LLMLingua-2 rate 0.7; gpt-4o-mini extractor and reader, gpt-4o-mini judge (Mem0-style 'generous' prompt), top-60 retrieved facts, cat 1-4 = 1,540 q, single run; 73.90 with qwen2.5-32b-instruct judge",
+      "who": "vendor",
+      "source": "experiments/locomo/readme.md (Results on LoCoMo table); search_locomo.py:373 skips category 5"
+    },
+    {
+      "score": "72.99",
+      "protocol": "LightMem(768, 0.8), same protocol as above; 74.35 with qwen2.5-32b judge. Best vendor number in repo for flat mode",
+      "who": "vendor",
+      "source": "experiments/locomo/readme.md"
+    },
+    {
+      "score": "72.60",
+      "protocol": "LightMem(1024, 0.8), qwen3-30b-a3b-instruct-2507 backbone, gpt-4o-mini judge, 1,540 q",
+      "who": "vendor",
+      "source": "experiments/locomo/readme.md"
+    },
+    {
+      "score": "per-category only (event+summary: multi 68.77, open 46.88, single 81.09, temporal 81.62)",
+      "protocol": "StructMem mode (512, 0.8), gpt-4o-mini reader and judge, text-embedding-3-small; no overall published in repo",
+      "who": "vendor",
+      "source": "experiments/locomo/readme.md (StructMem Results)"
+    },
+    {
+      "score": "79.08",
+      "protocol": "JustMem harness, gpt-4.1-mini reader, judge not published, cat 1-4; run by the authors of a competing system",
+      "who": "independent (competitor)",
+      "source": "JustMem arXiv 2609.19877 as recorded in memory-research paper_aamas27/SOTA_SWEEP_2026-09-30.md:197; primary source not re-checked in this pass"
+    }
   ],
   "rows": {
-    "arch.product": {"s": "", "t": "Python research library (alpha, 'pip install lightmem' still 'coming soon') with an MCP server (fastmcp, 5 tools) and, since 2026-08-31, a FastAPI + React web console. No hosted service.", "e": "README.md:144-161, 342-371; mcp/server.py:58-264; web/backend/app/api.py; pyproject.toml classifiers 'Development Status :: 3 - Alpha' [read]"},
-    "arch.truth": {"s": "", "t": "The Qdrant fact collection is the only durable store; raw turns are not persisted (only LLM-written facts). The sensory and short-term buffers live in process memory.", "e": "lightmem.py:409-443 (only facts inserted); sensory_memory.py:8-10, short_term_memory.py:8-9 in-memory lists [read]"},
-    "arch.stores": {"s": "Y", "t": "Qdrant (local embedded path or server) for facts; optional second Qdrant collection for StructMem summaries; 'context' strategy dumps entries to memory_entries.json. history_db_path and kv_cache_path are declared but never used.", "e": "lightmem.py:182-187, 405-407; configs/base.py:73-104; grep shows no use of history_db_path/kv_cache [read]"},
-    "arch.graphdb": {"s": "N", "t": "graph_mem flag exists but memory/graph.py is a one-line empty class 'class GraphMem:' and is constructed with an argument it cannot accept, so enabling it would fail. FluxMem (separate package src/fluxmem) has its own in-process heterogeneous graph.", "e": "src/lightmem/memory/graph.py:1; lightmem.py:188-191; FluxMem.md [read]"},
-    "arch.scope": {"s": "P", "t": "No user_id/agent_id anywhere in the core; isolation is one Qdrant collection (and one LightMemory instance) per user or conversation. Topic ids and the summary time pointer are module globals shared across instances in a process. Optional BoundMem tags filter at read.", "e": "grep user_id in src/lightmem (none outside memory_toolkits); lightmem.py:25-26, 330-337, 776; add_locomo.py collection per sample_id; lightmem.py:684-690 [read]"},
-    "write.entry": {"s": "Y", "t": "LightMemory.add_memory(messages, force_segment, force_extract, boundmem_tags); each message dict must carry a session time_stamp. MCP add_memory(user_input, assistant_reply, timestamp).", "e": "lightmem.py:204-394; lightmem.py:82-84; mcp/server.py:78-79 [read]"},
-    "write.receipt": {"s": "P", "t": "Synchronous call. If buffers do not overflow it returns an empty result while the turn sits only in RAM (sensory or short-term buffer); facts become durable only when a buffer flush triggers extraction and Qdrant insert inside the same call. A crash loses buffered turns.", "e": "lightmem.py:317-328 (early returns), 384-387; sensory_memory.py:15-49; short_term_memory.py:180-201 [read]"},
-    "write.roles": {"s": "Y", "t": "messages_use='user_only' default: only user messages are counted and shown to the extractor; assistant_only and hybrid are options. Sensory buffer token count and topic boundaries also use user messages only. LoCoMo harness maps both speakers to role 'user' with empty assistant replies.", "e": "configs/base.py:37-38; openai.py:281-313; sensory_memory.py:13, 65; add_locomo.py:130-149 [read]"},
-    "write.firewall": {"s": "N", "t": "not found; no injection or poisoning check on write. The extraction prompt asks for exhaustive extraction of everything that is not pure filler.", "e": "memory/prompts.py:1-52 [read]"},
-    "write.governance": {"s": "N", "t": "not found: no redaction, consent, PII filter or retention policy.", "e": "src/lightmem grep [read]"},
-    "segment.unit": {"s": "O", "t": "Two buffers. Sensory buffer fills to max_tokens (512 by default, or the LLMLingua model's max_position_embeddings when shared) of compressed user text, then is cut into topic segments; segments go to a short-term buffer capped at 512 tokens (hard-coded), and one LLM extraction call covers all segments in a flushed short-term buffer.", "e": "lightmem.py:167-173; topic_segmenter/llmlingua_2.py:219-223; short_term_memory.py:180-201 [read]"},
-    "segment.rule": {"s": "O", "t": "Coarse boundaries = local maxima of turn-to-previous-turn attention drop from LLMLingua-2 encoder layers 8-11; fine boundaries = adjacent-turn embedding cosine below 0.2 (raised in 0.05 steps up to 0.5 until a boundary appears); a fine boundary is kept if within 3 turns of a coarse one, else all fine boundaries are used. Off by default (topic_segment=False); on in README and LoCoMo configs.", "e": "topic_segmenter/llmlingua_2.py:225-322; sensory_memory.py:54-141; configs/base.py:25-26 [read]"},
-    "segment.measured": {"s": "P", "t": "No segment counts published; total write-side API calls on LoCoMo (10 conversations) are 415 at (512,0.7), 298 at (768,0.8), 255 at (768,0.7) with gpt-4o-mini, including update calls.", "e": "experiments/locomo/readme.md results table [doc]"},
-    "extract.calls": {"s": "Y", "t": "One call per short-term buffer flush (batching several topic segments, JSON mode), parallel up to 5 threads; event mode doubles it (factual + relational calls). Roughly 26-42 calls per LoCoMo conversation in the vendor tables.", "e": "openai.py:174-203, 315, 338-346; experiments/locomo/readme.md [read]"},
-    "extract.facts": {"s": "Y", "t": "Standalone facts with source_id pointing to the originating message; each becomes one MemoryEntry with timestamp, weekday, speaker and topic_id.", "e": "prompts.py:1-52; utils.py:206-354 [read]"},
-    "extract.episode": {"s": "O", "t": "Flat mode has none. StructMem 'event' mode adds a second relational/emotional extraction per buffer; entries are still single sentences tagged entry_type.", "e": "configs/base.py:118-119; openai.py:183-203; prompts.py:219-296; StructMem.md [read]"},
-    "extract.dates": {"s": "P", "t": "Messages are shown to the extractor with ISO timestamp and weekday; the LoCoMo prompt asks to distinguish mention time from event time and resolve relative dates. The default generic prompt does not. Retrieval output prefixes each fact with its timestamp.", "e": "openai.py:304-311; prompts.py:95-100 (LoCoMo prompt); lightmem.py:703 [read]"},
-    "extract.neighbours": {"s": "N", "t": "not found at write time; the extractor sees only the buffered segments. Existing memories are compared only later in the offline update.", "e": "openai.py:262-377 [read]"},
-    "extract.failure": {"s": "P", "t": "Per-call exceptions are printed and swallowed (empty result, usage None); facts with out-of-range source_id are clamped or dropped with a log line. No retry, no dead-letter; buffered turns already flushed are lost.", "e": "openai.py:360-368, 373-375; utils.py:252-271 [read]"},
-    "graph.entities": {"s": "N", "t": "not found in LightMem core (metadata_generate is described as extracting keywords and entities but the code extracts only facts).", "e": "README.md:508 vs openai.py:143-206 [read]"},
-    "graph.resolution": {"s": "N", "t": "not found.", "e": "src/lightmem [read]"},
-    "graph.edges": {"s": "N", "t": "not found in LightMem; FluxMem defines Ground/Distill/StepLink edges in its own package.", "e": "graph.py:1; src/fluxmem/graph/edges.py [read]"},
-    "graph.communities": {"s": "N", "t": "not found (FluxMem Stage III clusters episodic trajectories, separate package).", "e": "FluxMem.md Stage III [doc]"},
-    "time.fields": {"s": "P", "t": "One time per fact: time_stamp (session time plus 500 ms per message offset), float_time_stamp, weekday, session_time on the message; consolidation_time on summarised entries. No event-time or validity interval.", "e": "lightmem.py:86-100; utils.py:14-32, 313-339, 650-652 [read]"},
-    "time.update": {"s": "Y", "t": "Offline only. Each entry gets an update_queue of the top 10 of 20 earlier-or-equal nearest neighbours; an LLM then decides update (merge candidate detail into the target text), delete (target conflicts with newer candidates: hard delete) or ignore, for entries whose candidate score passes the threshold (0.9 in LoCoMo, 0.8 in README). Online update is a no-op.", "e": "lightmem.py:396-397, 459-644; prompts.py:334-406; add_locomo.py:446-447 [read]"},
-    "time.dedup": {"s": "P", "t": "No write-time dedup; near-duplicates are merged only by the offline update LLM. Updated text keeps its old vector, so the index drifts from the stored text after an update.", "e": "lightmem.py:409-443, 618-623 [read]"},
-    "derive.session": {"s": "O", "t": "StructMem summarize(): walks unconsolidated facts in time windows (default 3,600 s), pulls 15 semantically related seed facts plus same-timestamp siblings, writes a 200-350 word cross-event summary into a separate Qdrant collection with covered and seed entry ids. Manual call; off unless summary_retriever is set.", "e": "lightmem.py:752-879; utils.py:405-472, 547-638; prompts.py:300-332 [read]"},
-    "derive.profile": {"s": "N", "t": "not found.", "e": "src/lightmem [read]"},
-    "derive.entity": {"s": "N", "t": "not found.", "e": "src/lightmem [read]"},
-    "derive.background": {"s": "P", "t": "'Sleep-time' update is two explicit calls (construct_update_queue_all_entries, offline_update_all_entries) run by the caller with thread pools of 8 and 5; no scheduler or queue. The offline_update_trigger path passes a wrong keyword and raises TypeError (open PR #80).", "e": "lightmem.py:446-457, 459-644; github.com/zjunlp/LightMem/pull/80 [read]"},
-    "derive.forget": {"s": "P", "t": "Only LLM-decided hard deletes on conflict; MemoryEntry has hit_time but nothing increments it; no decay.", "e": "lightmem.py:611-617; utils.py:28 [read]"},
-    "index.embed": {"s": "Y", "t": "Default sentence-transformers all-MiniLM-L6-v2 (384-d) via HuggingFace; OpenAI embedder optional; StructMem results used text-embedding-3-small.", "e": "README.md:168, 263-271; factory/text_embedder/ [read]"},
-    "index.lexical": {"s": "N", "t": "BM25 context retriever file is empty (2 bytes); 'context'/'hybrid' retrieve strategies only write a JSON file and retrieve() always uses the vector path.", "e": "factory/retriever/contextretriever/bm25.py; lightmem.py:405-407, 674-682 [read]"},
-    "index.vector": {"s": "Y", "t": "Qdrant cosine collection, optional on-disk; payload filters on float_time_stamp ranges and consolidated flag.", "e": "embeddingretriever/qdrant.py:65-126 [read]"},
-    "read.rewrite": {"s": "N", "t": "not found.", "e": "lightmem.py:646-709 [read]"},
-    "read.analysis": {"s": "N", "t": "not found.", "e": "lightmem.py:646-709 [read]"},
-    "read.legs": {"s": "Y", "t": "Single dense leg: embed query, Qdrant top-k (default 10; LoCoMo harness uses top 60 by brute-force cosine over all entries); StructMem harness adds a summary leg (top 5).", "e": "lightmem.py:674-682; experiments/locomo/retrievers.py:111-131; search_locomo.py:42, 389 [read]"},
-    "read.temporal": {"s": "P", "t": "Caller can pass Qdrant filters (e.g. float_time_stamp ranges); no automatic temporal parsing.", "e": "lightmem.py:650, 677-682; qdrant.py:106-126 [read]"},
-    "read.traversal": {"s": "N", "t": "not found.", "e": "src/lightmem [read]"},
-    "rank.fusion": {"s": "N", "t": "not found (single leg).", "e": "lightmem.py:646-709 [read]"},
-    "rank.rerank": {"s": "N", "t": "not found.", "e": "src/lightmem [read]"},
-    "rank.gate": {"s": "N", "t": "No score threshold or abstain at read; BoundMem tag filter is the only post-filter.", "e": "lightmem.py:684-694 [read]"},
-    "rank.agentic": {"s": "N", "t": "not found in LightMem; FluxMem's run_task does retrieve-execute-refine loops for agent tasks.", "e": "src/fluxmem/agent.py:244-376 [read]"},
-    "answer.shape": {"s": "", "t": "retrieve() returns strings 'timestamp weekday fact'. LoCoMo harness groups retrieved facts by speaker into two blocks (plus summaries in StructMem mode) and sends one system message, temperature 0.", "e": "lightmem.py:695-709; search_locomo.py:207-284, 455-463 [read]"},
-    "answer.size": {"s": "", "t": "About 2,600 prompt tokens per question on LoCoMo: 3,997,984 QA input tokens over 1,540 questions at top-60 facts (gpt-4o-mini, 512/0.7); qwen3 runs about 3,400. Full text is about 35,600 per question in the same table.", "e": "experiments/locomo/readme.md Details table; README.md:420 [inferred from published totals]"},
-    "answer.prompt": {"s": "", "t": "Mem0-style memory QA prompt: prioritise most recent memory on contradictions, convert relative times to absolute dates using memory timestamps, answer in under 5-6 words, step-by-step approach.", "e": "experiments/locomo/prompts.py:148-188 [read]"},
-    "eval.best": {"s": "", "t": "Vendor: 72.99 (768,0.8) and 71.95 (512,0.7, the paper's headline configuration) with gpt-4o-mini reader and judge on 1,540 q. Independent: 79.08 on the JustMem harness with gpt-4.1-mini.", "e": "experiments/locomo/readme.md; SOTA_SWEEP_2026-09-30.md:197 (JustMem arXiv 2609.19877) [doc]"},
-    "eval.outside": {"s": "P", "t": "JustMem (competitor authors) ran it at 79.08 with gpt-4.1-mini, judge unpublished; the 'Harness the Memory' study (arXiv 2608.15008) includes LightMem among 52 systems. No result under a stricter judge found.", "e": "SOTA_SWEEP_2026-09-30.md:197; arXiv 2608.15008 Figure 1 [doc]"},
-    "eval.models": {"s": "", "t": "Extractor and reader gpt-4o-mini or qwen3-30b-a3b-instruct-2507; judges gpt-4o-mini and qwen2.5-32b-instruct (both reported); embedder all-MiniLM-L6-v2.", "e": "experiments/locomo/readme.md; add_locomo.py:32 [doc]"},
-    "eval.rigour": {"s": "P", "t": "Good: category 5 excluded, two judges reported, token/call/runtime accounting per stage, baselines rerun in same harness, outputs on Google Drive. Weak: generous Mem0 judge prompt, single run, no variance; the shipped add_locomo.py uses rate 0.6, not the 0.7/0.8 in the tables.", "e": "search_locomo.py:373; llm_judge.py:33-35; add_locomo.py:170; README.md:377-379 [read]"},
-    "cost.write": {"s": "", "t": "Vendor LoCoMo (272 sessions, about 5.9k turns): 415 LLM calls and 997.6k tokens total at (512,0.7) including about 64k update tokens; 255-298 calls at 768-token buffers. Compression and segmentation run locally on the BERT-base LLMLingua-2 model (GPU expected).", "e": "experiments/locomo/readme.md tables [doc]"},
-    "cost.read": {"s": "", "t": "One embedding plus one reader call per question; no LLM in retrieval.", "e": "lightmem.py:674-682; search_locomo.py:455-463 [read]"},
-    "cost.where": {"s": "", "t": "LLM hosted (OpenAI, DeepSeek, OpenRouter) or local (Ollama, vLLM, Transformers); compressor, segmenter and embedder local (default device cuda).", "e": "factory/memory_manager/*.py; README.md:39, 240, 269 [read]"},
-    "trust.provenance": {"s": "P", "t": "Each fact keeps speaker_id/name, topic_id and timestamp, but not the source message text or id (original_memory/compressed_memory fields are left empty). Summaries record covered_entry_ids and seed_entry_ids. No trust score.", "e": "utils.py:14-32, 341-354, 547-575; lightmem.py:420-435 [read]"},
-    "trust.erasure": {"s": "P", "t": "Only the Qdrant delete-by-id used by the update pass; no public delete/erase API in LightMemory or MCP; summaries that cover a deleted fact are not updated.", "e": "qdrant.py:193; mcp/server.py tool list; lightmem.py:612-614 [read]"},
-    "trust.auth": {"s": "N", "t": "No authentication on the MCP server or web API; the OpenAI client is built with httpx verify=False, disabling TLS certificate checks.", "e": "mcp/server.py:58-264; web/backend/app/api.py; openai.py:31, 49 [read]"},
-    "trust.sharing": {"s": "N", "t": "not found; BoundMem tags are a soft read filter, not access control.", "e": "utils.py:777-966 [read]"}
+    "arch.product": {
+      "s": "",
+      "t": "Python research library (alpha, 'pip install lightmem' still 'coming soon') with an MCP server (fastmcp, 5 tools) and, since 2026-08-31, a FastAPI + React web console. No hosted service.",
+      "e": "README.md:144-161, 342-371; mcp/server.py:58-264; web/backend/app/api.py; pyproject.toml classifiers 'Development Status :: 3 - Alpha' [read]"
+    },
+    "arch.truth": {
+      "s": "",
+      "t": "The Qdrant fact collection is the only durable store; raw turns are not persisted (only LLM-written facts), and pre-compression overwrites each message's content in place, so even the buffers hold compressed text. Sensory and short-term buffers live in process memory. Two traps: with a local path and on_disk=False (the defaults, path /tmp/qdrant) the Qdrant directory is deleted with rmtree whenever a store is constructed; and with the default index_strategy=None, offline_update inserts nothing, so extracted facts are dropped.",
+      "e": "lightmem.py:404-443 (only facts inserted, only when index_strategy is embedding/hybrid); configs/base.py:60-63; configs/retriever/embeddingretriever/qdrant.py:14,17; embeddingretriever/qdrant.py:52-56 (rmtree); pre_compressor/llmlingua_2.py:43,86-87; sensory_memory.py:8-10; short_term_memory.py:8-9 [read]"
+    },
+    "arch.stores": {
+      "s": "Y",
+      "t": "Qdrant (local embedded path or server) for facts; optional second Qdrant collection for StructMem summaries; 'context' strategy dumps entries to memory_entries.json. history_db_path and kv_cache_path are declared but never used.",
+      "e": "lightmem.py:182-187, 405-407; configs/base.py:73-104; grep shows no use of history_db_path/kv_cache [read]"
+    },
+    "arch.graphdb": {
+      "s": "N",
+      "t": "graph_mem flag exists but memory/graph.py is a single class header with no body, which Python rejects (IndentationError), so enabling graph_mem fails at import time. FluxMem (separate package src/fluxmem) has its own in-process heterogeneous graph.",
+      "e": "src/lightmem/memory/graph.py:1 (ast.parse fails); lightmem.py:188-191; src/fluxmem/graph/memory_graph.py, edges.py [read]"
+    },
+    "arch.scope": {
+      "s": "P",
+      "t": "No user_id/agent_id anywhere in the core; isolation is one Qdrant collection (and one LightMemory instance) per user or conversation. Topic ids and the summary time pointer are module globals shared across instances in a process. Optional BoundMem tags filter at read.",
+      "e": "grep user_id in src/lightmem (none outside memory_toolkits); lightmem.py:25-26, 330-337, 776; add_locomo.py collection per sample_id; lightmem.py:684-690 [read]"
+    },
+    "write.entry": {
+      "s": "Y",
+      "t": "LightMemory.add_memory(messages, force_segment, force_extract, boundmem_tags); each message dict must carry a session time_stamp. MCP add_memory(user_input, assistant_reply, timestamp).",
+      "e": "lightmem.py:204-394; lightmem.py:82-84; mcp/server.py:78-79 [read]"
+    },
+    "write.receipt": {
+      "s": "P",
+      "t": "Synchronous call. If buffers do not overflow it returns an empty result while the turn sits only in RAM (sensory or short-term buffer); facts become durable only when a buffer flush triggers extraction and Qdrant insert inside the same call. A crash loses buffered turns.",
+      "e": "lightmem.py:317-328 (early returns), 384-387; sensory_memory.py:15-49; short_term_memory.py:36-57 [read]"
+    },
+    "write.roles": {
+      "s": "Y",
+      "t": "messages_use='user_only' default: only user messages are counted and shown to the extractor; assistant_only and hybrid are options. Sensory-buffer token counts and the coarse attention boundaries use user text only, while the fine boundary embeds each user+assistant pair concatenated. The LoCoMo harness maps both speakers to role 'user' with empty assistant replies.",
+      "e": "configs/base.py:37-44; openai.py:281-313; sensory_memory.py:13, 25-27, 65, 79-96; add_locomo.py:130-149 [read]"
+    },
+    "write.firewall": {
+      "s": "N",
+      "t": "not found; no injection or poisoning check on write. The extraction prompt asks for exhaustive extraction of everything that is not pure filler.",
+      "e": "memory/prompts.py:1-52 [read]"
+    },
+    "write.governance": {
+      "s": "N",
+      "t": "not found: no redaction, consent, PII filter or retention policy.",
+      "e": "src/lightmem grep [read]"
+    },
+    "segment.unit": {
+      "s": "Y",
+      "t": "Two buffers. The short-term buffer is always on: segments accumulate until the next would push it past 512 tokens (hard-coded; tiktoken count of user text), and one LLM extraction call covers every segment in the flushed buffer. With topic_segment on (opt-in), a sensory buffer first fills to max_tokens of compressed user text (512, or the LLMLingua model's max_position_embeddings when shared) and is cut into topic segments; without it, each add_memory call is one segment.",
+      "e": "lightmem.py:167-173, 304-312, 324; topic_segmenter/llmlingua_2.py:17-21; short_term_memory.py:36-57; utils.py:179-204 [read]"
+    },
+    "segment.rule": {
+      "s": "O",
+      "t": "Coarse boundaries = local maxima of the normalised attention each user turn pays to the previous one (mean over LLMLingua-2 encoder layers 8-11, three edge tokens masked). Fine boundaries = adjacent-turn embedding cosine below 0.2, raised in 0.05 steps up to 0.5 until a boundary appears; a fine boundary is kept if within 3 turns of a coarse one, else all fine boundaries are used. The tail after the last boundary stays buffered unless force_segment. Off by default (topic_segment=False); on in README and LoCoMo configs.",
+      "e": "topic_segmenter/llmlingua_2.py:25-120; sensory_memory.py:54-141; configs/base.py:25-28 [read]"
+    },
+    "segment.measured": {
+      "s": "P",
+      "t": "No segment counts published; total write-side API calls on LoCoMo (10 conversations) are 415 at (512,0.7), 298 at (768,0.8), 255 at (768,0.7) with gpt-4o-mini, including update calls.",
+      "e": "experiments/locomo/readme.md results table [doc]"
+    },
+    "extract.calls": {
+      "s": "Y",
+      "t": "One call per short-term buffer flush (batching several topic segments, JSON mode), parallel up to 5 threads; event mode doubles it (factual + relational calls). Roughly 26-42 calls per LoCoMo conversation in the vendor tables.",
+      "e": "openai.py:174-203, 315, 338-346; experiments/locomo/readme.md [read]"
+    },
+    "extract.facts": {
+      "s": "Y",
+      "t": "Standalone facts with source_id pointing to the originating message; each becomes one MemoryEntry with timestamp, weekday, speaker and topic_id.",
+      "e": "prompts.py:1-52; utils.py:206-354 [read]"
+    },
+    "extract.episode": {
+      "s": "O",
+      "t": "Flat mode has none. StructMem 'event' mode adds a second relational/emotional extraction call per buffer. The extractor output is tagged entry_type, but MemoryEntry has no entry_type field and the Qdrant payload omits it, so the factual/relational distinction is lost on insert and the summary prompt's type tags never appear in the core path.",
+      "e": "configs/base.py:118-123; openai.py:183-203, 349-350; utils.py:13-32, 341-351; lightmem.py:420-435; prompts.py:219-296; StructMem.md [read]"
+    },
+    "extract.dates": {
+      "s": "P",
+      "t": "Messages are shown to the extractor with ISO timestamp and weekday; the LoCoMo prompt asks to distinguish mention time from event time and resolve relative dates. The default generic prompt does not. Retrieval output prefixes each fact with its timestamp.",
+      "e": "openai.py:304-311; src prompts.py:94-99 and experiments/locomo/prompts.py:38-44 (LoCoMo prompt imported by add_locomo.py:11, 295); lightmem.py:703 [read]"
+    },
+    "extract.neighbours": {
+      "s": "N",
+      "t": "not found at write time; the extractor sees only the buffered segments. Existing memories are compared only later in the offline update.",
+      "e": "openai.py:262-377 [read]"
+    },
+    "extract.failure": {
+      "s": "P",
+      "t": "Per-call exceptions are printed and swallowed (empty result, usage None); facts with out-of-range source_id are clamped or dropped with a log line. No retry, no dead-letter; buffered turns already flushed are lost.",
+      "e": "openai.py:360-368, 373-375; utils.py:252-271 [read]"
+    },
+    "graph.entities": {
+      "s": "N",
+      "t": "not found in LightMem core (metadata_generate is described as extracting keywords and entities but the code extracts only facts).",
+      "e": "README.md:508 vs openai.py:143-206 [read]"
+    },
+    "graph.resolution": {
+      "s": "N",
+      "t": "not found.",
+      "e": "src/lightmem [read]"
+    },
+    "graph.edges": {
+      "s": "N",
+      "t": "not found in LightMem; FluxMem defines Ground/Distill/StepLink edges in its own package.",
+      "e": "graph.py:1; src/fluxmem/graph/edges.py [read]"
+    },
+    "graph.communities": {
+      "s": "N",
+      "t": "not found in LightMem core. FluxMem (separate package) Stage III clusters episodic nodes with KMeans (sklearn or a built-in fallback) and induces skills per cluster.",
+      "e": "src/fluxmem/stages/stage3_consolidation.py:1-125 [read]"
+    },
+    "time.fields": {
+      "s": "P",
+      "t": "One time per fact: time_stamp (session time plus 500 ms per message offset), float_time_stamp, weekday, session_time on the message; consolidation_time on summarised entries. No event-time or validity interval.",
+      "e": "lightmem.py:86-100; utils.py:13-32, 60-111, 313-339, 646-654 [read]"
+    },
+    "time.update": {
+      "s": "Y",
+      "t": "Offline only. Each entry gets an update_queue of the top 10 of 20 earlier-or-equal nearest neighbours; an LLM then decides update (merge candidate detail into the target text), delete (target conflicts with newer candidates: hard delete) or ignore, for entries whose candidate score passes the threshold (0.9 in LoCoMo, 0.8 in README). Online update is a no-op.",
+      "e": "lightmem.py:396-397, 459-644; prompts.py:334-406; add_locomo.py:446-447 [read]"
+    },
+    "time.dedup": {
+      "s": "P",
+      "t": "No write-time dedup; near-duplicates are merged only by the offline update LLM. Updated text keeps its old vector, so the index drifts from the stored text after an update.",
+      "e": "lightmem.py:409-443, 618-623 [read]"
+    },
+    "derive.session": {
+      "s": "O",
+      "t": "StructMem summarize(): walks unconsolidated facts in time windows (default 3,600 s), pulls 15 semantically related seed facts plus their same-timestamp siblings, writes a 200-350 word cross-event summary into a separate Qdrant collection with covered and seed entry ids, and marks covered facts consolidated. Manual call; off unless summary_retriever is set. Defects: exclude_ids filters on a payload key 'id' that is never written, so covered facts can return as seeds; the 'historical' scope builds an 'lt' range the filter builder ignores and then appends to a None must_not list.",
+      "e": "lightmem.py:752-879; utils.py:405-472, 547-663; embeddingretriever/qdrant.py:116-167; prompts.py:299-332 [read]"
+    },
+    "derive.profile": {
+      "s": "N",
+      "t": "not found.",
+      "e": "src/lightmem [read]"
+    },
+    "derive.entity": {
+      "s": "N",
+      "t": "not found.",
+      "e": "src/lightmem [read]"
+    },
+    "derive.background": {
+      "s": "P",
+      "t": "'Sleep-time' update is two explicit calls (construct_update_queue_all_entries, offline_update_all_entries) run by the caller with thread pools of 8 and 5; no scheduler or queue. The offline_update_trigger path passes a wrong keyword and raises TypeError (open PR #80).",
+      "e": "lightmem.py:446-457, 459-644; github.com/zjunlp/LightMem/pull/80 [read]"
+    },
+    "derive.forget": {
+      "s": "P",
+      "t": "Only LLM-decided hard deletes on conflict; MemoryEntry has hit_time but nothing increments it; no decay.",
+      "e": "lightmem.py:611-617; utils.py:29 [read]"
+    },
+    "index.embed": {
+      "s": "Y",
+      "t": "Default sentence-transformers all-MiniLM-L6-v2 (384-d) via HuggingFace; OpenAI embedder optional; StructMem results used text-embedding-3-small.",
+      "e": "README.md:168, 263-271; factory/text_embedder/ [read]"
+    },
+    "index.lexical": {
+      "s": "N",
+      "t": "BM25 context retriever file is empty (2 bytes) while ContextRetrieverFactory maps 'BM25' to a class in it, so retrieve_strategy 'context'/'hybrid' cannot construct; examples/run_lightmem_bm25.py is also empty. The 'context' index strategy only appends entries to memory_entries.json in the working directory, and retrieve() always uses the vector path.",
+      "e": "factory/retriever/contextretriever/bm25.py; contextretriever/factory.py:6-8; examples/run_lightmem_bm25.py; lightmem.py:179-181, 405-407, 674-682; utils.py:137-176 [read]"
+    },
+    "index.vector": {
+      "s": "Y",
+      "t": "Qdrant cosine collection; payload filters on equality and gte/lte ranges (float_time_stamp, consolidated flag). on_disk defaults to False, and a local store that is not on_disk is deleted at construction, so persistence must be switched on explicitly (the LoCoMo harness sets on_disk=True).",
+      "e": "embeddingretriever/qdrant.py:41-126; configs/retriever/embeddingretriever/qdrant.py:14-17; add_locomo.py:203-219 [read]"
+    },
+    "read.rewrite": {
+      "s": "N",
+      "t": "not found.",
+      "e": "lightmem.py:646-709 [read]"
+    },
+    "read.analysis": {
+      "s": "N",
+      "t": "not found.",
+      "e": "lightmem.py:646-709 [read]"
+    },
+    "read.legs": {
+      "s": "Y",
+      "t": "Single dense leg: embed query, Qdrant top-k (default 10; LoCoMo harness uses top 60 by brute-force cosine over all entries); StructMem harness adds a summary leg (top 5).",
+      "e": "lightmem.py:674-682; experiments/locomo/retrievers.py:111-131; search_locomo.py:42, 389 [read]"
+    },
+    "read.temporal": {
+      "s": "P",
+      "t": "Caller can pass Qdrant filters (equality, or gte/lte ranges on float_time_stamp); 'lt'/'gt' keys are silently ignored by the filter builder. No automatic temporal parsing of the query.",
+      "e": "lightmem.py:650, 677-682; embeddingretriever/qdrant.py:106-124 [read]"
+    },
+    "read.traversal": {
+      "s": "N",
+      "t": "not found.",
+      "e": "src/lightmem [read]"
+    },
+    "rank.fusion": {
+      "s": "N",
+      "t": "not found (single leg).",
+      "e": "lightmem.py:646-709 [read]"
+    },
+    "rank.rerank": {
+      "s": "N",
+      "t": "not found.",
+      "e": "src/lightmem [read]"
+    },
+    "rank.gate": {
+      "s": "N",
+      "t": "No score threshold or abstain at read; BoundMem tag filter is the only post-filter.",
+      "e": "lightmem.py:684-694 [read]"
+    },
+    "rank.agentic": {
+      "s": "N",
+      "t": "not found in LightMem; FluxMem's run_task does retrieve-execute-refine loops for agent tasks.",
+      "e": "src/fluxmem/agent.py:244-376 [read]"
+    },
+    "answer.shape": {
+      "s": "",
+      "t": "retrieve() returns strings 'timestamp weekday fact'. LoCoMo harness groups retrieved facts by speaker into two blocks (plus summaries in StructMem mode) and sends one system message, temperature 0.",
+      "e": "lightmem.py:695-709; search_locomo.py:207-284, 455-463 [read]"
+    },
+    "answer.size": {
+      "s": "",
+      "t": "About 2,600 prompt tokens per question on LoCoMo: 3,997,984 QA input tokens over 1,540 questions at top-60 facts (gpt-4o-mini, 512/0.7); qwen3 runs about 3,400. Full text is about 35,600 per question in the same table.",
+      "e": "experiments/locomo/readme.md Details table; README.md:420 [inferred from published totals]"
+    },
+    "answer.prompt": {
+      "s": "",
+      "t": "Mem0-style memory QA prompt: prioritise most recent memory on contradictions, convert relative times to absolute dates using memory timestamps, answer in under 5-6 words, step-by-step approach.",
+      "e": "experiments/locomo/prompts.py:148-188 [read]"
+    },
+    "eval.best": {
+      "s": "",
+      "t": "Vendor: 72.99 (768,0.8) and 71.95 (512,0.7, the paper's headline configuration) with gpt-4o-mini reader and judge on 1,540 q. Independent: 79.08 on the JustMem harness with gpt-4.1-mini.",
+      "e": "experiments/locomo/readme.md; SOTA_SWEEP_2026-09-30.md:197 (JustMem arXiv 2609.19877) [doc]"
+    },
+    "eval.outside": {
+      "s": "P",
+      "t": "JustMem (competitor authors) ran it at 79.08 with gpt-4.1-mini, judge unpublished; the 'Harness the Memory' study (arXiv 2608.15008) includes LightMem among 52 systems. No result under a stricter judge found.",
+      "e": "SOTA_SWEEP_2026-09-30.md:197; arXiv 2608.15008 Figure 1 [doc]"
+    },
+    "eval.models": {
+      "s": "",
+      "t": "Extractor and reader gpt-4o-mini or qwen3-30b-a3b-instruct-2507; judges gpt-4o-mini and qwen2.5-32b-instruct (both reported); embedder all-MiniLM-L6-v2.",
+      "e": "experiments/locomo/readme.md; add_locomo.py:32 [doc]"
+    },
+    "eval.rigour": {
+      "s": "P",
+      "t": "Good: category 5 excluded, two judges reported, token/call/runtime accounting per stage, baselines rerun in same harness, outputs on Google Drive, pre/post-update stores snapshotted. Weak: generous Mem0 judge prompt, single run, no variance; the shipped add_locomo.py uses rate 0.6, not the 0.7/0.8 in the tables; search_locomo.py defaults to the pre-update store and summaries are built from it (issue #81) while the README commands use post-update.",
+      "e": "search_locomo.py:39, 373; llm_judge.py:33-35; add_locomo.py:170, 364-447; experiments/locomo/readme.md:41-54; github.com/zjunlp/LightMem/issues/81; README.md:377-379 [read]"
+    },
+    "cost.write": {
+      "s": "",
+      "t": "Vendor LoCoMo (272 sessions, about 5.9k turns): 415 LLM calls and 997.6k tokens total at (512,0.7) including about 64k update tokens; 255-298 calls at 768-token buffers. Compression and segmentation run locally on the BERT-base LLMLingua-2 model (GPU expected).",
+      "e": "experiments/locomo/readme.md tables [doc]"
+    },
+    "cost.read": {
+      "s": "",
+      "t": "One embedding plus one reader call per question; no LLM in retrieval.",
+      "e": "lightmem.py:674-682; search_locomo.py:455-463 [read]"
+    },
+    "cost.where": {
+      "s": "",
+      "t": "LLM hosted (OpenAI, DeepSeek, OpenRouter) or local (Ollama, vLLM, Transformers); compressor, segmenter and embedder local (default device cuda).",
+      "e": "factory/memory_manager/*.py; README.md:39, 240, 269 [read]"
+    },
+    "trust.provenance": {
+      "s": "P",
+      "t": "Each fact keeps speaker_id/name, topic_id and timestamp, but not the source message text or id (original_memory/compressed_memory fields are left empty). Summaries record covered_entry_ids and seed_entry_ids. No trust score.",
+      "e": "utils.py:14-32, 341-354, 547-575; lightmem.py:420-435 [read]"
+    },
+    "trust.erasure": {
+      "s": "P",
+      "t": "Only the Qdrant delete-by-id used by the update pass; no public delete/erase API in LightMemory or MCP; summaries that cover a deleted fact are not updated.",
+      "e": "qdrant.py:193; mcp/server.py tool list; lightmem.py:612-614 [read]"
+    },
+    "trust.auth": {
+      "s": "N",
+      "t": "No authentication on the MCP server or the web console API (the console relies on CORS limited to localhost:5177 and keeps the API key in a plaintext JSON file, masked in responses). The OpenAI LLM client and the OpenAI embedder are built with httpx verify=False, disabling TLS certificate checks (the OpenRouter path does not use that client).",
+      "e": "mcp/server.py:58-264; web/backend/app/main.py:23-33; web/backend/app/settings.py:19; web/backend/app/secrets_store.py; factory/memory_manager/openai.py:31-49; factory/text_embedder/openai.py:12 [read]"
+    },
+    "trust.sharing": {
+      "s": "N",
+      "t": "not found; BoundMem tags are a soft read filter, not access control. An open issue (#86, 2026-09) reports cross-user memory poisoning in shared FluxMem/LightMem memory and asks for a private channel.",
+      "e": "utils.py:757-966; github.com/zjunlp/LightMem/issues/86 [read + doc]"
+    }
   },
   "layers": {
     "raw": "N",
@@ -90,18 +343,135 @@
     "provenance": "P"
   },
   "extras": [
-    {"phase": "write", "param": "sensory pre-compression (LLMLingua-2)", "t": "Each message is token-classified by LLMLingua-2 (BERT-base multilingual default) and kept at rate 0.8 default (0.6 in LoCoMo script, 0.7/0.8 in published runs); re-compressed while over 512 tokens; falls back to original text on error. entropy_compress backend also exists but is not constructible (PR #74).", "e": "factory/pre_compressor/llmlingua_2.py:360-411; configs/pre_compressor/llmlingua_2.py:23-28; factory/pre_compressor/entropy_compress.py [read]"},
-    {"phase": "segment", "param": "precomp_topic_shared", "t": "Segmenter reuses the compressor's LLMLingua-2 encoder and tokenizer, so compression and topic detection cost one small local model.", "e": "topic_segmenter/llmlingua_2.py:220-223; lightmem.py:169 [read]"},
-    {"phase": "derive", "param": "offline sleep-time update", "t": "Update queues built by time-filtered (only earlier entries) vector search, then parallel LLM update/delete/ignore per entry; decoupled from write so online cost is extraction only.", "e": "lightmem.py:459-644 [read]"},
-    {"phase": "eval", "param": "token accounting", "t": "Built-in per-stage counters for add, update, summarise and embedding calls/tokens, exposed by get_token_statistics().", "e": "lightmem.py:143-160, 711-750 [read]"},
-    {"phase": "read", "param": "BoundMem tags", "t": "Opt-in tag prefixes written into memory text and used to filter retrieved results by tag overlap (hard or soft resolution).", "e": "README.md:528-543; utils.py:759-966 [read]"},
-    {"phase": "arch", "param": "MCP server and web console", "t": "fastmcp server with get_timestamp, add_memory, offline_update, retrieve_memory, show_lightmem_instance; FastAPI job runner with SSE streams and React UI.", "e": "mcp/server.py; web/backend/app/jobs.py, api.py [read]"},
-    {"phase": "derive", "param": "FluxMem (in-repo package)", "t": "Separate async agent memory: semantic, episodic and procedural node graph, per-step retrieval and failure-driven graph repair, offline skill distillation until a PEMS metric converges (threshold 0.01). Not wired into LightMemory.", "e": "FluxMem.md; src/fluxmem/agent.py:32-478; src/fluxmem/metrics/pems.py [read/doc]"},
-    {"phase": "arch", "param": "EM2Mem multimodal", "t": "Event-centric multimodal memory for long video (EMNLP 2026) with memory cells and a semantic graph, separate src/em2mem package and egolife experiments.", "e": "EM2Mem.md; src/em2mem/memory/EM2Memory.py [doc]"},
-    {"phase": "eval", "param": "baseline toolkit", "t": "memory_toolkits re-runs Mem0, A-Mem, LangMem, naive RAG and full context on LoCoMo/LongMemEval with a token monitor; superseded by the MemBase repo.", "e": "src/lightmem/memory_toolkits/readme.md, token_monitor.py; README.md:50 [doc]"}
+    {
+      "phase": "write",
+      "param": "sensory pre-compression (LLMLingua-2)",
+      "t": "Each message is token-classified by LLMLingua-2 (BERT-base multilingual default) and kept at rate 0.8 default (0.6 in LoCoMo script, 0.7/0.8 in published runs); re-compressed while over 512 tokens; falls back to original text on error. entropy_compress backend also exists but is not constructible (PR #74).",
+      "e": "factory/pre_compressor/llmlingua_2.py:54-89; configs/pre_compressor/llmlingua_2.py:5-30; factory/pre_compressor/factory.py:6-9 (entropy_compress class path empty); factory/pre_compressor/entropy_compress.py [read]"
+    },
+    {
+      "phase": "segment",
+      "param": "precomp_topic_shared",
+      "t": "Segmenter reuses the compressor's LLMLingua-2 encoder and tokenizer, so compression and topic detection cost one small local model.",
+      "e": "topic_segmenter/llmlingua_2.py:9-21; lightmem.py:169 [read]"
+    },
+    {
+      "phase": "derive",
+      "param": "offline sleep-time update",
+      "t": "Update queues built by time-filtered (only earlier entries) vector search, then parallel LLM update/delete/ignore per entry; decoupled from write so online cost is extraction only.",
+      "e": "lightmem.py:459-644 [read]"
+    },
+    {
+      "phase": "eval",
+      "param": "token accounting",
+      "t": "Built-in per-stage counters for add, update, summarise and embedding calls/tokens, exposed by get_token_statistics().",
+      "e": "lightmem.py:143-160, 711-750 [read]"
+    },
+    {
+      "phase": "read",
+      "param": "BoundMem tags",
+      "t": "Opt-in tag prefixes written into memory text and used to filter retrieved results by tag overlap (hard or soft resolution).",
+      "e": "README.md:528-543; utils.py:759-966 [read]"
+    },
+    {
+      "phase": "arch",
+      "param": "MCP server and web console",
+      "t": "fastmcp server with get_timestamp, add_memory, offline_update, retrieve_memory, show_lightmem_instance; FastAPI job runner with SSE streams and React UI.",
+      "e": "mcp/server.py; web/backend/app/jobs.py, api.py [read]"
+    },
+    {
+      "phase": "derive",
+      "param": "FluxMem (in-repo package)",
+      "t": "Separate async agent memory: semantic, episodic and procedural node graph, per-step retrieval and failure-driven graph repair, offline skill distillation until a PEMS metric converges (threshold 0.01). Not wired into LightMemory.",
+      "e": "FluxMem.md; src/fluxmem/agent.py:32-478; src/fluxmem/metrics/pems.py [read/doc]"
+    },
+    {
+      "phase": "arch",
+      "param": "EM2Mem multimodal",
+      "t": "Event-centric multimodal memory for long video (EMNLP 2026): caption memory cells with OpenIE triples, a semantic graph with consolidation, dense+lexical scoring projected to 30-second windows; separate src/em2mem package and egolife experiments. Not wired into LightMemory.",
+      "e": "EM2Mem.md; src/em2mem/memory/EM2Memory.py:30-451; src/em2mem/memory/multimodal_memory_cell/openie.py; experiments/egolife [read]"
+    },
+    {
+      "phase": "eval",
+      "param": "baseline toolkit",
+      "t": "memory_toolkits re-runs Mem0, A-Mem, LangMem, naive RAG and full context on LoCoMo/LongMemEval with a token monitor; superseded by the MemBase repo.",
+      "e": "src/lightmem/memory_toolkits/readme.md, token_monitor.py; README.md:50 [doc]"
+    },
+    {
+      "phase": "write",
+      "param": "millisecond turn ordering",
+      "t": "MessageNormalizer and the extraction pre-pass give each message in a session-level timestamp group a 500 ms offset, so facts from one session get a strict, sortable order without the caller supplying per-turn times.",
+      "e": "lightmem.py:28-104, 279-280; utils.py:60-111 [read]"
+    },
+    {
+      "phase": "write",
+      "param": "oversize-message bypass",
+      "t": "A single user message larger than the sensory buffer is emitted as its own segment (with its paired assistant reply) instead of looping forever (fix merged in PR #66).",
+      "e": "sensory_memory.py:31-38; commit 8fc9a91 [read]"
+    },
+    {
+      "phase": "extract",
+      "param": "integer source_id pointers",
+      "t": "The extractor sees each message as '[time, weekday] n.Speaker: text' and returns facts with an integer source_id; the engine maps the id back to the message's timestamp, weekday and speaker, clamping out-of-range ids. The LLM never has to copy times or names.",
+      "e": "openai.py:295-313; utils.py:241-339 [read]"
+    },
+    {
+      "phase": "extract",
+      "param": "image captions folded into facts",
+      "t": "LoCoMo harness appends BLIP captions as '(image description: ...)' to the turn text and the LoCoMo prompt tells the extractor to merge visual detail into the text facts rather than store separate image facts.",
+      "e": "add_locomo.py:136-137; experiments/locomo/prompts.py:1-45 [read]"
+    },
+    {
+      "phase": "arch",
+      "param": "LLM backends and OpenRouter fallback",
+      "t": "Memory manager backends for OpenAI, DeepSeek (thinking toggle and reasoning_effort), Ollama, vLLM server, offline vLLM and Transformers; with OPENROUTER_API_KEY set, a models list plus route='fallback' gives provider failover.",
+      "e": "factory/memory_manager/{openai,deepseek,ollama,vllm,vllm_offline,transformers}.py; openai.py:33-39, 108-125; deepseek.py:23-28 [read]"
+    },
+    {
+      "phase": "arch",
+      "param": "config defaults",
+      "t": "BaseMemoryConfigs defaults: pre_compress False, topic_segment False, messages_use user_only, extraction_mode flat, update offline, retrieve_strategy embedding but index_strategy None and no retriever config, so a minimal config cannot construct (issue #78, PR #84). LLMLingua defaults: BERT-base meetingbank model on cuda, rate 0.8, max_batch_size 50, max_force_token 100. Dead keys: extract_threshold, kv_cache, kv_cache_path, history_db_path.",
+      "e": "configs/base.py:16-123; configs/pre_compressor/llmlingua_2.py:5-30; github.com/zjunlp/LightMem/issues/78 [read]"
+    },
+    {
+      "phase": "arch",
+      "param": "web console job queue",
+      "t": "FastAPI console runs every LightMem call (init, add, offline update) on one worker thread from a job queue, streams logs and stdout as server-sent events, allows cancelling only pending jobs, and resets LightMem's module-level topic counter and summary pointer when the instance is rebuilt.",
+      "e": "web/backend/app/jobs.py:127-266; web/backend/app/instance.py:62-112; web/backend/app/api.py:276-336 [read]"
+    },
+    {
+      "phase": "answer",
+      "param": "console memory picking",
+      "t": "Console chat retrieves top-k memories, lets the user tick which ones (selected_ids) go into the answer prompt, and returns both the retrieved and the used set.",
+      "e": "web/backend/app/api.py:238-274; web/backend/app/llm.py:108-163 [read]"
+    },
+    {
+      "phase": "eval",
+      "param": "pre/post-update snapshots",
+      "t": "LoCoMo builder copies the Qdrant store before the offline update and records entry counts before and after, so the effect of the sleep-time update can be evaluated separately.",
+      "e": "add_locomo.py:43-47, 360-471 [read]"
+    },
+    {
+      "phase": "eval",
+      "param": "LongMemEval and EgoLife scripts",
+      "t": "LongMemEval runners (GPT and Qwen) retrieve top 20 and run the offline update at threshold 0.8; experiments/egolife holds the EM2Mem long-video pipeline.",
+      "e": "experiments/longmemeval/run_lightmem_gpt.py:181; experiments/longmemeval/offline_update.py:40-41; experiments/egolife/readme.md [read]"
+    },
+    {
+      "phase": "read",
+      "param": "per-speaker retrieval mode",
+      "t": "LoCoMo harness can retrieve top-k per speaker instead of a combined top-k; the reported results use combined top 60.",
+      "e": "experiments/locomo/readme.md:89-97; search_locomo.py:74-160, 385-398 [read]"
+    }
   ],
-  "token_economy": {"t": "Three levers. (1) Compress before any LLM sees text: LLMLingua-2 drops 20-40% of tokens per message locally. (2) Batch extraction: turns accumulate to a 512-1,024 token sensory buffer, are cut by topic, and a 512-token short-term buffer is flushed as one JSON-mode call, so LoCoMo needs about 255-415 write calls in total versus 5-19k for Mem0/A-Mem in the same table; memory construction is 0.76-1.0M tokens versus 2.9-68M for the baselines. (3) Move consolidation offline: the update pass costs only 37-64k tokens on LoCoMo because the queue is built by vector search and only pairs above 0.9 similarity reach the LLM. Read side stays plain: top-60 single-line facts, about 2,600 prompt tokens per question (full text about 35,600). Paper abstract (arXiv 2510.18866, latest version): on LongMemEval / LoCoMo up to 7.7% / 29.3% accuracy gain, 38x / 20.9x lower total tokens, 30x / 55.5x fewer API calls; online test-time only, 106x / 117x fewer tokens and 159x / 310x fewer calls. These ratios are against the vendor's own baseline runs, including a weak Mem0 (36.49).", "e": "pre_compressor/llmlingua_2.py:376-409; short_term_memory.py:180-201; lightmem.py:173, 459-644; experiments/locomo/readme.md; README.md:391-400; arXiv 2510.18866 abstract [read+doc]"},
-  "speed": {"t": "Write: extraction calls run in a ThreadPoolExecutor (max 5); the LoCoMo harness processes conversations in a process pool of 5 with one API key each. Offline queue construction uses 8 threads and the update 5 threads, guarded by locks. Compression, segmentation and embedding are local GPU models, so no network cost there, but each turn is embedded one at a time during segmentation and each fact is embedded and inserted one at a time (no batching). Nothing is async and add_memory blocks for the LLM call when a buffer flushes. Published runtimes on LoCoMo: 7,388-8,484 s memory construction and about 4,300 s QA in total for 10 conversations with gpt-4o-mini, versus 24k-118k s construction for MemoryOS/A-Mem/Mem0 in the same table. No per-query latency percentiles published.", "e": "openai.py:315, 370-372; add_locomo.py:50-51; lightmem.py:459-644, 412-443; sensory_memory.py:93-96; experiments/locomo/readme.md Details table [read+doc]"},
+  "token_economy": {
+    "t": "Three levers. (1) Compress before any LLM sees text: LLMLingua-2 drops 20-40% of tokens per message locally. (2) Batch extraction: turns accumulate to a 512-1,024 token sensory buffer, are cut by topic, and a 512-token short-term buffer is flushed as one JSON-mode call, so LoCoMo needs about 255-415 write calls in total versus about 5.5-19k for MemoryOS/A-Mem/Mem0 in the same table; memory construction is 0.76-1.0M tokens versus 2.9-68M for the baselines. (3) Move consolidation offline: the update pass costs only 39-64k tokens on LoCoMo with gpt-4o-mini (55-107k with qwen3) because the queue is built by vector search and only pairs above 0.9 similarity reach the LLM. Read side stays plain: top-60 single-line facts, about 2,600 prompt tokens per question (full text about 35,600). Paper abstract (arXiv 2510.18866, latest version): on LongMemEval / LoCoMo up to 7.7% / 29.3% accuracy gain, 38x / 20.9x lower total tokens, 30x / 55.5x fewer API calls; online test-time only, 106x / 117x fewer tokens and 159x / 310x fewer calls. These ratios are against the vendor's own baseline runs, including a weak Mem0 (36.49).",
+    "e": "pre_compressor/llmlingua_2.py:54-89; short_term_memory.py:36-57; lightmem.py:173, 459-644; experiments/locomo/readme.md; README.md:391-400; arXiv 2510.18866 abstract [read+doc]"
+  },
+  "speed": {
+    "t": "Write: extraction calls run in a ThreadPoolExecutor (max 5); the LoCoMo harness processes conversations in a process pool of 5 with one API key each. Offline queue construction uses 8 threads and the update 5 threads, guarded by locks, but each entry's candidate lookup scans every other entry's queue, so the update pass is quadratic in store size; worker exceptions are never collected from executor.map. Compression, segmentation and embedding are local GPU models, so no network cost there, but each turn is embedded one at a time during segmentation and each fact is embedded and inserted one at a time (no batching). Nothing is async and add_memory blocks for the LLM call when a buffer flushes. Published runtimes on LoCoMo: 7,388-8,484 s memory construction and about 4,300 s QA in total for 10 conversations with gpt-4o-mini, versus 24k-118k s construction for MemoryOS/A-Mem/Mem0 in the same table. No per-query latency percentiles published.",
+    "e": "openai.py:315, 370-372; add_locomo.py:50-51; lightmem.py:459-644 (578-584 quadratic scan), 412-443; sensory_memory.py:93-96; experiments/locomo/readme.md Details table [read+doc]"
+  },
   "keep": [
     "Local token-classifier compression (LLMLingua-2) before the extractor: cheap, model-free of the hosted LLM, and the same encoder doubles as the topic segmenter.",
     "Buffer-and-batch extraction: segment by topic, then pack several segments into one token-capped extraction call (one call per about 500 tokens of user text rather than per turn).",
@@ -110,16 +480,113 @@
     "Timestamp plus weekday prefix on every retrieved fact so the reader can resolve relative dates cheaply."
   ],
   "avoid": [
-    "Undurable receipt: turns sit in in-process buffers until a flush, global topic and summary counters are module-level, and extraction errors are swallowed, so a crash or failed call silently loses memory.",
+    "Undurable receipt: turns sit in in-process buffers until a flush, global topic and summary counters are module-level, extraction errors are swallowed, and a non-on_disk local Qdrant store (the default) is deleted at construction, so a crash, failed call or restart silently loses memory.",
     "Offline update rewrites fact text but keeps the old embedding, hard-deletes on conflict with no history, and summaries are not refreshed when covered facts change.",
     "Declared-but-dead features: online update is a no-op, BM25/context retrieval is an empty file, graph_mem crashes, kv_cache/history_db/extract_threshold unused, offline_update_trigger raises TypeError (PR #80).",
     "No tenant ids, auth, firewall or redaction, and TLS verification is disabled in the OpenAI client; user_only default drops everything the assistant says."
   ],
   "in_progress": [
-    "Branches: feat/integrate-fluxmem-v2, StructMem, em2mem-egolife, config (gh api repos/zjunlp/LightMem/branches, 2026-10-11).",
-    "Open PRs fixing core defects: #80 offline_update_trigger TypeError, #84 optional retrieval strategy, #77 and #75 topic segmentation with/without pre-compression, #74 entropy_compress not constructible, #87 dependency security bumps, #76 OrcaRouter backend, #58 Ruff + CI (no CI today; tests/ has 2 tests).",
+    "Branches: feat/integrate-fluxmem-v2 (9fb0768, 2026-06-10, FluxMem integration), StructMem (94a8666, 2026-08-20, 9 commits ahead of main), em2mem-egolife (a6e65e1, merged), config (2025-08-30, stale) (gh api repos/zjunlp/LightMem/branches, 2026-10-11).",
+    "StructMem branch: a Dockerised Add/Search service for the Agent Memory Leaderboard (AML) with user_id scoping, idempotent request_id and persist-before-200 writes; its v0.3 notes drop generation from Add, keep raw messages and use option-aware dense + BM25 with RRF and neighbour expansion, after the previous LightMem-StructMem submission ranked 43rd (35.476 overall) in a 2026-08-20 public snapshot (AML_OPTIMIZATION.md, SUBMISSION.md on branch StructMem) [doc].",
+    "Open PRs: #87 nltk/urllib3 security bumps (updated 2026-10-07), #84 optional retrieval strategy, #80 offline_update_trigger TypeError, #77 fail fast when sharing segmenter weights without a compressor, #75 topic segmentation without pre-compression, #74 entropy_compress not constructible, #76 OrcaRouter backend, #58 Ruff + CI (no CI today; tests/ has one file with 2 tests).",
+    "Open issues: #86 responsible-disclosure report of cross-user memory poisoning in shared FluxMem/LightMem memory (2026-09-22); #81 summaries built from the pre-update store; #78 minimal config cannot construct LightMemory.",
     "README Todo: offline KV-cache pre-computation for update (lossless), online KV-cache pre-computation before QA (lossy), coordinated context plus long-term memory, multimodal memory.",
-    "Recent: web console (aa1c484, 2026-08-31), EM2Mem accepted at EMNLP 2026, StructMem at ACL 2026, FluxMem under review (arXiv 2605.28773), DeepSeek v4 support; last push 2026-09-05, so no activity for five weeks.",
-    "Paper revised (arXiv 2510.18866, version dated 2026-08-24) with updated ratios: up to 38x / 20.9x total-token and 30x / 55.5x API-call reduction on LongMemEval / LoCoMo."
-  ]
+    "Recent main commits: web console (aa1c484, 2026-08-30), EM2Mem news (8449d57, 2026-09-05), sensory-buffer oversize-loop fix (PR #66, 2026-08-03); EM2Mem accepted at EMNLP 2026, StructMem at ACL 2026, DeepSeek v4 support; last push to main 2026-09-05, so no commits for five weeks.",
+    "Paper revised (arXiv 2510.18866, version dated 2026-08-24) with updated ratios: up to 38x / 20.9x total-token and 30x / 55.5x API-call reduction on LongMemEval / LoCoMo [doc, not re-checked]."
+  ],
+  "specialities": [
+    {
+      "name": "One small encoder for compression and segmentation",
+      "t": "The LLMLingua-2 BERT-base token classifier drops 20-40% of tokens per message, and with precomp_topic_shared the same weights supply the attention maps for topic boundaries, so both write-side token cuts run on one local model before any hosted LLM call.",
+      "e": "factory/pre_compressor/llmlingua_2.py:54-89; topic_segmenter/llmlingua_2.py:9-21, 25-120; lightmem.py:164-170 [read]",
+      "phase": "segment"
+    },
+    {
+      "name": "Attention-plus-embedding topic boundaries",
+      "t": "Coarse cuts are local maxima of turn-to-previous-turn attention from encoder layers 8-11; fine cuts are adjacent-turn cosine dips with an adaptive threshold (0.2 rising to 0.5); fine cuts are kept only within 3 turns of a coarse cut. No LLM is used for segmentation.",
+      "e": "topic_segmenter/llmlingua_2.py:25-120; sensory_memory.py:54-141 [read]",
+      "phase": "segment"
+    },
+    {
+      "name": "Token-capped multi-topic extraction batches",
+      "t": "Topic segments accumulate in a 512-token short-term buffer and are flushed as one JSON-mode call with '--- Topic N ---' sections, so the whole LoCoMo set needs 255-415 write-side LLM calls versus about 5.5-19k for MemoryOS/A-Mem/Mem0 in the vendor's tables.",
+      "e": "short_term_memory.py:36-57; openai.py:315-346; experiments/locomo/readme.md:117-121; README.md:389-397 [read + doc]",
+      "phase": "extract"
+    },
+    {
+      "name": "Time-directed, similarity-gated sleep-time update",
+      "t": "Each fact's update queue holds its top 10 of 20 nearest neighbours with earlier-or-equal timestamps; only pairs above 0.9 cosine reach the update/delete/ignore LLM, run offline in parallel. The whole LoCoMo update cost 39-64k tokens with gpt-4o-mini.",
+      "e": "lightmem.py:459-644; prompts.py:334-406; add_locomo.py:446-447; experiments/locomo/readme.md:136-140 [read + doc]",
+      "phase": "time"
+    },
+    {
+      "name": "Timestamp-keyed event reconstruction",
+      "t": "All facts extracted from one message share its millisecond timestamp, so StructMem treats the timestamp as an implicit event key: each semantically retrieved seed pulls in its same-timestamp siblings before cross-event summarisation.",
+      "e": "utils.py:60-111, 313-317, 443-466 [read]",
+      "phase": "derive"
+    },
+    {
+      "name": "Per-stage cost ledger in the engine",
+      "t": "LightMemory counts calls and prompt/completion tokens separately for add, update and summarise, plus embedder calls, and exposes them via get_token_statistics(); the vendor publishes cost and runtime tables alongside accuracy.",
+      "e": "lightmem.py:143-160, 711-750; experiments/locomo/readme.md:113-148 [read + doc]",
+      "phase": "eval"
+    },
+    {
+      "name": "BoundMem tags carried inside memory text",
+      "t": "Optional environment tags are written as a JSON prefix inside the memory string, so they survive any store or export, are stripped before embedding and before display, and drive a hard or pluggable soft tag-overlap filter at read.",
+      "e": "lightmem.py:375-380, 413-415, 684-703; utils.py:757-966 [read]",
+      "phase": "read"
+    }
+  ],
+  "verification": {
+    "date": "2026-10-11",
+    "commit": "8449d57",
+    "rows_checked": 57,
+    "corrections": [
+      "arch.truth: said only that buffers are in RAM -> now also records that a local Qdrant path with on_disk=False (the default, path /tmp/qdrant) is deleted with rmtree at construction, that the default config (index_strategy None) stores nothing, and that compression overwrites message text",
+      "arch.graphdb: said graph_mem would fail because GraphMem is constructed with an argument it cannot accept -> graph.py does not even parse (class header with no body, IndentationError), so enabling graph_mem fails at import",
+      "write.receipt: evidence short_term_memory.py:180-201 (file has 59 lines) -> short_term_memory.py:36-57",
+      "write.roles: said topic boundaries use user messages only -> coarse (attention) boundaries use user text only, but fine boundaries embed user+assistant text concatenated per turn",
+      "segment.unit: status O -> Y (the 512-token short-term buffer batches extraction by default even with topic segmentation off; only the topic segmenter is opt-in); evidence llmlingua_2.py:219-223 -> 17-21 and short_term_memory.py:180-201 -> 36-57",
+      "segment.rule: said coarse boundaries are local maxima of an attention 'drop' with evidence llmlingua_2.py:225-322 (file has 120 lines) -> local maxima of the normalised attention a user turn pays to the previous turn, llmlingua_2.py:25-120",
+      "extract.episode: said event-mode entries are tagged entry_type -> entry_type is set on the raw LLM output but never persisted (MemoryEntry has no such field and the Qdrant payload omits it), so factual/relational tags are lost after insert",
+      "extract.dates: evidence prompts.py:95-100 -> prompts.py:94-99, and the LoCoMo harness actually uses its own copy in experiments/locomo/prompts.py",
+      "time.fields: evidence utils.py:650-652 -> utils.py:646-654 (consolidation_time)",
+      "derive.session: omitted two filter defects -> retrieval_scope='historical' builds an 'lt' range that the Qdrant filter builder ignores and then appends to a None must_not list (expected to raise), and exclude_ids filters on a payload key 'id' that is never written, so covered entries can come back as seeds",
+      "derive.forget: evidence utils.py:28 -> utils.py:29 (hit_time)",
+      "graph.communities: evidence FluxMem.md [doc] -> confirmed in code: src/fluxmem/stages/stage3_consolidation.py KMeans episodic clustering [read]",
+      "index.lexical: said only bm25.py is empty -> also the context-retriever factory points at a BM25 class that does not exist, and examples/run_lightmem_bm25.py is empty too",
+      "index.vector: omitted that on_disk defaults to False and a local non-on-disk store is wiped at construction -> added",
+      "read.temporal: said caller can pass float_time_stamp ranges -> only gte/lte ranges and equality work; 'lt'/'gt' keys are silently dropped by the filter builder",
+      "eval.rigour: omitted harness store mismatch -> search_locomo.py defaults to the pre-update Qdrant directory and StructMem summaries are built from the pre-update store (issue #81), while the README runs use post-update",
+      "trust.auth: covered only MCP and the OpenAI LLM client -> also the web console API has no authentication (CORS limited to localhost:5177), stores the API key in plaintext web/data/secrets.json, and the OpenAI embedder also disables TLS verification",
+      "trust.sharing: no mention of the open security report -> added issue #86 (responsible-disclosure report of cross-user memory poisoning in shared FluxMem/LightMem memory)",
+      "token_economy: update-pass range 37-64k and baseline calls 5-19k, evidence llmlingua_2.py:376-409 / short_term_memory.py:180-201 -> 39-64k (gpt-4o-mini; 55-107k qwen3), 5.5-19k for MemoryOS/A-Mem/Mem0, llmlingua_2.py:54-89 / short_term_memory.py:36-57",
+      "speed: no mention of the quadratic candidate scan in offline_update_all_entries -> added (lightmem.py:578-584) and that executor.map results are never collected",
+      "extras: pre-compression and precomp_topic_shared evidence lines (360-411, 220-223 beyond file length) -> llmlingua_2.py:54-89 and topic_segmenter/llmlingua_2.py:9-21; EM2Mem was tagged [doc] -> package code present, [read]",
+      "avoid[0]: added the default Qdrant rmtree-at-construction risk"
+    ],
+    "added": [
+      "extra (write): millisecond turn ordering",
+      "extra (write): oversize-message bypass",
+      "extra (extract): integer source_id pointers",
+      "extra (extract): image captions folded into facts",
+      "extra (arch): LLM backends and OpenRouter fallback",
+      "extra (arch): config defaults",
+      "extra (arch): web console job queue",
+      "extra (answer): console memory picking",
+      "extra (eval): pre/post-update snapshots",
+      "extra (eval): LongMemEval and EgoLife scripts",
+      "extra (read): per-speaker retrieval mode",
+      "specialities: 7 entries",
+      "in_progress: StructMem-branch AML service, open issues #86/#81/#78, branch heads and dates"
+    ],
+    "unverified": [
+      "JustMem 79.08 (gpt-4.1-mini, cat 1-4) and the 'Harness the Memory' inclusion: taken from our SOTA sweep notes; primary papers not re-read in this pass.",
+      "Paper abstract ratios (38x / 20.9x tokens, 30x / 55.5x calls, up to 7.7% / 29.3% accuracy) and the FluxMem arXiv id: from README/arXiv listing, not re-checked.",
+      "AML leaderboard rank 43 / 35.476 for LightMem-StructMem: stated in a branch document only.",
+      "summarize(retrieval_scope='historical') raising on the None must_not list: inferred from reading qdrant_client usage, not executed (clone is read-only).",
+      "All vendor LoCoMo accuracies, call counts and runtimes are vendor-reported; no independent rerun."
+    ]
+  }
 }

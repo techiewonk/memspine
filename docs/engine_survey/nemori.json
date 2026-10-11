@@ -7,85 +7,335 @@
   "licence": "MIT",
   "one_line": "Two-layer episodic + semantic memory library: an LLM groups buffered turns into topic episodes, writes a dated third-person narrative per episode, and distils atomic facts from the gap between a knowledge-based prediction of the episode and the raw turns (predict-calibrate); read is per-layer vector + Postgres full-text fused by RRF.",
   "locomo": [
-    {"score": "79.4", "protocol": "paper v1 Table 1: gpt-4.1-mini as both memory backbone and reader, gpt-4o-mini judge (generous CORRECT/WRONG prompt), text-embedding-3-small, top-10 episodes + top-20 facts, cat 1-4 = 1,540 q; legacy per-message boundary-detector code (sigma_boundary 0.7, beta_max 25)", "who": "vendor", "source": "arXiv 2508.03341v1 (Aug 2025) Table 1; also quoted by Mem++ arXiv 2610.02002"},
-    {"score": "74.4", "protocol": "same as above with gpt-4o-mini backbone and reader; 2,745 context tokens per question, 3,053 ms end to end", "who": "vendor", "source": "arXiv 2508.03341v1 Tables 1-2"},
-    {"score": "80.8", "protocol": "paper v4 (retitled 'What Deserves Memory: Adaptive Memory Distillation for LLM Agents'): gpt-4.1-mini backbone and reader, gpt-4o-mini judge, text-embedding-3-small, observation window w=20, k=10 episodes; cat 1-4, 1,540 q", "who": "vendor", "source": "arXiv 2508.03341v4 (16 Apr 2026) section 4.2"},
-    {"score": "73.0", "protocol": "paper v4, gpt-4o-mini backbone and reader, gpt-4o-mini judge, 2,745 tokens per question", "who": "vendor", "source": "arXiv 2508.03341v4 section 4.2, Table 4"},
-    {"score": "83.05", "protocol": "README 'V5' table: refactored async code, evaluation/locomo/config.json (gpt-4.1-mini reader via OpenRouter, google/gemini-embedding-001), judge default openai/gpt-4.1-mini (same model as reader), cat 1-4 counts 282/321/96/841 = 1,540 q; search.py defaults to vector-only legs, top-10 episodes + top-20 facts, raw turns of top-2 episodes appended", "who": "vendor", "source": "README.md:161-171; evaluation/locomo/config.json:2-11; evaluation/locomo/metrics/llm_judge.py:18; evaluation/locomo/search.py:219-221"},
-    {"score": "81.10", "protocol": "earlier README (Sep-Oct 2025, legacy src/ code with BM25 + Chroma), stated 'with only 3K context tokens'; reader/judge not stated in that README", "who": "vendor", "source": "README.md at commit 18ec409 / e1a7f9d, section 5.2"},
-    {"score": "0.602 / 0.781 / 0.649", "protocol": "independent rerun, gpt-4o-mini backbone and reader, MiniLM-L6-v2 embeddings, top-k 10, temperature 0.3; three judge prompts (MAGMA / Nemori's own generous prompt / SimpleMem); 17.91% answer format errors; 7.04M construction tokens", "who": "independent", "source": "Anatomy of Agentic Memory, arXiv 2602.19320, Tables 3-5 and Appendix E"}
+    {
+      "score": "79.4",
+      "protocol": "paper v1 Table 1: gpt-4.1-mini as both memory backbone and reader, gpt-4o-mini judge (generous CORRECT/WRONG prompt), text-embedding-3-small, top-10 episodes + top-20 facts, cat 1-4 = 1,540 q; legacy per-message boundary-detector code (sigma_boundary 0.7, beta_max 25)",
+      "who": "vendor",
+      "source": "arXiv 2508.03341v1 (Aug 2025) Table 1; also quoted by Mem++ arXiv 2610.02002"
+    },
+    {
+      "score": "74.4",
+      "protocol": "same as above with gpt-4o-mini backbone and reader; 2,745 context tokens per question, 3,053 ms end to end",
+      "who": "vendor",
+      "source": "arXiv 2508.03341v1 Tables 1-2"
+    },
+    {
+      "score": "80.8",
+      "protocol": "paper v4 (retitled 'What Deserves Memory: Adaptive Memory Distillation for LLM Agents'): gpt-4.1-mini backbone and reader, gpt-4o-mini judge, text-embedding-3-small, observation window w=20, k=10 episodes; cat 1-4, 1,540 q",
+      "who": "vendor",
+      "source": "arXiv 2508.03341v4 (16 Apr 2026) section 4.2"
+    },
+    {
+      "score": "73.0",
+      "protocol": "paper v4, gpt-4o-mini backbone and reader, gpt-4o-mini judge, 2,745 tokens per question",
+      "who": "vendor",
+      "source": "arXiv 2508.03341v4 section 4.2, Table 4"
+    },
+    {
+      "score": "83.05",
+      "protocol": "README 'V5' table: refactored async code, evaluation/locomo/config.json (gpt-4.1-mini reader via OpenRouter, google/gemini-embedding-001), judge default openai/gpt-4.1-mini (same model as reader), cat 1-4 counts 282/321/96/841 = 1,540 q; search.py defaults to vector-only legs, top-10 episodes + top-20 facts, raw turns of top-2 episodes appended",
+      "who": "vendor",
+      "source": "README.md:161-171; evaluation/locomo/config.json:2-11; evaluation/locomo/metrics/llm_judge.py:18; evaluation/locomo/search.py:219-221"
+    },
+    {
+      "score": "81.10",
+      "protocol": "earlier README (Sep-Oct 2025, legacy src/ code with BM25 + Chroma), stated 'with only 3K context tokens'; reader/judge not stated in that README",
+      "who": "vendor",
+      "source": "README.md at commit 18ec409 / e1a7f9d, section 5.2"
+    },
+    {
+      "score": "0.602 / 0.781 / 0.649",
+      "protocol": "independent rerun, gpt-4o-mini backbone and reader, MiniLM-L6-v2 embeddings, top-k 10, temperature 0.3; three judge prompts (MAGMA / Nemori's own generous prompt / SimpleMem); 17.91% answer format errors; 7.04M construction tokens",
+      "who": "independent",
+      "source": "Anatomy of Agentic Memory, arXiv 2602.19320, Tables 3-5 and Appendix E"
+    }
   ],
   "rows": {
-    "arch.product": {"s": "", "t": "Python async library (NemoriMemory facade) with Docker Compose for PostgreSQL 16 + Qdrant; no server, no MCP, no hosted product. Research code accompanying arXiv 2508.03341.", "e": "nemori/api/facade.py:20-82; docker-compose.yml; README.md:114-122 (read)"},
-    "arch.truth": {"s": "", "t": "PostgreSQL rows are the source of truth (episodes with verbatim source_messages JSONB, semantic_memories, message_buffer); Qdrant holds only vectors with user_id/agent_id payload and is re-joined to Postgres by id.", "e": "nemori/db/migrations.py:9-56; nemori/db/qdrant_store.py:52-64; nemori/search/unified.py:50-58 (read)"},
-    "arch.stores": {"s": "Y", "t": "Three Postgres tables (episodes, semantic_memories, message_buffer) plus two Qdrant collections (nemori_episodes, nemori_semantic, cosine). pgvector columns were dropped in migration 4.", "e": "nemori/db/migrations.py:9-56,84-89; nemori/db/qdrant_store.py:32-48 (read)"},
-    "arch.graphdb": {"s": "N", "t": "No graph database or graph structure on main. A feat/hypergraph branch exists but is 0 commits ahead of main (already merged, name only).", "e": "git ls-remote; gh compare main...feat/hypergraph ahead_by 0 (read)"},
-    "arch.scope": {"s": "Y", "t": "Two keys: agent_id (workspace, fixed per NemoriMemory instance via config, default 'default') and user_id per call; every SQL and Qdrant query filters on both. A per (agent,user) asyncio lock serialises processing (LRU of 10,000 locks).", "e": "nemori/config.py:48; nemori/db/episode_store.py:39-43; nemori/db/qdrant_store.py:73-78; nemori/core/memory_system.py:67-74 (read)"}
-  ,
-    "write.entry": {"s": "", "t": "add_messages(user_id, [{role, content, timestamp?, metadata?}]), add_multimodal_message(...) and flush(user_id). Roles are free strings; the LoCoMo harness passes the speaker name as role.", "e": "nemori/api/facade.py:89-147; evaluation/locomo/add.py:100 (read)"},
-    "write.receipt": {"s": "P", "t": "add_messages returns after each turn is inserted into the Postgres message_buffer (durable); if the unprocessed count is >= buffer_size_min (default 2) it spawns an in-process asyncio task, so derived memory is queued, not durable work. flush() runs processing synchronously and returns the episodes. Buffer rows are deleted only after episodes and facts are written, so a crash leaves turns for the next flush.", "e": "nemori/core/memory_system.py:76-87,159-160; nemori/db/buffer_store.py:19-25,54-57 (read)"},
-    "write.roles": {"s": "N", "t": "No role routing: all roles go into the same buffer, episode and fact extraction. Role is only a label in the formatted transcript; prompts write facts about 'the user' generically.", "e": "nemori/llm/generators/segmenter.py:45-53; nemori/llm/prompts.py:93-156 (read)"},
-    "write.firewall": {"s": "N", "t": "not found: no injection, poisoning or instruction filtering on write; raw content is passed straight into LLM prompts.", "e": "nemori/core/memory_system.py:89-162 (read)"},
-    "write.governance": {"s": "N", "t": "not found: no redaction, PII filter, consent or retention policy. Only hard deletes (episode, fact, whole user). Images are re-compressed for size only.", "e": "nemori/core/memory_system.py:214-229; nemori/utils/image.py (read)"}
-  ,
-    "segment.unit": {"s": "Y", "t": "Unit is the pending buffer for one (agent,user). If >= batch_threshold (20) turns are pending, one segmentation call per <= 80-turn chunk groups them into topic episodes (non-contiguous indices allowed); otherwise the whole buffer becomes one episode labelled 'conversation'. Each group then costs one episode-generation call.", "e": "nemori/config.py:72-77; nemori/core/memory_system.py:106-113; nemori/llm/generators/segmenter.py:15,24-40 (read)"},
-    "segment.rule": {"s": "Y", "t": "LLM rule (temperature 0.2, JSON): split on topic change, intent change, temporal markers or a >30 min gap, explicit transition phrases, relevance < 30%; 'when in doubt, split'; typical 2-15 turns. The paper v1 described a per-message boundary detector (bool + confidence > 0.7, or buffer >= 25); that was replaced by the batch segmenter on 2025-10-28 and the v4 paper calls it an observation window w=20. Config fields buffer_size_max and episode_max_messages are never read.", "e": "nemori/llm/prompts.py:241-308 (read); nemori/llm/generators/segmenter.py:60-66 (read); arXiv 2508.03341v1 eq. 2 and section 4.1.4 (doc); README news 2025-10-28 (doc)"},
-    "segment.measured": {"s": "P", "t": "The paper v4 ablation says fixed 20-turn chunks instead of adaptive partitioning cost 5.0 points on gpt-4o-mini (68.0 vs 73.0) and 5.1 on gpt-4.1-mini (75.7 vs 80.8). Episode counts for LoCoMo are not published in the repo. The current LoCoMo harness feeds one turn per add call with buffer_size_min=1, so segmentation size depends on how many turns pile up while the background task runs (inferred).", "e": "arXiv 2508.03341v4 Table 5 (doc); evaluation/locomo/add.py:153-157,228; evaluation/locomo/config.json:4 (read, inferred)"}
-  ,
-    "extract.calls": {"s": "", "t": "Per episode: 1 episode-narrative call; 1 merge-decision call whenever any other episode exists (no similarity threshold applied); +1 merge-content call if merging; then 2 calls for predict-calibrate (predict, extract) or 1 direct-extraction call when no prior facts exist. Plus 1 segmentation call per <= 80 turns when >= 20 are pending. Embeddings: 1 per episode, 1 per fact (unbatched), 1 per merged episode.", "e": "nemori/core/memory_system.py:106-156; nemori/llm/generators/merger.py:37-63; nemori/llm/generators/semantic.py:51-66 (read)"},
-    "extract.facts": {"s": "Y", "t": "Atomic 'statements' (self-contained, present tense, no dates) filtered by persistence/specificity/utility/independence tests; stored with a keyword-classified memory_type (identity, preference, relationship, goal, belief, habit; default identity) and confidence fixed at 1.0.", "e": "nemori/llm/prompts.py:93-156; nemori/llm/generators/semantic.py:136-151 (read)"},
-    "extract.episode": {"s": "Y", "t": "One JSON call per group returns title (10-20 words), third-person narrative content and an ISO timestamp; prompt asks for hour-precise time and to rewrite relative dates as absolute dates in parentheses. Embedding is computed over title + content.", "e": "nemori/llm/prompts.py:11-53; nemori/llm/generators/episode.py:30-81 (read)"},
-    "extract.dates": {"s": "P", "t": "Episodes: yes, absolute dates written into the narrative and an LLM-chosen event timestamp stored as created_at. Facts: the calibrate prompt forbids dates, and facts get created_at = wall-clock ingest time, which the LoCoMo reader then sees as the fact's timestamp.", "e": "nemori/llm/prompts.py:41,133; nemori/llm/generators/episode.py:64-79; nemori/domain/models.py:143; evaluation/locomo/search.py:86-88 (read)"},
-    "extract.neighbours": {"s": "Y", "t": "Yes, this is predict-calibrate: the episode embedding retrieves the top search_top_k_semantic (10 default, 20 in the LoCoMo config) existing facts from Qdrant; the predict call sees only the episode title plus those facts and writes a free-text guess of the episode (temperature 0.7); the extract call compares the raw source turns (not the narrative) with that guess and returns only facts missing or wrong in the guess. Cold start (no prior facts) falls back to direct extraction from the narrative. Merge decisions also see top-5 neighbour episodes (first 200 chars each).", "e": "nemori/core/memory_system.py:164-182; nemori/llm/generators/semantic.py:51-54,77-107; nemori/llm/prompts.py:57-89; nemori/llm/generators/merger.py:69-80,181 (read)"},
-    "extract.failure": {"s": "P", "t": "Orchestrator retries 3 times with exponential backoff (30 s timeout). Segmentation failure falls back to one group; episode failure stores a raw-transcript fallback episode flagged fallback=true; merge failure keeps the episode; fact failure logs and returns no facts, and the buffer is still deleted, so those facts are lost silently.", "e": "nemori/llm/orchestrator.py:108-183; nemori/llm/generators/segmenter.py:85-87; nemori/llm/generators/episode.py:82-84,131-143; nemori/llm/generators/semantic.py:73-75; nemori/core/memory_system.py:194-195 (read)"}
-  ,
-    "graph.entities": {"s": "N", "t": "not found: no entity extraction.", "e": "nemori/ (read)"},
-    "graph.resolution": {"s": "N", "t": "not found.", "e": "nemori/ (read)"},
-    "graph.edges": {"s": "N", "t": "not found; the only links are fact.source_episode_id and merged_from ids in episode metadata.", "e": "nemori/db/migrations.py:37; nemori/llm/generators/merger.py:166 (read)"},
-    "graph.communities": {"s": "N", "t": "not found.", "e": "nemori/ (read)"}
-  ,
-    "time.fields": {"s": "P", "t": "Episodes: created_at (LLM-inferred event time) and updated_at. Facts: created_at/updated_at at ingest only. Buffer rows: message timestamp. No valid-from/valid-to.", "e": "nemori/db/migrations.py:9-56; nemori/domain/models.py:78-144 (read)"},
-    "time.update": {"s": "N", "t": "Facts are append-only: no supersede, contradiction check or invalidation; predict-calibrate lowers duplicate writes only because known facts are in the prediction. The reader prompt is told to prefer the most recent memory. Open PR #19 adds similarity dedup that reuses the old fact id (supersede in place).", "e": "nemori/core/memory_system.py:182-193; nemori/db/semantic_store.py:20-43; evaluation/locomo/search.py:38 (read); PR #19 (doc)"},
-    "time.dedup": {"s": "P", "t": "Episodes: LLM merge of a new episode into one of its top-5 vector neighbours when it judges them the same event (< 1 h apart), then both originals are deleted and a merged episode with concatenated source turns is written. Facts: none; config semantic_similarity_threshold and merge_similarity_threshold are never read.", "e": "nemori/llm/generators/merger.py:37-63,108-171; nemori/llm/prompts.py:381-417; nemori/core/memory_system.py:133-150 (read)"}
-  ,
-    "derive.session": {"s": "N", "t": "No session summary; episodes are topic-level narratives, which play that role.", "e": "nemori/ (read)"},
-    "derive.profile": {"s": "N", "t": "No profile object; facts carry a keyword-derived memory_type tag only.", "e": "nemori/llm/generators/semantic.py:136-151 (read)"},
-    "derive.entity": {"s": "N", "t": "not found.", "e": "nemori/ (read)"},
-    "derive.background": {"s": "P", "t": "Episode, merge and fact generation run in a fire-and-forget asyncio task after add_messages (or inline on flush); fact generation is sequential after each episode to avoid merge races. No scheduler, no sleep-time pass. EventBus is instantiated but nothing publishes to it.", "e": "nemori/core/memory_system.py:81-83,154-156; nemori/services/event_bus.py (read)"},
-    "derive.forget": {"s": "N", "t": "not found: no decay, TTL or forgetting.", "e": "nemori/ (read)"}
-  ,
-    "index.embed": {"s": "Y", "t": "Default text-embedding-3-small (1536-d) via any OpenAI-compatible API; dimension auto-probed at start-up. README and LoCoMo config use google/gemini-embedding-001; the paper used text-embedding-3-small.", "e": "nemori/config.py:60-63; nemori/api/facade.py:37-50; evaluation/locomo/config.json:3 (read); arXiv 2508.03341 section 4.1 (doc)"},
-    "index.lexical": {"s": "Y", "t": "Postgres generated tsvector with the 'simple' config (no stemming, no stop words) on episode title+content and on fact content, GIN index, ts_rank with plainto_tsquery (all query terms must match). Not BM25 on main; the legacy pre-2026 code used rank_bm25 with spaCy tokenisation.", "e": "nemori/db/migrations.py:15-17,34-36; nemori/db/episode_store.py:68-79 (read); legacy src/search/bm25_search.py at 18ec409 (read via GitHub API)"},
-    "index.vector": {"s": "Y", "t": "Qdrant, cosine, two collections, payload filter on user_id and agent_id, no payload index declared. The client is the synchronous QdrantClient called from async code.", "e": "nemori/db/qdrant_store.py:30-48,66-81 (read)"}
-  ,
-    "read.rewrite": {"s": "N", "t": "not found: the raw query is embedded once and sent to full-text as is.", "e": "nemori/search/unified.py:116-125 (read)"},
-    "read.analysis": {"s": "N", "t": "not found.", "e": "nemori/search/unified.py (read)"},
-    "read.legs": {"s": "Y", "t": "Hybrid default: per layer, Qdrant vector top 2k and Postgres full-text top 2k, fused; episodes and facts searched in parallel (asyncio.gather), returned as two separate lists (k=10 each by default). Vector-only and text-only modes exist; the LoCoMo search.py default is vector.", "e": "nemori/search/unified.py:70-137; evaluation/locomo/search.py:220 (read)"},
-    "read.temporal": {"s": "N", "t": "not found: no time filter or as-of read; time only appears as text inside narratives and as created_at in the reader prompt.", "e": "nemori/search/unified.py (read)"},
-    "read.traversal": {"s": "N", "t": "not found.", "e": "nemori/ (read)"}
-  ,
-    "rank.fusion": {"s": "Y", "t": "Reciprocal rank fusion with constant 60, equal weights, per layer; no cross-layer fusion.", "e": "nemori/search/unified.py:70-114 (read)"},
-    "rank.rerank": {"s": "N", "t": "not found.", "e": "nemori/ (read)"},
-    "rank.gate": {"s": "N", "t": "not found: no score threshold or abstain; top-k always returned.", "e": "nemori/search/unified.py (read)"},
-    "rank.agentic": {"s": "N", "t": "not found.", "e": "nemori/ (read)"}
-  ,
-    "answer.shape": {"s": "", "t": "Answering is outside the library (search returns dicts). The LoCoMo harness prompt lists episodic memories as '[created_at] narrative', appends the verbatim source turns of the top-2 episodes, then semantic facts with created_at, asks for a <= 5-6 word answer at temperature 0.", "e": "evaluation/locomo/search.py:25-67,77-94,149-170 (read)"},
-    "answer.size": {"s": "", "t": "2,745 tokens per question on LoCoMo with gpt-4o-mini (vs 23,653 for full context); README (2025) says about 3K; LongMemEval-S 3.7-4.8K vs 101K full context. Not re-measured here.", "e": "arXiv 2508.03341v1 Table 2 and v4 Table 4; README at 18ec409 section 5.2 (doc)"},
-    "answer.prompt": {"s": "", "t": "Mem0-style 'intelligent memory assistant' prompt: look at timestamps, prefer the most recent memory on conflict, convert relative times to absolute, answer in under 5-6 words, think step by step.", "e": "evaluation/locomo/search.py:25-67 (read)"}
-  ,
-    "eval.best": {"s": "", "t": "Vendor: 83.05 (README V5, gpt-4.1-mini reader and judge); paper 80.8 (v4) / 79.4 (v1) with gpt-4.1-mini reader and gpt-4o-mini judge. All cat 1-4, 1,540 q.", "e": "README.md:161-171; arXiv 2508.03341 v1/v4 (doc)"},
-    "eval.outside": {"s": "", "t": "Anatomy of Agentic Memory reran Nemori with gpt-4o-mini and MiniLM embeddings: 0.602 / 0.781 / 0.649 under the MAGMA / Nemori / SimpleMem judge prompts (rank 1 only under Nemori's own lenient prompt), 17.91% format errors. Mem++ quotes the paper's 79.4 / 74.4.", "e": "arXiv 2602.19320 Tables 3-4 (doc); arXiv 2610.02002 (doc, from task notes)"},
-    "eval.models": {"s": "", "t": "Paper: same model as backbone and reader (gpt-4o-mini or gpt-4.1-mini), gpt-4o-mini judge. Repo harness: gpt-4.1-mini reader, judge env LLM_JUDGE_MODEL default openai/gpt-4.1-mini, so reader = judge.", "e": "evaluation/locomo/metrics/llm_judge.py:18; evaluation/locomo/config.json:2 (read); arXiv 2508.03341v1 section 4.1.3 (doc)"},
-    "eval.rigour": {"s": "", "t": "Cat 5 skipped; single run in the README (paper v1 reports +/- over runs); lenient 'touches on the same topic' judge prompt; reader = judge in the repo harness; results files not committed; LoCoMo turns all share the session timestamp and the buffer orders only by timestamp, so intra-session order relies on Postgres tie behaviour (inferred).", "e": "evaluation/locomo/evals.py:23-25; evaluation/locomo/metrics/llm_judge.py:20-44; nemori/db/buffer_store.py:32; evaluation/locomo/add.py:91 (read, last point inferred)"}
-  ,
-    "cost.write": {"s": "", "t": "Paper v4 claims 59.5% fewer LLM calls and 38.7% fewer tokens than the baselines of Fang et al. on LoCoMo with gpt-4o-mini (absolute counts in its Table 9, not retrieved). Anatomy measured 7.04M construction tokens (about 5x SimpleMem). From code: about 4-5 LLM calls per episode plus 1 per <= 80 turns of segmentation, so on the order of 2-3k calls for 5,882 turns at 10-15 turns/episode (inferred).", "e": "arXiv 2508.03341v4 section 4.3 (doc); arXiv 2602.19320 section 4.5.2 (doc); nemori/core/memory_system.py:106-156 (inferred)"},
-    "cost.read": {"s": "", "t": "0 LLM calls in retrieval; 1 query embedding, 2 Qdrant + 2 Postgres queries, then 1 answer call. Search 787 ms, total 3,053 ms per question (paper, gpt-4o-mini).", "e": "nemori/search/unified.py:116-137 (read); arXiv 2508.03341v1 Table 2 (doc)"},
-    "cost.where": {"s": "", "t": "Hosted LLM and embeddings through any OpenAI-compatible endpoint (OpenRouter recommended); Postgres and Qdrant self-hosted via Docker.", "e": "nemori/config.py:9-35; README.md:68-84 (read)"}
-  ,
-    "trust.provenance": {"s": "P", "t": "Episodes keep verbatim source turns and merged_from ids; facts keep source_episode_id, but the FK is ON DELETE SET NULL and merges delete the old episodes, so facts derived before a merge lose their source. No trust score (confidence is always 1.0), no speaker attribution on facts.", "e": "nemori/db/migrations.py:37-38; nemori/core/memory_system.py:133-150; nemori/llm/generators/merger.py:156-171 (read)"},
-    "trust.erasure": {"s": "P", "t": "Hard delete per episode, per fact or per user across Postgres and Qdrant; deleting an episode does not cascade to its facts (source set to NULL), and episode text already merged into others is not purged.", "e": "nemori/core/memory_system.py:214-229; nemori/db/migrations.py:37 (read)"},
-    "trust.auth": {"s": "N", "t": "not found: library only; agent_id/user_id are caller-supplied strings.", "e": "nemori/api/facade.py (read)"},
-    "trust.sharing": {"s": "N", "t": "not found: agent_id isolates workspaces; no cross-agent sharing or permissions. README says it is 'evolving toward multi-agent deployments'.", "e": "nemori/config.py:48; README.md:204,241 (read/doc)"}
+    "arch.product": {
+      "s": "",
+      "t": "Python async library (NemoriMemory facade) with Docker Compose for PostgreSQL 16 + Qdrant; no server, no MCP, no hosted product. Research code accompanying arXiv 2508.03341.",
+      "e": "nemori/api/facade.py:20-82; docker-compose.yml; README.md:114-122 (read)"
+    },
+    "arch.truth": {
+      "s": "",
+      "t": "PostgreSQL rows are the source of truth (episodes with verbatim source_messages JSONB, semantic_memories, message_buffer); Qdrant holds only vectors with user_id/agent_id payload and is re-joined to Postgres by id.",
+      "e": "nemori/db/migrations.py:9-56; nemori/db/qdrant_store.py:52-64; nemori/search/unified.py:50-58 (read)"
+    },
+    "arch.stores": {
+      "s": "Y",
+      "t": "Three Postgres tables (episodes, semantic_memories, message_buffer) plus two Qdrant collections (nemori_episodes, nemori_semantic, cosine). pgvector columns were dropped in migration 4.",
+      "e": "nemori/db/migrations.py:9-56,84-89; nemori/db/qdrant_store.py:32-48 (read)"
+    },
+    "arch.graphdb": {
+      "s": "N",
+      "t": "No graph database or graph structure on main. A feat/hypergraph branch exists but is 0 commits ahead of main (already merged, name only).",
+      "e": "git ls-remote; gh compare main...feat/hypergraph ahead_by 0 (read)"
+    },
+    "arch.scope": {
+      "s": "Y",
+      "t": "Two keys: agent_id (workspace, fixed per NemoriMemory instance via config, default 'default') and user_id per call; every SQL query and every Qdrant search filters on both. Both tenants share the same two Qdrant collections (payload filter, no per-agent collection, despite the README), and single-record Qdrant deletes go by id without the tenant filter. A per (agent,user) asyncio lock serialises processing (LRU of 10,000 locks).",
+      "e": "nemori/config.py:48; nemori/db/episode_store.py:39-43; nemori/db/qdrant_store.py:32-33,73-78,83-87; nemori/core/memory_system.py:67-74 (read); README.md:204 (doc)"
+    },
+    "write.entry": {
+      "s": "",
+      "t": "add_messages(user_id, [{role, content, timestamp?, metadata?}]), add_multimodal_message(...) and flush(user_id). Roles are free strings (buffer column VARCHAR(20)); the LoCoMo harness passes the speaker name as role. Per-message metadata is accepted but the buffer stores only role, content and timestamp, so it never reaches episodes.",
+      "e": "nemori/api/facade.py:89-147; nemori/db/buffer_store.py:19-25,41-46; nemori/db/migrations.py:52; evaluation/locomo/add.py:100 (read)"
+    },
+    "write.receipt": {
+      "s": "P",
+      "t": "add_messages returns after each turn is inserted into the Postgres message_buffer (durable); if the unprocessed count is >= buffer_size_min (default 2) it spawns an in-process asyncio task, so derived memory is queued, not durable work. flush() runs processing synchronously and returns the episodes. Buffer rows are deleted only after episodes and facts are written, so a crash leaves turns for the next flush.",
+      "e": "nemori/core/memory_system.py:76-87,159-160; nemori/db/buffer_store.py:19-25,54-57 (read)"
+    },
+    "write.roles": {
+      "s": "N",
+      "t": "No role routing: all roles go into the same buffer, episode and fact extraction. Role is only a label in the formatted transcript; prompts write facts about 'the user' generically.",
+      "e": "nemori/llm/generators/segmenter.py:45-53; nemori/llm/prompts.py:93-156 (read)"
+    },
+    "write.firewall": {
+      "s": "N",
+      "t": "not found: no injection, poisoning or instruction filtering on write; raw content is passed straight into LLM prompts.",
+      "e": "nemori/core/memory_system.py:89-162 (read)"
+    },
+    "write.governance": {
+      "s": "N",
+      "t": "not found: no redaction, PII filter, consent or retention policy. Only hard deletes (episode, fact, whole user). Images are re-compressed for size only.",
+      "e": "nemori/core/memory_system.py:214-229; nemori/utils/image.py (read)"
+    },
+    "segment.unit": {
+      "s": "Y",
+      "t": "Unit is the pending buffer for one (agent,user). If >= batch_threshold (20) turns are pending, one segmentation call per <= 80-turn chunk groups them into topic episodes (non-contiguous indices allowed); otherwise the whole buffer becomes one episode labelled 'conversation'. Each group then costs one episode-generation call. Groups below episode_min_messages (default 2) are skipped and turns left out of every group are ignored, yet all buffer rows are deleted, so those turns are lost (the LoCoMo config sets the minimum to 1).",
+      "e": "nemori/config.py:72-77; nemori/core/memory_system.py:96-101,106-119,158-160; nemori/llm/generators/segmenter.py:15,24-40,72-83; evaluation/locomo/config.json:6 (read)"
+    },
+    "segment.rule": {
+      "s": "Y",
+      "t": "LLM rule (temperature 0.2, JSON, max 4,096 output tokens): split on topic change, intent change, temporal markers or a >30 min gap, explicit transition phrases, relevance < 30%; 'when in doubt, split'; typical 2-15 turns. The paper v1 described a per-message boundary detector (bool + confidence > 0.7, or buffer >= 25); that was replaced by the batch segmenter on 2025-10-28 and the v4 paper calls it an observation window w=20. buffer_size_max is only range-checked at start-up and episode_max_messages is never read, so nothing caps episode size.",
+      "e": "nemori/llm/prompts.py:241-308 (read); nemori/llm/generators/segmenter.py:60-66 (read); nemori/config.py:73,77,101-102 (read); arXiv 2508.03341v1 eq. 2 and section 4.1.4 (doc); README.md:246 (doc)"
+    },
+    "segment.measured": {
+      "s": "P",
+      "t": "The paper v4 ablation says fixed 20-turn chunks instead of adaptive partitioning cost 5.0 points on gpt-4o-mini (68.0 vs 73.0) and 5.1 on gpt-4.1-mini (75.7 vs 80.8). Episode counts for LoCoMo are not published in the repo. The current LoCoMo harness feeds one turn per add call with buffer_size_min=1, so segmentation size depends on how many turns pile up while the background task runs (inferred).",
+      "e": "arXiv 2508.03341v4 Table 5 (doc); evaluation/locomo/add.py:153-157,228; evaluation/locomo/config.json:4 (read, inferred)"
+    },
+    "extract.calls": {
+      "s": "",
+      "t": "Per episode: 1 episode-narrative call; 1 merge-decision call whenever any other episode exists (no similarity threshold applied); +1 merge-content call if merging; then 2 calls for predict-calibrate (semantic_predict, semantic_extract) or 1 semantic_direct call when no prior facts exist. After a merge, facts are extracted again over the whole merged episode. Plus 1 segmentation call per <= 80 turns when >= 20 are pending. Embeddings: 1 per episode, 1 per fact (unbatched), 1 per merged episode.",
+      "e": "nemori/core/memory_system.py:106-156; nemori/llm/generators/merger.py:37-63; nemori/llm/generators/semantic.py:51-66,89,105,117 (read)"
+    },
+    "extract.facts": {
+      "s": "Y",
+      "t": "Atomic 'statements' filtered by persistence/specificity/utility/independence tests; the calibrate prompt asks for self-contained, present-tense statements with no dates, but the cold-start direct-extraction prompt has no date ban and its examples carry dates. Stored with a keyword-classified memory_type (identity, preference, relationship, goal, belief, habit; default identity) and confidence fixed at 1.0.",
+      "e": "nemori/llm/prompts.py:93-156,160-238; nemori/llm/generators/semantic.py:110-120,135-151 (read)"
+    },
+    "extract.episode": {
+      "s": "Y",
+      "t": "One JSON call per group returns title (10-20 words), third-person narrative content and an ISO timestamp; prompt asks for hour-precise time and to rewrite relative dates as absolute dates in parentheses. Embedding is computed over title + content.",
+      "e": "nemori/llm/prompts.py:11-53; nemori/llm/generators/episode.py:30-81 (read)"
+    },
+    "extract.dates": {
+      "s": "P",
+      "t": "Episodes: yes, absolute dates written into the narrative and an LLM-chosen event timestamp stored as created_at (wall-clock now if the model omits it). Facts: the calibrate prompt forbids dates (the cold-start prompt does not), and facts get created_at = wall-clock ingest time, which the LoCoMo reader then sees as the fact's timestamp.",
+      "e": "nemori/llm/prompts.py:41,133,160-238; nemori/llm/generators/episode.py:63-79; nemori/domain/models.py:143; evaluation/locomo/search.py:83-85 (read)"
+    },
+    "extract.neighbours": {
+      "s": "Y",
+      "t": "Yes, this is predict-calibrate: the episode embedding retrieves the top search_top_k_semantic (10 default, 20 in the LoCoMo config) existing facts from Qdrant; the predict call sees only the episode title plus those facts and writes a free-text guess of the episode (temperature 0.7); the extract call compares the raw source turns (not the narrative) with that guess and returns only facts missing or wrong in the guess. Cold start (no prior facts) falls back to direct extraction from the narrative. Merge decisions also see top-5 neighbour episodes (first 200 chars each).",
+      "e": "nemori/core/memory_system.py:164-182; nemori/llm/generators/semantic.py:51-54,77-107; nemori/llm/prompts.py:57-89; nemori/llm/generators/merger.py:69-80,181 (read)"
+    },
+    "extract.failure": {
+      "s": "P",
+      "t": "Orchestrator retries 3 times (backoff 1 s, 2 s plus jitter; 30 s per-call timeout; auth and budget errors not retried). Segmentation failure falls back to one group; episode failure (including TokenBudgetExceeded) stores a raw-transcript fallback episode flagged fallback=true that has no embedding, so it is never in Qdrant, never merged and gets direct extraction only; merge failure keeps the episode; fact failure logs and returns no facts, and the buffer is still deleted, so those facts are lost silently.",
+      "e": "nemori/llm/orchestrator.py:108-183; nemori/llm/generators/segmenter.py:85-87; nemori/llm/generators/episode.py:82-84,131-143; nemori/core/memory_system.py:126-130,169,194-195; nemori/llm/generators/merger.py:71-72; nemori/llm/generators/semantic.py:73-75 (read)"
+    },
+    "graph.entities": {
+      "s": "N",
+      "t": "not found: no entity extraction.",
+      "e": "nemori/ (read)"
+    },
+    "graph.resolution": {
+      "s": "N",
+      "t": "not found.",
+      "e": "nemori/ (read)"
+    },
+    "graph.edges": {
+      "s": "N",
+      "t": "not found; the only links are fact.source_episode_id and merged_from ids in episode metadata.",
+      "e": "nemori/db/migrations.py:37; nemori/llm/generators/merger.py:166 (read)"
+    },
+    "graph.communities": {
+      "s": "N",
+      "t": "not found.",
+      "e": "nemori/ (read)"
+    },
+    "time.fields": {
+      "s": "P",
+      "t": "Episodes: created_at (LLM-inferred event time) and updated_at. Facts: created_at/updated_at at ingest only. Buffer rows: message timestamp. No valid-from/valid-to.",
+      "e": "nemori/db/migrations.py:9-56; nemori/domain/models.py:78-144 (read)"
+    },
+    "time.update": {
+      "s": "N",
+      "t": "Facts are append-only: no supersede, contradiction check or invalidation; predict-calibrate lowers duplicate writes only because known facts are in the prediction. The reader prompt is told to prefer the most recent memory. Open PR #19 adds similarity dedup that reuses the old fact id (supersede in place).",
+      "e": "nemori/core/memory_system.py:181-193; nemori/db/semantic_store.py:20-43; evaluation/locomo/search.py:37 (read); PR #19 (doc)"
+    },
+    "time.dedup": {
+      "s": "P",
+      "t": "Episodes: LLM merge of a new episode into one of its top-5 vector neighbours when it judges them the same event (< 1 h apart), then both originals are deleted and a merged episode with concatenated source turns is written; its time is the LLM-returned timestamp, falling back to the earlier of the two. Facts: none; config semantic_similarity_threshold and merge_similarity_threshold are never read.",
+      "e": "nemori/llm/generators/merger.py:37-63,108-171; nemori/llm/prompts.py:381-417; nemori/core/memory_system.py:133-150 (read)"
+    },
+    "derive.session": {
+      "s": "N",
+      "t": "No session summary; episodes are topic-level narratives, which play that role.",
+      "e": "nemori/ (read)"
+    },
+    "derive.profile": {
+      "s": "N",
+      "t": "No profile object; facts carry a keyword-derived memory_type tag only.",
+      "e": "nemori/llm/generators/semantic.py:136-151 (read)"
+    },
+    "derive.entity": {
+      "s": "N",
+      "t": "not found.",
+      "e": "nemori/ (read)"
+    },
+    "derive.background": {
+      "s": "P",
+      "t": "Episode, merge and fact generation run in a fire-and-forget asyncio task after add_messages (or inline on flush); fact generation is sequential after each episode to avoid merge races. No scheduler, no sleep-time pass. EventBus is instantiated but nothing publishes to it.",
+      "e": "nemori/core/memory_system.py:81-83,154-156; nemori/services/event_bus.py (read)"
+    },
+    "derive.forget": {
+      "s": "N",
+      "t": "not found: no decay, TTL or forgetting.",
+      "e": "nemori/ (read)"
+    },
+    "index.embed": {
+      "s": "Y",
+      "t": "Default text-embedding-3-small (1536-d) via any OpenAI-compatible API; dimension auto-probed at start-up. README and LoCoMo config use google/gemini-embedding-001; the paper used text-embedding-3-small.",
+      "e": "nemori/config.py:60-63; nemori/api/facade.py:37-50; evaluation/locomo/config.json:3 (read); arXiv 2508.03341 section 4.1 (doc)"
+    },
+    "index.lexical": {
+      "s": "Y",
+      "t": "Postgres generated tsvector with the 'simple' config (no stemming, no stop words) on episode title+content and on fact content, GIN index, ts_rank with plainto_tsquery (all query terms must match). Not BM25 on main; the legacy pre-2026 code used rank_bm25 with spaCy tokenisation.",
+      "e": "nemori/db/migrations.py:15-17,34-36; nemori/db/episode_store.py:68-79 (read); legacy src/search/bm25_search.py at 18ec409 (read via GitHub API)"
+    },
+    "index.vector": {
+      "s": "Y",
+      "t": "Qdrant, cosine, two collections, payload filter on user_id and agent_id, no payload index declared. The client is the synchronous QdrantClient called from async code.",
+      "e": "nemori/db/qdrant_store.py:30-48,66-81 (read)"
+    },
+    "read.rewrite": {
+      "s": "N",
+      "t": "not found: the raw query is embedded once and sent to full-text as is.",
+      "e": "nemori/search/unified.py:116-125 (read)"
+    },
+    "read.analysis": {
+      "s": "N",
+      "t": "not found.",
+      "e": "nemori/search/unified.py (read)"
+    },
+    "read.legs": {
+      "s": "Y",
+      "t": "Hybrid default: per layer, Qdrant vector top 2k and Postgres full-text top 2k, fused; episodes and facts searched in parallel (asyncio.gather), returned as two separate lists (k=10 each by default). Vector-only and text-only modes exist; the LoCoMo search.py default is vector.",
+      "e": "nemori/search/unified.py:70-137; evaluation/locomo/search.py:220 (read)"
+    },
+    "read.temporal": {
+      "s": "N",
+      "t": "not found: no time filter or as-of read; time only appears as text inside narratives and as created_at in the reader prompt.",
+      "e": "nemori/search/unified.py (read)"
+    },
+    "read.traversal": {
+      "s": "N",
+      "t": "not found.",
+      "e": "nemori/ (read)"
+    },
+    "rank.fusion": {
+      "s": "Y",
+      "t": "Reciprocal rank fusion with constant 60, equal weights, per layer; no cross-layer fusion.",
+      "e": "nemori/search/unified.py:70-114 (read)"
+    },
+    "rank.rerank": {
+      "s": "N",
+      "t": "not found.",
+      "e": "nemori/ (read)"
+    },
+    "rank.gate": {
+      "s": "N",
+      "t": "not found: no score threshold or abstain; top-k always returned.",
+      "e": "nemori/search/unified.py (read)"
+    },
+    "rank.agentic": {
+      "s": "N",
+      "t": "not found.",
+      "e": "nemori/ (read)"
+    },
+    "answer.shape": {
+      "s": "",
+      "t": "Answering is outside the library (search returns dicts). The LoCoMo harness prompt lists episodic memories as '[created_at] narrative', appends the verbatim source turns of the top-2 episodes, then semantic facts with created_at, asks for a <= 5-6 word answer at temperature 0.",
+      "e": "evaluation/locomo/search.py:25-67,77-94,149-170 (read)"
+    },
+    "answer.size": {
+      "s": "",
+      "t": "2,745 tokens per question on LoCoMo with gpt-4o-mini (vs 23,653 for full context); README (2025) says about 3K; LongMemEval-S 3.7-4.8K vs 101K full context. Not re-measured here.",
+      "e": "arXiv 2508.03341v1 Table 2 and v4 Table 4; README at 18ec409 section 5.2 (doc)"
+    },
+    "answer.prompt": {
+      "s": "",
+      "t": "Mem0-style 'intelligent memory assistant' prompt: look at timestamps, prefer the most recent memory on conflict, convert relative times to absolute, answer in under 5-6 words, think step by step.",
+      "e": "evaluation/locomo/search.py:25-67 (read)"
+    },
+    "eval.best": {
+      "s": "",
+      "t": "Vendor: 83.05 (README V5, gpt-4.1-mini reader and judge); paper 80.8 (v4) / 79.4 (v1) with gpt-4.1-mini reader and gpt-4o-mini judge. All cat 1-4, 1,540 q.",
+      "e": "README.md:161-171; arXiv 2508.03341 v1/v4 (doc)"
+    },
+    "eval.outside": {
+      "s": "",
+      "t": "Anatomy of Agentic Memory reran Nemori with gpt-4o-mini and MiniLM embeddings: 0.602 / 0.781 / 0.649 under the MAGMA / Nemori / SimpleMem judge prompts (rank 1 only under Nemori's own lenient prompt), 17.91% format errors. Mem++ quotes the paper's 79.4 / 74.4.",
+      "e": "arXiv 2602.19320 Tables 3-4 (doc); arXiv 2610.02002 (doc, from task notes)"
+    },
+    "eval.models": {
+      "s": "",
+      "t": "Paper: same model as backbone and reader (gpt-4o-mini or gpt-4.1-mini), gpt-4o-mini judge. Repo harness: gpt-4.1-mini reader, judge env LLM_JUDGE_MODEL default openai/gpt-4.1-mini, so reader = judge.",
+      "e": "evaluation/locomo/metrics/llm_judge.py:18; evaluation/locomo/config.json:2 (read); arXiv 2508.03341v1 section 4.1.3 (doc)"
+    },
+    "eval.rigour": {
+      "s": "",
+      "t": "Cat 5 skipped; single run in the README (paper v1 reports +/- over runs); lenient 'touches on the same topic' judge prompt; reader = judge in the repo harness; results files not committed; LoCoMo turns all share the session timestamp and the buffer orders only by timestamp, so intra-session order relies on Postgres tie behaviour (inferred).",
+      "e": "evaluation/locomo/evals.py:23-25; evaluation/locomo/metrics/llm_judge.py:20-44; nemori/db/buffer_store.py:32; evaluation/locomo/add.py:91 (read, last point inferred)"
+    },
+    "cost.write": {
+      "s": "",
+      "t": "Paper v4 claims 59.5% fewer LLM calls and 38.7% fewer tokens than the baselines of Fang et al. on LoCoMo with gpt-4o-mini (absolute counts in its Table 9, not retrieved). Anatomy measured 7.04M construction tokens (about 5x SimpleMem). From code: about 4-5 LLM calls per episode plus 1 per <= 80 turns of segmentation, so on the order of 2-3k calls for 5,882 turns at 10-15 turns/episode (inferred).",
+      "e": "arXiv 2508.03341v4 section 4.3 (doc); arXiv 2602.19320 section 4.5.2 (doc); nemori/core/memory_system.py:106-156 (inferred)"
+    },
+    "cost.read": {
+      "s": "",
+      "t": "0 LLM calls in retrieval; 1 query embedding, 2 Qdrant + 2 Postgres queries, then 1 answer call. Search 787 ms, total 3,053 ms per question (paper, gpt-4o-mini).",
+      "e": "nemori/search/unified.py:116-137 (read); arXiv 2508.03341v1 Table 2 (doc)"
+    },
+    "cost.where": {
+      "s": "",
+      "t": "Hosted LLM and embeddings through any OpenAI-compatible endpoint (OpenRouter recommended); Postgres and Qdrant self-hosted via Docker.",
+      "e": "nemori/config.py:9-35; README.md:68-84 (read)"
+    },
+    "trust.provenance": {
+      "s": "P",
+      "t": "Episodes keep verbatim source turns and merged_from ids, but the buffer drops per-message metadata, so source turns carry only role, content and timestamp (e.g. LoCoMo original_speaker is lost). Facts keep source_episode_id, but the FK is ON DELETE SET NULL and merges delete the old episodes, so facts derived before a merge lose their source. No trust score (confidence is always 1.0), no speaker attribution on facts.",
+      "e": "nemori/db/migrations.py:37-38; nemori/db/buffer_store.py:19-25,41-46; nemori/core/memory_system.py:133-150; nemori/llm/generators/merger.py:156-171 (read)"
+    },
+    "trust.erasure": {
+      "s": "P",
+      "t": "Hard delete per episode, per fact or per user across Postgres and Qdrant; deleting an episode does not cascade to its facts (source set to NULL), episode text already merged into others is not purged, and base64 images stay inside source_messages of surviving episodes.",
+      "e": "nemori/core/memory_system.py:214-229; nemori/db/migrations.py:37 (read)"
+    },
+    "trust.auth": {
+      "s": "N",
+      "t": "not found: library only; agent_id/user_id are caller-supplied strings.",
+      "e": "nemori/api/facade.py (read)"
+    },
+    "trust.sharing": {
+      "s": "N",
+      "t": "not found: agent_id isolates workspaces; no cross-agent sharing or permissions. README says it is 'evolving toward multi-agent deployments'.",
+      "e": "nemori/config.py:48; README.md:204,241 (read/doc)"
+    }
   },
   "layers": {
     "raw": "Y",
@@ -105,14 +355,87 @@
     "provenance": "P"
   },
   "extras": [
-    {"phase": "extract", "param": "predict-calibrate distillation", "t": "Facts are only what a prediction from (episode title + top-k known facts) failed to reproduce from the raw turns; paper v4 ablation: semantic-only with prediction error 65.0 vs direct distillation 52.0 (gpt-4o-mini), 74.9 vs 65.5 (gpt-4.1-mini). Paper also uses it as a front-end for A-MEM/MemoryOS with 45-64% less stored text.", "e": "nemori/llm/generators/semantic.py:77-107 (read); arXiv 2508.03341v4 Tables 5, 7 (doc)"},
-    {"phase": "time", "param": "LLM episode merge", "t": "New episode vs top-5 vector neighbours: LLM decides merge/new, then rewrites one merged narrative with concatenated source turns and the earliest timestamp.", "e": "nemori/llm/generators/merger.py:37-171 (read)"},
-    {"phase": "write", "param": "multimodal turns", "t": "Image URLs are compressed at ingest and sent to the episode generator as image parts; text-only elsewhere ('[image]' marker).", "e": "nemori/api/facade.py:89-122; nemori/llm/generators/episode.py:38-44,95-113 (read)"},
-    {"phase": "cost", "param": "LLM token budget and per-phase stats", "t": "Orchestrator semaphore (10 concurrent), optional hard token budget that raises TokenBudgetExceeded, per-phase call and token counters (segmenter, episode, merge_decision, semantic_predict, semantic_extract).", "e": "nemori/llm/orchestrator.py:72-157; nemori/core/memory_system.py:231-251 (read)"},
-    {"phase": "answer", "param": "raw turns of top-2 episodes", "t": "Harness appends verbatim source turns under the two best episodes only (paper Table 6: narrative index + narrative return is the default; raw index/return variants within 1.6 points).", "e": "evaluation/locomo/search.py:86-93,221 (read); arXiv 2508.03341v4 Table 6 (doc)"}
+    {
+      "phase": "extract",
+      "param": "predict-calibrate distillation",
+      "t": "Facts are only what a prediction from (episode title + top-k known facts) failed to reproduce from the raw turns; paper v4 ablation: semantic-only with prediction error 65.0 vs direct distillation 52.0 (gpt-4o-mini), 74.9 vs 65.5 (gpt-4.1-mini). Paper also uses it as a front-end for A-MEM/MemoryOS with 45-64% less stored text.",
+      "e": "nemori/llm/generators/semantic.py:77-107 (read); arXiv 2508.03341v4 Tables 5, 7 (doc)"
+    },
+    {
+      "phase": "time",
+      "param": "LLM episode merge",
+      "t": "New episode vs top-5 vector neighbours (first 200 chars each): LLM decides merge/new, then rewrites one merged narrative with concatenated source turns; time is the LLM-returned timestamp, else the earlier of the two.",
+      "e": "nemori/llm/generators/merger.py:37-171 (read)"
+    },
+    {
+      "phase": "write",
+      "param": "multimodal turns",
+      "t": "Images are re-encoded at ingest (JPEG quality 70, max 1280x720, alpha flattened) and sent to the episode generator as image parts; segmenter, fact extraction and embeddings see only an '[image]' marker. Images are kept as base64 data URLs in Postgres.",
+      "e": "nemori/api/facade.py:89-122; nemori/utils/image.py:33-65; nemori/llm/generators/episode.py:38-44,95-113; nemori/domain/models.py:24-34 (read)"
+    },
+    {
+      "phase": "cost",
+      "param": "LLM token budget and per-phase stats",
+      "t": "Orchestrator semaphore (10 concurrent), optional hard token budget that raises TokenBudgetExceeded, per-phase call and token counters (segmenter, episode, merge_decision, merge_content, semantic_predict, semantic_extract, semantic_direct).",
+      "e": "nemori/llm/orchestrator.py:72-157; nemori/core/memory_system.py:231-251 (read)"
+    },
+    {
+      "phase": "answer",
+      "param": "raw turns of top-2 episodes",
+      "t": "Harness appends verbatim source turns under the two best episodes only (paper Table 6: narrative index + narrative return is the default; raw index/return variants within 1.6 points).",
+      "e": "evaluation/locomo/search.py:86-93,221 (read); arXiv 2508.03341v4 Table 6 (doc)"
+    },
+    {
+      "phase": "index",
+      "param": "embedding dimension probe",
+      "t": "At start-up the facade embeds a probe string and overrides embedding_dimension with the native size before creating Qdrant collections, so any OpenAI-compatible embedder works without config edits (a changed model needs the collection dropped).",
+      "e": "nemori/api/facade.py:37-65; nemori/db/qdrant_store.py:35-48; README.md:231 (read)"
+    },
+    {
+      "phase": "arch",
+      "param": "versioned schema migrations",
+      "t": "Four numbered migrations applied once each inside a transaction and recorded in schema_migrations (multimodal JSONB buffer, agent_id tenancy, pgvector removal for Qdrant).",
+      "e": "nemori/db/connection.py:81-101; nemori/db/migrations.py:62-90 (read)"
+    },
+    {
+      "phase": "speed",
+      "param": "graceful drain",
+      "t": "Leaving the async context waits up to 30 s for background processing tasks, cancels stragglers, then closes Qdrant and the asyncpg pool (5-20 connections).",
+      "e": "nemori/core/memory_system.py:253-264; nemori/api/facade.py:70-76; nemori/config.py:44-45 (read)"
+    },
+    {
+      "phase": "eval",
+      "param": "LoCoMo ingest details",
+      "t": "Harness inlines BLIP image captions and search queries into turn text as bracketed tags, stamps every turn with its session time, adds one turn per call (buffer_size_min 1, episode_min_messages 1) and flushes per conversation; 10 conversations in parallel.",
+      "e": "evaluation/locomo/add.py:81-112,150-157,227-228; evaluation/locomo/config.json:4-6 (read)"
+    },
+    {
+      "phase": "eval",
+      "param": "LongMemEval harness",
+      "t": "Per-question user reset via delete_user, session dates parsed into turn timestamps, question date passed to the reader (LoCoMo reader gets none), and LongMemEval-style type-specific yes/no judge prompts (temporal, knowledge update, preference rubric), judge default gpt-4.1-mini.",
+      "e": "evaluation/longmemeval/add.py:58-87; evaluation/longmemeval/search.py:63-64,161-166; evaluation/longmemeval/evals.py:45-133,326 (read)"
+    },
+    {
+      "phase": "read",
+      "param": "legacy raw-message BM25 leg and caches",
+      "t": "The pre-2026 src/ tree had a third retrieval leg (spaCy-tokenised BM25 over episodes' original messages), a per-user TTL cache (600 s) and a semantic embedding cache; all were removed in the 2026-03 async rewrite.",
+      "e": "legacy src/search/original_message_search.py, src/search/episode_original_message_search.py, src/services/cache.py:12-72 at 18ec409 (read via GitHub API)"
+    },
+    {
+      "phase": "cost",
+      "param": "stale helpers",
+      "t": "scripts/benchmark.py and scripts/rebuild_vectors.py still target the legacy synchronous API (filesystem/Chroma backends, nemori.models); token estimators in nemori/utils are not called anywhere; health() never probes LLM or embeddings, so healthy is always false.",
+      "e": "scripts/benchmark.py:13-17; scripts/rebuild_vectors.py:18-21; nemori/utils/token_counter.py; nemori/utils/text.py; nemori/api/facade.py:189-209 (read)"
+    }
   ],
-  "token_economy": {"t": "Small context comes from two compact layers rather than budgets: k=10 episode narratives (a few sentences each) + 10-20 one-line facts, with raw turns attached only for the top-2 episodes; reported 2,745 tokens per LoCoMo question (88% under full context) and 3.7-4.8K on LongMemEval-S (95-96% under 101K). Write-side economy: episode is the processing unit (one call per episode, not per turn), segmentation batches up to 80 turns per call, and predict-calibrate emits only the novel delta, so fewer and shorter facts. No token budget on the read context, no compression model, no prompt caching; optional total LLM token budget on writes.", "e": "evaluation/locomo/search.py:77-94; nemori/llm/generators/segmenter.py:15; nemori/llm/orchestrator.py:97-102 (read); arXiv 2508.03341v1 Table 2, v4 Table 8 (doc)"},
-  "speed": {"t": "Write: add returns after durable buffer insert; processing in a background asyncio task, serialised per (agent,user), LLM concurrency 10, embeddings one call per fact (embed_batch exists but is unused), Postgres inserts one row at a time. The synchronous Qdrant client blocks the event loop on every upsert/search. Read: no LLM; episodes and facts searched in parallel; paper: 787 ms search, 3,053 ms end to end with gpt-4o-mini. Anatomy: index construction is token-heavy (7.04M tokens on LoCoMo).", "e": "nemori/core/memory_system.py:76-87; nemori/llm/generators/semantic.py:60-62; nemori/services/embedding.py:38-45; nemori/db/buffer_store.py:19-25; nemori/db/qdrant_store.py:30; nemori/search/unified.py:137 (read); arXiv 2508.03341v1 Table 2; arXiv 2602.19320 section 4.5.2 (doc)"},
+  "token_economy": {
+    "t": "Small context comes from two compact layers rather than budgets: k=10 episode narratives (a few sentences each) + 10-20 one-line facts, with raw turns attached only for the top-2 episodes; reported 2,745 tokens per LoCoMo question (88% under full context) and 3.7-4.8K on LongMemEval-S (95-96% under 101K). Write-side economy: episode is the processing unit (one call per episode, not per turn), segmentation batches up to 80 turns per call, and predict-calibrate emits only the novel delta, so fewer and shorter facts. No token budget on the read context, no compression model, no prompt caching; optional total LLM token budget on writes.",
+    "e": "evaluation/locomo/search.py:77-94; nemori/llm/generators/segmenter.py:15; nemori/llm/orchestrator.py:97-102 (read); arXiv 2508.03341v1 Table 2, v4 Table 8 (doc)"
+  },
+  "speed": {
+    "t": "Write: add returns after durable buffer insert; processing in a background asyncio task, serialised per (agent,user), LLM concurrency 10, embeddings one call per fact (embed_batch exists but is unused), Postgres inserts one row at a time. The README says the Qdrant gRPC client is fully async, but the code uses the synchronous HTTP QdrantClient, which blocks the event loop on every upsert/search. Read: no LLM; episodes and facts searched in parallel; paper: 787 ms search, 3,053 ms end to end with gpt-4o-mini. Anatomy: index construction is token-heavy (7.04M tokens on LoCoMo).",
+    "e": "nemori/core/memory_system.py:76-87; nemori/llm/generators/semantic.py:60-62; nemori/services/embedding.py:38-45; nemori/db/buffer_store.py:19-25; nemori/db/qdrant_store.py:30; README.md:122 (doc); nemori/search/unified.py:137 (read); arXiv 2508.03341v1 Table 2; arXiv 2602.19320 section 4.5.2 (doc)"
+  },
   "keep": [
     "Episode as the write unit: one segmentation call per batch of up to 80 turns, then one narrative call per topic episode, instead of per-turn extraction.",
     "Predict-calibrate as a dedup-by-construction filter: show the extractor what the store already predicts and keep only the gap (Nemori predicts from episode title + top-k facts, calibrates against raw turns, cold-starts with direct extraction).",
@@ -122,16 +445,107 @@
   ],
   "avoid": [
     "Facts are append-only with no supersede or contradiction handling, constant confidence 1.0, and created_at = ingest time shown to the reader as if it were event time.",
-    "Episode merges delete source episodes, and the fact FK is ON DELETE SET NULL, so provenance of earlier facts silently breaks; fact-generation failures are logged and the buffer is deleted anyway.",
+    "Episode merges delete source episodes and the fact FK is ON DELETE SET NULL, so earlier facts lose provenance; fact-generation failures, single-turn groups (default minimum 2) and turns the segmenter leaves unassigned are dropped while the buffer is deleted anyway.",
     "Benchmark hygiene: README 83.05 uses the reader as its own judge with a lenient prompt; an independent rerun scored 0.602-0.781 depending only on judge prompt.",
     "Dead config (buffer_size_max, episode_max_messages, both similarity thresholds) and a sync Qdrant client in async code; the LoCoMo harness's one-turn-per-call ingest makes segmentation size timing-dependent."
   ],
   "in_progress": [
     "Paper v4 (16 Apr 2026) retitled 'What Deserves Memory: Adaptive Memory Distillation for LLM Agents': reframes Nemori as a distillation kernel agnostic to downstream management, new numbers 80.8 / 73.0 (arXiv 2508.03341v4).",
-    "Open PR #19 (2026-06-03): semantic dedup that reuses near-duplicate fact ids so updates supersede in place (enable_semantic_dedup on by default), refreshes source_episode_id, 'unknown' type fallback.",
-    "Draft PR #20 (2026-07-21): FastAPI evaluation dashboard, SWE-bench Lite memory vs no-memory arms, resumable LoCoMo/LongMemEval runs, 'improves semantic consolidation'.",
-    "Open PRs #15-#18 (May 2026): Qdrant healthcheck, Python pin, uv.lock refresh, GPT-5 chat compatibility.",
-    "Branches: claude/fix-token-calculation-wnM30 (2026-04-16, token tracking fix, 0 ahead of main); feat/semantic_manager (2025-12-26, legacy src/ tree, 3 commits ahead: semantic manager, BM25 search changes); feat/hypergraph (merged, 0 ahead); legacy-mvp (pre-paper MVP); repo CLAUDE.md says development happens on feat/hypergraph.",
-    "No commits to main since 2026-04-16 at clone time (2026-10-11)."
-  ]
+    "Open PR #19 (2026-06-03, branch pr/semantic-dedup-source-episode): reuses near-duplicate fact ids so updates supersede in place (enable_semantic_dedup, default on), refreshes source_episode_id on upsert, 'unknown' type fallback instead of identity; touches config, memory_system, semantic_store, semantic generator (gh pr view 19).",
+    "Draft PR #20 (2026-07-21, codex/server-dashboard, +16,664/-3,096): FastAPI evaluation dashboard, SWE-bench Lite 'API + SWE' vs 'Nemori + SWE' arms with repository-memory provenance, resumable LoCoMo/LongMemEval checkpoints, 'improves semantic consolidation' (gh pr view 20).",
+    "Open PRs #15-#18 (28-29 May 2026): Qdrant healthcheck fix, Python pin, uv.lock refresh, GPT-5 chat compatibility.",
+    "Branches (gh api, 2026-10-11): claude/fix-token-calculation-wnM30 and feat/hypergraph are 0 ahead of main (merged); feat/semantic_manager 3 ahead (2025-12-26, legacy src/ tree, semantic manager + BM25 changes); embedding 2 ahead (2025-09-08, Qwen3 embedding PR #6); semantic-memory 3 ahead (2025-07-31); dev has no common history with main (last commit 2025-09-28, legacy README); legacy-mvp holds the pre-paper MVP. Repo CLAUDE.md says development happens on feat/hypergraph.",
+    "No commits to main since 2026-04-16 (d2a6dff, merge of PR #14 token-tracking fix) at check time 2026-10-11."
+  ],
+  "specialities": [
+    {
+      "name": "Predict-calibrate fact distillation",
+      "t": "Before extracting facts, the engine predicts the episode from only its title plus the top-k existing facts, then asks the model to keep only what the raw source turns contain that the prediction missed or got wrong. Known facts are filtered out by construction rather than by a dedup pass; paper v4 credits it with 65.0 vs 52.0 over direct distillation (gpt-4o-mini).",
+      "e": "nemori/llm/generators/semantic.py:77-108; nemori/llm/prompts.py:57-156 (read); arXiv 2508.03341v4 Table 5 (doc)",
+      "phase": "extract"
+    },
+    {
+      "name": "Calibrate against raw turns, not the summary",
+      "t": "The calibration step compares the prediction with the verbatim source turns stored on the episode, not with the generated narrative, so narrative omissions do not hide facts; the prediction sees only the title, so it cannot copy the answer.",
+      "e": "nemori/llm/generators/semantic.py:83-101 (read)",
+      "phase": "extract"
+    },
+    {
+      "name": "Non-contiguous topic regrouping",
+      "t": "One segmentation call over up to 80 numbered turns returns index lists per topic, and indices may be non-consecutive, so interleaved threads in one chat become separate episodes rather than being cut by position.",
+      "e": "nemori/llm/generators/segmenter.py:15,42-83; nemori/llm/prompts.py:241-308 (read)",
+      "phase": "segment"
+    },
+    {
+      "name": "Dated narrative episodes",
+      "t": "Each episode is a third-person narrative with hour-precise time and relative dates rewritten as absolute dates in parentheses, plus an LLM-inferred event timestamp used as created_at; the paper attributes its temporal gains to this.",
+      "e": "nemori/llm/prompts.py:11-53; nemori/llm/generators/episode.py:63-79 (read)",
+      "phase": "extract"
+    },
+    {
+      "name": "LLM episode consolidation with turn concatenation",
+      "t": "A new episode is checked against its top-5 vector neighbours and, if the LLM judges it the same event within an hour, both are replaced by one rewritten narrative whose source turns are the concatenation of both, so the episode store stays event-level rather than fragment-level.",
+      "e": "nemori/llm/generators/merger.py:37-171; nemori/core/memory_system.py:132-150 (read)",
+      "phase": "time"
+    },
+    {
+      "name": "Zero-LLM two-layer read",
+      "t": "Read is one query embedding plus per-layer vector and full-text legs fused by RRF, returning two separate top-k lists; the harness attaches raw turns only for the top-2 episodes, giving about 2.7K context tokens per LoCoMo question with no read-time model call.",
+      "e": "nemori/search/unified.py:70-138; evaluation/locomo/search.py:77-94 (read); arXiv 2508.03341v1 Table 2 (doc)",
+      "phase": "read"
+    },
+    {
+      "name": "Per-phase LLM accounting with hard budget",
+      "t": "Every write-time call goes through one orchestrator that tags it by phase, counts calls and tokens per phase, caps concurrency and can stop all extraction once a token budget is spent.",
+      "e": "nemori/llm/orchestrator.py:72-157; nemori/core/memory_system.py:231-251 (read)",
+      "phase": "cost"
+    },
+    {
+      "name": "Distillation kernel for other engines",
+      "t": "Paper v4 reframes predict-calibrate as a front-end usable before other memory managers (A-MEM, MemoryOS), reporting 45-64% less stored text; no such adapter exists in the repo.",
+      "e": "arXiv 2508.03341v4 Table 7 (doc)",
+      "phase": "extract"
+    }
+  ],
+  "verification": {
+    "date": "2026-10-11",
+    "commit": "d2a6dff",
+    "rows_checked": 57,
+    "corrections": [
+      "arch.scope: said nothing on collection layout -> now notes the README's 'own vector collections' claim is wrong (shared collections + payload filter) and id-only Qdrant deletes",
+      "write.entry: implied metadata is kept -> now states the buffer drops per-message metadata and role is capped at 20 chars",
+      "segment.unit: omitted turn loss -> now says groups under episode_min_messages (default 2) and turns the segmenter leaves unassigned are dropped while the buffer is still deleted",
+      "segment.rule: 'buffer_size_max and episode_max_messages are never read' -> buffer_size_max is validated in __post_init__ but never used; episode_max_messages unused; no episode size cap",
+      "extract.calls: did not say facts are re-extracted over the merged episode after a merge -> added; phase labels named",
+      "extract.facts: 'no dates' stated for all facts -> only the calibrate path bans dates; cold-start direct extraction allows them",
+      "extract.dates: evidence search.py:86-88 pointed at source-turn lines -> now search.py:83-85; added cold-start exception and now() fallback",
+      "extract.failure: fallback episode described as stored like any other -> it has no embedding, so it is invisible to vector search and skips merge/neighbour facts; backoff detail fixed",
+      "time.update: evidence search.py:38 -> search.py:37 (the 'prioritize the most recent memory' line)",
+      "time.dedup: implied merged time is always the earliest -> LLM-returned timestamp wins, earliest is only the fallback",
+      "trust.provenance: said source turns are verbatim with no caveat -> per-message metadata is lost at the buffer",
+      "trust.erasure: added that images persist inside merged episodes' source turns",
+      "extras 'LLM episode merge': 'earliest timestamp' -> LLM timestamp first, earliest as fallback",
+      "extras 'LLM token budget and per-phase stats': phase list missed merge_content and semantic_direct -> added",
+      "speed: did not flag README's 'Qdrant gRPC, fully async' claim -> now says code uses the sync HTTP client"
+    ],
+    "added": [
+      "extras: embedding dimension probe (index)",
+      "extras: versioned schema migrations (arch)",
+      "extras: graceful drain (speed)",
+      "extras: LoCoMo ingest details (eval)",
+      "extras: LongMemEval harness (eval)",
+      "extras: legacy raw-message BM25 leg and caches (read)",
+      "extras: stale helpers (cost)",
+      "specialities: 8 entries (7 read, 1 doc)",
+      "in_progress: branches dev, embedding, semantic-memory added; PR #19/#20 detail refreshed"
+    ],
+    "unverified": [
+      "All paper numbers (79.4/74.4/80.8/73.0, ablations, 2,745 tokens, 787/3,053 ms, 59.5% fewer calls) are from arXiv 2508.03341 v1/v4, not re-run.",
+      "README 83.05 cannot be reproduced from the repo: no results or metrics files are committed.",
+      "Anatomy of Agentic Memory (arXiv 2602.19320) and Mem++ (arXiv 2610.02002) figures are taken from the first-pass notes, not re-read.",
+      "PR #19 and #20 behaviour is from PR descriptions and file lists; their code was not read.",
+      "cost.write call estimate (2-3k calls for LoCoMo) is inferred from code paths, not measured; LoCoMo episode counts are not published.",
+      "README's 'transitional masking heuristics' for boundary alignment is not in the current code (doc only)."
+    ]
+  }
 }
