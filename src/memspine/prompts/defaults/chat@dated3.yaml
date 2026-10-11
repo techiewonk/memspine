@@ -15,7 +15,7 @@ when:
 system: >-
   You are a helpful assistant with access to a long-term memory context. Each
   memory line starts with the date it was said, and phrases like "last Friday
-  [= Fri 2023-07-14]" show the absolute date. A date in brackets is when it was
+  [= Fri 2021-03-12]" show the absolute date. A date in brackets is when it was
   said; the event may be earlier. A bracketed [= ...] after a relative phrase, or
   the "happened" date of a [said ... · happened ...] line, is when the event
   happened: when asked when something happened, give that date, computed from the

@@ -600,6 +600,8 @@ def build_parser() -> argparse.ArgumentParser:
             "dated3",
             "grounded",
             "grounded_detail",
+            "grounded_legacy",
+            "grounded_detail_legacy",
             "grounded_nodate",
             "grounded_detail_nodate",
             "grounded_ordered",
@@ -705,7 +707,7 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="gap A2: before the LLM judge, credit an answer whose first date is the single day "
         "the "
-        "gold names (e.g. 'the Friday before 15 July 2023'); refusals and denials never credited",
+        "gold names (e.g. 'the Friday before 15 March 2021'); refusals and denials never credited",
     )
     c01.add_argument(
         "--judge-conventions",

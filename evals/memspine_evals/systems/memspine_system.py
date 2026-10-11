@@ -584,7 +584,7 @@ class MemspineSystem:
 
     async def _deposit(self, turns: list[Turn]) -> DepositResult:
         """One ``write_messages`` call for turns of ONE session."""
-        # The speaker NAME is content ("Caroline: ..."), not a provenance role:
+        # The speaker NAME is content ("Ana: ..."), not a provenance role:
         # passing it as the role dropped names from the stored text and gave
         # every speaker an unknown-role trust. The session stamp becomes the
         # record's event time (valid_from), so dated questions are answerable.

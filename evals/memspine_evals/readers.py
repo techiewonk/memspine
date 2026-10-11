@@ -19,6 +19,11 @@ from typing import Any
 
 from . import trace_full
 from .contracts import ReaderAnswer
+from .legacy_prompts import (
+    GROUNDED_DETAIL_LEGACY_QA_PROMPT,
+    GROUNDED_LEGACY_QA_PROMPT,
+    without_example_dates,
+)
 from .timing import extract_server_timing
 from .tokens import HeuristicTokenCounter, TokenCounter
 from .vendor_judges import EVERMEMOS_COT_QA_PROMPT
@@ -33,7 +38,7 @@ DEFAULT_QA_PROMPT = (
 #: to compute relative times from the line's own date and to answer briefly.
 DATED_QA_PROMPT = (
     "Answer the question using only the context below. Each line starts with the date it "
-    'was said, and phrases like "last Friday [= Fri 2023-07-14]" show the absolute date. '
+    'was said, and phrases like "last Friday [= Fri 2021-03-12]" show the absolute date. '
     "When a question asks when something happened, give the date it happened, computed from "
     "the line's date, not the date of the conversation. Answer in one short sentence. If the "
     "context does not contain the answer, say you do not know.\n\n"
@@ -121,7 +126,7 @@ DATED2_QA_PROMPT = DATED_QA_PROMPT.replace(
 #: blanket refusal clause ("Not mentioned" only when nothing bears on the question).
 DATED3_QA_PROMPT = (
     "Answer the question using only the context below. Each line starts with the date it "
-    'was said, and phrases like "last Friday [= Fri 2023-07-14]" show the absolute date. '
+    'was said, and phrases like "last Friday [= Fri 2021-03-12]" show the absolute date. '
     "A date in brackets is when it was said; the event may be earlier. A bracketed [= ...] "
     'after a relative phrase, or the "happened" date of a [said ... \u00b7 happened ...] '
     "line, is when the event happened: when a question asks when something happened, give "
@@ -142,36 +147,11 @@ DATED3_QA_PROMPT = (
 #: the ``[= date]`` annotations, asks for the best-supported short answer, and keeps "not
 #: mentioned" for questions nothing in the memories bears on (the default prompt's blanket
 #: "say you do not know" drew 92 of 182 refusals with the gold evidence in context).
-GROUNDED_QA_PROMPT = (
-    "Answer the question from the memories below. Each memory is one line: [YYYY-MM-DD] is "
-    'the date it was said, and a bracket like "last Saturday [= 2023-05-20]" gives the '
-    "absolute date of that relative phrase. Resolve other relative times (yesterday, last "
-    "week, two days ago) against the date of the line they appear in, not today's date. "
-    "Give a short, direct answer. Give the best-supported answer from the memories, even if "
-    "it is indirect; say it is not mentioned only when nothing in the memories bears on the "
-    "question. When a date is asked, answer in the wording the memories use (for example "
-    '"the week before 9 June 2023" or "2022"), at the precision asked.\n\n'
-    "Memories:\n{context}\n\nQuestion: {question}\nAnswer:"
-)
-
-#: I79: ``grounded`` and ``grounded_detail`` print two concrete dates as examples ("last
-#: Saturday [= 2023-05-20]", "the week before 9 June 2023"); full-persp-loc q 3-54 answered
-#: "The week before 9 June 2023" for a question whose evidence carries no such date. These
-#: variants keep every other word and put a placeholder where the example date was. The
-#: originals stay byte-identical (prompt ids of earlier runs).
-_EXAMPLE_ANNOTATION = '"last Saturday [= 2023-05-20]"'
-_EXAMPLE_ANSWER = '(for example "the week before 9 June 2023" or "2022")'
-_NODATE_ANNOTATION = '"last Saturday [= <resolved date>]"'
-_NODATE_ANSWER = (
-    '(for example "the week before <the line\'s date>", or only the year when a year is asked)'
-)
+#: Clean grounded prompt: the legacy text with placeholders where the example dates were (the
+#: legacy prompt quoted a LoCoMo gold answer; see ``legacy_prompts.py`` and the CHANGELOG).
+GROUNDED_QA_PROMPT = without_example_dates(GROUNDED_LEGACY_QA_PROMPT)
 
 
-def _without_example_dates(prompt: str) -> str:
-    for old, new in ((_EXAMPLE_ANNOTATION, _NODATE_ANNOTATION), (_EXAMPLE_ANSWER, _NODATE_ANSWER)):
-        assert old in prompt, old
-        prompt = prompt.replace(old, new)
-    return prompt
 
 
 #: I3: a prompt for any memory benchmark (no dataset wording). Answers from the memories, treats
@@ -193,8 +173,8 @@ GROUNDED_GENERIC_QA_PROMPT = (
 )
 
 #: B3 / C4 / R2-6 (open-domain inference). "Would X ...", "Is it likely ...", "What might ..."
-#: questions were refused or answered too literally (dev: "Would Caroline likely have Dr. Seuss
-#: books?" answered "not mentioned"; "Would John be open to moving to another country?" refused).
+#: questions were refused or answered too literally (a "Would <person> likely have <item>?"
+#: question answered "not mentioned"; a "Would <person> be open to moving?" question refused).
 #: Generic wording, no dataset names. Unanswerable FACTUAL questions keep the refusal string.
 INFER_CLAUSE = (
     "If the message asks whether something would, might or is likely to be true, or what "
@@ -284,24 +264,10 @@ assert GROUNDED_ORDERED_QA_PROMPT != GROUNDED_QA_PROMPT
 
 #: C2: ``grounded`` plus the hit-marker legend (``--memspine-mark-hits``), a one-sentence
 #: answer that keeps the specific detail, and exhaustive lists for multi-item questions.
-GROUNDED_DETAIL_QA_PROMPT = (
-    "Answer the question from the memories below. Each memory is one line: [YYYY-MM-DD] is "
-    'the date it was said, and a bracket like "last Saturday [= 2023-05-20]" gives the '
-    "absolute date of that relative phrase. Resolve other relative times (yesterday, last "
-    "week, two days ago) against the date of the line they appear in, not today's date. "
-    "If lines start with * or [hit k], those are the memories retrieved as most relevant "
-    "(k = rank); unmarked lines are surrounding conversation. Answer in one sentence that "
-    "includes the specific detail from the memory (names, objects, places, numbers). When the "
-    'question asks for several items or "how many", list every matching item found across '
-    "the memories, then count them. Give the best-supported answer from the memories, even "
-    "if it is indirect; say it is not mentioned only when nothing in the memories bears on "
-    "the question. When a date is asked, answer in the wording the memories use (for example "
-    '"the week before 9 June 2023" or "2022"), at the precision asked.\n\n'
-    "Memories:\n{context}\n\nQuestion: {question}\nAnswer:"
-)
+GROUNDED_DETAIL_QA_PROMPT = without_example_dates(GROUNDED_DETAIL_LEGACY_QA_PROMPT)
 
-GROUNDED_NODATE_QA_PROMPT = _without_example_dates(GROUNDED_QA_PROMPT)
-GROUNDED_DETAIL_NODATE_QA_PROMPT = _without_example_dates(GROUNDED_DETAIL_QA_PROMPT)
+GROUNDED_NODATE_QA_PROMPT = GROUNDED_QA_PROMPT  # alias: kept so earlier --qa-prompt names resolve
+GROUNDED_DETAIL_NODATE_QA_PROMPT = GROUNDED_DETAIL_QA_PROMPT  # alias, as above
 
 #: N46 (MemMachine answer clause, our wording): ``dated`` plus "a plan the context
 #: states counts as done unless the context says it did not happen". QA only (paid).
@@ -346,6 +312,8 @@ QA_PROMPTS = {
     "dated3": DATED3_QA_PROMPT,
     "grounded": GROUNDED_QA_PROMPT,
     "grounded_detail": GROUNDED_DETAIL_QA_PROMPT,
+    "grounded_legacy": GROUNDED_LEGACY_QA_PROMPT,
+    "grounded_detail_legacy": GROUNDED_DETAIL_LEGACY_QA_PROMPT,
     "grounded_nodate": GROUNDED_NODATE_QA_PROMPT,
     "grounded_detail_nodate": GROUNDED_DETAIL_NODATE_QA_PROMPT,
     "grounded_ordered": GROUNDED_ORDERED_QA_PROMPT,

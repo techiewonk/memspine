@@ -1,18 +1,18 @@
 """I57: deterministic repair of the reader's date answer (``--date-repair``).
 
 The reader resolves a relative date badly even when the line it reads carries the right
-anchor: "Friday, 2022-07-10" for the Friday before 10 July 2022 (10 July 2022 is a Sunday), "last
+anchor: "Friday, 2021-03-14" for the Friday before 14 March 2021 (14 March 2021 is a Sunday), "last
 Friday" left unresolved, a weekday with no date. This post-step runs on the answer of a "when"
 question and never calls a model (0 extra calls):
 
 * **relative phrase** ("last week", "yesterday", "two weeks ago", "last Friday"): found by the
   engine's own rules (``memspine.core.temporal_resolve``), resolved against the date of the
   context line it was read from, and rewritten to the absolute date or range the engine would
-  print (``the Friday before 2023-07-15 (Fri 2023-07-14)``). The original wording is kept in
+  print (``the Friday before 2021-03-15 (Fri 2021-03-12)``). The original wording is kept in
   parentheses and in ``meta["date_repair"]``.
 * **bare weekday** ("on Friday", no date): same, as ``last <weekday>`` (the most recent such
   weekday before the line's date).
-* **weekday and date that disagree** ("Friday, 2022-07-10" when 10 July is a Sunday): if the date
+* **weekday and date that disagree** ("Friday, 2021-03-14" when 14 March is a Sunday): if the date
   is the date of a context line, the reader copied the line's date and named the weekday of the
   event, so the weekday wins (the Friday before that date); otherwise the date wins and the
   weekday name is corrected.

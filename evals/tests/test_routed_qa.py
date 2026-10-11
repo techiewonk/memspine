@@ -103,6 +103,8 @@ def test_existing_prompt_table_is_unchanged() -> None:
         "evermemos_cot",  # N65
         "grounded",  # reader-gap fix
         "grounded_detail",  # C2
+        "grounded_legacy",  # I80: the pre-2026-10-11 text, byte-identical
+        "grounded_detail_legacy",  # I80
         "grounded_nodate",  # I79
         "grounded_detail_nodate",  # I79
         "grounded_ordered",  # R2-4

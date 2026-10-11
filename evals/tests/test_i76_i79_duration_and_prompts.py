@@ -191,20 +191,23 @@ def test_bad_mode_is_rejected() -> None:
         DurationSolveReader(Fake("x"), "guess")
 
 
-def test_nodate_prompts_drop_the_example_dates_and_originals_are_byte_identical() -> None:
-    for name in ("grounded_nodate", "grounded_detail_nodate"):
+def test_default_grounded_prompts_are_clean_and_legacy_is_byte_identical() -> None:
+    """2026-10-11: ``grounded`` / ``grounded_detail`` carried a LoCoMo gold answer as an example."""
+    for name in ("grounded", "grounded_detail", "grounded_nodate", "grounded_detail_nodate"):
         text = QA_PROMPTS[name]
         assert "9 June 2023" not in text and "2023-05-20" not in text
         assert "{context}" in text and "{question}" in text
-    assert "9 June 2023" in QA_PROMPTS["grounded"] and "2023-05-20" in QA_PROMPTS["grounded"]
-    assert "9 June 2023" in QA_PROMPTS["grounded_detail"]
-    # the variant differs from the original in exactly the two example dates
-    original = QA_PROMPTS["grounded"]
-    swapped = original.replace(
+    assert QA_PROMPTS["grounded"] == QA_PROMPTS["grounded_nodate"]
+    assert QA_PROMPTS["grounded_detail"] == QA_PROMPTS["grounded_detail_nodate"]
+    assert "9 June 2023" in QA_PROMPTS["grounded_legacy"]
+    assert "2023-05-20" in QA_PROMPTS["grounded_legacy"]
+    assert "9 June 2023" in QA_PROMPTS["grounded_detail_legacy"]
+    # the clean prompt differs from the legacy one in exactly the two example dates
+    swapped = QA_PROMPTS["grounded_legacy"].replace(
         '"last Saturday [= 2023-05-20]"', '"last Saturday [= <resolved date>]"'
     )
     swapped = swapped.replace(
         '(for example "the week before 9 June 2023" or "2022")',
         '(for example "the week before <the line\'s date>", or only the year when a year is asked)',
     )
-    assert swapped == QA_PROMPTS["grounded_nodate"] != original
+    assert swapped == QA_PROMPTS["grounded"] != QA_PROMPTS["grounded_legacy"]

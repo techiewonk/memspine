@@ -37,9 +37,9 @@ system: >-
   property such as "city", "job", "hobby", "pet", "event", "plan", "preference",
   "relationship"), value (the full self-contained statement), kind (state or event),
   date, turns, confidence (0-1).
-  Example. Transcript line "[4] [2023-07-15] Ana: I went camping with the kids
-  last Friday" gives: {entity: Ana, attribute: event, value: "Ana went camping
-  with her kids on 2023-07-14", kind: event, date: 2023-07-14, turns: [4],
+  Example. Transcript line "[4] [2021-03-13] Ana: I went to the pottery fair with my sister
+  last Friday" gives: {entity: Ana, attribute: event, value: "Ana went to the pottery
+  fair with her sister on 2021-03-12", kind: event, date: 2021-03-12, turns: [4],
   confidence: 0.9}.
   {% include "no_injection.j2" %} {% include "yaml_only.j2" %}
   Emit a YAML list under the key `facts`.

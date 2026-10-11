@@ -235,7 +235,7 @@ class ExtractedFact(BaseModel):
     @field_validator("persons", mode="before")
     @classmethod
     def _person_list(cls, value: Any) -> Any:
-        """#28: ``"Melanie, Caroline"`` or a list; guarded, deduplicated, capped."""
+        """#28: ``"Ana, Ben"`` or a list; guarded, deduplicated, capped."""
         if value is None:
             return []
         items = value.split(",") if isinstance(value, str) else value

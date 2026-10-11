@@ -48,7 +48,7 @@ REFUSAL = re.compile(
     r"|\bthere is no\b",
     re.IGNORECASE,
 )
-#: "Melanie did not ..." as the answer's opening clause: a denial of the premise.
+#: "Ana did not ..." as the answer's opening clause: a denial of the premise.
 DENIAL = re.compile(r"^[A-Z][\w'.]*(?: and [A-Z][\w']*)? (?:did|does|has|had|was) not\b")
 
 #: I1: the DEFAULT retry wording is neutral. It claims nothing about the memories, so on an
@@ -113,7 +113,7 @@ _NOT_NAMES = frozenset(
 def named_entities(question: str) -> list[str]:
     """Capitalised words in ``question`` that look like names: not a question opener,
     weekday or month (an unlisted sentence opener counts as a name, which only makes the
-    guard skip a retry). Rules only; ``"Caroline's"`` gives ``"Caroline"``."""
+    guard skip a retry). Rules only; ``"Ana's"`` gives ``"Ana"``."""
     out: list[str] = []
     for w in _CAP_WORD.findall(question):
         base = re.sub(r"'s$", "", w)
@@ -128,8 +128,8 @@ def names_absent_entity(question: str, context: str) -> bool:
     """C10: True when the question names at least one entity and NONE of them appears in
     ``context``: a question about someone the memories do not mention at all. Such a question is
     unanswerable from the store, so a retry that insists on an answer can only fabricate.
-    Requiring that all names be absent keeps world-knowledge questions ("Would Melanie enjoy
-    Vivaldi?", Vivaldi absent, Melanie present) retryable. Generic: question and context text
+    Requiring that all names be absent keeps world-knowledge questions ("Would Ana enjoy
+    jazz?", jazz absent, Ana present) retryable. Generic: question and context text
     only, never the gold or the category. Limit: a swapped-speaker question (both people are in
     the store, the pairing is wrong) is not detected."""
     names = named_entities(question)
@@ -170,7 +170,7 @@ _WHOLE_PATTERNS = tuple(
         # "There is no information about ...": the absence of INFORMATION, not of a thing
         r"there (?:is|was|are|were|'s) (?:no|not any) " + _NO_THING + _TAIL,
         r"no " + _NO_THING + r"(?: (?:is|was|are|were))?" + _TAIL,
-        # "The conversation does not mention ...", "Melanie did not specify ..."
+        # "The conversation does not mention ...", "Ana did not specify ..."
         r"(?!(?:i|we|you)\b)(?:the |this |that |these |those )?[\w'-]+(?: [\w'-]+){0,2} "
         r"(?:does|do|did|has|have) not "
         r"(?:mention|specify|state|say|indicate|provide|include|contain|reveal|discuss|share|"

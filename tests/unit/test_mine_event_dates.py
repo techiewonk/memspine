@@ -295,7 +295,7 @@ def test_session3_prompt_is_v3_and_a_variant() -> None:
     v2 = registry.select("extract", condition="session")
     assert v2.id == "extract@session" and (v2.token_budget or 0) < 4096
     system = v3.render({"content": "x"})[0]["content"]
-    assert "2023-07-14" in system and "complete coverage" in system and "`turns`" in system
+    assert "2021-03-12" in system and "complete coverage" in system and "`turns`" in system
 
 
 # -- review fixes: one date shift, plans stay plans, the right anchor turn ----------

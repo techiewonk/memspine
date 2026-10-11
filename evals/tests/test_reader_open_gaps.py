@@ -36,8 +36,15 @@ def _sha(text: str) -> str:
 
 def test_existing_prompt_ids_are_byte_identical() -> None:
     assert _sha(QA_PROMPTS["grounded_generic"]) == "147e6cd54d5fae44"
-    assert _sha(QA_PROMPTS["grounded"]) == "314a230e5871ff32"
-    assert _sha(QA_PROMPTS["grounded_detail"]) == "c9c7a18b1abd70fe"
+    # 2026-10-11: ``grounded`` / ``grounded_detail`` are the clean prompts (placeholders for the
+    # example dates); the contaminated texts survive byte-identical as ``*_legacy``.
+    assert _sha(QA_PROMPTS["grounded_legacy"]) == "314a230e5871ff32"
+    assert _sha(QA_PROMPTS["grounded_detail_legacy"]) == "c9c7a18b1abd70fe"
+    assert _sha(QA_PROMPTS["grounded"]) == "71c12de625d763d4"
+    assert _sha(QA_PROMPTS["grounded_detail"]) == "2041cb1d42c3014a"
+    assert _sha(QA_PROMPTS["grounded_v2"]) == "8d07d3f6294e9cce"
+    assert _sha(QA_PROMPTS["grounded_v3"]) == "b3e8ee1a7aa139d6"
+    assert _sha(QA_PROMPTS["grounded_ordered"]) == "abcd8ba8ec0fe324"
     assert _sha(QA_PROMPTS["default"]) == "83fc53c604167050"
 
 

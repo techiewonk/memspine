@@ -1,7 +1,7 @@
 """Deterministic date-equivalence pre-check for the QA judge (gap A2).
 
-LoCoMo writes many temporal golds relative to the session ("The Friday before 15 July 2023"),
-while a reader that resolves dates answers with the absolute day ("Friday, 2023-07-14"). The
+LoCoMo writes many temporal golds relative to the session ("The Friday before 15 March 2021"),
+while a reader that resolves dates answers with the absolute day ("Friday, 2021-03-12"). The
 9B LLM judge rejects many such exact answers (measured: 5 of 35 wrong answers on two dev
 conversations). This check credits an answer only when
 

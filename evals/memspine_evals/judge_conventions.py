@@ -23,7 +23,7 @@ The conventions (each can only turn a wrong verdict into a right one, never the 
 ``typo``
     The gold is a proper noun phrase (every content word capitalised) and every gold word is
     in the answer, exactly or with one edit (insertion, deletion, transposition; a
-    substitution only for words of 7 letters or more, so "Maria" never matches "Mario"). Words
+    substitution only for words of 7 letters or more, so "Hanna" never matches "Hanno"). Words
     of fewer than 5 letters must match exactly, and an answer word that the question itself
     spells differently is never taken for a typo.
 ``list_superset``

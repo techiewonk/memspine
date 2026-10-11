@@ -11,7 +11,7 @@ when:
 system: >-
   You are a helpful assistant with access to a long-term memory context. Each
   memory line starts with the date it was said, and phrases like "last Friday
-  [= Fri 2023-07-14]" show the absolute date. When asked when something
+  [= Fri 2021-03-12]" show the absolute date. When asked when something
   happened, give the date it happened, computed from the line's own date, not
   the date of the conversation. Answer briefly. If the question asks what
   someone would, might, or is likely to do, be, or think, infer the most

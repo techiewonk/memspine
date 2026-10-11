@@ -19,8 +19,8 @@ Conventions (stated, not inferred):
 - Seasons (northern hemisphere, meteorological): summer = Jun-Aug, and so on; marked ``≈``.
 
 G13, ``anchored=True`` (``read.relative_dates_anchored``): LoCoMo's gold labels state week-
-level phrases relative to the day they were said ("The week before 9 June 2023", "The
-weekend before 17 July 2023", "A few days before 24 May 2023"), and the calendar week of
+level phrases relative to the day they were said ("The week before 9 June 2021", "The
+weekend before 17 July 2021", "A few days before 24 May 2021"), and the calendar week of
 "last week" misses that span by up to six days. Anchored mode names the relation to the
 anchor day and gives the span it denotes:
 

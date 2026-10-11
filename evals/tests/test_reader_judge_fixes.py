@@ -54,7 +54,7 @@ def test_grounded_prompt_is_registered_and_explains_the_dates() -> None:
     text = QA_PROMPTS["grounded"]
     rendered = text.format(context=CONTEXT, question="When?", question_date="x")
     assert CONTEXT in rendered and "Question: When?" in rendered
-    assert "[= 2023-05-20]" in text and "[YYYY-MM-DD]" in text
+    assert "[= <resolved date>]" in text and "[YYYY-MM-DD]" in text
     assert "only when nothing in the memories bears on" in text
     assert "say you do not know" not in text
     assert text != QA_PROMPTS["default"]

@@ -9,7 +9,7 @@ Shapes it reads (generic English, no dataset word):
 
 * **interval**: ``how many <unit> ... between A and B`` / ``how long ... between A and B``;
 * **elapsed**: ``how long has it been since A`` / ``how many <unit> since A``, the end being a
-  date in the question (``as of November 2023``) or the question date.
+  date in the question (``as of March 2021``) or the question date.
 
 Anything else ("how long did it take", "after how many weeks did X", one event with two
 mentions) abstains: the second endpoint cannot be named from the question.
@@ -145,7 +145,7 @@ def _split_events(question: str) -> tuple[str, str, str] | None:
         parts = re.split(r"\s+and\s+", m["rest"].strip(" ?.,"), maxsplit=1, flags=re.I)
         if len(parts) == 2 and all(p.strip() for p in parts):
             a, b = parts[0].strip(), parts[1].strip()
-            if len(_stems(b)) <= 2 and not _lowercase_words(b):  # "Toby and Buddy": share the verb
+            if len(_stems(b)) <= 2 and not _lowercase_words(b):  # "Rex and Max": share the verb
                 shared = " ".join(_lowercase_words(a))
                 b = f"{shared} {b}".strip()
             return "interval", a, b
@@ -228,10 +228,10 @@ def _endpoint(clause: str, said: date, text: str, basis: str) -> Endpoint | str:
 def _locate(clause: str, lines: list[tuple[date, str]]) -> Endpoint | str:
     """The endpoint of one event clause, or the reason it cannot be named.
 
-    The clause must name its event by a capitalised word that is not a speaker ("Toby" in
-    "Andrew adopting Toby"); the rarest such word in the context anchors the event. Lines that
+    The clause must name its event by a capitalised word that is not a speaker ("Rex" in
+    "Ana adopting Rex"); the rarest such word in the context anchors the event. Lines that
     hold the anchor AND a verb stem of the clause (``adopt``) are the event lines; when no line
-    holds a verb stem, the first mention of the anchor is the event ("meet Toby, my puppy").
+    holds a verb stem, the first mention of the anchor is the event ("meet Rex, my puppy").
     Event lines that disagree by more than a week abstain.
     """
     speakers = _speaker_stems(lines)

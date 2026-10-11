@@ -124,7 +124,7 @@ def split_ids(
     ``ids`` are the units (conversation, user, persona, haystack, ...). Either name the
     development ids (``dev``) or let the hash pick ``n_dev`` of them (``n_dev`` + ``seed``;
     stable on any machine). ``group_of`` maps a unit to its cluster (e.g. the conversation of
-    a ``conv-26:Caroline`` persona) and keeps a cluster whole on one side: two personas of
+    a ``conv-1:Ana`` persona) and keeps a cluster whole on one side: two personas of
     one conversation never straddle the split. Everything not in dev is held out.
     """
     units = sorted(set(ids))

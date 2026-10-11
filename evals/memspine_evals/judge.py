@@ -190,7 +190,7 @@ RUBRIC_BINARY_PROMPT = (
 
 #: Guarded rubric (``--judge-guards``): the rubric above plus two rules from the reader-gap
 #: analysis (``analysis/READER_GAPS.md``): LoCoMo's gold is often a relative phrasing
-#: ("The Friday before 25 May 2023") the 9B judge marked wrong against an equivalent date,
+#: ("The Friday before 12 April 2021") the 9B judge marked wrong against an equivalent date,
 #: and hedged answers that contain the gold fact were marked wrong. The original rubric
 #: stays reachable as ``--judge-prompt rubric``.
 RUBRIC_GUARDED_BINARY_PROMPT = (
@@ -202,8 +202,8 @@ RUBRIC_GUARDED_BINARY_PROMPT = (
     '("probably", "it seems", "around") or extra detail, as long as it does not contradict the '
     "gold fact. For dates, the same day, month or year as the gold (at the gold's precision) is "
     'CORRECT, including relative forms that resolve to it: a gold such as "the Friday before '
-    '25 May 2023" is the same as "19 May 2023" (and the reverse), and "the week before 9 June '
-    '2023" is the same as a date in that week.\n'
+    '12 April 2021" is the same as "9 April 2021" (and the reverse), and "the week before 20 July '
+    '2021" is the same as a date in that week.\n'
     "- WRONG if the answer gives a different fact, or says it does not know, cannot tell, or that "
     "the information is not available, unless the gold answer itself says the information is not "
     "available. An empty answer is WRONG.\n\n"

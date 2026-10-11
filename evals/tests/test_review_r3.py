@@ -8,6 +8,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 import runpy
 from collections.abc import Iterator, Mapping
 from pathlib import Path
@@ -35,12 +36,19 @@ from memspine_evals.runner import EvalRunner, ModelCallBudgetExceeded, RunConfig
 from memspine_evals.systems import NaiveRAGSystem, VerbatimSystem
 
 PROTOCOL = RunProtocol(protocol_id="r3", budget_tokens=400, top_k=5, seed=1)
-LOCOMO_REAL = Path(r"D:\mem\memory research\memspine\evals\data\locomo10.json")
+#: Optional real-data paths (never committed). Point them at local copies with the env vars; the
+#: tests that need them skip with a reason when the file is absent, so CI runs without them.
+_EVALS = Path(__file__).resolve().parents[1]
+LOCOMO_REAL = Path(os.environ.get("MEMSPINE_LOCOMO_JSON", _EVALS / "data" / "locomo10.json"))
 LOCOMO_PLUS_PROMPT = Path(
-    r"D:\mem\memory research\memspine\evals\data\locomo_plus\evaluation_framework"
-    r"\task_eval\prompt.py"
+    os.environ.get(
+        "MEMSPINE_LOCOMO_PLUS_PROMPT",
+        _EVALS / "data" / "locomo_plus" / "evaluation_framework" / "task_eval" / "prompt.py",
+    )
 )
-LIGHTMEM_LME = Path(r"D:\mem\LightMem\experiments\longmemeval\run_lightmem_gpt.py")
+LIGHTMEM_LME = Path(
+    os.environ.get("MEMSPINE_LIGHTMEM_LME_RUNNER", _EVALS / "data" / "run_lightmem_gpt.py")
+)
 
 
 # -- fixtures -----------------------------------------------------------------------
@@ -166,7 +174,10 @@ def test_r3_1_omnimemeval_preset_sets_categories_1_to_4() -> None:
         apply_protocol_preset(C01Config(mode="qa", categories=(1, 5)), "omnimemeval")
 
 
-@pytest.mark.skipif(not LOCOMO_REAL.exists(), reason="LoCoMo not on disk")
+@pytest.mark.skipif(
+    not LOCOMO_REAL.exists(),
+    reason="LoCoMo not on disk (evals/data/locomo10.json or $MEMSPINE_LOCOMO_JSON)",
+)
 def test_r3_1_preset_loads_1540_questions_and_no_cat5_gold_is_a_distractor() -> None:
     four = LoCoMoDataset(LOCOMO_REAL, revision_id="auto", categories=(1, 2, 3, 4))
     assert four.info().n_queries == 1540

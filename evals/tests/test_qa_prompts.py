@@ -15,7 +15,10 @@ def test_variants_format_and_differ() -> None:
         for k, v in QA_PROMPTS.items()
     }
     assert {"default", "dated", "abstain", "converse", "mab_fc", "question_dated"} <= set(rendered)
-    assert len(set(rendered.values())) == len(rendered)
+    # ``grounded_nodate`` / ``grounded_detail_nodate`` are aliases of the clean defaults
+    aliases = {"grounded_nodate", "grounded_detail_nodate"}
+    distinct = {k: v for k, v in rendered.items() if k not in aliases}
+    assert len(set(distinct.values())) == len(distinct)
     assert "Not mentioned" in rendered["abstain"]
     assert "computed from the line's date" in rendered["dated"]
     assert "larger serial number is newer" in rendered["mab_fc"]
