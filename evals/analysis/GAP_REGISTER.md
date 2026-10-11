@@ -776,3 +776,6 @@ Source: `docs/ENGINE_COMPARISON_AND_WRITE_PATH_DESIGN.html` ("Decided design", B
 
 **2026-10-12 02:15 (G-24 step 1: environment recorded per pinned run)**
 - `pinned_run.sh` now freezes the venv (`uv pip freeze`, pip fallback) into `runs/_logs/env/<commit7>_<stamp>.txt`, exports `MEMSPINE_ENV_HASH` and appends `commit, env hash, script, freeze file` to `runs/_logs/pinned_runs.log`. Best effort: a failure never stops the run. The queued f-win and contract-jina-full runs are the first recorded. Still open for G-24: a separate venv per pinned run built from the lock.
+
+**2026-10-12 03:16 (f-gc2 focus screen, G-C2 graph facts)**
+- f-gc2-i2 (`scr-gc2-facts-jina`, commit 88294e0, prompts before the 11853ed contamination fix: relative only) vs f-jref2-i2, paired gate: 44.2 vs 45.1, +22/-26, net -4, sign p 0.665, cluster 95% [-17, +12] -> HOLD (the pinned script's old scorer printed REJECT). Multi-hop -3 (band 3.5), single -2, temporal 0, open +1. High churn (48 flips against 22 for A03) for no gain: not adopted. f-gc3 and f-gc9 follow.
