@@ -10,6 +10,7 @@
     OLLAMA_CONTEXT_LENGTH=8192    matches the harness --server-ctx default
     OLLAMA_NUM_PARALLEL=2         two request slots; KV memory is per slot
     OLLAMA_KEEP_ALIVE=-1          keep models loaded between calls
+    OLLAMA_DEBUG=0                debug logging off (a debug-level server.log reached 237 MB)
 
   Then stops the Ollama tray app / server and starts "ollama serve" again.
 
@@ -29,6 +30,7 @@ $settings = [ordered]@{
     OLLAMA_CONTEXT_LENGTH  = '8192'
     OLLAMA_NUM_PARALLEL    = '2'
     OLLAMA_KEEP_ALIVE      = '-1'
+    OLLAMA_DEBUG           = '0'
 }
 
 foreach ($name in $settings.Keys) {

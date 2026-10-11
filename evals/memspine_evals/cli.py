@@ -300,6 +300,10 @@ def cmd_c0_1(args: argparse.Namespace) -> int:
             flush=True,
         )
     apply_opbench_protocol(args)
+    if args.warn_localhost:  # E1: the host name 'localhost' can add ~2 s per connection on Windows
+        from .netcheck import warn_localhost
+
+        warn_localhost([("--base-url", args.base_url)])
     opbench_root = None
     if args.dataset == "op_bench" and args.mode == "qa" and not args.retrieval_only:
         from .opbench import load_judge_prompts, resolve_root
@@ -567,6 +571,13 @@ def build_parser() -> argparse.ArgumentParser:
     c01.add_argument("--reader-model", default="qwen3:4b")
     c01.add_argument("--judge-model", default=None)
     c01.add_argument("--base-url", default="http://127.0.0.1:11434/v1")
+    c01.add_argument(
+        "--warn-localhost",
+        action="store_true",
+        help="E1: print a warning when --base-url uses the host name 'localhost' (on Windows it "
+        "can try ::1 first and add about 2 s per new connection); use 127.0.0.1. Reads the URL "
+        "only, changes nothing; evals/bench_http.py measures the cost. Off by default",
+    )
     c01.add_argument("--max-model-calls", type=int, default=None)
     c01.add_argument(
         "--bedrock", action="store_true", help="D23 Qwen3 protocol: Bedrock Qwen3 reader + judge"
