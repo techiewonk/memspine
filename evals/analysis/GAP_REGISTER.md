@@ -311,6 +311,9 @@ Source: `evals/runs/_analysis/deep_audit_2026-10-11/` (local, not committed; 25 
 
 ## Progress log
 
+**2026-10-11 (focus-slice screens, work/qf)**
+- **Screens now run only the baseline's failures plus a control.** New question-level filter `--query-ids @file` (cli.py c0-1, run.sh `--query-ids`; entries `item_id/query_id`; items with no selected question are never ingested), `evals/make_focus_slice.py` -> `analysis/focus_slice_r7protect.json` (287 FAIL = every cat 1-4 miss of r7-protect-full + 150 seeded [20261011] control correct, stratified category x conversation; 437 q) and `analysis/focus_slice_opb.json` (r7-protect-opb: 295 probes < 0.5 and only 36 >= 0.5, so the control is every probe >= 0.5, not 60; slice = all 331 probes). Scorer `evals/eval_focus.py ARM_RUN`: fixed = FAIL now correct, broken = CONTROL now wrong, est. full-set net = fixed - broken x (n_correct_total / n_control) (x8.35 for LoCoMo), band 0.328 x sqrt(1540) = 12.9, PROMOTE iff net > band and broken-rate <= 3%. `run_screens_fast.sh` repointed. Tests `evals/tests/test_focus_slice.py`.
+
 **2026-10-11 06:35**
 - **r7-multprot (I75b perspective multiplier + I75a protect): NOT ADOPTED.** LoCoMo 1,540 q 80.7 vs 80.4 persp (+66/-61, net +5) but -10 net vs r7-protect (81.4); multi-hop -1.1, open -6.3 (the perspective LEG is what carries the multi-hop gain; a multiplier cannot pull the subject's turns in). OP-Bench 20.9 vs 20.6 (+0.3). Keep r7-protect (leg kept); the cheaper variant is R02 source-family pool (r8).
 

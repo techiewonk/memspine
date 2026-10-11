@@ -135,6 +135,8 @@ class C01Config:
     #: is valid because items are independent (each resets the system).
     only_systems: tuple[str, ...] | None = None
     item_ids: tuple[str, ...] | None = None
+    #: Question-level filter (``--query-ids``): ``item_id/query_id`` pairs; None = all questions.
+    query_ids: tuple[str, ...] | None = None
     #: G2b: bind every engine LLM role of the memspine arm to this model family
     #: (``none`` | ``bedrock-qwen3``). Explicit ``llm.roles`` in ``memspine_config`` win.
     memspine_llm: str = "none"
@@ -535,6 +537,35 @@ class _ItemFilter:
         return (item for item in self._inner.items() if item.item_id in self._ids)
 
 
+class _QueryFilter:
+    """A dataset view restricted to selected questions (focus-slice screens).
+
+    ``query_ids`` entries are ``"<item_id>/<query_id>"`` (exact) or a bare ``query_id``
+    (matches in any item). Items left with no selected query are dropped, so they are never
+    ingested. Question order inside an item is preserved.
+    """
+
+    def __init__(self, inner: DatasetAdapter, query_ids: tuple[str, ...]) -> None:
+        self._inner = inner
+        self._pairs = {q for q in query_ids if "/" in q}
+        self._bare = {q for q in query_ids if "/" not in q}
+
+    def info(self) -> Any:
+        return self._inner.info()
+
+    def items(self) -> Any:
+        import dataclasses
+
+        for item in self._inner.items():
+            kept = tuple(
+                q
+                for q in item.queries
+                if f"{item.item_id}/{q.query_id}" in self._pairs or q.query_id in self._bare
+            )
+            if kept:
+                yield dataclasses.replace(item, queries=kept)
+
+
 def build_judge(config: C01Config, chat: Any, model: str, judge_id: str | None = None) -> Judge:
     """The QA-mode judge, the same choice on every endpoint (R3-4).
 
@@ -895,6 +926,8 @@ async def run_c0_1(
     reader, judge, calls = build_reader_and_judge(config)
     if config.item_ids:
         dataset = _ItemFilter(dataset, config.item_ids)  # type: ignore[assignment]
+    if config.query_ids:
+        dataset = _QueryFilter(dataset, config.query_ids)  # type: ignore[assignment]
     n_abstention = 0 if config.retrieval_only else _abstention_queries(dataset)
     if n_abstention and not getattr(judge, "handles_abstention", False):
         raise ValueError(
@@ -996,7 +1029,10 @@ async def run_c0_1(
                 else {}
             ),
         },
-        extra_limits={"item_ids": list(config.item_ids) if config.item_ids else None},
+        extra_limits={
+            "item_ids": list(config.item_ids) if config.item_ids else None,
+            **({"query_ids_n": len(config.query_ids)} if config.query_ids else {}),
+        },
         retrieval_only=config.retrieval_only,
         trace_full=config.trace_full,
         runtime=_capture_runtime(config),

@@ -106,6 +106,24 @@ def parse_item_ids(value: str | None) -> tuple[str, ...] | None:
     return tuple(ln.strip() for ln in text.splitlines() if ln.strip())
 
 
+def parse_query_ids(value: str | None) -> tuple[str, ...] | None:
+    """``--query-ids``: comma list, or ``@path`` (focus-slice JSON object with ``query_ids``,
+    a JSON list, or one ``item_id/query_id`` per line). Entries are ``item_id/query_id``."""
+    if not value:
+        return None
+    if not value.startswith("@"):
+        return tuple(value.split(","))
+    text = Path(value[1:]).read_text(encoding="utf-8")
+    if text.lstrip().startswith("{"):
+        ids = json.loads(text).get("query_ids")
+        if not ids:
+            raise SystemExit(f"--query-ids {value}: no query_ids in the file")
+        return tuple(str(i) for i in ids)
+    if text.lstrip().startswith("["):
+        return tuple(str(i) for i in json.loads(text))
+    return tuple(ln.strip() for ln in text.splitlines() if ln.strip())
+
+
 def _dataset(args: argparse.Namespace) -> DatasetAdapter:
     if args.dataset == "synthetic":
         from .datasets import SyntheticDataset
@@ -314,6 +332,7 @@ def cmd_c0_1(args: argparse.Namespace) -> int:
         judge_prompt=args.judge_prompt,
         only_systems=tuple(args.only_systems.split(",")) if args.only_systems else None,
         item_ids=parse_item_ids(args.item_ids),
+        query_ids=parse_query_ids(args.query_ids),
         categories=resolve_categories(args) if args.dataset == "locomo" else None,
         naive_dense_same_embedder=args.naive_dense_same_embedder,
         matched_budget_tokens=args.matched_budget_tokens,
@@ -805,6 +824,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="add a naive-RAG arm capped at this context size, e.g. memspine's mean (R4-6)",
     )
     c01.add_argument("--item-ids", default=None, help="comma list of item ids (resume a run)")
+    c01.add_argument(
+        "--query-ids",
+        default=None,
+        help="question filter: comma list of item_id/query_id, or @file (focus slice JSON, JSON list, one per line)",
+    )
     c01.add_argument(
         "--memspine-build-sleep",
         action="store_true",

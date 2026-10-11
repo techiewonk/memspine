@@ -6,7 +6,7 @@
 #   evals/run.sh --arm <arm> --run-id <id> --mode qa|retrieval --topk N \
 #       [--items N] [--max-queries N] [--questions N] [--flags "..."] [--forensics] \
 #       [--engine-src PATH] [--data PATH] [--dataset NAME] [--categories 1,2,3,4] \
-#       [--batch-turns N] [--force]
+#       [--batch-turns N] [--query-ids @file] [--force]
 #
 # MemoryAgentBench / ConvoMem (V03 blind validation): --dataset memoryagentbench --data
 # data/mab/Conflict_Resolution.parquet | --dataset convomem --data data/convomem, with a required
@@ -27,7 +27,7 @@ cd "$here"
 die() { echo "run.sh: $*" >&2; exit 2; }
 
 arm="" run_id="" mode="" topk="" items="" max_queries="" questions="" flags="" forensics=0
-engine_src="" data="" dataset="locomo" categories="1,2,3,4" batch_turns=32 force=0 think=off system=memspine
+query_ids="" engine_src="" data="" dataset="locomo" categories="1,2,3,4" batch_turns=32 force=0 think=off system=memspine
 while [ $# -gt 0 ]; do
   case "$1" in
     --arm) arm=${2:?}; shift 2 ;;
@@ -44,6 +44,7 @@ while [ $# -gt 0 ]; do
     --dataset) dataset=${2:?}; shift 2 ;;
     --categories) categories=${2:?}; shift 2 ;;
     --batch-turns) batch_turns=${2:?}; shift 2 ;;
+    --query-ids) query_ids=${2:?}; shift 2 ;;  # @file: focus slice (analysis/focus_slice_*.json), question-level filter
     --force) force=1; shift ;;
     --think) think=${2-}; shift 2 ;;
     --system) system=${2:?}; shift 2 ;;  # memspine (default) | no-memory | naive-rag-* (I34)
@@ -112,6 +113,9 @@ if [ ${#found[@]} -gt 0 ]; then
 fi
 
 # Expected question count (the harness has a per-item cap via MEMSPINE_EVAL_MAX_QUERIES).
+if [ -z "$questions" ] && [ -n "$query_ids" ] && [ "${query_ids#@}" != "$query_ids" ]; then
+  questions=$("$py" -c "import json,sys;d=json.load(open(sys.argv[1]));print(len(d['query_ids'] if isinstance(d,dict) else d))" "${query_ids#@}") || die "cannot read --query-ids file"
+fi
 if [ -z "$questions" ]; then
   if [ "$dataset" = locomo ] && [ "$categories" = "1,2,3,4" ]; then
     if [ -z "$items" ]; then questions=1540          # LoCoMo categories 1-4, 10 conversations
@@ -152,6 +156,7 @@ cmd=("$py" _launch.py c0-1 --dataset "$dataset" --path "$data")
 cmd+=(--mode "$mode" --with-memspine --only-systems "$system" --memspine-read-mode replay
      --memspine-config "$(cat "$arm_json")" --memspine-batch-turns "$batch_turns" --top-k "$topk")
 [ -n "$items" ] && cmd+=(--items "$items")
+[ -n "$query_ids" ] && cmd+=(--query-ids "$query_ids")
 if [ "$mode" = qa ]; then
   cmd+=(--reader-model "${READER_MODEL:-qwen3.5:9b}" --judge-model "${JUDGE_MODEL:-qwen3.5:9b}"
         --base-url "${BASE_URL:-http://127.0.0.1:11434/v1}" --max-model-calls "$max_calls")
