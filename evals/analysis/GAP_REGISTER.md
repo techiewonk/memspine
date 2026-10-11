@@ -311,6 +311,9 @@ Source: `evals/runs/_analysis/deep_audit_2026-10-11/` (local, not committed; 25 
 
 ## Progress log
 
+**2026-10-11 06:35**
+- **r7-multprot (I75b perspective multiplier + I75a protect): NOT ADOPTED.** LoCoMo 1,540 q 80.7 vs 80.4 persp (+66/-61, net +5) but -10 net vs r7-protect (81.4); multi-hop -1.1, open -6.3 (the perspective LEG is what carries the multi-hop gain; a multiplier cannot pull the subject's turns in). OP-Bench 20.9 vs 20.6 (+0.3). Keep r7-protect (leg kept); the cheaper variant is R02 source-family pool (r8).
+
 **2026-10-11 (A04 + A06 + P03 built, work/a04)**
 - **Evidence table (A04/A06)** `evals/memspine_evals/evidence_table.py`, flag `--evidence-table` (needs `--count-verify` and/or `--verify-slots`; ignored on OP-Bench). One structured call (new prompt `evidence_table@1`, `structured_call` with I69 repair/retry) returns rows (item, line id, exact span, actor, predicate_match, status done/planned/mentioned, event_key, same_as); code validates line + span, filters actor / predicate / status / time scope, dedupes by identity, reconciles explicit running totals (range or unresolved). The builder memoises per (question, context), so I56 and E06 on one row share ONE call. Fail closed: failed call / empty / unresolved keeps the reader's answer. Tests `evals/tests/test_a04_evidence_table.py` (over-merge, double-count, planned, other-actor, time-scope, total-conflict traps).
 - **Assertion check (P03)** `evals/memspine_evals/assertion_check.py`, flag `--assertion-check [rules|llm]`; tests `evals/tests/test_p03_assertion_check.py`. Reuses I32's `strip_public_knowledge` and support fraction; `asserts_claim` is a drop-in for I32's detector hook.
