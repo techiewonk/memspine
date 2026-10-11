@@ -544,10 +544,10 @@
       "others": "Graphiti: 2 calls per episode plus one dedupe call per new fact, resolution by exact name, entropy gate and MinHash before any LLM; Hindsight and Cognee take entities and relations from the same call; Honcho, Mnemon and LightMem use one static, example-free call per token-gated batch with cited lines.",
       "now": "Steps 1-5 make no model call. W1 (off) emits facts and edges separately (958-token prompt in facts_graph; every relation written twice; speaker/subject/confidence never read); edges wait in an in-memory buffer for the extract_graph sleep stage; the entity resolver runs only at sleep.",
       "why": "An inline call costs about 50x the hot path (2.7 s per 9B call vs 55-210 ms), so the call runs right after the write; LLM merges and contradiction checks stay at sleep (ADR-066 call 3).",
-      "proposal": "window_extract: graph mode. One item list {s, r, o, text, kind, when, lines, span}; 309-token example-free prompt with a KNOWN names line; every item span-grounded; names resolved in code (rules mode, no LLM); deposit through emit factored out of extract_graph (state supersedes, event adds); window_max_turns 1 gives per-turn.",
+      "proposal": "window_extract: graph mode, after G-W50. One item list {s, r, o, text, kind: state|event|fact, mode: said|plan|wish|unsure, neg, when, until, lines, span}; prompt v2 (353 tokens, no examples) with CONTEXT lines and a KNOWN names line; every item span-grounded; names resolved in code (EntityResolver with llm=None, vectors cached per namespace; new names marked pending_merge for sleep to reconcile); persons/location/topic derived in code; supersede only when cardinality is one; emit factored out with its lock, index and markers; window_max_turns 1 gives per-turn.",
       "effort": "M",
       "wave": "B",
-      "gate": "Prompt ~300 tokens, output tokens per window down >=30%, p50 call latency down, turn-to-edge under 10 s at max_turns 1; focus slice vs f-jref-i2, full set within noise, MAB-CR and ConvoMem not down; gold-lint clean."
+      "gate": "Measured: input and output tokens, retries, queue delay, p95 turn-to-searchable-edge; quality through the G-E1 gates (paired reference, all blind sets, per-conversation uncertainty); gold-lint clean."
     },
     {
       "id": "G-W50",
@@ -649,5 +649,23 @@
       ],
       "time": "as needed"
     }
-  ]
+  ],
+  "changelog": [
+    {
+      "date": "2026-10-11",
+      "ref": "2f9c3e4",
+      "text": "Code re-check of waves A-C corrected 15 'now' fields: G-W8 lifting exists (facts_to_sources); G-W28 rerank_context exists; G-W25 real defect is the early break in assembly.py:288-299; G-W26 summary is asked then dropped (windows.py:894); G-P6 coarse dates become day one (pipelines.py:2924); G-W38 needs one lock shared with Engine.sleep(); G-P1/G-P5 gold-lint skips _partials; G-W30 relevance gating exists; G-W1 fragments already compete as raw text; G-W29 records keep history and corroborations; G-W33 relative spans resolve against the read clock; G-W6 entity_expand_leg already damped; G-W4 per-namespace ordering already met; G-W36 no prompt shows record ids."
+    },
+    {
+      "date": "2026-10-11",
+      "ref": "74ac883",
+      "text": "Added G-W49 online graph call (wave B): one example-free item list per batch of turns, right after write() returns; span-grounded, names resolved in code, deposited through the extract_graph emit. Research: Graphiti 964bb11d traced step by step, 15 engines' write-time extraction, MemSpine write/graph path (prompt 958 tokens in facts_graph; relations can be emitted twice; speaker/subject/confidence unread; edges buffered in memory until sleep)."
+    },
+    {
+      "date": "2026-10-11",
+      "ref": "2df543d",
+      "text": "Codex second opinion on G-W49: verdict modify. Accepted all 7 points. Prompt v2 (353 tokens): CONTEXT block, list members kept, plans/wishes/doubt marked not dropped, assent vs acknowledgement, no hard length caps, nullable s/o with literal values, mode/neg/until fields. New G-W50 graph key identity (verified: _edge_key omits kind; undated events have no occurrence; archived state keys skip the ladder) as the G-W49 prerequisite, and G-E1 evaluation gate hardening (eval_focus --ref informational; eval_blind can confirm with a set missing)."
+    }
+  ],
+  "review_doc": "https://claude.ai/artifact/MvR65yFBPaeGRVU4nUkezr"
 }

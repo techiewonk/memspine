@@ -309,6 +309,19 @@ A 14B reader (9.3 GB) + 9B judge (5.7 GB) + embedder / reranker (about 4 GB) exc
 6. Thinking mode was tested and rejected (A9); it is not an option on this reader.
 7. Reader-side measurement: credit the judge errors with the conventions column (I58 + I77: up to about 89.5% ceiling) and report errata-excluded headline, always as second columns.
 
+## 7. Engine-survey gaps (G-* ids, 2026-10-11)
+
+Source: the 15-engine code survey (`docs/engine_survey/`), the prompt matrix (F1-F23) and the review doc https://claude.ai/artifact/MvR65yFBPaeGRVU4nUkezr (every gap with memory layer, loop stage, today's code, change, code snippet, config, tests, gate and risk; flow diagrams of insert, offline and retrieve; research appendix; Codex second opinion). `docs/engine_survey/gap_plan.json` is the machine-readable list (41 gaps) and carries the change log.
+
+| Wave | Items | Kind of work | Gate |
+|---|---|---|---|
+| A | G-W27, G-W26, G-W36, G-W38, G-W13, G-P1, G-P3, G-P4, G-P5, G-P6 | small, opt-in, CPU only | unit tests; off is byte-identical |
+| B | G-E1, G-W50 first; then G-W49, G-W4, G-W25, G-W28, G-W33, G-W40, G-W6, G-P2 | read and extraction changes | focus slice and full set through the G-E1 gates; blind sets |
+| C | G-CALL2, G-W30, G-W1, G-W29, G-W8 | rollout steps 2-4 of the window write | as B, plus cost per turn |
+| D | G-W31, G-W39, G-W41, G-W45, G-W46, G-W47, G-W48, G-P7; kept out BD-1..BD-8 | later or by design | recorded reasons |
+
+G-W49 (online graph call) runs right after `write()` returns, never inside the hot path (55-210 ms against about 2.7 s per local 9B call); G-W50 is its prerequisite. G-E1 tightens rule 3 and rule 7 of section 3: until it lands, a focus-slice verdict is not a paired comparison and a blind verdict can pass with a set missing.
+
 ## Appendix: closed or decided gaps (completeness)
 
 | Ids | Disposition |
@@ -330,3 +343,9 @@ A 14B reader (9.3 GB) + 9B judge (5.7 GB) + embedder / reranker (about 4 GB) exc
 | I2, I34, I36 | measured (cat 5 69.4% dev; OP-Bench BASE 62.8; baselines) |
 | I9, I14, I15, I16, I20, I21 | tooling built, runs open (see L0 / L3 rows) |
 | J1-J18 | subscore views, mapped to the families in 2.8 |
+
+## Change log
+
+- **2026-10-11** (2f9c3e4): Code re-check of waves A-C corrected 15 'now' fields: G-W8 lifting exists (facts_to_sources); G-W28 rerank_context exists; G-W25 real defect is the early break in assembly.py:288-299; G-W26 summary is asked then dropped (windows.py:894); G-P6 coarse dates become day one (pipelines.py:2924); G-W38 needs one lock shared with Engine.sleep(); G-P1/G-P5 gold-lint skips _partials; G-W30 relevance gating exists; G-W1 fragments already compete as raw text; G-W29 records keep history and corroborations; G-W33 relative spans resolve against the read clock; G-W6 entity_expand_leg already damped; G-W4 per-namespace ordering already met; G-W36 no prompt shows record ids.
+- **2026-10-11** (74ac883): Added G-W49 online graph call (wave B): one example-free item list per batch of turns, right after write() returns; span-grounded, names resolved in code, deposited through the extract_graph emit. Research: Graphiti 964bb11d traced step by step, 15 engines' write-time extraction, MemSpine write/graph path (prompt 958 tokens in facts_graph; relations can be emitted twice; speaker/subject/confidence unread; edges buffered in memory until sleep).
+- **2026-10-11** (2df543d): Codex second opinion on G-W49: verdict modify. Accepted all 7 points. Prompt v2 (353 tokens): CONTEXT block, list members kept, plans/wishes/doubt marked not dropped, assent vs acknowledgement, no hard length caps, nullable s/o with literal values, mode/neg/until fields. New G-W50 graph key identity (verified: _edge_key omits kind; undated events have no occurrence; archived state keys skip the ladder) as the G-W49 prerequisite, and G-E1 evaluation gate hardening (eval_focus --ref informational; eval_blind can confirm with a set missing).

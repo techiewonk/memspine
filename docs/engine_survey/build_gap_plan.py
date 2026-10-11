@@ -98,7 +98,10 @@ def main() -> None:
 
     leads = "".join(f"<li>{esc(x)}</li>" for x in plan["leads"])
     nav = "".join(f'<a class="navchip" href="#wave-{esc(w["wave"])}">Wave {esc(w["wave"])}</a>' for w in plan["waves"])
-    page = PAGE.format(css=CSS, title=esc(plan["title"]), intro=esc(plan["intro"]), tiles=tiles, flows=flows,
+    changelog = ('<section class="wave" id="changelog"><div class="whead"><span class="wtag">Log</span><h2>Change log</h2></div><ul class="leads">'
+                 + ''.join(f'<li><b>{esc(c["date"])}</b> ({esc(c["ref"])}): {esc(c["text"])}</li>' for c in plan.get('changelog', []))
+                 + '</ul></section>') if plan.get('changelog') else ''
+    page = PAGE.format(changelog=changelog, css=CSS, title=esc(plan["title"]), intro=esc(plan["intro"]), tiles=tiles, flows=flows,
                        waves="".join(wave_html), rest_rows=rest_rows, prompts=prompt_html, leads=leads, nav=nav,
                        pnav='<a class="navchip" href="#prompts">Prompts</a>' if pm else "", js=JS, date=esc(plan["date"]))
     OUT.write_text(page, encoding="utf-8")
@@ -208,6 +211,7 @@ PAGE = """<title>MemSpine Gap Plan</title>
 <div class="tablewrap"><table class="rest"><thead><tr><th scope="col">ID</th><th scope="col">Capability</th><th scope="col">Status</th><th scope="col">Who has it</th><th scope="col">Why not in MemSpine</th><th scope="col">Position</th></tr></thead><tbody>{rest_rows}</tbody></table></div></section>
 {prompts}
 <section class="wave" id="leads"><div class="whead"><span class="wtag">Keep</span><h2>Where MemSpine already leads</h2></div><ul class="leads">{leads}</ul></section>
+{changelog}
 <p class="intro">Sources: memspine/docs/engine_survey (15 verified engine records, prompt_matrix.json, gap_plan.json), evals/analysis/GAP_REGISTER.md, docs/adr. Built by build_gap_plan.py.</p>
 </div>
 <script>{js}</script>
