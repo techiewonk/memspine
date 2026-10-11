@@ -106,6 +106,12 @@ dev = [
     "fastapi>=0.115",
 ]
 
+[tool.uv]
+# datasets 5.x needs huggingface-hub >= 1.31; a lock at 1.16.1 broke sentence-transformers on 2026-10-11
+constraint-dependencies = ["huggingface-hub>=1.31"]
+# huggingface-hub >= 1.31 needs click >= 8.4.2, while deepeval 4.x caps click < 8.4; deepeval runs fine on 8.5
+override-dependencies = ["click>=8.4.2"]
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/memspine"]
 
