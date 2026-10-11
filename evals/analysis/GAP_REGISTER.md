@@ -311,6 +311,10 @@ Source: `evals/runs/_analysis/deep_audit_2026-10-11/` (local, not committed; 25 
 
 ## Progress log
 
+**2026-10-11 08:45**
+- **r7-post (persp config + --count-verify single --date-repair --duration-solve rewrite):** LoCoMo 1,540 q 79.7 vs 80.4 (+5/-16, net -11). Attribution: count-verify single fired 37, +1/-16 (collapses sets to one listed item -> answers "1") -> **REJECT count-verify single**; date-repair 7 fired +1/0, duration-solve 6 fired +3/0 -> **safe small candidate** (~+4, matches offline estimate). Evidence-table counting (A04, two_call) is screened in the fast queue (f-table).
+- Round 7 stopped; FAST focus-slice queue started (437 LoCoMo q = 287 fail + 150 control; OP-Bench dev 331), commit 25e1698.
+
 **2026-10-11 (focus-slice screens, work/qf)**
 - **Screens now run only the baseline's failures plus a control.** New question-level filter `--query-ids @file` (cli.py c0-1, run.sh `--query-ids`; entries `item_id/query_id`; items with no selected question are never ingested), `evals/make_focus_slice.py` -> `analysis/focus_slice_r7protect.json` (287 FAIL = every cat 1-4 miss of r7-protect-full + 150 seeded [20261011] control correct, stratified category x conversation; 437 q) and `analysis/focus_slice_opb.json` (r7-protect-opb: 295 probes < 0.5 and only 36 >= 0.5, so the control is every probe >= 0.5, not 60; slice = all 331 probes). Scorer `evals/eval_focus.py ARM_RUN`: fixed = FAIL now correct, broken = CONTROL now wrong, est. full-set net = fixed - broken x (n_correct_total / n_control) (x8.35 for LoCoMo), band 0.328 x sqrt(1540) = 12.9, PROMOTE iff net > band and broken-rate <= 3%. `run_screens_fast.sh` repointed. Tests `evals/tests/test_focus_slice.py`.
 
