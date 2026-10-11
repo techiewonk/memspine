@@ -66,6 +66,7 @@ nav.toc ol{margin:4px 0;padding-left:20px;columns:2}
 <li><a href="#b6">B6. LLM-call budget, cost versus expected benefit, staged rollout</a></li>
 <li><a href="#b7">B7. Validation plan per layer</a></li>
 <li><a href="#b8">B8. Open decisions for you</a></li>
+<li><a href="#decided"><b>Decided design (2026-10-11): adaptive window + three call slots, rollout step 1 built</b></a></li>
 <li><a href="#src">Sources and limits of this analysis</a></li>
 </ol></nav>
 
@@ -362,7 +363,8 @@ nav.toc ol{margin:4px 0;padding-left:20px;columns:2}
 </ol>
 
 <h2 id="part-b">PART B. Write-path design proposal for MemSpine (for discussion)</h2>
-<div class="box warn"><b>Status.</b> Design only. Nothing is built, run or committed by this document except this file. New prompts below are drafts to argue about; existing prompt files are named where they already fit (<code>extract@session4</code>, <code>extract_edges@session</code>, <code>invalidate_edge</code>, <code>resolve_entity@batch</code>, <code>summarize*</code>, <code>reflect</code>, <code>summarize_entity</code>). Schemas are shown as JSON; the shipped prompts emit YAML under the same keys, and the structured parser accepts both (switching local models to JSON mode is itself a thing to measure).</div>
+<div class="box ok"><b>Update 2026-10-11.</b> The user approved a narrower design than the per-layer proposal below: an adaptive window with three call slots. Its rollout step 1 (the facts section) is built, opt-in and tested with fake LLMs; see <a href="#decided">Decided design</a>. Sections B5 to B8 stay as the reasoning and as the plan for the layers not yet built.</div>
+<div class="box warn"><b>Status of the proposal in B5 to B8.</b> Design only. Nothing is built, run or committed by this part of the document. New prompts below are drafts to argue about; existing prompt files are named where they already fit (<code>extract@session4</code>, <code>extract_edges@session</code>, <code>invalidate_edge</code>, <code>resolve_entity@batch</code>, <code>summarize*</code>, <code>reflect</code>, <code>summarize_entity</code>). Schemas are shown as JSON; the shipped prompts emit YAML under the same keys, and the structured parser accepts both (switching local models to JSON mode is itself a thing to measure).</div>
 
 <h3 id="b5">B5. Per-layer write design</h3>
 
@@ -747,6 +749,90 @@ Code renders: "When trying to {goal} and {precondition}, {action sequence} gave 
 <li><b>Dates in derived text.</b> <b>Recommendation: yes, dual format "expression (absolute date)" and a structured <code>date</code> field</b> (G-W12), while raw turns stay untouched and read-time annotation stays on. Open point: whether to index the structured date in BM25 for derived records only (the raw-turn <code>lexical_dates</code> arm was rejected, so test on derived text separately).</li>
 <li><b>Sequencing against the clean re-baseline.</b> Options: start new-layer screens now on the contaminated control; wait for the clean control. <b>Recommendation: wait for the clean control;</b> code (lifting, counters, new prompts, validators) can proceed in parallel with no GPU.</li>
 </ol>
+
+<h2 id="decided">DECIDED DESIGN (2026-10-11): adaptive window + three call slots, rollout step 1 built</h2>
+<p class="lede">The user approved a narrower design than the per-layer proposal of B5: one structured call per <i>adaptive window</i> with separate per-layer sections (call 1), a session-close slot (call 2, interface only) and the sleep slot (call 3, existing stages). Budget: at most one call per turn on the user path, target about 0.2 to 0.3. Rollout step 1 is built and opt-in (<code>write.window_extract: facts</code>, default <code>off</code>): the facts section feeds the semantic layer as a retrieval leg through the G-C2 machinery (<code>view_tags</code> leg, <code>atomic_fact</code> records, parents = the cited turns). The graph and episode sections are built and individually toggleable, default off. Nothing was run on a GPU or on Ollama; the arm <code>evals/arms/scr-window-facts-jina.json</code> is written and not launched. Decision record: <code>docs/adr/ADR-066-adaptive-window-write.md</code>. Register rows: <code>GAP_REGISTER.md</code> section M.</p>
+
+<h3 id="d1">D1. The three call slots</h3>
+<div class="tw"><table class="wide">
+<tr><th>Slot</th><th>Trigger</th><th>What it does</th><th>Prompt / stage</th><th>State</th></tr>
+<tr><td>Call 1: window extraction</td><td>a window closes (see D2), after the write returned</td><td>One structured call with <b>separate sections and schemas</b>: (a) <code>facts</code>: atomic facts, coreference resolved, dates written "expression (absolute date)", cited turn ids, a verbatim <code>span</code>, speaker and subject; (b) <code>edges</code>: typed entity relationships with <code>valid_from</code> from the turn date; (c) <code>episode</code>: a narrative fragment of the window citing its turns. Each section is validated alone and fails closed alone.</td><td><code>window_extract</code> v1 (new file <code>prompts/defaults/window_extract.yaml</code>, role <code>window_extract</code>, JSON, one prompt with a <code>sections</code> variable)</td><td><span class="tag t-meas">built</span> facts on in step 1; edges and episode built, off</td></tr>
+<tr><td>Call 2: session close</td><td>a session ends: <code>Engine.close_session()</code>, a new session starting in the namespace, or the end of a stream (<code>flush_windows(final=True)</code>)</td><td>Session summary, episode narrative stitched from the fragments, profile updates as guarded operations</td><td><code>workers.pipelines.session_close</code> (a stub: records a <code>session_closed</code> MARKER, returns <code>status: stub</code>); a handler on <code>PipelineContext.close_session</code> replaces it</td><td><span class="tag t-inf">hook and stub only</span>, content is the next step</td></tr>
+<tr><td>Call 3: sleep</td><td><code>Engine.sleep()</code> (which flushes call 1 first)</td><td>Entity resolution (<code>resolve_entity@batch</code>), bi-temporal invalidation (<code>invalidate_edge</code>), entity summaries (<code>summarize_entity</code>), all over the call-1 edges</td><td>existing stages; <code>extract_graph</code> takes the pending call-1 edges (<code>PipelineContext.window_edges</code>), runs them through its resolution, contradiction check and emit, and does not extract the turns those calls already read. No new prompt.</td><td><span class="tag t-meas">wired</span> (tested with resolution <code>rules</code> and the <code>invalidate_edge</code> role)</td></tr>
+</table></div>
+
+<h3 id="d2">D2. Window boundary: the first of four, all config keys</h3>
+<div class="tw"><table class="wide">
+<tr><th>Boundary</th><th>Rule</th><th>Key (default)</th></tr>
+<tr><td>Topic shift</td><td>the cosine similarity of the new turn to the previous turn (same session) falls below the store's running <code>mean - k * sd</code> of that similarity. The running mean and sd are per namespace (Welford), the test uses the level before the new pair is added, similarities across a session change are never counted, nothing fires before 20 pairs exist (the standard error of a sample sd is 16% at n = 20), and a window of one turn is never cut. No LLM, no benchmark threshold: <code>k = 2</code> is the usual two-sigma outlier line, not tuned.</td><td><code>write.window_topic_k</code> (<code>2.0</code>; <code>0</code> turns it off)</td></tr>
+<tr><td>Turn count</td><td>the window holds this many turns</td><td><code>write.window_max_turns</code> (<code>6</code>)</td></tr>
+<tr><td>Tokens</td><td>adding the turn would pass this many prompt tokens (4 characters each)</td><td><code>write.window_max_tokens</code> (<code>1500</code>)</td></tr>
+<tr><td>Idle / session end</td><td>no write in the namespace for <code>window_idle_s</code> (async mode, wall clock) or the session changes or is closed</td><td><code>write.window_idle_s</code> (<code>120</code>)</td></tr>
+</table></div>
+<p class="small">Consequence of a two-sigma line: in a store whose consecutive-turn similarity is roughly bell shaped about 2 to 5% of pairs fall under it without any real topic change, so the topic boundary mostly adds a few short windows; the 6-turn cap is the usual boundary. The offline statistics in D6 show the actual shares.</p>
+
+<h3 id="d3">D3. Scenario table</h3>
+<div class="tw"><table class="wide">
+<tr><th>Scenario</th><th>When call 1 runs</th><th>What the caller does</th><th>Notes</th></tr>
+<tr><td>Live chat, file-backed store (<code>window_async: true</code>)</td><td>in a per-namespace background task: a closed window starts at once, the open window is cut after <code>window_idle_s</code> of silence; FIFO per namespace, so the order and the result equal the batch order</td><td>nothing; <code>flush_windows()</code> is a barrier when a test or a script needs the facts now</td><td>raw turns are searchable immediately; derived facts appear seconds after the window closes</td></tr>
+<tr><td>Eval and batch (<code>window_async: false</code>, the arm)</td><td>only at <code>flush_windows()</code>, <code>close_session()</code> or <code>sleep()</code></td><td>the harness calls <code>flush_windows(final=False)</code> before a mid-stream query and <code>flush_windows(final=True)</code> at <code>build</code>, bills the calls with the write cost and writes the counters</td><td>identical output to the async path (tested)</td></tr>
+<tr><td>In-memory SQLite</td><td>batch mode forced (one shared connection, no WAL; same rule as the sleep scheduler); logged</td><td>as batch</td><td></td></tr>
+<tr><td>Hard forget while windows are pending</td><td>the turn leaves the open window and every queued window before any call sees it (a window left empty is dropped); a window whose call is running is cancelled and writes nothing; pending call-1 edges that cite it are dropped; cached replies of windows that held it are deleted</td><td>nothing</td><td>I72 re-check: a fact is written only if its cited parents <i>and every other turn of the window</i> are still live under the namespace lock</td></tr>
+<tr><td>Call fails (unparseable reply, transport error)</td><td>the window is dropped and counted (<code>parse_failures</code> / <code>call_errors</code>, <code>sections_dropped</code>); repeated joint-call failures switch to split mode</td><td>read the counters</td><td>the raw turns are intact; the sleep stages still derive from them</td></tr>
+<tr><td>Engine stops with queued windows</td><td>the call in hand finishes (5 s grace), the rest is abandoned and counted (<code>jobs_abandoned</code>)</td><td></td><td>the queue is not durable</td></tr>
+</table></div>
+
+<h3 id="d4">D4. Safeguards</h3>
+<ul>
+<li><b>Per-section fail-closed.</b> The reply is parsed once (the I69 repair net and optional retry apply). Each section is then validated alone: a section that is not the expected shape is dropped and counted; an item that fails its schema is dropped and counted; the other sections still land. A reply that names no section at all drops all of them.</li>
+<li><b>Grounding.</b> A fact must cite at least one valid line and quote a <code>span</code> that occurs, word for word (case, punctuation and spacing ignored, word order kept), in a cited line; otherwise it is dropped as ungrounded (<code>facts_ungrounded</code>, with <code>facts_uncited</code> for the no-citation case). An edge must cite a valid line. An episode with no valid citation keeps the whole window as its evidence and is counted (<code>episodes_uncited</code>).</li>
+<li><b>Split mode.</b> <code>window_split: auto</code> turns the one call into two (facts+edges / episode) once a quarter of the last 8 joint calls failed to parse or had a malformed section; <code>always</code> and <code>never</code> are the manual settings. Only meaningful with more than one section enabled.</li>
+<li><b>Cache.</b> Each call is cached by (model, prompt version with its partials digest, section group, window text, participants). A repeat on the same history makes no call (<code>cache_hits</code>). The cache is the engine KV cache: in memory per process unless a durable backend is configured. A forget deletes the cached replies of windows that held the erased turn.</li>
+<li><b>Derived records follow the rules of every derived record.</b> Parents = the cited turns, so the forget cascade (ADR-039) removes them; the same write door as a mined fact (firewall, trust capped at the least trusted parent, non-privileged <code>assistant</code> role, dedup, conflict ladder); a fact is tagged <code>atomic_fact</code>, <code>window_fact</code>, <code>mined:win:&lt;window&gt;</code> and the view tags (<code>person:</code>, <code>loc:</code>, <code>topic:</code>) so the existing <code>view_tags</code> leg and list cards see it; the speaker tag is inherited only when the cited turns share one speaker. An episode fragment is a semantic record without entity or attribute (always ADDed), channel <code>window_episode</code>, tagged <code>episode_fragment</code>, never a source for graph extraction.</li>
+<li><b>Isolation.</b> One segmenter, queue and edge buffer per namespace; a window holds the turns of one session of one namespace; nothing is shared between stores, including the topic level (tested with interleaved writes of two users).</li>
+<li><b>Inputs.</b> Quarantined and instruction-flagged turns, and turns no longer live, never enter a window.</li>
+<li><b>Generic.</b> The prompt has no dataset vocabulary and no gold-like example (the gold lint scans it); the date example is a placeholder. Edge types and entity types are configuration (<code>extract_graph.relation_types</code>), not baked in.</li>
+</ul>
+
+<h3 id="d5">D5. Write-quality counters (G-W13, built)</h3>
+<p><code>Engine.window_stats()</code> (also <code>describe()["window_write"]</code>, the harness <code>meta["window_extract"]</code> of the build step and a <code>window_stats</code> row of <code>ingest.jsonl</code>): <code>turns</code>, <code>windows</code>, <code>windows_by_reason</code> (topic / turns / tokens / session_end / idle / flush), <code>windows_per_session</code>, <code>turns_per_window</code>, <code>calls</code> and <code>calls_by_layer</code> (facts / edges / episode), <code>calls_per_turn</code>, <code>cache_hits</code>, <code>split_active</code> / <code>split_calls</code>, <code>parse_failures</code>, <code>call_errors</code>, <code>sections_dropped</code> (and by layer), <code>facts_returned</code> / <code>facts_invalid</code> / <code>facts_ungrounded</code> / <code>facts_uncited</code> / <code>facts_deposited</code> / <code>facts_skipped_parent_gone</code>, the same for edges and episodes, <code>edges_pending</code>, <code>windows_cancelled_forget</code>, <code>turns_dropped_forget</code>, <code>sessions_closed</code>, <code>jobs_abandoned</code>, and the per-store topic level (<code>pairs</code>, <code>level</code>). Model calls are also counted per role and per prompt by the existing <code>model_usage()</code> / <code>usage()</code>.</p>
+
+<h3 id="d6">D6. Offline window statistics and ingest-time estimate (full LoCoMo, no LLM)</h3>
+<p>Script <code>evals/window_stats_offline.py</code>, result <code>evals/analysis/WINDOW_STATS_2026-10-11.json</code>. It runs the production segmenter (<code>memspine.core.window</code>) over the 10 conversations of <code>locomo10.json</code> (one store per conversation, turns as the harness writes them: "Speaker: text" plus the image caption), with the arm's embedder (Qwen3-Embedding-0.6B, run on the <b>CPU</b> in float32 so the live GPU queue was untouched; the arm runs it in bf16 on the GPU, so individual similarities differ slightly). No LLM was called and no question, answer or evidence was read. <span class="tag t-meas">measured</span> for the window counts; <span class="tag t-hyp">estimate</span> for the time.</p>
+<div class="tw"><table class="wide">
+<tr><th></th><th>Default (k = 2, 6 turns, 1,500 tokens)</th><th>Topic boundary off</th></tr>
+<tr><td>Conversations / sessions / turns</td><td colspan="2">10 / 272 / 5,882</td></tr>
+<tr><td>Windows (= call-1 calls, facts only)</td><td><b>1,127</b></td><td>1,095</td></tr>
+<tr><td>Calls per turn</td><td><b>0.192</b></td><td>0.186</td></tr>
+<tr><td>Windows per session</td><td>mean 4.14, median 4, p10 3, p90 6, range 2 to 8</td><td>mean 4.03, median 4, p10 3, p90 6</td></tr>
+<tr><td>Turns per window</td><td>mean 5.22, median 6, p10 3, p90 6</td><td>mean 5.37, median 6, p10 3, p90 6</td></tr>
+<tr><td>Prompt tokens of a window's transcript</td><td>mean 186, median 189, p10 51, p90 306, max 530 (far under the 1,500 cap, so the token boundary never fires on LoCoMo)</td><td>mean 192</td></tr>
+<tr><td>Why windows closed</td><td>turn cap 815 (72.3%), session end 224 (19.9%), topic shift 81 (7.2%), final flush 7 (0.6%)</td><td>turn cap 860 (78.5%), session end 228, flush 7</td></tr>
+<tr><td>Per-conversation topic level (mean - 2 sd of consecutive-turn cosine)</td><td colspan="2">0.30 to 0.46 over the 10 stores (349 to 567 pairs each), i.e. learned per store, not one number</td></tr>
+<tr><td>Estimated ingest time, 1 Ollama server</td><td colspan="2"><b>about 66 / 89 / 118 minutes</b> (low / mid / high completion size of 63 / 90 / 125 tokens per turn)</td></tr>
+</table></div>
+<p><b>How the time is estimated.</b> Per call: prompt tokens (774 for the rendered facts-only system prompt + the window transcript + a 40-token frame) at the measured prefill rate of 4,869 tokens/s, plus completion tokens at the measured decode rate of 116 tokens/s, plus an assumed 0.3 s per call. Completion size is the lever: the existing session fact prompt (<code>extract@session4</code>) measured 900 to 1,800 completion tokens per 21.6-turn session (42 to 83 per turn, YAML); a window item also carries <code>span</code>, <code>speaker</code>, <code>subject</code> and <code>turns</code> and is JSON, so the estimate uses 63 / 90 / 125 per turn plus 20 per call. Decode dominates (about 90%). Prefix caching of the repeated system prompt would shave only the 0.16 s of prefill per call. These are estimates, not measurements; the first real run replaces them.</p>
+<p><b>Reading.</b> The budget holds: 0.19 calls per turn (target 0.2 to 0.3, ceiling 1). The window path makes about 4.2 times the calls of the per-session miner (1,127 against about 270, G-C2) for about 1.6 times its estimated ingest time (mid 89 against about 55 min; range 0.9 to 3 across the two ranges), because each call is shorter. The topic boundary changes little on LoCoMo (+32 windows, +3%): LoCoMo sessions are short and one day long, so the turn cap and the session end decide 92% of the cuts; the boundary is there for streams without session structure. A 21.6-turn session is three full windows plus a short tail (about 4); the measured 4.14 adds the topic cuts.</p>
+
+<h3 id="d7">D7. Keys</h3>
+<div class="tw"><table class="wide">
+<tr><th>Key</th><th>Default</th><th>Meaning</th></tr>
+<tr><td><code>write.window_extract</code></td><td><code>off</code></td><td><code>off</code> | <code>facts</code> | <code>facts_graph</code> | <code>all</code></td></tr>
+<tr><td><code>write.window_max_turns</code> / <code>window_max_tokens</code></td><td><code>6</code> / <code>1500</code></td><td>turn and prompt-token caps of a window</td></tr>
+<tr><td><code>write.window_topic_k</code></td><td><code>2.0</code></td><td>k of the per-store topic level; 0 = off</td></tr>
+<tr><td><code>write.window_idle_s</code></td><td><code>120</code></td><td>idle cut in async mode; 0 = never</td></tr>
+<tr><td><code>write.window_split</code></td><td><code>auto</code></td><td><code>auto</code> | <code>always</code> | <code>never</code></td></tr>
+<tr><td><code>write.window_async</code></td><td><code>true</code></td><td>background task (live) or flush-only (eval, batch)</td></tr>
+<tr><td><code>write.window_cache</code></td><td><code>true</code></td><td>call cache by window text</td></tr>
+<tr><td><code>llm.roles.window_extract</code></td><td>none</td><td>the model of call 1; start fails with a clear error when the mode is on and the role is missing</td></tr>
+</table></div>
+
+<h3 id="d8">D8. What is not built, and what the screen can and cannot tell</h3>
+<ul>
+<li>Call 2 content (summary, stitched episode narrative, profile operations), the episode as a retrieval leg and the neighbour-aware extraction (G-W4: the extractor sees only its own window, not earlier facts) are not built. Window context does cover the coreference and relative-date part of G-W4.</li>
+<li>The edges and episode sections have fake-LLM tests only. The facts section is the only one with a screening arm; the prompt has never met a real model, so its JSON quality (and therefore the split-mode rate and the ungrounded rate) is unknown until the first run. The counters exist so that a silent extractor failure cannot look like "the layer did not help".</li>
+<li>Confounds to read in the first screen: the sleep cycle's <code>consolidate</code> stage also writes an extractive summary per session into the pool (as in the GC arms), the window facts duplicate nothing of <code>mine_facts</code> (off in this arm) but are mined from 6-turn windows instead of whole sessions, and the topic boundary is learned per conversation.</li>
+</ul>
 
 <h2 id="src">Sources and limits of this analysis</h2>
 <ul>

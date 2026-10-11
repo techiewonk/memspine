@@ -1,0 +1,215 @@
+{
+ "data": "locomo10.json",
+ "embedder": "Qwen/Qwen3-Embedding-0.6B",
+ "device": "cpu",
+ "default (topic_k 2.0, 6 turns, 1500 tokens)": {
+  "conversations": 10,
+  "sessions": 272,
+  "turns": 5882,
+  "windows": 1127,
+  "calls_per_turn": 0.1916,
+  "windows_per_session": {
+   "mean": 4.143,
+   "median": 4.0,
+   "p10": 3.0,
+   "p90": 6.0,
+   "min": 2.0,
+   "max": 8.0
+  },
+  "turns_per_window": {
+   "mean": 5.219,
+   "median": 6.0,
+   "p10": 3.0,
+   "p90": 6.0,
+   "min": 1.0,
+   "max": 6.0
+  },
+  "tokens_per_window": {
+   "mean": 186.143,
+   "median": 189.0,
+   "p10": 51.0,
+   "p90": 306.0,
+   "min": 4.0,
+   "max": 530.0
+  },
+  "windows_by_reason": {
+   "turns": 815,
+   "session_end": 224,
+   "topic": 81,
+   "flush": 7
+  },
+  "share_by_reason": {
+   "turns": 0.7232,
+   "session_end": 0.1988,
+   "topic": 0.0719,
+   "flush": 0.0062
+  },
+  "prompt_tokens_system": 774,
+  "est_ingest_seconds": {
+   "low": 3958.4,
+   "mid": 5327.5,
+   "high": 7102.3
+  },
+  "est_ingest_minutes": {
+   "low": 66.0,
+   "mid": 88.8,
+   "high": 118.4
+  },
+  "topic_level_per_conversation": [
+   {
+    "item": "conv-26",
+    "pairs": 349,
+    "level": 0.4154235968432523
+   },
+   {
+    "item": "conv-30",
+    "pairs": 301,
+    "level": 0.4091988178768835
+   },
+   {
+    "item": "conv-41",
+    "pairs": 548,
+    "level": 0.4278603926590284
+   },
+   {
+    "item": "conv-42",
+    "pairs": 515,
+    "level": 0.371624407547988
+   },
+   {
+    "item": "conv-43",
+    "pairs": 559,
+    "level": 0.38155065874629956
+   },
+   {
+    "item": "conv-44",
+    "pairs": 558,
+    "level": 0.35193817589224197
+   },
+   {
+    "item": "conv-47",
+    "pairs": 567,
+    "level": 0.41040150984433166
+   },
+   {
+    "item": "conv-48",
+    "pairs": 557,
+    "level": 0.2964875216558238
+   },
+   {
+    "item": "conv-49",
+    "pairs": 417,
+    "level": 0.39340077407097457
+   },
+   {
+    "item": "conv-50",
+    "pairs": 465,
+    "level": 0.46441822205579586
+   }
+  ]
+ },
+ "topic boundary off (6 turns, 1500 tokens)": {
+  "conversations": 10,
+  "sessions": 272,
+  "turns": 5882,
+  "windows": 1095,
+  "calls_per_turn": 0.1862,
+  "windows_per_session": {
+   "mean": 4.026,
+   "median": 4.0,
+   "p10": 3.0,
+   "p90": 6.0,
+   "min": 2.0,
+   "max": 8.0
+  },
+  "turns_per_window": {
+   "mean": 5.372,
+   "median": 6.0,
+   "p10": 3.0,
+   "p90": 6.0,
+   "min": 1.0,
+   "max": 6.0
+  },
+  "tokens_per_window": {
+   "mean": 191.583,
+   "median": 195.0,
+   "p10": 56.0,
+   "p90": 311.0,
+   "min": 4.0,
+   "max": 530.0
+  },
+  "windows_by_reason": {
+   "turns": 860,
+   "session_end": 228,
+   "flush": 7
+  },
+  "share_by_reason": {
+   "turns": 0.7854,
+   "session_end": 0.2082,
+   "flush": 0.0064
+  },
+  "prompt_tokens_system": 774,
+  "est_ingest_seconds": {
+   "low": 3938.0,
+   "mid": 5307.1,
+   "high": 7081.8
+  },
+  "est_ingest_minutes": {
+   "low": 65.6,
+   "mid": 88.5,
+   "high": 118.0
+  },
+  "topic_level_per_conversation": [
+   {
+    "item": "conv-26",
+    "pairs": 344,
+    "level": null
+   },
+   {
+    "item": "conv-30",
+    "pairs": 298,
+    "level": null
+   },
+   {
+    "item": "conv-41",
+    "pairs": 541,
+    "level": null
+   },
+   {
+    "item": "conv-42",
+    "pairs": 511,
+    "level": null
+   },
+   {
+    "item": "conv-43",
+    "pairs": 554,
+    "level": null
+   },
+   {
+    "item": "conv-44",
+    "pairs": 552,
+    "level": null
+   },
+   {
+    "item": "conv-47",
+    "pairs": 556,
+    "level": null
+   },
+   {
+    "item": "conv-48",
+    "pairs": 556,
+    "level": null
+   },
+   {
+    "item": "conv-49",
+    "pairs": 414,
+    "level": null
+   },
+   {
+    "item": "conv-50",
+    "pairs": 461,
+    "level": null
+   }
+  ]
+ }
+}

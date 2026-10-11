@@ -280,6 +280,7 @@ from memspine.core.visibility import (
     participant_tags,
     visibility_tag,
 )
+from memspine.core.window import WindowSettings
 from memspine.exceptions import (
     ConfigError,
     ConflictError,
@@ -428,17 +429,20 @@ from memspine.workers.pipelines import (
     FindEntities,
     PipelineContext,
     PredictEpisode,
+    SessionClosed,
     Summarize,
     SummarizeEntities,
     SummarizeIncremental,
     entity_summary_name,
     entity_summary_node,
     resolve_mode,
+    session_close,
     stage_marker,
 )
 from memspine.workers.runner import TaskRunner
 from memspine.workers.schedule import run_sleep_cycle
 from memspine.workers.scheduler import SleepScheduler
+from memspine.workers.windows import SECTION_MODES, PromptWindowExtractor, WindowPipeline
 
 __all__ = ["Engine"]
 
@@ -1249,6 +1253,8 @@ class Engine:
         self._prospective: ProspectiveMemory | None = None
         self._shared: SharedMemory | None = None
         self._prompts: PromptRegistry | None = None
+        #: W1: the adaptive-window write (``write.window_extract``), None when off.
+        self._windows: WindowPipeline | None = None
         self._scoring: ScoringPolicy | None = None
         self._assembly: AssemblyPolicy | None = None
         self._assembly_compression: CompressionPolicy | None = None
@@ -1513,6 +1519,7 @@ class Engine:
         self._query_encoder = None  # #61: rebuilt (and its cue index reloaded) per start
         self._extract_edges = self._build_edge_extractor(config)
         self._extract_session_edges = self._build_session_edge_extractor(config)
+        self._windows = self._build_windows(config)
         try:  # E01: a bad ``fact_projection`` fails at start, not mid-sweep
             fact_projection_on(self._memory_policy(config, "semantic"))
         except ValueError as exc:
@@ -1634,6 +1641,8 @@ class Engine:
         if self._scheduler is not None:
             await self._scheduler.stop()  # stop the loop before tearing down its deps
             self._scheduler = None
+        if self._windows is not None:
+            await self._windows.stop()  # window workers and idle timers, before the storage goes
         if self._runner is not None:
             await self._runner.close()
         if self._storage is not None:
@@ -1809,6 +1818,11 @@ class Engine:
             await self._reopen_session(storage, ns, session_of(record))
         if reply_to is not None:
             await self._link_reply(ns, written, reply_to)
+        if self._windows is not None and memory_type == "episodic" and action == "added":
+            try:  # W1: the turn joins the open window; never fails the write
+                await self._windows.observe(written, session_of(written))
+            except Exception as exc:
+                _log.warning("window.observe_failed", namespace=ns, error=redact_error(exc))
         return written
 
     async def _link_reply(self, ns: str, written: MemoryRecord, reply_to: str) -> None:
@@ -9965,6 +9979,10 @@ class Engine:
         ):
             if memory is not None:
                 await memory.on_forget(ns, record_id)
+        if self._windows is not None:
+            # W1: leaves its open window, cancels queued / running windows that held it,
+            # drops pending call-1 edges that cite it and purges cached replies (lock held).
+            await self._windows.on_forget(ns, record_id)
         _log.info(EVENT_FORGET, namespace=ns, record_id=record_id)
 
     async def vet(self, draft: str, namespace: str = "default") -> list[VetFlag]:
@@ -13298,6 +13316,11 @@ class Engine:
         compress → prune. All steps are idempotent; P3 gives them teeth."""
         self._require_started()
         assert self._runner is not None
+        if self._windows is not None:
+            # W1: call 1 first, so call 3 (extract_graph) sees this cycle's window edges. In
+            # live (async) mode the open window is left to its idle timer; in batch mode
+            # nothing else would ever close it.
+            await self._windows.flush(final=not self._windows.asynchronous)
         stats = await run_sleep_cycle(self._runner, self._pipeline_ctx())
         self._passive_sessions.clear()  # #53: the cycle may have passivated sessions
         degraded = {
@@ -13391,6 +13414,7 @@ class Engine:
             "scheduler": self._scheduler.running if self._scheduler is not None else False,
             "strict_services": config.strict_services,
             **({"write_timers": self.write_timers()} if self._write_timers else {}),
+            **({"window_write": self.window_stats()} if self._windows is not None else {}),
         }
 
     # ── thin sync wrappers (D-01) ────────────────────────────────────────────
@@ -13663,7 +13687,153 @@ class Engine:
             summarize_entities=self._build_entity_summarizer(),
             resolve_entities=self._build_entity_resolver(),
             embed=self._embedder.embed if self._embedder is not None else None,
+            window_edges=(
+                self._windows.take_edges
+                if self._windows is not None and "edges" in self._windows.sections
+                else None
+            ),
         )
+
+    # ── W1: adaptive-window write (call 1), session close (call 2 hook) ───────────
+
+    def _build_windows(self, config: MemspineConfig) -> WindowPipeline | None:
+        """``write.window_extract``: the window manager, or None when off. Hard-fails at start
+        (D-10) when the layers it needs are missing, never silently at the first write."""
+        mode = config.write.window_extract
+        if mode == "off":
+            return None
+        if self._llm is None or self._prompts is None or "window_extract" not in self._llm.roles:
+            raise ConfigError(
+                f"write.window_extract={mode!r} needs an LLM role: set llm.roles.window_extract"
+            )
+        if self._semantic is None or self._episodic is None:
+            raise ConfigError(
+                f"write.window_extract={mode!r} needs memories.episodic and memories.semantic "
+                "enabled (turns are episodic, facts land in the semantic layer)"
+            )
+        sections = SECTION_MODES[mode]
+        role = config.llm.roles.get("window_extract")
+        storage = self._storage
+        assert storage is not None  # built in start() before the memory types
+        asynchronous = config.write.window_async
+        if asynchronous and self._client_is_memory(config):
+            # Like the sleep scheduler: one shared connection, no WAL, so a background call
+            # would collide with foreground writes ("table is locked"). Batch mode instead.
+            _log.warning(
+                "window.async_disabled_on_memory_db",
+                detail="write.window_async ignored for storage.path=':memory:'; "
+                "call flush_windows() (sleep() and close_session() do)",
+            )
+            asynchronous = False
+        return WindowPipeline(
+            settings=WindowSettings(
+                max_turns=config.write.window_max_turns,
+                max_tokens=config.write.window_max_tokens,
+                topic_k=config.write.window_topic_k,
+                idle_s=config.write.window_idle_s,
+            ),
+            sections=sections,
+            extractor=PromptWindowExtractor(
+                self._llm.for_role("window_extract"),
+                self._prompts.for_role("window_extract"),
+                role.model if role is not None else "",
+            ),
+            get_record=storage.get_record,
+            deposit_fact=self._deposit_mined_fact,
+            deposit_episode=self._deposit_window_episode if "episode" in sections else None,
+            embed=self._embedder.embed if self._embedder is not None else None,
+            lock=self._namespace_lock,
+            cache=self._cache,
+            use_cache=config.write.window_cache,
+            split=config.write.window_split,
+            asynchronous=asynchronous,
+            on_session_closed=self._window_session_closed,
+        )
+
+    async def _window_session_closed(self, info: SessionClosed) -> dict[str, object]:
+        """The session-closed hook of the window manager: the call-2 stage (a stub today)."""
+        return await session_close(self._pipeline_ctx(), info)
+
+    async def flush_windows(
+        self, namespace: str | None = None, *, final: bool = True
+    ) -> dict[str, Any]:
+        """W1: run every closed window's call now (all namespaces, or one) and return the
+        write-quality counters. ``final=True`` also closes the open windows and fires the
+        session-closed hook for the sessions still open: the end of a stream or a batch (the
+        eval harness calls it before reads and before the sleep cycle). A no-op returning
+        ``{}`` when ``write.window_extract`` is off."""
+        self._require_started()
+        if self._windows is None:
+            return {}
+        ns = validate_namespace(namespace) if namespace is not None else None
+        return await self._windows.flush(ns, final=final)
+
+    async def close_session(
+        self, namespace: str = "default", session_id: str | None = None
+    ) -> dict[str, Any]:
+        """W1: the real session-closed hook. Cuts the session's open window, runs the
+        namespace's queued window calls in order, then fires the session-close stage (call 2:
+        a stub today, it only records a ``session_closed`` MARKER). ``session_id=None``: the
+        namespace's current session. Works without ``write.window_extract`` too (then only the
+        stage runs, and a ``session_id`` is required)."""
+        self._require_started()
+        ns = validate_namespace(namespace)
+        if self._windows is not None:
+            return await self._windows.close_session(ns, session_id)
+        if session_id is None:
+            return {"status": "skipped", "reason": "no session_id and write.window_extract is off"}
+        hook = await session_close(self._pipeline_ctx(), SessionClosed(ns, session_id))
+        return {"status": "ok", "session_id": session_id, "hook": hook}
+
+    def window_stats(self, *, reset: bool = False) -> dict[str, Any]:
+        """G-W13 write-quality counters of the window write (``{}`` when it is off): windows and
+        why they closed, calls per layer, cache hits, parse failures, sections dropped, items
+        dropped as ungrounded, deposits, cancellations, windows per session, calls per turn."""
+        return self._windows.stats(reset=reset) if self._windows is not None else {}
+
+    async def _deposit_window_episode(
+        self,
+        namespace: str,
+        text: str,
+        parents: list[str],
+        valid_from: datetime,
+        window_id: str,
+        *,
+        require_live: Sequence[str] = (),
+    ) -> MemoryRecord | None:
+        """W1: one episode fragment through the semantic door: derived (non-privileged
+        ``assistant`` role, channel ``window_episode``), parents = the cited turns, trust capped
+        at the least trusted parent, screened by the firewall, never keyed (no entity or
+        attribute, so the ladder ADDs it). Skipped under the lock when a parent or another turn
+        of the window is no longer live (I72)."""
+        storage = self._require_started()
+        ns = validate_namespace(namespace)
+        sources = [r for r in [await storage.get_record(p) for p in parents] if r is not None]
+        tags = ["episode_fragment", "kind:episode", f"window:{window_id}"]
+        if sources and all("assistant_claim" in r.tags for r in sources):
+            tags.append("assistant_claim")
+        if sources and self._perspective_options().on:
+            tags.extend(t for t in inherit_perspective_tags(sources) if t not in tags)
+        record = MemoryRecord(
+            namespace=ns,
+            memory_type="semantic",
+            content=text,
+            source=SourceInfo(
+                role=constants.DERIVED_ROLE,
+                channel=constants.WINDOW_EPISODE_CHANNEL,
+                parents=list(parents),
+            ),
+            valid_from=valid_from,
+            tags=tags,
+        )
+        cap = [min(r.trust for r in sources)] if sources else None
+        integrity_cap = await self._parent_trust_cap(ns, parents)
+        if integrity_cap:
+            cap = [*(cap or []), *integrity_cap]
+        async with self._write_locks.setdefault(ns, asyncio.Lock()):
+            if await self._derived_parents_gone(ns, [*parents, *require_live], "window_extract"):
+                return None
+            return await self._write_locked(storage, ns, record, "semantic", "system", cap)
 
     def _build_entity_summarizer(self) -> SummarizeEntities | None:
         """GP-6 (#17): the batched entity summariser, when a ``summarize_entity``
@@ -14253,11 +14423,16 @@ class Engine:
         location: str | None = None,
         topic: str | None = None,
         extra_tags: Sequence[str] = (),
+        require_live: Sequence[str] = (),
     ) -> MemoryRecord | None:
         """C6': one mined fact through the write door (firewall, ladder, MTI).
 
         E01: ``extra_tags`` ride along (the write-time projection tags its facts
         ``fact_projection`` / ``projected:<session>``); nothing else about the path changes.
+
+        W1: ``require_live`` are more record ids (the other turns of the window the fact was
+        read from) that must still be live under the lock, besides the parents; one gone
+        and the fact is not written (I72). They are checked, not recorded as parents.
 
         #28: ``persons`` / ``location`` / ``topic`` (``consolidation.mine_multiview``)
         are tagged ``person:<name>``, ``loc:<place>``, ``topic:<class>`` (normalised,
@@ -14319,7 +14494,8 @@ class Engine:
         if integrity_cap:
             cap = [*(cap or []), *integrity_cap]
         async with self._write_locks.setdefault(ns, asyncio.Lock()):
-            if await self._derived_parents_gone(ns, parents, "mine_facts"):  # I72
+            site = "window_extract" if require_live else "mine_facts"
+            if await self._derived_parents_gone(ns, [*parents, *require_live], site):  # I72
                 return None
             written = await self._write_locked(storage, ns, record, "semantic", "system", cap)
         if planned and self._consolidation_option("auto_watch", False):

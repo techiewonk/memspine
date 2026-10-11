@@ -337,7 +337,15 @@
       "inferred_support_overlap": 0.3,
       "inferred_trust_cap": 0.4,
       "participants": "off",
-      "sensitivity": "off"
+      "sensitivity": "off",
+      "window_async": true,
+      "window_cache": true,
+      "window_extract": "off",
+      "window_idle_s": 120.0,
+      "window_max_tokens": 1500,
+      "window_max_turns": 6,
+      "window_split": "auto",
+      "window_topic_k": 2.0
     }
   },
   "policy_options": {

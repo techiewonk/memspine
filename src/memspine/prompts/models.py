@@ -51,6 +51,10 @@ __all__ = [
     "RelevanceLabels",
     "SlotStepOut",
     "SufficiencyOut",
+    "WindowEpisode",
+    "WindowFact",
+    "WindowPayload",
+    "fact_guard",
     "view_text",
 ]
 
@@ -804,7 +808,71 @@ class AnswerVerdictOut(BaseModel):
         return None if text.lower() in ("", "none", "null") else text
 
 
+class WindowFact(ExtractedFact):
+    """W1 (``window_extract`` facts section): an :class:`ExtractedFact` plus the verbatim
+    ``span`` of a cited line that supports it (the grounding check) and who said / who it is
+    about. ``turns`` are the 1-based line numbers of the window transcript."""
+
+    span: str = ""
+    speaker: str | None = None
+    subject: str | None = None
+
+    @field_validator("span", mode="before")
+    @classmethod
+    def _span_text(cls, value: Any) -> Any:
+        return "" if value is None else str(_as_text(value))
+
+    @field_validator("speaker", "subject", mode="before")
+    @classmethod
+    def _who(cls, value: Any) -> Any:
+        return view_text(value)
+
+
+class WindowEpisode(BaseModel):
+    """W1 (``window_extract`` episode section): what happened in this window, citing turns."""
+
+    title: str = ""
+    summary: str = ""
+    narrative: str
+    turns: list[int] = Field(default_factory=list)
+    participants: list[str] = Field(default_factory=list)
+    topics: list[str] = Field(default_factory=list)
+
+    @field_validator("title", "summary", "narrative", mode="before")
+    @classmethod
+    def _text(cls, value: Any) -> Any:
+        return "" if value is None else str(_as_text(value)).strip()
+
+    @field_validator("turns", mode="before")
+    @classmethod
+    def _line_numbers(cls, value: Any) -> Any:
+        return _positive_ints(value)
+
+    @field_validator("participants", "topics", mode="before")
+    @classmethod
+    def _texts(cls, value: Any) -> Any:
+        if value is None:
+            return []
+        items = value.split(",") if isinstance(value, str) else value
+        if not isinstance(items, list | tuple):
+            items = [items]
+        return [t for t in (view_text(i) for i in items) if t is not None]
+
+
+class WindowPayload(BaseModel):
+    """W1: the reply of one ``window_extract`` call. Every section is kept as the model wrote
+    it (``Any``) so a malformed section cannot invalidate the others: each section is
+    validated on its own afterwards (``workers/windows.py``), and fails closed alone."""
+
+    model_config = {"extra": "ignore"}
+
+    facts: Any = None
+    edges: Any = None
+    episode: Any = None
+
+
 OUTPUT_MODELS: dict[str, type[BaseModel]] = {
+    "WindowPayload": WindowPayload,
     "ExtractedFacts": ExtractedFacts,
     "FactDates": FactDates,
     "FactClasses": FactClasses,

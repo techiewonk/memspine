@@ -94,12 +94,15 @@ from memspine.workers.list_cards import (
 
 __all__ = [
     "PIPELINES",
+    "SESSION_CLOSED_MARKER",
     "ExtractEdges",
     "NamespaceLock",
     "Pipeline",
     "PipelineContext",
     "PipelineStorage",
+    "SessionClosed",
     "SessionIndex",
+    "WindowEdgeBatch",
     "anticipate",
     "check_watches",
     "compress",
@@ -117,6 +120,7 @@ __all__ = [
     "resolve_mode",
     "rule_edges",
     "rule_edges_options",
+    "session_close",
     "session_lifecycle",
     "sleep_compute",
     "stage_marker",
@@ -195,12 +199,46 @@ ExpireRetention = Callable[[], Awaitable[dict[str, object]]]
 SummarizeEntities = Callable[[list[tuple[str, list[str]]]], Awaitable[dict[int, str]]]
 
 
+@dataclass
+class WindowEdgeBatch:
+    """W1 (call 1 -> call 3): the relationship edges one ``window_extract`` call returned.
+
+    ``covered`` are the live turns the call read (so the sleep stage does not extract them
+    again, whether or not any edge came out); each edge carries the record ids of the turns
+    it cites. Non-durable by design: lost on a crash, the sleep stage then extracts the
+    uncovered turns itself."""
+
+    window_id: str
+    covered: list[str]
+    edges: list[tuple[list[str], ExtractedEdge]] = field(default_factory=list)
+
+
+#: ``take(namespace)``: the pending call-1 edge batches of a namespace (and forget them).
+WindowEdges = Callable[[str], list[WindowEdgeBatch]]
+
+
+@dataclass
+class SessionClosed:
+    """W1: a session ended (explicit ``close_session``, a new session starting in the same
+    namespace, or the end of a stream). ``windows`` counts the windows it produced. The
+    interface of call 2 (summary, episode narrative, guarded profile updates)."""
+
+    namespace: str
+    session_id: str
+    windows: int = 0
+
+
+#: Call 2: handler of a closed session; returns its stats. None installed => the stub.
+SessionCloseHandler = Callable[[SessionClosed], Awaitable[dict[str, object]]]
+
+
 class DepositFact(Protocol):
     """C6': engine-side deposit of one mined fact through the write door
     (namespace, text, entity, attribute, parent ids, event time, session key);
     ``kind`` (G1a) is ``state`` / ``event``, or None for an unclassified fact;
     ``happened`` / ``said`` (#29) the fact's happened date and the day it was said;
-    ``persons`` / ``location`` / ``topic`` (#28) its multi-view fields."""
+    ``persons`` / ``location`` / ``topic`` (#28) its multi-view fields;
+    ``require_live`` (W1) more record ids that must still be live, besides the parents."""
 
     def __call__(
         self,
@@ -219,6 +257,7 @@ class DepositFact(Protocol):
         location: str | None = None,
         topic: str | None = None,
         extra_tags: Sequence[str] = (),
+        require_live: Sequence[str] = (),
     ) -> Awaitable[object]: ...
 
 
@@ -313,6 +352,11 @@ class PipelineContext:
     #: deposit is no longer live (audited by the engine). Called under the
     #: namespace lock right before the write. None => a local check, no audit.
     parents_gone: Callable[[str, Sequence[str], str], Awaitable[bool]] | None = None
+    #: W1 (call 3 wiring): the pending edges of ``write.window_extract`` call 1. None =>
+    #: ``extract_graph`` extracts every edge itself, as before.
+    window_edges: WindowEdges | None = None
+    #: W1 (call 2 interface): the session-closed handler. None => the stub.
+    close_session: SessionCloseHandler | None = None
 
 
 async def _parents_gone(
@@ -1961,7 +2005,7 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
     sent to the extractor."""
     if ctx.append_event is None:
         return {"status": "skipped", "reason": "read-only context (no write door)"}
-    if ctx.extract_edges is None:
+    if ctx.extract_edges is None and ctx.window_edges is None:
         return {"status": "skipped", "reason": "extract_graph disabled or no extract_edges role"}
     opts = _policy_options(ctx, "semantic", "extract_graph") or {}
     # G-3: event edges keyed on their day and numerals (off: (src, rel, dst) only).
@@ -2023,6 +2067,8 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
                         continue  # a cue is a retrieval key, never a fact source (R2-1)
                     if record.source.channel == constants.ENTITY_SUMMARY_CHANNEL:
                         continue  # GP-6: a summary of facts is not a new fact source
+                    if record.source.channel == constants.WINDOW_EPISODE_CHANNEL:
+                        continue  # W1: an episode fragment restates turns; they are the source
                     if (
                         record.status is RecordStatus.ACTIVATED
                         and not record.quarantined
@@ -2038,6 +2084,28 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
             extracted: list[tuple[MemoryRecord, list[ExtractedEdge]]] = []
             parent_sets: list[list[MemoryRecord]] = []
             sessions_done: list[tuple[str, str]] = []
+            if ctx.window_edges is not None:
+                # W1 (call 3 wiring): the edges the window calls already returned join this
+                # sweep's resolution, contradiction check and emit; the turns those calls
+                # read leave the extraction below (no second LLM pass over them).
+                covered_ids: set[str] = set()
+                for batch in ctx.window_edges(namespace):
+                    live = await _live_members(ctx, batch.covered)
+                    live_by_id = {m.record_id: m for m in live}
+                    for cited_ids, edge in batch.edges:
+                        cited = [live_by_id[i] for i in cited_ids if i in live_by_id]
+                        if not cited or len(cited) < len(set(cited_ids)):
+                            continue  # a cited turn is gone (forgotten, held): no edge from it
+                        if edge.confidence < min_conf:
+                            continue
+                        owner = min(cited, key=lambda m: (m.trust, chrono_key(m)))
+                        extracted.append((owner, [edge]))
+                        parent_sets.append(cited)
+                    for member in live:
+                        done[member.record_id] = member.content_fingerprint
+                        covered_ids.add(member.record_id)
+                if covered_ids:
+                    sources = [r for r in sources if r.record_id not in covered_ids]
             if session_extract is not None:
                 # #20: one call per consolidated session (numbered turns); the
                 # session's members leave the per-record pass.
@@ -2106,6 +2174,8 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
                 ):
                     already += 1
                     continue
+                if ctx.extract_edges is None:
+                    continue  # only the window calls extract here (no extract_edges role)
                 try:
                     edges = await ctx.extract_edges(record.content, edge_context)
                 except Exception as exc:  # the LLM is an enhancer, never a gate (N6)
@@ -3590,6 +3660,43 @@ async def predict_calibrate(ctx: PipelineContext) -> dict[str, object]:
 
     legacy = _legacy_tag_check(ctx, "semantic", lambda r, key: f"calibrated:{key}" in r.tags)
     return await _run_session_stage(ctx, "predict_calibrate", "surprises", legacy, work)
+
+
+#: W1: the marker a closed session leaves in the log (ids and a count, never content).
+SESSION_CLOSED_MARKER = "session_closed"
+
+
+async def session_close(ctx: PipelineContext, event: SessionClosed) -> dict[str, object]:
+    """W1 call 2, session close: the hook and a STUB stage.
+
+    Called once when a session ends (``Engine.close_session``, a new session starting in the
+    namespace, or the end of a stream). The content of call 2 (session summary, the episode
+    narrative stitched from the window fragments, profile updates as guarded operations) is
+    not built yet: with no ``ctx.close_session`` handler this only records that the session
+    closed (a MARKER with the session id and the window count) and reports ``stub``. A handler
+    replaces the stub without touching the engine. Not in ``PIPELINES``: it takes an event,
+    not just a context, and runs on a session boundary, not in the sleep cycle."""
+    if ctx.close_session is not None:
+        return await ctx.close_session(event)
+    if ctx.append_event is not None and ctx.config.event_log.mode is not EventLogMode.EPHEMERAL:
+        await ctx.append_event(
+            MemoryEvent(
+                kind=EventKind.MARKER,
+                namespace=event.namespace,
+                actor="system",
+                payload={
+                    "marker": SESSION_CLOSED_MARKER,
+                    "session_id": event.session_id,
+                    "windows": event.windows,
+                },
+            )
+        )
+    return {
+        "status": "stub",
+        "reason": "call 2 (summary, episode narrative, profile updates) is not built yet",
+        "session_id": event.session_id,
+        "windows": event.windows,
+    }
 
 
 #: Name -> pipeline. Runners register from this table; the M11-adjacent names

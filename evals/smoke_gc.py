@@ -1,4 +1,4 @@
-"""CPU-only smoke of the combined-engine arms (G-C2, G-C3, G-C9): no GPU, no Ollama, no network.
+﻿"""CPU-only smoke of the combined-engine arms (G-C2, G-C3, G-C9): no GPU, no Ollama, no network.
 
     python evals/smoke_gc.py [--arm scr-gc2-facts-jina ...] [--keep]
 
@@ -31,7 +31,7 @@ HERE = Path(__file__).resolve().parent
 sys.path[:] = [p for p in sys.path if Path(p or ".").resolve() != HERE]
 sys.path.append(str(HERE))
 
-ARMS = ("scr-gc2-facts-jina", "scr-gc3-graph-jina", "scr-gc9-summary-jina")
+ARMS = ("scr-gc2-facts-jina", "scr-gc3-graph-jina", "scr-gc9-summary-jina", "scr-window-facts-jina")
 
 # -- one small synthetic conversation in LoCoMo format -------------------------------------------------------
 
@@ -100,6 +100,8 @@ def make_stub() -> Any:
 
         def classify(self, messages: list[dict[str, Any]]) -> str:
             text = " ".join(str(m.get("content", "")) for m in messages)
+            if "Reply with the JSON object for the sections:" in text:
+                return "window_extract"
             if "Emit a YAML list under the key `summaries`" in text:
                 return "summarize_entity"
             if "Emit a YAML list under the key `classes`" in text:
@@ -109,6 +111,18 @@ def make_stub() -> Any:
         def reply(self, kind: str, messages: list[dict[str, Any]]) -> str:
             user = str(messages[-1].get("content", ""))
             self.prompts[kind + ": " + " ".join(user.split())[:58]] += 1
+            if kind == "window_extract":
+                # W1 call 1: one grounded fact per transcript line ("[n] [date] Speaker: text")
+                facts = []
+                for line in re.findall(r"^\[(\d+)\] \[[\d-]+\] (.+)$", user, re.M):
+                    n, body = line
+                    who, _, said = body.partition(": ")
+                    facts.append({
+                        "entity": who, "attribute": "event", "kind": "event",
+                        "value": f"{who} said {said[:120]}", "turns": [int(n)], "span": " ".join(said.split()[:8]),
+                        "persons": [who], "topic": "activities", "confidence": 0.8,
+                    })
+                return json.dumps({"facts": facts})
             if kind == "summarize_entity":
                 names = re.findall(r"^\[(\d+)\]\s+(.+)$", user, re.M)
                 return "summaries:\n" + "\n".join(
@@ -207,9 +221,12 @@ async def run_arm(arm_id: str, workdir: Path, data: Path) -> dict[str, Any]:
     summary = json.loads((run / "summary.json").read_text(encoding="utf-8"))
     fx = [json.loads(x) for x in (forensics / "forensics.jsonl").read_text(encoding="utf-8").splitlines() if x.strip()]
     sleep: dict[str, Any] = {}
+    window: dict[str, Any] = {}
     for meta in captured:
         sleep = meta.get("sleep") or sleep
+        window = meta.get("window_extract") or window
     return {
+        "window_stats": window,
         "arm": arm_id, "bound_roles": roles, "stub_calls": dict(stub.calls), "prompt_heads": dict(stub.prompts), "thinking_calls": stub.thinking_calls,
         "engine_llm_usage": summary.get("engine_llm_usage"), "sleep_stages": sleep, "forensics": fx,
         "n_sessions": len(SESSIONS), "n_turns": sum(len(t) for _, t in SESSIONS),
@@ -237,6 +254,19 @@ CHECKS = {
         ("a graph leg (graph / graph_nodes) present in read forensics",
          any(("graph" in lg or "graph_nodes" in lg) for lg in legs)),
         ("ABOUT block (entity summaries) in a context", any(b.lstrip().startswith("ABOUT") for b in blocks)),
+    ],
+    "scr-window-facts-jina": lambda r, legs, blocks: [
+        ("window calls ran (call 1)", (r["window_stats"] or {}).get("calls", 0) > 0),
+        ("window facts deposited with grounded spans",
+         (r["window_stats"] or {}).get("facts_deposited", 0) > 0
+         and (r["window_stats"] or {}).get("facts_ungrounded", 1) == 0),
+        ("no parse failure and no section dropped",
+         (r["window_stats"] or {}).get("parse_failures", 1) == 0
+         and (r["window_stats"] or {}).get("sections_dropped", 1) == 0),
+        ("window_extract role called", sum(u["calls"] for st in (r["engine_llm_usage"] or {}).values()
+                                            for role, u in st.items() if role == "window_extract") > 0),
+        ("view_tags leg present in read forensics", any("view_tags" in lg for lg in legs)),
+        ("a window fact reaches the context", any(b for b in blocks)),
     ],
     "scr-gc9-summary-jina": lambda r, legs, blocks: [
         ("sleep stage consolidate wrote summaries", (r["sleep_stages"].get("consolidate") or {}).get("summaries", 0) > 0),
@@ -301,3 +331,5 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+
+

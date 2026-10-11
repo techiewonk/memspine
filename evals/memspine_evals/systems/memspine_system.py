@@ -645,6 +645,15 @@ class MemspineSystem:
         the synthesise (K) bucket; queries pinned mid-stream run before it.
         """
         flushed = await self.flush()
+        windows = await self._flush_windows(final=True)
+        if windows is not None:  # W1: call 1 of the window write, billed with the write cost
+            flushed = DepositResult(
+                n_records=flushed.n_records,
+                record_ids=flushed.record_ids,
+                latency_ms=flushed.latency_ms,
+                model_calls=flushed.model_calls + windows.model_calls,
+                meta={**flushed.meta, **windows.meta},
+            )
         if self._engine is not None:
             await self._write_derived_trace()
         if not self._build_sleep or self._engine is None:
@@ -674,12 +683,72 @@ class MemspineSystem:
         engine_prompts = self._prompt_delta(prompts_before, self._prompt_usage())
         if engine_prompts:
             meta["engine_prompts"] = engine_prompts
+        if windows is not None:  # W1: the window calls ran just before the sleep; keep them
+            meta["window_extract"] = windows.meta.get("window_extract", {})
+            for key in ("engine_llm", "engine_prompts"):
+                meta[key] = _merge_usage(windows.meta.get(key), meta.get(key))
+                if not meta[key]:
+                    del meta[key]
         if before is None or after is None:
             # R3-10: unknown is not zero; the ledger must not report a free sleep.
             meta["cost_observable"] = False
             meta["cost_unknown_reason"] = "engine does not expose model_calls()"
             return DepositResult(model_calls=0, meta=meta)
         return DepositResult(model_calls=after - before + flushed.model_calls, meta=meta)
+
+    def _windows_on(self) -> bool:
+        """``write.window_extract`` is set in the arm (the engine has the window write)."""
+        write = self.config.get("write") or {}
+        return bool(self._engine is not None and write.get("window_extract", "off") != "off")
+
+    async def _flush_windows(self, *, final: bool) -> DepositResult | None:
+        """W1 (``write.window_extract``): run the window calls (call 1) the ingest queued.
+
+        Before a mid-stream query only the closed windows run (``final=False``); at ``build``
+        the open ones too. The model calls ride on the result (write cost); the G-W13 write
+        counters (windows, calls per layer, parse failures, sections dropped, facts dropped as
+        ungrounded, windows per session) land in ``meta["window_extract"]`` and as one
+        ``window_stats`` row of ``ingest.jsonl``. None when the arm has no window write."""
+        if not self._windows_on():
+            return None
+        flush = getattr(self._engine, "flush_windows", None)
+        if not callable(flush):
+            return None
+        before = self._calls()
+        usage_before = self._usage()
+        prompts_before = self._prompt_usage()
+        stats = dict(await flush(self.namespace, final=final))
+        after = self._calls()
+        meta: dict[str, Any] = {"window_extract": stats}
+        engine_llm = self._usage_delta(usage_before, self._usage())
+        if engine_llm:
+            meta["engine_llm"] = engine_llm
+        engine_prompts = self._prompt_delta(prompts_before, self._prompt_usage())
+        if engine_prompts:
+            meta["engine_prompts"] = engine_prompts
+        self._write_window_log(stats, final=final)
+        if before is None or after is None:
+            meta["cost_observable"] = False
+            return DepositResult(model_calls=0, meta=meta)
+        return DepositResult(model_calls=after - before, meta=meta)
+
+    def _write_window_log(self, stats: Mapping[str, Any], *, final: bool) -> None:
+        """One ``window_stats`` row in ``ingest.jsonl`` (the write-quality counters so far)."""
+        import json
+        from pathlib import Path
+
+        row = {
+            "kind": "window_stats",
+            "run_id": self._run_id,
+            "item": getattr(self, "_item_id", None),
+            "final": final,
+            **stats,
+        }
+        for directory in self._log_dirs():
+            out = Path(directory)
+            out.mkdir(parents=True, exist_ok=True)
+            with (out / "ingest.jsonl").open("a", encoding="utf-8") as fh:
+                fh.write(json.dumps(row, default=str) + "\n")
 
     def set_query_meta(self, meta: Mapping[str, Any]) -> None:
         """N34: the runner hands each question's metadata over before ``query``."""
@@ -920,6 +989,15 @@ class MemspineSystem:
         # A no-op when the runner already flushed; otherwise its write cost is
         # carried in this query's cost so the run total stays complete.
         flushed = await self.flush()
+        windows = await self._flush_windows(final=False)
+        if windows is not None and windows.model_calls:
+            flushed = DepositResult(
+                n_records=flushed.n_records,
+                record_ids=flushed.record_ids,
+                latency_ms=flushed.latency_ms,
+                model_calls=flushed.model_calls + windows.model_calls,
+                meta=flushed.meta,
+            )
         before = self._calls()
         usage_before = self._usage()
         prompts_before = self._prompt_usage()
@@ -1080,6 +1158,19 @@ class MemspineSystem:
 
             shutil.rmtree(tempdir, ignore_errors=True)
             self._tempdir = None
+
+
+def _merge_usage(
+    first: Mapping[str, Mapping[str, Any]] | None, second: Mapping[str, Mapping[str, Any]] | None
+) -> dict[str, dict[str, Any]]:
+    """Two per-role (or per-prompt) usage deltas as one: the integer fields add up."""
+    merged: dict[str, dict[str, Any]] = {k: dict(v) for k, v in (first or {}).items()}
+    for key, entry in (second or {}).items():
+        into = merged.setdefault(key, {k: v for k, v in entry.items() if not isinstance(v, int)})
+        for field, value in entry.items():
+            if isinstance(value, int) and not isinstance(value, bool):
+                into[field] = int(into.get(field, 0)) + value
+    return merged
 
 
 def _append_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:

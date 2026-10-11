@@ -30,4 +30,5 @@ PROMPT_ROLES: tuple[str, ...] = (
     "verify_answer",  # #39: answer verification against the context (Engine.verify_answer)
     "predict_episode",  # #62: Nemori predict step (episode from stored memory), opt-in
     "calibrate",  # #62: Nemori calibrate step (prediction vs episode -> surprise), opt-in
+    "window_extract",  # W1: call 1 of the adaptive-window write (facts / edges / episode), opt-in
 )

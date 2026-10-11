@@ -78,6 +78,12 @@ CANONICAL_CONTEXTS: dict[str, dict[str, Any]] = {
             "[2] Acme Corp (candidates: Acme)"
         ),
     },
+    "window_extract": {
+        "content": "[1] [2026-01-02] Alice: I moved to Berlin last week",
+        "participants": "Alice",
+        "turn_count": 1,
+        "sections": ["facts", "edges", "episode"],
+    },
     "summarize_entity": {
         "entities": (
             "[1] Alice\n- [2026-01-01] Alice moved to Berlin\n"
@@ -168,6 +174,20 @@ SAMPLE_PAYLOADS: dict[str, dict[str, Any]] = {
                 "confidence": 0.95,
             }
         ]
+    },
+    "WindowPayload": {
+        "facts": [
+            {
+                "entity": "Alice",
+                "attribute": "city",
+                "value": "Alice moved to Berlin last week (2025-12-26)",
+                "kind": "state",
+                "turns": [1],
+                "span": "I moved to Berlin",
+            }
+        ],
+        "edges": [],
+        "episode": {"narrative": "Alice said she moved to Berlin.", "turns": [1]},
     },
     "FactDates": {"dates": [{"index": 1, "date": "2026-01-02"}]},
     "FactClasses": {"classes": [{"index": 1, "label": "places lived"}]},

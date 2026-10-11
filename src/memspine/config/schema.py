@@ -1748,6 +1748,34 @@ class WriteConfig(BaseModel):
     inferred_explicit_overlap: float = Field(default=0.6, gt=0.0, le=1.0)
     inferred_support_overlap: float = Field(default=0.3, gt=0.0, le=1.0)
 
+    #: W1 (adaptive-window write, call 1; ``docs/ENGINE_COMPARISON_AND_WRITE_PATH_DESIGN.html``
+    #: "Decided design"). ``off`` (default): no window call, a write is unchanged. ``facts``:
+    #: one structured ``window_extract`` call per window yields atomic, dated, grounded facts
+    #: (semantic layer, parents = the source turns). ``facts_graph`` adds the entity-edge
+    #: section (handed to the sleep stage ``extract_graph``, the call-3 wiring); ``all`` adds
+    #: the episode-fragment section. Needs an LLM role ``window_extract`` and semantic memory.
+    window_extract: Literal["off", "facts", "facts_graph", "all"] = "off"
+    #: A window closes at the first of: a topic shift, this many turns, ``window_max_tokens``
+    #: (prompt tokens, 4 chars each), ``window_idle_s`` of silence, or the session's end.
+    window_max_turns: int = Field(default=6, ge=1, le=64)
+    window_max_tokens: int = Field(default=1500, ge=64)
+    #: Topic shift: the similarity of two consecutive turns (their embeddings) falls below the
+    #: store's running ``mean - k * sd`` of that similarity (per namespace, no LLM). k = 2 is
+    #: the usual two-sigma outlier line, not tuned. 0 turns the topic boundary off.
+    window_topic_k: float = Field(default=2.0, ge=0.0)
+    #: Seconds without a write in a namespace before the open window is cut (async mode). 0: never.
+    window_idle_s: float = Field(default=120.0, ge=0.0)
+    #: ``auto``: split a window's call into facts+edges / episode after repeated parse failures;
+    #: ``always`` / ``never``. Only matters when more than one section is enabled.
+    window_split: Literal["auto", "always", "never"] = "auto"
+    #: True (live): window calls run in a background task after the write returns (idle
+    #: debounced). False (batch / eval): they run only at ``Engine.flush_windows()``,
+    #: ``close_session`` or ``sleep``. The result is identical; only the timing differs.
+    window_async: bool = True
+    #: Cache each call by (model, prompt version, sections, window text hash), so a re-run on
+    #: the same history is free (needs the engine cache; in memory unless a durable one is set).
+    window_cache: bool = True
+
 
 class IngestConfig(BaseModel):
     """E04 attachment handling at write time. Off by default: a message's ``attachments`` are

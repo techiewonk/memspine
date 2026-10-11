@@ -41,7 +41,7 @@ INFERRED_TAG = "src:inferred"
 SUPPORT_PREFIX = "support:"
 
 #: Channels whose records are the engine's own conclusions.
-INFERRED_CHANNELS = frozenset({"mining", "reflection", "consolidation"})
+INFERRED_CHANNELS = frozenset({"mining", "reflection", "consolidation", "window_episode"})
 
 
 def is_inferred(tags: Iterable[str]) -> bool:

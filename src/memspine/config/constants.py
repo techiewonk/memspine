@@ -493,6 +493,26 @@ MINED_FACT_FUTURE_SLACK_DAYS = 366
 MULTIVIEW_MAX_PERSONS = 8
 MULTIVIEW_FIELD_MAX_CHARS = 80
 
+#: W1 (adaptive-window write, ``write.window_extract``). The topic-shift test needs enough
+#: consecutive-turn similarities for the standard deviation to mean something: the standard
+#: error of a sample sd is about ``sd / sqrt(2 (n - 1))``, 16% at n = 20 (the usual rule of
+#: thumb for a stable spread). Before that many pairs only the turn / token / session / idle
+#: boundaries apply.
+WINDOW_TOPIC_MIN_PAIRS = 20
+#: A topic shift never closes a window of fewer turns than this (a one-turn window has no
+#: context to extract from).
+WINDOW_TOPIC_MIN_TURNS = 2
+#: ``window_split: auto`` splits a window's call into two (facts + edges / episode) once this
+#: share of the last ``WINDOW_SPLIT_RECENT`` calls failed to parse, and not before that many.
+WINDOW_SPLIT_FAIL_RATE = 0.25
+WINDOW_SPLIT_RECENT = 8
+#: Pending call-1 edges kept per namespace for the sleep stage (an unconsumed backlog is
+#: capped, oldest dropped and counted); one narrative is cut at this many characters.
+WINDOW_PENDING_EDGES_MAX = 5000
+WINDOW_EPISODE_MAX_CHARS = 4000
+#: Channel of an episode fragment record (a derived, inferred record).
+WINDOW_EPISODE_CHANNEL = "window_episode"
+
 #: #30 (person-level list cards): a (person, class) group needs at least this many
 #: event facts to get a card; a card lists at most the newest ``MAX_ITEMS`` of them
 #: (the rest are counted), each statement cut to ``ITEM_MAX_CHARS``.
