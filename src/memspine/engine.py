@@ -817,6 +817,22 @@ def _cut_missing(
             trace_sink.cut(reason, rid, **detail)
 
 
+def _log_leg_floor(leg: str, hits: Any, floor: float) -> None:
+    """V02: one ``leg_floor`` cut per hit a per-leg score floor (``read.leg_min_scores``)
+    drops, with the leg, the hit's score, its rank in that leg and the floor. Called only
+    while a forensics sink is active."""
+    for pos, hit in enumerate(hits, start=1):
+        if hit.score < floor:
+            trace_sink.cut(
+                "leg_floor",
+                hit.record_id,
+                leg=leg,
+                score=round(float(hit.score), 6),
+                leg_rank=pos,
+                floor=floor,
+            )
+
+
 def _leg_rank_map(
     legs: Sequence[tuple[str, Sequence[Any]]],
 ) -> dict[str, tuple[str, int]]:
@@ -5400,9 +5416,14 @@ class Engine:
             floors = self._config().read.leg_min_scores
             if floors:
                 # C6 (per-leg score floors): weak hits never enter the fusion.
+                logging_floors = _FORENSICS.get() is not None  # V02: zero cost when off
                 if "vector" in floors:
+                    if logging_floors:
+                        _log_leg_floor("vector", vector_hits, floors["vector"])
                     vector_hits = [h for h in vector_hits if h.score >= floors["vector"]]
                 if "lexical" in floors:
+                    if logging_floors:
+                        _log_leg_floor("lexical", lexical_hits, floors["lexical"])
                     lexical_hits = [h for h in lexical_hits if h.score >= floors["lexical"]]
             if allowed is not None:
                 vector_hits = [h for h in vector_hits if h.record_id in allowed[0]]
@@ -5663,7 +5684,16 @@ class Engine:
             if hint and reranker is not None:
                 rerank_query = query + hint
             if (fx := _FORENSICS.get()) is not None:
-                fx["query_contract"] = {**contract.as_meta(), "rerank_hint": hint}
+                fx["query_contract"] = {
+                    **contract.as_meta(),
+                    "rerank_hint": hint,
+                    "mode": read_cfg.query_contract,
+                    "use": list(read_cfg.query_contract_use),
+                    "status": "observed",
+                }
+        elif (fx := _FORENSICS.get()) is not None:
+            # V02: say that the contract was not computed rather than leave the field out
+            fx["query_contract"] = {"mode": "off", "status": "absent"}
         if reranker is not None and candidates:
             documents = [concat_background(record) for record, _ in candidates]
             if read_cfg.rerank_date_prefix:
