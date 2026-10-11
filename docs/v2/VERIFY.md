@@ -74,7 +74,7 @@ The recommended option stays the default and the other becomes a base layer, fir
 
 | Id | Measurement | Gate |
 |---|---|---|
-| R-03 | contract-jina-full (1,540, queued) vs clean-jina-full 81.4, then MAB-CR and ConvoMem | Macro beyond band, no category beyond its band (focus slice showed net +9 at no extra cost) |
+| R-03 | contract-jina-full (1,540, queued) vs clean-jina-full 81.4, then MAB-CR and ConvoMem | Paired gate PROMOTE on the full set, then CONFIRMS blind (focus slice: +15/-7, net +8, HOLD under the new gate) |
 | R-22 | New `f-suff` focus screen vs f-jref2-i2 | Net > about +7, no category loss, wall time at most 2x (the slot loop was net -3 at about 8x) |
 | R-12 | Source-family pool vs per-leg pool on the focus slice | Non-inferior within band, rerank pairs not higher |
 | R-18 | Block shares vs none at equal budget (the early-break fix needs no screen) | No QA loss, tokens down |
@@ -90,8 +90,7 @@ The recommended option stays the default and the other becomes a base layer, fir
 | M-22 | Multi-resolution text on the focus slice and one blind run | Context tokens down at no QA loss |
 
 Every measurement uses the hardened gate (G-01, G-E1): paired against a named reference, all in-scope sets present,
-per-conversation uncertainty, and one sealed blind run before adoption. The current `eval_focus.py` verdict must not
-be used for these (it printed PROMOTE for both arm and reference on 2026-10-11).
+per-conversation uncertainty, and one sealed blind run before adoption. `eval_focus.py` and `eval_blind.py` now use the paired gate (G-E1, built 2026-10-12).
 
 ## 4. Facts from 2026-10-11 that the plan relies on
 
@@ -107,3 +106,4 @@ be used for these (it printed PROMOTE for both arm and reference on 2026-10-11).
 - 2026-10-11: first verification of all 155 answers across six areas.
 - 2026-10-11 (later): Q9 answered by the owner (v2 inside `memspine`); lock file bumped (huggingface-hub 1.33.0, commit 1d15194), so the G-24 prerequisite is met.
 - 2026-10-12: owner answered Q1-Q8 (six as proposed; Q3 pattern observations and Q4 Neo4j server graph changed).
+- 2026-10-12: G-E1 paired gate built in v1; A03 focus result re-scored as HOLD (net +8, sign p 0.134).

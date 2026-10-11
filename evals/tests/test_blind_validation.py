@@ -120,7 +120,8 @@ def test_compare_counts() -> None:
     assert (r["n"], r["gained"], r["lost"], r["net"]) == (4, 1, 1, 0)
     assert r["delta"] == 0 and r["guard_ok"]
     assert eval_blind.compare(mk([0] * 100), mk([1] * 100))["guard_ok"] is False
-    assert eval_blind.compare({}, mk([1])) == {"n": 0}
+    none = eval_blind.compare({}, mk([1]))
+    assert none["n"] == 0 and none["complete"] is False  # G-E1: an empty run is incomplete, never neutral
     empty = {"0": {"status": "completed", "answer": " ", "score": 1.0}}
     assert not eval_blind.is_correct(empty["0"])
 

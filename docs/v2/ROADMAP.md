@@ -9,7 +9,7 @@ estimated here; they are set when Phase 0 closes.
 - **Owner answers Q1-Q9**: done (2026-10-12); chapters, decisions and architecture updated.
 - **Fix the environment**: done 2026-10-11 (`1d15194`: huggingface-hub 1.33.0, click override for deepeval);
   next, per-run environments (G-24).
-- **Harden the gate first** (G-01, G-E1 in v1): paired comparison against a named reference, all sets required,
+- **Harden the gate first** (G-01, G-E1 in v1; paired gate built 2026-10-12, manifests and sealed blind run still open): paired comparison against a named reference, all sets required,
   per-conversation uncertainty. Every later measurement depends on it.
 - **Finish the queued v1 screens**: GC screens (contaminated for absolute claims), f-win on the fixed prompts,
   contract-jina-full against the 81.4% reference, then MAB-CR and ConvoMem for A03.

@@ -566,9 +566,9 @@
       "id": "G-E1",
       "area": "arch",
       "title": "Evaluation gate hardening",
-      "status": "missing",
+      "status": "partial",
       "others": "Codex review: eval_focus verdict uses slice labels with --ref informational; eval_blind compares intersecting questions and can confirm with a dataset missing; 0.328*sqrt(n) is not per dataset.",
-      "now": "Gates per evals/eval_focus.py and evals/eval_blind.py; gold-lint catches literal overlap only.",
+      "now": "Built 2026-10-12 (memspine_evals/paired_gate.py): paired per-question verdict against a named reference, INCOMPLETE on missing rows or blind sets, sign test, conversation-cluster bootstrap, per-category bands. Still open: pinned run manifests and one frozen sealed blind run per adoption.",
       "why": "Without paired, complete comparisons a prompt change can be adopted on noise or on one dataset.",
       "proposal": "Pinned run manifests; truly paired comparisons against the named reference; per-conversation bootstrap uncertainty per dataset; all blind sets required; repeated dev runs; one frozen blind run per adoption; keep per-slice non-inferiority and OP-Bench checks (GAP_TO_SOLUTION_PLAN.md:211).",
       "effort": "M",
@@ -665,6 +665,11 @@
       "date": "2026-10-11",
       "ref": "2df543d",
       "text": "Codex second opinion on G-W49: verdict modify. Accepted all 7 points. Prompt v2 (353 tokens): CONTEXT block, list members kept, plans/wishes/doubt marked not dropped, assent vs acknowledgement, no hard length caps, nullable s/o with literal values, mode/neg/until fields. New G-W50 graph key identity (verified: _edge_key omits kind; undated events have no occurrence; archived state keys skip the ladder) as the G-W49 prerequisite, and G-E1 evaluation gate hardening (eval_focus --ref informational; eval_blind can confirm with a set missing)."
+    },
+    {
+      "date": "2026-10-12",
+      "ref": "G-E1",
+      "text": "G-E1 paired gate built for focus and blind scorers; replay shows A03 focus net +8 is HOLD (sign p 0.134), not a candidate until the full run."
     }
   ],
   "review_doc": "https://claude.ai/artifact/MvR65yFBPaeGRVU4nUkezr"

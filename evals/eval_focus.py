@@ -3,10 +3,12 @@
     python eval_focus.py ARM_RUN [--ref r7-protect-full] [--slice analysis/focus_slice_r7protect.json]
     python eval_focus.py ARM_OPB_RUN --opb [--slice analysis/focus_slice_opb.json]
 
-LoCoMo: fixed = FAIL questions now correct; broken = CONTROL questions now wrong (correct rule as eval_screen.py).
-  estimated full-set net = fixed - broken * (n_correct_total / n_control)      (control is a sample of the correct set)
-  band = 0.328*sqrt(n_total); PROMOTE iff est. net > band and broken-rate <= 3%; HOLD if net > 0 but not enough;
-  else REJECT. The slice is the baseline's own failures, so a bare "fixed" count is never the verdict.
+LoCoMo (G-E1): the verdict is PAIRED against the reference run named by --ref, question by question over the slice
+  (``memspine_evals.paired_gate``): INCOMPLETE if either run lacks a slice question, NO CHANGE if nothing flips,
+  PROMOTE only if net > 0.328*sqrt(n), exact sign test p < 0.05, conversation-cluster bootstrap low > 0 and no
+  category beyond its own band. --ref is REQUIRED and must differ from the arm. The old slice-label view (fixed FAIL /
+  broken CONTROL vs the labels stored in the slice) is still printed, marked informational: it is not a verdict
+  (it printed PROMOTE for an arm identical to its reference on 2026-10-11).
 OP-Bench (auto when the run has opbench_summary.json): mean per-probe score change on FAIL and on CONTROL (finalised
   M01 scores vs the slice's baseline_score); est. overall change in points = (sum FAIL delta + mean CONTROL delta *
   n_ok_total) / n_total * 100; PROMOTE iff > +3 pts band and CONTROL mean change >= -0.03.
@@ -19,6 +21,8 @@ import json
 import math
 from collections import defaultdict
 from pathlib import Path
+
+from memspine_evals.paired_gate import format_result, paired
 
 HERE = Path(__file__).parent
 BROKEN_MAX = 0.03
@@ -97,7 +101,7 @@ def score_opb(run_dir: Path, sl: dict) -> dict:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("arm_run")
-    ap.add_argument("--ref", default="r7-protect-full", help="reference run (recorded in the slice; informational)")
+    ap.add_argument("--ref", default=None, help="reference run id (required for LoCoMo; the verdict is paired against it)")
     ap.add_argument("--slice", type=Path, default=None)
     ap.add_argument("--opb", action="store_true", help="force OP-Bench scoring (auto if opbench_summary.json exists)")
     ap.add_argument("--runs-dir", type=Path, default=HERE / "runs")
@@ -106,8 +110,13 @@ def main() -> None:
     is_opb = a.opb or (run_dir / "opbench_summary.json").exists()
     sl_path = a.slice or HERE / "analysis" / ("focus_slice_opb.json" if is_opb else "focus_slice_r7protect.json")
     sl = json.loads(sl_path.read_text(encoding="utf-8"))
-    if a.ref != sl["source_run"] and not is_opb:
-        print(f"note: slice was built from {sl['source_run']}, not {a.ref}")
+    if not is_opb:
+        if not a.ref:
+            ap.error("--ref is required: the verdict is paired against a named reference run (G-E1)")
+        if a.ref == a.arm_run:
+            ap.error("--ref must name a different run than the arm")
+        if a.ref != sl["source_run"]:
+            print(f"note: slice was built from {sl['source_run']}; the verdict is paired against {a.ref}")
     if is_opb:
         r = score_opb(run_dir, sl)
         print(f"OP-Bench {a.arm_run} vs {sl['source_run']} (slice {sl_path.name} {sl['hash'][:10]})")
@@ -118,7 +127,8 @@ def main() -> None:
         return
     arm = read_rows(run_dir / "results.jsonl")
     r = score_locomo(arm, sl)
-    print(f"LoCoMo {a.arm_run} vs {sl['source_run']} (slice {sl_path.name} {sl['hash'][:10]})")
+    print(f"LoCoMo {a.arm_run} vs {a.ref} (slice {sl_path.name} {sl['hash'][:10]})")
+    print(f"   slice view vs stored labels (informational, not a verdict; built from {sl['source_run']}):")
     print(f"   fixed  {r['fixed']}/{r['n_fail']} FAIL questions now correct")
     print(f"   broken {r['broken']}/{r['n_control']} CONTROL questions now wrong ({100*r['broken_rate']:.1f}%, max {100*BROKEN_MAX:.0f}%)")
     print(f"   est. full-set net {r['net']:+.1f} q = fixed - broken*{r['scale']:.2f}  (band +-{r['band']:.1f} = 0.328*sqrt({sl['n_total']}))")
@@ -137,7 +147,13 @@ def main() -> None:
             print(f"      {k:5s} n={n:3d} {v:5.1f}{extra}")
     if r["missing"]:
         print(f"   WARNING: {r['missing']} slice questions have no row in the arm run")
-    print(f"verdict: {r['verdict']}")
+    cat = sl["category"]
+    pr = paired({q: correct(d) for q, d in arm.items()}, {q: correct(d) for q, d in ref_rows.items()}, qids,
+                category_of=lambda q: cat.get(q, "?"))
+    print("   paired gate (G-E1):")
+    for line in format_result("LoCoMo slice", pr):
+        print("   " + line)
+    print(f"verdict: {pr.verdict}")
 
 
 if __name__ == "__main__":
