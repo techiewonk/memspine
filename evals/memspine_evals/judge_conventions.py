@@ -53,7 +53,9 @@ from dataclasses import dataclass
 __all__ = [
     "CONVENTIONS_VERSION",
     "ConventionResult",
+    "CONVENTIONS_V2_VERSION",
     "check_conventions",
+    "check_conventions_v2",
     "edit_close",
     "gold_items",
 ]
@@ -283,3 +285,325 @@ def check_conventions(question: str, answer: str, gold: str | None) -> Conventio
             return None
         fuzzy = fuzzy or hit == "fuzzy"
     return ConventionResult("list_superset", f"{len(items)} items" + (" (typo)" if fuzzy else ""))
+
+
+# =============================================================================================
+# I77: conventions v2 (``--judge-conventions-v2``, column ``score_conventions_v2``)
+# =============================================================================================
+#
+# Four more deterministic rules on top of v1. Same contract: they only turn a wrong verdict into a
+# right one, they are reported as their OWN column (``score_conventions_v2`` / ``convention_v2``,
+# v1 and the official ``score`` untouched), and they see only the question, the answer and the
+# gold. No table holds a dataset answer: the alias groups below are everyday abbreviation and
+# synonym sets (country names, family terms, appliances), the unit table is the SI / calendar
+# definitions, the date rule is calendar arithmetic.
+#
+# ``date_format``  gold is ONE calendar date and nothing else; the first date in the answer is the
+#                  same day written another way (ISO, "9 Oct 2022", "October 9th, 2022", "the
+#                  ninth of October"). A range cue ("between", "week of", "before", "until"...)
+#                  before the date, or any negation, blocks it. A gold without a year matches on
+#                  month and day; with a year the answer must carry the same year.
+# ``unit``         gold is ONE quantity ("2 hours", "a week", "$5"); the first quantity of the
+#                  answer is the same amount in another unit of the same dimension, by exact
+#                  definition (minutes/hours/days/weeks, months/years, mm/cm/m/km, g/kg, oz/lb,
+#                  dollars/$/USD). Comparatives, hedges ("about", "at least") and negation block it.
+#                  Same-unit numerals ("five" = 5) stay with the v1 ``numeral`` rule.
+# ``ordinal``      "third" = "3rd" = "3d" on either side, through the v1 phrase matcher.
+# ``alias``        gold and answer name the same thing by a listed alias ("mom"/"mother",
+#                  "TV"/"television", "US"/"United States"), through the v1 phrase / list matcher
+#                  on alias-folded text. Applies only when a fold actually changed something.
+#
+# False-positive risk: ``date_format`` and ``unit`` need an exact value match on a gold that is a
+# bare date / quantity, so the residual risk is an answer whose FIRST date or quantity is the
+# gold's but whose point is another ("on June 20 he booked, the trip was July 2"); range and
+# hedge cues cover the common forms. ``alias`` and ``ordinal`` inherit v1's matcher (content words
+# close together, negation blocks). Measured on the calibration set and read by hand on finished
+# runs: ``evals/judge_agreement.py --conventions`` and ``evals/rescore_conventions.py``.
+
+CONVENTIONS_V2_VERSION = "conventions/v2"
+
+_MONTH_NUM = {
+    m: i
+    for i, names in enumerate(
+        (
+            ("january", "jan"),
+            ("february", "feb"),
+            ("march", "mar"),
+            ("april", "apr"),
+            ("may",),
+            ("june", "jun"),
+            ("july", "jul"),
+            ("august", "aug"),
+            ("september", "sep", "sept"),
+            ("october", "oct"),
+            ("november", "nov"),
+            ("december", "dec"),
+        ),
+        start=1,
+    )
+    for m in names
+}
+_MONTH_RE = "|".join(sorted(_MONTH_NUM, key=len, reverse=True))
+_ORDINAL_WORDS = {
+    w: i
+    for i, w in enumerate(
+        "first second third fourth fifth sixth seventh eighth ninth tenth eleventh twelfth "
+        "thirteenth fourteenth fifteenth sixteenth seventeenth eighteenth nineteenth twentieth "
+        "twenty-first twenty-second twenty-third twenty-fourth twenty-fifth twenty-sixth "
+        "twenty-seventh twenty-eighth twenty-ninth thirtieth thirty-first".split(),
+        start=1,
+    )
+}
+_ORD_WORD_RE = "|".join(sorted((re.escape(w) for w in _ORDINAL_WORDS), key=len, reverse=True))
+_DAY = rf"(\d{{1,2}})(?:st|nd|rd|th|d)?|({_ORD_WORD_RE})"
+_DATE_PATTERNS = (
+    ("iso", re.compile(r"\b((?:19|20)\d\d)-(\d{2})-(\d{2})\b")),
+    (
+        "dmy",
+        re.compile(
+            rf"\b(?:the )?(?:{_DAY})(?: of)?\s*,?\s*({_MONTH_RE})\b\.?(?:\s*,?\s*((?:19|20)\d\d)\b)?",
+            re.I,
+        ),
+    ),
+    (
+        "mdy",
+        re.compile(
+            rf"\b({_MONTH_RE})\b\.?\s*(?:the )?(?:{_DAY})\b(?:\s*,?\s*((?:19|20)\d\d)\b)?",
+            re.I,
+        ),
+    ),
+)
+_RANGE_CUE = re.compile(
+    r"\b(between|from|until|till|through|since|before|after|around|about|approximately|week of|"
+    r"weekend|early|late|mid|end of|start of|beginning of|to)\W+(?:\w+\W+){0,2}$",
+    re.I,
+)
+
+
+def _day_value(num: str | None, word: str | None) -> int | None:
+    if num:
+        v = int(num)
+    elif word:
+        v = _ORDINAL_WORDS[word.lower()]
+    else:
+        return None
+    return v if 1 <= v <= 31 else None
+
+
+def _calendar_dates(text: str) -> list[tuple[int, tuple[int | None, int, int]]]:
+    """``(start offset, (year or None, month, day))`` of every dated day in ``text``, in order."""
+    found: list[tuple[int, tuple[int | None, int, int]]] = []
+    for kind, rx in _DATE_PATTERNS:
+        for m in rx.finditer(text):
+            if kind == "iso":
+                y, mo, d = int(m.group(1)), int(m.group(2)), int(m.group(3))
+                if not (1 <= mo <= 12 and 1 <= d <= 31):
+                    continue
+            elif kind == "dmy":
+                d = _day_value(m.group(1), m.group(2))
+                mo = _MONTH_NUM.get(m.group(3).lower())
+                y = int(m.group(4)) if m.group(4) else None
+            else:
+                mo = _MONTH_NUM.get(m.group(1).lower())
+                d = _day_value(m.group(2), m.group(3))
+                y = int(m.group(4)) if m.group(4) else None
+            if d is None or mo is None:
+                continue
+            found.append((m.start(), (y, mo, d)))
+    found.sort()
+    out: list[tuple[int, tuple[int | None, int, int]]] = []
+    for start, val in found:  # the same span matched by two patterns counts once
+        if not out or start - out[-1][0] > 2 or val != out[-1][1]:
+            out.append((start, val))
+    return out
+
+
+def _date_rule(gold: str, answer: str) -> ConventionResult | None:
+    g_dates = _calendar_dates(gold)
+    if len(g_dates) != 1:
+        return None
+    gy, gm, gd = g_dates[0][1]
+    # the gold is the date and nothing else: "The Friday before 9 October" is a different thing
+    residue = _content(
+        re.sub(
+            rf"\b(?:{_MONTH_RE})\b|\b\d+(?:st|nd|rd|th|d)?\b|\b(?:{_ORD_WORD_RE})\b|\bon\b|\bof\b",
+            " ",
+            gold,
+            flags=re.I,
+        )
+    )
+    if residue:
+        return None
+    a_dates = _calendar_dates(answer)
+    if not a_dates:
+        return None
+    start, (ay, am, ad) = a_dates[0]
+    if _RANGE_CUE.search(answer[:start]):
+        return None
+    if (am, ad) != (gm, gd) or (gy is not None and ay is not None and ay != gy):
+        return None
+    if gy is not None and ay is None:
+        return None
+    return ConventionResult("date_format", f"{gy or ''}-{gm:02d}-{gd:02d}".lstrip("-"))
+
+
+# unit -> (dimension, factor to the dimension's base unit)
+_UNITS: dict[str, tuple[str, float]] = {}
+for _dim, _table in {
+    "time": {
+        "second": 1, "sec": 1, "minute": 60, "min": 60, "hour": 3600, "hr": 3600, "day": 86400,
+        "week": 604800, "fortnight": 1209600,
+    },
+    "calendar_month": {"month": 1, "year": 12, "yr": 12, "decade": 120},
+    "length": {
+        "millimetre": 0.001, "millimeter": 0.001, "mm": 0.001, "centimetre": 0.01,
+        "centimeter": 0.01, "cm": 0.01, "metre": 1, "meter": 1, "m": 1, "kilometre": 1000,
+        "kilometer": 1000, "km": 1000, "inch": 0.0254, "in": 0.0254, "foot": 0.3048, "feet": 0.3048,
+        "ft": 0.3048, "yard": 0.9144, "yd": 0.9144, "mile": 1609.344, "mi": 1609.344,
+    },
+    "mass": {
+        "gram": 1, "g": 1, "kilogram": 1000, "kg": 1000, "kilo": 1000, "ounce": 28.349523125,
+        "oz": 28.349523125, "pound": 453.59237, "lb": 453.59237, "lbs": 453.59237,
+    },
+    "usd": {"dollar": 1, "usd": 1, "buck": 1, "cent": 0.01},
+}.items():
+    for _name, _factor in _table.items():
+        _UNITS[_name] = (_dim, float(_factor))
+_UNIT_RE = "|".join(sorted(_UNITS, key=len, reverse=True))
+_QTY_WORDS = {**_NUMBER_WORDS, "a": 1, "an": 1, "half": 0.5}
+_QTY_WORD_RE = "|".join(sorted(_QTY_WORDS, key=len, reverse=True))
+_QTY = re.compile(
+    rf"(?:(\$)\s*)?\b(\d+(?:[.,]\d+)?|{_QTY_WORD_RE})\b\s*(?:(?:-|\s)\s*)?(?:(half)\s+)?({_UNIT_RE})(?:e?s)?\b",
+    re.I,
+)
+_DOLLAR = re.compile(r"\$\s*(\d+(?:[.,]\d+)?)", re.I)
+
+
+def _quantities(text: str) -> list[tuple[str, float]]:
+    """``(dimension, amount in the dimension's base unit)`` of every quantity, in order."""
+    found: list[tuple[int, str, float]] = []
+    for m in _QTY.finditer(text):
+        raw = m.group(2).lower()
+        amount = float(raw.replace(",", "")) if raw[0].isdigit() else float(_QTY_WORDS[raw])
+        if m.group(3):
+            amount += 0.5
+        dim, factor = _UNITS[m.group(4).lower()]
+        found.append((m.start(), dim, amount * factor))
+    for m in _DOLLAR.finditer(text):
+        if not any(abs(m.start() - s) <= 1 for s, d, _ in found if d == "usd"):
+            found.append((m.start(), "usd", float(m.group(1).replace(",", ""))))
+    found.sort()
+    return [(d, a) for _, d, a in found]
+
+
+def _unit_rule(gold: str, answer: str) -> ConventionResult | None:
+    if _COMPARATIVE.search(answer) or _HEDGE.search(answer):
+        return None
+    g = _quantities(gold)
+    if len(g) != 1:
+        return None
+    # the gold is the quantity and nothing else
+    if _content(_QTY.sub(" ", _DOLLAR.sub(" ", gold))):
+        return None
+    a = _quantities(answer)
+    if not a:
+        return None
+    (gd, gv), (ad, av) = g[0], a[0]
+    if gd == ad and abs(gv - av) <= 1e-9 * max(1.0, abs(gv)):
+        return ConventionResult("unit", f"{gv:g} {gd}")
+    return None
+
+
+#: Everyday alias groups (abbreviations and plain synonyms). No dataset answer is in here.
+ALIAS_GROUPS: tuple[tuple[str, ...], ...] = (
+    ("us", "u.s.", "usa", "u.s.a.", "united states", "united states of america", "america"),
+    ("uk", "u.k.", "united kingdom", "great britain", "britain"),
+    ("nyc", "new york city"),
+    ("mom", "mum", "mother", "mommy", "mama"),
+    ("dad", "father", "daddy", "papa"),
+    ("grandma", "grandmother", "granny", "nana"),
+    ("grandpa", "grandfather", "granddad"),
+    ("tv", "television"),
+    ("bike", "bicycle"),
+    ("movie", "film"),
+    ("photo", "photograph"),
+    ("kid", "child"),
+    ("puppy", "pup"),
+    ("app", "application"),
+    ("dr", "doctor"),
+    ("vs", "versus"),
+    ("ok", "okay"),
+    ("sofa", "couch"),
+    ("fridge", "refrigerator"),
+    ("phone", "telephone"),
+)
+_ALIAS_ID: dict[str, str] = {}
+for _i, _group in enumerate(ALIAS_GROUPS):
+    for _alias in _group:
+        _ALIAS_ID[_alias] = f"aliasgroup{_i}x"
+_ALIAS_RE = re.compile(
+    r"(?<![\w.])(" + "|".join(sorted((re.escape(a) for a in _ALIAS_ID), key=len, reverse=True)) + r")(?![\w])",
+    re.I,
+)
+_ORD_DIGIT_RE = re.compile(r"\b(\d{1,2})(?:st|nd|rd|th|d)\b", re.I)
+
+
+def _fold_aliases(text: str) -> str:
+    return _ALIAS_RE.sub(lambda m: _ALIAS_ID[m.group(1).lower()], text)
+
+
+def _fold_ordinals(text: str) -> str:
+    text = _ORD_DIGIT_RE.sub(lambda m: f"ordinal{int(m.group(1))}x", text)
+    return re.sub(
+        rf"\b({_ORD_WORD_RE})\b",
+        lambda m: f"ordinal{_ORDINAL_WORDS[m.group(1).lower()]}x",
+        text,
+        flags=re.I,
+    )
+
+
+def _folded_rule(question: str, answer: str, gold: str) -> ConventionResult | None:
+    """Re-run the v1 phrase / list matcher on alias- and ordinal-folded text, when a fold changed
+    something. The folded token keeps a leading capital when the original did."""
+    for name, fold in (("ordinal", _fold_ordinals), ("alias", _fold_aliases)):
+        g2, a2 = fold(gold), fold(answer)
+        if g2 == gold and a2 == answer:
+            continue
+        q2 = fold(question)
+        hit = check_conventions(q2, a2, g2)
+        if hit is not None:
+            return ConventionResult(name, hit.rule)
+        words = _content(g2)
+        if (
+            not gold_items(g2)
+            and 1 <= len(words) <= 4
+            and not _MONTH.search(g2)
+            and _item_in(g2, _tokens(a2), False, set(_tokens(q2))) == "exact"
+            # the match must rest on the fold: the unfolded text did not already hold the phrase
+            and _item_in(gold, _tokens(answer), False, set(_tokens(question))) is None
+        ):
+            return ConventionResult(name, " ".join(words))
+    return None
+
+
+def check_conventions_v2(question: str, answer: str, gold: str | None) -> ConventionResult | None:
+    """v1 first (its rule name is kept), then ``date_format``, ``unit``, ``ordinal``, ``alias``.
+    Pure and offline; never reads the category, the dataset or the run."""
+    v1 = check_conventions(question, answer, gold)
+    if v1 is not None:
+        # v1's numeral rule reads a date gold ("3 May 2023") as a quantity and ignores a negation
+        # ("It was not on 3 May 2023."); v2 does not carry that credit over
+        if not (_NEGATION.search(answer) and gold and _MONTH.search(gold)):
+            return v1
+    if not gold or not answer or not answer.strip():
+        return None
+    gold, answer = gold.strip(), answer.strip()
+    if gold.lower().startswith("not mentioned") or _REFUSAL.search(answer):
+        return None
+    if _NEGATION.search(answer):
+        return None
+    for rule in (_date_rule, _unit_rule):
+        hit = rule(gold, answer)
+        if hit is not None:
+            return hit
+    return _folded_rule(question, answer, gold)

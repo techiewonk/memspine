@@ -1141,7 +1141,12 @@ class EvalRunner:
                     ),
                     **{  # I58: the second column of --judge-conventions
                         k: verdict.meta[k]
-                        for k in ("score_conventions", "convention")
+                        for k in (
+                            "score_conventions",
+                            "convention",
+                            "score_conventions_v2",
+                            "convention_v2",
+                        )
                         if k in verdict.meta
                     },
                     **(

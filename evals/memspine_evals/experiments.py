@@ -194,6 +194,9 @@ class C01Config:
     #: I58: record, next to the unchanged LLM verdict, the verdict under the deterministic
     #: conventions (numeral, typo, list superset): two columns, ``score`` never changes.
     judge_conventions: bool = False
+    #: I77: the v2 rules (date format, unit, ordinal, alias) as a third column,
+    #: ``score_conventions_v2``; ``score`` and ``score_conventions`` never change.
+    judge_conventions_v2: bool = False
     #: I56: enumerate-then-count for count questions: "" (off), ``two_call`` (+1 call on count
     #: questions) or ``single`` (list then count in one call). See ``count_verify.py``.
     count_verify: str = ""
@@ -591,8 +594,14 @@ def build_judge(config: C01Config, chat: Any, model: str, judge_id: str | None =
                 date_check=config.judge_date_check,
                 empty_guard=config.judge_guards,
                 conventions=config.judge_conventions,
+                conventions_v2=config.judge_conventions_v2,
             )
-            if (config.judge_guards or config.judge_date_check or config.judge_conventions)
+            if (
+                config.judge_guards
+                or config.judge_date_check
+                or config.judge_conventions
+                or config.judge_conventions_v2
+            )
             else AliasContainsJudge()
         )
     if config.judge_prompt == "opbench":
@@ -610,12 +619,18 @@ def build_judge(config: C01Config, chat: Any, model: str, judge_id: str | None =
     judge = RoutedLLMJudge(chat, model=model, suite=suite, judge_id=judge_id)
     if judge.spec.prompt_hash == sha256_text(DEFAULT_BINARY_PROMPT):  # pragma: no cover
         raise ValueError("the default binary judge prompt is not allowed in QA mode")
-    if config.judge_guards or config.judge_date_check or config.judge_conventions:
+    if (
+        config.judge_guards
+        or config.judge_date_check
+        or config.judge_conventions
+        or config.judge_conventions_v2
+    ):
         return GuardedJudge(
             judge,
             date_check=config.judge_date_check,
             empty_guard=config.judge_guards,
             conventions=config.judge_conventions,
+            conventions_v2=config.judge_conventions_v2,
         )
     return judge
 
@@ -1003,6 +1018,7 @@ async def run_c0_1(
             **({"decider": config.decider} if config.decider != "heuristic" else {}),
             **({"judge_guards": True} if config.judge_guards else {}),
             **({"judge_conventions": "conventions/v1"} if config.judge_conventions else {}),
+            **({"judge_conventions_v2": "conventions/v2"} if config.judge_conventions_v2 else {}),
             **({"count_verify": config.count_verify} if config.count_verify else {}),
             **({"date_repair": "v1"} if config.date_repair else {}),
             **({"duration_solve": f"v1/{config.duration_solve}"} if config.duration_solve else {}),

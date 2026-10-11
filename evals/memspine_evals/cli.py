@@ -215,6 +215,7 @@ def apply_opbench_protocol(args: argparse.Namespace) -> list[str]:
         "judge_guards",
         "judge_date_check",
         "judge_conventions",
+        "judge_conventions_v2",
         "count_verify",
         "date_repair",
         "duration_solve",
@@ -361,6 +362,7 @@ def cmd_c0_1(args: argparse.Namespace) -> int:
         judge_guards=args.judge_guards,
         judge_date_check=args.judge_date_check,
         judge_conventions=args.judge_conventions,
+        judge_conventions_v2=args.judge_conventions_v2,
         count_verify=args.count_verify,
         date_repair=args.date_repair,
         duration_solve=args.duration_solve,
@@ -734,6 +736,14 @@ def build_parser() -> argparse.ArgumentParser:
         "word equals its digit, a one-letter typo in a proper noun, a list holding every gold "
         "item plus uncontradicted extras) as score_conventions; the LLM verdict (score) is "
         "unchanged, so every run has two columns; off by default",
+    )
+    c01.add_argument(
+        "--judge-conventions-v2",
+        action="store_true",
+        help="I77: also record the verdict under the v2 conventions (v1 plus: a date written "
+        "another way, a quantity in another unit of the same dimension, an ordinal in digits or "
+        "words, a listed everyday alias) as score_conventions_v2 / convention_v2; a third column "
+        "next to score and score_conventions, which never change; off by default",
     )
     c01.add_argument(
         "--count-verify",

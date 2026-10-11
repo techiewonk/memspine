@@ -396,12 +396,16 @@ class GuardedJudge:
         date_check: bool = False,
         empty_guard: bool = True,
         conventions: bool = False,
+        conventions_v2: bool = False,
     ) -> None:
         self.inner = inner
         #: I58: record, next to the unchanged LLM verdict, whether a deterministic convention
         #: (numeral, typo, list superset: ``judge_conventions.py``) would credit a wrong
         #: verdict. ``score`` itself is never changed: the run has two columns.
         self.conventions = conventions and inner.spec.scale is JudgeScale.BINARY
+        #: I77: the same, with the v2 rules (date format, unit, ordinal, alias) as a THIRD
+        #: column (``score_conventions_v2`` / ``convention_v2``); v1 and ``score`` unchanged.
+        self.conventions_v2 = conventions_v2 and inner.spec.scale is JudgeScale.BINARY
         #: gap A2: credit a single-day date match deterministically (``date_check.py``)
         self.date_check = date_check
         if date_check:  # I12: fail at construction, not silently per answer
@@ -421,6 +425,7 @@ class GuardedJudge:
                 "empty_answer_guard": empty_guard,
                 **({"date_check": "date_check/v1"} if date_check else {}),
                 **({"conventions": "conventions/v1"} if self.conventions else {}),
+                **({"conventions_v2": "conventions/v2"} if self.conventions_v2 else {}),
             },
         )
         self.handles_abstention = getattr(inner, "handles_abstention", False)
@@ -445,16 +450,21 @@ class GuardedJudge:
         self, verdict: Verdict, question: str, answer: str, gold: str | None
     ) -> Verdict:
         """``verdict`` with ``score_conventions`` (and the rule) in its meta; ``score`` unchanged."""
-        if not self.conventions:
+        if not (self.conventions or self.conventions_v2):
             return verdict
-        from memspine_evals.judge_conventions import check_conventions
+        from memspine_evals.judge_conventions import check_conventions, check_conventions_v2
 
-        rule = None if verdict.score >= 1.0 else check_conventions(question, answer, gold)
-        meta = {
-            **dict(verdict.meta),
-            "score_conventions": 1.0 if (verdict.score >= 1.0 or rule is not None) else 0.0,
-            **({"convention": rule.rule} if rule is not None else {}),
-        }
+        meta = dict(verdict.meta)
+        if self.conventions:
+            rule = None if verdict.score >= 1.0 else check_conventions(question, answer, gold)
+            meta["score_conventions"] = 1.0 if (verdict.score >= 1.0 or rule is not None) else 0.0
+            if rule is not None:
+                meta["convention"] = rule.rule
+        if self.conventions_v2:
+            rule2 = None if verdict.score >= 1.0 else check_conventions_v2(question, answer, gold)
+            meta["score_conventions_v2"] = 1.0 if (verdict.score >= 1.0 or rule2 is not None) else 0.0
+            if rule2 is not None:
+                meta["convention_v2"] = rule2.rule
         return Verdict(
             score=verdict.score,
             scale=verdict.scale,
