@@ -29,6 +29,7 @@ from memspine.services.external.provider import (
     ProviderUnavailableError,
     clean_snippet,
 )
+from memspine.services.external.wikipedia import WikipediaProvider
 from memspine.services.external.trigger import invites_inference, is_private_fact_question
 
 __all__ = [
@@ -53,4 +54,5 @@ __all__ = [
     "invites_inference",
     "is_private_fact_question",
     "private_terms_from",
+    "WikipediaProvider",
 ]

@@ -1271,8 +1271,9 @@ class ReadConfig(BaseModel):
     #: ``external_max_calls``. Only generic topic words leave the process. Off: unchanged.
     external_evidence: Literal["off", "cache", "web"] = "off"
     #: E03: ``none`` (a provider can still be injected with ``Engine.set_external_provider``)
-    #: or ``http`` (``MEMSPINE_EXTERNAL_SEARCH_URL`` / ``_KEY`` / ``_HEADER`` from the env).
-    external_provider: Literal["none", "http"] = "none"
+    #: or ``http`` (``MEMSPINE_EXTERNAL_SEARCH_URL`` / ``_KEY`` / ``_HEADER`` from the env)
+    #: or ``wikipedia`` (keyless MediaWiki search + REST summary; generic query only).
+    external_provider: Literal["none", "http", "wikipedia"] = "none"
     #: E03: network calls the engine may make in its lifetime (cache hits are free).
     external_max_calls: int = Field(default=20, ge=0)
     external_max_results: int = Field(default=3, ge=1, le=10)

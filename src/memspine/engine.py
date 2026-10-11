@@ -3114,6 +3114,7 @@ class Engine:
                 HttpSearchProvider,
                 NoopProvider,
                 ProviderUnavailableError,
+                WikipediaProvider,
             )
 
             read = self._config().read
@@ -3124,6 +3125,8 @@ class Engine:
                         provider = HttpSearchProvider.from_env()
                     except ProviderUnavailableError:
                         provider = NoopProvider()  # reported per call as provider_unavailable
+                elif read.external_provider == "wikipedia":
+                    provider = WikipediaProvider()
                 else:
                     provider = NoopProvider()
             self._external = ExternalBroker(

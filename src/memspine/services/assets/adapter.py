@@ -87,6 +87,29 @@ class AssetAdapter:
             await self._describe(entry, data)
             return entry
 
+    async def download(self, asset_id: str) -> AssetEntry | None:
+        """Pre-compute phase 1: fetch and cache the bytes only (no vision). Idempotent: bytes
+        already cached, or a download that already failed, are left as they are."""
+        entry = self.registry.get(asset_id)
+        if entry is None:
+            return None
+        if entry.availability == "unavailable" or self._read_cached(entry) is not None:
+            return entry
+        await self._download(entry)
+        return entry
+
+    async def describe(self, asset_id: str) -> AssetEntry | None:
+        """Pre-compute phase 2: describe cached bytes (no network). Idempotent: a finished
+        description (``ok``/``skipped``) is kept; a failed vision call is retried."""
+        entry = self.registry.get(asset_id)
+        if entry is None or entry.evidence_status in ("ok", "skipped"):
+            return entry
+        data = self._read_cached(entry)
+        if data is None:
+            return entry  # nothing downloaded (or the download failed): nothing to describe
+        await self._describe(entry, data)
+        return entry
+
     async def _download(self, entry: AssetEntry) -> bytes | None:
         self.stats.fetches += 1
         try:
