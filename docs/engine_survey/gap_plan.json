@@ -548,6 +548,32 @@
       "effort": "M",
       "wave": "B",
       "gate": "Prompt ~300 tokens, output tokens per window down >=30%, p50 call latency down, turn-to-edge under 10 s at max_turns 1; focus slice vs f-jref-i2, full set within noise, MAB-CR and ConvoMem not down; gold-lint clean."
+    },
+    {
+      "id": "G-W50",
+      "area": "write",
+      "title": "Graph key identity (kind, occurrence, archived states)",
+      "status": "missing",
+      "others": "Graphiti keeps each edge occurrence with its own uuid and episode list; duplicates are judged per fact with numeric and date qualifiers.",
+      "now": "_edge_key (workers/pipelines.py:1882) keys (ns, src, rel, dst) without kind; undated event keys carry no occurrence; dated keys collapse same-day repeats; an archived state key short-circuits before the conflict ladder (A then B then A is skipped).",
+      "why": "Found by the Codex review of G-W49 and verified in code; an online graph deposit would make these collisions frequent.",
+      "proposal": "Key = (ns, src, rel, dst, kind) plus an occurrence id for events (cited turn ids, not only the day); an archived or superseded key goes to the conflict ladder instead of being skipped. Prerequisite for G-W49.",
+      "effort": "S",
+      "wave": "B",
+      "gate": "Unit tests: A-B-A state returns to A; two same-day events stay two; reruns stay idempotent."
+    },
+    {
+      "id": "G-E1",
+      "area": "arch",
+      "title": "Evaluation gate hardening",
+      "status": "missing",
+      "others": "Codex review: eval_focus verdict uses slice labels with --ref informational; eval_blind compares intersecting questions and can confirm with a dataset missing; 0.328*sqrt(n) is not per dataset.",
+      "now": "Gates per evals/eval_focus.py and evals/eval_blind.py; gold-lint catches literal overlap only.",
+      "why": "Without paired, complete comparisons a prompt change can be adopted on noise or on one dataset.",
+      "proposal": "Pinned run manifests; truly paired comparisons against the named reference; per-conversation bootstrap uncertainty per dataset; all blind sets required; repeated dev runs; one frozen blind run per adoption; keep per-slice non-inferiority and OP-Bench checks (GAP_TO_SOLUTION_PLAN.md:211).",
+      "effort": "M",
+      "wave": "B",
+      "gate": "A known-null change (seed swap) is never adopted; a run missing a blind set cannot confirm."
     }
   ],
   "leads": [
@@ -580,6 +606,8 @@
       "wave": "B",
       "name": "Read and extraction changes, focus-slice screens",
       "items": [
+        "G-E1",
+        "G-W50",
         "G-W4",
         "G-W25",
         "G-W28",
