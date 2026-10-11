@@ -1,0 +1,149 @@
+{
+  "slug": "mirix",
+  "name": "MIRIX",
+  "repo": "https://github.com/Mirix-AI/MIRIX",
+  "commit": "8cb06a6",
+  "version": "0.1.0 (pyproject.toml; HEAD = merge of PR #139, 2026-08-20)",
+  "licence": "Apache-2.0",
+  "one_line": "Letta-derived multi-agent memory server: a meta memory manager LLM routes each input batch to up to five typed memory-manager agents (core, episodic, semantic, resource, knowledge vault; procedural is produced by a separate skill-distillation path), stored in PostgreSQL with BM25 and pgvector, read via LLM topic extraction then per-type retrieval.",
+  "locomo": [
+    {
+      "score": "85.38",
+      "protocol": "Paper Table 2: gpt-4.1-mini backbone (write agents and reader), GPT-4.1 LLM judge, adversarial category excluded (cat 1-4, 1,540 q), mean of 3 runs (83.98 / 87.34 / 84.82); per category single-hop 85.11, multi-hop 83.70, open-domain 65.62, temporal 88.39; Full-Context 87.52 under same setup",
+      "who": "vendor",
+      "source": "MIRIX paper arXiv 2507.07957, Section 4.3, Table 2 and Appendix A Table 3"
+    },
+    {
+      "score": "57.34 (54.29 without graph)",
+      "protocol": "Vendor graph-revision branch PR #123: LLM judge on 1,540 q; reader/judge not stated in PR body; baseline 0.5429 for the then-current MIRIX, 0.5734 with MIRIX_ENABLE_GRAPH_MEMORY on",
+      "who": "vendor",
+      "source": "github.com/Mirix-AI/MIRIX/pull/123 body (merged into graph-revision branch, not main)"
+    }
+  ],
+  "rows": {
+    "arch.product": {"s": "", "t": "Self-hosted FastAPI server (port 8531) plus React dashboard and Python SDK (mirix-client); three tiers client SDK -> REST -> AsyncServer -> MetaAgent with typed sub-agents. Forked from Letta (agent loop, blocks, tool execution). The screen-capture desktop app from the paper is not in this repo.", "e": "docs/ARCHITECTURE.md:5-34; README.md:20-115, 208 (Letta acknowledgement) [doc]; mirix/agent/agent.py [read]"},
+    "arch.truth": {"s": "P", "t": "Derived typed rows are the de facto truth: raw turns are not kept for retrieval by default. Raw turns are persisted to a Conversation Message Store only when a session_id is supplied (used solely for skill distillation); agent in-context messages are cleared after each memory update (CLEAR_HISTORY_AFTER_MEMORY_UPDATE=true).", "e": "mirix/server/rest_api.py:2291-2340 [read]; mirix/constants.py:264 [read]; mirix/agent/agent.py:1272-1293 [read]"},
+    "arch.stores": {"s": "Y", "t": "PostgreSQL + pgvector (one table per memory type: block, episodic_memory, semantic_memory, procedural_memory, resource_memory, knowledge_vault, plus raw_memory, conversation_message, skill_experience); optional Redis Stack as search cache (MIRIX_REDIS_ENABLED default false); SQLite fallback.", "e": "mirix/orm/*.py [read]; mirix/settings.py:148,163 [read]; docs/ARCHITECTURE.md:252-258 [doc]"},
+    "arch.graphdb": {"s": "N", "t": "No graph store on main. A temporal knowledge graph (entity_nodes, entity_edges, episode_nodes, involves_edges; default off) exists only on the graph-revision / graph_v7.1_clean branches.", "e": "grep for neo4j/entity_node in mirix/ returns nothing [read]; PR #123 body [doc]"},
+    "arch.scope": {"s": "Y", "t": "Organisation -> client (API key) -> user; every row carries organization_id, user_id, client_id and a filter_tags JSON with scope = client.write_scope; reads filter by client.read_scopes plus arbitrary filter_tags (GIN-indexed).", "e": "mirix/server/rest_api.py:2457-2463, 2671 [read]; mirix/orm/episodic_memory.py:157 [read]"},
+
+    "write.entry": {"s": "Y", "t": "POST /memory/add (queued) and POST /memory/add_sync (blocking); messages are role-prefixed text ([USER]/[ASSISTANT]/[TOOL]); optional session_id, session_tag (conversation|task), occurred_at, filter_tags, chaining flag. Also POST /memory/raw for unprocessed task context.", "e": "mirix/server/rest_api.py:2343-2490, 2493-2616, 5100 [read]"},
+    "write.receipt": {"s": "P", "t": "/memory/add returns status 'queued' after put_messages; default queue is an in-process asyncio memory queue (QUEUE_TYPE=memory, 1 worker), so a crash loses unprocessed batches. Kafka (protobuf or JSON, mTLS) is opt-in. Only the optional Conversation Message Store write is durable before return.", "e": "mirix/server/rest_api.py:2468-2490 [read]; mirix/queue/config.py:9, 46 [read]"},
+    "write.roles": {"s": "P", "t": "All roles go to the meta memory manager as one prefixed text blob; the LLM decides what to keep. Episodic rows carry an 'actor' field (user or assistant). session_tag='task' suppresses all inline extraction (skill-only); 'conversation' never feeds skills.", "e": "mirix/server/rest_api.py:2392-2416 [read]; mirix/functions/function_sets/memory_tools.py:1685-1766 [read]; prompts/system/base/episodic_memory_agent.txt [read]"},
+    "write.firewall": {"s": "N", "t": "not found: no injection or poisoning filter on the write path; the meta prompt even asks agents to over-include memory types when unsure.", "e": "mirix/prompts/system/base/meta_memory_agent.txt (last paragraph) [read]"},
+    "write.governance": {"s": "P", "t": "Knowledge Vault deliberately stores credentials (prompt example: a WiFi password) with a sensitivity label; 'high' items are hidden from non-vault agents' prompts but secret_value is a plain String column (no encryption found). Raw task memories have a 14-day TTL via a cron job. No consent or redaction.", "e": "mirix/orm/knowledge_vault.py:72-78 [read]; mirix/agent/agent.py:1844-1870 [read]; mirix/jobs/cleanup_raw_memories.py:4-37 [read]; grep 'encrypt' finds nothing relevant [read]"},
+
+    "segment.unit": {"s": "", "t": "One call to /memory/add = one batch; the whole batch is one meta-agent step. The paper app accumulates 20 inputs (TEMPORARY_MESSAGE_LIMIT) before absorbing; the LoCoMo harness sends one full session per add.", "e": "mirix/agent/app_constants.py:1 [read]; evals/main_eval.py:202-214 [read]"},
+    "segment.rule": {"s": "P", "t": "Caller-defined; no server-side boundary detection. Episodic agent itself chooses insert (new topic) versus merge (same topic continues) per batch. MAB harness uses a 4,096-token sentence-aware chunker.", "e": "prompts/system/base/episodic_memory_agent.txt (Choose Action) [read]; evals/_chunking.py:1-23 [read]"},
+    "segment.measured": {"s": "N", "t": "not found: per-session add timings are logged by the harness but no published counts of calls or units on LoCoMo.", "e": "evals/main_eval.py:212-224 [read]"},
+
+    "extract.calls": {"s": "Y", "t": "Per batch: 1 topic-extraction call (meta agent, step 0) + 1 meta-manager call choosing memory types + 1 call per selected sub-agent run concurrently via asyncio.gather (up to 5), more if chaining is on. With chaining=False (LoCoMo harness) roughly 3-7 LLM calls per session. Paper: 'one to the meta memory manager and between zero and six to the other memory managers'.", "e": "mirix/agent/agent.py:1657-1690 [read]; mirix/functions/function_sets/memory_tools.py:1995-2012 [read]; evals/mirix_memory_system.py:67-89 [read]; arXiv 2507.07957 Section 4.1.2 [doc]"},
+    "extract.facts": {"s": "P", "t": "Semantic memory holds concept/person/place entries (name, summary, details, source), not atomic facts; Knowledge Vault holds static reference values (caption + secret_value).", "e": "mirix/orm/semantic_memory.py:59-70 [read]; mirix/orm/knowledge_vault.py:59-78 [read]"},
+    "extract.episode": {"s": "Y", "t": "Episodic events with event_type, summary, verbose details, actor, occurred_at; the agent is told to make one comprehensive call per batch and to merge into an existing event when the topic continues.", "e": "prompts/system/base/episodic_memory_agent.txt [read]; mirix/functions/function_sets/memory_tools.py:114-222 [read]"},
+    "extract.dates": {"s": "P", "t": "occurred_at is LLM-produced per event unless the API occurred_at override is passed; the LoCoMo harness prepends instructions to resolve relative dates ('last year' -> 2022) into the text, so absolute dates are prompt-driven, not code-driven.", "e": "mirix/functions/function_sets/memory_tools.py:139-149 [read]; evals/main_eval.py:13-21 [read]"},
+    "extract.neighbours": {"s": "Y", "t": "Each sub-agent's system prompt is rebuilt with retrieved memories for the batch topics: its own type with row IDs (for merge/replace) and other types without IDs, MAX_RETRIEVAL_LIMIT_IN_SYSTEM=10 per list (prompt text still says 50). Episodic entries show summary plus details length only.", "e": "mirix/agent/agent.py:1786-2009 [read]; mirix/constants.py:102 [read]"},
+    "extract.failure": {"s": "P", "t": "Tool failure injects a 'function call failed' heartbeat and lets the agent retry (chaining); one failing sub-agent raises RuntimeError for the whole trigger_memory_update. Context overflow triggers up to 3 summariser retries. Queue has no dead-letter in memory mode.", "e": "mirix/agent/agent.py:1753-1764, 2550-2581 [read]; mirix/functions/function_sets/memory_tools.py:2001-2006 [read]; mirix/settings.py:35 [read]"},
+
+    "graph.entities": {"s": "P", "t": "No entity extraction on main; semantic-memory entries named after people/places act as implicit entity cards.", "e": "prompts/system/base/meta_memory_agent.txt (Semantic Memory) [read]"},
+    "graph.resolution": {"s": "N", "t": "not found on main (semantic dedup is exact name+summary+details equality).", "e": "mirix/functions/function_sets/memory_tools.py:1123-1200 [read]"},
+    "graph.edges": {"s": "N", "t": "not found on main; edges only on graph-revision branch.", "e": "PR #123 [doc]"},
+    "graph.communities": {"s": "N", "t": "not found.", "e": "code search [read]"},
+
+    "time.fields": {"s": "P", "t": "Episodic occurred_at plus created_at and last_modify {timestamp, operation}; other types have created_at/last_modify only. No valid-from/valid-to.", "e": "mirix/orm/episodic_memory.py:55-69 [read]; mirix/orm/semantic_memory.py:79-90 [read]"},
+    "time.update": {"s": "P", "t": "LLM-driven destructive edits: episodic merge overwrites summary/details; replace deletes rows and inserts new ones; semantic/resource/vault update tools overwrite. No history kept beyond last_modify. Auto-dream (POST /memory/auto_dream, operator- or schedule-invoked) resolves stale/conflicting entries.", "e": "mirix/functions/function_sets/memory_tools.py:177-308 [read]; README.md:118-157 [doc]"},
+    "time.dedup": {"s": "P", "t": "Semantic insert skips exact duplicates among up to 1,000 existing items; the meta agent's duplicate memory_types are de-duplicated; otherwise dedup relies on the LLM and on auto-dream consolidation.", "e": "mirix/functions/function_sets/memory_tools.py:1123-1200, 1768-1778 [read]"},
+
+    "derive.session": {"s": "N", "t": "not found as a stored layer; agents' own in-context histories are summarised at 75% context pressure (keep last 5 messages), which is working-memory hygiene, not a retrievable summary.", "e": "mirix/settings.py:39-50 [read]; mirix/agent/agent.py:2662-2780 [read]"},
+    "derive.profile": {"s": "Y", "t": "Core memory blocks 'human' and 'persona' (5,000-char limit each) maintained by the core memory agent with append/rewrite tools; overflow returns an error telling the agent to condense to about 50%. Always injected whole into every agent prompt.", "e": "mirix/functions/function_sets/memory_tools.py:30-111 [read]; mirix/constants.py:232-233 [read]; mirix/agent/agent.py:1829-1842 [read]"},
+    "derive.entity": {"s": "P", "t": "Semantic memory entries about people/organisations serve as entity summaries (no dedicated layer).", "e": "prompts/system/base/semantic_memory_agent.txt [read]"},
+    "derive.background": {"s": "O", "t": "Auto-dream consolidation agent per mode (core/episodic/semantic/resource/procedural/knowledge/experience, up to 500 items per type, advisory-locked); procedural mode is auto-scheduled every 5 'task' sessions (SKILL_TRIGGER_SESSION_THRESHOLD); others are invoked by API. Reflexion and background agents exist but are off (WITH_REFLEXION_AGENT=False).", "e": "mirix/services/auto_dream_manager.py:56-311, 751 [read]; mirix/constants.py:309 [read]; mirix/agent/app_constants.py:27-31 [read]"},
+    "derive.forget": {"s": "P", "t": "No decay scoring. Raw task memories hard-deleted after 14 days by a nightly job; otherwise deletion only via LLM replace tools, auto-dream, or API.", "e": "mirix/jobs/cleanup_raw_memories.py:4-37 [read]"},
+
+    "index.embed": {"s": "Y", "t": "Configurable per agent (README example Google text-embedding-004, 768-d; eval config OpenAI text-embedding-3-small, 1536-d); vectors zero-padded to MAX_EMBEDDING_DIM=4096. Episodic insert embeds both details and summary (2 embedding calls per event). BUILD_EMBEDDINGS_FOR_MEMORY can switch embedding off.", "e": "README.md:52-59 [doc]; evals/configs/0201c.yaml [read]; mirix/constants.py:13, 299 [read]; mirix/services/episodic_memory_manager.py:556-566 [read]"},
+    "index.lexical": {"s": "Y", "t": "PostgreSQL to_tsvector('english') GIN indexes on summary, details and combined; ranking ts_rank_cd with AND query first, OR fallback for recall; Redis Search text index when cache on; in-memory rank_bm25 on SQLite.", "e": "mirix/orm/episodic_memory.py:109-135 [read]; mirix/services/episodic_memory_manager.py:1036-1130 [read]"},
+    "index.vector": {"s": "P", "t": "pgvector columns per text field (episodic details/summary; semantic name/summary/details; vault caption); no ANN index declared (GIN only), so vector search is a scan; 4,096-d padding exceeds pgvector's HNSW dimension cap (inferred). Redis vector index when cache on.", "e": "mirix/orm/episodic_memory.py:99-160 [read]; mirix/services/episodic_memory_manager.py:735-774 [read]"},
+
+    "read.rewrite": {"s": "Y", "t": "Active retrieval: an LLM call with forced tool update_topic_and_time turns the conversation into ';'-separated topics plus a temporal phrase; topics become the BM25 query. Optional local Ollama model for topic extraction (no temporal).", "e": "mirix/server/rest_api.py:419-552, 604-660, 2969-2994 [read]"},
+    "read.analysis": {"s": "Y", "t": "Temporal expression parsed by a rule-based parser (today, yesterday, last week ...) into a date range relative to the user's timezone; explicit start/end dates override.", "e": "mirix/server/rest_api.py:2996-3044 [read]; mirix/temporal/temporal_parser.py [read]"},
+    "read.legs": {"s": "Y", "t": "/memory/retrieve/conversation: per type, BM25 only (search_method hard-coded 'bm25'), limit 10 per type: episodic recent + relevant, semantic, resource, procedural, knowledge vault captions, plus all core blocks; run sequentially. /memory/search defaults to embedding (procedural: hybrid BM25+embedding RRF k=60) and runs all types concurrently.", "e": "mirix/server/rest_api.py:2641-2908, 3336-3420 [read]; mirix/constants.py:397, 424 [read]"},
+    "read.temporal": {"s": "Y", "t": "Date range filter on episodic occurred_at only (other types unfiltered).", "e": "mirix/server/rest_api.py:2690-2722 [read]"},
+    "read.traversal": {"s": "N", "t": "not found on main.", "e": "code search [read]"},
+
+    "rank.fusion": {"s": "P", "t": "No cross-type fusion: results stay grouped per memory type. Within procedural, RRF (k=60) fuses BM25 and embedding.", "e": "mirix/server/rest_api.py:2724-2906 [read]; mirix/constants.py:424 [read]"},
+    "rank.rerank": {"s": "N", "t": "not found.", "e": "code search [read]"},
+    "rank.gate": {"s": "P", "t": "Optional similarity_threshold on embedding search; the memory prompt tells the model that empty sections mean no relevant memory. No abstain gate.", "e": "mirix/services/episodic_memory_manager.py:660 [read]; mirix/agent/agent.py:2006-2007 [read]"},
+    "rank.agentic": {"s": "O", "t": "Chat agent has search_in_memory / list_memory_within_timerange tools; the LoCoMo harness answer agent (gpt-4.1-mini) gets the preliminary retrieval then up to 5 search_memory rounds (default embedding, limit raised to 15).", "e": "mirix/functions/function_sets/base.py:84, 296 [read]; evals/task_agent.py:25, 142-190, 223-276 [read]"},
+
+    "answer.shape": {"s": "", "t": "Typed XML sections in the system prompt: current time, <keywords>, <core_memory>, <episodic_memory> recent and relevant (timestamp + summary + '(Details: N Characters)'), <knowledge_vault>, <semantic_memory>, <resource_memory>, each with 'k out of N items'; procedural never injected. LoCoMo harness flattens summaries/captions with timestamps into one block.", "e": "mirix/agent/agent.py:2011-2093 [read]; evals/mirix_memory_system.py:91-160 [read]"},
+    "answer.size": {"s": "N", "t": "not found: no published tokens per question. Bounded by design at about 50-60 short lines (10 per list) plus up to 10,000 chars of core blocks (inferred).", "e": "mirix/constants.py:102, 232-233 [read]"},
+    "answer.prompt": {"s": "P", "t": "Harness answer agent is told to verify results, search both episodic and semantic, aggregate lists, stop after 2-3 searches, and only say 'unknown' after three failed searches.", "e": "evals/task_agent.py:223-267 [read]"},
+
+    "eval.best": {"s": "Y", "t": "85.38 LoCoMo (cat 1-4), vendor paper, gpt-4.1-mini, mean of 3 runs, below its own Full-Context 87.52. The vendor's own later branch run reports 54.29 -> 57.34 on 1,540 q, far below the paper.", "e": "arXiv 2507.07957 Tables 2-3 [doc]; PR #123 [doc]"},
+    "eval.outside": {"s": "N", "t": "No independent reproduction found in repo or paper; the task note attributes an 85.38 run to the HyperMem authors, which could not be verified here (same number as the vendor paper, so probably a citation, not a rerun).", "e": "inferred"},
+    "eval.models": {"s": "", "t": "Paper: gpt-4.1-mini writer and reader, GPT-4.1 judge. Repo harness: gpt-4.1-mini memory agents, gpt-4.1-nano topic extraction, text-embedding-3-small, gpt-4.1-mini answer agent, gpt-4o-mini judge (generous Mem0-style prompt). Judges differ between paper and repo.", "e": "arXiv 2507.07957 Section 4.1.2 [doc]; evals/configs/0201c.yaml [read]; evals/llm_judge.py:43-56 [read]"},
+    "eval.rigour": {"s": "P", "t": "3 runs reported with per-run spread (83.98-87.34); baselines run once and re-implemented; harness injects date-resolution instructions into each ingested session and lets the reader do up to 5 agentic searches; cat 5 dropped (no 'answer' key, skipped).", "e": "arXiv 2507.07957 Appendix A [doc]; evals/main_eval.py:13-21, 244-261 [read]"},
+
+    "cost.write": {"s": "", "t": "About 3-7 LLM calls per session with chaining off: roughly 800-1,900 calls for 272 sessions, plus 2 embedding calls per episodic event and more per semantic/vault row (inferred from code path); each call carries a 650-1,300-word agent prompt plus retrieved memory lists.", "e": "mirix/agent/agent.py:1657-1699 [read]; memory_tools.py:1995-2012 [read]; prompt word counts via wc [read]; inferred"},
+    "cost.read": {"s": "", "t": "1 topic-extraction LLM call per /retrieve/conversation plus DB queries (BM25); harness adds 1-6 answer-agent calls with search rounds.", "e": "mirix/server/rest_api.py:2969-2994 [read]; evals/task_agent.py:276 [read]"},
+    "cost.where": {"s": "", "t": "Hosted LLMs by default (OpenAI, Gemini, Anthropic, Azure etc. via llm_api); optional local Ollama for topic extraction only.", "e": "mirix/llm_api/ [read]; mirix/server/rest_api.py:604-660 [read]"},
+
+    "trust.provenance": {"s": "P", "t": "Rows record agent_id, client_id, user_id, filter_tags (scope, session_id, session_tag), last_modify operation; semantic/vault have a free-text 'source'. No link from a derived row to source turns or message IDs.", "e": "mirix/orm/episodic_memory.py:32-90 [read]; mirix/orm/semantic_memory.py:68-79 [read]"},
+    "trust.erasure": {"s": "Y", "t": "DELETE /users/{user_id}/memories hard-deletes memories, messages and blocks for a user and clears Redis keys; per-item deletes per type; per-client delete.", "e": "mirix/server/rest_api.py:1540-1547 [read]; mirix/services/episodic_memory_manager.py:487-524 [read]"},
+    "trust.auth": {"s": "Y", "t": "X-API-Key (SHA-256 hashed at rest) or dashboard JWT; client context via x-client-id / x-org-id headers.", "e": "mirix/security/api_keys.py:16-23 [read]; docs/ARCHITECTURE.md:240-250 [doc]"},
+    "trust.sharing": {"s": "P", "t": "Scopes let multiple clients write to their write_scope and read a list of read_scopes for the same user; agents inside a meta agent share one store. Gaps: the retrieve path queries knowledge_vault without filter_tags/scopes, and agent-prompt retrieval passes no scopes.", "e": "mirix/server/rest_api.py:2671, 2850-2858 [read]; mirix/agent/agent.py:1885-1910 [read]"}
+  },
+  "layers": {
+    "raw": "O",
+    "segment": "N",
+    "episode": "Y",
+    "facts": "P",
+    "graph": "N",
+    "bitemporal": "N",
+    "session_summary": "N",
+    "entity_summary": "P",
+    "profile": "Y",
+    "prospective": "N",
+    "procedural": "Y",
+    "reflection": "O",
+    "shared": "P",
+    "firewall": "N",
+    "provenance": "P"
+  },
+  "extras": [
+    {"phase": "write", "param": "meta memory router", "t": "One LLM call classifies each batch into memory types and fans out to typed manager agents concurrently (asyncio.gather), each with a narrow toolset and type-specific prompt.", "e": "mirix/functions/function_sets/memory_tools.py:1613-2012 [read]; prompts/system/base/meta_memory_agent.txt [read]"},
+    {"phase": "write", "param": "session_tag routing", "t": "'task' sessions skip all inline extraction and only feed skill distillation every 5 sessions; 'conversation' sessions never produce skills.", "e": "mirix/functions/function_sets/memory_tools.py:1685-1766 [read]; mirix/constants.py:309, 327-330 [read]"},
+    {"phase": "derive", "param": "skill memory + experience distiller", "t": "Procedural memory as versioned skills (name, description, instructions, triggers, examples, version) with an edit budget and size gates; sealed sessions distilled into worth_learning / worth_avoiding experiences that evolve skills.", "e": "mirix/orm/procedural_memory.py:61-79 [read]; memory_tools.py:479-1088 [read]; mirix/services/session_experience_distiller.py [read]"},
+    {"phase": "derive", "param": "auto-dream consolidation", "t": "Offline agent reviews one or more memory types, merges duplicates and resolves stale entries; dry_run supported.", "e": "README.md:118-157 [doc]; mirix/services/auto_dream_manager.py [read]"},
+    {"phase": "write", "param": "multimodal / screen ingestion", "t": "Screen-monitor prompt set and a TemporaryMessageAccumulator (20 inputs, async Gemini file upload, image cleanup) exist, but the accumulator is not wired into the server; the paper's 1 fps screenshot app with >0.99 similarity skip is outside this repo.", "e": "mirix/prompts/system/screen_monitor/ [read]; mirix/agent/temporary_message_accumulator.py:38-160 [read]; arXiv 2507.07957 Section 4.1.1 [doc]"},
+    {"phase": "index", "param": "Redis search cache", "t": "Optional Redis Stack mirror with text and vector indexes queried before PostgreSQL; 1-hour TTL.", "e": "mirix/services/episodic_memory_manager.py:706-807 [read]; mirix/settings.py:148-163 [read]"},
+    {"phase": "write", "param": "Kafka queue", "t": "Opt-in Kafka transport (protobuf or JSON, mTLS) with user_id-hash partitioned workers.", "e": "mirix/queue/config.py:9-46 [read]; mirix/queue/manager.py:63-170 [read]"},
+    {"phase": "arch", "param": "MCP tools + sandbox", "t": "MCP tool registry/marketplace and sandboxed user-defined tools for the chat agent.", "e": "mirix/functions/mcp_client/ [read]; mirix/services/mcp_tool_registry.py [read]; docs/ARCHITECTURE.md:128-136 [doc]"}
+  ],
+  "token_economy": {
+    "t": "Four mechanisms: (1) topic extraction compresses the conversation to a short ';'-separated keyword string before retrieval; (2) each typed list is capped at 10 items (MAX_RETRIEVAL_LIMIT_IN_SYSTEM) and episodic rows are shown as timestamp + summary + '(Details: N Characters)', so verbose details are fetched only on demand; (3) procedural skills are never broadcast into prompts, only fetched by search; (4) memory agents' chat history is wiped after each update and agent context is summarised at 75% pressure down to 10% (keep last 5). Core blocks are capped at 5,000 chars each and always injected. Paper storage claim: 15.89 MB SQLite versus 15.07 GB raw screenshots (99.9% less). No tokens-per-question figure published.",
+    "e": "mirix/agent/agent.py:1786-2093, 1955-1968 [read]; mirix/constants.py:102, 232-233, 264 [read]; mirix/settings.py:39-50 [read]; arXiv 2507.07957 Table 1 [doc]"
+  },
+  "speed": {
+    "t": "Async-native stack (asyncpg, redis.asyncio, aiokafka, httpx). Write is queued and returns immediately; sub-agents for different memory types run concurrently; worker pool partitioned by user_id hash (default 1 worker). /memory/search over all types runs concurrently and embeds the query once; /memory/retrieve/conversation is sequential and BM25-only. Optional Redis cache. Paper uses Gemini for async image upload. No latency numbers published; the harness records add/answer timings locally.",
+    "e": "docs/Mirix_async_native_changes.md [doc]; mirix/queue/manager.py:63-170 [read]; mirix/server/rest_api.py:3154-3420 [read]; evals/main_eval.py:212-280 [read]"
+  },
+  "keep": [
+    "A cheap router call that picks which typed extractors run per batch, then runs them in parallel with small type-specific prompts and toolsets.",
+    "Active retrieval: one small-model call that outputs topics plus a temporal phrase, the phrase resolved to a date range by a rule-based parser, not the LLM.",
+    "Pointer-style context: show a summary plus details length, keep IDs only for the owning writer, and fetch details on demand.",
+    "Skills as a retrieval target, not ambient context, plus routing of task versus conversation sessions to different consolidation paths.",
+    "Neighbour-aware writes: each extractor sees the top-k existing rows of its own type with IDs, so it can merge or replace instead of appending."
+  ],
+  "avoid": [
+    "Destructive LLM merges and replaces with no version history or link back to source turns; raw turns are not kept by default, so errors cannot be audited or re-derived.",
+    "Knowledge Vault stores credentials in a plain-text column, and the retrieve path queries it without scope filters.",
+    "Queued /memory/add returns before durability (in-process queue by default), and one failing sub-agent fails the whole fan-out.",
+    "Paper 85.38 (gpt-4.1-mini, GPT-4.1 judge, agentic reader) is not reproduced by the vendor's later 1,540-q branch run (54.29-57.34); the 4,096-d padding blocks ANN indexing."
+  ],
+  "in_progress": [
+    "Temporal knowledge graph layer (entity/episode nodes, involves edges, default off; +3.05 pt LoCoMo claim) merged into the graph-revision branch only; open PR #130 'Graph revision' to main; branch graph_v7.1_clean.",
+    "Open PR #132 Auto-Dreamer v2 (working region = newly written plus recently retrieved, Survey -> Synthesize -> Retire, memory_access_log with 90-day pruning).",
+    "Open PR #136 skill-schema procedural memory with session-grounded experience distillation (main already carries much of this via PR #138/#139, merged 2026-08-15/17).",
+    "Open PRs #134 isolate_revision, #135 mab_runner (MemoryAgentBench runner), #125 OpenRouter, #133 LiteLLM, #126 message session_id; branches desktop-agent, skill-bench-repro, eval/original-mirix-3day."
+  ]
+}

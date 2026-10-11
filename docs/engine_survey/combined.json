@@ -1,0 +1,359 @@
+{
+ "slug": "combined",
+ "name": "Combined (Graphiti + SimpleMem)",
+ "repo": "internal MOFSL memory server",
+ "one_line": "Deployed server joining a Graphiti + Neo4j graph, a SimpleMem + Weaviate vector store and a session transcript.",
+ "rows": {
+  "arch.product": {
+   "s": "",
+   "t": "Deployed FastAPI server with three memory paths (graph, vector, transcript)",
+   "e": "see engine document"
+  },
+  "arch.truth": {
+   "s": "N",
+   "t": "No single truth: Neo4j and Weaviate written by a best-effort fan-out",
+   "e": "see engine document"
+  },
+  "arch.stores": {
+   "s": "",
+   "t": "Neo4j, Weaviate (entries, transcript, sessions), PostgreSQL (auth), optional Valkey",
+   "e": "see engine document"
+  },
+  "arch.graphdb": {
+   "s": "Y",
+   "t": "Neo4j through Graphiti",
+   "e": "see engine document"
+  },
+  "arch.scope": {
+   "s": "",
+   "t": "Graph is user-wide (project_user); vectors filtered by project, user and session",
+   "e": "see engine document"
+  },
+  "write.entry": {
+   "s": "",
+   "t": "post_message per turn; legacy add_message posts user then assistant under one request id",
+   "e": "see engine document"
+  },
+  "write.receipt": {
+   "s": "P",
+   "t": "Transcript awaited; graph job only enqueued; stored_in labels are not a durability receipt",
+   "e": "see engine document"
+  },
+  "write.roles": {
+   "s": "P",
+   "t": "User turns go to the graph, assistant turns to vectors only, system skipped",
+   "e": "see engine document"
+  },
+  "write.firewall": {
+   "s": "N",
+   "t": "None",
+   "e": "see engine document"
+  },
+  "write.governance": {
+   "s": "N",
+   "t": "Not in the memory path",
+   "e": "see engine document"
+  },
+  "segment.unit": {
+   "s": "P",
+   "t": "One graph episode per turn; vector windows of 10, but a live call is a window of one",
+   "e": "see engine document"
+  },
+  "segment.rule": {
+   "s": "",
+   "t": "None",
+   "e": "see engine document"
+  },
+  "segment.measured": {
+   "s": "",
+   "t": "Not run",
+   "e": "see engine document"
+  },
+  "extract.calls": {
+   "s": "",
+   "t": "About 5-8 per user turn and 1 per assistant turn (inferred)",
+   "e": "see engine document"
+  },
+  "extract.facts": {
+   "s": "Y",
+   "t": "SimpleMem lossless_restatement JSON from assistant turns; no dedupe",
+   "e": "see engine document"
+  },
+  "extract.episode": {
+   "s": "N",
+   "t": "Graph episode is the raw turn text",
+   "e": "see engine document"
+  },
+  "extract.dates": {
+   "s": "P",
+   "t": "SimpleMem resolves relative dates; Graphiti valid_at from source time",
+   "e": "see engine document"
+  },
+  "extract.neighbours": {
+   "s": "P",
+   "t": "Graphiti shows previous episodes; SimpleMem shows previous-window entries",
+   "e": "see engine document"
+  },
+  "extract.failure": {
+   "s": "P",
+   "t": "3 parse retries; some live batch errors only logged",
+   "e": "see engine document"
+  },
+  "graph.entities": {
+   "s": "Y",
+   "t": "Qwen3-235B per user turn",
+   "e": "see engine document"
+  },
+  "graph.resolution": {
+   "s": "Y",
+   "t": "Deterministic first (exact, fuzzy, MinHash with entropy gate); LLM only for holdouts",
+   "e": "see engine document"
+  },
+  "graph.edges": {
+   "s": "Y",
+   "t": "RELATES_TO fact edges with fact embedding and supporting episodes",
+   "e": "see engine document"
+  },
+  "graph.communities": {
+   "s": "O",
+   "t": "Optional; retrieved but not written into the context",
+   "e": "see engine document"
+  },
+  "time.fields": {
+   "s": "Y",
+   "t": "Bi-temporal edges: valid_at / invalid_at and created_at / expired_at",
+   "e": "see engine document"
+  },
+  "time.update": {
+   "s": "Y",
+   "t": "LLM marks duplicate or contradicted edges; code sets invalid_at",
+   "e": "see engine document"
+  },
+  "time.dedup": {
+   "s": "P",
+   "t": "Graph dedupe; vector entries deduped by id only",
+   "e": "see engine document"
+  },
+  "derive.session": {
+   "s": "Y",
+   "t": "Updated on every user turn (250 words), rebuilt every 20",
+   "e": "see engine document"
+  },
+  "derive.profile": {
+   "s": "Y",
+   "t": "User summary from 10 episodes, rebuilt every 10; [USER PROFILE] block",
+   "e": "see engine document"
+  },
+  "derive.entity": {
+   "s": "Y",
+   "t": "Hydrated per episode",
+   "e": "see engine document"
+  },
+  "derive.background": {
+   "s": "P",
+   "t": "Per-thread serial queue; optional communities",
+   "e": "see engine document"
+  },
+  "derive.forget": {
+   "s": "P",
+   "t": "Transcript archived to passive storage",
+   "e": "see engine document"
+  },
+  "index.embed": {
+   "s": "",
+   "t": "Cohere embed-english-v3, 1,024-d; queries embedded in document mode (defect)",
+   "e": "see engine document"
+  },
+  "index.lexical": {
+   "s": "",
+   "t": "BM25 on edges and episodes; BM25 on restatement text only (keyword field unused)",
+   "e": "see engine document"
+  },
+  "index.vector": {
+   "s": "",
+   "t": "Weaviate",
+   "e": "see engine document"
+  },
+  "read.rewrite": {
+   "s": "Y",
+   "t": "History-aware LLM reformulation, once per call",
+   "e": "see engine document"
+  },
+  "read.analysis": {
+   "s": "P",
+   "t": "Vector planner LLM: up to 2 semantic queries plus keywords",
+   "e": "see engine document"
+  },
+  "read.legs": {
+   "s": "",
+   "t": "Graph: edges (BM25 + cosine + BFS), episodes (BM25), communities. Vector: semantic top 5 (cos ≥ 0.5) and BM25 top 5",
+   "e": "see engine document"
+  },
+  "read.temporal": {
+   "s": "P",
+   "t": "Planner resolves dates against the wall clock (defect for history)",
+   "e": "see engine document"
+  },
+  "read.traversal": {
+   "s": "Y",
+   "t": "BFS depth 3",
+   "e": "see engine document"
+  },
+  "rank.fusion": {
+   "s": "P",
+   "t": "RRF inside graph result types; union by id in vectors; no cross-store fusion",
+   "e": "see engine document"
+  },
+  "rank.rerank": {
+   "s": "N",
+   "t": "Cohere client built, RRF used",
+   "e": "see engine document"
+  },
+  "rank.gate": {
+   "s": "N",
+   "t": "None",
+   "e": "see engine document"
+  },
+  "rank.agentic": {
+   "s": "O",
+   "t": "Reflection (completeness check), off; stops on an empty first result",
+   "e": "see engine document"
+  },
+  "answer.shape": {
+   "s": "",
+   "t": "Three independent blocks (graph, vector, last-N); graph part undated; no global rank",
+   "e": "see engine document"
+  },
+  "answer.size": {
+   "s": "",
+   "t": "Not measured",
+   "e": "see engine document"
+  },
+  "answer.prompt": {
+   "s": "",
+   "t": "Short grounded JSON prompt with an exact abstention phrase",
+   "e": "see engine document"
+  },
+  "eval.best": {
+   "s": "N",
+   "t": "No result exists",
+   "e": "see engine document"
+  },
+  "eval.outside": {
+   "s": "",
+   "t": "None",
+   "e": "see engine document"
+  },
+  "eval.models": {
+   "s": "",
+   "t": "Qwen3-32B reader planned; F1 + strict 0/1 judge",
+   "e": "see engine document"
+  },
+  "eval.rigour": {
+   "s": "Y",
+   "t": "Delegates to the official evaluator; errors stay in the denominator; hashes",
+   "e": "see engine document"
+  },
+  "cost.write": {
+   "s": "",
+   "t": "About 20,000-25,000 with 235B and 32B models (inferred)",
+   "e": "see engine document"
+  },
+  "cost.read": {
+   "s": "",
+   "t": "1 reformulation + 1 planning (+ reflection if on)",
+   "e": "see engine document"
+  },
+  "cost.where": {
+   "s": "",
+   "t": "Hosted (AWS Bedrock)",
+   "e": "see engine document"
+  },
+  "trust.provenance": {
+   "s": "N",
+   "t": "Derived entries have no parents",
+   "e": "see engine document"
+  },
+  "trust.erasure": {
+   "s": "P",
+   "t": "Delete per store",
+   "e": "see engine document"
+  },
+  "trust.auth": {
+   "s": "Y",
+   "t": "API key resolves the project",
+   "e": "see engine document"
+  },
+  "trust.sharing": {
+   "s": "N",
+   "t": "None",
+   "e": "see engine document"
+  }
+ },
+ "layers": {
+  "raw": "Y",
+  "segment": "P",
+  "episode": "N",
+  "facts": "Y",
+  "graph": "Y",
+  "bitemporal": "Y",
+  "session_summary": "Y",
+  "entity_summary": "Y",
+  "profile": "Y",
+  "prospective": "N",
+  "procedural": "N",
+  "reflection": "O",
+  "shared": "N",
+  "firewall": "N",
+  "provenance": "N"
+ },
+ "keep": [
+  "Graphiti bi-temporal edges with deterministic-first entity resolution",
+  "Session and user summaries kept current on every user turn",
+  "Evaluator delegates to the official LoCoMo scorer and keeps errors in the denominator"
+ ],
+ "avoid": [
+  "Undated graph context and a placeholder 0.8 relevance score",
+  "No fusion across stores; three blocks concatenated",
+  "Queries embedded in document mode; planner uses the wall clock",
+  "stored_in labels overstate durability; empty string on backend failure"
+ ],
+ "extras": [
+  {
+   "phase": "read",
+   "param": "History-aware reformulation",
+   "t": "Dependent follow-ups rewritten once per call from paired answered history",
+   "e": "query_context/reformulator.py"
+  },
+  {
+   "phase": "answer",
+   "param": "Last-N verbatim replay",
+   "t": "Optional recent answered exchanges returned as their own block",
+   "e": "last_n_messages/retriever.py"
+  },
+  {
+   "phase": "arch",
+   "param": "Active / passive transcript archive",
+   "t": "Old transcript rows move to a passive collection and are revived on read",
+   "e": "session_messages/archival.py"
+  }
+ ],
+ "token_economy": {
+  "t": "No explicit context budget: three independently formatted blocks (graph, vector, optional last-N) are concatenated; the all-session benchmark mode repeats whole blocks. Session summary capped at 250 words; vector extraction compresses turns into restatements.",
+  "e": "guide sections 7, 12, 15"
+ },
+ "speed": {
+  "t": "Live graph writes return on enqueue (per-thread serial queue); vector extraction runs up to 8 workers over windows of 10; reads gather graph, vector and history concurrently. Heavy write cost (235B + 32B models, about 5-8 calls per user turn).",
+  "e": "guide sections 4, 5, 7"
+ },
+ "in_progress": [],
+ "locomo": [
+  {
+   "score": "none",
+   "protocol": "No LoCoMo result exists; harness would report official F1 and a strict 0/1 judge",
+   "who": "-",
+   "source": "COMBINED_MEMORY_ENGINE_AND_LOCOMO.html section 1, 11"
+  }
+ ],
+ "source_doc": "consolidated from the earlier engine documents"
+}

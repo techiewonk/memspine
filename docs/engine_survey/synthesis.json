@@ -1,0 +1,89 @@
+{
+ "title": "What MemSpine should build: multiple layers on a small token budget",
+ "intro": "Drawn from the 15 code-traced records. The field converges on one shape: keep raw turns as cheap, durable truth; derive compact layers in the background; read with no LLM call under a hard token budget; keep agentic reading as an opt-in tier. Everything below fits the write design already decided (adaptive window, three call slots, at most one call per turn, facts then summary then graph then episodes).",
+ "sections": [
+  {
+   "title": "1. What most strong engines agree on",
+   "items": [
+    "Raw turns stored at once with no LLM call, derived layers built later: MemMachine, Mnemon, MemOS (fast-then-fine), Memori, Honcho, MemSpine.",
+    "No LLM call on the hot read path: Hindsight, Honcho get_context, MemMachine, Memori, Nemori, memU, Mem0, MemSpine. Agentic reading is a separate, opt-in tier (Honcho dialectic levels, MemMachine agent mode, EverMemOS decider).",
+    "Write-time LLM work is batched by token window or episode, never per turn: LightMem (512-token buffer), Honcho (1,024-token window), MemOS (1,024-token window), Nemori (episode), MemSpine (adaptive window).",
+    "Updates and contradictions move to background consolidation: Hindsight observations, Honcho dreamer, LightMem similarity-gated update, Mnemon fold, Cognee contradicts / superseded edges.",
+    "Small contexts come from a hard budget, not from luck: Mnemon 16 items / 12,000 chars (3.8k tokens, 91.7 self-reported), Hindsight token-denominated packing, MemOS relevance floor + MMR + per-type quotas, Nemori two compact layers (2.7k). The one engine without a budget (Cognee) sends 32.5k tokens per question.",
+    "Our own f-slot screen agrees: an always-available agentic loop cost about 8x the time for net -3 on the focus slice, so agentic reading stays opt-in."
+   ]
+  },
+  {
+   "title": "2. Recommended layer stack",
+   "table": [
+    ["Layer", "Written by", "When", "LLM calls", "Read role", "Borrowed from"],
+    ["L0 Raw turns (authoritative)", "write door", "synchronous", "0", "evidence the reader sees; neighbour windows", "MemSpine, MemMachine, Mnemon"],
+    ["L1 Window facts (atomic, dated, cited)", "call 1, facts section", "per adaptive window, async", "~0.19 per turn", "index lifted to parent turns; optional notes", "LightMem, Honcho, MemOS"],
+    ["L1s Window summary carried on each fact", "call 1, same reply (new section)", "per window", "0 extra", "payload for a fact hit (facts find, summary fills)", "MemOS, Memori"],
+    ["L2 Session summary + episode narrative", "call 2", "session close", "1 per session", "orientation block, capped share", "Honcho, MemMachine, Nemori"],
+    ["L3 Entities, edges, value histories", "call 1 edges + call 3", "window, then sleep", "≤1 per 50 names + batched invalidation", "graph leg; value line with conflict flag", "Mnemon, Cognee, Graphiti"],
+    ["L4 Observations and profile card", "call 3 consolidation", "sleep, similarity-gated", "only pairs ≥ 0.9 similarity reach the LLM", "replace covered raw facts in the context", "Hindsight, LightMem, Honcho (40-entry card)"],
+    ["L5 Standing answers and instructions", "sleep", "periodic", "1 per standing question", "read with no retrieval", "Hindsight mental models, Mnemon instructions"]
+   ]
+  },
+  {
+   "title": "3. Token budget design (4,096 hard cap; target 2.5k-3.8k used)",
+   "table": [
+    ["Block", "Share of the budget", "Mechanism", "Source"],
+    ["Raw windows around hits", "at least 60%", "rank-order packing in tokens, not top-k; a long item cannot evict shorter better ones", "Hindsight, MemSpine"],
+    ["Fact / edge notes", "at most 20%, at most 5 notes", "pointer style: date + one line + 'from turns 12-14'; drop a note whose parents are already shown", "MIRIX, Hindsight prefer_observations"],
+    ["Summary / profile block", "at most 10%, relevance-gated", "facts find the session, its summary fills; capped profile card", "Memori, Honcho"],
+    ["Timelines / value histories / instructions", "at most 10%", "counted inside the same budget, trimmed first", "Mnemon"],
+    ["Candidate stage", "-", "relevance floor, MMR over a 3x over-fetch, per-type quotas before rerank", "MemOS"]
+   ]
+  },
+  {
+   "title": "4. Engineering for speed and safety on the write path",
+   "items": [
+    "Durable window queue: stage a cursor at prepare, promote it only on commit, so a crash re-offers windows instead of losing them (memU). Fixes our open caveat that the window queue is not durable.",
+    "Plan-embed-write commit: batch every embedding of a derived write into one call before anything is written, so a failed commit is a no-op (memU).",
+    "Diff-based re-embedding: hash content and re-embed only what changed (memU, EverMemOS).",
+    "Optional local pre-compression of the window transcript with a token classifier (LLMLingua-2) before call 1, cutting extractor prompt tokens 20-40% (LightMem). Screen it: it can drop a detail the fact needed.",
+    "Similarity-gated consolidation: only fact pairs above about 0.9 cosine go to the LLM; everything else is free (LightMem).",
+    "Background triggers by volume and idleness, not per write: for example 50 new facts, 60 minutes idle, at most every 8 hours (Honcho).",
+    "Per-stage call, token and latency counters reported next to accuracy (LightMem, Nemori, MemMachine); MemSpine has window_stats and model_usage, extend them to every layer."
+   ]
+  },
+  {
+   "title": "5. Read path additions to screen",
+   "items": [
+    "Contextualised rerank: score the whole neighbour window, not the single turn, then fill best-first (MemMachine).",
+    "Rule-based temporal window from the question (dateparser-style) as its own leg (Hindsight, MIRIX); MemSpine's temporal leg covers absolute dates only.",
+    "Rule-based query router that sends date-scoped questions to a temporal path at no LLM cost (Cognee); MemSpine's question shape can drive it.",
+    "Cheap batched yes/no screening of a wide pool before the reader (Mnemon's Jev; MemSpine's local OpenDecider is the in-house analogue).",
+    "Write absolute dates into derived text at write time ('yesterday (2023-05-07)') while raw turns stay untouched (Nemori, EverMemOS, Cognee timestamp nodes)."
+   ]
+  },
+  {
+   "title": "6. Do not copy",
+   "items": [
+    "Overwriting or deleting a value with no history (MIRIX, Honcho, LightMem, MemOS forgetting by count). MemSpine keeps supersede / contest with as-of reads.",
+    "Ingestion time used as event time (Memori, Nemori). MemSpine stamps valid_from from the turn.",
+    "No context budget (Cognee, 32.5k tokens per question).",
+    "Rewriting a fact's text but keeping its old embedding (LightMem).",
+    "Facts derived from an LLM narrative instead of raw turns (EverMemOS), and extraction on a closed hosted service (Memori).",
+    "In-process write buffers that are lost on a crash (LightMem; our own window queue today)."
+   ]
+  },
+  {
+   "title": "7. New gap rows proposed for the register (section M)",
+   "table": [
+    ["ID", "Proposal", "Evidence", "Effort"],
+    ["G-W25", "Hard context budget with per-block shares and token-denominated rank-order packing", "Mnemon, Hindsight, MemOS", "M"],
+    ["G-W26", "Window summary section in call 1, attached to each window fact as its payload", "MemOS, Memori", "S"],
+    ["G-W27", "Durable window queue (staged cursor promoted on commit)", "memU", "S"],
+    ["G-W28", "Contextualised window rerank", "MemMachine", "S-M"],
+    ["G-W29", "Value histories with a conflict flag; similarity-gated consolidation", "Mnemon, LightMem", "M"],
+    ["G-W30", "Capped, typed profile card (stable facts only)", "Honcho, MemMachine", "M"],
+    ["G-W31", "Optional local transcript compression before call 1", "LightMem", "S, screen"],
+    ["G-W32", "Pointer-style notes and prefer-observations de-duplication", "MIRIX, Hindsight", "S"],
+    ["G-W33", "Rule-based temporal window leg and router", "Hindsight, MIRIX, Cognee", "S-M"]
+   ]
+  }
+ ]
+}

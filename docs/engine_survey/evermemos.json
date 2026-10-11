@@ -1,0 +1,371 @@
+{
+ "slug": "evermemos",
+ "name": "EverMemOS (EverOS)",
+ "repo": "https://github.com/EverMind-AI/EverOS @ fcd41b5 + EverAlgo 7746a87",
+ "one_line": "LLM-written episodes and facts; LLM decider on the read side.",
+ "rows": {
+  "arch.product": {
+   "s": "",
+   "t": "Chassis (API, buffer, storage, search) plus the separate EverAlgo algorithm library",
+   "e": "see engine document"
+  },
+  "arch.truth": {
+   "s": "Y",
+   "t": "Markdown + YAML files; LanceDB is a rebuildable index",
+   "e": "see engine document"
+  },
+  "arch.stores": {
+   "s": "",
+   "t": "Markdown tree; SQLite buffer, memcell ledger, clusters, cascade queue; LanceDB or Milvus",
+   "e": "see engine document"
+  },
+  "arch.graphdb": {
+   "s": "N",
+   "t": "None; parent_id pointers and cluster membership only",
+   "e": "see engine document"
+  },
+  "arch.scope": {
+   "s": "",
+   "t": "app and project, then owner partition; deprecated rows filtered",
+   "e": "see engine document"
+  },
+  "write.entry": {
+   "s": "",
+   "t": "POST /add and /flush under a per-session lock (360 s timeout)",
+   "e": "see engine document"
+  },
+  "write.receipt": {
+   "s": "P",
+   "t": "Episode file on disk before return; facts, profile and index lag (eventual, about 10-15 s)",
+   "e": "see engine document"
+  },
+  "write.roles": {
+   "s": "P",
+   "t": "Tool rows dropped in chat mode; facts and profile re-run per user sender",
+   "e": "see engine document"
+  },
+  "write.firewall": {
+   "s": "N",
+   "t": "None",
+   "e": "see engine document"
+  },
+  "write.governance": {
+   "s": "N",
+   "t": "None",
+   "e": "see engine document"
+  },
+  "segment.unit": {
+   "s": "Y",
+   "t": "LLM boundary detection over the buffer, 'default to merging'",
+   "e": "see engine document"
+  },
+  "segment.rule": {
+   "s": "",
+   "t": "Day change, topic change, task done plus new topic, gap over 4 h; hard split at 65,536 tokens or 500 messages",
+   "e": "see engine document"
+  },
+  "segment.measured": {
+   "s": "",
+   "t": "Not run by us",
+   "e": "see engine document"
+  },
+  "extract.calls": {
+   "s": "",
+   "t": "1 boundary per add batch, 1 episode per cell, 1 fact call per user-sender copy (+ profile if on)",
+   "e": "see engine document"
+  },
+  "extract.facts": {
+   "s": "Y",
+   "t": "Atomic facts derived from the episode narrative, not from raw turns",
+   "e": "see engine document"
+  },
+  "extract.episode": {
+   "s": "Y",
+   "t": "LLM-written episode per cell (title, summary, narrative); the retrieved unit",
+   "e": "see engine document"
+  },
+  "extract.dates": {
+   "s": "Y",
+   "t": "'last Friday (2023-05-12)' dual format with UTC labels",
+   "e": "see engine document"
+  },
+  "extract.neighbours": {
+   "s": "P",
+   "t": "Buffer tail carries context across calls",
+   "e": "see engine document"
+  },
+  "extract.failure": {
+   "s": "P",
+   "t": "Boundary retries, 3-tier summary repair; silent decider fallback on read",
+   "e": "see engine document"
+  },
+  "graph.entities": {
+   "s": "N",
+   "t": "None; names live in text",
+   "e": "see engine document"
+  },
+  "graph.resolution": {
+   "s": "N",
+   "t": "None",
+   "e": "see engine document"
+  },
+  "graph.edges": {
+   "s": "N",
+   "t": "None",
+   "e": "see engine document"
+  },
+  "graph.communities": {
+   "s": "P",
+   "t": "Embedding clusters (cosine 0.65 within 7 days), no LLM",
+   "e": "see engine document"
+  },
+  "time.fields": {
+   "s": "P",
+   "t": "One timestamp per row; foresight has its own window",
+   "e": "see engine document"
+  },
+  "time.update": {
+   "s": "P",
+   "t": "None for facts; profile has add/update/delete; weekly re-merge (off)",
+   "e": "see engine document"
+  },
+  "time.dedup": {
+   "s": "N",
+   "t": "None",
+   "e": "see engine document"
+  },
+  "derive.session": {
+   "s": "P",
+   "t": "Summary field inside each episode",
+   "e": "see engine document"
+  },
+  "derive.profile": {
+   "s": "Y",
+   "t": "Profile operations (add/update/delete/none), caps 60 items; off in the benchmark",
+   "e": "see engine document"
+  },
+  "derive.entity": {
+   "s": "N",
+   "t": "None",
+   "e": "see engine document"
+  },
+  "derive.background": {
+   "s": "Y",
+   "t": "OME strategies, cascade daemon, weekly reflection cron",
+   "e": "see engine document"
+  },
+  "derive.forget": {
+   "s": "P",
+   "t": "Soft deprecation after reflection",
+   "e": "see engine document"
+  },
+  "index.embed": {
+   "s": "",
+   "t": "Qwen3-Embedding-4B, 1,024-d (hosted)",
+   "e": "see engine document"
+  },
+  "index.lexical": {
+   "s": "",
+   "t": "BM25 over app-tokenised columns, OR mode",
+   "e": "see engine document"
+  },
+  "index.vector": {
+   "s": "",
+   "t": "LanceDB; IVF_FLAT only after 2,000 rows",
+   "e": "see engine document"
+  },
+  "read.rewrite": {
+   "s": "P",
+   "t": "Sub-queries from the agentic or decider loop",
+   "e": "see engine document"
+  },
+  "read.analysis": {
+   "s": "N",
+   "t": "None in hybrid mode",
+   "e": "see engine document"
+  },
+  "read.legs": {
+   "s": "",
+   "t": "BM25 + vector on episodes; facts attached by parent; fact MaxSim in agentic",
+   "e": "see engine document"
+  },
+  "read.temporal": {
+   "s": "P",
+   "t": "Timestamp filters; date checks inside the LLM sufficiency step",
+   "e": "see engine document"
+  },
+  "read.traversal": {
+   "s": "N",
+   "t": "None",
+   "e": "see engine document"
+  },
+  "rank.fusion": {
+   "s": "Y",
+   "t": "RRF then logistic calibration; facts and episodes compete in one score (heap-expand)",
+   "e": "see engine document"
+  },
+  "rank.rerank": {
+   "s": "P",
+   "t": "Qwen3-Reranker in agentic mode only; net-negative in the published method",
+   "e": "see engine document"
+  },
+  "rank.gate": {
+   "s": "P",
+   "t": "min_score floor",
+   "e": "see engine document"
+  },
+  "rank.agentic": {
+   "s": "Y",
+   "t": "llm_multiround decider: 1-3 calls, reads full text of 50+ episodes per round",
+   "e": "see engine document"
+  },
+  "answer.shape": {
+   "s": "",
+   "t": "Episode blocks 'subject: episode'; top 20, core first",
+   "e": "see engine document"
+  },
+  "answer.size": {
+   "s": "",
+   "t": "About 2.3k (top 10, older) to 8.6k (cloud, outside harness)",
+   "e": "see engine document"
+  },
+  "answer.prompt": {
+   "s": "",
+   "t": "7-step chain of thought that encourages inference, up to 32k output tokens",
+   "e": "see engine document"
+  },
+  "eval.best": {
+   "s": "",
+   "t": "94.42 (vendor, decider read, lenient judge)",
+   "e": "see engine document"
+  },
+  "eval.outside": {
+   "s": "",
+   "t": "82.75 OmniMemEval (cloud); 58.25 strict judge",
+   "e": "see engine document"
+  },
+  "eval.models": {
+   "s": "",
+   "t": "gpt-4.1-mini answers, gpt-4o-mini judge, separate decider model",
+   "e": "see engine document"
+  },
+  "eval.rigour": {
+   "s": "P",
+   "t": "Vendor harness; max of runs; internal inconsistencies",
+   "e": "see engine document"
+  },
+  "cost.write": {
+   "s": "",
+   "t": "About 3 per closed cell plus a boundary call per batch",
+   "e": "see engine document"
+  },
+  "cost.read": {
+   "s": "",
+   "t": "1-3 decider calls in the published method",
+   "e": "see engine document"
+  },
+  "cost.where": {
+   "s": "",
+   "t": "Hosted (OpenAI-compatible, DeepInfra)",
+   "e": "see engine document"
+  },
+  "trust.provenance": {
+   "s": "P",
+   "t": "parent_id chain fact → episode → memcell; no trust model",
+   "e": "see engine document"
+  },
+  "trust.erasure": {
+   "s": "P",
+   "t": "Soft deprecation",
+   "e": "see engine document"
+  },
+  "trust.auth": {
+   "s": "N",
+   "t": "Unauthenticated; loopback by default",
+   "e": "see engine document"
+  },
+  "trust.sharing": {
+   "s": "N",
+   "t": "Owner partitions only",
+   "e": "see engine document"
+  }
+ },
+ "layers": {
+  "raw": "P",
+  "segment": "Y",
+  "episode": "Y",
+  "facts": "Y",
+  "graph": "N",
+  "bitemporal": "N",
+  "session_summary": "P",
+  "entity_summary": "N",
+  "profile": "Y",
+  "prospective": "P",
+  "procedural": "Y",
+  "reflection": "O",
+  "shared": "N",
+  "firewall": "N",
+  "provenance": "P"
+ },
+ "keep": [
+  "LLM-written episodes with dates resolved inside the text",
+  "Decider loop with a pinned core and per-sub-query RRF blocks",
+  "Profile as guarded operations with item caps"
+ ],
+ "avoid": [
+  "Facts derived from the narrative, so a dropped detail is lost",
+  "Duplicate fact and profile calls per user sender",
+  "Silent decider fallback that still reports a complete result",
+  "Foresight written but never read"
+ ],
+ "extras": [
+  {
+   "phase": "derive",
+   "param": "Foresight",
+   "t": "Up to 10 predictions per cell with time windows; written but never read",
+   "e": "extract_foresight.py"
+  },
+  {
+   "phase": "rank",
+   "param": "Heap-expand",
+   "t": "Facts and episodes compete in one calibrated score; a winning fact evicts its parent",
+   "e": "search/hierarchy.py"
+  },
+  {
+   "phase": "arch",
+   "param": "Markdown source of truth",
+   "t": "Human-editable files with entry-level content-hash diffing",
+   "e": "docs/how-memory-works.md"
+  }
+ ],
+ "token_economy": {
+  "t": "Episodes replace raw turns as the retrieved unit (about 2.3k tokens for top 10 in the older harness, 8.6k in the cloud run); episode summary capped at about 50 words with a 3-tier repair; the decider reads full text of 50+ candidates per round, so read-side tokens are large.",
+  "e": "EVERMEMOS_ENGINE.html 4, 8.3, 12"
+ },
+ "speed": {
+  "t": "Episode written inline before /add returns; facts, profile and index built in background (OME + cascade daemon, eventual ~10-15 s); per-session locks; boundary detector re-reads the buffer on each add.",
+  "e": "EVERMEMOS_ENGINE.html 3, 5, 12"
+ },
+ "in_progress": [],
+ "locomo": [
+  {
+   "score": "94.42",
+   "protocol": "vendor harness, llm_multiround decider, top-20 episodes, gpt-4.1-mini answers, lenient judge, 1,540 q",
+   "who": "vendor",
+   "source": "benchmarks/README.md:100"
+  },
+  {
+   "score": "82.75",
+   "protocol": "OmniMemEval cloud",
+   "who": "independent (competitor-run)",
+   "source": "OmniMemEval results.md"
+  },
+  {
+   "score": "58.25",
+   "protocol": "LoCoMo-Refined strict judge",
+   "who": "independent",
+   "source": "BENCHMARKS_UPDATE_2026-10-02"
+  }
+ ],
+ "source_doc": "consolidated from the earlier engine documents"
+}

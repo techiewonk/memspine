@@ -1,0 +1,369 @@
+{
+ "slug": "memspine",
+ "name": "MemSpine",
+ "repo": "memspine feat/local-qwen-stack @ 0eb2fd7",
+ "one_line": "Event-sourced memory library; raw turns authoritative; derived layers opt-in.",
+ "rows": {
+  "arch.product": {
+   "s": "",
+   "t": "Event-sourced library with a REST and MCP surface",
+   "e": "see engine document"
+  },
+  "arch.truth": {
+   "s": "Y",
+   "t": "One append-only event log (SQLite); every index is a rebuildable projection",
+   "e": "see engine document"
+  },
+  "arch.stores": {
+   "s": "",
+   "t": "SQLite log and read model, LanceDB vectors, Tantivy BM25, LadybugDB or SQLite-adjacency graph",
+   "e": "see engine document"
+  },
+  "arch.graphdb": {
+   "s": "O",
+   "t": "LadybugDB or SQLite-adjacency projection of the log; off in the LoCoMo arms",
+   "e": "see engine document"
+  },
+  "arch.scope": {
+   "s": "",
+   "t": "Namespace path is the only security boundary; cross-namespace reads only through grants",
+   "e": "see engine document"
+  },
+  "write.entry": {
+   "s": "",
+   "t": "write_messages (batched) or write (single); REST and MCP call the same doors",
+   "e": "see engine document"
+  },
+  "write.receipt": {
+   "s": "Y",
+   "t": "Event appended before projectors run; the returned records are the receipt; crash replays the tail",
+   "e": "see engine document"
+  },
+  "write.roles": {
+   "s": "Y",
+   "t": "Every turn stored as an episodic record with its role; perspective tags opt-in",
+   "e": "see engine document"
+  },
+  "write.firewall": {
+   "s": "Y",
+   "t": "Role trust matrix, instruction shape, embedding outlier, MINJA bridge, quarantine, release by corroboration",
+   "e": "see engine document"
+  },
+  "write.governance": {
+   "s": "O",
+   "t": "Secret and PII redaction, consent tags, retention classes, chained audit (off by default)",
+   "e": "see engine document"
+  },
+  "segment.unit": {
+   "s": "Y",
+   "t": "Adaptive window (new, opt-in): first of topic shift, 6 turns, about 1,500 tokens, idle or session end",
+   "e": "see engine document"
+  },
+  "segment.rule": {
+   "s": "",
+   "t": "Topic shift = similarity below the store's own mean − 2·sd (no tuned threshold); 30-minute derived sessions at read",
+   "e": "see engine document"
+  },
+  "segment.measured": {
+   "s": "",
+   "t": "1,127 windows on 5,882 turns: 0.19 calls per turn, 5.2 turns per window (offline)",
+   "e": "see engine document"
+  },
+  "extract.calls": {
+   "s": "",
+   "t": "0 by default; window mode about 0.19 per turn; sleep stages opt-in",
+   "e": "see engine document"
+  },
+  "extract.facts": {
+   "s": "O",
+   "t": "Window facts (call 1) or per-session mine_facts; parents = the cited turns; ungrounded facts dropped",
+   "e": "see engine document"
+  },
+  "extract.episode": {
+   "s": "O",
+   "t": "Episode-fragment section in call 1 (built, off); stitched narrative at session close planned",
+   "e": "see engine document"
+  },
+  "extract.dates": {
+   "s": "Y",
+   "t": "valid_from per record; window facts write 'expression (absolute date)'; read-time [= date] annotation",
+   "e": "see engine document"
+  },
+  "extract.neighbours": {
+   "s": "N",
+   "t": "Each window sees only itself (gap G-W4, planned)",
+   "e": "see engine document"
+  },
+  "extract.failure": {
+   "s": "Y",
+   "t": "Per-section fail-closed, split mode after repeated parse failures, write-quality counters",
+   "e": "see engine document"
+  },
+  "graph.entities": {
+   "s": "O",
+   "t": "Call-1 edges section or extract_edges@session; GLiNER2 or LLM entity extraction",
+   "e": "see engine document"
+  },
+  "graph.resolution": {
+   "s": "O",
+   "t": "Rules (alias, embedding, entropy gate, MinHash) or one LLM call per 50 names per sweep",
+   "e": "see engine document"
+  },
+  "graph.edges": {
+   "s": "O",
+   "t": "Edge facts as semantic records (rel:, dst: tags) projected into the graph",
+   "e": "see engine document"
+  },
+  "graph.communities": {
+   "s": "O",
+   "t": "Leiden + LPA reorganize stage",
+   "e": "see engine document"
+  },
+  "time.fields": {
+   "s": "Y",
+   "t": "valid_from, recorded_at, valid_to, superseded_at; as-of reads",
+   "e": "see engine document"
+  },
+  "time.update": {
+   "s": "Y",
+   "t": "13-rung rule ladder (NOOP, ADD, UPDATE, INVALIDATE, CONTEST); LLM invalidate_edge opt-in",
+   "e": "see engine document"
+  },
+  "time.dedup": {
+   "s": "Y",
+   "t": "MinHash LSH then cosine 0.92 on the semantic door",
+   "e": "see engine document"
+  },
+  "derive.session": {
+   "s": "O",
+   "t": "Per closed session (extractive, or one LLM call); call 2 slot built as a stub",
+   "e": "see engine document"
+  },
+  "derive.profile": {
+   "s": "O",
+   "t": "Reflective insights rendered as a packed PROFILE NOTES header; persona pinned",
+   "e": "see engine document"
+  },
+  "derive.entity": {
+   "s": "O",
+   "t": "summarize_entity in batches of 30",
+   "e": "see engine document"
+  },
+  "derive.background": {
+   "s": "Y",
+   "t": "sleep(): 13+ idempotent stages; window queue per namespace",
+   "e": "see engine document"
+  },
+  "derive.forget": {
+   "s": "Y",
+   "t": "Decay tiers; hard forget cascades to every derived record and vector history",
+   "e": "see engine document"
+  },
+  "index.embed": {
+   "s": "",
+   "t": "Qwen3-Embedding-0.6B, 1,024-d, asymmetric query instruction (arms); bge-small default",
+   "e": "see engine document"
+  },
+  "index.lexical": {
+   "s": "",
+   "t": "Tantivy BM25 over turn content, no stemming",
+   "e": "see engine document"
+  },
+  "index.vector": {
+   "s": "",
+   "t": "LanceDB, flat exact scan, optional quantisation",
+   "e": "see engine document"
+  },
+  "read.rewrite": {
+   "s": "O",
+   "t": "query_rewrite, probes, planner (rules by default)",
+   "e": "see engine document"
+  },
+  "read.analysis": {
+   "s": "Y",
+   "t": "Rules: question shape, temporal parse; query contract (LLM opt-in)",
+   "e": "see engine document"
+  },
+  "read.legs": {
+   "s": "",
+   "t": "Vector, BM25, temporal, perspective, speaker vote (arms); 20+ more built and off",
+   "e": "see engine document"
+  },
+  "read.temporal": {
+   "s": "Y",
+   "t": "Temporal leg for absolute dates; relative dates annotated per record",
+   "e": "see engine document"
+  },
+  "read.traversal": {
+   "s": "O",
+   "t": "Graph leg depth 2, PPR / BFS",
+   "e": "see engine document"
+  },
+  "rank.fusion": {
+   "s": "Y",
+   "t": "RRF (k = 60) over legs plus protected pool (top 3 of every leg survive the cut)",
+   "e": "see engine document"
+  },
+  "rank.rerank": {
+   "s": "Y",
+   "t": "jina-reranker-v3.5 (screens) or Qwen3-Reranker-4B; keep 10",
+   "e": "see engine document"
+  },
+  "rank.gate": {
+   "s": "O",
+   "t": "Store-calibrated gate with named-entity bypass; abstain below 0.25",
+   "e": "see engine document"
+  },
+  "rank.agentic": {
+   "s": "O",
+   "t": "Agentic query loop, slot loop, fact chain, event ledger (built, off)",
+   "e": "see engine document"
+  },
+  "answer.shape": {
+   "s": "",
+   "t": "One ranked list; neighbour windows 2 before and 4 after; dated chronological lines",
+   "e": "see engine document"
+  },
+  "answer.size": {
+   "s": "",
+   "t": "About 0.7-1.6k tokens; budget 4,096",
+   "e": "see engine document"
+  },
+  "answer.prompt": {
+   "s": "",
+   "t": "Clean grounded prompt; neutral refusal retry; date and duration repair opt-in",
+   "e": "see engine document"
+  },
+  "eval.best": {
+   "s": "",
+   "t": "81.4 with protected pool; 80.4 base (absolute values contaminated, deltas stand); official F1 42.0",
+   "e": "see engine document"
+  },
+  "eval.outside": {
+   "s": "",
+   "t": "Own harness only; clean re-baseline queued",
+   "e": "see engine document"
+  },
+  "eval.models": {
+   "s": "",
+   "t": "Qwen3.5-9B Q4 local for both (declared confound)",
+   "e": "see engine document"
+  },
+  "eval.rigour": {
+   "s": "Y",
+   "t": "Errata, paired flips, noise bands, stage forensics, gold-text lint, blind validation sets",
+   "e": "see engine document"
+  },
+  "cost.write": {
+   "s": "",
+   "t": "0 today; window facts about 1,127 calls, est. 66-118 min on one local GPU",
+   "e": "see engine document"
+  },
+  "cost.read": {
+   "s": "",
+   "t": "0 LLM in the engine; one embedding and one rerank",
+   "e": "see engine document"
+  },
+  "cost.where": {
+   "s": "",
+   "t": "Local only, $0 per call",
+   "e": "see engine document"
+  },
+  "trust.provenance": {
+   "s": "Y",
+   "t": "source.parents on every derived record; trust = minimum of parents",
+   "e": "see engine document"
+  },
+  "trust.erasure": {
+   "s": "Y",
+   "t": "Hard forget cascades into summaries, window facts and vector history",
+   "e": "see engine document"
+  },
+  "trust.auth": {
+   "s": "P",
+   "t": "Reference middleware (API key or OIDC JWT); deployer's job",
+   "e": "see engine document"
+  },
+  "trust.sharing": {
+   "s": "Y",
+   "t": "Grants, subscriptions, trust attenuation, live views",
+   "e": "see engine document"
+  }
+ },
+ "layers": {
+  "raw": "Y",
+  "segment": "Y",
+  "episode": "O",
+  "facts": "O",
+  "graph": "O",
+  "bitemporal": "Y",
+  "session_summary": "O",
+  "entity_summary": "O",
+  "profile": "O",
+  "prospective": "O",
+  "procedural": "O",
+  "reflection": "O",
+  "shared": "Y",
+  "firewall": "Y",
+  "provenance": "Y"
+ },
+ "keep": [
+  "Lossless event log with provenance and trust on every derived record",
+  "Write firewall, consent, retention and erasure cascade",
+  "Cross-encoder with a per-leg protected pool (+15 net on 1,540)",
+  "Measurement discipline: errata, paired flips, noise bands, forensics"
+ ],
+ "avoid": [
+  "LoCoMo arms use raw turns only; every derived layer is unscreened",
+  "Absolute LoCoMo numbers contaminated before 8cebf97 (I80)",
+  "Reader and judge are the same 9B model"
+ ],
+ "extras": [
+  {
+   "phase": "read",
+   "param": "Perspective layer",
+   "t": "Speaker, addressee, subject, asker, modality, polarity tags drive a retrieval leg and multiplier",
+   "e": "core/perspective.py"
+  },
+  {
+   "phase": "rank",
+   "param": "Protected pool",
+   "t": "Top N of every leg survive the fused cut (+15 net on 1,540)",
+   "e": "engine.py _protected_ids"
+  },
+  {
+   "phase": "trust",
+   "param": "Event-sourced replay",
+   "t": "Every index rebuildable from the append-only log",
+   "e": "ADR-001"
+  }
+ ],
+ "token_economy": {
+  "t": "Ranked raw turns plus neighbour windows under a 4,096-token budget, about 0.7-1.6k tokens per question with a reranker keeping 10; MMR redundancy cut; header blocks have budget shares; derived layers designed as candidacy (lifted to raw turns) rather than extra text.",
+  "e": "MEMSPINE_ENGINE_AND_LOCOMO.html 9.5, 13.3"
+ },
+ "speed": {
+  "t": "Zero LLM calls on write and read by default; batched GPU embedding (32 per batch, 80-90x cheaper per token); Jina reranker 196 pairs/s; window extraction async per namespace with a call cache; full 1,540-q QA run 47-58 min.",
+  "e": "MEMSPINE_ENGINE_AND_LOCOMO.html 14"
+ },
+ "in_progress": [
+  "Adaptive-window write (call 1 facts built, screen queued; call 2 session close stub; call 3 wired) - ADR-066",
+  "Clean Jina re-baseline on 1,540 q queued",
+  "G-C2 / G-C3 / G-C9 derived-layer screens queued"
+ ],
+ "locomo": [
+  {
+   "score": "81.4",
+   "protocol": "protected pool; Qwen3.5-9B Q4 reader and judge (rubric + guards), 1,540 q; absolute value contaminated by I80 (relative deltas stand)",
+   "who": "ours",
+   "source": "GAP_REGISTER.md"
+  },
+  {
+   "score": "F1 42.0",
+   "protocol": "official LoCoMo F1 port on the same run",
+   "who": "ours",
+   "source": "G-C7"
+  }
+ ],
+ "source_doc": "consolidated from the earlier engine documents"
+}

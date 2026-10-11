@@ -1,0 +1,351 @@
+{
+ "slug": "mem0",
+ "name": "Mem0 OSS",
+ "repo": "https://github.com/mem0ai/mem0 @ b7ad69a (2.2.1)",
+ "one_line": "One ADD-only extraction call per add(); zero-LLM hybrid read.",
+ "rows": {
+  "arch.product": {
+   "s": "",
+   "t": "Python SDK; the managed Platform is a separate product",
+   "e": "see engine document"
+  },
+  "arch.truth": {
+   "s": "P",
+   "t": "Vector points plus a SQLite history table used for audit only",
+   "e": "see engine document"
+  },
+  "arch.stores": {
+   "s": "",
+   "t": "Qdrant by default (24 backends): memory and entity collections; SQLite history and last 10 messages",
+   "e": "see engine document"
+  },
+  "arch.graphdb": {
+   "s": "N",
+   "t": "Removed in v3 (Platform only); entity back-pointers act as a boost",
+   "e": "see engine document"
+  },
+  "arch.scope": {
+   "s": "",
+   "t": "user_id, agent_id or run_id required on every call",
+   "e": "see engine document"
+  },
+  "write.entry": {
+   "s": "",
+   "t": "add(messages, scope); the caller decides turn or whole session",
+   "e": "see engine document"
+  },
+  "write.receipt": {
+   "s": "Y",
+   "t": "Batch insert with one-by-one fallback; raises if nothing persisted",
+   "e": "see engine document"
+  },
+  "write.roles": {
+   "s": "Y",
+   "t": "Both speakers extracted; one attributed_to flag (user or assistant)",
+   "e": "see engine document"
+  },
+  "write.firewall": {
+   "s": "N",
+   "t": "None",
+   "e": "see engine document"
+  },
+  "write.governance": {
+   "s": "P",
+   "t": "expiration_date per memory only",
+   "e": "see engine document"
+  },
+  "segment.unit": {
+   "s": "N",
+   "t": "Whatever the caller passes to add()",
+   "e": "see engine document"
+  },
+  "segment.rule": {
+   "s": "",
+   "t": "None",
+   "e": "see engine document"
+  },
+  "segment.measured": {
+   "s": "",
+   "t": "Not run",
+   "e": "see engine document"
+  },
+  "extract.calls": {
+   "s": "",
+   "t": "1 per add() with an about 8k-token system prompt",
+   "e": "see engine document"
+  },
+  "extract.facts": {
+   "s": "Y",
+   "t": "The only layer: self-contained 15-80 word facts from both speakers, ADD-only",
+   "e": "see engine document"
+  },
+  "extract.episode": {
+   "s": "N",
+   "t": "None",
+   "e": "see engine document"
+  },
+  "extract.dates": {
+   "s": "N",
+   "t": "OSS observation date is the run date (timestamp refused)",
+   "e": "see engine document"
+  },
+  "extract.neighbours": {
+   "s": "Y",
+   "t": "Top 10 existing memories and last 10 messages shown (returned links then discarded)",
+   "e": "see engine document"
+  },
+  "extract.failure": {
+   "s": "Y",
+   "t": "Raises LLMError instead of returning an empty list",
+   "e": "see engine document"
+  },
+  "graph.entities": {
+   "s": "P",
+   "t": "spaCy mentions (proper, quoted, topic, identifier); no LLM",
+   "e": "see engine document"
+  },
+  "graph.resolution": {
+   "s": "P",
+   "t": "Merge on exact text or cosine ≥ 0.95",
+   "e": "see engine document"
+  },
+  "graph.edges": {
+   "s": "N",
+   "t": "None",
+   "e": "see engine document"
+  },
+  "graph.communities": {
+   "s": "N",
+   "t": "None",
+   "e": "see engine document"
+  },
+  "time.fields": {
+   "s": "N",
+   "t": "created_at = now; expiry date only",
+   "e": "see engine document"
+  },
+  "time.update": {
+   "s": "N",
+   "t": "ADD-only; old and new facts both survive",
+   "e": "see engine document"
+  },
+  "time.dedup": {
+   "s": "P",
+   "t": "MD5 exact match against 10 neighbours",
+   "e": "see engine document"
+  },
+  "derive.session": {
+   "s": "N",
+   "t": "None (the prompt's summary slot is always empty)",
+   "e": "see engine document"
+  },
+  "derive.profile": {
+   "s": "N",
+   "t": "None",
+   "e": "see engine document"
+  },
+  "derive.entity": {
+   "s": "N",
+   "t": "None",
+   "e": "see engine document"
+  },
+  "derive.background": {
+   "s": "N",
+   "t": "None",
+   "e": "see engine document"
+  },
+  "derive.forget": {
+   "s": "P",
+   "t": "delete by id; expiry",
+   "e": "see engine document"
+  },
+  "index.embed": {
+   "s": "",
+   "t": "text-embedding-3-small by default",
+   "e": "see engine document"
+  },
+  "index.lexical": {
+   "s": "",
+   "t": "spaCy-lemmatised BM25 sparse vector (needs fastembed)",
+   "e": "see engine document"
+  },
+  "index.vector": {
+   "s": "",
+   "t": "Qdrant and 23 other backends",
+   "e": "see engine document"
+  },
+  "read.rewrite": {
+   "s": "N",
+   "t": "None",
+   "e": "see engine document"
+  },
+  "read.analysis": {
+   "s": "P",
+   "t": "spaCy lemmas and entities",
+   "e": "see engine document"
+  },
+  "read.legs": {
+   "s": "",
+   "t": "Dense max(4k, 60); BM25 and entity boost scored only on dense candidates",
+   "e": "see engine document"
+  },
+  "read.temporal": {
+   "s": "N",
+   "t": "reference_date refused in OSS",
+   "e": "see engine document"
+  },
+  "read.traversal": {
+   "s": "N",
+   "t": "None",
+   "e": "see engine document"
+  },
+  "rank.fusion": {
+   "s": "Y",
+   "t": "Additive: semantic + sigmoid(BM25) + entity boost, divided by the best reachable score",
+   "e": "see engine document"
+  },
+  "rank.rerank": {
+   "s": "O",
+   "t": "Optional (Cohere, HF, sentence-transformer, LLM)",
+   "e": "see engine document"
+  },
+  "rank.gate": {
+   "s": "P",
+   "t": "Semantic threshold 0.1",
+   "e": "see engine document"
+  },
+  "rank.agentic": {
+   "s": "N",
+   "t": "Single pass by design",
+   "e": "see engine document"
+  },
+  "answer.shape": {
+   "s": "",
+   "t": "A list of memory dicts; the caller formats",
+   "e": "see engine document"
+  },
+  "answer.size": {
+   "s": "",
+   "t": "About 7k tokens at top_200 (Platform run)",
+   "e": "see engine document"
+  },
+  "answer.prompt": {
+   "s": "",
+   "t": "Not in the clone (short answers reported)",
+   "e": "see engine document"
+  },
+  "eval.best": {
+   "s": "",
+   "t": "92.5 (vendor, managed Platform, top_200)",
+   "e": "see engine document"
+  },
+  "eval.outside": {
+   "s": "",
+   "t": "77.68 OmniMemEval; 64.9 T-Mem; 48.91 strict judge",
+   "e": "see engine document"
+  },
+  "eval.models": {
+   "s": "",
+   "t": "gpt-5 for both (per our notes)",
+   "e": "see engine document"
+  },
+  "eval.rigour": {
+   "s": "N",
+   "t": "Evaluation code absent (empty submodule)",
+   "e": "see engine document"
+  },
+  "cost.write": {
+   "s": "",
+   "t": "272 (session batches) to 5,882 (turn by turn)",
+   "e": "see engine document"
+  },
+  "cost.read": {
+   "s": "",
+   "t": "0 LLM",
+   "e": "see engine document"
+  },
+  "cost.where": {
+   "s": "",
+   "t": "Hosted (OpenAI default)",
+   "e": "see engine document"
+  },
+  "trust.provenance": {
+   "s": "N",
+   "t": "No link from a memory to its source turn",
+   "e": "see engine document"
+  },
+  "trust.erasure": {
+   "s": "P",
+   "t": "delete by id",
+   "e": "see engine document"
+  },
+  "trust.auth": {
+   "s": "P",
+   "t": "FastAPI server wrapper with auth",
+   "e": "see engine document"
+  },
+  "trust.sharing": {
+   "s": "N",
+   "t": "Scope ids only",
+   "e": "see engine document"
+  }
+ },
+ "layers": {
+  "raw": "P",
+  "segment": "N",
+  "episode": "N",
+  "facts": "Y",
+  "graph": "P",
+  "bitemporal": "N",
+  "session_summary": "N",
+  "entity_summary": "N",
+  "profile": "N",
+  "prospective": "P",
+  "procedural": "P",
+  "reflection": "N",
+  "shared": "N",
+  "firewall": "N",
+  "provenance": "N"
+ },
+ "keep": [
+  "Zero-LLM read path with explainable additive scoring",
+  "Anti-hub entity penalty: 1 / (1 + 0.001(n−1)²)",
+  "Fails loudly on extraction errors"
+ ],
+ "avoid": [
+  "linked_memory_ids requested from the model, then discarded",
+  "Observation date is the run date in OSS",
+  "Candidates come only from the dense leg; exact-hash dedup only"
+ ],
+ "extras": [],
+ "token_economy": {
+  "t": "Facts are 15-80 word self-contained statements, so each memory is short, but the published run retrieves top_200 (about 7k tokens). Extraction prompt itself is about 8k tokens per add().",
+  "e": "MEM0_ENGINE.html 5.1, 11, 12"
+ },
+ "speed": {
+  "t": "Zero LLM at search; one extraction call per add(); batch embedding and batch insert; vendor p50 latency 0.88 s (Platform).",
+  "e": "MEM0_ENGINE.html 12"
+ },
+ "in_progress": [],
+ "locomo": [
+  {
+   "score": "92.5",
+   "protocol": "managed Platform, top_200 memories (~7k tokens), gpt-5 reader and judge, 1,540 q",
+   "who": "vendor",
+   "source": "README:55, docs"
+  },
+  {
+   "score": "77.68",
+   "protocol": "OmniMemEval cloud, gpt-4.1-mini / gpt-4o-mini",
+   "who": "independent (competitor-run)",
+   "source": "OmniMemEval results.md"
+  },
+  {
+   "score": "48.91",
+   "protocol": "LoCoMo-Refined strict Qwen3-14B judge, 1,382 q",
+   "who": "independent",
+   "source": "BENCHMARKS_UPDATE_2026-10-02"
+  }
+ ],
+ "source_doc": "consolidated from the earlier engine documents"
+}
