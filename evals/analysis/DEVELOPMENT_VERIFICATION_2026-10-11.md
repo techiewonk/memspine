@@ -2,7 +2,7 @@
 
 Scope: `origin/feat/local-qwen-stack` HEAD `bc5bf30` (2026-10-11 08:40), audited read-only in a detached worktree. Sources audited: `evals/analysis/GAP_REGISTER.md` (673 lines, all tables and the progress log) and `docs/GAP_TO_SOLUTION_PLAN.md`. CPU only; no GPU, Ollama or model call was made.
 
-**E03 and E04 are in flux.** Another agent was adding an E03 Wikipedia provider and an E04 precompute script while this audit ran; neither is on origin at `bc5bf30`. The E03/E04 rows describe only what is on that commit.
+**E03 and E04 are in flux.** Another agent was adding an E03 Wikipedia provider and an E04 precompute script while this audit ran; neither is on origin at `bc5bf30`. The E03/E04 rows describe only what is on that commit. **Addendum:** while the audit ran, origin advanced to `6be76ee` (adds `src/memspine/services/external/wikipedia.py`, `evals/precompute_assets.py`, arms `scr-e03-wiki`/`scr-e04-assets`, `tests/unit/test_external_wikipedia.py`, `evals/tests/test_precompute_assets.py`). Those new files were not audited row by row; their 9 new tests plus the existing E03/E04 test files were run on `6be76ee` and all pass. The 4378-test full-suite numbers below are for `bc5bf30`.
 
 Abbreviations in the evidence column: `S/` = `src/memspine/`, `E/` = `evals/`, `EM/` = `evals/memspine_evals/`. A test reference `name (n pass)` is the number of tests from that file in the full-suite junit run. Row ids: `K:` = register section K (Codex families), `PLAN:` = plan-only findings.
 
