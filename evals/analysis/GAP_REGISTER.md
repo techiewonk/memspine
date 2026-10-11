@@ -746,3 +746,8 @@ Source: `docs/ENGINE_COMPARISON_AND_WRITE_PATH_DESIGN.html` ("Decided design", B
 **2026-10-11 19:37 (f-chain focus screen)**
 - f-chain-i2 vs f-jref-i2 on the 437-q focus slice, paired per question: 44.9 vs 45.1, +0/-1, net -1 (cat2 -1). Model calls per question 2.04 vs 2.03 and context 2,178 vs 2,162 tokens, so the fact chain almost never changed the read. Not adopted.
 - `eval_focus.py f-chain-i2` printed PROMOTE because it scores against the slice's stored labels (fixed 51/287, broken 5/150), and the reference run printed PROMOTE as well: the G-E1 defect seen live. Verdicts on the focus slice are taken from the paired comparison until G-E1 lands.
+
+**2026-10-11 19:42 (environment incident, queue relaunched)**
+- At 18:17 a `uv sync` in the shared `.venv` (not from this session) re-installed the stale lock: about 50 packages changed (lancedb, tantivy, numpy, pyarrow, litellm, onnxruntime, pydantic ...) and huggingface_hub went to 1.16.1, below `datasets` 5.1.0's `>=1.31`. Importing sentence-transformers failed, so f-contract, clean-jina-full, f-gc2/3/9 and f-win all failed at their 2-question check (no GPU time lost). f-chain-i2 had loaded its modules before 18:17 and finished.
+- Fix: huggingface_hub 1.33.0 restored (19:41); `pip freeze` before the fix kept in the session scratchpad. The lock file still pins 1.16.1, so the next sync breaks the runs again: bump `huggingface-hub` in `uv.lock`/pyproject before anyone syncs.
+- Relaunched in order through `pinned_run.sh`: f-jref2 (Jina reference again, same-environment reference for every later screen), f-contract, clean-jina-full (888b888); then GC screens (88294e0); then f-win (0eb2fd7). Screens from here on are compared with f-jref2-i2, not f-jref-i2.
