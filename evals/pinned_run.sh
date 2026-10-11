@@ -21,6 +21,17 @@ if [ ! -e "$wt/evals/runs" ]; then
 fi
 export PYTHONPATH="$(cygpath -w "$wt/src")"
 export MEMSPINE_PINNED_COMMIT="$rev"
+# G-24: record the exact environment of this run (pinning the code does not pin the shared venv; a stray sync broke
+# every queued screen on 2026-10-11). Best effort: a failure here never stops the run.
+py="$repo/.venv/Scripts/python.exe"; [ -x "$py" ] || py="$repo/.venv/bin/python"
+envdir="$here/runs/_logs/env"; mkdir -p "$envdir" 2>/dev/null || true
+stamp="$(date +%Y%m%d-%H%M%S)"; freeze="$envdir/${rev:0:7}_$stamp.txt"
+if { uv pip freeze --python "$py" 2>/dev/null || "$py" -m pip freeze --all 2>/dev/null; } > "$freeze" && [ -s "$freeze" ]; then
+  MEMSPINE_ENV_HASH="$(sha256sum "$freeze" | cut -c1-16)"; export MEMSPINE_ENV_HASH
+  echo "$stamp commit=$rev env=$MEMSPINE_ENV_HASH script=$script freeze=env/$(basename "$freeze")" >> "$here/runs/_logs/pinned_runs.log" || true
+else
+  echo "pinned_run: could not freeze the environment (continuing)" >&2
+fi
 cd "$wt/evals"
 echo "pinned_run: commit $rev in $wt"
 exec bash "$script" "$@"
