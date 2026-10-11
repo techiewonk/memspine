@@ -779,3 +779,6 @@ Source: `docs/ENGINE_COMPARISON_AND_WRITE_PATH_DESIGN.html` ("Decided design", B
 
 **2026-10-12 03:16 (f-gc2 focus screen, G-C2 graph facts)**
 - f-gc2-i2 (`scr-gc2-facts-jina`, commit 88294e0, prompts before the 11853ed contamination fix: relative only) vs f-jref2-i2, paired gate: 44.2 vs 45.1, +22/-26, net -4, sign p 0.665, cluster 95% [-17, +12] -> HOLD (the pinned script's old scorer printed REJECT). Multi-hop -3 (band 3.5), single -2, temporal 0, open +1. High churn (48 flips against 22 for A03) for no gain: not adopted. f-gc3 and f-gc9 follow.
+
+**2026-10-12 03:50 (f-gc3 hung: asyncio deadlock in the graph build)**
+- f-gc3 (`scr-gc3-graph-jina`: session-granularity extract_graph, rules resolution, graph leg depth 2, node search, entity summaries, build-sleep) hung in its 2-question check while building: last log line 03:17:34 (memory.write / memory.link evolution), then 30+ min silence with GPU and Ollama idle and flat CPU. py-spy: every thread idle, main event loop polling with nothing runnable, so a coroutine awaits something never resolved (lock, future or queue). Stopped at 03:50 (CHECK FAILED); the queue moved to f-gc9. Root cause under investigation; the queue watcher now also alerts on a log idle for 20 minutes.
