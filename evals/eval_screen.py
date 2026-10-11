@@ -42,6 +42,19 @@ def locomo(run: str) -> dict[str, tuple[bool, str]]:
     return out
 
 
+def locomo_f1(run: str) -> dict[str, tuple[float, str]]:
+    """G-C7: official LoCoMo F1 (0..1) per question id, with the category label."""
+    from memspine_evals.locomo_f1 import row_f1
+
+    out = {}
+    path = RUNS / f"{run}--memspine" / "results.jsonl"
+    for line in path.open(encoding="utf-8"):
+        d = json.loads(line)
+        if d.get("kind") == "result" and (f1 := row_f1(d)) is not None:
+            out[d["query_id"]] = (f1, d["type_label"])
+    return out
+
+
 def opbench(run: str) -> dict | None:
     path = RUNS / f"{run}--memspine" / "opbench_summary.json"
     if not path.exists():
@@ -89,6 +102,14 @@ def main() -> None:
             cq = [q for q in qs if new[q][1] == c]
             if cq:
                 print(f"   {name:8s} n={len(cq):3d} {100*sum(new[q][0] for q in cq)/len(cq):5.1f} vs {100*sum(ref[q][0] for q in cq)/len(cq):5.1f}")
+        f_ref, f_new = locomo_f1(a.loc_ref), locomo_f1(loc_run)
+        fq = [q for q in qs if q in f_ref and q in f_new and new[q][1] != "cat5"]
+        if fq:
+            print(f"   F1 (official LoCoMo, cat 1-4, n={len(fq)}): {100*sum(f_new[q][0] for q in fq)/len(fq):.1f} vs {100*sum(f_ref[q][0] for q in fq)/len(fq):.1f}")
+            for c, name in CATS:
+                cq = [q for q in fq if new[q][1] == c]
+                if cq:
+                    print(f"      {name:8s} F1 {100*sum(f_new[q][0] for q in cq)/len(cq):5.1f} vs {100*sum(f_ref[q][0] for q in cq)/len(cq):5.1f}")
         deltas.append(acc_n - acc_r)
         if net < -band:
             guard_ok = False

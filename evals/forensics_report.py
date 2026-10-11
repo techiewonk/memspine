@@ -42,6 +42,7 @@ sys.path.append(str(HERE))
 from failure_buckets import _list_items, _session_date, _words, bucket_failure  # noqa: E402
 from memspine_evals.datasets import LoCoMoDataset  # noqa: E402
 from memspine_evals.evidence import normalise_evidence  # noqa: E402
+from memspine_evals.locomo_f1 import row_f1  # noqa: E402
 
 CAT = {"cat1": "multi-hop", "cat2": "temporal", "cat3": "open-domain", "cat4": "single-hop", "cat5": "adversarial"}
 CATS = ["single-hop", "multi-hop", "temporal", "open-domain"]
@@ -221,6 +222,7 @@ def build(args) -> None:
             "question": r["question"], "gold_answer": r.get("gold"), "answer": answer if mode == "qa" else None,
             "status": r.get("status"), "judge_score": score if mode == "qa" else None,
             "judge_raw": meta.get("judge_raw"), "correct": correct, "has_stage_log": f is not None,
+            "f1_locomo": row_f1(r) if mode == "qa" else None,  # G-C7: official LoCoMo F1 (0..1), beside the judge
             "context_tokens": num(r.get("context_tokens")), "latency_retrieve_ms": num(r.get("latency_retrieve_ms")),
             "latency_answer_ms": num(r.get("latency_answer_ms")), "retrieved_turns": retrieved,
             "list_recall": None,
@@ -351,7 +353,7 @@ def build(args) -> None:
     (out / "run_summary.json").write_text(json.dumps(summary, indent=1), encoding="utf-8")
     write_markdown(out, rows, args.only_wrong_md)
     write_gap_md(out, summary)
-    print(f"{run_id}: {summary['n_questions']} questions (+{summary['n_adversarial']} adversarial), accuracy {summary['accuracy']:.1%}, stage log={summary['has_stage_log']} -> {out}")
+    print(f"{run_id}: {summary['n_questions']} questions (+{summary['n_adversarial']} adversarial), accuracy {summary['accuracy']:.1%}, F1 (official LoCoMo) {(summary.get('f1_locomo') or 0):.1%}, stage log={summary['has_stage_log']} -> {out}")
     if summary["errata"]:
         e = summary["errata"]["strict"]
         print(f"  excluding errata: {e['n']} questions ({e['n_excluded']} excluded), "
@@ -534,6 +536,12 @@ def abstention_block(all_rows: list[dict]) -> dict | None:
     return out
 
 
+def _mean_f1(sub: list[dict]) -> float | None:
+    """G-C7: mean official LoCoMo F1 (0..1) over the rows that have one."""
+    v = [r["f1_locomo"] for r in sub if r.get("f1_locomo") is not None]
+    return sum(v) / len(v) if v else None
+
+
 def by_category_all(all_rows: list[dict]) -> dict:
     """I24: per-category table including cat 5 (adversarial), judge accuracy and refusal rate."""
     from memspine_evals.refusal import is_refusal
@@ -547,6 +555,7 @@ def by_category_all(all_rows: list[dict]) -> dict:
         out[c] = {
             "n": len(sub), "accuracy": sum(r["correct"] for r in sub) / len(sub),
             "refusal_rate": (sum(is_refusal(r["answer"]) for r in answered) / len(answered)) if answered else None,
+            "f1_locomo": _mean_f1(sub),
         }
     return out
 
@@ -740,7 +749,9 @@ def summarise(run_id: str, rows: list[dict], manifest: dict, ingest: list[dict],
          "complete_qa_set": len(rows) == QA_SET_SIZE}
         if s["mode"] == "retrieval" and rows else None
     )
-    s["by_category"] = {c: {"n": len(sub), "accuracy": sum(r["correct"] for r in sub) / len(sub)}
+    s["f1_locomo"] = _mean_f1(rows)  # G-C7: categories 1-4 headline, next to "accuracy"
+    s["by_category"] = {c: {"n": len(sub), "accuracy": sum(r["correct"] for r in sub) / len(sub),
+                            "f1_locomo": _mean_f1(sub)}
                         for c in CATS if (sub := [r for r in rows if r["category"] == c])}
     s["outcome_classes"] = dict(Counter(r["outcome_class"] for r in rows))
     wrong = [r for r in rows if not r["correct"]]
@@ -849,8 +860,9 @@ def write_gap_md(out: Path, s: dict) -> None:
     pc = lambda x: "n/a" if x is None else f"{100 * x:.1f}%"  # noqa: E731
     L = [f"# Gap summary - {s['run_id']}\n", f"- mode {s['mode']}, stage log {s['has_stage_log']}, "
          f"{s['n_questions']} questions, accuracy {pc(s['accuracy'])}", f"- models: {s['models']}\n",
-         "| Category | n | accuracy |", "|---|---|---|"]
-    L += [f"| {c} | {v['n']} | {pc(v['accuracy'])} |" for c, v in s["by_category"].items()]
+         "| Category | n | accuracy | F1 (official LoCoMo) |", "|---|---|---|---|"]
+    L += [f"| {c} | {v['n']} | {pc(v['accuracy'])} | {pc(v.get('f1_locomo'))} |" for c, v in s["by_category"].items()]
+    L += [f"| all 1-4 | {s['n_questions']} | {pc(s['accuracy'])} | {pc(s.get('f1_locomo'))} |"]
     er = s.get("errata")
     if er:
         st, ib = er["strict"], er["incl_borderline"]
@@ -876,9 +888,9 @@ def write_gap_md(out: Path, s: dict) -> None:
     if adv:
         L += [f"\n- adversarial (cat 5, apart from the headline): n={adv['n']}, accuracy {pc(adv['accuracy'])}"]
     if s.get("by_category_all"):
-        L += ["\n## Per category, including cat 5 (adversarial)", "| Category | n | judge accuracy | refusal rate |",
-              "|---|---|---|---|",
-              *[f"| {c} | {v['n']} | {pc(v['accuracy'])} | {pc(v['refusal_rate'])} |"
+        L += ["\n## Per category, including cat 5 (adversarial)", "| Category | n | judge accuracy | refusal rate | F1 (official LoCoMo) |",
+              "|---|---|---|---|---|",
+              *[f"| {c} | {v['n']} | {pc(v['accuracy'])} | {pc(v['refusal_rate'])} | {pc(v.get('f1_locomo'))} |"
                 for c, v in s["by_category_all"].items()]]
     ab = s.get("abstention")
     if ab:

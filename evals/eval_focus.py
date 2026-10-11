@@ -63,6 +63,18 @@ def score_locomo(arm: dict, sl: dict) -> dict:
                 band=band, broken_rate=rate, by=dict(by), missing=len(miss_f) + len(miss_c), verdict=verdict)
 
 
+def f1_summary(rows: dict[str, dict], qids: list[str], cat: dict[str, str]) -> dict[str, tuple[int, float]]:
+    """G-C7: official LoCoMo F1 (x100) over the slice questions present in `rows`: overall (cat 1-4) and per category."""
+    from memspine_evals.locomo_f1 import row_f1
+
+    by: dict[str, list[float]] = defaultdict(list)
+    for q in qids:
+        if q in rows and cat.get(q) != "cat5" and (f := row_f1(rows[q])) is not None:
+            by[cat[q]].append(f)
+            by["all"].append(f)
+    return {k: (len(v), 100 * sum(v) / len(v)) for k, v in sorted(by.items())}
+
+
 def score_opb(run_dir: Path, sl: dict) -> dict:
     per = json.loads((run_dir / "opbench_summary.json").read_text(encoding="utf-8"))["per_probe"]
     item_of = {f"{d['item_id']}/{d['query_id']}": q for q, d in
@@ -113,6 +125,16 @@ def main() -> None:
     for c in sorted(r["by"]):
         nf, fx, nc, bk = r["by"][c]
         print(f"   {c:5s} fixed {fx:3d}/{nf:3d}  broken {bk:2d}/{nc:3d}")
+    qids = list(sl["fail"]) + list(sl["control"])
+    ref_path = a.runs_dir / f"{a.ref}--memspine" / "results.jsonl"
+    ref_rows = read_rows(ref_path) if ref_path.exists() else {}
+    f_arm = f1_summary(arm, qids, sl["category"])
+    f_ref = f1_summary(ref_rows, qids, sl["category"]) if ref_rows else {}
+    if f_arm:
+        print("   F1 (official LoCoMo, x100; judge accuracy above is unchanged):")
+        for k, (n, v) in f_arm.items():
+            extra = f"  ref {f_ref[k][1]:5.1f} ({v - f_ref[k][1]:+.1f})" if k in f_ref else ""
+            print(f"      {k:5s} n={n:3d} {v:5.1f}{extra}")
     if r["missing"]:
         print(f"   WARNING: {r['missing']} slice questions have no row in the arm run")
     print(f"verdict: {r['verdict']}")
