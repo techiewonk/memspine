@@ -158,6 +158,12 @@ class C01Config:
     #: C10: with ``retry_refusal``, skip the retry when the question names an entity the
     #: retrieved context never mentions (``refusal.names_absent_entity``). Off: unchanged.
     retry_guard: bool = False
+    #: I1: wording of the retry instruction, ``neutral`` (default; never claims evidence
+    #: exists) or ``assertive`` (the original firmer wording, to reproduce earlier runs).
+    retry_mode: str = "neutral"
+    #: I1: safety valve; accept the retry answer only when it shares a content word with the
+    #: retrieved context. Off: unchanged.
+    retry_overlap: bool = False
     #: I32: tell the reader no memory matches an asserted past event (``no_record.py``).
     no_record_hint: bool = False
     #: I61: tell the reader to answer the supported part and correct a mismatched detail
@@ -453,6 +459,10 @@ def check_dollar_cap(config: C01Config) -> None:
 def _retry_decider_kwargs(config: C01Config) -> dict[str, Any]:
     """I28: ``RefusalRetryReader`` kwargs for ``--decider`` (none for the default heuristic)."""
     guard = {"guard_absent_entity": True} if config.retry_guard else {}
+    if config.retry_mode != "neutral":
+        guard["mode"] = config.retry_mode
+    if config.retry_overlap:
+        guard["require_context_overlap"] = True
     match = {"refusal_match": config.refusal_match} if config.refusal_match != "whole" else {}
     if config.decider == "heuristic":
         return {**guard, **match}
@@ -983,6 +993,8 @@ async def run_c0_1(
             **({"verify_answer": True} if config.verify_answer else {}),
             **({"retry_refusal": True} if config.retry_refusal else {}),
             **({"retry_guard": True} if config.retry_guard else {}),
+            **({"retry_mode": config.retry_mode} if config.retry_mode != "neutral" else {}),
+            **({"retry_overlap": True} if config.retry_overlap else {}),
             **({"no_record_hint": True} if config.no_record_hint else {}),
             **({"premise_tolerant": True} if config.premise_tolerant else {}),
             **({"refusal_match": config.refusal_match} if config.refusal_match != "whole" else {}),

@@ -211,6 +211,7 @@ def apply_opbench_protocol(args: argparse.Namespace) -> list[str]:
     for flag in (
         "retry_refusal",
         "retry_guard",
+        "retry_overlap",
         "judge_guards",
         "judge_date_check",
         "judge_conventions",
@@ -343,6 +344,8 @@ def cmd_c0_1(args: argparse.Namespace) -> int:
         verify_answer=args.verify_answer,
         retry_refusal=args.retry_refusal,
         retry_guard=args.retry_guard,
+        retry_mode=args.retry_mode,
+        retry_overlap=args.retry_overlap,
         no_record_hint=args.no_record_hint,
         premise_tolerant=args.premise_tolerant,
         refusal_match=args.refusal_match,
@@ -642,6 +645,21 @@ def build_parser() -> argparse.ArgumentParser:
         "retrieved context never mentions (an unanswerable question; a retry can only "
         "fabricate). The retry is always capped at one re-ask on a non-empty context; off "
         "by default",
+    )
+    c01.add_argument(
+        "--retry-mode",
+        choices=("neutral", "assertive"),
+        default="neutral",
+        help="I1: wording of the --retry-refusal instruction. neutral (default) never claims "
+        "evidence exists; assertive is the original firmer wording, kept to reproduce earlier "
+        "runs (reader id loses the -neutral suffix)",
+    )
+    c01.add_argument(
+        "--retry-overlap",
+        action="store_true",
+        help="I1: with --retry-refusal, accept the retry answer only when it shares a content "
+        "word with the retrieved context (a safety valve against a fabricated retry); off by "
+        "default",
     )
     c01.add_argument(
         "--no-memory-prompt",
