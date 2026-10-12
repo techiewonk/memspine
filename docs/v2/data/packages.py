@@ -31,7 +31,7 @@ WP = [
      "Dev: LoCoMo (+cat 5), OP-Bench; blind: MAB-CR, ConvoMem, PrefEval; behavioural suite blocks adoption",
      "Not started", "LongMemEval stays out"),
     ("P0-09", 0, "Prompt gold-lint over partials and rendered prompts", ["P-13", "W-18"], [], "infra",
-     "Lint fails on any gold token in any prompt or partial", "In progress", "Single words and harness prompts done (11853ed)"),
+     "Lint fails on any gold token in any prompt or partial", "Done", "Partials, 51 rendered prompts, 265 inline strings; 4 allowlisted false positives (5bee0d9)"),
     ("X-00", 0, "RESTRUCTURE.md: S0-S16, target tree, owned file sets per package", ["G-16"], [], "infra",
      "Every F package has an owned-file set; reviewed by the owner", "Done", "Approved by the owner 2026-10-13"),
     ("X-01", 0, "Agent brief template and owned-file checker in build_plan.py", ["G-16"], ["X-00"], "infra",
@@ -45,7 +45,7 @@ WP = [
     ("X-05", 0, "Labelled sets: grounding, alias/homonym/numeric pairs, contradiction recall, global questions",
      ["W-17", "W-19", "O-13", "O-12", "O-17"], [], "infra", "Invented names, several languages; versioned", "Not started", ""),
     ("MOD-01", 0, "memspine.schemas: versioned Pydantic input/output types for every pipeline step; JSON Schema export to docs/v2/schemas", ["G-16", "M-26"], ["X-00"], "infra",
-     "Every step in pipelines/*.md has a schema; export reproducible in CI", "Ready", "Owner 2026-10-13; new files only; sessions 1-2 answered (schemas/SESSIONS_01_02)"),
+     "Every step in pipelines/*.md has a schema; export reproducible in CI", "In progress", "Part 1 merged (a2b5b6a): tiers, upcasters, reserved names, 250 internal step types, export; part 2: durable/public layouts from sessions 3-12"),
     ("X-06", 0, "Licence check for a permissive reranker fallback", ["R-14"], [], "infra", "Named fallback with licence", "Done", "Qwen3-Reranker-0.6B (Apache-2.0) primary, MiniLM-L6 CPU (5544e88); owner to confirm"),
     # ---- Phase 1a: pure-move split (one serial lane, golden-gated) ----
     ("F-05", 1, "Package skeleton; move store and trust leaves", ["G-16"], ["P0-04", "X-00", "X-01", "X-02"], "move",

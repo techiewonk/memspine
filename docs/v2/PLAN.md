@@ -8,11 +8,11 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | Status | Count |
 |---|---|
 | Not started | 98 |
-| Ready | 1 |
+| Ready | 0 |
 | In progress | 2 |
 | Blocked | 1 |
 | Needs measurement | 3 |
-| Done | 7 |
+| Done | 8 |
 | Dropped | 0 |
 
 ## Phase 0: settle and prepare
@@ -27,14 +27,14 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | P0-06 | Re-screen engine-LLM arms on the thinking fix (f-gc9, f-gc3, f-win, f-gc2) | L0 L1 L3 ctx | D K_C K_P R | O-07, O-16, W-12 | - | P0-01, P0-05 | measure | infra | - | Paired gate vs f-jref2-i2 on the focus slice | **Needs measurement** | GPU stopped by the owner; f-gc9 was net +15 before the fix |
 | P0-07 | A03 query contract: full set, then blind sets | ctx | R | R-03 | - | P0-01 | measure | infra | - | PROMOTE on 1,540 vs clean-jina-full, then CONFIRMS on MAB-CR and ConvoMem | **Needs measurement** | Focus +15/-7 net +8 HOLD; full run stopped partway |
 | P0-08 | Benchmark suite and behavioural controls | L0 L1 L4 L5 ctx scope | K_P R C G | G-02, G-04 | ER-36, ER-37 | P0-01 | infra | infra | - | Dev: LoCoMo (+cat 5), OP-Bench; blind: MAB-CR, ConvoMem, PrefEval; behavioural suite blocks adoption | **Not started** | LongMemEval stays out |
-| P0-09 | Prompt gold-lint over partials and rendered prompts | L1 L3 | D | P-13, W-18 | ER-16, ER-38 | - | infra | infra | `tests/unit/test_prompt_gold_lint.py` +1 | Lint fails on any gold token in any prompt or partial | **In progress** | Single words and harness prompts done (11853ed) |
+| P0-09 | Prompt gold-lint over partials and rendered prompts | L1 L3 | D | P-13, W-18 | ER-16, ER-38 | - | infra | infra | `tests/unit/test_prompt_gold_lint.py` +1 | Lint fails on any gold token in any prompt or partial | **Done** | Partials, 51 rendered prompts, 265 inline strings; 4 allowlisted false positives (5bee0d9) |
 | X-00 | RESTRUCTURE.md: S0-S16, target tree, owned file sets per package | L0 L1 L4 L5 ctx scope | D K_C K_P R C | G-16 | ER-01, ER-04 | - | infra | infra | - | Every F package has an owned-file set; reviewed by the owner | **Done** | Approved by the owner 2026-10-13 |
 | X-01 | Agent brief template and owned-file checker in build_plan.py | L0 L1 L4 L5 ctx scope | D K_C K_P R C | G-16 | ER-02, ER-04 | X-00 | infra | infra | `docs/v2/data/build_plan.py` +2 | No two concurrently runnable packages share an owned file | **Done** | OWNS map, checker, --brief generator (9a13ba1) |
 | X-02 | CI: golden, import-linter, blocking gold-lint, single Alembic head, flag-evidence check | L0 L1 L4 L5 ctx scope | D R C | G-22 | ER-04, ER-38 | P0-04 | infra | infra | - | CI fails on each violation | **Not started** |  |
 | X-03 | Golden fixture: synthetic conversations, hash embedder, reranker off | L0 L1 L4 L5 ctx scope | R C G | G-04 | - | - | infra | infra | `tests/golden/**` | No benchmark text; deterministic | **Done** | tests/golden (c4d61ac): 4 synthetic conversations, 14 queries, frozen clock; stable 6/6 runs |
 | X-04 | Docs and ADR: ADR-067 restructure, no-shim wording, G-23 migration-time upcaster | L0 L1 L4 L5 ctx scope | D K_C | G-23 | ER-01 | - | infra | infra | `docs/adr/ADR-067-*` +2 | Docs consistent with 'no shims' | **Done** | ADR-067 (40fb1e2) |
 | X-05 | Labelled sets: grounding, alias/homonym/numeric pairs, contradiction recall, global questions | L1 L3 | D K_C | W-17, W-19, O-13, O-12, O-17 | ER-12, ER-37 | - | infra | infra | `evals/labelled/**` +1 | Invented names, several languages; versioned | **Not started** |  |
-| MOD-01 | memspine.schemas: versioned Pydantic input/output types for every pipeline step; JSON Schema export to docs/v2/schemas | L0 L1 L3 L4 L5 ctx scope | D K_C K_P R C | G-16, M-26 | ER-32, ER-33 | X-00 | infra | other | `src/memspine/schemas/**` +4 | Every step in pipelines/*.md has a schema; export reproducible in CI | **Ready** | Owner 2026-10-13; new files only; sessions 1-2 answered (schemas/SESSIONS_01_02) |
+| MOD-01 | memspine.schemas: versioned Pydantic input/output types for every pipeline step; JSON Schema export to docs/v2/schemas | L0 L1 L3 L4 L5 ctx scope | D K_C K_P R C | G-16, M-26 | ER-32, ER-33 | X-00 | infra | other | `src/memspine/schemas/**` +4 | Every step in pipelines/*.md has a schema; export reproducible in CI | **In progress** | Part 1 merged (a2b5b6a): tiers, upcasters, reserved names, 250 internal step types, export; part 2: durable/public layouts from sessions 3-12 |
 | X-06 | Licence check for a permissive reranker fallback | L0 L1 | R | R-14 | - | - | infra | infra | `docs/v2/data/reranker_licences_*.md` | Named fallback with licence | **Done** | Qwen3-Reranker-0.6B (Apache-2.0) primary, MiniLM-L6 CPU (5544e88); owner to confirm |
 
 ## Phase 1: foundations (restructure in place)
