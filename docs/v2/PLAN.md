@@ -9,10 +9,10 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 |---|---|
 | Not started | 95 |
 | Ready | 0 |
-| In progress | 1 |
+| In progress | 0 |
 | Blocked | 1 |
 | Needs measurement | 3 |
-| Done | 12 |
+| Done | 13 |
 | Dropped | 0 |
 
 ## Phase 0: settle and prepare
@@ -34,7 +34,7 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | X-03 | Golden fixture: synthetic conversations, hash embedder, reranker off | L0 L1 L4 L5 ctx scope | R C G | G-04 | - | - | infra | infra | `tests/golden/**` | No benchmark text; deterministic | **Done** | tests/golden (c4d61ac): 4 synthetic conversations, 14 queries, frozen clock; stable 6/6 runs |
 | X-04 | Docs and ADR: ADR-067 restructure, no-shim wording, G-23 migration-time upcaster | L0 L1 L4 L5 ctx scope | D K_C | G-23 | ER-01 | - | infra | infra | `docs/adr/ADR-067-*` +2 | Docs consistent with 'no shims' | **Done** | ADR-067 (40fb1e2) |
 | X-05 | Labelled sets: grounding, alias/homonym/numeric pairs, contradiction recall, global questions | L1 L3 | D K_C | W-17, W-19, O-13, O-12, O-17 | ER-12, ER-37 | - | infra | infra | `evals/labelled/**` +1 | Invented names, several languages; versioned | **Done** | evals/labelled: 62 grounding, 80 entity pairs, 44 contradictions, 10 conv + 20 global questions (da4c961, 2b81427) |
-| MOD-01 | memspine.schemas: versioned Pydantic input/output types for every pipeline step; JSON Schema export to docs/v2/schemas | L0 L1 L3 L4 L5 ctx scope | D K_C K_P R C | G-16, M-26 | ER-32, ER-33 | X-00 | infra | other | `src/memspine/schemas/**` +4 | Every step in pipelines/*.md has a schema; export reproducible in CI | **In progress** | Part 1 merged (a2b5b6a): tiers, upcasters, reserved names, 250 internal step types, export; part 2: durable/public layouts from sessions 3-12 |
+| MOD-01 | memspine.schemas: versioned Pydantic input/output types for every pipeline step; JSON Schema export to docs/v2/schemas | L0 L1 L3 L4 L5 ctx scope | D K_C K_P R C | G-16, M-26 | ER-32, ER-33 | X-00 | infra | other | `src/memspine/schemas/**` +4 | Every step in pipelines/*.md has a schema; export reproducible in CI | **Done** | 28 durable (8 kinds v1 + fixtures), 14 public, internal step types; invariants; strict-tier check. Open for W2-06a: planned+negated, ItemV1 chg (I-3) |
 | X-06 | Licence check for a permissive reranker fallback | L0 L1 | R | R-14 | - | - | infra | infra | `docs/v2/data/reranker_licences_*.md` | Named fallback with licence | **Done** | Qwen3-Reranker-0.6B (Apache-2.0) primary, MiniLM-L6 CPU (5544e88); owner to confirm |
 
 ## Phase 1: foundations (restructure in place)

@@ -677,8 +677,8 @@
    ],
    "kind": "infra",
    "gate": "Every step in pipelines/*.md has a schema; export reproducible in CI",
-   "status": "In progress",
-   "note": "Part 1 merged (a2b5b6a): tiers, upcasters, reserved names, 250 internal step types, export; part 2: durable/public layouts from sessions 3-12",
+   "status": "Done",
+   "note": "28 durable (8 kinds v1 + fixtures), 14 public, internal step types; invariants; strict-tier check. Open for W2-06a: planned+negated, ItemV1 chg (I-3)",
    "layers": [
     "L0",
     "L1",
