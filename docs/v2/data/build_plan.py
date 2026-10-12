@@ -22,6 +22,8 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[2]
 sys.path.insert(0, str(HERE))
+# Packages whose code is merged hold no files: Done, or merged and waiting only for a GPU measurement.
+RELEASED = ("Done", "Needs measurement", "Dropped")
 STATUSES = ("Not started", "Ready", "In progress", "Blocked", "Needs measurement", "Done", "Dropped")
 
 # (id, phase, title, decisions, depends_on, kind, gate, status, note)
@@ -167,7 +169,7 @@ def find_collisions(rows: list[dict], owns: dict[str, list[str]], allowed: list[
     status = {r["id"]: r["status"] for r in rows}
     ok = {frozenset((a, b)) for a, b, _ in allowed}
     bad, shared = [], []
-    ids = [r["id"] for r in rows if r["id"] in owns and status[r["id"]] != "Done"]
+    ids = [r["id"] for r in rows if r["id"] in owns and status[r["id"]] not in RELEASED]
     for i, a in enumerate(ids):
         for b in ids[i + 1:]:
             if not concurrently_runnable(a, b, closure, lanes):
@@ -217,7 +219,7 @@ def render_brief(wid: str, rows: list[dict], owns: dict[str, list[str]], titles:
     forbid: dict[str, list[str]] = {}
     for o in rows:
         oid = o["id"]
-        if (oid == wid or o["status"] == "Done" or oid not in owns or frozenset((wid, oid)) in ok
+        if (oid == wid or o["status"] in RELEASED or oid not in owns or frozenset((wid, oid)) in ok
                 or not concurrently_runnable(wid, oid, closure)):
             continue
         for pat in owns[oid]:
