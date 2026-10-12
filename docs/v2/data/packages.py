@@ -50,7 +50,7 @@ WP = [
     ("LIB-01", 1, "Library: temporal anchor ladder (basis, precision, intervals, relations; never invents dates)", ["W-04", "M-10", "R-07"], ["MOD-01"], "infra",
      "Unit tests; pure, unwired (wiring in W2-14); depends only on memspine.schemas", "Ready", "Library-first split (owner 2026-10-13: parallel agents)"),
     ("LIB-02", 1, "Library: integration ladder (supersede/retire/coexist/contest/tentative) and cardinality registry, event-time ordered", ["W-21", "W-22", "M-12"], ["MOD-01"], "infra",
-     "Unit tests; pure, unwired (wiring in W2-10); depends only on memspine.schemas", "Ready", "Library-first split (owner 2026-10-13: parallel agents)"),
+     "Unit tests; pure, unwired (wiring in W2-10); depends only on memspine.schemas", "Done", "derive/integrate.py: X-05 contradictions 44/44, order-independent replay (fixes INV-ORDER-SWAP); W2-10 must use change_hint once LIB-05 adds it (6db0ac3)"),
     ("LIB-03", 1, "Library: grounding rule checks (spans, modality, binding) scored on the X-05 grounding set", ["W-17"], ["MOD-01"], "infra",
      "Unit tests; pure, unwired (wiring in W2-08); depends only on memspine.schemas", "Ready", "Library-first split (owner 2026-10-13: parallel agents)"),
     ("LIB-04", 1, "Library: rule entity resolver (alias, homonym, numeric, cross-language) scored on X-05 entity pairs", ["W-19", "M-15"], ["MOD-01"], "infra",

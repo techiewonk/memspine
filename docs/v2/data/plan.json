@@ -810,8 +810,8 @@
    ],
    "kind": "infra",
    "gate": "Unit tests; pure, unwired (wiring in W2-10); depends only on memspine.schemas",
-   "status": "Ready",
-   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "status": "Done",
+   "note": "derive/integrate.py: X-05 contradictions 44/44, order-independent replay (fixes INV-ORDER-SWAP); W2-10 must use change_hint once LIB-05 adds it (6db0ac3)",
    "layers": [
     "L1",
     "L3"
