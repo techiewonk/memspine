@@ -8,11 +8,11 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | Status | Count |
 |---|---|
 | Not started | 92 |
-| Ready | 3 |
+| Ready | 1 |
 | In progress | 0 |
 | Blocked | 1 |
 | Needs measurement | 3 |
-| Done | 60 |
+| Done | 62 |
 | Dropped | 0 |
 
 ## Phase 0: settle and prepare
@@ -86,8 +86,8 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | LIB-43 | Library: deep tier sufficiency check and one-rewrite plan (model call injected) | L0 ctx | R C | R-22 | - | MOD-01 | infra | other | `src/memspine/read/deep.py` +1 | Unit tests; pure, unwired (wiring in R3-12); depends only on memspine.schemas | **Done** | read/deep.py: rules first, one sufficiency, at most one rewrite, one retrieve, no loop, calls counted (50a3ca6) |
 | LIB-44 | Library: explicit feedback events and observer views (multi-agent) | L1 L4 L5 scope | K_C K_P R | O-25, O-26, M-24 | - | MOD-01 | infra | other | `src/memspine/derive/feedback.py` +1 | Unit tests; pure, unwired (wiring in O4-11); depends only on memspine.schemas | **Ready** | Library-first split (owner 2026-10-13: parallel agents) |
 | LIB-45 | Library: external public knowledge as a separate, labelled, opt-in context block | L0 | R | R-23 | - | MOD-01 | infra | other | `src/memspine/read/external.py` +1 | Unit tests; pure, unwired (wiring in R3-13); depends only on memspine.schemas | **Done** | read/external.py: opt-in plan, labelled public block, domain family, trust cap, dedupe/caps, deposit guard |
-| LIB-46 | Library: prompt layout rules (no examples, stable prefix, same language) as a checker and builder | L0 L1 L3 ctx | D C | W-18, P-07, P-08, P-10 | - | MOD-01 | infra | other | `src/memspine/prompts/layout.py` +1 | Unit tests; pure, unwired (wiring in W2-07); depends only on memspine.schemas | **Ready** | Library-first split (owner 2026-10-13: parallel agents) |
-| LIB-47 | Library: depth tiers, ReadRequest normalisation and the evidence unit | L0 L1 L4 ctx | R C | R-01, R-02 | - | MOD-01 | infra | other | `src/memspine/read/tiers.py` +1 | Unit tests; pure, unwired (wiring in R3-01); depends only on memspine.schemas | **Ready** | Library-first split (owner 2026-10-13: parallel agents) |
+| LIB-46 | Library: prompt layout rules (no examples, stable prefix, same language) as a checker and builder | L0 L1 L3 ctx | D C | W-18, P-07, P-08, P-10 | - | MOD-01 | infra | other | `src/memspine/prompts/layout.py` +1 | Unit tests; pure, unwired (wiring in W2-07); depends only on memspine.schemas | **Done** | prompts/layout.py: stable prefix builder, layout checker; today 51/51 prompts lack same-language rule, 6 have e.g.-quotes, 2 variable-in-prefix (c297f4e) |
+| LIB-47 | Library: depth tiers, ReadRequest normalisation and the evidence unit | L0 L1 L4 ctx | R C | R-01, R-02 | - | MOD-01 | infra | other | `src/memspine/read/tiers.py` +1 | Unit tests; pure, unwired (wiring in R3-01); depends only on memspine.schemas | **Done** | read/tiers.py: tier budgets, viewer-bound ReadRequest, tier choice, evidence unit (eb1b1a1) |
 | F-05 | Package skeleton; move store and trust leaves | L0 L1 L4 L5 ctx scope | D K_C K_P R C | G-16 | - | P0-04, X-00, X-01, X-02 | move | S1 split (serial) | `src/memspine/store/records.py` +23 | Both suites and golden green; no old import paths | **Done** | S5: 11 modules moved, codemod_move.py; unit 3343, evals 1435, golden, 14 contracts kept (afb3d16) |
 | F-06 | Move read, compose and models leaves | L0 L1 L4 L5 ctx scope | D K_C K_P R C | G-16 | - | F-05 | move | S1 split (serial) | `src/memspine/read/contract.py` +34 | Same as F-05 | **Done** | S6: 10 modules + 6 packages moved (query helpers to models/encoders/query); unit 4400, evals 1435, golden, 14 contracts (7ba2427) |
 | MOD-02 | Typed registries + entry points (discovery is not enablement: pinned capability manifest) | L0 L1 L4 L5 ctx scope | D K_C K_P R C | G-16 | ER-03, ER-33, ER-34 | F-06, MOD-01 | api | S1 split (serial) | `src/memspine/*/registry.py` | Built-ins register at import; entry-point plug-in test; golden unchanged | **Not started** | Owner 2026-10-13 |

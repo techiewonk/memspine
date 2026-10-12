@@ -2603,8 +2603,8 @@
    ],
    "kind": "infra",
    "gate": "Unit tests; pure, unwired (wiring in W2-07); depends only on memspine.schemas",
-   "status": "Ready",
-   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "status": "Done",
+   "note": "prompts/layout.py: stable prefix builder, layout checker; today 51/51 prompts lack same-language rule, 6 have e.g.-quotes, 2 variable-in-prefix (c297f4e)",
    "layers": [
     "L0",
     "L1",
@@ -2647,8 +2647,8 @@
    ],
    "kind": "infra",
    "gate": "Unit tests; pure, unwired (wiring in R3-01); depends only on memspine.schemas",
-   "status": "Ready",
-   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "status": "Done",
+   "note": "read/tiers.py: tier budgets, viewer-bound ReadRequest, tier choice, evidence unit (eb1b1a1)",
    "layers": [
     "L0",
     "L1",

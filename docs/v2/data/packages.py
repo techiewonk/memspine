@@ -138,9 +138,9 @@ WP = [
     ("LIB-45", 1, "Library: external public knowledge as a separate, labelled, opt-in context block", ["R-23"], ["MOD-01"], "infra",
      "Unit tests; pure, unwired (wiring in R3-13); depends only on memspine.schemas", "Done", "read/external.py: opt-in plan, labelled public block, domain family, trust cap, dedupe/caps, deposit guard"),
     ("LIB-46", 1, "Library: prompt layout rules (no examples, stable prefix, same language) as a checker and builder", ["W-18", "P-07", "P-08", "P-10"], ["MOD-01"], "infra",
-     "Unit tests; pure, unwired (wiring in W2-07); depends only on memspine.schemas", "Ready", "Library-first split (owner 2026-10-13: parallel agents)"),
+     "Unit tests; pure, unwired (wiring in W2-07); depends only on memspine.schemas", "Done", "prompts/layout.py: stable prefix builder, layout checker; today 51/51 prompts lack same-language rule, 6 have e.g.-quotes, 2 variable-in-prefix (c297f4e)"),
     ("LIB-47", 1, "Library: depth tiers, ReadRequest normalisation and the evidence unit", ["R-01", "R-02"], ["MOD-01"], "infra",
-     "Unit tests; pure, unwired (wiring in R3-01); depends only on memspine.schemas", "Ready", "Library-first split (owner 2026-10-13: parallel agents)"),
+     "Unit tests; pure, unwired (wiring in R3-01); depends only on memspine.schemas", "Done", "read/tiers.py: tier budgets, viewer-bound ReadRequest, tier choice, evidence unit (eb1b1a1)"),
     # ---- Phase 1a: pure-move split (one serial lane, golden-gated) ----
     ("F-05", 1, "Package skeleton; move store and trust leaves", ["G-16"], ["P0-04", "X-00", "X-01", "X-02"], "move",
      "Both suites and golden green; no old import paths", "Done", "S5: 11 modules moved, codemod_move.py; unit 3343, evals 1435, golden, 14 contracts kept (afb3d16)"),
