@@ -1,40 +1,48 @@
-# Agent brief: <package id> <title>
+# Agent brief: {{id}} {{title}}
 
-Package X-01 template. One brief per work package; the agent (Sonnet) reads only this brief and the files it links.
+Package X-01 template, filled by `python docs/v2/data/build_plan.py --brief <ID>` (lane: {{lane}}; kind: {{kind}}). One brief per work package; the agent (Sonnet) reads only this brief and the files it links. Placeholders left as `<TODO ...>` are for the coordinator to complete before the brief is handed out.
 
 ## Goal
-<one paragraph: what changes and why, in plain words>
+{{goal}}
 
 ## Decisions implemented
-<decision ids with links to docs/v2/areas/<area>.md anchors and docs/v2/pipelines/<pipeline>.md sections>
+{{decisions}}
+
+Pipeline specs: see `docs/v2/pipelines/` for the steps these decisions touch.
 
 ## Inputs
-- Branch: `restructure` at <commit>; your worktree: `../memspine-<package id>`
-- Depends on (must be Done): <ids>
-- Read first: <spec sections, ADRs, RESTRUCTURE.md rows>
+- Branch: {{base}}; your worktree: `../memspine-{{id}}`
+- Depends on (must be Done):
+{{depends}}
+- Read first: the decision sections above, `docs/v2/RESTRUCTURE.md` section 3 row for this package, relevant ADRs
 
 ## You own (may write)
-<target files and their tests>
+{{owned}}
 
 ## You must not touch
-<files owned by other packages in flight; pinned_run.sh interface; evals/runs; data/>
+Files owned by packages that can run at the same time as this one:
+{{forbidden}}
 
 ## Steps
-1. ...
+1. <TODO steps>
 
 ## Tests
-- Add: <tests>
-- Migrate: <tests>
+- Add: <TODO tests>
+- Migrate: <TODO tests>
 - Must stay green: `tests/unit`, `evals/tests`, CPU golden, import-linter, gold-lint, single Alembic head
 
 ## Gate
-<move: golden unchanged | behaviour: built flag-off, golden unchanged, screen queued (status Needs measurement)>
+{{gate}}
+
+Kind gate ({{kind}}): {{kind_gate}}
+
+Review findings implemented: {{review}}
 
 ## Docs to update in the same PR
-<pipeline spec step, ARCHITECTURE section, ADR, PLAN status>
+<TODO pipeline spec step, ARCHITECTURE section, ADR, PLAN status>
 
 ## Done when
 - [ ] all checks above pass
-- [ ] PR titled `<package id>: <title>` opened into `restructure`, description lists decisions and checks
+- [ ] PR titled `{{id}}: {{title}}` opened into `restructure`, description lists decisions and checks
 - [ ] no model call added on a default path; no layer turned on that the decisions keep off
 - [ ] status in PLAN set to Done (move/infra) or Needs measurement (behaviour)

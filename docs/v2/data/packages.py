@@ -221,3 +221,79 @@ LANES = {
 
 #: Codex review findings (ER) and owner policies implemented by each package (traceability, 2026-10-13).
 REVIEW = {'X-00': ['ER-01', 'ER-04'], 'X-04': ['ER-01'], 'X-01': ['ER-02', 'ER-04'], 'X-02': ['ER-04', 'ER-38'], 'P0-03': ['ER-35', 'ER-34'], 'P0-01': ['ER-35'], 'P0-02': ['ER-35'], 'P0-08': ['ER-36', 'ER-37'], 'P0-09': ['ER-16', 'ER-38'], 'X-05': ['ER-12', 'ER-37'], 'F-02a': ['ER-03', 'ER-14', 'ER-32'], 'F-02b': ['ER-03', 'ER-18'], 'F-02c': ['ER-20'], 'F-01': ['ER-13', 'ER-20'], 'F-04': ['ER-06', 'ER-07', 'ER-09'], 'RT-01': ['ER-06'], 'RT-02': ['ER-08', 'ER-10', 'ER-39'], 'F-08': ['ER-03', 'ER-10', 'ER-34'], 'MOD-01': ['ER-32', 'ER-33'], 'MOD-02': ['ER-03', 'ER-33', 'ER-34'], 'F-13a': ['ER-03'], 'F-16a': ['ER-11', 'ER-22', 'POL-2'], 'F-16b': ['ER-27', 'ER-33'], 'F-16c': ['ER-13', 'ER-29'], 'F-16f': ['ER-05', 'ER-30'], 'EX-1a': ['ER-05'], 'EX-1': ['ER-05'], 'W2-01': ['ER-06'], 'W2-03': ['ER-17'], 'W2-06a': ['ER-11', 'ER-15', 'ER-32'], 'W2-06b': ['ER-12', 'ER-15'], 'W2-07': ['ER-16'], 'W2-08': ['ER-11', 'ER-14'], 'W2-09': ['ER-13', 'ER-20'], 'W2-10': ['ER-14', 'ER-17'], 'W2-11': ['ER-25'], 'W2-12': ['ER-08', 'ER-15', 'ER-16', 'ER-37', 'ER-39'], 'W2-14': ['ER-18'], 'W2-15': ['ER-12'], 'R3-02': ['ER-19'], 'R3-05b': ['ER-19'], 'R3-07': ['ER-21'], 'R3-08': ['ER-21', 'ER-22', 'POL-2'], 'R3-09a': ['ER-24'], 'R3-09b': ['ER-24'], 'R3-10': ['ER-24'], 'R3-11': ['ER-23', 'POL-1'], 'R3-12': ['ER-19', 'ER-23'], 'R3-13': ['ER-25'], 'R3-14': ['ER-18'], 'R3-15': ['ER-09', 'ER-31', 'ER-39'], 'R3-16': ['ER-19'], 'O4-01a': ['ER-07', 'ER-26'], 'O4-01b': ['ER-09', 'ER-26'], 'O4-02': ['ER-26'], 'O4-04': ['ER-17'], 'O4-05': ['ER-28'], 'O4-07': ['ER-28'], 'O4-08': ['ER-28'], 'T5-01': ['ER-29', 'POL-2'], 'T5-02': ['ER-22'], 'T5-03': ['ER-31'], 'T5-04': ['ER-30', 'ER-31', 'POL-1'], 'T5-05': ['ER-27'], 'F-14a': ['ER-40'], 'F-14b': ['ER-40'], 'R6-01': ['ER-02', 'ER-35', 'ER-36']}
+
+
+# ---- Ownership (X-01) ------------------------------------------------------------------------------------------
+# Repo-relative glob patterns each package may write (target files, plus the "Removes or edits" column of
+# RESTRUCTURE.md section 3, since a moved file is written by its mover). `*` does not cross `/`; `**` does.
+# Packages without an entry cannot be briefed (build_plan.py lists them as a warning).
+def _expand(spec: str) -> list[str]:
+    """Expand one `{a,b}` brace group (at most one per spec)."""
+    if "{" not in spec:
+        return [spec]
+    pre, rest = spec.split("{", 1)
+    body, post = rest.split("}", 1)
+    return [pre + alt + post for alt in body.split(",")]
+
+
+def _src(*specs: str) -> list[str]:
+    return [f"src/memspine/{p}" for s in specs for p in _expand(s)]
+
+
+_F05 = _src("store/{records,events,log,scope,lineage}.py", "trust/**",
+            "core/{records,events,replay,projector,namespace,visibility,firewall,audit,erasure,privacy,redaction}.py")
+_F06 = _src("read/**", "compose/**", "models/**", "core/query_*", "core/temporal_*", "core/perspective.py",
+            "core/lead.py", "core/policies/{assembly,compression}.py", "core/answer*",
+            "services/{llm,embedding,rerank,query_encoder,decision,cache}*",
+            "services/{llm,embedding,rerank,query_encoder,decision,cache}/**")
+_ENGINE = "src/memspine/engine.py"
+_RT = _src("runtime/**", "ingest/commit.py", "workers/{inline,runner,scheduler,schedule,dbos_runner,taskiq_runner}.py")
+_F02 = _src("store/{envelope,layers}.py", "derive/graph.py", "store/records.py", "store/backends/**/alembic/versions/*")
+_F16 = _src("store/{lineage,migrate,profiles}.py", "store/backends/{postgres,neo4j}/**", "derive/write.py",
+            "services/graph/neo4j.py")
+
+OWNS: dict[str, list[str]] = {
+    # Phase 0 (in flight)
+    "X-01": ["docs/v2/data/build_plan.py", "docs/v2/data/packages.py", "docs/v2/briefs/**"],
+    "X-03": ["tests/golden/**"],
+    "X-04": ["docs/adr/ADR-067-*", "docs/v2/areas/*.md", "docs/v2/pipelines/*.md"],
+    "X-06": ["docs/v2/data/reranker_licences_*.md"],
+    "P0-02": ["evals/pinned_run.sh", "evals/memspine_evals/provenance.py", "evals/memspine_evals/paired_gate.py",
+              "evals/README.md"],
+    "P0-03": ["evals/pinned_run.sh", "evals/memspine_evals/provenance.py", "evals/memspine_evals/paired_gate.py",
+              "evals/README.md"],
+    "P0-09": ["tests/unit/test_prompt_gold_lint.py", "src/memspine/prompts/lint.py"],
+    # RESTRUCTURE.md section 3
+    "F-05": _F05,
+    "F-06": _F06,
+    "MOD-02": _src("*/registry.py"),
+    "F-07": _src("config/schema/**", "config/flags.py", "config/schema.py"),
+    "F-08": _src("runtime/container.py") + [_ENGINE],
+    "F-09": _src("ingest/**") + [_ENGINE],
+    "F-10a": _src("read/**") + [_ENGINE],
+    "F-10b": _src("read/**") + [_ENGINE],
+    "F-11": _src("compose/**") + [_ENGINE],
+    "F-12": _src("trust/**", "memory/**") + [_ENGINE],
+    "F-13a": _src("api/**", "protocols/**") + [_ENGINE, "evals/memspine_evals/systems/memspine_system.py"],
+    "F-13b": _src("api/**", "protocols/**") + [_ENGINE, "evals/memspine_evals/systems/memspine_system.py"],
+    "F-13c": _src("api/**", "protocols/**") + [_ENGINE, "evals/memspine_evals/systems/memspine_system.py"],
+    "F-15": _src("derive/stages/**", "workers/pipelines.py"),
+    "F-01": _src("store/keys.py", "derive/graph.py"),
+    "F-02a": _F02,
+    "F-02b": _F02,
+    "F-02c": _F02,
+    "F-04": _RT,
+    "RT-01": _RT,
+    "RT-02": _RT,
+    "F-16a": _F16,
+    "F-16b": _F16,
+    "F-16c": _F16,
+    "F-16d": _F16,
+    "F-16e": _F16,
+    "F-16f": _F16,
+}
+
+#: Pairs allowed to share owned files even if concurrently runnable: (id, id, reason).
+ALLOWED_SHARED: list[tuple[str, str, str]] = [
+    ("P0-02", "P0-03", "one agent does both"),
+]
