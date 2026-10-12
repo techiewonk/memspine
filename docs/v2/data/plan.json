@@ -969,8 +969,8 @@
    ],
    "kind": "infra",
    "gate": "Unit tests; pure, unwired (wiring in R3-09b); depends only on memspine.schemas",
-   "status": "Ready",
-   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "status": "Done",
+   "note": "compose/budget.py + bundles.py: exact counting incl headers, whole bundles, skip-and-continue, shared evidence once, shares (4052243)",
    "layers": [
     "ctx"
    ],
@@ -1097,8 +1097,8 @@
    ],
    "kind": "infra",
    "gate": "Unit tests; pure, unwired (wiring in T5-04); depends only on memspine.schemas",
-   "status": "Ready",
-   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "status": "Done",
+   "note": "trust/erasure_plan.py: hide/unbind/rerun/keep over lineage, manifest, purge steps, restore, retention (7acf6a0)",
    "layers": [
     "L0",
     "L1",
