@@ -46,6 +46,8 @@ Q1 amended 2026-10-13 (I-7): the graph layer L3 is also on by default when a wor
 | Q8 | **G-06 "A + C"**: put the assistant-role bridge exemption in the chat preset rather than the global default? | Yes | G-06 |
 | Q9 | **Separation** | **Answered by the owner (2026-10-11):** v2 stays inside `memspine`, same package and principles; plan in `docs/v2/`; components land behind flags; `memspine.compat.v1` aliases for one release | G-16, G-23, G-25 |
 
+Q6 licence research: see `docs/v2/data/reranker_licences_2026-10-13.md` (X-06).
+
 Not an owner point: **W-21** (`replaces` hint) simply waits for W-16 C, which was not chosen; the ladder is seeded
 by kind, transition wording and cardinality instead.
 
