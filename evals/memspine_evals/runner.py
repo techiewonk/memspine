@@ -283,15 +283,11 @@ class EvalRunner:
             "reranker": read.get("rerank_model"),
             "worker": llm.get("model") or llm.get("worker_model"),
         }
-        # Engine config shape is llm.roles.<role>.model (LLMConfig); record each role and use extract as the worker.
+        # Engine config shape is llm.roles.<role>.model (LLMConfig); the extract role is the worker model.
         roles = llm.get("roles") or {}
-        if isinstance(roles, dict):
-            for role, rc in roles.items():
-                if isinstance(rc, dict) and rc.get("model"):
-                    models[f"llm.{role}"] = rc["model"]
-            extract = roles.get("extract") or {}
-            if not models["worker"] and isinstance(extract, dict):
-                models["worker"] = extract.get("model")
+        extract = roles.get("extract") if isinstance(roles, dict) else None
+        if not models["worker"] and isinstance(extract, dict):
+            models["worker"] = extract.get("model")
         item_ids = (self.config.extra_limits or {}).get("item_ids")
         identity = build_identity(
             flags=flags,
