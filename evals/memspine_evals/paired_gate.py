@@ -2,6 +2,9 @@
 
 A verdict compares an ARM run with a REFERENCE run question by question (never with labels stored in a slice):
 
+* when both runs carry manifests whose comparability keys differ (dataset/slice, judge, reader, harness version,
+  scoring), the verdict is ``INCOMPARABLE`` and lists the differing fields; a missing manifest is flagged in
+  ``warnings`` and ``manifest_status == "missing"`` and the verdict is computed as before;
 * every expected question must have a row in both runs, otherwise the verdict is ``INCOMPLETE``;
 * no question flips -> ``NO CHANGE`` (an arm identical to its reference can never be promoted);
 * ``net`` = questions gained - questions lost; ``band`` = 0.328 * sqrt(n) (the noise rule used since round 3);
@@ -20,6 +23,9 @@ import random
 from collections import defaultdict
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
+from typing import Any
+
+from .manifest import compare_manifests
 
 BAND_K = 0.328
 P_MAX = 0.05
@@ -59,6 +65,10 @@ class PairedResult:
     by_category: dict[str, dict] = field(default_factory=dict)
     verdict: str = ""
     reasons: list[str] = field(default_factory=list)
+    #: P0-03: "ok" (both manifests, comparable), "missing" (comparability not checked), "incomparable".
+    manifest_status: str = "missing"
+    incomparable_fields: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
 
 
 def paired(
@@ -68,6 +78,8 @@ def paired(
     *,
     cluster_of: Callable[[str], str] = lambda q: q.split("/", 1)[0],
     category_of: Callable[[str], str] | None = None,
+    arm_manifest: Mapping[str, Any] | None = None,
+    ref_manifest: Mapping[str, Any] | None = None,
 ) -> PairedResult:
     """Compare two runs given per-question correctness (``question id -> correct``) over ``expected`` ids."""
     exp = list(dict.fromkeys(expected))
@@ -114,6 +126,16 @@ def paired(
         p_sign=sign_test_p(len(gained), len(lost)), ci_low=lo, ci_high=hi, by_category=by,
     )
     r.verdict, r.reasons = decide(r)
+    if arm_manifest is not None and ref_manifest is not None:
+        diff = compare_manifests(arm_manifest, ref_manifest)
+        if diff:
+            r.manifest_status, r.incomparable_fields = "incomparable", diff
+            r.verdict, r.reasons = "INCOMPARABLE", [f"manifests differ on {d}" for d in diff]
+        else:
+            r.manifest_status = "ok"
+    else:
+        which = [n for n, m in (("arm", arm_manifest), ("reference", ref_manifest)) if m is None]
+        r.warnings.append(f"manifest missing ({', '.join(which)}): comparability not verified")
     return r
 
 
@@ -142,5 +164,6 @@ def format_result(name: str, r: PairedResult) -> list[str]:
     for c, d in r.by_category.items():
         flag = "  BEYOND BAND" if d["beyond_band"] else ""
         out.append(f"   {c:6s} n={d['n']:4d} +{d['gained']}/-{d['lost']} net {d['net']:+d} (band +-{d['band']:.1f}){flag}")
+    out.extend(f"   WARNING: {w}" for w in r.warnings)
     out.append(f"   verdict: {r.verdict}  ({'; '.join(r.reasons)})")
     return out

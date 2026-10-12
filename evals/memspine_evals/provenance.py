@@ -236,6 +236,9 @@ class RunManifest:
     #: versions, argv, MEMSPINE_*/OLLAMA_* environment, the local Ollama's state. {} when
     #: not captured.
     runtime: Mapping[str, Any] = field(default_factory=dict)
+    #: P0-03: commit, env hash, effective flags and their hash, prompt identities, model ids, dataset/slice
+    #: ids and data-file hashes (``manifest.build_identity``). {} for runs written before it existed.
+    identity: Mapping[str, Any] = field(default_factory=dict)
 
     @staticmethod
     def build(
@@ -250,6 +253,7 @@ class RunManifest:
         labels: Mapping[str, Any] | None = None,
         limits: Mapping[str, Any] | None = None,
         runtime: Mapping[str, Any] | None = None,
+        identity: Mapping[str, Any] | None = None,
     ) -> RunManifest:
         repo = repo or Path(__file__).resolve().parents[2]
         return RunManifest(
@@ -269,6 +273,7 @@ class RunManifest:
             labels=dict(labels or {}),
             limits=dict(limits or {}),
             runtime=dict(runtime or {}),
+            identity=dict(identity or {}),
         )
 
     # -- D16 admissibility ---------------------------------------------------
@@ -315,7 +320,17 @@ class RunManifest:
         payload["admissible_d16"] = self.admissible_d16
         payload["missing_protocol_fields"] = list(self.missing_protocol_fields())
         payload["makes_model_calls"] = self.makes_model_calls
+        payload["comparability_key"] = self.comparability_key
         return payload
+
+    @property
+    def comparability_key(self) -> str:
+        """Hash of the fields two arms must share for a paired test (see ``manifest.COMPARABILITY_FIELDS``)."""
+        from .manifest import comparability_key
+
+        base = asdict(self)
+        base["judge"] = {**asdict(self.judge), "scale": self.judge.scale.value}
+        return comparability_key(base)
 
     def score_matrix_row(self, score: float, n: int) -> dict[str, Any]:
         """One row in ``_shared/score_matrix.csv``'s schema (A3-2).
