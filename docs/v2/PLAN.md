@@ -19,7 +19,7 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 
 | Id | Work package | Layers | Ops | Decisions | Review | Depends on | Kind | Agent lane | Owns | Gate | Status | Note |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| P0-01 | Paired adoption gate (focus, blind, full set) | L0 L1 L4 L5 ctx scope | D K_C K_P R C G | G-01, G-03 | ER-35 | - | infra | infra | `evals/eval_blind.py` +9 | Replay: identical arm NO CHANGE; missing set INCOMPLETE | **In progress** | Built 2026-10-12 (d0ab058, 5bf5643); open: sealed one-shot blind run per adoption |
+| P0-01 | Paired adoption gate (focus, blind, full set) | L0 L1 L4 L5 ctx scope | D K_C K_P R C G | G-01, G-03 | ER-35 | - | infra | infra | `evals/eval_blind.py` +15 | Replay: identical arm NO CHANGE; missing set INCOMPLETE | **In progress** | Built 2026-10-12 (d0ab058, 5bf5643); open: sealed one-shot blind run per adoption |
 | P0-02 | Environment pinning: separate venv per pinned run | - | R G | G-24 | ER-35 | - | infra | infra | `evals/pinned_run.sh` +3 | A fresh per-run venv reproduces clean-jina-full | **Needs measurement** | Per-run venv cache keyed by lock hash, dry-run, shared escape hatch (5f5a7f2); one GPU reproduction run pending (GPU stopped) |
 | P0-03 | Run manifest and comparability key | - | D R C G | G-25 | ER-35, ER-34 | - | infra | infra | `evals/pinned_run.sh` +3 | Manifest records commit, env hash, flags, prompts, models, data hashes | **Done** | manifest.py, comparability key incl. budget, INCOMPARABLE verdict, cost block (5f5a7f2, 7346aca); runners populate identity in P0-01 |
 | P0-04 | CPU golden, import-boundary contracts, method-to-module map of engine.py | L0 L1 L4 L5 ctx scope | D K_C K_P R C | G-16 | - | X-03 | infra | infra | `.importlinter` +4 | Golden identical on two runs at HEAD; map covers every engine method | **Not started** | S0; guards every move |
@@ -168,7 +168,7 @@ Files each package may write (glob patterns, repo-relative; includes removal and
 
 | Id | Owns |
 |---|---|
-| P0-01 | `evals/eval_blind.py`<br>`evals/eval_focus.py`<br>`evals/eval_screen.py`<br>`evals/eval_paired.py`<br>`evals/memspine_evals/metrics.py`<br>`evals/memspine_evals/paired_gate.py`<br>`evals/memspine_evals/seal*.py`<br>`evals/tests/test_paired_gate.py`<br>`evals/tests/test_eval_gate_wiring.py`<br>`evals/tests/test_seal*.py` |
+| P0-01 | `evals/eval_blind.py`<br>`evals/eval_focus.py`<br>`evals/eval_screen.py`<br>`evals/eval_paired.py`<br>`evals/memspine_evals/metrics.py`<br>`evals/memspine_evals/paired_gate.py`<br>`evals/memspine_evals/seal*.py`<br>`evals/tests/test_paired_gate.py`<br>`evals/tests/test_eval_gate_wiring.py`<br>`evals/tests/test_seal*.py`<br>`evals/memspine_evals/runner.py`<br>`evals/memspine_evals/results.py`<br>`evals/memspine_evals/cli.py`<br>`evals/tests/test_runner_identity.py`<br>`evals/tests/test_blind_validation.py`<br>`evals/README.md` |
 | P0-02 | `evals/pinned_run.sh`<br>`evals/memspine_evals/provenance.py`<br>`evals/memspine_evals/paired_gate.py`<br>`evals/README.md` |
 | P0-03 | `evals/pinned_run.sh`<br>`evals/memspine_evals/provenance.py`<br>`evals/memspine_evals/paired_gate.py`<br>`evals/README.md` |
 | P0-04 | `.importlinter`<br>`tests/golden/**`<br>`tests/unit/test_import_contracts.py`<br>`docs/v2/data/engine_method_map*`<br>`scripts/engine_method_map.py` |

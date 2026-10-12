@@ -54,7 +54,13 @@
     "evals/memspine_evals/seal*.py",
     "evals/tests/test_paired_gate.py",
     "evals/tests/test_eval_gate_wiring.py",
-    "evals/tests/test_seal*.py"
+    "evals/tests/test_seal*.py",
+    "evals/memspine_evals/runner.py",
+    "evals/memspine_evals/results.py",
+    "evals/memspine_evals/cli.py",
+    "evals/tests/test_runner_identity.py",
+    "evals/tests/test_blind_validation.py",
+    "evals/README.md"
    ],
    "lane": "infra",
    "agent": "sonnet",
