@@ -1,0 +1,1922 @@
+{
+  "counts_after_ingest": {
+    "bram": {
+      "episodic": 5
+    },
+    "group": {
+      "episodic": 5
+    },
+    "ilse": {
+      "episodic": 6,
+      "semantic": 2
+    },
+    "noor": {
+      "episodic": 3
+    }
+  },
+  "counts_after_offline": {
+    "bram": {
+      "episodic": 5,
+      "semantic": 1
+    },
+    "group": {
+      "episodic": 5,
+      "semantic": 1
+    },
+    "ilse": {
+      "episodic": 6,
+      "semantic": 4
+    },
+    "noor": {
+      "episodic": 3,
+      "semantic": 1
+    }
+  },
+  "offline_stages": {
+    "anticipate": "skipped",
+    "check_watches": "ok",
+    "compress": "ok",
+    "consolidate": "ok",
+    "decay_sweep": "ok",
+    "event_log_prune": "skipped",
+    "extract_graph": "skipped",
+    "mine_facts": "skipped",
+    "reflect_profile": "skipped",
+    "reorganize": "skipped",
+    "session_lifecycle": "skipped",
+    "sleep_compute": "noop",
+    "summarize_entities": "skipped"
+  },
+  "queries": {
+    "q01-single-fact": {
+      "read_compose": {
+        "abstained": false,
+        "context_sha256": "5787ad24d098b1df01d7ff40ee879f1b13dc0a2597b53100aa66a78733a6aaab",
+        "mode": "compose",
+        "records": [
+          {
+            "content_sha256": "504d9e3373fdc1db",
+            "id": "r009",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-04-15T20:15:00+00:00"
+          },
+          {
+            "content_sha256": "200b01569a2c9412",
+            "id": "r010",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-04-15T20:15:00+00:00"
+          },
+          {
+            "content_sha256": "d837dd0b1c23feb4",
+            "id": "r011",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-04-15T20:15:00+00:00"
+          },
+          {
+            "content_sha256": "2bbb60b8760d613e",
+            "id": "r022",
+            "memory_type": "semantic",
+            "status": "activated",
+            "valid_from": "2024-04-15T20:15:00+00:00"
+          },
+          {
+            "content_sha256": "6a9af200beb725c0",
+            "id": "r012",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-05-20T07:45:00+00:00"
+          },
+          {
+            "content_sha256": "47a8393a93313928",
+            "id": "r013",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-05-20T07:45:00+00:00"
+          }
+        ],
+        "tokens_used": 117
+      },
+      "read_retrieve": {
+        "abstained": false,
+        "context_sha256": "cbece197198941bb6e07357447d7640c3d749d0027051f20783cf1c79397f7a5",
+        "mode": "retrieve",
+        "records": [
+          {
+            "content_sha256": "2bbb60b8760d613e",
+            "id": "r022",
+            "memory_type": "semantic",
+            "status": "activated",
+            "valid_from": "2024-04-15T20:15:00+00:00"
+          },
+          {
+            "content_sha256": "504d9e3373fdc1db",
+            "id": "r009",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-04-15T20:15:00+00:00"
+          },
+          {
+            "content_sha256": "200b01569a2c9412",
+            "id": "r010",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-04-15T20:15:00+00:00"
+          },
+          {
+            "content_sha256": "6a9af200beb725c0",
+            "id": "r012",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-05-20T07:45:00+00:00"
+          },
+          {
+            "content_sha256": "47a8393a93313928",
+            "id": "r013",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-05-20T07:45:00+00:00"
+          }
+        ],
+        "tokens_used": 100
+      },
+      "search": [
+        {
+          "content_sha256": "504d9e3373fdc1db",
+          "id": "r009",
+          "memory_type": "episodic",
+          "score": 0.663978,
+          "status": "activated",
+          "valid_from": "2024-04-15T20:15:00+00:00"
+        },
+        {
+          "content_sha256": "200b01569a2c9412",
+          "id": "r010",
+          "memory_type": "episodic",
+          "score": 0.661376,
+          "status": "activated",
+          "valid_from": "2024-04-15T20:15:00+00:00"
+        },
+        {
+          "content_sha256": "2bbb60b8760d613e",
+          "id": "r022",
+          "memory_type": "semantic",
+          "score": 0.658687,
+          "status": "activated",
+          "valid_from": "2024-04-15T20:15:00+00:00"
+        },
+        {
+          "content_sha256": "6a9af200beb725c0",
+          "id": "r012",
+          "memory_type": "episodic",
+          "score": 0.648598,
+          "status": "activated",
+          "valid_from": "2024-05-20T07:45:00+00:00"
+        },
+        {
+          "content_sha256": "47a8393a93313928",
+          "id": "r013",
+          "memory_type": "episodic",
+          "score": 0.492188,
+          "status": "activated",
+          "valid_from": "2024-05-20T07:45:00+00:00"
+        }
+      ]
+    },
+    "q02-current-city": {
+      "read_compose": {
+        "abstained": false,
+        "context_sha256": "264f9fc87cce9f12dadd27f0ac8151294cb39ffcb456015e62d001d687ce1f03",
+        "mode": "compose",
+        "records": [
+          {
+            "content_sha256": "549ae55a30e6c581",
+            "id": "r001",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-03-04T18:00:00+00:00"
+          },
+          {
+            "content_sha256": "ae20a6674d98ce11",
+            "id": "r002",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-03-04T18:00:00+00:00"
+          },
+          {
+            "content_sha256": "5c82cb4dfad77fd3",
+            "id": "r003",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-03-04T18:00:00+00:00"
+          },
+          {
+            "content_sha256": "04acbce93b6c186f",
+            "id": "r024",
+            "memory_type": "semantic",
+            "status": "activated",
+            "valid_from": "2024-03-04T18:00:00+00:00"
+          },
+          {
+            "content_sha256": "2caf8cb6d364d11d",
+            "id": "r004",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-06-10T09:30:00+00:00"
+          },
+          {
+            "content_sha256": "196630eb338276a3",
+            "id": "r005",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-06-10T09:30:00+00:00"
+          },
+          {
+            "content_sha256": "d49537838fe62bd0",
+            "id": "r006",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-06-10T09:30:00+00:00"
+          },
+          {
+            "content_sha256": "d8f18ffacd7c6785",
+            "id": "r008",
+            "memory_type": "semantic",
+            "status": "activated",
+            "valid_from": "2024-06-10T09:30:00+00:00"
+          },
+          {
+            "content_sha256": "71857015aa767a29",
+            "id": "r023",
+            "memory_type": "semantic",
+            "status": "activated",
+            "valid_from": "2024-06-10T09:30:00+00:00"
+          }
+        ],
+        "tokens_used": 166
+      },
+      "read_retrieve": {
+        "abstained": false,
+        "context_sha256": "5ffb20f9b8785dcd01d9ab64d3cae2bc0b25814d7fc5697d418e46649a964879",
+        "mode": "retrieve",
+        "records": [
+          {
+            "content_sha256": "d8f18ffacd7c6785",
+            "id": "r008",
+            "memory_type": "semantic",
+            "status": "activated",
+            "valid_from": "2024-06-10T09:30:00+00:00"
+          },
+          {
+            "content_sha256": "71857015aa767a29",
+            "id": "r023",
+            "memory_type": "semantic",
+            "status": "activated",
+            "valid_from": "2024-06-10T09:30:00+00:00"
+          },
+          {
+            "content_sha256": "2caf8cb6d364d11d",
+            "id": "r004",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-06-10T09:30:00+00:00"
+          },
+          {
+            "content_sha256": "549ae55a30e6c581",
+            "id": "r001",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-03-04T18:00:00+00:00"
+          }
+        ],
+        "tokens_used": 74
+      },
+      "search": [
+        {
+          "content_sha256": "2caf8cb6d364d11d",
+          "id": "r004",
+          "memory_type": "episodic",
+          "score": 0.658854,
+          "status": "activated",
+          "valid_from": "2024-06-10T09:30:00+00:00"
+        },
+        {
+          "content_sha256": "d8f18ffacd7c6785",
+          "id": "r008",
+          "memory_type": "semantic",
+          "score": 0.656166,
+          "status": "activated",
+          "valid_from": "2024-06-10T09:30:00+00:00"
+        },
+        {
+          "content_sha256": "71857015aa767a29",
+          "id": "r023",
+          "memory_type": "semantic",
+          "score": 0.651352,
+          "status": "activated",
+          "valid_from": "2024-06-10T09:30:00+00:00"
+        },
+        {
+          "content_sha256": "549ae55a30e6c581",
+          "id": "r001",
+          "memory_type": "episodic",
+          "score": 0.494709,
+          "status": "activated",
+          "valid_from": "2024-03-04T18:00:00+00:00"
+        }
+      ]
+    },
+    "q03-old-city": {
+      "read_compose": {
+        "abstained": false,
+        "context_sha256": "b6c6ce9d9e9827f76612c88f8df4d8d5ba7e15fe43b05172a9c374125b4f8713",
+        "mode": "compose",
+        "records": [
+          {
+            "content_sha256": "549ae55a30e6c581",
+            "id": "r001",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-03-04T18:00:00+00:00"
+          },
+          {
+            "content_sha256": "ae20a6674d98ce11",
+            "id": "r002",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-03-04T18:00:00+00:00"
+          },
+          {
+            "content_sha256": "5c82cb4dfad77fd3",
+            "id": "r003",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-03-04T18:00:00+00:00"
+          },
+          {
+            "content_sha256": "2ad460abbfb67dd6",
+            "id": "r007",
+            "memory_type": "semantic",
+            "status": "archived",
+            "valid_from": "2024-03-04T18:00:00+00:00"
+          },
+          {
+            "content_sha256": "04acbce93b6c186f",
+            "id": "r024",
+            "memory_type": "semantic",
+            "status": "activated",
+            "valid_from": "2024-03-04T18:00:00+00:00"
+          }
+        ],
+        "tokens_used": 83
+      },
+      "read_retrieve": {
+        "abstained": false,
+        "context_sha256": "196489b0f9fb7f232766d313c75a7805bedc22cddf82b9d48ed213ed28c45aad",
+        "mode": "retrieve",
+        "records": [
+          {
+            "content_sha256": "2ad460abbfb67dd6",
+            "id": "r007",
+            "memory_type": "semantic",
+            "status": "archived",
+            "valid_from": "2024-03-04T18:00:00+00:00"
+          },
+          {
+            "content_sha256": "04acbce93b6c186f",
+            "id": "r024",
+            "memory_type": "semantic",
+            "status": "activated",
+            "valid_from": "2024-03-04T18:00:00+00:00"
+          },
+          {
+            "content_sha256": "ae20a6674d98ce11",
+            "id": "r002",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-03-04T18:00:00+00:00"
+          },
+          {
+            "content_sha256": "549ae55a30e6c581",
+            "id": "r001",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-03-04T18:00:00+00:00"
+          },
+          {
+            "content_sha256": "5c82cb4dfad77fd3",
+            "id": "r003",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-03-04T18:00:00+00:00"
+          }
+        ],
+        "tokens_used": 83
+      },
+      "search": [
+        {
+          "content_sha256": "d8f18ffacd7c6785",
+          "id": "r008",
+          "memory_type": "semantic",
+          "score": 0.66129,
+          "status": "activated",
+          "valid_from": "2024-06-10T09:30:00+00:00"
+        },
+        {
+          "content_sha256": "2caf8cb6d364d11d",
+          "id": "r004",
+          "memory_type": "episodic",
+          "score": 0.656085,
+          "status": "activated",
+          "valid_from": "2024-06-10T09:30:00+00:00"
+        },
+        {
+          "content_sha256": "71857015aa767a29",
+          "id": "r023",
+          "memory_type": "semantic",
+          "score": 0.651042,
+          "status": "activated",
+          "valid_from": "2024-06-10T09:30:00+00:00"
+        },
+        {
+          "content_sha256": "d49537838fe62bd0",
+          "id": "r006",
+          "memory_type": "episodic",
+          "score": 0.639115,
+          "status": "activated",
+          "valid_from": "2024-06-10T09:30:00+00:00"
+        }
+      ]
+    },
+    "q04-list": {
+      "read_compose": {
+        "abstained": false,
+        "context_sha256": "264f9fc87cce9f12dadd27f0ac8151294cb39ffcb456015e62d001d687ce1f03",
+        "mode": "compose",
+        "records": [
+          {
+            "content_sha256": "549ae55a30e6c581",
+            "id": "r001",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-03-04T18:00:00+00:00"
+          },
+          {
+            "content_sha256": "ae20a6674d98ce11",
+            "id": "r002",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-03-04T18:00:00+00:00"
+          },
+          {
+            "content_sha256": "5c82cb4dfad77fd3",
+            "id": "r003",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-03-04T18:00:00+00:00"
+          },
+          {
+            "content_sha256": "04acbce93b6c186f",
+            "id": "r024",
+            "memory_type": "semantic",
+            "status": "activated",
+            "valid_from": "2024-03-04T18:00:00+00:00"
+          },
+          {
+            "content_sha256": "2caf8cb6d364d11d",
+            "id": "r004",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-06-10T09:30:00+00:00"
+          },
+          {
+            "content_sha256": "196630eb338276a3",
+            "id": "r005",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-06-10T09:30:00+00:00"
+          },
+          {
+            "content_sha256": "d49537838fe62bd0",
+            "id": "r006",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-06-10T09:30:00+00:00"
+          },
+          {
+            "content_sha256": "d8f18ffacd7c6785",
+            "id": "r008",
+            "memory_type": "semantic",
+            "status": "activated",
+            "valid_from": "2024-06-10T09:30:00+00:00"
+          },
+          {
+            "content_sha256": "71857015aa767a29",
+            "id": "r023",
+            "memory_type": "semantic",
+            "status": "activated",
+            "valid_from": "2024-06-10T09:30:00+00:00"
+          }
+        ],
+        "tokens_used": 166
+      },
+      "read_retrieve": {
+        "abstained": false,
+        "context_sha256": "ebfd250e616f0e22eb34ea5e0304e324bd64dfae7f189286118665a2417be250",
+        "mode": "retrieve",
+        "records": [
+          {
+            "content_sha256": "04acbce93b6c186f",
+            "id": "r024",
+            "memory_type": "semantic",
+            "status": "activated",
+            "valid_from": "2024-03-04T18:00:00+00:00"
+          },
+          {
+            "content_sha256": "71857015aa767a29",
+            "id": "r023",
+            "memory_type": "semantic",
+            "status": "activated",
+            "valid_from": "2024-06-10T09:30:00+00:00"
+          },
+          {
+            "content_sha256": "5c82cb4dfad77fd3",
+            "id": "r003",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-03-04T18:00:00+00:00"
+          },
+          {
+            "content_sha256": "2caf8cb6d364d11d",
+            "id": "r004",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-06-10T09:30:00+00:00"
+          }
+        ],
+        "tokens_used": 95
+      },
+      "search": [
+        {
+          "content_sha256": "5c82cb4dfad77fd3",
+          "id": "r003",
+          "memory_type": "episodic",
+          "score": 0.663978,
+          "status": "activated",
+          "valid_from": "2024-03-04T18:00:00+00:00"
+        },
+        {
+          "content_sha256": "2caf8cb6d364d11d",
+          "id": "r004",
+          "memory_type": "episodic",
+          "score": 0.651741,
+          "status": "activated",
+          "valid_from": "2024-06-10T09:30:00+00:00"
+        },
+        {
+          "content_sha256": "04acbce93b6c186f",
+          "id": "r024",
+          "memory_type": "semantic",
+          "score": 0.646154,
+          "status": "activated",
+          "valid_from": "2024-03-04T18:00:00+00:00"
+        },
+        {
+          "content_sha256": "71857015aa767a29",
+          "id": "r023",
+          "memory_type": "semantic",
+          "score": 0.642052,
+          "status": "activated",
+          "valid_from": "2024-06-10T09:30:00+00:00"
+        }
+      ]
+    },
+    "q05-list-food": {
+      "read_compose": {
+        "abstained": false,
+        "context_sha256": "5787ad24d098b1df01d7ff40ee879f1b13dc0a2597b53100aa66a78733a6aaab",
+        "mode": "compose",
+        "records": [
+          {
+            "content_sha256": "504d9e3373fdc1db",
+            "id": "r009",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-04-15T20:15:00+00:00"
+          },
+          {
+            "content_sha256": "200b01569a2c9412",
+            "id": "r010",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-04-15T20:15:00+00:00"
+          },
+          {
+            "content_sha256": "d837dd0b1c23feb4",
+            "id": "r011",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-04-15T20:15:00+00:00"
+          },
+          {
+            "content_sha256": "2bbb60b8760d613e",
+            "id": "r022",
+            "memory_type": "semantic",
+            "status": "activated",
+            "valid_from": "2024-04-15T20:15:00+00:00"
+          },
+          {
+            "content_sha256": "6a9af200beb725c0",
+            "id": "r012",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-05-20T07:45:00+00:00"
+          },
+          {
+            "content_sha256": "47a8393a93313928",
+            "id": "r013",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-05-20T07:45:00+00:00"
+          }
+        ],
+        "tokens_used": 117
+      },
+      "read_retrieve": {
+        "abstained": false,
+        "context_sha256": "85512652ae1300c80fc9c5e4911bf3419af66d904ecfade75ac167cd18b29fa8",
+        "mode": "retrieve",
+        "records": [
+          {
+            "content_sha256": "2bbb60b8760d613e",
+            "id": "r022",
+            "memory_type": "semantic",
+            "status": "activated",
+            "valid_from": "2024-04-15T20:15:00+00:00"
+          },
+          {
+            "content_sha256": "200b01569a2c9412",
+            "id": "r010",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-04-15T20:15:00+00:00"
+          },
+          {
+            "content_sha256": "504d9e3373fdc1db",
+            "id": "r009",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-04-15T20:15:00+00:00"
+          },
+          {
+            "content_sha256": "6a9af200beb725c0",
+            "id": "r012",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-05-20T07:45:00+00:00"
+          },
+          {
+            "content_sha256": "d837dd0b1c23feb4",
+            "id": "r011",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-04-15T20:15:00+00:00"
+          }
+        ],
+        "tokens_used": 103
+      },
+      "search": [
+        {
+          "content_sha256": "200b01569a2c9412",
+          "id": "r010",
+          "memory_type": "episodic",
+          "score": 0.666667,
+          "status": "activated",
+          "valid_from": "2024-04-15T20:15:00+00:00"
+        },
+        {
+          "content_sha256": "2bbb60b8760d613e",
+          "id": "r022",
+          "memory_type": "semantic",
+          "score": 0.66129,
+          "status": "activated",
+          "valid_from": "2024-04-15T20:15:00+00:00"
+        },
+        {
+          "content_sha256": "504d9e3373fdc1db",
+          "id": "r009",
+          "memory_type": "episodic",
+          "score": 0.651119,
+          "status": "activated",
+          "valid_from": "2024-04-15T20:15:00+00:00"
+        },
+        {
+          "content_sha256": "6a9af200beb725c0",
+          "id": "r012",
+          "memory_type": "episodic",
+          "score": 0.646228,
+          "status": "activated",
+          "valid_from": "2024-05-20T07:45:00+00:00"
+        },
+        {
+          "content_sha256": "d837dd0b1c23feb4",
+          "id": "r011",
+          "memory_type": "episodic",
+          "score": 0.494709,
+          "status": "activated",
+          "valid_from": "2024-04-15T20:15:00+00:00"
+        }
+      ]
+    },
+    "q06-temporal-order": {
+      "read_compose": {
+        "abstained": false,
+        "context_sha256": "264f9fc87cce9f12dadd27f0ac8151294cb39ffcb456015e62d001d687ce1f03",
+        "mode": "compose",
+        "records": [
+          {
+            "content_sha256": "549ae55a30e6c581",
+            "id": "r001",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-03-04T18:00:00+00:00"
+          },
+          {
+            "content_sha256": "ae20a6674d98ce11",
+            "id": "r002",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-03-04T18:00:00+00:00"
+          },
+          {
+            "content_sha256": "5c82cb4dfad77fd3",
+            "id": "r003",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-03-04T18:00:00+00:00"
+          },
+          {
+            "content_sha256": "04acbce93b6c186f",
+            "id": "r024",
+            "memory_type": "semantic",
+            "status": "activated",
+            "valid_from": "2024-03-04T18:00:00+00:00"
+          },
+          {
+            "content_sha256": "2caf8cb6d364d11d",
+            "id": "r004",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-06-10T09:30:00+00:00"
+          },
+          {
+            "content_sha256": "196630eb338276a3",
+            "id": "r005",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-06-10T09:30:00+00:00"
+          },
+          {
+            "content_sha256": "d49537838fe62bd0",
+            "id": "r006",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-06-10T09:30:00+00:00"
+          },
+          {
+            "content_sha256": "d8f18ffacd7c6785",
+            "id": "r008",
+            "memory_type": "semantic",
+            "status": "activated",
+            "valid_from": "2024-06-10T09:30:00+00:00"
+          },
+          {
+            "content_sha256": "71857015aa767a29",
+            "id": "r023",
+            "memory_type": "semantic",
+            "status": "activated",
+            "valid_from": "2024-06-10T09:30:00+00:00"
+          }
+        ],
+        "tokens_used": 166
+      },
+      "read_retrieve": {
+        "abstained": false,
+        "context_sha256": "124c4575ca341973fc80e909ff791bc45bbb7c2e46d6a17d1b081f10c3258462",
+        "mode": "retrieve",
+        "records": [
+          {
+            "content_sha256": "d8f18ffacd7c6785",
+            "id": "r008",
+            "memory_type": "semantic",
+            "status": "activated",
+            "valid_from": "2024-06-10T09:30:00+00:00"
+          },
+          {
+            "content_sha256": "d49537838fe62bd0",
+            "id": "r006",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-06-10T09:30:00+00:00"
+          },
+          {
+            "content_sha256": "549ae55a30e6c581",
+            "id": "r001",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-03-04T18:00:00+00:00"
+          },
+          {
+            "content_sha256": "2caf8cb6d364d11d",
+            "id": "r004",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-06-10T09:30:00+00:00"
+          }
+        ],
+        "tokens_used": 61
+      },
+      "search": [
+        {
+          "content_sha256": "d8f18ffacd7c6785",
+          "id": "r008",
+          "memory_type": "semantic",
+          "score": 0.658687,
+          "status": "activated",
+          "valid_from": "2024-06-10T09:30:00+00:00"
+        },
+        {
+          "content_sha256": "d49537838fe62bd0",
+          "id": "r006",
+          "memory_type": "episodic",
+          "score": 0.647343,
+          "status": "activated",
+          "valid_from": "2024-06-10T09:30:00+00:00"
+        },
+        {
+          "content_sha256": "549ae55a30e6c581",
+          "id": "r001",
+          "memory_type": "episodic",
+          "score": 0.494709,
+          "status": "activated",
+          "valid_from": "2024-03-04T18:00:00+00:00"
+        },
+        {
+          "content_sha256": "2caf8cb6d364d11d",
+          "id": "r004",
+          "memory_type": "episodic",
+          "score": 0.492188,
+          "status": "activated",
+          "valid_from": "2024-06-10T09:30:00+00:00"
+        }
+      ]
+    },
+    "q07-relative-time": {
+      "read_compose": {
+        "abstained": false,
+        "context_sha256": "5787ad24d098b1df01d7ff40ee879f1b13dc0a2597b53100aa66a78733a6aaab",
+        "mode": "compose",
+        "records": [
+          {
+            "content_sha256": "504d9e3373fdc1db",
+            "id": "r009",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-04-15T20:15:00+00:00"
+          },
+          {
+            "content_sha256": "200b01569a2c9412",
+            "id": "r010",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-04-15T20:15:00+00:00"
+          },
+          {
+            "content_sha256": "d837dd0b1c23feb4",
+            "id": "r011",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-04-15T20:15:00+00:00"
+          },
+          {
+            "content_sha256": "2bbb60b8760d613e",
+            "id": "r022",
+            "memory_type": "semantic",
+            "status": "activated",
+            "valid_from": "2024-04-15T20:15:00+00:00"
+          },
+          {
+            "content_sha256": "6a9af200beb725c0",
+            "id": "r012",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-05-20T07:45:00+00:00"
+          },
+          {
+            "content_sha256": "47a8393a93313928",
+            "id": "r013",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-05-20T07:45:00+00:00"
+          }
+        ],
+        "tokens_used": 117
+      },
+      "read_retrieve": {
+        "abstained": false,
+        "context_sha256": "f99e3de85fd6990501de57ad549a552b7c33448f0c9caf5ed4a350ef1c5ed36a",
+        "mode": "retrieve",
+        "records": [
+          {
+            "content_sha256": "2bbb60b8760d613e",
+            "id": "r022",
+            "memory_type": "semantic",
+            "status": "activated",
+            "valid_from": "2024-04-15T20:15:00+00:00"
+          },
+          {
+            "content_sha256": "47a8393a93313928",
+            "id": "r013",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-05-20T07:45:00+00:00"
+          },
+          {
+            "content_sha256": "6a9af200beb725c0",
+            "id": "r012",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-05-20T07:45:00+00:00"
+          },
+          {
+            "content_sha256": "504d9e3373fdc1db",
+            "id": "r009",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-04-15T20:15:00+00:00"
+          },
+          {
+            "content_sha256": "200b01569a2c9412",
+            "id": "r010",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-04-15T20:15:00+00:00"
+          }
+        ],
+        "tokens_used": 100
+      },
+      "search": [
+        {
+          "content_sha256": "47a8393a93313928",
+          "id": "r013",
+          "memory_type": "episodic",
+          "score": 0.663978,
+          "status": "activated",
+          "valid_from": "2024-05-20T07:45:00+00:00"
+        },
+        {
+          "content_sha256": "6a9af200beb725c0",
+          "id": "r012",
+          "memory_type": "episodic",
+          "score": 0.663978,
+          "status": "activated",
+          "valid_from": "2024-05-20T07:45:00+00:00"
+        },
+        {
+          "content_sha256": "2bbb60b8760d613e",
+          "id": "r022",
+          "memory_type": "semantic",
+          "score": 0.653563,
+          "status": "activated",
+          "valid_from": "2024-04-15T20:15:00+00:00"
+        },
+        {
+          "content_sha256": "504d9e3373fdc1db",
+          "id": "r009",
+          "memory_type": "episodic",
+          "score": 0.653563,
+          "status": "activated",
+          "valid_from": "2024-04-15T20:15:00+00:00"
+        },
+        {
+          "content_sha256": "200b01569a2c9412",
+          "id": "r010",
+          "memory_type": "episodic",
+          "score": 0.489744,
+          "status": "activated",
+          "valid_from": "2024-04-15T20:15:00+00:00"
+        }
+      ]
+    },
+    "q08-party-noor": {
+      "read_compose": {
+        "abstained": false,
+        "context_sha256": "8872826c834184966d6f77b228e90752e1e9e350c916c8cf682f91a9b8c490e2",
+        "mode": "compose",
+        "records": [
+          {
+            "content_sha256": "b9f606f3366ec0e7",
+            "id": "r014",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-05-02T19:00:00+00:00"
+          },
+          {
+            "content_sha256": "92bfb3549cd9280f",
+            "id": "r015",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-05-02T19:00:00+00:00"
+          },
+          {
+            "content_sha256": "3d4bbc0af263508a",
+            "id": "r016",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-05-02T19:00:00+00:00"
+          },
+          {
+            "content_sha256": "07c33270511576c7",
+            "id": "r025",
+            "memory_type": "semantic",
+            "status": "activated",
+            "valid_from": "2024-05-02T19:00:00+00:00"
+          },
+          {
+            "content_sha256": "473aac3cd4e08d7f",
+            "id": "r017",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-07-09T19:00:00+00:00"
+          },
+          {
+            "content_sha256": "b190c5e830bba362",
+            "id": "r018",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-07-09T19:00:00+00:00"
+          }
+        ],
+        "tokens_used": 125
+      },
+      "read_retrieve": {
+        "abstained": false,
+        "context_sha256": "21aa08bbf1a5ae3f1c51e10eeb956a7294f00ecea781cbc88f8148c0ebc9cf3e",
+        "mode": "retrieve",
+        "records": [
+          {
+            "content_sha256": "07c33270511576c7",
+            "id": "r025",
+            "memory_type": "semantic",
+            "status": "activated",
+            "valid_from": "2024-05-02T19:00:00+00:00"
+          },
+          {
+            "content_sha256": "b9f606f3366ec0e7",
+            "id": "r014",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-05-02T19:00:00+00:00"
+          },
+          {
+            "content_sha256": "b190c5e830bba362",
+            "id": "r018",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-07-09T19:00:00+00:00"
+          },
+          {
+            "content_sha256": "3d4bbc0af263508a",
+            "id": "r016",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-05-02T19:00:00+00:00"
+          },
+          {
+            "content_sha256": "473aac3cd4e08d7f",
+            "id": "r017",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-07-09T19:00:00+00:00"
+          }
+        ],
+        "tokens_used": 106
+      },
+      "search": [
+        {
+          "content_sha256": "07c33270511576c7",
+          "id": "r025",
+          "memory_type": "semantic",
+          "score": 0.658687,
+          "status": "activated",
+          "valid_from": "2024-05-02T19:00:00+00:00"
+        },
+        {
+          "content_sha256": "b9f606f3366ec0e7",
+          "id": "r014",
+          "memory_type": "episodic",
+          "score": 0.65641,
+          "status": "activated",
+          "valid_from": "2024-05-02T19:00:00+00:00"
+        },
+        {
+          "content_sha256": "b190c5e830bba362",
+          "id": "r018",
+          "memory_type": "episodic",
+          "score": 0.65404,
+          "status": "activated",
+          "valid_from": "2024-07-09T19:00:00+00:00"
+        },
+        {
+          "content_sha256": "3d4bbc0af263508a",
+          "id": "r016",
+          "memory_type": "episodic",
+          "score": 0.653722,
+          "status": "activated",
+          "valid_from": "2024-05-02T19:00:00+00:00"
+        },
+        {
+          "content_sha256": "473aac3cd4e08d7f",
+          "id": "r017",
+          "memory_type": "episodic",
+          "score": 0.653563,
+          "status": "activated",
+          "valid_from": "2024-07-09T19:00:00+00:00"
+        }
+      ]
+    },
+    "q09-party-tomasz": {
+      "read_compose": {
+        "abstained": false,
+        "context_sha256": "8872826c834184966d6f77b228e90752e1e9e350c916c8cf682f91a9b8c490e2",
+        "mode": "compose",
+        "records": [
+          {
+            "content_sha256": "b9f606f3366ec0e7",
+            "id": "r014",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-05-02T19:00:00+00:00"
+          },
+          {
+            "content_sha256": "92bfb3549cd9280f",
+            "id": "r015",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-05-02T19:00:00+00:00"
+          },
+          {
+            "content_sha256": "3d4bbc0af263508a",
+            "id": "r016",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-05-02T19:00:00+00:00"
+          },
+          {
+            "content_sha256": "07c33270511576c7",
+            "id": "r025",
+            "memory_type": "semantic",
+            "status": "activated",
+            "valid_from": "2024-05-02T19:00:00+00:00"
+          },
+          {
+            "content_sha256": "473aac3cd4e08d7f",
+            "id": "r017",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-07-09T19:00:00+00:00"
+          },
+          {
+            "content_sha256": "b190c5e830bba362",
+            "id": "r018",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-07-09T19:00:00+00:00"
+          }
+        ],
+        "tokens_used": 125
+      },
+      "read_retrieve": {
+        "abstained": false,
+        "context_sha256": "1471315aedb53a543480f376249cdf3266beb3e64100a84a5deb28840565f17a",
+        "mode": "retrieve",
+        "records": [
+          {
+            "content_sha256": "07c33270511576c7",
+            "id": "r025",
+            "memory_type": "semantic",
+            "status": "activated",
+            "valid_from": "2024-05-02T19:00:00+00:00"
+          },
+          {
+            "content_sha256": "92bfb3549cd9280f",
+            "id": "r015",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-05-02T19:00:00+00:00"
+          },
+          {
+            "content_sha256": "473aac3cd4e08d7f",
+            "id": "r017",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-07-09T19:00:00+00:00"
+          },
+          {
+            "content_sha256": "b9f606f3366ec0e7",
+            "id": "r014",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-05-02T19:00:00+00:00"
+          },
+          {
+            "content_sha256": "3d4bbc0af263508a",
+            "id": "r016",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-05-02T19:00:00+00:00"
+          }
+        ],
+        "tokens_used": 111
+      },
+      "search": [
+        {
+          "content_sha256": "92bfb3549cd9280f",
+          "id": "r015",
+          "memory_type": "episodic",
+          "score": 0.663978,
+          "status": "activated",
+          "valid_from": "2024-05-02T19:00:00+00:00"
+        },
+        {
+          "content_sha256": "07c33270511576c7",
+          "id": "r025",
+          "memory_type": "semantic",
+          "score": 0.653722,
+          "status": "activated",
+          "valid_from": "2024-05-02T19:00:00+00:00"
+        },
+        {
+          "content_sha256": "473aac3cd4e08d7f",
+          "id": "r017",
+          "memory_type": "episodic",
+          "score": 0.653563,
+          "status": "activated",
+          "valid_from": "2024-07-09T19:00:00+00:00"
+        },
+        {
+          "content_sha256": "b9f606f3366ec0e7",
+          "id": "r014",
+          "memory_type": "episodic",
+          "score": 0.5,
+          "status": "activated",
+          "valid_from": "2024-05-02T19:00:00+00:00"
+        },
+        {
+          "content_sha256": "3d4bbc0af263508a",
+          "id": "r016",
+          "memory_type": "episodic",
+          "score": 0.494709,
+          "status": "activated",
+          "valid_from": "2024-05-02T19:00:00+00:00"
+        }
+      ]
+    },
+    "q10-party-noviewer": {
+      "read_compose": {
+        "abstained": false,
+        "context_sha256": "8872826c834184966d6f77b228e90752e1e9e350c916c8cf682f91a9b8c490e2",
+        "mode": "compose",
+        "records": [
+          {
+            "content_sha256": "b9f606f3366ec0e7",
+            "id": "r014",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-05-02T19:00:00+00:00"
+          },
+          {
+            "content_sha256": "92bfb3549cd9280f",
+            "id": "r015",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-05-02T19:00:00+00:00"
+          },
+          {
+            "content_sha256": "3d4bbc0af263508a",
+            "id": "r016",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-05-02T19:00:00+00:00"
+          },
+          {
+            "content_sha256": "07c33270511576c7",
+            "id": "r025",
+            "memory_type": "semantic",
+            "status": "activated",
+            "valid_from": "2024-05-02T19:00:00+00:00"
+          },
+          {
+            "content_sha256": "473aac3cd4e08d7f",
+            "id": "r017",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-07-09T19:00:00+00:00"
+          },
+          {
+            "content_sha256": "b190c5e830bba362",
+            "id": "r018",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-07-09T19:00:00+00:00"
+          }
+        ],
+        "tokens_used": 125
+      },
+      "read_retrieve": {
+        "abstained": false,
+        "context_sha256": "dc5cd3e2001dbc262d4dbf5707496261810970b8cf66e68847f495bc26262c91",
+        "mode": "retrieve",
+        "records": [
+          {
+            "content_sha256": "07c33270511576c7",
+            "id": "r025",
+            "memory_type": "semantic",
+            "status": "activated",
+            "valid_from": "2024-05-02T19:00:00+00:00"
+          },
+          {
+            "content_sha256": "3d4bbc0af263508a",
+            "id": "r016",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-05-02T19:00:00+00:00"
+          },
+          {
+            "content_sha256": "473aac3cd4e08d7f",
+            "id": "r017",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-07-09T19:00:00+00:00"
+          },
+          {
+            "content_sha256": "b9f606f3366ec0e7",
+            "id": "r014",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-05-02T19:00:00+00:00"
+          },
+          {
+            "content_sha256": "92bfb3549cd9280f",
+            "id": "r015",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-05-02T19:00:00+00:00"
+          }
+        ],
+        "tokens_used": 111
+      },
+      "search": [
+        {
+          "content_sha256": "3d4bbc0af263508a",
+          "id": "r016",
+          "memory_type": "episodic",
+          "score": 0.663978,
+          "status": "activated",
+          "valid_from": "2024-05-02T19:00:00+00:00"
+        },
+        {
+          "content_sha256": "473aac3cd4e08d7f",
+          "id": "r017",
+          "memory_type": "episodic",
+          "score": 0.658854,
+          "status": "activated",
+          "valid_from": "2024-07-09T19:00:00+00:00"
+        },
+        {
+          "content_sha256": "07c33270511576c7",
+          "id": "r025",
+          "memory_type": "semantic",
+          "score": 0.656085,
+          "status": "activated",
+          "valid_from": "2024-05-02T19:00:00+00:00"
+        },
+        {
+          "content_sha256": "b9f606f3366ec0e7",
+          "id": "r014",
+          "memory_type": "episodic",
+          "score": 0.653722,
+          "status": "activated",
+          "valid_from": "2024-05-02T19:00:00+00:00"
+        },
+        {
+          "content_sha256": "92bfb3549cd9280f",
+          "id": "r015",
+          "memory_type": "episodic",
+          "score": 0.648598,
+          "status": "activated",
+          "valid_from": "2024-05-02T19:00:00+00:00"
+        }
+      ]
+    },
+    "q11-non-english": {
+      "read_compose": {
+        "abstained": false,
+        "context_sha256": "47f132687aaa9213cfede518bc5f8b7cd59ab6ea5fb0d1c36b2e5be895e70d4e",
+        "mode": "compose",
+        "records": [
+          {
+            "content_sha256": "c0b0e2533e1a92ab",
+            "id": "r019",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-02-12T11:00:00+00:00"
+          },
+          {
+            "content_sha256": "58a21b06455f4108",
+            "id": "r020",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-02-12T11:00:00+00:00"
+          },
+          {
+            "content_sha256": "8b857dba192ff903",
+            "id": "r021",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-02-12T11:00:00+00:00"
+          },
+          {
+            "content_sha256": "30fd8559e76b6281",
+            "id": "r026",
+            "memory_type": "semantic",
+            "status": "activated",
+            "valid_from": "2024-02-12T11:00:00+00:00"
+          }
+        ],
+        "tokens_used": 84
+      },
+      "read_retrieve": {
+        "abstained": false,
+        "context_sha256": "6f3351757b809aa3f3a3d02180f2004de09d953009a679dc362274633adb8e20",
+        "mode": "retrieve",
+        "records": [
+          {
+            "content_sha256": "30fd8559e76b6281",
+            "id": "r026",
+            "memory_type": "semantic",
+            "status": "activated",
+            "valid_from": "2024-02-12T11:00:00+00:00"
+          },
+          {
+            "content_sha256": "c0b0e2533e1a92ab",
+            "id": "r019",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-02-12T11:00:00+00:00"
+          },
+          {
+            "content_sha256": "58a21b06455f4108",
+            "id": "r020",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-02-12T11:00:00+00:00"
+          },
+          {
+            "content_sha256": "8b857dba192ff903",
+            "id": "r021",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-02-12T11:00:00+00:00"
+          }
+        ],
+        "tokens_used": 84
+      },
+      "search": [
+        {
+          "content_sha256": "c0b0e2533e1a92ab",
+          "id": "r019",
+          "memory_type": "episodic",
+          "score": 0.666667,
+          "status": "activated",
+          "valid_from": "2024-02-12T11:00:00+00:00"
+        },
+        {
+          "content_sha256": "30fd8559e76b6281",
+          "id": "r026",
+          "memory_type": "semantic",
+          "score": 0.66129,
+          "status": "activated",
+          "valid_from": "2024-02-12T11:00:00+00:00"
+        },
+        {
+          "content_sha256": "58a21b06455f4108",
+          "id": "r020",
+          "memory_type": "episodic",
+          "score": 0.494709,
+          "status": "activated",
+          "valid_from": "2024-02-12T11:00:00+00:00"
+        },
+        {
+          "content_sha256": "8b857dba192ff903",
+          "id": "r021",
+          "memory_type": "episodic",
+          "score": 0.492188,
+          "status": "activated",
+          "valid_from": "2024-02-12T11:00:00+00:00"
+        }
+      ]
+    },
+    "q12-non-english-drink": {
+      "read_compose": {
+        "abstained": false,
+        "context_sha256": "47f132687aaa9213cfede518bc5f8b7cd59ab6ea5fb0d1c36b2e5be895e70d4e",
+        "mode": "compose",
+        "records": [
+          {
+            "content_sha256": "c0b0e2533e1a92ab",
+            "id": "r019",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-02-12T11:00:00+00:00"
+          },
+          {
+            "content_sha256": "58a21b06455f4108",
+            "id": "r020",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-02-12T11:00:00+00:00"
+          },
+          {
+            "content_sha256": "8b857dba192ff903",
+            "id": "r021",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-02-12T11:00:00+00:00"
+          },
+          {
+            "content_sha256": "30fd8559e76b6281",
+            "id": "r026",
+            "memory_type": "semantic",
+            "status": "activated",
+            "valid_from": "2024-02-12T11:00:00+00:00"
+          }
+        ],
+        "tokens_used": 84
+      },
+      "read_retrieve": {
+        "abstained": false,
+        "context_sha256": "e29aad101e616645bc9162040be24ff0d617b4d95273f654e86adff69cda52d3",
+        "mode": "retrieve",
+        "records": [
+          {
+            "content_sha256": "30fd8559e76b6281",
+            "id": "r026",
+            "memory_type": "semantic",
+            "status": "activated",
+            "valid_from": "2024-02-12T11:00:00+00:00"
+          },
+          {
+            "content_sha256": "8b857dba192ff903",
+            "id": "r021",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-02-12T11:00:00+00:00"
+          },
+          {
+            "content_sha256": "58a21b06455f4108",
+            "id": "r020",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-02-12T11:00:00+00:00"
+          },
+          {
+            "content_sha256": "c0b0e2533e1a92ab",
+            "id": "r019",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-02-12T11:00:00+00:00"
+          }
+        ],
+        "tokens_used": 84
+      },
+      "search": [
+        {
+          "content_sha256": "30fd8559e76b6281",
+          "id": "r026",
+          "memory_type": "semantic",
+          "score": 0.66129,
+          "status": "activated",
+          "valid_from": "2024-02-12T11:00:00+00:00"
+        },
+        {
+          "content_sha256": "8b857dba192ff903",
+          "id": "r021",
+          "memory_type": "episodic",
+          "score": 0.658854,
+          "status": "activated",
+          "valid_from": "2024-02-12T11:00:00+00:00"
+        },
+        {
+          "content_sha256": "58a21b06455f4108",
+          "id": "r020",
+          "memory_type": "episodic",
+          "score": 0.5,
+          "status": "activated",
+          "valid_from": "2024-02-12T11:00:00+00:00"
+        },
+        {
+          "content_sha256": "c0b0e2533e1a92ab",
+          "id": "r019",
+          "memory_type": "episodic",
+          "score": 0.494709,
+          "status": "activated",
+          "valid_from": "2024-02-12T11:00:00+00:00"
+        }
+      ]
+    },
+    "q13-no-answer": {
+      "read_compose": {
+        "abstained": false,
+        "context_sha256": "5787ad24d098b1df01d7ff40ee879f1b13dc0a2597b53100aa66a78733a6aaab",
+        "mode": "compose",
+        "records": [
+          {
+            "content_sha256": "504d9e3373fdc1db",
+            "id": "r009",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-04-15T20:15:00+00:00"
+          },
+          {
+            "content_sha256": "200b01569a2c9412",
+            "id": "r010",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-04-15T20:15:00+00:00"
+          },
+          {
+            "content_sha256": "d837dd0b1c23feb4",
+            "id": "r011",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-04-15T20:15:00+00:00"
+          },
+          {
+            "content_sha256": "2bbb60b8760d613e",
+            "id": "r022",
+            "memory_type": "semantic",
+            "status": "activated",
+            "valid_from": "2024-04-15T20:15:00+00:00"
+          },
+          {
+            "content_sha256": "6a9af200beb725c0",
+            "id": "r012",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-05-20T07:45:00+00:00"
+          },
+          {
+            "content_sha256": "47a8393a93313928",
+            "id": "r013",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-05-20T07:45:00+00:00"
+          }
+        ],
+        "tokens_used": 117
+      },
+      "read_retrieve": {
+        "abstained": false,
+        "context_sha256": "d7584632bd0ba13a7c7517141937dced9e34f01b0f66921c2b6dd67e5e26a63b",
+        "mode": "retrieve",
+        "records": [
+          {
+            "content_sha256": "2bbb60b8760d613e",
+            "id": "r022",
+            "memory_type": "semantic",
+            "status": "activated",
+            "valid_from": "2024-04-15T20:15:00+00:00"
+          },
+          {
+            "content_sha256": "200b01569a2c9412",
+            "id": "r010",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-04-15T20:15:00+00:00"
+          },
+          {
+            "content_sha256": "d837dd0b1c23feb4",
+            "id": "r011",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-04-15T20:15:00+00:00"
+          },
+          {
+            "content_sha256": "6a9af200beb725c0",
+            "id": "r012",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-05-20T07:45:00+00:00"
+          },
+          {
+            "content_sha256": "504d9e3373fdc1db",
+            "id": "r009",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-04-15T20:15:00+00:00"
+          }
+        ],
+        "tokens_used": 103
+      },
+      "search": [
+        {
+          "content_sha256": "2bbb60b8760d613e",
+          "id": "r022",
+          "memory_type": "semantic",
+          "score": 0.663978,
+          "status": "activated",
+          "valid_from": "2024-04-15T20:15:00+00:00"
+        },
+        {
+          "content_sha256": "200b01569a2c9412",
+          "id": "r010",
+          "memory_type": "episodic",
+          "score": 0.661376,
+          "status": "activated",
+          "valid_from": "2024-04-15T20:15:00+00:00"
+        },
+        {
+          "content_sha256": "d837dd0b1c23feb4",
+          "id": "r011",
+          "memory_type": "episodic",
+          "score": 0.653722,
+          "status": "activated",
+          "valid_from": "2024-04-15T20:15:00+00:00"
+        },
+        {
+          "content_sha256": "6a9af200beb725c0",
+          "id": "r012",
+          "memory_type": "episodic",
+          "score": 0.648598,
+          "status": "activated",
+          "valid_from": "2024-05-20T07:45:00+00:00"
+        },
+        {
+          "content_sha256": "504d9e3373fdc1db",
+          "id": "r009",
+          "memory_type": "episodic",
+          "score": 0.646228,
+          "status": "activated",
+          "valid_from": "2024-04-15T20:15:00+00:00"
+        }
+      ]
+    },
+    "q14-no-answer-person": {
+      "read_compose": {
+        "abstained": false,
+        "context_sha256": "264f9fc87cce9f12dadd27f0ac8151294cb39ffcb456015e62d001d687ce1f03",
+        "mode": "compose",
+        "records": [
+          {
+            "content_sha256": "549ae55a30e6c581",
+            "id": "r001",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-03-04T18:00:00+00:00"
+          },
+          {
+            "content_sha256": "ae20a6674d98ce11",
+            "id": "r002",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-03-04T18:00:00+00:00"
+          },
+          {
+            "content_sha256": "5c82cb4dfad77fd3",
+            "id": "r003",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-03-04T18:00:00+00:00"
+          },
+          {
+            "content_sha256": "04acbce93b6c186f",
+            "id": "r024",
+            "memory_type": "semantic",
+            "status": "activated",
+            "valid_from": "2024-03-04T18:00:00+00:00"
+          },
+          {
+            "content_sha256": "2caf8cb6d364d11d",
+            "id": "r004",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-06-10T09:30:00+00:00"
+          },
+          {
+            "content_sha256": "196630eb338276a3",
+            "id": "r005",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-06-10T09:30:00+00:00"
+          },
+          {
+            "content_sha256": "d49537838fe62bd0",
+            "id": "r006",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-06-10T09:30:00+00:00"
+          },
+          {
+            "content_sha256": "d8f18ffacd7c6785",
+            "id": "r008",
+            "memory_type": "semantic",
+            "status": "activated",
+            "valid_from": "2024-06-10T09:30:00+00:00"
+          },
+          {
+            "content_sha256": "71857015aa767a29",
+            "id": "r023",
+            "memory_type": "semantic",
+            "status": "activated",
+            "valid_from": "2024-06-10T09:30:00+00:00"
+          }
+        ],
+        "tokens_used": 166
+      },
+      "read_retrieve": {
+        "abstained": false,
+        "context_sha256": "4fbe6004ac624bffccec68ab9077f1e40695aa88dc9d499e4dcc222161b8e720",
+        "mode": "retrieve",
+        "records": [
+          {
+            "content_sha256": "71857015aa767a29",
+            "id": "r023",
+            "memory_type": "semantic",
+            "status": "activated",
+            "valid_from": "2024-06-10T09:30:00+00:00"
+          },
+          {
+            "content_sha256": "d8f18ffacd7c6785",
+            "id": "r008",
+            "memory_type": "semantic",
+            "status": "activated",
+            "valid_from": "2024-06-10T09:30:00+00:00"
+          },
+          {
+            "content_sha256": "196630eb338276a3",
+            "id": "r005",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-06-10T09:30:00+00:00"
+          },
+          {
+            "content_sha256": "ae20a6674d98ce11",
+            "id": "r002",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-03-04T18:00:00+00:00"
+          }
+        ],
+        "tokens_used": 66
+      },
+      "search": [
+        {
+          "content_sha256": "196630eb338276a3",
+          "id": "r005",
+          "memory_type": "episodic",
+          "score": 0.661376,
+          "status": "activated",
+          "valid_from": "2024-06-10T09:30:00+00:00"
+        },
+        {
+          "content_sha256": "71857015aa767a29",
+          "id": "r023",
+          "memory_type": "semantic",
+          "score": 0.653563,
+          "status": "activated",
+          "valid_from": "2024-06-10T09:30:00+00:00"
+        },
+        {
+          "content_sha256": "d8f18ffacd7c6785",
+          "id": "r008",
+          "memory_type": "semantic",
+          "score": 0.646822,
+          "status": "activated",
+          "valid_from": "2024-06-10T09:30:00+00:00"
+        },
+        {
+          "content_sha256": "ae20a6674d98ce11",
+          "id": "r002",
+          "memory_type": "episodic",
+          "score": 0.497312,
+          "status": "activated",
+          "valid_from": "2024-03-04T18:00:00+00:00"
+        }
+      ]
+    }
+  },
+  "schema": 1
+}
