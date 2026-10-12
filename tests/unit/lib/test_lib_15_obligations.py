@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import random
 from typing import Any
@@ -187,7 +187,9 @@ def test_multilingual_names() -> None:
     assert r.verdict == "answerable"
     q = QueryDescription(kind="single", entities=("李雷",), attribute="城市")
     assert run(q, B(F("a", "李雷", "城市", "北京"))).verdict == "answerable"
-    q = QueryDescription(kind="single", entities=("\uff21\uff4c\uff49\uff43\uff45",), attribute="x")  # full-width
+    q = QueryDescription(
+        kind="single", entities=("\uff21\uff4c\uff49\uff43\uff45",), attribute="x"
+    )  # full-width
     assert run(q, B(F("a", "alice", "x", "1"))).verdict == "answerable"
 
 
