@@ -927,8 +927,8 @@
    ],
    "kind": "infra",
    "gate": "Unit tests; pure, unwired (wiring in W2-06a); depends only on memspine.schemas",
-   "status": "Ready",
-   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "status": "Done",
+   "note": "derive/compile.py + schema fields negated, change_hint, ItemV1 speaker/reported_speaker; is_tentative fixed (a30e896, 41fafd3)",
    "layers": [
     "L0",
     "L1",
@@ -1415,8 +1415,8 @@
    ],
    "kind": "infra",
    "gate": "Unit tests; pure, unwired (wiring in W2-15); depends only on memspine.schemas",
-   "status": "Ready",
-   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "status": "Done",
+   "note": "derive/coverage.py: salience signals, omissions, budgeted re-extraction plan (4860d4e)",
    "layers": [
     "L1",
     "L3"
@@ -1544,8 +1544,8 @@
    ],
    "kind": "infra",
    "gate": "Unit tests; pure, unwired (wiring in O4-04); depends only on memspine.schemas",
-   "status": "Ready",
-   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "status": "Done",
+   "note": "derive/histories.py: guarded near-dup merge, merge_member lineage, value histories via LIB-02 replay (ecd32ad)",
    "layers": [
     "L1",
     "L4"
@@ -1796,6 +1796,180 @@
    "review": []
   },
   {
+   "id": "LIB-27",
+   "phase": 1,
+   "title": "Library: per-stage cost ledger, write targets and budget reporting (cost classes, no content)",
+   "decisions": [
+    "W-26",
+    "P-14",
+    "P-22"
+   ],
+   "depends_on": [
+    "MOD-01"
+   ],
+   "kind": "infra",
+   "gate": "Unit tests; pure, unwired (wiring in W2-12); depends only on memspine.schemas",
+   "status": "Ready",
+   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "layers": [
+    "L0",
+    "L1",
+    "L3",
+    "L4",
+    "L5"
+   ],
+   "operators": [
+    "D",
+    "K_C",
+    "K_P"
+   ],
+   "files": [
+    "src/memspine/engine.py"
+   ],
+   "owns": [
+    "src/memspine/observability/stage_ledger.py",
+    "tests/unit/lib/test_lib_27*.py"
+   ],
+   "lane": "other",
+   "agent": "sonnet",
+   "components": [
+    "economy.ledger",
+    "economy.targets",
+    "ledger.WriteCostLedger (shared with P-22 C) + ledger.Budget (pause -> underived)"
+   ],
+   "review": []
+  },
+  {
+   "id": "LIB-28",
+   "phase": 1,
+   "title": "Library: prospective and procedural memory (advisory reminders, procedures; opt-in)",
+   "decisions": [
+    "O-23",
+    "O-24"
+   ],
+   "depends_on": [
+    "MOD-01"
+   ],
+   "kind": "infra",
+   "gate": "Unit tests; pure, unwired (wiring in O4-10); depends only on memspine.schemas",
+   "status": "Ready",
+   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "layers": [
+    "L5"
+   ],
+   "operators": [
+    "K_C"
+   ],
+   "files": [
+    "memories/procedural/lessons.py",
+    "workers/pipelines.py",
+    "engine.py"
+   ],
+   "owns": [
+    "src/memspine/memory/prospective.py",
+    "src/memspine/memory/procedural.py",
+    "tests/unit/lib/test_lib_28*.py"
+   ],
+   "lane": "other",
+   "agent": "sonnet",
+   "components": [
+    "memspine.derive.procedural.LessonBuilder + CaseExtractor",
+    "memspine.derive.prospective.Watches + CueWriter"
+   ],
+   "review": []
+  },
+  {
+   "id": "LIB-29",
+   "phase": 1,
+   "title": "Library: stamping (three clocks, time zone, speaker/addressee/participants, provenance class)",
+   "decisions": [
+    "W-04",
+    "W-05",
+    "W-08",
+    "M-08"
+   ],
+   "depends_on": [
+    "MOD-01"
+   ],
+   "kind": "infra",
+   "gate": "Unit tests; pure, unwired (wiring in W2-02); depends only on memspine.schemas",
+   "status": "Ready",
+   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "layers": [
+    "L0",
+    "L1",
+    "L4",
+    "scope"
+   ],
+   "operators": [
+    "D",
+    "R"
+   ],
+   "files": [
+    "src/memspine/config/schema.py",
+    "src/memspine/engine.py",
+    "src/memspine/core/perspective.py",
+    "src/memspine/core/firewall.py"
+   ],
+   "owns": [
+    "src/memspine/ingest/stamp.py",
+    "tests/unit/lib/test_lib_29*.py"
+   ],
+   "lane": "other",
+   "agent": "sonnet",
+   "components": [
+    "RecordAxes columns (+ participants list per W-05)",
+    "intake.ClockStamper (source_at, source_tz, recorded_at; event interval + precision filled at derivation)",
+    "intake.RoleStamper (spk, addr, participants[]) + derive.AsserterSubjectCheck",
+    "provenance.SourceClassifier + provenance.AssentChecker"
+   ],
+   "review": []
+  },
+  {
+   "id": "LIB-30",
+   "phase": 1,
+   "title": "Library: source envelope intake, receipt and readiness, write ids and re-ingest",
+   "decisions": [
+    "W-01",
+    "W-02",
+    "W-03",
+    "W-24"
+   ],
+   "depends_on": [
+    "MOD-01"
+   ],
+   "kind": "infra",
+   "gate": "Unit tests; pure, unwired (wiring in W2-01); depends only on memspine.schemas",
+   "status": "Ready",
+   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "layers": [
+    "L0",
+    "L1"
+   ],
+   "operators": [
+    "D",
+    "K_C"
+   ],
+   "files": [
+    "src/memspine/engine.py",
+    "src/memspine/memories/resource/store.py",
+    "src/memspine/workers/windows.py"
+   ],
+   "owns": [
+    "src/memspine/ingest/intake.py",
+    "tests/unit/lib/test_lib_30*.py"
+   ],
+   "lane": "other",
+   "agent": "sonnet",
+   "components": [
+    "intake.IdempotencyKey (caller id, else fingerprint of namespace, source, segment index, content) + intake.SourceVersioner",
+    "intake.Receipt + derive.DerivationIntent (status call per layer)",
+    "intake.SourceEnvelope + intake.IntakeGateway (write_messages / ingest / write_episode as adapters)",
+    "intake.SourceVersioner (chunk diff + version events; derived items re-pointed or retired)"
+   ],
+   "review": []
+  },
+  {
    "id": "F-05",
    "phase": 1,
    "title": "Package skeleton; move store and trust leaves",
@@ -1876,8 +2050,8 @@
    ],
    "kind": "move",
    "gate": "Same as F-05",
-   "status": "Not started",
-   "note": "S6",
+   "status": "Done",
+   "note": "S6: 10 modules + 6 packages moved (query helpers to models/encoders/query); unit 4400, evals 1435, golden, 14 contracts (7ba2427)",
    "layers": [
     "L0",
     "L1",
@@ -2095,7 +2269,9 @@
    "depends_on": [
     "F-08",
     "LIB-13",
-    "LIB-14"
+    "LIB-14",
+    "LIB-29",
+    "LIB-30"
    ],
    "kind": "move",
    "gate": "Golden",
@@ -2261,7 +2437,8 @@
     "LIB-08",
     "LIB-09",
     "LIB-18",
-    "LIB-21"
+    "LIB-21",
+    "LIB-28"
    ],
    "kind": "move",
    "gate": "Golden",
@@ -3354,7 +3531,8 @@
     "W-24"
    ],
    "depends_on": [
-    "EX-1a"
+    "EX-1a",
+    "LIB-30"
    ],
    "kind": "behaviour",
    "gate": "Write p95 at most 250 ms; idempotent retries; receipt never claims an unavailable capability; crash tests at every commit/projector boundary",
@@ -3397,7 +3575,8 @@
     "M-08"
    ],
    "depends_on": [
-    "W2-01"
+    "W2-01",
+    "LIB-29"
    ],
    "kind": "behaviour",
    "gate": "Focus slice non-inferior",
@@ -3967,7 +4146,8 @@
     "P-22"
    ],
    "depends_on": [
-    "EX-1a"
+    "EX-1a",
+    "LIB-27"
    ],
    "kind": "infra",
    "gate": "Targets as regression tests",
@@ -5374,7 +5554,8 @@
     "O-24"
    ],
    "depends_on": [
-    "O4-01a"
+    "O4-01a",
+    "LIB-28"
    ],
    "kind": "behaviour",
    "gate": "Off by default",
