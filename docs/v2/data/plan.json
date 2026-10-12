@@ -1852,8 +1852,8 @@
    ],
    "kind": "infra",
    "gate": "Unit tests; pure, unwired (wiring in O4-10); depends only on memspine.schemas",
-   "status": "Ready",
-   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "status": "Done",
+   "note": "memory/prospective.py + procedural.py: intentions, reminders, procedures with explicit-feedback-only updates (1f93ec2)",
    "layers": [
     "L5"
    ],
@@ -1982,8 +1982,8 @@
    ],
    "kind": "infra",
    "gate": "Unit tests; pure, unwired (wiring in O4-05); depends only on memspine.schemas",
-   "status": "Ready",
-   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "status": "Done",
+   "note": "derive/patterns.py: recurrence, frequency, trend, co-occurrence, preference stability; lineage, trust cap (b90b016)",
    "layers": [
     "L1",
     "L4"
@@ -2133,8 +2133,8 @@
    ],
    "kind": "infra",
    "gate": "Unit tests; pure, unwired (wiring in F-02c); depends only on memspine.schemas",
-   "status": "Ready",
-   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "status": "Done",
+   "note": "derive/edges.py: assertion nodes, n-ary role edges, projection, tentative tag, A-B-A keys, retract (24b4bb3)",
    "layers": [
     "L1",
     "L3"
@@ -2172,8 +2172,8 @@
    ],
    "kind": "infra",
    "gate": "Unit tests; pure, unwired (wiring in O4-06); depends only on memspine.schemas",
-   "status": "Ready",
-   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "status": "Done",
+   "note": "derive/communities.py: deterministic label propagation, hub exclusion, stable ids, summary job plans (28075d2)",
    "layers": [
     "L1",
     "L3",
@@ -2215,8 +2215,8 @@
    ],
    "kind": "infra",
    "gate": "Unit tests; pure, unwired (wiring in O4-03); depends only on memspine.schemas",
-   "status": "Ready",
-   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "status": "Done",
+   "note": "derive/reconcile.py: sweep, pending merges, rekey with aliases; X-05 contest recall 1.00 (ea61ad4)",
    "layers": [
     "L1",
     "L3"
@@ -2255,8 +2255,8 @@
    ],
    "kind": "infra",
    "gate": "Unit tests; pure, unwired (wiring in W2-04); depends only on memspine.schemas",
-   "status": "Ready",
-   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "status": "Done",
+   "note": "trust/gates.py: insert/derive-input/derive/read gates, signals en/de/nl/es, release via LIB-08 (a89e071)",
    "layers": [
     "L0",
     "L1",
@@ -2297,8 +2297,8 @@
    ],
    "kind": "infra",
    "gate": "Unit tests; pure, unwired (wiring in O4-07); depends only on memspine.schemas",
-   "status": "Ready",
-   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "status": "Done",
+   "note": "derive/profile.py: guarded profile ops, kappa_P bound, EMA drift, reflection plan, invalidation (1bf6521)",
    "layers": [
     "L1",
     "L4",
@@ -2342,8 +2342,8 @@
    ],
    "kind": "infra",
    "gate": "Unit tests; pure, unwired (wiring in O4-02); depends only on memspine.schemas",
-   "status": "Ready",
-   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "status": "Done",
+   "note": "derive/session_close.py: call-2 plan, validation, deterministic stitching (LIB-40)",
    "layers": [
     "L0",
     "L1",
@@ -2386,8 +2386,8 @@
    ],
    "kind": "infra",
    "gate": "Unit tests; pure, unwired (wiring in T5-05); depends only on memspine.schemas",
-   "status": "Ready",
-   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "status": "Done",
+   "note": "trust/retention.py: retention classes, TTL grammar, plans with limited rebuild, hash-chained audit (e31bf2e)",
    "layers": [
     "L0",
     "L1",
@@ -2416,6 +2416,263 @@
    "components": [
     "memspine.ops.retention (RetentionProfile)",
     "memspine.trust.audit"
+   ],
+   "review": []
+  },
+  {
+   "id": "LIB-42",
+   "phase": 1,
+   "title": "Library: model tiers, placement, no-model fallbacks, device plan, thinking per role",
+   "decisions": [
+    "P-01",
+    "P-02",
+    "P-03",
+    "P-15",
+    "P-19"
+   ],
+   "depends_on": [
+    "MOD-01"
+   ],
+   "kind": "infra",
+   "gate": "Unit tests; pure, unwired (wiring in MD-01); depends only on memspine.schemas",
+   "status": "Ready",
+   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "layers": [
+    "L0",
+    "L1",
+    "L4"
+   ],
+   "operators": [
+    "D",
+    "K_C",
+    "R",
+    "G"
+   ],
+   "files": [
+    "src/memspine/config/schema.py",
+    "src/memspine/engine.py",
+    "src/memspine/prompts/roles.py",
+    "src/memspine/services/llm/base.py"
+   ],
+   "owns": [
+    "src/memspine/models/tiers.py",
+    "tests/unit/lib/test_lib_42*.py"
+   ],
+   "lane": "other",
+   "agent": "sonnet",
+   "components": [
+    "models.fallback",
+    "models.placement",
+    "models.reasoning",
+    "models.tiers"
+   ],
+   "review": []
+  },
+  {
+   "id": "LIB-43",
+   "phase": 1,
+   "title": "Library: deep tier sufficiency check and one-rewrite plan (model call injected)",
+   "decisions": [
+    "R-22"
+   ],
+   "depends_on": [
+    "MOD-01"
+   ],
+   "kind": "infra",
+   "gate": "Unit tests; pure, unwired (wiring in R3-12); depends only on memspine.schemas",
+   "status": "Ready",
+   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "layers": [
+    "L0",
+    "ctx"
+   ],
+   "operators": [
+    "R",
+    "C"
+   ],
+   "files": [
+    "src/memspine/config/schema.py",
+    "src/memspine/core/fact_chain.py",
+    "src/memspine/core/slot_loop.py",
+    "src/memspine/engine.py"
+   ],
+   "owns": [
+    "src/memspine/read/deep.py",
+    "tests/unit/lib/test_lib_43*.py"
+   ],
+   "lane": "other",
+   "agent": "sonnet",
+   "components": [
+    "read.deep (SufficiencyRound)"
+   ],
+   "review": []
+  },
+  {
+   "id": "LIB-44",
+   "phase": 1,
+   "title": "Library: explicit feedback events and observer views (multi-agent)",
+   "decisions": [
+    "O-25",
+    "O-26",
+    "M-24"
+   ],
+   "depends_on": [
+    "MOD-01"
+   ],
+   "kind": "infra",
+   "gate": "Unit tests; pure, unwired (wiring in O4-11); depends only on memspine.schemas",
+   "status": "Ready",
+   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "layers": [
+    "L1",
+    "L4",
+    "L5",
+    "scope"
+   ],
+   "operators": [
+    "K_C",
+    "K_P",
+    "R"
+   ],
+   "files": [
+    "core/perspective.py",
+    "engine.py",
+    "src/memspine/core/namespace.py",
+    "src/memspine/engine.py"
+   ],
+   "owns": [
+    "src/memspine/derive/feedback.py",
+    "tests/unit/lib/test_lib_44*.py"
+   ],
+   "lane": "other",
+   "agent": "sonnet",
+   "components": [
+    "Grants + ObserverViews",
+    "memspine.derive.views.ObserverViews",
+    "unchanged feedback verb on the scoped handle (G-16 D)"
+   ],
+   "review": []
+  },
+  {
+   "id": "LIB-45",
+   "phase": 1,
+   "title": "Library: external public knowledge as a separate, labelled, opt-in context block",
+   "decisions": [
+    "R-23"
+   ],
+   "depends_on": [
+    "MOD-01"
+   ],
+   "kind": "infra",
+   "gate": "Unit tests; pure, unwired (wiring in R3-13); depends only on memspine.schemas",
+   "status": "Ready",
+   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "layers": [
+    "L0"
+   ],
+   "operators": [
+    "R"
+   ],
+   "files": [
+    "src/memspine/config/schema.py",
+    "src/memspine/engine.py"
+   ],
+   "owns": [
+    "src/memspine/read/external.py",
+    "tests/unit/lib/test_lib_45*.py"
+   ],
+   "lane": "other",
+   "agent": "sonnet",
+   "components": [
+    "read.external"
+   ],
+   "review": []
+  },
+  {
+   "id": "LIB-46",
+   "phase": 1,
+   "title": "Library: prompt layout rules (no examples, stable prefix, same language) as a checker and builder",
+   "decisions": [
+    "W-18",
+    "P-07",
+    "P-08",
+    "P-10"
+   ],
+   "depends_on": [
+    "MOD-01"
+   ],
+   "kind": "infra",
+   "gate": "Unit tests; pure, unwired (wiring in W2-07); depends only on memspine.schemas",
+   "status": "Ready",
+   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "layers": [
+    "L0",
+    "L1",
+    "L3",
+    "ctx"
+   ],
+   "operators": [
+    "D",
+    "C"
+   ],
+   "files": [
+    "src/memspine/prompts/defaults/window_extract.yaml",
+    "evals/memspine_evals/readers.py",
+    "src/memspine/config/presets/non_english.yaml",
+    "src/memspine/prompts/defaults/extract@session4.yaml"
+   ],
+   "owns": [
+    "src/memspine/prompts/layout.py",
+    "tests/unit/lib/test_lib_46*.py"
+   ],
+   "lane": "other",
+   "agent": "sonnet",
+   "components": [
+    "prompts.layout",
+    "prompts.layout.language",
+    "prompts.write_extract v2 + prompts/_partials (same_language.j2, coarse_date.j2) + prompts.PromptIdentity"
+   ],
+   "review": []
+  },
+  {
+   "id": "LIB-47",
+   "phase": 1,
+   "title": "Library: depth tiers, ReadRequest normalisation and the evidence unit",
+   "decisions": [
+    "R-01",
+    "R-02"
+   ],
+   "depends_on": [
+    "MOD-01"
+   ],
+   "kind": "infra",
+   "gate": "Unit tests; pure, unwired (wiring in R3-01); depends only on memspine.schemas",
+   "status": "Ready",
+   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "layers": [
+    "L0",
+    "L1",
+    "L4",
+    "ctx"
+   ],
+   "operators": [
+    "R",
+    "C"
+   ],
+   "files": [
+    "src/memspine/config/schema.py",
+    "src/memspine/engine.py",
+    "src/memspine/config/templates/base.yaml"
+   ],
+   "owns": [
+    "src/memspine/read/tiers.py",
+    "tests/unit/lib/test_lib_47*.py"
+   ],
+   "lane": "other",
+   "agent": "sonnet",
+   "components": [
+    "compose.bundle (EvidenceBundle)",
+    "read.tiers (TierPolicy)"
    ],
    "review": []
   },
@@ -2769,7 +3026,10 @@
     "LIB-22",
     "LIB-23",
     "LIB-24",
-    "LIB-34"
+    "LIB-34",
+    "LIB-43",
+    "LIB-45",
+    "LIB-47"
    ],
    "kind": "move",
    "gate": "Golden byte-identical hit order",
@@ -4188,7 +4448,8 @@
    ],
    "depends_on": [
     "P0-09",
-    "EX-1a"
+    "EX-1a",
+    "LIB-46"
    ],
    "kind": "behaviour",
    "gate": "English output unchanged on focus slice (per partial)",
@@ -4684,7 +4945,8 @@
     "P-19"
    ],
    "depends_on": [
-    "EX-1a"
+    "EX-1a",
+    "LIB-42"
    ],
    "kind": "behaviour",
    "gate": "Worker-tier screen per role; no-model template zero calls",
@@ -4809,7 +5071,8 @@
     "R-02"
    ],
    "depends_on": [
-    "EX-1a"
+    "EX-1a",
+    "LIB-47"
    ],
    "kind": "behaviour",
    "gate": "Fast tier zero generative calls; embed/rerank cost reported separately; p95 SLO",
@@ -5344,7 +5607,8 @@
     "R-22"
    ],
    "depends_on": [
-    "R3-11"
+    "R3-11",
+    "LIB-43"
    ],
    "kind": "behaviour",
    "gate": "f-suff: net beyond band, no category loss, at most 2x wall time",
@@ -5383,7 +5647,8 @@
     "R-23"
    ],
    "depends_on": [
-    "R3-01"
+    "R3-01",
+    "LIB-45"
    ],
    "kind": "behaviour",
    "gate": "Separate arm; never mixed in headline",
@@ -6054,7 +6319,8 @@
     "M-24"
    ],
    "depends_on": [
-    "O4-03"
+    "O4-03",
+    "LIB-44"
    ],
    "kind": "behaviour",
    "gate": "Multi-agent template tests",
