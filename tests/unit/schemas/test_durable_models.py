@@ -446,3 +446,47 @@ def test_lineage_edge_rules():
         LineageEdge(child="a", parent="a", role="support")
     with pytest.raises(ValidationError):
         LineageEdge(child="a", parent="b", role="evidence")  # split into support/binding
+
+
+@pytest.mark.parametrize("modality", ["planned", "hypothetical", "reported", "question"])
+def test_negated_flag_allowed_on_tentative_modalities(modality: str) -> None:
+    a = Assessment(source_trust=0.5, binding="bound", modality=modality, negated=True)
+    assert a.negated is True
+    assert Assessment(source_trust=0.5, binding="bound", modality=modality).negated is False
+
+
+@pytest.mark.parametrize("modality", ["asserted", "negated"])
+def test_negated_flag_invalid_with_asserted_or_negated(modality: str) -> None:
+    with pytest.raises(ValidationError, match="negated=True is invalid"):
+        Assessment(source_trust=0.5, binding="bound", modality=modality, negated=True)
+
+
+def test_change_hint_defaults_false_on_envelope() -> None:
+    assert "change_hint" in AssertionEnvelope.model_fields
+    assert AssertionEnvelope.model_fields["change_hint"].default is False
+
+
+@pytest.mark.parametrize(
+    ("modality", "binding", "negated", "tentative"),
+    [
+        ("asserted", "bound", False, False),
+        ("negated", "bound", False, False),
+        ("negated", "partly", False, True),
+        ("negated", "unbound", False, True),
+        ("asserted", "partly", False, True),
+        ("planned", "bound", False, True),
+        ("planned", "bound", True, True),
+        ("hypothetical", "bound", True, True),
+        ("reported", "bound", False, True),
+        ("question", "bound", True, True),
+    ],
+)
+def test_is_tentative_rules(modality: str, binding: str, negated: bool, tentative: bool) -> None:
+    a = Assessment(source_trust=0.5, binding=binding, modality=modality, negated=negated)
+    assert is_tentative(a) is tentative
+
+
+def test_negation_never_supersedes() -> None:
+    cur = Assessment(source_trust=0.5, binding="bound", modality="asserted")
+    neg = Assessment(source_trust=0.9, binding="bound", modality="negated")
+    assert can_supersede(neg, cur) is False

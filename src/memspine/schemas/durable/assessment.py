@@ -64,7 +64,19 @@ class Assessment(DurablePart):
     binding: Binding
     time_precision: TimePrecision = "unknown"
     modality: Modality
+    # The planned / hypothetical / reported / question content is negated ("won't move" = planned +
+    # negated). An asserted negation stays modality "negated", so the integration rules are unchanged.
+    negated: bool = False
     model_confidence_hint: float | None = Field(default=None, ge=0.0, le=1.0)
+
+    @model_validator(mode="after")
+    def _negation(self) -> Assessment:
+        if self.negated and self.modality in ("asserted", "negated"):
+            raise ValueError(
+                f"negated=True is invalid with modality {self.modality!r} "
+                "(an asserted negation is modality 'negated')"
+            )
+        return self
 
 
 def _assessment(obj: object) -> Assessment:
@@ -92,13 +104,15 @@ def can_supersede(new: object, current: object) -> bool:
 
 
 def is_tentative(assessment: object) -> bool:
-    """S5-2/S5-3: anything not (asserted and bound) is tentative.
+    """S5-2/S5-3 (with the coordinator's clarification): tentative unless bound and asserted or negated.
 
-    Hypothetical, planned, reported, questioned, negated and unbound content coexists as tentative and
-    yields graph edges tagged ``tentative``. Only asserted and bound assertions are normal.
+    A BOUND asserted negation (modality ``negated``) is normal content: at cardinality one it retires or
+    contests the current value, so it is not tentative. Hypothetical, planned, reported and question
+    content (negated or not), and anything partly bound or unbound, coexists as tentative and yields graph
+    edges tagged ``tentative``. ``can_supersede`` is unchanged: a negation never supersedes, it retires.
     """
     a = _assessment(assessment)
-    return not (a.modality == "asserted" and a.binding == "bound")
+    return not (a.binding == "bound" and a.modality in ("asserted", "negated"))
 
 
 def integration_outcome(

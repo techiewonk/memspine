@@ -132,6 +132,10 @@ class ItemV1(InternalModel):
     lines: list[int]
     span: str
     source: Literal["user_stated", "assistant_proposed", "user_confirmed", "tool"] | None = None
+    # Who said it as the model read it (a hint: the cited line's speaker wins) and, when present, the
+    # speaker the content is reported from (modality reported).
+    speaker: str | None = None
+    reported_speaker: str | None = None
 
 
 class Record(InternalModel):
