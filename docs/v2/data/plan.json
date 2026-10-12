@@ -354,8 +354,8 @@
    "depends_on": [],
    "kind": "infra",
    "gate": "Every F package has an owned-file set; reviewed by the owner",
-   "status": "In progress",
-   "note": "Drafted 2026-10-13 (RESTRUCTURE.md); awaiting owner review",
+   "status": "Done",
+   "note": "Approved by the owner 2026-10-13",
    "layers": [
     "L0",
     "L1",

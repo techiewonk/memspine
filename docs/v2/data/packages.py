@@ -33,7 +33,7 @@ WP = [
     ("P0-09", 0, "Prompt gold-lint over partials and rendered prompts", ["P-13", "W-18"], [], "infra",
      "Lint fails on any gold token in any prompt or partial", "In progress", "Single words and harness prompts done (11853ed)"),
     ("X-00", 0, "RESTRUCTURE.md: S0-S16, target tree, owned file sets per package", ["G-16"], [], "infra",
-     "Every F package has an owned-file set; reviewed by the owner", "In progress", "Drafted 2026-10-13 (RESTRUCTURE.md); awaiting owner review"),
+     "Every F package has an owned-file set; reviewed by the owner", "Done", "Approved by the owner 2026-10-13"),
     ("X-01", 0, "Agent brief template and owned-file checker in build_plan.py", ["G-16"], ["X-00"], "infra",
      "No two concurrently runnable packages share an owned file", "In progress", "Template drafted (briefs/TEMPLATE.md); owned-file checker open"),
     ("X-02", 0, "CI: golden, import-linter, blocking gold-lint, single Alembic head, flag-evidence check", ["G-22"], ["P0-04"], "infra",

@@ -9,10 +9,10 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 |---|---|
 | Not started | 101 |
 | Ready | 2 |
-| In progress | 5 |
+| In progress | 4 |
 | Blocked | 1 |
 | Needs measurement | 2 |
-| Done | 1 |
+| Done | 2 |
 | Dropped | 0 |
 
 ## Phase 0: settle and prepare
@@ -28,7 +28,7 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | P0-07 | A03 query contract: full set, then blind sets | ctx | R | R-03 | - | P0-01 | measure | infra | PROMOTE on 1,540 vs clean-jina-full, then CONFIRMS on MAB-CR and ConvoMem | **Needs measurement** | Focus +15/-7 net +8 HOLD; full run stopped partway |
 | P0-08 | Benchmark suite and behavioural controls | L0 L1 L4 L5 ctx scope | K_P R C G | G-02, G-04 | ER-36, ER-37 | P0-01 | infra | infra | Dev: LoCoMo (+cat 5), OP-Bench; blind: MAB-CR, ConvoMem, PrefEval; behavioural suite blocks adoption | **Not started** | LongMemEval stays out |
 | P0-09 | Prompt gold-lint over partials and rendered prompts | L1 L3 | D | P-13, W-18 | ER-16, ER-38 | - | infra | infra | Lint fails on any gold token in any prompt or partial | **In progress** | Single words and harness prompts done (11853ed) |
-| X-00 | RESTRUCTURE.md: S0-S16, target tree, owned file sets per package | L0 L1 L4 L5 ctx scope | D K_C K_P R C | G-16 | ER-01, ER-04 | - | infra | infra | Every F package has an owned-file set; reviewed by the owner | **In progress** | Drafted 2026-10-13 (RESTRUCTURE.md); awaiting owner review |
+| X-00 | RESTRUCTURE.md: S0-S16, target tree, owned file sets per package | L0 L1 L4 L5 ctx scope | D K_C K_P R C | G-16 | ER-01, ER-04 | - | infra | infra | Every F package has an owned-file set; reviewed by the owner | **Done** | Approved by the owner 2026-10-13 |
 | X-01 | Agent brief template and owned-file checker in build_plan.py | L0 L1 L4 L5 ctx scope | D K_C K_P R C | G-16 | ER-02, ER-04 | X-00 | infra | infra | No two concurrently runnable packages share an owned file | **In progress** | Template drafted (briefs/TEMPLATE.md); owned-file checker open |
 | X-02 | CI: golden, import-linter, blocking gold-lint, single Alembic head, flag-evidence check | L0 L1 L4 L5 ctx scope | D R C | G-22 | ER-04, ER-38 | P0-04 | infra | infra | CI fails on each violation | **Not started** |  |
 | X-03 | Golden fixture: synthetic conversations, hash embedder, reranker off | L0 L1 L4 L5 ctx scope | R C G | G-04 | - | - | infra | infra | No benchmark text; deterministic | **Ready** |  |
