@@ -25,7 +25,9 @@ async def test_cpu_golden(tmp_path: Path) -> None:
     first = harness.dumps(await harness.run(first_dir))
     second = harness.dumps(await harness.run(second_dir))
     assert first == second, "two runs differ:\n" + _diff(first, second, "run1", "run2")
-    committed = SNAPSHOT.read_bytes().decode("utf-8")
+    committed = SNAPSHOT.read_bytes().decode("utf-8").replace("
+", "
+")  # autocrlf-safe
     assert first == committed, (
         "snapshot differs from the committed golden (see tests/golden/README.md):\n"
         + _diff(committed, first, "committed", "current")
