@@ -1454,8 +1454,8 @@
    ],
    "kind": "infra",
    "gate": "Unit tests; pure, unwired (wiring in T5-03); depends only on memspine.schemas",
-   "status": "Ready",
-   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "status": "Done",
+   "note": "trust/consent.py: tiers, consent registry with generation, purpose narrowing, viewer kinds, do-not-derive (0295561)",
    "layers": [
     "L0",
     "L1",
@@ -1643,6 +1643,41 @@
    "components": [
     "TimeView (as_of_valid, as_of_known)",
     "read.timeview (TimeView)"
+   ],
+   "review": []
+  },
+  {
+   "id": "LIB-23",
+   "phase": 1,
+   "title": "Library: rule router over the LayerRegistry (which legs and layers a query uses; deep tier only rewrites)",
+   "decisions": [
+    "R-04"
+   ],
+   "depends_on": [
+    "MOD-01"
+   ],
+   "kind": "infra",
+   "gate": "Unit tests; pure, unwired (wiring in R3-03); depends only on memspine.schemas",
+   "status": "Ready",
+   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "layers": [
+    "ctx"
+   ],
+   "operators": [
+    "R"
+   ],
+   "files": [
+    "src/memspine/engine.py",
+    "src/memspine/config/schema.py"
+   ],
+   "owns": [
+    "src/memspine/read/router_rules.py",
+    "tests/unit/lib/test_lib_23*.py"
+   ],
+   "lane": "other",
+   "agent": "sonnet",
+   "components": [
+    "read.router (Router)"
    ],
    "review": []
   },
@@ -1991,7 +2026,8 @@
     "LIB-15",
     "LIB-16",
     "LIB-19",
-    "LIB-22"
+    "LIB-22",
+    "LIB-23"
    ],
    "kind": "move",
    "gate": "Golden byte-identical hit order",
@@ -4102,7 +4138,8 @@
    ],
    "depends_on": [
     "R3-01",
-    "F-02b"
+    "F-02b",
+    "LIB-23"
    ],
    "kind": "behaviour",
    "gate": "Focus non-inferior",
