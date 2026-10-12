@@ -2159,6 +2159,49 @@
    "review": []
   },
   {
+   "id": "LIB-36",
+   "phase": 1,
+   "title": "Library: entity communities (deterministic clustering over the assertion graph) and summary job plans",
+   "decisions": [
+    "O-16",
+    "O-17",
+    "M-19"
+   ],
+   "depends_on": [
+    "MOD-01"
+   ],
+   "kind": "infra",
+   "gate": "Unit tests; pure, unwired (wiring in O4-06); depends only on memspine.schemas",
+   "status": "Ready",
+   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "layers": [
+    "L1",
+    "L3",
+    "L4"
+   ],
+   "operators": [
+    "K_C"
+   ],
+   "files": [
+    "config/constants.py",
+    "src/memspine/workers/pipelines.py",
+    "workers/pipelines.py",
+    "src/memspine/config/constants.py"
+   ],
+   "owns": [
+    "src/memspine/derive/communities.py",
+    "tests/unit/lib/test_lib_36*.py"
+   ],
+   "lane": "other",
+   "agent": "sonnet",
+   "components": [
+    "GroupingKinds {community, entity_summary, observation_scope (held)}",
+    "memspine.derive.communities.Reorganiser",
+    "memspine.derive.entity_summary.EntitySummariser"
+   ],
+   "review": []
+  },
+  {
    "id": "F-05",
    "phase": 1,
    "title": "Package skeleton; move store and trust leaves",
@@ -5589,7 +5632,8 @@
    ],
    "depends_on": [
     "O4-03",
-    "F-16a"
+    "F-16a",
+    "LIB-36"
    ],
    "kind": "behaviour",
    "gate": "Global-question workload",
