@@ -65,8 +65,8 @@
    "depends_on": [],
    "kind": "infra",
    "gate": "A fresh per-run venv reproduces clean-jina-full",
-   "status": "In progress",
-   "note": "Lock fixed (1d15194); per-run freeze recorded (7ce1d55); open: venv per pinned run",
+   "status": "Needs measurement",
+   "note": "Per-run venv cache keyed by lock hash, dry-run, shared escape hatch (5f5a7f2); one GPU reproduction run pending (GPU stopped)",
    "layers": [],
    "operators": [
     "R",
@@ -101,8 +101,8 @@
    "depends_on": [],
    "kind": "infra",
    "gate": "Manifest records commit, env hash, flags, prompts, models, data hashes",
-   "status": "Not started",
-   "note": "",
+   "status": "Done",
+   "note": "manifest.py, comparability key incl. budget, INCOMPARABLE verdict, cost block (5f5a7f2, 7346aca); runners populate identity in P0-01",
    "layers": [],
    "operators": [
     "D",
