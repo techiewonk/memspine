@@ -159,8 +159,8 @@
    ],
    "kind": "infra",
    "gate": "Golden identical on two runs at HEAD; map covers every engine method",
-   "status": "Not started",
-   "note": "S0; guards every move",
+   "status": "Done",
+   "note": "439 units mapped (0 heuristic), 14 import contracts, run_golden.sh (8689693)",
    "layers": [
     "L0",
     "L1",

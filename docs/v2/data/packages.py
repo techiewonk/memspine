@@ -18,7 +18,7 @@ WP = [
     ("P0-03", 0, "Run manifest and comparability key", ["G-25"], [], "infra",
      "Manifest records commit, env hash, flags, prompts, models, data hashes", "Done", "manifest.py, comparability key incl. budget, INCOMPARABLE verdict, cost block (5f5a7f2, 7346aca); runners populate identity in P0-01"),
     ("P0-04", 0, "CPU golden, import-boundary contracts, method-to-module map of engine.py", ["G-16"], ["X-03"], "infra",
-     "Golden identical on two runs at HEAD; map covers every engine method", "Not started", "S0; guards every move"),
+     "Golden identical on two runs at HEAD; map covers every engine method", "Done", "439 units mapped (0 heuristic), 14 import contracts, run_golden.sh (8689693)"),
     ("P0-05", 0, "Engine LLM fixes: hard per-call bound, think=False on Ollama", ["P-15"], [], "behaviour",
      "Regression tests", "Done", "2d05ac7, 798c4b5; re-screens in P0-06"),
     ("P0-06", 0, "Re-screen engine-LLM arms on the thinking fix (f-gc9, f-gc3, f-win, f-gc2)",
