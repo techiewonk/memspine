@@ -1,5 +1,10 @@
 # MemSpine v2 architecture
 
+> **Latest accepted amendments:** [ER-06, ER-24 and ER-31](DECISION_AMENDMENTS_2026-10-13.md)
+> take precedence over older shorthand here: durable acceptance with per-capability readiness and optional waits;
+> adaptive complete evidence bundles with exact token counting; scope/version-aware caches disabled until their
+> contract exists. These are planning decisions, not implemented or measured capabilities.
+
 The v2 design as the owner decided it (2026-10-11), end to end. Each block names its decisions; the reasoning,
 predicted effect and v1 file:line for every one is in `areas/<area>.md`. Readings settled by the owner's
 follow-up answers are marked (Q1..Q9), see `VERIFY.md` section 0.

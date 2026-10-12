@@ -1,5 +1,10 @@
 # Retrieval pipeline
 
+> **Accepted amendments (2026-10-13):** ER-06 separates durable acceptance from index readiness;
+> ER-24 selects adaptive complete evidence bundles with exact token accounting;
+> ER-31 requires scope/version-aware cache keys. These supersede older conflicting shorthand below.
+> See [decision amendments](../DECISION_AMENDMENTS_2026-10-13.md). Implementation remains pending.
+
 The retrieval pipeline turns one question into one bounded, typed context for a reader model. It covers the
 retrieve operator $\mathcal{R}$ (scope, contract, route, legs, fusion, pool, lift, rerank, gate, time view) and
 the compose operator $\mathcal{C}$ (windows, packing, typed render with provenance and trust wrapping), plus the
@@ -62,9 +67,9 @@ Step 20 (execution, caching and latency budgets) is cross-cutting and applies to
 | E7 | Deep-tier re-entry | `depth=deep` and the sufficiency judge says insufficient on round 0 | `_agentic_extend` `engine.py:6775` | Re-enters at step 6 with the rewrite as an extra probe leg; at most once (R-22 B) |
 | E8 | Calibration (not a read, feeds step 12) | Gate probes recomputed at first sleep per namespace, or when the store size or embedder id changes | `_store_calibration` called lazily inside `_calibrated_gate` `engine.py:7982`; `core/relevance_probes.py:80` | Computed by the offline pipeline at sleep (R-21); a read only looks them up |
 
-There are no timers or thresholds that start a read on their own. A read never waits on the outbox: raw L0 records
-are searchable at commit (Q2); derived layers are read as they stand (the "read barrier" of F-04 applies only to
-tests and to callers that ask for it).
+There are no timers or thresholds that start a read on their own. A default read does not wait on the outbox:
+it uses available projections and reports readiness. Durable acceptance does not guarantee every L0 index is
+ready. Callers may request a bounded barrier for required indexes or derived layers (ER-06).
 
 ## Steps
 
@@ -482,11 +487,16 @@ Output EvidenceBundle{blocks: list[ContextBlock], tokens_used: int, skipped: lis
 ```
 
   Rules: rank order across blocks; an item that does not fit is **skipped and packing continues** (no early
-  break); the first item, if oversize, is truncated at a sentence boundary or falls back to its gist; headers,
+  break); adaptive bundles retain the evidence, qualifiers and citations needed to support their claims.
+  An oversize bundle is omitted or replaced by a validated smaller complete bundle; truncation or a gist
+  must not silently discard required support. Headers,
   aliases, dates and provenance count in the cost; the final count uses the reader's tokenizer; unused cap flows
   to the next item in global rank. With an empty notes block, `raw` takes all (identical to today's replay).
-- **Writes:** nothing. **Reads:** tokenizer of the bound reader (fallback: chars/4 with a safety margin, traced).
-- **Failure and retry:** none; output is always within budget (unit-tested).
+- **Writes:** nothing. **Reads:** the bound reader's tokenizer, including rendered headers, citations and reserves.
+- **Failure and retry:** exact mode checks the final rendered token count. If the tokenizer is unavailable,
+  return an explicit inability to satisfy exact accounting or use a caller-enabled estimated mode labelled
+  as estimated; character estimates must not claim a hard guarantee. Adaptive selection needs a quality screen
+  in addition to deterministic budget tests (ER-24 C + A).
 - **Idempotency:** deterministic.
 - **Ordering and locking:** stable blocks (persona, profile card, standing answers) first, volatile evidence last
   (prefix caching, P-24).
@@ -583,7 +593,7 @@ Output EvidenceBundle{blocks: list[ContextBlock], tokens_used: int, skipped: lis
 | Query-vector cache | kept | per call |
 | Read snapshot | kept: one listing per (namespace, type, group) per read, cleared by every append | `_snapshot_listings` `engine.py:739-776` |
 | Vocabulary caches | kept, keyed by record count | `engine.py:1268-1300` |
-| Rerank-score cache, composed-context cache | **deferred** until keys include tenant, viewer, record version and generation (R-26, M-25) | none |
+| Rerank-score cache, composed-context cache | **deferred** until keys cover effective scope, viewer/purpose, time view, policy/model versions, record versions and invalidation generations; admission rechecked at use (ER-31 B) | none |
 | Prompt layout | stable first, volatile last; provider cache hints only with a hosted reader | `core/policies/assembly.py:80-85` (boundary index) |
 | Invalidation | every cache keyed by generation; erasure tombstones through the reverse-lineage index (G-13 C); caches cleared on upgrade | partial; RV07 gap |
 

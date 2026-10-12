@@ -1,5 +1,15 @@
 # MemSpine restructure plan ("v2")
 
+## Latest owner decisions and Claude handoff (2026-10-13)
+
+- [Self-contained Claude handoff and all 40 selection reviews](CLAUDE_ENHANCEMENT_HANDOFF_2026-10-13.md).
+- [Confirmed amendments: ER-06, ER-24, ER-31](DECISION_AMENDMENTS_2026-10-13.md).
+- [Current reconciled selection data](data/decisions_reconciled_2026-10-13.json).
+
+These three amendments override the original export and historical review only for those IDs.
+ER-07 through ER-15 and the in-flight erasure/derived-visibility follow-ups remain open.
+No implementation or evaluation completion is implied.
+
 The plan of record for restructuring MemSpine as a whole, combining what the 15-engine survey, the gap plan, the
 independent review and the Codex reviews taught us. "v2" is only the name of this plan: there is no separate v2
 package or product. The current code ("v1" below) stays the measured reference until each restructured part passes

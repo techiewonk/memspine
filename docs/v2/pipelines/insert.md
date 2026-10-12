@@ -1,5 +1,10 @@
 # Insert pipeline
 
+> **Accepted amendment (ER-06, 2026-10-13):** write success means durable acceptance,
+> not readiness of every search index or derived layer. The receipt reports readiness per capability.
+> Optional bounded barriers wait for required raw indexes or derived memory/graph. This overrides older
+> "raw searchable at return" wording in the scenarios below. See [decision amendments](../DECISION_AMENDMENTS_2026-10-13.md).
+
 The insert pipeline is the deposit operator $\mathcal{D}$: everything that happens from the moment a caller hands
 MemSpine some content until the derived assertions from it are stored with lineage and trust. It has two halves. The
 **synchronous half** (steps 1 to 8) runs inside the caller's write call: one intake shape, stamping, role policy, the
@@ -266,25 +271,29 @@ Output: route: raw_episodic (L0, type episodic) | raw_resource (L0, type resourc
 
 ### 8. Commit and receipt
 
-- **Purpose:** one SQL transaction holds the WRITE event, the hot projections, the derivation intent and the outbox
-  rows for heavy projections; the receipt returns at once with raw searchable.
+- **Purpose:** atomically commit the WRITE event, participating SQL record projections, derivation intent and
+  outbox rows. Return durable acceptance with per-capability readiness; independent indexes may still be pending.
 - **Runs when:** always.
 - **Model call?** never (the embedding comes from the cache when step 6 or a batch prewarm already paid for it).
 
 ```text
 Input:  routed records with verdicts, idem keys, versions
-Output: Receipt {event_ids[], record_ids[], intent_id, source_id, source_version, raw_searchable, retried[],
-                 quarantined[]}
+Output: Receipt {event_ids[], record_ids[], intent_id, source_id, source_version, accepted_seq,
+                 readiness_by_capability, retried[], quarantined[]}
+        Proposed field names; exact schema to be settled separately.
 ```
 
 - **Writes (one transaction):** `memory_events` WRITE per new segment (quarantined ones carry `firewall.reasons`);
-  records projection; lexical index; vector projection when the embedding is cached, else a `projection` outbox row
-  for the vector; one `DerivationIntent` (= outbox row of kind `derivation`, members = the new raw ids and versions);
-  `projection` outbox rows for graph and any external backend. Layer L0.
+  participating SQL records projection; one `DerivationIntent` with source ids and versions;
+  projection outbox rows for independent lexical, vector and graph backends. A lexical projection participates
+  atomically only when it actually shares this SQL transaction. Cached embeddings do not make a separate
+  vector store part of the SQL transaction. Layer L0.
 - **Reads:** idempotency index, embedding cache.
-- **Failure and retry:** any failure rolls back the whole envelope; the caller retries with the same ids (step 2
-  makes it safe). Under `projection.mode: outbox_all` only the event, records row, intent and outbox rows commit;
-  raw becomes searchable when the runner applies them.
+- **Failure and retry:** failure before the SQL commit rolls back the accepted envelope. After commit,
+  projector failure leaves durable retryable work and pending/failed readiness; it cannot roll back an
+  independent store through SQL. Retry with the same ids. Optional barriers use a captured target and deadline;
+  timeout reports incomplete readiness without undoing an accepted write. Reads use only ready capabilities
+  unless the caller requests a barrier. An ephemeral profile must explicitly report non-durability.
 - **Idempotency:** guaranteed by step 2 plus a unique constraint on (scope, idem_key, source_version).
 - **Ordering and locking:** the namespace lease (a store row, G-19) serialises writers across processes on one
   store; `seq` is monotonic per store. The vector projection never blocks on a model call inside the lease.
