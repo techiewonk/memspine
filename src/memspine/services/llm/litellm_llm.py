@@ -60,6 +60,10 @@ def strip_think(text: str, *, lenient: bool = False) -> str:
     return cleaned.strip() if cleaned != text else text
 
 
+#: litellm provider prefixes served by Ollama, which takes ``think=False`` to switch reasoning off.
+_OLLAMA_PREFIXES = frozenset({"ollama", "ollama_chat"})
+
+
 def _with_no_think(messages: list[dict[str, str]]) -> list[dict[str, str]]:
     """A copy of ``messages`` whose last user message ends with ``/no_think``."""
     out = [dict(message) for message in messages]
@@ -112,6 +116,10 @@ class LiteLLMLLM:
             "messages": _with_no_think(messages) if self.no_think else messages,
             "timeout": self._timeout,
         }
+        if self.no_think and self._model.split("/", 1)[0] in _OLLAMA_PREFIXES:
+            # Ollama ignores the ``/no_think`` suffix for Qwen3.5: the model reasons until max_tokens and the
+            # content comes back empty (86% of window calls failed, 2026-10-12). Its own switch works.
+            kwargs["think"] = False
         if self._api_base is not None:
             kwargs["api_base"] = self._api_base
         if self._api_key is not None:

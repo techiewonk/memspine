@@ -69,6 +69,19 @@ async def test_no_think_suffix_added_for_qwen3_only(monkeypatch: pytest.MonkeyPa
     assert messages[-1]["content"] == "second"  # the caller's list is not mutated
 
 
+async def test_no_think_on_ollama_sends_think_false(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ollama ignores the /no_think suffix for Qwen3.5 (empty content after max_tokens of reasoning, 2026-10-12):
+    the adapter also sends Ollama's own ``think=False``; other providers never get the key."""
+    seen = _capture(monkeypatch, "ok")
+    await LiteLLMLLM("ollama/qwen3.5:9b").chat([{"role": "user", "content": "q"}])
+    await LiteLLMLLM("ollama_chat/qwen3.5:9b", no_think=True).chat([{"role": "user", "content": "q"}])
+    await LiteLLMLLM("ollama/qwen3.5:9b", no_think=False).chat([{"role": "user", "content": "q"}])
+    await LiteLLMLLM(QWEN).chat([{"role": "user", "content": "q"}])
+    assert seen[0]["think"] is False and seen[1]["think"] is False
+    assert "think" not in seen[2]  # thinking explicitly allowed
+    assert "think" not in seen[3]  # not an Ollama provider: the suffix alone
+
+
 async def test_no_think_explicit_override(monkeypatch: pytest.MonkeyPatch) -> None:
     seen = _capture(monkeypatch, "ok")
     await LiteLLMLLM(QWEN, no_think=False).chat([{"role": "user", "content": "q"}])
