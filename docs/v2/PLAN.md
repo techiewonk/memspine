@@ -8,11 +8,11 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | Status | Count |
 |---|---|
 | Not started | 92 |
-| Ready | 5 |
+| Ready | 4 |
 | In progress | 0 |
 | Blocked | 1 |
 | Needs measurement | 3 |
-| Done | 58 |
+| Done | 59 |
 | Dropped | 0 |
 
 ## Phase 0: settle and prepare
@@ -83,7 +83,7 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | LIB-40 | Library: session-close call 2 plan (summary, stitched episode, profile ops) with prompt inputs and validation | L0 L1 ctx | K_C K_P | O-07, O-08, O-09, M-14 | - | MOD-01 | infra | other | `src/memspine/derive/session_close.py` +1 | Unit tests; pure, unwired (wiring in O4-02); depends only on memspine.schemas | **Done** | derive/session_close.py: call-2 plan, validation, deterministic stitching (LIB-40) |
 | LIB-41 | Library: retention classes and audit records per storage profile | L0 L1 L4 L5 ctx scope | D K_C R | G-14, G-15 | - | MOD-01 | infra | other | `src/memspine/trust/retention.py` +1 | Unit tests; pure, unwired (wiring in T5-05); depends only on memspine.schemas | **Done** | trust/retention.py: retention classes, TTL grammar, plans with limited rebuild, hash-chained audit (e31bf2e) |
 | LIB-42 | Library: model tiers, placement, no-model fallbacks, device plan, thinking per role | L0 L1 L4 | D K_C R G | P-01, P-02, P-03, P-15, P-19 | - | MOD-01 | infra | other | `src/memspine/models/tiers.py` +1 | Unit tests; pure, unwired (wiring in MD-01); depends only on memspine.schemas | **Ready** | Library-first split (owner 2026-10-13: parallel agents) |
-| LIB-43 | Library: deep tier sufficiency check and one-rewrite plan (model call injected) | L0 ctx | R C | R-22 | - | MOD-01 | infra | other | `src/memspine/read/deep.py` +1 | Unit tests; pure, unwired (wiring in R3-12); depends only on memspine.schemas | **Ready** | Library-first split (owner 2026-10-13: parallel agents) |
+| LIB-43 | Library: deep tier sufficiency check and one-rewrite plan (model call injected) | L0 ctx | R C | R-22 | - | MOD-01 | infra | other | `src/memspine/read/deep.py` +1 | Unit tests; pure, unwired (wiring in R3-12); depends only on memspine.schemas | **Done** | read/deep.py: rules first, one sufficiency, at most one rewrite, one retrieve, no loop, calls counted (50a3ca6) |
 | LIB-44 | Library: explicit feedback events and observer views (multi-agent) | L1 L4 L5 scope | K_C K_P R | O-25, O-26, M-24 | - | MOD-01 | infra | other | `src/memspine/derive/feedback.py` +1 | Unit tests; pure, unwired (wiring in O4-11); depends only on memspine.schemas | **Ready** | Library-first split (owner 2026-10-13: parallel agents) |
 | LIB-45 | Library: external public knowledge as a separate, labelled, opt-in context block | L0 | R | R-23 | - | MOD-01 | infra | other | `src/memspine/read/external.py` +1 | Unit tests; pure, unwired (wiring in R3-13); depends only on memspine.schemas | **Done** | read/external.py: opt-in plan, labelled public block, domain family, trust cap, dedupe/caps, deposit guard |
 | LIB-46 | Library: prompt layout rules (no examples, stable prefix, same language) as a checker and builder | L0 L1 L3 ctx | D C | W-18, P-07, P-08, P-10 | - | MOD-01 | infra | other | `src/memspine/prompts/layout.py` +1 | Unit tests; pure, unwired (wiring in W2-07); depends only on memspine.schemas | **Ready** | Library-first split (owner 2026-10-13: parallel agents) |
