@@ -39,7 +39,7 @@ WP = [
     ("X-02", 0, "CI: golden, import-linter, blocking gold-lint, single Alembic head, flag-evidence check", ["G-22"], ["P0-04"], "infra",
      "CI fails on each violation", "Not started", ""),
     ("X-03", 0, "Golden fixture: synthetic conversations, hash embedder, reranker off", ["G-04"], [], "infra",
-     "No benchmark text; deterministic", "Ready", ""),
+     "No benchmark text; deterministic", "Done", "tests/golden (c4d61ac): 4 synthetic conversations, 14 queries, frozen clock; stable 6/6 runs"),
     ("X-04", 0, "Docs and ADR: ADR-067 restructure, no-shim wording, G-23 migration-time upcaster", ["G-23"], [], "infra",
      "Docs consistent with 'no shims'", "Done", "ADR-067 (40fb1e2)"),
     ("X-05", 0, "Labelled sets: grounding, alias/homonym/numeric pairs, contradiction recall, global questions",

@@ -508,8 +508,8 @@
    "depends_on": [],
    "kind": "infra",
    "gate": "No benchmark text; deterministic",
-   "status": "Ready",
-   "note": "",
+   "status": "Done",
+   "note": "tests/golden (c4d61ac): 4 synthetic conversations, 14 queries, frozen clock; stable 6/6 runs",
    "layers": [
     "L0",
     "L1",

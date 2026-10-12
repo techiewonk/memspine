@@ -8,11 +8,11 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | Status | Count |
 |---|---|
 | Not started | 98 |
-| Ready | 2 |
+| Ready | 1 |
 | In progress | 2 |
 | Blocked | 1 |
 | Needs measurement | 3 |
-| Done | 6 |
+| Done | 7 |
 | Dropped | 0 |
 
 ## Phase 0: settle and prepare
@@ -31,7 +31,7 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | X-00 | RESTRUCTURE.md: S0-S16, target tree, owned file sets per package | L0 L1 L4 L5 ctx scope | D K_C K_P R C | G-16 | ER-01, ER-04 | - | infra | infra | - | Every F package has an owned-file set; reviewed by the owner | **Done** | Approved by the owner 2026-10-13 |
 | X-01 | Agent brief template and owned-file checker in build_plan.py | L0 L1 L4 L5 ctx scope | D K_C K_P R C | G-16 | ER-02, ER-04 | X-00 | infra | infra | `docs/v2/data/build_plan.py` +2 | No two concurrently runnable packages share an owned file | **Done** | OWNS map, checker, --brief generator (9a13ba1) |
 | X-02 | CI: golden, import-linter, blocking gold-lint, single Alembic head, flag-evidence check | L0 L1 L4 L5 ctx scope | D R C | G-22 | ER-04, ER-38 | P0-04 | infra | infra | - | CI fails on each violation | **Not started** |  |
-| X-03 | Golden fixture: synthetic conversations, hash embedder, reranker off | L0 L1 L4 L5 ctx scope | R C G | G-04 | - | - | infra | infra | `tests/golden/**` | No benchmark text; deterministic | **Ready** |  |
+| X-03 | Golden fixture: synthetic conversations, hash embedder, reranker off | L0 L1 L4 L5 ctx scope | R C G | G-04 | - | - | infra | infra | `tests/golden/**` | No benchmark text; deterministic | **Done** | tests/golden (c4d61ac): 4 synthetic conversations, 14 queries, frozen clock; stable 6/6 runs |
 | X-04 | Docs and ADR: ADR-067 restructure, no-shim wording, G-23 migration-time upcaster | L0 L1 L4 L5 ctx scope | D K_C | G-23 | ER-01 | - | infra | infra | `docs/adr/ADR-067-*` +2 | Docs consistent with 'no shims' | **Done** | ADR-067 (40fb1e2) |
 | X-05 | Labelled sets: grounding, alias/homonym/numeric pairs, contradiction recall, global questions | L1 L3 | D K_C | W-17, W-19, O-13, O-12, O-17 | ER-12, ER-37 | - | infra | infra | - | Invented names, several languages; versioned | **Not started** |  |
 | MOD-01 | memspine.schemas: versioned Pydantic input/output types for every pipeline step; JSON Schema export to docs/v2/schemas | L0 L1 L3 L4 L5 ctx scope | D K_C K_P R C | G-16, M-26 | ER-32, ER-33 | X-00 | infra | other | `src/memspine/schemas/**` +4 | Every step in pipelines/*.md has a schema; export reproducible in CI | **Ready** | Owner 2026-10-13; new files only; sessions 1-2 answered (schemas/SESSIONS_01_02) |
