@@ -11,8 +11,14 @@
 ; imports, which import-linter counts too).
 ;
 ; Target layering: docs/v2/RESTRUCTURE.md section 1 and docs/v2/ARCHITECTURE.md section 8.
-;   api -> (ingest, derive, read, compose) -> (store, models, trust, runtime, prompts) -> schemas
-; Contracts on packages that do not exist yet are vacuous until the package appears.
+;   api -> runtime (the DI container) -> (ingest, derive, read, compose)
+;       -> (store, models, trust, prompts, memory) -> schemas
+; config, observability and errors are cross-cutting: they sit outside the layers and are
+; policed by the forbidden contracts only.
+; CI never feeds this file to lint-imports as is, because it names packages that do not
+; exist yet. scripts/ci_importlinter.py writes a filtered copy that drops every module that
+; does not exist (and any contract left without sources or targets), so a new package is
+; enforced from the commit it appears in. The AST test reads this full file.
 ; Today's v1 packages (core, services, memories, workers, protocols, clients) get their
 ; own transitional contracts at the bottom; delete those as the packages are moved.
 
@@ -25,12 +31,13 @@ include_external_packages = False
 ; ---------------------------------------------------------------------------------------
 
 [importlinter:contract:target-layers]
-name = Target layers: api above the pipelines above the foundations above schemas
+name = Target layers: api above runtime above the pipelines above the foundations above schemas
 type = layers
 layers =
     memspine.api
+    memspine.runtime
     memspine.ingest : memspine.derive : memspine.read : memspine.compose
-    memspine.store : memspine.models : memspine.trust : memspine.runtime : memspine.prompts : memspine.memory
+    memspine.store : memspine.models : memspine.trust : memspine.prompts : memspine.memory
     memspine.schemas
 
 [importlinter:contract:schemas-leaf]
