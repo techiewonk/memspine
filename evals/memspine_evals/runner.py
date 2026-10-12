@@ -42,6 +42,7 @@ from .contracts import (
 )
 from .credentials import is_auth_error
 from .judge import Judge, recall_over_units, unit_ranking
+from .manifest import build_cost, build_identity
 from .metrics import CostModel, Ledger, Stage
 from .provenance import ReaderSpec, RunManifest, RunProtocol, SystemSpec
 from .readers import ServerContextExceeded, find_guard, reader_raw_meta
@@ -250,6 +251,84 @@ class EvalRunner:
             labels=self.config.labels,
             limits=self.config.limits(),
             runtime=self.config.runtime,
+            identity=self.build_identity(info),
+        )
+
+    def build_identity(self, info: Any) -> dict[str, Any]:
+        """P0-03/P0-01: the manifest's ``identity`` block. Flags are the system's ``describe()`` (the engine
+        config the CLI built, plus the harness knobs); prompts are the reader's and the judge's texts; models
+        come from the reader, the judge and the engine config; the slice is the run's item-id filter (None =
+        the whole dataset, which ``dataset.content_sha256`` already pins). Commit, env and venv hashes come
+        from the ``MEMSPINE_*`` variables ``pinned_run.sh`` exports."""
+        flags = dict(self.system.describe())
+        cfg = dict(flags.get("config") or {})
+        read = dict(cfg.get("read") or {})
+        llm = dict(cfg.get("llm") or {})
+        prompts: dict[str, str] = {}
+        reader_prompt = getattr(self.reader, "prompt", None)
+        if isinstance(reader_prompt, str):
+            prompts["reader"] = reader_prompt
+        elif reader_prompt is not None:  # routed / system prompts: hash their description
+            desc = getattr(reader_prompt, "describe", None)
+            prompts["reader"] = repr(sorted(desc().items())) if callable(desc) else repr(reader_prompt)
+        judge_prompt = getattr(self.judge, "prompt", None)
+        if isinstance(judge_prompt, str):
+            prompts["judge"] = judge_prompt
+        elif getattr(self.judge.spec, "prompt_hash", None):
+            prompts["judge"] = "sha256:" + str(self.judge.spec.prompt_hash)
+        models: dict[str, Any] = {
+            "reader": getattr(self.reader, "model", None),
+            "judge": getattr(self.judge.spec, "model", None),
+            "embedder": (cfg.get("embedding") or {}).get("model"),
+            "reranker": read.get("rerank_model"),
+            "worker": llm.get("model") or llm.get("worker_model"),
+        }
+        # Engine config shape is llm.roles.<role>.model (LLMConfig); the extract role is the worker model.
+        roles = llm.get("roles") or {}
+        extract = roles.get("extract") if isinstance(roles, dict) else None
+        if not models["worker"] and isinstance(extract, dict):
+            models["worker"] = extract.get("model")
+        item_ids = (self.config.extra_limits or {}).get("item_ids")
+        identity = build_identity(
+            flags=flags,
+            prompts=prompts,
+            models={k: (str(v) if v else None) for k, v in models.items()},
+            dataset_id=info.dataset_id,
+            slice_id=(self.config.labels or {}).get("slice") or (f"items:{len(item_ids)}" if item_ids else None),
+            slice_ids=item_ids or None,
+        )
+        # the dataset adapter already hashed its bytes; do not read the files again
+        identity["datasets"]["files"] = {str(info.source_path): info.content_sha256}
+        return identity
+
+    def build_cost_block(self, rows: Sequence[ResultRow], duration_s: float) -> dict[str, Any]:
+        """G-25: informational cost and latency of the run, written after it ends (a ``kind: "cost"`` record and
+        ``summary.json``). Reader tokens are summed from the rows; ``worker`` is the engine's own LLM use; a
+        figure the run cannot observe is None."""
+        scored = [r for r in rows if r.scored]
+        worker = {"prompt": 0, "completion": 0}
+        seen = False
+        for roles in self.engine_llm.values():
+            for used in roles.values():
+                seen = True
+                worker["prompt"] += int(used.get("prompt", 0) or 0)
+                worker["completion"] += int(used.get("completion", 0) or 0)
+        tokens: dict[str, dict[str, int | None]] = {
+            "reader": {
+                "prompt": sum(r.prompt_tokens for r in scored),
+                "completion": sum(r.completion_tokens for r in scored),
+            },
+        }
+        if seen:
+            tokens["worker"] = dict(worker)
+        configured = self.rerank_summary()["configured"]
+        return build_cost(
+            tokens=tokens,
+            rerank_calls=int(self.rerank["calls"]) if configured else None,
+            duration_s=round(duration_s, 3),
+            question_latencies_s=[
+                (r.latency_retrieve_ms + r.latency_answer_ms + r.latency_judge_ms) / 1000 for r in scored
+            ],
         )
 
     # -- spend ---------------------------------------------------------------
@@ -458,6 +537,7 @@ class EvalRunner:
 
     async def _run(self) -> RunSummary:
         manifest = self.build_manifest()
+        started_run = time.perf_counter()
         if self.trace_dir is not None:
             self.trace_dir.mkdir(parents=True, exist_ok=True)
             set_trace_dir = getattr(self.system, "set_trace_dir", None)
@@ -524,8 +604,12 @@ class EvalRunner:
                 try:
                     summary = aggregate(manifest, rows, self.ledger)
                     writer.write_summary(summary)
+                    # line 1 (the manifest) is never rewritten: the cost is only known now, so it goes in a
+                    # trailing {"kind": "cost"} record that readers of rows and summaries skip
+                    cost = self.build_cost_block(rows, time.perf_counter() - started_run)
+                    writer.write_cost(cost)
                     self._write_summary_file(
-                        manifest, summary, aborted=crashed or aborted, rows=rows
+                        manifest, summary, aborted=crashed or aborted, rows=rows, cost=cost
                     )
                 except Exception:
                     if crashed is None:
@@ -639,6 +723,7 @@ class EvalRunner:
         summary: RunSummary,
         aborted: BaseException | None = None,
         rows: Sequence[ResultRow] = (),
+        cost: Mapping[str, Any] | None = None,
     ) -> None:
         import json
 
@@ -674,6 +759,8 @@ class EvalRunner:
             [row.to_dict() for row in rows],
             self._judge_server_timings(),
         )
+        if cost is not None:  # the summary's copy of the manifest carries the finished cost block
+            payload["manifest"]["identity"] = {**(payload["manifest"].get("identity") or {}), "cost": dict(cost)}
         payload["adversarial_split"] = _adversarial_split(rows, summary.score_scale)
         payload["ingest_timing"] = ingest_summary(self.ingest_wall)
         runtime_gpu = (payload["manifest"].get("runtime") or {}).get("gpu")

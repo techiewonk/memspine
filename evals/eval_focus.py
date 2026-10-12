@@ -9,6 +9,8 @@ LoCoMo (G-E1): the verdict is PAIRED against the reference run named by --ref, q
   category beyond its own band. --ref is REQUIRED and must differ from the arm. The old slice-label view (fixed FAIL /
   broken CONTROL vs the labels stored in the slice) is still printed, marked informational: it is not a verdict
   (it printed PROMOTE for an arm identical to its reference on 2026-10-11).
+  Each run's manifest (first line of its results.jsonl) is passed to the gate: differing comparability keys give
+  INCOMPARABLE; a run without a manifest still scores, with a "comparability not verified" warning.
 OP-Bench (auto when the run has opbench_summary.json): mean per-probe score change on FAIL and on CONTROL (finalised
   M01 scores vs the slice's baseline_score); est. overall change in points = (sum FAIL delta + mean CONTROL delta *
   n_ok_total) / n_total * 100; PROMOTE iff > +3 pts band and CONTROL mean change >= -0.03.
@@ -23,6 +25,7 @@ from collections import defaultdict
 from pathlib import Path
 
 from memspine_evals.paired_gate import format_result, paired
+from memspine_evals.seal import read_manifest
 
 HERE = Path(__file__).parent
 BROKEN_MAX = 0.03
@@ -149,7 +152,8 @@ def main() -> None:
         print(f"   WARNING: {r['missing']} slice questions have no row in the arm run")
     cat = sl["category"]
     pr = paired({q: correct(d) for q, d in arm.items()}, {q: correct(d) for q, d in ref_rows.items()}, qids,
-                category_of=lambda q: cat.get(q, "?"))
+                category_of=lambda q: cat.get(q, "?"), arm_manifest=read_manifest(run_dir / "results.jsonl"),
+                ref_manifest=read_manifest(ref_path))
     print("   paired gate (G-E1):")
     for line in format_result("LoCoMo slice", pr):
         print("   " + line)

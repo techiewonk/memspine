@@ -962,6 +962,36 @@ place of it. A default changes only through an ADR, after U5 (two independent co
 - `python evals/noise_floor.py --a <run> --b <same-config repeat>`: measured noise floor (I16).
 - `python -m memspine_evals.leakage`: two-user namespace leakage probe, exit 1 on any leak (I19).
 - `forensics_report.py` now also writes abstention P/R/F1, a per-category table with cat 5, trigger fired rates and the memory-used rate (I24).
+## Paired adoption gate (focus, blind, full set)
+
+One gate (`memspine_evals/paired_gate.py`) serves three scorers; each compares an arm with a named reference run
+question by question and prints counts only.
+
+| Scorer | Set | Notes |
+|---|---|---|
+| `eval_focus.py ARM --ref REF` | focus slice (FAIL + CONTROL) | the slice-label view is informational; the verdict is the paired one |
+| `eval_blind.py ARM --ref REF` | the two blind validation sets | aggregates only, sealed one-shot (below) |
+| `eval_paired.py ARM --ref REF` | every question of a full run | categories from each row's `type_label` |
+
+Verdicts: `INCOMPLETE` (a question is missing in either run), `NO CHANGE` (nothing flipped), `PROMOTE` (net above
+0.328*sqrt(n), exact sign test p < 0.05, conversation-cluster bootstrap low > 0, no category beyond its own band),
+`REJECT`, `HOLD`, and `INCOMPARABLE`.
+
+**Manifests are enforced.** Each caller reads the manifest on the first line of each run's `results.jsonl`
+(`seal.read_manifest`) and passes both to `paired()`. If the comparability keys differ (dataset or slice, judge, reader,
+harness version, scoring) the verdict is `INCOMPARABLE` and the differing fields are listed. A run with no manifest still
+scores and prints `WARNING: manifest missing (...): comparability not verified`. An arm's own flags, commit and env never
+make a pair incomparable.
+
+**Sealed one-shot blind run (ER-36).** `eval_blind.py` scores the blind sets only when every run, every question and
+both manifests are present and comparable; otherwise it prints the reason, `INCOMPLETE` or `INCOMPARABLE`, shows no
+aggregate and records nothing. When it does score, it appends one line per set to the exposure ledger
+`<runs-dir>/_logs/blind_exposure.jsonl` (append-only; set id, slice hash, arm commit and flags hash, the manifest's
+comparability key, UTC timestamp, verdict; no question ids). An arm (commit + flags hash; `run:<id>` for a run without
+identity) may be scored on a set once. A second scoring is refused (exit 2, no output) unless
+`--reexpose "<reason>"` is passed; the reason and the number of earlier exposures are recorded. `--ledger PATH`
+overrides the ledger location.
+
 ## Run manifest
 
 Every run records a `RunManifest` (`memspine_evals/provenance.py`). Its `identity` block (`memspine_evals/manifest.py`,
@@ -976,6 +1006,12 @@ run duration and p50/p95 per-question latency; missing figures are null.
 `paired(..., arm_manifest=, ref_manifest=)` returns `INCOMPARABLE` with the differing fields when both manifests are
 given and their keys differ. With a manifest missing the verdict is unchanged and `warnings` says comparability was not
 verified.
+
+The runner fills `identity` on line 1 (`Runner.build_identity`): flags are the system's `describe()`, prompts the reader's and
+judge's texts, models come from the reader, judge and engine config, the slice from the item-id filter, the data file as the
+adapter's own content hash. The `cost` block is only known after the run, so line 1 is never rewritten: a trailing
+`{"kind": "cost", ...}` record is appended after the summary line and the same block is copied into
+`summary.json` (`manifest.identity.cost`). Readers that look for `manifest`, `result` and `summary` lines skip it.
 
 `pinned_run.sh` builds each pinned commit's venv from its own `uv.lock` under `../memspine-venvs/<hash>/`
 (`PINNED_SHARED_VENV=1` keeps the shared venv, `PINNED_DRY_RUN=1` prints the plan, `PINNED_EXTRAS` sets the extras,

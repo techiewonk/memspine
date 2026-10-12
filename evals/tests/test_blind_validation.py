@@ -142,5 +142,6 @@ def test_scorer_reports_missing_and_regression(tmp_path: Path, capsys: pytest.Ca
     _write(tmp_path, "old", "mab", [True] * 100)
     eval_blind.main(["new", "--ref", "old", "--runs-dir", str(tmp_path)])
     out = capsys.readouterr().out
-    assert "ConvoMem: run missing" in out and "REJECT (guard)" in out
+    # ER-36: a partial set is INCOMPLETE and shows no aggregate (it used to reveal REJECT (guard) for the present set)
+    assert "ConvoMem: run missing" in out and "verdict: INCOMPLETE" in out and "net" not in out
     assert eval_blind.verdict([]) == "NO DATA"

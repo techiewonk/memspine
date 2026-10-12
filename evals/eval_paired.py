@@ -5,7 +5,8 @@
 Both runs are read from ``<runs>/<id>--memspine/results.jsonl``. The expected question set is the union of both
 runs, so a question missing from either makes the verdict INCOMPLETE. Correctness uses the date-checked score when
 present (as ``eval_focus.py``); categories come from each row's ``type_label``. Same gate as the focus scorer
-(``memspine_evals.paired_gate``). Prints counts only.
+(``memspine_evals.paired_gate``). Each run's manifest is passed to the gate: differing comparability keys give
+INCOMPARABLE; a run without a manifest still scores, with a "comparability not verified" warning. Prints counts only.
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ import json
 from pathlib import Path
 
 from memspine_evals.paired_gate import format_result, paired
+from memspine_evals.seal import read_manifest
 
 HERE = Path(__file__).parent
 
@@ -24,9 +26,13 @@ def correct(d: dict) -> bool:
     return float(sc or 0) >= 1 and d.get("status") == "completed" and bool((d.get("answer") or "").strip())
 
 
+def results_path(runs: Path, run: str) -> Path:
+    return runs / f"{run}--memspine" / "results.jsonl"
+
+
 def load(runs: Path, run: str) -> dict[str, dict]:
     out: dict[str, dict] = {}
-    for line in (runs / f"{run}--memspine" / "results.jsonl").open(encoding="utf-8"):
+    for line in results_path(runs, run).open(encoding="utf-8"):
         d = json.loads(line)
         if d.get("kind") == "result":
             out[f"{d['item_id']}/{d['query_id']}"] = d
@@ -44,7 +50,9 @@ def main(argv: list[str] | None = None) -> int:
     arm, ref = load(a.runs_dir, a.arm), load(a.runs_dir, a.ref)
     label = {q: d.get("type_label", "?") for q, d in {**ref, **arm}.items()}
     r = paired({q: correct(d) for q, d in arm.items()}, {q: correct(d) for q, d in ref.items()},
-               sorted(set(arm) | set(ref)), category_of=label.__getitem__)
+               sorted(set(arm) | set(ref)), category_of=label.__getitem__,
+               arm_manifest=read_manifest(results_path(a.runs_dir, a.arm)),
+               ref_manifest=read_manifest(results_path(a.runs_dir, a.ref)))
     for line in format_result(f"{a.arm} vs {a.ref}", r):
         print(line)
     print(f"verdict: {r.verdict}")
