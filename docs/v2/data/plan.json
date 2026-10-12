@@ -1970,6 +1970,195 @@
    "review": []
   },
   {
+   "id": "LIB-31",
+   "phase": 1,
+   "title": "Library: pattern observations from value histories and events (recurrence, frequency, trend; opt-in L4)",
+   "decisions": [
+    "O-15",
+    "M-13"
+   ],
+   "depends_on": [
+    "MOD-01"
+   ],
+   "kind": "infra",
+   "gate": "Unit tests; pure, unwired (wiring in O4-05); depends only on memspine.schemas",
+   "status": "Ready",
+   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "layers": [
+    "L1",
+    "L4"
+   ],
+   "operators": [
+    "K_C"
+   ],
+   "files": [
+    "src/memspine/core/records.py",
+    "workers/schedule.py"
+   ],
+   "owns": [
+    "src/memspine/derive/patterns.py",
+    "tests/unit/lib/test_lib_31*.py"
+   ],
+   "lane": "other",
+   "agent": "sonnet",
+   "components": [
+    "ValueHistoryView (L1) + ObservationLayer (L4, held)",
+    "none (no memspine.derive.observations)"
+   ],
+   "review": []
+  },
+  {
+   "id": "LIB-32",
+   "phase": 1,
+   "title": "Library: standing answers and changed-group invalidation (L5, ER-28)",
+   "decisions": [
+    "O-21"
+   ],
+   "depends_on": [
+    "MOD-01"
+   ],
+   "kind": "infra",
+   "gate": "Unit tests; pure, unwired (wiring in O4-08); depends only on memspine.schemas",
+   "status": "Ready",
+   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "layers": [
+    "L1",
+    "L4"
+   ],
+   "operators": [
+    "K_P"
+   ],
+   "files": [],
+   "owns": [
+    "src/memspine/derive/standing.py",
+    "tests/unit/lib/test_lib_32*.py"
+   ],
+   "lane": "other",
+   "agent": "sonnet",
+   "components": [
+    "memspine.derive.standing.StandingAnswers"
+   ],
+   "review": []
+  },
+  {
+   "id": "LIB-33",
+   "phase": 1,
+   "title": "Library: decay tiers, compression policy and multi-resolution text plan (K_C)",
+   "decisions": [
+    "O-22",
+    "M-22",
+    "P-16"
+   ],
+   "depends_on": [
+    "MOD-01"
+   ],
+   "kind": "infra",
+   "gate": "Unit tests; pure, unwired (wiring in O4-09); depends only on memspine.schemas",
+   "status": "Ready",
+   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "layers": [
+    "L0",
+    "L1",
+    "ctx"
+   ],
+   "operators": [
+    "K_C",
+    "C"
+   ],
+   "files": [
+    "workers/pipelines.py",
+    "config/constants.py",
+    "src/memspine/config/schema.py",
+    "src/memspine/core/policies/compression.py"
+   ],
+   "owns": [
+    "src/memspine/derive/decay.py",
+    "tests/unit/lib/test_lib_33*.py"
+   ],
+   "lane": "other",
+   "agent": "sonnet",
+   "components": [
+    "Record.res{gist, note, full_ptr}",
+    "memspine.derive.lifecycle.TierSweep",
+    "prompts.compress"
+   ],
+   "review": []
+  },
+  {
+   "id": "LIB-34",
+   "phase": 1,
+   "title": "Library: entity leg scoring with anti-hub damping",
+   "decisions": [
+    "R-08"
+   ],
+   "depends_on": [
+    "MOD-01"
+   ],
+   "kind": "infra",
+   "gate": "Unit tests; pure, unwired (wiring in R3-05a); depends only on memspine.schemas",
+   "status": "Ready",
+   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "layers": [
+    "L1",
+    "L3"
+   ],
+   "operators": [
+    "R"
+   ],
+   "files": [
+    "src/memspine/config/schema.py",
+    "src/memspine/core/temporal_query.py",
+    "src/memspine/engine.py"
+   ],
+   "owns": [
+    "src/memspine/read/entity_leg.py",
+    "tests/unit/lib/test_lib_34*.py"
+   ],
+   "lane": "other",
+   "agent": "sonnet",
+   "components": [
+    "read.legs.entity"
+   ],
+   "review": []
+  },
+  {
+   "id": "LIB-35",
+   "phase": 1,
+   "title": "Library: edge compiler from assertions (n-ary role edges, tentative tags, link projection)",
+   "decisions": [
+    "M-16"
+   ],
+   "depends_on": [
+    "MOD-01"
+   ],
+   "kind": "infra",
+   "gate": "Unit tests; pure, unwired (wiring in F-02c); depends only on memspine.schemas",
+   "status": "Ready",
+   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "layers": [
+    "L1",
+    "L3"
+   ],
+   "operators": [
+    "D",
+    "R"
+   ],
+   "files": [
+    "src/memspine/core/events.py",
+    "src/memspine/workers/pipelines.py"
+   ],
+   "owns": [
+    "src/memspine/derive/edges.py",
+    "tests/unit/lib/test_lib_35*.py"
+   ],
+   "lane": "other",
+   "agent": "sonnet",
+   "components": [
+    "EdgeCompiler + LinkProjection"
+   ],
+   "review": []
+  },
+  {
    "id": "F-05",
    "phase": 1,
    "title": "Package skeleton; move store and trust leaves",
@@ -2318,7 +2507,8 @@
     "LIB-19",
     "LIB-22",
     "LIB-23",
-    "LIB-24"
+    "LIB-24",
+    "LIB-34"
    ],
    "kind": "move",
    "gate": "Golden byte-identical hit order",
@@ -2890,7 +3080,8 @@
     "M-16"
    ],
    "depends_on": [
-    "F-02b"
+    "F-02b",
+    "LIB-35"
    ],
    "kind": "behaviour",
    "gate": "GC arm screen before the default counts in results",
@@ -4510,7 +4701,8 @@
    ],
    "depends_on": [
     "R3-04",
-    "W2-09"
+    "W2-09",
+    "LIB-34"
    ],
    "kind": "behaviour",
    "gate": "Own focus and blind screen",
@@ -5357,7 +5549,8 @@
    ],
    "depends_on": [
     "O4-04",
-    "F-16a"
+    "F-16a",
+    "LIB-31"
    ],
    "kind": "behaviour",
    "gate": "OP-Bench, PrefEval, MAB-CR non-inferior; sleep calls within budget",
@@ -5480,7 +5673,8 @@
    ],
    "depends_on": [
     "O4-04",
-    "F-16a"
+    "F-16a",
+    "LIB-32"
    ],
    "kind": "behaviour",
    "gate": "Refresh on watermark; cited sources",
@@ -5514,7 +5708,8 @@
     "P-16"
    ],
    "depends_on": [
-    "O4-01b"
+    "O4-01b",
+    "LIB-33"
    ],
    "kind": "behaviour",
    "gate": "Context tokens down at no QA loss",
