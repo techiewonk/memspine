@@ -7,12 +7,12 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 
 | Status | Count |
 |---|---|
-| Not started | 95 |
+| Not started | 94 |
 | Ready | 0 |
 | In progress | 0 |
 | Blocked | 1 |
 | Needs measurement | 3 |
-| Done | 13 |
+| Done | 14 |
 | Dropped | 0 |
 
 ## Phase 0: settle and prepare
@@ -26,7 +26,7 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | P0-05 | Engine LLM fixes: hard per-call bound, think=False on Ollama | L1 L4 | G | P-15 | - | - | behaviour | infra | - | Regression tests | **Done** | 2d05ac7, 798c4b5; re-screens in P0-06 |
 | P0-06 | Re-screen engine-LLM arms on the thinking fix (f-gc9, f-gc3, f-win, f-gc2) | L0 L1 L3 ctx | D K_C K_P R | O-07, O-16, W-12 | - | P0-01, P0-05 | measure | infra | - | Paired gate vs f-jref2-i2 on the focus slice | **Needs measurement** | GPU stopped by the owner; f-gc9 was net +15 before the fix |
 | P0-07 | A03 query contract: full set, then blind sets | ctx | R | R-03 | - | P0-01 | measure | infra | - | PROMOTE on 1,540 vs clean-jina-full, then CONFIRMS on MAB-CR and ConvoMem | **Needs measurement** | Focus +15/-7 net +8 HOLD; full run stopped partway |
-| P0-08 | Benchmark suite and behavioural controls | L0 L1 L4 L5 ctx scope | K_P R C G | G-02, G-04 | ER-36, ER-37 | P0-01 | infra | infra | `evals/suite/**` +3 | Dev: LoCoMo (+cat 5), OP-Bench; blind: MAB-CR, ConvoMem, PrefEval; behavioural suite blocks adoption | **Not started** | LongMemEval stays out |
+| P0-08 | Benchmark suite and behavioural controls | L0 L1 L4 L5 ctx scope | K_P R C G | G-02, G-04 | ER-36, ER-37 | P0-01 | infra | infra | `evals/suite/**` +3 | Dev: LoCoMo (+cat 5), OP-Bench; blind: MAB-CR, ConvoMem, PrefEval; behavioural suite blocks adoption | **Done** | evals/suite: 6 gates, judge ids validated, LongMemEval refused; behavioural baseline 5 PASS / 5 FAIL; safety FAIL rejects (2824ef5, 4e9e438) |
 | P0-09 | Prompt gold-lint over partials and rendered prompts | L1 L3 | D | P-13, W-18 | ER-16, ER-38 | - | infra | infra | `tests/unit/test_prompt_gold_lint.py` +1 | Lint fails on any gold token in any prompt or partial | **Done** | Partials, 51 rendered prompts, 265 inline strings; 4 allowlisted false positives (5bee0d9) |
 | X-00 | RESTRUCTURE.md: S0-S16, target tree, owned file sets per package | L0 L1 L4 L5 ctx scope | D K_C K_P R C | G-16 | ER-01, ER-04 | - | infra | infra | - | Every F package has an owned-file set; reviewed by the owner | **Done** | Approved by the owner 2026-10-13 |
 | X-01 | Agent brief template and owned-file checker in build_plan.py | L0 L1 L4 L5 ctx scope | D K_C K_P R C | G-16 | ER-02, ER-04 | X-00 | infra | infra | `docs/v2/data/build_plan.py` +2 | No two concurrently runnable packages share an owned file | **Done** | OWNS map, checker, --brief generator (9a13ba1) |

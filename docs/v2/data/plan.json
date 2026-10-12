@@ -316,8 +316,8 @@
    ],
    "kind": "infra",
    "gate": "Dev: LoCoMo (+cat 5), OP-Bench; blind: MAB-CR, ConvoMem, PrefEval; behavioural suite blocks adoption",
-   "status": "Not started",
-   "note": "LongMemEval stays out",
+   "status": "Done",
+   "note": "evals/suite: 6 gates, judge ids validated, LongMemEval refused; behavioural baseline 5 PASS / 5 FAIL; safety FAIL rejects (2824ef5, 4e9e438)",
    "layers": [
     "L0",
     "L1",

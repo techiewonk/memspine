@@ -28,7 +28,7 @@ WP = [
      "Focus +15/-7 net +8 HOLD; full run stopped partway"),
     ("P0-08", 0, "Benchmark suite and behavioural controls", ["G-02", "G-04"], ["P0-01"], "infra",
      "Dev: LoCoMo (+cat 5), OP-Bench; blind: MAB-CR, ConvoMem, PrefEval; behavioural suite blocks adoption",
-     "Not started", "LongMemEval stays out"),
+     "Done", "evals/suite: 6 gates, judge ids validated, LongMemEval refused; behavioural baseline 5 PASS / 5 FAIL; safety FAIL rejects (2824ef5, 4e9e438)"),
     ("P0-09", 0, "Prompt gold-lint over partials and rendered prompts", ["P-13", "W-18"], [], "infra",
      "Lint fails on any gold token in any prompt or partial", "Done", "Partials, 51 rendered prompts, 265 inline strings; 4 allowlisted false positives (5bee0d9)"),
     ("X-00", 0, "RESTRUCTURE.md: S0-S16, target tree, owned file sets per package", ["G-16"], [], "infra",
