@@ -76,7 +76,7 @@ WP = [
     ("LIB-14", 1, "Library: segmentation (adaptive window, time-gap cut, token batching, context lines)", ["W-11"], ["MOD-01"], "infra",
      "Unit tests; pure, unwired (wiring in W2-05); depends only on memspine.schemas", "Done", "ingest/segment.py: hard/soft cuts, NEW+CONTEXT lines, oversize split, resume, coverage property (ab1760a)"),
     ("LIB-15", 1, "Library: evidence obligations for joins, durations and lists (what evidence a question needs before answering)", ["R-03", "R-22"], ["MOD-01"], "infra",
-     "Unit tests; pure, unwired (wiring in R3-16); depends only on memspine.schemas", "Ready", "Library-first split (owner 2026-10-13: parallel agents)"),
+     "Unit tests; pure, unwired (wiring in R3-16); depends only on memspine.schemas", "Done", "read/obligations.py: join/duration/list/count/comparison/latest/single obligations, typed holes, follow-ups; R3-16 maps contract"),
     ("LIB-16", 1, "Library: typed query contract by rules (shape, time view, personal vs generic, list/count, render header)", ["R-03", "R-20"], ["MOD-01"], "infra",
      "Unit tests; pure, unwired (wiring in R3-02); depends only on memspine.schemas", "Ready", "Library-first split (owner 2026-10-13: parallel agents)"),
     ("LIB-17", 1, "Library: extraction coverage check and targeted re-extraction plan", ["W-17", "W-15"], ["MOD-01"], "infra",

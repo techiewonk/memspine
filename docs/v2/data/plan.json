@@ -1334,8 +1334,8 @@
    ],
    "kind": "infra",
    "gate": "Unit tests; pure, unwired (wiring in R3-16); depends only on memspine.schemas",
-   "status": "Ready",
-   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "status": "Done",
+   "note": "read/obligations.py: join/duration/list/count/comparison/latest/single obligations, typed holes, follow-ups; R3-16 maps contract",
    "layers": [
     "L0",
     "ctx"

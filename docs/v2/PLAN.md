@@ -8,11 +8,11 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | Status | Count |
 |---|---|
 | Not started | 93 |
-| Ready | 9 |
+| Ready | 8 |
 | In progress | 0 |
 | Blocked | 1 |
 | Needs measurement | 3 |
-| Done | 30 |
+| Done | 31 |
 | Dropped | 0 |
 
 ## Phase 0: settle and prepare
@@ -55,7 +55,7 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | LIB-12 | Library: store-calibrated relevance gate with missing vs conflicting evidence states | L1 ctx | R | R-21 | - | MOD-01 | infra | other | `src/memspine/read/gate.py` +1 | Unit tests; pure, unwired (wiring in R3-11); depends only on memspine.schemas | **Done** | read/gate.py: median/MAD calibration, answerable/missing/conflicting/weak/bypass; R3-11 maps QueryContract to GateContract |
 | LIB-13 | Library: role policy and echo guard (marker plus last-read overlap) and routing | L0 L1 L5 ctx | D | W-06, W-09 | - | MOD-01 | infra | other | `src/memspine/ingest/roles.py` +1 | Unit tests; pure, unwired (wiring in W2-03); depends only on memspine.schemas | **Done** | ingest/roles.py: role policy, echo guard (marker + shingle overlap), routing; user copy-paste = assent candidate (a326ee9) |
 | LIB-14 | Library: segmentation (adaptive window, time-gap cut, token batching, context lines) | L0 | D | W-11 | - | MOD-01 | infra | other | `src/memspine/ingest/segment.py` +1 | Unit tests; pure, unwired (wiring in W2-05); depends only on memspine.schemas | **Done** | ingest/segment.py: hard/soft cuts, NEW+CONTEXT lines, oversize split, resume, coverage property (ab1760a) |
-| LIB-15 | Library: evidence obligations for joins, durations and lists (what evidence a question needs before answering) | L0 ctx | R C | R-03, R-22 | - | MOD-01 | infra | other | `src/memspine/read/obligations.py` +1 | Unit tests; pure, unwired (wiring in R3-16); depends only on memspine.schemas | **Ready** | Library-first split (owner 2026-10-13: parallel agents) |
+| LIB-15 | Library: evidence obligations for joins, durations and lists (what evidence a question needs before answering) | L0 ctx | R C | R-03, R-22 | - | MOD-01 | infra | other | `src/memspine/read/obligations.py` +1 | Unit tests; pure, unwired (wiring in R3-16); depends only on memspine.schemas | **Done** | read/obligations.py: join/duration/list/count/comparison/latest/single obligations, typed holes, follow-ups; R3-16 maps contract |
 | LIB-16 | Library: typed query contract by rules (shape, time view, personal vs generic, list/count, render header) | ctx | R C | R-03, R-20 | - | MOD-01 | infra | other | `src/memspine/read/contract_rules.py` +1 | Unit tests; pure, unwired (wiring in R3-02); depends only on memspine.schemas | **Ready** | Library-first split (owner 2026-10-13: parallel agents) |
 | LIB-17 | Library: extraction coverage check and targeted re-extraction plan | L1 L3 | D | W-17, W-15 | - | MOD-01 | infra | other | `src/memspine/derive/coverage.py` +1 | Unit tests; pure, unwired (wiring in W2-15); depends only on memspine.schemas | **Ready** | Library-first split (owner 2026-10-13: parallel agents) |
 | LIB-18 | Library: privacy tiers, consent and purpose scopes (admission predicates for write and read) | L0 L1 L4 | D K_P R C | G-10, G-11 | - | MOD-01 | infra | other | `src/memspine/trust/consent.py` +1 | Unit tests; pure, unwired (wiring in T5-03); depends only on memspine.schemas | **Done** | trust/consent.py: tiers, consent registry with generation, purpose narrowing, viewer kinds, do-not-derive (0295561) |
