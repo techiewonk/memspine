@@ -6,8 +6,8 @@ Each session ends with a reviewed Pydantic model in `memspine.schemas` (MOD-01) 
 
 | # | Session | Settled semantics it must encode | Objects | Questions to settle in the session | Package |
 |---|---|---|---|---|---|
-| 1 | Versioning policy | ER-33: durable event and public API versions are strict; internal step types are typed but narrower | all | Which objects are persisted or public (strict versions, upcasters) and which are internal (typed, no promise) | MOD-01 |
-| 2 | Trust boundary | ER-32: the model never authors scope, ids, trust, verified state, fencing tokens or generations | ItemV1, AssertionEnvelope | Exact split of model-authored vs system-authored fields; the compiler's validation and rejection rules | MOD-01, W2-06a |
+| 1 | Versioning policy (**answered 2026-10-13**, `schemas/SESSIONS_01_02_2026-10-13.md`) | ER-33: durable event and public API versions are strict; internal step types are typed but narrower | all | Which objects are persisted or public (strict versions, upcasters) and which are internal (typed, no promise) | MOD-01 |
+| 2 | Trust boundary (**answered 2026-10-13**, same file) | ER-32: the model never authors scope, ids, trust, verified state, fencing tokens or generations | ItemV1, AssertionEnvelope | Exact split of model-authored vs system-authored fields; the compiler's validation and rejection rules | MOD-01, W2-06a |
 | 3 | Identity | ER-13: stable memory scope; session as provenance; separate retry, mention, assertion and occurrence identities | Scope, AssertionKey, MentionId, OccurrenceId | Which scope levels key entities (tenant/user/agent policy); how occurrence ids are formed from cited turns | F-01, F-16c |
 | 4 | Evidence and lineage | ER-11 binding evidence role; POL-2 lineage-aware admission; ER-17 source families | Evidence, LineageEdge | Roles (support, binding, context), source-family id, how erasure invalidates dependants | F-16a, W2-08 |
 | 5 | Assessment | ER-14 separate fields | Assessment | Field list (source trust, support strength, binding certainty, time precision, modality); allowed combinations for supersede, graph and tentative evidence | F-02a, W2-10 |
@@ -22,3 +22,6 @@ Each session ends with a reviewed Pydantic model in `memspine.schemas` (MOD-01) 
 Order: sessions 1 and 2 first (they constrain every object), then 3-6 (record content), then 7-9 (runtime), then
 10-12 (read, lifecycle, plug-ins). Proposed improvements stay separate from measured results; no dataset-specific
 examples in any schema.
+
+## Change log
+- 2026-10-13: sessions 1 and 2 answered (three tiers, int versions + upcasters, extra fields allowed, content-only cited model output, open kind set with safe defaults).

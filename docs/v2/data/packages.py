@@ -45,7 +45,7 @@ WP = [
     ("X-05", 0, "Labelled sets: grounding, alias/homonym/numeric pairs, contradiction recall, global questions",
      ["W-17", "W-19", "O-13", "O-12", "O-17"], [], "infra", "Invented names, several languages; versioned", "Not started", ""),
     ("MOD-01", 0, "memspine.schemas: versioned Pydantic input/output types for every pipeline step; JSON Schema export to docs/v2/schemas", ["G-16", "M-26"], ["X-00"], "infra",
-     "Every step in pipelines/*.md has a schema; export reproducible in CI", "Not started", "Owner 2026-10-13; new files only"),
+     "Every step in pipelines/*.md has a schema; export reproducible in CI", "Ready", "Owner 2026-10-13; new files only; sessions 1-2 answered (schemas/SESSIONS_01_02)"),
     ("X-06", 0, "Licence check for a permissive reranker fallback", ["R-14"], [], "infra", "Named fallback with licence", "Done", "Qwen3-Reranker-0.6B (Apache-2.0) primary, MiniLM-L6 CPU (5544e88); owner to confirm"),
     # ---- Phase 1a: pure-move split (one serial lane, golden-gated) ----
     ("F-05", 1, "Package skeleton; move store and trust leaves", ["G-16"], ["P0-04", "X-00", "X-01", "X-02"], "move",

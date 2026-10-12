@@ -637,8 +637,8 @@
    ],
    "kind": "infra",
    "gate": "Every step in pipelines/*.md has a schema; export reproducible in CI",
-   "status": "Not started",
-   "note": "Owner 2026-10-13; new files only",
+   "status": "Ready",
+   "note": "Owner 2026-10-13; new files only; sessions 1-2 answered (schemas/SESSIONS_01_02)",
    "layers": [
     "L0",
     "L1",
