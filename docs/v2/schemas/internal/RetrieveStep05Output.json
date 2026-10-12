@@ -1,0 +1,32 @@
+{
+  "additionalProperties": true,
+  "properties": {
+    "embedder_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Embedder Id"
+    },
+    "vectors": {
+      "items": {
+        "items": {
+          "type": "number"
+        },
+        "type": "array"
+      },
+      "title": "Vectors",
+      "type": "array"
+    }
+  },
+  "required": [
+    "vectors"
+  ],
+  "title": "RetrieveStep05Output",
+  "type": "object"
+}

@@ -1,0 +1,22 @@
+{
+  "additionalProperties": true,
+  "properties": {
+    "blocked_by_guard": {
+      "default": 0,
+      "title": "Blocked By Guard",
+      "type": "integer"
+    },
+    "merged": {
+      "default": 0,
+      "title": "Merged",
+      "type": "integer"
+    },
+    "reinforcement_updates": {
+      "default": 0,
+      "title": "Reinforcement Updates",
+      "type": "integer"
+    }
+  },
+  "title": "OfflineStep08Output",
+  "type": "object"
+}

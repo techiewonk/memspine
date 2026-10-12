@@ -1,0 +1,141 @@
+{
+  "$defs": {
+    "CacheEntryInfo": {
+      "additionalProperties": true,
+      "description": "Step 20 cache description. draft: pending schema session 10 (CacheKey).",
+      "properties": {
+        "cache": {
+          "title": "Cache",
+          "type": "string"
+        },
+        "hit": {
+          "title": "Hit",
+          "type": "boolean"
+        },
+        "key_fingerprint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Key Fingerprint"
+        }
+      },
+      "required": [
+        "cache",
+        "hit"
+      ],
+      "title": "CacheEntryInfo",
+      "type": "object"
+    },
+    "LegHit": {
+      "additionalProperties": true,
+      "description": "draft: pending schema session 10.",
+      "properties": {
+        "record_id": {
+          "title": "Record Id",
+          "type": "string"
+        },
+        "score": {
+          "title": "Score",
+          "type": "number"
+        }
+      },
+      "required": [
+        "record_id",
+        "score"
+      ],
+      "title": "LegHit",
+      "type": "object"
+    },
+    "LegResult": {
+      "additionalProperties": true,
+      "properties": {
+        "elapsed_ms": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Elapsed Ms"
+        },
+        "leg": {
+          "$ref": "#/$defs/NamedLeg"
+        },
+        "timed_out": {
+          "default": false,
+          "title": "Timed Out",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "leg"
+      ],
+      "title": "LegResult",
+      "type": "object"
+    },
+    "NamedLeg": {
+      "additionalProperties": true,
+      "description": "draft: pending schema session 10. ``list[LegHit]`` plus a name and family.",
+      "properties": {
+        "family": {
+          "enum": [
+            "dense",
+            "lexical",
+            "structured",
+            "derived"
+          ],
+          "title": "Family",
+          "type": "string"
+        },
+        "hits": {
+          "items": {
+            "$ref": "#/$defs/LegHit"
+          },
+          "title": "Hits",
+          "type": "array"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "family"
+      ],
+      "title": "NamedLeg",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "properties": {
+    "caches": {
+      "items": {
+        "$ref": "#/$defs/CacheEntryInfo"
+      },
+      "title": "Caches",
+      "type": "array"
+    },
+    "results": {
+      "items": {
+        "$ref": "#/$defs/LegResult"
+      },
+      "title": "Results",
+      "type": "array"
+    }
+  },
+  "required": [
+    "results"
+  ],
+  "title": "RetrieveStep20Output",
+  "type": "object"
+}

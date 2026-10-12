@@ -1,0 +1,24 @@
+{
+  "additionalProperties": true,
+  "description": "S10 Communities.",
+  "properties": {
+    "mode": {
+      "default": "incremental",
+      "enum": [
+        "full",
+        "incremental"
+      ],
+      "title": "Mode",
+      "type": "string"
+    },
+    "ns": {
+      "title": "Ns",
+      "type": "string"
+    }
+  },
+  "required": [
+    "ns"
+  ],
+  "title": "OfflineStep13Input",
+  "type": "object"
+}

@@ -1,0 +1,149 @@
+{
+  "$defs": {
+    "AliasTarget": {
+      "additionalProperties": true,
+      "description": "Alias map value ``n -> (record_id, version)``.",
+      "properties": {
+        "record_id": {
+          "title": "Record Id",
+          "type": "string"
+        },
+        "version": {
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "record_id",
+        "version"
+      ],
+      "title": "AliasTarget",
+      "type": "object"
+    },
+    "DecodingParams": {
+      "additionalProperties": true,
+      "description": "Decoding settings for the extraction call (step 14).",
+      "properties": {
+        "grammar": {
+          "default": true,
+          "title": "Grammar",
+          "type": "boolean"
+        },
+        "max_tokens": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Tokens"
+        },
+        "temperature": {
+          "default": 0.0,
+          "title": "Temperature",
+          "type": "number"
+        },
+        "thinking": {
+          "default": false,
+          "title": "Thinking",
+          "type": "boolean"
+        }
+      },
+      "title": "DecodingParams",
+      "type": "object"
+    },
+    "RenderedPrompt": {
+      "additionalProperties": true,
+      "description": "Step 13 output. draft: pending schema session 4.",
+      "properties": {
+        "alias_map": {
+          "additionalProperties": {
+            "$ref": "#/$defs/AliasTarget"
+          },
+          "title": "Alias Map",
+          "type": "object"
+        },
+        "context_block": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Context Block"
+        },
+        "input_blocks_hash": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Input Blocks Hash"
+        },
+        "known_line": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Known Line"
+        },
+        "prompt_hash": {
+          "title": "Prompt Hash",
+          "type": "string"
+        },
+        "system": {
+          "title": "System",
+          "type": "string"
+        },
+        "user_blocks": {
+          "items": {
+            "type": "string"
+          },
+          "title": "User Blocks",
+          "type": "array"
+        }
+      },
+      "required": [
+        "system",
+        "prompt_hash"
+      ],
+      "title": "RenderedPrompt",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "properties": {
+    "decoding": {
+      "$ref": "#/$defs/DecodingParams"
+    },
+    "json_schema": {
+      "additionalProperties": true,
+      "title": "Json Schema",
+      "type": "object"
+    },
+    "prompt": {
+      "$ref": "#/$defs/RenderedPrompt"
+    }
+  },
+  "required": [
+    "prompt",
+    "json_schema"
+  ],
+  "title": "InsertStep14Input",
+  "type": "object"
+}

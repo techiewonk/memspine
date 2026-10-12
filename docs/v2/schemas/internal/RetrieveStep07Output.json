@@ -1,0 +1,75 @@
+{
+  "$defs": {
+    "FusedHit": {
+      "additionalProperties": true,
+      "properties": {
+        "best_leg": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Best Leg"
+        },
+        "best_rank": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Best Rank"
+        },
+        "families": {
+          "items": {
+            "enum": [
+              "dense",
+              "lexical",
+              "structured",
+              "derived"
+            ],
+            "type": "string"
+          },
+          "title": "Families",
+          "type": "array"
+        },
+        "fused_score": {
+          "title": "Fused Score",
+          "type": "number"
+        },
+        "record_id": {
+          "title": "Record Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "record_id",
+        "fused_score"
+      ],
+      "title": "FusedHit",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "properties": {
+    "fused": {
+      "items": {
+        "$ref": "#/$defs/FusedHit"
+      },
+      "title": "Fused",
+      "type": "array"
+    }
+  },
+  "required": [
+    "fused"
+  ],
+  "title": "RetrieveStep07Output",
+  "type": "object"
+}

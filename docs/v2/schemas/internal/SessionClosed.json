@@ -1,0 +1,48 @@
+{
+  "additionalProperties": true,
+  "properties": {
+    "member_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Member Ids",
+      "type": "array"
+    },
+    "members_fp": {
+      "title": "Members Fp",
+      "type": "string"
+    },
+    "namespace": {
+      "title": "Namespace",
+      "type": "string"
+    },
+    "reason": {
+      "enum": [
+        "explicit",
+        "new_session",
+        "end_of_stream",
+        "idle_fallback"
+      ],
+      "title": "Reason",
+      "type": "string"
+    },
+    "session_id": {
+      "title": "Session Id",
+      "type": "string"
+    },
+    "windows": {
+      "title": "Windows",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "namespace",
+    "session_id",
+    "windows",
+    "member_ids",
+    "members_fp",
+    "reason"
+  ],
+  "title": "SessionClosed",
+  "type": "object"
+}

@@ -1,0 +1,44 @@
+{
+  "additionalProperties": true,
+  "properties": {
+    "envelope_tz": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Envelope Tz"
+    },
+    "segment_source_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Segment Source At"
+    },
+    "segment_tz": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Segment Tz"
+    }
+  },
+  "title": "InsertStep03Input",
+  "type": "object"
+}

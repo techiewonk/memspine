@@ -1,0 +1,89 @@
+{
+  "$defs": {
+    "StageWatermark": {
+      "additionalProperties": true,
+      "description": "draft: pending schema session 8. ER-09: contiguous watermark plus holes.",
+      "properties": {
+        "holes": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Holes",
+          "type": "array"
+        },
+        "ns": {
+          "title": "Ns",
+          "type": "string"
+        },
+        "seq": {
+          "title": "Seq",
+          "type": "integer"
+        },
+        "stage": {
+          "enum": [
+            "retention",
+            "catch_up_extract",
+            "reconcile_resolve",
+            "contradictions",
+            "near_duplicates",
+            "value_histories",
+            "observe_patterns",
+            "session_catch_up",
+            "entity_summaries",
+            "communities",
+            "profile",
+            "observer_views",
+            "standing_answers",
+            "watches_cues",
+            "procedures",
+            "decay",
+            "compress",
+            "log_prune"
+          ],
+          "title": "Stage",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ns",
+        "stage",
+        "seq"
+      ],
+      "title": "StageWatermark",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "description": "S18 Event-log prune.",
+  "properties": {
+    "mode": {
+      "const": "rolling",
+      "default": "rolling",
+      "title": "Mode",
+      "type": "string"
+    },
+    "pending_outbox_source_seqs": {
+      "items": {
+        "type": "integer"
+      },
+      "title": "Pending Outbox Source Seqs",
+      "type": "array"
+    },
+    "retention_days": {
+      "title": "Retention Days",
+      "type": "integer"
+    },
+    "watermarks": {
+      "items": {
+        "$ref": "#/$defs/StageWatermark"
+      },
+      "title": "Watermarks",
+      "type": "array"
+    }
+  },
+  "required": [
+    "retention_days"
+  ],
+  "title": "OfflineStep21Input",
+  "type": "object"
+}

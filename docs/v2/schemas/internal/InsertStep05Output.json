@@ -1,0 +1,25 @@
+{
+  "additionalProperties": true,
+  "properties": {
+    "derive_use": {
+      "enum": [
+        "proposal",
+        "evidence",
+        "stated",
+        "excluded"
+      ],
+      "title": "Derive Use",
+      "type": "string"
+    },
+    "echo": {
+      "title": "Echo",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "derive_use",
+    "echo"
+  ],
+  "title": "InsertStep05Output",
+  "type": "object"
+}

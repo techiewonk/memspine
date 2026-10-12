@@ -1,0 +1,55 @@
+{
+  "$defs": {
+    "AssetRef": {
+      "additionalProperties": true,
+      "description": "draft: field layout pending schema session 4 (evidence).",
+      "properties": {
+        "asset_id": {
+          "title": "Asset Id",
+          "type": "string"
+        },
+        "hash": {
+          "title": "Hash",
+          "type": "string"
+        },
+        "mime": {
+          "title": "Mime",
+          "type": "string"
+        },
+        "url_or_path": {
+          "title": "Url Or Path",
+          "type": "string"
+        }
+      },
+      "required": [
+        "asset_id",
+        "hash",
+        "mime",
+        "url_or_path"
+      ],
+      "title": "AssetRef",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "properties": {
+    "asset": {
+      "$ref": "#/$defs/AssetRef"
+    },
+    "model_id": {
+      "title": "Model Id",
+      "type": "string"
+    },
+    "prompt_hash": {
+      "title": "Prompt Hash",
+      "type": "string"
+    }
+  },
+  "required": [
+    "asset",
+    "prompt_hash",
+    "model_id"
+  ],
+  "title": "InsertStep10Input",
+  "type": "object"
+}

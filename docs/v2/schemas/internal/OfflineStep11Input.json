@@ -1,0 +1,62 @@
+{
+  "$defs": {
+    "SessionGap": {
+      "additionalProperties": true,
+      "properties": {
+        "members_fp": {
+          "title": "Members Fp",
+          "type": "string"
+        },
+        "missing_sections": {
+          "items": {
+            "enum": [
+              "summary",
+              "episode",
+              "profile_ops"
+            ],
+            "type": "string"
+          },
+          "title": "Missing Sections",
+          "type": "array"
+        },
+        "ns": {
+          "title": "Ns",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "session_id": {
+          "title": "Session Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ns",
+        "session_id",
+        "members_fp",
+        "missing_sections",
+        "reason"
+      ],
+      "title": "SessionGap",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "description": "S8 Session catch-up (call-2 fallback).",
+  "properties": {
+    "gaps": {
+      "items": {
+        "$ref": "#/$defs/SessionGap"
+      },
+      "title": "Gaps",
+      "type": "array"
+    }
+  },
+  "required": [
+    "gaps"
+  ],
+  "title": "OfflineStep11Input",
+  "type": "object"
+}

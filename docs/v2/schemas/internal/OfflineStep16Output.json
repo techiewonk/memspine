@@ -1,0 +1,74 @@
+{
+  "$defs": {
+    "AnswerSection": {
+      "additionalProperties": true,
+      "properties": {
+        "cites": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Cites",
+          "type": "array"
+        },
+        "covers_seq": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Covers Seq"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "title": "AnswerSection",
+      "type": "object"
+    },
+    "StandingAnswer": {
+      "additionalProperties": true,
+      "description": "Record layer=L5. draft: pending schema session 5.",
+      "properties": {
+        "question_id": {
+          "title": "Question Id",
+          "type": "string"
+        },
+        "sections": {
+          "items": {
+            "$ref": "#/$defs/AnswerSection"
+          },
+          "title": "Sections",
+          "type": "array"
+        }
+      },
+      "required": [
+        "question_id"
+      ],
+      "title": "StandingAnswer",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "properties": {
+    "answers": {
+      "items": {
+        "$ref": "#/$defs/StandingAnswer"
+      },
+      "title": "Answers",
+      "type": "array"
+    }
+  },
+  "required": [
+    "answers"
+  ],
+  "title": "OfflineStep16Output",
+  "type": "object"
+}

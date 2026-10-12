@@ -1,0 +1,41 @@
+{
+  "additionalProperties": true,
+  "properties": {
+    "bypass": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Bypass"
+    },
+    "passed": {
+      "title": "Passed",
+      "type": "boolean"
+    },
+    "reason": {
+      "title": "Reason",
+      "type": "string"
+    },
+    "threshold": {
+      "title": "Threshold",
+      "type": "number"
+    },
+    "top": {
+      "title": "Top",
+      "type": "number"
+    }
+  },
+  "required": [
+    "passed",
+    "reason",
+    "top",
+    "threshold"
+  ],
+  "title": "GateVerdict",
+  "type": "object"
+}

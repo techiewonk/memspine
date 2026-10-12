@@ -1,0 +1,373 @@
+{
+  "$defs": {
+    "IntentStatus": {
+      "additionalProperties": true,
+      "description": "draft: field layout pending schema session 7 (receipt and readiness).",
+      "properties": {
+        "covers_seq": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Covers Seq"
+        },
+        "failure_class": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Failure Class"
+        },
+        "intent_id": {
+          "title": "Intent Id",
+          "type": "string"
+        },
+        "layers": {
+          "additionalProperties": {
+            "enum": [
+              "pending",
+              "leased",
+              "done",
+              "failed",
+              "underived",
+              "skipped"
+            ],
+            "type": "string"
+          },
+          "title": "Layers",
+          "type": "object"
+        }
+      },
+      "required": [
+        "intent_id",
+        "layers"
+      ],
+      "title": "IntentStatus",
+      "type": "object"
+    },
+    "LedgerEntry": {
+      "additionalProperties": true,
+      "description": "draft: field layout pending schema session 9 (overload and accounting).",
+      "properties": {
+        "cache_state": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cache State"
+        },
+        "call_id": {
+          "title": "Call Id",
+          "type": "string"
+        },
+        "cost_estimate": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cost Estimate"
+        },
+        "items_grounded": {
+          "default": 0,
+          "title": "Items Grounded",
+          "type": "integer"
+        },
+        "items_rejected": {
+          "default": 0,
+          "title": "Items Rejected",
+          "type": "integer"
+        },
+        "items_uncertain": {
+          "default": 0,
+          "title": "Items Uncertain",
+          "type": "integer"
+        },
+        "layer": {
+          "anyOf": [
+            {
+              "enum": [
+                "L0",
+                "L1",
+                "L2",
+                "L3",
+                "L4",
+                "L5"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Layer"
+        },
+        "prompt_hash": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Prompt Hash"
+        },
+        "queue_delay_ms": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Queue Delay Ms"
+        },
+        "retries": {
+          "default": 0,
+          "title": "Retries",
+          "type": "integer"
+        },
+        "role": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Role"
+        },
+        "scope": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Scope"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "template": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Template"
+        },
+        "tier": {
+          "anyOf": [
+            {
+              "enum": [
+                "worker",
+                "reader"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tier"
+        },
+        "tokenizer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tokenizer"
+        },
+        "tokens_in": {
+          "default": 0,
+          "title": "Tokens In",
+          "type": "integer"
+        },
+        "tokens_out": {
+          "default": 0,
+          "title": "Tokens Out",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "call_id"
+      ],
+      "title": "LedgerEntry",
+      "type": "object"
+    },
+    "Scope": {
+      "additionalProperties": true,
+      "description": "draft: field layout pending schema session 3 (identity).",
+      "properties": {
+        "agent": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Agent"
+        },
+        "principal": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Principal"
+        },
+        "purpose": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Purpose"
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Session"
+        },
+        "tenant": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tenant"
+        },
+        "user": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "User"
+        },
+        "viewer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Viewer"
+        }
+      },
+      "title": "Scope",
+      "type": "object"
+    },
+    "WaitResult": {
+      "additionalProperties": true,
+      "description": "draft: field layout pending schema session 7 (receipt and readiness).",
+      "properties": {
+        "status": {
+          "title": "Status",
+          "type": "string"
+        },
+        "waited_ms": {
+          "title": "Waited Ms",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "status",
+        "waited_ms"
+      ],
+      "title": "WaitResult",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "properties": {
+    "ledger_entry": {
+      "$ref": "#/$defs/LedgerEntry"
+    },
+    "status": {
+      "$ref": "#/$defs/IntentStatus"
+    },
+    "wait": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/WaitResult"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "ledger_entry",
+    "status"
+  ],
+  "title": "InsertStep23Output",
+  "type": "object"
+}

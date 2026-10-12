@@ -1,0 +1,55 @@
+{
+  "$defs": {
+    "DedupPair": {
+      "additionalProperties": true,
+      "properties": {
+        "cosine": {
+          "title": "Cosine",
+          "type": "number"
+        },
+        "drop_id": {
+          "title": "Drop Id",
+          "type": "string"
+        },
+        "guard": {
+          "enum": [
+            "pass",
+            "numbers_differ",
+            "dates_differ",
+            "negation_differs"
+          ],
+          "title": "Guard",
+          "type": "string"
+        },
+        "keep_id": {
+          "title": "Keep Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "keep_id",
+        "drop_id",
+        "cosine",
+        "guard"
+      ],
+      "title": "DedupPair",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "description": "S5 Near-duplicates.",
+  "properties": {
+    "pairs": {
+      "items": {
+        "$ref": "#/$defs/DedupPair"
+      },
+      "title": "Pairs",
+      "type": "array"
+    }
+  },
+  "required": [
+    "pairs"
+  ],
+  "title": "OfflineStep08Input",
+  "type": "object"
+}

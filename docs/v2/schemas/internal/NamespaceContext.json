@@ -1,0 +1,34 @@
+{
+  "additionalProperties": true,
+  "description": "Firewall gate-1 context (step 6). draft: pending schema session 5.",
+  "properties": {
+    "nearest_neighbour_similarities": {
+      "items": {
+        "type": "number"
+      },
+      "title": "Nearest Neighbour Similarities",
+      "type": "array"
+    },
+    "query_history_zscore": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Query History Zscore"
+    },
+    "recent_live_contents": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Recent Live Contents",
+      "type": "array"
+    }
+  },
+  "title": "NamespaceContext",
+  "type": "object"
+}

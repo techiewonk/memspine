@@ -1,0 +1,176 @@
+{
+  "$defs": {
+    "DateFilter": {
+      "additionalProperties": true,
+      "description": "Explicit valid/recorded bounds. draft: pending schema session 6 (time).",
+      "properties": {
+        "recorded_from": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Recorded From"
+        },
+        "recorded_to": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Recorded To"
+        },
+        "valid_from": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Valid From"
+        },
+        "valid_to": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Valid To"
+        }
+      },
+      "title": "DateFilter",
+      "type": "object"
+    },
+    "ReadScope": {
+      "additionalProperties": true,
+      "properties": {
+        "as_of_known": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "As Of Known"
+        },
+        "as_of_valid": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "As Of Valid"
+        },
+        "date_filter": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DateFilter"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "multi_party": {
+          "title": "Multi Party",
+          "type": "boolean"
+        },
+        "namespace": {
+          "title": "Namespace",
+          "type": "string"
+        },
+        "purpose": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Purpose"
+        },
+        "sensitivity_bar": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sensitivity Bar"
+        },
+        "viewer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Viewer"
+        },
+        "viewer_rule": {
+          "enum": [
+            "full",
+            "viewer"
+          ],
+          "title": "Viewer Rule",
+          "type": "string"
+        }
+      },
+      "required": [
+        "namespace",
+        "multi_party",
+        "viewer_rule"
+      ],
+      "title": "ReadScope",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "properties": {
+    "scope": {
+      "$ref": "#/$defs/ReadScope"
+    }
+  },
+  "required": [
+    "scope"
+  ],
+  "title": "RetrieveStep02Output",
+  "type": "object"
+}

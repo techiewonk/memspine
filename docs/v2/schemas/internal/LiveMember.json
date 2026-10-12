@@ -1,0 +1,54 @@
+{
+  "additionalProperties": true,
+  "description": "A re-read member record for prompt assembly (step 13). draft: pending schema session 4.",
+  "properties": {
+    "instruction_flag": {
+      "default": false,
+      "title": "Instruction Flag",
+      "type": "boolean"
+    },
+    "quarantined": {
+      "default": false,
+      "title": "Quarantined",
+      "type": "boolean"
+    },
+    "record_id": {
+      "title": "Record Id",
+      "type": "string"
+    },
+    "source_version": {
+      "title": "Source Version",
+      "type": "integer"
+    },
+    "status": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Status"
+    },
+    "text": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Text"
+    }
+  },
+  "required": [
+    "record_id",
+    "source_version"
+  ],
+  "title": "LiveMember",
+  "type": "object"
+}

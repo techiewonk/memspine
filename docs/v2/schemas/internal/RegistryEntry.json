@@ -1,0 +1,29 @@
+{
+  "additionalProperties": true,
+  "description": "Cardinality registry entry (step 21). draft: pending schema session 5.",
+  "properties": {
+    "cardinality": {
+      "enum": [
+        "one",
+        "many"
+      ],
+      "title": "Cardinality",
+      "type": "string"
+    },
+    "exclusive": {
+      "default": false,
+      "title": "Exclusive",
+      "type": "boolean"
+    },
+    "functional": {
+      "default": false,
+      "title": "Functional",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "cardinality"
+  ],
+  "title": "RegistryEntry",
+  "type": "object"
+}

@@ -1,0 +1,77 @@
+{
+  "$defs": {
+    "Cue": {
+      "additionalProperties": true,
+      "properties": {
+        "target_turn_id": {
+          "title": "Target Turn Id",
+          "type": "string"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "trust": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Trust"
+        }
+      },
+      "required": [
+        "text",
+        "target_turn_id"
+      ],
+      "title": "Cue",
+      "type": "object"
+    },
+    "WatchReport": {
+      "additionalProperties": true,
+      "properties": {
+        "due": {
+          "default": 0,
+          "title": "Due",
+          "type": "integer"
+        },
+        "fired": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Fired",
+          "type": "array"
+        },
+        "invalidated": {
+          "default": 0,
+          "title": "Invalidated",
+          "type": "integer"
+        }
+      },
+      "title": "WatchReport",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "properties": {
+    "cues": {
+      "items": {
+        "$ref": "#/$defs/Cue"
+      },
+      "title": "Cues",
+      "type": "array"
+    },
+    "watch_report": {
+      "$ref": "#/$defs/WatchReport"
+    }
+  },
+  "required": [
+    "watch_report"
+  ],
+  "title": "OfflineStep17Output",
+  "type": "object"
+}

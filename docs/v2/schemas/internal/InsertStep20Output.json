@@ -1,0 +1,102 @@
+{
+  "$defs": {
+    "AssertionKey": {
+      "additionalProperties": true,
+      "description": "draft: field layout pending schema session 3 (identity).",
+      "properties": {
+        "dst": {
+          "title": "Dst",
+          "type": "string"
+        },
+        "key_v": {
+          "default": 1,
+          "title": "Key V",
+          "type": "integer"
+        },
+        "kind": {
+          "title": "Kind",
+          "type": "string"
+        },
+        "rel": {
+          "title": "Rel",
+          "type": "string"
+        },
+        "scope": {
+          "title": "Scope",
+          "type": "string"
+        },
+        "src": {
+          "title": "Src",
+          "type": "string"
+        }
+      },
+      "required": [
+        "scope",
+        "src",
+        "rel",
+        "dst",
+        "kind"
+      ],
+      "title": "AssertionKey",
+      "type": "object"
+    },
+    "AttachDecision": {
+      "additionalProperties": true,
+      "description": "``new | support_of(<assertion id>)`` (step 20).",
+      "properties": {
+        "assertion_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Assertion Id"
+        },
+        "mode": {
+          "enum": [
+            "new",
+            "support_of"
+          ],
+          "title": "Mode",
+          "type": "string"
+        }
+      },
+      "required": [
+        "mode"
+      ],
+      "title": "AttachDecision",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "properties": {
+    "attach": {
+      "$ref": "#/$defs/AttachDecision"
+    },
+    "key": {
+      "$ref": "#/$defs/AssertionKey"
+    },
+    "occurrence_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Occurrence Id"
+    }
+  },
+  "required": [
+    "key",
+    "attach"
+  ],
+  "title": "InsertStep20Output",
+  "type": "object"
+}

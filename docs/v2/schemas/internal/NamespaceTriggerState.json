@@ -1,0 +1,64 @@
+{
+  "additionalProperties": true,
+  "description": "draft: pending schema session 8.",
+  "properties": {
+    "deferred_units": {
+      "default": 0,
+      "title": "Deferred Units",
+      "type": "integer"
+    },
+    "deposits_since_run": {
+      "title": "Deposits Since Run",
+      "type": "integer"
+    },
+    "last_deposit_at": {
+      "format": "date-time",
+      "title": "Last Deposit At",
+      "type": "string"
+    },
+    "last_reconcile_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Last Reconcile At"
+    },
+    "last_run_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Last Run At"
+    },
+    "ns": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Ns"
+    }
+  },
+  "required": [
+    "deposits_since_run",
+    "last_deposit_at"
+  ],
+  "title": "NamespaceTriggerState",
+  "type": "object"
+}

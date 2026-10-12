@@ -1,0 +1,20 @@
+{
+  "additionalProperties": true,
+  "description": "draft: field layout pending schema session 7 (receipt and readiness).",
+  "properties": {
+    "status": {
+      "title": "Status",
+      "type": "string"
+    },
+    "waited_ms": {
+      "title": "Waited Ms",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "status",
+    "waited_ms"
+  ],
+  "title": "WaitResult",
+  "type": "object"
+}

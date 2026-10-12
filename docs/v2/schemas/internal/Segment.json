@@ -1,0 +1,188 @@
+{
+  "$defs": {
+    "AssetRef": {
+      "additionalProperties": true,
+      "description": "draft: field layout pending schema session 4 (evidence).",
+      "properties": {
+        "asset_id": {
+          "title": "Asset Id",
+          "type": "string"
+        },
+        "hash": {
+          "title": "Hash",
+          "type": "string"
+        },
+        "mime": {
+          "title": "Mime",
+          "type": "string"
+        },
+        "url_or_path": {
+          "title": "Url Or Path",
+          "type": "string"
+        }
+      },
+      "required": [
+        "asset_id",
+        "hash",
+        "mime",
+        "url_or_path"
+      ],
+      "title": "AssetRef",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "description": "draft: field layout pending schema session 3 (identity).",
+  "properties": {
+    "addressee": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Addressee"
+    },
+    "assets": {
+      "anyOf": [
+        {
+          "items": {
+            "$ref": "#/$defs/AssetRef"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Assets"
+    },
+    "caller_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Caller Id"
+    },
+    "content": {
+      "title": "Content",
+      "type": "string"
+    },
+    "purposes": {
+      "anyOf": [
+        {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Purposes"
+    },
+    "reply_to": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Reply To"
+    },
+    "role": {
+      "enum": [
+        "user",
+        "assistant",
+        "tool",
+        "system",
+        "operator",
+        "document"
+      ],
+      "title": "Role",
+      "type": "string"
+    },
+    "seg_index": {
+      "title": "Seg Index",
+      "type": "integer"
+    },
+    "source_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source At"
+    },
+    "speaker": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Speaker"
+    },
+    "tz": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Tz"
+    },
+    "visibility": {
+      "anyOf": [
+        {
+          "enum": [
+            "private",
+            "participants",
+            "owner_shared"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Visibility"
+    }
+  },
+  "required": [
+    "seg_index",
+    "role",
+    "content"
+  ],
+  "title": "Segment",
+  "type": "object"
+}

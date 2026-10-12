@@ -1,0 +1,71 @@
+{
+  "additionalProperties": true,
+  "description": "draft: field layout pending schema session 5 (profile operations, O-18).",
+  "properties": {
+    "cites": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Cites",
+      "type": "array"
+    },
+    "entry_type": {
+      "enum": [
+        "identity",
+        "attribute",
+        "relationship",
+        "instruction"
+      ],
+      "title": "Entry Type",
+      "type": "string"
+    },
+    "key": {
+      "title": "Key",
+      "type": "string"
+    },
+    "observed_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "string"
+        }
+      ],
+      "title": "Observed At"
+    },
+    "op": {
+      "enum": [
+        "add",
+        "update",
+        "delete",
+        "none"
+      ],
+      "title": "Op",
+      "type": "string"
+    },
+    "stance": {
+      "enum": [
+        "stated",
+        "inferred"
+      ],
+      "title": "Stance",
+      "type": "string"
+    },
+    "value": {
+      "title": "Value",
+      "type": "string"
+    }
+  },
+  "required": [
+    "op",
+    "entry_type",
+    "key",
+    "value",
+    "observed_at",
+    "stance"
+  ],
+  "title": "ProfileOp",
+  "type": "object"
+}

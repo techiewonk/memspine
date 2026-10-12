@@ -1,0 +1,34 @@
+{
+  "additionalProperties": true,
+  "properties": {
+    "applies_to_layers": {
+      "items": {
+        "enum": [
+          "L0",
+          "L1",
+          "L2",
+          "L3",
+          "L4",
+          "L5"
+        ],
+        "type": "string"
+      },
+      "title": "Applies To Layers",
+      "type": "array"
+    },
+    "match": {
+      "title": "Match",
+      "type": "string"
+    },
+    "ttl": {
+      "title": "Ttl",
+      "type": "string"
+    }
+  },
+  "required": [
+    "match",
+    "ttl"
+  ],
+  "title": "RetentionClass",
+  "type": "object"
+}

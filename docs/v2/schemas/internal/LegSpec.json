@@ -1,0 +1,40 @@
+{
+  "additionalProperties": true,
+  "properties": {
+    "family": {
+      "enum": [
+        "dense",
+        "lexical",
+        "structured",
+        "derived"
+      ],
+      "title": "Family",
+      "type": "string"
+    },
+    "fetch_k": {
+      "title": "Fetch K",
+      "type": "integer"
+    },
+    "name": {
+      "title": "Name",
+      "type": "string"
+    },
+    "reason": {
+      "title": "Reason",
+      "type": "string"
+    },
+    "timeout_ms": {
+      "title": "Timeout Ms",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "name",
+    "family",
+    "fetch_k",
+    "timeout_ms",
+    "reason"
+  ],
+  "title": "LegSpec",
+  "type": "object"
+}

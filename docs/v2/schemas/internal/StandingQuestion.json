@@ -1,0 +1,31 @@
+{
+  "additionalProperties": true,
+  "properties": {
+    "id": {
+      "title": "Id",
+      "type": "string"
+    },
+    "ns": {
+      "title": "Ns",
+      "type": "string"
+    },
+    "sections": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Sections",
+      "type": "array"
+    },
+    "text": {
+      "title": "Text",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "ns",
+    "text"
+  ],
+  "title": "StandingQuestion",
+  "type": "object"
+}

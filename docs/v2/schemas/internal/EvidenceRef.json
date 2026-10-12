@@ -1,0 +1,44 @@
+{
+  "additionalProperties": true,
+  "description": "draft: field layout pending schema session 4 (evidence and lineage).",
+  "properties": {
+    "line": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Line"
+    },
+    "source_id": {
+      "title": "Source Id",
+      "type": "string"
+    },
+    "source_version": {
+      "title": "Source Version",
+      "type": "integer"
+    },
+    "span": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Span"
+    }
+  },
+  "required": [
+    "source_id",
+    "source_version"
+  ],
+  "title": "EvidenceRef",
+  "type": "object"
+}

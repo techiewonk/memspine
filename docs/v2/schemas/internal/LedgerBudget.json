@@ -1,0 +1,25 @@
+{
+  "additionalProperties": true,
+  "description": "Step 12 ledger budget. draft: pending schema session 9.",
+  "properties": {
+    "spent": {
+      "default": 0,
+      "title": "Spent",
+      "type": "integer"
+    },
+    "tokens_total": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Tokens Total"
+    }
+  },
+  "title": "LedgerBudget",
+  "type": "object"
+}

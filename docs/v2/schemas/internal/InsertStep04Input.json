@@ -1,0 +1,61 @@
+{
+  "additionalProperties": true,
+  "properties": {
+    "addressee": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Addressee"
+    },
+    "participants": {
+      "anyOf": [
+        {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Participants"
+    },
+    "role": {
+      "enum": [
+        "user",
+        "assistant",
+        "tool",
+        "system",
+        "operator",
+        "document"
+      ],
+      "title": "Role",
+      "type": "string"
+    },
+    "speaker": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Speaker"
+    }
+  },
+  "required": [
+    "role"
+  ],
+  "title": "InsertStep04Input",
+  "type": "object"
+}

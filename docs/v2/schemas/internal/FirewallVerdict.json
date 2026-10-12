@@ -1,0 +1,61 @@
+{
+  "additionalProperties": true,
+  "description": "draft: field layout pending schema session 5 (assessment).",
+  "properties": {
+    "anomalous": {
+      "default": false,
+      "title": "Anomalous",
+      "type": "boolean"
+    },
+    "gate": {
+      "anyOf": [
+        {
+          "enum": [
+            1,
+            2,
+            3
+          ],
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Gate"
+    },
+    "instruction_flag": {
+      "default": false,
+      "title": "Instruction Flag",
+      "type": "boolean"
+    },
+    "quarantine": {
+      "default": false,
+      "title": "Quarantine",
+      "type": "boolean"
+    },
+    "reasons": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Reasons",
+      "type": "array"
+    },
+    "signals_run": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Signals Run",
+      "type": "array"
+    },
+    "trust": {
+      "title": "Trust",
+      "type": "number"
+    }
+  },
+  "required": [
+    "trust"
+  ],
+  "title": "FirewallVerdict",
+  "type": "object"
+}

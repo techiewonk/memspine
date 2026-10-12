@@ -1,0 +1,133 @@
+{
+  "$defs": {
+    "ValueHistoryView": {
+      "additionalProperties": true,
+      "properties": {
+        "attribute": {
+          "title": "Attribute",
+          "type": "string"
+        },
+        "covers_seq": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Covers Seq"
+        },
+        "current": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Current"
+        },
+        "ns": {
+          "title": "Ns",
+          "type": "string"
+        },
+        "open_contests": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Open Contests",
+          "type": "array"
+        },
+        "subject_id": {
+          "title": "Subject Id",
+          "type": "string"
+        },
+        "values": {
+          "items": {
+            "$ref": "#/$defs/ValueSpan"
+          },
+          "title": "Values",
+          "type": "array"
+        }
+      },
+      "required": [
+        "ns",
+        "subject_id",
+        "attribute"
+      ],
+      "title": "ValueHistoryView",
+      "type": "object"
+    },
+    "ValueSpan": {
+      "additionalProperties": true,
+      "properties": {
+        "effective_from": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Effective From"
+        },
+        "effective_to": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Effective To"
+        },
+        "record_id": {
+          "title": "Record Id",
+          "type": "string"
+        },
+        "source_dates": {
+          "items": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "title": "Source Dates",
+          "type": "array"
+        },
+        "value": {
+          "title": "Value"
+        }
+      },
+      "required": [
+        "value",
+        "record_id"
+      ],
+      "title": "ValueSpan",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "properties": {
+    "views": {
+      "items": {
+        "$ref": "#/$defs/ValueHistoryView"
+      },
+      "title": "Views",
+      "type": "array"
+    }
+  },
+  "required": [
+    "views"
+  ],
+  "title": "OfflineStep09Output",
+  "type": "object"
+}

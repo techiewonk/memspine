@@ -1,0 +1,350 @@
+{
+  "$defs": {
+    "DateFilter": {
+      "additionalProperties": true,
+      "description": "Explicit valid/recorded bounds. draft: pending schema session 6 (time).",
+      "properties": {
+        "recorded_from": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Recorded From"
+        },
+        "recorded_to": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Recorded To"
+        },
+        "valid_from": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Valid From"
+        },
+        "valid_to": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Valid To"
+        }
+      },
+      "title": "DateFilter",
+      "type": "object"
+    },
+    "LayerSet": {
+      "additionalProperties": true,
+      "description": "Which layers exist in this namespace (step 4 input).",
+      "properties": {
+        "layers": {
+          "items": {
+            "enum": [
+              "L0",
+              "L1",
+              "L2",
+              "L3",
+              "L4",
+              "L5"
+            ],
+            "type": "string"
+          },
+          "title": "Layers",
+          "type": "array"
+        }
+      },
+      "title": "LayerSet",
+      "type": "object"
+    },
+    "QueryContract": {
+      "additionalProperties": true,
+      "description": "Typed query contract (R-03). draft: pending schema session 10.",
+      "properties": {
+        "answer_type": {
+          "default": "unknown",
+          "enum": [
+            "person",
+            "place",
+            "date",
+            "duration",
+            "count",
+            "quantity",
+            "title",
+            "name",
+            "yesno",
+            "choice",
+            "reason",
+            "description",
+            "entity",
+            "unknown"
+          ],
+          "title": "Answer Type",
+          "type": "string"
+        },
+        "cardinality": {
+          "default": "one",
+          "enum": [
+            "one",
+            "many",
+            "count"
+          ],
+          "title": "Cardinality",
+          "type": "string"
+        },
+        "relation": {
+          "default": "",
+          "title": "Relation",
+          "type": "string"
+        },
+        "request": {
+          "default": "recall",
+          "enum": [
+            "recall",
+            "inference",
+            "recommendation"
+          ],
+          "title": "Request",
+          "type": "string"
+        },
+        "source": {
+          "default": "rules",
+          "enum": [
+            "rules",
+            "llm"
+          ],
+          "title": "Source",
+          "type": "string"
+        },
+        "subjects": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Subjects",
+          "type": "array"
+        },
+        "subtype": {
+          "default": "",
+          "title": "Subtype",
+          "type": "string"
+        },
+        "time_scope": {
+          "default": "",
+          "title": "Time Scope",
+          "type": "string"
+        }
+      },
+      "title": "QueryContract",
+      "type": "object"
+    },
+    "ReadScope": {
+      "additionalProperties": true,
+      "properties": {
+        "as_of_known": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "As Of Known"
+        },
+        "as_of_valid": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "As Of Valid"
+        },
+        "date_filter": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DateFilter"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "multi_party": {
+          "title": "Multi Party",
+          "type": "boolean"
+        },
+        "namespace": {
+          "title": "Namespace",
+          "type": "string"
+        },
+        "purpose": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Purpose"
+        },
+        "sensitivity_bar": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sensitivity Bar"
+        },
+        "viewer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Viewer"
+        },
+        "viewer_rule": {
+          "enum": [
+            "full",
+            "viewer"
+          ],
+          "title": "Viewer Rule",
+          "type": "string"
+        }
+      },
+      "required": [
+        "namespace",
+        "multi_party",
+        "viewer_rule"
+      ],
+      "title": "ReadScope",
+      "type": "object"
+    },
+    "TierPolicy": {
+      "additionalProperties": true,
+      "properties": {
+        "allow_external": {
+          "title": "Allow External",
+          "type": "boolean"
+        },
+        "depth": {
+          "enum": [
+            "fast",
+            "standard",
+            "deep"
+          ],
+          "title": "Depth",
+          "type": "string"
+        },
+        "keep": {
+          "title": "Keep",
+          "type": "integer"
+        },
+        "model_calls": {
+          "title": "Model Calls",
+          "type": "integer"
+        },
+        "pool_per_leg": {
+          "title": "Pool Per Leg",
+          "type": "integer"
+        },
+        "pool_size": {
+          "title": "Pool Size",
+          "type": "integer"
+        },
+        "rerank_mode": {
+          "enum": [
+            "always",
+            "gated",
+            "off"
+          ],
+          "title": "Rerank Mode",
+          "type": "string"
+        },
+        "slo_p95_ms": {
+          "title": "Slo P95 Ms",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "depth",
+        "pool_per_leg",
+        "pool_size",
+        "keep",
+        "model_calls",
+        "rerank_mode",
+        "allow_external",
+        "slo_p95_ms"
+      ],
+      "title": "TierPolicy",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "description": "Route: leg plan, list mode, time view, deep-tier rewrites.",
+  "properties": {
+    "contract": {
+      "$ref": "#/$defs/QueryContract"
+    },
+    "layers": {
+      "$ref": "#/$defs/LayerSet"
+    },
+    "policy": {
+      "$ref": "#/$defs/TierPolicy"
+    },
+    "scope": {
+      "$ref": "#/$defs/ReadScope"
+    }
+  },
+  "required": [
+    "contract",
+    "policy",
+    "scope"
+  ],
+  "title": "RetrieveStep04Input",
+  "type": "object"
+}

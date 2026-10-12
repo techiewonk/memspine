@@ -1,0 +1,29 @@
+{
+  "additionalProperties": true,
+  "properties": {
+    "notes": {
+      "title": "Notes",
+      "type": "integer"
+    },
+    "profile": {
+      "title": "Profile",
+      "type": "integer"
+    },
+    "public": {
+      "title": "Public",
+      "type": "integer"
+    },
+    "raw": {
+      "title": "Raw",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "raw",
+    "notes",
+    "profile",
+    "public"
+  ],
+  "title": "BlockCaps",
+  "type": "object"
+}

@@ -1,0 +1,38 @@
+{
+  "additionalProperties": true,
+  "properties": {
+    "leg": {
+      "enum": [
+        "rerank",
+        "vector"
+      ],
+      "title": "Leg",
+      "type": "string"
+    },
+    "n_probes": {
+      "title": "N Probes",
+      "type": "integer"
+    },
+    "p95": {
+      "title": "P95",
+      "type": "number"
+    },
+    "sd": {
+      "title": "Sd",
+      "type": "number"
+    },
+    "store_size": {
+      "title": "Store Size",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "p95",
+    "sd",
+    "leg",
+    "n_probes",
+    "store_size"
+  ],
+  "title": "StoreCalibration",
+  "type": "object"
+}

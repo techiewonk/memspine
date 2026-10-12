@@ -1,0 +1,40 @@
+{
+  "$defs": {
+    "OutcomeReceipt": {
+      "additionalProperties": true,
+      "description": "Exists at ``memories/procedural/lessons.py:52``; spec lists no fields. draft: pending session 8.",
+      "properties": {
+        "lesson_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lesson Key"
+        }
+      },
+      "title": "OutcomeReceipt",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "description": "S15 Procedures.",
+  "properties": {
+    "receipts": {
+      "items": {
+        "$ref": "#/$defs/OutcomeReceipt"
+      },
+      "title": "Receipts",
+      "type": "array"
+    }
+  },
+  "required": [
+    "receipts"
+  ],
+  "title": "OfflineStep18Input",
+  "type": "object"
+}

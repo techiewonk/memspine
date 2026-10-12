@@ -1,0 +1,45 @@
+{
+  "additionalProperties": true,
+  "properties": {
+    "lesson_key": {
+      "title": "Lesson Key",
+      "type": "string"
+    },
+    "outcome": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Outcome"
+    },
+    "preconditions": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Preconditions",
+      "type": "array"
+    },
+    "stage": {
+      "default": "ADVISORY",
+      "title": "Stage",
+      "type": "string"
+    },
+    "steps": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Steps",
+      "type": "array"
+    }
+  },
+  "required": [
+    "lesson_key"
+  ],
+  "title": "LessonCase",
+  "type": "object"
+}

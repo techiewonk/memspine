@@ -1,0 +1,128 @@
+{
+  "$defs": {
+    "NoteItem": {
+      "additionalProperties": true,
+      "description": "draft: pending schema session 10.",
+      "properties": {
+        "cites": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Cites",
+          "type": "array"
+        },
+        "kind": {
+          "enum": [
+            "fact",
+            "value_history",
+            "profile",
+            "observation"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "record_id": {
+          "title": "Record Id",
+          "type": "string"
+        },
+        "score": {
+          "default": 0.0,
+          "title": "Score",
+          "type": "number"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "text",
+        "record_id"
+      ],
+      "title": "NoteItem",
+      "type": "object"
+    },
+    "Pool": {
+      "additionalProperties": true,
+      "properties": {
+        "entries": {
+          "items": {
+            "$ref": "#/$defs/PoolEntry"
+          },
+          "title": "Entries",
+          "type": "array"
+        },
+        "evicted": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Evicted",
+          "type": "array"
+        }
+      },
+      "title": "Pool",
+      "type": "object"
+    },
+    "PoolEntry": {
+      "additionalProperties": true,
+      "description": "draft: pending schema session 10.",
+      "properties": {
+        "family": {
+          "title": "Family",
+          "type": "string"
+        },
+        "fused_score": {
+          "title": "Fused Score",
+          "type": "number"
+        },
+        "lifted_from": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lifted From"
+        },
+        "protected": {
+          "default": false,
+          "title": "Protected",
+          "type": "boolean"
+        },
+        "record_id": {
+          "title": "Record Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "record_id",
+        "fused_score",
+        "family"
+      ],
+      "title": "PoolEntry",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "properties": {
+    "note_candidates": {
+      "items": {
+        "$ref": "#/$defs/NoteItem"
+      },
+      "title": "Note Candidates",
+      "type": "array"
+    },
+    "pool": {
+      "$ref": "#/$defs/Pool"
+    }
+  },
+  "required": [
+    "pool"
+  ],
+  "title": "RetrieveStep10Output",
+  "type": "object"
+}

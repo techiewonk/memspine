@@ -1,0 +1,368 @@
+{
+  "$defs": {
+    "DerivationBudget": {
+      "additionalProperties": true,
+      "description": "draft: field layout pending schema session 9 (overload and accounting).",
+      "properties": {
+        "by_class": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "title": "By Class",
+          "type": "object"
+        },
+        "spent": {
+          "default": 0,
+          "title": "Spent",
+          "type": "integer"
+        },
+        "tokens_total": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tokens Total"
+        }
+      },
+      "title": "DerivationBudget",
+      "type": "object"
+    },
+    "DirtySet": {
+      "additionalProperties": true,
+      "properties": {
+        "events": {
+          "items": {
+            "$ref": "#/$defs/MemoryEvent"
+          },
+          "title": "Events",
+          "type": "array"
+        },
+        "neighbours": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Neighbours",
+          "type": "array"
+        }
+      },
+      "title": "DirtySet",
+      "type": "object"
+    },
+    "MemoryEvent": {
+      "additionalProperties": true,
+      "description": "draft: field layout pending schema session 8 (jobs); becomes a durable kind.",
+      "properties": {
+        "actor": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Actor"
+        },
+        "event_id": {
+          "title": "Event Id",
+          "type": "string"
+        },
+        "fingerprint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Fingerprint"
+        },
+        "kind": {
+          "title": "Kind",
+          "type": "string"
+        },
+        "payload": {
+          "additionalProperties": true,
+          "title": "Payload",
+          "type": "object"
+        },
+        "schema_version": {
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "scope": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Scope"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "seq": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seq"
+        },
+        "ts": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ts"
+        }
+      },
+      "required": [
+        "event_id",
+        "kind"
+      ],
+      "title": "MemoryEvent",
+      "type": "object"
+    },
+    "NamespaceLease": {
+      "additionalProperties": true,
+      "description": "draft: field layout pending schema session 8 (jobs and progress).",
+      "properties": {
+        "epoch": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Epoch"
+        },
+        "heartbeat_at": {
+          "format": "date-time",
+          "title": "Heartbeat At",
+          "type": "string"
+        },
+        "job_id": {
+          "title": "Job Id",
+          "type": "string"
+        },
+        "lease_until": {
+          "format": "date-time",
+          "title": "Lease Until",
+          "type": "string"
+        },
+        "ns": {
+          "title": "Ns",
+          "type": "string"
+        },
+        "owner": {
+          "title": "Owner",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ns",
+        "owner",
+        "job_id",
+        "lease_until",
+        "heartbeat_at"
+      ],
+      "title": "NamespaceLease",
+      "type": "object"
+    },
+    "Scope": {
+      "additionalProperties": true,
+      "description": "draft: field layout pending schema session 3 (identity).",
+      "properties": {
+        "agent": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Agent"
+        },
+        "principal": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Principal"
+        },
+        "purpose": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Purpose"
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Session"
+        },
+        "tenant": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tenant"
+        },
+        "user": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "User"
+        },
+        "viewer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Viewer"
+        }
+      },
+      "title": "Scope",
+      "type": "object"
+    },
+    "StageWatermark": {
+      "additionalProperties": true,
+      "description": "draft: pending schema session 8. ER-09: contiguous watermark plus holes.",
+      "properties": {
+        "holes": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Holes",
+          "type": "array"
+        },
+        "ns": {
+          "title": "Ns",
+          "type": "string"
+        },
+        "seq": {
+          "title": "Seq",
+          "type": "integer"
+        },
+        "stage": {
+          "enum": [
+            "retention",
+            "catch_up_extract",
+            "reconcile_resolve",
+            "contradictions",
+            "near_duplicates",
+            "value_histories",
+            "observe_patterns",
+            "session_catch_up",
+            "entity_summaries",
+            "communities",
+            "profile",
+            "observer_views",
+            "standing_answers",
+            "watches_cues",
+            "procedures",
+            "decay",
+            "compress",
+            "log_prune"
+          ],
+          "title": "Stage",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ns",
+        "stage",
+        "seq"
+      ],
+      "title": "StageWatermark",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "properties": {
+    "budget": {
+      "$ref": "#/$defs/DerivationBudget"
+    },
+    "dirty": {
+      "additionalProperties": {
+        "$ref": "#/$defs/DirtySet"
+      },
+      "title": "Dirty",
+      "type": "object"
+    },
+    "lease": {
+      "$ref": "#/$defs/NamespaceLease"
+    },
+    "watermarks": {
+      "items": {
+        "$ref": "#/$defs/StageWatermark"
+      },
+      "title": "Watermarks",
+      "type": "array"
+    }
+  },
+  "required": [
+    "lease"
+  ],
+  "title": "OfflineStep02Output",
+  "type": "object"
+}

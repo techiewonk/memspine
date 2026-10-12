@@ -1,0 +1,22 @@
+{
+  "additionalProperties": true,
+  "description": "S14 Watches and cues.",
+  "properties": {
+    "closed_sessions": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Closed Sessions",
+      "type": "array"
+    },
+    "ns": {
+      "title": "Ns",
+      "type": "string"
+    }
+  },
+  "required": [
+    "ns"
+  ],
+  "title": "OfflineStep17Input",
+  "type": "object"
+}

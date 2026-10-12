@@ -1,0 +1,83 @@
+{
+  "additionalProperties": true,
+  "properties": {
+    "candidate": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Candidate"
+    },
+    "confidence": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Confidence"
+    },
+    "evidence_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Evidence Ids",
+      "type": "array"
+    },
+    "group": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Group"
+    },
+    "method": {
+      "enum": [
+        "exact",
+        "alias",
+        "minhash",
+        "llm",
+        "contested",
+        "possible_same",
+        "new"
+      ],
+      "title": "Method",
+      "type": "string"
+    },
+    "name": {
+      "title": "Name",
+      "type": "string"
+    },
+    "target_entity_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Target Entity Id"
+    }
+  },
+  "required": [
+    "name",
+    "method"
+  ],
+  "title": "ResolutionDecision",
+  "type": "object"
+}

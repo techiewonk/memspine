@@ -1,0 +1,59 @@
+{
+  "$defs": {
+    "EntityWork": {
+      "additionalProperties": true,
+      "properties": {
+        "display_name": {
+          "title": "Display Name",
+          "type": "string"
+        },
+        "lines": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Lines",
+          "type": "array"
+        },
+        "member_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Member Ids",
+          "type": "array"
+        },
+        "members_fp": {
+          "title": "Members Fp",
+          "type": "string"
+        },
+        "node_id": {
+          "title": "Node Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "node_id",
+        "display_name",
+        "member_ids",
+        "members_fp"
+      ],
+      "title": "EntityWork",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "description": "S9 Entity summaries.",
+  "properties": {
+    "work": {
+      "items": {
+        "$ref": "#/$defs/EntityWork"
+      },
+      "title": "Work",
+      "type": "array"
+    }
+  },
+  "required": [
+    "work"
+  ],
+  "title": "OfflineStep12Input",
+  "type": "object"
+}

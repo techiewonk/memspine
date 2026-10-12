@@ -1,0 +1,1507 @@
+{
+  "models": [
+    {
+      "file": "internal/AliasTarget.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "AliasTarget",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/AnswerSection.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "AnswerSection",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/AssertionEnvelope.json",
+      "module": "memspine.schemas.steps.shared",
+      "name": "AssertionEnvelope",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/AssertionKey.json",
+      "module": "memspine.schemas.steps.shared",
+      "name": "AssertionKey",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/AssetRef.json",
+      "module": "memspine.schemas.steps.shared",
+      "name": "AssetRef",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/AttachDecision.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "AttachDecision",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/BacklogState.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "BacklogState",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/BlockCaps.json",
+      "module": "memspine.schemas.steps.retrieve",
+      "name": "BlockCaps",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/CacheEntryInfo.json",
+      "module": "memspine.schemas.steps.retrieve",
+      "name": "CacheEntryInfo",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/Call2Episode.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "Call2Episode",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/Call2Input.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "Call2Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/Call2Result.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "Call2Result",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/Call2Summary.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "Call2Summary",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/CallBatch.json",
+      "module": "memspine.schemas.steps.shared",
+      "name": "CallBatch",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/CallUsage.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "CallUsage",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/Candidate.json",
+      "module": "memspine.schemas.steps.retrieve",
+      "name": "Candidate",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/CardEntry.json",
+      "module": "memspine.schemas.steps.shared",
+      "name": "CardEntry",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/CompressResult.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "CompressResult",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/ContextBlock.json",
+      "module": "memspine.schemas.steps.shared",
+      "name": "ContextBlock",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/ContradictionCandidate.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "ContradictionCandidate",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/ContradictionVerdict.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "ContradictionVerdict",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/Cue.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "Cue",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/CycleReport.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "CycleReport",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/DateFilter.json",
+      "module": "memspine.schemas.steps.retrieve",
+      "name": "DateFilter",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/DecodingParams.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "DecodingParams",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/DedupPair.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "DedupPair",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/DeposableEnvelope.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "DeposableEnvelope",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/DerivationBudget.json",
+      "module": "memspine.schemas.steps.shared",
+      "name": "DerivationBudget",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/DirtySet.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "DirtySet",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/EntityMention.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "EntityMention",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/EntityWork.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "EntityWork",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/EventInterval.json",
+      "module": "memspine.schemas.steps.shared",
+      "name": "EventInterval",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/EvidenceBundle.json",
+      "module": "memspine.schemas.steps.shared",
+      "name": "EvidenceBundle",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/EvidenceRef.json",
+      "module": "memspine.schemas.steps.shared",
+      "name": "EvidenceRef",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/ExplicitKey.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "ExplicitKey",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/FailureRecord.json",
+      "module": "memspine.schemas.steps.shared",
+      "name": "FailureRecord",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/Fingerprint.json",
+      "module": "memspine.schemas.steps.shared",
+      "name": "Fingerprint",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/FirewallVerdict.json",
+      "module": "memspine.schemas.steps.shared",
+      "name": "FirewallVerdict",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/FusedHit.json",
+      "module": "memspine.schemas.steps.retrieve",
+      "name": "FusedHit",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/GateVerdict.json",
+      "module": "memspine.schemas.steps.retrieve",
+      "name": "GateVerdict",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/GroundingChecks.json",
+      "module": "memspine.schemas.steps.shared",
+      "name": "GroundingChecks",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/Incumbent.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "Incumbent",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/InsertStep01Input.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "InsertStep01Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/InsertStep01Output.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "InsertStep01Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/InsertStep02Input.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "InsertStep02Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/InsertStep02Output.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "InsertStep02Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/InsertStep03Input.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "InsertStep03Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/InsertStep03Output.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "InsertStep03Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/InsertStep04Input.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "InsertStep04Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/InsertStep04Output.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "InsertStep04Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/InsertStep05Input.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "InsertStep05Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/InsertStep05Output.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "InsertStep05Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/InsertStep06Input.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "InsertStep06Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/InsertStep06Output.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "InsertStep06Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/InsertStep07Input.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "InsertStep07Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/InsertStep07Output.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "InsertStep07Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/InsertStep08Input.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "InsertStep08Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/InsertStep08Output.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "InsertStep08Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/InsertStep09Input.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "InsertStep09Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/InsertStep09Output.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "InsertStep09Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/InsertStep10Input.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "InsertStep10Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/InsertStep10Output.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "InsertStep10Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/InsertStep11Input.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "InsertStep11Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/InsertStep11Output.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "InsertStep11Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/InsertStep12Input.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "InsertStep12Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/InsertStep12Output.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "InsertStep12Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/InsertStep13Input.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "InsertStep13Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/InsertStep13Output.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "InsertStep13Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/InsertStep14Input.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "InsertStep14Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/InsertStep14Output.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "InsertStep14Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/InsertStep15Input.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "InsertStep15Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/InsertStep15Output.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "InsertStep15Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/InsertStep16Input.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "InsertStep16Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/InsertStep16Output.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "InsertStep16Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/InsertStep17Input.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "InsertStep17Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/InsertStep17Output.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "InsertStep17Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/InsertStep18Input.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "InsertStep18Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/InsertStep18Output.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "InsertStep18Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/InsertStep19Input.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "InsertStep19Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/InsertStep19Output.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "InsertStep19Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/InsertStep20Input.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "InsertStep20Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/InsertStep20Output.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "InsertStep20Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/InsertStep21Input.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "InsertStep21Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/InsertStep21Output.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "InsertStep21Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/InsertStep22Input.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "InsertStep22Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/InsertStep22Output.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "InsertStep22Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/InsertStep23Input.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "InsertStep23Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/InsertStep23Output.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "InsertStep23Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/IntegrationVerdict.json",
+      "module": "memspine.schemas.steps.shared",
+      "name": "IntegrationVerdict",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/IntentStatus.json",
+      "module": "memspine.schemas.steps.shared",
+      "name": "IntentStatus",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/ItemV1.json",
+      "module": "memspine.schemas.steps.shared",
+      "name": "ItemV1",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/JobRequest.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "JobRequest",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/LayerSet.json",
+      "module": "memspine.schemas.steps.retrieve",
+      "name": "LayerSet",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/LedgerBudget.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "LedgerBudget",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/LedgerEntry.json",
+      "module": "memspine.schemas.steps.shared",
+      "name": "LedgerEntry",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/LegHit.json",
+      "module": "memspine.schemas.steps.shared",
+      "name": "LegHit",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/LegPlan.json",
+      "module": "memspine.schemas.steps.retrieve",
+      "name": "LegPlan",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/LegResult.json",
+      "module": "memspine.schemas.steps.retrieve",
+      "name": "LegResult",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/LegSpec.json",
+      "module": "memspine.schemas.steps.retrieve",
+      "name": "LegSpec",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/LessonCase.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "LessonCase",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/LineageEdge.json",
+      "module": "memspine.schemas.steps.shared",
+      "name": "LineageEdge",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/LiveMember.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "LiveMember",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/MemoryEvent.json",
+      "module": "memspine.schemas.steps.shared",
+      "name": "MemoryEvent",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/NamedLeg.json",
+      "module": "memspine.schemas.steps.shared",
+      "name": "NamedLeg",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/NamespaceContext.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "NamespaceContext",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/NamespaceLease.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "NamespaceLease",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/NamespaceTriggerState.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "NamespaceTriggerState",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/NeighbourWindow.json",
+      "module": "memspine.schemas.steps.retrieve",
+      "name": "NeighbourWindow",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/NoteItem.json",
+      "module": "memspine.schemas.steps.shared",
+      "name": "NoteItem",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/OfflineStep01Input.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "OfflineStep01Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/OfflineStep01Output.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "OfflineStep01Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/OfflineStep02Input.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "OfflineStep02Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/OfflineStep02Output.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "OfflineStep02Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/OfflineStep03Input.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "OfflineStep03Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/OfflineStep03Output.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "OfflineStep03Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/OfflineStep04Input.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "OfflineStep04Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/OfflineStep04Output.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "OfflineStep04Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/OfflineStep05Input.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "OfflineStep05Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/OfflineStep05Output.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "OfflineStep05Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/OfflineStep06Input.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "OfflineStep06Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/OfflineStep06Output.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "OfflineStep06Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/OfflineStep07Input.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "OfflineStep07Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/OfflineStep07Output.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "OfflineStep07Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/OfflineStep08Input.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "OfflineStep08Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/OfflineStep08Output.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "OfflineStep08Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/OfflineStep09Input.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "OfflineStep09Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/OfflineStep09Output.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "OfflineStep09Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/OfflineStep10Input.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "OfflineStep10Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/OfflineStep10Output.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "OfflineStep10Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/OfflineStep11Input.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "OfflineStep11Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/OfflineStep11Output.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "OfflineStep11Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/OfflineStep12Input.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "OfflineStep12Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/OfflineStep12Output.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "OfflineStep12Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/OfflineStep13Input.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "OfflineStep13Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/OfflineStep13Output.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "OfflineStep13Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/OfflineStep14Input.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "OfflineStep14Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/OfflineStep14Output.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "OfflineStep14Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/OfflineStep15Input.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "OfflineStep15Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/OfflineStep15Output.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "OfflineStep15Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/OfflineStep16Input.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "OfflineStep16Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/OfflineStep16Output.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "OfflineStep16Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/OfflineStep17Input.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "OfflineStep17Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/OfflineStep17Output.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "OfflineStep17Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/OfflineStep18Input.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "OfflineStep18Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/OfflineStep18Output.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "OfflineStep18Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/OfflineStep19Input.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "OfflineStep19Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/OfflineStep19Output.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "OfflineStep19Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/OfflineStep20Input.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "OfflineStep20Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/OfflineStep20Output.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "OfflineStep20Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/OfflineStep21Input.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "OfflineStep21Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/OfflineStep21Output.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "OfflineStep21Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/OfflineStep22Input.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "OfflineStep22Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/OfflineStep22Output.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "OfflineStep22Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/OutboxRow.json",
+      "module": "memspine.schemas.steps.shared",
+      "name": "OutboxRow",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/OutcomeCounters.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "OutcomeCounters",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/OutcomeReceipt.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "OutcomeReceipt",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/ParentState.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "ParentState",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/PartitionResult.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "PartitionResult",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/PatternGroup.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "PatternGroup",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/PendingMerge.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "PendingMerge",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/Pool.json",
+      "module": "memspine.schemas.steps.retrieve",
+      "name": "Pool",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/PoolEntry.json",
+      "module": "memspine.schemas.steps.shared",
+      "name": "PoolEntry",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/ProfileCard.json",
+      "module": "memspine.schemas.steps.shared",
+      "name": "ProfileCard",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/ProfileOp.json",
+      "module": "memspine.schemas.steps.shared",
+      "name": "ProfileOp",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/PublicBlockInput.json",
+      "module": "memspine.schemas.steps.retrieve",
+      "name": "PublicBlockInput",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/QueryContract.json",
+      "module": "memspine.schemas.steps.shared",
+      "name": "QueryContract",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/RankedList.json",
+      "module": "memspine.schemas.steps.retrieve",
+      "name": "RankedList",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/ReadRequest.json",
+      "module": "memspine.schemas.steps.shared",
+      "name": "ReadRequest",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/ReadResult.json",
+      "module": "memspine.schemas.steps.shared",
+      "name": "ReadResult",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/ReadScope.json",
+      "module": "memspine.schemas.steps.retrieve",
+      "name": "ReadScope",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/ReadTrace.json",
+      "module": "memspine.schemas.steps.shared",
+      "name": "ReadTrace",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/Receipt.json",
+      "module": "memspine.schemas.steps.shared",
+      "name": "Receipt",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/Record.json",
+      "module": "memspine.schemas.steps.shared",
+      "name": "Record",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/RegistryEntry.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "RegistryEntry",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/RenderedLine.json",
+      "module": "memspine.schemas.steps.shared",
+      "name": "RenderedLine",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/RenderedPrompt.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "RenderedPrompt",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/Resolution.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "Resolution",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/ResolutionDecision.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "ResolutionDecision",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/RetentionClass.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "RetentionClass",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/RetrieveStep01Input.json",
+      "module": "memspine.schemas.steps.retrieve",
+      "name": "RetrieveStep01Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/RetrieveStep01Output.json",
+      "module": "memspine.schemas.steps.retrieve",
+      "name": "RetrieveStep01Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/RetrieveStep02Input.json",
+      "module": "memspine.schemas.steps.retrieve",
+      "name": "RetrieveStep02Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/RetrieveStep02Output.json",
+      "module": "memspine.schemas.steps.retrieve",
+      "name": "RetrieveStep02Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/RetrieveStep03Input.json",
+      "module": "memspine.schemas.steps.retrieve",
+      "name": "RetrieveStep03Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/RetrieveStep03Output.json",
+      "module": "memspine.schemas.steps.retrieve",
+      "name": "RetrieveStep03Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/RetrieveStep04Input.json",
+      "module": "memspine.schemas.steps.retrieve",
+      "name": "RetrieveStep04Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/RetrieveStep04Output.json",
+      "module": "memspine.schemas.steps.retrieve",
+      "name": "RetrieveStep04Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/RetrieveStep05Input.json",
+      "module": "memspine.schemas.steps.retrieve",
+      "name": "RetrieveStep05Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/RetrieveStep05Output.json",
+      "module": "memspine.schemas.steps.retrieve",
+      "name": "RetrieveStep05Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/RetrieveStep06Input.json",
+      "module": "memspine.schemas.steps.retrieve",
+      "name": "RetrieveStep06Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/RetrieveStep06Output.json",
+      "module": "memspine.schemas.steps.retrieve",
+      "name": "RetrieveStep06Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/RetrieveStep07Input.json",
+      "module": "memspine.schemas.steps.retrieve",
+      "name": "RetrieveStep07Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/RetrieveStep07Output.json",
+      "module": "memspine.schemas.steps.retrieve",
+      "name": "RetrieveStep07Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/RetrieveStep08Input.json",
+      "module": "memspine.schemas.steps.retrieve",
+      "name": "RetrieveStep08Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/RetrieveStep08Output.json",
+      "module": "memspine.schemas.steps.retrieve",
+      "name": "RetrieveStep08Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/RetrieveStep09Input.json",
+      "module": "memspine.schemas.steps.retrieve",
+      "name": "RetrieveStep09Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/RetrieveStep09Output.json",
+      "module": "memspine.schemas.steps.retrieve",
+      "name": "RetrieveStep09Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/RetrieveStep10Input.json",
+      "module": "memspine.schemas.steps.retrieve",
+      "name": "RetrieveStep10Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/RetrieveStep10Output.json",
+      "module": "memspine.schemas.steps.retrieve",
+      "name": "RetrieveStep10Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/RetrieveStep11Input.json",
+      "module": "memspine.schemas.steps.retrieve",
+      "name": "RetrieveStep11Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/RetrieveStep11Output.json",
+      "module": "memspine.schemas.steps.retrieve",
+      "name": "RetrieveStep11Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/RetrieveStep12Input.json",
+      "module": "memspine.schemas.steps.retrieve",
+      "name": "RetrieveStep12Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/RetrieveStep12Output.json",
+      "module": "memspine.schemas.steps.retrieve",
+      "name": "RetrieveStep12Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/RetrieveStep13Input.json",
+      "module": "memspine.schemas.steps.retrieve",
+      "name": "RetrieveStep13Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/RetrieveStep13Output.json",
+      "module": "memspine.schemas.steps.retrieve",
+      "name": "RetrieveStep13Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/RetrieveStep14Input.json",
+      "module": "memspine.schemas.steps.retrieve",
+      "name": "RetrieveStep14Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/RetrieveStep14Output.json",
+      "module": "memspine.schemas.steps.retrieve",
+      "name": "RetrieveStep14Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/RetrieveStep15Input.json",
+      "module": "memspine.schemas.steps.retrieve",
+      "name": "RetrieveStep15Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/RetrieveStep15Output.json",
+      "module": "memspine.schemas.steps.retrieve",
+      "name": "RetrieveStep15Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/RetrieveStep16Input.json",
+      "module": "memspine.schemas.steps.retrieve",
+      "name": "RetrieveStep16Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/RetrieveStep16Output.json",
+      "module": "memspine.schemas.steps.retrieve",
+      "name": "RetrieveStep16Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/RetrieveStep17Input.json",
+      "module": "memspine.schemas.steps.retrieve",
+      "name": "RetrieveStep17Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/RetrieveStep17Output.json",
+      "module": "memspine.schemas.steps.retrieve",
+      "name": "RetrieveStep17Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/RetrieveStep18Input.json",
+      "module": "memspine.schemas.steps.retrieve",
+      "name": "RetrieveStep18Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/RetrieveStep18Output.json",
+      "module": "memspine.schemas.steps.retrieve",
+      "name": "RetrieveStep18Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/RetrieveStep19Input.json",
+      "module": "memspine.schemas.steps.retrieve",
+      "name": "RetrieveStep19Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/RetrieveStep19Output.json",
+      "module": "memspine.schemas.steps.retrieve",
+      "name": "RetrieveStep19Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/RetrieveStep20Input.json",
+      "module": "memspine.schemas.steps.retrieve",
+      "name": "RetrieveStep20Input",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/RetrieveStep20Output.json",
+      "module": "memspine.schemas.steps.retrieve",
+      "name": "RetrieveStep20Output",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/RoutedRecord.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "RoutedRecord",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/Scope.json",
+      "module": "memspine.schemas.steps.shared",
+      "name": "Scope",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/ScoredHit.json",
+      "module": "memspine.schemas.steps.shared",
+      "name": "ScoredHit",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/Segment.json",
+      "module": "memspine.schemas.steps.shared",
+      "name": "Segment",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/SegmentIdentity.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "SegmentIdentity",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/SessionClosed.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "SessionClosed",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/SessionGap.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "SessionGap",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/SkipRecord.json",
+      "module": "memspine.schemas.steps.shared",
+      "name": "SkipRecord",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/SourceEnvelope.json",
+      "module": "memspine.schemas.steps.shared",
+      "name": "SourceEnvelope",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/StageReport.json",
+      "module": "memspine.schemas.steps.shared",
+      "name": "StageReport",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/StageWatermark.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "StageWatermark",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/StampedSegment.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "StampedSegment",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/StandingAnswer.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "StandingAnswer",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/StandingQuestion.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "StandingQuestion",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/StoreCalibration.json",
+      "module": "memspine.schemas.steps.retrieve",
+      "name": "StoreCalibration",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/Sufficiency.json",
+      "module": "memspine.schemas.steps.retrieve",
+      "name": "Sufficiency",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/TierConfig.json",
+      "module": "memspine.schemas.steps.retrieve",
+      "name": "TierConfig",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/TierPolicy.json",
+      "module": "memspine.schemas.steps.retrieve",
+      "name": "TierPolicy",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/TierTransition.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "TierTransition",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/TriggerDecision.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "TriggerDecision",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/TriggerInput.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "TriggerInput",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/Turn.json",
+      "module": "memspine.schemas.steps.shared",
+      "name": "Turn",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/Usage.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "Usage",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/ValidItem.json",
+      "module": "memspine.schemas.steps.insert",
+      "name": "ValidItem",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/ValidityWindow.json",
+      "module": "memspine.schemas.steps.shared",
+      "name": "ValidityWindow",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/ValueHistoryView.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "ValueHistoryView",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/ValueSpan.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "ValueSpan",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/WaitResult.json",
+      "module": "memspine.schemas.steps.shared",
+      "name": "WaitResult",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/WatchReport.json",
+      "module": "memspine.schemas.steps.offline",
+      "name": "WatchReport",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/Window.json",
+      "module": "memspine.schemas.steps.shared",
+      "name": "Window",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/WindowTurn.json",
+      "module": "memspine.schemas.steps.shared",
+      "name": "WindowTurn",
+      "tier": "internal"
+    }
+  ],
+  "note": {
+    "internal": "no promise: exported for reading; diffs are not enforced"
+  }
+}
