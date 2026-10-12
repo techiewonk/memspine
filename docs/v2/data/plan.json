@@ -2521,8 +2521,8 @@
    ],
    "kind": "infra",
    "gate": "Unit tests; pure, unwired (wiring in O4-11); depends only on memspine.schemas",
-   "status": "Ready",
-   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "status": "Done",
+   "note": "derive/feedback.py: explicit-only feedback, permission checks, assertions via integration, correction latency, attenuated observer views",
    "layers": [
     "L1",
     "L4",

@@ -134,7 +134,7 @@ WP = [
     ("LIB-43", 1, "Library: deep tier sufficiency check and one-rewrite plan (model call injected)", ["R-22"], ["MOD-01"], "infra",
      "Unit tests; pure, unwired (wiring in R3-12); depends only on memspine.schemas", "Done", "read/deep.py: rules first, one sufficiency, at most one rewrite, one retrieve, no loop, calls counted (50a3ca6)"),
     ("LIB-44", 1, "Library: explicit feedback events and observer views (multi-agent)", ["O-25", "O-26", "M-24"], ["MOD-01"], "infra",
-     "Unit tests; pure, unwired (wiring in O4-11); depends only on memspine.schemas", "Ready", "Library-first split (owner 2026-10-13: parallel agents)"),
+     "Unit tests; pure, unwired (wiring in O4-11); depends only on memspine.schemas", "Done", "derive/feedback.py: explicit-only feedback, permission checks, assertions via integration, correction latency, attenuated observer views"),
     ("LIB-45", 1, "Library: external public knowledge as a separate, labelled, opt-in context block", ["R-23"], ["MOD-01"], "infra",
      "Unit tests; pure, unwired (wiring in R3-13); depends only on memspine.schemas", "Done", "read/external.py: opt-in plan, labelled public block, domain family, trust cap, dedupe/caps, deposit guard"),
     ("LIB-46", 1, "Library: prompt layout rules (no examples, stable prefix, same language) as a checker and builder", ["W-18", "P-07", "P-08", "P-10"], ["MOD-01"], "infra",
