@@ -545,6 +545,49 @@
    ]
   },
   {
+   "id": "MOD-01",
+   "phase": 0,
+   "title": "memspine.schemas: versioned Pydantic input/output types for every pipeline step; JSON Schema export to docs/v2/schemas",
+   "decisions": [
+    "G-16",
+    "M-26"
+   ],
+   "depends_on": [
+    "X-00"
+   ],
+   "kind": "infra",
+   "gate": "Every step in pipelines/*.md has a schema; export reproducible in CI",
+   "status": "Not started",
+   "note": "Owner 2026-10-13; new files only",
+   "layers": [
+    "L0",
+    "L1",
+    "L3",
+    "L4",
+    "L5",
+    "ctx",
+    "scope"
+   ],
+   "operators": [
+    "D",
+    "K_C",
+    "K_P",
+    "R",
+    "C"
+   ],
+   "files": [
+    "src/memspine/engine.py",
+    "src/memspine/core/events.py",
+    "src/memspine/protocols/tools.py"
+   ],
+   "lane": "other",
+   "agent": "sonnet",
+   "components": [
+    "Upcasters + Record.derivation",
+    "memspine.api (Engine facade, ScopedHandle)"
+   ]
+  },
+  {
    "id": "X-06",
    "phase": 0,
    "title": "Licence check for a permissive reranker fallback",
@@ -654,6 +697,45 @@
    ]
   },
   {
+   "id": "MOD-02",
+   "phase": 1,
+   "title": "Typed registries + entry points: stages, legs, backends, providers, prompts",
+   "decisions": [
+    "G-16"
+   ],
+   "depends_on": [
+    "F-06"
+   ],
+   "kind": "move",
+   "gate": "Built-ins register at import; entry-point plug-in test; golden unchanged",
+   "status": "Not started",
+   "note": "Owner 2026-10-13",
+   "layers": [
+    "L0",
+    "L1",
+    "L4",
+    "L5",
+    "ctx",
+    "scope"
+   ],
+   "operators": [
+    "D",
+    "K_C",
+    "K_P",
+    "R",
+    "C"
+   ],
+   "files": [
+    "src/memspine/engine.py",
+    "src/memspine/protocols/tools.py"
+   ],
+   "lane": "S1 split (serial)",
+   "agent": "sonnet",
+   "components": [
+    "memspine.api (Engine facade, ScopedHandle)"
+   ]
+  },
+  {
    "id": "F-07",
    "phase": 1,
    "title": "Config split and flag registry (per-area flag modules)",
@@ -662,7 +744,7 @@
     "G-22"
    ],
    "depends_on": [
-    "F-06"
+    "MOD-02"
    ],
    "kind": "move",
    "gate": "Same YAML keys; every default flag has evidence",
@@ -697,7 +779,7 @@
   {
    "id": "F-08",
    "phase": 1,
-   "title": "Wiring out of the engine (Services container)",
+   "title": "Wiring out of the engine into a dishka container (app, job, request scopes)",
    "decisions": [
     "G-16"
    ],
@@ -1051,7 +1133,7 @@
   {
    "id": "F-14a",
    "phase": 1,
-   "title": "Retire measured-negative code (slot loop, fact chain, word vectors, decider gate, kuzu, opensearch stub)",
+   "title": "Retire measured-negative and owner-retired code (slot loop, fact chain, word vectors, decider gate, kuzu, opensearch stub, full/compose read modes, v1 read headers)",
    "decisions": [
     "G-22"
    ],
@@ -1244,7 +1326,7 @@
   {
    "id": "F-02c",
    "phase": 1,
-   "title": "Edge compiler and link projection from assertions",
+   "title": "Edge compiler and link projection from assertions (graph ON by default with a worker model)",
    "decisions": [
     "M-16"
    ],
@@ -1252,9 +1334,9 @@
     "F-02b"
    ],
    "kind": "behaviour",
-   "gate": "Built flag-off; GC arm screen",
+   "gate": "GC arm screen before the default counts in results",
    "status": "Not started",
-   "note": "",
+   "note": "I-7: L3 on by default",
    "layers": [
     "L1",
     "L3"
@@ -1345,6 +1427,84 @@
    ]
   },
   {
+   "id": "RT-01",
+   "phase": 1,
+   "title": "Taskiq transport over the outbox: in-memory broker (library), external broker + worker entry point (server)",
+   "decisions": [
+    "G-19",
+    "W-13"
+   ],
+   "depends_on": [
+    "F-04"
+   ],
+   "kind": "behaviour",
+   "gate": "Crash tests with both brokers; unfinished rows re-sent on start",
+   "status": "Not started",
+   "note": "Owner 2026-10-13: outbox = truth, taskiq = transport",
+   "layers": [
+    "L0",
+    "L1",
+    "L3",
+    "ctx"
+   ],
+   "operators": [
+    "D",
+    "K_C"
+   ],
+   "files": [
+    "src/memspine/workers/windows.py",
+    "src/memspine/config/schema.py",
+    "src/memspine/workers/inline.py",
+    "src/memspine/workers/scheduler.py"
+   ],
+   "lane": "S2 foundations (serial: Alembic)",
+   "agent": "sonnet",
+   "components": [
+    "derive.DerivationOutbox (SQL table: membership, source versions, attempts, lease, state)",
+    "memspine.runtime (InlineRunner draining DerivationOutbox)"
+   ]
+  },
+  {
+   "id": "RT-02",
+   "phase": 1,
+   "title": "Executors, priority classes, global model semaphore, backpressure (coalesce, never drop)",
+   "decisions": [
+    "P-20",
+    "W-25",
+    "P-21"
+   ],
+   "depends_on": [
+    "RT-01"
+   ],
+   "kind": "behaviour",
+   "gate": "Load test: reads keep p95 under background load; no dropped work",
+   "status": "Not started",
+   "note": "Async core; GPU encoders micro-batched in dedicated executors",
+   "layers": [
+    "L0",
+    "L1",
+    "ctx"
+   ],
+   "operators": [
+    "D",
+    "K_C",
+    "R"
+   ],
+   "files": [
+    "src/memspine/workers/windows.py",
+    "src/memspine/engine.py",
+    "src/memspine/config/constants.py",
+    "src/memspine/config/schema.py"
+   ],
+   "lane": "S2 foundations (serial: Alembic)",
+   "agent": "sonnet",
+   "components": [
+    "derive.Backpressure (coalesce, age and size caps, underived marker in the outbox)",
+    "economy.slo",
+    "runtime.scheduler"
+   ]
+  },
+  {
    "id": "F-16a",
    "phase": 1,
    "title": "Lineage table and the single derived-write door (layer, parents, trust cap, fingerprint)",
@@ -1353,7 +1513,7 @@
     "G-08"
    ],
    "depends_on": [
-    "F-04"
+    "RT-02"
    ],
    "kind": "behaviour",
    "gate": "Every L1-L5 writer goes through the door; erasure contract test registered",
@@ -1431,7 +1591,7 @@
   {
    "id": "F-16c",
    "phase": 1,
-   "title": "Scope tuple in every row and key; mandatory viewer for multi-party",
+   "title": "Scope tuple in every row and key; multi-party flag; viewerless reads see shared records only",
    "decisions": [
     "M-05",
     "G-12"
@@ -1703,7 +1863,7 @@
   {
    "id": "W2-03",
    "phase": 2,
-   "title": "Role policy, echo guard and routing",
+   "title": "Role policy, echo guard (marker + last-read overlap) and routing",
    "decisions": [
     "W-06",
     "W-09"
@@ -1959,6 +2119,46 @@
    ]
   },
   {
+   "id": "W2-14",
+   "phase": 2,
+   "title": "Temporal extraction by every means: anchor ladder, basis and precision, relations without dates",
+   "decisions": [
+    "W-04",
+    "M-10",
+    "R-07"
+   ],
+   "depends_on": [
+    "W2-06c"
+   ],
+   "kind": "behaviour",
+   "gate": "Temporal category up; no invented exact dates (precision audit)",
+   "status": "Not started",
+   "note": "Owner I-2",
+   "layers": [
+    "L0",
+    "L1",
+    "L3",
+    "L5"
+   ],
+   "operators": [
+    "D",
+    "R"
+   ],
+   "files": [
+    "src/memspine/engine.py",
+    "src/memspine/config/schema.py",
+    "src/memspine/core/temporal_query.py",
+    "src/memspine/config/templates/base.yaml"
+   ],
+   "lane": "S4 extraction (serial)",
+   "agent": "sonnet",
+   "components": [
+    "Envelope.times + GraphProjection edge-time view",
+    "intake.ClockStamper (source_at, source_tz, recorded_at; event interval + precision filled at derivation)",
+    "read.legs.temporal (TimeWindow)"
+   ]
+  },
+  {
    "id": "W2-08",
    "phase": 2,
    "title": "Grounding: spans per assertion, rule checks, assent",
@@ -1966,7 +2166,7 @@
     "W-17"
    ],
    "depends_on": [
-    "W2-06c",
+    "W2-14",
     "X-05"
    ],
    "kind": "behaviour",
@@ -2566,7 +2766,7 @@
   {
    "id": "R3-07",
    "phase": 3,
-   "title": "Jina rerank on every read; licence fallback; bounded boosts",
+   "title": "Jina rerank on every read (pools capped at 64); licence fallback; bounded boosts",
    "decisions": [
     "R-14",
     "R-15",
@@ -2574,7 +2774,7 @@
     "P-18"
    ],
    "depends_on": [
-    "R3-06",
+    "R3-08",
     "X-06"
    ],
    "kind": "behaviour",
@@ -2608,12 +2808,12 @@
   {
    "id": "R3-08",
    "phase": 3,
-   "title": "Lift derived hits to turns under one score (via lineage)",
+   "title": "Lift derived hits to turns BEFORE rerank (via lineage)",
    "decisions": [
     "R-17"
    ],
    "depends_on": [
-    "R3-07",
+    "R3-06",
     "F-16a"
    ],
    "kind": "behaviour",
@@ -2679,7 +2879,7 @@
    ],
    "depends_on": [
     "R3-09a",
-    "R3-08"
+    "R3-07"
    ],
    "kind": "behaviour",
    "gate": "Equal-budget screen",
@@ -2710,7 +2910,7 @@
     "R-19"
    ],
    "depends_on": [
-    "R3-08"
+    "R3-07"
    ],
    "kind": "behaviour",
    "gate": "Focus non-inferior",
@@ -2950,7 +3150,7 @@
   {
    "id": "O4-01a",
    "phase": 4,
-   "title": "Scheduler, triggers, namespace jobs, leases, watermarks",
+   "title": "Non-blocking sleep handles, triggers ((N AND M) OR context C, gap K), namespace jobs, leases, watermarks, daily maintenance",
    "decisions": [
     "O-01",
     "O-02",

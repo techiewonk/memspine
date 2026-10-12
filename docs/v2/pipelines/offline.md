@@ -799,9 +799,26 @@ ValueHistoryView, PatternObservation, ObserverView, StandingAnswer, Cue, LessonC
    - B: most dirty first. Clears the largest backlog, can starve small tenants.
    - C: round-robin. Fair but ignores age.
 
+## Owner decisions (2026-10-13)
+
+These settle the open questions above; where they differ from a recommendation, the owner's answer wins.
+
+| Id | Answer | Reading |
+|---|---|---|
+| OF-1 | sleep() is non-blocking (owner) | sleep() enqueues a job and returns a handle {job_id, status} at once; `await handle.wait()` or `await memory.wait_for_pending()` waits (eval harness and tests only). Per namespace at most one running job and one pending follow-up: concurrent sleep() calls coalesce onto the same follow-up handle. Jobs hold a persisted lease and resume from per-stage watermarks after a crash. |
+| OF-2 | Triggers: (N deposits AND M idle) OR C context pressure (owner) | Full sleep when N new deposits AND M minutes idle; compression when context (working) memory passes C, configurable, default 70% of the context budget. A minimum gap K applies to BOTH trigger kinds (owner). Values are configuration, calibrated on measured cost per cycle. |
+| OF-3 | Fold v1 stages into the decided order | Miners become flag-selected modes of catch-up extraction, rule_edges joins reconcile, the sleep_compute hook is replaced by the stage registry; each mode is retired unless a screen keeps it. |
+| OF-4 | Daily model-free maintenance trigger | Per namespace, on time alone (default daily): retention, due watches, decay, compression, log prune; no model calls. |
+| OF-5/6 | Job pool per profile, oldest dirty first | 1 concurrent namespace job on embedded SQLite, configurable (default 4) on the server profile; oldest dirty namespace first; one global semaphore matched to model-server slots. |
+| RT-1 | Outbox = truth, taskiq = transport (owner) | Every job is written to the SQL outbox in the same transaction as its event; taskiq carries job ids to workers (InMemoryBroker in library mode; Redis/NATS/RabbitMQ broker and separate worker processes in server mode); a worker marks the row done; unfinished rows are re-sent on start. |
+| RT-2 | Async core + dedicated executors | All orchestration async (TaskGroup, timeouts, cancellation); GPU encoders (embedder, Jina) each in one dedicated thread executor with micro-batching; blocking DB/index I/O in a bounded thread pool; model calls async over HTTP behind a global semaphore; a process pool only for CPU-heavy parsing. |
+| RT-3 | Four priority classes, reads first | 1 interactive read, 2 write hot path, 3 online extraction (calls 1 and 2), 4 sleep and maintenance; higher classes go first, lower classes keep a guaranteed minimum share. |
+| RT-4 | Backpressure: coalesce + budget, never drop | Windows coalesce into larger batches, the oldest backlog is marked underived (raw stays searchable), writes never block; backlog-age metric and alert. |
+
 ## Change log
 
 - 2026-10-13: First version from `areas/offline.md` (O-01..O-26, Q3), `areas/model.md`, `areas/govern.md` (G-13,
   G-14, G-19), `areas/write.md` (W-13, W-19, W-25, W-26), `areas/models.md` (P-03, P-12, P-22, P-25) and the code at
   `src/memspine/workers/` and `engine.py` on `feat/local-qwen-stack`: 22 steps (18 sleep stages), 47 scenarios,
   6 open questions.
+- 2026-10-13: open questions answered by the owner (section 'Owner decisions').

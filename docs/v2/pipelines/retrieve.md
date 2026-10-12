@@ -724,8 +724,23 @@ ReadTrace                                                         today as foren
 | Q-R7 | v1 `full` (whole store if it fits) and `compose` (aggregation) read shapes are not in the decided design. | **A. Retire both under G-22**; list mode covers aggregation. B. Keep `full` as an opt-in small-store shortcut that still passes steps 8 and 17. C. Keep both as presets. |
 | Q-R8 | v1 read headers (cards header with its own search, profile, novelty, slots, session digest, recent turns, count and duration sections) run separate searches before the routed read. | **A. Fold facts into the notes block from the single pool; keep profile card as `[profile]`; retire the rest under G-22 unless screened.** B. Keep the headers as opt-in blocks with their own caps. |
 
+## Owner decisions (2026-10-13)
+
+These settle the open questions above; where they differ from a recommendation, the owner's answer wins.
+
+| Id | Answer | Reading |
+|---|---|---|
+| R-Q1 | Lift before rerank | pool -> lift -> one Jina call, so every shown turn has its own score. |
+| R-Q2 | Deep tier: two calls (rewrite + judge) | The 1-call target is amended for the deep tier only. |
+| R-Q3 | Two fast-tier targets | 300 ms p95 without rerank (CPU), 350 ms p95 with Jina on GPU; both in CI on a reference box. |
+| R-Q4 | Rerank pools capped at 64 | Every tier, deep calibrated at 64; no silent zero scores. |
+| R-Q5 | Multi-party flag; no viewer = shared only | Write path sets the flag on a second participant or visibility tag; viewerless reads see owner-shared and unmarked records only (fixes today's no-filter read). |
+| R-Q6 | Gate fires: keep stable prefix, drop evidence | Persona, profile card and standing answers stay; prompt caching keeps working. |
+| R-Q7/8 | Retire full/compose modes and v1 headers | Facts fold into the single-pool notes block; profile card stays as [profile]; anything a screen proves useful comes back. |
+
 ## Change log
 
 - 2026-10-13: first version from `areas/read.md` (R-01..R-26), `areas/models.md` (P-17..P-21), `areas/govern.md`
   (G-09, G-12, G-13, G-15, G-16), `VERIFY.md` Q1-Q9 and `PLAN.md` R3 packages, traced to code at
   `feat/local-qwen-stack` 8c7081a; 20 steps, 40 scenarios, 8 open questions.
+- 2026-10-13: open questions answered by the owner (section 'Owner decisions').

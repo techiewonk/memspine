@@ -138,9 +138,18 @@ memspine itself is restructured on the same principles (owner, 2026-10-12): repl
 aliased; behaviour changes become default only through the gate; the current reference stays reproducible by commit
 (`pinned_run.sh`); stores migrate by replaying the event log (G-16, G-23, G-25). See `RESTRUCTURE.md`.
 
+## 8. Runtime and modular structure (owner, 2026-10-13)
+
+- **Queue:** the SQL outbox is the truth; taskiq is the transport (in-memory broker in library mode, external broker and worker processes in server mode); unfinished rows re-sent on start.
+- **Concurrency:** async core with TaskGroup, timeouts and cancellation; dedicated executors for GPU encoders (micro-batched) and blocking I/O; a global model semaphore; four priority classes (read, write, online extraction, sleep and maintenance) with guaranteed minimum shares; backpressure coalesces and never drops.
+- **Sleep:** non-blocking job handles; one running job and one pending follow-up per namespace; leases and per-stage watermarks; triggers (N deposits AND M idle) OR context pressure C (70%, configurable), both behind the gap K; daily model-free maintenance.
+- **Modules:** typed registries with entry points for stages, legs, backends, providers and prompts; dishka dependency injection with app, job and request scopes; import-linter layer contracts in CI; versioned Pydantic schemas in `memspine.schemas`, exported as JSON Schema to `docs/v2/schemas/`.
+- **Default layers:** L0 always; L1 and L3 (graph) when a worker model is configured; L2, L4, L5 opt-in.
+
 ## Change log
 - 2026-10-11: first version from the 155 answered decisions and the six area reviews.
 - 2026-10-11 (later): section 7 rewritten for Q9 (v2 inside `memspine`).
 - 2026-10-12: owner answers Q1-Q8 applied (pattern observations; Neo4j server graph).
 - 2026-10-12 (later): stale owner-confirmation markers resolved from the Q1-Q8 answers.
 - 2026-10-12 (owner): not a separate v2; memspine is restructured as a whole along this plan; replaced code is deleted, no compatibility shims.
+- 2026-10-13: section 8 (runtime and modular structure) from the owner's answers.

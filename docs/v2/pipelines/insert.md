@@ -964,8 +964,25 @@ change, but the decided `ItemV1` has no field for it.
 - B: a token budget only (for example 300 tokens): adapts to short turns, less predictable for the prefix cache.
 - C: the previous window's last 2 lines plus its gist (M-22): needs L1 gists, which are not built by default.
 
+## Owner decisions (2026-10-13)
+
+These settle the open questions above; where they differ from a recommendation, the owner's answer wins.
+
+| Id | Answer | Reading |
+|---|---|---|
+| I-1 | New source per call without ids | A bare write() with no caller or source id is its own new source; idempotency applies only when an id is passed (documented for retrying callers). |
+| I-2 | Extract time by every means (owner) | Never invent 'now', but extract every temporal signal: anchor order explicit date in text > the line's own date > nearest dated line of the same source > session order > recorded_at. Every extracted time carries `basis` and `precision` (exact/day/month/year/relative/unknown); weak anchors are kept and labelled, never presented as exact. Temporal relations are extracted even without absolute dates (before/after, durations, 'since', 'for N years', counts per period) for the temporal leg. |
+| I-3 | chg: bool on ItemV1 | One output token: the cited lines say the earlier value no longer holds; the conflict ladder reads it as the transition hint (Q7). |
+| I-4 | Quarantined derived items stored inert with reasons | Same as gate 1 for raw: never retrieved, visible to audit and N1 forensics, releasable by review. |
+| I-5 | Provisional entity id now | Facts about a pending_merge entity are keyed on a provisional id and searchable at once; a later merge re-points them through key aliases (M-17). |
+| I-6 | Contest when only one side is dated | Event time when both are dated, recorded time when neither; one dated side -> keep both as contested; the ladder records the basis. |
+| I-7 | Graph layer ON by default (owner) | With a worker model configured, L3 is on by default: edges compiled from every fact, written to the graph store (Ladybug / SQL adjacency embedded, Neo4j server), and the graph read leg runs when the router asks for it (its own screen before it counts in results). Amends Q1: default layers are L0, L1 and L3; L2, L4, L5 stay opt-in. |
+| I-8 | Echo guard: marker + last-read overlap | Recall blocks carry a marker; the fingerprints of blocks rendered by the session's last read are kept; an assistant turn overlapping them is an echo: kept as L0 raw, no facts derived from the echoed part, never counted as support. User restatement counts as assent, not echo. |
+| I-9 | CONTEXT: up to 3 lines, max 200 tokens | Up to 3 previous live, unquarantined lines of the same source, never cited. |
+
 ## Change log
 
 - 2026-10-13: first version. 23 steps, 11 entry points and triggers, 54 scenarios, 9 open questions; written from
   `areas/write.md`, `model.md`, `models.md`, `govern.md` (G-06..G-08, G-13, G-19, G-21), `offline.md` (O-01..O-11),
   `VERIFY.md` section 0 (Q1, Q2, Q4, Q7, Q8), `PLAN.md`, and the code at `beeaff5`.
+- 2026-10-13: open questions answered by the owner (section 'Owner decisions').

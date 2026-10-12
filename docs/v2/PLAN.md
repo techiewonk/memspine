@@ -1,13 +1,13 @@
 # MemSpine restructure plan: work packages and status
 
 Generated from `data/build_plan.py` (the source of truth for rows); status is also kept on the live tracker page and synced back here.
-104 packages cover all 155 decisions. Kinds: **move** = pure restructure (tests and CPU golden), **behaviour** = needs a GPU screen through the paired gate, **measure** = a run, **infra** = tooling.
+109 packages cover all 155 decisions. Kinds: **move** = pure restructure (tests and CPU golden), **behaviour** = needs a GPU screen through the paired gate, **measure** = a run, **infra** = tooling.
 
 Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summaries, L3 graph, L4 observations and profile, L5 standing answers, procedures and plans; ctx = working context. Ops are the loop operators (D deposit, K_C consolidate, K_P personalise, R retrieve, C compose, G generate). Each package is one task for one agent (Sonnet); packages in a `serial` lane run one at a time, different lanes may run in parallel once their dependencies are Done.
 
 | Status | Count |
 |---|---|
-| Not started | 94 |
+| Not started | 99 |
 | Ready | 3 |
 | In progress | 3 |
 | Blocked | 1 |
@@ -34,6 +34,7 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | X-03 | Golden fixture: synthetic conversations, hash embedder, reranker off | L0 L1 L4 L5 ctx scope | R C G | G-04 | - | infra | infra | No benchmark text; deterministic | **Ready** |  |
 | X-04 | Docs and ADR: ADR-067 restructure, no-shim wording, G-23 migration-time upcaster | L0 L1 L4 L5 ctx scope | D K_C | G-23 | - | infra | infra | Docs consistent with 'no shims' | **Ready** |  |
 | X-05 | Labelled sets: grounding, alias/homonym/numeric pairs, contradiction recall, global questions | L1 L3 | D K_C | W-17, W-19, O-13, O-12, O-17 | - | infra | infra | Invented names, several languages; versioned | **Not started** |  |
+| MOD-01 | memspine.schemas: versioned Pydantic input/output types for every pipeline step; JSON Schema export to docs/v2/schemas | L0 L1 L3 L4 L5 ctx scope | D K_C K_P R C | G-16, M-26 | X-00 | infra | other | Every step in pipelines/*.md has a schema; export reproducible in CI | **Not started** | Owner 2026-10-13; new files only |
 | X-06 | Licence check for a permissive reranker fallback | L0 L1 | R | R-14 | - | infra | infra | Named fallback with licence | **Not started** | Q6 |
 
 ## Phase 1: foundations (restructure in place)
@@ -42,8 +43,9 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 |---|---|---|---|---|---|---|---|---|---|---|
 | F-05 | Package skeleton; move store and trust leaves | L0 L1 L4 L5 ctx scope | D K_C K_P R C | G-16 | P0-04, X-00, X-02 | move | S1 split (serial) | Both suites and golden green; no old import paths | **Not started** | S5 |
 | F-06 | Move read, compose and models leaves | L0 L1 L4 L5 ctx scope | D K_C K_P R C | G-16 | F-05 | move | S1 split (serial) | Same as F-05 | **Not started** | S6 |
-| F-07 | Config split and flag registry (per-area flag modules) | L0 L1 L4 L5 ctx scope | D R C | G-21, G-22 | F-06 | move | S1 split (serial) | Same YAML keys; every default flag has evidence | **Not started** | S7 |
-| F-08 | Wiring out of the engine (Services container) | L0 L1 L4 L5 ctx scope | D K_C K_P R C | G-16 | F-07 | move | S1 split (serial) | Golden | **Not started** | S8 |
+| MOD-02 | Typed registries + entry points: stages, legs, backends, providers, prompts | L0 L1 L4 L5 ctx scope | D K_C K_P R C | G-16 | F-06 | move | S1 split (serial) | Built-ins register at import; entry-point plug-in test; golden unchanged | **Not started** | Owner 2026-10-13 |
+| F-07 | Config split and flag registry (per-area flag modules) | L0 L1 L4 L5 ctx scope | D R C | G-21, G-22 | MOD-02 | move | S1 split (serial) | Same YAML keys; every default flag has evidence | **Not started** | S7 |
+| F-08 | Wiring out of the engine into a dishka container (app, job, request scopes) | L0 L1 L4 L5 ctx scope | D K_C K_P R C | G-16 | F-07 | move | S1 split (serial) | Golden | **Not started** | S8 |
 | F-09 | Write path out of the engine | L0 L1 L5 | D | W-01, W-09 | F-08 | move | S1 split (serial) | Golden | **Not started** | S9 |
 | F-10a | Read path out: legs, fusion, rerank | L0 L1 L3 | R | R-05 | F-09 | move | S1 split (serial) | Golden byte-identical hit order | **Not started** | S10 |
 | F-10b | Read path out: lift, gates, filters | L0 L1 L3 | R | R-05 | F-10a | move | S1 split (serial) | Golden byte-identical hit order | **Not started** | S10 |
@@ -53,17 +55,19 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | F-13b | REST and MCP on the handle | ctx scope | D R | G-17, G-18 | F-13a | move | S1 split (serial) | Protocol tests | **Not started** |  |
 | F-13c | Eval-harness adapter and test-import migration; paired-gate replay | L0 L1 L4 L5 ctx scope | D K_C K_P R C | G-16 | F-13a | move | S1 split (serial) | Paired-gate replay NO CHANGE vs f-jref2-i2 (GPU, one run) | **Not started** | Exit of the split |
 | F-15 | Split the pipelines module into derive stages | L0 L1 L3 L4 L5 ctx | K_C K_P | O-04 | F-13c | move | S1 split (serial) | Golden; stage order unchanged | **Not started** | S15 part 1 |
-| F-14a | Retire measured-negative code (slot loop, fact chain, word vectors, decider gate, kuzu, opensearch stub) | L0 L1 L4 L5 ctx scope | D R C | G-22 | F-13c | move | S1 split (serial) | Golden unchanged; retired flags raise ConfigError | **Not started** |  |
+| F-14a | Retire measured-negative and owner-retired code (slot loop, fact chain, word vectors, decider gate, kuzu, opensearch stub, full/compose read modes, v1 read headers) | L0 L1 L4 L5 ctx scope | D R C | G-22 | F-13c | move | S1 split (serial) | Golden unchanged; retired flags raise ConfigError | **Not started** |  |
 | F-14b | Retire unscreened candidates | L0 L1 L4 L5 ctx scope | D R C | G-22 | F-14a | move | S1 split (serial) | Owner decision per item | **Blocked** | Needs owner: event ledger, maxsim, causal walk, bridge hop, prefilter, novelty exclusions, agentic query |
 | F-01 | Graph key identity: kind, occurrence, A-B-A, old-key aliases | L0 L1 L3 | D | M-17, W-20 | F-15 | behaviour | S2 foundations (serial: Alembic) | A-B-A returns to A; same-day events stay two; replay idempotent; built flag-off, then GC arm screen | **Not started** | S1; G-W50 |
 | F-02a | Record envelope: layer field, type tag, provenance class, axes, fingerprint; Alembic and upcaster | L0 L1 L3 L4 L5 ctx scope | D K_C R | M-02, M-03, M-06, M-07, M-08, P-12 | F-01 | move | S2 foundations (serial: Alembic) | Replay byte-stable; upcaster round-trips; golden unchanged | **Not started** | S2+S3; Q1 |
 | F-02b | Tri-temporal times with precision; LayerRegistry (template-enabled and populated layers) | L0 L1 L3 L4 ctx | D K_C | M-10, M-02 | F-02a | move | S2 foundations (serial: Alembic) | Golden unchanged; registry reports layers per namespace | **Not started** | Legs run only when their layer exists |
-| F-02c | Edge compiler and link projection from assertions | L1 L3 | D R | M-16 | F-02b | behaviour | S2 foundations (serial: Alembic) | Built flag-off; GC arm screen | **Not started** |  |
+| F-02c | Edge compiler and link projection from assertions (graph ON by default with a worker model) | L1 L3 | D R | M-16 | F-02b | behaviour | S2 foundations (serial: Alembic) | GC arm screen before the default counts in results | **Not started** | I-7: L3 on by default |
 | F-03 | Model upgrades: versioned vector spaces, selective re-derivation | - | K_C | P-25 | F-02a | behaviour | S2 foundations (serial: Alembic) | Shadow index switch test | **Not started** |  |
 | F-04 | Durable outbox and inline runner, read barrier; model calls outside namespace locks | L0 L1 L3 ctx | D K_C | W-02, W-10, W-13, W-25, G-19, P-21 | F-02b | behaviour | S2 foundations (serial: Alembic) | Fault-injection tests; golden unchanged with barrier | **Not started** | S4; Q2 |
-| F-16a | Lineage table and the single derived-write door (layer, parents, trust cap, fingerprint) | L0 L1 L3 L4 L5 ctx scope | D K_C | M-09, G-08 | F-04 | behaviour | S2 foundations (serial: Alembic) | Every L1-L5 writer goes through the door; erasure contract test registered | **Not started** |  |
+| RT-01 | Taskiq transport over the outbox: in-memory broker (library), external broker + worker entry point (server) | L0 L1 L3 ctx | D K_C | G-19, W-13 | F-04 | behaviour | S2 foundations (serial: Alembic) | Crash tests with both brokers; unfinished rows re-sent on start | **Not started** | Owner 2026-10-13: outbox = truth, taskiq = transport |
+| RT-02 | Executors, priority classes, global model semaphore, backpressure (coalesce, never drop) | L0 L1 ctx | D K_C R | P-20, W-25, P-21 | RT-01 | behaviour | S2 foundations (serial: Alembic) | Load test: reads keep p95 under background load; no dropped work | **Not started** | Async core; GPU encoders micro-batched in dedicated executors |
+| F-16a | Lineage table and the single derived-write door (layer, parents, trust cap, fingerprint) | L0 L1 L3 L4 L5 ctx scope | D K_C | M-09, G-08 | RT-02 | behaviour | S2 foundations (serial: Alembic) | Every L1-L5 writer goes through the door; erasure contract test registered | **Not started** |  |
 | F-16b | Event upcasters and migration by replay | L0 L1 L3 L4 L5 ctx scope | D K_C | M-01, M-26, G-23 | F-16a | move | S2 foundations (serial: Alembic) | v1 log replays byte-stably | **Not started** |  |
-| F-16c | Scope tuple in every row and key; mandatory viewer for multi-party | L0 L1 L3 L4 L5 ctx scope | D R | M-05, G-12 | F-16a | behaviour | S2 foundations (serial: Alembic) | Isolation probes | **Not started** |  |
+| F-16c | Scope tuple in every row and key; multi-party flag; viewerless reads see shared records only | L0 L1 L3 L4 L5 ctx scope | D R | M-05, G-12 | F-16a | behaviour | S2 foundations (serial: Alembic) | Isolation probes | **Not started** |  |
 | F-16d | Storage-profile contract; Postgres server profile and its Alembic tree | L0 L1 L3 L4 L5 ctx scope | R | M-04 | F-16b | behaviour | S2 foundations (serial: Alembic) | Both profiles pass the store contract tests | **Not started** |  |
 | F-16e | Neo4j graph adapter fed through the outbox | L3 | R | M-18 | F-16d, F-04 | behaviour | S2 foundations (serial: Alembic) | Graph contract on Neo4j | **Not started** | Q4 |
 | F-16f | Isolation, erasure and rebuild matrix on both profiles | L0 L1 L3 L4 L5 ctx scope | K_C | M-25 | F-16e, F-16c | behaviour | S2 foundations (serial: Alembic) | Matrix green on embedded and server | **Not started** |  |
@@ -75,14 +79,15 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 |---|---|---|---|---|---|---|---|---|---|---|
 | W2-01 | Source envelope intake, receipt, idempotency, re-ingest | L0 L1 | D K_C | W-01, W-02, W-03, W-24 | EX-1 | behaviour | write | Write p95 at most 250 ms; idempotent retries | **Not started** |  |
 | W2-02 | Stamping: three clocks, time zone, speaker/addressee/participants, provenance class | L0 L1 L4 scope | D R | W-04, W-05, W-08, M-08 | W2-01 | behaviour | write | Focus slice non-inferior | **Not started** |  |
-| W2-03 | Role policy, echo guard and routing | L0 L1 L5 ctx | D | W-06, W-09 | W2-02 | behaviour | write | Focus slice non-inferior | **Not started** |  |
+| W2-03 | Role policy, echo guard (marker + last-read overlap) and routing | L0 L1 L5 ctx | D | W-06, W-09 | W2-02 | behaviour | write | Focus slice non-inferior | **Not started** |  |
 | W2-04 | Firewall at three gates; base plus extended signals | L0 L1 scope | D | W-07, G-06 | W2-03, F-16a | behaviour | write | False-positive screen on the behavioural suite | **Not started** | Q8 chat-preset exemption |
 | W2-05 | Segmentation: adaptive window, time-gap cut, token batching | L0 | D | W-11 | W2-01 | behaviour | write | Calls per turn down, grounding inside band | **Not started** |  |
 | W2-07 | Prompt layout rules: no examples, stable prefix, same language | L0 L1 L3 ctx | D C | W-18, P-07, P-08, P-10 | P0-09, EX-1 | behaviour | write | English output unchanged on focus slice (per partial) | **Not started** |  |
 | W2-06a | ItemV1 to AssertionEnvelope compile, validation, repair re-ask, dead letters | L0 L1 L3 | D | W-14, W-15, P-05, P-06 | W2-05, F-16a | behaviour | S4 extraction (serial) | Unit tests; items dropped counted | **Not started** |  |
 | W2-06b | Prompt v2 and schema-constrained decoding | L0 L1 L3 | D | W-16, P-04, P-09, P-11 | W2-06a, W2-07 | behaviour | S4 extraction (serial) | Window arm: items dropped down; at most 1 call per window | **Not started** | G-W49 |
 | W2-06c | Online extraction via the outbox with a stage hook list | L1 L3 | D R | W-12 | W2-06b, F-04 | behaviour | S4 extraction (serial) | No-model template: zero calls; window arm screen | **Not started** |  |
-| W2-08 | Grounding: spans per assertion, rule checks, assent | L1 L3 | D | W-17 | W2-06c, X-05 | behaviour | S4 extraction (serial) | Grounding at least 95% on the labelled set | **Not started** |  |
+| W2-14 | Temporal extraction by every means: anchor ladder, basis and precision, relations without dates | L0 L1 L3 L5 | D R | W-04, M-10, R-07 | W2-06c | behaviour | S4 extraction (serial) | Temporal category up; no invented exact dates (precision audit) | **Not started** | Owner I-2 |
+| W2-08 | Grounding: spans per assertion, rule checks, assent | L1 L3 | D | W-17 | W2-14, X-05 | behaviour | S4 extraction (serial) | Grounding at least 95% on the labelled set | **Not started** |  |
 | W2-09 | Online entity resolution with pending_merge | L1 L3 | D K_C | W-19, M-15 | W2-08 | behaviour | S4 extraction (serial) | Calibrated thresholds: no homonym merges above a stated rate | **Not started** |  |
 | W2-10 | Integration ladder and cardinality registry | L1 L3 | D K_C | W-21, W-22, M-12 | W2-09, F-01 | behaviour | S4 extraction (serial) | MAB-CR non-inferior; A-B-A tests | **Not started** | Q7 coexist unless marked |
 | W2-11 | Asset describer (ingest and read triggers, off by default) | L0 | D R | W-23 | W2-01 | behaviour | write | Off by default; on-arm screen | **Not started** |  |
@@ -104,11 +109,11 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | R3-05b | Graph one-hop leg (only when L3 exists) | L3 | R | R-09 | R3-04, F-02c, F-16e | behaviour | S3 read (serial) | Own focus and blind screen | **Not started** |  |
 | R3-05c | Episode leg lifted to turns (only when L2 exists) | L0 L4 | R | R-10 | R3-04, O4-02 | behaviour | S3 read (serial) | L2-enabled template arm | **Not started** |  |
 | R3-06 | Family fusion, protected pool, calibrated floors | L0 L1 | R | R-11, R-12, R-13 | R3-04 | behaviour | S3 read (serial) | Source-family pool non-inferior to per-leg pool | **Not started** |  |
-| R3-07 | Jina rerank on every read; licence fallback; bounded boosts | L0 L1 L4 ctx | R | R-14, R-15, R-16, P-18 | R3-06, X-06 | behaviour | S3 read (serial) | Matches the 81.4% reference; boosts off until screened | **Not started** | Q5, Q6 |
-| R3-08 | Lift derived hits to turns under one score (via lineage) | L0 L1 L3 L4 | R | R-17 | R3-07, F-16a | behaviour | S3 read (serial) | Focus non-inferior | **Not started** |  |
+| R3-07 | Jina rerank on every read (pools capped at 64); licence fallback; bounded boosts | L0 L1 L4 ctx | R | R-14, R-15, R-16, P-18 | R3-08, X-06 | behaviour | S3 read (serial) | Matches the 81.4% reference; boosts off until screened | **Not started** | Q5, Q6 |
+| R3-08 | Lift derived hits to turns BEFORE rerank (via lineage) | L0 L1 L3 L4 | R | R-17 | R3-06, F-16a | behaviour | S3 read (serial) | Focus non-inferior | **Not started** |  |
 | R3-09a | Packer early-break fix | ctx | C | R-18 | F-11 | behaviour | S3 read (serial) | Unit tests only | **Not started** | Needs no screen |
-| R3-09b | Block shares at equal budget | ctx | C | R-18 | R3-09a, R3-08 | behaviour | S3 read (serial) | Equal-budget screen | **Not started** |  |
-| R3-10 | Neighbour windows after rerank | L0 | C | R-19 | R3-08 | behaviour | S3 read (serial) | Focus non-inferior | **Not started** |  |
+| R3-09b | Block shares at equal budget | ctx | C | R-18 | R3-09a, R3-07 | behaviour | S3 read (serial) | Equal-budget screen | **Not started** |  |
+| R3-10 | Neighbour windows after rerank | L0 | C | R-19 | R3-07 | behaviour | S3 read (serial) | Focus non-inferior | **Not started** |  |
 | R3-11 | Store-calibrated relevance gate with named bypass | L1 ctx | R | R-21 | R3-10 | behaviour | S3 read (serial) | OP-Bench up; no recall loss on MAB-CR, ConvoMem, LoCoMo | **Not started** |  |
 | R3-12 | Deep tier: one sufficiency check and one rewrite | L0 ctx | R C | R-22 | R3-11 | behaviour | S3 read (serial) | f-suff: net beyond band, no category loss, at most 2x wall time | **Not started** |  |
 | R3-13 | External public knowledge (opt-in, separate block) | L0 | R | R-23 | R3-01 | behaviour | S3 read (serial) | Separate arm; never mixed in headline | **Not started** |  |
@@ -120,7 +125,7 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 
 | Id | Work package | Layers | Ops | Decisions | Depends on | Kind | Agent lane | Gate | Status | Note |
 |---|---|---|---|---|---|---|---|---|---|---|
-| O4-01a | Scheduler, triggers, namespace jobs, leases, watermarks | L0 L1 L3 L4 L5 ctx | K_C K_P | O-01, O-02, O-03 | EX-1, F-15 | behaviour | offline | Restart and lock fault tests; off by default | **Not started** |  |
+| O4-01a | Non-blocking sleep handles, triggers ((N AND M) OR context C, gap K), namespace jobs, leases, watermarks, daily maintenance | L0 L1 L3 L4 L5 ctx | K_C K_P | O-01, O-02, O-03 | EX-1, F-15 | behaviour | offline | Restart and lock fault tests; off by default | **Not started** |  |
 | O4-01b | Background budget and freshness (covers_seq; read-side freshness) | L0 L1 L3 L4 ctx | K_C K_P R | O-05, O-06 | O4-01a, F-16a | behaviour | offline | Deferred work counted, never dropped | **Not started** |  |
 | O4-02 | Call 2 at session close: summary, stitched episode, profile ops (L2, opt-in) | L0 L1 ctx | K_C K_P | O-07, O-08, O-09, M-14 | O4-01a, F-16a | behaviour | offline | G-C9-style screen; golden unchanged with flag off | **Not started** | f-gc9 +15 before the thinking fix |
 | O4-03 | Reconcile backlog, staged entity resolution, contradictions | L1 L3 | K_C | O-10, O-11, O-12 | O4-01a, W2-09, X-05 | behaviour | offline | Contradiction-recall set; MAB-CR non-inferior | **Not started** |  |

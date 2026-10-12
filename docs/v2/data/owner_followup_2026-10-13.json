@@ -1,0 +1,150 @@
+{
+ "date": "2026-10-13",
+ "answers": {
+  "I-1": {
+   "pipeline": "insert",
+   "answer": "New source per call without ids",
+   "reading": "A bare write() with no caller or source id is its own new source; idempotency applies only when an id is passed (documented for retrying callers)."
+  },
+  "I-2": {
+   "pipeline": "insert",
+   "answer": "Extract time by every means (owner)",
+   "reading": "Never invent 'now', but extract every temporal signal: anchor order explicit date in text > the line's own date > nearest dated line of the same source > session order > recorded_at. Every extracted time carries `basis` and `precision` (exact/day/month/year/relative/unknown); weak anchors are kept and labelled, never presented as exact. Temporal relations are extracted even without absolute dates (before/after, durations, 'since', 'for N years', counts per period) for the temporal leg."
+  },
+  "I-3": {
+   "pipeline": "insert",
+   "answer": "chg: bool on ItemV1",
+   "reading": "One output token: the cited lines say the earlier value no longer holds; the conflict ladder reads it as the transition hint (Q7)."
+  },
+  "I-4": {
+   "pipeline": "insert",
+   "answer": "Quarantined derived items stored inert with reasons",
+   "reading": "Same as gate 1 for raw: never retrieved, visible to audit and N1 forensics, releasable by review."
+  },
+  "I-5": {
+   "pipeline": "insert",
+   "answer": "Provisional entity id now",
+   "reading": "Facts about a pending_merge entity are keyed on a provisional id and searchable at once; a later merge re-points them through key aliases (M-17)."
+  },
+  "I-6": {
+   "pipeline": "insert",
+   "answer": "Contest when only one side is dated",
+   "reading": "Event time when both are dated, recorded time when neither; one dated side -> keep both as contested; the ladder records the basis."
+  },
+  "I-7": {
+   "pipeline": "insert",
+   "answer": "Graph layer ON by default (owner)",
+   "reading": "With a worker model configured, L3 is on by default: edges compiled from every fact, written to the graph store (Ladybug / SQL adjacency embedded, Neo4j server), and the graph read leg runs when the router asks for it (its own screen before it counts in results). Amends Q1: default layers are L0, L1 and L3; L2, L4, L5 stay opt-in."
+  },
+  "I-8": {
+   "pipeline": "insert",
+   "answer": "Echo guard: marker + last-read overlap",
+   "reading": "Recall blocks carry a marker; the fingerprints of blocks rendered by the session's last read are kept; an assistant turn overlapping them is an echo: kept as L0 raw, no facts derived from the echoed part, never counted as support. User restatement counts as assent, not echo."
+  },
+  "I-9": {
+   "pipeline": "insert",
+   "answer": "CONTEXT: up to 3 lines, max 200 tokens",
+   "reading": "Up to 3 previous live, unquarantined lines of the same source, never cited."
+  },
+  "OF-1": {
+   "pipeline": "offline",
+   "answer": "sleep() is non-blocking (owner)",
+   "reading": "sleep() enqueues a job and returns a handle {job_id, status} at once; `await handle.wait()` or `await memory.wait_for_pending()` waits (eval harness and tests only). Per namespace at most one running job and one pending follow-up: concurrent sleep() calls coalesce onto the same follow-up handle. Jobs hold a persisted lease and resume from per-stage watermarks after a crash."
+  },
+  "OF-2": {
+   "pipeline": "offline",
+   "answer": "Triggers: (N deposits AND M idle) OR C context pressure (owner)",
+   "reading": "Full sleep when N new deposits AND M minutes idle; compression when context (working) memory passes C, configurable, default 70% of the context budget. A minimum gap K applies to BOTH trigger kinds (owner). Values are configuration, calibrated on measured cost per cycle."
+  },
+  "OF-3": {
+   "pipeline": "offline",
+   "answer": "Fold v1 stages into the decided order",
+   "reading": "Miners become flag-selected modes of catch-up extraction, rule_edges joins reconcile, the sleep_compute hook is replaced by the stage registry; each mode is retired unless a screen keeps it."
+  },
+  "OF-4": {
+   "pipeline": "offline",
+   "answer": "Daily model-free maintenance trigger",
+   "reading": "Per namespace, on time alone (default daily): retention, due watches, decay, compression, log prune; no model calls."
+  },
+  "OF-5/6": {
+   "pipeline": "offline",
+   "answer": "Job pool per profile, oldest dirty first",
+   "reading": "1 concurrent namespace job on embedded SQLite, configurable (default 4) on the server profile; oldest dirty namespace first; one global semaphore matched to model-server slots."
+  },
+  "RT-1": {
+   "pipeline": "runtime",
+   "answer": "Outbox = truth, taskiq = transport (owner)",
+   "reading": "Every job is written to the SQL outbox in the same transaction as its event; taskiq carries job ids to workers (InMemoryBroker in library mode; Redis/NATS/RabbitMQ broker and separate worker processes in server mode); a worker marks the row done; unfinished rows are re-sent on start."
+  },
+  "RT-2": {
+   "pipeline": "runtime",
+   "answer": "Async core + dedicated executors",
+   "reading": "All orchestration async (TaskGroup, timeouts, cancellation); GPU encoders (embedder, Jina) each in one dedicated thread executor with micro-batching; blocking DB/index I/O in a bounded thread pool; model calls async over HTTP behind a global semaphore; a process pool only for CPU-heavy parsing."
+  },
+  "RT-3": {
+   "pipeline": "runtime",
+   "answer": "Four priority classes, reads first",
+   "reading": "1 interactive read, 2 write hot path, 3 online extraction (calls 1 and 2), 4 sleep and maintenance; higher classes go first, lower classes keep a guaranteed minimum share."
+  },
+  "RT-4": {
+   "pipeline": "runtime",
+   "answer": "Backpressure: coalesce + budget, never drop",
+   "reading": "Windows coalesce into larger batches, the oldest backlog is marked underived (raw stays searchable), writes never block; backlog-age metric and alert."
+  },
+  "MOD-1": {
+   "pipeline": "modularity",
+   "answer": "Typed registries + entry points",
+   "reading": "StageRegistry, LegRegistry, BackendRegistry, ProviderRegistry, PromptRegistry with Protocols; built-ins register at import, third parties via Python entry points; config names parts; the LayerRegistry decides what runs."
+  },
+  "MOD-2": {
+   "pipeline": "modularity",
+   "answer": "dishka for dependency injection (owner)",
+   "reading": "Async-native providers with scopes app / job / request (engine lifetime, one background job, one read); finalisers close DB and model clients; tests override providers with fakes; the clock is a provider."
+  },
+  "MOD-3": {
+   "pipeline": "modularity",
+   "answer": "import-linter contracts in CI",
+   "reading": "Layered contract: api -> (ingest, derive, read, compose) -> (store, models, trust, runtime) -> schemas/core types; store never imports read or derive; read never imports derive."
+  },
+  "MOD-4": {
+   "pipeline": "modularity",
+   "answer": "Versioned Pydantic schema package",
+   "reading": "memspine.schemas holds every step's typed input and output with a schema version; JSON Schema exported to docs/v2/schemas/ so docs and code never drift; upcasters for old versions."
+  },
+  "R-Q1": {
+   "pipeline": "retrieve",
+   "answer": "Lift before rerank",
+   "reading": "pool -> lift -> one Jina call, so every shown turn has its own score."
+  },
+  "R-Q2": {
+   "pipeline": "retrieve",
+   "answer": "Deep tier: two calls (rewrite + judge)",
+   "reading": "The 1-call target is amended for the deep tier only."
+  },
+  "R-Q3": {
+   "pipeline": "retrieve",
+   "answer": "Two fast-tier targets",
+   "reading": "300 ms p95 without rerank (CPU), 350 ms p95 with Jina on GPU; both in CI on a reference box."
+  },
+  "R-Q4": {
+   "pipeline": "retrieve",
+   "answer": "Rerank pools capped at 64",
+   "reading": "Every tier, deep calibrated at 64; no silent zero scores."
+  },
+  "R-Q5": {
+   "pipeline": "retrieve",
+   "answer": "Multi-party flag; no viewer = shared only",
+   "reading": "Write path sets the flag on a second participant or visibility tag; viewerless reads see owner-shared and unmarked records only (fixes today's no-filter read)."
+  },
+  "R-Q6": {
+   "pipeline": "retrieve",
+   "answer": "Gate fires: keep stable prefix, drop evidence",
+   "reading": "Persona, profile card and standing answers stay; prompt caching keeps working."
+  },
+  "R-Q7/8": {
+   "pipeline": "retrieve",
+   "answer": "Retire full/compose modes and v1 headers",
+   "reading": "Facts fold into the single-pool notes block; profile card stays as [profile]; anything a screen proves useful comes back."
+  }
+ }
+}
