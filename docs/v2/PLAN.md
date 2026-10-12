@@ -8,11 +8,11 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | Status | Count |
 |---|---|
 | Not started | 93 |
-| Ready | 9 |
+| Ready | 8 |
 | In progress | 0 |
 | Blocked | 1 |
 | Needs measurement | 3 |
-| Done | 19 |
+| Done | 20 |
 | Dropped | 0 |
 
 ## Phase 0: settle and prepare
@@ -44,7 +44,7 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | LIB-01 | Library: temporal anchor ladder (basis, precision, intervals, relations; never invents dates) | L0 L1 L3 L5 | D R | W-04, M-10, R-07 | - | MOD-01 | infra | other | `src/memspine/derive/temporal.py` +1 | Unit tests; pure, unwired (wiring in W2-14); depends only on memspine.schemas | **Ready** | Library-first split (owner 2026-10-13: parallel agents) |
 | LIB-02 | Library: integration ladder (supersede/retire/coexist/contest/tentative) and cardinality registry, event-time ordered | L1 L3 | D K_C | W-21, W-22, M-12 | - | MOD-01 | infra | other | `src/memspine/derive/integrate.py` +1 | Unit tests; pure, unwired (wiring in W2-10); depends only on memspine.schemas | **Ready** | Library-first split (owner 2026-10-13: parallel agents) |
 | LIB-03 | Library: grounding rule checks (spans, modality, binding) scored on the X-05 grounding set | L1 L3 | D | W-17 | - | MOD-01 | infra | other | `src/memspine/derive/ground.py` +1 | Unit tests; pure, unwired (wiring in W2-08); depends only on memspine.schemas | **Ready** | Library-first split (owner 2026-10-13: parallel agents) |
-| LIB-04 | Library: rule entity resolver (alias, homonym, numeric, cross-language) scored on X-05 entity pairs | L1 L3 | D K_C | W-19, M-15 | - | MOD-01 | infra | other | `src/memspine/derive/resolve.py` +1 | Unit tests; pure, unwired (wiring in W2-09); depends only on memspine.schemas | **Ready** | Library-first split (owner 2026-10-13: parallel agents) |
+| LIB-04 | Library: rule entity resolver (alias, homonym, numeric, cross-language) scored on X-05 entity pairs | L1 L3 | D K_C | W-19, M-15 | - | MOD-01 | infra | other | `src/memspine/derive/resolve.py` +1 | Unit tests; pure, unwired (wiring in W2-09); depends only on memspine.schemas | **Done** | derive/resolve.py: X-05 entity pairs precision(same) 1.000, recall 0.976, 0 false merges (b7e499e) |
 | LIB-05 | Library: ItemV1 to AssertionEnvelope compiler (reserved names, item rejection, citations, ids) | L0 L1 L3 | D | W-14, W-15, P-05, P-06 | - | MOD-01 | infra | other | `src/memspine/derive/compile.py` +1 | Unit tests; pure, unwired (wiring in W2-06a); depends only on memspine.schemas | **Ready** | Library-first split (owner 2026-10-13: parallel agents) |
 | LIB-06 | Library: exact tokenizer budget and complete evidence bundles | ctx | C | R-18 | - | MOD-01 | infra | other | `src/memspine/compose/budget.py` +2 | Unit tests; pure, unwired (wiring in R3-09b); depends only on memspine.schemas | **Done** | compose/budget.py + bundles.py: exact counting incl headers, whole bundles, skip-and-continue, shared evidence once, shares (4052243) |
 | LIB-07 | Library: job leases, epochs, watermark and holes, handles, coalescing, quotas | L0 L1 L3 ctx | D K_C | W-02, W-10, W-13, W-25, G-19, P-21 | - | MOD-01 | infra | other | `src/memspine/runtime/jobs.py` +2 | Unit tests; pure, unwired (wiring in F-04); depends only on memspine.schemas | **Done** | runtime/jobs.py + quotas.py: fenced leases, coalescing, holes/watermark, drain, recovery budget, triggers, quotas (e59131a) |
@@ -60,7 +60,7 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | F-07 | Config split and flag registry (per-area flag modules) | L0 L1 L4 L5 ctx scope | D R C | G-21, G-22 | - | MOD-02 | move | S1 split (serial) | `src/memspine/config/schema/**` +2 | Same YAML keys; every default flag has evidence | **Not started** | S7 |
 | F-08 | Wiring out of the engine into a dishka container (app, job, request scopes) | L0 L1 L4 L5 ctx scope | D K_C K_P R C | G-16 | ER-03, ER-10, ER-34 | F-07 | api | S1 split (serial) | `src/memspine/runtime/container.py` +1 | Golden | **Not started** | S8 |
 | F-09 | Write path out of the engine | L0 L1 L5 | D | W-01, W-09 | - | F-08, LIB-13 | move | S1 split (serial) | `src/memspine/ingest/**` +1 | Golden | **Not started** | S9 |
-| F-10a | Read path out: legs, fusion, rerank | L0 L1 L3 | R | R-05 | - | F-09, LIB-10 | move | S1 split (serial) | `src/memspine/read/**` +1 | Golden byte-identical hit order | **Not started** | S10 |
+| F-10a | Read path out: legs, fusion, rerank | L0 L1 L3 | R | R-05 | - | F-09, LIB-10, LIB-11, LIB-12 | move | S1 split (serial) | `src/memspine/read/**` +1 | Golden byte-identical hit order | **Not started** | S10 |
 | F-10b | Read path out: lift, gates, filters | L0 L1 L3 | R | R-05 | - | F-10a, LIB-11, LIB-12 | move | S1 split (serial) | `src/memspine/read/**` +1 | Golden byte-identical hit order | **Not started** | S10 |
 | F-11 | Compose out of the engine | ctx | C | R-20 | - | F-10b, LIB-06 | move | S1 split (serial) | `src/memspine/compose/**` +1 | Golden context hash identical | **Not started** | S11 |
 | F-12 | Trust, admin and memory-type mechanisms out | L4 ctx scope | K_C R C | M-21, M-24 | - | F-11, LIB-08, LIB-09 | move | S1 split (serial) | `src/memspine/trust/**` +2 | Golden | **Not started** | S12 |

@@ -887,8 +887,8 @@
    ],
    "kind": "infra",
    "gate": "Unit tests; pure, unwired (wiring in W2-09); depends only on memspine.schemas",
-   "status": "Ready",
-   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "status": "Done",
+   "note": "derive/resolve.py: X-05 entity pairs precision(same) 1.000, recall 0.976, 0 false merges (b7e499e)",
    "layers": [
     "L1",
     "L3"
@@ -1624,7 +1624,9 @@
    ],
    "depends_on": [
     "F-09",
-    "LIB-10"
+    "LIB-10",
+    "LIB-11",
+    "LIB-12"
    ],
    "kind": "move",
    "gate": "Golden byte-identical hit order",
