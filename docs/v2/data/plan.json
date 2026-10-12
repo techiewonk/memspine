@@ -332,8 +332,8 @@
    "depends_on": [],
    "kind": "infra",
    "gate": "Every F package has an owned-file set; reviewed by the owner",
-   "status": "Ready",
-   "note": "Blocks F-05",
+   "status": "In progress",
+   "note": "Drafted 2026-10-13 (RESTRUCTURE.md); awaiting owner review",
    "layers": [
     "L0",
     "L1",
@@ -371,8 +371,8 @@
    ],
    "kind": "infra",
    "gate": "No two concurrently runnable packages share an owned file",
-   "status": "Not started",
-   "note": "",
+   "status": "In progress",
+   "note": "Template drafted (briefs/TEMPLATE.md); owned-file checker open",
    "layers": [
     "L0",
     "L1",
