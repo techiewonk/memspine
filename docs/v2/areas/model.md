@@ -18,7 +18,7 @@ The notable points:
   template populates only two layers, L0 raw and L1 facts (D); summaries, episodes, graph, profile and
   communities stay in the schema as opt-in layers, switched on by templates. Read literally ("drop
   summaries, graph and observations"), D would contradict nine other answers in this area and seven in
-  the offline area, so the combined reading is the only compatible one. It needs owner confirmation.
+  the offline area, so the combined reading is the only compatible one. Confirmed by the owner (Q1, 2026-10-12).
   Note that v1's base template already enables only working, episodic and semantic
   (`config/templates/base.yaml:42-47`), so the two-layer default is today's base behaviour made explicit.
 - **M-13 (value histories + observations) conflicts with O-15 (no observation layer)**. The value-history
@@ -36,7 +36,7 @@ The notable points:
 | 1 | Truth | Append-only `memory_events` log is the only truth; SQL records, vectors, lexical, graph are replayed projections; a one-way Markdown export view per namespace whose edits re-enter as ordinary writes. | M-01 |
 | 2 | Layers | One record shape with an explicit `layer` field (L0 raw, L1 assertions, L2 episodes/summaries, L3 graph/temporal, L4 observations/profile, L5 standing answers) plus `derivation` (policy, prompt, schema, model, key versions). Base template populates **L0 + L1 only**; L2-L5 are opt-in per template. | M-02, M-26 |
 | 3 | Types | The nine memory types stay as a `type` tag mapped onto layers: working = context, episodic = L0/L2, semantic = L1, associative = L3 projection, reflective = L4, procedural/prospective = L5, resource = L0 documents; shared is a mechanism (grants), not a type. | M-03 |
-| 4 | Stores | Two storage profiles from one event schema: **embedded** (SQLite + LanceDB + Tantivy + graph) and **server** (Postgres + pgvector + Postgres FTS + graph). Graph: embedded = auto Ladybug else SQL adjacency (today); server = SQL tables in Postgres by default, Neo4j adapter optional (owner to confirm). | M-04, M-18 |
+| 4 | Stores | Two storage profiles from one event schema: **embedded** (SQLite + LanceDB + Tantivy + graph) and **server** (Postgres + pgvector + Postgres FTS + graph). Graph: embedded = auto Ladybug else SQL adjacency (today); server = **Neo4j** for the graph, fed only through the outbox, with records in Postgres (owner, Q4). | M-04, M-18 |
 | 5 | Scope | Typed scope tuple (tenant, user, agent, session) on every row and inside every identity, cache and index key; the namespace path is derived from it. Mandatory viewer for multi-party reads (G-12). | M-05 |
 | 6 | Record | Versioned assertion envelope: text, typed value, evidence spans, assertor + subject, modality + polarity, kind + occurrence, times, optional graph projection; unknown enum values fail visibly. | M-06 |
 | 7 | Trust | Closed provenance class `src(m)` in {user_stated, assistant_proposed, user_confirmed, tool, document, external, derived}, per-class trust cap, plus an independent-support (proof) count. | M-07 |
@@ -558,3 +558,4 @@ GraphProjection (existing GraphStore protocol, services/graph/base.py:88, extend
 - 2026-10-11: first version; 26 decisions verified against the owner's answers and the write, offline,
   read, model-service and governance areas.
 - 2026-10-12: owner follow-up answers recorded (Q1, Q3, Q4, Q7).
+- 2026-10-12 (later): stale owner-confirmation markers resolved from the Q1-Q8 answers. M-04/M-18 summary row now says Neo4j (Q4).

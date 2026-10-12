@@ -1,8 +1,8 @@
 # MemSpine v2 architecture
 
 The v2 design as the owner decided it (2026-10-11), end to end. Each block names its decisions; the reasoning,
-predicted effect and v1 file:line for every one is in `areas/<area>.md`. Readings that still need the owner are
-marked **(Q1..Q9)**, see `VERIFY.md`.
+predicted effect and v1 file:line for every one is in `areas/<area>.md`. Readings settled by the owner's
+follow-up answers are marked (Q1..Q9), see `VERIFY.md` section 0.
 
 ```mermaid
 flowchart TD
@@ -142,3 +142,4 @@ keep `memspine.compat.v1` aliases for one release; stores migrate by replaying t
 - 2026-10-11: first version from the 155 answered decisions and the six area reviews.
 - 2026-10-11 (later): section 7 rewritten for Q9 (v2 inside `memspine`).
 - 2026-10-12: owner answers Q1-Q8 applied (pattern observations; Neo4j server graph).
+- 2026-10-12 (later): stale owner-confirmation markers resolved from the Q1-Q8 answers.

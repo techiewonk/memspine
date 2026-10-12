@@ -27,7 +27,7 @@ and keeps being measured until v2 is built and has passed the same gates.
 | `VERIFY.md` | Cross-area check: conflicts, combined choices, what needs the owner, what must be measured first |
 | `ARCHITECTURE.md` | The v2 architecture end to end: insert, offline, retrieve, layers, models, operations |
 | `ROADMAP.md` | Build order in phases with entry and exit gates |
-| `data/` | Machine-readable answers (`decisions_answered.json`), per-area verification (`verify_<area>.json`), the briefs |
+| `data/` | The question set as published (`questions.json`), the answers (`decisions_answered.json`, `owner_followup_2026-10-12.json`), per-area verification (`verify_<area>.json`), the briefs |
 
 ## Sources
 
@@ -43,3 +43,4 @@ and keeps being measured until v2 is built and has passed the same gates.
   differently, 24 with combining notes); area chapters, cross-area verification, architecture and roadmap.
 - 2026-10-11 (later): owner decided v2 stays inside `memspine` (Q9); the plan moved into `docs/v2/` on the main
   branch and the separate `v2/plan` branch was retired.
+- 2026-10-12 (later): `docs/v2_decisions/` merged here (questions.json moved to `data/`, its brief was identical to `data/question_brief.md`); stale owner markers resolved; model chapter's server graph corrected to Neo4j (Q4).

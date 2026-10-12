@@ -21,7 +21,7 @@ Three answers from other areas shape this one:
   the graph and communities (M-18 A, M-19 "add extra, not remove"), the profile card (M-20 B) and mixed
   evidence bundles (R-02 C). The closest compatible reading is this: B's explicit layer field is on every
   record; raw (L0) and facts (L1) form the default-on core; every other derived layer exists but is opt-in
-  per template. This needs owner confirmation.
+  per template. Confirmed by the owner (Q1, 2026-10-12).
 - **G-19 chose A, a library-first inline runner.** Background work runs inside the host process. Triggers
   (O-02) work only while the engine is alive. Restart safety (O-03, O-10) therefore has to come from state
   persisted in the store (watermarks, leases, the backlog and the W-13 outbox), not from a durable runner.
@@ -348,3 +348,4 @@ class NamespaceJob:                            # memspine.derive.job
 
 - 2026-10-11: First version. 26 offline decisions verified against the owner's answers. Combinations defined for O-07, O-09, O-10, O-11, O-12, O-14, O-18, O-23 and O-24. O-15 A consequences traced (conflict with M-13). M-02 "B + D" reading proposed (needs owner). G-19 A inline-runner effects on O-02, O-03 and O-10 resolved through state persisted in the store.
 - 2026-10-12: owner follow-up answers recorded (Q1, Q2, Q3).
+- 2026-10-12 (later): stale owner-confirmation markers resolved from the Q1-Q8 answers.

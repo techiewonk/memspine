@@ -43,7 +43,7 @@ planned in `docs/v2/` and judged by its own gate against a frozen v1 reference (
 | 14 | `memspine.ops.retention`, `memspine.trust.audit` | Retention and audit are set per profile. Action audit is always on; read audit is on in shared and regulated profiles (G-14 D, G-15 D). |
 | 15 | `memspine.api` | A small loop-verb core on a scoped handle, with admin groups on the engine. It is a new package, and v1 stays frozen (G-16 D). |
 | 16 | `memspine.protocols` | REST binds only to loopback unless auth is set, and scopes are bound to the principal. MCP stays stdio. Framework adapters are deferred (G-17 C, G-18 A). |
-| 17 | `memspine.runtime` | An embedded library with an inline runner that drains a **durable local outbox** in the same store. dbos and taskiq are alternative drainers (G-19 A, read as described; owner to confirm). |
+| 17 | `memspine.runtime` | An embedded library with an inline runner that drains a **durable local outbox** in the same store. dbos and taskiq are alternative drainers (G-19 A with a durable outbox; confirmed by the owner, Q2). |
 | 18 | `memspine.ops.ledger` | A uniform per-stage ledger and an optional OTel extra. No content in spans and no product telemetry (G-20 C). |
 | 19 | `memspine.config` | No model by default. The base profile is generic; settings tied to a data shape live in presets. A flag registry with retirement (G-21 B, G-22 C). |
 | 20 | `memspine.migrate` | Upcast the v1 events and rebuild every projection by replay. A v1 compatibility shim runs for one minor release (G-23 C). |
@@ -802,3 +802,4 @@ planned in `docs/v2/` and judged by its own gate against a frozen v1 reference (
   v2 and v1 (`memspine`, `engine: v1|v2`).
 - 2026-10-11 (later): owner decided v2 stays inside `memspine` (same package and principles, plan in `docs/v2/` only); separation passages rewritten.
 - 2026-10-12: owner follow-up answers recorded (Q2, Q4, Q8).
+- 2026-10-12 (later): stale owner-confirmation markers resolved from the Q1-Q8 answers.
