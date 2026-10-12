@@ -851,8 +851,8 @@
    ],
    "kind": "infra",
    "gate": "Unit tests; pure, unwired (wiring in W2-08); depends only on memspine.schemas",
-   "status": "Ready",
-   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "status": "Done",
+   "note": "derive/ground.py: grounding.v1 unsupported P=1.0 R=0.76, supported P=1.0 R=0.33, undecided 0.39 (to adjudicator) (54b00df)",
    "layers": [
     "L1",
     "L3"
@@ -1259,8 +1259,8 @@
    ],
    "kind": "infra",
    "gate": "Unit tests; pure, unwired (wiring in W2-03); depends only on memspine.schemas",
-   "status": "Ready",
-   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "status": "Done",
+   "note": "ingest/roles.py: role policy, echo guard (marker + shingle overlap), routing; user copy-paste = assent candidate (a326ee9)",
    "layers": [
     "L0",
     "L1",
@@ -1298,8 +1298,8 @@
    ],
    "kind": "infra",
    "gate": "Unit tests; pure, unwired (wiring in W2-05); depends only on memspine.schemas",
-   "status": "Ready",
-   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "status": "Done",
+   "note": "ingest/segment.py: hard/soft cuts, NEW+CONTEXT lines, oversize split, resume, coverage property (ab1760a)",
    "layers": [
     "L0"
    ],
@@ -1527,6 +1527,122 @@
     "read.cache + compose.render layout",
     "read.exec (LegExecutor)",
     "runtime.scheduler"
+   ],
+   "review": []
+  },
+  {
+   "id": "LIB-20",
+   "phase": 1,
+   "title": "Library: near-duplicate merge and value histories (K_C)",
+   "decisions": [
+    "O-13",
+    "O-14",
+    "M-13"
+   ],
+   "depends_on": [
+    "MOD-01"
+   ],
+   "kind": "infra",
+   "gate": "Unit tests; pure, unwired (wiring in O4-04); depends only on memspine.schemas",
+   "status": "Ready",
+   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "layers": [
+    "L1",
+    "L4"
+   ],
+   "operators": [
+    "K_C"
+   ],
+   "files": [
+    "src/memspine/core/records.py",
+    "config/constants.py"
+   ],
+   "owns": [
+    "src/memspine/derive/histories.py",
+    "tests/unit/lib/test_lib_20*.py"
+   ],
+   "lane": "other",
+   "agent": "sonnet",
+   "components": [
+    "ValueHistoryView (L1) + ObservationLayer (L4, held)",
+    "memspine.derive.dedupe.NearDuplicateMerger + QualifierGuard",
+    "memspine.derive.history.ValueHistoryView"
+   ],
+   "review": []
+  },
+  {
+   "id": "LIB-21",
+   "phase": 1,
+   "title": "Library: trust horizon on grants (cross-agent reach bound, attenuation)",
+   "decisions": [
+    "G-07"
+   ],
+   "depends_on": [
+    "MOD-01"
+   ],
+   "kind": "infra",
+   "gate": "Unit tests; pure, unwired (wiring in T5-01); depends only on memspine.schemas",
+   "status": "Ready",
+   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "layers": [
+    "scope"
+   ],
+   "operators": [
+    "D",
+    "R"
+   ],
+   "files": [
+    "src/memspine/config/constants.py",
+    "src/memspine/config/schema.py",
+    "src/memspine/config/templates/multi_agent.yaml",
+    "src/memspine/core/integrity.py"
+   ],
+   "owns": [
+    "src/memspine/trust/horizon.py",
+    "tests/unit/lib/test_lib_21*.py"
+   ],
+   "lane": "other",
+   "agent": "sonnet",
+   "components": [
+    "memspine.trust.horizon (THI auto-armed by GrantRegistry)"
+   ],
+   "review": []
+  },
+  {
+   "id": "LIB-22",
+   "phase": 1,
+   "title": "Library: time view and two-axis as-of reads over event and source/recorded time",
+   "decisions": [
+    "R-24",
+    "M-11"
+   ],
+   "depends_on": [
+    "MOD-01"
+   ],
+   "kind": "infra",
+   "gate": "Unit tests; pure, unwired (wiring in R3-14); depends only on memspine.schemas",
+   "status": "Ready",
+   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "layers": [
+    "L0",
+    "L1"
+   ],
+   "operators": [
+    "R"
+   ],
+   "files": [
+    "src/memspine/engine.py",
+    "src/memspine/core/read_filters.py"
+   ],
+   "owns": [
+    "src/memspine/read/timeview.py",
+    "tests/unit/lib/test_lib_22*.py"
+   ],
+   "lane": "other",
+   "agent": "sonnet",
+   "components": [
+    "TimeView (as_of_valid, as_of_known)",
+    "read.timeview (TimeView)"
    ],
    "review": []
   },
@@ -1874,7 +1990,8 @@
     "LIB-12",
     "LIB-15",
     "LIB-16",
-    "LIB-19"
+    "LIB-19",
+    "LIB-22"
    ],
    "kind": "move",
    "gate": "Golden byte-identical hit order",
@@ -1991,7 +2108,8 @@
     "F-11",
     "LIB-08",
     "LIB-09",
-    "LIB-18"
+    "LIB-18",
+    "LIB-21"
    ],
    "kind": "move",
    "gate": "Golden",
@@ -4510,7 +4628,8 @@
    ],
    "depends_on": [
     "F-02b",
-    "R3-04"
+    "R3-04",
+    "LIB-22"
    ],
    "kind": "behaviour",
    "gate": "Temporal and MAB-CR non-inferior",
@@ -4862,7 +4981,8 @@
    ],
    "depends_on": [
     "O4-03",
-    "W2-10"
+    "W2-10",
+    "LIB-20"
    ],
    "kind": "behaviour",
    "gate": "Zero wrong numeric merges; MAB-CR token check",
@@ -5222,7 +5342,8 @@
    ],
    "depends_on": [
     "F-16c",
-    "W2-04"
+    "W2-04",
+    "LIB-21"
    ],
    "kind": "behaviour",
    "gate": "Read cost of the bound; N1 tests",
