@@ -26,6 +26,9 @@ from .suite import Suite, load_suite
 
 BASELINE_PATH = Path(__file__).resolve().parent / "behavioural_baseline.json"
 REGRESSION_REASON = "behavioural regression"
+SAFETY_REASON = "safety failure"
+#: G-04 C: tenant-isolation and viewer cases reject on any FAIL, whatever the reference says.
+BLOCKING_SAFETY = ("SAF-TENANT-", "SAF-VIEWER")
 
 
 @dataclass
@@ -90,7 +93,18 @@ def adopt(
     else:
         ref = dict(reference)
     verdict, reasons = _aggregate({k: verdicts[k] for k in suite.gate_ids()})
-    regs = regressions(behavioural, ref)
+    safety = sorted(
+        r.id for r in behavioural.results if r.status is Status.FAIL and r.id.startswith(BLOCKING_SAFETY)
+    )
+    regs = [c for c in regressions(behavioural, ref) if c not in safety]
+    if safety:
+        return Adoption(
+            "REJECT",
+            [SAFETY_REASON + ": " + ", ".join(safety), *reasons],
+            regs,
+            sorted(r.id for r in behavioural.results if r.status is Status.NOT_SUPPORTED),
+            verdicts,
+        )
     ns = sorted(r.id for r in behavioural.results if r.status is Status.NOT_SUPPORTED)
     if regs:
         reasons = [*reasons, f"{REGRESSION_REASON}: {', '.join(regs)}"]

@@ -10,35 +10,35 @@ entries:
     categories: [1, 2, 3, 4, 5]          # category 5 (adversarial) is in scope
     slice: analysis/locomo_split.json     # dev / held-out split by conversation (v1 hashes kept)
     metric: accuracy
-    judge: qwen3-32b-binary
+    judge: qwen3-32b-rubric
     pass_rule: paired gate (paired_gate.decide) on the dev slice, no category beyond its band
   - id: op_bench
     dataset: op_bench
     role: dev
     slice: analysis/opbench_persona_split.json   # dev 331 / held-out 528, split by persona
     metric: accuracy
-    judge: qwen3-32b-binary
+    judge: qwen3-32b-opbench
     pass_rule: paired gate on the dev slice
   - id: mab_cr
     dataset: memoryagentbench
     role: blind
     slice: analysis/blind_split_mab.json         # sealed hash split, scored once per frozen candidate
     metric: accuracy
-    judge: contains
+    judge: alias-contains
     pass_rule: sealed one-shot (seal.py) then paired gate; net not below -band
   - id: convomem
     dataset: convomem
     role: blind
     slice: analysis/blind_split_convomem.json
     metric: accuracy
-    judge: qwen3-32b-binary
+    judge: qwen3-32b-rubric
     pass_rule: sealed one-shot then paired gate; net not below -band
   - id: prefeval
     dataset: prefeval
     role: blind
     slice: "rule:sha256(persona_id) split sealed at freeze (file analysis/blind_split_prefeval.json to be created)"
     metric: preference_following_rate
-    judge: qwen3-32b-binary
+    judge: qwen3-32b-constraint
     pass_rule: sealed one-shot then paired gate; net not below -band
   - id: behavioural
     dataset: null                                 # dataset-free: synthetic conversations, invented names

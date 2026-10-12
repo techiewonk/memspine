@@ -22,6 +22,16 @@ ROLES = ("dev", "blind", "behavioural")
 REQUIRED = {"locomo": "dev", "op_bench": "dev", "memoryagentbench": "blind", "convomem": "blind", "prefeval": "blind"}
 FIELDS = ("id", "role", "slice", "metric", "judge", "pass_rule")
 EXCLUDED = ("longmemeval",)
+DETERMINISTIC_JUDGES = ("exact-match", "contains", "alias-contains")
+NO_JUDGE = "none"
+
+
+def known_judge_ids() -> frozenset[str]:
+    """Judge ids the harness can record: the deterministic judges and `qwen3-32b-<suite>` (experiments.py)."""
+    from memspine_evals.judge_prompts import JUDGE_SUITES
+
+    suites = {*JUDGE_SUITES, "opbench"}
+    return frozenset({*DETERMINISTIC_JUDGES, *(f"qwen3-32b-{s}" for s in suites)})
 
 
 class SuiteError(ValueError):
@@ -82,6 +92,9 @@ def load_suite(path: Path | str = SUITE_PATH, registry: Mapping[str, DatasetEntr
                 raise SuiteError(f"entry {item['id']!r}: dataset {ds!r} is not in the dataset registry")
             if registry[ds].status != "adapted":
                 raise SuiteError(f"entry {item['id']!r}: dataset {ds!r} has no adapter (status {registry[ds].status})")
+        allowed = {NO_JUDGE} if item["role"] == "behavioural" else known_judge_ids()
+        if item["judge"] not in allowed:
+            raise SuiteError(f"entry {item['id']!r}: unknown judge id {item['judge']!r}")
         entries.append(
             SuiteEntry(
                 item["id"], ds, item["role"], str(item["slice"]), item["metric"], item["judge"],
