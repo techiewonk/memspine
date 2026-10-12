@@ -60,7 +60,7 @@ WP = [
     ("LIB-06", 1, "Library: exact tokenizer budget and complete evidence bundles", ["R-18"], ["MOD-01"], "infra",
      "Unit tests; pure, unwired (wiring in R3-09b); depends only on memspine.schemas", "Done", "compose/budget.py + bundles.py: exact counting incl headers, whole bundles, skip-and-continue, shared evidence once, shares (4052243)"),
     ("LIB-07", 1, "Library: job leases, epochs, watermark and holes, handles, coalescing, quotas", ["W-02", "W-10", "W-13", "W-25", "G-19", "P-21"], ["MOD-01"], "infra",
-     "Unit tests; pure, unwired (wiring in F-04); depends only on memspine.schemas", "Ready", "Library-first split (owner 2026-10-13: parallel agents)"),
+     "Unit tests; pure, unwired (wiring in F-04); depends only on memspine.schemas", "Done", "runtime/jobs.py + quotas.py: fenced leases, coalescing, holes/watermark, drain, recovery budget, triggers, quotas (e59131a)"),
     ("LIB-08", 1, "Library: source families, quarantine release rule, restated count", ["W-07", "G-06"], ["MOD-01"], "infra",
      "Unit tests; pure, unwired (wiring in W2-04); depends only on memspine.schemas", "Done", "trust/families.py: S4-2/4-3/4-4, author-known docs join the author family"),
     ("LIB-09", 1, "Library: erasure planner (hide then re-derive over lineage) and manifest", ["G-13", "M-25"], ["MOD-01"], "infra",

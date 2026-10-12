@@ -1011,8 +1011,8 @@
    ],
    "kind": "infra",
    "gate": "Unit tests; pure, unwired (wiring in F-04); depends only on memspine.schemas",
-   "status": "Ready",
-   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "status": "Done",
+   "note": "runtime/jobs.py + quotas.py: fenced leases, coalescing, holes/watermark, drain, recovery budget, triggers, quotas (e59131a)",
    "layers": [
     "L0",
     "L1",
