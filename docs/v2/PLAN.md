@@ -19,7 +19,7 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 
 | Id | Work package | Layers | Ops | Decisions | Review | Depends on | Kind | Agent lane | Owns | Gate | Status | Note |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| P0-01 | Paired adoption gate (focus, blind, full set) | L0 L1 L4 L5 ctx scope | D K_C K_P R C G | G-01, G-03 | ER-35 | - | infra | infra | - | Replay: identical arm NO CHANGE; missing set INCOMPLETE | **In progress** | Built 2026-10-12 (d0ab058, 5bf5643); open: sealed one-shot blind run per adoption |
+| P0-01 | Paired adoption gate (focus, blind, full set) | L0 L1 L4 L5 ctx scope | D K_C K_P R C G | G-01, G-03 | ER-35 | - | infra | infra | `evals/eval_blind.py` +9 | Replay: identical arm NO CHANGE; missing set INCOMPLETE | **In progress** | Built 2026-10-12 (d0ab058, 5bf5643); open: sealed one-shot blind run per adoption |
 | P0-02 | Environment pinning: separate venv per pinned run | - | R G | G-24 | ER-35 | - | infra | infra | `evals/pinned_run.sh` +3 | A fresh per-run venv reproduces clean-jina-full | **Needs measurement** | Per-run venv cache keyed by lock hash, dry-run, shared escape hatch (5f5a7f2); one GPU reproduction run pending (GPU stopped) |
 | P0-03 | Run manifest and comparability key | - | D R C G | G-25 | ER-35, ER-34 | - | infra | infra | `evals/pinned_run.sh` +3 | Manifest records commit, env hash, flags, prompts, models, data hashes | **Done** | manifest.py, comparability key incl. budget, INCOMPARABLE verdict, cost block (5f5a7f2, 7346aca); runners populate identity in P0-01 |
 | P0-04 | CPU golden, import-boundary contracts, method-to-module map of engine.py | L0 L1 L4 L5 ctx scope | D K_C K_P R C | G-16 | - | X-03 | infra | infra | `.importlinter` +4 | Golden identical on two runs at HEAD; map covers every engine method | **Not started** | S0; guards every move |
@@ -33,7 +33,7 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | X-02 | CI: golden, import-linter, blocking gold-lint, single Alembic head, flag-evidence check | L0 L1 L4 L5 ctx scope | D R C | G-22 | ER-04, ER-38 | P0-04 | infra | infra | - | CI fails on each violation | **Not started** |  |
 | X-03 | Golden fixture: synthetic conversations, hash embedder, reranker off | L0 L1 L4 L5 ctx scope | R C G | G-04 | - | - | infra | infra | `tests/golden/**` | No benchmark text; deterministic | **Done** | tests/golden (c4d61ac): 4 synthetic conversations, 14 queries, frozen clock; stable 6/6 runs |
 | X-04 | Docs and ADR: ADR-067 restructure, no-shim wording, G-23 migration-time upcaster | L0 L1 L4 L5 ctx scope | D K_C | G-23 | ER-01 | - | infra | infra | `docs/adr/ADR-067-*` +2 | Docs consistent with 'no shims' | **Done** | ADR-067 (40fb1e2) |
-| X-05 | Labelled sets: grounding, alias/homonym/numeric pairs, contradiction recall, global questions | L1 L3 | D K_C | W-17, W-19, O-13, O-12, O-17 | ER-12, ER-37 | - | infra | infra | - | Invented names, several languages; versioned | **Not started** |  |
+| X-05 | Labelled sets: grounding, alias/homonym/numeric pairs, contradiction recall, global questions | L1 L3 | D K_C | W-17, W-19, O-13, O-12, O-17 | ER-12, ER-37 | - | infra | infra | `evals/labelled/**` +1 | Invented names, several languages; versioned | **Not started** |  |
 | MOD-01 | memspine.schemas: versioned Pydantic input/output types for every pipeline step; JSON Schema export to docs/v2/schemas | L0 L1 L3 L4 L5 ctx scope | D K_C K_P R C | G-16, M-26 | ER-32, ER-33 | X-00 | infra | other | `src/memspine/schemas/**` +4 | Every step in pipelines/*.md has a schema; export reproducible in CI | **Ready** | Owner 2026-10-13; new files only; sessions 1-2 answered (schemas/SESSIONS_01_02) |
 | X-06 | Licence check for a permissive reranker fallback | L0 L1 | R | R-14 | - | - | infra | infra | `docs/v2/data/reranker_licences_*.md` | Named fallback with licence | **Done** | Qwen3-Reranker-0.6B (Apache-2.0) primary, MiniLM-L6 CPU (5544e88); owner to confirm |
 
@@ -168,6 +168,7 @@ Files each package may write (glob patterns, repo-relative; includes removal and
 
 | Id | Owns |
 |---|---|
+| P0-01 | `evals/eval_blind.py`<br>`evals/eval_focus.py`<br>`evals/eval_screen.py`<br>`evals/eval_paired.py`<br>`evals/memspine_evals/metrics.py`<br>`evals/memspine_evals/paired_gate.py`<br>`evals/memspine_evals/seal*.py`<br>`evals/tests/test_paired_gate.py`<br>`evals/tests/test_eval_gate_wiring.py`<br>`evals/tests/test_seal*.py` |
 | P0-02 | `evals/pinned_run.sh`<br>`evals/memspine_evals/provenance.py`<br>`evals/memspine_evals/paired_gate.py`<br>`evals/README.md` |
 | P0-03 | `evals/pinned_run.sh`<br>`evals/memspine_evals/provenance.py`<br>`evals/memspine_evals/paired_gate.py`<br>`evals/README.md` |
 | P0-04 | `.importlinter`<br>`tests/golden/**`<br>`tests/unit/test_import_contracts.py`<br>`docs/v2/data/engine_method_map*`<br>`scripts/engine_method_map.py` |
@@ -175,6 +176,7 @@ Files each package may write (glob patterns, repo-relative; includes removal and
 | X-01 | `docs/v2/data/build_plan.py`<br>`docs/v2/data/packages.py`<br>`docs/v2/briefs/**` |
 | X-03 | `tests/golden/**` |
 | X-04 | `docs/adr/ADR-067-*`<br>`docs/v2/areas/*.md`<br>`docs/v2/pipelines/*.md` |
+| X-05 | `evals/labelled/**`<br>`evals/tests/test_labelled_sets.py` |
 | MOD-01 | `src/memspine/schemas/**`<br>`docs/v2/schemas/durable/**`<br>`docs/v2/schemas/public/**`<br>`docs/v2/schemas/internal/**`<br>`tests/unit/schemas/**` |
 | X-06 | `docs/v2/data/reranker_licences_*.md` |
 | F-05 | `src/memspine/store/records.py`<br>`src/memspine/store/events.py`<br>`src/memspine/store/log.py`<br>`src/memspine/store/scope.py`<br>`src/memspine/store/lineage.py`<br>`src/memspine/trust/**`<br>`src/memspine/core/records.py`<br>`src/memspine/core/events.py`<br>`src/memspine/core/replay.py`<br>`src/memspine/core/projector.py`<br>`src/memspine/core/namespace.py`<br>`src/memspine/core/visibility.py`<br>`src/memspine/core/firewall.py`<br>`src/memspine/core/audit.py`<br>`src/memspine/core/erasure.py`<br>`src/memspine/core/privacy.py`<br>`src/memspine/core/redaction.py` |
@@ -205,4 +207,4 @@ Files each package may write (glob patterns, repo-relative; includes removal and
 | F-16e | `src/memspine/store/lineage.py`<br>`src/memspine/store/migrate.py`<br>`src/memspine/store/profiles.py`<br>`src/memspine/store/backends/postgres/**`<br>`src/memspine/store/backends/neo4j/**`<br>`src/memspine/derive/write.py`<br>`src/memspine/services/graph/neo4j.py` |
 | F-16f | `src/memspine/store/lineage.py`<br>`src/memspine/store/migrate.py`<br>`src/memspine/store/profiles.py`<br>`src/memspine/store/backends/postgres/**`<br>`src/memspine/store/backends/neo4j/**`<br>`src/memspine/derive/write.py`<br>`src/memspine/services/graph/neo4j.py` |
 
-No ownership yet (cannot be briefed): 74 packages.
+No ownership yet (cannot be briefed): 72 packages.

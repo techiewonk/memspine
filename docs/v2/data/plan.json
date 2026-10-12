@@ -44,7 +44,18 @@
     "evals/eval_screen.py",
     "evals/memspine_evals/metrics.py"
    ],
-   "owns": [],
+   "owns": [
+    "evals/eval_blind.py",
+    "evals/eval_focus.py",
+    "evals/eval_screen.py",
+    "evals/eval_paired.py",
+    "evals/memspine_evals/metrics.py",
+    "evals/memspine_evals/paired_gate.py",
+    "evals/memspine_evals/seal*.py",
+    "evals/tests/test_paired_gate.py",
+    "evals/tests/test_eval_gate_wiring.py",
+    "evals/tests/test_seal*.py"
+   ],
    "lane": "infra",
    "agent": "sonnet",
    "components": [
@@ -616,7 +627,10 @@
     "src/memspine/workers/windows.py",
     "workers/pipelines.py"
    ],
-   "owns": [],
+   "owns": [
+    "evals/labelled/**",
+    "evals/tests/test_labelled_sets.py"
+   ],
    "lane": "infra",
    "agent": "sonnet",
    "components": [
