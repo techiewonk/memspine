@@ -631,8 +631,8 @@
    "depends_on": [],
    "kind": "infra",
    "gate": "Invented names, several languages; versioned",
-   "status": "Not started",
-   "note": "",
+   "status": "Done",
+   "note": "evals/labelled: 62 grounding, 80 entity pairs, 44 contradictions, 10 conv + 20 global questions (da4c961, 2b81427)",
    "layers": [
     "L1",
     "L3"
