@@ -57,7 +57,7 @@ def test_ids_unique(name: str) -> None:
 def test_sizes() -> None:
     assert len(L.load_grounding().items) == 62
     assert len(L.load_entity_pairs().items) == 80
-    assert len(L.load_contradictions().items) == 40
+    assert len(L.load_contradictions().items) == 44
     g = L.load_global_questions().items
     assert 8 <= len(g.conversations) <= 10
     assert len(g.questions) == 20
@@ -137,21 +137,32 @@ def test_contradictions_vocabulary_and_rules() -> None:
             assert a.binding in L.BINDINGS
             assert a.source_trust in L.TRUST_TIERS
         inc, cur = c.incoming, c.existing[-1]
-        full = inc.modality == "asserted" and inc.binding == "bound"
+        bound = inc.binding == "bound"
+        full = inc.modality == "asserted" and bound
+        negation = inc.modality == "negated" and bound
         if c.expected == "supersede":
             assert c.cardinality == "one" and full
             assert rank[inc.source_trust] >= rank[cur.source_trust]
+        elif c.expected == "retire":
+            # a bound negation at cardinality one, trust >= current, closes the interval
+            assert c.cardinality == "one" and negation and inc.value == "none"
+            assert rank[inc.source_trust] >= rank[cur.source_trust]
         elif c.expected == "contest":
-            assert c.cardinality == "one" and full and c.reason == "trust"
+            assert c.cardinality == "one" and (full or negation) and c.reason == "trust"
             assert rank[inc.source_trust] < rank[cur.source_trust]
         elif c.expected == "tentative":
-            assert not full
+            assert not full and not negation
             assert c.reason == ("binding" if inc.binding != "bound" else "modality")
         else:
             assert c.reason in ("cardinality", "time")
     outcomes = Counter(c.expected for c in items)
     for o in L.OUTCOMES:
-        assert 0.15 <= _share(outcomes, o) <= 0.35, outcomes
+        if o == "retire":
+            assert outcomes[o] >= 2, outcomes
+        else:
+            assert 0.15 <= _share(outcomes, o) <= 0.35, outcomes
+    negated = [c for c in items if c.incoming.modality == "negated"]
+    assert len(negated) >= 3
     assert len({c.lang for c in items}) >= 4
 
 

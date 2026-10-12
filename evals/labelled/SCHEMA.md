@@ -72,7 +72,7 @@ cs, tr, it.
 ## contradictions.v1.jsonl (O-12, O-13, W-21)
 
 An existing assertion list for one subject and attribute, one incoming assertion, and the expected
-integration outcome under S5-2. 40 items.
+integration outcome under S5-2 plus the negation rule decided on 2026-10-13. 44 items.
 
 | Field | Meaning |
 |---|---|
@@ -83,16 +83,17 @@ integration outcome under S5-2. 40 items.
 | `stage` | `same_key` (same predicate) or `cross_key` (different predicate, same subject; the O-12 stage 2 case). |
 | `existing` | Assertions already stored, oldest first (`e1`, ...). |
 | `incoming` | The new assertion (`new`). |
-| `expected` | `supersede`: asserted, bound, trust at least the current value's, cardinality one. `coexist`: cardinality many, or a non-overlapping past interval. `contest`: a cardinality-one conflict from a lower-trust newer assertion; both kept. `tentative`: hypothetical, planned, reported or not-fully-bound incoming; kept as tentative next to the current value. |
+| `expected` | `supersede`: asserted, bound, trust at least the current value's, cardinality one. `coexist`: cardinality many, or a non-overlapping past interval. `retire`: a bound, negated incoming assertion ("no longer ...", `value` = `none`) at cardinality one with trust at least the current value's; the current value's interval is closed and no new value is created. `contest`: a cardinality-one conflict (asserted or negated, bound) from a lower-trust newer assertion; both kept. `tentative`: hypothetical (including hypothetical negation), planned, reported or not-fully-bound incoming; kept as tentative next to the current value. |
 | `reason` | `cardinality`, `trust`, `modality`, `binding`, `time`. |
 | `note` | Optional. |
 
 Each assertion carries `{id, text, subject, predicate, value, modality, binding, source_trust,
 source_family, source_time}`.
 
-Distribution: supersede 12, coexist 10, contest 9, tentative 9 (15% to 35% bound). Reasons:
-cardinality 20, trust 10, modality 7, binding 2, time 1. Stage: same_key 29, cross_key 11.
-Languages: en 19, de 7, nl 6, es 4, ja 4.
+Distribution: supersede 12, coexist 10, contest 10, tentative 10, retire 2 (15% to 35% bound per
+outcome, retire at least 2). Reasons: cardinality 20, trust 11, modality 10, binding 2, time 1.
+Stage: same_key 33, cross_key 11. Languages: en 20, de 8, nl 7, es 5, ja 4. Four items carry a
+negated or hypothetical-negated incoming assertion (2 retire, 1 contest, 1 tentative).
 
 ## global_questions.v1.jsonl (O-12, O-17)
 
