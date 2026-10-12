@@ -10,8 +10,8 @@ from __future__ import annotations
 import re
 from collections.abc import Sequence
 
+from memspine.compose.pack import estimate_tokens
 from memspine.config import constants
-from memspine.core.policies.assembly import estimate_tokens
 from memspine.store.records import MemoryRecord
 
 __all__ = ["clean_query", "evidence_view", "fuse_new", "merge_budget"]

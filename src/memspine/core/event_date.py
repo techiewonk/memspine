@@ -3,7 +3,7 @@
 In 10 of combo-A's 29 wrong absolute dates on LoCoMo the reader answered with the day
 the event was mentioned. A mined fact therefore carries its happened date in a
 ``happened:<date>`` tag, found deterministically where possible: the H1 resolution
-(:mod:`memspine.core.temporal_resolve`) of a relative phrase in the fact or in the
+(:mod:`memspine.models.encoders.query.temporal_resolve`) of a relative phrase in the fact or in the
 turns it was mined from, each against its own date. Pure functions, no model.
 
 A happened date is written as a day (``2023-07-14``), a month (``2023-07``), a year
@@ -16,7 +16,7 @@ import re
 from collections.abc import Iterable, Sequence
 from datetime import date, datetime
 
-from memspine.core.temporal_resolve import WeekMode, resolve
+from memspine.models.encoders.query.temporal_resolve import WeekMode, resolve
 from memspine.store.records import MemoryRecord
 
 __all__ = [

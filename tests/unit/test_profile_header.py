@@ -8,9 +8,9 @@ from typing import Any
 import pytest
 
 from memspine import Engine
+from memspine.compose.pack import estimate_tokens
 from memspine.config import constants
-from memspine.core.lead import mentions_any, query_names
-from memspine.core.policies.assembly import estimate_tokens
+from memspine.read.lead import mentions_any, query_names
 
 T0 = datetime(2023, 5, 7, 10, 0, tzinfo=UTC)
 

@@ -8,8 +8,8 @@ import pytest
 
 from memspine import Engine
 from memspine.engine import search_forensics
-from memspine.services.embedding import word_vectors
-from memspine.services.embedding.word_vectors import WordVectorEncoder
+from memspine.models.encoders.embedding import word_vectors
+from memspine.models.encoders.embedding.word_vectors import WordVectorEncoder
 
 
 class FakeEncoder:

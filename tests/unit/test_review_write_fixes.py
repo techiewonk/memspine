@@ -12,8 +12,8 @@ from typing import Any
 import pytest
 
 from memspine import Engine
+from memspine.compose.compression import CompressionPolicy
 from memspine.config import constants
-from memspine.core.policies.compression import CompressionPolicy
 from memspine.core.policies.conflict import ConflictPolicy, ConflictVerdict
 from memspine.prompts.models import AnticipatedCue, ExtractedFact
 from memspine.store.events import EventKind, MemoryEvent

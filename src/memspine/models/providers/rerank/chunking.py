@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import re
 
-from memspine.services.rerank.base import Reranker
+from memspine.models.providers.rerank.base import Reranker
 
 __all__ = ["ChunkMaxReranker", "split_windows"]
 

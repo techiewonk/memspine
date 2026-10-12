@@ -17,10 +17,10 @@ import os
 from pathlib import Path
 from typing import Any
 
+from memspine.compose.compression import CompressionOptions
+from memspine.compose.pack import AssemblyOptions
 from memspine.config.schema import MemspineConfig
-from memspine.core.policies.assembly import AssemblyOptions
 from memspine.core.policies.community import CommunityOptions
-from memspine.core.policies.compression import CompressionOptions
 from memspine.core.policies.conflict import ConflictOptions
 from memspine.core.policies.consolidation import ConsolidationOptions
 from memspine.core.policies.decay import DecayOptions

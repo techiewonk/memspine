@@ -14,8 +14,8 @@ from typing import Any
 
 from jinja2 import Environment
 
-from memspine.core.query_shape import is_inference, is_temporal
 from memspine.exceptions import ConfigError
+from memspine.models.encoders.query.shape import is_inference, is_temporal
 from memspine.prompts.base import Prompt
 from memspine.prompts.env import build_environment, partials_fingerprint
 from memspine.prompts.loader import load_default_pack

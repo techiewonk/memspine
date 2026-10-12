@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from memspine.services.cache.base import MemoryKV
-from memspine.services.cache.semantic import CachedEmbedding
-from memspine.services.embedding.hash_local import HashEmbedding
+from memspine.models.cache.base import MemoryKV
+from memspine.models.cache.semantic import CachedEmbedding
+from memspine.models.encoders.embedding.hash_local import HashEmbedding
 
 
 async def test_hash_embedding_is_deterministic_and_normalized() -> None:

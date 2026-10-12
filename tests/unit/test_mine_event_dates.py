@@ -12,8 +12,8 @@ import pytest
 
 from memspine import Engine
 from memspine.config.schema import MemspineConfig
+from memspine.models.providers.llm.base import LLMRouter, LLMService
 from memspine.prompts.models import ExtractedFact
-from memspine.services.llm.base import LLMRouter, LLMService
 
 T0 = datetime(2023, 5, 8, 13, 0, tzinfo=UTC)  # a Monday
 TURNS = [
@@ -328,7 +328,7 @@ async def test_happened_fact_is_not_shifted_twice_at_read(
 ) -> None:
     """A fact keeping its relative phrase is resolved against the day it was SAID, not
     against a ``valid_from`` already moved to the event day."""
-    from memspine.core.lead import event_day
+    from memspine.read.lead import event_day
 
     turns = [(T0, "Melanie: I went camping yesterday, and hiked last week")]
     mined = [
@@ -352,7 +352,7 @@ async def test_happened_fact_is_not_shifted_twice_at_read(
 
 def test_legacy_happened_fact_without_said_tag_is_not_resolved() -> None:
     from memspine.core.event_date import date_anchor
-    from memspine.core.lead import event_day
+    from memspine.read.lead import event_day
     from memspine.store.records import MemoryRecord
 
     moved = MemoryRecord(

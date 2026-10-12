@@ -13,8 +13,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from memspine.models.encoders.embedding.base import EmbedderManifest
 from memspine.services._retry import retry_transient
-from memspine.services.embedding.base import EmbedderManifest
 
 __all__ = ["LiteLLMEmbedding"]
 

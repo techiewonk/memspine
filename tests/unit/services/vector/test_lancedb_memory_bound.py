@@ -19,7 +19,7 @@ import psutil
 
 from memspine.clients.lancedb import LanceDBClient
 from memspine.config import constants
-from memspine.services.embedding.hash_local import HashEmbedding
+from memspine.models.encoders.embedding.hash_local import HashEmbedding
 from memspine.services.vector.lancedb_store import LanceDBVectorStore
 
 _DIM = 16

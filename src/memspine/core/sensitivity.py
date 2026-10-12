@@ -22,8 +22,8 @@ import re
 from collections.abc import Iterable, Sequence
 from typing import NamedTuple
 
-from memspine.core.query_shape import content_words
 from memspine.core.sensitive import SENSITIVE_CATEGORIES
+from memspine.models.encoders.query.shape import content_words
 
 __all__ = [
     "CATEGORY_GRADE",

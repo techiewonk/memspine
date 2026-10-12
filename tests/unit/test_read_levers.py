@@ -11,8 +11,8 @@ import pytest
 from memspine import Engine
 from memspine.config import constants
 from memspine.config.schema import MemspineConfig
-from memspine.core.lead import distinct_occurrences, event_day
-from memspine.services.llm.base import LLMRouter, LLMService
+from memspine.models.providers.llm.base import LLMRouter, LLMService
+from memspine.read.lead import distinct_occurrences, event_day
 from memspine.store.records import MemoryRecord
 
 T0 = datetime(2023, 5, 7, 10, 0, tzinfo=UTC)  # a Sunday

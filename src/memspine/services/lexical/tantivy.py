@@ -296,7 +296,7 @@ class TantivyLexical:
         content = strip_control_chars(record.content)
         if not self._date_tokens:
             return content
-        from memspine.core.temporal_query import date_words
+        from memspine.models.encoders.query.temporal_query import date_words
 
         return f"{content} {date_words(record)}"
 

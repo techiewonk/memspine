@@ -86,7 +86,7 @@ def test_every_extra_arm_yields_a_parseable_command(arm_id: str) -> None:
 
 
 def test_engine_configs_validate_and_rerank_mode_is_registered() -> None:
-    from memspine.services.rerank.factory import rerank_modes
+    from memspine.models.providers.rerank.factory import rerank_modes
 
     plan = _plan()
     for arm in plan["arms"]:

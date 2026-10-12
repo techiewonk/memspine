@@ -8,7 +8,7 @@ when:
 # #34 (SM-13) + #29 + #60, LoCoMo failure buckets (2026-10-05): 48 single-hop wrong
 # answers paraphrased a specific gold phrase, 10 temporal ones gave the date an event
 # was mentioned, and the blanket refusal clause refused with the evidence in context.
-# Brief reasoning, then a final "Answer:" line (memspine.core.answer.final_answer
+# Brief reasoning, then a final "Answer:" line (memspine.compose.answer.final_answer
 # extracts it); quote the detail; dates in the granularity asked; merge repeated
 # mentions before counting; "not mentioned" only when nothing bears on it. Opt-in:
 # prompts.selection.chat: {condition: dated3}.

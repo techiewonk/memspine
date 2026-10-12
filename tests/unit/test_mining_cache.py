@@ -8,7 +8,7 @@ import pytest
 
 from memspine import Engine
 from memspine.config.schema import MemspineConfig
-from memspine.services.llm.base import LLMRouter
+from memspine.models.providers.llm.base import LLMRouter
 
 REPLY = '{"facts": [{"entity": "Ana", "attribute": "city", "value": "Lyon", "kind": "state"}]}'
 

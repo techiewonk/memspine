@@ -14,8 +14,8 @@ import pytest
 
 from memspine.config.schema import MemspineConfig
 from memspine.engine import Engine
-from memspine.services.embedding.base import EmbeddingService
-from memspine.services.embedding.hash_local import HashEmbedding
+from memspine.models.encoders.embedding.base import EmbeddingService
+from memspine.models.encoders.embedding.hash_local import HashEmbedding
 
 _TURNS = [
     "Caroline: I went to the LGBTQ support group yesterday.",

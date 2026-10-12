@@ -28,8 +28,8 @@ import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from memspine.core.query_shape import content_words
-from memspine.core.temporal_query import speaker_of
+from memspine.models.encoders.query.shape import content_words
+from memspine.models.encoders.query.temporal_query import speaker_of
 
 __all__ = [
     "BECAUSE_REL",

@@ -2,7 +2,7 @@
 
 :func:`check_answer` looks at the answer text only (never the gold, never a benchmark's
 vocabulary) and reports the DEFECTS it can name from surface properties of the answer type
-the question asked for (:mod:`memspine.core.query_contract`):
+the question asked for (:mod:`memspine.read.contract`):
 
 * ``missing_date`` / ``missing_year`` / ``missing_time``: a "when" question answered without
   any date, year or clock time (a relative phrase such as "last week" counts as a date);
@@ -29,7 +29,7 @@ import re
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 
-from memspine.core.query_contract import QueryContract
+from memspine.read.contract import QueryContract
 
 __all__ = [
     "Defect",
@@ -389,7 +389,7 @@ def check_answer(
     abstained: bool | None = None,
     soft: bool = False,
 ) -> list[Defect]:
-    """The defects :mod:`this module <memspine.core.answer_check>` can name for ``answer``.
+    """The defects :mod:`this module <memspine.compose.answer_check>` can name for ``answer``.
 
     ``soft``: also report the ``soft_*`` signals (an unnamed place / person / title; a
     country listed among cities). They are noisier than the strict checks: the repair step

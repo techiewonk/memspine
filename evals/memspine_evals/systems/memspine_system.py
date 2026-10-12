@@ -1008,8 +1008,8 @@ class MemspineSystem:
             as_of = {**as_of, "session_id": self._read_session}
 
         log_dirs = self._log_dirs()
-        from memspine.core.perspective import asker_scope
         from memspine.engine import search_forensics
+        from memspine.models.encoders.query.perspective import asker_scope
 
         with search_forensics() as stages, asker_scope(self._asker):
             if self._read_mode:

@@ -11,7 +11,7 @@ import pytest
 
 from memspine import Engine
 from memspine.engine import search_forensics
-from memspine.services.rerank.factory import RerankSettings, register_reranker
+from memspine.models.providers.rerank.factory import RerankSettings, register_reranker
 
 
 class _ConstReranker:

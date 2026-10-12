@@ -16,7 +16,7 @@ import pytest
 pytest.importorskip("lancedb")
 
 from memspine.clients.lancedb import LanceDBClient
-from memspine.services.embedding.hash_local import HashEmbedding
+from memspine.models.encoders.embedding.hash_local import HashEmbedding
 from memspine.services.vector.base import VectorHit
 from memspine.services.vector.lancedb_store import LanceDBVectorStore
 

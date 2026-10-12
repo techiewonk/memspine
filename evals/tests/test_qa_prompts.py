@@ -90,7 +90,7 @@ def test_dated3_reasons_then_answers_without_a_blanket_refusal() -> None:
 def test_final_answer_matches_the_engine_extractor(reply: str, answer: str) -> None:
     from memspine_evals.readers import final_answer
 
-    from memspine.core.answer import final_answer as engine_final_answer
+    from memspine.compose.answer import final_answer as engine_final_answer
 
     assert final_answer(reply) == answer == engine_final_answer(reply)
 

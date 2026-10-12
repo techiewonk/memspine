@@ -24,12 +24,12 @@ from memspine.core.fact_chain import (
     slot_name,
     validate_assertions,
 )
-from memspine.core.query_contract import build_contract
 from memspine.engine import search_forensics
 from memspine.exceptions import ConfigError
+from memspine.models.providers.llm import structured
+from memspine.models.providers.llm.base import LLMRouter, LLMService
 from memspine.prompts.models import AssertionOut
-from memspine.services.llm import structured
-from memspine.services.llm.base import LLMRouter, LLMService
+from memspine.read.contract import build_contract
 
 T0 = datetime(2023, 5, 7, 10, 0, tzinfo=UTC)
 MOVED = "Sven: I moved away from my home country when I was twenty"

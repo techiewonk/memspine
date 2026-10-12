@@ -9,7 +9,7 @@ from memspine_evals import refusal
 from memspine_evals.contracts import ReaderAnswer
 from memspine_evals.refusal import RefusalRetryReader
 
-from memspine.services.decision.decider import Decision
+from memspine.models.providers.decision.decider import Decision
 
 CONTEXT = "[2023-05-25] Caroline: I went hiking in Denver last Friday"
 

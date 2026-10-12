@@ -4,7 +4,7 @@ what they would cost in LLM calls, on a finished run's saved reader rows.
 No model is called and nothing is changed. For each saved row the triggers are evaluated
 exactly as the engine does:
 
-* ``read.agentic_trigger: multi_hop`` -> :func:`memspine.core.query_shape.is_multi_hop` on the
+* ``read.agentic_trigger: multi_hop`` -> :func:`memspine.models.encoders.query.shape.is_multi_hop` on the
   question (the slot loop fires on the same trigger);
 * ``read.fact_chain_trigger: triggered`` -> multi-hop OR the A03 contract's relation is not
   stated beside its subject in any of the first ``FACT_CHAIN_MAX_LINES`` context lines
@@ -56,8 +56,8 @@ def _lines(row: dict[str, Any], limit: int) -> list[str]:
 def estimate(rows: list[dict[str, Any]], max_steps: int = 2) -> dict[str, Any]:
     from memspine.config import constants
     from memspine.core.fact_chain import relation_unresolved
-    from memspine.core.query_contract import build_contract
-    from memspine.core.query_shape import is_multi_hop
+    from memspine.models.encoders.query.shape import is_multi_hop
+    from memspine.read.contract import build_contract
 
     total = collections.Counter()
     by_type: dict[str, collections.Counter] = collections.defaultdict(collections.Counter)

@@ -25,9 +25,9 @@ import yaml
 from pydantic import BaseModel
 
 from memspine.exceptions import LLMError
+from memspine.models.providers.llm.base import LLMService, lenient_json
 from memspine.observability.logging import get_logger
 from memspine.prompts.base import Prompt, PromptFormat
-from memspine.services.llm.base import LLMService, lenient_json
 
 __all__ = [
     "StructuredOptions",

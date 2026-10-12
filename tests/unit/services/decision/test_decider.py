@@ -11,8 +11,8 @@ import pytest
 from memspine import Engine
 from memspine.config.schema import ReadConfig
 from memspine.engine import search_forensics
-from memspine.services.decision import decider as decider_mod
-from memspine.services.decision.decider import (
+from memspine.models.providers.decision import decider as decider_mod
+from memspine.models.providers.decision.decider import (
     TASKS,
     Decision,
     HeuristicDecider,
@@ -299,7 +299,7 @@ async def test_opendecider_missing_dependencies_is_a_missing_service(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from memspine.exceptions import MissingServiceError
-    from memspine.services.decision import opendecider_nano as nano
+    from memspine.models.providers.decision import opendecider_nano as nano
 
     monkeypatch.setitem(sys.modules, "torch", None)  # import raises ImportError
     monkeypatch.setattr(nano, "_MODELS", {})
@@ -312,7 +312,7 @@ async def test_opendecider_missing_dependencies_is_a_missing_service(
 
 def test_nano_input_layout_matches_the_published_format() -> None:
     """[CLS] question: ... [SEP] [MASK] yes: Yes [MASK] no: No [SEP] input: ... [SEP]"""
-    from memspine.services.decision.opendecider_nano import nano_ids, noul_options
+    from memspine.models.providers.decision.opendecider_nano import nano_ids, noul_options
 
     class Tok:
         cls_token_id, sep_token_id, mask_token_id = 1, 2, 3
@@ -341,7 +341,7 @@ def test_nano_input_layout_matches_the_published_format() -> None:
 
 def test_decide_many_buckets_by_length_and_keeps_order() -> None:
     """I38: sorted by length, micro-batches of max_batch, results in input order."""
-    from memspine.services.decision.opendecider_nano import _Base, noul_options
+    from memspine.models.providers.decision.opendecider_nano import _Base, noul_options
 
     class Tok:
         cls_token_id, sep_token_id, mask_token_id, pad_token_id = 1, 2, 3, 0
@@ -408,7 +408,7 @@ def _real_model_cached() -> bool:
 
 @pytest.mark.skipif(not _real_model_cached(), reason="opendecider-nano is not downloaded")
 async def test_real_opendecider_nano_on_cpu_matches_the_model_card() -> None:
-    from memspine.services.decision.opendecider_nano import load_nano
+    from memspine.models.providers.decision.opendecider_nano import load_nano
 
     # model card example: churn_risk noul = 0.922 (parity with the package: max diff 6e-8)
     state = (

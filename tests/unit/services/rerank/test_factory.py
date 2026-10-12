@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from memspine.services.rerank import factory
-from memspine.services.rerank.factory import (
+from memspine.models.providers.rerank import factory
+from memspine.models.providers.rerank.factory import (
     RerankSettings,
     build_reranker,
     register_reranker,

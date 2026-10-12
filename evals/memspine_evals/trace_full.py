@@ -74,7 +74,7 @@ _FLAGS = (
 
 def query_analysis(question: str) -> dict[str, Any]:
     """Shape flags of a question, from the engine's own rule code (no model, no store)."""
-    from memspine.core import query_shape as qs
+    from memspine.models.encoders.query import shape as qs
 
     flags: dict[str, Any] = {}
     for name in _FLAGS:

@@ -15,9 +15,9 @@ from typing import Any
 import orjson
 import xxhash
 
+from memspine.models.cache.base import KVCache
+from memspine.models.encoders.embedding.base import EmbedderManifest, EmbeddingService
 from memspine.prompts.models import ExtractedFact
-from memspine.services.cache.base import KVCache
-from memspine.services.embedding.base import EmbedderManifest, EmbeddingService
 
 __all__ = ["CachedEmbedding", "CachedExtractor"]
 

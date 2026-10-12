@@ -32,7 +32,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import date
 
-from memspine.core.answer_check import Defect, _full_dates
+from memspine.compose.answer_check import Defect, _full_dates
 
 __all__ = [
     "DIAGNOSIS_VERSION",

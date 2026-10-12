@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-from memspine.core.policies.assembly import AssemblyPolicy
+from memspine.compose.compression import CompressionPolicy
+from memspine.compose.pack import AssemblyPolicy
 from memspine.core.policies.base import BindablePolicy
-from memspine.core.policies.compression import CompressionPolicy
 from memspine.core.policies.conflict import ConflictPolicy
 from memspine.core.policies.consolidation import ConsolidationPolicy
 from memspine.core.policies.decay import DecayPolicy

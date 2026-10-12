@@ -20,7 +20,7 @@ import math
 from typing import Any
 
 from memspine.exceptions import MissingServiceError
-from memspine.services.embedding.base import EmbedderManifest
+from memspine.models.encoders.embedding.base import EmbedderManifest
 
 __all__ = ["StaticEmbedder"]
 

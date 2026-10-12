@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from memspine.core.policies.assembly import AssemblyPolicy
+from memspine.compose.pack import AssemblyPolicy
 from memspine.store.records import MemoryRecord
 
 T0 = datetime(2023, 1, 1, tzinfo=UTC)

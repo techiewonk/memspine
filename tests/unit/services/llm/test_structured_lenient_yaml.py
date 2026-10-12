@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+from memspine.models.providers.llm.structured import _parse_payload
 from memspine.prompts.base import PromptFormat
 from memspine.prompts.models import ExtractedFacts
-from memspine.services.llm.structured import _parse_payload
 
 # Shape seen from Qwen3-32B on LoCoMo (pilot, 2026-10-03): strict YAML rejects
 # line 3 ("mapping values are not allowed here").

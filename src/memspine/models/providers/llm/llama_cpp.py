@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from memspine.exceptions import LLMError, MissingServiceError
-from memspine.services.llm.litellm_llm import _with_no_think, default_no_think, strip_think
+from memspine.models.providers.llm.litellm_llm import _with_no_think, default_no_think, strip_think
 
 __all__ = ["LlamaCppLLM"]
 

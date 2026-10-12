@@ -25,8 +25,8 @@ from memspine.core.policies.dedup import DedupPolicy
 from memspine.memories.base import BaseMemory
 from memspine.memories.semantic.entities import EntityExtractor
 from memspine.memories.semantic.write_pipeline import EDGE_CHANNEL, ScreenDerived, WritePipeline
+from memspine.models.encoders.embedding.base import EmbeddingService
 from memspine.observability.logging import EVENT_CONFLICT, EVENT_MERGE, get_logger
-from memspine.services.embedding.base import EmbeddingService
 from memspine.services.storage.base import StorageService
 from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import MemoryRecord, RecordStatus, chrono_key

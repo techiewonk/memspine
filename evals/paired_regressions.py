@@ -48,7 +48,12 @@ def _ctx_lines(row: dict[str, Any]) -> int:
 def shape(question: str) -> str:
     """Question shape from the engine's rule router (no model)."""
     try:
-        from memspine.core.query_shape import is_aggregation, is_count, is_inference, is_temporal
+        from memspine.models.encoders.query.shape import (
+            is_aggregation,
+            is_count,
+            is_inference,
+            is_temporal,
+        )
     except ImportError:  # run without PYTHONPATH=src: coarse fallback
         q = question.lower()
         if re.search(r"\bhow many\b", q):

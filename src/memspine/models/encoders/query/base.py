@@ -5,7 +5,7 @@ reach: Madeleine-style anticipation, where a question asked weeks later in other
 words lands on the turn written to answer it. The port is read-time only and never
 calls an LLM. ``read.query_encoder`` selects the implementation: ``none`` (the
 default, :class:`NoopQueryEncoder`, reads are byte-identical) or ``cues``
-(:class:`~memspine.services.query_encoder.cues.CueQueryEncoder`).
+(:class:`~memspine.models.encoders.query.cues.CueQueryEncoder`).
 
 An encoder only *proposes*: the engine re-checks every match (the cue is live,
 unquarantined and at or above ``read.cue_min_trust``) and the proposed targets

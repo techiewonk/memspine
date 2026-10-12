@@ -15,7 +15,7 @@ from memspine.core.owner_check import (
     store_vocab,
     user_header,
 )
-from memspine.core.perspective import asker_scope, record_view, resolve_question
+from memspine.models.encoders.query.perspective import asker_scope, record_view, resolve_question
 from memspine.store.records import MemoryRecord
 
 TWO = {"caroline", "melanie"}

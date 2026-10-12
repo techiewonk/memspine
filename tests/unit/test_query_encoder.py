@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 
 from memspine import Engine
-from memspine.services.query_encoder import (
+from memspine.models.encoders.query import (
     CueQueryEncoder,
     NoopQueryEncoder,
     QueryEncoder,

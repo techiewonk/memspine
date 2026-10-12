@@ -14,7 +14,7 @@ import math
 import xxhash
 
 from memspine.config.constants import HASH_EMBEDDING_DIM
-from memspine.services.embedding.base import EmbedderManifest
+from memspine.models.encoders.embedding.base import EmbedderManifest
 
 __all__ = ["HashEmbedding"]
 

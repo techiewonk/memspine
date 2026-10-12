@@ -29,7 +29,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Any, Protocol, runtime_checkable
 
-from memspine.services.decision.opendecider_nano import (
+from memspine.models.providers.decision.opendecider_nano import (
     DEFAULT_MODEL,
     load_nano,
     noul_options,
@@ -225,16 +225,16 @@ def default_rules() -> dict[str, Rule]:
     """The pipeline's existing rules, per task. ``refusal`` is added by the evals harness
     (its regex lives there). ``relevance`` and ``abstention`` have no rule today: the pipeline
     always injects, so the heuristic answer is "relevant" / "answerable"."""
-    from memspine.core.perspective import (
+    from memspine.core.sensitivity import grade_text, query_topics
+    from memspine.models.encoders.query.perspective import (
         acknowledges,
         is_hedged,
         is_negated,
         scope_of,
         sentence_modality,
     )
-    from memspine.core.query_shape import is_multi_hop, is_set_question, is_temporal
-    from memspine.core.sensitivity import grade_text, query_topics
-    from memspine.core.temporal_query import has_bridge_cue
+    from memspine.models.encoders.query.shape import is_multi_hop, is_set_question, is_temporal
+    from memspine.models.encoders.query.temporal_query import has_bridge_cue
 
     return {
         "is_fact": lambda q, _c: (
@@ -295,7 +295,7 @@ class HeuristicDecider:
 
 class OpenDeciderDecider:
     """OpenDecider-nano behind the :class:`Decider` port, through memspine's own inference
-    code (:mod:`memspine.services.decision.opendecider_nano`; no ``opendecider`` package).
+    code (:mod:`memspine.models.providers.decision.opendecider_nano`; no ``opendecider`` package).
 
     Every task is a ``noul`` (yes/no) question; the label is the task's ``yes`` label when
     P(yes) >= 0.5, else its ``no`` label, and the confidence is max(P(yes), 1 - P(yes)).

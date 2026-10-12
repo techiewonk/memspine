@@ -15,8 +15,8 @@ from typing import Any
 
 from memspine.clients.lancedb import LanceDBClient
 from memspine.config import constants
+from memspine.models.encoders.embedding.base import EmbeddingService
 from memspine.observability.logging import get_logger
-from memspine.services.embedding.base import EmbeddingService
 from memspine.services.vector.base import VectorHit
 
 __all__ = ["LanceDBVectorStore"]

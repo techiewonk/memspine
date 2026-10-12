@@ -182,7 +182,7 @@ class ScoredRecord(BaseModel):
 
 
 class AssembleResponse(BaseModel):
-    """Wire mirror of :class:`~memspine.core.policies.assembly.AssembledContext`."""
+    """Wire mirror of :class:`~memspine.compose.pack.AssembledContext`."""
 
     records: list[MemoryRecord]
     boundary_index: int

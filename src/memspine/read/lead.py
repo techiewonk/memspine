@@ -16,8 +16,8 @@ from datetime import date, datetime
 from memspine.config import constants
 from memspine.core.escaping import escape_markers
 from memspine.core.event_date import date_anchor, happened_of, label_start
-from memspine.core.query_shape import core_terms
-from memspine.core.temporal_resolve import WeekMode, resolve
+from memspine.models.encoders.query.shape import core_terms
+from memspine.models.encoders.query.temporal_resolve import WeekMode, resolve
 from memspine.store.records import MemoryRecord, chrono_key
 
 __all__ = [
@@ -331,7 +331,7 @@ def _text_words(text: str) -> set[str]:
 def count_terms(query: str) -> list[str]:
     """E3: the words naming the event a count question counts.
 
-    The query's core terms (:func:`memspine.core.query_shape.core_terms`) without the
+    The query's core terms (:func:`memspine.models.encoders.query.shape.core_terms`) without the
     people it names (:func:`query_names`), numbers, count words ("times", "often") and
     words under three letters, lowercased, in order, once each.
     """

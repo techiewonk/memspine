@@ -13,8 +13,8 @@ record that meets every bound given; ``mode="or"`` one that meets any of them.
 people a question is about and copies its time expression ("in May 2023", "last
 week"). :func:`time_expr_span` turns the expression into a ``[start, end)`` span by the
 same deterministic rules the read path already uses: an absolute date, month or year
-(:func:`~memspine.core.temporal_query.query_interval`), else a relative phrase resolved
-by the H1 resolver (:func:`~memspine.core.temporal_resolve.resolve`) against an anchor.
+(:func:`~memspine.models.encoders.query.temporal_query.query_interval`), else a relative phrase resolved
+by the H1 resolver (:func:`~memspine.models.encoders.query.temporal_resolve.resolve`) against an anchor.
 :func:`person_time_leg` ranks the records that fall in the span and/or match a person
 (a ``person:`` tag when the record has any, else its ``entity``); records matching both
 come first.
@@ -30,8 +30,8 @@ from dataclasses import dataclass, fields
 from datetime import UTC, date, datetime, time, timedelta
 from typing import Literal
 
-from memspine.core.temporal_query import LegHit, query_interval
-from memspine.core.temporal_resolve import WeekMode, resolve
+from memspine.models.encoders.query.temporal_query import LegHit, query_interval
+from memspine.models.encoders.query.temporal_resolve import WeekMode, resolve
 from memspine.store.records import MemoryRecord
 from memspine.trust.visibility import visible_to
 

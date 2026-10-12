@@ -12,7 +12,7 @@ from collections import Counter, deque
 from collections.abc import Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 
-from memspine.core.perspective import (
+from memspine.models.encoders.query.perspective import (
     QuestionPerspective,
     RecordView,
     match_subject,

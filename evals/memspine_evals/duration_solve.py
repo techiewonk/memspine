@@ -182,7 +182,7 @@ def _lines(context: str) -> list[tuple[date, str]]:
 
 def _line_dates(text: str, said: date) -> list[tuple[date, bool]]:
     """Distinct ``(date, approximate)`` a line states: absolute dates and resolved phrases."""
-    from memspine.core.temporal_resolve import resolve
+    from memspine.models.encoders.query.temporal_resolve import resolve
 
     from .date_repair import _abs_dates
 

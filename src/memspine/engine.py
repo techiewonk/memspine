@@ -49,12 +49,19 @@ from memspine.clients.ladybug import LadybugClient
 from memspine.clients.lancedb import LanceDBClient
 from memspine.clients.postgres import PostgresClient
 from memspine.clients.sqlite import SQLiteClient
+from memspine.compose.answer import final_answer, numbered_context, verification
+from memspine.compose.compression import CompressionPolicy
+from memspine.compose.pack import (
+    AssembledContext,
+    AssemblyPolicy,
+    estimate_tokens,
+)
+from memspine.compose.pack import ranked as rank_pairs
 from memspine.config import constants
 from memspine.config.loader import ResolvedConfig, default_template, load_config
 from memspine.config.schema import FirewallConfig, MemspineConfig
 from memspine.core import trace_sink
 from memspine.core.agentic import clean_query, evidence_view, fuse_new, merge_budget
-from memspine.core.answer import final_answer, numbered_context, verification
 from memspine.core.concentration import collapse_concentrated
 from memspine.core.correction import Correction, detect_correction
 from memspine.core.dedupe import dedupe_scored
@@ -89,23 +96,6 @@ from memspine.core.inference import (
 from memspine.core.integrity import IntegrityPolicy
 from memspine.core.language import language_scope
 from memspine.core.latest_wins import apply_latest_wins, recent_first
-from memspine.core.lead import (
-    card_line,
-    count_terms,
-    distinct_occurrences,
-    event_day,
-    graph_fact_line,
-    is_standing_instruction,
-    mentions_any,
-    mentions_event,
-    query_names,
-    render_graph_facts,
-    render_occurrences,
-    render_profile,
-    render_standing,
-    render_timeline,
-    timeline_line,
-)
 from memspine.core.owner_check import (
     InjectionLog,
     entity_note,
@@ -118,66 +108,12 @@ from memspine.core.owner_check import (
     unknown_lines,
     user_header,
 )
-from memspine.core.perspective import (
-    PerspectiveOptions,
-    QuestionPerspective,
-    Subject,
-    acknowledges,
-    active_asker,
-    as_of_subject_ok,
-    factor,
-    inherit_perspective_tags,
-    match_subject,
-    perspective_leg,
-    record_marker,
-    record_view,
-    refine_with_decider,
-    resolve_question,
-    resolve_write,
-)
-from memspine.core.policies.assembly import (
-    AssembledContext,
-    AssemblyPolicy,
-    estimate_tokens,
-)
-from memspine.core.policies.assembly import ranked as rank_pairs
-from memspine.core.policies.compression import CompressionPolicy
 from memspine.core.policies.conflict import ConflictPolicy
 from memspine.core.policies.dedup import DedupPolicy
 from memspine.core.policies.retention import RetentionPolicy
 from memspine.core.policies.scoring import ScoringPolicy
 from memspine.core.policies.trust import TrustPolicy
 from memspine.core.profile_pack import pack_profile, render_packed_profile
-from memspine.core.query_contract import (
-    QueryContract,
-    build_contract,
-    contract_header,
-    is_ambiguous,
-    merge_contract,
-    parse_contract,
-    rerank_hint,
-)
-from memspine.core.query_shape import (
-    content_words,
-    core_terms,
-    feedback_terms,
-    is_aggregation,
-    is_count,
-    is_duration,
-    is_intent_list,
-    is_multi_hop,
-    is_novelty,
-    is_ordering,
-    is_personal,
-    is_set_question,
-    is_set_question_wide,
-    is_temporal,
-    is_verbatim,
-    question_shape,
-    rule_read_mode,
-    split_intents,
-    statement_form,
-)
 from memspine.core.read_filters import (
     DateBound,
     DateFilter,
@@ -208,32 +144,6 @@ from memspine.core.sensitivity import (
     query_topics,
 )
 from memspine.core.slot_loop import CalcError, calculate, slot_hint, slot_view, step_signature
-from memspine.core.temporal_query import (
-    RECOMMENDATION_TAG,
-    SPEAKER_PREFIX,
-    LegHit,
-    NamedLeg,
-    assistant_leg,
-    bridge_phrases,
-    cohesion_leg,
-    comparison_speaker_legs,
-    entity_expand_leg,
-    entity_leg,
-    forget_mentions,
-    has_bridge_cue,
-    is_recommendation,
-    metadata_leg,
-    sentence_leg,
-    sentences,
-    speaker_leg,
-    speaker_of,
-    speaker_vector_leg,
-    subject_vector_leg,
-    temporal_leg,
-    view_tag_leg,
-)
-from memspine.core.temporal_resolve import annotate as annotate_relative_dates
-from memspine.core.temporal_resolve import resolve
 from memspine.core.ties import settle_ties
 from memspine.core.vetting import VetFlag, draft_sentences, vet_sentences
 from memspine.core.window import WindowSettings
@@ -310,6 +220,81 @@ from memspine.memories.shared.grants import Grant, SharedMemory
 from memspine.memories.shared.subscriptions import make_subscription_record
 from memspine.memories.working.manager import DEFAULT_PAGE_SIZE, WorkingMemory
 from memspine.memories.working.persona import make_persona_record
+from memspine.models.cache.base import KVCache, MemoryKV
+from memspine.models.cache.semantic import CachedEmbedding, CachedExtractor
+from memspine.models.encoders.embedding.base import EmbeddingService, embed_queries
+from memspine.models.encoders.query import CueQueryEncoder, NoopQueryEncoder, QueryEncoder
+from memspine.models.encoders.query.perspective import (
+    PerspectiveOptions,
+    QuestionPerspective,
+    Subject,
+    acknowledges,
+    active_asker,
+    as_of_subject_ok,
+    factor,
+    inherit_perspective_tags,
+    match_subject,
+    perspective_leg,
+    record_marker,
+    record_view,
+    refine_with_decider,
+    resolve_question,
+    resolve_write,
+)
+from memspine.models.encoders.query.shape import (
+    content_words,
+    core_terms,
+    feedback_terms,
+    is_aggregation,
+    is_count,
+    is_duration,
+    is_intent_list,
+    is_multi_hop,
+    is_novelty,
+    is_ordering,
+    is_personal,
+    is_set_question,
+    is_set_question_wide,
+    is_temporal,
+    is_verbatim,
+    question_shape,
+    rule_read_mode,
+    split_intents,
+    statement_form,
+)
+from memspine.models.encoders.query.temporal_query import (
+    RECOMMENDATION_TAG,
+    SPEAKER_PREFIX,
+    LegHit,
+    NamedLeg,
+    assistant_leg,
+    bridge_phrases,
+    cohesion_leg,
+    comparison_speaker_legs,
+    entity_expand_leg,
+    entity_leg,
+    forget_mentions,
+    has_bridge_cue,
+    is_recommendation,
+    metadata_leg,
+    sentence_leg,
+    sentences,
+    speaker_leg,
+    speaker_of,
+    speaker_vector_leg,
+    subject_vector_leg,
+    temporal_leg,
+    view_tag_leg,
+)
+from memspine.models.encoders.query.temporal_resolve import annotate as annotate_relative_dates
+from memspine.models.encoders.query.temporal_resolve import resolve
+from memspine.models.providers.decision.decider import Decider, build_decider
+from memspine.models.providers.llm import structured as _structured
+from memspine.models.providers.llm.base import LLMRouter, LLMService
+from memspine.models.providers.llm.structured import structured_call
+from memspine.models.providers.llm.tier_gate import WITHHELD_MARKER, TierGatedLLM, is_local_provider
+from memspine.models.providers.rerank.base import Reranker, concat_background
+from memspine.models.providers.rerank.factory import RerankSettings, build_reranker, rerank_modes
 from memspine.observability.logging import (
     EVENT_FEEDBACK,
     EVENT_FORGET,
@@ -347,21 +332,36 @@ from memspine.prompts.models import (
     SufficiencyOut,
 )
 from memspine.prompts.registry import PromptRegistry
-from memspine.services.cache.base import KVCache, MemoryKV
-from memspine.services.cache.semantic import CachedEmbedding, CachedExtractor
-from memspine.services.decision.decider import Decider, build_decider
-from memspine.services.embedding.base import EmbeddingService, embed_queries
+from memspine.read.contract import (
+    QueryContract,
+    build_contract,
+    contract_header,
+    is_ambiguous,
+    merge_contract,
+    parse_contract,
+    rerank_hint,
+)
+from memspine.read.lead import (
+    card_line,
+    count_terms,
+    distinct_occurrences,
+    event_day,
+    graph_fact_line,
+    is_standing_instruction,
+    mentions_any,
+    mentions_event,
+    query_names,
+    render_graph_facts,
+    render_occurrences,
+    render_profile,
+    render_standing,
+    render_timeline,
+    timeline_line,
+)
 from memspine.services.graph.base import GraphStore
 from memspine.services.graph.sqlite_adjacency import SQLiteAdjacencyGraph
 from memspine.services.lexical.base import LexicalHit, LexicalStore, minmax_fuse, rrf_fuse
 from memspine.services.lexical.projector import LexicalProjector
-from memspine.services.llm import structured as _structured
-from memspine.services.llm.base import LLMRouter, LLMService
-from memspine.services.llm.structured import structured_call
-from memspine.services.llm.tier_gate import WITHHELD_MARKER, TierGatedLLM, is_local_provider
-from memspine.services.query_encoder import CueQueryEncoder, NoopQueryEncoder, QueryEncoder
-from memspine.services.rerank.base import Reranker, concat_background
-from memspine.services.rerank.factory import RerankSettings, build_reranker, rerank_modes
 from memspine.services.secrets.base import SecretsService
 from memspine.services.secrets.chained import ChainedSecrets
 from memspine.services.secrets.env import EnvSecrets
@@ -2787,7 +2787,7 @@ class Engine:
             if self._word_vectors is None:
                 if self._word_vectors_unavailable:
                     return []
-                from memspine.services.embedding.word_vectors import WordVectorEncoder
+                from memspine.models.encoders.embedding.word_vectors import WordVectorEncoder
 
                 self._word_vectors = WordVectorEncoder(
                     read.word_vector_provider, read.word_vector_model
@@ -11717,7 +11717,7 @@ class Engine:
         search retries. Either way retrieval degrades to the unfiltered set."""
         if self._static_embedder is None:
             try:
-                from memspine.services.embedding.static_local import StaticEmbedder
+                from memspine.models.encoders.embedding.static_local import StaticEmbedder
 
                 self._static_embedder = StaticEmbedder()
             except (MissingServiceError, ImportError) as exc:
@@ -13946,7 +13946,7 @@ class Engine:
         self._decision_off = False
         if config.decision.provider == "off":
             return
-        from memspine.services.decision.gliner2_decision import gliner2_class
+        from memspine.models.providers.decision.gliner2_decision import gliner2_class
 
         try:
             gliner2_class()
@@ -13968,7 +13968,7 @@ class Engine:
         if cfg.provider == "off" or getattr(self, "_decision_off", False):
             return None
         if getattr(self, "_decision", None) is None:
-            from memspine.services.decision.gliner2_decision import GLiNER2Decision
+            from memspine.models.providers.decision.gliner2_decision import GLiNER2Decision
 
             self._decision = GLiNER2Decision(cfg.model)
         return self._decision
@@ -14812,11 +14812,11 @@ class Engine:
 
     def _build_embedder(self, config: MemspineConfig) -> EmbeddingService:
         if config.embedding.provider == "hash":
-            from memspine.services.embedding.hash_local import HashEmbedding
+            from memspine.models.encoders.embedding.hash_local import HashEmbedding
 
             return HashEmbedding()
         if config.embedding.provider == "fastembed":
-            from memspine.services.embedding.fastembed_local import FastembedEmbedding
+            from memspine.models.encoders.embedding.fastembed_local import FastembedEmbedding
 
             return FastembedEmbedding(
                 model=config.embedding.model,
@@ -14825,7 +14825,7 @@ class Engine:
         if config.embedding.provider == "st":
             if config.embedding.dim is None:
                 raise ConfigError("embedding.dim is required when embedding.provider='st'")
-            from memspine.services.embedding.st_local import SentenceTransformersEmbedding
+            from memspine.models.encoders.embedding.st_local import SentenceTransformersEmbedding
 
             return SentenceTransformersEmbedding(
                 config.embedding.model,
@@ -14841,7 +14841,7 @@ class Engine:
             # E4 model2vec (ADR-020): a missing [static] extra hard-fails here
             # (D-10) because the deployer chose it as their embedder — as a mere
             # prefilter *stage* the engine skip-logs instead (see search()).
-            from memspine.services.embedding.static_local import StaticEmbedder
+            from memspine.models.encoders.embedding.static_local import StaticEmbedder
 
             return StaticEmbedder(model=config.embedding.model)
         if config.embedding.provider == "litellm":
@@ -14850,7 +14850,7 @@ class Engine:
                     "embedding.dim is required when embedding.provider='litellm' — "
                     "a cloud embedder's output dimension is not locally discoverable"
                 )
-            from memspine.services.embedding.litellm_embed import LiteLLMEmbedding
+            from memspine.models.encoders.embedding.litellm_embed import LiteLLMEmbedding
 
             return LiteLLMEmbedding(
                 config.embedding.model,
@@ -14941,7 +14941,7 @@ class Engine:
         if backend == "memory":
             return MemoryKV(max_entries=cache.max_entries)
         if backend in ("disk", "redis", "valkey"):
-            from memspine.services.cache.cashews_cache import CashewsCache
+            from memspine.models.cache.cashews_cache import CashewsCache
 
             # disk → diskcache dir at cache.path; redis/valkey → cache.url DSN
             # (valkey is redis-wire-compatible, so it rides the same client).
@@ -15147,13 +15147,13 @@ class Engine:
         for role, role_config in config.llm.roles.items():
             model = role_config.model
             if model.startswith("llamacpp/"):
-                from memspine.services.llm.llama_cpp import LlamaCppLLM
+                from memspine.models.providers.llm.llama_cpp import LlamaCppLLM
 
                 providers[role] = LlamaCppLLM(
                     model_path=model[len("llamacpp/") :], no_think=role_config.no_think
                 )
             elif model:
-                from memspine.services.llm.litellm_llm import LiteLLMLLM
+                from memspine.models.providers.llm.litellm_llm import LiteLLMLLM
 
                 providers[role] = LiteLLMLLM(
                     model,

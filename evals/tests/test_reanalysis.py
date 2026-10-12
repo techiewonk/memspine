@@ -185,7 +185,7 @@ def test_g13_gold_phrasing_needs_the_anchored_relation() -> None:
     resolution of the evidence; calendar resolutions state no relation."""
     from datetime import date
 
-    from memspine.core.temporal_resolve import resolve
+    from memspine.models.encoders.query.temporal_resolve import resolve
 
     assert temporal_check.relation_key("The week before 9 June 2023") == (
         "week before",

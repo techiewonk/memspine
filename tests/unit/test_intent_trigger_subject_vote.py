@@ -5,8 +5,8 @@ from __future__ import annotations
 import pytest
 
 from memspine.config.schema import ReadConfig
-from memspine.core.query_shape import is_intent_list
-from memspine.core.temporal_query import (
+from memspine.models.encoders.query.shape import is_intent_list
+from memspine.models.encoders.query.temporal_query import (
     LegHit,
     question_subject,
     speaker_vector_leg,

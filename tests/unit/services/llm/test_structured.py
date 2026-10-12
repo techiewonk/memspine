@@ -7,9 +7,9 @@ from typing import Any
 import pytest
 
 from memspine.exceptions import LLMError
+from memspine.models.providers.llm.structured import structured_call
 from memspine.prompts.base import parse_prompt_text
 from memspine.prompts.models import ExtractedFacts
-from memspine.services.llm.structured import structured_call
 
 PROMPT = parse_prompt_text("id: extract\nrole: extract\nformat: yaml\n---\nExtract: {{ content }}")
 

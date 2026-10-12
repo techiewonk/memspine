@@ -9,7 +9,7 @@ import pytest
 
 from memspine import Engine
 from memspine.config.schema import ReadConfig
-from memspine.core.perspective import (
+from memspine.models.encoders.query.perspective import (
     PerspectiveOptions,
     asker_scope,
     attribution_marker,
@@ -144,7 +144,7 @@ def test_question_perspective_resolution() -> None:
     assert resolve_question("What do I like?", known={"user", "assistant"}).about == "self"
     assert resolve_question("My boss's dog is sick", known={"user"}).bound
     with asker_scope("melanie"):
-        from memspine.core.perspective import active_asker
+        from memspine.models.encoders.query.perspective import active_asker
 
         assert active_asker() == "melanie"
 

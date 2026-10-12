@@ -7,7 +7,7 @@ from typing import Any
 
 from memspine import Engine
 from memspine.config.schema import ReadConfig
-from memspine.core.temporal_query import SPEAKER_PREFIX, speaker_leg, speaker_of
+from memspine.models.encoders.query.temporal_query import SPEAKER_PREFIX, speaker_leg, speaker_of
 from memspine.store.records import MemoryRecord
 
 T0 = datetime(2023, 5, 1, tzinfo=UTC)
@@ -81,7 +81,7 @@ async def test_subject_tagging_tags_turns_and_the_leg_ranks_the_right_speaker_fi
 
 def test_sentence_leg_prefers_one_strong_sentence() -> None:
     """N05 (plan v3.2): the best sentence counts, not the whole record."""
-    from memspine.core.temporal_query import sentence_leg
+    from memspine.models.encoders.query.temporal_query import sentence_leg
 
     long_turn = (
         "We talked about many things today. The weather was grey and the bus was late. "

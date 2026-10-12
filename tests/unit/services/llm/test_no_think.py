@@ -7,11 +7,11 @@ from typing import Any
 import pytest
 
 from memspine import Engine
+from memspine.models.providers.llm.base import LLMRouter
+from memspine.models.providers.llm.litellm_llm import LiteLLMLLM, strip_think
+from memspine.models.providers.llm.structured import _parse_payload
 from memspine.prompts.base import PromptFormat
 from memspine.prompts.models import ExtractedFacts
-from memspine.services.llm.base import LLMRouter
-from memspine.services.llm.litellm_llm import LiteLLMLLM, strip_think
-from memspine.services.llm.structured import _parse_payload
 
 QWEN = "bedrock/converse/qwen.qwen3-32b-v1:0"
 
@@ -223,7 +223,7 @@ def _fake_llama(monkeypatch: pytest.MonkeyPatch, reply: str) -> list[list[dict[s
 
 async def test_llama_cpp_strips_think_and_parses(monkeypatch: pytest.MonkeyPatch) -> None:
     """B-7: the in-process provider strips a think block like the LiteLLM one."""
-    from memspine.services.llm.llama_cpp import LlamaCppLLM
+    from memspine.models.providers.llm.llama_cpp import LlamaCppLLM
 
     _fake_llama(monkeypatch, "<think>x</think>facts: []")
     reply = await LlamaCppLLM(model_path="m.gguf").chat([{"role": "user", "content": "q"}])
@@ -233,7 +233,7 @@ async def test_llama_cpp_strips_think_and_parses(monkeypatch: pytest.MonkeyPatch
 
 
 async def test_llama_cpp_honours_no_think(monkeypatch: pytest.MonkeyPatch) -> None:
-    from memspine.services.llm.llama_cpp import LlamaCppLLM
+    from memspine.models.providers.llm.llama_cpp import LlamaCppLLM
 
     seen = _fake_llama(monkeypatch, "ok")
     await LlamaCppLLM(model_path="Qwen3-8B-Q4.gguf").chat([{"role": "user", "content": "q"}])
@@ -244,7 +244,7 @@ async def test_llama_cpp_honours_no_think(monkeypatch: pytest.MonkeyPatch) -> No
 
 def test_lenient_yaml_maps_nulls_to_none() -> None:
     """B-4: ``null``, ``~`` and empty values salvage as None, not strings."""
-    from memspine.services.llm.structured import _lenient_yaml_items
+    from memspine.models.providers.llm.structured import _lenient_yaml_items
 
     text = (
         "facts:\n"
@@ -266,7 +266,7 @@ def test_lenient_yaml_maps_nulls_to_none() -> None:
 
 def test_lenient_yaml_refuses_nested_lists() -> None:
     """B-4: structure under a field is not folded into text; salvage gives up."""
-    from memspine.services.llm.structured import _lenient_yaml_items
+    from memspine.models.providers.llm.structured import _lenient_yaml_items
 
     text = "facts:\n  - entity: ana\n    aliases:\n      - Annie\n      - A\n"
     assert _lenient_yaml_items(text) is None

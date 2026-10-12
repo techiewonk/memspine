@@ -12,8 +12,8 @@ from typing import Any
 import pytest
 
 from memspine import Engine
-from memspine.core.query_shape import is_inference, is_temporal
 from memspine.exceptions import ConfigError
+from memspine.models.encoders.query.shape import is_inference, is_temporal
 from memspine.prompts.registry import PromptRegistry, question_shape
 
 TEMPORAL = "When did Ana go hiking?"

@@ -21,7 +21,7 @@ from memspine_evals.evidence_table import _BODY, needs_table, numbered_lines, re
 from memspine_evals.no_record import asserts_past_event, event_supported, strip_public_knowledge
 from memspine_evals.tokens import HeuristicTokenCounter
 
-from memspine.core.query_contract import build_contract
+from memspine.read.contract import build_contract
 
 
 def p03(rows: list[dict]) -> dict:

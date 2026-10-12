@@ -10,8 +10,9 @@ The move list is TOML::
     from = "memspine.core.records"
     to = "memspine.store.records"
 
-For each move the module file is ``git mv``-ed (``<pkg>/__init__.py`` packages are not supported, only
-single-file modules), then every code file under ``src/``, ``tests/``, ``evals/`` and ``scripts/`` (plus the
+For each move the module file is ``git mv``-ed; when ``from`` is a package (a directory under ``src/``) the
+whole directory is moved and every dotted name under the prefix is rewritten
+(``memspine.services.llm.base`` -> ``memspine.models.providers.llm.base``). Then every code file under ``src/``, ``tests/``, ``evals/`` and ``scripts/`` (plus the
 root ``pyproject.toml``) is rewritten:
 
 * dotted references (imports, ``mock.patch`` targets, importlib strings, entry points, YAML class paths,
@@ -55,7 +56,19 @@ def load_moves(path: Path) -> dict[str, str]:
 
 
 def module_path(root: Path, mod: str) -> Path:
-    return root / "src" / Path(*mod.split(".")).with_suffix(".py")
+    """Path of a module file, or of the package directory when ``mod`` is a package."""
+    base = root / "src" / Path(*mod.split("."))
+    if base.is_dir():
+        return base
+    return base.with_suffix(".py")
+
+
+def remap(name: str, moves: dict[str, str]) -> str:
+    """Map a dotted name through the move list, matching the module itself or anything below a moved package."""
+    for key in sorted(moves, key=len, reverse=True):
+        if name == key or name.startswith(key + "."):
+            return moves[key] + name[len(key):]
+    return name
 
 
 def module_of_file(root: Path, file: Path) -> tuple[str, bool] | None:
@@ -84,7 +97,10 @@ def build_dotted_regex(moves: dict[str, str]) -> re.Pattern[str]:
 
 def git_mv(root: Path, src: str, dst: str, dry: bool, report: list[str]) -> bool:
     s, d = module_path(root, src), module_path(root, dst)
+    if s.is_dir():
+        d = root / "src" / Path(*dst.split("."))
     if not s.exists():
+        d = module_path(root, dst)
         if d.exists():
             return False  # already moved (idempotent re-run)
         raise SystemExit(f"neither {s} nor {d} exists")
@@ -168,12 +184,12 @@ def rewrite_imports(text: str, cur: tuple[str, bool] | None, old_name: tuple[str
                     renamed = True
                 new_aliases.append((tgt_mod, tgt_leaf, asname))
             else:
-                tgt_mod = moves.get(base, base)
+                tgt_mod = remap(base, moves)
                 new_aliases.append((tgt_mod, a.name, a.asname))
         targets = {t for t, _, _ in new_aliases}
         moved_any = any(
             f"{base}.{a.name}" in moves for a in node.names
-        ) or base in moves
+        ) or remap(base, moves) != base
         if not node.level and not moved_any:
             continue
         if node.level and not moved_any and not (old_name is not None):
@@ -205,14 +221,14 @@ def rewrite_imports(text: str, cur: tuple[str, bool] | None, old_name: tuple[str
 
 def process(root: Path, moves: dict[str, str], moved_now: dict[str, str], dry: bool, also: set[str]):
     rx = build_dotted_regex(moves)
-    new_to_old = {v: k for k, v in moved_now.items()}
+    inverse = {v: k for k, v in moved_now.items()}
     touched: list[Path] = []
     for p in iter_files(root, also):
         orig = p.read_bytes().decode("utf-8")
         cur = module_of_file(root, p) if p.suffix in {".py", ".pyi"} else None
         old = None
-        if cur and cur[0] in new_to_old:
-            old = (new_to_old[cur[0]], cur[1])
+        if cur and remap(cur[0], inverse) != cur[0]:
+            old = (remap(cur[0], inverse), cur[1])
         text = rx.sub(lambda m: moves[m.group(1)], orig)
         if p.suffix in {".py", ".pyi"}:
             text = rewrite_imports(text, cur, old, moves)

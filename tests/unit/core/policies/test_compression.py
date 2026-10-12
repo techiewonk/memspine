@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 import zstandard
 
-from memspine.core.policies.compression import CompressionPolicy
+from memspine.compose.compression import CompressionPolicy
 from memspine.exceptions import StorageError
 from memspine.store.records import MemoryRecord
 

@@ -26,7 +26,7 @@ evidence-grounded path. An optional resolver (the ``plan@contract`` LLM call, or
 may refine the contract when the rules are unsure (:func:`is_ambiguous`); see
 :func:`merge_contract`.
 
-Pure and self-contained: stdlib plus :mod:`memspine.core.query_shape`.
+Pure and self-contained: stdlib plus :mod:`memspine.models.encoders.query.shape`.
 """
 
 from __future__ import annotations
@@ -36,7 +36,7 @@ from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from typing import Any
 
-from memspine.core.query_shape import is_set_question, is_set_question_wide
+from memspine.models.encoders.query.shape import is_set_question, is_set_question_wide
 
 __all__ = [
     "ANSWER_TYPES",

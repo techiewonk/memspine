@@ -8,7 +8,7 @@ import pytest
 
 from memspine import Engine
 from memspine.config.schema import ReadConfig
-from memspine.core.temporal_query import query_interval, temporal_leg
+from memspine.models.encoders.query.temporal_query import query_interval, temporal_leg
 from memspine.store.records import MemoryRecord
 
 
@@ -123,7 +123,7 @@ async def test_engine_passes_the_newest_record_time_as_year_ref(
 
 
 def test_mentions_find_a_turn_by_the_date_it_names() -> None:
-    from memspine.core.temporal_query import mentioned_spans
+    from memspine.models.encoders.query.temporal_query import mentioned_spans
 
     camping = _rec("Ana: I went camping yesterday", _d(2023, 5, 8))
     other = _rec("Ana: nice weather today", _d(2023, 5, 8))

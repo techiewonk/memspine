@@ -9,7 +9,7 @@ from memspine import Engine
 from memspine.config.schema import ReadConfig
 from memspine.core.owner_check import first_person, referenced_names, store_vocab
 from memspine.engine import search_forensics
-from memspine.services.decision.decider import Decision
+from memspine.models.providers.decision.decider import Decision
 
 T0 = datetime(2023, 5, 1, 9, 0, tzinfo=UTC)
 

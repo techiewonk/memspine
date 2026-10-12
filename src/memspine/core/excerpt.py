@@ -10,7 +10,7 @@ only, no model; the stored record is never changed.
 
 from __future__ import annotations
 
-from memspine.core.query_shape import content_words
+from memspine.models.encoders.query.shape import content_words
 
 __all__ = ["ELLIPSIS", "focused_excerpt"]
 
