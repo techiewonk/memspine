@@ -54,6 +54,18 @@
           "default": null,
           "title": "R"
         },
+        "reported_speaker": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reported Speaker"
+        },
         "s": {
           "anyOf": [
             {
@@ -87,6 +99,18 @@
         "span": {
           "title": "Span",
           "type": "string"
+        },
+        "speaker": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Speaker"
         },
         "text": {
           "title": "Text",

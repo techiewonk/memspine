@@ -10,6 +10,7 @@
     "binding": "bound",
     "modality": "asserted",
     "model_confidence_hint": 0.9,
+    "negated": false,
     "source_trust": 0.8,
     "support": {
       "families": [
@@ -21,6 +22,7 @@
     "time_precision": "month"
   },
   "attribute": "lives_in",
+  "change_hint": false,
   "checks": {
     "endpoints": true,
     "names": true,

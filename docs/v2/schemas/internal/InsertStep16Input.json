@@ -42,6 +42,11 @@
           "default": null,
           "title": "Attribute"
         },
+        "change_hint": {
+          "default": false,
+          "title": "Change Hint",
+          "type": "boolean"
+        },
         "checks": {
           "anyOf": [
             {
@@ -385,6 +390,11 @@
           ],
           "default": null,
           "title": "Model Confidence Hint"
+        },
+        "negated": {
+          "default": false,
+          "title": "Negated",
+          "type": "boolean"
         },
         "source_trust": {
           "maximum": 1.0,
@@ -757,6 +767,18 @@
           "default": null,
           "title": "R"
         },
+        "reported_speaker": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reported Speaker"
+        },
         "s": {
           "anyOf": [
             {
@@ -790,6 +812,18 @@
         "span": {
           "title": "Span",
           "type": "string"
+        },
+        "speaker": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Speaker"
         },
         "text": {
           "title": "Text",

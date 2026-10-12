@@ -64,7 +64,19 @@ class Assessment(DurablePart):
     binding: Binding
     time_precision: TimePrecision = "unknown"
     modality: Modality
+    # The planned / hypothetical / reported / question content is negated ("won't move" = planned +
+    # negated). An asserted negation stays modality "negated", so the integration rules are unchanged.
+    negated: bool = False
     model_confidence_hint: float | None = Field(default=None, ge=0.0, le=1.0)
+
+    @model_validator(mode="after")
+    def _negation(self) -> Assessment:
+        if self.negated and self.modality in ("asserted", "negated"):
+            raise ValueError(
+                f"negated=True is invalid with modality {self.modality!r} "
+                "(an asserted negation is modality 'negated')"
+            )
+        return self
 
 
 def _assessment(obj: object) -> Assessment:

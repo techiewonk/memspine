@@ -86,6 +86,9 @@ class AssertionEnvelope(DurableModel):
     attribute: str | None = None
     value: Scalar | None = None
     speaker: str | None = None
+    change_hint: bool = (
+        False  # I-3: extraction marked that the cited lines say the earlier value no longer holds
+    )
 
     # --- time, evidence, assessment ---
     time: TimeAxes = Field(default_factory=TimeAxes)

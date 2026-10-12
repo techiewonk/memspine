@@ -446,3 +446,21 @@ def test_lineage_edge_rules():
         LineageEdge(child="a", parent="a", role="support")
     with pytest.raises(ValidationError):
         LineageEdge(child="a", parent="b", role="evidence")  # split into support/binding
+
+
+@pytest.mark.parametrize("modality", ["planned", "hypothetical", "reported", "question"])
+def test_negated_flag_allowed_on_tentative_modalities(modality: str) -> None:
+    a = Assessment(source_trust=0.5, binding="bound", modality=modality, negated=True)
+    assert a.negated is True
+    assert Assessment(source_trust=0.5, binding="bound", modality=modality).negated is False
+
+
+@pytest.mark.parametrize("modality", ["asserted", "negated"])
+def test_negated_flag_invalid_with_asserted_or_negated(modality: str) -> None:
+    with pytest.raises(ValidationError, match="negated=True is invalid"):
+        Assessment(source_trust=0.5, binding="bound", modality=modality, negated=True)
+
+
+def test_change_hint_defaults_false_on_envelope() -> None:
+    assert "change_hint" in AssertionEnvelope.model_fields
+    assert AssertionEnvelope.model_fields["change_hint"].default is False

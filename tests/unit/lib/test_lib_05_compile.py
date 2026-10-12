@@ -9,7 +9,6 @@ from typing import Any
 import pytest
 
 from memspine.derive.compile import (
-    CHANGE_EXTRA_KEY,
     CompileContext,
     RejectionCode,
     WindowLine,
@@ -165,33 +164,58 @@ def test_confidence_is_hint_only() -> None:
 
 
 @pytest.mark.parametrize(
-    ("mode", "neg", "expected"),
+    ("mode", "neg", "reported", "modality", "negated"),
     [
-        ("asserted", False, "asserted"),
-        ("asserted", True, "negated"),
-        ("planned", False, "planned"),
-        ("planned", True, "negated"),
-        ("hoped", False, "hypothetical"),
-        ("hedged", True, "negated"),
-        ("asked", False, "question"),
-        ("asked", True, "question"),
+        ("asserted", False, False, "asserted", False),
+        ("asserted", True, False, "negated", False),
+        ("planned", False, False, "planned", False),
+        ("planned", True, False, "planned", True),
+        ("hoped", False, False, "hypothetical", False),
+        ("hedged", True, False, "hypothetical", True),
+        ("asked", False, False, "question", False),
+        ("asked", True, False, "question", True),
+        ("asserted", False, True, "reported", False),
+        ("planned", True, True, "reported", True),
     ],
 )
-def test_modality_mapping(mode: str, neg: bool, expected: str) -> None:
-    assert map_modality(mode, neg) == expected
-    assert one(mode=mode, neg=neg).assessment.modality == expected
+def test_modality_mapping(
+    mode: str, neg: bool, reported: bool, modality: str, negated: bool
+) -> None:
+    assert map_modality(mode, neg, reported) == (modality, negated)
+    kw: dict[str, Any] = {"mode": mode, "neg": neg}
+    if reported:
+        kw["reported_speaker"] = "Anna"
+    a = one(**kw).assessment
+    assert (a.modality, a.negated) == (modality, negated)
 
 
-def test_planned_negated_is_not_stored_in_extras() -> None:
+def test_planned_negated_uses_the_schema_fields_not_extras() -> None:
     env = one(mode="planned", neg=True)
-    assert env.assessment.modality == "negated"
+    assert env.assessment.modality == "planned" and env.assessment.negated is True
     assert "neg" not in env.extras and "mode" not in env.extras
 
 
-def test_change_marker_in_extras() -> None:
-    assert one(chg=True).extras[CHANGE_EXTRA_KEY] is True
-    assert CHANGE_EXTRA_KEY not in one(chg=False).extras
-    assert CHANGE_EXTRA_KEY not in one().extras
+def test_reported_speaker_becomes_envelope_speaker() -> None:
+    env = one(reported_speaker=" Anna ")
+    assert env.speaker == "Anna" and env.assessment.modality == "reported"
+    assert env.evidence[0].source_family == "zorbi"
+    assert "reported_speaker" not in env.extras and "speaker" not in env.extras
+    blank = one(reported_speaker="  ")
+    assert blank.assessment.modality == "asserted" and blank.speaker == "zorbi"
+
+
+def test_item_speaker_is_fallback_only() -> None:
+    no_speaker = {1: WindowLine("t-1", "src-1", 1, 0, "user", None, T0, "UTC", "x")}
+    env = compile_items([item(speaker="Pim", lines=[1])], ctx(window=no_speaker)).envelopes[0]
+    assert env.speaker == "Pim"
+    assert one(speaker="Pim").speaker == "zorbi"
+
+
+def test_change_hint_is_a_field() -> None:
+    assert one(chg=True).change_hint is True
+    assert "chg" not in one(chg=True).extras
+    assert one(chg=False).change_hint is False
+    assert one().change_hint is False
 
 
 def test_trust_from_weakest_support_role() -> None:

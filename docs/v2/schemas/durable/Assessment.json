@@ -66,6 +66,11 @@
       "default": null,
       "title": "Model Confidence Hint"
     },
+    "negated": {
+      "default": false,
+      "title": "Negated",
+      "type": "boolean"
+    },
     "source_trust": {
       "maximum": 1.0,
       "minimum": 0.0,

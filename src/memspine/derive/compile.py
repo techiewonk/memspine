@@ -17,7 +17,7 @@ What the rules come from:
 * S4-1 / ER-11: lines cited from the NEW part of the window are ``support`` evidence; cited CONTEXT lines are
   ``binding`` evidence and never count as support.
 * S5-1: ``source_trust`` is system-set from the cited line's role; the model's confidence is a hint only.
-* I-3: ``chg`` marks a change; it is carried as ``extras["chg"] = True`` (see :data:`CHANGE_EXTRA_KEY`).
+* I-3: ``chg`` marks a change; it sets ``AssertionEnvelope.change_hint``.
 
 Interpretations the owner may veto are listed in the docstrings of the functions that make them (modality
 mapping, binding, assertion key, support, source label).
@@ -59,7 +59,7 @@ from memspine.schemas.reserved import reserved_hits
 from memspine.schemas.steps.shared import ItemV1
 
 __all__ = [
-    "CHANGE_EXTRA_KEY",
+    "CHANGE_KEY",
     "DEFAULT_ROLE_POLICY",
     "FALLBACK_KIND",
     "CompileContext",
@@ -78,8 +78,8 @@ __all__ = [
     "parse_output",
 ]
 
-CHANGE_EXTRA_KEY = "chg"
-"""Key in ``AssertionEnvelope.extras`` that carries the I-3 change marker (``True`` only when set)."""
+CHANGE_KEY = "chg"
+"""Wire key of the I-3 change marker; it maps to ``AssertionEnvelope.change_hint``."""
 
 SOURCE_HINT_EXTRA_KEY = "source_hint"
 SPAN_TEXT_EXTRA_KEY = "span_text"
@@ -271,29 +271,25 @@ def parse_output(raw: str | Sequence[Any]) -> tuple[list[Any] | None, ParseFailu
 # ---------------------------------------------------------------------------------------------------------
 # Mapping helpers
 # ---------------------------------------------------------------------------------------------------------
-def map_modality(mode: str, neg: bool) -> Modality:
-    """Map the wire ``mode`` + ``neg`` onto the single-valued session-5 modality.
+def map_modality(mode: str, neg: bool, reported: bool = False) -> tuple[Modality, bool]:
+    """Map the wire ``mode``, ``neg`` and reported speaker onto ``(modality, negated)``.
 
-    ``asserted`` -> ``asserted``/``negated``; ``planned`` -> ``planned``; ``hoped`` and ``hedged`` ->
-    ``hypothetical``; ``asked`` -> ``question`` (a question is never negated content).
-
-    Combined cases (planned, hoped or hedged, together with ``neg``) have NO exact value in the six-value
-    modality. Decision: **negation wins** and the modality becomes ``negated``, because losing a negation
-    would turn "I won't move to Berlin" into a plan or a hypothesis to move, which is the dangerous error,
-    whereas losing "planned" leaves a tentative negation whose text still says what was said. This is a
-    schema gap (reported to the coordinator): the envelope needs a polarity separate from modality.
+    A reported speaker makes the modality ``reported`` (unless the item is a question); otherwise
+    ``planned`` stays ``planned``, ``hoped`` and ``hedged`` become ``hypothetical``, ``asked`` becomes
+    ``question``. An asserted negation is modality ``negated`` with ``negated=False`` (the integration rules
+    are unchanged); for every other modality ``neg`` sets the separate ``negated`` flag, so "won't move" is
+    ``planned`` + ``negated=True``.
     """
+    modality: Modality
     if mode == "asked":
-        return "question"
-    if neg:
-        return "negated"
-    modality: Modality = {
-        "asserted": "asserted",
-        "planned": "planned",
-        "hoped": "hypothetical",
-        "hedged": "hypothetical",
-    }[mode]
-    return modality
+        modality = "question"
+    elif reported:
+        modality = "reported"
+    elif mode == "asserted":
+        return ("negated", False) if neg else ("asserted", False)
+    else:
+        modality = "planned" if mode == "planned" else "hypothetical"
+    return modality, neg
 
 
 def _clean(value: str | None) -> str | None:
@@ -413,7 +409,7 @@ def _compile_one(
     if cited is None or (isinstance(cited, (list, tuple)) and len(cited) == 0):
         return Rejection(index, RejectionCode.UNCITED, "no cited lines")
 
-    chg = item.get(CHANGE_EXTRA_KEY, False)
+    chg = item.get(CHANGE_KEY, False)
     if not isinstance(chg, bool):
         return Rejection(index, RejectionCode.INVALID_FIELD, "chg must be a boolean")
     try:
@@ -508,6 +504,8 @@ def _compile_one(
     )
 
     # --- assessment (S5-1) ---
+    reported_speaker = _clean(parsed.reported_speaker)
+    modality, negated = map_modality(parsed.mode, parsed.neg, reported_speaker is not None)
     extra = parsed.model_extra or {}
     hint, hint_key = _confidence_hint(extra)
     families = sorted({e.source_family for e in evidence if e.role == "support"})
@@ -517,16 +515,13 @@ def _compile_one(
         support=Support(independent=len(families), restated=0, families=families),
         binding=_binding(subject_s, speaker),
         time_precision=time.event_precision,  # type: ignore[arg-type]
-        modality=map_modality(parsed.mode, parsed.neg),
+        modality=modality,
+        negated=negated,
         model_confidence_hint=hint,
     )
 
     # --- extras: unknown non-reserved fields, the change marker and two audit hints ---
-    extras: dict[str, Any] = {
-        k: v for k, v in extra.items() if k not in (CHANGE_EXTRA_KEY, hint_key)
-    }
-    if chg:
-        extras[CHANGE_EXTRA_KEY] = True
+    extras: dict[str, Any] = {k: v for k, v in extra.items() if k not in (CHANGE_KEY, hint_key)}
     if parsed.source is not None:
         extras[SOURCE_HINT_EXTRA_KEY] = parsed.source  # a hint; src_class comes from the cited role
     if quote and not span_placed:
@@ -553,7 +548,8 @@ def _compile_one(
             subject=mention(subject_s, "subject"),
             object=mention(object_s, "object"),
             attribute=rel_s,
-            speaker=speaker,
+            speaker=reported_speaker or speaker or _clean(parsed.speaker),
+            change_hint=chg,
             time=time,
             evidence=evidence,
             assessment=assessment,
