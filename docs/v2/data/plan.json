@@ -2019,8 +2019,8 @@
    ],
    "kind": "infra",
    "gate": "Unit tests; pure, unwired (wiring in O4-08); depends only on memspine.schemas",
-   "status": "Ready",
-   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "status": "Done",
+   "note": "derive/standing.py: standing answers, group invalidation, usefulness eviction, guarded standing instructions (81aabf3)",
    "layers": [
     "L1",
     "L4"
@@ -2370,6 +2370,52 @@
     "memspine.derive.session.EpisodeStitcher + memspine.read.legs.episode",
     "memspine.derive.session.SessionCloser + SessionCatchUp",
     "memspine.derive.session.SummaryGuard"
+   ],
+   "review": []
+  },
+  {
+   "id": "LIB-41",
+   "phase": 1,
+   "title": "Library: retention classes and audit records per storage profile",
+   "decisions": [
+    "G-14",
+    "G-15"
+   ],
+   "depends_on": [
+    "MOD-01"
+   ],
+   "kind": "infra",
+   "gate": "Unit tests; pure, unwired (wiring in T5-05); depends only on memspine.schemas",
+   "status": "Ready",
+   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "layers": [
+    "L0",
+    "L1",
+    "L4",
+    "L5",
+    "ctx",
+    "scope"
+   ],
+   "operators": [
+    "D",
+    "K_C",
+    "R"
+   ],
+   "files": [
+    "src/memspine/config/schema.py",
+    "src/memspine/core/audit.py",
+    "src/memspine/core/events.py",
+    "src/memspine/engine.py"
+   ],
+   "owns": [
+    "src/memspine/trust/retention.py",
+    "tests/unit/lib/test_lib_41*.py"
+   ],
+   "lane": "other",
+   "agent": "sonnet",
+   "components": [
+    "memspine.ops.retention (RetentionProfile)",
+    "memspine.trust.audit"
    ],
    "review": []
   },
@@ -2844,7 +2890,8 @@
     "LIB-18",
     "LIB-21",
     "LIB-28",
-    "LIB-38"
+    "LIB-38",
+    "LIB-41"
    ],
    "kind": "move",
    "gate": "Golden",
@@ -6259,7 +6306,8 @@
     "G-15"
    ],
    "depends_on": [
-    "EX-1a"
+    "EX-1a",
+    "LIB-41"
    ],
    "kind": "infra",
    "gate": "Profile tests",
