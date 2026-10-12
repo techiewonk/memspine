@@ -1142,8 +1142,8 @@
    ],
    "kind": "infra",
    "gate": "Unit tests; pure, unwired (wiring in R3-06); depends only on memspine.schemas",
-   "status": "Ready",
-   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "status": "Done",
+   "note": "read/fusion.py: family RRF, protected pool, percentile floors; R3-06 must reconcile schema Family literal with leg families (aa189a5)",
    "layers": [
     "L0",
     "L1"
@@ -1318,6 +1318,126 @@
    "agent": "sonnet",
    "components": [
     "derive.Segmenter (E boundaries) + derive.CallBatcher (B token/age gate)"
+   ],
+   "review": []
+  },
+  {
+   "id": "LIB-15",
+   "phase": 1,
+   "title": "Library: evidence obligations for joins, durations and lists (what evidence a question needs before answering)",
+   "decisions": [
+    "R-03",
+    "R-22"
+   ],
+   "depends_on": [
+    "MOD-01"
+   ],
+   "kind": "infra",
+   "gate": "Unit tests; pure, unwired (wiring in R3-16); depends only on memspine.schemas",
+   "status": "Ready",
+   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "layers": [
+    "L0",
+    "ctx"
+   ],
+   "operators": [
+    "R",
+    "C"
+   ],
+   "files": [
+    "src/memspine/engine.py",
+    "src/memspine/config/schema.py",
+    "src/memspine/core/query_contract.py",
+    "src/memspine/core/fact_chain.py"
+   ],
+   "owns": [
+    "src/memspine/read/obligations.py",
+    "tests/unit/lib/test_lib_15*.py"
+   ],
+   "lane": "other",
+   "agent": "sonnet",
+   "components": [
+    "read.contract (QueryContract)",
+    "read.deep (SufficiencyRound)"
+   ],
+   "review": []
+  },
+  {
+   "id": "LIB-16",
+   "phase": 1,
+   "title": "Library: typed query contract by rules (shape, time view, personal vs generic, list/count, render header)",
+   "decisions": [
+    "R-03",
+    "R-20"
+   ],
+   "depends_on": [
+    "MOD-01"
+   ],
+   "kind": "infra",
+   "gate": "Unit tests; pure, unwired (wiring in R3-02); depends only on memspine.schemas",
+   "status": "Ready",
+   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "layers": [
+    "ctx"
+   ],
+   "operators": [
+    "R",
+    "C"
+   ],
+   "files": [
+    "src/memspine/config/schema.py",
+    "src/memspine/engine.py",
+    "src/memspine/core/query_contract.py",
+    "src/memspine/core/policies/assembly.py"
+   ],
+   "owns": [
+    "src/memspine/read/contract_rules.py",
+    "tests/unit/lib/test_lib_16*.py"
+   ],
+   "lane": "other",
+   "agent": "sonnet",
+   "components": [
+    "compose.render (Renderer)",
+    "read.contract (QueryContract)"
+   ],
+   "review": []
+  },
+  {
+   "id": "LIB-17",
+   "phase": 1,
+   "title": "Library: extraction coverage check and targeted re-extraction plan",
+   "decisions": [
+    "W-17",
+    "W-15"
+   ],
+   "depends_on": [
+    "MOD-01"
+   ],
+   "kind": "infra",
+   "gate": "Unit tests; pure, unwired (wiring in W2-15); depends only on memspine.schemas",
+   "status": "Ready",
+   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "layers": [
+    "L1",
+    "L3"
+   ],
+   "operators": [
+    "D"
+   ],
+   "files": [
+    "src/memspine/workers/windows.py",
+    "src/memspine/engine.py",
+    "src/memspine/workers/pipelines.py"
+   ],
+   "owns": [
+    "src/memspine/derive/coverage.py",
+    "tests/unit/lib/test_lib_17*.py"
+   ],
+   "lane": "other",
+   "agent": "sonnet",
+   "components": [
+    "derive.GroundingChecker (spans per assertion and endpoint, rule checks) + derive.Adjudicator (local entailment or decider)",
+    "schema.ItemV1 (wire) -> schema.AssertionEnvelope (stored), compiler in derive.EnvelopeCompiler"
    ],
    "review": []
   },
@@ -1662,7 +1782,9 @@
     "F-09",
     "LIB-10",
     "LIB-11",
-    "LIB-12"
+    "LIB-12",
+    "LIB-15",
+    "LIB-16"
    ],
    "kind": "move",
    "gate": "Golden byte-identical hit order",
@@ -3287,7 +3409,8 @@
     "W-15"
    ],
    "depends_on": [
-    "W2-08"
+    "W2-08",
+    "LIB-17"
    ],
    "kind": "behaviour",
    "gate": "Omitted-fact recall and unsupported additions measured separately on unseen domains; extra calls counted",
@@ -3730,7 +3853,8 @@
    "depends_on": [
     "P0-07",
     "R3-01",
-    "F-11"
+    "F-11",
+    "LIB-16"
    ],
    "kind": "behaviour",
    "gate": "A03 full set and blind",
@@ -4333,7 +4457,8 @@
    ],
    "depends_on": [
     "R3-12",
-    "W2-09"
+    "W2-09",
+    "LIB-15"
    ],
    "kind": "behaviour",
    "gate": "Unseen intersections, durations and enumerations improve at fixed reader/token budgets; no more unsupported answers",
