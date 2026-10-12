@@ -35,7 +35,7 @@ from urllib.parse import urlparse
 import orjson
 
 from memspine.config import constants
-from memspine.services.llm.base import LLMService
+from memspine.models.providers.llm.base import LLMService
 
 __all__ = [
     "WITHHELD_MARKER",

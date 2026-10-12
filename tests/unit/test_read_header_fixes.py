@@ -8,9 +8,9 @@ from typing import Any
 import pytest
 
 from memspine import Engine
+from memspine.compose.pack import estimate_tokens
 from memspine.config import constants
 from memspine.config.schema import ReadConfig
-from memspine.core.policies.assembly import estimate_tokens
 from memspine.exceptions import ConfigError
 
 T0 = datetime(2023, 5, 7, 10, 0, tzinfo=UTC)

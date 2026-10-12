@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from memspine.core.query_shape import core_terms, is_aggregation
+from memspine.models.encoders.query.shape import core_terms, is_aggregation
 
 
 @pytest.mark.parametrize(
@@ -49,13 +49,13 @@ def test_core_terms_drops_function_words() -> None:
     ],
 )
 def test_ordering_questions(q: str) -> None:
-    from memspine.core.query_shape import is_ordering
+    from memspine.models.encoders.query.shape import is_ordering
 
     assert is_ordering(q)
 
 
 def test_non_ordering_question() -> None:
-    from memspine.core.query_shape import is_ordering
+    from memspine.models.encoders.query.shape import is_ordering
 
     assert not is_ordering("Where does Caroline live?")
 
@@ -71,7 +71,7 @@ def test_non_ordering_question() -> None:
     ],
 )
 def test_is_temporal(query: str, expected: bool) -> None:
-    from memspine.core.query_shape import is_temporal
+    from memspine.models.encoders.query.shape import is_temporal
 
     assert is_temporal(query) is expected
 
@@ -90,7 +90,7 @@ def test_is_temporal(query: str, expected: bool) -> None:
 )
 def test_rule_read_mode(q: str, expected: str | None) -> None:
     """G24: the rules the decision planner applies before asking its provider."""
-    from memspine.core.query_shape import rule_read_mode
+    from memspine.models.encoders.query.shape import rule_read_mode
 
     assert rule_read_mode(q) == expected
 
@@ -113,14 +113,14 @@ def test_rule_read_mode(q: str, expected: str | None) -> None:
 )
 def test_is_verbatim(query: str, expected: bool) -> None:
     """F5 (plan v3.2): questions that ask for someone's own words."""
-    from memspine.core.query_shape import is_verbatim
+    from memspine.models.encoders.query.shape import is_verbatim
 
     assert is_verbatim(query) is expected
 
 
 def test_feedback_terms_are_shared_words_the_query_lacks() -> None:
     """N03 (plan v3.2): pseudo-relevance feedback terms."""
-    from memspine.core.query_shape import feedback_terms
+    from memspine.models.encoders.query.shape import feedback_terms
 
     texts = [
         "Melanie: we went camping at the lake with the tent",
@@ -143,7 +143,7 @@ def test_feedback_terms_are_shared_words_the_query_lacks() -> None:
 )
 def test_is_personal(query: str, expected: bool) -> None:
     """W9 (plan v3.2): personal vs general-knowledge questions."""
-    from memspine.core.query_shape import is_personal
+    from memspine.models.encoders.query.shape import is_personal
 
     assert is_personal(query) is expected
 
@@ -165,6 +165,6 @@ def test_is_personal(query: str, expected: bool) -> None:
 )
 def test_split_intents(query: str, parts: list[str]) -> None:
     """G34 (plan v3.2): multi-part questions."""
-    from memspine.core.query_shape import split_intents
+    from memspine.models.encoders.query.shape import split_intents
 
     assert split_intents(query) == parts

@@ -1,45 +1,7 @@
 # F-06: read, compose and models leaves (docs/v2/RESTRUCTURE.md section 3). Run: python scripts/codemod_move.py scripts/moves/F-06.toml
 # Package moves (directories) rewrite every dotted name under the prefix.
-
-[[move]]
-from = "memspine.core.query_contract"
-to = "memspine.read.contract"
-
-[[move]]
-from = "memspine.core.query_shape"
-to = "memspine.read.shape"
-
-[[move]]
-from = "memspine.core.temporal_query"
-to = "memspine.read.temporal_query"
-
-[[move]]
-from = "memspine.core.temporal_resolve"
-to = "memspine.read.temporal_resolve"
-
-[[move]]
-from = "memspine.core.perspective"
-to = "memspine.read.perspective"
-
-[[move]]
-from = "memspine.core.lead"
-to = "memspine.read.lead"
-
-[[move]]
-from = "memspine.core.policies.assembly"
-to = "memspine.compose.pack"
-
-[[move]]
-from = "memspine.core.policies.compression"
-to = "memspine.compose.compression"
-
-[[move]]
-from = "memspine.core.answer"
-to = "memspine.compose.answer"
-
-[[move]]
-from = "memspine.core.answer_check"
-to = "memspine.compose.answer_check"
+# Package moves come first so the four query-analysis modules (model-free, imported by models and prompts)
+# land inside models/encoders/query/.
 
 [[move]]
 from = "memspine.services.llm"
@@ -64,3 +26,43 @@ to = "memspine.models.providers.decision"
 [[move]]
 from = "memspine.services.cache"
 to = "memspine.models.cache"
+
+[[move]]
+from = "memspine.core.query_contract"
+to = "memspine.read.contract"
+
+[[move]]
+from = "memspine.core.query_shape"
+to = "memspine.models.encoders.query.shape"
+
+[[move]]
+from = "memspine.core.temporal_query"
+to = "memspine.models.encoders.query.temporal_query"
+
+[[move]]
+from = "memspine.core.temporal_resolve"
+to = "memspine.models.encoders.query.temporal_resolve"
+
+[[move]]
+from = "memspine.core.perspective"
+to = "memspine.models.encoders.query.perspective"
+
+[[move]]
+from = "memspine.core.lead"
+to = "memspine.read.lead"
+
+[[move]]
+from = "memspine.core.policies.assembly"
+to = "memspine.compose.pack"
+
+[[move]]
+from = "memspine.core.policies.compression"
+to = "memspine.compose.compression"
+
+[[move]]
+from = "memspine.core.answer"
+to = "memspine.compose.answer"
+
+[[move]]
+from = "memspine.core.answer_check"
+to = "memspine.compose.answer_check"

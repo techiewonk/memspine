@@ -23,8 +23,8 @@ from memspine.core.read_filters import (
     to_utc,
 )
 from memspine.exceptions import MissingServiceError
+from memspine.models.providers.llm.base import LLMRouter, LLMService
 from memspine.prompts.models import AnswerVerdictOut, MissingInfoOut, ReadPlan
-from memspine.services.llm.base import LLMRouter, LLMService
 from memspine.store.records import MemoryRecord
 
 T0 = datetime(2023, 5, 7, 10, 0, tzinfo=UTC)
@@ -639,7 +639,7 @@ async def test_packed_profile_header_sections_in_order() -> None:
         # Nothing appears twice: the routed read leaves the packed records out.
         routed = {r.record_id for r in out.context.records if r is not header}
         assert not routed & set(header.source.parents)
-        from memspine.core.policies.assembly import estimate_tokens
+        from memspine.compose.pack import estimate_tokens
 
         assert estimate_tokens(header.content) <= 200
     finally:
@@ -652,7 +652,7 @@ async def test_packed_profile_respects_the_budget_and_half_the_read() -> None:
     try:
         await _seed_profile(eng)
         out = await eng.read("Melanie pottery", namespace="a", mode="retrieve", budget_tokens=160)
-        from memspine.core.policies.assembly import estimate_tokens
+        from memspine.compose.pack import estimate_tokens
 
         for header in _profile(out.context.records):
             assert estimate_tokens(header.content) <= 80

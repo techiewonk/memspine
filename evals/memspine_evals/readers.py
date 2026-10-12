@@ -331,7 +331,7 @@ QA_PROMPTS = {
 }
 
 #: C1 / H11: the ``routed`` QA prompt picks one of three variants per question by its
-#: shape (``memspine.core.query_shape``). The infer arm gained only on temporal questions
+#: shape (``memspine.models.encoders.query.shape``). The infer arm gained only on temporal questions
 #: (+1.3, others -0.3) and dated3's terse answers and conditional refusal cost -3.3, so:
 #: every variant keeps ``dated``'s one-sentence answer, the temporal one adds the
 #: relative-date inference and a date format, the inference one drops the refusal.
@@ -358,7 +358,7 @@ def qa_shape(question: str) -> str:
     """The ``routed`` variant for ``question``: ``temporal`` when it asks for a date or a
     span, else ``inference`` for a "would / likely / might / could ...?" question, else
     ``plain``. Temporal wins ("When would ...?" is a date question)."""
-    from memspine.core.query_shape import is_inference, is_temporal
+    from memspine.models.encoders.query.shape import is_inference, is_temporal
 
     if is_temporal(question):
         return "temporal"
@@ -412,7 +412,12 @@ def generic_qa_shape(question: str) -> str:
     """The ``routed_generic`` variant: ``infer`` for a would / likely / might question,
     ``list`` for a count or list question, else ``plain`` (dates stay with the plain generic
     prompt, which already resolves them). Rules only, no model."""
-    from memspine.core.query_shape import is_aggregation, is_count, is_inference, is_temporal
+    from memspine.models.encoders.query.shape import (
+        is_aggregation,
+        is_count,
+        is_inference,
+        is_temporal,
+    )
 
     if is_temporal(question):
         return "plain"
@@ -569,7 +574,7 @@ def final_answer(text: str) -> str:
     """#34: the first non-empty line after the last ``Answer:`` marker, ``<think>``
     blocks (closed or cut off) dropped; a reply without the marker comes back whole
     (stripped), only dangling markers give the reply before the first one, and a lone
-    marker gives "". Same code as ``memspine.core.answer.final_answer`` (kept here so the
+    marker gives "". Same code as ``memspine.compose.answer.final_answer`` (kept here so the
     harness core stays stdlib-only)."""
     cleaned = _THINK.sub("", text)
     if "</think>" in cleaned.lower():  # an unclosed block: keep what follows its end

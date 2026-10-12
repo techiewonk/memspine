@@ -34,7 +34,7 @@ from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 
-from memspine.core.temporal_resolve import resolve
+from memspine.models.encoders.query.temporal_resolve import resolve
 
 __all__ = [
     "EventMention",

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 
-from memspine.core.query_shape import is_inference
+from memspine.models.encoders.query.shape import is_inference
 
 __all__ = ["invites_inference", "is_private_fact_question"]
 

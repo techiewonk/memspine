@@ -9,8 +9,8 @@ import pytest
 
 import memspine.engine as engine_module
 from memspine import Engine
-from memspine.core.policies.assembly import AssembledContext, AssemblyPolicy
-from memspine.core.query_shape import is_aggregation, is_ordering
+from memspine.compose.pack import AssembledContext, AssemblyPolicy
+from memspine.models.encoders.query.shape import is_aggregation, is_ordering
 from memspine.store.records import MemoryRecord, SourceInfo
 
 T0 = datetime(2023, 5, 7, 10, 0, tzinfo=UTC)

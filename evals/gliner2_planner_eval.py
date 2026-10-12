@@ -72,7 +72,12 @@ def label(question: str) -> tuple[str, str]:
        replay cue fires (why / feelings / what was said).
     3. ``retrieve`` otherwise: one specific fact, including plain date questions.
     """
-    from memspine.core.query_shape import is_aggregation, is_count, is_ordering, is_temporal
+    from memspine.models.encoders.query.shape import (
+        is_aggregation,
+        is_count,
+        is_ordering,
+        is_temporal,
+    )
 
     if is_count(question):
         return "compose", "is_count"
@@ -175,13 +180,18 @@ def rule_mode(question: str) -> str | None:
     """The engine-side rules of the hybrid (``query_shape.rule_read_mode``): compose for
     counts and sets (not durations), replay for ordering questions; None leaves the
     question to the model."""
-    from memspine.core.query_shape import rule_read_mode
+    from memspine.models.encoders.query.shape import rule_read_mode
 
     return rule_read_mode(question)
 
 
 def hint_text(question: str) -> str:
-    from memspine.core.query_shape import is_aggregation, is_count, is_ordering, is_temporal
+    from memspine.models.encoders.query.shape import (
+        is_aggregation,
+        is_count,
+        is_ordering,
+        is_temporal,
+    )
 
     tags = [
         name
@@ -223,7 +233,7 @@ def gliner2_classifier(setup: Setup, extractor: Any) -> Classifier:
 
 def rules_baseline(question: str) -> tuple[str, float | None]:
     """``read(mode="auto")`` with no planner: compose on ``is_aggregation``, else replay."""
-    from memspine.core.query_shape import is_aggregation
+    from memspine.models.encoders.query.shape import is_aggregation
 
     return ("compose" if is_aggregation(question) else "replay"), None
 
@@ -412,7 +422,7 @@ def select(tune_scores: Sequence[Score]) -> str:
 
 
 def load_model(model: str) -> Any:
-    from memspine.services.decision.gliner2_decision import gliner2_class
+    from memspine.models.providers.decision.gliner2_decision import gliner2_class
 
     return gliner2_class().from_pretrained(model)
 

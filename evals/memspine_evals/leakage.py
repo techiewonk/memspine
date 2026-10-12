@@ -100,7 +100,7 @@ class _ConstReranker:
 
 
 def _register_reranker() -> None:
-    from memspine.services.rerank.factory import register_reranker
+    from memspine.models.providers.rerank.factory import register_reranker
 
     register_reranker("leak_probe_const", lambda settings: _ConstReranker())
 

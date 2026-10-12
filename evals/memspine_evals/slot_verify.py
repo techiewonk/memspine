@@ -1,7 +1,7 @@
 """E06: an answer-slot verifier, a reader post-step (``--verify-slots``).
 
 After the reader answers, code checks the answer against the question's typed contract
-(``memspine.core.query_contract`` / ``memspine.core.answer_check``): does a "when" answer hold a
+(``memspine.read.contract`` / ``memspine.compose.answer_check``): does a "when" answer hold a
 date, a "how many" answer a number, a "which city" answer a city and not a country, a yes/no
 answer a polarity, a count equal the items listed, and (when the reader kept a list or the
 caller has an evidence table) every listed item appear in the answer. Code decides; the model
@@ -90,7 +90,7 @@ def _count_defects(table: Any, text: str) -> list[Any]:
     ``resolved`` table's count, is a defect that names the table's items; a number above a
     range's low end stays (the lines state a larger total). An answer with no number is not
     judged here."""
-    from memspine.core.answer_check import Defect
+    from memspine.compose.answer_check import Defect
 
     m = _STATED.search(text)
     if not m:
@@ -111,7 +111,7 @@ def _count_defects(table: Any, text: str) -> list[Any]:
 
 
 def _is_abstention(text: str) -> bool:
-    from memspine.core.answer_check import is_abstention
+    from memspine.compose.answer_check import is_abstention
 
     from .refusal import is_refusal
 
@@ -132,7 +132,7 @@ class SlotVerifyReader:
         if mode not in SLOT_VERIFY_MODES:
             raise ValueError(f"slot-verify mode must be one of {SLOT_VERIFY_MODES}, got {mode!r}")
         if contract_fn is None:
-            from memspine.core.query_contract import build_contract
+            from memspine.read.contract import build_contract
 
             contract_fn = build_contract
         self.inner = inner
@@ -195,7 +195,7 @@ class SlotVerifyReader:
         meta: dict[str, Any],
         cost: dict[str, int] | None = None,
     ) -> ReaderAnswer:
-        from memspine.core.answer_check import check_answer, defect_instruction
+        from memspine.compose.answer_check import check_answer, defect_instruction
 
         contract = self._contract(question)
         meta["contract"] = contract.as_meta()

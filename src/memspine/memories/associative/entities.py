@@ -134,7 +134,7 @@ def record_entity_names(record: MemoryRecord, policy: EntityPolicy) -> list[str]
     if policy.turn_mentions and record.memory_type == "episodic" and not record.entity:
         # G-7: a raw turn's own proper nouns and years (derived from the content, so a
         # rebuild projects the same mentions); the speaker is a hub, not a mention.
-        from memspine.core.temporal_query import named_terms, speaker_of
+        from memspine.models.encoders.query.temporal_query import named_terms, speaker_of
 
         speaker = speaker_of(record.content)
         raw.extend(

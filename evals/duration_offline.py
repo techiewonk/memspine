@@ -26,7 +26,7 @@ from memspine_evals.duration_solve import (
     solve_duration,
 )
 
-from memspine.core.temporal_resolve import annotate
+from memspine.models.encoders.query.temporal_resolve import annotate
 
 _ANNOTATION = re.compile(r"\s*\[=[^\]]*\]")
 _LINE = re.compile(

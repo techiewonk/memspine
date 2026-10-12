@@ -72,7 +72,7 @@ async def embed_all(texts: list[str], model: str, device: str, cache: Path | Non
     hit = _cache_read(cache, key)
     if hit is not None:
         return hit
-    from memspine.services.embedding.st_local import SentenceTransformersEmbedding
+    from memspine.models.encoders.embedding.st_local import SentenceTransformersEmbedding
 
     emb = SentenceTransformersEmbedding(
         model,

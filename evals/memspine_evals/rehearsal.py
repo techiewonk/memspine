@@ -106,8 +106,8 @@ def validate_engine_config(config: dict[str, Any]) -> None:
     are open dicts in the schema and are only bound when a pipeline first runs, so a
     misspelt key there would otherwise pass start-up silently.
     """
+    from memspine.compose.pack import AssemblyOptions
     from memspine.config.schema import MemspineConfig
-    from memspine.core.policies.assembly import AssemblyOptions
     from memspine.core.policies.scoring import ScoringOptions
 
     parsed = MemspineConfig.model_validate(config)

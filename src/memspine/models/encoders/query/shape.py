@@ -379,7 +379,7 @@ def is_multi_hop(question: str) -> bool:
     distinct capitalised names after the first word, a relation word ("both", "same",
     "before", "after", "while", "in common"), a chain of two possessives ("Ana's
     sister's job"), or a bridge cue (the answer's entity is described, not named)."""
-    from memspine.core.temporal_query import has_bridge_cue
+    from memspine.models.encoders.query.temporal_query import has_bridge_cue
 
     words = question.strip().split()
     names = {

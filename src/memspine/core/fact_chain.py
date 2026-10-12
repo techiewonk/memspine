@@ -26,7 +26,7 @@ from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 
 from memspine.config import constants
-from memspine.core.query_contract import QueryContract
+from memspine.read.contract import QueryContract
 
 __all__ = [
     "Assertion",

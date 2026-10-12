@@ -23,8 +23,8 @@ from memspine.core.window import (
     segment,
 )
 from memspine.exceptions import ConfigError
+from memspine.models.providers.llm.base import LLMRouter
 from memspine.prompts.registry import PromptRegistry
-from memspine.services.llm.base import LLMRouter
 from memspine.workers.windows import (
     build_transcript,
     grounded,

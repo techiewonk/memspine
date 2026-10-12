@@ -24,8 +24,8 @@ from memspine.memories.associative.entities import (
 )
 from memspine.memories.associative.ppr import local_push_ppr, personalized_pagerank
 from memspine.memories.base import BaseMemory
+from memspine.models.encoders.embedding.base import EmbeddingService
 from memspine.observability.logging import EVENT_LINK, EVENT_RETRIEVE, get_logger
-from memspine.services.embedding.base import EmbeddingService
 from memspine.services.graph.base import GraphEdge, GraphStore, capped_neighbors
 from memspine.services.lexical.base import LexicalHit, rrf_fuse
 from memspine.services.vector.base import VectorStore

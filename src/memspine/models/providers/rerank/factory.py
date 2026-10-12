@@ -15,8 +15,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from memspine.exceptions import MissingServiceError
+from memspine.models.providers.rerank.base import Reranker
 from memspine.observability.logging import get_logger
-from memspine.services.rerank.base import Reranker
 
 __all__ = [
     "RerankSettings",
@@ -54,7 +54,7 @@ RerankSpec = Callable[[RerankSettings], Reranker]
 
 
 def _build_fastembed(settings: RerankSettings) -> Reranker:
-    from memspine.services.rerank.fastembed_rerank import FastembedReranker
+    from memspine.models.providers.rerank.fastembed_rerank import FastembedReranker
 
     # FastembedReranker takes a required str with a default model; pass through
     # only when configured, else let it pick its default.
@@ -62,7 +62,7 @@ def _build_fastembed(settings: RerankSettings) -> Reranker:
 
 
 def _build_flashrank(settings: RerankSettings) -> Reranker:
-    from memspine.services.rerank.flashrank_rerank import FlashrankReranker
+    from memspine.models.providers.rerank.flashrank_rerank import FlashrankReranker
 
     return FlashrankReranker(settings.model)
 
@@ -74,7 +74,7 @@ def _build_litellm(settings: RerankSettings) -> Reranker:
         raise MissingServiceError(
             "services.rerank.litellm (set read.rerank_model)", extra="litellm"
         )
-    from memspine.services.rerank.litellm_rerank import LiteLLMReranker
+    from memspine.models.providers.rerank.litellm_rerank import LiteLLMReranker
 
     return LiteLLMReranker(
         settings.model,
@@ -85,7 +85,7 @@ def _build_litellm(settings: RerankSettings) -> Reranker:
 
 
 def _build_qwen3(settings: RerankSettings) -> Reranker:
-    from memspine.services.rerank.qwen3_rerank import (
+    from memspine.models.providers.rerank.qwen3_rerank import (
         DEFAULT_INSTRUCTION,
         DEFAULT_MODEL,
         Qwen3Reranker,
@@ -100,7 +100,7 @@ def _build_qwen3(settings: RerankSettings) -> Reranker:
 
 
 def _build_jina(settings: RerankSettings) -> Reranker:
-    from memspine.services.rerank.jina_rerank import DEFAULT_MODEL, JinaReranker
+    from memspine.models.providers.rerank.jina_rerank import DEFAULT_MODEL, JinaReranker
 
     return JinaReranker(settings.model or DEFAULT_MODEL, device=settings.device)
 
@@ -142,7 +142,7 @@ def build_reranker(settings: RerankSettings) -> Reranker | None:
     try:
         built = spec(settings)
         if settings.chunk_chars:
-            from memspine.services.rerank.chunking import ChunkMaxReranker
+            from memspine.models.providers.rerank.chunking import ChunkMaxReranker
 
             built = ChunkMaxReranker(built, settings.chunk_chars, settings.chunk_overlap)
         return built

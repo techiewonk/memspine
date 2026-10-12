@@ -41,6 +41,8 @@ from memspine.core.window import (
     WindowTurn,
     estimate_tokens,
 )
+from memspine.models.providers.llm.base import LLMService
+from memspine.models.providers.llm.structured import structured_call
 from memspine.observability.logging import get_logger
 from memspine.prompts.base import Prompt
 from memspine.prompts.models import (
@@ -50,8 +52,6 @@ from memspine.prompts.models import (
     WindowPayload,
     fact_guard,
 )
-from memspine.services.llm.base import LLMService
-from memspine.services.llm.structured import structured_call
 from memspine.store.events import fingerprint_payload
 from memspine.store.records import MemoryRecord, RecordStatus
 from memspine.workers.pipelines import (

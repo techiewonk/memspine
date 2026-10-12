@@ -6,7 +6,7 @@ from datetime import date
 
 import pytest
 
-from memspine.core.temporal_resolve import annotate
+from memspine.models.encoders.query.temporal_resolve import annotate
 
 ANCHOR = date(2023, 5, 20)
 

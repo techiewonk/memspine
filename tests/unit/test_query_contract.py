@@ -10,7 +10,8 @@ import pytest
 
 from memspine import Engine
 from memspine.config.schema import MemspineConfig, ReadConfig
-from memspine.core.query_contract import (
+from memspine.models.providers.llm.base import LLMRouter, LLMService
+from memspine.read.contract import (
     QueryContract,
     build_contract,
     contract_header,
@@ -19,7 +20,6 @@ from memspine.core.query_contract import (
     parse_contract,
     rerank_hint,
 )
-from memspine.services.llm.base import LLMRouter, LLMService
 
 T0 = datetime(2023, 5, 7, 10, 0, tzinfo=UTC)
 
@@ -103,7 +103,7 @@ def test_header_and_hint() -> None:
 def test_no_dataset_vocabulary_in_the_module() -> None:
     import inspect
 
-    import memspine.core.query_contract as mod
+    import memspine.read.contract as mod
 
     source = inspect.getsource(mod).lower()
     for word in ("locomo", "longmemeval", "caroline", "melanie", "op-bench", "opbench"):

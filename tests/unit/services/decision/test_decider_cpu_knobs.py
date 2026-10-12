@@ -17,9 +17,9 @@ from memspine import Engine
 from memspine.config.schema import ReadConfig
 from memspine.engine import search_forensics
 from memspine.exceptions import MissingServiceError
-from memspine.services.decision import decider as decider_mod
-from memspine.services.decision import opendecider_nano as nano
-from memspine.services.decision.decider import TASKS, OpenDeciderDecider, build_decider
+from memspine.models.providers.decision import decider as decider_mod
+from memspine.models.providers.decision import opendecider_nano as nano
+from memspine.models.providers.decision.decider import TASKS, OpenDeciderDecider, build_decider
 
 # -- config plumbing -------------------------------------------------------------------------
 

@@ -87,11 +87,11 @@ def check_llm() -> None:
 
 
 async def main() -> None:
-    from memspine.services.embedding.fastembed_local import FastembedEmbedding
-    from memspine.services.embedding.st_local import SentenceTransformersEmbedding
-    from memspine.services.rerank.fastembed_rerank import FastembedReranker
-    from memspine.services.rerank.jina_rerank import JinaReranker
-    from memspine.services.rerank.qwen3_rerank import Qwen3Reranker
+    from memspine.models.encoders.embedding.fastembed_local import FastembedEmbedding
+    from memspine.models.encoders.embedding.st_local import SentenceTransformersEmbedding
+    from memspine.models.providers.rerank.fastembed_rerank import FastembedReranker
+    from memspine.models.providers.rerank.jina_rerank import JinaReranker
+    from memspine.models.providers.rerank.qwen3_rerank import Qwen3Reranker
 
     print("cuda:", torch.cuda.is_available(), torch.cuda.get_device_name(0))
     check_llm()

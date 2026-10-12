@@ -6,7 +6,7 @@ Friday" left unresolved, a weekday with no date. This post-step runs on the answ
 question and never calls a model (0 extra calls):
 
 * **relative phrase** ("last week", "yesterday", "two weeks ago", "last Friday"): found by the
-  engine's own rules (``memspine.core.temporal_resolve``), resolved against the date of the
+  engine's own rules (``memspine.models.encoders.query.temporal_resolve``), resolved against the date of the
   context line it was read from, and rewritten to the absolute date or range the engine would
   print (``the Friday before 2021-03-15 (Fri 2021-03-12)``). The original wording is kept in
   parentheses and in ``meta["date_repair"]``.
@@ -117,7 +117,7 @@ def _anchor(
 
 
 def _label(phrase: str, anchor: date) -> tuple[str, date, date] | None:
-    from memspine.core.temporal_resolve import resolve
+    from memspine.models.encoders.query.temporal_resolve import resolve
 
     found = resolve(phrase, anchor, anchored=True)
     if len(found) != 1 or found[0].phrase.lower() != phrase.lower():
@@ -128,8 +128,8 @@ def _label(phrase: str, anchor: date) -> tuple[str, date, date] | None:
 
 def repair_date_answer(question: str, answer: str, context: str) -> tuple[str, dict[str, Any]] | None:
     """``(new answer, meta)`` or None when nothing is to be repaired (see the module docstring)."""
-    from memspine.core.query_shape import is_temporal
-    from memspine.core.temporal_resolve import resolve
+    from memspine.models.encoders.query.shape import is_temporal
+    from memspine.models.encoders.query.temporal_resolve import resolve
 
     from .refusal import is_refusal
 

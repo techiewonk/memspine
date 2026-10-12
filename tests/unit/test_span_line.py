@@ -10,7 +10,7 @@ import pytest
 from memspine import Engine
 from memspine.config import constants
 from memspine.config.schema import ReadConfig
-from memspine.core.query_shape import is_duration
+from memspine.models.encoders.query.shape import is_duration
 
 
 @pytest.mark.parametrize(

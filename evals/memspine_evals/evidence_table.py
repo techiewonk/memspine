@@ -118,8 +118,8 @@ def render_lines(lines: Sequence[Line]) -> str:
 def needs_table(question: str) -> bool:
     """A list or count question: the contract's cardinality is ``many`` or ``count`` (code only;
     any other question costs no call)."""
-    from memspine.core.query_contract import build_contract
-    from memspine.core.query_shape import is_count
+    from memspine.models.encoders.query.shape import is_count
+    from memspine.read.contract import build_contract
 
     return build_contract(question).cardinality in ("many", "count") or is_count(question)
 
@@ -224,7 +224,7 @@ Chat = Callable[..., Awaitable[str]]
 
 async def extract_rows(chat: Chat, question: str, lines: Sequence[Line]) -> TableOut:
     """ONE structured call (``structured_call``: format-aware parse, JSON repair, opt-in retry)."""
-    from memspine.services.llm.structured import structured_call
+    from memspine.models.providers.llm.structured import structured_call
 
     class _ChatLLM:
         provider_id = "harness:evidence_table"
@@ -543,7 +543,7 @@ def build_table(
 ) -> EvidenceTable:
     """Validate, filter, dedupe and reconcile the model's rows. Pure code."""
     if subjects is None:
-        from memspine.core.query_contract import build_contract
+        from memspine.read.contract import build_contract
 
         subjects = build_contract(question).subjects
     if plans_ok is None:
@@ -636,7 +636,7 @@ class EvidenceTableBuilder:
         self.failures = 0
         self.seen = 0
         # I69: repair + one retry of a malformed extraction (process-wide, opt-in switch).
-        from memspine.services.llm import structured
+        from memspine.models.providers.llm import structured
 
         if not structured._OPTIONS.retry_on_error:
             structured.configure(

@@ -984,13 +984,13 @@ def due_window_for(text: str, when: datetime) -> tuple[str | None, str | None]:
     """I49: ``(due_from, due_to)`` of a plan, ``YYYY-MM-DD`` each, against the mention time.
 
     An absolute date in the text ("on 12 March 2025", "in June 2025", ISO) is taken through
-    :func:`~memspine.core.temporal_query.query_interval` as a window if it lies after the
+    :func:`~memspine.models.encoders.query.temporal_query.query_interval` as a window if it lies after the
     mention day (a year-less date takes its next occurrence); a relative phrase ("next week",
-    "tomorrow") gets its first day from :func:`~memspine.core.temporal_resolve.resolve` and
+    "tomorrow") gets its first day from :func:`~memspine.models.encoders.query.temporal_resolve.resolve` and
     its end from :func:`due_to_for`. No horizon: ``(None, None)``, a soft deadline that never
     lapses."""
-    from memspine.core.temporal_query import query_interval
-    from memspine.core.temporal_resolve import resolve
+    from memspine.models.encoders.query.temporal_query import query_interval
+    from memspine.models.encoders.query.temporal_resolve import resolve
 
     base = when if when.tzinfo else when.replace(tzinfo=UTC)
     today = base.date()

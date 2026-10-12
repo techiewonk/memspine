@@ -213,7 +213,7 @@ SRC = ROOT / "src" / "memspine"
 #: place-noun and country detectors) that must contain these common words and are never sent
 #: to a model. Each entry must still be needed (see the staleness test).
 INLINE_ALLOWLIST: dict[tuple[str, str], str] = {
-    ("core/answer_check.py", "Sweden"): "country word list (vocabulary, not prompt text)",
+    ("compose/answer_check.py", "Sweden"): "country word list (vocabulary, not prompt text)",
     ("core/evidence.py", "church"): "place-noun regex",
     ("core/sensitive.py", "church"): "religion detector regex",
     ("core/sensitivity.py", "church"): "religion detector regex",

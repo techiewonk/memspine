@@ -6,7 +6,9 @@ from datetime import UTC, datetime
 from typing import Any
 
 from memspine import Engine
-from memspine.core.perspective import (
+from memspine.core.read_filters import as_of_scope
+from memspine.memories.semantic.write_pipeline import GraphWritePipeline
+from memspine.models.encoders.query.perspective import (
     PerspectiveOptions,
     acknowledges,
     as_of_subject_ok,
@@ -21,8 +23,6 @@ from memspine.core.perspective import (
     resolve_write,
     unacknowledged_claim,
 )
-from memspine.core.read_filters import as_of_scope
-from memspine.memories.semantic.write_pipeline import GraphWritePipeline
 from memspine.prompts.models import ExtractedEdge
 from memspine.store.records import MemoryRecord, RecordStatus
 
@@ -224,7 +224,7 @@ async def test_i47_ack_off_writes_no_ack_tags() -> None:
 
 
 def test_i47_decider_task_exists() -> None:
-    from memspine.services.decision.decider import TASKS, HeuristicDecider
+    from memspine.models.providers.decision.decider import TASKS, HeuristicDecider
 
     assert "acknowledges" in TASKS
     d = HeuristicDecider().decide_sync("acknowledges", "Yes, that's right", "You like jazz.")

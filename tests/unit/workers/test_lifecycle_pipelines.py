@@ -201,7 +201,7 @@ async def test_decay_then_compress_then_rebuild_round_trips() -> None:
 
     # A read verb on top of raw storage (the pipeline harness has no Engine):
     # inflation must restore the original bytes exactly.
-    from memspine.core.policies.compression import CompressionPolicy
+    from memspine.compose.compression import CompressionPolicy
 
     inflated = CompressionPolicy.bind().inflate(record)
     assert inflated.content == content

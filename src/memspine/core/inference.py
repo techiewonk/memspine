@@ -24,7 +24,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
 
-from memspine.core.query_shape import content_words
+from memspine.models.encoders.query.shape import content_words
 
 __all__ = [
     "INFERRED_CHANNELS",

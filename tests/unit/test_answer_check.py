@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import pytest
 
-from memspine.core.answer_check import (
+from memspine.compose.answer_check import (
     check_answer,
     defect_instruction,
     is_abstention,
     is_country,
 )
-from memspine.core.query_contract import build_contract
+from memspine.read.contract import build_contract
 
 
 def kinds(question: str, answer: str, **kw: object) -> list[str]:

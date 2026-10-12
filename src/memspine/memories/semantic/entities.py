@@ -17,11 +17,11 @@ import asyncio
 from typing import Any, Protocol, runtime_checkable
 
 from memspine.exceptions import MissingServiceError
+from memspine.models.providers.llm.base import LLMService
+from memspine.models.providers.llm.structured import structured_call
 from memspine.observability.logging import get_logger
 from memspine.prompts.base import Prompt
 from memspine.prompts.models import ExtractedFact, ExtractedFacts
-from memspine.services.llm.base import LLMService
-from memspine.services.llm.structured import structured_call
 
 __all__ = ["EntityExtractor", "GlinerEntityExtractor", "LLMEntityExtractor"]
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from memspine.core.policies.assembly import ranked
+from memspine.compose.pack import ranked
 from memspine.store.records import MemoryRecord
 
 T = datetime(2023, 5, 1, tzinfo=UTC)

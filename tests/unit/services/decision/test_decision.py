@@ -13,8 +13,8 @@ import pytest
 
 from memspine import Engine
 from memspine.exceptions import MissingServiceError
-from memspine.services.decision import DecisionProvider
-from memspine.services.decision.gliner2_decision import (
+from memspine.models.providers.decision import DecisionProvider
+from memspine.models.providers.decision.gliner2_decision import (
     DEFAULT_MODEL,
     GLiNER2Decision,
     gliner2_class,

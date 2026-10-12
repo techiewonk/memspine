@@ -23,7 +23,7 @@ from datetime import UTC, datetime, timedelta
 from memspine.config.constants import MENTION_CACHE_MAX, TEMPORAL_SOFT_MARGIN_DAYS
 from memspine.core.event_date import happened_of, label_span
 from memspine.core.language import blocked
-from memspine.core.temporal_resolve import WeekMode, resolve
+from memspine.models.encoders.query.temporal_resolve import WeekMode, resolve
 from memspine.store.records import MemoryRecord, chrono_key
 
 __all__ = [
@@ -284,7 +284,7 @@ def mentioned_spans(record: MemoryRecord) -> tuple[tuple[datetime, datetime], ..
 
 
 def _content_words(text: str) -> frozenset[str]:
-    from memspine.core.query_shape import content_words
+    from memspine.models.encoders.query.shape import content_words
 
     return content_words(text)
 
@@ -328,7 +328,7 @@ def speaker_leg(query: str, records: Iterable[MemoryRecord], top_k: int) -> list
     """W8 (``read.subject_leg``): the turns of every speaker the query names (whole
     word, case-insensitive), ranked by content-word overlap with the query, then
     newest first. Empty when the query names no known speaker."""
-    from memspine.core.query_shape import content_words
+    from memspine.models.encoders.query.shape import content_words
 
     text = query.lower()
     by_speaker: dict[str, list[MemoryRecord]] = {}
@@ -557,7 +557,7 @@ def bridge_phrases(question: str, texts: Iterable[str], limit: int = 3) -> list[
     content words (stop words, mid-sentence names and punctuation break a run), so "moved
     from my home country" gives "home country". Most frequent first, then first seen.
     Deterministic."""
-    from memspine.core.query_shape import _STOP
+    from memspine.models.encoders.query.shape import _STOP
 
     asked = {w.lower() for w in _BRIDGE_WORD.findall(question)}
     counts: dict[str, int] = {}
@@ -620,7 +620,7 @@ def assistant_leg(query: str, records: Iterable[MemoryRecord], top_k: int) -> li
     """W11 (``read.role_aware``): for a question about what the assistant said, the
     assistant's own turns (recommendations first), by content-word overlap with the
     question, then newest first. Empty for any other question."""
-    from memspine.core.query_shape import content_words
+    from memspine.models.encoders.query.shape import content_words
 
     if not asks_about_assistant(query):
         return []
@@ -647,7 +647,7 @@ def sentence_leg(query: str, records: Iterable[MemoryRecord], top_k: int) -> lis
     diluted by the rest of it. Records sharing no word with the query are left out."""
     import math
 
-    from memspine.core.query_shape import content_words
+    from memspine.models.encoders.query.shape import content_words
 
     wanted = content_words(query)
     if not wanted:

@@ -8,7 +8,7 @@ from datetime import date
 import pytest
 
 from memspine.config.schema import ReadConfig
-from memspine.core.temporal_resolve import annotate
+from memspine.models.encoders.query.temporal_resolve import annotate
 
 SUNDAY = date(2022, 7, 10)  # a Sunday
 

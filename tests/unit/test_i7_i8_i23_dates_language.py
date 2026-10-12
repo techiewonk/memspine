@@ -10,8 +10,7 @@ import pytest
 from memspine import Engine
 from memspine.config.schema import ReadConfig
 from memspine.core.language import blocked, language_scope, looks_english
-from memspine.core.lead import timeline_line
-from memspine.core.query_shape import (
+from memspine.models.encoders.query.shape import (
     is_count,
     is_ordering,
     is_set_question,
@@ -19,8 +18,9 @@ from memspine.core.query_shape import (
     question_shape,
     rule_read_mode,
 )
-from memspine.core.temporal_query import query_interval
-from memspine.core.temporal_resolve import annotate, resolve
+from memspine.models.encoders.query.temporal_query import query_interval
+from memspine.models.encoders.query.temporal_resolve import annotate, resolve
+from memspine.read.lead import timeline_line
 
 QD = datetime(2023, 5, 30, 23, 40, tzinfo=UTC)
 

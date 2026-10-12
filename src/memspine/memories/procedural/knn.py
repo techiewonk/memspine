@@ -17,7 +17,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 
 from memspine.config import constants
-from memspine.core.query_shape import content_words
+from memspine.models.encoders.query.shape import content_words
 
 __all__ = ["Exemplar", "VoteResult", "bm25_scores", "knn_vote", "label_table", "render_table"]
 

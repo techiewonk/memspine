@@ -9,7 +9,7 @@ from typing import Any
 from memspine import Engine
 from memspine.config import constants
 from memspine.core.escaping import escape_markers
-from memspine.core.lead import render_standing, timeline_line
+from memspine.read.lead import render_standing, timeline_line
 from memspine.store.records import MemoryRecord, SourceInfo
 
 

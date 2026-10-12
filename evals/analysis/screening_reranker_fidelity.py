@@ -69,13 +69,13 @@ def sample(fx, gold, n):
 def make_scorer(name):
     model, kind = CANDS[name]
     if kind == "qwen":
-        from memspine.services.rerank.qwen3_rerank import Qwen3Reranker
+        from memspine.models.providers.rerank.qwen3_rerank import Qwen3Reranker
 
         r = Qwen3Reranker(model, device="cpu", batch_size=16)
         r._ensure_loaded()
         return r.score
     if kind == "jina":
-        from memspine.services.rerank.jina_rerank import JinaReranker
+        from memspine.models.providers.rerank.jina_rerank import JinaReranker
 
         return JinaReranker(model, device="cpu").score
     from sentence_transformers import CrossEncoder

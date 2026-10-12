@@ -20,7 +20,7 @@ Two designs, one parser:
   replaces the normal answer on count questions. Cost: +0 calls, a longer completion. The
   model's own ``Count`` is recorded next to the code's count and never used for the answer.
 
-Detection is by question shape only (``memspine.core.query_shape.is_count``); no gold, no
+Detection is by question shape only (``memspine.models.encoders.query.shape.is_count``); no gold, no
 category, no dataset name (rule I37). Non-count questions go to the inner reader untouched, so
 every other row is byte-identical to a run without the flag. A reply that does not parse, or a
 list that is empty, falls back to the inner answer (two_call) or to the model's text (single).
@@ -215,7 +215,7 @@ class CountVerifyReader:
         if mode not in COUNT_VERIFY_MODES:
             raise ValueError(f"count-verify mode must be one of {COUNT_VERIFY_MODES}, got {mode!r}")
         if is_count is None:
-            from memspine.core.query_shape import is_count as shape_is_count
+            from memspine.models.encoders.query.shape import is_count as shape_is_count
 
             is_count = shape_is_count
         self.inner = inner

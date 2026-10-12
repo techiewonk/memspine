@@ -13,7 +13,7 @@ import orjson
 import pytest
 
 from memspine import Engine
-from memspine.services.llm.tier_gate import WITHHELD_MARKER, TierGatedLLM
+from memspine.models.providers.llm.tier_gate import WITHHELD_MARKER, TierGatedLLM
 from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import PiiTier, RecordStatus
 from memspine.trust.privacy import principal_scope

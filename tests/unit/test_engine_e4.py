@@ -14,7 +14,7 @@ import pytest
 from memspine import Engine
 from memspine.config.schema import MemspineConfig
 from memspine.exceptions import ConfigError
-from memspine.services.embedding.base import EmbedderManifest
+from memspine.models.encoders.embedding.base import EmbedderManifest
 
 _HAS_MODEL2VEC = importlib.util.find_spec("model2vec") is not None
 

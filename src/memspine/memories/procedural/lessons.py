@@ -19,8 +19,8 @@ from dataclasses import dataclass
 from typing import Literal
 
 from memspine.config import constants
-from memspine.core.query_shape import content_words
 from memspine.exceptions import ConflictError
+from memspine.models.encoders.query.shape import content_words
 from memspine.store.events import fingerprint_payload
 from memspine.store.records import MemoryRecord
 

@@ -11,8 +11,8 @@ import pytest
 from memspine.config.schema import MemspineConfig, ReadConfig
 from memspine.core.relevance_probes import OFF_TOPIC_PROBES, calibrate, percentile
 from memspine.engine import Engine, search_forensics
-from memspine.services.embedding.base import EmbeddingService
-from memspine.services.embedding.hash_local import HashEmbedding
+from memspine.models.encoders.embedding.base import EmbeddingService
+from memspine.models.encoders.embedding.hash_local import HashEmbedding
 
 T0 = datetime(2023, 5, 1, 9, 0, tzinfo=UTC)
 _STOP = frozenset(

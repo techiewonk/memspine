@@ -15,8 +15,8 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 
 from memspine.config import constants
-from memspine.core.query_shape import content_words
-from memspine.services.query_encoder.base import CueMatch, EncodedQuery
+from memspine.models.encoders.query.base import CueMatch, EncodedQuery
+from memspine.models.encoders.query.shape import content_words
 from memspine.store.records import MemoryRecord, RecordStatus
 
 __all__ = ["CueQueryEncoder"]

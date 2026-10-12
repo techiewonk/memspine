@@ -200,7 +200,7 @@ class _Stub:
 
 async def _stubbed(stubs: dict[str, _Stub], **kw: Any) -> Any:
     """An engine whose LLM router is a real ``LLMRouter`` over stub providers."""
-    from memspine.services.llm.base import LLMRouter
+    from memspine.models.providers.llm.base import LLMRouter
 
     engine = _engine_kw(**kw)
 
@@ -530,8 +530,8 @@ async def check_event_time() -> bool:
 
 
 async def check_c2_query_input_type() -> bool:
-    from memspine.services.embedding.base import embed_queries
-    from memspine.services.embedding.litellm_embed import LiteLLMEmbedding
+    from memspine.models.encoders.embedding.base import embed_queries
+    from memspine.models.encoders.embedding.litellm_embed import LiteLLMEmbedding
 
     calls: list[dict[str, Any]] = []
 
@@ -559,7 +559,7 @@ async def check_c2_query_input_type() -> bool:
 
 
 async def check_c3_temporal_and_metadata_legs() -> bool:
-    from memspine.core.temporal_query import metadata_leg, temporal_leg
+    from memspine.models.encoders.query.temporal_query import metadata_leg, temporal_leg
     from memspine.store.records import MemoryRecord
 
     def rec(content: str, when: datetime, entity: str | None = None) -> MemoryRecord:
@@ -950,7 +950,7 @@ async def check_build_hook() -> bool:
 
 
 async def check_h1_relative_dates() -> bool:
-    from memspine.core.temporal_resolve import resolve
+    from memspine.models.encoders.query.temporal_resolve import resolve
 
     hits = resolve("We went last Friday.", date(2023, 7, 15))
     pure = any(r.first == r.last == date(2023, 7, 14) for r in hits)
@@ -1276,7 +1276,7 @@ async def check_order_norerank() -> bool:
 
 
 def check_h19_latest_slots() -> bool:
-    from memspine.core.policies.assembly import AssemblyPolicy
+    from memspine.compose.pack import AssemblyPolicy
     from memspine.store.records import MemoryRecord
 
     def rec(content: str, days: int) -> MemoryRecord:
@@ -1387,7 +1387,7 @@ async def check_h22_gap_markers() -> bool:
 
 
 def check_h23_dedupe() -> bool:
-    from memspine.core.policies.assembly import AssemblyPolicy
+    from memspine.compose.pack import AssemblyPolicy
     from memspine.store.records import MemoryRecord
 
     def rec(content: str, days: int) -> MemoryRecord:

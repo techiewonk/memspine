@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from memspine.core.policies.assembly import AssemblyPolicy
+from memspine.compose.pack import AssemblyPolicy
 from memspine.store.records import MemoryRecord, SourceInfo
 
 

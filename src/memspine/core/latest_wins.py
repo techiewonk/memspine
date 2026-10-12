@@ -34,7 +34,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Literal
 
-from memspine.core.query_shape import content_words
+from memspine.models.encoders.query.shape import content_words
 from memspine.store.records import MemoryRecord, RecordStatus
 
 __all__ = [

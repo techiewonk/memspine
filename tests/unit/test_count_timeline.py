@@ -10,14 +10,14 @@ import pytest
 from memspine import Engine
 from memspine.config import constants
 from memspine.config.schema import ReadConfig
-from memspine.core.lead import (
+from memspine.exceptions import ConfigError
+from memspine.models.encoders.query.shape import is_count
+from memspine.read.lead import (
     count_terms,
     distinct_occurrences,
     mentions_event,
     render_occurrences,
 )
-from memspine.core.query_shape import is_count
-from memspine.exceptions import ConfigError
 from memspine.store.records import MemoryRecord
 
 T0 = datetime(2023, 5, 7, 10, 0, tzinfo=UTC)

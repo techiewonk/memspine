@@ -20,6 +20,7 @@ from datetime import UTC, date, datetime, time, timedelta
 from functools import partial
 from typing import Any, Protocol
 
+from memspine.compose.compression import CompressionPolicy
 from memspine.config import constants
 from memspine.config.schema import MemspineConfig
 from memspine.core.escaping import escape_markers
@@ -33,9 +34,7 @@ from memspine.core.event_date import (
     resolve_happened,
 )
 from memspine.core.fact_chain import fact_projection_on, validate_assertions
-from memspine.core.perspective import inherit_perspective_tags
 from memspine.core.policies.community import CommunityOptions, CommunityPolicy
-from memspine.core.policies.compression import CompressionPolicy
 from memspine.core.policies.consolidation import (
     ConsolidationPolicy,
     ConsolidationTrigger,
@@ -44,9 +43,7 @@ from memspine.core.policies.consolidation import (
 from memspine.core.policies.decay import DecayPolicy
 from memspine.core.policies.retention import RetentionPolicy
 from memspine.core.policies.trust import TrustPolicy
-from memspine.core.query_shape import content_words
 from memspine.core.rule_edges import BECAUSE_REL, causal_links, kinship_relations
-from memspine.core.temporal_resolve import WeekMode
 from memspine.exceptions import ConfigError, ConflictError
 from memspine.memories.associative.communities import (
     PartitionResult,
@@ -79,6 +76,9 @@ from memspine.memories.semantic.write_pipeline import (
     cardinality_map,
     edge_fact_key,
 )
+from memspine.models.encoders.query.perspective import inherit_perspective_tags
+from memspine.models.encoders.query.shape import content_words
+from memspine.models.encoders.query.temporal_resolve import WeekMode
 from memspine.observability.logging import get_logger
 from memspine.prompts.models import AnticipatedCue, AssertionOut, ExtractedEdge, ExtractedFact
 from memspine.services.graph.base import GraphEdge, GraphStore

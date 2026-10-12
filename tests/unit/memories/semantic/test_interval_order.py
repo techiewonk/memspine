@@ -15,7 +15,7 @@ from memspine.clients.sqlite import SQLiteClient
 from memspine.core.policies.conflict import ConflictPolicy
 from memspine.core.policies.dedup import DedupPolicy
 from memspine.memories.semantic.store import SemanticMemory
-from memspine.services.embedding.hash_local import HashEmbedding
+from memspine.models.encoders.embedding.hash_local import HashEmbedding
 from memspine.services.storage.projector import RecordProjector
 from memspine.services.storage.sqlite.engine import SQLiteStorage
 from memspine.store.events import MemoryEvent

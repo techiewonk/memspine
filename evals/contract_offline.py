@@ -2,7 +2,7 @@
 checks over a finished run's saved reader rows and count what they would flag.
 
 No model is called and nothing is changed. For each saved answer the contract is built from the
-question and :func:`memspine.core.answer_check.check_answer` runs on the answer text. The run's
+question and :func:`memspine.compose.answer_check.check_answer` runs on the answer text. The run's
 own verdict (the judge's score on that row) says whether the answer was right, so the output
 splits the flags into
 
@@ -41,8 +41,8 @@ def _correct(row: dict[str, Any]) -> bool | None:
 
 
 def estimate(rows: list[dict[str, Any]]) -> dict[str, Any]:
-    from memspine.core.answer_check import check_answer, is_abstention
-    from memspine.core.query_contract import build_contract
+    from memspine.compose.answer_check import check_answer, is_abstention
+    from memspine.read.contract import build_contract
 
     total = collections.Counter()
     by_type: dict[str, collections.Counter] = collections.defaultdict(collections.Counter)

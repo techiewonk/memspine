@@ -13,11 +13,11 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import ClassVar
 
+from memspine.compose.compression import CompressionPolicy
 from memspine.config import constants
 from memspine.core import trace_sink
 from memspine.core.evidence import EvidenceSignal
 from memspine.core.policies.base import BindablePolicy, PolicyOptions
-from memspine.core.policies.compression import CompressionPolicy
 from memspine.store.records import MemoryRecord
 
 __all__ = ["AssembledContext", "AssemblyPolicy", "estimate_tokens"]

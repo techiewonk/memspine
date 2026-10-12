@@ -159,7 +159,7 @@ def _answer_in_context(gold: str | None, text: str) -> dict[str, object]:
     retrieved context (``ans_words`` = that share). None without a usable gold."""
     if not gold:
         return {}
-    from memspine.core.query_shape import content_words
+    from memspine.models.encoders.query.shape import content_words
 
     wanted = content_words(gold)
     if not wanted:

@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from memspine.core.perspective import (
+from memspine.core.policies.conflict import ConflictPolicy, ConflictVerdict
+from memspine.models.encoders.query.perspective import (
     PerspectiveOptions,
     due_to_for,
     is_past_plan,
@@ -14,7 +15,6 @@ from memspine.core.perspective import (
     resolve_question,
     resolve_write,
 )
-from memspine.core.policies.conflict import ConflictPolicy, ConflictVerdict
 from memspine.store.records import MemoryRecord
 
 TWO = {"caroline", "melanie"}

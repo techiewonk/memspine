@@ -8,7 +8,7 @@ from datetime import UTC, datetime, timedelta
 
 from memspine import Engine
 from memspine.config.schema import ReadConfig
-from memspine.core.temporal_query import cohesion_leg, entity_expand_leg
+from memspine.models.encoders.query.temporal_query import cohesion_leg, entity_expand_leg
 from memspine.services.lexical.base import minmax_fuse, rrf_fuse
 from memspine.store.records import MemoryRecord
 
@@ -120,7 +120,7 @@ async def test_maxsim_leg_scores_multi_sentence_candidates_and_forget_purges() -
         hits = await eng.search("camping by the lake", namespace="a", top_k=2)
         assert any(r.record_id == long_id for r, _ in hits)
         assert any(k[0] == long_id for k in eng._sentence_vectors)  # sentences embedded
-        from memspine.core.temporal_query import _MENTIONS, mentioned_spans
+        from memspine.models.encoders.query.temporal_query import _MENTIONS, mentioned_spans
 
         mentioned_spans(long_rec)  # the N30 cache now holds the text too
         await eng.forget(long_id, namespace="a", hard=True)
@@ -131,7 +131,11 @@ async def test_maxsim_leg_scores_multi_sentence_candidates_and_forget_purges() -
 
 
 def test_forget_mentions_drops_cached_spans() -> None:
-    from memspine.core.temporal_query import _MENTIONS, forget_mentions, mentioned_spans
+    from memspine.models.encoders.query.temporal_query import (
+        _MENTIONS,
+        forget_mentions,
+        mentioned_spans,
+    )
 
     rec = _rec("Ana: I went camping yesterday", 0)
     mentioned_spans(rec)
@@ -234,7 +238,7 @@ def test_n54_n55_off_by_default() -> None:
 
 def test_view_tag_leg_matches_location_and_topic() -> None:
     """G-16: records found by their location / topic view tags."""
-    from memspine.core.temporal_query import view_tag_leg
+    from memspine.models.encoders.query.temporal_query import view_tag_leg
 
     lake = _rec("Ana went camping", 0).model_copy(
         update={"tags": ["loc:lake tahoe", "topic:camping"]}

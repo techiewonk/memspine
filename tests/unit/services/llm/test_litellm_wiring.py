@@ -8,9 +8,9 @@ import pytest
 
 from memspine import Engine
 from memspine.exceptions import ConfigError
-from memspine.services.embedding.litellm_embed import LiteLLMEmbedding
-from memspine.services.llm.litellm_llm import LiteLLMLLM
-from memspine.services.rerank.litellm_rerank import LiteLLMReranker
+from memspine.models.encoders.embedding.litellm_embed import LiteLLMEmbedding
+from memspine.models.providers.llm.litellm_llm import LiteLLMLLM
+from memspine.models.providers.rerank.litellm_rerank import LiteLLMReranker
 
 # ── embedding adapter ─────────────────────────────────────────────────────────
 

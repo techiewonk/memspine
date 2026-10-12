@@ -9,7 +9,7 @@ import importlib.util
 import pytest
 
 from memspine.exceptions import MissingServiceError
-from memspine.services.embedding.static_local import StaticEmbedder
+from memspine.models.encoders.embedding.static_local import StaticEmbedder
 
 _HAS_MODEL2VEC = importlib.util.find_spec("model2vec") is not None
 

@@ -5,8 +5,8 @@ from __future__ import annotations
 from itertools import pairwise
 from typing import Any
 
-from memspine.services.rerank.chunking import ChunkMaxReranker, split_windows
-from memspine.services.rerank.factory import RerankSettings, build_reranker
+from memspine.models.providers.rerank.chunking import ChunkMaxReranker, split_windows
+from memspine.models.providers.rerank.factory import RerankSettings, build_reranker
 
 
 class _Scorer:
@@ -66,7 +66,7 @@ async def test_empty_and_id() -> None:
 
 
 def test_factory_default_unwrapped(monkeypatch: Any) -> None:
-    from memspine.services.rerank import factory
+    from memspine.models.providers.rerank import factory
 
     monkeypatch.setitem(factory._REGISTRY, "fakemode", lambda s: _Scorer())
     assert isinstance(build_reranker(RerankSettings(mode="fakemode")), _Scorer)

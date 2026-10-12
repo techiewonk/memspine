@@ -7,7 +7,7 @@ from typing import Any
 
 from memspine import Engine
 from memspine.config.schema import ReadConfig
-from memspine.core.temporal_query import LegHit
+from memspine.models.encoders.query.temporal_query import LegHit
 from memspine.services.lexical.base import rrf_fuse
 
 
