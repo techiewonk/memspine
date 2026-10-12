@@ -1940,8 +1940,8 @@
    ],
    "kind": "infra",
    "gate": "Unit tests; pure, unwired (wiring in W2-01); depends only on memspine.schemas",
-   "status": "Ready",
-   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "status": "Done",
+   "note": "ingest/intake.py: validation, S3-3 write ids, idempotent retry, quota before accept, document version diff plans, readiness (LIB-30)",
    "layers": [
     "L0",
     "L1"
@@ -2279,6 +2279,97 @@
    "components": [
     "firewall.WriteGates (gate 1 raw, gate 2 extraction input filter, gate 3 derived + parent trust cap always on)",
     "memspine.trust.firewall (layered SignalStack)"
+   ],
+   "review": []
+  },
+  {
+   "id": "LIB-39",
+   "phase": 1,
+   "title": "Library: profile card with guarded operations and reflection plans (opt-in)",
+   "decisions": [
+    "O-18",
+    "O-19",
+    "O-20",
+    "M-20"
+   ],
+   "depends_on": [
+    "MOD-01"
+   ],
+   "kind": "infra",
+   "gate": "Unit tests; pure, unwired (wiring in O4-07); depends only on memspine.schemas",
+   "status": "Ready",
+   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "layers": [
+    "L1",
+    "L4",
+    "ctx"
+   ],
+   "operators": [
+    "K_P"
+   ],
+   "files": [
+    "config/constants.py",
+    "engine.py",
+    "workers/pipelines.py",
+    "memories/reflective/reflections.py"
+   ],
+   "owns": [
+    "src/memspine/derive/profile.py",
+    "tests/unit/lib/test_lib_39*.py"
+   ],
+   "lane": "other",
+   "agent": "sonnet",
+   "components": [
+    "ProfileCard (L4)",
+    "memspine.derive.profile.ProfileOps -> ProfileCard",
+    "memspine.derive.reflect.Reflector",
+    "memspine.memories.profile.ProfileCard"
+   ],
+   "review": []
+  },
+  {
+   "id": "LIB-40",
+   "phase": 1,
+   "title": "Library: session-close call 2 plan (summary, stitched episode, profile ops) with prompt inputs and validation",
+   "decisions": [
+    "O-07",
+    "O-08",
+    "O-09",
+    "M-14"
+   ],
+   "depends_on": [
+    "MOD-01"
+   ],
+   "kind": "infra",
+   "gate": "Unit tests; pure, unwired (wiring in O4-02); depends only on memspine.schemas",
+   "status": "Ready",
+   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "layers": [
+    "L0",
+    "L1",
+    "ctx"
+   ],
+   "operators": [
+    "K_C",
+    "K_P"
+   ],
+   "files": [
+    "workers/pipelines.py",
+    "config/constants.py",
+    "engine.py",
+    "src/memspine/engine.py"
+   ],
+   "owns": [
+    "src/memspine/derive/session_close.py",
+    "tests/unit/lib/test_lib_40*.py"
+   ],
+   "lane": "other",
+   "agent": "sonnet",
+   "components": [
+    "Grouping records (episode, session, saga)",
+    "memspine.derive.session.EpisodeStitcher + memspine.read.legs.episode",
+    "memspine.derive.session.SessionCloser + SessionCatchUp",
+    "memspine.derive.session.SummaryGuard"
    ],
    "review": []
   },
@@ -5550,7 +5641,8 @@
    ],
    "depends_on": [
     "O4-01a",
-    "F-16a"
+    "F-16a",
+    "LIB-40"
    ],
    "kind": "behaviour",
    "gate": "G-C9-style screen; golden unchanged with flag off",
@@ -5759,7 +5851,8 @@
    ],
    "depends_on": [
     "O4-02",
-    "F-16a"
+    "F-16a",
+    "LIB-39"
    ],
    "kind": "behaviour",
    "gate": "OP-Bench and PrefEval up; hand audit at least 90%",
