@@ -3,7 +3,7 @@
 Package X-01 template, filled by `python docs/v2/data/build_plan.py --brief <ID>` (lane: other; kind: infra). One brief per work package; the agent (Sonnet) reads only this brief and the files it links. Placeholders left as `<TODO ...>` are for the coordinator to complete before the brief is handed out.
 
 ## Goal
-<TODO goal: Library: typed query contract by rules (shape, time view, personal vs generic, list/count, render header). Registry note: Library-first split (owner 2026-10-13: parallel agents)>
+A pure, unwired, deterministic rule-based typed query contract for English, German, Dutch and Spanish: answer type, question shape, time view (current / as-of / history / range, anchored when `now` is given), personal vs generic flag, request kind (lookup / enumeration / as_of / show_all, for the LIB-12 gate), target mentions, attribute hints, language, a confidence per field, `unknown` where the rules cannot decide, and a compact language-neutral render header. Zero model calls. Wired later by R3-02. Library-first split (owner 2026-10-13: parallel agents).
 
 ## Decisions implemented
 - R-03 Typed query contract adoption ([areas/read.md](areas/read.md#r-03-typed-query-contract-adoption-b-heuristic-contract-on-by-default))
@@ -85,11 +85,13 @@ Files owned by packages that can run at the same time as this one:
 - `evals/runs`, `data/`, the `pinned_run.sh` interface (unless listed under You own)
 
 ## Steps
-1. <TODO steps>
+1. `src/memspine/read/contract_rules.py`: `build_contract(query, *, now, lang_hint) -> TypedContract`, `render_header(contract, *, min_confidence)`, `TypedContract.to_schema()` (nearest schema `QueryContract`).
+2. Relative phrases are anchored by local calendar rules that mirror LIB-01 (the layering contract says `read` never imports `derive`); a parity test pins them to LIB-01.
+3. No guessing: undecided fields are `unknown` with confidence 0 and are named in `unknown`; the header prints only fields at or above 0.5.
 
 ## Tests
-- Add: <TODO tests>
-- Migrate: <TODO tests>
+- Add: `tests/unit/lib/test_lib_16_contract_rules.py` (95-query table, four languages), `test_lib_16_contract_details.py` (time anchoring, language, personal flag, header, schema bridge), `test_lib_16_parity.py` (300 parity checks against LIB-01).
+- Migrate: none (unwired).
 - Must stay green: `tests/unit`, `evals/tests`, CPU golden, import-linter, gold-lint, single Alembic head
 
 ## Gate
@@ -100,7 +102,7 @@ Kind gate (infra): Tooling or docs: tests for the tooling, existing suites green
 Review findings implemented: none
 
 ## Docs to update in the same PR
-<TODO pipeline spec step, ARCHITECTURE section, ADR, PLAN status>
+None beyond this brief; the retrieve pipeline step 3 and the render header (step 17) are wired by R3-02.
 
 ## Done when
 - [ ] all checks above pass
