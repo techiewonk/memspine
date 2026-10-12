@@ -765,8 +765,8 @@
    ],
    "kind": "infra",
    "gate": "Unit tests; pure, unwired (wiring in W2-14); depends only on memspine.schemas",
-   "status": "Ready",
-   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "status": "Done",
+   "note": "derive/temporal.py: anchor ladder, precision intervals, 3-valued comparisons, durations, relations, as-of; 320 tests (7318c37)",
    "layers": [
     "L0",
     "L1",

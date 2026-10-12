@@ -48,7 +48,7 @@ WP = [
     ("X-06", 0, "Licence check for a permissive reranker fallback", ["R-14"], [], "infra", "Named fallback with licence", "Done", "Qwen3-Reranker-0.6B (Apache-2.0) primary, MiniLM-L6 CPU (5544e88); owner to confirm"),
     # ---- Library-first splits: pure logic in new files, wired later by the parent package ----
     ("LIB-01", 1, "Library: temporal anchor ladder (basis, precision, intervals, relations; never invents dates)", ["W-04", "M-10", "R-07"], ["MOD-01"], "infra",
-     "Unit tests; pure, unwired (wiring in W2-14); depends only on memspine.schemas", "Ready", "Library-first split (owner 2026-10-13: parallel agents)"),
+     "Unit tests; pure, unwired (wiring in W2-14); depends only on memspine.schemas", "Done", "derive/temporal.py: anchor ladder, precision intervals, 3-valued comparisons, durations, relations, as-of; 320 tests (7318c37)"),
     ("LIB-02", 1, "Library: integration ladder (supersede/retire/coexist/contest/tentative) and cardinality registry, event-time ordered", ["W-21", "W-22", "M-12"], ["MOD-01"], "infra",
      "Unit tests; pure, unwired (wiring in W2-10); depends only on memspine.schemas", "Done", "derive/integrate.py: X-05 contradictions 44/44, order-independent replay (fixes INV-ORDER-SWAP); W2-10 must use change_hint once LIB-05 adds it (6db0ac3)"),
     ("LIB-03", 1, "Library: grounding rule checks (spans, modality, binding) scored on the X-05 grounding set", ["W-17"], ["MOD-01"], "infra",

@@ -8,11 +8,11 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | Status | Count |
 |---|---|
 | Not started | 93 |
-| Ready | 8 |
+| Ready | 7 |
 | In progress | 0 |
 | Blocked | 1 |
 | Needs measurement | 3 |
-| Done | 21 |
+| Done | 22 |
 | Dropped | 0 |
 
 ## Phase 0: settle and prepare
@@ -41,7 +41,7 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 
 | Id | Work package | Layers | Ops | Decisions | Review | Depends on | Kind | Agent lane | Owns | Gate | Status | Note |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| LIB-01 | Library: temporal anchor ladder (basis, precision, intervals, relations; never invents dates) | L0 L1 L3 L5 | D R | W-04, M-10, R-07 | - | MOD-01 | infra | other | `src/memspine/derive/temporal.py` +1 | Unit tests; pure, unwired (wiring in W2-14); depends only on memspine.schemas | **Ready** | Library-first split (owner 2026-10-13: parallel agents) |
+| LIB-01 | Library: temporal anchor ladder (basis, precision, intervals, relations; never invents dates) | L0 L1 L3 L5 | D R | W-04, M-10, R-07 | - | MOD-01 | infra | other | `src/memspine/derive/temporal.py` +1 | Unit tests; pure, unwired (wiring in W2-14); depends only on memspine.schemas | **Done** | derive/temporal.py: anchor ladder, precision intervals, 3-valued comparisons, durations, relations, as-of; 320 tests (7318c37) |
 | LIB-02 | Library: integration ladder (supersede/retire/coexist/contest/tentative) and cardinality registry, event-time ordered | L1 L3 | D K_C | W-21, W-22, M-12 | - | MOD-01 | infra | other | `src/memspine/derive/integrate.py` +1 | Unit tests; pure, unwired (wiring in W2-10); depends only on memspine.schemas | **Done** | derive/integrate.py: X-05 contradictions 44/44, order-independent replay (fixes INV-ORDER-SWAP); W2-10 must use change_hint once LIB-05 adds it (6db0ac3) |
 | LIB-03 | Library: grounding rule checks (spans, modality, binding) scored on the X-05 grounding set | L1 L3 | D | W-17 | - | MOD-01 | infra | other | `src/memspine/derive/ground.py` +1 | Unit tests; pure, unwired (wiring in W2-08); depends only on memspine.schemas | **Ready** | Library-first split (owner 2026-10-13: parallel agents) |
 | LIB-04 | Library: rule entity resolver (alias, homonym, numeric, cross-language) scored on X-05 entity pairs | L1 L3 | D K_C | W-19, M-15 | - | MOD-01 | infra | other | `src/memspine/derive/resolve.py` +1 | Unit tests; pure, unwired (wiring in W2-09); depends only on memspine.schemas | **Done** | derive/resolve.py: X-05 entity pairs precision(same) 1.000, recall 0.976, 0 false merges (b7e499e) |
