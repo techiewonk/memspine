@@ -1,0 +1,113 @@
+{
+  "conversations": [
+    {
+      "id": "ilse-garden",
+      "namespace": "ilse",
+      "sessions": [
+        {
+          "session_id": "ilse-s1",
+          "date": "2024-03-04T18:00:00+00:00",
+          "messages": [
+            {"role": "user", "content": "I just moved to Utrecht and I am renting a small flat near the canal."},
+            {"role": "assistant", "content": "Congratulations on the move. How are you settling in?"},
+            {"role": "user", "content": "Well enough. I planted tomatoes, basil and chives on the balcony."}
+          ]
+        },
+        {
+          "session_id": "ilse-s2",
+          "date": "2024-06-10T09:30:00+00:00",
+          "messages": [
+            {"role": "user", "content": "Update: I moved again, and now I live in Rotterdam, close to the harbour."},
+            {"role": "assistant", "content": "Rotterdam is lively. Is the balcony garden coming along?"},
+            {"role": "user", "content": "Yes, the tomatoes are ripe. Next week I will visit my sister in Leiden."}
+          ]
+        }
+      ],
+      "facts": [
+        {"content": "Ilse lives in Utrecht", "entity": "Ilse", "attribute": "city", "valid_from": "2024-03-04T18:00:00+00:00"},
+        {"content": "Ilse lives in Rotterdam", "entity": "Ilse", "attribute": "city", "valid_from": "2024-06-10T09:30:00+00:00"}
+      ]
+    },
+    {
+      "id": "bram-cycling",
+      "namespace": "bram",
+      "sessions": [
+        {
+          "session_id": "bram-s1",
+          "date": "2024-04-15T20:15:00+00:00",
+          "messages": [
+            {"role": "user", "content": "This weekend I cycled sixty kilometres along the river Maas."},
+            {"role": "assistant", "content": "That is a long ride. Did you pack enough food?"},
+            {"role": "user", "content": "I brought three things: bananas, rye bread and a thermos of coffee."}
+          ]
+        },
+        {
+          "session_id": "bram-s2",
+          "date": "2024-05-20T07:45:00+00:00",
+          "messages": [
+            {"role": "user", "content": "My bicycle has a cracked rear rim, so the repair shop keeps it until Friday."},
+            {"role": "assistant", "content": "Thank you for letting me know, I will remember that."}
+          ]
+        }
+      ],
+      "facts": []
+    },
+    {
+      "id": "noor-tomasz-chat",
+      "namespace": "group",
+      "group_id": "pottery-club",
+      "sessions": [
+        {
+          "session_id": "club-s1",
+          "date": "2024-05-02T19:00:00+00:00",
+          "messages": [
+            {"role": "user", "content": "Noor: I signed up for the pottery class on Thursday evenings."},
+            {"role": "user", "content": "Tomasz: I prefer the Saturday kiln session, and I make blue glazed bowls."},
+            {"role": "user", "content": "Noor: Then we only meet at the exhibition in July."}
+          ]
+        },
+        {
+          "session_id": "club-s2",
+          "date": "2024-07-09T19:00:00+00:00",
+          "messages": [
+            {"role": "user", "content": "Tomasz: The exhibition opened yesterday and my bowls sold out."},
+            {"role": "user", "content": "Noor: Wonderful, I shall bring a green vase next time."}
+          ]
+        }
+      ],
+      "facts": []
+    },
+    {
+      "id": "noor-german",
+      "namespace": "noor",
+      "sessions": [
+        {
+          "session_id": "noor-s1",
+          "date": "2024-02-12T11:00:00+00:00",
+          "messages": [
+            {"role": "user", "content": "Ich habe heute einen neuen Kaffeeladen in der Altstadt entdeckt, er heisst Morgenrot."},
+            {"role": "assistant", "content": "Das klingt gut. Was hast du dort getrunken?"},
+            {"role": "user", "content": "Einen Cortado, und ich habe Hafermilch gewaehlt."}
+          ]
+        }
+      ],
+      "facts": []
+    }
+  ],
+  "queries": [
+    {"id": "q01-single-fact", "namespace": "bram", "query": "How far did Bram cycle along the river?"},
+    {"id": "q02-current-city", "namespace": "ilse", "query": "Where does Ilse live now?"},
+    {"id": "q03-old-city", "namespace": "ilse", "query": "Where did Ilse live in March 2024?", "as_of": "2024-04-01T00:00:00+00:00"},
+    {"id": "q04-list", "namespace": "ilse", "query": "Which herbs and vegetables did Ilse plant on the balcony?"},
+    {"id": "q05-list-food", "namespace": "bram", "query": "What food did Bram bring on the ride?"},
+    {"id": "q06-temporal-order", "namespace": "ilse", "query": "When did Ilse visit her sister?"},
+    {"id": "q07-relative-time", "namespace": "bram", "query": "When will the bicycle repair be finished?"},
+    {"id": "q08-party-noor", "namespace": "group", "query": "What does Noor plan to bring to the next exhibition?", "viewer": "Noor"},
+    {"id": "q09-party-tomasz", "namespace": "group", "query": "Which kiln session does Tomasz prefer?", "viewer": "Tomasz"},
+    {"id": "q10-party-noviewer", "namespace": "group", "query": "Who sold out of bowls at the exhibition?"},
+    {"id": "q11-non-english", "namespace": "noor", "query": "Wie heisst der neue Kaffeeladen in der Altstadt?"},
+    {"id": "q12-non-english-drink", "namespace": "noor", "query": "Welche Milch hat Noor gewaehlt?"},
+    {"id": "q13-no-answer", "namespace": "bram", "query": "What is the capital of Mongolia?"},
+    {"id": "q14-no-answer-person", "namespace": "ilse", "query": "What colour is Ilse's motorbike?"}
+  ]
+}
