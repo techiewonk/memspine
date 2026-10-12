@@ -1182,8 +1182,8 @@
    ],
    "kind": "infra",
    "gate": "Unit tests; pure, unwired (wiring in R3-08); depends only on memspine.schemas",
-   "status": "Ready",
-   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "status": "Done",
+   "note": "read/lift.py: lift, readmit, dedupe, cap, rerank; unscored None; POL-2 strict lineage (6751a47)",
    "layers": [
     "L0",
     "L1",
@@ -1220,8 +1220,8 @@
    ],
    "kind": "infra",
    "gate": "Unit tests; pure, unwired (wiring in R3-11); depends only on memspine.schemas",
-   "status": "Ready",
-   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "status": "Done",
+   "note": "read/gate.py: median/MAD calibration, answerable/missing/conflicting/weak/bypass; R3-11 maps QueryContract to GateContract",
    "layers": [
     "L1",
     "ctx"
@@ -1438,6 +1438,95 @@
    "components": [
     "derive.GroundingChecker (spans per assertion and endpoint, rule checks) + derive.Adjudicator (local entailment or decider)",
     "schema.ItemV1 (wire) -> schema.AssertionEnvelope (stored), compiler in derive.EnvelopeCompiler"
+   ],
+   "review": []
+  },
+  {
+   "id": "LIB-18",
+   "phase": 1,
+   "title": "Library: privacy tiers, consent and purpose scopes (admission predicates for write and read)",
+   "decisions": [
+    "G-10",
+    "G-11"
+   ],
+   "depends_on": [
+    "MOD-01"
+   ],
+   "kind": "infra",
+   "gate": "Unit tests; pure, unwired (wiring in T5-03); depends only on memspine.schemas",
+   "status": "Ready",
+   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "layers": [
+    "L0",
+    "L1",
+    "L4"
+   ],
+   "operators": [
+    "D",
+    "K_P",
+    "R",
+    "C"
+   ],
+   "files": [
+    "src/memspine/config/schema.py",
+    "src/memspine/core/privacy.py"
+   ],
+   "owns": [
+    "src/memspine/trust/consent.py",
+    "tests/unit/lib/test_lib_18*.py"
+   ],
+   "lane": "other",
+   "agent": "sonnet",
+   "components": [
+    "memspine.trust.consent",
+    "memspine.trust.privacy (Redactor, EgressGate)"
+   ],
+   "review": []
+  },
+  {
+   "id": "LIB-19",
+   "phase": 1,
+   "title": "Library: cache keys, generation-aware invalidation and POL-1 revalidation",
+   "decisions": [
+    "R-25",
+    "R-26",
+    "P-20",
+    "P-24"
+   ],
+   "depends_on": [
+    "MOD-01"
+   ],
+   "kind": "infra",
+   "gate": "Unit tests; pure, unwired (wiring in R3-15); depends only on memspine.schemas",
+   "status": "Ready",
+   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "layers": [
+    "L0",
+    "L1",
+    "ctx"
+   ],
+   "operators": [
+    "D",
+    "R",
+    "C"
+   ],
+   "files": [
+    "src/memspine/engine.py",
+    "src/memspine/config/schema.py",
+    "src/memspine/core/policies/assembly.py",
+    "src/memspine/services/llm/llama_cpp.py"
+   ],
+   "owns": [
+    "src/memspine/read/cache.py",
+    "tests/unit/lib/test_lib_19*.py"
+   ],
+   "lane": "other",
+   "agent": "sonnet",
+   "components": [
+    "compose.prefix",
+    "read.cache + compose.render layout",
+    "read.exec (LegExecutor)",
+    "runtime.scheduler"
    ],
    "review": []
   },
@@ -1784,7 +1873,8 @@
     "LIB-11",
     "LIB-12",
     "LIB-15",
-    "LIB-16"
+    "LIB-16",
+    "LIB-19"
    ],
    "kind": "move",
    "gate": "Golden byte-identical hit order",
@@ -1900,7 +1990,8 @@
    "depends_on": [
     "F-11",
     "LIB-08",
-    "LIB-09"
+    "LIB-09",
+    "LIB-18"
    ],
    "kind": "move",
    "gate": "Golden",
@@ -4500,7 +4591,8 @@
     "P-24"
    ],
    "depends_on": [
-    "R3-12"
+    "R3-12",
+    "LIB-19"
    ],
    "kind": "infra",
    "gate": "p95 SLO tests in CI; caching (result/context caches disabled until ER-31 keys and use-time admission tests pass)",
@@ -5204,7 +5296,8 @@
     "G-11"
    ],
    "depends_on": [
-    "EX-1a"
+    "EX-1a",
+    "LIB-18"
    ],
    "kind": "behaviour",
    "gate": "Remote-tier gate tests",
