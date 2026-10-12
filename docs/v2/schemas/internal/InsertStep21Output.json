@@ -2,7 +2,7 @@
   "$defs": {
     "IntegrationVerdict": {
       "additionalProperties": true,
-      "description": "draft: field layout pending schema session 5 (assessment).",
+      "description": "How the conflict ladder integrated this assertion (G0 operator split), set at integration.",
       "properties": {
         "hint": {
           "anyOf": [

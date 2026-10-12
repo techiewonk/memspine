@@ -1,6 +1,6 @@
 {
   "additionalProperties": true,
-  "description": "draft: field layout pending schema session 5 (assessment).",
+  "description": "Internal step type.",
   "properties": {
     "anomalous": {
       "default": false,

@@ -2,7 +2,7 @@
   "$defs": {
     "LegHit": {
       "additionalProperties": true,
-      "description": "draft: pending schema session 10.",
+      "description": "Internal step type.",
       "properties": {
         "record_id": {
           "title": "Record Id",
@@ -22,7 +22,7 @@
     },
     "NamedLeg": {
       "additionalProperties": true,
-      "description": "draft: pending schema session 10. ``list[LegHit]`` plus a name and family.",
+      "description": "Internal step type. ``list[LegHit]`` plus a name and family.",
       "properties": {
         "family": {
           "enum": [

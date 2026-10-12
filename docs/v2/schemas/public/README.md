@@ -1,1 +1,1 @@
-strict tier; changes need a version bump; populated by later schema sessions
+strict tier. Each model carries x-semver; a change to a schema needs a semver bump.

@@ -2,7 +2,7 @@
   "$defs": {
     "SkipRecord": {
       "additionalProperties": true,
-      "description": "draft: pending schema session 10. The spec names the type without fields.",
+      "description": "Internal step type. The spec names the type without fields.",
       "properties": {
         "reason": {
           "title": "Reason",
@@ -29,7 +29,7 @@
     }
   },
   "additionalProperties": true,
-  "description": "draft: pending schema session 10. Typed form of today's forensics dict.",
+  "description": "Internal step type. Typed form of today's forensics dict.",
   "properties": {
     "cuts": {
       "items": {

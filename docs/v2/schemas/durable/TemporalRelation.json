@@ -1,0 +1,26 @@
+{
+  "additionalProperties": true,
+  "description": "A phrase like \"after X\": a typed relation to another assertion, resolved only if an anchor exists.",
+  "properties": {
+    "relation": {
+      "enum": [
+        "before",
+        "after",
+        "during"
+      ],
+      "title": "Relation",
+      "type": "string"
+    },
+    "target_assertion_id": {
+      "minLength": 1,
+      "title": "Target Assertion Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "relation",
+    "target_assertion_id"
+  ],
+  "title": "TemporalRelation",
+  "type": "object"
+}

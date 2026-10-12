@@ -1,6 +1,6 @@
 {
   "additionalProperties": true,
-  "description": "draft: pending schema session 5.",
+  "description": "Internal step type.",
   "properties": {
     "cites": {
       "items": {

@@ -2,7 +2,7 @@
   "$defs": {
     "PendingMerge": {
       "additionalProperties": true,
-      "description": "Outbox row kind=pending_merge (W-19 B). draft: pending schema session 8.",
+      "description": "Outbox row kind=pending_merge (W-19 B).",
       "properties": {
         "co_mentions": {
           "items": {

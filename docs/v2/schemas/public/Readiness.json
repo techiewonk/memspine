@@ -1,0 +1,66 @@
+{
+  "additionalProperties": true,
+  "description": "State of each capability for a write. A capability that is not configured is ``unavailable``,\nnever ``pending`` (S7).",
+  "properties": {
+    "facts": {
+      "enum": [
+        "pending",
+        "ready",
+        "unavailable",
+        "failed"
+      ],
+      "title": "Facts",
+      "type": "string"
+    },
+    "graph": {
+      "enum": [
+        "pending",
+        "ready",
+        "unavailable",
+        "failed"
+      ],
+      "title": "Graph",
+      "type": "string"
+    },
+    "profile": {
+      "enum": [
+        "pending",
+        "ready",
+        "unavailable",
+        "failed"
+      ],
+      "title": "Profile",
+      "type": "string"
+    },
+    "raw_search": {
+      "enum": [
+        "pending",
+        "ready",
+        "unavailable",
+        "failed"
+      ],
+      "title": "Raw Search",
+      "type": "string"
+    },
+    "summaries": {
+      "enum": [
+        "pending",
+        "ready",
+        "unavailable",
+        "failed"
+      ],
+      "title": "Summaries",
+      "type": "string"
+    }
+  },
+  "required": [
+    "raw_search",
+    "facts",
+    "graph",
+    "summaries",
+    "profile"
+  ],
+  "title": "Readiness",
+  "type": "object",
+  "x-semver": "1.0.0"
+}

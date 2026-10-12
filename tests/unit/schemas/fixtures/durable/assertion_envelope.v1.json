@@ -1,0 +1,132 @@
+{
+  "assertion_key": {
+    "dst": "ent-lisbon",
+    "key_v": 1,
+    "kind": "state",
+    "rel": "lives_in",
+    "src": "ent-alice"
+  },
+  "assessment": {
+    "binding": "bound",
+    "modality": "asserted",
+    "model_confidence_hint": 0.9,
+    "source_trust": 0.8,
+    "support": {
+      "families": [
+        "speaker:alice"
+      ],
+      "independent": 1,
+      "restated": 0
+    },
+    "time_precision": "month"
+  },
+  "attribute": "lives_in",
+  "checks": {
+    "endpoints": true,
+    "names": true,
+    "numbers": true,
+    "polarity": true,
+    "span": true
+  },
+  "derivation": null,
+  "epoch": 3,
+  "erasure_generation": 0,
+  "evidence": [
+    {
+      "role": "support",
+      "source_family": "speaker:alice",
+      "span": {
+        "end": 24,
+        "quote": "I moved to Lisbon in May",
+        "start": 0
+      },
+      "turn": {
+        "seg_index": 2,
+        "source_id": "src-1",
+        "source_version": 1
+      }
+    },
+    {
+      "role": "binding",
+      "source_family": "speaker:alice",
+      "span": null,
+      "turn": {
+        "seg_index": 1,
+        "source_id": "src-1",
+        "source_version": 1
+      }
+    }
+  ],
+  "extras": {
+    "mood": "cheerful"
+  },
+  "graph": null,
+  "grounding": "grounded",
+  "key_aliases": [
+    "ak-legacy"
+  ],
+  "kind": "state",
+  "novel_field": {
+    "added_by": "a-future-release",
+    "n": [
+      1,
+      2
+    ]
+  },
+  "object": {
+    "entity_id": "ent-lisbon",
+    "mention_id": "m-2",
+    "surface": "Lisbon"
+  },
+  "occurrence_id": "oc_f6669fa91308f9b9c3ef942f5bcdb62e",
+  "parents": [],
+  "prompt_hash": "ph-1",
+  "provenance": {
+    "agent_id": "agent-x",
+    "principal": null,
+    "session_id": "sess-3",
+    "source_id": "src-1",
+    "source_version": 1
+  },
+  "record_id": "rec-1",
+  "schema_version": 1,
+  "scope": {
+    "owner": "owner-1",
+    "owner_kind": "user",
+    "tenant": "tenant-a"
+  },
+  "speaker": "speaker:alice",
+  "src_class": "user_stated",
+  "status": "active",
+  "subject": {
+    "entity_id": "ent-alice",
+    "mention_id": "m-1",
+    "surface": "I"
+  },
+  "text": "Alice lives in Lisbon.",
+  "time": {
+    "event": {
+      "end": null,
+      "start": {
+        "anchor": "2026-03-01T09:30:00Z",
+        "approximate": false,
+        "at": "2026-05-01T00:00:00Z",
+        "basis": "source_time",
+        "duration": null,
+        "precision": "month",
+        "relation": null,
+        "text": "in May"
+      }
+    },
+    "recorded_at": "2026-03-01T09:31:00Z",
+    "source_time": "2026-03-01T09:30:00Z"
+  },
+  "value": null,
+  "verdict": {
+    "hint": "chg",
+    "op": "supersede",
+    "rung": "R3"
+  },
+  "verified": false,
+  "write_id": "wr_f44a8f7441d78226651fb60d863b2e72"
+}

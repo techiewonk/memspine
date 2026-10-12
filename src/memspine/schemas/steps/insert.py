@@ -13,36 +13,38 @@ from typing import Any, Literal
 from pydantic import Field
 
 from memspine.schemas.base import InternalModel
-from memspine.schemas.steps.shared import (
+from memspine.schemas.durable import (
     AssertionEnvelope,
     AssertionKey,
+    IntegrationVerdict,
+    LineageEdge,
+    MemoryEvent,
+    OutboxRow,
+)
+from memspine.schemas.public import Receipt, WaitResult
+from memspine.schemas.steps.shared import (
     AssetRef,
     CallBatch,
     DeriveUse,
     FailureRecord,
     FirewallVerdict,
-    IntegrationVerdict,
     IntentStatus,
     ItemV1,
     LedgerEntry,
-    LineageEdge,
-    OutboxRow,
-    Receipt,
     Record,
     Role,
     Segment,
     SourceEnvelope,
     SrcClass,
-    WaitResult,
     Window,
     WindowTurn,
 )
 
-# --- helper types local to the insert pipeline (internal drafts) ---------------------------------------
+# --- helper types local to the insert pipeline (internal step types) ---------------------------------------
 
 
 class SegmentIdentity(InternalModel):
-    """Per-segment output of step 2. draft: pending schema session 3 (identity)."""
+    """Per-segment output of step 2.(identity)."""
 
     seg_index: int
     idem_key: str
@@ -51,7 +53,7 @@ class SegmentIdentity(InternalModel):
 
 
 class StampedSegment(InternalModel):
-    """A segment after steps 3-4 (clock and axes). draft: pending schema sessions 3 and 6."""
+    """A segment after steps 3-4 (clock and axes)."""
 
     seg_index: int
     role: Role
@@ -68,7 +70,7 @@ class StampedSegment(InternalModel):
 
 
 class NamespaceContext(InternalModel):
-    """Firewall gate-1 context (step 6). draft: pending schema session 5."""
+    """Firewall gate-1 context (step 6)."""
 
     nearest_neighbour_similarities: list[float] = Field(default_factory=list)
     recent_live_contents: list[str] = Field(default_factory=list)  # about 50
@@ -76,7 +78,7 @@ class NamespaceContext(InternalModel):
 
 
 class ExplicitKey(InternalModel):
-    """Optional explicit key for routing (step 7). draft: pending schema session 3."""
+    """Optional explicit key for routing (step 7)."""
 
     entity: str | None = None
     attribute: str | None = None
@@ -85,7 +87,7 @@ class ExplicitKey(InternalModel):
 
 
 class RoutedRecord(InternalModel):
-    """A routed record with its verdict (input of step 8). draft: pending schema session 7."""
+    """A routed record with its verdict (input of step 8)."""
 
     record: Record
     verdict: FirewallVerdict
@@ -95,21 +97,21 @@ class RoutedRecord(InternalModel):
 
 
 class BacklogState(InternalModel):
-    """Step 12 backlog state. draft: pending schema session 9."""
+    """Step 12 backlog state."""
 
     pending_windows: int = 0
     oldest_age_ms: int | None = None
 
 
 class LedgerBudget(InternalModel):
-    """Step 12 ledger budget. draft: pending schema session 9."""
+    """Step 12 ledger budget."""
 
     tokens_total: int | None = None
     spent: int = 0
 
 
 class LiveMember(InternalModel):
-    """A re-read member record for prompt assembly (step 13). draft: pending schema session 4."""
+    """A re-read member record for prompt assembly (step 13)."""
 
     record_id: str
     source_version: int
@@ -127,7 +129,7 @@ class AliasTarget(InternalModel):
 
 
 class RenderedPrompt(InternalModel):
-    """Step 13 output. draft: pending schema session 4."""
+    """Step 13 output."""
 
     system: str  # byte-stable
     user_blocks: list[str] = Field(default_factory=list)  # [w1..wk] of "[n] [date] Speaker: text"
@@ -158,11 +160,11 @@ class ValidItem(InternalModel):
     """A valid ItemV1 with its batch block (step 15 output)."""
 
     item: ItemV1
-    block: int | None = None  # TODO(session 8): spec says "their batch block", type not given
+    block: int | None = None  # TODO: spec says "their batch block", type not given
 
 
 class ParentState(InternalModel):
-    """Parent record live state for gate 3 (step 18). draft: pending schema session 5."""
+    """Parent record live state for gate 3 (step 18)."""
 
     record_id: str
     status: str | None = None
@@ -170,7 +172,7 @@ class ParentState(InternalModel):
 
 
 class EntityMention(InternalModel):
-    """A name to resolve (step 19 input). draft: pending schema session 3."""
+    """A name to resolve (step 19 input)."""
 
     name: str
     type_hint: str | None = None
@@ -178,7 +180,7 @@ class EntityMention(InternalModel):
 
 
 class Resolution(InternalModel):
-    """Step 19 output. draft: pending schema session 3."""
+    """Step 19 output."""
 
     name: str
     entity_id: str | None = None
@@ -187,7 +189,7 @@ class Resolution(InternalModel):
 
 
 class RegistryEntry(InternalModel):
-    """Cardinality registry entry (step 21). draft: pending schema session 5."""
+    """Cardinality registry entry (step 21)."""
 
     cardinality: Literal["one", "many"]
     functional: bool = False
@@ -195,7 +197,7 @@ class RegistryEntry(InternalModel):
 
 
 class Incumbent(InternalModel):
-    """An existing assertion on the key (step 21). draft: pending schema session 5."""
+    """An existing assertion on the key (step 21)."""
 
     assertion_id: str
     record_id: str | None = None
@@ -215,7 +217,9 @@ class AttachDecision(InternalModel):
 class InsertStep01Input(InternalModel):
     """Intake. Adapter arguments (E2..E7) or a SourceEnvelope (E1)."""
 
-    adapter_args: dict[str, Any] | None = None  # TODO(session 7): per-adapter argument shapes
+    adapter_args: dict[str, Any] | None = (
+        None  # TODO: per-adapter argument shapes are not specified
+    )
     envelope: SourceEnvelope | None = None
 
 
@@ -372,7 +376,7 @@ class InsertStep15Input(InternalModel):
     raw_reply: str
     alias_map: dict[str, AliasTarget]
     item_schema: dict[str, Any] | None = (
-        None  # TODO(session 8): "ItemV1 schema"; may become a class ref
+        None  # the ItemV1 JSON schema; TODO: may become a class ref
     )
 
 
@@ -463,15 +467,13 @@ class DeposableEnvelope(InternalModel):
 class InsertStep22Input(InternalModel):
     envelopes: list[DeposableEnvelope]
     outbox_row: OutboxRow  # lease, generation
-    claim_epoch: int | None = None  # TODO(session 8): ER-07 conditional commit
+    claim_epoch: int | None = None  # commit only if still current (durable.commit_allowed, ER-07)
 
 
 class InsertStep22Output(InternalModel):
     records: list[Record]  # L1 records
     lineage: list[LineageEdge]
-    events: list[
-        dict[str, Any]
-    ]  # CONFLICT / MERGE events with rung names; TODO(session 8): MemoryEvent
+    events: list[MemoryEvent]  # CONFLICT / MERGE events with rung names
     projection_rows: list[OutboxRow] = Field(default_factory=list)
     intent_status: IntentStatus | None = None
     outbox_status: Literal["done", "failed", "dead", "pending"] = "done"

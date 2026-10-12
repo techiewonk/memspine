@@ -1,0 +1,109 @@
+{
+  "$defs": {
+    "Readiness": {
+      "additionalProperties": true,
+      "description": "State of each capability for a write. A capability that is not configured is ``unavailable``,\nnever ``pending`` (S7).",
+      "properties": {
+        "facts": {
+          "enum": [
+            "pending",
+            "ready",
+            "unavailable",
+            "failed"
+          ],
+          "title": "Facts",
+          "type": "string"
+        },
+        "graph": {
+          "enum": [
+            "pending",
+            "ready",
+            "unavailable",
+            "failed"
+          ],
+          "title": "Graph",
+          "type": "string"
+        },
+        "profile": {
+          "enum": [
+            "pending",
+            "ready",
+            "unavailable",
+            "failed"
+          ],
+          "title": "Profile",
+          "type": "string"
+        },
+        "raw_search": {
+          "enum": [
+            "pending",
+            "ready",
+            "unavailable",
+            "failed"
+          ],
+          "title": "Raw Search",
+          "type": "string"
+        },
+        "summaries": {
+          "enum": [
+            "pending",
+            "ready",
+            "unavailable",
+            "failed"
+          ],
+          "title": "Summaries",
+          "type": "string"
+        }
+      },
+      "required": [
+        "raw_search",
+        "facts",
+        "graph",
+        "summaries",
+        "profile"
+      ],
+      "title": "Readiness",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "description": "Readiness reached by ``wait(capabilities, timeout)``. A read issued after a timed-out wait is\nmarked partial with the missing capabilities listed.",
+  "properties": {
+    "readiness": {
+      "$ref": "#/$defs/Readiness"
+    },
+    "requested": {
+      "items": {
+        "enum": [
+          "raw_search",
+          "facts",
+          "graph",
+          "summaries",
+          "profile"
+        ],
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Requested",
+      "type": "array"
+    },
+    "timed_out": {
+      "title": "Timed Out",
+      "type": "boolean"
+    },
+    "waited_ms": {
+      "minimum": 0,
+      "title": "Waited Ms",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "requested",
+    "readiness",
+    "timed_out",
+    "waited_ms"
+  ],
+  "title": "WaitResult",
+  "type": "object",
+  "x-semver": "1.0.0"
+}

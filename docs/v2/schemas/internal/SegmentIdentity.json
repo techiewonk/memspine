@@ -1,6 +1,6 @@
 {
   "additionalProperties": true,
-  "description": "Per-segment output of step 2. draft: pending schema session 3 (identity).",
+  "description": "Per-segment output of step 2.(identity).",
   "properties": {
     "idem_key": {
       "title": "Idem Key",

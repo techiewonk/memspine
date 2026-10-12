@@ -2,7 +2,7 @@
   "$defs": {
     "EntityMention": {
       "additionalProperties": true,
-      "description": "A name to resolve (step 19 input). draft: pending schema session 3.",
+      "description": "A name to resolve (step 19 input).",
       "properties": {
         "co_mentioned": {
           "items": {

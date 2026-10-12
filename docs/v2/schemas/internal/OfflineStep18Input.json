@@ -2,7 +2,7 @@
   "$defs": {
     "OutcomeReceipt": {
       "additionalProperties": true,
-      "description": "Exists at ``memories/procedural/lessons.py:52``; spec lists no fields. draft: pending session 8.",
+      "description": "Exists at ``memories/procedural/lessons.py:52``; spec lists no fields.",
       "properties": {
         "lesson_key": {
           "anyOf": [

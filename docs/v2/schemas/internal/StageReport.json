@@ -1,6 +1,6 @@
 {
   "additionalProperties": true,
-  "description": "draft: field layout pending schema session 8 (jobs and progress).",
+  "description": "Internal step type.",
   "properties": {
     "calls": {
       "default": 0,

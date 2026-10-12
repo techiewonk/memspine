@@ -2,12 +2,29 @@
   "$defs": {
     "ContextBlock": {
       "additionalProperties": true,
-      "description": "draft: pending schema session 10.",
+      "description": "A typed section of the context. ``accounting`` says how ``tokens`` was counted: exactly with the\nreader model's tokenizer (headers and reserves included), or estimated when none was available.",
       "properties": {
+        "accounting": {
+          "default": "estimated",
+          "enum": [
+            "exact",
+            "estimated"
+          ],
+          "title": "Accounting",
+          "type": "string"
+        },
         "cap": {
-          "default": 0,
-          "title": "Cap",
-          "type": "integer"
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cap"
         },
         "kind": {
           "enum": [
@@ -27,8 +44,21 @@
           "title": "Lines",
           "type": "array"
         },
+        "tokenizer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tokenizer"
+        },
         "tokens": {
           "default": 0,
+          "minimum": 0,
           "title": "Tokens",
           "type": "integer"
         }
@@ -41,7 +71,7 @@
     },
     "QueryContract": {
       "additionalProperties": true,
-      "description": "Typed query contract (R-03). draft: pending schema session 10.",
+      "description": "Typed query contract (R-03). Internal step type.",
       "properties": {
         "answer_type": {
           "default": "unknown",
@@ -121,7 +151,7 @@
     },
     "ReadTrace": {
       "additionalProperties": true,
-      "description": "draft: pending schema session 10. Typed form of today's forensics dict.",
+      "description": "Internal step type. Typed form of today's forensics dict.",
       "properties": {
         "cuts": {
           "items": {
@@ -247,9 +277,10 @@
     },
     "RenderedLine": {
       "additionalProperties": true,
-      "description": "draft: pending schema session 10.",
+      "description": "One rendered line of a context block. ``alias`` is the citation handle (\"[3]\").",
       "properties": {
         "alias": {
+          "minLength": 1,
           "title": "Alias",
           "type": "string"
         },
@@ -278,6 +309,7 @@
           "title": "Modality"
         },
         "record_id": {
+          "minLength": 1,
           "title": "Record Id",
           "type": "string"
         },
@@ -319,7 +351,7 @@
     },
     "SkipRecord": {
       "additionalProperties": true,
-      "description": "draft: pending schema session 10. The spec names the type without fields.",
+      "description": "Internal step type. The spec names the type without fields.",
       "properties": {
         "reason": {
           "title": "Reason",

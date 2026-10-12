@@ -1,6 +1,6 @@
 {
   "additionalProperties": true,
-  "description": "draft: pending schema session 10.",
+  "description": "Internal step type.",
   "properties": {
     "family": {
       "title": "Family",

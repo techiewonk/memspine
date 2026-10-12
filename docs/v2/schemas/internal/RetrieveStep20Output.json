@@ -2,7 +2,7 @@
   "$defs": {
     "CacheEntryInfo": {
       "additionalProperties": true,
-      "description": "Step 20 cache description. draft: pending schema session 10 (CacheKey).",
+      "description": "Step 20 cache description.(CacheKey).",
       "properties": {
         "cache": {
           "title": "Cache",
@@ -12,17 +12,16 @@
           "title": "Hit",
           "type": "boolean"
         },
-        "key_fingerprint": {
+        "key": {
           "anyOf": [
             {
-              "type": "string"
+              "$ref": "#/$defs/CacheKey"
             },
             {
               "type": "null"
             }
           ],
-          "default": null,
-          "title": "Key Fingerprint"
+          "default": null
         }
       },
       "required": [
@@ -32,9 +31,65 @@
       "title": "CacheEntryInfo",
       "type": "object"
     },
+    "CacheKey": {
+      "additionalProperties": true,
+      "description": "A cache entry is keyed on all of these (ER-31); caches stay off until the ER-31 tests pass.\n\nThe query is normalised on validation and ``model_ids`` is sorted and de-duplicated, so equivalent\ninputs give the same key.",
+      "properties": {
+        "config_hash": {
+          "minLength": 1,
+          "title": "Config Hash",
+          "type": "string"
+        },
+        "erasure_generation": {
+          "minimum": 0,
+          "title": "Erasure Generation",
+          "type": "integer"
+        },
+        "model_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Model Ids",
+          "type": "array"
+        },
+        "query": {
+          "title": "Query",
+          "type": "string"
+        },
+        "scope": {
+          "$ref": "#/$defs/OwnerScope"
+        },
+        "store_generation": {
+          "minimum": 0,
+          "title": "Store Generation",
+          "type": "integer"
+        },
+        "viewer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Viewer"
+        }
+      },
+      "required": [
+        "scope",
+        "query",
+        "config_hash",
+        "store_generation",
+        "erasure_generation"
+      ],
+      "title": "CacheKey",
+      "type": "object"
+    },
     "LegHit": {
       "additionalProperties": true,
-      "description": "draft: pending schema session 10.",
+      "description": "Internal step type.",
       "properties": {
         "record_id": {
           "title": "Record Id",
@@ -84,7 +139,7 @@
     },
     "NamedLeg": {
       "additionalProperties": true,
-      "description": "draft: pending schema session 10. ``list[LegHit]`` plus a name and family.",
+      "description": "Internal step type. ``list[LegHit]`` plus a name and family.",
       "properties": {
         "family": {
           "enum": [
@@ -113,6 +168,37 @@
         "family"
       ],
       "title": "NamedLeg",
+      "type": "object"
+    },
+    "OwnerScope": {
+      "additionalProperties": true,
+      "description": "Memory scope: tenant plus memory owner (S3-1).\n\nThe owner is a user or a shared group; every agent and session serving that owner sees the same\nentities. The session is *not* part of the scope: it is recorded as :class:`Provenance` only.",
+      "properties": {
+        "owner": {
+          "minLength": 1,
+          "title": "Owner",
+          "type": "string"
+        },
+        "owner_kind": {
+          "default": "user",
+          "enum": [
+            "user",
+            "group"
+          ],
+          "title": "Owner Kind",
+          "type": "string"
+        },
+        "tenant": {
+          "minLength": 1,
+          "title": "Tenant",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tenant",
+        "owner"
+      ],
+      "title": "OwnerScope",
       "type": "object"
     }
   },

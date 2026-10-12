@@ -2,7 +2,7 @@
   "$defs": {
     "DateFilter": {
       "additionalProperties": true,
-      "description": "Explicit valid/recorded bounds. draft: pending schema session 6 (time).",
+      "description": "Explicit valid/recorded bounds.(time).",
       "properties": {
         "recorded_from": {
           "anyOf": [
@@ -85,7 +85,7 @@
     },
     "QueryContract": {
       "additionalProperties": true,
-      "description": "Typed query contract (R-03). draft: pending schema session 10.",
+      "description": "Typed query contract (R-03). Internal step type.",
       "properties": {
         "answer_type": {
           "default": "unknown",

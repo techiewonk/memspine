@@ -22,7 +22,7 @@
     }
   },
   "additionalProperties": true,
-  "description": "Step 13 output. draft: pending schema session 4.",
+  "description": "Step 13 output.",
   "properties": {
     "alias_map": {
       "additionalProperties": {

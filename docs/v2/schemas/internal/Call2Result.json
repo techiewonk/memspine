@@ -54,7 +54,7 @@
     },
     "ProfileOp": {
       "additionalProperties": true,
-      "description": "draft: field layout pending schema session 5 (profile operations, O-18).",
+      "description": "Internal step type.",
       "properties": {
         "cites": {
           "items": {

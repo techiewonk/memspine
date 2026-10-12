@@ -2,7 +2,7 @@
   "$defs": {
     "BacklogState": {
       "additionalProperties": true,
-      "description": "Step 12 backlog state. draft: pending schema session 9.",
+      "description": "Step 12 backlog state.",
       "properties": {
         "oldest_age_ms": {
           "anyOf": [
@@ -27,7 +27,7 @@
     },
     "LedgerBudget": {
       "additionalProperties": true,
-      "description": "Step 12 ledger budget. draft: pending schema session 9.",
+      "description": "Step 12 ledger budget.",
       "properties": {
         "spent": {
           "default": 0,
@@ -52,7 +52,7 @@
     },
     "Window": {
       "additionalProperties": true,
-      "description": "Segmentation window (W-11). draft: pending schema session 8.",
+      "description": "Segmentation window (W-11). Internal step type.",
       "properties": {
         "reason": {
           "enum": [
@@ -128,7 +128,7 @@
     },
     "WindowTurn": {
       "additionalProperties": true,
-      "description": "draft: field layout pending schema session 8.",
+      "description": "Internal step type.",
       "properties": {
         "record_id": {
           "title": "Record Id",

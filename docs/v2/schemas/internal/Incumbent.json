@@ -1,6 +1,6 @@
 {
   "additionalProperties": true,
-  "description": "An existing assertion on the key (step 21). draft: pending schema session 5.",
+  "description": "An existing assertion on the key (step 21).",
   "properties": {
     "assertion_id": {
       "title": "Assertion Id",

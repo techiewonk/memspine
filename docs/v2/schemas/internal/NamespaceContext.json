@@ -1,6 +1,6 @@
 {
   "additionalProperties": true,
-  "description": "Firewall gate-1 context (step 6). draft: pending schema session 5.",
+  "description": "Firewall gate-1 context (step 6).",
   "properties": {
     "nearest_neighbour_similarities": {
       "items": {

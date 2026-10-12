@@ -1,6 +1,6 @@
 {
   "additionalProperties": true,
-  "description": "Parent record live state for gate 3 (step 18). draft: pending schema session 5.",
+  "description": "Parent record live state for gate 3 (step 18).",
   "properties": {
     "record_id": {
       "title": "Record Id",

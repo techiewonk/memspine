@@ -1,0 +1,112 @@
+{
+  "$defs": {
+    "Span": {
+      "additionalProperties": true,
+      "description": "Character range inside one turn, plus the verbatim excerpt when kept.",
+      "properties": {
+        "end": {
+          "minimum": 0,
+          "title": "End",
+          "type": "integer"
+        },
+        "quote": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Quote"
+        },
+        "start": {
+          "minimum": 0,
+          "title": "Start",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "start",
+        "end"
+      ],
+      "title": "Span",
+      "type": "object"
+    },
+    "TurnRef": {
+      "additionalProperties": true,
+      "description": "A cited turn of a pinned source version.",
+      "properties": {
+        "seg_index": {
+          "minimum": 0,
+          "title": "Seg Index",
+          "type": "integer"
+        },
+        "source_id": {
+          "minLength": 1,
+          "title": "Source Id",
+          "type": "string"
+        },
+        "source_version": {
+          "minimum": 1,
+          "title": "Source Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "source_id",
+        "source_version",
+        "seg_index"
+      ],
+      "title": "TurnRef",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "description": "One piece of evidence for an assertion.\n\n* ``support`` states the fact.\n* ``binding`` resolves a pronoun, relative date or reference (ER-11); it must be cited.\n* ``context`` is shown to the model but never counts as evidence and never raises trust.\n\n``source_family`` is the asserting principal (S4-2): speaker id, author or document, tool name, or a\nweb page's registrable domain. Derived records inherit parents' families through lineage.",
+  "properties": {
+    "role": {
+      "enum": [
+        "support",
+        "binding",
+        "context"
+      ],
+      "title": "Role",
+      "type": "string"
+    },
+    "source_family": {
+      "minLength": 1,
+      "title": "Source Family",
+      "type": "string"
+    },
+    "span": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Span"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "turn": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TurnRef"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "role",
+    "source_family"
+  ],
+  "title": "Evidence",
+  "type": "object"
+}

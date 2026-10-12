@@ -2,7 +2,7 @@
   "$defs": {
     "QueryContract": {
       "additionalProperties": true,
-      "description": "Typed query contract (R-03). draft: pending schema session 10.",
+      "description": "Typed query contract (R-03). Internal step type.",
       "properties": {
         "answer_type": {
           "default": "unknown",

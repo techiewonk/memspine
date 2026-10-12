@@ -1,0 +1,27 @@
+{
+  "additionalProperties": true,
+  "description": "Independent source families, plus the ``restated`` count (S4-3).\n\n``restated`` is a stability signal used for recency and conflict tie-breaks; it is never corroboration.",
+  "properties": {
+    "families": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Families",
+      "type": "array"
+    },
+    "independent": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Independent",
+      "type": "integer"
+    },
+    "restated": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Restated",
+      "type": "integer"
+    }
+  },
+  "title": "Support",
+  "type": "object"
+}

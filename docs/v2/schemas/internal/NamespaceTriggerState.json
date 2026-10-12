@@ -1,6 +1,6 @@
 {
   "additionalProperties": true,
-  "description": "draft: pending schema session 8.",
+  "description": "Internal step type.",
   "properties": {
     "deferred_units": {
       "default": 0,

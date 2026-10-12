@@ -2,7 +2,7 @@
   "$defs": {
     "AssetRef": {
       "additionalProperties": true,
-      "description": "draft: field layout pending schema session 4 (evidence).",
+      "description": "Internal step type.",
       "properties": {
         "asset_id": {
           "title": "Asset Id",
@@ -32,7 +32,7 @@
     },
     "Scope": {
       "additionalProperties": true,
-      "description": "draft: field layout pending schema session 3 (identity).",
+      "description": "Handle-side scope as read by the retrieve steps (tenant, user, agent, session, principal).\n\nDurable records use :class:`memspine.schemas.durable.OwnerScope` (tenant plus owner, S3-1); this is the\ncaller-facing handle shape the read path resolves into one.",
       "properties": {
         "agent": {
           "anyOf": [
@@ -124,7 +124,7 @@
     },
     "Segment": {
       "additionalProperties": true,
-      "description": "draft: field layout pending schema session 3 (identity).",
+      "description": "Internal step type.",
       "properties": {
         "addressee": {
           "anyOf": [
@@ -280,7 +280,7 @@
     },
     "SourceEnvelope": {
       "additionalProperties": true,
-      "description": "draft: field layout pending schema session 3 (identity).",
+      "description": "Internal step type.",
       "properties": {
         "kind": {
           "enum": [

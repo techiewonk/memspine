@@ -1,6 +1,6 @@
 {
   "additionalProperties": true,
-  "description": "draft: field layout pending schema session 9 (overload and accounting).",
+  "description": "Internal step type.",
   "properties": {
     "attempts": {
       "default": 0,

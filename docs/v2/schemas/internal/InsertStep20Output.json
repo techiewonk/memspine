@@ -2,39 +2,38 @@
   "$defs": {
     "AssertionKey": {
       "additionalProperties": true,
-      "description": "draft: field layout pending schema session 3 (identity).",
+      "description": "What an assertion is about: ``(src, rel, dst, kind)`` under the envelope's owner scope (M-17).\n\n``key_v`` versions the normalisation rules. The scope lives on the envelope, not here.",
       "properties": {
         "dst": {
+          "default": "",
           "title": "Dst",
           "type": "string"
         },
         "key_v": {
           "default": 1,
+          "minimum": 1,
           "title": "Key V",
           "type": "integer"
         },
         "kind": {
+          "minLength": 1,
           "title": "Kind",
           "type": "string"
         },
         "rel": {
+          "minLength": 1,
           "title": "Rel",
           "type": "string"
         },
-        "scope": {
-          "title": "Scope",
-          "type": "string"
-        },
         "src": {
+          "minLength": 1,
           "title": "Src",
           "type": "string"
         }
       },
       "required": [
-        "scope",
         "src",
         "rel",
-        "dst",
         "kind"
       ],
       "title": "AssertionKey",

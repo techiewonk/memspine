@@ -1,0 +1,31 @@
+{
+  "additionalProperties": true,
+  "description": "Memory scope: tenant plus memory owner (S3-1).\n\nThe owner is a user or a shared group; every agent and session serving that owner sees the same\nentities. The session is *not* part of the scope: it is recorded as :class:`Provenance` only.",
+  "properties": {
+    "owner": {
+      "minLength": 1,
+      "title": "Owner",
+      "type": "string"
+    },
+    "owner_kind": {
+      "default": "user",
+      "enum": [
+        "user",
+        "group"
+      ],
+      "title": "Owner Kind",
+      "type": "string"
+    },
+    "tenant": {
+      "minLength": 1,
+      "title": "Tenant",
+      "type": "string"
+    }
+  },
+  "required": [
+    "tenant",
+    "owner"
+  ],
+  "title": "OwnerScope",
+  "type": "object"
+}
