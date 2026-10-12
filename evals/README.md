@@ -972,7 +972,7 @@ harness version. An optional `cost` block (`build_cost`) adds token counts per r
 run duration and p50/p95 per-question latency; missing figures are null.
 
 `comparability_key` hashes only what two arms must share: dataset revision and content hash, slice id and hash, judge
-(model, prompt hash, scale, id), reader model and harness version. The arm's flags, commit, env and cost are left out.
+(model, prompt hash, scale, id), reader model, token budget and harness version. The arm's flags, commit, env and cost are left out.
 `paired(..., arm_manifest=, ref_manifest=)` returns `INCOMPARABLE` with the differing fields when both manifests are
 given and their keys differ. With a manifest missing the verdict is unchanged and `warnings` says comparability was not
 verified.

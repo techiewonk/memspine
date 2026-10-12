@@ -18,6 +18,7 @@ def _manifest(**over) -> dict:
         "judge": {"judge_id": "j", "scale": "binary", "model": "m-judge", "prompt_hash": "ph"},
         "reader": {"model": "m-reader"},
         "harness_version": "1.0",
+        "protocol": {"budget_tokens": 4096, "top_k": 10, "seed": 1},
         "identity": build_identity(flags={"a": 1}, slice_id="s", slice_ids=["q1", "q2"], environ={}),
     }
     m.update(over)
@@ -90,3 +91,12 @@ def test_gate_without_manifest_is_unchanged_but_flagged() -> None:
     assert r.verdict == "PROMOTE" and r.manifest_status == "missing"
     assert "reference" in r.warnings[0]
     assert any("WARNING" in line for line in format_result("x", r))
+
+
+def test_budget_differs_is_incomparable_but_top_k_and_seed_are_not() -> None:
+    ids, arm, ref = _runs()
+    b = _manifest(protocol={"budget_tokens": 2048, "top_k": 10, "seed": 1})
+    r = paired(arm, ref, ids, arm_manifest=_manifest(), ref_manifest=b)
+    assert r.verdict == "INCOMPARABLE" and any("protocol.budget_tokens" in f for f in r.incomparable_fields)
+    knobs = _manifest(protocol={"budget_tokens": 4096, "top_k": 3, "seed": 9})
+    assert comparability_key(_manifest()) == comparability_key(knobs)

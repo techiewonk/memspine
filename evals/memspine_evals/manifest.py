@@ -42,6 +42,7 @@ COMPARABILITY_FIELDS: tuple[str, ...] = (
     "harness_version",
     "judge.scale",  # scoring: the scale and rule the correctness bit came from
     "judge.judge_id",
+    "protocol.budget_tokens",  # D16 required field; top_k and seed are arm knobs and stay out
 )
 
 
