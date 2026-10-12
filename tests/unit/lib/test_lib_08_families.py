@@ -50,7 +50,7 @@ def test_person_family_is_opaque_principal() -> None:
 
 def test_document_family_author_else_document() -> None:
     assert family_of(SourceDescriptor(kind="document", author="Bram", document_id="d1")) == (
-        "doc:author:Bram"
+        "person:Bram"
     )
     assert family_of(SourceDescriptor(kind="document", document_id="d1")) == "doc:d1"
 
@@ -257,3 +257,24 @@ def test_derived_and_echo_change_nothing() -> None:
 def test_different_value_leaves_state() -> None:
     s = restate(RestateState(), stmt("person:ilse"))
     assert restate(s, stmt("person:bram", fp="v2")) == s
+
+
+def test_author_known_doc_same_person_is_same_family() -> None:
+    held = rec("h", person("ilse"), quarantined=True)
+    email = rec("d", SourceDescriptor(kind="document", author="ilse", document_id="mail1"))
+    assert family_of(email.source) == family_of(held.source) == "person:ilse"
+    assert corroboration(email, held).reason == "same_family"
+
+
+def test_author_known_doc_by_other_person_still_cannot_release() -> None:
+    held = rec("h", person("ilse"), quarantined=True)
+    doc = rec("d", SourceDescriptor(kind="document", author="bram"))
+    assert corroboration(doc, held).reason == "external_family"
+
+
+def test_author_known_doc_not_independent_in_restate() -> None:
+    chat = family_of(person("ilse"))
+    email = family_of(SourceDescriptor(kind="document", author="ilse"))
+    s = restate(RestateState(), stmt(chat))
+    s = restate(s, stmt(email))
+    assert (s.independent, s.restated) == (1, 1)

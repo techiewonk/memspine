@@ -4,7 +4,7 @@
 Pure and deterministic: no I/O, no model calls, no engine imports. Not wired yet (W2-04 wires it).
 
 * **Family (S4-2)**: the asserting principal. A person's family is the authenticated speaker or
-  participant id; a document's is its author when known, else the document; a tool's is the tool name;
+  participant id; a document's is its author's person family when known (so her email and her chat are one family), else the document; a tool's is the tool name;
   a web page's is its registrable domain. Family ids carry a kind prefix (``person:``, ``operator:``,
   ``system:``, ``assistant:``, ``doc:``, ``tool:``, ``web:``, ``derived:``, ``unknown:``); principal
   ids themselves are opaque strings. Derived records and assistant echoes inherit their parents'
@@ -206,7 +206,7 @@ def family_of(
         return FamilyId(f"assistant:{source.principal or 'assistant'}")
     if kind == "document":
         if source.author:
-            return FamilyId(f"doc:author:{source.author}")
+            return FamilyId(f"person:{source.author}")
         if source.document_id:
             return FamilyId(f"doc:{source.document_id}")
         return FamilyId("unknown:document")
