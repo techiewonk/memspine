@@ -496,8 +496,8 @@
    ],
    "kind": "infra",
    "gate": "CI fails on each violation",
-   "status": "Not started",
-   "note": "",
+   "status": "Done",
+   "note": "gates job; lint-imports 10 kept 0 broken (uvx 2.15); 13 default-on flags, 3 frozen pre-G-22 UNKNOWN (c526255)",
    "layers": [
     "L0",
     "L1",

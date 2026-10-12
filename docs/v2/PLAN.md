@@ -7,12 +7,12 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 
 | Status | Count |
 |---|---|
-| Not started | 96 |
+| Not started | 95 |
 | Ready | 0 |
 | In progress | 1 |
 | Blocked | 1 |
 | Needs measurement | 3 |
-| Done | 11 |
+| Done | 12 |
 | Dropped | 0 |
 
 ## Phase 0: settle and prepare
@@ -30,7 +30,7 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | P0-09 | Prompt gold-lint over partials and rendered prompts | L1 L3 | D | P-13, W-18 | ER-16, ER-38 | - | infra | infra | `tests/unit/test_prompt_gold_lint.py` +1 | Lint fails on any gold token in any prompt or partial | **Done** | Partials, 51 rendered prompts, 265 inline strings; 4 allowlisted false positives (5bee0d9) |
 | X-00 | RESTRUCTURE.md: S0-S16, target tree, owned file sets per package | L0 L1 L4 L5 ctx scope | D K_C K_P R C | G-16 | ER-01, ER-04 | - | infra | infra | - | Every F package has an owned-file set; reviewed by the owner | **Done** | Approved by the owner 2026-10-13 |
 | X-01 | Agent brief template and owned-file checker in build_plan.py | L0 L1 L4 L5 ctx scope | D K_C K_P R C | G-16 | ER-02, ER-04 | X-00 | infra | infra | `docs/v2/data/build_plan.py` +2 | No two concurrently runnable packages share an owned file | **Done** | OWNS map, checker, --brief generator (9a13ba1) |
-| X-02 | CI: golden, import-linter, blocking gold-lint, single Alembic head, flag-evidence check | L0 L1 L4 L5 ctx scope | D R C | G-22 | ER-04, ER-38 | P0-04 | infra | infra | `.github/workflows/**` +7 | CI fails on each violation | **Not started** |  |
+| X-02 | CI: golden, import-linter, blocking gold-lint, single Alembic head, flag-evidence check | L0 L1 L4 L5 ctx scope | D R C | G-22 | ER-04, ER-38 | P0-04 | infra | infra | `.github/workflows/**` +7 | CI fails on each violation | **Done** | gates job; lint-imports 10 kept 0 broken (uvx 2.15); 13 default-on flags, 3 frozen pre-G-22 UNKNOWN (c526255) |
 | X-03 | Golden fixture: synthetic conversations, hash embedder, reranker off | L0 L1 L4 L5 ctx scope | R C G | G-04 | - | - | infra | infra | `tests/golden/**` | No benchmark text; deterministic | **Done** | tests/golden (c4d61ac): 4 synthetic conversations, 14 queries, frozen clock; stable 6/6 runs |
 | X-04 | Docs and ADR: ADR-067 restructure, no-shim wording, G-23 migration-time upcaster | L0 L1 L4 L5 ctx scope | D K_C | G-23 | ER-01 | - | infra | infra | `docs/adr/ADR-067-*` +2 | Docs consistent with 'no shims' | **Done** | ADR-067 (40fb1e2) |
 | X-05 | Labelled sets: grounding, alias/homonym/numeric pairs, contradiction recall, global questions | L1 L3 | D K_C | W-17, W-19, O-13, O-12, O-17 | ER-12, ER-37 | - | infra | infra | `evals/labelled/**` +1 | Invented names, several languages; versioned | **Done** | evals/labelled: 62 grounding, 80 entity pairs, 44 contradictions, 10 conv + 20 global questions (da4c961, 2b81427) |
