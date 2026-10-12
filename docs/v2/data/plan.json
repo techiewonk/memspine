@@ -660,7 +660,13 @@
     "src/memspine/core/events.py",
     "src/memspine/protocols/tools.py"
    ],
-   "owns": [],
+   "owns": [
+    "src/memspine/schemas/**",
+    "docs/v2/schemas/durable/**",
+    "docs/v2/schemas/public/**",
+    "docs/v2/schemas/internal/**",
+    "tests/unit/schemas/**"
+   ],
    "lane": "other",
    "agent": "sonnet",
    "components": [

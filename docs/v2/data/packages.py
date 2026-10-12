@@ -257,6 +257,7 @@ OWNS: dict[str, list[str]] = {
     "X-01": ["docs/v2/data/build_plan.py", "docs/v2/data/packages.py", "docs/v2/briefs/**"],
     "X-03": ["tests/golden/**"],
     "X-04": ["docs/adr/ADR-067-*", "docs/v2/areas/*.md", "docs/v2/pipelines/*.md"],
+    "MOD-01": ["src/memspine/schemas/**", "docs/v2/schemas/durable/**", "docs/v2/schemas/public/**", "docs/v2/schemas/internal/**", "tests/unit/schemas/**"],
     "X-06": ["docs/v2/data/reranker_licences_*.md"],
     "P0-02": ["evals/pinned_run.sh", "evals/memspine_evals/provenance.py", "evals/memspine_evals/paired_gate.py",
               "evals/README.md"],
