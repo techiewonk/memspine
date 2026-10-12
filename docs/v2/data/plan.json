@@ -44,6 +44,7 @@
     "evals/eval_screen.py",
     "evals/memspine_evals/metrics.py"
    ],
+   "owns": [],
    "lane": "infra",
    "agent": "sonnet",
    "components": [
@@ -74,6 +75,12 @@
    "files": [
     "evals/pinned_run.sh",
     "uv.lock"
+   ],
+   "owns": [
+    "evals/pinned_run.sh",
+    "evals/memspine_evals/provenance.py",
+    "evals/memspine_evals/paired_gate.py",
+    "evals/README.md"
    ],
    "lane": "infra",
    "agent": "sonnet",
@@ -106,6 +113,12 @@
    "files": [
     "evals/README.md (summary table)",
     "evals/pinned_run.sh"
+   ],
+   "owns": [
+    "evals/pinned_run.sh",
+    "evals/memspine_evals/provenance.py",
+    "evals/memspine_evals/paired_gate.py",
+    "evals/README.md"
    ],
    "lane": "infra",
    "agent": "sonnet",
@@ -150,6 +163,7 @@
     "src/memspine/engine.py",
     "src/memspine/protocols/tools.py"
    ],
+   "owns": [],
    "lane": "infra",
    "agent": "sonnet",
    "components": [
@@ -180,6 +194,7 @@
     "src/memspine/config/schema.py",
     "src/memspine/services/llm/litellm_llm.py"
    ],
+   "owns": [],
    "lane": "infra",
    "agent": "sonnet",
    "components": [
@@ -222,6 +237,7 @@
     "config/constants.py",
     "engine.py"
    ],
+   "owns": [],
    "lane": "infra",
    "agent": "sonnet",
    "components": [
@@ -256,6 +272,7 @@
     "src/memspine/engine.py",
     "src/memspine/config/schema.py"
    ],
+   "owns": [],
    "lane": "infra",
    "agent": "sonnet",
    "components": [
@@ -298,6 +315,7 @@
     "evals/freeze_blind_slices.py",
     "evals/make_split.py"
    ],
+   "owns": [],
    "lane": "infra",
    "agent": "sonnet",
    "components": [
@@ -332,6 +350,10 @@
    "files": [
     "tests/unit/test_prompt_gold_lint.py",
     "src/memspine/workers/pipelines.py"
+   ],
+   "owns": [
+    "tests/unit/test_prompt_gold_lint.py",
+    "src/memspine/prompts/lint.py"
    ],
    "lane": "infra",
    "agent": "sonnet",
@@ -375,6 +397,7 @@
     "src/memspine/engine.py",
     "src/memspine/protocols/tools.py"
    ],
+   "owns": [],
    "lane": "infra",
    "agent": "sonnet",
    "components": [
@@ -397,8 +420,8 @@
    ],
    "kind": "infra",
    "gate": "No two concurrently runnable packages share an owned file",
-   "status": "In progress",
-   "note": "Template drafted (briefs/TEMPLATE.md); owned-file checker open",
+   "status": "Done",
+   "note": "OWNS map, checker, --brief generator (9a13ba1)",
    "layers": [
     "L0",
     "L1",
@@ -417,6 +440,11 @@
    "files": [
     "src/memspine/engine.py",
     "src/memspine/protocols/tools.py"
+   ],
+   "owns": [
+    "docs/v2/data/build_plan.py",
+    "docs/v2/data/packages.py",
+    "docs/v2/briefs/**"
    ],
    "lane": "infra",
    "agent": "sonnet",
@@ -459,6 +487,7 @@
     "evals/analysis/GAP_REGISTER.md",
     "src/memspine/config/schema.py"
    ],
+   "owns": [],
    "lane": "infra",
    "agent": "sonnet",
    "components": [
@@ -498,6 +527,9 @@
     "docs/GAP_TO_SOLUTION_PLAN.md rule 8",
     "evals/ (I19 leakage probe only)"
    ],
+   "owns": [
+    "tests/golden/**"
+   ],
    "lane": "infra",
    "agent": "sonnet",
    "components": [
@@ -533,6 +565,11 @@
     "src/memspine/core/events.py",
     "src/memspine/engine.py",
     "src/memspine/services/storage/sqlite/alembic/versions/"
+   ],
+   "owns": [
+    "docs/adr/ADR-067-*",
+    "docs/v2/areas/*.md",
+    "docs/v2/pipelines/*.md"
    ],
    "lane": "infra",
    "agent": "sonnet",
@@ -573,6 +610,7 @@
     "src/memspine/workers/windows.py",
     "workers/pipelines.py"
    ],
+   "owns": [],
    "lane": "infra",
    "agent": "sonnet",
    "components": [
@@ -622,6 +660,7 @@
     "src/memspine/core/events.py",
     "src/memspine/protocols/tools.py"
    ],
+   "owns": [],
    "lane": "other",
    "agent": "sonnet",
    "components": [
@@ -643,8 +682,8 @@
    "depends_on": [],
    "kind": "infra",
    "gate": "Named fallback with licence",
-   "status": "Not started",
-   "note": "Q6",
+   "status": "Done",
+   "note": "Qwen3-Reranker-0.6B (Apache-2.0) primary, MiniLM-L6 CPU (5544e88); owner to confirm",
    "layers": [
     "L0",
     "L1"
@@ -655,6 +694,9 @@
    "files": [
     "src/memspine/engine.py",
     "src/memspine/config/schema.py"
+   ],
+   "owns": [
+    "docs/v2/data/reranker_licences_*.md"
    ],
    "lane": "infra",
    "agent": "sonnet",
@@ -699,6 +741,25 @@
     "src/memspine/engine.py",
     "src/memspine/protocols/tools.py"
    ],
+   "owns": [
+    "src/memspine/store/records.py",
+    "src/memspine/store/events.py",
+    "src/memspine/store/log.py",
+    "src/memspine/store/scope.py",
+    "src/memspine/store/lineage.py",
+    "src/memspine/trust/**",
+    "src/memspine/core/records.py",
+    "src/memspine/core/events.py",
+    "src/memspine/core/replay.py",
+    "src/memspine/core/projector.py",
+    "src/memspine/core/namespace.py",
+    "src/memspine/core/visibility.py",
+    "src/memspine/core/firewall.py",
+    "src/memspine/core/audit.py",
+    "src/memspine/core/erasure.py",
+    "src/memspine/core/privacy.py",
+    "src/memspine/core/redaction.py"
+   ],
    "lane": "S1 split (serial)",
    "agent": "sonnet",
    "components": [
@@ -739,6 +800,30 @@
     "src/memspine/engine.py",
     "src/memspine/protocols/tools.py"
    ],
+   "owns": [
+    "src/memspine/read/**",
+    "src/memspine/compose/**",
+    "src/memspine/models/**",
+    "src/memspine/core/query_*",
+    "src/memspine/core/temporal_*",
+    "src/memspine/core/perspective.py",
+    "src/memspine/core/lead.py",
+    "src/memspine/core/policies/assembly.py",
+    "src/memspine/core/policies/compression.py",
+    "src/memspine/core/answer*",
+    "src/memspine/services/llm*",
+    "src/memspine/services/embedding*",
+    "src/memspine/services/rerank*",
+    "src/memspine/services/query_encoder*",
+    "src/memspine/services/decision*",
+    "src/memspine/services/cache*",
+    "src/memspine/services/llm/**",
+    "src/memspine/services/embedding/**",
+    "src/memspine/services/rerank/**",
+    "src/memspine/services/query_encoder/**",
+    "src/memspine/services/decision/**",
+    "src/memspine/services/cache/**"
+   ],
    "lane": "S1 split (serial)",
    "agent": "sonnet",
    "components": [
@@ -778,6 +863,9 @@
    "files": [
     "src/memspine/engine.py",
     "src/memspine/protocols/tools.py"
+   ],
+   "owns": [
+    "src/memspine/*/registry.py"
    ],
    "lane": "S1 split (serial)",
    "agent": "sonnet",
@@ -824,6 +912,11 @@
     "src/memspine/config/constants.py",
     "src/memspine/config/templates/base.yaml"
    ],
+   "owns": [
+    "src/memspine/config/schema/**",
+    "src/memspine/config/flags.py",
+    "src/memspine/config/schema.py"
+   ],
    "lane": "S1 split (serial)",
    "agent": "sonnet",
    "components": [
@@ -865,6 +958,10 @@
     "src/memspine/engine.py",
     "src/memspine/protocols/tools.py"
    ],
+   "owns": [
+    "src/memspine/runtime/container.py",
+    "src/memspine/engine.py"
+   ],
    "lane": "S1 split (serial)",
    "agent": "sonnet",
    "components": [
@@ -903,6 +1000,10 @@
     "src/memspine/engine.py",
     "src/memspine/memories/resource/store.py"
    ],
+   "owns": [
+    "src/memspine/ingest/**",
+    "src/memspine/engine.py"
+   ],
    "lane": "S1 split (serial)",
    "agent": "sonnet",
    "components": [
@@ -937,6 +1038,10 @@
     "src/memspine/engine.py",
     "src/memspine/config/schema.py"
    ],
+   "owns": [
+    "src/memspine/read/**",
+    "src/memspine/engine.py"
+   ],
    "lane": "S1 split (serial)",
    "agent": "sonnet",
    "components": [
@@ -970,6 +1075,10 @@
     "src/memspine/engine.py",
     "src/memspine/config/schema.py"
    ],
+   "owns": [
+    "src/memspine/read/**",
+    "src/memspine/engine.py"
+   ],
    "lane": "S1 split (serial)",
    "agent": "sonnet",
    "components": [
@@ -1000,6 +1109,10 @@
    "files": [
     "src/memspine/config/schema.py",
     "src/memspine/core/policies/assembly.py",
+    "src/memspine/engine.py"
+   ],
+   "owns": [
+    "src/memspine/compose/**",
     "src/memspine/engine.py"
    ],
    "lane": "S1 split (serial)",
@@ -1038,6 +1151,11 @@
     "src/memspine/core/namespace.py",
     "src/memspine/engine.py",
     "src/memspine/memories/working/paging.py"
+   ],
+   "owns": [
+    "src/memspine/trust/**",
+    "src/memspine/memory/**",
+    "src/memspine/engine.py"
    ],
    "lane": "S1 split (serial)",
    "agent": "sonnet",
@@ -1080,6 +1198,12 @@
     "src/memspine/engine.py",
     "src/memspine/protocols/tools.py"
    ],
+   "owns": [
+    "src/memspine/api/**",
+    "src/memspine/protocols/**",
+    "src/memspine/engine.py",
+    "evals/memspine_evals/systems/memspine_system.py"
+   ],
    "lane": "S1 split (serial)",
    "agent": "sonnet",
    "components": [
@@ -1117,6 +1241,12 @@
     "src/memspine/protocols/rest/app.py",
     "src/memspine/config/schema.py",
     "src/memspine/protocols/rest/auth.py"
+   ],
+   "owns": [
+    "src/memspine/api/**",
+    "src/memspine/protocols/**",
+    "src/memspine/engine.py",
+    "evals/memspine_evals/systems/memspine_system.py"
    ],
    "lane": "S1 split (serial)",
    "agent": "sonnet",
@@ -1159,6 +1289,12 @@
     "src/memspine/engine.py",
     "src/memspine/protocols/tools.py"
    ],
+   "owns": [
+    "src/memspine/api/**",
+    "src/memspine/protocols/**",
+    "src/memspine/engine.py",
+    "evals/memspine_evals/systems/memspine_system.py"
+   ],
    "lane": "S1 split (serial)",
    "agent": "sonnet",
    "components": [
@@ -1194,6 +1330,10 @@
    ],
    "files": [
     "workers/schedule.py"
+   ],
+   "owns": [
+    "src/memspine/derive/stages/**",
+    "src/memspine/workers/pipelines.py"
    ],
    "lane": "S1 split (serial)",
    "agent": "sonnet",
@@ -1233,6 +1373,7 @@
     "evals/analysis/GAP_REGISTER.md",
     "src/memspine/config/schema.py"
    ],
+   "owns": [],
    "lane": "S1 split (serial)",
    "agent": "sonnet",
    "components": [
@@ -1273,6 +1414,7 @@
     "evals/analysis/GAP_REGISTER.md",
     "src/memspine/config/schema.py"
    ],
+   "owns": [],
    "lane": "S1 split (serial)",
    "agent": "sonnet",
    "components": [
@@ -1307,6 +1449,10 @@
    ],
    "files": [
     "src/memspine/workers/pipelines.py"
+   ],
+   "owns": [
+    "src/memspine/store/keys.py",
+    "src/memspine/derive/graph.py"
    ],
    "lane": "S2 foundations (serial: Alembic)",
    "agent": "sonnet",
@@ -1359,6 +1505,13 @@
     "src/memspine/core/perspective.py",
     "src/memspine/workers/windows.py"
    ],
+   "owns": [
+    "src/memspine/store/envelope.py",
+    "src/memspine/store/layers.py",
+    "src/memspine/derive/graph.py",
+    "src/memspine/store/records.py",
+    "src/memspine/store/backends/**/alembic/versions/*"
+   ],
    "lane": "S2 foundations (serial: Alembic)",
    "agent": "sonnet",
    "components": [
@@ -1404,6 +1557,13 @@
     "src/memspine/config/templates/base.yaml",
     "src/memspine/workers/pipelines.py"
    ],
+   "owns": [
+    "src/memspine/store/envelope.py",
+    "src/memspine/store/layers.py",
+    "src/memspine/derive/graph.py",
+    "src/memspine/store/records.py",
+    "src/memspine/store/backends/**/alembic/versions/*"
+   ],
    "lane": "S2 foundations (serial: Alembic)",
    "agent": "sonnet",
    "components": [
@@ -1441,6 +1601,13 @@
     "src/memspine/core/events.py",
     "src/memspine/workers/pipelines.py"
    ],
+   "owns": [
+    "src/memspine/store/envelope.py",
+    "src/memspine/store/layers.py",
+    "src/memspine/derive/graph.py",
+    "src/memspine/store/records.py",
+    "src/memspine/store/backends/**/alembic/versions/*"
+   ],
    "lane": "S2 foundations (serial: Alembic)",
    "agent": "sonnet",
    "components": [
@@ -1471,6 +1638,7 @@
    "files": [
     "src/memspine/engine.py"
    ],
+   "owns": [],
    "lane": "S2 foundations (serial: Alembic)",
    "agent": "sonnet",
    "components": [
@@ -1512,6 +1680,16 @@
     "src/memspine/engine.py",
     "src/memspine/config/schema.py",
     "src/memspine/config/constants.py"
+   ],
+   "owns": [
+    "src/memspine/runtime/**",
+    "src/memspine/ingest/commit.py",
+    "src/memspine/workers/inline.py",
+    "src/memspine/workers/runner.py",
+    "src/memspine/workers/scheduler.py",
+    "src/memspine/workers/schedule.py",
+    "src/memspine/workers/dbos_runner.py",
+    "src/memspine/workers/taskiq_runner.py"
    ],
    "lane": "S2 foundations (serial: Alembic)",
    "agent": "sonnet",
@@ -1558,6 +1736,16 @@
     "src/memspine/workers/inline.py",
     "src/memspine/workers/scheduler.py"
    ],
+   "owns": [
+    "src/memspine/runtime/**",
+    "src/memspine/ingest/commit.py",
+    "src/memspine/workers/inline.py",
+    "src/memspine/workers/runner.py",
+    "src/memspine/workers/scheduler.py",
+    "src/memspine/workers/schedule.py",
+    "src/memspine/workers/dbos_runner.py",
+    "src/memspine/workers/taskiq_runner.py"
+   ],
    "lane": "S2 foundations (serial: Alembic)",
    "agent": "sonnet",
    "components": [
@@ -1599,6 +1787,16 @@
     "src/memspine/engine.py",
     "src/memspine/config/constants.py",
     "src/memspine/config/schema.py"
+   ],
+   "owns": [
+    "src/memspine/runtime/**",
+    "src/memspine/ingest/commit.py",
+    "src/memspine/workers/inline.py",
+    "src/memspine/workers/runner.py",
+    "src/memspine/workers/scheduler.py",
+    "src/memspine/workers/schedule.py",
+    "src/memspine/workers/dbos_runner.py",
+    "src/memspine/workers/taskiq_runner.py"
    ],
    "lane": "S2 foundations (serial: Alembic)",
    "agent": "sonnet",
@@ -1647,6 +1845,15 @@
     "src/memspine/core/erasure.py",
     "src/memspine/core/records.py"
    ],
+   "owns": [
+    "src/memspine/store/lineage.py",
+    "src/memspine/store/migrate.py",
+    "src/memspine/store/profiles.py",
+    "src/memspine/store/backends/postgres/**",
+    "src/memspine/store/backends/neo4j/**",
+    "src/memspine/derive/write.py",
+    "src/memspine/services/graph/neo4j.py"
+   ],
    "lane": "S2 foundations (serial: Alembic)",
    "agent": "sonnet",
    "components": [
@@ -1694,6 +1901,15 @@
     "src/memspine/engine.py",
     "src/memspine/services/storage/sqlite/alembic/versions/"
    ],
+   "owns": [
+    "src/memspine/store/lineage.py",
+    "src/memspine/store/migrate.py",
+    "src/memspine/store/profiles.py",
+    "src/memspine/store/backends/postgres/**",
+    "src/memspine/store/backends/neo4j/**",
+    "src/memspine/derive/write.py",
+    "src/memspine/services/graph/neo4j.py"
+   ],
    "lane": "S2 foundations (serial: Alembic)",
    "agent": "sonnet",
    "components": [
@@ -1740,6 +1956,15 @@
     "src/memspine/config/schema.py",
     "src/memspine/core/records.py"
    ],
+   "owns": [
+    "src/memspine/store/lineage.py",
+    "src/memspine/store/migrate.py",
+    "src/memspine/store/profiles.py",
+    "src/memspine/store/backends/postgres/**",
+    "src/memspine/store/backends/neo4j/**",
+    "src/memspine/derive/write.py",
+    "src/memspine/services/graph/neo4j.py"
+   ],
    "lane": "S2 foundations (serial: Alembic)",
    "agent": "sonnet",
    "components": [
@@ -1782,6 +2007,15 @@
     "src/memspine/services/graph/neo4j.py",
     "src/memspine/services/vector/lancedb_store.py"
    ],
+   "owns": [
+    "src/memspine/store/lineage.py",
+    "src/memspine/store/migrate.py",
+    "src/memspine/store/profiles.py",
+    "src/memspine/store/backends/postgres/**",
+    "src/memspine/store/backends/neo4j/**",
+    "src/memspine/derive/write.py",
+    "src/memspine/services/graph/neo4j.py"
+   ],
    "lane": "S2 foundations (serial: Alembic)",
    "agent": "sonnet",
    "components": [
@@ -1814,6 +2048,15 @@
     "src/memspine/config/schema.py",
     "src/memspine/services/graph/base.py",
     "src/memspine/services/graph/ladybug.py",
+    "src/memspine/services/graph/neo4j.py"
+   ],
+   "owns": [
+    "src/memspine/store/lineage.py",
+    "src/memspine/store/migrate.py",
+    "src/memspine/store/profiles.py",
+    "src/memspine/store/backends/postgres/**",
+    "src/memspine/store/backends/neo4j/**",
+    "src/memspine/derive/write.py",
     "src/memspine/services/graph/neo4j.py"
    ],
    "lane": "S2 foundations (serial: Alembic)",
@@ -1853,6 +2096,15 @@
    "files": [
     "src/memspine/engine.py",
     "src/memspine/core/erasure.py"
+   ],
+   "owns": [
+    "src/memspine/store/lineage.py",
+    "src/memspine/store/migrate.py",
+    "src/memspine/store/profiles.py",
+    "src/memspine/store/backends/postgres/**",
+    "src/memspine/store/backends/neo4j/**",
+    "src/memspine/derive/write.py",
+    "src/memspine/services/graph/neo4j.py"
    ],
    "lane": "S2 foundations (serial: Alembic)",
    "agent": "sonnet",
@@ -1902,6 +2154,7 @@
     "evals/eval_focus.py",
     "evals/eval_screen.py"
    ],
+   "owns": [],
    "lane": "S2 foundations (serial: Alembic)",
    "agent": "sonnet",
    "components": [
@@ -1948,6 +2201,7 @@
     "evals/eval_focus.py",
     "evals/eval_screen.py"
    ],
+   "owns": [],
    "lane": "S2 foundations (serial: Alembic)",
    "agent": "sonnet",
    "components": [
@@ -1987,6 +2241,7 @@
     "src/memspine/memories/resource/store.py",
     "src/memspine/workers/windows.py"
    ],
+   "owns": [],
    "lane": "write",
    "agent": "sonnet",
    "components": [
@@ -2032,6 +2287,7 @@
     "src/memspine/core/perspective.py",
     "src/memspine/core/firewall.py"
    ],
+   "owns": [],
    "lane": "write",
    "agent": "sonnet",
    "components": [
@@ -2070,6 +2326,7 @@
     "src/memspine/config/schema.py",
     "src/memspine/engine.py"
    ],
+   "owns": [],
    "lane": "write",
    "agent": "sonnet",
    "components": [
@@ -2109,6 +2366,7 @@
     "src/memspine/engine.py",
     "src/memspine/config/schema.py"
    ],
+   "owns": [],
    "lane": "write",
    "agent": "sonnet",
    "components": [
@@ -2141,6 +2399,7 @@
     "src/memspine/config/schema.py",
     "src/memspine/core/window.py"
    ],
+   "owns": [],
    "lane": "write",
    "agent": "sonnet",
    "components": [
@@ -2182,6 +2441,7 @@
     "src/memspine/config/presets/non_english.yaml",
     "src/memspine/prompts/defaults/extract@session4.yaml"
    ],
+   "owns": [],
    "lane": "write",
    "agent": "sonnet",
    "components": [
@@ -2225,6 +2485,7 @@
     "src/memspine/config/schema.py",
     "src/memspine/engine.py"
    ],
+   "owns": [],
    "lane": "S4 extraction (serial)",
    "agent": "sonnet",
    "components": [
@@ -2270,6 +2531,7 @@
     "src/memspine/config/schema.py",
     "src/memspine/services/llm/base.py"
    ],
+   "owns": [],
    "lane": "S4 extraction (serial)",
    "agent": "sonnet",
    "components": [
@@ -2311,6 +2573,7 @@
     "src/memspine/engine.py",
     "src/memspine/workers/pipelines.py"
    ],
+   "owns": [],
    "lane": "S4 extraction (serial)",
    "agent": "sonnet",
    "components": [
@@ -2350,6 +2613,7 @@
     "src/memspine/core/temporal_query.py",
     "src/memspine/config/templates/base.yaml"
    ],
+   "owns": [],
    "lane": "S4 extraction (serial)",
    "agent": "sonnet",
    "components": [
@@ -2388,6 +2652,7 @@
     "src/memspine/engine.py",
     "src/memspine/workers/pipelines.py"
    ],
+   "owns": [],
    "lane": "S4 extraction (serial)",
    "agent": "sonnet",
    "components": [
@@ -2423,6 +2688,7 @@
    "files": [
     "src/memspine/workers/windows.py"
    ],
+   "owns": [],
    "lane": "S4 extraction (serial)",
    "agent": "sonnet",
    "components": [
@@ -2459,6 +2725,7 @@
    "files": [
     "src/memspine/memories/associative/resolution.py"
    ],
+   "owns": [],
    "lane": "S4 extraction (serial)",
    "agent": "sonnet",
    "components": [
@@ -2501,6 +2768,7 @@
     "src/memspine/core/query_contract.py",
     "src/memspine/memories/semantic/write_pipeline.py"
    ],
+   "owns": [],
    "lane": "S4 extraction (serial)",
    "agent": "sonnet",
    "components": [
@@ -2538,6 +2806,7 @@
     "src/memspine/config/schema.py",
     "src/memspine/engine.py"
    ],
+   "owns": [],
    "lane": "write",
    "agent": "sonnet",
    "components": [
@@ -2578,6 +2847,7 @@
    "files": [
     "src/memspine/engine.py"
    ],
+   "owns": [],
    "lane": "write",
    "agent": "sonnet",
    "components": [
@@ -2618,6 +2888,7 @@
     "src/memspine/core/window.py",
     "src/memspine/services/decision/gliner2_decision.py"
    ],
+   "owns": [],
    "lane": "S4 extraction (serial)",
    "agent": "sonnet",
    "components": [
@@ -2660,6 +2931,7 @@
     "src/memspine/prompts/roles.py",
     "src/memspine/services/llm/base.py"
    ],
+   "owns": [],
    "lane": "models",
    "agent": "sonnet",
    "components": [
@@ -2698,6 +2970,7 @@
     "src/memspine/engine.py",
     "src/memspine/services/vector/lancedb_store.py"
    ],
+   "owns": [],
    "lane": "models",
    "agent": "sonnet",
    "components": [
@@ -2743,6 +3016,7 @@
     "evals/eval_focus.py",
     "evals/eval_screen.py"
    ],
+   "owns": [],
    "lane": "exit",
    "agent": "sonnet",
    "components": [
@@ -2780,6 +3054,7 @@
     "src/memspine/engine.py",
     "src/memspine/config/templates/base.yaml"
    ],
+   "owns": [],
    "lane": "S3 read (serial)",
    "agent": "sonnet",
    "components": [
@@ -2818,6 +3093,7 @@
     "src/memspine/core/query_contract.py",
     "src/memspine/core/policies/assembly.py"
    ],
+   "owns": [],
    "lane": "S3 read (serial)",
    "agent": "sonnet",
    "components": [
@@ -2853,6 +3129,7 @@
     "src/memspine/engine.py",
     "src/memspine/config/schema.py"
    ],
+   "owns": [],
    "lane": "S3 read (serial)",
    "agent": "sonnet",
    "components": [
@@ -2891,6 +3168,7 @@
     "src/memspine/core/temporal_query.py",
     "src/memspine/config/templates/base.yaml"
    ],
+   "owns": [],
    "lane": "S3 read (serial)",
    "agent": "sonnet",
    "components": [
@@ -2927,6 +3205,7 @@
     "src/memspine/core/temporal_query.py",
     "src/memspine/engine.py"
    ],
+   "owns": [],
    "lane": "S3 read (serial)",
    "agent": "sonnet",
    "components": [
@@ -2960,6 +3239,7 @@
     "src/memspine/engine.py",
     "src/memspine/config/schema.py"
    ],
+   "owns": [],
    "lane": "S3 read (serial)",
    "agent": "sonnet",
    "components": [
@@ -2996,6 +3276,7 @@
     "src/memspine/core/temporal_query.py",
     "src/memspine/engine.py"
    ],
+   "owns": [],
    "lane": "S3 read (serial)",
    "agent": "sonnet",
    "components": [
@@ -3032,6 +3313,7 @@
     "src/memspine/services/lexical/base.py",
     "src/memspine/config/constants.py"
    ],
+   "owns": [],
    "lane": "S3 read (serial)",
    "agent": "sonnet",
    "components": [
@@ -3074,6 +3356,7 @@
     "src/memspine/config/templates/base.yaml",
     "src/memspine/core/policies/scoring.py"
    ],
+   "owns": [],
    "lane": "S3 read (serial)",
    "agent": "sonnet",
    "components": [
@@ -3114,6 +3397,7 @@
     "src/memspine/config/schema.py",
     "src/memspine/engine.py"
    ],
+   "owns": [],
    "lane": "S3 read (serial)",
    "agent": "sonnet",
    "components": [
@@ -3150,6 +3434,7 @@
     "src/memspine/config/constants.py",
     "src/memspine/engine.py"
    ],
+   "owns": [],
    "lane": "S3 read (serial)",
    "agent": "sonnet",
    "components": [
@@ -3185,6 +3470,7 @@
     "src/memspine/config/constants.py",
     "src/memspine/engine.py"
    ],
+   "owns": [],
    "lane": "S3 read (serial)",
    "agent": "sonnet",
    "components": [
@@ -3218,6 +3504,7 @@
     "src/memspine/engine.py",
     "src/memspine/config/schema.py"
    ],
+   "owns": [],
    "lane": "S3 read (serial)",
    "agent": "sonnet",
    "components": [
@@ -3254,6 +3541,7 @@
     "src/memspine/config/schema.py",
     "src/memspine/core/relevance_probes.py"
    ],
+   "owns": [],
    "lane": "S3 read (serial)",
    "agent": "sonnet",
    "components": [
@@ -3292,6 +3580,7 @@
     "src/memspine/core/slot_loop.py",
     "src/memspine/engine.py"
    ],
+   "owns": [],
    "lane": "S3 read (serial)",
    "agent": "sonnet",
    "components": [
@@ -3326,6 +3615,7 @@
     "src/memspine/config/schema.py",
     "src/memspine/engine.py"
    ],
+   "owns": [],
    "lane": "S3 read (serial)",
    "agent": "sonnet",
    "components": [
@@ -3362,6 +3652,7 @@
     "src/memspine/engine.py",
     "src/memspine/core/read_filters.py"
    ],
+   "owns": [],
    "lane": "S3 read (serial)",
    "agent": "sonnet",
    "components": [
@@ -3402,6 +3693,7 @@
     "src/memspine/core/query_contract.py",
     "src/memspine/core/fact_chain.py"
    ],
+   "owns": [],
    "lane": "S3 read (serial)",
    "agent": "sonnet",
    "components": [
@@ -3445,6 +3737,7 @@
     "src/memspine/core/policies/assembly.py",
     "src/memspine/services/llm/llama_cpp.py"
    ],
+   "owns": [],
    "lane": "S3 read (serial)",
    "agent": "sonnet",
    "components": [
@@ -3495,6 +3788,7 @@
     "evals/eval_focus.py",
     "evals/eval_screen.py"
    ],
+   "owns": [],
    "lane": "exit",
    "agent": "sonnet",
    "components": [
@@ -3537,6 +3831,7 @@
     "workers/schedule.py",
     "config/schema.py"
    ],
+   "owns": [],
    "lane": "offline",
    "agent": "sonnet",
    "components": [
@@ -3581,6 +3876,7 @@
     "config/constants.py",
     "engine.py"
    ],
+   "owns": [],
    "lane": "offline",
    "agent": "sonnet",
    "components": [
@@ -3625,6 +3921,7 @@
     "engine.py",
     "src/memspine/engine.py"
    ],
+   "owns": [],
    "lane": "offline",
    "agent": "sonnet",
    "components": [
@@ -3667,6 +3964,7 @@
     "config/constants.py",
     "memories/associative/resolution.py"
    ],
+   "owns": [],
    "lane": "offline",
    "agent": "sonnet",
    "components": [
@@ -3704,6 +4002,7 @@
     "src/memspine/core/records.py",
     "config/constants.py"
    ],
+   "owns": [],
    "lane": "offline",
    "agent": "sonnet",
    "components": [
@@ -3742,6 +4041,7 @@
     "src/memspine/core/records.py",
     "workers/schedule.py"
    ],
+   "owns": [],
    "lane": "offline",
    "agent": "sonnet",
    "components": [
@@ -3783,6 +4083,7 @@
     "workers/pipelines.py",
     "src/memspine/config/constants.py"
    ],
+   "owns": [],
    "lane": "offline",
    "agent": "sonnet",
    "components": [
@@ -3824,6 +4125,7 @@
     "workers/pipelines.py",
     "memories/reflective/reflections.py"
    ],
+   "owns": [],
    "lane": "offline",
    "agent": "sonnet",
    "components": [
@@ -3859,6 +4161,7 @@
     "K_P"
    ],
    "files": [],
+   "owns": [],
    "lane": "offline",
    "agent": "sonnet",
    "components": [
@@ -3899,6 +4202,7 @@
     "src/memspine/config/schema.py",
     "src/memspine/core/policies/compression.py"
    ],
+   "owns": [],
    "lane": "offline",
    "agent": "sonnet",
    "components": [
@@ -3934,6 +4238,7 @@
     "workers/pipelines.py",
     "engine.py"
    ],
+   "owns": [],
    "lane": "offline",
    "agent": "sonnet",
    "components": [
@@ -3975,6 +4280,7 @@
     "src/memspine/core/namespace.py",
     "src/memspine/engine.py"
    ],
+   "owns": [],
    "lane": "offline",
    "agent": "sonnet",
    "components": [
@@ -4022,6 +4328,7 @@
     "evals/eval_focus.py",
     "evals/eval_screen.py"
    ],
+   "owns": [],
    "lane": "exit",
    "agent": "sonnet",
    "components": [
@@ -4057,6 +4364,7 @@
     "src/memspine/config/templates/multi_agent.yaml",
     "src/memspine/core/integrity.py"
    ],
+   "owns": [],
    "lane": "trust",
    "agent": "sonnet",
    "components": [
@@ -4092,6 +4400,7 @@
    "files": [
     "src/memspine/config/schema.py"
    ],
+   "owns": [],
    "lane": "trust",
    "agent": "sonnet",
    "components": [
@@ -4131,6 +4440,7 @@
     "src/memspine/config/schema.py",
     "src/memspine/core/privacy.py"
    ],
+   "owns": [],
    "lane": "trust",
    "agent": "sonnet",
    "components": [
@@ -4173,6 +4483,7 @@
     "src/memspine/engine.py",
     "src/memspine/core/erasure.py"
    ],
+   "owns": [],
    "lane": "trust",
    "agent": "sonnet",
    "components": [
@@ -4219,6 +4530,7 @@
     "src/memspine/core/events.py",
     "src/memspine/engine.py"
    ],
+   "owns": [],
    "lane": "trust",
    "agent": "sonnet",
    "components": [
@@ -4263,6 +4575,7 @@
     "src/memspine/engine.py",
     "src/memspine/config/schema.py"
    ],
+   "owns": [],
    "lane": "trust",
    "agent": "sonnet",
    "components": [
@@ -4301,6 +4614,7 @@
     "src/memspine/config/constants.py",
     "src/memspine/config/templates/multi_agent.yaml"
    ],
+   "owns": [],
    "lane": "trust",
    "agent": "sonnet",
    "components": [
@@ -4350,6 +4664,7 @@
     "evals/eval_focus.py",
     "evals/eval_screen.py"
    ],
+   "owns": [],
    "lane": "exit",
    "agent": "sonnet",
    "components": [
@@ -4404,6 +4719,7 @@
     "evals/analysis/GAP_REGISTER.md",
     "evals/memspine_evals/metrics.py"
    ],
+   "owns": [],
    "lane": "release",
    "agent": "sonnet",
    "components": [
@@ -4447,6 +4763,7 @@
     "src/memspine/engine.py",
     "src/memspine/services/storage/sqlite/alembic/versions/"
    ],
+   "owns": [],
    "lane": "release",
    "agent": "sonnet",
    "components": [

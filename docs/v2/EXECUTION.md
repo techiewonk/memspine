@@ -12,5 +12,15 @@ Owner decisions of 2026-10-13. Applies to every work package in `PLAN.md`.
 | Brief | Every agent gets the package's brief (X-01 template): goal and decision ids with `areas/*.md` anchors, pipeline spec sections, owned and forbidden files, tests to add or migrate, golden or gate, docs and ADR to update, done-definition, PR title. |
 | Status | `data/packages.py` is the source of truth for rows; the live tracker page keeps status and notes; both are synced into `PLAN.md` on each commit. |
 
+## Ownership checker and brief generator (X-01)
+
+Both live in `data/build_plan.py`; ownership data is `OWNS` and `ALLOWED_SHARED` in `data/packages.py`.
+
+- **`OWNS`**: package id to repo-relative glob patterns the package may write (`*` stays inside a directory, `**` crosses). It covers target files and the "Removes or edits" column of `RESTRUCTURE.md` section 3, because a moved file is written by its mover. It is not derived from decision text (the `files` field in `plan.json` is a hint only).
+- **Checker** (runs on every `python docs/v2/data/build_plan.py`): two packages are *concurrently runnable* when neither depends on the other transitively and they are not in the same serial lane. For every such pair where neither is Done, their `OWNS` patterns must not overlap: identical patterns, one glob matching the other's literal path, both matching a common existing file, or (files not yet created) a `dir/**` glob containing the other pattern. Collisions are printed and the script exits non-zero, except for pairs in `ALLOWED_SHARED` (with a reason). Packages with no `OWNS` entry are listed as a warning ("no ownership yet, cannot be briefed"). Add the entry before launching the agent.
+- **Generator**: `python docs/v2/data/build_plan.py --brief <ID>` writes `docs/v2/briefs/<ID>.md` from `briefs/TEMPLATE.md`: decisions with links into `areas/`, dependencies with status, owned files, must-not-touch (the `OWNS` of every concurrently runnable package that is not Done), gate with kind-specific text, review ids. It refuses (exit 1) if a dependency is not Done or `OWNS` has no entry; `--force` overrides. Goal, steps, tests and docs stay `<TODO ...>` for the coordinator.
+- Tests: `python -m unittest docs/v2/data/test_build_plan.py`.
+
 ## Change log
 - 2026-10-13: first version (owner answers on branching, review, Python, agent count).
+- 2026-10-13: ownership checker and brief generator (X-01).
