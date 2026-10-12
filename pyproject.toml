@@ -80,6 +80,7 @@ dev = [
     "pytest-cov>=6.0",
     "ruff>=0.7",
     "mypy>=1.13",
+    "import-linter>=2.0",       # X-02: scripts/ci_importlinter.py (layer contracts in .importlinter)
     "fakeredis>=2.26",          # mock cache/broker in tests (D-41)
     "deepeval>=1.5",            # eval assertions, not shipped (D-35)
     "mkdocs-material>=9.5",
