@@ -128,7 +128,7 @@ WP = [
     ("W2-09", 2, "Online entity resolution with pending_merge", ["W-19", "M-15"], ["W2-08"], "behaviour",
      "Calibrated thresholds: no homonym merges above a stated rate", "Not started", ""),
     ("W2-10", 2, "Integration ladder and cardinality registry", ["W-21", "W-22", "M-12"], ["W2-09", "F-01"], "behaviour",
-     "MAB-CR non-inferior; A-B-A tests", "Not started", "Q7 coexist unless marked"),
+     "MAB-CR non-inferior; A-B-A tests; behavioural INV-ORDER-SWAP passes", "Not started", "Q7 coexist unless marked; P0-08 finding: reverse-order ingest leaves old and new value live (supersede follows ingest order, not event time)"),
     ("W2-11", 2, "Asset describer (ingest and read triggers, off by default)", ["W-23"], ["W2-01"], "behaviour", "Off by default; on-arm screen", "Not started", ""),
     ("W2-12", 2, "Cost ledger and write targets", ["W-26", "P-14", "P-22"], ["EX-1a"], "infra", "Targets as regression tests", "Not started", ""),
     ("W2-13", 2, "Small local pre-pass (GLiNER2) as hints", ["P-23"], ["W2-10"], "behaviour", "Calls down, grounded facts not down", "Not started", ""),

@@ -2805,9 +2805,9 @@
     "F-01"
    ],
    "kind": "behaviour",
-   "gate": "MAB-CR non-inferior; A-B-A tests",
+   "gate": "MAB-CR non-inferior; A-B-A tests; behavioural INV-ORDER-SWAP passes",
    "status": "Not started",
-   "note": "Q7 coexist unless marked",
+   "note": "Q7 coexist unless marked; P0-08 finding: reverse-order ingest leaves old and new value live (supersede follows ingest order, not event time)",
    "layers": [
     "L1",
     "L3"
