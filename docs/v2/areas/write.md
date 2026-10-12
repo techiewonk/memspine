@@ -65,8 +65,8 @@ ItemV1{s?, r?, o?, text, kind: state|event|fact, mode, neg, when?, until?, lines
 - **What will happen:** stamping, idempotency and versioning are done once, in one place. Line-level citations stay intact. No change to the number of model calls or to latency. Touches $\mathcal{D}$, episodic and resource.
 - **Where:** `engine.py:1672` write, `engine.py:4270` write_messages, `engine.py:4368` _write_turns, `engine.py:4578` write_episode, `engine.py:11778` ingest, `memories/resource/store.py:54` -> `intake.SourceEnvelope` and `intake.IntakeGateway`.
 - **Depends on / affects:** W-02, W-03, W-04, W-05, W-09, W-23, W-24; G-16 (API shape).
-- **Migration:** the v1 verbs stay as adapters through the G-23 dual-read release, and v1 records replay as single-segment sources.
-- **Test or gate:** every door produces identical stamps for the same input (a parity test), and the full v1 suite passes through the adapters.
+- **Migration:** the v1 verbs are replaced by the handle (no adapters, ADR-067), and v1 records replay as single-segment sources through the migration-time upcaster (G-23).
+- **Test or gate:** every door produces identical stamps for the same input (a parity test), and the full suite, rewritten by the codemod to the new surface, passes.
 
 ### W-02 What a write receipt guarantees: D, raw searchable plus derivation intent
 - **Superseded by ER-06 A:** durable acceptance plus per-capability readiness; raw search readiness is reported, not guaranteed at return.
@@ -148,7 +148,7 @@ ItemV1{s?, r?, o?, text, kind: state|event|fact, mode, neg, when?, until?, lines
 - **What will happen:** every typed record has lineage. Callers who relied on free-text `write()` defaulting to semantic see a behaviour change. Touches $\mathcal{D}$, all typed layers.
 - **Where:** `engine.py:1672` (semantic default), `engine.py:4965` (semantic pipeline branch) -> `intake.TypeRouter`.
 - **Depends on / affects:** W-01; G-08, G-13 (erasure cascade), G-23.
-- **Migration:** in the shim, a v1 unkeyed semantic write becomes raw plus a derived fact, with a deprecation warning.
+- **Migration:** at replay, a v1 unkeyed semantic write becomes raw plus a derived fact (migration-time upcaster, G-23); no runtime shim.
 - **Test or gate:** no typed record without parents, unless it was written with an explicit key (lineage completeness check).
 
 ### W-10 Event log to projection hand-off: C, hot inline, heavy via outbox (note "Combine B + C")
@@ -345,3 +345,4 @@ ItemV1{s?, r?, o?, text, kind: state|event|fact, mode, neg, when?, until?, lines
 - 2026-10-11: first version. All 26 write-path answers verified (13 ok, 6 ok-combined, 4 needs-measurement, 3 conflict with M-02, M-12 and W-16); the seven owner notes are defined, and the cross-area effects of M-02, G-19, M-18/M-04 and M-12 are recorded.
 - 2026-10-12: owner follow-up answers recorded (Q1, Q2, Q4, Q7).
 - 2026-10-13: reconciled with ER amendments and owner decisions (consistency audit)
+- 2026-10-13 (X-04): no-shim wording aligned with ADR-067 (restructure in place; migration-time upcaster, no runtime compatibility layer).

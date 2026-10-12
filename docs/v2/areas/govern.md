@@ -41,12 +41,12 @@ planned in `docs/v2/` and judged by its own gate against a frozen v1 reference (
 | 12 | `memspine.scope` | Namespace is the hard boundary. Every read inside a multi-party namespace must name a viewer, and fails closed without one (G-12 B). |
 | 13 | `memspine.trust.erasure` | A persisted reverse-lineage index over every cache and projection, generation checks, and re-derivation of surviving derived items (G-13 C). |
 | 14 | `memspine.ops.retention`, `memspine.trust.audit` | Retention and audit are set per profile. Action audit is always on; read audit is on in shared and regulated profiles (G-14 D, G-15 D). |
-| 15 | `memspine.api` | A small loop-verb core on a scoped handle, with admin groups on the engine. It is a new package, and v1 stays frozen (G-16 D). |
+| 15 | `memspine.api` | A small loop-verb core on a scoped handle, with admin groups on the engine. It is built in place inside `memspine`; the old `Engine` verbs are replaced, not aliased (G-16 D, ADR-067). |
 | 16 | `memspine.protocols` | REST binds only to loopback unless auth is set, and scopes are bound to the principal. MCP stays stdio. Framework adapters are deferred (G-17 C, G-18 A). |
 | 17 | `memspine.runtime` | An embedded library with an inline runner that drains a **durable local outbox** in the same store. dbos and taskiq are alternative drainers (G-19 A with a durable outbox; confirmed by the owner, Q2). |
 | 18 | `memspine.ops.ledger` | A uniform per-stage ledger and an optional OTel extra. No content in spans and no product telemetry (G-20 C). |
 | 19 | `memspine.config` | No model by default. The base profile is generic; settings tied to a data shape live in presets. A flag registry with retirement (G-21 B, G-22 C). |
-| 20 | `memspine.migrate` | Upcast the v1 events and rebuild every projection by replay. A v1 compatibility shim runs for one minor release (G-23 C). |
+| 20 | `memspine.migrate` | Upcast the v1 events and rebuild every projection by replay. Old events are upcast at migration time; there is no runtime compatibility shim (G-23, ADR-067). |
 | 21 | Paper | Headlines come only from the frozen config's blind runs. Each novelty claim N1-N7 is stated with its own evidence (G-26 C). |
 
 **How v2 relates to v1 (G-16, G-23, G-25; owner decision 2026-10-11).** v2 enhances `memspine` in place:
@@ -58,7 +58,7 @@ planned in `docs/v2/` and judged by its own gate against a frozen v1 reference (
   becomes default only after its gate passes.
 - The v1 reference stays reproducible by commit (`pinned_run.sh` at the commit of clean-jina-full); every run
   manifest records the commit and the flag set.
-- API changes ship with `memspine.compat.v1` aliases and deprecation warnings for one minor release (G-23 C).
+- API changes replace the old names outright: no `memspine.compat.v1` aliases and no deprecation period; replaced code is deleted in the same PR (ADR-067).
 - Store changes migrate by replaying the event log through upcasters into rebuilt projections; an old store is
   never edited in place.
 
@@ -441,7 +441,7 @@ planned in `docs/v2/` and judged by its own gate against a frozen v1 reference (
     purpose and viewer are fixed when the handle is created.
   - Admin groups stay on the engine: admin, privacy, audit, shared and diagnostics.
   - Same `memspine` package (owner, 2026-10-11): the scoped handle is added beside v1's `Engine` (about 114 public
-    methods), whose verbs become `memspine.compat.v1` aliases with deprecation warnings.
+    methods), whose verbs are replaced by the handle (no aliases, ADR-067).
 - **Verdict:** ok (package question settled by the owner).
 - **What will happen:**
   - The class of scope mistakes RV21 warns about goes away.
@@ -453,10 +453,10 @@ planned in `docs/v2/` and judged by its own gate against a frozen v1 reference (
   - `src/memspine/protocols/tools.py:223` (`ToolContext`, today's scoped context)
   - These become `memspine.api`. Interface sketch: `h = engine.scope(ns, principal=, purpose=, viewer=)`, then
     `await h.remember(source) / h.recall(q) / h.compose(q, budget) / h.correct(id, value) / h.forget(id, hard=)`.
-- **Depends on / affects:** G-12, G-17, G-18, G-23 (shim maps v1 names), W-01 (source envelope is the argument of
+- **Depends on / affects:** G-12, G-17, G-18, G-23 (migration-time upcaster; no name shim), W-01 (source envelope is the argument of
   `remember`).
-- **Migration:** `memspine.compat.v1` maps the v1 verbs onto handles, with deprecation warnings, for one minor
-  release (G-23 C).
+- **Migration:** none at runtime. Callers move to the handle; the codemod rewrites imports in src, tests and evals in
+  the same PR, and the old verbs are deleted (ADR-067).
 - **Test or gate:** The public surface is snapshot-tested. A handle cannot read outside its namespace or viewer.
 
 ### G-17 Remote protocols and default authentication: C, loopback only unless auth is set; principal-bound scopes
@@ -643,17 +643,18 @@ planned in `docs/v2/` and judged by its own gate against a frozen v1 reference (
   - `evals/analysis/GAP_REGISTER.md` (graduation tracked by hand)
   - These become `memspine.config.flags.FlagRegistry`, read by `describe()` and CI.
 - **Depends on / affects:** G-01, G-21, G-23 (the migration warns on removed flags).
-- **Migration:** v1 config files are loaded through a translator that maps or warns per field.
+- **Migration:** a removed or renamed flag fails loudly at config load, naming its replacement; there is no runtime translator for old config keys (ADR-067).
 - **Test or gate:** A release cannot ship a default whose registry entry lacks evidence.
 
-### G-23 Backwards compatibility and migration from v1: C, replay rebuild with a period of dual reads
+### G-23 Backwards compatibility and migration from v1: C, replay rebuild; migration-time upcaster, no runtime shim (amended, ADR-067)
 
 - **Decision:**
-  - The v1 event log stays as truth. Old event versions are upcast on read.
+  - The v1 event log stays as truth. Old event versions are upcast by versioned upcasters (ER-33) when they are read
+    during migration or replay. There is no runtime compatibility layer for old import paths or old APIs.
   - Every v2 projection is rebuilt by replay into a **fresh v2 store**, and old derived records are regenerated,
     never mixed with new ones.
-  - The v1 store stays readable through a compatibility shim, with deprecation warnings on v1 API names, for one
-    minor release.
+  - No compatibility shim, no deprecation period and no `memspine.compat.v1` (owner, 2026-10-12; ADR-067). The v1
+    store is read only by the migration; replaced code is deleted. Pre-restructure behaviour is reproduced by commit.
 - **Verdict:** ok.
 - **What will happen:**
   - No stale v1 derived records sit beside v2 ones.
@@ -665,7 +666,7 @@ planned in `docs/v2/` and judged by its own gate against a frozen v1 reference (
   - `src/memspine/core/events.py:122` (`schema_version = 1`)
   - `src/memspine/services/storage/sqlite/alembic/versions/` (0001-0005)
   - `src/memspine/engine.py:13357` (`rebuild`)
-  - These become `memspine.migrate` (V1Upcaster, ReplayBuilder) and `memspine.compat.v1`.
+  - These become `memspine.migrate` (V1Upcaster, ReplayBuilder). `memspine.compat.v1` is not built (ADR-067).
 - **Depends on / affects:** G-14 (needs a full log), G-16, RV05 (replay of an old-key store creates no duplicates),
   M-02 (layer field set during replay), G-19 (replay enqueues derivations).
 - **Migration:** This decision is the migration.
@@ -769,7 +770,7 @@ planned in `docs/v2/` and judged by its own gate against a frozen v1 reference (
 | G-08 / G-07 | v1 implicit parents need `integrity.enabled`; G-07 B keeps THI off in single-namespace stores | Lineage and min-parent trust always on; kappa only when a grant exists | none (design) |
 | G-10 | The engine cannot see where the caller's reader sends `assemble()` output | `assemble(..., destination="local"|"remote")` and a provider classification table | research: provider classification |
 | G-13 | Re-derivation needs a model role; D-03 binds none | Fall back to deleting the derived item when no role is bound | none |
-| G-16 / G-23 / G-25 | Package path | Settled: same `memspine` package, v2 lands behind flags; v1 reproducible by commit; `memspine.compat.v1` aliases | none |
+| G-16 / G-23 / G-25 | Package path | Settled: same `memspine` package, restructured in place; behaviour changes land flag-off; v1 reproducible by commit; no compatibility aliases (ADR-067) | none |
 | G-24 | A per-run venv from today's lock reproduces the 18:17 failure | Regenerate `uv.lock` with huggingface-hub >=1.31 before C | none (prerequisite) |
 | G-21 | Moving combo-A into a preset may lower the LoCoMo score under the default | The harness names the dated-chat preset; the manifest records it | none |
 
@@ -804,3 +805,4 @@ planned in `docs/v2/` and judged by its own gate against a frozen v1 reference (
 - 2026-10-12: owner follow-up answers recorded (Q2, Q4, Q8).
 - 2026-10-12 (later): stale owner-confirmation markers resolved from the Q1-Q8 answers.
 - 2026-10-13: reconciled with ER amendments and owner decisions (consistency audit)
+- 2026-10-13 (X-04): no-shim wording aligned with ADR-067 (restructure in place; migration-time upcaster, no runtime compatibility layer).

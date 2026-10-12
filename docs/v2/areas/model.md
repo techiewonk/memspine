@@ -507,7 +507,7 @@ GraphProjection (existing GraphStore protocol, services/graph/base.py:88, extend
 
 - **Decision**: each event kind has a schema version and an upcaster chain; every derived record stores
   its derivation policy; a change re-derives only affected records; old keys keep aliases.
-- **Verdict**: ok. Consistent with G-23 C (replay with a dual-read period).
+- **Verdict**: ok. Consistent with G-23 C (replay through migration-time upcasters; no runtime compatibility layer, ADR-067).
 - **What will happen**: safe evolution of the envelope, keys and time fields; cost - (upcaster tests);
   risk ++. Operator D. All types.
 - **Where**: `core/events.py:122` (schema_version = 1), `services/storage/sqlite/alembic/versions` ->
@@ -560,3 +560,4 @@ GraphProjection (existing GraphStore protocol, services/graph/base.py:88, extend
 - 2026-10-12: owner follow-up answers recorded (Q1, Q3, Q4, Q7).
 - 2026-10-12 (later): stale owner-confirmation markers resolved from the Q1-Q8 answers. M-04/M-18 summary row now says Neo4j (Q4).
 - 2026-10-13: reconciled with ER amendments and owner decisions (consistency audit)
+- 2026-10-13 (X-04): no-shim wording aligned with ADR-067 (restructure in place; migration-time upcaster, no runtime compatibility layer).

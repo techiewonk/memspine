@@ -194,7 +194,7 @@ Legend: **rec** = took the recommendation; **diff** = chose another option; **+*
 | G-20 | Observability, stats and telemetry | C · B plus optional OpenTelemetry export (rec) | C · B plus optional OpenTelemetry export |  |
 | G-21 | Defaults policy and configuration profiles | B · No model; generic base, shaped presets (rec) | B · No model; generic base, shaped presets |  |
 | G-22 | Flag graduation and flag retirement | C · B plus retirement budget (rec) | C · B plus retirement budget |  |
-| G-23 | Backwards compatibility and migration from v1 | C · B with dual-read period (rec) | C · B with dual-read period |  |
+| G-23 | Backwards compatibility and migration from v1 | C · B with dual-read period (rec) | C · B with dual-read period, amended: migration-time upcaster, no runtime shim (ADR-067) |  |
 | G-24 | Environment pinning for runs and installs | C · Per-run isolated environment (rec) | C · Per-run isolated environment |  |
 | G-25 | Run manifest and comparability key | D · C plus cost and latency fields (rec) | D · C plus cost and latency fields |  |
 | G-26 | Claims policy for the MemSpine paper | C · B plus mechanism claims tied to loop metrics (rec) | C · B plus mechanism claims tied to loop metrics |  |
@@ -216,3 +216,4 @@ These refine the answers above where they conflicted; see `VERIFY.md` section 0.
 
 ## Change log
 - 2026-10-13: reconciled with ER amendments and owner decisions (consistency audit)
+- 2026-10-13 (X-04): no-shim wording aligned with ADR-067 (restructure in place; migration-time upcaster, no runtime compatibility layer).

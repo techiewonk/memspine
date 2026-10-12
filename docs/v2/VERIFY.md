@@ -44,7 +44,7 @@ Q1 amended 2026-10-13 (I-7): the graph layer L3 is also on by default when a wor
 | Q6 | **Jina licence**: jina-reranker-v3.5 weights are CC-BY-NC-4.0 and need `trust_remote_code`, while MemSpine is Apache-2.0. Keep it as the default for a commercial-use library? | Keep Jina for research and evaluation; ship the default as "Jina if installed", with a permissive fallback named in the docs (needs a licence check) | R-14, P-17/P-18 (research) |
 | Q7 | **W-22 vs M-12**: undeclared attributes coexist (registry default) and a change only contests when extraction marks it as a change? | Yes: the M-12 registry decides; learned cardinality only as reviewable proposals | W-22, M-12 |
 | Q8 | **G-06 "A + C"**: put the assistant-role bridge exemption in the chat preset rather than the global default? | Yes | G-06 |
-| Q9 | **Separation** | **Answered by the owner (2026-10-11):** v2 stays inside `memspine`, same package and principles; plan in `docs/v2/`; components land behind flags; `memspine.compat.v1` aliases for one release | G-16, G-23, G-25 |
+| Q9 | **Separation** | **Answered by the owner (2026-10-11):** v2 stays inside `memspine`, same package and principles; plan in `docs/v2/`; components land behind flags; no compatibility aliases (amended 2026-10-12, ADR-067) | G-16, G-23, G-25 |
 
 Not an owner point: **W-21** (`replaces` hint) simply waits for W-16 C, which was not chosen; the ladder is seeded
 by kind, transition wording and cardinality instead.
@@ -111,3 +111,4 @@ per-conversation uncertainty, and one sealed blind run before adoption. `eval_fo
 - 2026-10-12: G-E1 paired gate built in v1; A03 focus result re-scored as HOLD (net +8, sign p 0.134).
 - 2026-10-13: Q1 amended (graph on by default); pipeline, runtime and modularity decisions recorded in `pipelines/README.md`.
 - 2026-10-13: reconciled with ER amendments and owner decisions (consistency audit)
+- 2026-10-13 (X-04): no-shim wording aligned with ADR-067 (restructure in place; migration-time upcaster, no runtime compatibility layer).
