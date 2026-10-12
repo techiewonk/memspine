@@ -6,7 +6,17 @@ takes *resolved entity ids* and an index from entity id to the records that ment
 
 The leg belongs to the ``structured`` fusion family (``docs/v2/pipelines/retrieve.md`` step 5).
 
-Score of a record ``r`` for the query entities ``Q`` (deduplicated, unknown ids ignored)::
+Two scoring modes (``DampingConfig.scoring``).
+
+``"max"`` (DEFAULT, the decided R-08 behaviour): the Mem0 boost
+``boost * role_weight * damp * recency`` (``boost`` = 0.5), taken as the **max** over the matched
+query entities of the record and **capped** at ``cap``. R-08 states no cap number, so the default
+cap is 0.5 (Mem0's maximum boost, ``sim <= 1``); it is configurable. Damping defaults to the mem0
+curve ``1 / (1 + 0.001 (n - 1)^2)``. There is no coverage bonus: the max ignores how many
+entities matched. The role weight plays the part of Mem0's ``sim``.
+
+``"sum"`` (alternative, kept available): score of a record ``r`` for the query entities ``Q``
+(deduplicated, unknown ids ignored)::
 
     score(r) = coverage(r) * sum over e in Q matched in r of
                   role_weight(e, r) * damp(e) * recency(e, r)
@@ -16,19 +26,20 @@ Score of a record ``r`` for the query entities ``Q`` (deduplicated, unknown ids 
 * ``damp(e)``: the anti-hub factor, a function of the entity's *degree* (distinct records that
   mention it) and the index size ``N`` (``index.n_records``):
 
-  - ``"idf"`` (default): ``log(1 + N / degree)``. Smoothed IDF; always positive, so an entity
+  - ``"idf"``: ``log(1 + N / degree)``. Smoothed IDF; always positive, so an entity
     that appears in every record is damped to ``log 2`` rather than to zero.
   - ``"inv_sqrt"``: ``1 / sqrt(degree)``.
-  - ``"mem0"``: ``1 / (1 + c * (degree - 1) ** 2)`` with ``c = mem0_c`` (default 0.001), the
-    curve decided in R-08.
+  - ``"mem0"`` (default): ``1 / (1 + c * (degree - 1) ** 2)`` with ``c = mem0_c`` (default
+    0.001), the curve decided in R-08.
 
   The owner's own self-entity (``index.self_entity``) is additionally multiplied by
   ``self_factor`` (default 0.05) unless it is the only entity in the query.
 * ``recency``: optional. With ``recency_half_life_days`` set and ``now`` given, the most recent
   mention date of the entity in the record gives ``floor + (1 - floor) * 0.5 ** (age / half_life)``.
   A record without a date, or any call without ``now``, gets a neutral 1.0.
-* ``coverage``: ``1 + coverage_bonus * (m - 1)`` for a record matching ``m`` distinct query
-  entities, so a record that mentions several of them beats one that mentions one hub often.
+* ``coverage`` (sum mode only): ``1 + coverage_bonus * (m - 1)`` for a record matching ``m``
+  distinct query entities, so a record that mentions several of them beats one that mentions
+  one hub often.
 
 Scores are strictly positive (clamped to ``MIN_SCORE``) and never ``None`` or 0: a hit that
 matched is always evidence. Hits are ranked by score descending, ties on record id ascending,
@@ -68,6 +79,7 @@ MIN_SCORE = 1e-9
 
 Role = Literal["subject", "object", "mention"]
 DampingMode = Literal["idf", "inv_sqrt", "mem0"]
+Scoring = Literal["max", "sum"]
 
 DEFAULT_ROLE_WEIGHTS: Mapping[str, float] = {"subject": 1.0, "object": 0.7, "mention": 0.4}
 
@@ -103,7 +115,10 @@ class EntityIndex:
 class DampingConfig:
     """Knobs of the leg. Defaults are the documented ones."""
 
-    mode: DampingMode = "idf"
+    scoring: Scoring = "max"
+    mode: DampingMode = "mem0"
+    boost: float = 0.5  # max mode: Mem0 boost factor
+    cap: float = 0.5  # max mode: cap on the boost (R-08 gives no number; see module doc)
     mem0_c: float = 0.001
     self_factor: float = 0.05
     role_weights: Mapping[str, float] = field(default_factory=lambda: dict(DEFAULT_ROLE_WEIGHTS))
@@ -113,6 +128,10 @@ class DampingConfig:
     now: datetime | None = None
 
     def __post_init__(self) -> None:
+        if self.scoring not in ("max", "sum"):
+            raise ValueError("scoring must be 'max' or 'sum'")
+        if self.boost <= 0 or self.cap <= 0:
+            raise ValueError("boost and cap must be positive")
         if self.mem0_c < 0:
             raise ValueError("mem0_c must not be negative")
         if not 0.0 < self.self_factor <= 1.0:
@@ -206,14 +225,18 @@ def entity_leg_explained(
                 key=lambda rw: (rw[1], rw[0]),
             )
             rec = _recency((m.date for m in ms), cfg)
-            per_record.setdefault(rid, []).append(EntityEvidence(e, role, w, d, rec, w * d * rec))
+            contrib = w * d * rec * (cfg.boost if cfg.scoring == "max" else 1.0)
+            per_record.setdefault(rid, []).append(EntityEvidence(e, role, w, d, rec, contrib))
 
     scored: list[tuple[str, float, tuple[EntityEvidence, ...]]] = []
     for rid, evs in per_record.items():
         evs_sorted = tuple(sorted(evs, key=lambda x: x.entity_id))
-        base = math.fsum(ev.contribution for ev in evs_sorted)
-        cov = 1.0 + cfg.coverage_bonus * (len(evs_sorted) - 1)
-        scored.append((rid, max(base * cov, MIN_SCORE), evs_sorted))
+        if cfg.scoring == "max":
+            score = min(max(ev.contribution for ev in evs_sorted), cfg.cap)
+        else:
+            base = math.fsum(ev.contribution for ev in evs_sorted)
+            score = base * (1.0 + cfg.coverage_bonus * (len(evs_sorted) - 1))
+        scored.append((rid, max(score, MIN_SCORE), evs_sorted))
     scored.sort(key=lambda t: (-t[1], t[0]))
     top = scored[:k]
     hits = [Hit(record_id=rid, score=s, rank=i) for i, (rid, s, _) in enumerate(top, start=1)]

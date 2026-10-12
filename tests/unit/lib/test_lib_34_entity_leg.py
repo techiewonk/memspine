@@ -44,11 +44,13 @@ def test_hub_is_damped_against_rare_entity():
         }
     )
     for mode in ("idf", "inv_sqrt", "mem0"):
-        cfg = DampingConfig(mode=mode, mem0_c=0.05)
+        cfg = DampingConfig(scoring="sum", mode=mode, mem0_c=0.05)
         a = entity_leg(["Ilse"], idx, k=3, damping=cfg).hits[0].score
         b = entity_leg(["Bram"], idx, k=3, damping=cfg).hits[0].score
         assert b > a, mode
-    assert damping_factor(1, 100) > damping_factor(10, 100) > damping_factor(100, 100) > 0
+    idf = DampingConfig(mode="idf")
+    assert damping_factor(1, 100, idf) > damping_factor(10, 100, idf)
+    assert damping_factor(10, 100, idf) > damping_factor(100, 100, idf) > 0
     assert damping_factor(4, 100, DampingConfig(mode="inv_sqrt")) == pytest.approx(0.5)
     assert damping_factor(1, 100, DampingConfig(mode="mem0")) == 1.0
     assert damping_factor(11, 100, DampingConfig(mode="mem0")) == pytest.approx(1 / 1.1)
@@ -62,9 +64,11 @@ def test_coverage_bonus_rewards_multi_entity_records():
         },
         n_records=20,
     )
-    leg = entity_leg(["Noor", "Aiko"], idx, k=5)
+    sm = DampingConfig(scoring="sum", mode="idf")
+    leg = entity_leg(["Noor", "Aiko"], idx, k=5, damping=sm)
     assert ids(leg)[0] == "both"
-    flat = entity_leg(["Noor", "Aiko"], idx, k=5, damping=DampingConfig(coverage_bonus=0.0))
+    flat_cfg = DampingConfig(scoring="sum", mode="idf", coverage_bonus=0.0)
+    flat = entity_leg(["Noor", "Aiko"], idx, k=5, damping=flat_cfg)
     s = {h.record_id: h.score for h in flat.hits}
     assert s["both"] == pytest.approx(2 * s["onlyN"])
     s2 = {h.record_id: h.score for h in leg.hits}
@@ -80,14 +84,23 @@ def test_self_entity_damped_unless_only_entity():
         n_records=10,
         self_entity="me",
     )
-    leg = entity_leg(["me", "Tomasz"], idx, k=20, damping=DampingConfig(coverage_bonus=0.0))
+    cfg0 = DampingConfig(scoring="sum", mode="idf", coverage_bonus=0.0)
+    leg = entity_leg(["me", "Tomasz"], idx, k=20, damping=cfg0)
     s = {h.record_id: h.score for h in leg.hits}
     assert s["rT"] > s["r1"]
-    alone = entity_leg(["me"], idx, k=3).hits[0].score
-    assert alone == pytest.approx(damping_factor(10, 10))
+    sm = DampingConfig(scoring="sum", mode="idf")
+    idf = damping_factor(10, 10, sm)
+    alone = entity_leg(["me"], idx, k=3, damping=sm).hits[0].score
+    assert alone == pytest.approx(idf)
+    res = entity_leg_explained(["me", "Tomasz"], idx, k=3, damping=sm)
+    ev = {e.entity_id: e for e in res.provenance["r0"]}
+    assert ev["me"].damping == pytest.approx(idf * 0.05)
+    # default (max) mode damps the self entity too, and not when alone
     res = entity_leg_explained(["me", "Tomasz"], idx, k=3)
     ev = {e.entity_id: e for e in res.provenance["r0"]}
     assert ev["me"].damping == pytest.approx(damping_factor(10, 10) * 0.05)
+    res = entity_leg_explained(["me"], idx, k=3)
+    assert res.provenance["r0"][0].damping == pytest.approx(damping_factor(10, 10))
 
 
 def test_roles_and_duplicate_mentions_count_once():
@@ -114,7 +127,7 @@ def test_recency():
         },
         n_records=5,
     )
-    cfg = DampingConfig(recency_half_life_days=30.0, now=now)
+    cfg = DampingConfig(scoring="sum", recency_half_life_days=30.0, now=now)
     s = {h.record_id: h.score for h in entity_leg(["Aiko"], idx, k=5, damping=cfg).hits}
     assert s["undated"] > s["new"] > s["old"] > 0  # undated is neutral (1.0)
     off = {h.record_id: h.score for h in entity_leg(["Aiko"], idx, k=5).hits}
@@ -151,6 +164,9 @@ def test_config_validation():
         {"recency_half_life_days": 0.0},
         {"recency_floor": 2.0},
         {"mem0_c": -1.0},
+        {"cap": 0.0},
+        {"boost": -1.0},
+        {"scoring": "avg"},
         {"role_weights": {"subject": 1.0, "object": 0.0, "mention": 0.1}},
     ):
         with pytest.raises(ValueError):
@@ -162,3 +178,42 @@ def test_leg_feeds_fusion():
     leg = entity_leg(["Ilse"], idx, k=5)
     out = fuse([leg], FusionConfig())
     assert {c.record_id for c in out.candidates} == {"r1", "r2"}
+
+
+def test_default_r08_mode_is_max_not_sum_and_has_no_coverage_bonus():
+    idx = EntityIndex(
+        {
+            "Noor": [M("both", "subject"), M("onlyN", "subject")],
+            "Aiko": [M("both", "subject"), M("onlyA", "subject")],
+        },
+        n_records=20,
+    )
+    assert DampingConfig().scoring == "max" and DampingConfig().mode == "mem0"
+    res = entity_leg_explained(["Noor", "Aiko"], idx, k=5)
+    s = {h.record_id: h.score for h in res.leg.hits}
+    expected = 0.5 / 1.001  # degree 2: mem0 curve 1/(1+0.001), boost 0.5, subject weight 1.0
+    assert s["both"] == pytest.approx(expected)
+    assert s["both"] == pytest.approx(s["onlyN"])  # max, so a second entity adds nothing
+    assert len(res.provenance["both"]) == 2
+
+
+def test_default_r08_mode_cap_respected():
+    idx = EntityIndex({"Noor": [M("r1", "subject")], "Aiko": [M("r1", "object")]}, n_records=5)
+    hi = DampingConfig(boost=2.0, cap=0.8)  # uncapped boost would be 2.0
+    s = entity_leg(["Noor", "Aiko"], idx, k=3, damping=hi).hits[0].score
+    assert s == pytest.approx(0.8)
+    low = DampingConfig(boost=0.5, cap=10.0)
+    s = entity_leg(["Noor"], idx, k=3, damping=low).hits[0].score
+    assert s == pytest.approx(0.5)
+    assert all(h.score <= 0.5 for h in entity_leg(["Noor", "Aiko"], idx, k=3).hits)
+
+
+def test_default_r08_mode_hub_damped_with_mem0_curve():
+    idx = EntityIndex(
+        {"Ilse": [M(f"r{i}", "subject") for i in range(101)], "Bram": [M("rB", "subject")]},
+    )
+    cfg = DampingConfig()
+    hub = entity_leg(["Ilse"], idx, k=1, damping=cfg).hits[0].score
+    rare = entity_leg(["Bram"], idx, k=1, damping=cfg).hits[0].score
+    assert rare == pytest.approx(0.5)
+    assert hub == pytest.approx(0.5 / (1 + 0.001 * 100**2))
