@@ -1287,6 +1287,41 @@
    "review": []
   },
   {
+   "id": "LIB-14",
+   "phase": 1,
+   "title": "Library: segmentation (adaptive window, time-gap cut, token batching, context lines)",
+   "decisions": [
+    "W-11"
+   ],
+   "depends_on": [
+    "MOD-01"
+   ],
+   "kind": "infra",
+   "gate": "Unit tests; pure, unwired (wiring in W2-05); depends only on memspine.schemas",
+   "status": "Ready",
+   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "layers": [
+    "L0"
+   ],
+   "operators": [
+    "D"
+   ],
+   "files": [
+    "src/memspine/config/schema.py",
+    "src/memspine/core/window.py"
+   ],
+   "owns": [
+    "src/memspine/ingest/segment.py",
+    "tests/unit/lib/test_lib_14*.py"
+   ],
+   "lane": "other",
+   "agent": "sonnet",
+   "components": [
+    "derive.Segmenter (E boundaries) + derive.CallBatcher (B token/age gate)"
+   ],
+   "review": []
+  },
+  {
    "id": "F-05",
    "phase": 1,
    "title": "Package skeleton; move store and trust leaves",
@@ -1585,7 +1620,8 @@
    ],
    "depends_on": [
     "F-08",
-    "LIB-13"
+    "LIB-13",
+    "LIB-14"
    ],
    "kind": "move",
    "gate": "Golden",
@@ -2997,7 +3033,8 @@
     "W-11"
    ],
    "depends_on": [
-    "W2-01"
+    "W2-01",
+    "LIB-14"
    ],
    "kind": "behaviour",
    "gate": "Calls per turn down, grounding inside band",
