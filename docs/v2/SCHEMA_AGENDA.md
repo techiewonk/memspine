@@ -15,9 +15,9 @@ Each session ends with a reviewed Pydantic model in `memspine.schemas` (MOD-01) 
 | 7 | Receipt and readiness (**answered 2026-10-13**, `schemas/SESSIONS_07_09_2026-10-13.md`) | ER-06: durable acceptance; per-capability readiness; bounded waits | Receipt, Readiness, WaitTarget | Capability names; consistency target; timeout and partial-read behaviour; ephemeral-mode weaker guarantee | W2-01, F-04 |
 | 8 | Jobs and progress (**answered 2026-10-13**, `schemas/SESSIONS_07_09_2026-10-13.md`) | ER-07 epochs; ER-09 contiguous watermark + holes; ER-10 tracked jobs; ER-26 immutable job snapshots; OF-1 handles | OutboxRow, JobLease, Progress, JobHandle | Epoch semantics; hole representation; snapshot target; handle states | F-04, RT-01, O4-01a |
 | 9 | Overload and accounting (**answered 2026-10-13**, `schemas/SESSIONS_07_09_2026-10-13.md`) | ER-08 quotas and rejection; ER-15 recovery budget; ER-39 cost classes | QuotaError, AttemptBudget, CostRecord | Error shape distinguishing rejected from accepted; budget units; cost classes (generative, embedding, rerank, tool) | RT-02, W2-12 |
-| 10 | Read and cache | ER-24 bundles and exact budget; ER-31 cache keys; ER-29 viewer; POL-1 revalidation | ReadRequest, EvidenceBundle, ContextBlock, CacheKey | Bundle completeness rules; exact vs estimated accounting flag; cache key fields; viewer binding from the principal | R3-01, R3-09a, R3-15 |
-| 11 | Erasure and retention | ER-30 manifest and generations; ER-27 retained-history boundary | ErasureManifest, Generation, RetentionBoundary | Logical invisibility vs physical purge vs backups; what remains for rebuild; capability advertisement | T5-04, F-16b |
-| 12 | Plug-in manifest | ER-34: discovery is not enablement | CapabilityManifest | Pinning format; duplicate and lifetime-violation errors | MOD-02 |
+| 10 | Read and cache (**answered 2026-10-13**, `schemas/SESSIONS_10_12_2026-10-13.md`) | ER-24 bundles and exact budget; ER-31 cache keys; ER-29 viewer; POL-1 revalidation | ReadRequest, EvidenceBundle, ContextBlock, CacheKey | Bundle completeness rules; exact vs estimated accounting flag; cache key fields; viewer binding from the principal | R3-01, R3-09a, R3-15 |
+| 11 | Erasure and retention (**answered 2026-10-13**, `schemas/SESSIONS_10_12_2026-10-13.md`) | ER-30 manifest and generations; ER-27 retained-history boundary | ErasureManifest, Generation, RetentionBoundary | Logical invisibility vs physical purge vs backups; what remains for rebuild; capability advertisement | T5-04, F-16b |
+| 12 | Plug-in manifest (**answered 2026-10-13**, `schemas/SESSIONS_10_12_2026-10-13.md`) | ER-34: discovery is not enablement | CapabilityManifest | Pinning format; duplicate and lifetime-violation errors | MOD-02 |
 
 Order: sessions 1 and 2 first (they constrain every object), then 3-6 (record content), then 7-9 (runtime), then
 10-12 (read, lifecycle, plug-ins). Proposed improvements stay separate from measured results; no dataset-specific
@@ -28,3 +28,4 @@ examples in any schema.
 - 2026-10-13: sessions 3 and 4 answered (owner-scoped entities, occurrence and retry ids, evidence roles, source family = asserting principal, hide-then-re-derive).
 - 2026-10-13: sessions 5 and 6 answered (five assessment fields, supersede rule, tentative edges, granular precision, three time axes, typed relations).
 - 2026-10-13: sessions 7-9 answered (per-capability receipt, leases/epochs/holes, reject before accept).
+- 2026-10-13: sessions 10-12 answered; all twelve sessions decided. MOD-01 part 2 (durable and public field layouts) can start.
