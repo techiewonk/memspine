@@ -752,6 +752,383 @@
    "review": []
   },
   {
+   "id": "LIB-01",
+   "phase": 1,
+   "title": "Library: temporal anchor ladder (basis, precision, intervals, relations; never invents dates)",
+   "decisions": [
+    "W-04",
+    "M-10",
+    "R-07"
+   ],
+   "depends_on": [
+    "MOD-01"
+   ],
+   "kind": "infra",
+   "gate": "Unit tests; pure, unwired (wiring in W2-14); depends only on memspine.schemas",
+   "status": "Ready",
+   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "layers": [
+    "L0",
+    "L1",
+    "L3",
+    "L5"
+   ],
+   "operators": [
+    "D",
+    "R"
+   ],
+   "files": [
+    "src/memspine/engine.py",
+    "src/memspine/config/schema.py",
+    "src/memspine/core/temporal_query.py",
+    "src/memspine/config/templates/base.yaml"
+   ],
+   "owns": [
+    "src/memspine/derive/temporal.py",
+    "tests/unit/lib/test_lib_01*.py"
+   ],
+   "lane": "other",
+   "agent": "sonnet",
+   "components": [
+    "Envelope.times + GraphProjection edge-time view",
+    "intake.ClockStamper (source_at, source_tz, recorded_at; event interval + precision filled at derivation)",
+    "read.legs.temporal (TimeWindow)"
+   ],
+   "review": []
+  },
+  {
+   "id": "LIB-02",
+   "phase": 1,
+   "title": "Library: integration ladder (supersede/retire/coexist/contest/tentative) and cardinality registry, event-time ordered",
+   "decisions": [
+    "W-21",
+    "W-22",
+    "M-12"
+   ],
+   "depends_on": [
+    "MOD-01"
+   ],
+   "kind": "infra",
+   "gate": "Unit tests; pure, unwired (wiring in W2-10); depends only on memspine.schemas",
+   "status": "Ready",
+   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "layers": [
+    "L1",
+    "L3"
+   ],
+   "operators": [
+    "D",
+    "K_C"
+   ],
+   "files": [
+    "src/memspine/core/policies/conflict.py",
+    "src/memspine/workers/pipelines.py",
+    "src/memspine/core/query_contract.py",
+    "src/memspine/memories/semantic/write_pipeline.py"
+   ],
+   "owns": [
+    "src/memspine/derive/integrate.py",
+    "tests/unit/lib/test_lib_02*.py"
+   ],
+   "lane": "other",
+   "agent": "sonnet",
+   "components": [
+    "CardinalityRegistry",
+    "integrate.CardinalityRegistry (M-12) + integrate.DefaultVerdict",
+    "integrate.ConflictLadder (hint-seeded) with deferral to K_C when hints are absent"
+   ],
+   "review": []
+  },
+  {
+   "id": "LIB-03",
+   "phase": 1,
+   "title": "Library: grounding rule checks (spans, modality, binding) scored on the X-05 grounding set",
+   "decisions": [
+    "W-17"
+   ],
+   "depends_on": [
+    "MOD-01"
+   ],
+   "kind": "infra",
+   "gate": "Unit tests; pure, unwired (wiring in W2-08); depends only on memspine.schemas",
+   "status": "Ready",
+   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "layers": [
+    "L1",
+    "L3"
+   ],
+   "operators": [
+    "D"
+   ],
+   "files": [
+    "src/memspine/workers/windows.py"
+   ],
+   "owns": [
+    "src/memspine/derive/ground.py",
+    "tests/unit/lib/test_lib_03*.py"
+   ],
+   "lane": "other",
+   "agent": "sonnet",
+   "components": [
+    "derive.GroundingChecker (spans per assertion and endpoint, rule checks) + derive.Adjudicator (local entailment or decider)"
+   ],
+   "review": []
+  },
+  {
+   "id": "LIB-04",
+   "phase": 1,
+   "title": "Library: rule entity resolver (alias, homonym, numeric, cross-language) scored on X-05 entity pairs",
+   "decisions": [
+    "W-19",
+    "M-15"
+   ],
+   "depends_on": [
+    "MOD-01"
+   ],
+   "kind": "infra",
+   "gate": "Unit tests; pure, unwired (wiring in W2-09); depends only on memspine.schemas",
+   "status": "Ready",
+   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "layers": [
+    "L1",
+    "L3"
+   ],
+   "operators": [
+    "D",
+    "K_C"
+   ],
+   "files": [
+    "src/memspine/memories/associative/resolution.py"
+   ],
+   "owns": [
+    "src/memspine/derive/resolve.py",
+    "tests/unit/lib/test_lib_04*.py"
+   ],
+   "lane": "other",
+   "agent": "sonnet",
+   "components": [
+    "EntityRegistry + MERGE/SPLIT events",
+    "graph.OnlineResolver (EntityResolver with llm=None, bounded cache, pending_merge output)"
+   ],
+   "review": []
+  },
+  {
+   "id": "LIB-05",
+   "phase": 1,
+   "title": "Library: ItemV1 to AssertionEnvelope compiler (reserved names, item rejection, citations, ids)",
+   "decisions": [
+    "W-14",
+    "W-15",
+    "P-05",
+    "P-06"
+   ],
+   "depends_on": [
+    "MOD-01"
+   ],
+   "kind": "infra",
+   "gate": "Unit tests; pure, unwired (wiring in W2-06a); depends only on memspine.schemas",
+   "status": "Ready",
+   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "layers": [
+    "L0",
+    "L1",
+    "L3"
+   ],
+   "operators": [
+    "D"
+   ],
+   "files": [
+    "src/memspine/workers/windows.py",
+    "src/memspine/config/constants.py",
+    "src/memspine/config/schema.py",
+    "src/memspine/engine.py"
+   ],
+   "owns": [
+    "src/memspine/derive/compile.py",
+    "tests/unit/lib/test_lib_05*.py"
+   ],
+   "lane": "other",
+   "agent": "sonnet",
+   "components": [
+    "derive.ItemValidator + derive.RepairAsk + derive.FailureLedger (dead-letter list)",
+    "prompts.structured",
+    "prompts.structured.repair",
+    "schema.ItemV1 (wire) -> schema.AssertionEnvelope (stored), compiler in derive.EnvelopeCompiler"
+   ],
+   "review": []
+  },
+  {
+   "id": "LIB-06",
+   "phase": 1,
+   "title": "Library: exact tokenizer budget and complete evidence bundles",
+   "decisions": [
+    "R-18"
+   ],
+   "depends_on": [
+    "MOD-01"
+   ],
+   "kind": "infra",
+   "gate": "Unit tests; pure, unwired (wiring in R3-09b); depends only on memspine.schemas",
+   "status": "Ready",
+   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "layers": [
+    "ctx"
+   ],
+   "operators": [
+    "C"
+   ],
+   "files": [
+    "src/memspine/core/policies/assembly.py",
+    "src/memspine/config/constants.py",
+    "src/memspine/engine.py"
+   ],
+   "owns": [
+    "src/memspine/compose/budget.py",
+    "src/memspine/compose/bundles.py",
+    "tests/unit/lib/test_lib_06*.py"
+   ],
+   "lane": "other",
+   "agent": "sonnet",
+   "components": [
+    "compose.packer (BudgetPacker)"
+   ],
+   "review": []
+  },
+  {
+   "id": "LIB-07",
+   "phase": 1,
+   "title": "Library: job leases, epochs, watermark and holes, handles, coalescing, quotas",
+   "decisions": [
+    "W-02",
+    "W-10",
+    "W-13",
+    "W-25",
+    "G-19",
+    "P-21"
+   ],
+   "depends_on": [
+    "MOD-01"
+   ],
+   "kind": "infra",
+   "gate": "Unit tests; pure, unwired (wiring in F-04); depends only on memspine.schemas",
+   "status": "Ready",
+   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "layers": [
+    "L0",
+    "L1",
+    "L3",
+    "ctx"
+   ],
+   "operators": [
+    "D",
+    "K_C"
+   ],
+   "files": [
+    "src/memspine/workers/windows.py",
+    "src/memspine/engine.py",
+    "src/memspine/config/schema.py",
+    "src/memspine/config/constants.py"
+   ],
+   "owns": [
+    "src/memspine/runtime/jobs.py",
+    "src/memspine/runtime/quotas.py",
+    "tests/unit/lib/test_lib_07*.py"
+   ],
+   "lane": "other",
+   "agent": "sonnet",
+   "components": [
+    "derive.Backpressure (coalesce, age and size caps, underived marker in the outbox)",
+    "derive.DerivationOutbox (SQL table: membership, source versions, attempts, lease, state)",
+    "economy.slo",
+    "intake.Receipt + derive.DerivationIntent (status call per layer)"
+   ],
+   "review": []
+  },
+  {
+   "id": "LIB-08",
+   "phase": 1,
+   "title": "Library: source families, quarantine release rule, restated count",
+   "decisions": [
+    "W-07",
+    "G-06"
+   ],
+   "depends_on": [
+    "MOD-01"
+   ],
+   "kind": "infra",
+   "gate": "Unit tests; pure, unwired (wiring in W2-04); depends only on memspine.schemas",
+   "status": "Ready",
+   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "layers": [
+    "L0",
+    "L1",
+    "scope"
+   ],
+   "operators": [
+    "D"
+   ],
+   "files": [
+    "src/memspine/core/firewall.py",
+    "src/memspine/engine.py",
+    "src/memspine/config/schema.py"
+   ],
+   "owns": [
+    "src/memspine/trust/families.py",
+    "tests/unit/lib/test_lib_08*.py"
+   ],
+   "lane": "other",
+   "agent": "sonnet",
+   "components": [
+    "firewall.WriteGates (gate 1 raw, gate 2 extraction input filter, gate 3 derived + parent trust cap always on)",
+    "memspine.trust.firewall (layered SignalStack)"
+   ],
+   "review": []
+  },
+  {
+   "id": "LIB-09",
+   "phase": 1,
+   "title": "Library: erasure planner (hide then re-derive over lineage) and manifest",
+   "decisions": [
+    "G-13",
+    "M-25"
+   ],
+   "depends_on": [
+    "MOD-01"
+   ],
+   "kind": "infra",
+   "gate": "Unit tests; pure, unwired (wiring in T5-04); depends only on memspine.schemas",
+   "status": "Ready",
+   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "layers": [
+    "L0",
+    "L1",
+    "L3",
+    "L4",
+    "L5",
+    "ctx",
+    "scope"
+   ],
+   "operators": [
+    "D",
+    "K_C"
+   ],
+   "files": [
+    "src/memspine/engine.py",
+    "src/memspine/core/erasure.py"
+   ],
+   "owns": [
+    "src/memspine/trust/erasure_plan.py",
+    "tests/unit/lib/test_lib_09*.py"
+   ],
+   "lane": "other",
+   "agent": "sonnet",
+   "components": [
+    "ErasureService over LineageProjection",
+    "memspine.trust.erasure (ReverseLineageIndex)"
+   ],
+   "review": []
+  },
+  {
    "id": "F-05",
    "phase": 1,
    "title": "Package skeleton; move store and trust leaves",
@@ -854,8 +1231,18 @@
     "src/memspine/protocols/tools.py"
    ],
    "owns": [
-    "src/memspine/read/**",
-    "src/memspine/compose/**",
+    "src/memspine/read/contract.py",
+    "src/memspine/read/shape.py",
+    "src/memspine/read/temporal_query.py",
+    "src/memspine/read/temporal_resolve.py",
+    "src/memspine/read/perspective.py",
+    "src/memspine/read/lead.py",
+    "src/memspine/read/__init__.py",
+    "src/memspine/compose/pack.py",
+    "src/memspine/compose/compression.py",
+    "src/memspine/compose/answer.py",
+    "src/memspine/compose/answer_check.py",
+    "src/memspine/compose/__init__.py",
     "src/memspine/models/**",
     "src/memspine/core/query_*",
     "src/memspine/core/temporal_*",
@@ -1151,7 +1538,8 @@
     "R-20"
    ],
    "depends_on": [
-    "F-10b"
+    "F-10b",
+    "LIB-06"
    ],
    "kind": "move",
    "gate": "Golden context hash identical",
@@ -1188,7 +1576,9 @@
     "M-24"
    ],
    "depends_on": [
-    "F-11"
+    "F-11",
+    "LIB-08",
+    "LIB-09"
    ],
    "kind": "move",
    "gate": "Golden",
@@ -1716,7 +2106,8 @@
     "P-21"
    ],
    "depends_on": [
-    "F-02b"
+    "F-02b",
+    "LIB-07"
    ],
    "kind": "behaviour",
    "gate": "Fault-injection tests; golden unchanged with barrier",
@@ -2404,7 +2795,8 @@
    ],
    "depends_on": [
     "W2-03",
-    "F-16a"
+    "F-16a",
+    "LIB-08"
    ],
    "kind": "behaviour",
    "gate": "False-positive screen on the behavioural suite",
@@ -2522,7 +2914,8 @@
    ],
    "depends_on": [
     "W2-05",
-    "F-16a"
+    "F-16a",
+    "LIB-05"
    ],
    "kind": "behaviour",
    "gate": "Unit tests; items dropped counted",
@@ -2648,7 +3041,8 @@
     "R-07"
    ],
    "depends_on": [
-    "W2-06c"
+    "W2-06c",
+    "LIB-01"
    ],
    "kind": "behaviour",
    "gate": "Temporal category up; no invented exact dates (precision audit)",
@@ -2729,7 +3123,8 @@
    ],
    "depends_on": [
     "W2-14",
-    "X-05"
+    "X-05",
+    "LIB-03"
    ],
    "kind": "behaviour",
    "gate": "Grounding at least 95% on the labelled set",
@@ -2765,7 +3160,8 @@
     "M-15"
    ],
    "depends_on": [
-    "W2-08"
+    "W2-08",
+    "LIB-04"
    ],
    "kind": "behaviour",
    "gate": "Calibrated thresholds: no homonym merges above a stated rate",
@@ -2805,7 +3201,8 @@
    ],
    "depends_on": [
     "W2-09",
-    "F-01"
+    "F-01",
+    "LIB-02"
    ],
    "kind": "behaviour",
    "gate": "MAB-CR non-inferior; A-B-A tests; behavioural INV-ORDER-SWAP passes",
@@ -3510,7 +3907,8 @@
    ],
    "depends_on": [
     "R3-09a",
-    "R3-07"
+    "R3-07",
+    "LIB-06"
    ],
    "kind": "behaviour",
    "gate": "Equal-budget screen; adaptive bundle selection gets a separate quality screen (ER-24)",
@@ -4517,7 +4915,8 @@
     "M-25"
    ],
    "depends_on": [
-    "F-16f"
+    "F-16f",
+    "LIB-09"
    ],
    "kind": "behaviour",
    "gate": "Forget probes on both profiles; every layer registered",
