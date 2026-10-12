@@ -353,6 +353,11 @@ class ResultWriter:
             + "\n"
         )
 
+    def write_cost(self, cost: Mapping[str, Any]) -> None:
+        """P0-01: trailing ``{"kind": "cost", ...}`` record (G-25 cost and latency block). The manifest on line 1
+        is written before the run and never rewritten; ``read_run`` and the scorers skip unknown kinds."""
+        self._fh.write(json.dumps({"kind": "cost", **cost}, ensure_ascii=False, default=str) + "\n")
+
     @property
     def rows(self) -> int:
         return self._rows

@@ -1007,6 +1007,12 @@ run duration and p50/p95 per-question latency; missing figures are null.
 given and their keys differ. With a manifest missing the verdict is unchanged and `warnings` says comparability was not
 verified.
 
+The runner fills `identity` on line 1 (`Runner.build_identity`): flags are the system's `describe()`, prompts the reader's and
+judge's texts, models come from the reader, judge and engine config, the slice from the item-id filter, the data file as the
+adapter's own content hash. The `cost` block is only known after the run, so line 1 is never rewritten: a trailing
+`{"kind": "cost", ...}` record is appended after the summary line and the same block is copied into
+`summary.json` (`manifest.identity.cost`). Readers that look for `manifest`, `result` and `summary` lines skip it.
+
 `pinned_run.sh` builds each pinned commit's venv from its own `uv.lock` under `../memspine-venvs/<hash>/`
 (`PINNED_SHARED_VENV=1` keeps the shared venv, `PINNED_DRY_RUN=1` prints the plan, `PINNED_EXTRAS` sets the extras,
 default `--all-extras`).
