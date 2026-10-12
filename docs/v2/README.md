@@ -1,19 +1,20 @@
-# MemSpine v2 (plan)
+# MemSpine restructure plan ("v2")
 
-MemSpine v2 is a planned redesign that combines what the 15-engine survey, the gap plan, the independent review
-and the Codex reviews taught us. This folder is the plan of record for v2. **It changes no code.** v1 keeps running
-and keeps being measured until v2 is built and has passed the same gates.
+The plan of record for restructuring MemSpine as a whole, combining what the 15-engine survey, the gap plan, the
+independent review and the Codex reviews taught us. "v2" is only the name of this plan: there is no separate v2
+package or product. The current code ("v1" below) stays the measured reference until each restructured part passes
+the same gates.
 
-## How v2 relates to v1 (owner decision, 2026-10-11)
+## How the restructure relates to today's code (owner decisions, 2026-10-11 and 2026-10-12)
 
 - **Same project, same principles.** v2 is the next architecture of `memspine` itself, not a new package or a
   fork: the event log stays the truth, derived layers stay opt-in, no model call by default, every change
   graduates through the gate.
 - **Plan only here.** Everything about v2 lives in `docs/v2/` on the main branch. v1 documents
   (`docs/GAP_TO_SOLUTION_PLAN.md`, `evals/analysis/GAP_REGISTER.md`, the ADRs) point here instead of copying it.
-- **Code, when it starts:** v2 components land in `src/memspine/` behind flags and profiles, phase by phase
-  (`ROADMAP.md`); a component becomes default only after its gate passes. API changes keep
-  `memspine.compat.v1` aliases for one minor release.
+- **Code:** memspine's structure changes altogether, step by step (`RESTRUCTURE.md`, `ROADMAP.md`). Code the new
+  design replaces is deleted or cleaned, not kept behind compatibility aliases. Pure moves keep both test suites
+  green; a step that changes behaviour graduates through the paired gate before it becomes the default.
 - **Evaluation:** the hardened gate (G-01, G-E1): paired against the frozen v1 reference (clean-jina-full,
   81.4% on 1,540 LoCoMo cat 1-4, reproducible by commit through `pinned_run.sh`), all blind sets,
   per-conversation uncertainty.
@@ -44,3 +45,4 @@ and keeps being measured until v2 is built and has passed the same gates.
 - 2026-10-11 (later): owner decided v2 stays inside `memspine` (Q9); the plan moved into `docs/v2/` on the main
   branch and the separate `v2/plan` branch was retired.
 - 2026-10-12 (later): `docs/v2_decisions/` merged here (questions.json moved to `data/`, its brief was identical to `data/question_brief.md`); stale owner markers resolved; model chapter's server graph corrected to Neo4j (Q4).
+- 2026-10-12 (owner): not a separate v2; memspine is restructured as a whole along this plan; replaced code is deleted, no compatibility shims.

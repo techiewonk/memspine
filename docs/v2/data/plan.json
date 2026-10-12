@@ -1,0 +1,2745 @@
+{
+ "statuses": [
+  "Not started",
+  "Ready",
+  "In progress",
+  "Blocked",
+  "Needs measurement",
+  "Done",
+  "Dropped"
+ ],
+ "packages": [
+  {
+   "id": "P0-01",
+   "phase": 0,
+   "title": "Paired adoption gate (focus, blind, full set)",
+   "decisions": [
+    "G-01",
+    "G-03"
+   ],
+   "depends_on": [],
+   "kind": "infra",
+   "gate": "Replay: identical arm NO CHANGE; missing set INCOMPLETE",
+   "status": "In progress",
+   "note": "Built 2026-10-12 (d0ab058, 5bf5643); open: sealed one-shot blind run per adoption",
+   "layers": [
+    "L0",
+    "L1",
+    "L4",
+    "L5",
+    "ctx",
+    "scope"
+   ],
+   "operators": [
+    "D",
+    "K_C",
+    "K_P",
+    "R",
+    "C",
+    "G"
+   ],
+   "files": [
+    "evals/eval_blind.py",
+    "evals/eval_focus.py",
+    "evals/eval_screen.py",
+    "evals/memspine_evals/metrics.py"
+   ],
+   "lane": "infra",
+   "agent": "sonnet",
+   "components": [
+    "memspine.evals.gate (AdoptionGate)",
+    "memspine.evals.uncertainty"
+   ]
+  },
+  {
+   "id": "P0-02",
+   "phase": 0,
+   "title": "Environment pinning per run",
+   "decisions": [
+    "G-24"
+   ],
+   "depends_on": [],
+   "kind": "infra",
+   "gate": "A fresh per-run venv reproduces clean-jina-full",
+   "status": "In progress",
+   "note": "Lock fixed (1d15194); per-run freeze recorded (7ce1d55); open: separate venv per pinned run",
+   "layers": [],
+   "operators": [
+    "R",
+    "G"
+   ],
+   "files": [
+    "evals/pinned_run.sh",
+    "uv.lock"
+   ],
+   "lane": "infra",
+   "agent": "sonnet",
+   "components": [
+    "memspine.evals.env (RunEnv)"
+   ]
+  },
+  {
+   "id": "P0-03",
+   "phase": 0,
+   "title": "Run manifest and comparability key",
+   "decisions": [
+    "G-25"
+   ],
+   "depends_on": [
+    "P0-02"
+   ],
+   "kind": "infra",
+   "gate": "Manifest records commit, env hash, flags, prompts, models, data hashes",
+   "status": "Not started",
+   "note": "",
+   "layers": [],
+   "operators": [
+    "D",
+    "R",
+    "C",
+    "G"
+   ],
+   "files": [
+    "evals/README.md (summary table)",
+    "evals/pinned_run.sh"
+   ],
+   "lane": "infra",
+   "agent": "sonnet",
+   "components": [
+    "memspine.evals.manifest (RunManifest)"
+   ]
+  },
+  {
+   "id": "P0-04",
+   "phase": 0,
+   "title": "CPU golden and import-boundary test (restructure guard)",
+   "decisions": [
+    "G-16"
+   ],
+   "depends_on": [],
+   "kind": "infra",
+   "gate": "Golden identical on two runs at HEAD",
+   "status": "Ready",
+   "note": "S0 of RESTRUCTURE",
+   "layers": [
+    "L0",
+    "L1",
+    "L4",
+    "L5",
+    "ctx",
+    "scope"
+   ],
+   "operators": [
+    "D",
+    "K_C",
+    "K_P",
+    "R",
+    "C"
+   ],
+   "files": [
+    "src/memspine/engine.py",
+    "src/memspine/protocols/tools.py"
+   ],
+   "lane": "infra",
+   "agent": "sonnet",
+   "components": [
+    "memspine.api (Engine facade, ScopedHandle)"
+   ]
+  },
+  {
+   "id": "P0-05",
+   "phase": 0,
+   "title": "Engine LLM fixes: hard per-call bound, think=False on Ollama",
+   "decisions": [
+    "P-15"
+   ],
+   "depends_on": [],
+   "kind": "behaviour",
+   "gate": "Regression tests; re-screens below",
+   "status": "Done",
+   "note": "2d05ac7, 798c4b5",
+   "layers": [
+    "L1",
+    "L4"
+   ],
+   "operators": [
+    "G"
+   ],
+   "files": [
+    "src/memspine/config/schema.py",
+    "src/memspine/services/llm/litellm_llm.py"
+   ],
+   "lane": "infra",
+   "agent": "sonnet",
+   "components": [
+    "models.reasoning"
+   ]
+  },
+  {
+   "id": "P0-06",
+   "phase": 0,
+   "title": "Re-screen engine-LLM arms on the thinking fix (f-gc9, f-gc3, f-win, f-gc2)",
+   "decisions": [
+    "O-07",
+    "O-16",
+    "W-12"
+   ],
+   "depends_on": [
+    "P0-05"
+   ],
+   "kind": "measure",
+   "gate": "Paired gate vs f-jref2-i2 on the focus slice",
+   "status": "Needs measurement",
+   "note": "GPU stopped by the owner; f-gc9 was net +15 before the fix",
+   "layers": [
+    "L0",
+    "L1",
+    "L3",
+    "ctx"
+   ],
+   "operators": [
+    "D",
+    "K_C",
+    "K_P",
+    "R"
+   ],
+   "files": [
+    "workers/pipelines.py",
+    "src/memspine/workers/windows.py",
+    "config/constants.py",
+    "engine.py"
+   ],
+   "lane": "infra",
+   "agent": "sonnet",
+   "components": [
+    "derive.OnlineExtractor + read.PendingBarrier (wait_for_pending with timeout)",
+    "memspine.derive.entity_summary.EntitySummariser",
+    "memspine.derive.session.SessionCloser + SessionCatchUp"
+   ]
+  },
+  {
+   "id": "P0-07",
+   "phase": 0,
+   "title": "A03 query contract: full set, then blind sets",
+   "decisions": [
+    "R-03"
+   ],
+   "depends_on": [
+    "P0-01"
+   ],
+   "kind": "measure",
+   "gate": "PROMOTE on 1,540 vs clean-jina-full, then CONFIRMS on MAB-CR and ConvoMem",
+   "status": "Needs measurement",
+   "note": "Focus +15/-7 net +8 HOLD; full run stopped partway",
+   "layers": [
+    "ctx"
+   ],
+   "operators": [
+    "R"
+   ],
+   "files": [
+    "src/memspine/core/query_contract.py",
+    "src/memspine/engine.py",
+    "src/memspine/config/schema.py"
+   ],
+   "lane": "infra",
+   "agent": "sonnet",
+   "components": [
+    "read.contract (QueryContract)"
+   ]
+  },
+  {
+   "id": "P0-08",
+   "phase": 0,
+   "title": "Benchmark suite and behavioural controls",
+   "decisions": [
+    "G-02",
+    "G-04"
+   ],
+   "depends_on": [
+    "P0-01"
+   ],
+   "kind": "infra",
+   "gate": "Dev: LoCoMo (+cat 5), OP-Bench; blind: MAB-CR, ConvoMem, PrefEval; behavioural suite blocks adoption",
+   "status": "Not started",
+   "note": "LongMemEval stays out",
+   "layers": [
+    "L0",
+    "L1",
+    "L4",
+    "L5",
+    "ctx",
+    "scope"
+   ],
+   "operators": [
+    "K_P",
+    "R",
+    "C",
+    "G"
+   ],
+   "files": [
+    "docs/GAP_TO_SOLUTION_PLAN.md rule 8",
+    "evals/ (I19 leakage probe only)",
+    "evals/freeze_blind_slices.py",
+    "evals/make_split.py"
+   ],
+   "lane": "infra",
+   "agent": "sonnet",
+   "components": [
+    "memspine.evals.behavioural (BehaviouralSuite)",
+    "memspine.evals.suite (DatasetRoles registry)"
+   ]
+  },
+  {
+   "id": "P0-09",
+   "phase": 0,
+   "title": "Prompt gold-lint over single words, partials and harness prompts",
+   "decisions": [
+    "P-13",
+    "W-18"
+   ],
+   "depends_on": [],
+   "kind": "infra",
+   "gate": "Lint fails on any gold token in any prompt",
+   "status": "In progress",
+   "note": "Single words and harness prompts done (11853ed); open: partials glob, rendered-prompt warnings",
+   "layers": [
+    "L1",
+    "L3"
+   ],
+   "operators": [
+    "D"
+   ],
+   "files": [
+    "tests/unit/test_prompt_gold_lint.py",
+    "src/memspine/workers/pipelines.py"
+   ],
+   "lane": "infra",
+   "agent": "sonnet",
+   "components": [
+    "prompts.lint",
+    "prompts.write_extract v2 + prompts/_partials (same_language.j2, coarse_date.j2) + prompts.PromptIdentity"
+   ]
+  },
+  {
+   "id": "F-01",
+   "phase": 1,
+   "title": "Graph key identity: kind, occurrence, A-B-A, old-key aliases",
+   "decisions": [
+    "M-17",
+    "W-20"
+   ],
+   "depends_on": [
+    "P0-04"
+   ],
+   "kind": "behaviour",
+   "gate": "A-B-A returns to A; same-day events stay two; replay idempotent; GC arm screen",
+   "status": "Ready",
+   "note": "S1; G-W50",
+   "layers": [
+    "L0",
+    "L1",
+    "L3"
+   ],
+   "operators": [
+    "D"
+   ],
+   "files": [
+    "src/memspine/workers/pipelines.py"
+   ],
+   "lane": "foundations",
+   "agent": "sonnet",
+   "components": [
+    "AssertionKey (versioned, aliases)",
+    "identity.AssertionKey (versioned; kind; occurrence id) + identity.OccurrenceResolver"
+   ]
+  },
+  {
+   "id": "F-02",
+   "phase": 1,
+   "title": "Record envelope: layer field, type tag, tri-temporal times, provenance class, axes",
+   "decisions": [
+    "M-02",
+    "M-03",
+    "M-06",
+    "M-07",
+    "M-08",
+    "M-10",
+    "M-16"
+   ],
+   "depends_on": [
+    "P0-04"
+   ],
+   "kind": "move",
+   "gate": "Replay byte-stable; upcaster round-trips; golden unchanged",
+   "status": "Ready",
+   "note": "S2; Q1 two layers on",
+   "layers": [
+    "L0",
+    "L1",
+    "L3",
+    "L4",
+    "L5",
+    "ctx",
+    "scope"
+   ],
+   "operators": [
+    "D",
+    "K_C",
+    "R"
+   ],
+   "files": [
+    "src/memspine/core/records.py",
+    "src/memspine/workers/pipelines.py",
+    "src/memspine/config/templates/base.yaml",
+    "src/memspine/core/perspective.py"
+   ],
+   "lane": "foundations",
+   "agent": "sonnet",
+   "components": [
+    "AssertionEnvelope (v1 = G-W49 item list)",
+    "EdgeCompiler + LinkProjection",
+    "Envelope.times + GraphProjection edge-time view",
+    "Provenance{src_class, trust, support_count}"
+   ]
+  },
+  {
+   "id": "F-03",
+   "phase": 1,
+   "title": "Derivation fingerprint on derived records and caches",
+   "decisions": [
+    "P-12",
+    "P-25"
+   ],
+   "depends_on": [
+    "F-02"
+   ],
+   "kind": "move",
+   "gate": "Cache misses once; outputs identical",
+   "status": "Not started",
+   "note": "S3",
+   "layers": [],
+   "operators": [
+    "K_C"
+   ],
+   "files": [
+    "src/memspine/engine.py",
+    "src/memspine/core/records.py",
+    "src/memspine/prompts/registry.py",
+    "src/memspine/workers/windows.py"
+   ],
+   "lane": "serial: engine split",
+   "agent": "sonnet",
+   "components": [
+    "models.upgrade",
+    "provenance.fingerprint"
+   ]
+  },
+  {
+   "id": "F-04",
+   "phase": 1,
+   "title": "Durable outbox and inline runner, read barrier",
+   "decisions": [
+    "W-02",
+    "W-10",
+    "W-13",
+    "W-25",
+    "G-19",
+    "P-21"
+   ],
+   "depends_on": [
+    "F-02"
+   ],
+   "kind": "behaviour",
+   "gate": "Fault-injection tests; golden unchanged with barrier; window arm screen",
+   "status": "Not started",
+   "note": "S4; Q2; model calls outside namespace locks",
+   "layers": [
+    "L0",
+    "L1",
+    "L3",
+    "ctx"
+   ],
+   "operators": [
+    "D",
+    "K_C"
+   ],
+   "files": [
+    "src/memspine/workers/windows.py",
+    "src/memspine/engine.py",
+    "src/memspine/config/schema.py",
+    "src/memspine/config/constants.py"
+   ],
+   "lane": "serial: engine split",
+   "agent": "sonnet",
+   "components": [
+    "derive.Backpressure (coalesce, age and size caps, underived marker in the outbox)",
+    "derive.DerivationOutbox (SQL table: membership, source versions, attempts, lease, state)",
+    "economy.slo",
+    "intake.Receipt + derive.DerivationIntent (status call per layer)"
+   ]
+  },
+  {
+   "id": "F-05",
+   "phase": 1,
+   "title": "Package skeleton; move store and trust leaves",
+   "decisions": [
+    "G-16"
+   ],
+   "depends_on": [
+    "P0-04"
+   ],
+   "kind": "move",
+   "gate": "Both suites and golden green; no old import paths",
+   "status": "Not started",
+   "note": "S5",
+   "layers": [
+    "L0",
+    "L1",
+    "L4",
+    "L5",
+    "ctx",
+    "scope"
+   ],
+   "operators": [
+    "D",
+    "K_C",
+    "K_P",
+    "R",
+    "C"
+   ],
+   "files": [
+    "src/memspine/engine.py",
+    "src/memspine/protocols/tools.py"
+   ],
+   "lane": "serial: engine split",
+   "agent": "sonnet",
+   "components": [
+    "memspine.api (Engine facade, ScopedHandle)"
+   ]
+  },
+  {
+   "id": "F-06",
+   "phase": 1,
+   "title": "Move read, compose and models leaves",
+   "decisions": [
+    "G-16"
+   ],
+   "depends_on": [
+    "F-05"
+   ],
+   "kind": "move",
+   "gate": "Same as F-05",
+   "status": "Not started",
+   "note": "S6",
+   "layers": [
+    "L0",
+    "L1",
+    "L4",
+    "L5",
+    "ctx",
+    "scope"
+   ],
+   "operators": [
+    "D",
+    "K_C",
+    "K_P",
+    "R",
+    "C"
+   ],
+   "files": [
+    "src/memspine/engine.py",
+    "src/memspine/protocols/tools.py"
+   ],
+   "lane": "serial: engine split",
+   "agent": "sonnet",
+   "components": [
+    "memspine.api (Engine facade, ScopedHandle)"
+   ]
+  },
+  {
+   "id": "F-07",
+   "phase": 1,
+   "title": "Config split and flag registry",
+   "decisions": [
+    "G-21",
+    "G-22"
+   ],
+   "depends_on": [
+    "F-05"
+   ],
+   "kind": "move",
+   "gate": "Same YAML keys; every default flag has evidence",
+   "status": "Not started",
+   "note": "S7",
+   "layers": [
+    "L0",
+    "L1",
+    "L4",
+    "L5",
+    "ctx",
+    "scope"
+   ],
+   "operators": [
+    "D",
+    "R",
+    "C"
+   ],
+   "files": [
+    "src/memspine/config/schema.py",
+    "evals/analysis/GAP_REGISTER.md",
+    "src/memspine/config/constants.py",
+    "src/memspine/config/templates/base.yaml"
+   ],
+   "lane": "serial: engine split",
+   "agent": "sonnet",
+   "components": [
+    "memspine.config.flags (FlagRegistry)",
+    "memspine.config.profiles (base + shape presets)"
+   ]
+  },
+  {
+   "id": "F-08",
+   "phase": 1,
+   "title": "Wiring out of the engine (Services container)",
+   "decisions": [
+    "G-16"
+   ],
+   "depends_on": [
+    "F-06"
+   ],
+   "kind": "move",
+   "gate": "Golden",
+   "status": "Not started",
+   "note": "S8",
+   "layers": [
+    "L0",
+    "L1",
+    "L4",
+    "L5",
+    "ctx",
+    "scope"
+   ],
+   "operators": [
+    "D",
+    "K_C",
+    "K_P",
+    "R",
+    "C"
+   ],
+   "files": [
+    "src/memspine/engine.py",
+    "src/memspine/protocols/tools.py"
+   ],
+   "lane": "serial: engine split",
+   "agent": "sonnet",
+   "components": [
+    "memspine.api (Engine facade, ScopedHandle)"
+   ]
+  },
+  {
+   "id": "F-09",
+   "phase": 1,
+   "title": "Write path out of the engine",
+   "decisions": [
+    "W-01",
+    "W-09"
+   ],
+   "depends_on": [
+    "F-08"
+   ],
+   "kind": "move",
+   "gate": "Golden",
+   "status": "Not started",
+   "note": "S9",
+   "layers": [
+    "L0",
+    "L1",
+    "L5"
+   ],
+   "operators": [
+    "D"
+   ],
+   "files": [
+    "src/memspine/engine.py",
+    "src/memspine/memories/resource/store.py"
+   ],
+   "lane": "serial: engine split",
+   "agent": "sonnet",
+   "components": [
+    "intake.SourceEnvelope + intake.IntakeGateway (write_messages / ingest / write_episode as adapters)",
+    "intake.TypeRouter (unkeyed -> episodic/resource raw; keyed entity/attribute, skill, plan -> typed write with parents)"
+   ]
+  },
+  {
+   "id": "F-10",
+   "phase": 1,
+   "title": "Read path out of the engine",
+   "decisions": [
+    "R-05"
+   ],
+   "depends_on": [
+    "F-08"
+   ],
+   "kind": "move",
+   "gate": "Golden byte-identical hit order",
+   "status": "Not started",
+   "note": "S10",
+   "layers": [
+    "L0",
+    "L1",
+    "L3"
+   ],
+   "operators": [
+    "R"
+   ],
+   "files": [
+    "src/memspine/engine.py",
+    "src/memspine/config/schema.py"
+   ],
+   "lane": "serial: engine split",
+   "agent": "sonnet",
+   "components": [
+    "read.legs (Leg registry with families)"
+   ]
+  },
+  {
+   "id": "F-11",
+   "phase": 1,
+   "title": "Compose out of the engine",
+   "decisions": [
+    "R-20"
+   ],
+   "depends_on": [
+    "F-10"
+   ],
+   "kind": "move",
+   "gate": "Golden context hash identical",
+   "status": "Not started",
+   "note": "S11",
+   "layers": [
+    "ctx"
+   ],
+   "operators": [
+    "C"
+   ],
+   "files": [
+    "src/memspine/config/schema.py",
+    "src/memspine/core/policies/assembly.py",
+    "src/memspine/engine.py"
+   ],
+   "lane": "serial: engine split",
+   "agent": "sonnet",
+   "components": [
+    "compose.render (Renderer)"
+   ]
+  },
+  {
+   "id": "F-12",
+   "phase": 1,
+   "title": "Trust, admin and memory-type mechanisms out",
+   "decisions": [
+    "M-21",
+    "M-24"
+   ],
+   "depends_on": [
+    "F-08"
+   ],
+   "kind": "move",
+   "gate": "Golden",
+   "status": "Not started",
+   "note": "S12",
+   "layers": [
+    "L4",
+    "ctx",
+    "scope"
+   ],
+   "operators": [
+    "K_C",
+    "R",
+    "C"
+   ],
+   "files": [
+    "src/memspine/core/namespace.py",
+    "src/memspine/engine.py",
+    "src/memspine/memories/working/paging.py"
+   ],
+   "lane": "serial: engine split",
+   "agent": "sonnet",
+   "components": [
+    "Grants + ObserverViews",
+    "WorkingMemory + RollingSummary"
+   ]
+  },
+  {
+   "id": "F-13",
+   "phase": 1,
+   "title": "Scoped handle API; engine reduced to lifecycle and admin",
+   "decisions": [
+    "G-16",
+    "G-17",
+    "G-18"
+   ],
+   "depends_on": [
+    "F-09",
+    "F-10",
+    "F-11",
+    "F-12"
+   ],
+   "kind": "move",
+   "gate": "Harness on the handle; paired-gate replay NO CHANGE vs f-jref2-i2",
+   "status": "Not started",
+   "note": "S13; no compatibility aliases",
+   "layers": [
+    "L0",
+    "L1",
+    "L4",
+    "L5",
+    "ctx",
+    "scope"
+   ],
+   "operators": [
+    "D",
+    "K_C",
+    "K_P",
+    "R",
+    "C"
+   ],
+   "files": [
+    "src/memspine/engine.py",
+    "src/memspine/protocols/mcp.py",
+    "src/memspine/protocols/rest/app.py",
+    "src/memspine/protocols/tools.py"
+   ],
+   "lane": "serial: engine split",
+   "agent": "sonnet",
+   "components": [
+    "memspine.api (Engine facade, ScopedHandle)",
+    "memspine.protocols.rest, memspine.protocols.mcp",
+    "none in v2 core (later: memspine-adapters extra)"
+   ]
+  },
+  {
+   "id": "F-14",
+   "phase": 1,
+   "title": "Retire measured-negative and dead code",
+   "decisions": [
+    "G-22"
+   ],
+   "depends_on": [
+    "F-13"
+   ],
+   "kind": "move",
+   "gate": "Golden unchanged; retired flags raise ConfigError",
+   "status": "Blocked",
+   "note": "Needs owner on unscreened candidates (event ledger, maxsim, causal walk, bridge hop, prefilter, novelty exclusions, agentic query)",
+   "layers": [
+    "L0",
+    "L1",
+    "L4",
+    "L5",
+    "ctx",
+    "scope"
+   ],
+   "operators": [
+    "D",
+    "R",
+    "C"
+   ],
+   "files": [
+    "evals/analysis/GAP_REGISTER.md",
+    "src/memspine/config/schema.py"
+   ],
+   "lane": "serial: engine split",
+   "agent": "sonnet",
+   "components": [
+    "memspine.config.flags (FlagRegistry)"
+   ]
+  },
+  {
+   "id": "F-15",
+   "phase": 1,
+   "title": "Split the pipelines module into derive stages",
+   "decisions": [
+    "O-04"
+   ],
+   "depends_on": [
+    "F-08"
+   ],
+   "kind": "move",
+   "gate": "Golden; stage order unchanged",
+   "status": "Not started",
+   "note": "S15 part 1",
+   "layers": [
+    "L0",
+    "L1",
+    "L3",
+    "L4",
+    "L5",
+    "ctx"
+   ],
+   "operators": [
+    "K_C",
+    "K_P"
+   ],
+   "files": [
+    "workers/schedule.py"
+   ],
+   "lane": "serial: engine split",
+   "agent": "sonnet",
+   "components": [
+    "memspine.derive.stages.STAGE_ORDER"
+   ]
+  },
+  {
+   "id": "F-16",
+   "phase": 1,
+   "title": "Storage profiles, lineage table, Neo4j adapter, migration by replay",
+   "decisions": [
+    "M-01",
+    "M-04",
+    "M-05",
+    "M-09",
+    "M-18",
+    "M-25",
+    "M-26",
+    "G-12",
+    "G-23"
+   ],
+   "depends_on": [
+    "F-02",
+    "F-05"
+   ],
+   "kind": "behaviour",
+   "gate": "Isolation, erasure, rebuild tests on embedded and server profiles; v1 log replays byte-stably",
+   "status": "Not started",
+   "note": "S16; Q4 Neo4j",
+   "layers": [
+    "L0",
+    "L1",
+    "L3",
+    "L4",
+    "L5",
+    "ctx",
+    "scope"
+   ],
+   "operators": [
+    "D",
+    "K_C",
+    "R"
+   ],
+   "files": [
+    "src/memspine/config/schema.py",
+    "src/memspine/engine.py",
+    "src/memspine/core/events.py",
+    "src/memspine/core/namespace.py"
+   ],
+   "lane": "serial: engine split",
+   "agent": "sonnet",
+   "components": [
+    "ErasureService over LineageProjection",
+    "EventLog + MarkdownExportView",
+    "GraphProjection",
+    "LineageProjection"
+   ]
+  },
+  {
+   "id": "W2-01",
+   "phase": 2,
+   "title": "Source envelope intake, receipt, idempotency, re-ingest",
+   "decisions": [
+    "W-01",
+    "W-02",
+    "W-03",
+    "W-24"
+   ],
+   "depends_on": [
+    "F-04",
+    "F-09"
+   ],
+   "kind": "behaviour",
+   "gate": "Write p95 at most 250 ms; idempotent retries",
+   "status": "Not started",
+   "note": "",
+   "layers": [
+    "L0",
+    "L1"
+   ],
+   "operators": [
+    "D",
+    "K_C"
+   ],
+   "files": [
+    "src/memspine/engine.py",
+    "src/memspine/memories/resource/store.py",
+    "src/memspine/workers/windows.py"
+   ],
+   "lane": "after F-13 (W2)",
+   "agent": "sonnet",
+   "components": [
+    "intake.IdempotencyKey (caller id, else fingerprint of namespace, source, segment index, content) + intake.SourceVersioner",
+    "intake.Receipt + derive.DerivationIntent (status call per layer)",
+    "intake.SourceEnvelope + intake.IntakeGateway (write_messages / ingest / write_episode as adapters)",
+    "intake.SourceVersioner (chunk diff + version events; derived items re-pointed or retired)"
+   ]
+  },
+  {
+   "id": "W2-02",
+   "phase": 2,
+   "title": "Stamping: three clocks, time zone, speaker/addressee/participants, provenance class",
+   "decisions": [
+    "W-04",
+    "W-05",
+    "W-08",
+    "M-08"
+   ],
+   "depends_on": [
+    "F-02",
+    "W2-01"
+   ],
+   "kind": "behaviour",
+   "gate": "Focus slice non-inferior",
+   "status": "Not started",
+   "note": "",
+   "layers": [
+    "L0",
+    "L1",
+    "L4",
+    "scope"
+   ],
+   "operators": [
+    "D",
+    "R"
+   ],
+   "files": [
+    "src/memspine/config/schema.py",
+    "src/memspine/engine.py",
+    "src/memspine/core/perspective.py",
+    "src/memspine/core/firewall.py"
+   ],
+   "lane": "after F-13 (W2)",
+   "agent": "sonnet",
+   "components": [
+    "RecordAxes columns (+ participants list per W-05)",
+    "intake.ClockStamper (source_at, source_tz, recorded_at; event interval + precision filled at derivation)",
+    "intake.RoleStamper (spk, addr, participants[]) + derive.AsserterSubjectCheck",
+    "provenance.SourceClassifier + provenance.AssentChecker"
+   ]
+  },
+  {
+   "id": "W2-03",
+   "phase": 2,
+   "title": "Role policy, echo guard and routing",
+   "decisions": [
+    "W-06",
+    "W-09"
+   ],
+   "depends_on": [
+    "W2-01"
+   ],
+   "kind": "behaviour",
+   "gate": "Focus slice non-inferior",
+   "status": "Not started",
+   "note": "",
+   "layers": [
+    "L0",
+    "L1",
+    "L5",
+    "ctx"
+   ],
+   "operators": [
+    "D"
+   ],
+   "files": [
+    "src/memspine/config/schema.py",
+    "src/memspine/engine.py"
+   ],
+   "lane": "after F-13 (W2)",
+   "agent": "sonnet",
+   "components": [
+    "intake.RolePolicy (raw keeps all roles; derivation filter: assistant=proposed, tool=evidence, system=excluded, echo guard on)",
+    "intake.TypeRouter (unkeyed -> episodic/resource raw; keyed entity/attribute, skill, plan -> typed write with parents)"
+   ]
+  },
+  {
+   "id": "W2-04",
+   "phase": 2,
+   "title": "Firewall at three gates; base plus extended signals",
+   "decisions": [
+    "W-07",
+    "G-06"
+   ],
+   "depends_on": [
+    "W2-01"
+   ],
+   "kind": "behaviour",
+   "gate": "False-positive screen on the behavioural suite",
+   "status": "Not started",
+   "note": "Q8 chat-preset exemption",
+   "layers": [
+    "L0",
+    "L1",
+    "scope"
+   ],
+   "operators": [
+    "D"
+   ],
+   "files": [
+    "src/memspine/core/firewall.py",
+    "src/memspine/engine.py",
+    "src/memspine/config/schema.py"
+   ],
+   "lane": "after F-13 (W2)",
+   "agent": "sonnet",
+   "components": [
+    "firewall.WriteGates (gate 1 raw, gate 2 extraction input filter, gate 3 derived + parent trust cap always on)",
+    "memspine.trust.firewall (layered SignalStack)"
+   ]
+  },
+  {
+   "id": "W2-05",
+   "phase": 2,
+   "title": "Segmentation: adaptive window, time-gap cut, token batching",
+   "decisions": [
+    "W-11"
+   ],
+   "depends_on": [
+    "F-04"
+   ],
+   "kind": "behaviour",
+   "gate": "Calls per turn down, grounding inside band",
+   "status": "Not started",
+   "note": "",
+   "layers": [
+    "L0"
+   ],
+   "operators": [
+    "D"
+   ],
+   "files": [
+    "src/memspine/config/schema.py",
+    "src/memspine/core/window.py"
+   ],
+   "lane": "write",
+   "agent": "sonnet",
+   "components": [
+    "derive.Segmenter (E boundaries) + derive.CallBatcher (B token/age gate)"
+   ]
+  },
+  {
+   "id": "W2-06",
+   "phase": 2,
+   "title": "Online extraction call: ItemV1, prompt v2, constrained output, repair, dead letters",
+   "decisions": [
+    "W-12",
+    "W-14",
+    "W-15",
+    "W-16",
+    "P-04",
+    "P-05",
+    "P-06",
+    "P-09",
+    "P-11"
+   ],
+   "depends_on": [
+    "F-04",
+    "W2-05"
+   ],
+   "kind": "behaviour",
+   "gate": "Window arm vs reference; items dropped down; at most 1 call per window",
+   "status": "Not started",
+   "note": "G-W49",
+   "layers": [
+    "L0",
+    "L1",
+    "L3"
+   ],
+   "operators": [
+    "D",
+    "R"
+   ],
+   "files": [
+    "src/memspine/workers/windows.py",
+    "src/memspine/config/schema.py",
+    "src/memspine/engine.py",
+    "src/memspine/workers/pipelines.py"
+   ],
+   "lane": "after F-13 (W2)",
+   "agent": "sonnet",
+   "components": [
+    "derive.ItemValidator + derive.RepairAsk + derive.FailureLedger (dead-letter list)",
+    "derive.OnlineExtractor + read.PendingBarrier (wait_for_pending with timeout)",
+    "derive.PromptContextBuilder (NEW, CONTEXT, KNOWN; KNOWN fed by the P-23 pre-pass and the online resolver)",
+    "prompts.layout.aliases"
+   ]
+  },
+  {
+   "id": "W2-07",
+   "phase": 2,
+   "title": "Prompt layout rules: no examples, stable prefix, same language",
+   "decisions": [
+    "W-18",
+    "P-07",
+    "P-08",
+    "P-10"
+   ],
+   "depends_on": [
+    "P0-09"
+   ],
+   "kind": "behaviour",
+   "gate": "English output unchanged on focus slice (per partial)",
+   "status": "Not started",
+   "note": "",
+   "layers": [
+    "L0",
+    "L1",
+    "L3",
+    "ctx"
+   ],
+   "operators": [
+    "D",
+    "C"
+   ],
+   "files": [
+    "src/memspine/prompts/defaults/window_extract.yaml",
+    "evals/memspine_evals/readers.py",
+    "src/memspine/config/presets/non_english.yaml",
+    "src/memspine/prompts/defaults/extract@session4.yaml"
+   ],
+   "lane": "write",
+   "agent": "sonnet",
+   "components": [
+    "prompts.layout",
+    "prompts.layout.language",
+    "prompts.write_extract v2 + prompts/_partials (same_language.j2, coarse_date.j2) + prompts.PromptIdentity"
+   ]
+  },
+  {
+   "id": "W2-08",
+   "phase": 2,
+   "title": "Grounding: spans per assertion, rule checks, assent",
+   "decisions": [
+    "W-17"
+   ],
+   "depends_on": [
+    "W2-06"
+   ],
+   "kind": "behaviour",
+   "gate": "Grounding at least 95% on a labelled cross-domain set",
+   "status": "Not started",
+   "note": "",
+   "layers": [
+    "L1",
+    "L3"
+   ],
+   "operators": [
+    "D"
+   ],
+   "files": [
+    "src/memspine/workers/windows.py"
+   ],
+   "lane": "write",
+   "agent": "sonnet",
+   "components": [
+    "derive.GroundingChecker (spans per assertion and endpoint, rule checks) + derive.Adjudicator (local entailment or decider)"
+   ]
+  },
+  {
+   "id": "W2-09",
+   "phase": 2,
+   "title": "Online entity resolution with pending_merge",
+   "decisions": [
+    "W-19",
+    "M-15"
+   ],
+   "depends_on": [
+    "W2-06",
+    "F-01"
+   ],
+   "kind": "behaviour",
+   "gate": "Calibrated thresholds: no homonym merges above a stated rate",
+   "status": "Not started",
+   "note": "",
+   "layers": [
+    "L1",
+    "L3"
+   ],
+   "operators": [
+    "D",
+    "K_C"
+   ],
+   "files": [
+    "src/memspine/memories/associative/resolution.py"
+   ],
+   "lane": "write",
+   "agent": "sonnet",
+   "components": [
+    "EntityRegistry + MERGE/SPLIT events",
+    "graph.OnlineResolver (EntityResolver with llm=None, bounded cache, pending_merge output)"
+   ]
+  },
+  {
+   "id": "W2-10",
+   "phase": 2,
+   "title": "Integration ladder and cardinality registry",
+   "decisions": [
+    "W-21",
+    "W-22",
+    "M-12"
+   ],
+   "depends_on": [
+    "F-01",
+    "W2-06"
+   ],
+   "kind": "behaviour",
+   "gate": "MAB-CR non-inferior; A-B-A tests",
+   "status": "Not started",
+   "note": "Q7 coexist unless marked",
+   "layers": [
+    "L1",
+    "L3"
+   ],
+   "operators": [
+    "D",
+    "K_C"
+   ],
+   "files": [
+    "src/memspine/core/policies/conflict.py",
+    "src/memspine/workers/pipelines.py",
+    "src/memspine/core/query_contract.py",
+    "src/memspine/memories/semantic/write_pipeline.py"
+   ],
+   "lane": "write",
+   "agent": "sonnet",
+   "components": [
+    "CardinalityRegistry",
+    "integrate.CardinalityRegistry (M-12) + integrate.DefaultVerdict",
+    "integrate.ConflictLadder (hint-seeded) with deferral to K_C when hints are absent"
+   ]
+  },
+  {
+   "id": "W2-11",
+   "phase": 2,
+   "title": "Asset describer (ingest and read triggers, off by default)",
+   "decisions": [
+    "W-23"
+   ],
+   "depends_on": [
+    "W2-01"
+   ],
+   "kind": "behaviour",
+   "gate": "Off by default; on-arm screen",
+   "status": "Not started",
+   "note": "",
+   "layers": [
+    "L0"
+   ],
+   "operators": [
+    "D",
+    "R"
+   ],
+   "files": [
+    "src/memspine/config/schema.py",
+    "src/memspine/engine.py"
+   ],
+   "lane": "after F-13 (W2)",
+   "agent": "sonnet",
+   "components": [
+    "intake.AssetDescriber port (triggers: ingest | on_read)"
+   ]
+  },
+  {
+   "id": "W2-12",
+   "phase": 2,
+   "title": "Cost ledger and write targets",
+   "decisions": [
+    "W-26",
+    "P-14",
+    "P-22"
+   ],
+   "depends_on": [
+    "F-03"
+   ],
+   "kind": "infra",
+   "gate": "Targets as regression tests",
+   "status": "Not started",
+   "note": "",
+   "layers": [
+    "L0",
+    "L1",
+    "L3",
+    "L4",
+    "L5"
+   ],
+   "operators": [
+    "D",
+    "K_C",
+    "K_P"
+   ],
+   "files": [
+    "src/memspine/engine.py"
+   ],
+   "lane": "after F-13 (W2)",
+   "agent": "sonnet",
+   "components": [
+    "economy.ledger",
+    "economy.targets",
+    "ledger.WriteCostLedger (shared with P-22 C) + ledger.Budget (pause -> underived)"
+   ]
+  },
+  {
+   "id": "W2-13",
+   "phase": 2,
+   "title": "Small local pre-pass (GLiNER2) as hints",
+   "decisions": [
+    "P-23"
+   ],
+   "depends_on": [
+    "W2-06"
+   ],
+   "kind": "behaviour",
+   "gate": "Calls down, grounded facts not down",
+   "status": "Not started",
+   "note": "",
+   "layers": [
+    "L1",
+    "L3"
+   ],
+   "operators": [
+    "D"
+   ],
+   "files": [
+    "src/memspine/core/window.py",
+    "src/memspine/services/decision/gliner2_decision.py"
+   ],
+   "lane": "write",
+   "agent": "sonnet",
+   "components": [
+    "write.prepass"
+   ]
+  },
+  {
+   "id": "R3-01",
+   "phase": 3,
+   "title": "Depth tiers and ReadRequest; evidence unit",
+   "decisions": [
+    "R-01",
+    "R-02"
+   ],
+   "depends_on": [
+    "F-10"
+   ],
+   "kind": "behaviour",
+   "gate": "Fast tier zero model calls; p95 SLO",
+   "status": "Not started",
+   "note": "",
+   "layers": [
+    "L0",
+    "L1",
+    "L4",
+    "ctx"
+   ],
+   "operators": [
+    "R",
+    "C"
+   ],
+   "files": [
+    "src/memspine/config/schema.py",
+    "src/memspine/engine.py",
+    "src/memspine/config/templates/base.yaml"
+   ],
+   "lane": "after F-13 (R3)",
+   "agent": "sonnet",
+   "components": [
+    "compose.bundle (EvidenceBundle)",
+    "read.tiers (TierPolicy)"
+   ]
+  },
+  {
+   "id": "R3-02",
+   "phase": 3,
+   "title": "Typed query contract by rules; render header",
+   "decisions": [
+    "R-03",
+    "R-20"
+   ],
+   "depends_on": [
+    "P0-07"
+   ],
+   "kind": "behaviour",
+   "gate": "A03 full set and blind",
+   "status": "Blocked",
+   "note": "Waits for P0-07",
+   "layers": [
+    "ctx"
+   ],
+   "operators": [
+    "R",
+    "C"
+   ],
+   "files": [
+    "src/memspine/config/schema.py",
+    "src/memspine/engine.py",
+    "src/memspine/core/query_contract.py",
+    "src/memspine/core/policies/assembly.py"
+   ],
+   "lane": "after F-13 (R3)",
+   "agent": "sonnet",
+   "components": [
+    "compose.render (Renderer)",
+    "read.contract (QueryContract)"
+   ]
+  },
+  {
+   "id": "R3-03",
+   "phase": 3,
+   "title": "Rule router; LLM rewrites only in deep tier",
+   "decisions": [
+    "R-04"
+   ],
+   "depends_on": [
+    "R3-01"
+   ],
+   "kind": "behaviour",
+   "gate": "Focus non-inferior",
+   "status": "Not started",
+   "note": "",
+   "layers": [
+    "ctx"
+   ],
+   "operators": [
+    "R"
+   ],
+   "files": [
+    "src/memspine/engine.py",
+    "src/memspine/config/schema.py"
+   ],
+   "lane": "after F-13 (R3)",
+   "agent": "sonnet",
+   "components": [
+    "read.router (Router)"
+   ]
+  },
+  {
+   "id": "R3-04",
+   "phase": 3,
+   "title": "Core legs: vector, language-aware BM25, temporal on event intervals",
+   "decisions": [
+    "R-05",
+    "R-06",
+    "R-07"
+   ],
+   "depends_on": [
+    "F-10",
+    "F-02"
+   ],
+   "kind": "behaviour",
+   "gate": "Focus non-inferior; temporal category up",
+   "status": "Not started",
+   "note": "",
+   "layers": [
+    "L0",
+    "L1",
+    "L3",
+    "L5"
+   ],
+   "operators": [
+    "R"
+   ],
+   "files": [
+    "src/memspine/engine.py",
+    "src/memspine/config/schema.py",
+    "src/memspine/core/temporal_query.py",
+    "src/memspine/config/templates/base.yaml"
+   ],
+   "lane": "after F-13 (R3)",
+   "agent": "sonnet",
+   "components": [
+    "read.legs (Leg registry with families)",
+    "read.legs.lexical (Tokeniser port)",
+    "read.legs.temporal (TimeWindow)"
+   ]
+  },
+  {
+   "id": "R3-05",
+   "phase": 3,
+   "title": "Routed legs: entity anti-hub, graph one hop, episode lift",
+   "decisions": [
+    "R-08",
+    "R-09",
+    "R-10"
+   ],
+   "depends_on": [
+    "R3-04"
+   ],
+   "kind": "behaviour",
+   "gate": "Each leg its own focus and blind screen",
+   "status": "Not started",
+   "note": "Q1: legs run only when their layer exists",
+   "layers": [
+    "L0",
+    "L1",
+    "L3",
+    "L4"
+   ],
+   "operators": [
+    "R"
+   ],
+   "files": [
+    "src/memspine/config/schema.py",
+    "src/memspine/engine.py",
+    "src/memspine/core/temporal_query.py"
+   ],
+   "lane": "after F-13 (R3)",
+   "agent": "sonnet",
+   "components": [
+    "read.legs.entity",
+    "read.legs.episode + read.lift",
+    "read.legs.graph (OneHopConvergent)"
+   ]
+  },
+  {
+   "id": "R3-06",
+   "phase": 3,
+   "title": "Family fusion, protected pool, calibrated floors",
+   "decisions": [
+    "R-11",
+    "R-12",
+    "R-13"
+   ],
+   "depends_on": [
+    "R3-04"
+   ],
+   "kind": "behaviour",
+   "gate": "Source-family pool non-inferior to per-leg pool",
+   "status": "Not started",
+   "note": "",
+   "layers": [
+    "L0",
+    "L1"
+   ],
+   "operators": [
+    "R"
+   ],
+   "files": [
+    "src/memspine/config/schema.py",
+    "src/memspine/engine.py",
+    "src/memspine/services/lexical/base.py",
+    "src/memspine/config/constants.py"
+   ],
+   "lane": "after F-13 (R3)",
+   "agent": "sonnet",
+   "components": [
+    "read.fusion (FamilyRRF)",
+    "read.pool (FamilyPool)",
+    "read.pool (PoolPolicy)"
+   ]
+  },
+  {
+   "id": "R3-07",
+   "phase": 3,
+   "title": "Jina rerank on every read; licence fallback; bounded boosts",
+   "decisions": [
+    "R-14",
+    "R-15",
+    "R-16",
+    "P-18"
+   ],
+   "depends_on": [
+    "R3-06"
+   ],
+   "kind": "behaviour",
+   "gate": "Matches the 81.4% reference; boosts off until screened",
+   "status": "Not started",
+   "note": "Q5, Q6",
+   "layers": [
+    "L0",
+    "L1",
+    "L4",
+    "ctx"
+   ],
+   "operators": [
+    "R"
+   ],
+   "files": [
+    "src/memspine/config/schema.py",
+    "src/memspine/engine.py",
+    "src/memspine/config/templates/base.yaml",
+    "src/memspine/core/policies/scoring.py"
+   ],
+   "lane": "after F-13 (R3)",
+   "agent": "sonnet",
+   "components": [
+    "read.rerank (RerankStage)",
+    "read.rerank (unit = hit)",
+    "read.rerank.boosts (BoundedBoost)",
+    "retrieval.encoders.reranker"
+   ]
+  },
+  {
+   "id": "R3-08",
+   "phase": 3,
+   "title": "Lift derived hits to turns under one score",
+   "decisions": [
+    "R-17"
+   ],
+   "depends_on": [
+    "R3-07"
+   ],
+   "kind": "behaviour",
+   "gate": "Focus non-inferior",
+   "status": "Not started",
+   "note": "",
+   "layers": [
+    "L0",
+    "L1",
+    "L3",
+    "L4"
+   ],
+   "operators": [
+    "R"
+   ],
+   "files": [
+    "src/memspine/config/schema.py",
+    "src/memspine/engine.py"
+   ],
+   "lane": "after F-13 (R3)",
+   "agent": "sonnet",
+   "components": [
+    "read.lift"
+   ]
+  },
+  {
+   "id": "R3-09",
+   "phase": 3,
+   "title": "Packer early-break fix; block shares",
+   "decisions": [
+    "R-18"
+   ],
+   "depends_on": [
+    "F-11"
+   ],
+   "kind": "behaviour",
+   "gate": "Fix: tests only; shares: equal-budget screen",
+   "status": "Ready",
+   "note": "Early-break fix needs no screen",
+   "layers": [
+    "ctx"
+   ],
+   "operators": [
+    "C"
+   ],
+   "files": [
+    "src/memspine/core/policies/assembly.py",
+    "src/memspine/config/constants.py",
+    "src/memspine/engine.py"
+   ],
+   "lane": "after F-13 (R3)",
+   "agent": "sonnet",
+   "components": [
+    "compose.packer (BudgetPacker)"
+   ]
+  },
+  {
+   "id": "R3-10",
+   "phase": 3,
+   "title": "Neighbour windows after rerank",
+   "decisions": [
+    "R-19"
+   ],
+   "depends_on": [
+    "R3-07"
+   ],
+   "kind": "behaviour",
+   "gate": "Focus non-inferior",
+   "status": "Not started",
+   "note": "",
+   "layers": [
+    "L0"
+   ],
+   "operators": [
+    "C"
+   ],
+   "files": [
+    "src/memspine/engine.py",
+    "src/memspine/config/schema.py"
+   ],
+   "lane": "after F-13 (R3)",
+   "agent": "sonnet",
+   "components": [
+    "compose.windows (TokenWindow)"
+   ]
+  },
+  {
+   "id": "R3-11",
+   "phase": 3,
+   "title": "Store-calibrated relevance gate with named bypass",
+   "decisions": [
+    "R-21"
+   ],
+   "depends_on": [
+    "R3-07"
+   ],
+   "kind": "behaviour",
+   "gate": "OP-Bench up; no recall loss on MAB-CR, ConvoMem, LoCoMo",
+   "status": "Not started",
+   "note": "",
+   "layers": [
+    "L1",
+    "ctx"
+   ],
+   "operators": [
+    "R"
+   ],
+   "files": [
+    "src/memspine/engine.py",
+    "src/memspine/config/constants.py",
+    "src/memspine/config/schema.py",
+    "src/memspine/core/relevance_probes.py"
+   ],
+   "lane": "after F-13 (R3)",
+   "agent": "sonnet",
+   "components": [
+    "read.gate (StoreCalibratedGate)"
+   ]
+  },
+  {
+   "id": "R3-12",
+   "phase": 3,
+   "title": "Deep tier: one sufficiency check and one rewrite",
+   "decisions": [
+    "R-22"
+   ],
+   "depends_on": [
+    "R3-03"
+   ],
+   "kind": "behaviour",
+   "gate": "f-suff: net beyond band, no category loss, at most 2x wall time",
+   "status": "Not started",
+   "note": "",
+   "layers": [
+    "L0",
+    "ctx"
+   ],
+   "operators": [
+    "R",
+    "C"
+   ],
+   "files": [
+    "src/memspine/config/schema.py",
+    "src/memspine/core/fact_chain.py",
+    "src/memspine/core/slot_loop.py",
+    "src/memspine/engine.py"
+   ],
+   "lane": "after F-13 (R3)",
+   "agent": "sonnet",
+   "components": [
+    "read.deep (SufficiencyRound)"
+   ]
+  },
+  {
+   "id": "R3-13",
+   "phase": 3,
+   "title": "External public knowledge (opt-in, separate block)",
+   "decisions": [
+    "R-23"
+   ],
+   "depends_on": [
+    "R3-01"
+   ],
+   "kind": "behaviour",
+   "gate": "Separate arm; never mixed in headline",
+   "status": "Not started",
+   "note": "",
+   "layers": [
+    "L0"
+   ],
+   "operators": [
+    "R"
+   ],
+   "files": [
+    "src/memspine/config/schema.py",
+    "src/memspine/engine.py"
+   ],
+   "lane": "after F-13 (R3)",
+   "agent": "sonnet",
+   "components": [
+    "read.external"
+   ]
+  },
+  {
+   "id": "R3-14",
+   "phase": 3,
+   "title": "Time view and two-axis as-of reads",
+   "decisions": [
+    "R-24",
+    "M-11"
+   ],
+   "depends_on": [
+    "F-02",
+    "R3-04"
+   ],
+   "kind": "behaviour",
+   "gate": "Temporal and MAB-CR non-inferior",
+   "status": "Not started",
+   "note": "",
+   "layers": [
+    "L0",
+    "L1"
+   ],
+   "operators": [
+    "R"
+   ],
+   "files": [
+    "src/memspine/engine.py",
+    "src/memspine/core/read_filters.py"
+   ],
+   "lane": "after F-13 (R3)",
+   "agent": "sonnet",
+   "components": [
+    "TimeView (as_of_valid, as_of_known)",
+    "read.timeview (TimeView)"
+   ]
+  },
+  {
+   "id": "R3-15",
+   "phase": 3,
+   "title": "Parallel legs, latency SLOs, caching, prefix layout",
+   "decisions": [
+    "R-25",
+    "R-26",
+    "P-20",
+    "P-24"
+   ],
+   "depends_on": [
+    "R3-06"
+   ],
+   "kind": "infra",
+   "gate": "p95 SLO tests in CI",
+   "status": "Not started",
+   "note": "",
+   "layers": [
+    "L0",
+    "L1",
+    "ctx"
+   ],
+   "operators": [
+    "D",
+    "R",
+    "C"
+   ],
+   "files": [
+    "src/memspine/engine.py",
+    "src/memspine/config/schema.py",
+    "src/memspine/core/policies/assembly.py",
+    "src/memspine/services/llm/llama_cpp.py"
+   ],
+   "lane": "after F-13 (R3)",
+   "agent": "sonnet",
+   "components": [
+    "compose.prefix",
+    "read.cache + compose.render layout",
+    "read.exec (LegExecutor)",
+    "runtime.scheduler"
+   ]
+  },
+  {
+   "id": "O4-01",
+   "phase": 4,
+   "title": "Scheduler, triggers, namespace jobs, leases, watermarks, budget, freshness",
+   "decisions": [
+    "O-01",
+    "O-02",
+    "O-03",
+    "O-05",
+    "O-06"
+   ],
+   "depends_on": [
+    "F-04",
+    "F-15"
+   ],
+   "kind": "behaviour",
+   "gate": "Restart and lock fault tests; evals deterministic (off by default)",
+   "status": "Not started",
+   "note": "",
+   "layers": [
+    "L0",
+    "L1",
+    "L3",
+    "L4",
+    "L5",
+    "ctx"
+   ],
+   "operators": [
+    "K_C",
+    "K_P",
+    "R"
+   ],
+   "files": [
+    "engine.py",
+    "workers/pipelines.py",
+    "workers/schedule.py",
+    "config/constants.py"
+   ],
+   "lane": "after F-13 (O4)",
+   "agent": "sonnet",
+   "components": [
+    "covers_seq field on derived records + memspine.read.freshness",
+    "memspine.derive.budget.DerivationBudget",
+    "memspine.derive.job.NamespaceJob (NamespaceLease, StageWatermark)",
+    "memspine.derive.scheduler.DerivationScheduler"
+   ]
+  },
+  {
+   "id": "O4-02",
+   "phase": 4,
+   "title": "Call 2 at session close: summary, stitched episode, profile ops",
+   "decisions": [
+    "O-07",
+    "O-08",
+    "O-09",
+    "M-14"
+   ],
+   "depends_on": [
+    "O4-01"
+   ],
+   "kind": "behaviour",
+   "gate": "G-C9-style screen",
+   "status": "Not started",
+   "note": "f-gc9 summaries +15 before the thinking fix",
+   "layers": [
+    "L0",
+    "L1",
+    "ctx"
+   ],
+   "operators": [
+    "K_C",
+    "K_P"
+   ],
+   "files": [
+    "workers/pipelines.py",
+    "config/constants.py",
+    "engine.py",
+    "src/memspine/engine.py"
+   ],
+   "lane": "after F-13 (O4)",
+   "agent": "sonnet",
+   "components": [
+    "Grouping records (episode, session, saga)",
+    "memspine.derive.session.EpisodeStitcher + memspine.read.legs.episode",
+    "memspine.derive.session.SessionCloser + SessionCatchUp",
+    "memspine.derive.session.SummaryGuard"
+   ]
+  },
+  {
+   "id": "O4-03",
+   "phase": 4,
+   "title": "Reconcile backlog, staged entity resolution, contradictions",
+   "decisions": [
+    "O-10",
+    "O-11",
+    "O-12"
+   ],
+   "depends_on": [
+    "O4-01",
+    "W2-09"
+   ],
+   "kind": "behaviour",
+   "gate": "Contradiction-recall set; MAB-CR non-inferior",
+   "status": "Not started",
+   "note": "",
+   "layers": [
+    "L1",
+    "L3"
+   ],
+   "operators": [
+    "K_C"
+   ],
+   "files": [
+    "workers/pipelines.py",
+    "config/constants.py",
+    "memories/associative/resolution.py"
+   ],
+   "lane": "offline",
+   "agent": "sonnet",
+   "components": [
+    "memspine.derive.contradict.ContradictionSweep",
+    "memspine.derive.reconcile.BacklogReconciler",
+    "memspine.derive.resolve.EntityResolver (v2, ResolutionStage list)"
+   ]
+  },
+  {
+   "id": "O4-04",
+   "phase": 4,
+   "title": "Near-duplicate merge and value histories",
+   "decisions": [
+    "O-13",
+    "O-14",
+    "M-13"
+   ],
+   "depends_on": [
+    "O4-03"
+   ],
+   "kind": "behaviour",
+   "gate": "Zero wrong numeric merges; MAB-CR token check",
+   "status": "Not started",
+   "note": "",
+   "layers": [
+    "L1",
+    "L4"
+   ],
+   "operators": [
+    "K_C"
+   ],
+   "files": [
+    "src/memspine/core/records.py",
+    "config/constants.py"
+   ],
+   "lane": "offline",
+   "agent": "sonnet",
+   "components": [
+    "ValueHistoryView (L1) + ObservationLayer (L4, held)",
+    "memspine.derive.dedupe.NearDuplicateMerger + QualifierGuard",
+    "memspine.derive.history.ValueHistoryView"
+   ]
+  },
+  {
+   "id": "O4-05",
+   "phase": 4,
+   "title": "Pattern observations (opt-in L4)",
+   "decisions": [
+    "O-15",
+    "M-13"
+   ],
+   "depends_on": [
+    "O4-04"
+   ],
+   "kind": "behaviour",
+   "gate": "OP-Bench, PrefEval, MAB-CR non-inferior; sleep calls within budget",
+   "status": "Not started",
+   "note": "Q3",
+   "layers": [
+    "L1",
+    "L4"
+   ],
+   "operators": [
+    "K_C"
+   ],
+   "files": [
+    "src/memspine/core/records.py",
+    "workers/schedule.py"
+   ],
+   "lane": "offline",
+   "agent": "sonnet",
+   "components": [
+    "ValueHistoryView (L1) + ObservationLayer (L4, held)",
+    "none (no memspine.derive.observations)"
+   ]
+  },
+  {
+   "id": "O4-06",
+   "phase": 4,
+   "title": "Entity summaries and communities (opt-in)",
+   "decisions": [
+    "O-16",
+    "O-17",
+    "M-19"
+   ],
+   "depends_on": [
+    "O4-03"
+   ],
+   "kind": "behaviour",
+   "gate": "Global-question workload",
+   "status": "Not started",
+   "note": "",
+   "layers": [
+    "L1",
+    "L3",
+    "L4"
+   ],
+   "operators": [
+    "K_C"
+   ],
+   "files": [
+    "config/constants.py",
+    "src/memspine/workers/pipelines.py",
+    "workers/pipelines.py",
+    "src/memspine/config/constants.py"
+   ],
+   "lane": "offline",
+   "agent": "sonnet",
+   "components": [
+    "GroupingKinds {community, entity_summary, observation_scope (held)}",
+    "memspine.derive.communities.Reorganiser",
+    "memspine.derive.entity_summary.EntitySummariser"
+   ]
+  },
+  {
+   "id": "O4-07",
+   "phase": 4,
+   "title": "Profile card, guarded operations, reflection",
+   "decisions": [
+    "O-18",
+    "O-19",
+    "O-20",
+    "M-20"
+   ],
+   "depends_on": [
+    "O4-02"
+   ],
+   "kind": "behaviour",
+   "gate": "OP-Bench and PrefEval up; hand audit at least 90%",
+   "status": "Not started",
+   "note": "",
+   "layers": [
+    "L1",
+    "L4",
+    "ctx"
+   ],
+   "operators": [
+    "K_P"
+   ],
+   "files": [
+    "config/constants.py",
+    "engine.py",
+    "workers/pipelines.py",
+    "memories/reflective/reflections.py"
+   ],
+   "lane": "after F-13 (O4)",
+   "agent": "sonnet",
+   "components": [
+    "ProfileCard (L4)",
+    "memspine.derive.profile.ProfileOps -> ProfileCard",
+    "memspine.derive.reflect.Reflector",
+    "memspine.memories.profile.ProfileCard"
+   ]
+  },
+  {
+   "id": "O4-08",
+   "phase": 4,
+   "title": "Standing answers (opt-in)",
+   "decisions": [
+    "O-21"
+   ],
+   "depends_on": [
+    "O4-04"
+   ],
+   "kind": "behaviour",
+   "gate": "Refresh on watermark; cited sources",
+   "status": "Not started",
+   "note": "",
+   "layers": [
+    "L1",
+    "L4"
+   ],
+   "operators": [
+    "K_P"
+   ],
+   "files": [],
+   "lane": "offline",
+   "agent": "sonnet",
+   "components": [
+    "memspine.derive.standing.StandingAnswers"
+   ]
+  },
+  {
+   "id": "O4-09",
+   "phase": 4,
+   "title": "Decay tiers, compression, multi-resolution text",
+   "decisions": [
+    "O-22",
+    "M-22",
+    "P-16"
+   ],
+   "depends_on": [
+    "O4-01"
+   ],
+   "kind": "behaviour",
+   "gate": "Context tokens down at no QA loss",
+   "status": "Not started",
+   "note": "",
+   "layers": [
+    "L0",
+    "L1",
+    "ctx"
+   ],
+   "operators": [
+    "K_C",
+    "C"
+   ],
+   "files": [
+    "workers/pipelines.py",
+    "config/constants.py",
+    "src/memspine/config/schema.py",
+    "src/memspine/core/policies/compression.py"
+   ],
+   "lane": "offline",
+   "agent": "sonnet",
+   "components": [
+    "Record.res{gist, note, full_ptr}",
+    "memspine.derive.lifecycle.TierSweep",
+    "prompts.compress"
+   ]
+  },
+  {
+   "id": "O4-10",
+   "phase": 4,
+   "title": "Prospective and procedural memory",
+   "decisions": [
+    "O-23",
+    "O-24"
+   ],
+   "depends_on": [
+    "O4-01"
+   ],
+   "kind": "behaviour",
+   "gate": "Advisory only; off by default",
+   "status": "Not started",
+   "note": "",
+   "layers": [
+    "L5"
+   ],
+   "operators": [
+    "K_C"
+   ],
+   "files": [
+    "memories/procedural/lessons.py",
+    "workers/pipelines.py",
+    "engine.py"
+   ],
+   "lane": "after F-13 (O4)",
+   "agent": "sonnet",
+   "components": [
+    "memspine.derive.procedural.LessonBuilder + CaseExtractor",
+    "memspine.derive.prospective.Watches + CueWriter"
+   ]
+  },
+  {
+   "id": "O4-11",
+   "phase": 4,
+   "title": "Explicit feedback only; observer views (multi-agent)",
+   "decisions": [
+    "O-25",
+    "O-26",
+    "M-24"
+   ],
+   "depends_on": [
+    "O4-03"
+   ],
+   "kind": "behaviour",
+   "gate": "Multi-agent template tests",
+   "status": "Not started",
+   "note": "",
+   "layers": [
+    "L1",
+    "L4",
+    "L5",
+    "scope"
+   ],
+   "operators": [
+    "K_C",
+    "K_P",
+    "R"
+   ],
+   "files": [
+    "core/perspective.py",
+    "engine.py",
+    "src/memspine/core/namespace.py",
+    "src/memspine/engine.py"
+   ],
+   "lane": "after F-13 (O4)",
+   "agent": "sonnet",
+   "components": [
+    "Grants + ObserverViews",
+    "memspine.derive.views.ObserverViews",
+    "unchanged feedback verb on the scoped handle (G-16 D)"
+   ]
+  },
+  {
+   "id": "MD-01",
+   "phase": 2,
+   "title": "Model tiers, placement, no-model fallbacks, device plan, thinking per role",
+   "decisions": [
+    "P-01",
+    "P-02",
+    "P-03",
+    "P-15",
+    "P-19"
+   ],
+   "depends_on": [
+    "F-06"
+   ],
+   "kind": "behaviour",
+   "gate": "Worker-tier screen per role",
+   "status": "Not started",
+   "note": "",
+   "layers": [
+    "L0",
+    "L1",
+    "L4"
+   ],
+   "operators": [
+    "D",
+    "K_C",
+    "R",
+    "G"
+   ],
+   "files": [
+    "src/memspine/config/schema.py",
+    "src/memspine/engine.py",
+    "src/memspine/prompts/roles.py",
+    "src/memspine/services/llm/base.py"
+   ],
+   "lane": "models",
+   "agent": "sonnet",
+   "components": [
+    "models.fallback",
+    "models.placement",
+    "models.reasoning",
+    "models.tiers"
+   ]
+  },
+  {
+   "id": "MD-02",
+   "phase": 2,
+   "title": "Default embedders (CPU multilingual, GPU profile)",
+   "decisions": [
+    "P-17",
+    "M-23"
+   ],
+   "depends_on": [
+    "F-06"
+   ],
+   "kind": "behaviour",
+   "gate": "English R@k within band; non-English probe",
+   "status": "Not started",
+   "note": "",
+   "layers": [
+    "L0",
+    "L1"
+   ],
+   "operators": [
+    "R"
+   ],
+   "files": [
+    "src/memspine/config/schema.py",
+    "src/memspine/engine.py",
+    "src/memspine/services/vector/lancedb_store.py"
+   ],
+   "lane": "models",
+   "agent": "sonnet",
+   "components": [
+    "EmbeddingProfile pinned per store",
+    "retrieval.encoders.embedder"
+   ]
+  },
+  {
+   "id": "T5-01",
+   "phase": 5,
+   "title": "Trust horizon on grants; lineage always recorded",
+   "decisions": [
+    "G-07",
+    "G-08"
+   ],
+   "depends_on": [
+    "F-16"
+   ],
+   "kind": "behaviour",
+   "gate": "Read cost of the bound; N1 tests",
+   "status": "Not started",
+   "note": "",
+   "layers": [
+    "L1",
+    "L4",
+    "scope"
+   ],
+   "operators": [
+    "D",
+    "K_C",
+    "R"
+   ],
+   "files": [
+    "src/memspine/config/schema.py",
+    "src/memspine/engine.py",
+    "src/memspine/config/constants.py",
+    "src/memspine/config/templates/multi_agent.yaml"
+   ],
+   "lane": "trust",
+   "agent": "sonnet",
+   "components": [
+    "memspine.trust.horizon (THI auto-armed by GrantRegistry)",
+    "memspine.trust.lineage (ReadLedger)"
+   ]
+  },
+  {
+   "id": "T5-02",
+   "phase": 5,
+   "title": "Low-trust rendering in context",
+   "decisions": [
+    "G-09"
+   ],
+   "depends_on": [
+    "F-11"
+   ],
+   "kind": "behaviour",
+   "gate": "Count wrapped blocks; QA non-inferior",
+   "status": "Not started",
+   "note": "",
+   "layers": [
+    "L0",
+    "L1",
+    "ctx"
+   ],
+   "operators": [
+    "C"
+   ],
+   "files": [
+    "src/memspine/config/schema.py"
+   ],
+   "lane": "trust",
+   "agent": "sonnet",
+   "components": [
+    "memspine.compose.trust_render"
+   ]
+  },
+  {
+   "id": "T5-03",
+   "phase": 5,
+   "title": "Privacy tiers, consent and purpose scopes",
+   "decisions": [
+    "G-10",
+    "G-11"
+   ],
+   "depends_on": [
+    "F-12"
+   ],
+   "kind": "behaviour",
+   "gate": "Remote-tier gate tests",
+   "status": "Not started",
+   "note": "",
+   "layers": [
+    "L0",
+    "L1",
+    "L4"
+   ],
+   "operators": [
+    "D",
+    "K_P",
+    "R",
+    "C"
+   ],
+   "files": [
+    "src/memspine/config/schema.py",
+    "src/memspine/core/privacy.py"
+   ],
+   "lane": "trust",
+   "agent": "sonnet",
+   "components": [
+    "memspine.trust.consent",
+    "memspine.trust.privacy (Redactor, EgressGate)"
+   ]
+  },
+  {
+   "id": "T5-04",
+   "phase": 5,
+   "title": "Erasure index across caches and projections",
+   "decisions": [
+    "G-13",
+    "M-25"
+   ],
+   "depends_on": [
+    "F-16"
+   ],
+   "kind": "behaviour",
+   "gate": "Forget probes on both profiles",
+   "status": "Not started",
+   "note": "",
+   "layers": [
+    "L0",
+    "L1",
+    "L3",
+    "L4",
+    "L5",
+    "ctx",
+    "scope"
+   ],
+   "operators": [
+    "D",
+    "K_C"
+   ],
+   "files": [
+    "src/memspine/engine.py",
+    "src/memspine/core/erasure.py"
+   ],
+   "lane": "trust",
+   "agent": "sonnet",
+   "components": [
+    "ErasureService over LineageProjection",
+    "memspine.trust.erasure (ReverseLineageIndex)"
+   ]
+  },
+  {
+   "id": "T5-05",
+   "phase": 5,
+   "title": "Retention and audit per profile",
+   "decisions": [
+    "G-14",
+    "G-15"
+   ],
+   "depends_on": [
+    "F-12"
+   ],
+   "kind": "infra",
+   "gate": "Profile tests",
+   "status": "Not started",
+   "note": "",
+   "layers": [
+    "L0",
+    "L1",
+    "L4",
+    "L5",
+    "ctx",
+    "scope"
+   ],
+   "operators": [
+    "D",
+    "K_C",
+    "R"
+   ],
+   "files": [
+    "src/memspine/config/schema.py",
+    "src/memspine/core/audit.py",
+    "src/memspine/core/events.py",
+    "src/memspine/engine.py"
+   ],
+   "lane": "trust",
+   "agent": "sonnet",
+   "components": [
+    "memspine.ops.retention (RetentionProfile)",
+    "memspine.trust.audit"
+   ]
+  },
+  {
+   "id": "T5-06",
+   "phase": 5,
+   "title": "Observability: per-stage ledger, optional OTel, no content in spans",
+   "decisions": [
+    "G-20"
+   ],
+   "depends_on": [
+    "W2-12"
+   ],
+   "kind": "infra",
+   "gate": "Tests",
+   "status": "Not started",
+   "note": "",
+   "layers": [
+    "L0",
+    "L1",
+    "L4",
+    "L5",
+    "ctx",
+    "scope"
+   ],
+   "operators": [
+    "D",
+    "K_C",
+    "K_P",
+    "R",
+    "C",
+    "G"
+   ],
+   "files": [
+    "src/memspine/engine.py",
+    "src/memspine/config/schema.py"
+   ],
+   "lane": "trust",
+   "agent": "sonnet",
+   "components": [
+    "memspine.ops.ledger (StageLedger), memspine[otel] extra"
+   ]
+  },
+  {
+   "id": "R6-01",
+   "phase": 6,
+   "title": "Freeze configuration; sealed blind runs; loop metrics",
+   "decisions": [
+    "G-05",
+    "G-26"
+   ],
+   "depends_on": [
+    "R3-07",
+    "O4-07"
+   ],
+   "kind": "measure",
+   "gate": "One sealed blind run per set; loop metrics on scripted episodes",
+   "status": "Not started",
+   "note": "",
+   "layers": [
+    "L0",
+    "L1",
+    "L4",
+    "L5",
+    "ctx",
+    "scope"
+   ],
+   "operators": [
+    "D",
+    "K_C",
+    "K_P",
+    "R",
+    "C",
+    "G"
+   ],
+   "files": [
+    "docs/RESEARCH_NOVELTY.md",
+    "evals/README.md (cost_per_cycle)",
+    "evals/analysis/GAP_REGISTER.md",
+    "evals/memspine_evals/metrics.py"
+   ],
+   "lane": "release",
+   "agent": "sonnet",
+   "components": [
+    "memspine.evals.loop_metrics (EpisodeRunner)",
+    "paper claims register (docs/v2, no code)"
+   ]
+  },
+  {
+   "id": "R6-02",
+   "phase": 6,
+   "title": "Release memspine 2.0 with notes of removed APIs",
+   "decisions": [
+    "G-23"
+   ],
+   "depends_on": [
+    "R6-01"
+   ],
+   "kind": "infra",
+   "gate": "Release checklist",
+   "status": "Not started",
+   "note": "No compatibility layer",
+   "layers": [
+    "L0",
+    "L1",
+    "L4",
+    "L5",
+    "ctx",
+    "scope"
+   ],
+   "operators": [
+    "D",
+    "K_C"
+   ],
+   "files": [
+    "src/memspine/core/events.py",
+    "src/memspine/engine.py",
+    "src/memspine/services/storage/sqlite/alembic/versions/"
+   ],
+   "lane": "after F-13 (R6)",
+   "agent": "sonnet",
+   "components": [
+    "memspine.migrate (V1Upcaster, ReplayBuilder, v1 compat shim)"
+   ]
+  }
+ ]
+}

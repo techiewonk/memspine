@@ -16,7 +16,7 @@ estimated here; they are set when Phase 0 closes.
 - **Exit gate**: owner answers recorded; the gate replays the 2026-10-11 case correctly (refuses PROMOTE for an
   identical arm); a fresh environment reproduces clean-jina-full.
 
-## Phase 1: foundations (inside `memspine`, behind flags)
+## Phase 1: foundations (memspine restructured in place)
 
 - Event log and upcasters; the record shape with `layer`, envelope, tri-temporal times, scope tuple, lineage table,
   identity key with kind and occurrence (M-01, M-02, M-05, M-06, M-09, M-10, M-17, M-26).
@@ -66,9 +66,10 @@ estimated here; they are set when Phase 0 closes.
 
 - Freeze the v2 configuration; one sealed blind run per blind set; loop metrics on scripted episodes (G-05).
 - Paper claims only from the frozen configuration's blind runs; each N1-N7 claim with its own evidence (G-26).
-- Release `memspine` 2.0 with `memspine.compat.v1` for one minor release.
+- Release the restructured `memspine` as 2.0 (no compatibility layer; the release notes list removed APIs).
 
 ## Change log
 - 2026-10-11: first version.
 - 2026-10-11 (later): v2 lands inside `memspine` (Q9); lock fix done.
 - 2026-10-12: Q1-Q9 answered; pattern observations (Phase 4) and the Neo4j server graph (Phase 1) added.
+- 2026-10-12 (owner): not a separate v2; memspine is restructured as a whole along this plan; replaced code is deleted, no compatibility shims.

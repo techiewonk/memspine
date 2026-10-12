@@ -134,12 +134,13 @@ flowchart TD
 
 ## 7. Relation to v1 (owner decision, Q9)
 
-v2 is built inside `memspine` on the same principles: components land in `src/memspine/` behind flags and
-profiles and become default only through the gate; the v1 reference stays reproducible by commit; API changes
-keep `memspine.compat.v1` aliases for one release; stores migrate by replaying the event log (G-16, G-23, G-25).
+memspine itself is restructured on the same principles (owner, 2026-10-12): replaced code is deleted rather than
+aliased; behaviour changes become default only through the gate; the current reference stays reproducible by commit
+(`pinned_run.sh`); stores migrate by replaying the event log (G-16, G-23, G-25). See `RESTRUCTURE.md`.
 
 ## Change log
 - 2026-10-11: first version from the 155 answered decisions and the six area reviews.
 - 2026-10-11 (later): section 7 rewritten for Q9 (v2 inside `memspine`).
 - 2026-10-12: owner answers Q1-Q8 applied (pattern observations; Neo4j server graph).
 - 2026-10-12 (later): stale owner-confirmation markers resolved from the Q1-Q8 answers.
+- 2026-10-12 (owner): not a separate v2; memspine is restructured as a whole along this plan; replaced code is deleted, no compatibility shims.
