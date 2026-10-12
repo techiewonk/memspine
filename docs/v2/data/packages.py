@@ -104,7 +104,7 @@ WP = [
     ("LIB-28", 1, "Library: prospective and procedural memory (advisory reminders, procedures; opt-in)", ["O-23", "O-24"], ["MOD-01"], "infra",
      "Unit tests; pure, unwired (wiring in O4-10); depends only on memspine.schemas", "Ready", "Library-first split (owner 2026-10-13: parallel agents)"),
     ("LIB-29", 1, "Library: stamping (three clocks, time zone, speaker/addressee/participants, provenance class)", ["W-04", "W-05", "W-08", "M-08"], ["MOD-01"], "infra",
-     "Unit tests; pure, unwired (wiring in W2-02); depends only on memspine.schemas", "Ready", "Library-first split (owner 2026-10-13: parallel agents)"),
+     "Unit tests; pure, unwired (wiring in W2-02); depends only on memspine.schemas", "Done", "ingest/stamp.py: three clocks, tz unknown flagged never shifted, DST, skew, out-of-order, participants, S3-3 write id (b2952a5)"),
     ("LIB-30", 1, "Library: source envelope intake, receipt and readiness, write ids and re-ingest", ["W-01", "W-02", "W-03", "W-24"], ["MOD-01"], "infra",
      "Unit tests; pure, unwired (wiring in W2-01); depends only on memspine.schemas", "Ready", "Library-first split (owner 2026-10-13: parallel agents)"),
     ("LIB-31", 1, "Library: pattern observations from value histories and events (recurrence, frequency, trend; opt-in L4)", ["O-15", "M-13"], ["MOD-01"], "infra",
