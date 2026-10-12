@@ -1582,8 +1582,8 @@
    ],
    "kind": "infra",
    "gate": "Unit tests; pure, unwired (wiring in T5-01); depends only on memspine.schemas",
-   "status": "Ready",
-   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "status": "Done",
+   "note": "trust/horizon.py: grants with horizon and kappa, no amplification, reach bound property-tested vs brute force, POL-2 laundering cap (b98388d)",
    "layers": [
     "scope"
    ],
@@ -1713,6 +1713,85 @@
    "agent": "sonnet",
    "components": [
     "compose.windows (TokenWindow)"
+   ],
+   "review": []
+  },
+  {
+   "id": "LIB-25",
+   "phase": 1,
+   "title": "Library: low-trust and tentative rendering in context (labels, quoting, separation)",
+   "decisions": [
+    "G-09"
+   ],
+   "depends_on": [
+    "MOD-01"
+   ],
+   "kind": "infra",
+   "gate": "Unit tests; pure, unwired (wiring in T5-02); depends only on memspine.schemas",
+   "status": "Ready",
+   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "layers": [
+    "L0",
+    "L1",
+    "ctx"
+   ],
+   "operators": [
+    "C"
+   ],
+   "files": [
+    "src/memspine/config/schema.py"
+   ],
+   "owns": [
+    "src/memspine/compose/render_trust.py",
+    "tests/unit/lib/test_lib_25*.py"
+   ],
+   "lane": "other",
+   "agent": "sonnet",
+   "components": [
+    "memspine.compose.trust_render"
+   ],
+   "review": []
+  },
+  {
+   "id": "LIB-26",
+   "phase": 1,
+   "title": "Library: background budget and read-side freshness (covers_seq, staleness verdicts)",
+   "decisions": [
+    "O-05",
+    "O-06"
+   ],
+   "depends_on": [
+    "MOD-01"
+   ],
+   "kind": "infra",
+   "gate": "Unit tests; pure, unwired (wiring in O4-01b); depends only on memspine.schemas",
+   "status": "Ready",
+   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "layers": [
+    "L0",
+    "L1",
+    "L3",
+    "L4",
+    "ctx"
+   ],
+   "operators": [
+    "K_C",
+    "K_P",
+    "R"
+   ],
+   "files": [
+    "config/constants.py",
+    "engine.py"
+   ],
+   "owns": [
+    "src/memspine/runtime/freshness.py",
+    "tests/unit/lib/test_lib_26*.py"
+   ],
+   "lane": "other",
+   "agent": "sonnet",
+   "components": [
+    "covers_seq field on derived records + memspine.read.freshness",
+    "memspine.derive.budget.DerivationBudget"
    ],
    "review": []
   },
@@ -2140,7 +2219,8 @@
    ],
    "depends_on": [
     "F-10b",
-    "LIB-06"
+    "LIB-06",
+    "LIB-25"
    ],
    "kind": "move",
    "gate": "Golden context hash identical",
@@ -2710,7 +2790,8 @@
    ],
    "depends_on": [
     "F-02b",
-    "LIB-07"
+    "LIB-07",
+    "LIB-26"
    ],
    "kind": "behaviour",
    "gate": "Fault-injection tests; golden unchanged with barrier",
@@ -4924,7 +5005,8 @@
    ],
    "depends_on": [
     "O4-01a",
-    "F-16a"
+    "F-16a",
+    "LIB-26"
    ],
    "kind": "behaviour",
    "gate": "Deferred work counted, never dropped",
@@ -5455,7 +5537,8 @@
     "G-09"
    ],
    "depends_on": [
-    "R3-02"
+    "R3-02",
+    "LIB-25"
    ],
    "kind": "behaviour",
    "gate": "Count wrapped blocks; QA non-inferior",
