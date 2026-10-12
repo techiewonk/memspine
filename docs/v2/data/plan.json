@@ -804,7 +804,11 @@
     "src/memspine/core/audit.py",
     "src/memspine/core/erasure.py",
     "src/memspine/core/privacy.py",
-    "src/memspine/core/redaction.py"
+    "src/memspine/core/redaction.py",
+    "scripts/codemod_move.py",
+    "scripts/moves/F-05.toml",
+    "src/memspine/{ingest,derive,read,compose,models,runtime,api,memory}/__init__.py",
+    "tests/golden/harness.py"
    ],
    "lane": "S1 split (serial)",
    "agent": "sonnet",
