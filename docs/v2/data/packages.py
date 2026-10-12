@@ -51,7 +51,7 @@ WP = [
     ("F-05", 1, "Package skeleton; move store and trust leaves", ["G-16"], ["P0-04", "X-00", "X-01", "X-02"], "move",
      "Both suites and golden green; no old import paths", "Not started", "S5"),
     ("F-06", 1, "Move read, compose and models leaves", ["G-16"], ["F-05"], "move", "Same as F-05", "Not started", "S6"),
-    ("MOD-02", 1, "Typed registries + entry points (discovery is not enablement: pinned capability manifest)", ["G-16"], ["F-06"], "api",
+    ("MOD-02", 1, "Typed registries + entry points (discovery is not enablement: pinned capability manifest)", ["G-16"], ["F-06", "MOD-01"], "api",
      "Built-ins register at import; entry-point plug-in test; golden unchanged", "Not started", "Owner 2026-10-13"),
     ("F-07", 1, "Config split and flag registry (per-area flag modules)", ["G-21", "G-22"], ["MOD-02"], "move",
      "Same YAML keys; every default flag has evidence", "Not started", "S7"),
