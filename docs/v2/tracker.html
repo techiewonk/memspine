@@ -91,14 +91,14 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
     <input type="search" id="q" placeholder="Search id, title, decision (e.g. M-17)">
     <select id="fphase" aria-label="Phase"></select>
     <select id="flane" aria-label="Lane"></select>
-    <select id="fkind" aria-label="Kind"><option value="">All kinds</option><option>move</option><option>behaviour</option><option>measure</option><option>infra</option></select>
+    <select id="fkind" aria-label="Kind"><option value="">All kinds</option><option>move</option><option>migration</option><option>api</option><option>behaviour</option><option>measure</option><option>infra</option></select>
     <label class="chk"><input type="checkbox" id="fstart"> Can start now</label>
     <label class="chk"><input type="checkbox" id="fnote"> Has review note</label>
     <span class="status" id="status">loading…</span>
   </div>
   <div class="tablewrap"><table>
-    <thead><tr><th>Id</th><th>Work package</th><th>Layers</th><th>Ops</th><th>Depends on</th><th>Kind</th><th>Lane</th><th>Status</th></tr></thead>
-    <tbody id="tb"><tr><td colspan="8" class="empty">Loading the plan…</td></tr></tbody>
+    <thead><tr><th>Id</th><th>Work package</th><th>Layers</th><th>Ops</th><th>Review</th><th>Depends on</th><th>Kind</th><th>Lane</th><th>Status</th></tr></thead>
+    <tbody id="tb"><tr><td colspan="9" class="empty">Loading the plan…</td></tr></tbody>
   </table></div>
 </div>
 
@@ -155,6 +155,9 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "components": [
     "memspine.evals.gate (AdoptionGate)",
     "memspine.evals.uncertainty"
+   ],
+   "review": [
+    "ER-35"
    ]
   },
   {
@@ -182,6 +185,9 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "agent": "sonnet",
    "components": [
     "memspine.evals.env (RunEnv)"
+   ],
+   "review": [
+    "ER-35"
    ]
   },
   {
@@ -211,6 +217,10 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "agent": "sonnet",
    "components": [
     "memspine.evals.manifest (RunManifest)"
+   ],
+   "review": [
+    "ER-35",
+    "ER-34"
    ]
   },
   {
@@ -250,7 +260,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "agent": "sonnet",
    "components": [
     "memspine.api (Engine facade, ScopedHandle)"
-   ]
+   ],
+   "review": []
   },
   {
    "id": "P0-05",
@@ -279,7 +290,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "agent": "sonnet",
    "components": [
     "models.reasoning"
-   ]
+   ],
+   "review": []
   },
   {
    "id": "P0-06",
@@ -322,7 +334,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
     "derive.OnlineExtractor + read.PendingBarrier (wait_for_pending with timeout)",
     "memspine.derive.entity_summary.EntitySummariser",
     "memspine.derive.session.SessionCloser + SessionCatchUp"
-   ]
+   ],
+   "review": []
   },
   {
    "id": "P0-07",
@@ -353,7 +366,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "agent": "sonnet",
    "components": [
     "read.contract (QueryContract)"
-   ]
+   ],
+   "review": []
   },
   {
    "id": "P0-08",
@@ -395,6 +409,10 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "components": [
     "memspine.evals.behavioural (BehaviouralSuite)",
     "memspine.evals.suite (DatasetRoles registry)"
+   ],
+   "review": [
+    "ER-36",
+    "ER-37"
    ]
   },
   {
@@ -426,6 +444,10 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "components": [
     "prompts.lint",
     "prompts.write_extract v2 + prompts/_partials (same_language.j2, coarse_date.j2) + prompts.PromptIdentity"
+   ],
+   "review": [
+    "ER-16",
+    "ER-38"
    ]
   },
   {
@@ -463,6 +485,10 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "agent": "sonnet",
    "components": [
     "memspine.api (Engine facade, ScopedHandle)"
+   ],
+   "review": [
+    "ER-01",
+    "ER-04"
    ]
   },
   {
@@ -502,6 +528,10 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "agent": "sonnet",
    "components": [
     "memspine.api (Engine facade, ScopedHandle)"
+   ],
+   "review": [
+    "ER-02",
+    "ER-04"
    ]
   },
   {
@@ -539,6 +569,10 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "agent": "sonnet",
    "components": [
     "memspine.config.flags (FlagRegistry)"
+   ],
+   "review": [
+    "ER-04",
+    "ER-38"
    ]
   },
   {
@@ -574,7 +608,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "agent": "sonnet",
    "components": [
     "memspine.evals.behavioural (BehaviouralSuite)"
-   ]
+   ],
+   "review": []
   },
   {
    "id": "X-04",
@@ -609,6 +644,9 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "agent": "sonnet",
    "components": [
     "memspine.migrate (V1Upcaster, ReplayBuilder, v1 compat shim)"
+   ],
+   "review": [
+    "ER-01"
    ]
   },
   {
@@ -648,6 +686,10 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
     "graph.OnlineResolver (EntityResolver with llm=None, bounded cache, pending_merge output)",
     "memspine.derive.communities.Reorganiser",
     "memspine.derive.contradict.ContradictionSweep"
+   ],
+   "review": [
+    "ER-12",
+    "ER-37"
    ]
   },
   {
@@ -691,6 +733,10 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "components": [
     "Upcasters + Record.derivation",
     "memspine.api (Engine facade, ScopedHandle)"
+   ],
+   "review": [
+    "ER-32",
+    "ER-33"
    ]
   },
   {
@@ -720,7 +766,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "agent": "sonnet",
    "components": [
     "read.rerank (RerankStage)"
-   ]
+   ],
+   "review": []
   },
   {
    "id": "F-05",
@@ -732,6 +779,7 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "depends_on": [
     "P0-04",
     "X-00",
+    "X-01",
     "X-02"
    ],
    "kind": "move",
@@ -761,7 +809,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "agent": "sonnet",
    "components": [
     "memspine.api (Engine facade, ScopedHandle)"
-   ]
+   ],
+   "review": []
   },
   {
    "id": "F-06",
@@ -800,19 +849,20 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "agent": "sonnet",
    "components": [
     "memspine.api (Engine facade, ScopedHandle)"
-   ]
+   ],
+   "review": []
   },
   {
    "id": "MOD-02",
    "phase": 1,
-   "title": "Typed registries + entry points: stages, legs, backends, providers, prompts",
+   "title": "Typed registries + entry points (discovery is not enablement: pinned capability manifest)",
    "decisions": [
     "G-16"
    ],
    "depends_on": [
     "F-06"
    ],
-   "kind": "move",
+   "kind": "api",
    "gate": "Built-ins register at import; entry-point plug-in test; golden unchanged",
    "status": "Not started",
    "note": "Owner 2026-10-13",
@@ -839,6 +889,11 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "agent": "sonnet",
    "components": [
     "memspine.api (Engine facade, ScopedHandle)"
+   ],
+   "review": [
+    "ER-03",
+    "ER-33",
+    "ER-34"
    ]
   },
   {
@@ -880,7 +935,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "components": [
     "memspine.config.flags (FlagRegistry)",
     "memspine.config.profiles (base + shape presets)"
-   ]
+   ],
+   "review": []
   },
   {
    "id": "F-08",
@@ -892,7 +948,7 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "depends_on": [
     "F-07"
    ],
-   "kind": "move",
+   "kind": "api",
    "gate": "Golden",
    "status": "Not started",
    "note": "S8",
@@ -919,6 +975,11 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "agent": "sonnet",
    "components": [
     "memspine.api (Engine facade, ScopedHandle)"
+   ],
+   "review": [
+    "ER-03",
+    "ER-10",
+    "ER-34"
    ]
   },
   {
@@ -953,7 +1014,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "components": [
     "intake.SourceEnvelope + intake.IntakeGateway (write_messages / ingest / write_episode as adapters)",
     "intake.TypeRouter (unkeyed -> episodic/resource raw; keyed entity/attribute, skill, plan -> typed write with parents)"
-   ]
+   ],
+   "review": []
   },
   {
    "id": "F-10a",
@@ -985,7 +1047,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "agent": "sonnet",
    "components": [
     "read.legs (Leg registry with families)"
-   ]
+   ],
+   "review": []
   },
   {
    "id": "F-10b",
@@ -1017,7 +1080,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "agent": "sonnet",
    "components": [
     "read.legs (Leg registry with families)"
-   ]
+   ],
+   "review": []
   },
   {
    "id": "F-11",
@@ -1048,7 +1112,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "agent": "sonnet",
    "components": [
     "compose.render (Renderer)"
-   ]
+   ],
+   "review": []
   },
   {
    "id": "F-12",
@@ -1085,7 +1150,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "components": [
     "Grants + ObserverViews",
     "WorkingMemory + RollingSummary"
-   ]
+   ],
+   "review": []
   },
   {
    "id": "F-13a",
@@ -1097,7 +1163,7 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "depends_on": [
     "F-12"
    ],
-   "kind": "move",
+   "kind": "api",
    "gate": "Golden",
    "status": "Not started",
    "note": "S13; no aliases",
@@ -1124,6 +1190,9 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "agent": "sonnet",
    "components": [
     "memspine.api (Engine facade, ScopedHandle)"
+   ],
+   "review": [
+    "ER-03"
    ]
   },
   {
@@ -1160,7 +1229,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "components": [
     "memspine.protocols.rest, memspine.protocols.mcp",
     "none in v2 core (later: memspine-adapters extra)"
-   ]
+   ],
+   "review": []
   },
   {
    "id": "F-13c",
@@ -1199,7 +1269,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "agent": "sonnet",
    "components": [
     "memspine.api (Engine facade, ScopedHandle)"
-   ]
+   ],
+   "review": []
   },
   {
    "id": "F-15",
@@ -1234,7 +1305,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "agent": "sonnet",
    "components": [
     "memspine.derive.stages.STAGE_ORDER"
-   ]
+   ],
+   "review": []
   },
   {
    "id": "F-14a",
@@ -1271,6 +1343,9 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "agent": "sonnet",
    "components": [
     "memspine.config.flags (FlagRegistry)"
+   ],
+   "review": [
+    "ER-40"
    ]
   },
   {
@@ -1308,6 +1383,9 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "agent": "sonnet",
    "components": [
     "memspine.config.flags (FlagRegistry)"
+   ],
+   "review": [
+    "ER-40"
    ]
   },
   {
@@ -1341,6 +1419,10 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "components": [
     "AssertionKey (versioned, aliases)",
     "identity.AssertionKey (versioned; kind; occurrence id) + identity.OccurrenceResolver"
+   ],
+   "review": [
+    "ER-13",
+    "ER-20"
    ]
   },
   {
@@ -1356,9 +1438,10 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
     "P-12"
    ],
    "depends_on": [
-    "F-01"
+    "F-01",
+    "MOD-01"
    ],
-   "kind": "move",
+   "kind": "migration",
    "gate": "Replay byte-stable; upcaster round-trips; golden unchanged",
    "status": "Not started",
    "note": "S2+S3; Q1",
@@ -1389,6 +1472,11 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
     "Provenance{src_class, trust, support_count}",
     "Record.layer + Record.derivation + template layers block",
     "RecordAxes columns (+ participants list per W-05)"
+   ],
+   "review": [
+    "ER-03",
+    "ER-14",
+    "ER-32"
    ]
   },
   {
@@ -1402,7 +1490,7 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "depends_on": [
     "F-02a"
    ],
-   "kind": "move",
+   "kind": "migration",
    "gate": "Golden unchanged; registry reports layers per namespace",
    "status": "Not started",
    "note": "Legs run only when their layer exists",
@@ -1427,6 +1515,10 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "components": [
     "Envelope.times + GraphProjection edge-time view",
     "Record.layer + Record.derivation + template layers block"
+   ],
+   "review": [
+    "ER-03",
+    "ER-18"
    ]
   },
   {
@@ -1459,6 +1551,9 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "agent": "sonnet",
    "components": [
     "EdgeCompiler + LinkProjection"
+   ],
+   "review": [
+    "ER-20"
    ]
   },
   {
@@ -1486,7 +1581,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "agent": "sonnet",
    "components": [
     "models.upgrade"
-   ]
+   ],
+   "review": []
   },
   {
    "id": "F-04",
@@ -1530,6 +1626,11 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
     "derive.DerivationOutbox (SQL table: membership, source versions, attempts, lease, state)",
     "economy.slo",
     "intake.Receipt + derive.DerivationIntent (status call per layer)"
+   ],
+   "review": [
+    "ER-06",
+    "ER-07",
+    "ER-09"
    ]
   },
   {
@@ -1568,6 +1669,9 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "components": [
     "derive.DerivationOutbox (SQL table: membership, source versions, attempts, lease, state)",
     "memspine.runtime (InlineRunner draining DerivationOutbox)"
+   ],
+   "review": [
+    "ER-06"
    ]
   },
   {
@@ -1608,6 +1712,11 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
     "derive.Backpressure (coalesce, age and size caps, underived marker in the outbox)",
     "economy.slo",
     "runtime.scheduler"
+   ],
+   "review": [
+    "ER-08",
+    "ER-10",
+    "ER-39"
    ]
   },
   {
@@ -1649,12 +1758,17 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "components": [
     "LineageProjection",
     "memspine.trust.lineage (ReadLedger)"
+   ],
+   "review": [
+    "ER-11",
+    "ER-22",
+    "POL-2"
    ]
   },
   {
    "id": "F-16b",
    "phase": 1,
-   "title": "Event upcasters and migration by replay",
+   "title": "Event upcasters and migration by replay of the retained log (limited rebuild advertised)",
    "decisions": [
     "M-01",
     "M-26",
@@ -1663,7 +1777,7 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "depends_on": [
     "F-16a"
    ],
-   "kind": "move",
+   "kind": "migration",
    "gate": "v1 log replays byte-stably",
    "status": "Not started",
    "note": "",
@@ -1692,12 +1806,16 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
     "EventLog + MarkdownExportView",
     "Upcasters + Record.derivation",
     "memspine.migrate (V1Upcaster, ReplayBuilder, v1 compat shim)"
+   ],
+   "review": [
+    "ER-27",
+    "ER-33"
    ]
   },
   {
    "id": "F-16c",
    "phase": 1,
-   "title": "Scope tuple in every row and key; multi-party flag; viewerless reads see shared records only",
+   "title": "Stable memory scope in every key (session as provenance); viewer required on every multi-party read, bound to the authenticated principal",
    "decisions": [
     "M-05",
     "G-12"
@@ -1733,6 +1851,10 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "components": [
     "Scope value object in every key",
     "memspine.scope (Scope, ViewerPolicy)"
+   ],
+   "review": [
+    "ER-13",
+    "ER-29"
    ]
   },
   {
@@ -1770,7 +1892,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "agent": "sonnet",
    "components": [
     "StorageProfile{embedded, server}"
-   ]
+   ],
+   "review": []
   },
   {
    "id": "F-16e",
@@ -1803,7 +1926,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "agent": "sonnet",
    "components": [
     "GraphProjection"
-   ]
+   ],
+   "review": []
   },
   {
    "id": "F-16f",
@@ -1840,19 +1964,70 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "agent": "sonnet",
    "components": [
     "ErasureService over LineageProjection"
+   ],
+   "review": [
+    "ER-05",
+    "ER-30"
+   ]
+  },
+  {
+   "id": "EX-1a",
+   "phase": 1,
+   "title": "Embedded milestone: one synthetic end-to-end workload survives restart and erasure",
+   "decisions": [
+    "G-01"
+   ],
+   "depends_on": [
+    "F-16c",
+    "F-16b",
+    "F-02c",
+    "F-03"
+   ],
+   "kind": "measure",
+   "gate": "Restart, erasure and replay on the embedded profile; not a server release",
+   "status": "Not started",
+   "note": "ER-05",
+   "layers": [
+    "L0",
+    "L1",
+    "L4",
+    "L5",
+    "ctx",
+    "scope"
+   ],
+   "operators": [
+    "D",
+    "K_C",
+    "K_P",
+    "R",
+    "C",
+    "G"
+   ],
+   "files": [
+    "evals/eval_blind.py",
+    "evals/eval_focus.py",
+    "evals/eval_screen.py"
+   ],
+   "lane": "S2 foundations (serial: Alembic)",
+   "agent": "sonnet",
+   "components": [
+    "memspine.evals.gate (AdoptionGate)"
+   ],
+   "review": [
+    "ER-05"
    ]
   },
   {
    "id": "EX-1",
    "phase": 1,
-   "title": "Phase 1 exit: raw-only read non-inferior; golden; replay NO CHANGE",
+   "title": "Phase 1 exit (server milestone): raw-only read non-inferior; golden; replay NO CHANGE",
    "decisions": [
     "G-01"
    ],
    "depends_on": [
     "F-16f",
-    "F-02c",
-    "F-03"
+    "EX-1a",
+    "P0-03"
    ],
    "kind": "measure",
    "gate": "ROADMAP Phase 1 exit gate",
@@ -1883,6 +2058,9 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "agent": "sonnet",
    "components": [
     "memspine.evals.gate (AdoptionGate)"
+   ],
+   "review": [
+    "ER-05"
    ]
   },
   {
@@ -1896,10 +2074,10 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
     "W-24"
    ],
    "depends_on": [
-    "EX-1"
+    "EX-1a"
    ],
    "kind": "behaviour",
-   "gate": "Write p95 at most 250 ms; idempotent retries",
+   "gate": "Write p95 at most 250 ms; idempotent retries; receipt never claims an unavailable capability; crash tests at every commit/projector boundary",
    "status": "Not started",
    "note": "",
    "layers": [
@@ -1922,6 +2100,9 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
     "intake.Receipt + derive.DerivationIntent (status call per layer)",
     "intake.SourceEnvelope + intake.IntakeGateway (write_messages / ingest / write_episode as adapters)",
     "intake.SourceVersioner (chunk diff + version events; derived items re-pointed or retired)"
+   ],
+   "review": [
+    "ER-06"
    ]
   },
   {
@@ -1964,7 +2145,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
     "intake.ClockStamper (source_at, source_tz, recorded_at; event interval + precision filled at derivation)",
     "intake.RoleStamper (spk, addr, participants[]) + derive.AsserterSubjectCheck",
     "provenance.SourceClassifier + provenance.AssentChecker"
-   ]
+   ],
+   "review": []
   },
   {
    "id": "W2-03",
@@ -1999,6 +2181,9 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "components": [
     "intake.RolePolicy (raw keeps all roles; derivation filter: assistant=proposed, tool=evidence, system=excluded, echo guard on)",
     "intake.TypeRouter (unkeyed -> episodic/resource raw; keyed entity/attribute, skill, plan -> typed write with parents)"
+   ],
+   "review": [
+    "ER-17"
    ]
   },
   {
@@ -2035,7 +2220,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "components": [
     "firewall.WriteGates (gate 1 raw, gate 2 extraction input filter, gate 3 derived + parent trust cap always on)",
     "memspine.trust.firewall (layered SignalStack)"
-   ]
+   ],
+   "review": []
   },
   {
    "id": "W2-05",
@@ -2065,7 +2251,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "agent": "sonnet",
    "components": [
     "derive.Segmenter (E boundaries) + derive.CallBatcher (B token/age gate)"
-   ]
+   ],
+   "review": []
   },
   {
    "id": "W2-07",
@@ -2079,7 +2266,7 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    ],
    "depends_on": [
     "P0-09",
-    "EX-1"
+    "EX-1a"
    ],
    "kind": "behaviour",
    "gate": "English output unchanged on focus slice (per partial)",
@@ -2107,6 +2294,9 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
     "prompts.layout",
     "prompts.layout.language",
     "prompts.write_extract v2 + prompts/_partials (same_language.j2, coarse_date.j2) + prompts.PromptIdentity"
+   ],
+   "review": [
+    "ER-16"
    ]
   },
   {
@@ -2148,6 +2338,11 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
     "prompts.structured",
     "prompts.structured.repair",
     "schema.ItemV1 (wire) -> schema.AssertionEnvelope (stored), compiler in derive.EnvelopeCompiler"
+   ],
+   "review": [
+    "ER-11",
+    "ER-15",
+    "ER-32"
    ]
   },
   {
@@ -2187,6 +2382,10 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
     "derive.PromptContextBuilder (NEW, CONTEXT, KNOWN; KNOWN fed by the P-23 pre-pass and the online resolver)",
     "prompts.layout.aliases",
     "prompts.structured"
+   ],
+   "review": [
+    "ER-12",
+    "ER-15"
    ]
   },
   {
@@ -2222,7 +2421,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "agent": "sonnet",
    "components": [
     "derive.OnlineExtractor + read.PendingBarrier (wait_for_pending with timeout)"
-   ]
+   ],
+   "review": []
   },
   {
    "id": "W2-14",
@@ -2262,6 +2462,46 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
     "Envelope.times + GraphProjection edge-time view",
     "intake.ClockStamper (source_at, source_tz, recorded_at; event interval + precision filled at derivation)",
     "read.legs.temporal (TimeWindow)"
+   ],
+   "review": [
+    "ER-18"
+   ]
+  },
+  {
+   "id": "W2-15",
+   "phase": 2,
+   "title": "Coverage check and targeted re-extraction (screened)",
+   "decisions": [
+    "W-17",
+    "W-15"
+   ],
+   "depends_on": [
+    "W2-08"
+   ],
+   "kind": "behaviour",
+   "gate": "Omitted-fact recall and unsupported additions measured separately on unseen domains; extra calls counted",
+   "status": "Not started",
+   "note": "ER-12",
+   "layers": [
+    "L1",
+    "L3"
+   ],
+   "operators": [
+    "D"
+   ],
+   "files": [
+    "src/memspine/workers/windows.py",
+    "src/memspine/engine.py",
+    "src/memspine/workers/pipelines.py"
+   ],
+   "lane": "S4 extraction (serial)",
+   "agent": "sonnet",
+   "components": [
+    "derive.GroundingChecker (spans per assertion and endpoint, rule checks) + derive.Adjudicator (local entailment or decider)",
+    "schema.ItemV1 (wire) -> schema.AssertionEnvelope (stored), compiler in derive.EnvelopeCompiler"
+   ],
+   "review": [
+    "ER-12"
    ]
   },
   {
@@ -2293,6 +2533,10 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "agent": "sonnet",
    "components": [
     "derive.GroundingChecker (spans per assertion and endpoint, rule checks) + derive.Adjudicator (local entailment or decider)"
+   ],
+   "review": [
+    "ER-11",
+    "ER-14"
    ]
   },
   {
@@ -2326,6 +2570,10 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "components": [
     "EntityRegistry + MERGE/SPLIT events",
     "graph.OnlineResolver (EntityResolver with llm=None, bounded cache, pending_merge output)"
+   ],
+   "review": [
+    "ER-13",
+    "ER-20"
    ]
   },
   {
@@ -2365,6 +2613,10 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
     "CardinalityRegistry",
     "integrate.CardinalityRegistry (M-12) + integrate.DefaultVerdict",
     "integrate.ConflictLadder (hint-seeded) with deferral to K_C when hints are absent"
+   ],
+   "review": [
+    "ER-14",
+    "ER-17"
    ]
   },
   {
@@ -2396,6 +2648,9 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "agent": "sonnet",
    "components": [
     "intake.AssetDescriber port (triggers: ingest | on_read)"
+   ],
+   "review": [
+    "ER-25"
    ]
   },
   {
@@ -2408,7 +2663,7 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
     "P-22"
    ],
    "depends_on": [
-    "EX-1"
+    "EX-1a"
    ],
    "kind": "infra",
    "gate": "Targets as regression tests",
@@ -2435,6 +2690,13 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
     "economy.ledger",
     "economy.targets",
     "ledger.WriteCostLedger (shared with P-22 C) + ledger.Budget (pause -> underived)"
+   ],
+   "review": [
+    "ER-08",
+    "ER-15",
+    "ER-16",
+    "ER-37",
+    "ER-39"
    ]
   },
   {
@@ -2466,7 +2728,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "agent": "sonnet",
    "components": [
     "write.prepass"
-   ]
+   ],
+   "review": []
   },
   {
    "id": "MD-01",
@@ -2480,7 +2743,7 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
     "P-19"
    ],
    "depends_on": [
-    "EX-1"
+    "EX-1a"
    ],
    "kind": "behaviour",
    "gate": "Worker-tier screen per role; no-model template zero calls",
@@ -2510,7 +2773,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
     "models.placement",
     "models.reasoning",
     "models.tiers"
-   ]
+   ],
+   "review": []
   },
   {
    "id": "MD-02",
@@ -2521,7 +2785,7 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
     "M-23"
    ],
    "depends_on": [
-    "EX-1",
+    "EX-1a",
     "F-03"
    ],
    "kind": "behaviour",
@@ -2545,7 +2809,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "components": [
     "EmbeddingProfile pinned per store",
     "retrieval.encoders.embedder"
-   ]
+   ],
+   "review": []
   },
   {
    "id": "EX-2",
@@ -2588,7 +2853,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "agent": "sonnet",
    "components": [
     "memspine.evals.gate (AdoptionGate)"
-   ]
+   ],
+   "review": []
   },
   {
    "id": "R3-01",
@@ -2599,10 +2865,10 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
     "R-02"
    ],
    "depends_on": [
-    "EX-1"
+    "EX-1a"
    ],
    "kind": "behaviour",
-   "gate": "Fast tier zero model calls; p95 SLO",
+   "gate": "Fast tier zero generative calls; embed/rerank cost reported separately; p95 SLO",
    "status": "Not started",
    "note": "",
    "layers": [
@@ -2625,7 +2891,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "components": [
     "compose.bundle (EvidenceBundle)",
     "read.tiers (TierPolicy)"
-   ]
+   ],
+   "review": []
   },
   {
    "id": "R3-02",
@@ -2662,6 +2929,9 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "components": [
     "compose.render (Renderer)",
     "read.contract (QueryContract)"
+   ],
+   "review": [
+    "ER-19"
    ]
   },
   {
@@ -2693,7 +2963,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "agent": "sonnet",
    "components": [
     "read.router (Router)"
-   ]
+   ],
+   "review": []
   },
   {
    "id": "R3-04",
@@ -2732,7 +3003,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
     "read.legs (Leg registry with families)",
     "read.legs.lexical (Tokeniser port)",
     "read.legs.temporal (TimeWindow)"
-   ]
+   ],
+   "review": []
   },
   {
    "id": "R3-05a",
@@ -2765,7 +3037,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "agent": "sonnet",
    "components": [
     "read.legs.entity"
-   ]
+   ],
+   "review": []
   },
   {
    "id": "R3-05b",
@@ -2797,6 +3070,9 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "agent": "sonnet",
    "components": [
     "read.legs.graph (OneHopConvergent)"
+   ],
+   "review": [
+    "ER-19"
    ]
   },
   {
@@ -2830,7 +3106,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "agent": "sonnet",
    "components": [
     "read.legs.episode + read.lift"
-   ]
+   ],
+   "review": []
   },
   {
    "id": "R3-06",
@@ -2867,7 +3144,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
     "read.fusion (FamilyRRF)",
     "read.pool (FamilyPool)",
     "read.pool (PoolPolicy)"
-   ]
+   ],
+   "review": []
   },
   {
    "id": "R3-07",
@@ -2909,6 +3187,9 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
     "read.rerank (unit = hit)",
     "read.rerank.boosts (BoundedBoost)",
     "retrieval.encoders.reranker"
+   ],
+   "review": [
+    "ER-21"
    ]
   },
   {
@@ -2943,12 +3224,17 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "agent": "sonnet",
    "components": [
     "read.lift"
+   ],
+   "review": [
+    "ER-21",
+    "ER-22",
+    "POL-2"
    ]
   },
   {
    "id": "R3-09a",
    "phase": 3,
-   "title": "Packer early-break fix",
+   "title": "Packer: exact reader-tokenizer accounting incl. headers, citations, reserves; early-break fix",
    "decisions": [
     "R-18"
    ],
@@ -2956,9 +3242,9 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
     "F-11"
    ],
    "kind": "behaviour",
-   "gate": "Unit tests only",
+   "gate": "Exact-tokenizer, multilingual and long-token tests; estimated mode labelled",
    "status": "Not started",
-   "note": "Needs no screen",
+   "note": "ER-24; no quality screen needed",
    "layers": [
     "ctx"
    ],
@@ -2974,12 +3260,15 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "agent": "sonnet",
    "components": [
     "compose.packer (BudgetPacker)"
+   ],
+   "review": [
+    "ER-24"
    ]
   },
   {
    "id": "R3-09b",
    "phase": 3,
-   "title": "Block shares at equal budget",
+   "title": "Adaptive complete evidence bundles and block shares",
    "decisions": [
     "R-18"
    ],
@@ -2988,7 +3277,7 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
     "R3-07"
    ],
    "kind": "behaviour",
-   "gate": "Equal-budget screen",
+   "gate": "Equal-budget screen; adaptive bundle selection gets a separate quality screen (ER-24)",
    "status": "Not started",
    "note": "",
    "layers": [
@@ -3006,6 +3295,9 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "agent": "sonnet",
    "components": [
     "compose.packer (BudgetPacker)"
+   ],
+   "review": [
+    "ER-24"
    ]
   },
   {
@@ -3036,6 +3328,9 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "agent": "sonnet",
    "components": [
     "compose.windows (TokenWindow)"
+   ],
+   "review": [
+    "ER-24"
    ]
   },
   {
@@ -3069,6 +3364,10 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "agent": "sonnet",
    "components": [
     "read.gate (StoreCalibratedGate)"
+   ],
+   "review": [
+    "ER-23",
+    "POL-1"
    ]
   },
   {
@@ -3103,6 +3402,10 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "agent": "sonnet",
    "components": [
     "read.deep (SufficiencyRound)"
+   ],
+   "review": [
+    "ER-19",
+    "ER-23"
    ]
   },
   {
@@ -3133,6 +3436,9 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "agent": "sonnet",
    "components": [
     "read.external"
+   ],
+   "review": [
+    "ER-25"
    ]
   },
   {
@@ -3167,12 +3473,55 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "components": [
     "TimeView (as_of_valid, as_of_known)",
     "read.timeview (TimeView)"
+   ],
+   "review": [
+    "ER-18"
+   ]
+  },
+  {
+   "id": "R3-16",
+   "phase": 3,
+   "title": "Evidence obligations for joins, durations and lists (screened)",
+   "decisions": [
+    "R-03",
+    "R-22"
+   ],
+   "depends_on": [
+    "R3-12",
+    "W2-09"
+   ],
+   "kind": "behaviour",
+   "gate": "Unseen intersections, durations and enumerations improve at fixed reader/token budgets; no more unsupported answers",
+   "status": "Not started",
+   "note": "ER-19",
+   "layers": [
+    "L0",
+    "ctx"
+   ],
+   "operators": [
+    "R",
+    "C"
+   ],
+   "files": [
+    "src/memspine/engine.py",
+    "src/memspine/config/schema.py",
+    "src/memspine/core/query_contract.py",
+    "src/memspine/core/fact_chain.py"
+   ],
+   "lane": "S3 read (serial)",
+   "agent": "sonnet",
+   "components": [
+    "read.contract (QueryContract)",
+    "read.deep (SufficiencyRound)"
+   ],
+   "review": [
+    "ER-19"
    ]
   },
   {
    "id": "R3-15",
    "phase": 3,
-   "title": "Parallel legs, latency SLOs, caching, prefix layout",
+   "title": "Parallel legs, latency SLOs (declared hardware/concurrency), caches keyed by scope/version (off until ER-31 tests pass), prefix layout",
    "decisions": [
     "R-25",
     "R-26",
@@ -3183,7 +3532,7 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
     "R3-12"
    ],
    "kind": "infra",
-   "gate": "p95 SLO tests in CI",
+   "gate": "p95 SLO tests in CI; caching (result/context caches disabled until ER-31 keys and use-time admission tests pass)",
    "status": "Not started",
    "note": "Last in the read lane",
    "layers": [
@@ -3209,6 +3558,11 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
     "read.cache + compose.render layout",
     "read.exec (LegExecutor)",
     "runtime.scheduler"
+   ],
+   "review": [
+    "ER-09",
+    "ER-31",
+    "ER-39"
    ]
   },
   {
@@ -3251,7 +3605,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "agent": "sonnet",
    "components": [
     "memspine.evals.gate (AdoptionGate)"
-   ]
+   ],
+   "review": []
   },
   {
    "id": "O4-01a",
@@ -3263,7 +3618,7 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
     "O-03"
    ],
    "depends_on": [
-    "EX-1",
+    "EX-1a",
     "F-15"
    ],
    "kind": "behaviour",
@@ -3294,6 +3649,10 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
     "memspine.derive.job.NamespaceJob (NamespaceLease, StageWatermark)",
     "memspine.derive.scheduler.DerivationScheduler",
     "memspine.derive.triggers.TriggerPolicy"
+   ],
+   "review": [
+    "ER-07",
+    "ER-26"
    ]
   },
   {
@@ -3333,6 +3692,10 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "components": [
     "covers_seq field on derived records + memspine.read.freshness",
     "memspine.derive.budget.DerivationBudget"
+   ],
+   "review": [
+    "ER-09",
+    "ER-26"
    ]
   },
   {
@@ -3375,6 +3738,9 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
     "memspine.derive.session.EpisodeStitcher + memspine.read.legs.episode",
     "memspine.derive.session.SessionCloser + SessionCatchUp",
     "memspine.derive.session.SummaryGuard"
+   ],
+   "review": [
+    "ER-26"
    ]
   },
   {
@@ -3413,7 +3779,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
     "memspine.derive.contradict.ContradictionSweep",
     "memspine.derive.reconcile.BacklogReconciler",
     "memspine.derive.resolve.EntityResolver (v2, ResolutionStage list)"
-   ]
+   ],
+   "review": []
   },
   {
    "id": "O4-04",
@@ -3449,6 +3816,9 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
     "ValueHistoryView (L1) + ObservationLayer (L4, held)",
     "memspine.derive.dedupe.NearDuplicateMerger + QualifierGuard",
     "memspine.derive.history.ValueHistoryView"
+   ],
+   "review": [
+    "ER-17"
    ]
   },
   {
@@ -3483,6 +3853,9 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "components": [
     "ValueHistoryView (L1) + ObservationLayer (L4, held)",
     "none (no memspine.derive.observations)"
+   ],
+   "review": [
+    "ER-28"
    ]
   },
   {
@@ -3522,7 +3895,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
     "GroupingKinds {community, entity_summary, observation_scope (held)}",
     "memspine.derive.communities.Reorganiser",
     "memspine.derive.entity_summary.EntitySummariser"
-   ]
+   ],
+   "review": []
   },
   {
    "id": "O4-07",
@@ -3563,6 +3937,9 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
     "memspine.derive.profile.ProfileOps -> ProfileCard",
     "memspine.derive.reflect.Reflector",
     "memspine.memories.profile.ProfileCard"
+   ],
+   "review": [
+    "ER-28"
    ]
   },
   {
@@ -3592,6 +3969,9 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "agent": "sonnet",
    "components": [
     "memspine.derive.standing.StandingAnswers"
+   ],
+   "review": [
+    "ER-28"
    ]
   },
   {
@@ -3631,7 +4011,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
     "Record.res{gist, note, full_ptr}",
     "memspine.derive.lifecycle.TierSweep",
     "prompts.compress"
-   ]
+   ],
+   "review": []
   },
   {
    "id": "O4-10",
@@ -3664,7 +4045,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "components": [
     "memspine.derive.procedural.LessonBuilder + CaseExtractor",
     "memspine.derive.prospective.Watches + CueWriter"
-   ]
+   ],
+   "review": []
   },
   {
    "id": "O4-11",
@@ -3705,7 +4087,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
     "Grants + ObserverViews",
     "memspine.derive.views.ObserverViews",
     "unchanged feedback verb on the scoped handle (G-16 D)"
-   ]
+   ],
+   "review": []
   },
   {
    "id": "EX-4",
@@ -3749,7 +4132,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "agent": "sonnet",
    "components": [
     "memspine.evals.gate (AdoptionGate)"
-   ]
+   ],
+   "review": []
   },
   {
    "id": "T5-01",
@@ -3783,6 +4167,10 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "agent": "sonnet",
    "components": [
     "memspine.trust.horizon (THI auto-armed by GrantRegistry)"
+   ],
+   "review": [
+    "ER-29",
+    "POL-2"
    ]
   },
   {
@@ -3814,6 +4202,9 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "agent": "sonnet",
    "components": [
     "memspine.compose.trust_render"
+   ],
+   "review": [
+    "ER-22"
    ]
   },
   {
@@ -3825,7 +4216,7 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
     "G-11"
    ],
    "depends_on": [
-    "EX-1"
+    "EX-1a"
    ],
    "kind": "behaviour",
    "gate": "Remote-tier gate tests",
@@ -3851,6 +4242,9 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "components": [
     "memspine.trust.consent",
     "memspine.trust.privacy (Redactor, EgressGate)"
+   ],
+   "review": [
+    "ER-31"
    ]
   },
   {
@@ -3890,6 +4284,11 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "components": [
     "ErasureService over LineageProjection",
     "memspine.trust.erasure (ReverseLineageIndex)"
+   ],
+   "review": [
+    "ER-30",
+    "ER-31",
+    "POL-1"
    ]
   },
   {
@@ -3901,7 +4300,7 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
     "G-15"
    ],
    "depends_on": [
-    "EX-1"
+    "EX-1a"
    ],
    "kind": "infra",
    "gate": "Profile tests",
@@ -3931,6 +4330,9 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "components": [
     "memspine.ops.retention (RetentionProfile)",
     "memspine.trust.audit"
+   ],
+   "review": [
+    "ER-27"
    ]
   },
   {
@@ -3971,7 +4373,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "agent": "sonnet",
    "components": [
     "memspine.ops.ledger (StageLedger), memspine[otel] extra"
-   ]
+   ],
+   "review": []
   },
   {
    "id": "T5-07",
@@ -4009,7 +4412,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "components": [
     "memspine.trust.firewall (layered SignalStack)",
     "memspine.trust.horizon (THI auto-armed by GrantRegistry)"
-   ]
+   ],
+   "review": []
   },
   {
    "id": "EX-5",
@@ -4056,7 +4460,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "agent": "sonnet",
    "components": [
     "memspine.evals.gate (AdoptionGate)"
-   ]
+   ],
+   "review": []
   },
   {
    "id": "R6-01",
@@ -4067,11 +4472,17 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
     "G-26"
    ],
    "depends_on": [
+    "EX-1",
     "EX-2",
     "EX-3",
     "EX-4",
     "EX-5",
-    "T5-04"
+    "T5-04",
+    "P0-02",
+    "P0-03",
+    "P0-08",
+    "MOD-01",
+    "X-01"
    ],
    "kind": "measure",
    "gate": "One sealed blind run per set; loop metrics on scripted episodes; erasure contract re-run",
@@ -4104,6 +4515,11 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "components": [
     "memspine.evals.loop_metrics (EpisodeRunner)",
     "paper claims register (docs/v2, no code)"
+   ],
+   "review": [
+    "ER-02",
+    "ER-35",
+    "ER-36"
    ]
   },
   {
@@ -4141,7 +4557,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "agent": "sonnet",
    "components": [
     "memspine.migrate (V1Upcaster, ReplayBuilder, v1 compat shim)"
-   ]
+   ],
+   "review": []
   }
  ]
 }
@@ -4173,16 +4590,16 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
   function render() {
     strip();
     const q = $("#q").value.trim().toLowerCase(), ph = $("#fphase").value, ln = $("#flane").value, kd = $("#fkind").value;
-    const rows = S.pk.filter(p => (!q || [p.id, p.title, p.decisions.join(" "), p.note].join(" ").toLowerCase().includes(q))
+    const rows = S.pk.filter(p => (!q || [p.id, p.title, p.decisions.join(" "), (p.review || []).join(" "), p.note].join(" ").toLowerCase().includes(q))
       && (ph === "" || String(p.phase) === ph) && (!ln || p.lane === ln) && (!kd || p.kind === kd)
       && (!S.fStatus || st(p) === S.fStatus) && (!$("#fstart").checked || startable(p)) && (!$("#fnote").checked || note(p)));
-    if (!rows.length) { $("#tb").innerHTML = `<tr><td colspan="8" class="empty">No packages match these filters.</td></tr>`; return; }
+    if (!rows.length) { $("#tb").innerHTML = `<tr><td colspan="9" class="empty">No packages match these filters.</td></tr>`; return; }
     let html = "", last = null;
     for (const p of rows) {
-      if (p.phase !== last) { html += `<tr class="ph"><td colspan="8">${esc(PH[p.phase])}</td></tr>`; last = p.phase; }
+      if (p.phase !== last) { html += `<tr class="ph"><td colspan="9">${esc(PH[p.phase])}</td></tr>`; last = p.phase; }
       html += `<tr class="row" data-id="${esc(p.id)}" tabindex="0"><td class="id">${esc(p.id)}</td><td>${esc(p.title)}${startable(p) ? '<span class="startable">START NOW</span>' : ""}${note(p) ? ' <span class="note-ind" title="Has a review note">●</span>' : ""}</td>` +
         `<td>${p.layers.map(l => `<span class="tag">${esc(l)}</span>`).join("") || "–"}</td><td>${p.operators.map(o => `<span class="tag">${esc(o)}</span>`).join("") || "–"}</td>` +
-        `<td>${p.depends_on.map(d => `<span class="tag">${esc(d)}</span>`).join("") || "–"}</td><td class="kind">${esc(p.kind)}</td><td class="kind">${esc(p.lane)}</td><td>${pill(st(p))}</td></tr>`;
+        `<td>${(p.review || []).map(d => `<span class="tag">${esc(d)}</span>`).join("") || "–"}</td><td>${p.depends_on.map(d => `<span class="tag">${esc(d)}</span>`).join("") || "–"}</td><td class="kind">${esc(p.kind)}</td><td class="kind">${esc(p.lane)}</td><td>${pill(st(p))}</td></tr>`;
     }
     $("#tb").innerHTML = html;
   }
@@ -4196,6 +4613,7 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
         <dt>Kind</dt><dd>${esc(p.kind)}</dd>
         <dt>Layers / ops</dt><dd>${esc(p.layers.join(" ") || "–")} · ${esc(p.operators.join(" ") || "–")}</dd>
         <dt>Decisions</dt><dd class="declist">${decs}</dd>
+        <dt>Review findings</dt><dd>${esc((p.review || []).join(", ") || "–")}</dd>
         <dt>Depends on</dt><dd>${p.depends_on.map(d => `${esc(d)} ${pill(st(byId(d)))}`).join(" ") || "–"}</dd>
         <dt>Unblocks</dt><dd>${esc(dependents.join(", ") || "–")}</dd>
         <dt>Gate</dt><dd>${esc(p.gate)}</dd>
@@ -4232,7 +4650,7 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
     $("#flane").innerHTML = `<option value="">All lanes</option>` + lanes.map(l => `<option>${esc(l)}</option>`).join("");
     $("#sub").textContent = `${S.pk.length} work packages covering all 155 architecture decisions. Each is one task for one Sonnet agent; serial lanes run one agent at a time. Open a row to review it, set its status and leave a note.`;
     render();
-  }).catch(() => { $("#tb").innerHTML = `<tr><td colspan="8" class="empty">The plan file did not load. Reload the page.</td></tr>`; });
+  }).catch(() => { $("#tb").innerHTML = `<tr><td colspan="9" class="empty">The plan file did not load. Reload the page.</td></tr>`; });
 
   function localDb() {
     const KEY = "msplan-review";

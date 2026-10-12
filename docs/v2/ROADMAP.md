@@ -42,7 +42,7 @@ estimated here; they are set when Phase 0 closes.
   rerank (Q5, Q6), lifting, relevance gate, packer fix, typed render (R-01..R-21).
 - Deep tier with the sufficiency check only after `f-suff` passes (R-22).
 - **Exit gate**: v2 standard tier beats or matches clean-jina-full (81.4) beyond the band on the full set with no
-  category loss, then holds on MAB-CR, ConvoMem and PrefEval; zero-model read p95 at most 300 ms.
+  category loss, then holds on MAB-CR, ConvoMem and PrefEval; fast-tier read p95 300 ms without rerank (CPU), 350 ms with Jina (GPU), on stated hardware and concurrency (R-Q3, ER-39).
 
 ## Phase 4: offline memory
 
@@ -73,3 +73,4 @@ estimated here; they are set when Phase 0 closes.
 - 2026-10-11 (later): v2 lands inside `memspine` (Q9); lock fix done.
 - 2026-10-12: Q1-Q9 answered; pattern observations (Phase 4) and the Neo4j server graph (Phase 1) added.
 - 2026-10-12 (owner): not a separate v2; memspine is restructured as a whole along this plan; replaced code is deleted, no compatibility shims.
+- 2026-10-13: reconciled with ER amendments and owner decisions (consistency audit)

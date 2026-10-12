@@ -7,8 +7,8 @@ Describe the DECIDED design (`docs/v2/ARCHITECTURE.md`, `docs/v2/areas/*.md`, `d
 owner's answers Q1-Q9, `docs/v2/PLAN.md`), and for every step say what today's code does (file:line in
 `src/memspine/`) and what changes. No code changes; write only your file.
 
-Principles that must hold everywhere: the event log is the truth; layers L0 raw, L1 facts (default on), L2 episodes and
-summaries, L3 graph, L4 observations and profile, L5 standing answers, procedures and plans (L2-L5 opt-in, Q1); no
+Principles that must hold everywhere: the event log is the truth; layers L0 raw, L1 facts (on with a worker model), L2 episodes and
+summaries, L3 graph, L4 observations and profile, L5 standing answers, procedures and plans (L3 on with a worker model; L2, L4, L5 opt-in; I-7); no
 model call by default; derived records carry lineage, trust capped at their weakest parent, and a derivation
 fingerprint; durable outbox drained by an inline runner (Q2); Neo4j for the server graph (Q4); Jina rerank on every read
 where installed (Q5/Q6); undeclared attributes coexist unless extraction marks a change (Q7).
@@ -43,3 +43,4 @@ where installed (Q5/Q6); undeclared attributes coexist unless extraction marks a
 7. `## Change log`: one dated line.
 
 Length: as long as needed to be complete, but no repetition; prefer tables and schema blocks to prose.
+- 2026-10-13: reconciled with ER amendments and owner decisions (consistency audit)

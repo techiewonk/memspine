@@ -8,7 +8,7 @@
 The insert pipeline is the deposit operator $\mathcal{D}$: everything that happens from the moment a caller hands
 MemSpine some content until the derived assertions from it are stored with lineage and trust. It has two halves. The
 **synchronous half** (steps 1 to 8) runs inside the caller's write call: one intake shape, stamping, role policy, the
-first firewall gate, routing, and one commit that makes the raw record searchable and persists a derivation intent.
+first firewall gate, routing, and one commit that durably accepts the raw record and persists a derivation intent.
 The **asynchronous half** (steps 9 to 23) runs after the receipt, drained by the inline runner from the durable outbox
 (Q2): segmentation into windows, one example-free extraction call per batch of windows, validation, grounding, two
 more firewall gates, online entity resolution, assertion identity, the integration ladder, and the deposit into L1 with
@@ -264,7 +264,7 @@ Output: route: raw_episodic (L0, type episodic) | raw_resource (L0, type resourc
 - **Idempotency:** pure.
 - **Ordering and locking:** none.
 - **Config:** `memory_type` argument (`engine.py:1676`, default `semantic`) -> removed for unkeyed content;
-  *(proposed)* `layers: {L0: on, L1: on, L2..L5: off}` in templates (Q1).
+  *(proposed)* `layers: {L0: on, L1: on with a worker model, L3: on with a worker model, L2/L4/L5: off}` in templates (Q1 as amended by I-7).
 - **Today vs decided:** a free-text `write()` defaults to semantic and runs the semantic pipeline (`engine.py:1676`,
   `:4963-4975`). Decided W-09 D: `intake.TypeRouter`; every typed record has parents unless explicitly keyed. Package
   **W2-03** (the F-09 move first).
@@ -289,6 +289,9 @@ Output: Receipt {event_ids[], record_ids[], intent_id, source_id, source_version
   atomically only when it actually shares this SQL transaction. Cached embeddings do not make a separate
   vector store part of the SQL transaction. Layer L0.
 - **Reads:** idempotency index, embedding cache.
+- **Quota (ER-08):** accepted work is never dropped. When storage or quota limits are reached, the new write is
+  rejected before acceptance with a distinguishable error (optionally after a bounded wait); emergency space is
+  reserved for erasure and recovery.
 - **Failure and retry:** failure before the SQL commit rolls back the accepted envelope. After commit,
   projector failure leaves durable retryable work and pending/failed readiness; it cannot roll back an
   independent store through SQL. Retry with the same ids. Optional barriers use a captured target and deadline;
@@ -397,7 +400,10 @@ Output: CallBatch{batch_id, windows[], tokens_in} | underived marker on the inte
 - **Writes:** outbox row status (`leased`, `underived`), `CallBatch` membership. **Reads:** outbox, ledger.
 - **Failure and retry:** above the backlog age or size cap, adjacent pending windows of one session coalesce up to
   the token cap; beyond that the sources are marked `underived` and picked up by catch-up or sleep (O-10). A spent
-  budget marks `underived` as well. Nothing is dropped.
+  budget marks `underived` as well. Nothing accepted is dropped. Every dispatched job is tracked: `close()` drains
+  within a deadline and persists unfinished jobs, a cancelled job cannot commit, a model slot is not reused while
+  its work still runs, and tenants get fair shares (ER-10). Progress per source is a contiguous watermark plus
+  explicit holes, and a wait captures a fixed target that later writes cannot extend (ER-09).
 - **Idempotency:** the lease claim is a conditional update on (status, lease_until); a re-claimed batch reuses its
   `batch_id`.
 - **Ordering and locking:** namespaces run concurrently, ordered within a namespace, under one global model
@@ -426,6 +432,11 @@ Output: rendered prompt {system: byte-stable, user: blocks [w1..wk] of "[n] [YYY
         CONTEXT block, KNOWN line}, prompt_hash, alias map {n -> (record_id, version)}, input_blocks hash
 ```
 
+- **Context lines as evidence (ER-11):** the NEW line supports the assertion. CONTEXT lines that resolve a
+  reference ("she", "that place") are recorded as reference-binding evidence under a separate lineage role; context
+  never counts as a new occurrence or as support, and erasing a binding source invalidates its dependants.
+- **Scope (ER-13):** entities and assertions are keyed by the stable memory scope (tenant/user/agent policy); the
+  session is provenance only.
 - **Writes:** nothing durable (the prompt hash goes to the ledger at step 23). **Reads:** records projection, entity
   registry, pre-pass hints.
 - **Failure and retry:** a member gone since dispatch is excluded (counted `turns_excluded`); a batch left empty is
@@ -461,6 +472,9 @@ Output: raw reply, finish_reason, usage {tokens_in, tokens_out}, latency, cache_
 - **Failure and retry:** a transport error or timeout releases the lease with back-off (`not_before`); the row's
   `attempts` increments; after N attempts it goes to the failure ledger as `raised`. A backend that refuses a
   schema falls back to prompt-only output for that call (P-04), recorded in the manifest.
+- **Call budget (ER-15):** one normal extraction call per window plus a small recovery budget counted by purpose
+  (repair, truncation continuation), capped in tokens and time. Validated outputs are cached and processed line
+  ranges tracked; partial output never counts as full coverage, and unprocessed lines stay pending.
 - **Idempotency:** a cache hit on the same fingerprint returns the stored reply with no call (a crash after
   inference costs nothing on re-run when the cache persisted).
 - **Ordering and locking:** outside the namespace lease, under the global model semaphore; hard per-call bound
@@ -493,6 +507,10 @@ Output: valid ItemV1[] with their batch block; FailureRecord[] with failure_clas
 - **Failure and retry:** the repair re-ask carries the validator errors, forbids new items and is diffed against
   the failed output; still invalid items go to the dead-letter list with `retry_allowed`. A valid empty list is
   `valid_empty`, not a failure (RV19). Over-length items are warned and counted, never dropped (P-11).
+- **Coverage check (ER-12):** raw text is always kept. A cheap check flags likely uncovered names, quantities and
+  list members in the NEW lines; targeted re-extraction runs only for flagged lines, behind its own screen, and its
+  extra calls are counted against the recovery budget (ER-15). Omitted-fact recall and unsupported additions are
+  measured separately.
 - **Idempotency:** validation is pure; the repair reply is cached under its own fingerprint.
 - **Ordering and locking:** within the leased batch.
 - **Config:** `llm.retry_on_error` (`config/schema.py:225`, off) -> *(proposed)* `derive.repair: once`;
@@ -539,7 +557,7 @@ Output: AssertionEnvelope (section 5) with evidence[{source_id, source_version, 
   or the `decider` role (W-17); never by default until the W-17 screen passes.
 
 ```text
-Input:  AssertionEnvelope, cited lines (NEW only; a CONTEXT citation is rejected), the assistant turn a user line
+Input:  AssertionEnvelope, cited lines (NEW lines support the assertion; CONTEXT lines are accepted only as reference-binding evidence, ER-11), the assistant turn a user line
         replies to (for assent)
 Output: grounding: grounded | uncertain | rejected, checks {span, numbers, polarity, names, endpoint_spans},
         src possibly promoted (assistant_proposed -> user_confirmed) or downgraded, adjudicated: bool
@@ -625,6 +643,7 @@ Output: key = (scope, src_entity, rel, dst_entity_or_literal_hash, kind) + key_v
 - **Writes:** key fields; alias rows for old keys on migration. **Reads:** the key index.
 - **Failure and retry:** none.
 - **Idempotency:** this step makes the deposit idempotent: a retried batch maps to the same keys and occurrences.
+  Retry, mention, assertion and occurrence identities are separate, and none depends on the session id (ER-13).
 - **Ordering and locking:** read under the namespace lease of step 22.
 - **Config:** `extract_graph.event_identity: dated` (G-3) -> retired, occurrence always on.
 - **Today vs decided:** `_edge_key` fingerprints (ns, src, rel, dst) and, when dated, the event day and numerals
@@ -650,6 +669,9 @@ Output: verdict {append | supersede | merge | coexist | contest | noop | defer_k
   ladder cannot order the pair; a lower-trust write never supersedes (trust gate rung).
 - **Idempotency:** deterministic given inputs.
 - **Ordering and locking:** under the namespace lease of step 22.
+- **Assessment fields (ER-14):** source trust, support strength, entity-binding certainty, time precision and
+  modality are separate fields; explicit rules say which combinations may supersede, enter the graph or appear as
+  tentative evidence.
 - **Rules (Q7):** undeclared attributes coexist; a new value contests the old one only when extraction marks a
   change; supersede only at declared cardinality one, keeping history; learned cardinality enters the registry only as
   reviewable proposals; events and facts coexist; `uncertain` items never supersede.
@@ -686,6 +708,10 @@ Output: L1 records; LineageEdge rows; CONFLICT/MERGE events with rung names; pro
 - **Failure and retry:** a parent or member no longer live, or a generation bumped by an erasure since the lease,
   skips the deposit and audits `derived_deposit_skipped` (ids only); a crash before commit leaves the row leased, the
   lease expires and the batch re-runs (cache hit, same keys, so exactly one effect).
+- **Fencing (ER-07):** the deposit is a conditional commit: it succeeds only if the row's claim epoch, the source
+  versions and the erasure generation still match. A stale worker (one whose lease was taken over) cannot write,
+  acknowledge, advance watermarks or release the new lease. Progress advances the contiguous watermark and records
+  holes (ER-09).
 - **Idempotency:** versioned keys plus occurrence ids; acknowledgement in the same transaction as the deposit (W-13).
 - **Ordering and locking:** the namespace lease is taken here, after the model call, and held only for the
   deposit.
@@ -725,7 +751,7 @@ Output: LedgerEntry (persisted as an event); status(intent_id) -> {L0: done, L1:
 
 | # | Scenario | Expected behaviour | Step | Tested by |
 |---|---|---|---|---|
-| 1 | Ilse writes one chat turn, worker role bound | Raw searchable at return; intent `pending` then `done`; grounded L1 facts with the turn as parent | 1-8, 11-22 | `tests/unit/test_window_write.py::test_facts_are_grounded_deposited_with_the_cited_turns_as_parents`; intent status: to add |
+| 1 | Ilse writes one chat turn, worker role bound | Durable at return; lexical/vector readiness reported; searchable after readiness or a bounded wait; intent `pending` then `done`; grounded L1 facts with the turn as parent | 1-8, 11-22 | `tests/unit/test_window_write.py::test_facts_are_grounded_deposited_with_the_cited_turns_as_parents`; intent status: to add |
 | 2 | Same batch retried with caller message ids | Zero new records, same record ids and intent id in the receipt | 2 | to add (W-03 gate) |
 | 3 | Same batch retried without ids | Fingerprint matches; zero new records | 2 | to add |
 | 4 | Same caller id, edited text | New source version, `version_of` lineage edge; derived items of the old version retired or re-pointed | 2, 22 | to add |
@@ -752,10 +778,10 @@ Output: LedgerEntry (persisted as an event); status(intent_id) -> {L0: done, L1:
 | 25 | Forget while the extraction call is running | Generation check at deposit; no item published | 22 | `tests/unit/test_window_write.py::test_forget_while_the_call_is_running_leaves_no_fact`; `tests/unit/test_forget_miner_race.py` |
 | 26 | Crash after inference, before deposit | Lease expires; re-run hits the reply cache; exactly one deposit | 12, 14, 22 | to add (RV01 fault injection) |
 | 27 | Crash after a partial deposit | Same keys on re-run; only the missing items land; no duplicates | 20, 22 | to add (RV01) |
-| 28 | Crash between append and Neo4j apply | Outbox replays; graph equals a rebuild from the log | 9 | to add (W-10 gate) |
+| 28 | Crash between append and Neo4j apply | Outbox replays; graph equals a rebuild from the retained log | 9 | to add (W-10 gate) |
 | 29 | Process stops with windows queued | Rows stay pending; finished on next open or `memspine drain` | 12 | to add (today `jobs_abandoned`) |
 | 30 | Extraction enabled, no worker role, `on_missing_model: error` | `ConfigError` at start | 14 | `tests/unit/test_window_write.py::test_missing_role_or_layer_fails_at_start` |
-| 31 | Base profile, no model | L0 only; raw searchable; no derivation rows; `describe()` says L1 is off | 7, 8 | `tests/unit/test_window_write.py::test_off_by_default_is_inert` |
+| 31 | Base profile, no model | L0 only; raw durable and searchable once ready; no derivation rows; `describe()` says L1 is off | 7, 8 | `tests/unit/test_window_write.py::test_off_by_default_is_inert` |
 | 32 | `on_missing_model: rules` | GLiNER2 or rules path; no model call | 14 | to add (P-03 start-up matrix) |
 | 33 | Namespace budget spent | Sources marked `underived`; nothing dropped; derived later | 12, 23 | to add (W-26 gate) |
 | 34 | Extraction load at twice the drain rate | Windows coalesce up to the token cap, then `underived`; zero sources dropped | 12 | to add (W-25 load test) |
@@ -813,7 +839,7 @@ Receipt                                                                [new]  W-
   event_ids: [str], record_ids: [str], required
   intent_id: str, required        the derivation outbox row id                                  W-02
   source_id: str, source_version: int, required                                                 W-03
-  raw_searchable: bool, required  false only under projection.mode=outbox_all                  W-10
+  readiness_by_capability: map, required  illustrative; schema not frozen (ER-06)               W-10
   retried: [int]                  seg_index values recognised as retries                        W-03
   quarantined: [int]              seg_index values held by gate 1                               W-07
 
@@ -944,7 +970,7 @@ change, but the decided `ItemV1` has no field for it.
 
 **I-5. Key of an assertion whose entity is `pending_merge`.**
 - A (recommended): give it a provisional entity id now and key on that. A later MERGE event re-points it through
-  key aliases (M-17). The fact is searchable at once.
+  key aliases (M-17). The fact is searchable at once, subject to readiness (ER-06).
 - B: hold the item out of L1 until sleep resolves the name. No duplicate keys, but the fact is invisible until the
   next sleep.
 - C: key on the canonical name string until sleep. Simple, but re-keying is needed after every merge.
@@ -983,7 +1009,7 @@ These settle the open questions above; where they differ from a recommendation, 
 | I-2 | Extract time by every means (owner) | Never invent 'now', but extract every temporal signal: anchor order explicit date in text > the line's own date > nearest dated line of the same source > session order > recorded_at. Every extracted time carries `basis` and `precision` (exact/day/month/year/relative/unknown); weak anchors are kept and labelled, never presented as exact. Temporal relations are extracted even without absolute dates (before/after, durations, 'since', 'for N years', counts per period) for the temporal leg. |
 | I-3 | chg: bool on ItemV1 | One output token: the cited lines say the earlier value no longer holds; the conflict ladder reads it as the transition hint (Q7). |
 | I-4 | Quarantined derived items stored inert with reasons | Same as gate 1 for raw: never retrieved, visible to audit and N1 forensics, releasable by review. |
-| I-5 | Provisional entity id now | Facts about a pending_merge entity are keyed on a provisional id and searchable at once; a later merge re-points them through key aliases (M-17). |
+| I-5 | Provisional entity id now | Facts about a pending_merge entity are keyed on a provisional id and searchable at once, subject to readiness (ER-06); a later merge re-points them through key aliases (M-17). |
 | I-6 | Contest when only one side is dated | Event time when both are dated, recorded time when neither; one dated side -> keep both as contested; the ladder records the basis. |
 | I-7 | Graph layer ON by default (owner) | With a worker model configured, L3 is on by default: edges compiled from every fact, written to the graph store (Ladybug / SQL adjacency embedded, Neo4j server), and the graph read leg runs when the router asks for it (its own screen before it counts in results). Amends Q1: default layers are L0, L1 and L3; L2, L4, L5 stay opt-in. |
 | I-8 | Echo guard: marker + last-read overlap | Recall blocks carry a marker; the fingerprints of blocks rendered by the session's last read are kept; an assistant turn overlapping them is an echo: kept as L0 raw, no facts derived from the echoed part, never counted as support. User restatement counts as assent, not echo. |
@@ -995,3 +1021,4 @@ These settle the open questions above; where they differ from a recommendation, 
   `areas/write.md`, `model.md`, `models.md`, `govern.md` (G-06..G-08, G-13, G-19, G-21), `offline.md` (O-01..O-11),
   `VERIFY.md` section 0 (Q1, Q2, Q4, Q7, Q8), `PLAN.md`, and the code at `beeaff5`.
 - 2026-10-13: open questions answered by the owner (section 'Owner decisions').
+- 2026-10-13: reconciled with ER amendments and owner decisions (consistency audit)

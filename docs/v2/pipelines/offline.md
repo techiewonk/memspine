@@ -61,7 +61,7 @@ configured. "Fire" means: create (or join) the namespace's sleep job (step 2).
 | E2 | **Idle timer** (long-lived engine) | Fires when the namespace has had no deposit for M minutes AND `deposits_since_run >= N` AND `now - last_run_at >= K` hours. If K is not yet met, re-arm for `last_run_at + K`. | None |
 | E3 | **Minimum gap K** | A guard on E2, E4, E6 and E9, not a trigger. A job never starts within K hours of the namespace's last completed run, except for manual verbs (E5). | None |
 | E4 | **Interval timer** (legacy `workers.sleep_interval_seconds`) | Every `interval` seconds, evaluate every namespace with N=0, M=0, K=`interval`. Kept so v1 configs keep their behaviour (O-02 migration). Disabled on `:memory:` stores. | `workers/scheduler.py:37-81`; started at `engine.py:1566-1589` |
-| E5 | **Manual** `Engine.sleep(ns=None)`, `Engine.drain()`, CLI `memspine drain` | Always fires; bypasses N, M and K; still takes the namespace lease (O-02). `sleep()` first flushes call-1 windows (today's behaviour). `drain()` only drains outbox rows and evaluates triggers (no forced cycle). | `engine.py:13314-13334` (sleep, global, no lease) |
+| E5 | **Manual** `Engine.sleep(ns=None)`, `Engine.drain()`, CLI `memspine drain` | Always fires; bypasses N, M and K; still takes the namespace lease (O-02). `sleep()` enqueues and returns a handle; at most one follow-up per namespace (OF-1). `sleep()` first flushes call-1 windows (today's behaviour). `drain()` only drains outbox rows and evaluates triggers (no forced cycle). | `engine.py:13314-13334` (sleep, global, no lease) |
 | E6 | **Backlog cap** (O-10 B) | `pending_merge` + unreconciled outbox rows for the namespace exceed `backlog.max_items`, or the oldest is older than `backlog.max_age_minutes`. Fires a **reconcile-only** job (S2-S6). Bypasses M, respects K (`backlog.min_spacing_minutes` if set lower). | None; `workers/windows.py:808-812` drops oldest edge batches above `WINDOW_PENDING_EDGES_MAX` |
 | E7 | **Session close** | `Engine.close_session(ns, session_id)`; a new session id observed in the same namespace; `flush_windows(final=True)` at end of a stream. Enqueues one outbox row `kind=session_close`; runs call 2 (step 3). Does **not** take the namespace lease. | `engine.py:13771-13786`, `workers/windows.py:421-427, 515-552`, stub `workers/pipelines.py:3669` |
 | E8 | **Start-up catch-up** (`Engine.open()`) | Reclaim leases whose `lease_until < now`; resume `pending`/`leased` outbox rows; evaluate E2 for every namespace with `deposits_since_run > 0` using the persisted `last_deposit_at` (so idle time while no process ran counts); scan for stale derivation fingerprints (P-25). | `engine.py:1561-1565` (rolling prune at boot only) |
@@ -154,7 +154,13 @@ Every stage returns a `StageReport`.
   DerivationBudget
     tokens_total: int|null (null = unlimited); spent: int; by_class: {reconcile, summarise, personalise, maintain}
   ```
-- **Writes**: lease row (conditional insert/update: claim only if absent or `lease_until < now`); a `job_started`
+- **Fencing (ER-07)**: every lease takeover bumps a monotonic claim epoch. A deposit commits only if its epoch,
+  source versions and erasure generation still match (conditional commit); a stale worker cannot write, acknowledge,
+  advance watermarks or release the new lease. Model calls stay outside write locks.
+- **Progress (ER-09)**: a stage watermark is the highest sequence below which everything is complete, plus explicit
+  holes above it; projector progress, derivation coverage and source membership are tracked separately. A wait
+  captures a fixed target at call time that later writes cannot extend.
+- **Writes**: lease row (conditional insert/update: claim only if absent or `lease_until < now`; bumps the epoch); a `job_started`
   ledger row. **Reads**: watermarks, the log tail past the minimum watermark, budget config, ledger.
 - **Failure and retry**: claim lost (another holder) -> the trigger is satisfied (for manual: open question 1). Holder
   dies -> lease expires after `lease.ttl_seconds`; heartbeat extends it every `ttl/3` while stages run; E8 or the next
@@ -266,6 +272,11 @@ Every stage returns a `StageReport`.
 - **Idempotency**: deposits keyed by assertion key + occurrence (W-20, M-17); a re-run skips existing keys.
 - **Ordering and locking**: after S1 (so expired turns are not extracted), before S3 (so new names join resolution).
   Model calls outside the write lock.
+- **Extraction contract (ER-11, ER-12, ER-13, ER-14, ER-15)**: as in call 1 (`insert.md`): NEW lines support the
+  assertion and CONTEXT lines that resolve references are recorded as reference-binding evidence; a cheap coverage
+  check flags likely uncovered names, quantities and list members and triggers targeted re-extraction (behind a
+  screen, extra calls counted); entities are keyed by stable memory scope with session as provenance; assessment
+  fields stay separate; one call per window plus a bounded recovery budget, and unprocessed lines stay pending.
 - **Config**: reuses `write.window_*` and `llm.roles.window_extract`; new `derive.catch_up.max_sources_per_cycle`.
 - **Today vs decided**: today `extract_graph` extracts uncovered turns itself after taking call-1 edges
   (`workers/pipelines.py:1983-2190`, `take_edges` at `workers/windows.py:608-614`, which clears before ack), and the
@@ -614,7 +625,7 @@ Every stage returns a `StageReport`.
   ```
 - **Writes**: deletes applied events older than `retention_days` **and** below every stage watermark and every
   pending outbox row's source seq. **Reads**: watermarks, outbox.
-- **Failure and retry**: next job. **Idempotency**: by cutoff.
+- **Failure and retry**: next job. **Idempotency**: by cutoff. Records the retained source/event/tombstone/lineage boundary; capability limits are advertised, and a rebuild covers retained events only (ER-27 C).
 - **Ordering and locking**: last stage; also at engine open (`engine.py:1561-1565`).
 - **Config**: `event_log.mode`, `event_log.retention_days` (`config/schema.py:43-50`).
 - **Today vs decided**: `event_log_prune` (`workers/pipelines.py:407-413`) prunes by age only, unaware of markers.
@@ -632,7 +643,7 @@ Every stage returns a `StageReport`.
   ```
 - **Writes**: ledger rows per stage (calls, tokens, retries, failures, deferred, p50/p95, G-20), `NamespaceTriggerState`
   (`last_run_at`, `deposits_since_run = deferred_units`), lease delete. **Reads**: stage reports.
-- **Failure and retry**: if the process dies here, the lease expires; watermarks already committed stay.
+- **Failure and retry**: if the process dies here, the lease expires; watermarks already committed stay. Every job is tracked; `close()` drains within a deadline and persists unfinished jobs; a cancelled job cannot commit; a model slot is not reused while its work still runs; tenants get fair shares (ER-10).
 - **Idempotency**: report keyed by job id.
 - **Ordering and locking**: under the lease until the delete. A degraded stage (`error`/`partial`) logs
   `memory.sleep_degraded` loudly (today `engine.py:13326-13333`).
@@ -648,7 +659,7 @@ Every stage returns a `StageReport`.
 | 2 | Trigger storm: 1,000 deposits in a burst | Counter rises, idle timer re-armed, no job until M idle; one job | 1 | to add (fake clock) |
 | 3 | Steady chat, never idle for M | No full job mid-conversation; backlog cap fires reconcile-only if exceeded | 1, 6 | to add |
 | 4 | Idle reached but K not met | Re-armed for `last_run_at + K`; no job | 1 | to add |
-| 5 | Manual `sleep()` while an idle-triggered job holds the lease | Never two jobs on one namespace; manual waits or reports busy (open question 1) | 2 | to add (concurrency) |
+| 5 | Manual `sleep()` while an idle-triggered job holds the lease | Never two jobs on one namespace; manual coalesces onto the pending follow-up handle; `handle.wait()` blocks (OF-1) | 2 | to add (concurrency) |
 | 6 | Two processes on one SQLite file (REST host + CLI) | Lease row arbitrates; second process skips the namespace | 2 | `tests/integration/test_concurrent_engines.py` (extend) |
 | 7 | Holder process killed mid-stage | Lease expires; E8 reclaims; resumes from the last committed watermark; no duplicate effects | 2, 22 | RV01 to add; `tests/integration/test_dbos_crash_resume.py` pattern |
 | 8 | Kill after inference, before deposit (call 2) | Outbox row returns to pending; call repeated once; exactly one summary | 3 | RV01 to add |
@@ -768,7 +779,7 @@ ValueHistoryView, PatternObservation, ObserverView, StandingAnswer, Cue, LessonC
 1. **Manual `sleep()` when the namespace lease is held.**
    - **A (recommended): wait for the holder, then run a fresh job if the namespace is still dirty.** Keeps v1's
      contract that `sleep()` returning means the work is done, which the eval harness relies on.
-   - B: return at once with `status: busy` and the holder's job id. Never blocks, but callers must poll.
+   - B: return at once with `status: busy` and the holder's job id. Never blocks, but callers must poll. *(Question superseded by OF-1, 2026-10-13: `sleep()` enqueues and returns a handle; at most one follow-up per namespace.)*
    - C: queue one follow-up job and return. Non-blocking, but `sleep()` no longer means "done".
 2. **Default N, M, K and backlog caps when triggers are switched on.**
    - **A (recommended): N = 25 deposits, M = 15 minutes, K = 6 hours; backlog 500 items or 30 minutes; set in the
@@ -813,7 +824,7 @@ These settle the open questions above; where they differ from a recommendation, 
 | RT-1 | Outbox = truth, taskiq = transport (owner) | Every job is written to the SQL outbox in the same transaction as its event; taskiq carries job ids to workers (InMemoryBroker in library mode; Redis/NATS/RabbitMQ broker and separate worker processes in server mode); a worker marks the row done; unfinished rows are re-sent on start. |
 | RT-2 | Async core + dedicated executors | All orchestration async (TaskGroup, timeouts, cancellation); GPU encoders (embedder, Jina) each in one dedicated thread executor with micro-batching; blocking DB/index I/O in a bounded thread pool; model calls async over HTTP behind a global semaphore; a process pool only for CPU-heavy parsing. |
 | RT-3 | Four priority classes, reads first | 1 interactive read, 2 write hot path, 3 online extraction (calls 1 and 2), 4 sleep and maintenance; higher classes go first, lower classes keep a guaranteed minimum share. |
-| RT-4 | Backpressure: coalesce + budget, never drop | Windows coalesce into larger batches, the oldest backlog is marked underived (raw stays searchable), writes never block; backlog-age metric and alert. |
+| RT-4 | Backpressure: coalesce + budget, never drop | Windows coalesce into larger batches, the oldest backlog is marked underived (raw stays durable; readiness reported per index), writes are not blocked by derivation backlog; at storage or quota limits new writes are rejected before acceptance (ER-08); backlog-age metric and alert. |
 
 ## Change log
 
@@ -822,3 +833,4 @@ These settle the open questions above; where they differ from a recommendation, 
   `src/memspine/workers/` and `engine.py` on `feat/local-qwen-stack`: 22 steps (18 sleep stages), 47 scenarios,
   6 open questions.
 - 2026-10-13: open questions answered by the owner (section 'Owner decisions').
+- 2026-10-13: reconciled with ER amendments and owner decisions (consistency audit)

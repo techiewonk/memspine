@@ -38,7 +38,7 @@ Validated all 40 exported IDs, titles and choices; checked selection interaction
 | ER-28 | B | Compatible direction — conditions apply | Profile, observation and standing-answer invalidation depend on ER-11/17/26/30 and retained source availability under ER-27. |
 | ER-29 | C | Valid policy change — reconcile plan | C requires a viewer on every multi-party read. It replaces the existing shared-only viewerless fallback. Apply it to REST, MCP, internal/system callers and migrations; derive viewer identity from an authenticated principal, not an arbitrary untrusted parameter. |
 | ER-30 | B | Compatible direction — conditions apply | Specify logical invisibility, physical purge and backup retention separately; cached model results must not resurrect erased data. |
-| ER-31 | A | Conflict — revise before finalising | A keys a cache only by query/namespace. For result/context caches this conflicts with ER-29 C, ER-22 B and ER-30 B, and retrieve.md:586-588. Choose B, or disable result/context caching. An embedding-only cache may be narrower but still needs encoder/config identity and the privacy policy. |
+| ER-31 | A (superseded by ER-31 B, 2026-10-13) | Conflict — revise before finalising | A keys a cache only by query/namespace. For result/context caches this conflicts with ER-29 C, ER-22 B and ER-30 B, and retrieve.md:586-588. Choose B, or disable result/context caching. An embedding-only cache may be narrower but still needs encoder/config identity and the privacy policy. |
 | ER-32 | B | Compatible direction — conditions apply | The model must never author scope, trust, verified state, fencing tokens or erasure generation. Resolve semantics before fields. |
 | ER-33 | B | Compatible direction — conditions apply | Keep durable event/API compatibility distinct from transient internal typing; exported internal schemas need not become public promises. |
 | ER-34 | B | Compatible direction — conditions apply | Discovery does not mean enablement. Pin selected plugins in manifests; fail duplicate registrations and scope lifetime violations. |
@@ -75,3 +75,5 @@ A: leave completion to manual review. B: distinguish selected, complete and fina
 
 Recommendation: B for the next worksheet revision; preserve the original export unchanged.
 
+## Change log
+- 2026-10-13: reconciled with ER amendments and owner decisions (consistency audit)

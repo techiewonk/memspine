@@ -133,7 +133,7 @@
   },
   "R-Q5": {
    "pipeline": "retrieve",
-   "answer": "Multi-party flag; no viewer = shared only",
+   "answer": "Multi-party flag; no viewer = shared only (superseded by ER-29 C, 2026-10-13: viewer required on every multi-party read)",
    "reading": "Write path sets the flag on a second participant or visibility tag; viewerless reads see owner-shared and unmarked records only (fixes today's no-filter read)."
   },
   "R-Q6": {

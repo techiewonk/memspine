@@ -31,7 +31,7 @@ Verdicts: 13 `ok`, 6 `ok-combined`, 4 `needs-measurement`, 3 `conflict`.
 | 4. Role policy | Raw keeps every role for audit. Derivation treats assistant text as proposed, tool output as evidence and system text as excluded. The echo guard is on. | W-06 |
 | 5. Firewall gate 1 | Screen the raw write. | W-07 |
 | 6. Routing | Unkeyed content lands as episodic or resource raw. Typed records come only from derivation (with parents) or from explicit keyed writes. | W-09 |
-| 7. Commit and receipt | One SQL transaction holds the event, the hot projections (SQL, lexical, and vector if the embedding is cached), a derivation intent and the outbox rows for heavy projections. The receipt returns the intent id. | W-02, W-10 |
+| 7. Commit and receipt | One SQL transaction holds the event, SQL-resident projections, a derivation intent and outbox rows for every non-SQL index. The receipt returns the intent id and readiness per capability. | W-02, W-10 |
 | 8. Segmentation | Adaptive window plus a time-gap cut. Closed windows are batched by tokens or age into one call, each window kept as its own numbered block. Per-turn mode stays a setting. | W-11 |
 | 9. Durable queue | A leased outbox records membership, source versions, attempts, lease and state. Work is acknowledged only after the deposit commits. Under load, windows are coalesced and marked underived; nothing is dropped. | W-13, W-25 |
 | 10. Online extraction | Runs asynchronously after the receipt. Readers may pass `wait_for_pending`, a bounded barrier. LLM merges stay at sleep. | W-12 |
@@ -50,7 +50,7 @@ Interface sketches (one per major component, names only):
 ```text
 SourceEnvelope{source_id, kind: conversation|document|tool_log|asset, version?, tz?, participants[],
                segments[{seg_index, caller_id?, role, speaker?, addressee?, source_at?, content, assets[]}]}
-Receipt{event_ids[], intent_id, raw_searchable: bool}   status(intent_id) -> {layer: pending|done|failed}
+Receipt{event_ids[], intent_id, readiness (illustrative; fields not frozen, ER-06)}   status(intent_id) -> {layer: pending|done|failed}
 OutboxRow{id, kind: projection|derivation, ns, source_id, source_version, members[], attempts, lease_until, state, failure_class?}
 ItemV1{s?, r?, o?, text, kind: state|event|fact, mode, neg, when?, until?, lines[], span, source?}
   -> AssertionEnvelope{v:1, text, value, evidence[], asserter, subject[], spk, mode, polarity,
@@ -69,6 +69,7 @@ ItemV1{s?, r?, o?, text, kind: state|event|fact, mode, neg, when?, until?, lines
 - **Test or gate:** every door produces identical stamps for the same input (a parity test), and the full v1 suite passes through the adapters.
 
 ### W-02 What a write receipt guarantees: D, raw searchable plus derivation intent
+- **Superseded by ER-06 A:** durable acceptance plus per-capability readiness; raw search readiness is reported, not guaranteed at return.
 - **Decision:** keep raw-searchable-at-return and persist a derivation intent in the same transaction. The receipt carries the intent id, and a status call reports pending, done or failed per layer.
 - **Verdict:** ok. G-19 A does not affect it, because the intent is a SQL row.
 - **What will happen:** a lost derivation stops being silent. Latency is about the same (one extra row; the measured hot path is 55-210 ms, G-W49). Touches $\mathcal{D}$, episodic.
@@ -153,7 +154,7 @@ ItemV1{s?, r?, o?, text, kind: state|event|fact, mode, neg, when?, until?, lines
 ### W-10 Event log to projection hand-off: C, hot inline, heavy via outbox (note "Combine B + C")
 - **Decision:** the default is C. SQL, lexical, and vector (when the embedding is cached) apply inline in the append transaction. Graph and derived projections go through a transactional outbox with idempotent apply and tombstone checks. B is kept as a mode, `projection.mode = outbox_all`, where every projection goes through the outbox, for high-throughput or server deployments. An external graph backend (Neo4j, per the M-04 note) is always outbox-driven, because it cannot join the SQL transaction. Under G-19 A the outbox is drained by in-process workers; there is no broker.
 - **Verdict:** ok-combined.
-- **What will happen:** in the default mode, raw stays searchable at return, and an online graph projector does not slow writes. In `outbox_all` mode writes are faster but raw becomes searchable only after the worker runs. Touches $\mathcal{D}$, episodic and associative.
+- **What will happen:** in the default mode, raw is durable at return and its index readiness is reported (ER-06), and an online graph projector does not slow writes. In `outbox_all` mode writes are faster but raw becomes searchable only after the worker runs. Touches $\mathcal{D}$, episodic and associative.
 - **Where:** `engine.py:13479` _append_and_project, `engine.py:13576` _projection_batch, `core/replay.py:34` catch_up -> `log.ProjectionRouter` and `log.Outbox`.
 - **Depends on / affects:** W-02, W-12, W-13; M-04, M-18. M-18 A dropped the capability contract, but the outbox apply still needs a minimal per-backend contract (idempotent upsert by assertion id, tombstone check). See the open points.
 - **Migration:** the projector offsets of v1 become outbox rows, and `catch_up` replays any gap.
@@ -343,3 +344,4 @@ ItemV1{s?, r?, o?, text, kind: state|event|fact, mode, neg, when?, until?, lines
 
 - 2026-10-11: first version. All 26 write-path answers verified (13 ok, 6 ok-combined, 4 needs-measurement, 3 conflict with M-02, M-12 and W-16); the seven owner notes are defined, and the cross-area effects of M-02, G-19, M-18/M-04 and M-12 are recorded.
 - 2026-10-12: owner follow-up answers recorded (Q1, Q2, Q4, Q7).
+- 2026-10-13: reconciled with ER amendments and owner decisions (consistency audit)

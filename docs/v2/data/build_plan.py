@@ -19,7 +19,7 @@ STATUSES = ("Not started", "Ready", "In progress", "Blocked", "Needs measurement
 # (id, phase, title, decisions, depends_on, kind, gate, status, note)
 # kind: "move" = pure restructure (tests + CPU golden); "behaviour" = needs a GPU screen through the paired gate;
 # "measure" = a run or screen; "infra" = tooling.
-from packages import LANES, WP  # noqa: E402  (the package list lives in packages.py)
+from packages import LANES, REVIEW, WP  # noqa: E402  (the package list lives in packages.py)
 
 
 #: Memory type -> layer of the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summaries, L3 graph,
@@ -81,13 +81,17 @@ def main() -> None:
                      "gate": gate, "status": status, "note": note, "layers": _layers(types),
                      "operators": [o for o in OP_ORDER if o in ops], "files": files,
                      "lane": _lane(wid, kind, files), "agent": "sonnet",
-                     "components": sorted({verify[d]["v2_component"] for d in dec if d in verify})[:4]})
+                     "components": sorted({verify[d]["v2_component"] for d in dec if d in verify})[:4],
+                     "review": REVIEW.get(wid, [])})
     ids = {r["id"] for r in rows}
     for r in rows:
         for d in r["depends_on"]:
             assert d in ids, (r["id"], d)
     _check_acyclic(rows)
     covered = {d for r in rows for d in r["decisions"]}
+    er_ids = [f"ER-{i:02d}" for i in range(1, 41)] + ["POL-1", "POL-2"]
+    er_missing = [e for e in er_ids if not any(e in r["review"] for r in rows)]
+    assert not er_missing, f"review findings without a package: {er_missing}"
     missing = sorted(set(titles) - covered)
     assert not missing, f"decisions without a work package: {missing}"
     (HERE / "plan.json").write_text(json.dumps({"statuses": STATUSES, "packages": rows}, indent=1, ensure_ascii=False) + "\n",
@@ -98,7 +102,7 @@ def main() -> None:
     c = Counter(r["status"] for r in rows)
     out = ["# MemSpine restructure plan: work packages and status", "",
            "Generated from `data/build_plan.py` (the source of truth for rows); status is also kept on the live tracker page and synced back here.",
-           f"{len(rows)} packages cover all {len(titles)} decisions. Kinds: **move** = pure restructure (tests and CPU golden), **behaviour** = "
+           f"{len(rows)} packages cover all {len(titles)} decisions. Kinds: **move** = pure restructure (tests and CPU golden), **migration** = persisted schema change (upcaster and replay-equivalence tests), **api** = new contract or lifetime (contract tests), **behaviour** = "
            "needs a GPU screen through the paired gate, **measure** = a run, **infra** = tooling.", "",
            "Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summaries, L3 graph, L4 observations and "
            "profile, L5 standing answers, procedures and plans; ctx = working context. Ops are the loop operators (D deposit, "
@@ -108,12 +112,12 @@ def main() -> None:
            "| Status | Count |", "|---|---|"] + [f"| {s} | {c.get(s, 0)} |" for s in STATUSES]
     for ph in sorted(phases):
         out += ["", f"## {phases[ph]}", "",
-                "| Id | Work package | Layers | Ops | Decisions | Depends on | Kind | Agent lane | Gate | Status | Note |",
-                "|---|---|---|---|---|---|---|---|---|---|---|"]
+                "| Id | Work package | Layers | Ops | Decisions | Review | Depends on | Kind | Agent lane | Gate | Status | Note |",
+                "|---|---|---|---|---|---|---|---|---|---|---|---|"]
         for r in rows:
             if r["phase"] == ph:
                 out.append(f"| {r['id']} | {r['title']} | {' '.join(r['layers']) or '-'} | {' '.join(r['operators']) or '-'} | "
-                           f"{', '.join(r['decisions'])} | {', '.join(r['depends_on']) or '-'} | {r['kind']} | {r['lane']} | "
+                           f"{', '.join(r['decisions'])} | {', '.join(r['review']) or '-'} | {', '.join(r['depends_on']) or '-'} | {r['kind']} | {r['lane']} | "
                            f"{r['gate']} | **{r['status']}** | {r['note']} |")
     (HERE.parent / "PLAN.md").write_text("\n".join(out) + "\n", encoding="utf-8")
     print(f"{len(rows)} packages, all {len(titles)} decisions covered; {dict(c)}")

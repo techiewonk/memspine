@@ -11,8 +11,8 @@ follow-up answers are marked (Q1..Q9), see `VERIFY.md` section 0.
 
 ```mermaid
 flowchart TD
-  IN[Source envelope: conversation, document, tool log, asset] --> CM[Commit: event log + hot projections + outbox rows, receipt]
-  CM --> RX[Raw searchable at once: SQL, BM25, vector]
+  IN[Source envelope: conversation, document, tool log, asset] --> CM[Commit: authoritative SQL rows + outbox intents (atomic); receipt with per-capability readiness]
+  CM --> RX[Raw indexes: SQL now; BM25/vector when ready (optional bounded wait)]
   CM --> OB[(Durable local outbox Q2)]
   OB --> SEG[Adaptive window + time-gap cut, token-batched]
   SEG --> X1[Call 1: one example-free extraction call, ItemV1 list]
@@ -26,9 +26,10 @@ flowchart TD
   Q[Question + depth tier] --> AN[Typed query contract, zero calls]
   AN --> LEGS[Legs: vector, BM25, temporal; entity, graph, episode when present]
   LEGS --> FU[Family fusion, RRF k=60, protected pool]
-  FU --> RR[Jina v3.5 rerank of the hit Q5]
-  RR --> LIFT[Lift derived hits to source turns, one score, relevance gate]
-  LIFT --> PK[Windows, rank-order packer, typed render with provenance]
+  FU --> LIFT[Lift to turns, re-admit, dedupe, cap ≤64]
+  LIFT --> RR[Jina v3.5 rerank Q5]
+  RR --> GATE[Relevance gate]
+  GATE --> PK[Windows, rank-order packer, typed render with provenance]
   PK --> G[Reader model]
   G -- reply written back --> IN
 ```
@@ -42,8 +43,10 @@ flowchart TD
    (W-04, W-05, W-08).
 3. **Firewall at three gates**: the raw write, the extraction prompt (quarantined turns never enter it) and every
    derived item, with trust capped at the weakest parent (W-07, G-06).
-4. **One commit, one receipt.** Event, hot projections and outbox rows in one SQL transaction; the receipt returns a
-   derivation intent id whose status can be read (W-02, W-10).
+4. **One commit, one receipt.** Authoritative SQL data and outbox intents commit atomically; independent indexes are
+   projected after the commit. The receipt reports readiness per capability; callers may wait on a bounded barrier
+   with a timeout (ER-06 A). The receipt returns a derivation intent id whose status can be read (W-02, W-10). New
+   writes are rejected before acceptance when storage or quota limits are reached (ER-08).
 5. **Durable derivation (Q2: decided).** A leased outbox in the same store, drained by the inline runner; acknowledged only
    after the deposit commits; under load windows are coalesced and marked underived, never dropped (W-13, W-25, G-19).
 6. **Segmentation.** Adaptive window plus a time-gap cut; closed windows batched by tokens into one call, each a
@@ -61,9 +64,9 @@ flowchart TD
 ## 2. Store and layers: `areas/model.md`
 
 - **Truth** is the append-only event log; SQL records, vectors, lexical index and graph are replayed projections; a
-  one-way Markdown export per namespace (M-01).
-- **One record shape with an explicit `layer` field** (L0 raw ... L5 standing answers). Base template fills L0 and L1
-  only; the rest are opt-in (Q1: decided). The nine memory types become a `type` tag mapped onto layers (M-02, M-03).
+  one-way Markdown export per namespace (M-01); rebuild covers retained events only, per retention profile (ER-27 C).
+- **One record shape with an explicit `layer` field** (L0 raw ... L5 standing answers). L0 always; L1 and L3 when a
+  worker model is configured; L2, L4, L5 opt-in (I-7; Q1 decided). The nine memory types become a `type` tag mapped onto layers (M-02, M-03).
 - **Assertion envelope**: text, typed value, evidence spans, asserter and subject, modality and polarity, kind and
   occurrence, tri-temporal times with precision, provenance class and trust, support count, derivation fingerprint
   (M-06, M-07, M-08, M-10, P-12).
@@ -82,8 +85,8 @@ flowchart TD
 
 - **Three tiers**: call 1 per window; call 2 at session close (summary, stitched episode, profile operations); sleep
   (call 3) per namespace. Sleep re-runs a session task only when call 2 failed or never ran (O-01, O-07).
-- **Triggers**: N new deposits and M minutes idle and at least K hours since the last run; manual `sleep()` shares
-  the same lease; off by default so evaluations stay deterministic (O-02).
+- **Triggers**: (N deposits AND M idle) OR context pressure C, both behind gap K; manual `sleep()` is non-blocking
+  and returns a job handle (OF-1, OF-2); off by default so evaluations stay deterministic (O-02).
 - **Unit of work**: one job per dirty namespace with a persisted lease and per-stage watermarks (O-03).
 - **Stage order**: retention, catch-up extraction, reconcile backlog and entity resolution, contradictions,
   near-duplicates, value histories, session catch-up, entity summaries, communities, profile and reflection, observer
@@ -102,11 +105,14 @@ flowchart TD
 - **Legs**: vector, BM25 (language-aware), temporal (event intervals) always; entity (inverse-degree penalty),
   graph (one hop), episode (lifted to turns) when the router turns them on and the layer exists (R-05..R-10).
 - **Fusion** within source families, then RRF k=60 across them; protected pool slots per family (R-11, R-12).
-- **Rerank** with Jina v3.5 on the single hit (Q5, Q6: decided); recency and reinforcement band built but off until
+- **Lift, re-admit, dedupe, cap**: derived hits lifted to their turns under one score, re-admitted, deduplicated and
+  capped (at most 64, R-Q4) before any rerank (R-Q1, ER-21).
+- **Rerank** with Jina v3.5 on the capped set (Q5, Q6: decided); recency and reinforcement band built but off until
   screened (R-14, R-15, R-16).
-- **Lift, gate, pack**: derived hits lifted to their turns under one score; store-calibrated relevance gate with a
-  named-reference bypass; windows expanded after rerank; rank-order packer that skips oversize items (fixes the v1
-  early break) (R-17, R-18, R-19, R-21).
+- **Gate, pack**: store-calibrated relevance gate with a named-reference bypass; windows expanded after rerank;
+  rank-order packer that skips oversize items and never truncates a bundle mid-evidence (fixes the v1 early break)
+  (R-17, R-18, R-19, R-21, ER-24). Generation and permissions are revalidated just before the result returns
+  (POL-1); derived records are admitted only if the viewer may see their lineage (POL-2).
 - **Deep tier only**: one sufficiency judge and at most one rewritten search, behind its own screen (R-22).
 
 ## 5. Models, prompts and speed: `areas/models.md`
@@ -119,7 +125,7 @@ flowchart TD
 - Thinking off on every hot-path call; capped only for background judges after a screen (P-15).
 - Embedders: CPU multilingual default, GPU instruction embedder profile; one device plan at start (P-17, P-19).
 - Targets as regression gates: at most one call per window, static prompt at most 500 tokens, write p95 at most
-  250 ms and zero-model read p95 at most 300 ms on a reference box (P-14, P-21).
+  250 ms and fast-tier read p95 300 ms without rerank (CPU), 350 ms with Jina (GPU), on stated hardware and concurrency (R-Q3, ER-39) (P-14, P-21).
 - Model upgrades through versioned vector spaces and selective re-derivation of stale fingerprints (P-25).
 
 ## 6. Trust, evaluation, API and operations: `areas/govern.md`
@@ -141,7 +147,7 @@ flowchart TD
 
 memspine itself is restructured on the same principles (owner, 2026-10-12): replaced code is deleted rather than
 aliased; behaviour changes become default only through the gate; the current reference stays reproducible by commit
-(`pinned_run.sh`); stores migrate by replaying the event log (G-16, G-23, G-25). See `RESTRUCTURE.md`.
+(`pinned_run.sh`); stores migrate by replaying the retained event log; rolling-log stores advertise limited rebuild (G-16, G-23, G-25). See `RESTRUCTURE.md`.
 
 ## 8. Runtime and modular structure (owner, 2026-10-13)
 
@@ -149,7 +155,11 @@ aliased; behaviour changes become default only through the gate; the current ref
 - **Concurrency:** async core with TaskGroup, timeouts and cancellation; dedicated executors for GPU encoders (micro-batched) and blocking I/O; a global model semaphore; four priority classes (read, write, online extraction, sleep and maintenance) with guaranteed minimum shares; backpressure coalesces and never drops.
 - **Sleep:** non-blocking job handles; one running job and one pending follow-up per namespace; leases and per-stage watermarks; triggers (N deposits AND M idle) OR context pressure C (70%, configurable), both behind the gap K; daily model-free maintenance.
 - **Modules:** typed registries with entry points for stages, legs, backends, providers and prompts; dishka dependency injection with app, job and request scopes; import-linter layer contracts in CI; versioned Pydantic schemas in `memspine.schemas`, exported as JSON Schema to `docs/v2/schemas/`.
-- **Default layers:** L0 always; L1 and L3 (graph) when a worker model is configured; L2, L4, L5 opt-in.
+- **Fencing:** every lease takeover bumps a monotonic claim epoch; a deposit commits only if its epoch, source versions and erasure generation still match, so a stale worker cannot write, acknowledge or advance watermarks (ER-07).
+- **Progress tracking:** progress is a contiguous watermark plus explicit holes; projector progress, derivation coverage and source membership are tracked separately; a wait captures a fixed target that later writes cannot extend (ER-09).
+- **Shutdown:** every job is tracked; `close()` drains within a deadline and persists unfinished jobs; a cancelled job cannot commit; per-tenant fair shares (ER-10).
+- **Overload:** accepted work is never dropped; at storage or quota limits new writes are rejected before acceptance with a distinguishable error, and emergency space is reserved for erasure and recovery (ER-08).
+- **Default layers:** L0 always; L1 and L3 (graph) when a worker model is configured; L2, L4, L5 opt-in (I-7).
 
 ## Change log
 - 2026-10-11: first version from the 155 answered decisions and the six area reviews.
@@ -158,3 +168,4 @@ aliased; behaviour changes become default only through the gate; the current ref
 - 2026-10-12 (later): stale owner-confirmation markers resolved from the Q1-Q8 answers.
 - 2026-10-12 (owner): not a separate v2; memspine is restructured as a whole along this plan; replaced code is deleted, no compatibility shims.
 - 2026-10-13: section 8 (runtime and modular structure) from the owner's answers.
+- 2026-10-13: reconciled with ER amendments and owner decisions (consistency audit)

@@ -28,7 +28,7 @@ Six area reviews checked every answer against the owner's other answers, the v1 
 Two answers differ from the proposal and add work:
 
 - **Q3 pattern observations:** O-15 moves from 'none' to 'patterns only'. A sleep stage `observe_patterns` runs after value histories: code groups records by (subject, predicate family) and recurrence, and the model words only groups that changed since the last cycle, citing every member. Needs measurement before default: OP-Bench, PrefEval and MAB-CR non-inferior, sleep calls per turn within the O-05 budget (estimate: under 0.05 extra calls per turn when worded only on change).
-- **Q4 Neo4j server graph:** the server profile spans two systems (Postgres for records, Neo4j for the graph). Required with it: a real Neo4j adapter (v1's is a stub, `services/graph/neo4j.py:16-18`) fed only through the outbox (W-10); erasure through the reverse-lineage index must delete in Neo4j and prove it (G-13, M-25); scope keys in every Neo4j node and edge (M-05); encryption and backup per system; a rebuild of Neo4j from the event log (M-01). Gate: isolation, erasure and rebuild tests pass on the server profile before it ships.
+- **Q4 Neo4j server graph:** the server profile spans two systems (Postgres for records, Neo4j for the graph). Required with it: a real Neo4j adapter (v1's is a stub, `services/graph/neo4j.py:16-18`) fed only through the outbox (W-10); erasure through the reverse-lineage index must delete in Neo4j and prove it (G-13, M-25); scope keys in every Neo4j node and edge (M-05); encryption and backup per system; a rebuild of Neo4j from the retained event log (M-01). Gate: isolation, erasure and rebuild tests pass on the server profile before it ships.
 
 Q1 amended 2026-10-13 (I-7): the graph layer L3 is also on by default when a worker model is configured.
 
@@ -110,3 +110,4 @@ per-conversation uncertainty, and one sealed blind run before adoption. `eval_fo
 - 2026-10-12: owner answered Q1-Q8 (six as proposed; Q3 pattern observations and Q4 Neo4j server graph changed).
 - 2026-10-12: G-E1 paired gate built in v1; A03 focus result re-scored as HOLD (net +8, sign p 0.134).
 - 2026-10-13: Q1 amended (graph on by default); pipeline, runtime and modularity decisions recorded in `pipelines/README.md`.
+- 2026-10-13: reconciled with ER amendments and owner decisions (consistency audit)

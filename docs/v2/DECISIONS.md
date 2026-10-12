@@ -19,7 +19,7 @@ Legend: **rec** = took the recommendation; **diff** = chose another option; **+*
 | Id | Decision | Chosen | Recommended | Owner note |
 |---|---|---|---|---|
 | W-01 | Unit of a write call | D · Typed source envelope, per-message raw (rec) | D · Typed source envelope, per-message raw |  |
-| W-02 | What a write receipt guarantees | D · Raw searchable plus derivation intent (rec) | D · Raw searchable plus derivation intent |  |
+| W-02 | What a write receipt guarantees | D · Raw searchable plus derivation intent (rec) (superseded by ER-06 A, 2026-10-13: durable acceptance plus per-capability readiness) | D · Raw searchable plus derivation intent |  |
 | W-03 | Idempotency key for retried writes | D · Caller id first, fingerprint fallback, versioned (rec) | D · Caller id first, fingerprint fallback, versioned |  |
 | W-04 | Times stamped on every raw input | C · B plus declared source time zone (rec) | C · B plus declared source time zone | + Combinre B + C |
 | W-05 | Speaker, addressee and subject tagging | C · B plus extracted subject and asserter (rec) | C · B plus extracted subject and asserter | + also keep participact tag too |
@@ -50,7 +50,7 @@ Legend: **rec** = took the recommendation; **diff** = chose another option; **+*
 | Id | Decision | Chosen | Recommended | Owner note |
 |---|---|---|---|---|
 | M-01 | Source of truth for memory | E · Event log + derived Markdown export view (rec) | E · Event log + derived Markdown export view |  |
-| M-02 | Derived layer stack L0-L5 | D · Two layers only (raw + facts) (**diff**) | B · Explicit layer field on one record shape | + B + D |
+| M-02 | Derived layer stack L0-L5 | D · Two layers only (raw + facts) (**diff**) (superseded by I-7, 2026-10-13: L3 graph also on with a worker model) | B · Explicit layer field on one record shape | + B + D |
 | M-03 | Which memory types v2 keeps | B · Nine as a type tag, mapped to layers (rec) | B · Nine as a type tag, mapped to layers |  |
 | M-04 | Storage backend profile | C · Two profiles from one log (rec) | C · Two profiles from one log | + SQL graph to neo4j |
 | M-05 | Isolation and tenancy model | B · Typed scope tuple on every row and key (rec) | B · Typed scope tuple on every row and key |  |
@@ -81,7 +81,7 @@ Legend: **rec** = took the recommendation; **diff** = chose another option; **+*
 | Id | Decision | Chosen | Recommended | Owner note |
 |---|---|---|---|---|
 | O-01 | Where offline derivation runs | B · Three tiers: window, session close, sleep (rec) | B · Three tiers: window, session close, sleep |  |
-| O-02 | Sleep trigger policy | C · Volume + idle + minimum spacing per namespace (rec) | C · Volume + idle + minimum spacing per namespace |  |
+| O-02 | Sleep trigger policy | C · Volume + idle + minimum spacing per namespace (rec) (superseded by OF-1 and OF-2, 2026-10-13: non-blocking sleep, context-pressure trigger) | C · Volume + idle + minimum spacing per namespace |  |
 | O-03 | Unit of work, locking and restart | B · Per-namespace job, dirty set, advisory lock (rec) | B · Per-namespace job, dirty set, advisory lock |  |
 | O-04 | Call 3 stage order | B · Reconcile first, then summarise, then personalise, then maintain (rec) | B · Reconcile first, then summarise, then personalise, then maintain |  |
 | O-05 | Cost caps for background work | C · Token budget per namespace per cycle, priority order (rec) | C · Token budget per namespace per cycle, priority order |  |
@@ -213,3 +213,6 @@ These refine the answers above where they conflicted; see `VERIFY.md` section 0.
 | Q6 | Jina if installed, permissive fallback | R-14, P-17, P-18 |
 | Q7 | Coexist unless marked | W-22, M-12 |
 | Q8 | Assistant exemption in the chat preset only | G-06 |
+
+## Change log
+- 2026-10-13: reconciled with ER amendments and owner decisions (consistency audit)

@@ -11,7 +11,7 @@ the compose operator $\mathcal{C}$ (windows, packing, typed render with provenan
 opt-in deep tier and the opt-in public-knowledge block. It reads projections only (records, vectors, lexical
 index, graph when present) and never writes memory content: the event log stays the truth, and the only events a
 read may append are the read audit (shared and regulated profiles) and ledger rows. The default tier (`fast`)
-makes **no model call**; Jina v3.5 reranks every read wherever it is installed (Q5, Q6). Decisions: R-01 to R-26
+makes **no generative call** (embedding and rerank inference are counted separately, ER-39); Jina v3.5 reranks every read wherever it is installed (Q5, Q6). Decisions: R-01 to R-26
 (`areas/read.md`), P-17 to P-21 (`areas/models.md`), G-09, G-12, G-13, G-15, G-16 (`areas/govern.md`), M-05,
 M-09, M-10, M-11 (`areas/model.md`). Work packages R3-01 to R3-15, F-10, F-11, T5-02 (`PLAN.md`).
 
@@ -63,7 +63,7 @@ Step 20 (execution, caching and latency budgets) is cross-cutting and applies to
 | E3 | `h.search(q, k)` (evidence only, no compose) | Caller call | `Engine.search` `engine.py:5035` | Steps 1-12 only; returns `LegHit`-ranked `EvidenceItem`s |
 | E4 | MCP tool `memory_search` / `read` (stdio) | Tool call bound to a principal | `protocols/tools.py:111`, `:127` | Maps onto E1/E3 with the tool context's scope (G-17 C) |
 | E5 | REST `POST /search`, `POST /assemble` | HTTP call; loopback only unless auth is set | `protocols/rest/app.py:340`, `:357` | Scope bound to the authenticated principal (G-17 C) |
-| E6 | Internal read by another pipeline | Offline stages that need retrieval (for example entity resolution candidates, standing-answer refresh) | Internal `_search` calls, e.g. cards header `engine.py:8124` | Internal callers use E3 with an explicit system principal; never steps 13-17 |
+| E6 | Internal read by another pipeline | Offline stages that need retrieval (for example entity resolution candidates, standing-answer refresh) | Internal `_search` calls, e.g. cards header `engine.py:8124` | Internal callers use E3 with an explicit system principal; never steps 13-17; multi-party internal reads also bind a viewer (ER-29) |
 | E7 | Deep-tier re-entry | `depth=deep` and the sufficiency judge says insufficient on round 0 | `_agentic_extend` `engine.py:6775` | Re-enters at step 6 with the rewrite as an extra probe leg; at most once (R-22 B) |
 | E8 | Calibration (not a read, feeds step 12) | Gate probes recomputed at first sleep per namespace, or when the store size or embedder id changes | `_store_calibration` called lazily inside `_calibrated_gate` `engine.py:7982`; `core/relevance_probes.py:80` | Computed by the offline pipeline at sleep (R-21); a read only looks them up |
 
@@ -120,8 +120,8 @@ Input  ReadRequest, handle Scope{tenant, user, agent, session, principal, purpos
 Output ReadScope
   namespace:     str                         required  validated; the single hard boundary (G-12 B)
   multi_party:   bool                        required  namespace has participant or visibility tags naming >1 party
-  viewer:        str | None                  optional  fixed on the handle (G-16 D)
-  viewer_rule:   "full" | "viewer" | "shared_only"  required  shared_only = no viewer in a multi-party namespace
+  viewer:        str                         required when multi_party; bound from the authenticated principal (ER-29 C)
+  viewer_rule:   "full" | "viewer"            required  (the former shared_only rule is retired, ER-29 C)
   purpose:       str | None                  optional  consent purpose (G-11; enforce flag opt-in)
   as_of_valid:   datetime | None             optional  M-11 axis 1 (world time)
   as_of_known:   datetime | None             optional  M-11 axis 2 (what memory had recorded); caller-set only
@@ -130,8 +130,9 @@ Output ReadScope
 ```
 
 - **Writes:** nothing. **Reads:** namespace registry, store-level `multi_party` flag (new; see Q-R5).
-- **Failure and retry:** an invalid namespace raises. A multi-party namespace read with no viewer does **not**
-  raise: it narrows to `owner_shared` and unmarked records (G-12 B; "fails closed" = narrowed view). No retry.
+- **Failure and retry:** an invalid namespace raises. A multi-party namespace read with no viewer
+  raises `ViewerRequired` (ER-29 C); unknown visibility never broadens access. No retry. (Superseded by ER-29 C,
+  2026-10-13: the earlier "narrow to `owner_shared` and unmarked records" reading, G-12 B, is withdrawn.)
 - **Idempotency:** pure.
 - **Ordering and locking:** the scope is immutable for the whole read, including the deep round.
 - **Config:** `read.language_guard` (unchanged); `consent.enforce` (default false); viewer has no config: it
@@ -217,7 +218,7 @@ Output LegPlan
 - **Writes:** query-vector cache entry. **Reads:** cache.
 - **Failure and retry:** embedder failure raises (the vector leg is core; without it there is no read).
   Dimension or embedder-id mismatch with the store raises `ConfigError` at start, not at read.
-- **Idempotency:** cache key = (embedder_id, instruction, text).
+- **Idempotency:** cache key = (encoder id + weights/config fingerprint, instruction, normalisation, text).
 - **Ordering and locking:** none.
 - **Config:** `embedding.*` (unchanged), `embedding.query_instruction`.
 - **Today vs decided:** `embed_queries` in `_search` `engine.py:5350`, `:5359`; every extra search re-embeds.
@@ -289,10 +290,11 @@ Output LegPlan
 | known-at | `recorded_at <= as_of_known` when set | M-11 B |
 | quarantine | never admitted | G-06 |
 | consent | the record's purposes allow this read (when `consent.enforce`) | G-11 |
-| viewer | `visible_to(tags, viewer)` or the `shared_only` rule | G-12 B |
+| viewer | `visible_to(tags, viewer)`; the viewer is required on every multi-party read (ER-29 C) | G-12 B |
 | trust | trust at or above the admission threshold $\theta_{\mathrm{read}}$; live re-evaluation when integrity is on | G-07 |
 | bookkeeping | grant records and cues are keys, never content (a trusted cue resolves to its live target) | v1 C8', EI-1 |
 | generation | the record's generation is current (no publication of an erased parent's in-flight derivation) | G-13 C |
+| lineage | a derived record is admitted only if the viewer may see its supporting lineage; otherwise it is omitted or re-derived from visible sources; numeric trust is not access control (POL-2) | F-16a, R3-08, T5-01 |
 
 - **Writes:** nothing (cuts go to the trace with a reason). **Reads:** records projection.
 - **Failure and retry:** a corrupt cold-tier row is skipped with a warning, never fails the read
@@ -332,14 +334,16 @@ Output LegPlan
 - **Model call?** never.
 - **Input / Output:** `Pool` -> `Pool` where each derived entry is replaced by its live parent L0 turns
   (through the lineage table, M-09) at the derived entry's position, de-duplicated; the derived record itself
-  moves to the notes candidates (`NoteItem`, step 16 caps it). A derived record with no live, admitted parent
+  moves to the notes candidates (`NoteItem`, step 16 caps it). The lifted pool is then re-admitted (step 8
+  gates again), de-duplicated and re-capped to the tier pool size (at most 64, R-Q4) with family coverage
+  preserved; unscored entries are kept distinct from scored zero (ER-21 B). A derived record with no live, admitted parent
   keeps its own slot; a derived record with **no lineage** is excluded from lifting and shown only as a note.
 - **Writes:** nothing. **Reads:** lineage table, records projection (parents pass step 8 gates again).
 - **Failure and retry:** a missing parent is skipped.
 - **Idempotency:** deterministic.
-- **Ordering and locking:** runs **before** the rerank in this spec so lifted turns are scored as hits (R-15 note
-  on R-17: "lifted parent turns are scored as hits"). The design table in `areas/read.md` lists rerank before
-  lift; see Q-R1.
+- **Ordering and locking:** runs **before** the rerank so lifted turns are scored as hits (R-15 note
+  on R-17: "lifted parent turns are scored as hits"). Settled by R-Q1 and ER-21 B: lift, re-admit, dedupe, cap,
+  then rerank.
 - **Config:** `read.facts_to_sources` false -> **true**; v1 `_best_source_turn` single-turn replay retired.
 - **Today vs decided:** `_facts_to_sources` `engine.py:8357-8386` runs **after** the rerank inside
   `_assemble_core` (`engine.py:6210-6213`); the parent turn inherits the fact's score and is never scored by
@@ -570,7 +574,9 @@ Output EvidenceBundle{blocks: list[ContextBlock], tokens_used: int, skipped: lis
 - **Writes:** `memory.audit` read event (record ids and purpose only) in `multi_agent` and `regulated`
   profiles (G-15 D); ledger rows for deep-tier calls (P-22); no RETRIEVE reinforcement event by default
   (`record_access` false; reinforcement counts come from consolidation, O-13, not reads; O-25 A).
-- **Reads:** nothing.
+- **Reads:** generation counters and permissions, once more just before returning (POL-1): erased or no longer
+  permitted items are dropped from the result; the check is the explicit read/erase linearisation point; content
+  already delivered cannot be recalled.
 - **Failure and retry:** an audit write failure in a regulated profile fails the read (no unaudited read);
   elsewhere it is logged.
 - **Idempotency:** audit events carry a read id; re-sending the same read id does not duplicate.
@@ -589,7 +595,7 @@ Output EvidenceBundle{blocks: list[ContextBlock], tokens_used: int, skipped: lis
 | Item | Decided | Today |
 |---|---|---|
 | Legs | concurrent, deterministic merge order, per-leg timeout, timed-out leg dropped and logged | sequential (`engine.py:5387-5603`) |
-| p95 targets (CI, pinned hardware) | fast < 150 ms without rerank or about < 350 ms with Jina; standard < 500 ms with Jina on GPU; deep < 3 s (all to confirm); P-21: zero-LLM read p95 <= 300 ms | reference p50 764 ms per question (timer scope to confirm) |
+| p95 targets (CI, pinned hardware) | fast 300 ms without rerank (CPU) or 350 ms with Jina (GPU) (R-Q3); standard < 500 ms with Jina on GPU; deep < 3 s (all to confirm); P-21 read targets restated by R-Q3 and ER-39: 300 ms p95 without rerank (CPU), 350 ms with Jina (GPU), stated hardware and concurrency | reference p50 764 ms per question (timer scope to confirm) |
 | Query-vector cache | kept | per call |
 | Read snapshot | kept: one listing per (namespace, type, group) per read, cleared by every append | `_snapshot_listings` `engine.py:739-776` |
 | Vocabulary caches | kept, keyed by record count | `engine.py:1268-1300` |
@@ -625,7 +631,7 @@ Output EvidenceBundle{blocks: list[ContextBlock], tokens_used: int, skipped: lis
 | 13 | List question ("What hobbies has Ilse mentioned?") | list mode: wider pool, no `keep` cut, single-turn windows past first N | 4, 9, 11, 15 | `test_list_mode.py`, `test_list_mode_round2.py` |
 | 14 | Count question ("How many times did Bram go hiking?") | cardinality count -> list mode; occurrences visible; no duplicate turns | 4, 15 | `test_count_timeline.py` |
 | 15 | Multi-party namespace, viewer given | only records `visible_to(viewer)`; private turns of others never appear, including as neighbours and lifted parents | 2, 8, 10, 15 | `test_governance_labels.py`; neighbour/lift leak test to add |
-| 16 | Multi-party namespace, no viewer | narrowed to `owner_shared` and unmarked records | 2, 8 | to add (G-12; today sees everything) |
+| 16 | Multi-party namespace, no viewer | rejected with `ViewerRequired`; probes include legacy and derived records (ER-29 C) | 2, 8 | to add (G-12; today sees everything) |
 | 17 | Cross-namespace probe | zero records from another namespace in any leg, cache or window | 2, 8 | `test_namespace_isolation_sweep.py` |
 | 18 | Low-trust evidence (tool-channel record with instruction framing) | admitted only above $\theta_{\mathrm{read}}$; rendered inside the data wrapper; claims-only in protected profiles | 8, 17 | `test_claims_only.py`, `test_engine_integrity.py`; wrapper-default test to add (T5-02) |
 | 19 | Quarantined or erased record ranks first in a leg | never admitted; never returned from any cache after restart | 8, 20 | `test_erasure_cascade.py`, `test_erasure_reach.py`; integration `test_erasure_persistence.py` |
@@ -634,7 +640,7 @@ Output EvidenceBundle{blocks: list[ContextBlock], tokens_used: int, skipped: lis
 | 22 | Reranker absent (no `[st]`) | fused order stands; `describe()` reports; gate calibrated on the dense score | 11, 12 | `test_rerank_keep.py` (unavailable path) |
 | 23 | Reranker raises mid-read | fused order for this read; `rerank_failures` incremented; next read retries | 11 | `test_engine_p7b.py` |
 | 24 | Pool larger than Jina's 64-document window (deep tier) | must not silently zero the tail: see Q-R4 | 11 | to add |
-| 25 | Budget overflow: one oversize turn first in rank | truncated or gisted; packing continues with smaller items; total within budget by reader tokenizer | 16 | `test_assembly_window_dedupe.py`; early-break fix test to add (R3-09) |
+| 25 | Budget overflow: one oversize turn first in rank | omitted or replaced by a smaller complete bundle; packing continues; exact-mode total within the reader-tokenizer budget (ER-24) | 16 | `test_assembly_window_dedupe.py`; early-break fix test to add (R3-09) |
 | 26 | Very small budget (e.g. 200 tokens) | windows shrink to the hit; at least one item; header counted | 15, 16 | `test_read_levers.py` (extend) |
 | 27 | Lexical leg fails (index corrupt) | dropped and logged; read continues on vector + temporal | 6 | `test_routed_read_gates.py` (extend) |
 | 28 | Leg timeout under load | timed-out leg dropped; result equals sequential run without that leg | 6, 20 | determinism test to add (R-25) |
@@ -648,7 +654,7 @@ Output EvidenceBundle{blocks: list[ContextBlock], tokens_used: int, skipped: lis
 | 36 | Duplicate hits across legs and lifted parents | one entry per record; family votes de-duplicated | 7, 9, 10 | `test_pool_protect.py` |
 | 37 | Very large namespace (1M records) | scope pushed into index queries, no namespace listing; p95 within tier SLO | 2, 8, 20 | to add (scale, R3-15) |
 | 38 | Repeated identical read | prefix bytes identical; query-vector cache hit; same output | 17, 20 | `test_read_snapshot.py`; prefix-stability test to add |
-| 39 | Concurrent write while reading | read sees its snapshot; a later read sees the write (raw searchable at commit) | 8, 20 | integration `test_sqlite_wal_contention.py` |
+| 39 | Concurrent write while reading | read sees its snapshot; a later read sees the write once its indexes report ready (ER-06) | 8, 20 | integration `test_sqlite_wal_contention.py` |
 | 40 | Hosted reader bound, PII-tagged record in context | record withheld from the remote reader's context (G-10 C) | 17 | `test_remote_gate_review.py` |
 
 ## Shared data types used here
@@ -727,9 +733,9 @@ ReadTrace                                                         today as foren
 |---|---|---|
 | Q-R1 | Lift before or after the rerank? `areas/read.md` lists rerank then lift, but R-15's note says lifted turns are scored as hits; today the parent inherits the fact's score. | **A. Lift before rerank** (pool -> lift -> one Jina call), so every shown turn has its own score; costs a few more pairs. B. Lift after rerank (today), parent inherits the derived score. C. Both: rerank once, then rerank only the newly lifted turns in a second call. |
 | Q-R2 | Deep-tier call cap: R-22 allows 2 extra calls (rewrite + judge), P-14 says at most 1 extra model call and 1 extra search. | **A. Two calls** (rewrite in step 4 + judge), reuse the rewrite in the round; amend P-14. B. One call: judge only, the rewrite produced by rules from the judge's `missing` field. C. One call: rewrite only, no judge (R-04 C). |
-| Q-R3 | Fast-tier SLO with Jina on every read: R-25 gives about 350 ms, P-21 says zero-model read p95 at most 300 ms. | **A. Two targets**: 300 ms without rerank (CPU profile), 350 ms with Jina on GPU. B. Tighten to 300 ms with Jina (smaller fast pool). C. Exclude rerank time from P-21. |
+| Q-R3 | (answered: R-Q3, with the ER-39 call accounting) Fast-tier SLO with Jina on every read: R-25 gives about 350 ms, P-21 says zero-model read p95 at most 300 ms. | **A. Two targets**: 300 ms without rerank (CPU profile), 350 ms with Jina on GPU. B. Tighten to 300 ms with Jina (smaller fast pool). C. Exclude rerank time from P-21. |
 | Q-R4 | Jina's listwise adapter scores at most 64 documents per call and gives 0.0 to the rest; the deep pool is about 80. | **A. Cap every tier's pool at 64** (calibrate deep at 64). B. Score in windows of 64 with overlap and normalise per window (scores across windows are not comparable). C. Pre-cut by fused score to 64. |
-| Q-R5 | How is a namespace known to be multi-party, and what happens without a viewer? | **A. Store-level flag set by the write path** when a second participant or a visibility tag appears; no-viewer reads narrow to `owner_shared` + unmarked. B. Same flag, but no-viewer reads raise. C. Scan tags per read (today's cost, no flag). |
+| Q-R5 | (superseded by ER-29 C, 2026-10-13: viewer required on every multi-party read) How is a namespace known to be multi-party, and what happens without a viewer? | **A. Store-level flag set by the write path** when a second participant or a visibility tag appears; no-viewer reads narrow to `owner_shared` + unmarked. B. Same flag, but no-viewer reads raise. C. Scan tags per read (today's cost, no flag). |
 | Q-R6 | When the relevance gate fires, does the stable prefix (persona, profile card, standing answers) stay? | **A. Keep the stable prefix, drop all evidence** (prefix caching keeps working; profile is separately relevance-gated). B. Fully empty context (literal R-21). |
 | Q-R7 | v1 `full` (whole store if it fits) and `compose` (aggregation) read shapes are not in the decided design. | **A. Retire both under G-22**; list mode covers aggregation. B. Keep `full` as an opt-in small-store shortcut that still passes steps 8 and 17. C. Keep both as presets. |
 | Q-R8 | v1 read headers (cards header with its own search, profile, novelty, slots, session digest, recent turns, count and duration sections) run separate searches before the routed read. | **A. Fold facts into the notes block from the single pool; keep profile card as `[profile]`; retire the rest under G-22 unless screened.** B. Keep the headers as opt-in blocks with their own caps. |
@@ -744,7 +750,7 @@ These settle the open questions above; where they differ from a recommendation, 
 | R-Q2 | Deep tier: two calls (rewrite + judge) | The 1-call target is amended for the deep tier only. |
 | R-Q3 | Two fast-tier targets | 300 ms p95 without rerank (CPU), 350 ms p95 with Jina on GPU; both in CI on a reference box. |
 | R-Q4 | Rerank pools capped at 64 | Every tier, deep calibrated at 64; no silent zero scores. |
-| R-Q5 | Multi-party flag; no viewer = shared only | Write path sets the flag on a second participant or visibility tag; viewerless reads see owner-shared and unmarked records only (fixes today's no-filter read). |
+| R-Q5 | Multi-party flag; no viewer = shared only (superseded by ER-29 C, 2026-10-13: viewerless multi-party reads are rejected) | Write path sets the flag on a second participant or visibility tag; viewerless reads see owner-shared and unmarked records only (fixes today's no-filter read). |
 | R-Q6 | Gate fires: keep stable prefix, drop evidence | Persona, profile card and standing answers stay; prompt caching keeps working. |
 | R-Q7/8 | Retire full/compose modes and v1 headers | Facts fold into the single-pool notes block; profile card stays as [profile]; anything a screen proves useful comes back. |
 
@@ -754,3 +760,4 @@ These settle the open questions above; where they differ from a recommendation, 
   (G-09, G-12, G-13, G-15, G-16), `VERIFY.md` Q1-Q9 and `PLAN.md` R3 packages, traced to code at
   `feat/local-qwen-stack` 8c7081a; 20 steps, 40 scenarios, 8 open questions.
 - 2026-10-13: open questions answered by the owner (section 'Owner decisions').
+- 2026-10-13: reconciled with ER amendments and owner decisions (consistency audit)

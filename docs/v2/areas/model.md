@@ -15,7 +15,7 @@ communities".
 The notable points:
 
 - **M-02 is read as "B + D"**: the explicit `layer` field exists on every record (B), but the base
-  template populates only two layers, L0 raw and L1 facts (D); summaries, episodes, graph, profile and
+  template populates L0 raw always, and L1 facts and L3 graph when a worker model is configured (I-7); summaries, episodes, graph, profile and
   communities stay in the schema as opt-in layers, switched on by templates. Read literally ("drop
   summaries, graph and observations"), D would contradict nine other answers in this area and seven in
   the offline area, so the combined reading is the only compatible one. Confirmed by the owner (Q1, 2026-10-12).
@@ -33,8 +33,8 @@ The notable points:
 
 | # | Component | v2 design as decided | Ids |
 |---|---|---|---|
-| 1 | Truth | Append-only `memory_events` log is the only truth; SQL records, vectors, lexical, graph are replayed projections; a one-way Markdown export view per namespace whose edits re-enter as ordinary writes. | M-01 |
-| 2 | Layers | One record shape with an explicit `layer` field (L0 raw, L1 assertions, L2 episodes/summaries, L3 graph/temporal, L4 observations/profile, L5 standing answers) plus `derivation` (policy, prompt, schema, model, key versions). Base template populates **L0 + L1 only**; L2-L5 are opt-in per template. | M-02, M-26 |
+| 1 | Truth | Append-only `memory_events` log is the only truth; SQL records, vectors, lexical, graph are replayed projections; a one-way Markdown export view per namespace whose edits re-enter as ordinary writes. Rebuild covers retained events only, per retention profile (ER-27 C). | M-01 |
+| 2 | Layers | One record shape with an explicit `layer` field (L0 raw, L1 assertions, L2 episodes/summaries, L3 graph/temporal, L4 observations/profile, L5 standing answers) plus `derivation` (policy, prompt, schema, model, key versions). L0 always; L1 and L3 when a worker model is configured; L2, L4, L5 opt-in (I-7). | M-02, M-26 |
 | 3 | Types | The nine memory types stay as a `type` tag mapped onto layers: working = context, episodic = L0/L2, semantic = L1, associative = L3 projection, reflective = L4, procedural/prospective = L5, resource = L0 documents; shared is a mechanism (grants), not a type. | M-03 |
 | 4 | Stores | Two storage profiles from one event schema: **embedded** (SQLite + LanceDB + Tantivy + graph) and **server** (Postgres + pgvector + Postgres FTS + graph). Graph: embedded = auto Ladybug else SQL adjacency (today); server = **Neo4j** for the graph, fed only through the outbox, with records in Postgres (owner, Q4). | M-04, M-18 |
 | 5 | Scope | Typed scope tuple (tenant, user, agent, session) on every row and inside every identity, cache and index key; the namespace path is derived from it. Mandatory viewer for multi-party reads (G-12). | M-05 |
@@ -353,7 +353,7 @@ GraphProjection (existing GraphStore protocol, services/graph/base.py:88, extend
 - **Verdict**: ok-combined. Compatible, and D's links are what R-09 C (one-hop convergent expansion
   over shared-entity, semantic and causal links) needs.
 - **What will happen**: no fake entity nodes; one fact truth; links give the graph leg convergent
-  evidence; quality +, cost small (links built in code), complexity -. Graph is L3, so opt-in under M-02.
+  evidence; quality +, cost small (links built in code), complexity -. Graph is L3, on by default with a worker model (I-7).
   Operators D, R.
 - **Where**: `core/events.py:57-61` (LINK), `workers/pipelines.py:1882` (`_edge_key`) -> v2
   `EdgeCompiler` (assertion -> edges, n-ary nodes) + `LinkProjection`.
@@ -495,7 +495,7 @@ GraphProjection (existing GraphStore protocol, services/graph/base.py:88, extend
   the erasure path, with a generation check so stale results never publish.
 - **Verdict**: ok. Same as G-13 C. Crypto-shredding stays a later ADR for regulated templates.
 - **What will happen**: memory stays useful after erasure; re-derivation cost (-); risk ++. In the base
-  (L0 + L1) the cascade is short. Operator K_C. All types.
+  (L0, L1, L3) the cascade is short. Operator K_C. All types.
 - **Where**: `core/erasure.py`, `engine.py:9657` (forget), `:9699` (erase_subject), `:10230`
   (verify_forget), `:10321` (residual_risks), `:14409` (`_deposit_mined_fact` I72 re-check) -> v2
   `ErasureService` over `LineageProjection`.
@@ -520,7 +520,7 @@ GraphProjection (existing GraphStore protocol, services/graph/base.py:88, extend
 
 | Id | Issue | Proposal | Needs |
 |---|---|---|---|
-| M-02 | Literal D drops summaries, graph and observations, which nine model answers and seven offline answers rely on | B + D: explicit layer field; base populates L0 + L1; L2-L5 opt-in per template | owner confirmation |
+| M-02 | Literal D drops summaries, graph and observations, which nine model answers and seven offline answers rely on | B + D: explicit layer field; base populates L0, plus L1 and L3 with a worker model (I-7); L2-L5 opt-in per template | owner confirmation |
 | M-13 / O-15 | M-13 D wants observations; O-15 A says no observation layer | Ship the value-history view (= O-14 B) now; hold observations until O-15 is reopened and the G-W29 gate passes | owner: value histories only, or observations too? |
 | M-04 / M-18 | M-04 note "SQL graph to neo4j"; M-18 A keeps embedded Ladybug/SQL with no server option; v1 Neo4j adapter is a stub | Embedded: A. Server: Postgres tables default, Neo4j optional adapter via the outbox, same contract tests | owner: replace or optional? |
 | M-12 / W-22 | Default for undeclared attributes: coexist (M-12) vs kind-aware contest (W-22 D) | W-22 D is the registry's fallback rule; learned entries go to the registry as reviewable proposals | none unless the owner prefers coexist |
@@ -559,3 +559,4 @@ GraphProjection (existing GraphStore protocol, services/graph/base.py:88, extend
   read, model-service and governance areas.
 - 2026-10-12: owner follow-up answers recorded (Q1, Q3, Q4, Q7).
 - 2026-10-12 (later): stale owner-confirmation markers resolved from the Q1-Q8 answers. M-04/M-18 summary row now says Neo4j (Q4).
+- 2026-10-13: reconciled with ER amendments and owner decisions (consistency audit)

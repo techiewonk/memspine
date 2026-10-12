@@ -44,8 +44,8 @@ All other effect sizes are estimates.
 | 4 | Legs | Vector, BM25 and temporal always run. Entity, graph, episode and session legs run when the router switches them on (R-05). BM25 uses language-aware tokenisers (R-06). The temporal leg uses a window anchored to the question time and matches event intervals once M-10 lands (R-07). The entity leg uses an inverse-degree penalty (R-08). The graph leg is a one-hop convergent expansion (R-09). The episode leg lifts its hits to parent turns (R-10). | R |
 | 5 | Fuse | Legs are grouped into source families and merged within each family. RRF k=60 then fuses across families. Plain RRF is the fallback (R-11 A+C). | R |
 | 6 | Pool | Slots are reserved per source family (R-12). Pool size is set by the tier, and floors are calibrated per store (R-13). | R |
-| 7 | Rerank | Jina v3.5 scores the **single hit** (R-14, R-15 A). A bounded multiplicative band for recency and reinforcement is built but off until screened (R-16). | R |
-| 8 | Lift | Derived hits are lifted to their parent turns and ranked under one reranker score. Derived text appears only as capped notes (R-17). | R |
+| 7 | Lift (re-admit, dedupe, cap) | Derived hits are lifted to their parent turns, re-admitted, deduplicated and capped (at most 64, R-Q4) before reranking; derived text appears only as capped notes (R-17; R-Q1, ER-21 B). | R |
+| 8 | Rerank | Jina v3.5 scores the **single hit** (R-14, R-15 A) on the lifted, capped set, so all hits share one reranker score. A bounded multiplicative band for recency and reinforcement is built but off until screened (R-16). | R |
 | 9 | Gate | A store-calibrated relevance gate with a bypass for named references. When it fires, the read returns an empty context with a reason (R-21). | R |
 | 10 | Time view | The contract's time scope picks current state, history or as-of. A compact value-history line is the fallback (R-24). | R |
 | 11 | Windows | Each hit expands into a token-sized window after reranking. Windows shrink as the budget fills and merge when they overlap (R-19). | C |
@@ -54,7 +54,7 @@ All other effect sizes are estimates.
 | 14 | Deep tier | Opt-in only: one sufficiency judge, then at most one rewritten search, then answer (R-22 B). It is gated by a new screen. | R, C |
 | 15 | External | Opt-in and gated, behind a privacy filter, in a separate `[public knowledge]` block (R-23). | R |
 | 16 | Speed | Legs run in parallel with a per-leg timeout. Each tier has a p95 SLO that CI tests (R-25). | R |
-| 17 | Cache | Embeddings and snapshots are cached, and prompts use a provider prompt-cache layout. Rerank-score and composed-context caches are deferred (R-26). | C |
+| 17 | Cache | Embeddings and snapshots are cached, and prompts use a provider prompt-cache layout. Snapshot cache keys include effective scope, viewer/purpose, time view, policy/model versions, record versions and invalidation generations (ER-31 B); result-content caches (rerank-score, composed-context) stay disabled until ER-31 keys exist (R-26). | C |
 
 Interface sketch (read entry, v2 `memspine.read`):
 
@@ -63,7 +63,7 @@ class ReadRequest(BaseModel):
     query: str
     depth: Literal["fast", "standard", "deep"] | None = None   # None -> config default (R-01)
     as_of_valid: datetime | None = None; as_of_known: datetime | None = None  # M-11
-    viewer: str | None = None                                   # G-12
+    viewer: str  # bound from handle principal; required in multi-party namespaces (ER-29 C; G-12)
     budget_tokens: int | None = None
 
 class Leg(Protocol):            # one retrieval leg (R-05)
@@ -483,7 +483,7 @@ class Leg(Protocol):            # one retrieval leg (R-05)
 
 - **Decision.**
   - **Step 1, adopt now.** This is B, a correctness fix (RV08). The packer skips an oversize item
-    and continues instead of breaking. It truncates or falls back when the first item is oversize.
+    and continues instead of breaking. An oversize bundle is omitted or replaced by a validated smaller complete bundle; it is never truncated mid-evidence (ER-24).
     It counts headers and provenance, and validates the final token count with the reader's
     tokenizer.
   - **Step 2.** Per-block caps (raw, notes, profile, public), with unused capacity flowing to the
@@ -491,7 +491,7 @@ class Leg(Protocol):            # one retrieval leg (R-05)
 - **Verdict:** needs-measurement for the shares in step 2. Step 1 is a fix and needs no screen.
 - **What will happen:**
   - A long item no longer evicts shorter useful ones.
-  - The context never exceeds the budget.
+  - In exact mode the rendered context, headers, citations and reserves never exceed the reader-tokenizer budget; estimated mode is labelled and makes no hard guarantee (ER-24).
   - Quality: +small from the fix (estimate). Tokens: equal or lower.
   - Touches working memory; operator C.
 - **Where:** v1 `core/policies/assembly.py:179` (`assemble`) and `:288-309` (the early `break`),
@@ -501,7 +501,7 @@ class Leg(Protocol):            # one retrieval leg (R-05)
 - **Migration:** The default budget is unchanged. The block caps start equal to "raw takes all" when
   the notes block is empty.
 - **Test or gate:**
-  - A unit test checks that output never exceeds the budget, using the reader tokenizer.
+  - A unit test checks that output never exceeds the budget, using the reader tokenizer; multilingual and long-token probes; estimated mode asserted as labelled (ER-24).
   - Shares vs no shares, paired at equal budget on the focus slice (RV08).
 
 ### R-19 Neighbour window expansion shape: C, token-sized, budget-scaled windows
@@ -701,7 +701,9 @@ class Leg(Protocol):            # one retrieval leg (R-05)
   - Keep stable content first and variable content last in every prompt, with cache hints when a
     hosted reader is bound (P-08 C).
   - The rerank-score cache (B) and the composed-context cache (C) are deferred until the cache key
-    includes tenant, viewer (G-12), record version and generation (M-25).
+    includes effective scope, viewer/purpose, time view, policy/model versions, record versions and
+    invalidation generations; admission rechecked at use (ER-31 B). Until then no result-content cache
+    is enabled (disabled until ER-31 keys exist).
 - **Verdict:** ok.
 - **What will happen:**
   - Quality: 0. Latency: small savings on hosted readers. Local prefill is about 10% (G-W45).
@@ -757,3 +759,4 @@ class Leg(Protocol):            # one retrieval leg (R-05)
     decision;
   - cross-area effects of M-02, O-15 and P-18 were recorded.
 - 2026-10-12: owner follow-up answers recorded (Q1, Q3, Q5, Q6).
+- 2026-10-13: reconciled with ER amendments and owner decisions (consistency audit)

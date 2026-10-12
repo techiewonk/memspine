@@ -351,7 +351,7 @@ planned in `docs/v2/` and judged by its own gate against a frozen v1 reference (
   - The namespace is the single hard enforcement point.
   - Inside a multi-party namespace (one with participant or visibility tags naming more than one party), every read
     must name a viewer.
-  - A read without a viewer sees only `owner_shared` and unmarked records.
+  - A multi-party read without a viewer is rejected (ER-29 C); the viewer comes from the authenticated principal. Unknown visibility never broadens access.
   - D (a physical store per tenant) was proposed as a server deployment setting under G-19. With G-19 A it drops to
     an operator choice: one data directory or database per tenant, with no engine support.
 - **Verdict:** ok.
@@ -366,7 +366,7 @@ planned in `docs/v2/` and judged by its own gate against a frozen v1 reference (
 - **Depends on / affects:** G-16, G-17 (credentials bind scope), G-04 (tenant pairs).
 - **Migration:** Visibility tags carry over by replay.
 - **Test or gate:** The isolation tests from RV21 over write, search, update, delete and cache hits pass, and a
-  multi-party read with no viewer returns no private records.
+  multi-party read with no viewer is rejected, on REST, MCP, internal and migration paths (ER-29 C).
 
 ### G-13 Right to erasure across derived state: C, reverse lineage plus re-derivation
 
@@ -409,8 +409,8 @@ planned in `docs/v2/` and judged by its own gate against a frozen v1 reference (
   - `src/memspine/core/events.py:33` (`EventLogMode`)
   - `src/memspine/config/schema.py:43` (`EventLogConfig`) and `:1575` (`RetentionConfig`, empty)
   - These become `memspine.ops.retention`.
-- **Depends on / affects:** G-21 (profiles), G-23 (replay needs a full log), G-15 (audit taint).
-- **Migration:** v1 stores are full-log, so migration by replay is always possible.
+- **Depends on / affects:** G-21 (profiles), G-23 (replay needs a full log; rolling-log stores advertise limited rebuild, ER-27 C), G-15 (audit taint).
+- **Migration:** v1 stores are full-log, so migration by replay is possible for full-log stores; rolling/ephemeral stores fail clearly for pruned history (ER-27 C).
 - **Test or gate:** In the assistant profile, a session record expires after the TTL. A long-term record never does.
 
 ### G-15 Audit log scope and default: D, actions always; reads in shared and regulated profiles
@@ -803,3 +803,4 @@ planned in `docs/v2/` and judged by its own gate against a frozen v1 reference (
 - 2026-10-11 (later): owner decided v2 stays inside `memspine` (same package and principles, plan in `docs/v2/` only); separation passages rewritten.
 - 2026-10-12: owner follow-up answers recorded (Q2, Q4, Q8).
 - 2026-10-12 (later): stale owner-confirmation markers resolved from the Q1-Q8 answers.
+- 2026-10-13: reconciled with ER amendments and owner decisions (consistency audit)

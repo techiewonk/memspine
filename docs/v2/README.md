@@ -18,8 +18,8 @@ the same gates.
 ## How the restructure relates to today's code (owner decisions, 2026-10-11 and 2026-10-12)
 
 - **Same project, same principles.** v2 is the next architecture of `memspine` itself, not a new package or a
-  fork: the event log stays the truth, derived layers stay opt-in, no model call by default, every change
-  graduates through the gate.
+  fork: the event log stays the truth, L1 and L3 on only when a worker model is configured (no generative call without
+  one; L2, L4, L5 opt-in), every change graduates through the gate.
 - **Plan only here.** Everything about v2 lives in `docs/v2/` on the main branch. v1 documents
   (`docs/GAP_TO_SOLUTION_PLAN.md`, `evals/analysis/GAP_REGISTER.md`, the ADRs) point here instead of copying it.
 - **Code:** memspine's structure changes altogether, step by step (`RESTRUCTURE.md`, `ROADMAP.md`). Code the new
@@ -59,3 +59,4 @@ the same gates.
   branch and the separate `v2/plan` branch was retired.
 - 2026-10-12 (later): `docs/v2_decisions/` merged here (questions.json moved to `data/`, its brief was identical to `data/question_brief.md`); stale owner markers resolved; model chapter's server graph corrected to Neo4j (Q4).
 - 2026-10-12 (owner): not a separate v2; memspine is restructured as a whole along this plan; replaced code is deleted, no compatibility shims.
+- 2026-10-13: reconciled with ER amendments and owner decisions (consistency audit)

@@ -57,7 +57,7 @@ about 8x wall time (GAP_REGISTER.md:726).
 | 11 | `retrieval.encoders` | Embedder: CPU multilingual ONNX default; GPU + `[st]` profile uses a 0.6B instruction embedder with Matryoshka truncation; the choice is pinned per store. Reranker: **jina-reranker-v3.5**, run behind a pre-run gate (flat score spread or pool over budget); harness forces always-on. | P-17, P-18 |
 | 12 | `runtime.planner` | One device plan at start (detect devices and VRAM, place LLM > reranker > embedder by priority, reserve LLM context memory, report in `describe()`). | P-19 |
 | 13 | `runtime.scheduler` | Parallel read legs; namespaces concurrent, ordered within a namespace; one global model semaphore matched to server slots; all in-process (G-19 A). | P-20 |
-| 14 | `economy.slo` | Hot-path budgets (write p95 ≤250 ms, zero-LLM read p95 ≤300 ms on a reference box) plus a time-to-searchable target for derived items measured in-process; backlog age recomputed from persisted "underived" markers after a restart. | P-21 |
+| 14 | `economy.slo` | Hot-path budgets (write p95 ≤250 ms, fast-tier read p95 300 ms without rerank (CPU), 350 ms with Jina (GPU), on stated hardware and concurrency, R-Q3, ER-39) plus a time-to-searchable target for derived items measured in-process; backlog age recomputed from persisted "underived" markers after a restart. | P-21 |
 | 15 | `economy.ledger` | Uniform per-layer, per-tier, per-namespace ledger (calls, tokens, retries, failures, grounded/ungrounded, queue delay), persisted as events; optional budgets that defer (mark underived, never drop); money estimate from a price table. | P-22 |
 | 16 | `write.prepass` | GLiNER2 pre-pass per window (entities, dates, sensitivity, importance label) as hints; skips windows with nothing extractable; off when `[ner]` is absent. | P-23 |
 | 17 | `compose.prefix` | No KV-cache memory store; stable blocks first so server prefix caches hit. | P-24 |
@@ -386,8 +386,8 @@ about 8x wall time (GAP_REGISTER.md:726).
 
 ### P-21 Latency budgets and time-to-searchable: C Hot-path budgets plus time-to-searchable target
 
-- **Decision**: write p95 ≤250 ms and zero-LLM (fast tier) read p95 ≤300 ms on a reference box; raw turn searchable
-  at commit; derived items p95 ≤N s at stated load with queue delay and backlog age exported. The deep tier (R-22
+- **Decision**: write p95 ≤250 ms and fast-tier read p95 300 ms without rerank (CPU), 350 ms with Jina (GPU), on stated hardware and concurrency (R-Q3, ER-39); raw turn durable
+  at commit, with time-to-searchable per index measured as an SLO (ER-06); derived items p95 ≤N s at stated load with queue delay and backlog age exported. The deep tier (R-22
   B) gets its own budget: reader time + at most one worker call + one search. Under G-19 A the queue is in memory,
   so backlog age is recomputed after a restart from persisted "underived" markers (W-26, O-10) rather than read
   from a durable queue.
@@ -515,3 +515,4 @@ class Fingerprint(NamedTuple):      # provenance.fingerprint
   O-15 A, R-14 B, R-15 A and the standing Jina decision; recorded the 11853ed contamination fix as prompt-lint rules
   (P-07, P-13) and the 18:17 `uv sync` incident as a G-24 item with a fingerprint consequence (P-12).
 - 2026-10-12: owner follow-up answers recorded (Q2, Q5, Q6).
+- 2026-10-13: reconciled with ER amendments and owner decisions (consistency audit)

@@ -2,7 +2,7 @@
   "version": 1,
   "review_date": "2026-10-13",
   "exported_at": "2026-10-12T20:04:04.945Z",
-  "status": "Current planning selections; ER-06, ER-24 and ER-31 resolved by user instruction. Not implementation or measurement completion.",
+  "status": "all 40 findings and both cross-decision policies have owner choices (2026-10-13)",
   "decisions": [
     {
       "id": "ER-01",
@@ -51,65 +51,65 @@
     {
       "id": "ER-07",
       "title": "Fence expired workers",
-      "choice": null,
-      "notes": "",
-      "updated_at": null
+      "choice": "B",
+      "notes": "Owner answer 2026-10-13 (second set); see DECISION_AMENDMENTS_2026-10-13b.md",
+      "updated_at": "2026-10-13"
     },
     {
       "id": "ER-08",
       "title": "Bound overload honestly",
-      "choice": null,
-      "notes": "",
-      "updated_at": null
+      "choice": "B",
+      "notes": "Owner answer 2026-10-13 (second set); see DECISION_AMENDMENTS_2026-10-13b.md",
+      "updated_at": "2026-10-13"
     },
     {
       "id": "ER-09",
       "title": "Projection order, holes and freshness",
-      "choice": null,
-      "notes": "",
-      "updated_at": null
+      "choice": "B",
+      "notes": "Owner answer 2026-10-13 (second set); see DECISION_AMENDMENTS_2026-10-13b.md",
+      "updated_at": "2026-10-13"
     },
     {
       "id": "ER-10",
       "title": "Cancellation, shutdown and fairness",
-      "choice": null,
-      "notes": "",
-      "updated_at": null
+      "choice": "B",
+      "notes": "Owner answer 2026-10-13 (second set); see DECISION_AMENDMENTS_2026-10-13b.md",
+      "updated_at": "2026-10-13"
     },
     {
       "id": "ER-11",
       "title": "Cite cross-turn bindings",
-      "choice": null,
-      "notes": "",
-      "updated_at": null
+      "choice": "B",
+      "notes": "Owner answer 2026-10-13 (second set); see DECISION_AMENDMENTS_2026-10-13b.md",
+      "updated_at": "2026-10-13"
     },
     {
       "id": "ER-12",
       "title": "Recover missed information selectively",
-      "choice": null,
-      "notes": "",
-      "updated_at": null
+      "choice": "B",
+      "notes": "Owner answer 2026-10-13 (second set); see DECISION_AMENDMENTS_2026-10-13b.md",
+      "updated_at": "2026-10-13"
     },
     {
       "id": "ER-13",
       "title": "Identity across sessions and occurrences",
-      "choice": null,
-      "notes": "",
-      "updated_at": null
+      "choice": "B",
+      "notes": "Owner answer 2026-10-13 (second set); see DECISION_AMENDMENTS_2026-10-13b.md",
+      "updated_at": "2026-10-13"
     },
     {
       "id": "ER-14",
       "title": "Keep uncertainty multidimensional",
-      "choice": null,
-      "notes": "",
-      "updated_at": null
+      "choice": "B",
+      "notes": "Owner answer 2026-10-13 (second set); see DECISION_AMENDMENTS_2026-10-13b.md",
+      "updated_at": "2026-10-13"
     },
     {
       "id": "ER-15",
       "title": "Bound repairs and truncation recovery",
-      "choice": null,
-      "notes": "",
-      "updated_at": null
+      "choice": "B",
+      "notes": "Owner answer 2026-10-13 (second set); see DECISION_AMENDMENTS_2026-10-13b.md",
+      "updated_at": "2026-10-13"
     },
     {
       "id": "ER-16",
@@ -292,5 +292,9 @@
     }
   ],
   "reconciled_at": "2026-10-12T20:07:47.373807+00:00",
-  "original_export_sha256": "031b346cde58ba7505bfcf17c9b4eb85b7359fd4e4139d3b7f17d4e7ec4e9aef"
+  "original_export_sha256": "031b346cde58ba7505bfcf17c9b4eb85b7359fd4e4139d3b7f17d4e7ec4e9aef",
+  "policies": {
+    "POL-1 in-flight erasure": "revalidate generation and permissions before returning",
+    "POL-2 derived visibility": "lineage-aware admission"
+  }
 }
