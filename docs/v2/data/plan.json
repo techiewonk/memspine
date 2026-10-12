@@ -20,8 +20,8 @@
    "depends_on": [],
    "kind": "infra",
    "gate": "Replay: identical arm NO CHANGE; missing set INCOMPLETE",
-   "status": "In progress",
-   "note": "Built 2026-10-12 (d0ab058, 5bf5643); open: sealed one-shot blind run per adoption",
+   "status": "Done",
+   "note": "Manifests wired into focus/blind/paired (INCOMPARABLE), sealed blind exposure ledger, runner identity + cost (30101ed, fca7a00)",
    "layers": [
     "L0",
     "L1",

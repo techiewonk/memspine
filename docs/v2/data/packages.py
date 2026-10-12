@@ -10,8 +10,7 @@ door added; phase exit packages added.
 WP = [
     # ---- Phase 0: settle and prepare (no src/ behaviour change) ----
     ("P0-01", 0, "Paired adoption gate (focus, blind, full set)", ["G-01", "G-03"], [], "infra",
-     "Replay: identical arm NO CHANGE; missing set INCOMPLETE", "In progress",
-     "Built 2026-10-12 (d0ab058, 5bf5643); open: sealed one-shot blind run per adoption"),
+     "Replay: identical arm NO CHANGE; missing set INCOMPLETE", "Done", "Manifests wired into focus/blind/paired (INCOMPARABLE), sealed blind exposure ledger, runner identity + cost (30101ed, fca7a00)"),
     ("P0-02", 0, "Environment pinning: separate venv per pinned run", ["G-24"], [], "infra",
      "A fresh per-run venv reproduces clean-jina-full", "Needs measurement",
      "Per-run venv cache keyed by lock hash, dry-run, shared escape hatch (5f5a7f2); one GPU reproduction run pending (GPU stopped)"),

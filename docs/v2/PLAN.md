@@ -9,17 +9,17 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 |---|---|
 | Not started | 96 |
 | Ready | 0 |
-| In progress | 2 |
+| In progress | 1 |
 | Blocked | 1 |
 | Needs measurement | 3 |
-| Done | 10 |
+| Done | 11 |
 | Dropped | 0 |
 
 ## Phase 0: settle and prepare
 
 | Id | Work package | Layers | Ops | Decisions | Review | Depends on | Kind | Agent lane | Owns | Gate | Status | Note |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| P0-01 | Paired adoption gate (focus, blind, full set) | L0 L1 L4 L5 ctx scope | D K_C K_P R C G | G-01, G-03 | ER-35 | - | infra | infra | `evals/eval_blind.py` +15 | Replay: identical arm NO CHANGE; missing set INCOMPLETE | **In progress** | Built 2026-10-12 (d0ab058, 5bf5643); open: sealed one-shot blind run per adoption |
+| P0-01 | Paired adoption gate (focus, blind, full set) | L0 L1 L4 L5 ctx scope | D K_C K_P R C G | G-01, G-03 | ER-35 | - | infra | infra | `evals/eval_blind.py` +15 | Replay: identical arm NO CHANGE; missing set INCOMPLETE | **Done** | Manifests wired into focus/blind/paired (INCOMPARABLE), sealed blind exposure ledger, runner identity + cost (30101ed, fca7a00) |
 | P0-02 | Environment pinning: separate venv per pinned run | - | R G | G-24 | ER-35 | - | infra | infra | `evals/pinned_run.sh` +3 | A fresh per-run venv reproduces clean-jina-full | **Needs measurement** | Per-run venv cache keyed by lock hash, dry-run, shared escape hatch (5f5a7f2); one GPU reproduction run pending (GPU stopped) |
 | P0-03 | Run manifest and comparability key | - | D R C G | G-25 | ER-35, ER-34 | - | infra | infra | `evals/pinned_run.sh` +3 | Manifest records commit, env hash, flags, prompts, models, data hashes | **Done** | manifest.py, comparability key incl. budget, INCOMPARABLE verdict, cost block (5f5a7f2, 7346aca); runners populate identity in P0-01 |
 | P0-04 | CPU golden, import-boundary contracts, method-to-module map of engine.py | L0 L1 L4 L5 ctx scope | D K_C K_P R C | G-16 | - | X-03 | infra | infra | `.importlinter` +4 | Golden identical on two runs at HEAD; map covers every engine method | **Done** | 439 units mapped (0 heuristic), 14 import contracts, run_golden.sh (8689693) |
