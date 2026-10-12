@@ -1,6 +1,6 @@
 {
   "additionalProperties": true,
-  "description": "draft: field layout pending schema session 7 (receipt and readiness).",
+  "description": "Internal step type.",
   "properties": {
     "covers_seq": {
       "anyOf": [

@@ -1,6 +1,6 @@
 {
   "additionalProperties": true,
-  "description": "draft: field layout pending schema session 8.",
+  "description": "Internal step type.",
   "properties": {
     "record_id": {
       "title": "Record Id",

@@ -1,0 +1,158 @@
+{
+  "$defs": {
+    "ErasedIds": {
+      "additionalProperties": true,
+      "properties": {
+        "entity_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Entity Ids",
+          "type": "array"
+        },
+        "event_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Event Ids",
+          "type": "array"
+        },
+        "record_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Record Ids",
+          "type": "array"
+        },
+        "source_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Source Ids",
+          "type": "array"
+        }
+      },
+      "title": "ErasedIds",
+      "type": "object"
+    },
+    "OwnerScope": {
+      "additionalProperties": true,
+      "description": "Memory scope: tenant plus memory owner (S3-1).\n\nThe owner is a user or a shared group; every agent and session serving that owner sees the same\nentities. The session is *not* part of the scope: it is recorded as :class:`Provenance` only.",
+      "properties": {
+        "owner": {
+          "minLength": 1,
+          "title": "Owner",
+          "type": "string"
+        },
+        "owner_kind": {
+          "default": "user",
+          "enum": [
+            "user",
+            "group"
+          ],
+          "title": "Owner Kind",
+          "type": "string"
+        },
+        "tenant": {
+          "minLength": 1,
+          "title": "Tenant",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tenant",
+        "owner"
+      ],
+      "title": "OwnerScope",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "description": "What was erased: ids and the erasure generation, never content (ER-30).\n\nThe erased data is logically invisible at once. A tracked purge job removes projections, vectors,\ngraph and caches physically; restoring a backup re-applies this manifest.",
+  "properties": {
+    "erased_at": {
+      "format": "date-time",
+      "title": "Erased At",
+      "type": "string"
+    },
+    "erasure_generation": {
+      "minimum": 1,
+      "title": "Erasure Generation",
+      "type": "integer"
+    },
+    "ids": {
+      "$ref": "#/$defs/ErasedIds"
+    },
+    "manifest_id": {
+      "minLength": 1,
+      "title": "Manifest Id",
+      "type": "string"
+    },
+    "purge_job_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Purge Job Id"
+    },
+    "purge_state": {
+      "default": "pending",
+      "enum": [
+        "pending",
+        "running",
+        "done",
+        "failed"
+      ],
+      "title": "Purge State",
+      "type": "string"
+    },
+    "reason_code": {
+      "default": "user_request",
+      "enum": [
+        "user_request",
+        "retention",
+        "admin",
+        "legal"
+      ],
+      "title": "Reason Code",
+      "type": "string"
+    },
+    "requested_by": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Requested By"
+    },
+    "schema_version": {
+      "default": 1,
+      "minimum": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "scope": {
+      "$ref": "#/$defs/OwnerScope"
+    }
+  },
+  "required": [
+    "manifest_id",
+    "scope",
+    "erasure_generation",
+    "erased_at",
+    "ids"
+  ],
+  "title": "ErasureManifest",
+  "type": "object",
+  "x-kind": "erasure_manifest",
+  "x-schema-version": 1
+}

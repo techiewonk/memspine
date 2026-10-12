@@ -2,7 +2,7 @@
   "$defs": {
     "Resolution": {
       "additionalProperties": true,
-      "description": "Step 19 output. draft: pending schema session 3.",
+      "description": "Step 19 output.",
       "properties": {
         "candidate": {
           "anyOf": [

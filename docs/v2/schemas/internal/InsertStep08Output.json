@@ -1,12 +1,78 @@
 {
   "$defs": {
+    "Readiness": {
+      "additionalProperties": true,
+      "description": "State of each capability for a write. A capability that is not configured is ``unavailable``,\nnever ``pending`` (S7).",
+      "properties": {
+        "facts": {
+          "enum": [
+            "pending",
+            "ready",
+            "unavailable",
+            "failed"
+          ],
+          "title": "Facts",
+          "type": "string"
+        },
+        "graph": {
+          "enum": [
+            "pending",
+            "ready",
+            "unavailable",
+            "failed"
+          ],
+          "title": "Graph",
+          "type": "string"
+        },
+        "profile": {
+          "enum": [
+            "pending",
+            "ready",
+            "unavailable",
+            "failed"
+          ],
+          "title": "Profile",
+          "type": "string"
+        },
+        "raw_search": {
+          "enum": [
+            "pending",
+            "ready",
+            "unavailable",
+            "failed"
+          ],
+          "title": "Raw Search",
+          "type": "string"
+        },
+        "summaries": {
+          "enum": [
+            "pending",
+            "ready",
+            "unavailable",
+            "failed"
+          ],
+          "title": "Summaries",
+          "type": "string"
+        }
+      },
+      "required": [
+        "raw_search",
+        "facts",
+        "graph",
+        "summaries",
+        "profile"
+      ],
+      "title": "Readiness",
+      "type": "object"
+    },
     "Receipt": {
       "additionalProperties": true,
-      "description": "draft: field layout pending schema session 7 (receipt and readiness).",
+      "description": "Durable acceptance of a write (ER-06).\n\n``durability`` is ``durable``, or ``memory`` in ephemeral mode (the weaker guarantee). A retry, as\nidentified by the S3-3 write id, returns the original receipt.",
       "properties": {
         "accepted_seq": {
           "anyOf": [
             {
+              "minimum": 0,
               "type": "integer"
             },
             {
@@ -15,6 +81,14 @@
           ],
           "default": null,
           "title": "Accepted Seq"
+        },
+        "durability": {
+          "enum": [
+            "durable",
+            "memory"
+          ],
+          "title": "Durability",
+          "type": "string"
         },
         "event_ids": {
           "items": {
@@ -34,10 +108,8 @@
           "title": "Quarantined",
           "type": "array"
         },
-        "readiness_by_capability": {
-          "additionalProperties": true,
-          "title": "Readiness By Capability",
-          "type": "object"
+        "readiness": {
+          "$ref": "#/$defs/Readiness"
         },
         "record_ids": {
           "items": {
@@ -58,16 +130,19 @@
           "type": "string"
         },
         "source_version": {
+          "minimum": 1,
           "title": "Source Version",
           "type": "integer"
         }
       },
       "required": [
+        "durability",
         "event_ids",
         "record_ids",
         "intent_id",
         "source_id",
-        "source_version"
+        "source_version",
+        "readiness"
       ],
       "title": "Receipt",
       "type": "object"

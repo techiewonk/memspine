@@ -1,6 +1,6 @@
 {
   "additionalProperties": true,
-  "description": "draft: pending schema session 10. The spec names the type without fields.",
+  "description": "Internal step type. The spec names the type without fields.",
   "properties": {
     "reason": {
       "title": "Reason",

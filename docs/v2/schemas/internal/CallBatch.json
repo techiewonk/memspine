@@ -2,7 +2,7 @@
   "$defs": {
     "Window": {
       "additionalProperties": true,
-      "description": "Segmentation window (W-11). draft: pending schema session 8.",
+      "description": "Segmentation window (W-11). Internal step type.",
       "properties": {
         "reason": {
           "enum": [
@@ -78,7 +78,7 @@
     },
     "WindowTurn": {
       "additionalProperties": true,
-      "description": "draft: field layout pending schema session 8.",
+      "description": "Internal step type.",
       "properties": {
         "record_id": {
           "title": "Record Id",
@@ -143,7 +143,7 @@
     }
   },
   "additionalProperties": true,
-  "description": "draft: field layout pending schema session 9 (overload and accounting).",
+  "description": "Internal step type.",
   "properties": {
     "batch_id": {
       "title": "Batch Id",

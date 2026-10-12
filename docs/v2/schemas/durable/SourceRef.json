@@ -1,0 +1,22 @@
+{
+  "additionalProperties": true,
+  "description": "A pinned source: id plus version.",
+  "properties": {
+    "id": {
+      "minLength": 1,
+      "title": "Id",
+      "type": "string"
+    },
+    "version": {
+      "minimum": 1,
+      "title": "Version",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "id",
+    "version"
+  ],
+  "title": "SourceRef",
+  "type": "object"
+}

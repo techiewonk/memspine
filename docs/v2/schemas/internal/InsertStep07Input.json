@@ -2,7 +2,7 @@
   "$defs": {
     "AssetRef": {
       "additionalProperties": true,
-      "description": "draft: field layout pending schema session 4 (evidence).",
+      "description": "Internal step type.",
       "properties": {
         "asset_id": {
           "title": "Asset Id",
@@ -32,7 +32,7 @@
     },
     "ExplicitKey": {
       "additionalProperties": true,
-      "description": "Optional explicit key for routing (step 7). draft: pending schema session 3.",
+      "description": "Optional explicit key for routing (step 7).",
       "properties": {
         "attribute": {
           "anyOf": [
@@ -88,7 +88,7 @@
     },
     "Segment": {
       "additionalProperties": true,
-      "description": "draft: field layout pending schema session 3 (identity).",
+      "description": "Internal step type.",
       "properties": {
         "addressee": {
           "anyOf": [

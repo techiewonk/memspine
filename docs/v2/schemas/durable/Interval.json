@@ -1,0 +1,203 @@
+{
+  "$defs": {
+    "Duration": {
+      "additionalProperties": true,
+      "description": "A length of time: value plus unit, with an anchor when one is known (S6-4).",
+      "properties": {
+        "anchor": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Anchor"
+        },
+        "unit": {
+          "enum": [
+            "second",
+            "minute",
+            "hour",
+            "day",
+            "week",
+            "month",
+            "year"
+          ],
+          "title": "Unit",
+          "type": "string"
+        },
+        "value": {
+          "exclusiveMinimum": 0,
+          "title": "Value",
+          "type": "number"
+        }
+      },
+      "required": [
+        "value",
+        "unit"
+      ],
+      "title": "Duration",
+      "type": "object"
+    },
+    "TemporalRef": {
+      "additionalProperties": true,
+      "description": "One temporal value. ``at`` is the resolved instant (start of the period at ``precision``).",
+      "properties": {
+        "anchor": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Anchor"
+        },
+        "approximate": {
+          "default": false,
+          "title": "Approximate",
+          "type": "boolean"
+        },
+        "at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "At"
+        },
+        "basis": {
+          "default": "none",
+          "enum": [
+            "explicit",
+            "source_time",
+            "relation",
+            "inferred",
+            "none"
+          ],
+          "title": "Basis",
+          "type": "string"
+        },
+        "duration": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Duration"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "precision": {
+          "default": "unknown",
+          "enum": [
+            "instant",
+            "minute",
+            "hour",
+            "day",
+            "week",
+            "month",
+            "season",
+            "year",
+            "decade",
+            "unknown"
+          ],
+          "title": "Precision",
+          "type": "string"
+        },
+        "relation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TemporalRelation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Text"
+        }
+      },
+      "title": "TemporalRef",
+      "type": "object"
+    },
+    "TemporalRelation": {
+      "additionalProperties": true,
+      "description": "A phrase like \"after X\": a typed relation to another assertion, resolved only if an anchor exists.",
+      "properties": {
+        "relation": {
+          "enum": [
+            "before",
+            "after",
+            "during"
+          ],
+          "title": "Relation",
+          "type": "string"
+        },
+        "target_assertion_id": {
+          "minLength": 1,
+          "title": "Target Assertion Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "relation",
+        "target_assertion_id"
+      ],
+      "title": "TemporalRelation",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "description": "When something was true or happened. Either end may be open or unresolved; not both absent.",
+  "properties": {
+    "end": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TemporalRef"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "start": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TemporalRef"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "title": "Interval",
+  "type": "object"
+}

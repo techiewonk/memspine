@@ -35,7 +35,7 @@
     },
     "StandingAnswer": {
       "additionalProperties": true,
-      "description": "Record layer=L5. draft: pending schema session 5.",
+      "description": "Record layer=L5.",
       "properties": {
         "question_id": {
           "title": "Question Id",

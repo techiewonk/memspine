@@ -2,7 +2,7 @@
   "$defs": {
     "DerivationBudget": {
       "additionalProperties": true,
-      "description": "draft: field layout pending schema session 9 (overload and accounting).",
+      "description": "Internal step type.",
       "properties": {
         "by_class": {
           "additionalProperties": {
@@ -53,11 +53,17 @@
       "title": "DirtySet",
       "type": "object"
     },
-    "MemoryEvent": {
+    "Hole": {
       "additionalProperties": true,
-      "description": "draft: field layout pending schema session 8 (jobs); becomes a durable kind.",
+      "description": "An offset that the watermark passed without a successful result (ER-09).",
       "properties": {
-        "actor": {
+        "attempts": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Attempts",
+          "type": "integer"
+        },
+        "last_error": {
           "anyOf": [
             {
               "type": "string"
@@ -67,9 +73,107 @@
             }
           ],
           "default": null,
-          "title": "Actor"
+          "title": "Last Error"
+        },
+        "offset": {
+          "minimum": 0,
+          "title": "Offset",
+          "type": "integer"
+        },
+        "reason": {
+          "enum": [
+            "raised",
+            "malformed",
+            "valid_empty",
+            "truncated",
+            "size_skip",
+            "partial_commit",
+            "invented_alias",
+            "budget_exhausted"
+          ],
+          "title": "Reason",
+          "type": "string"
+        },
+        "waived": {
+          "default": false,
+          "title": "Waived",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "offset",
+        "reason"
+      ],
+      "title": "Hole",
+      "type": "object"
+    },
+    "JobLease": {
+      "additionalProperties": true,
+      "description": "A claim on a job or namespace. ``epoch`` strictly increases per (scope, job) with each claim.",
+      "properties": {
+        "acquired_at": {
+          "format": "date-time",
+          "title": "Acquired At",
+          "type": "string"
+        },
+        "epoch": {
+          "minimum": 1,
+          "title": "Epoch",
+          "type": "integer"
+        },
+        "heartbeat_at": {
+          "format": "date-time",
+          "title": "Heartbeat At",
+          "type": "string"
+        },
+        "job_id": {
+          "minLength": 1,
+          "title": "Job Id",
+          "type": "string"
+        },
+        "lease_until": {
+          "format": "date-time",
+          "title": "Lease Until",
+          "type": "string"
+        },
+        "owner": {
+          "minLength": 1,
+          "title": "Owner",
+          "type": "string"
+        },
+        "schema_version": {
+          "default": 1,
+          "minimum": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "scope": {
+          "$ref": "#/$defs/OwnerScope"
+        }
+      },
+      "required": [
+        "scope",
+        "job_id",
+        "owner",
+        "epoch",
+        "acquired_at",
+        "heartbeat_at",
+        "lease_until"
+      ],
+      "title": "JobLease",
+      "type": "object"
+    },
+    "MemoryEvent": {
+      "additionalProperties": true,
+      "description": "One immutable entry in the ``memory_events`` log.\n\n``seq`` is assigned by the write door at append time (monotonic per store); ``None`` only before.\nThe instance field ``kind`` is the *event* kind; the durable kind id of this model is ``memory_event``.",
+      "properties": {
+        "actor": {
+          "default": "system",
+          "title": "Actor",
+          "type": "string"
         },
         "event_id": {
+          "minLength": 1,
           "title": "Event Id",
           "type": "string"
         },
@@ -86,6 +190,7 @@
           "title": "Fingerprint"
         },
         "kind": {
+          "minLength": 1,
           "title": "Kind",
           "type": "string"
         },
@@ -94,15 +199,10 @@
           "title": "Payload",
           "type": "object"
         },
-        "schema_version": {
-          "default": 1,
-          "title": "Schema Version",
-          "type": "integer"
-        },
-        "scope": {
+        "provenance": {
           "anyOf": [
             {
-              "$ref": "#/$defs/Scope"
+              "$ref": "#/$defs/Provenance"
             },
             {
               "type": "null"
@@ -110,9 +210,19 @@
           ],
           "default": null
         },
+        "schema_version": {
+          "default": 1,
+          "minimum": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "scope": {
+          "$ref": "#/$defs/OwnerScope"
+        },
         "seq": {
           "anyOf": [
             {
+              "minimum": 0,
               "type": "integer"
             },
             {
@@ -123,33 +233,80 @@
           "title": "Seq"
         },
         "ts": {
-          "anyOf": [
-            {
-              "format": "date-time",
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Ts"
+          "format": "date-time",
+          "title": "Ts",
+          "type": "string"
         }
       },
       "required": [
         "event_id",
-        "kind"
+        "kind",
+        "scope",
+        "ts"
       ],
       "title": "MemoryEvent",
       "type": "object"
     },
-    "NamespaceLease": {
+    "OwnerScope": {
       "additionalProperties": true,
-      "description": "draft: field layout pending schema session 8 (jobs and progress).",
+      "description": "Memory scope: tenant plus memory owner (S3-1).\n\nThe owner is a user or a shared group; every agent and session serving that owner sees the same\nentities. The session is *not* part of the scope: it is recorded as :class:`Provenance` only.",
       "properties": {
-        "epoch": {
+        "owner": {
+          "minLength": 1,
+          "title": "Owner",
+          "type": "string"
+        },
+        "owner_kind": {
+          "default": "user",
+          "enum": [
+            "user",
+            "group"
+          ],
+          "title": "Owner Kind",
+          "type": "string"
+        },
+        "tenant": {
+          "minLength": 1,
+          "title": "Tenant",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tenant",
+        "owner"
+      ],
+      "title": "OwnerScope",
+      "type": "object"
+    },
+    "Progress": {
+      "additionalProperties": true,
+      "description": "Contiguous watermark plus an explicit list of holes.\n\nEvery offset up to and including ``watermark`` was handled; the ``holes`` among them were not\nsuccessfully derived and stay listed until filled (the hole is removed) or waived.",
+      "properties": {
+        "holes": {
+          "items": {
+            "$ref": "#/$defs/Hole"
+          },
+          "title": "Holes",
+          "type": "array"
+        },
+        "job_kind": {
+          "minLength": 1,
+          "title": "Job Kind",
+          "type": "string"
+        },
+        "schema_version": {
+          "default": 1,
+          "minimum": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "scope": {
+          "$ref": "#/$defs/OwnerScope"
+        },
+        "target_offset": {
           "anyOf": [
             {
+              "minimum": -1,
               "type": "integer"
             },
             {
@@ -157,46 +314,27 @@
             }
           ],
           "default": null,
-          "title": "Epoch"
+          "title": "Target Offset"
         },
-        "heartbeat_at": {
-          "format": "date-time",
-          "title": "Heartbeat At",
-          "type": "string"
-        },
-        "job_id": {
-          "title": "Job Id",
-          "type": "string"
-        },
-        "lease_until": {
-          "format": "date-time",
-          "title": "Lease Until",
-          "type": "string"
-        },
-        "ns": {
-          "title": "Ns",
-          "type": "string"
-        },
-        "owner": {
-          "title": "Owner",
-          "type": "string"
+        "watermark": {
+          "minimum": -1,
+          "title": "Watermark",
+          "type": "integer"
         }
       },
       "required": [
-        "ns",
-        "owner",
-        "job_id",
-        "lease_until",
-        "heartbeat_at"
+        "scope",
+        "job_kind",
+        "watermark"
       ],
-      "title": "NamespaceLease",
+      "title": "Progress",
       "type": "object"
     },
-    "Scope": {
+    "Provenance": {
       "additionalProperties": true,
-      "description": "draft: field layout pending schema session 3 (identity).",
+      "description": "Where a write came from. Provenance only: never part of identity or entity keys (S3-1).",
       "properties": {
-        "agent": {
+        "agent_id": {
           "anyOf": [
             {
               "type": "string"
@@ -206,7 +344,7 @@
             }
           ],
           "default": null,
-          "title": "Agent"
+          "title": "Agent Id"
         },
         "principal": {
           "anyOf": [
@@ -220,7 +358,7 @@
           "default": null,
           "title": "Principal"
         },
-        "purpose": {
+        "session_id": {
           "anyOf": [
             {
               "type": "string"
@@ -230,9 +368,9 @@
             }
           ],
           "default": null,
-          "title": "Purpose"
+          "title": "Session Id"
         },
-        "session": {
+        "source_id": {
           "anyOf": [
             {
               "type": "string"
@@ -242,98 +380,23 @@
             }
           ],
           "default": null,
-          "title": "Session"
+          "title": "Source Id"
         },
-        "tenant": {
+        "source_version": {
           "anyOf": [
             {
-              "type": "string"
+              "minimum": 1,
+              "type": "integer"
             },
             {
               "type": "null"
             }
           ],
           "default": null,
-          "title": "Tenant"
-        },
-        "user": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "User"
-        },
-        "viewer": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Viewer"
+          "title": "Source Version"
         }
       },
-      "title": "Scope",
-      "type": "object"
-    },
-    "StageWatermark": {
-      "additionalProperties": true,
-      "description": "draft: pending schema session 8. ER-09: contiguous watermark plus holes.",
-      "properties": {
-        "holes": {
-          "items": {
-            "type": "integer"
-          },
-          "title": "Holes",
-          "type": "array"
-        },
-        "ns": {
-          "title": "Ns",
-          "type": "string"
-        },
-        "seq": {
-          "title": "Seq",
-          "type": "integer"
-        },
-        "stage": {
-          "enum": [
-            "retention",
-            "catch_up_extract",
-            "reconcile_resolve",
-            "contradictions",
-            "near_duplicates",
-            "value_histories",
-            "observe_patterns",
-            "session_catch_up",
-            "entity_summaries",
-            "communities",
-            "profile",
-            "observer_views",
-            "standing_answers",
-            "watches_cues",
-            "procedures",
-            "decay",
-            "compress",
-            "log_prune"
-          ],
-          "title": "Stage",
-          "type": "string"
-        }
-      },
-      "required": [
-        "ns",
-        "stage",
-        "seq"
-      ],
-      "title": "StageWatermark",
+      "title": "Provenance",
       "type": "object"
     }
   },
@@ -350,11 +413,11 @@
       "type": "object"
     },
     "lease": {
-      "$ref": "#/$defs/NamespaceLease"
+      "$ref": "#/$defs/JobLease"
     },
     "watermarks": {
       "items": {
-        "$ref": "#/$defs/StageWatermark"
+        "$ref": "#/$defs/Progress"
       },
       "title": "Watermarks",
       "type": "array"

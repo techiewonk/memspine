@@ -13,13 +13,18 @@ from typing import Any, Literal
 from pydantic import Field
 
 from memspine.schemas.base import InternalModel
-from memspine.schemas.steps.shared import (
+from memspine.schemas.durable import (
     AssertionEnvelope,
+    AssertionKey,
+    JobLease,
+    MemoryEvent,
+    OutboxRow,
+    Progress,
+)
+from memspine.schemas.steps.shared import (
     DerivationBudget,
     JobKind,
     Layer,
-    MemoryEvent,
-    OutboxRow,
     ProfileCard,
     ProfileOp,
     Record,
@@ -54,28 +59,8 @@ Tier = Literal["hot", "warm", "cold", "dormant"]
 # --- types defined in the offline spec's shared section ------------------------------------------------
 
 
-class NamespaceLease(InternalModel):
-    """draft: field layout pending schema session 8 (jobs and progress)."""
-
-    ns: str
-    owner: str  # process id + nonce
-    job_id: str
-    lease_until: datetime
-    heartbeat_at: datetime
-    epoch: int | None = None  # TODO(session 8): ER-07 claim epoch, bumped on takeover
-
-
-class StageWatermark(InternalModel):
-    """draft: pending schema session 8. ER-09: contiguous watermark plus holes."""
-
-    ns: str
-    stage: StageName
-    seq: int
-    holes: list[int] = Field(default_factory=list)  # TODO(session 8): hole representation
-
-
 class NamespaceTriggerState(InternalModel):
-    """draft: pending schema session 8."""
+    """Internal step type."""
 
     ns: str | None = None
     deposits_since_run: int
@@ -86,7 +71,7 @@ class NamespaceTriggerState(InternalModel):
 
 
 class CycleReport(InternalModel):
-    """draft: pending schema session 8."""
+    """Internal step type."""
 
     job_id: str
     ns: str
@@ -154,7 +139,7 @@ class Call2Summary(InternalModel):
 class Call2Episode(InternalModel):
     text: str
     cites_windows: list[str] = Field(default_factory=list)
-    when: str | None = None  # TODO(session 6): DateLabel
+    when: str | None = None  # text; the compiler builds a durable TemporalRef (S6)
 
 
 class Call2Result(InternalModel):
@@ -166,13 +151,13 @@ class Call2Result(InternalModel):
 
 
 class RetentionClass(InternalModel):
-    match: str  # TODO(session 11): match expression format
-    ttl: str  # TODO(session 11): duration format
+    match: str  # TODO: match expression format is not specified
+    ttl: str  # TODO: duration format is not specified (a durable Duration fits)
     applies_to_layers: list[Layer] = Field(default_factory=list)
 
 
 class PendingMerge(InternalModel):
-    """Outbox row kind=pending_merge (W-19 B). draft: pending schema session 8."""
+    """Outbox row kind=pending_merge (W-19 B)."""
 
     id: str
     ns: str
@@ -279,7 +264,7 @@ class AnswerSection(InternalModel):
 
 
 class StandingAnswer(InternalModel):
-    """Record layer=L5. draft: pending schema session 5."""
+    """Record layer=L5."""
 
     question_id: str
     sections: list[AnswerSection] = Field(default_factory=list)
@@ -298,9 +283,9 @@ class Cue(InternalModel):
 
 
 class OutcomeReceipt(InternalModel):
-    """Exists at ``memories/procedural/lessons.py:52``; spec lists no fields. draft: pending session 8."""
+    """Exists at ``memories/procedural/lessons.py:52``; spec lists no fields."""
 
-    lesson_key: str | None = None  # TODO(session 8): spec lists no fields
+    lesson_key: str | None = None  # TODO: spec lists no fields
 
 
 class LessonCase(InternalModel):
@@ -346,8 +331,8 @@ class OfflineStep02Input(InternalModel):
 
 
 class OfflineStep02Output(InternalModel):
-    lease: NamespaceLease
-    watermarks: list[StageWatermark] = Field(default_factory=list)
+    lease: JobLease
+    watermarks: list[Progress] = Field(default_factory=list)
     dirty: dict[str, DirtySet] = Field(default_factory=dict)  # per stage
     budget: DerivationBudget = Field(default_factory=DerivationBudget)
 
@@ -426,7 +411,7 @@ class OfflineStep08Output(InternalModel):
 class OfflineStep09Input(InternalModel):
     """S6 Value histories."""
 
-    touched_keys: list[str]  # keys touched since the watermark; TODO(session 3): key type
+    touched_keys: list[AssertionKey]  # keys touched since the watermark
 
 
 class OfflineStep09Output(InternalModel):
@@ -536,7 +521,9 @@ class OfflineStep19Input(InternalModel):
 
     record_ids: list[str]  # not deleted, not quarantined, not pinned
     now: datetime
-    decay_policy: dict[str, Any] = Field(default_factory=dict)  # per type; TODO(session 8)
+    decay_policy: dict[str, Any] = Field(
+        default_factory=dict
+    )  # per type; TODO: shape not specified
 
 
 class OfflineStep19Output(InternalModel):
@@ -559,7 +546,7 @@ class OfflineStep21Input(InternalModel):
 
     mode: Literal["rolling"] = "rolling"
     retention_days: int
-    watermarks: list[StageWatermark] = Field(default_factory=list)
+    watermarks: list[Progress] = Field(default_factory=list)
     pending_outbox_source_seqs: list[int] = Field(default_factory=list)
 
 
@@ -583,4 +570,4 @@ class OfflineStep22Output(InternalModel):
     trigger_state: NamespaceTriggerState
     released_rows: list[OutboxRow] = Field(
         default_factory=list
-    )  # TODO(session 8): lease release shape
+    )  # rows handed back: status pending, lease cleared, epoch kept

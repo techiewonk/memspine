@@ -1,6 +1,6 @@
 {
   "additionalProperties": true,
-  "description": "A segment after steps 3-4 (clock and axes). draft: pending schema sessions 3 and 6.",
+  "description": "A segment after steps 3-4 (clock and axes).",
   "properties": {
     "addr": {
       "anyOf": [

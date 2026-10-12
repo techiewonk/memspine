@@ -1,6 +1,6 @@
 {
   "additionalProperties": true,
-  "description": "A re-read member record for prompt assembly (step 13). draft: pending schema session 4.",
+  "description": "A re-read member record for prompt assembly (step 13).",
   "properties": {
     "instruction_flag": {
       "default": false,

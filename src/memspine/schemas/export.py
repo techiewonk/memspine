@@ -12,29 +12,42 @@ import json
 from pathlib import Path
 from typing import Any
 
-from memspine.schemas.base import DurableModel, InternalModel, PublicModel, TierModel
+from memspine.schemas.base import (
+    DurableModel,
+    DurablePart,
+    InternalModel,
+    PublicModel,
+    TierModel,
+    kind_id,
+)
 
 TIERS: tuple[str, ...] = ("durable", "public", "internal")
-_ROOTS: dict[str, type[TierModel]] = {
-    "durable": DurableModel,
-    "public": PublicModel,
-    "internal": InternalModel,
+_ROOTS: dict[str, tuple[type[TierModel], ...]] = {
+    "durable": (DurableModel, DurablePart),
+    "public": (PublicModel,),
+    "internal": (InternalModel,),
 }
 _README = {
-    "durable": "strict tier; changes need a version bump; populated by later schema sessions\n",
-    "public": "strict tier; changes need a version bump; populated by later schema sessions\n",
+    "durable": (
+        "strict tier. Each persisted kind carries x-kind and x-schema-version; a change to a schema needs\n"
+        "a schema_version bump (and an upcaster). Value types embedded in kinds (no x-schema-version) are\n"
+        "checked through the kinds that embed them.\n"
+    ),
+    "public": "strict tier. Each model carries x-semver; a change to a schema needs a semver bump.\n",
 }
 _INTERNAL_NOTE = "no promise: exported for reading; diffs are not enforced"
 
 
 def _load_all() -> None:
     """Import every module that defines models so subclasses are registered."""
+    import memspine.schemas.durable
+    import memspine.schemas.public
     import memspine.schemas.steps  # noqa: F401
 
 
-def _walk(root: type[TierModel]) -> list[type[TierModel]]:
+def _walk(roots: tuple[type[TierModel], ...]) -> list[type[TierModel]]:
     seen: dict[str, type[TierModel]] = {}
-    stack = list(root.__subclasses__())
+    stack = [sub for root in roots for sub in root.__subclasses__()]
     while stack:
         cls = stack.pop()
         stack.extend(cls.__subclasses__())
@@ -68,7 +81,13 @@ def render() -> dict[str, str]:
     for tier, models in collect_models().items():
         for cls in models:
             rel = f"{tier}/{cls.__name__}.json"
-            files[rel] = _dump(cls.model_json_schema())
+            schema = cls.model_json_schema()
+            if tier == "durable" and kind_id(cls) is not None:
+                schema["x-kind"] = kind_id(cls)
+                schema["x-schema-version"] = cls.model_fields["schema_version"].default
+            if tier == "public":
+                schema["x-semver"] = getattr(cls, "__semver__", "0.0.0")
+            files[rel] = _dump(schema)
             entry: dict[str, Any] = {
                 "name": cls.__name__,
                 "tier": tier,
@@ -76,8 +95,10 @@ def render() -> dict[str, str]:
                 "module": cls.__module__,
             }
             if tier == "durable":
-                entry["kind"] = getattr(cls, "kind", None)
-                entry["schema_version"] = cls.model_fields["schema_version"].default
+                entry["kind"] = kind_id(cls)
+                entry["schema_version"] = (
+                    cls.model_fields["schema_version"].default if kind_id(cls) else None
+                )
             if tier == "public":
                 entry["semver"] = getattr(cls, "__semver__", None)
             index["models"].append(entry)
@@ -104,3 +125,52 @@ def export(outdir: str | Path) -> list[Path]:
             fh.write(text)
         written.append(path)
     return written
+
+
+def schema_version_of(tier: str, schema_text: str) -> Any:
+    """The version recorded in an exported schema: ``x-schema-version`` (durable kind) or ``x-semver``
+    (public). ``None`` for durable value types, which carry no version of their own."""
+    data = json.loads(schema_text)
+    return data.get("x-schema-version") if tier == "durable" else data.get("x-semver")
+
+
+def strict_violations(fresh: dict[str, str], baseline: dict[str, str]) -> list[str]:
+    """Strict-tier CI check (S1-4): compare a fresh export with the committed baseline.
+
+    ``fresh`` and ``baseline`` map relative paths (``durable/X.json``) to file text. Only the strict tiers
+    (durable and public) are compared. Returns human-readable problems:
+
+    * a schema changed but its ``schema_version`` (durable) or ``x-semver`` (public) did not;
+    * a schema changed with a bump, or was added or removed, and the committed export was not refreshed.
+
+    An empty list means the committed baseline is current and no change slipped through unversioned.
+    """
+    problems: list[str] = []
+    strict = ("durable/", "public/")
+    names = sorted({n for n in (*fresh, *baseline) if n.startswith(strict) and n.endswith(".json")})
+    for name in names:
+        tier = name.split("/", 1)[0]
+        new, old = fresh.get(name), baseline.get(name)
+        if new is None:
+            problems.append(
+                f"{name}: removed from the models but still in the baseline (re-export)"
+            )
+        elif old is None:
+            problems.append(f"{name}: new model missing from the committed baseline (re-export)")
+        elif new != old:
+            if schema_version_of(tier, new) is None:
+                problems.append(
+                    f"{name}: value type changed; bump the schema_version of every kind embedding it "
+                    f"(those kinds' schemas changed too) and re-export"
+                )
+            elif schema_version_of(tier, new) == schema_version_of(tier, old):
+                problems.append(
+                    f"{name}: schema changed without a version bump "
+                    f"({schema_version_of(tier, old)!r}); bump schema_version (durable, with an "
+                    f"upcaster) or __semver__ (public)"
+                )
+            else:
+                problems.append(
+                    f"{name}: version bumped but the committed baseline is stale (re-export)"
+                )
+    return problems

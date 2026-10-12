@@ -1,6 +1,6 @@
 {
   "additionalProperties": true,
-  "description": "A live conversation turn as read by sleep stages. draft: pending schema session 3.",
+  "description": "A live conversation turn as read by sleep stages. Internal step type.",
   "properties": {
     "record_id": {
       "title": "Record Id",

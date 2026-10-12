@@ -2,12 +2,29 @@
   "$defs": {
     "ContextBlock": {
       "additionalProperties": true,
-      "description": "draft: pending schema session 10.",
+      "description": "A typed section of the context. ``accounting`` says how ``tokens`` was counted: exactly with the\nreader model's tokenizer (headers and reserves included), or estimated when none was available.",
       "properties": {
+        "accounting": {
+          "default": "estimated",
+          "enum": [
+            "exact",
+            "estimated"
+          ],
+          "title": "Accounting",
+          "type": "string"
+        },
         "cap": {
-          "default": 0,
-          "title": "Cap",
-          "type": "integer"
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cap"
         },
         "kind": {
           "enum": [
@@ -27,8 +44,21 @@
           "title": "Lines",
           "type": "array"
         },
+        "tokenizer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tokenizer"
+        },
         "tokens": {
           "default": 0,
+          "minimum": 0,
           "title": "Tokens",
           "type": "integer"
         }
@@ -39,94 +69,23 @@
       "title": "ContextBlock",
       "type": "object"
     },
-    "QueryContract": {
-      "additionalProperties": true,
-      "description": "Typed query contract (R-03). draft: pending schema session 10.",
-      "properties": {
-        "answer_type": {
-          "default": "unknown",
-          "enum": [
-            "person",
-            "place",
-            "date",
-            "duration",
-            "count",
-            "quantity",
-            "title",
-            "name",
-            "yesno",
-            "choice",
-            "reason",
-            "description",
-            "entity",
-            "unknown"
-          ],
-          "title": "Answer Type",
-          "type": "string"
-        },
-        "cardinality": {
-          "default": "one",
-          "enum": [
-            "one",
-            "many",
-            "count"
-          ],
-          "title": "Cardinality",
-          "type": "string"
-        },
-        "relation": {
-          "default": "",
-          "title": "Relation",
-          "type": "string"
-        },
-        "request": {
-          "default": "recall",
-          "enum": [
-            "recall",
-            "inference",
-            "recommendation"
-          ],
-          "title": "Request",
-          "type": "string"
-        },
-        "source": {
-          "default": "rules",
-          "enum": [
-            "rules",
-            "llm"
-          ],
-          "title": "Source",
-          "type": "string"
-        },
-        "subjects": {
-          "items": {
-            "type": "string"
-          },
-          "title": "Subjects",
-          "type": "array"
-        },
-        "subtype": {
-          "default": "",
-          "title": "Subtype",
-          "type": "string"
-        },
-        "time_scope": {
-          "default": "",
-          "title": "Time Scope",
-          "type": "string"
-        }
-      },
-      "title": "QueryContract",
-      "type": "object"
-    },
     "ReadResult": {
       "additionalProperties": true,
-      "description": "draft: pending schema session 10.",
+      "description": "The answer to a read. ``partial`` with ``missing_capabilities`` marks a read issued before every\nneeded capability was ready (S7). ``contract`` and ``trace`` are diagnostic and carry no compatibility\npromise beyond being JSON objects.",
       "properties": {
         "abstained": {
           "default": false,
           "title": "Abstained",
           "type": "boolean"
+        },
+        "accounting": {
+          "default": "estimated",
+          "enum": [
+            "exact",
+            "estimated"
+          ],
+          "title": "Accounting",
+          "type": "string"
         },
         "aliases": {
           "additionalProperties": {
@@ -157,17 +116,24 @@
         "contract": {
           "anyOf": [
             {
-              "$ref": "#/$defs/QueryContract"
+              "additionalProperties": true,
+              "type": "object"
             },
             {
               "type": "null"
             }
           ],
-          "default": null
+          "default": null,
+          "title": "Contract"
         },
         "depth": {
           "anyOf": [
             {
+              "enum": [
+                "fast",
+                "standard",
+                "deep"
+              ],
               "type": "string"
             },
             {
@@ -176,6 +142,45 @@
           ],
           "default": null,
           "title": "Depth"
+        },
+        "erasure_generation": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Erasure Generation"
+        },
+        "items": {
+          "items": {
+            "$ref": "#/$defs/ScoredItem"
+          },
+          "title": "Items",
+          "type": "array"
+        },
+        "missing_capabilities": {
+          "items": {
+            "enum": [
+              "raw_search",
+              "facts",
+              "graph",
+              "summaries",
+              "profile"
+            ],
+            "type": "string"
+          },
+          "title": "Missing Capabilities",
+          "type": "array"
+        },
+        "partial": {
+          "default": false,
+          "title": "Partial",
+          "type": "boolean"
         },
         "reason": {
           "anyOf": [
@@ -189,68 +194,31 @@
           "default": null,
           "title": "Reason"
         },
-        "tokens_used": {
-          "default": 0,
-          "title": "Tokens Used",
-          "type": "integer"
+        "revalidated": {
+          "default": false,
+          "title": "Revalidated",
+          "type": "boolean"
         },
-        "trace": {
+        "store_generation": {
           "anyOf": [
             {
-              "$ref": "#/$defs/ReadTrace"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        }
-      },
-      "title": "ReadResult",
-      "type": "object"
-    },
-    "ReadTrace": {
-      "additionalProperties": true,
-      "description": "draft: pending schema session 10. Typed form of today's forensics dict.",
-      "properties": {
-        "cuts": {
-          "items": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "type": "object"
-          },
-          "title": "Cuts",
-          "type": "array"
-        },
-        "degraded_from": {
-          "anyOf": [
-            {
-              "type": "string"
+              "minimum": 0,
+              "type": "integer"
             },
             {
               "type": "null"
             }
           ],
           "default": null,
-          "title": "Degraded From"
+          "title": "Store Generation"
         },
-        "dropped_legs": {
-          "items": {
-            "additionalProperties": true,
-            "type": "object"
-          },
-          "title": "Dropped Legs",
-          "type": "array"
+        "tokens_used": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Tokens Used",
+          "type": "integer"
         },
-        "fused": {
-          "items": {
-            "type": "string"
-          },
-          "title": "Fused",
-          "type": "array"
-        },
-        "gate": {
+        "trace": {
           "anyOf": [
             {
               "additionalProperties": true,
@@ -261,85 +229,18 @@
             }
           ],
           "default": null,
-          "title": "Gate"
-        },
-        "latency_ms": {
-          "additionalProperties": {
-            "type": "number"
-          },
-          "title": "Latency Ms",
-          "type": "object"
-        },
-        "legs": {
-          "additionalProperties": {
-            "items": {
-              "maxItems": 2,
-              "minItems": 2,
-              "prefixItems": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "number"
-                }
-              ],
-              "type": "array"
-            },
-            "type": "array"
-          },
-          "title": "Legs",
-          "type": "object"
-        },
-        "model_calls": {
-          "default": 0,
-          "title": "Model Calls",
-          "type": "integer"
-        },
-        "packer_skips": {
-          "items": {
-            "$ref": "#/$defs/SkipRecord"
-          },
-          "title": "Packer Skips",
-          "type": "array"
-        },
-        "pool": {
-          "items": {
-            "type": "string"
-          },
-          "title": "Pool",
-          "type": "array"
-        },
-        "protected": {
-          "items": {
-            "type": "string"
-          },
-          "title": "Protected",
-          "type": "array"
-        },
-        "rerank_scores": {
-          "additionalProperties": {
-            "type": "number"
-          },
-          "title": "Rerank Scores",
-          "type": "object"
-        },
-        "windows": {
-          "items": {
-            "additionalProperties": true,
-            "type": "object"
-          },
-          "title": "Windows",
-          "type": "array"
+          "title": "Trace"
         }
       },
-      "title": "ReadTrace",
+      "title": "ReadResult",
       "type": "object"
     },
     "RenderedLine": {
       "additionalProperties": true,
-      "description": "draft: pending schema session 10.",
+      "description": "One rendered line of a context block. ``alias`` is the citation handle (\"[3]\").",
       "properties": {
         "alias": {
+          "minLength": 1,
           "title": "Alias",
           "type": "string"
         },
@@ -368,6 +269,7 @@
           "title": "Modality"
         },
         "record_id": {
+          "minLength": 1,
           "title": "Record Id",
           "type": "string"
         },
@@ -407,31 +309,37 @@
       "title": "RenderedLine",
       "type": "object"
     },
-    "SkipRecord": {
+    "ScoredItem": {
       "additionalProperties": true,
-      "description": "draft: pending schema session 10. The spec names the type without fields.",
+      "description": "A hit with its score. An item that was not scored is marked ``scored=False`` with ``score=None``;\nit never carries a placeholder score of 0 (R-Q4).",
       "properties": {
-        "reason": {
-          "title": "Reason",
+        "record_id": {
+          "minLength": 1,
+          "title": "Record Id",
           "type": "string"
         },
-        "record_id": {
+        "score": {
           "anyOf": [
             {
-              "type": "string"
+              "type": "number"
             },
             {
               "type": "null"
             }
           ],
           "default": null,
-          "title": "Record Id"
+          "title": "Score"
+        },
+        "scored": {
+          "default": true,
+          "title": "Scored",
+          "type": "boolean"
         }
       },
       "required": [
-        "reason"
+        "record_id"
       ],
-      "title": "SkipRecord",
+      "title": "ScoredItem",
       "type": "object"
     }
   },

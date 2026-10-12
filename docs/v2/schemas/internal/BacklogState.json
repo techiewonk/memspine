@@ -1,6 +1,6 @@
 {
   "additionalProperties": true,
-  "description": "Step 12 backlog state. draft: pending schema session 9.",
+  "description": "Step 12 backlog state.",
   "properties": {
     "oldest_age_ms": {
       "anyOf": [

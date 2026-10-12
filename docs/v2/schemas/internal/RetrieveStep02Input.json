@@ -1,8 +1,39 @@
 {
   "$defs": {
+    "OwnerScope": {
+      "additionalProperties": true,
+      "description": "Memory scope: tenant plus memory owner (S3-1).\n\nThe owner is a user or a shared group; every agent and session serving that owner sees the same\nentities. The session is *not* part of the scope: it is recorded as :class:`Provenance` only.",
+      "properties": {
+        "owner": {
+          "minLength": 1,
+          "title": "Owner",
+          "type": "string"
+        },
+        "owner_kind": {
+          "default": "user",
+          "enum": [
+            "user",
+            "group"
+          ],
+          "title": "Owner Kind",
+          "type": "string"
+        },
+        "tenant": {
+          "minLength": 1,
+          "title": "Tenant",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tenant",
+        "owner"
+      ],
+      "title": "OwnerScope",
+      "type": "object"
+    },
     "ReadRequest": {
       "additionalProperties": true,
-      "description": "draft: field layout pending schema session 10 (read and cache).",
+      "description": "A read. A multi-party read must carry a viewer, bound to the authenticated principal (ER-29).\n\n``principal`` is set by the handle from authentication, never by the caller's payload; ``viewer`` must\nbe that principal. A multi-party read without a viewer is rejected.",
       "properties": {
         "as_of_known": {
           "anyOf": [
@@ -33,6 +64,7 @@
         "budget_tokens": {
           "anyOf": [
             {
+              "exclusiveMinimum": 0,
               "type": "integer"
             },
             {
@@ -71,7 +103,25 @@
           "default": null,
           "title": "Lang"
         },
+        "multi_party": {
+          "default": false,
+          "title": "Multi Party",
+          "type": "boolean"
+        },
+        "principal": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Principal"
+        },
         "query": {
+          "minLength": 1,
           "title": "Query",
           "type": "string"
         },
@@ -88,6 +138,9 @@
           "default": null,
           "title": "Reference Time"
         },
+        "scope": {
+          "$ref": "#/$defs/OwnerScope"
+        },
         "viewer": {
           "anyOf": [
             {
@@ -102,14 +155,15 @@
         }
       },
       "required": [
-        "query"
+        "query",
+        "scope"
       ],
       "title": "ReadRequest",
       "type": "object"
     },
     "Scope": {
       "additionalProperties": true,
-      "description": "draft: field layout pending schema session 3 (identity).",
+      "description": "Handle-side scope as read by the retrieve steps (tenant, user, agent, session, principal).\n\nDurable records use :class:`memspine.schemas.durable.OwnerScope` (tenant plus owner, S3-1); this is the\ncaller-facing handle shape the read path resolves into one.",
       "properties": {
         "agent": {
           "anyOf": [

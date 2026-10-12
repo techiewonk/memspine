@@ -1,9 +1,11 @@
 # ruff: noqa: E501
-"""Shared step types that are not decided yet.
+"""Shared internal-tier step types.
 
-Every model here is an internal-tier draft: the field layout is taken from the "Shared data types" sections
-of ``docs/v2/pipelines/*.md`` and is pending the schema session named in each docstring (see
-``docs/v2/SCHEMA_AGENDA.md``). Nothing here is a durable or public promise.
+The session-decided shared types were promoted out of this module (MOD-01 part 2): the envelope, evidence,
+lineage, event, outbox and time types live in :mod:`memspine.schemas.durable`; the receipt, read and cost
+types live in :mod:`memspine.schemas.public`. What remains here is step-to-step plumbing with no
+compatibility promise; the layout comes from the "Shared data types" sections of
+``docs/v2/pipelines/*.md``. A TODO marks only what no session specified.
 """
 
 from __future__ import annotations
@@ -14,38 +16,41 @@ from typing import Any, Literal
 from pydantic import Field
 
 from memspine.schemas.base import InternalModel
+from memspine.schemas.durable import AssertionEnvelope, Fingerprint
+from memspine.schemas.durable.common import SrcClass
+from memspine.schemas.public import ContextBlock, EvidenceBundle
 
 # ---------------------------------------------------------------------------------------------------------
 # Closed sets used across several models. Kept as plain Literals so an unknown value fails validation in
 # the internal tier; the kind set for model output is open (S2-3) and is not modelled here.
 # ---------------------------------------------------------------------------------------------------------
 Layer = Literal["L0", "L1", "L2", "L3", "L4", "L5"]
-SrcClass = Literal[
-    "user_stated", "assistant_proposed", "user_confirmed", "tool", "document", "external", "derived"
-]
 Role = Literal["user", "assistant", "tool", "system", "operator", "document"]
 DeriveUse = Literal["proposal", "evidence", "stated", "excluded"]
 Mode = Literal["asserted", "planned", "hoped", "asked", "hedged"]
-AssertionKind = Literal["state", "event", "fact"]
 Family = Literal["dense", "lexical", "structured", "derived"]
 Depth = Literal["fast", "standard", "deep"]
 JobKind = Literal["full", "reconcile_only", "rederive"]
 
 
 class Scope(InternalModel):
-    """draft: field layout pending schema session 3 (identity)."""
+    """Handle-side scope as read by the retrieve steps (tenant, user, agent, session, principal).
+
+    Durable records use :class:`memspine.schemas.durable.OwnerScope` (tenant plus owner, S3-1); this is the
+    caller-facing handle shape the read path resolves into one.
+    """
 
     tenant: str | None = None
     user: str | None = None
     agent: str | None = None
     session: str | None = None
-    principal: str | None = None  # TODO(session 3): handle-only in the retrieve spec
-    purpose: str | None = None  # TODO(session 3)
-    viewer: str | None = None  # TODO(session 10): viewer binding comes from the principal
+    principal: str | None = None
+    purpose: str | None = None  # TODO: purpose vocabulary is not specified by any session
+    viewer: str | None = None  # bound to the principal (S10); see public.ReadRequest
 
 
 class AssetRef(InternalModel):
-    """draft: field layout pending schema session 4 (evidence)."""
+    """Internal step type."""
 
     asset_id: str
     hash: str
@@ -54,14 +59,14 @@ class AssetRef(InternalModel):
 
 
 class Segment(InternalModel):
-    """draft: field layout pending schema session 3 (identity)."""
+    """Internal step type."""
 
     seg_index: int
     caller_id: str | None = None
     role: Role
     speaker: str | None = None
     addressee: str | None = None
-    source_at: datetime | None = None  # TODO(session 6): never defaulted to now
+    source_at: datetime | None = None  # never defaulted to now (S6-2)
     tz: str | None = None
     content: str
     reply_to: str | int | None = None
@@ -71,7 +76,7 @@ class Segment(InternalModel):
 
 
 class SourceEnvelope(InternalModel):
-    """draft: field layout pending schema session 3 (identity)."""
+    """Internal step type."""
 
     source_id: str
     kind: Literal["conversation", "document", "tool_log", "asset"]
@@ -82,24 +87,8 @@ class SourceEnvelope(InternalModel):
     segments: list[Segment]
 
 
-class Receipt(InternalModel):
-    """draft: field layout pending schema session 7 (receipt and readiness)."""
-
-    event_ids: list[str]
-    record_ids: list[str]
-    intent_id: str
-    source_id: str
-    source_version: int
-    accepted_seq: int | None = None
-    readiness_by_capability: dict[str, Any] = Field(
-        default_factory=dict
-    )  # TODO(session 7): illustrative
-    retried: list[int] = Field(default_factory=list)
-    quarantined: list[int] = Field(default_factory=list)
-
-
 class IntentStatus(InternalModel):
-    """draft: field layout pending schema session 7 (receipt and readiness)."""
+    """Internal step type."""
 
     intent_id: str
     layers: dict[
@@ -109,27 +98,8 @@ class IntentStatus(InternalModel):
     covers_seq: int | None = None
 
 
-class WaitResult(InternalModel):
-    """draft: field layout pending schema session 7 (receipt and readiness)."""
-
-    status: str  # TODO(session 7): spec gives only {status, waited_ms}
-    waited_ms: int
-
-
-class Fingerprint(InternalModel):
-    """draft: field layout pending schema session 8 (jobs) / P-12 derivation fingerprint."""
-
-    prompt_hash: str
-    schema_v: str
-    model_id: str
-    quant: str
-    decoding: str
-    input_blocks: str
-    runtime_libs: str
-
-
 class FirewallVerdict(InternalModel):
-    """draft: field layout pending schema session 5 (assessment)."""
+    """Internal step type."""
 
     gate: Literal[1, 2, 3] | None = None
     trust: float
@@ -140,90 +110,12 @@ class FirewallVerdict(InternalModel):
     signals_run: list[str] = Field(default_factory=list)
 
 
-class LineageEdge(InternalModel):
-    """draft: field layout pending schema session 4 (evidence and lineage).
-
-    The insert spec lists roles evidence|context|version_of|supersedes|merge_member; the offline spec lists
-    member|evidence|merged_from|cites. Both sets are accepted until session 4 settles one.
-    """
-
-    child: str
-    parent: str
-    parent_version: int | None = None
-    role: Literal[
-        "evidence",
-        "context",
-        "version_of",
-        "supersedes",
-        "merge_member",
-        "member",
-        "merged_from",
-        "cites",
-    ]
-    span: str | dict[str, Any] | None = (
-        None  # TODO(session 4): str (insert) vs {line,start,end} (offline)
-    )
-    derivation: Fingerprint | None = None
-
-
-class EvidenceRef(InternalModel):
-    """draft: field layout pending schema session 4 (evidence and lineage)."""
-
-    source_id: str
-    source_version: int
-    line: int | None = None
-    span: str | None = None
-
-
-class EventInterval(InternalModel):
-    """draft: field layout pending schema session 6 (time)."""
-
-    start: datetime | str | None = None  # TODO(session 6): resolved date or coarse label
-    end: datetime | str | None = None
-    precision: Literal["day", "month", "year", "unknown"] = "unknown"
-
-
-class ValidityWindow(InternalModel):
-    """draft: field layout pending schema session 6 (time)."""
-
-    from_: datetime | None = Field(default=None, alias="from")
-    to: datetime | None = None
-
-
-class AssertionKey(InternalModel):
-    """draft: field layout pending schema session 3 (identity)."""
-
-    scope: str
-    src: str
-    rel: str
-    dst: str
-    kind: str
-    key_v: int = 1
-
-
-class GroundingChecks(InternalModel):
-    """draft: field layout pending schema session 5 (assessment)."""
-
-    span: bool | None = None
-    numbers: bool | None = None
-    polarity: bool | None = None
-    names: bool | None = None
-    endpoints: bool | None = None
-
-
-class IntegrationVerdict(InternalModel):
-    """draft: field layout pending schema session 5 (assessment)."""
-
-    op: Literal["append", "supersede", "merge", "coexist", "contest", "noop", "defer_kc"]
-    rung: str | None = None
-    hint: str | None = None
-
-
 class ItemV1(InternalModel):
     """Model-output wire schema, compact keys (W-15 B, P-06).
 
-    draft: field layout pending schema session 2 follow-up. Session 2 fixed the split (the model authors
-    content only, with citations); the compact keys below are not frozen. The kind set is open (S2-3), so
+    Session 2 fixed the split (the model authors content only, with citations); the compact keys below are
+    not frozen. The compiler maps ``mode`` and ``neg`` onto the session-5 ``modality`` (asserted, negated,
+    hypothetical, planned, reported, question). The kind set is open (S2-3), so
     ``kind`` is a plain string here and the closed ``state|event|fact`` check belongs to the compiler.
     Reserved system names (``reserved.py``) in model output are rejected by the compiler, not here.
     """
@@ -232,7 +124,7 @@ class ItemV1(InternalModel):
     r: str | None = None
     o: str | None = None
     text: str
-    kind: str  # TODO(session 2): spec says state|event|fact; S2-3 opens the set
+    kind: str  # open set (S2-3); the registry normalises it
     mode: Mode
     neg: bool
     when: str | None = None
@@ -242,52 +134,19 @@ class ItemV1(InternalModel):
     source: Literal["user_stated", "assistant_proposed", "user_confirmed", "tool"] | None = None
 
 
-class AssertionEnvelope(InternalModel):
-    """Stored assertion, compiled in code (W-15 C, M-06).
-
-    draft: field layout pending schema session 2 follow-up and sessions 3-6. ``extras`` holds unknown
-    model-authored fields (SESSIONS_01_02 condition 1); it is not indexed.
-    """
-
-    v: int = 1
-    text: str
-    value: Any = None  # TODO(session 3): typed literal or entity id
-    evidence: list[EvidenceRef] = Field(default_factory=list)
-    asserter: str | None = None
-    subject: list[str] = Field(default_factory=list)
-    spk: str | None = None
-    mode: Mode | None = None
-    polarity: bool | None = (
-        None  # TODO(session 5): spec gives "polarity" without a type; ItemV1 has neg: bool
-    )
-    source_at: datetime | None = None
-    event: EventInterval | None = None
-    valid: ValidityWindow | None = None
-    kind: AssertionKind | None = None
-    occurrence_id: str | None = None
-    key: AssertionKey | None = None
-    key_aliases: list[str] = Field(default_factory=list)
-    src: SrcClass | None = None
-    tau: float | None = None
-    parents: list[str] = Field(default_factory=list)
-    grounding: Literal["grounded", "uncertain", "rejected"] | None = None
-    checks: GroundingChecks | None = None
-    prompt_hash: str | None = None
-    graph: dict[str, Any] | None = None  # TODO(session 3): {edges:[(src,rel,dst)], nary:{roles}}
-    verdict: IntegrationVerdict | None = None
-    extras: dict[str, Any] = Field(default_factory=dict)
-
-
 class Record(InternalModel):
     """One record shape for all layers (M-02..M-10).
 
-    draft: field layout pending schema sessions 3-6; this will become a durable kind later.
+    Internal for now: the record envelope (:class:`~memspine.schemas.durable.AssertionEnvelope`) is durable,
+    the row around it becomes a durable kind with the kind registry (MOD-02).
     """
 
     record_id: str
     scope: Scope | None = None
     layer: Layer | None = None
-    type: str | None = None  # TODO(session 3): one of nine memory types (M-03)
+    type: str | None = (
+        None  # TODO: one of nine memory types (M-03); the kind registry (MOD-02) owns the set
+    )
     content: str
     content_fingerprint: str | None = None
     source_id: str | None = None
@@ -324,59 +183,8 @@ class Record(InternalModel):
     generation: int | None = None
 
 
-class MemoryEvent(InternalModel):
-    """draft: field layout pending schema session 8 (jobs); becomes a durable kind."""
-
-    event_id: str
-    seq: int | None = None
-    kind: str  # TODO(session 8): EventKind enum
-    scope: Scope | None = None
-    ts: datetime | None = None
-    actor: str | None = None
-    schema_version: int = 1
-    payload: dict[str, Any] = Field(default_factory=dict)
-    fingerprint: str | None = None
-
-
-class OutboxRow(InternalModel):
-    """draft: field layout pending schema session 8 (jobs and progress).
-
-    Insert and offline specs differ (kinds, ``scope`` vs ``namespace``, ``source_ids`` vs ``members``); both
-    spellings are accepted until session 8.
-    """
-
-    id: str
-    scope: Scope | None = None
-    namespace: str | None = None
-    kind: Literal[
-        "projection",
-        "derivation",
-        "session_close",
-        "sleep_stage",
-        "rederive",
-        "pending_merge",
-        "asset",
-        "window",
-        "heavy_projection",
-    ]
-    source_id: str | None = None
-    source_version: int | None = None
-    source_ids: list[dict[str, Any]] = Field(default_factory=list)
-    members: list[tuple[str, int]] = Field(default_factory=list)
-    fingerprint: str | None = None
-    generation: int | None = None
-    status: Literal["pending", "leased", "done", "failed", "dead", "underived"] = "pending"
-    attempts: int = 0
-    lease_owner: str | None = None
-    lease_until: datetime | None = None
-    not_before: datetime | None = None
-    last_error: str | None = None
-    failure_class: str | None = None
-    epoch: int | None = None  # TODO(session 8): ER-07 claim epoch; spec does not list it on the row
-
-
 class WindowTurn(InternalModel):
-    """draft: field layout pending schema session 8."""
+    """Internal step type."""
 
     record_id: str
     source_version: int
@@ -387,7 +195,7 @@ class WindowTurn(InternalModel):
 
 
 class Window(InternalModel):
-    """Segmentation window (W-11). draft: pending schema session 8."""
+    """Segmentation window (W-11). Internal step type."""
 
     window_id: str | None = None
     turns: list[WindowTurn] = Field(default_factory=list)
@@ -408,7 +216,7 @@ class Window(InternalModel):
 
 
 class CallBatch(InternalModel):
-    """draft: field layout pending schema session 9 (overload and accounting)."""
+    """Internal step type."""
 
     batch_id: str
     windows: list[Window]
@@ -418,7 +226,7 @@ class CallBatch(InternalModel):
 
 
 class FailureRecord(InternalModel):
-    """draft: field layout pending schema session 9 (overload and accounting)."""
+    """Internal step type."""
 
     row_id: str
     batch_id: str
@@ -438,7 +246,7 @@ class FailureRecord(InternalModel):
 
 
 class LedgerEntry(InternalModel):
-    """draft: field layout pending schema session 9 (overload and accounting)."""
+    """Internal step type."""
 
     call_id: str
     scope: Scope | None = None
@@ -456,13 +264,11 @@ class LedgerEntry(InternalModel):
     items_grounded: int = 0
     items_uncertain: int = 0
     items_rejected: int = 0
-    cost_estimate: float | None = (
-        None  # TODO(session 9): cost classes (generative, embedding, rerank, tool)
-    )
+    cost_estimate: float | None = None  # per-class detail is recorded as public.CostRecord (ER-39)
 
 
 class Turn(InternalModel):
-    """A live conversation turn as read by sleep stages. draft: pending schema session 3."""
+    """A live conversation turn as read by sleep stages. Internal step type."""
 
     record_id: str
     text: str
@@ -472,7 +278,7 @@ class Turn(InternalModel):
 
 
 class ProfileOp(InternalModel):
-    """draft: field layout pending schema session 5 (profile operations, O-18)."""
+    """Internal step type."""
 
     op: Literal["add", "update", "delete", "none"]
     entry_type: Literal["identity", "attribute", "relationship", "instruction"]
@@ -484,7 +290,7 @@ class ProfileOp(InternalModel):
 
 
 class CardEntry(InternalModel):
-    """draft: pending schema session 5."""
+    """Internal step type."""
 
     key: str
     type: str
@@ -495,15 +301,15 @@ class CardEntry(InternalModel):
 
 
 class ProfileCard(InternalModel):
-    """draft: pending schema session 5 (O-19, M-20)."""
+    """Internal step type."""
 
     entries: list[CardEntry] = Field(default_factory=list)
 
 
 class StageReport(InternalModel):
-    """draft: field layout pending schema session 8 (jobs and progress)."""
+    """Internal step type."""
 
-    stage: str  # TODO(session 8): StageName enum, see offline.StageName
+    stage: str  # a StageName value, see offline.StageName
     status: Literal["ok", "partial", "skipped", "error", "noop"]
     reason: str | None = None
     errors: list[str] = Field(default_factory=list)
@@ -522,7 +328,7 @@ class StageReport(InternalModel):
 
 
 class DerivationBudget(InternalModel):
-    """draft: field layout pending schema session 9 (overload and accounting)."""
+    """Internal step type."""
 
     tokens_total: int | None = None  # None = unlimited
     spent: int = 0
@@ -531,21 +337,8 @@ class DerivationBudget(InternalModel):
     )  # reconcile, summarise, personalise, maintain
 
 
-class ReadRequest(InternalModel):
-    """draft: field layout pending schema session 10 (read and cache)."""
-
-    query: str
-    depth: Depth | None = None
-    as_of_valid: datetime | None = None
-    as_of_known: datetime | None = None
-    viewer: str | None = None  # TODO(session 10): bound from the authenticated principal (ER-29)
-    budget_tokens: int | None = None  # None -> 2,048
-    reference_time: datetime | None = None
-    lang: str | None = None
-
-
 class QueryContract(InternalModel):
-    """Typed query contract (R-03). draft: pending schema session 10."""
+    """Typed query contract (R-03). Internal step type."""
 
     subjects: list[str] = Field(default_factory=list)
     relation: str = ""
@@ -573,14 +366,14 @@ class QueryContract(InternalModel):
 
 
 class LegHit(InternalModel):
-    """draft: pending schema session 10."""
+    """Internal step type."""
 
     record_id: str
     score: float  # leg-local scale
 
 
 class NamedLeg(InternalModel):
-    """draft: pending schema session 10. ``list[LegHit]`` plus a name and family."""
+    """Internal step type. ``list[LegHit]`` plus a name and family."""
 
     name: str
     family: Family
@@ -588,7 +381,7 @@ class NamedLeg(InternalModel):
 
 
 class PoolEntry(InternalModel):
-    """draft: pending schema session 10."""
+    """Internal step type."""
 
     record_id: str
     fused_score: float
@@ -598,7 +391,7 @@ class PoolEntry(InternalModel):
 
 
 class ScoredHit(InternalModel):
-    """draft: pending schema session 10."""
+    """Internal step type."""
 
     record_id: str
     rerank_raw: float | None = None
@@ -609,7 +402,7 @@ class ScoredHit(InternalModel):
 
 
 class NoteItem(InternalModel):
-    """draft: pending schema session 10."""
+    """Internal step type."""
 
     kind: Literal["fact", "value_history", "profile", "observation"]
     text: str
@@ -618,45 +411,26 @@ class NoteItem(InternalModel):
     score: float = 0.0
 
 
-class RenderedLine(InternalModel):
-    """draft: pending schema session 10."""
-
-    alias: str
-    record_id: str
-    speaker: str | None = None
-    date: str | None = None
-    modality: str | None = None
-    wrapped: Literal["none", "untrusted", "instruction", "claim"] = "none"
-    text: str
-
-
-class ContextBlock(InternalModel):
-    """draft: pending schema session 10."""
-
-    kind: Literal["contract", "profile", "raw", "notes", "public"]
-    lines: list[RenderedLine] = Field(default_factory=list)
-    tokens: int = 0
-    cap: int = 0
-
-
 class SkipRecord(InternalModel):
-    """draft: pending schema session 10. The spec names the type without fields."""
+    """Internal step type. The spec names the type without fields."""
 
     record_id: str | None = None
-    reason: str  # TODO(session 10): spec gives no field list
+    reason: str  # TODO: the retrieve spec names SkipRecord without a field list
 
 
-class EvidenceBundle(InternalModel):
-    """draft: pending schema session 10."""
+class PackedEvidence(InternalModel):
+    """Packer output (steps 16-17): bundles packed into blocks. The unit bundle is the public ``EvidenceBundle`` (session 10)."""
+
+    bundles: list[EvidenceBundle] = Field(default_factory=list)
 
     blocks: list[ContextBlock] = Field(default_factory=list)
     tokens_used: int = 0
     skipped: list[SkipRecord] = Field(default_factory=list)
-    exact_accounting: bool | None = None  # TODO(session 10): exact vs estimated flag (ER-24)
+    accounting: Literal["exact", "estimated"] = "estimated"  # ER-24
 
 
 class ReadTrace(InternalModel):
-    """draft: pending schema session 10. Typed form of today's forensics dict."""
+    """Internal step type. Typed form of today's forensics dict."""
 
     legs: dict[str, list[tuple[str, float]]] = Field(default_factory=dict)
     dropped_legs: list[dict[str, Any]] = Field(default_factory=list)
@@ -671,17 +445,3 @@ class ReadTrace(InternalModel):
     model_calls: int = 0
     latency_ms: dict[str, float] = Field(default_factory=dict)  # per stage
     degraded_from: str | None = None
-
-
-class ReadResult(InternalModel):
-    """draft: pending schema session 10."""
-
-    depth: str | None = None
-    blocks: list[ContextBlock] = Field(default_factory=list)
-    aliases: dict[str, str] = Field(default_factory=dict)
-    tokens_used: int = 0
-    boundary_index: int | None = None
-    abstained: bool = False
-    reason: str | None = None
-    contract: QueryContract | None = None
-    trace: ReadTrace | None = None

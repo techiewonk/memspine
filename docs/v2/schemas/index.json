@@ -1,6 +1,230 @@
 {
   "models": [
     {
+      "file": "durable/AssertionEnvelope.json",
+      "kind": "assertion_envelope",
+      "module": "memspine.schemas.durable.assertion",
+      "name": "AssertionEnvelope",
+      "schema_version": 1,
+      "tier": "durable"
+    },
+    {
+      "file": "durable/AssertionKey.json",
+      "kind": null,
+      "module": "memspine.schemas.durable.identity",
+      "name": "AssertionKey",
+      "schema_version": null,
+      "tier": "durable"
+    },
+    {
+      "file": "durable/Assessment.json",
+      "kind": null,
+      "module": "memspine.schemas.durable.assessment",
+      "name": "Assessment",
+      "schema_version": null,
+      "tier": "durable"
+    },
+    {
+      "file": "durable/Duration.json",
+      "kind": null,
+      "module": "memspine.schemas.durable.temporal",
+      "name": "Duration",
+      "schema_version": null,
+      "tier": "durable"
+    },
+    {
+      "file": "durable/ErasedIds.json",
+      "kind": null,
+      "module": "memspine.schemas.durable.erasure",
+      "name": "ErasedIds",
+      "schema_version": null,
+      "tier": "durable"
+    },
+    {
+      "file": "durable/ErasureManifest.json",
+      "kind": "erasure_manifest",
+      "module": "memspine.schemas.durable.erasure",
+      "name": "ErasureManifest",
+      "schema_version": 1,
+      "tier": "durable"
+    },
+    {
+      "file": "durable/Evidence.json",
+      "kind": null,
+      "module": "memspine.schemas.durable.evidence",
+      "name": "Evidence",
+      "schema_version": null,
+      "tier": "durable"
+    },
+    {
+      "file": "durable/Fingerprint.json",
+      "kind": null,
+      "module": "memspine.schemas.durable.common",
+      "name": "Fingerprint",
+      "schema_version": null,
+      "tier": "durable"
+    },
+    {
+      "file": "durable/GroundingChecks.json",
+      "kind": null,
+      "module": "memspine.schemas.durable.assertion",
+      "name": "GroundingChecks",
+      "schema_version": null,
+      "tier": "durable"
+    },
+    {
+      "file": "durable/Hole.json",
+      "kind": null,
+      "module": "memspine.schemas.durable.jobs",
+      "name": "Hole",
+      "schema_version": null,
+      "tier": "durable"
+    },
+    {
+      "file": "durable/IntegrationVerdict.json",
+      "kind": null,
+      "module": "memspine.schemas.durable.assertion",
+      "name": "IntegrationVerdict",
+      "schema_version": null,
+      "tier": "durable"
+    },
+    {
+      "file": "durable/Interval.json",
+      "kind": null,
+      "module": "memspine.schemas.durable.temporal",
+      "name": "Interval",
+      "schema_version": null,
+      "tier": "durable"
+    },
+    {
+      "file": "durable/JobLease.json",
+      "kind": "job_lease",
+      "module": "memspine.schemas.durable.jobs",
+      "name": "JobLease",
+      "schema_version": 1,
+      "tier": "durable"
+    },
+    {
+      "file": "durable/LineageEdge.json",
+      "kind": "lineage_edge",
+      "module": "memspine.schemas.durable.lineage",
+      "name": "LineageEdge",
+      "schema_version": 1,
+      "tier": "durable"
+    },
+    {
+      "file": "durable/MemoryEvent.json",
+      "kind": "memory_event",
+      "module": "memspine.schemas.durable.events",
+      "name": "MemoryEvent",
+      "schema_version": 1,
+      "tier": "durable"
+    },
+    {
+      "file": "durable/Mention.json",
+      "kind": null,
+      "module": "memspine.schemas.durable.assertion",
+      "name": "Mention",
+      "schema_version": null,
+      "tier": "durable"
+    },
+    {
+      "file": "durable/OutboxRow.json",
+      "kind": "outbox_row",
+      "module": "memspine.schemas.durable.jobs",
+      "name": "OutboxRow",
+      "schema_version": 1,
+      "tier": "durable"
+    },
+    {
+      "file": "durable/OwnerScope.json",
+      "kind": null,
+      "module": "memspine.schemas.durable.common",
+      "name": "OwnerScope",
+      "schema_version": null,
+      "tier": "durable"
+    },
+    {
+      "file": "durable/Progress.json",
+      "kind": "progress",
+      "module": "memspine.schemas.durable.jobs",
+      "name": "Progress",
+      "schema_version": 1,
+      "tier": "durable"
+    },
+    {
+      "file": "durable/Provenance.json",
+      "kind": null,
+      "module": "memspine.schemas.durable.common",
+      "name": "Provenance",
+      "schema_version": null,
+      "tier": "durable"
+    },
+    {
+      "file": "durable/RetentionBoundary.json",
+      "kind": "retention_boundary",
+      "module": "memspine.schemas.durable.erasure",
+      "name": "RetentionBoundary",
+      "schema_version": 1,
+      "tier": "durable"
+    },
+    {
+      "file": "durable/SourceRef.json",
+      "kind": null,
+      "module": "memspine.schemas.durable.common",
+      "name": "SourceRef",
+      "schema_version": null,
+      "tier": "durable"
+    },
+    {
+      "file": "durable/Span.json",
+      "kind": null,
+      "module": "memspine.schemas.durable.evidence",
+      "name": "Span",
+      "schema_version": null,
+      "tier": "durable"
+    },
+    {
+      "file": "durable/Support.json",
+      "kind": null,
+      "module": "memspine.schemas.durable.assessment",
+      "name": "Support",
+      "schema_version": null,
+      "tier": "durable"
+    },
+    {
+      "file": "durable/TemporalRef.json",
+      "kind": null,
+      "module": "memspine.schemas.durable.temporal",
+      "name": "TemporalRef",
+      "schema_version": null,
+      "tier": "durable"
+    },
+    {
+      "file": "durable/TemporalRelation.json",
+      "kind": null,
+      "module": "memspine.schemas.durable.temporal",
+      "name": "TemporalRelation",
+      "schema_version": null,
+      "tier": "durable"
+    },
+    {
+      "file": "durable/TimeAxes.json",
+      "kind": null,
+      "module": "memspine.schemas.durable.temporal",
+      "name": "TimeAxes",
+      "schema_version": null,
+      "tier": "durable"
+    },
+    {
+      "file": "durable/TurnRef.json",
+      "kind": null,
+      "module": "memspine.schemas.durable.evidence",
+      "name": "TurnRef",
+      "schema_version": null,
+      "tier": "durable"
+    },
+    {
       "file": "internal/AliasTarget.json",
       "module": "memspine.schemas.steps.insert",
       "name": "AliasTarget",
@@ -10,18 +234,6 @@
       "file": "internal/AnswerSection.json",
       "module": "memspine.schemas.steps.offline",
       "name": "AnswerSection",
-      "tier": "internal"
-    },
-    {
-      "file": "internal/AssertionEnvelope.json",
-      "module": "memspine.schemas.steps.shared",
-      "name": "AssertionEnvelope",
-      "tier": "internal"
-    },
-    {
-      "file": "internal/AssertionKey.json",
-      "module": "memspine.schemas.steps.shared",
-      "name": "AssertionKey",
       "tier": "internal"
     },
     {
@@ -109,12 +321,6 @@
       "tier": "internal"
     },
     {
-      "file": "internal/ContextBlock.json",
-      "module": "memspine.schemas.steps.shared",
-      "name": "ContextBlock",
-      "tier": "internal"
-    },
-    {
       "file": "internal/ContradictionCandidate.json",
       "module": "memspine.schemas.steps.offline",
       "name": "ContradictionCandidate",
@@ -187,24 +393,6 @@
       "tier": "internal"
     },
     {
-      "file": "internal/EventInterval.json",
-      "module": "memspine.schemas.steps.shared",
-      "name": "EventInterval",
-      "tier": "internal"
-    },
-    {
-      "file": "internal/EvidenceBundle.json",
-      "module": "memspine.schemas.steps.shared",
-      "name": "EvidenceBundle",
-      "tier": "internal"
-    },
-    {
-      "file": "internal/EvidenceRef.json",
-      "module": "memspine.schemas.steps.shared",
-      "name": "EvidenceRef",
-      "tier": "internal"
-    },
-    {
       "file": "internal/ExplicitKey.json",
       "module": "memspine.schemas.steps.insert",
       "name": "ExplicitKey",
@@ -214,12 +402,6 @@
       "file": "internal/FailureRecord.json",
       "module": "memspine.schemas.steps.shared",
       "name": "FailureRecord",
-      "tier": "internal"
-    },
-    {
-      "file": "internal/Fingerprint.json",
-      "module": "memspine.schemas.steps.shared",
-      "name": "Fingerprint",
       "tier": "internal"
     },
     {
@@ -238,12 +420,6 @@
       "file": "internal/GateVerdict.json",
       "module": "memspine.schemas.steps.retrieve",
       "name": "GateVerdict",
-      "tier": "internal"
-    },
-    {
-      "file": "internal/GroundingChecks.json",
-      "module": "memspine.schemas.steps.shared",
-      "name": "GroundingChecks",
       "tier": "internal"
     },
     {
@@ -529,12 +705,6 @@
       "tier": "internal"
     },
     {
-      "file": "internal/IntegrationVerdict.json",
-      "module": "memspine.schemas.steps.shared",
-      "name": "IntegrationVerdict",
-      "tier": "internal"
-    },
-    {
       "file": "internal/IntentStatus.json",
       "module": "memspine.schemas.steps.shared",
       "name": "IntentStatus",
@@ -601,21 +771,9 @@
       "tier": "internal"
     },
     {
-      "file": "internal/LineageEdge.json",
-      "module": "memspine.schemas.steps.shared",
-      "name": "LineageEdge",
-      "tier": "internal"
-    },
-    {
       "file": "internal/LiveMember.json",
       "module": "memspine.schemas.steps.insert",
       "name": "LiveMember",
-      "tier": "internal"
-    },
-    {
-      "file": "internal/MemoryEvent.json",
-      "module": "memspine.schemas.steps.shared",
-      "name": "MemoryEvent",
       "tier": "internal"
     },
     {
@@ -628,12 +786,6 @@
       "file": "internal/NamespaceContext.json",
       "module": "memspine.schemas.steps.insert",
       "name": "NamespaceContext",
-      "tier": "internal"
-    },
-    {
-      "file": "internal/NamespaceLease.json",
-      "module": "memspine.schemas.steps.offline",
-      "name": "NamespaceLease",
       "tier": "internal"
     },
     {
@@ -919,12 +1071,6 @@
       "tier": "internal"
     },
     {
-      "file": "internal/OutboxRow.json",
-      "module": "memspine.schemas.steps.shared",
-      "name": "OutboxRow",
-      "tier": "internal"
-    },
-    {
       "file": "internal/OutcomeCounters.json",
       "module": "memspine.schemas.steps.insert",
       "name": "OutcomeCounters",
@@ -934,6 +1080,12 @@
       "file": "internal/OutcomeReceipt.json",
       "module": "memspine.schemas.steps.offline",
       "name": "OutcomeReceipt",
+      "tier": "internal"
+    },
+    {
+      "file": "internal/PackedEvidence.json",
+      "module": "memspine.schemas.steps.shared",
+      "name": "PackedEvidence",
       "tier": "internal"
     },
     {
@@ -1003,18 +1155,6 @@
       "tier": "internal"
     },
     {
-      "file": "internal/ReadRequest.json",
-      "module": "memspine.schemas.steps.shared",
-      "name": "ReadRequest",
-      "tier": "internal"
-    },
-    {
-      "file": "internal/ReadResult.json",
-      "module": "memspine.schemas.steps.shared",
-      "name": "ReadResult",
-      "tier": "internal"
-    },
-    {
       "file": "internal/ReadScope.json",
       "module": "memspine.schemas.steps.retrieve",
       "name": "ReadScope",
@@ -1027,12 +1167,6 @@
       "tier": "internal"
     },
     {
-      "file": "internal/Receipt.json",
-      "module": "memspine.schemas.steps.shared",
-      "name": "Receipt",
-      "tier": "internal"
-    },
-    {
       "file": "internal/Record.json",
       "module": "memspine.schemas.steps.shared",
       "name": "Record",
@@ -1042,12 +1176,6 @@
       "file": "internal/RegistryEntry.json",
       "module": "memspine.schemas.steps.insert",
       "name": "RegistryEntry",
-      "tier": "internal"
-    },
-    {
-      "file": "internal/RenderedLine.json",
-      "module": "memspine.schemas.steps.shared",
-      "name": "RenderedLine",
       "tier": "internal"
     },
     {
@@ -1375,12 +1503,6 @@
       "tier": "internal"
     },
     {
-      "file": "internal/StageWatermark.json",
-      "module": "memspine.schemas.steps.offline",
-      "name": "StageWatermark",
-      "tier": "internal"
-    },
-    {
       "file": "internal/StampedSegment.json",
       "module": "memspine.schemas.steps.insert",
       "name": "StampedSegment",
@@ -1459,12 +1581,6 @@
       "tier": "internal"
     },
     {
-      "file": "internal/ValidityWindow.json",
-      "module": "memspine.schemas.steps.shared",
-      "name": "ValidityWindow",
-      "tier": "internal"
-    },
-    {
       "file": "internal/ValueHistoryView.json",
       "module": "memspine.schemas.steps.offline",
       "name": "ValueHistoryView",
@@ -1474,12 +1590,6 @@
       "file": "internal/ValueSpan.json",
       "module": "memspine.schemas.steps.offline",
       "name": "ValueSpan",
-      "tier": "internal"
-    },
-    {
-      "file": "internal/WaitResult.json",
-      "module": "memspine.schemas.steps.shared",
-      "name": "WaitResult",
       "tier": "internal"
     },
     {
@@ -1499,6 +1609,104 @@
       "module": "memspine.schemas.steps.shared",
       "name": "WindowTurn",
       "tier": "internal"
+    },
+    {
+      "file": "public/CacheKey.json",
+      "module": "memspine.schemas.public.plugins",
+      "name": "CacheKey",
+      "semver": "1.0.0",
+      "tier": "public"
+    },
+    {
+      "file": "public/CapabilityManifest.json",
+      "module": "memspine.schemas.public.plugins",
+      "name": "CapabilityManifest",
+      "semver": "1.0.0",
+      "tier": "public"
+    },
+    {
+      "file": "public/ContextBlock.json",
+      "module": "memspine.schemas.public.read",
+      "name": "ContextBlock",
+      "semver": "1.0.0",
+      "tier": "public"
+    },
+    {
+      "file": "public/CostRecord.json",
+      "module": "memspine.schemas.public.errors",
+      "name": "CostRecord",
+      "semver": "1.0.0",
+      "tier": "public"
+    },
+    {
+      "file": "public/EvidenceBundle.json",
+      "module": "memspine.schemas.public.read",
+      "name": "EvidenceBundle",
+      "semver": "1.0.0",
+      "tier": "public"
+    },
+    {
+      "file": "public/JobHandle.json",
+      "module": "memspine.schemas.public.receipt",
+      "name": "JobHandle",
+      "semver": "1.0.0",
+      "tier": "public"
+    },
+    {
+      "file": "public/QuotaExceeded.json",
+      "module": "memspine.schemas.public.errors",
+      "name": "QuotaExceeded",
+      "semver": "1.0.0",
+      "tier": "public"
+    },
+    {
+      "file": "public/ReadRequest.json",
+      "module": "memspine.schemas.public.read",
+      "name": "ReadRequest",
+      "semver": "1.0.0",
+      "tier": "public"
+    },
+    {
+      "file": "public/ReadResult.json",
+      "module": "memspine.schemas.public.read",
+      "name": "ReadResult",
+      "semver": "1.0.0",
+      "tier": "public"
+    },
+    {
+      "file": "public/Readiness.json",
+      "module": "memspine.schemas.public.receipt",
+      "name": "Readiness",
+      "semver": "1.0.0",
+      "tier": "public"
+    },
+    {
+      "file": "public/Receipt.json",
+      "module": "memspine.schemas.public.receipt",
+      "name": "Receipt",
+      "semver": "1.0.0",
+      "tier": "public"
+    },
+    {
+      "file": "public/RenderedLine.json",
+      "module": "memspine.schemas.public.read",
+      "name": "RenderedLine",
+      "semver": "1.0.0",
+      "tier": "public"
+    },
+    {
+      "file": "public/ScoredItem.json",
+      "module": "memspine.schemas.public.read",
+      "name": "ScoredItem",
+      "semver": "1.0.0",
+      "tier": "public"
+    },
+    {
+      "file": "public/WaitResult.json",
+      "module": "memspine.schemas.public.receipt",
+      "name": "WaitResult",
+      "semver": "1.0.0",
+      "tier": "public"
     }
   ],
   "note": {

@@ -1,8 +1,8 @@
 # ruff: noqa: E501
 """Internal step types for the retrieve pipeline (``docs/v2/pipelines/retrieve.md``), steps 1-20.
 
-Internal tier: no compatibility promise. Step 20 is cross-cutting (execution and caching); its types are
-drafts pending schema session 10 (read and cache).
+Internal tier: no compatibility promise. The public read types (request, bundle, block, result, cache key)
+live in :mod:`memspine.schemas.public`.
 """
 
 from __future__ import annotations
@@ -13,18 +13,16 @@ from typing import Any, Literal
 from pydantic import Field
 
 from memspine.schemas.base import InternalModel
+from memspine.schemas.public import CacheKey, ContextBlock, ReadRequest, ReadResult
 from memspine.schemas.steps.shared import (
-    ContextBlock,
     Depth,
-    EvidenceBundle,
     Family,
     Layer,
     NamedLeg,
     NoteItem,
+    PackedEvidence,
     PoolEntry,
     QueryContract,
-    ReadRequest,
-    ReadResult,
     ReadTrace,
     Record,
     Scope,
@@ -38,13 +36,13 @@ TimeView = Literal["current", "history", "as_of"]
 
 
 class TierConfig(InternalModel):
-    """Config keys read.default_depth, read.allowed_depths, read.tiers. draft: pending session 10."""
+    """Config keys read.default_depth, read.allowed_depths, read.tiers."""
 
     default_depth: Depth = "standard"
     allowed_depths: list[Depth] = Field(default_factory=lambda: ["fast", "standard", "deep"])
     tiers: dict[str, dict[str, Any]] = Field(
         default_factory=dict
-    )  # TODO(session 10): per-tier knobs
+    )  # TODO: per-tier knobs are not specified
 
 
 class TierPolicy(InternalModel):
@@ -59,7 +57,7 @@ class TierPolicy(InternalModel):
 
 
 class DateFilter(InternalModel):
-    """Explicit valid/recorded bounds. draft: pending schema session 6 (time)."""
+    """Explicit valid/recorded bounds.(time)."""
 
     valid_from: datetime | None = None
     valid_to: datetime | None = None
@@ -76,9 +74,7 @@ class ReadScope(InternalModel):
     as_of_valid: datetime | None = None
     as_of_known: datetime | None = None  # caller-set only
     date_filter: DateFilter | None = None
-    sensitivity_bar: str | None = (
-        None  # TODO(session 10): spec has Callable[[Record], bool]; not serialisable
-    )
+    sensitivity_bar: str | None = None  # TODO: spec has Callable[[Record], bool]; not serialisable
 
 
 class LegSpec(InternalModel):
@@ -169,11 +165,11 @@ class BlockCaps(InternalModel):
 
 
 class CacheEntryInfo(InternalModel):
-    """Step 20 cache description. draft: pending schema session 10 (CacheKey)."""
+    """Step 20 cache description.(CacheKey)."""
 
     cache: str
     hit: bool
-    key_fingerprint: str | None = None  # TODO(session 10): CacheKey fields (ER-31)
+    key: CacheKey | None = None  # ER-31
 
 
 class LegResult(InternalModel):
@@ -373,13 +369,13 @@ class RetrieveStep16Input(InternalModel):
 
 
 class RetrieveStep16Output(InternalModel):
-    bundle: EvidenceBundle
+    bundle: PackedEvidence
 
 
 class RetrieveStep17Input(InternalModel):
     """Render: typed sections, header, aliases, provenance, trust wrapping."""
 
-    bundle: EvidenceBundle
+    bundle: PackedEvidence
     contract: QueryContract | None = None
 
 

@@ -17,9 +17,9 @@ from __future__ import annotations
 
 from typing import Any, ClassVar
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
-__all__ = ["DurableModel", "InternalModel", "PublicModel", "TierModel"]
+__all__ = ["DurableModel", "DurablePart", "InternalModel", "PublicModel", "TierModel", "kind_id"]
 
 
 class TierModel(BaseModel):
@@ -34,26 +34,47 @@ class TierModel(BaseModel):
     __tier__: ClassVar[str] = ""
 
 
-class DurableModel(TierModel):
-    """Persisted kinds. Subclasses set ``kind`` (class level) and may raise the ``schema_version`` default.
+class DurablePart(TierModel):
+    """A value type embedded in durable kinds (evidence, temporal refs, ...).
 
+    It is part of the durable tier (its schema is exported and checked as part of the owning kind), but it
+    has no ``schema_version`` of its own: a change to a part is a change to every kind that embeds it.
+    """
+
+    __tier__: ClassVar[str] = "durable"
+
+
+class DurableModel(TierModel):
+    """Persisted kinds. Subclasses set ``__kind__`` and may raise the ``schema_version`` default.
+
+    The kind id lives in the dunder ``__kind__`` (a legacy class-level ``kind: ClassVar[str]`` is still
+    honoured) so that a durable model may itself have an instance field called ``kind`` (``MemoryEvent``).
     The default of ``schema_version`` is the *latest* version the code writes; it is declared to the
     upcaster registry when the subclass is created, so ``upcast(kind, payload)`` knows the target.
     """
 
     __tier__: ClassVar[str] = "durable"
-    kind: ClassVar[str]
-    schema_version: int = 1
+    __kind__: ClassVar[str | None] = None
+    schema_version: int = Field(default=1, ge=1)
 
     @classmethod
     def __pydantic_init_subclass__(cls, **kwargs: Any) -> None:
         super().__pydantic_init_subclass__(**kwargs)
-        kind = cls.__dict__.get("kind")
+        kind = kind_id(cls, own=True)
         if kind is None:
             return  # intermediate abstract base
         from memspine.schemas.versioning import declare_kind
 
         declare_kind(kind, cls.model_fields["schema_version"].default)
+
+
+def kind_id(cls: type[BaseModel], *, own: bool = False) -> str | None:
+    """Durable kind id of ``cls`` (``__kind__``, else a legacy ``kind`` class attribute), or ``None``."""
+    for name in ("__kind__", "kind"):
+        value = cls.__dict__.get(name) if own else getattr(cls, name, None)
+        if isinstance(value, str):
+            return value
+    return None
 
 
 class PublicModel(TierModel):

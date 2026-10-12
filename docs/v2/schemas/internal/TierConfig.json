@@ -1,6 +1,6 @@
 {
   "additionalProperties": true,
-  "description": "Config keys read.default_depth, read.allowed_depths, read.tiers. draft: pending session 10.",
+  "description": "Config keys read.default_depth, read.allowed_depths, read.tiers.",
   "properties": {
     "allowed_depths": {
       "items": {

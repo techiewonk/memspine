@@ -1,6 +1,6 @@
 {
   "additionalProperties": true,
-  "description": "draft: field layout pending schema session 4 (evidence).",
+  "description": "Internal step type.",
   "properties": {
     "asset_id": {
       "title": "Asset Id",

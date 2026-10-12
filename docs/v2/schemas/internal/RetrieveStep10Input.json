@@ -2,7 +2,7 @@
   "$defs": {
     "DateFilter": {
       "additionalProperties": true,
-      "description": "Explicit valid/recorded bounds. draft: pending schema session 6 (time).",
+      "description": "Explicit valid/recorded bounds.(time).",
       "properties": {
         "recorded_from": {
           "anyOf": [
@@ -83,7 +83,7 @@
     },
     "PoolEntry": {
       "additionalProperties": true,
-      "description": "draft: pending schema session 10.",
+      "description": "Internal step type.",
       "properties": {
         "family": {
           "title": "Family",
