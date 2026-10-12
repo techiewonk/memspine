@@ -332,7 +332,12 @@
     "evals/freeze_blind_slices.py",
     "evals/make_split.py"
    ],
-   "owns": [],
+   "owns": [
+    "evals/suite/**",
+    "evals/memspine_evals/behavioural*.py",
+    "evals/tests/test_suite*.py",
+    "evals/tests/test_behavioural*.py"
+   ],
    "lane": "infra",
    "agent": "sonnet",
    "components": [
@@ -504,7 +509,12 @@
     "evals/analysis/GAP_REGISTER.md",
     "src/memspine/config/schema.py"
    ],
-   "owns": [],
+   "owns": [
+    ".github/workflows/**",
+    "scripts/ci_*.py",
+    "tests/unit/test_flag_evidence.py",
+    "tests/unit/test_alembic_single_head.py"
+   ],
    "lane": "infra",
    "agent": "sonnet",
    "components": [
