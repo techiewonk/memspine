@@ -1129,6 +1129,164 @@
    "review": []
   },
   {
+   "id": "LIB-10",
+   "phase": 1,
+   "title": "Library: family fusion, protected pool, calibrated floors",
+   "decisions": [
+    "R-11",
+    "R-12",
+    "R-13"
+   ],
+   "depends_on": [
+    "MOD-01"
+   ],
+   "kind": "infra",
+   "gate": "Unit tests; pure, unwired (wiring in R3-06); depends only on memspine.schemas",
+   "status": "Ready",
+   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "layers": [
+    "L0",
+    "L1"
+   ],
+   "operators": [
+    "R"
+   ],
+   "files": [
+    "src/memspine/config/schema.py",
+    "src/memspine/engine.py",
+    "src/memspine/services/lexical/base.py",
+    "src/memspine/config/constants.py"
+   ],
+   "owns": [
+    "src/memspine/read/fusion.py",
+    "tests/unit/lib/test_lib_10*.py"
+   ],
+   "lane": "other",
+   "agent": "sonnet",
+   "components": [
+    "read.fusion (FamilyRRF)",
+    "read.pool (FamilyPool)",
+    "read.pool (PoolPolicy)"
+   ],
+   "review": []
+  },
+  {
+   "id": "LIB-11",
+   "phase": 1,
+   "title": "Library: lift derived hits to turns before rerank (lift, re-admit, dedupe, cap), unscored marking",
+   "decisions": [
+    "R-17"
+   ],
+   "depends_on": [
+    "MOD-01"
+   ],
+   "kind": "infra",
+   "gate": "Unit tests; pure, unwired (wiring in R3-08); depends only on memspine.schemas",
+   "status": "Ready",
+   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "layers": [
+    "L0",
+    "L1",
+    "L3",
+    "L4"
+   ],
+   "operators": [
+    "R"
+   ],
+   "files": [
+    "src/memspine/config/schema.py",
+    "src/memspine/engine.py"
+   ],
+   "owns": [
+    "src/memspine/read/lift.py",
+    "tests/unit/lib/test_lib_11*.py"
+   ],
+   "lane": "other",
+   "agent": "sonnet",
+   "components": [
+    "read.lift"
+   ],
+   "review": []
+  },
+  {
+   "id": "LIB-12",
+   "phase": 1,
+   "title": "Library: store-calibrated relevance gate with missing vs conflicting evidence states",
+   "decisions": [
+    "R-21"
+   ],
+   "depends_on": [
+    "MOD-01"
+   ],
+   "kind": "infra",
+   "gate": "Unit tests; pure, unwired (wiring in R3-11); depends only on memspine.schemas",
+   "status": "Ready",
+   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "layers": [
+    "L1",
+    "ctx"
+   ],
+   "operators": [
+    "R"
+   ],
+   "files": [
+    "src/memspine/engine.py",
+    "src/memspine/config/constants.py",
+    "src/memspine/config/schema.py",
+    "src/memspine/core/relevance_probes.py"
+   ],
+   "owns": [
+    "src/memspine/read/gate.py",
+    "tests/unit/lib/test_lib_12*.py"
+   ],
+   "lane": "other",
+   "agent": "sonnet",
+   "components": [
+    "read.gate (StoreCalibratedGate)"
+   ],
+   "review": []
+  },
+  {
+   "id": "LIB-13",
+   "phase": 1,
+   "title": "Library: role policy and echo guard (marker plus last-read overlap) and routing",
+   "decisions": [
+    "W-06",
+    "W-09"
+   ],
+   "depends_on": [
+    "MOD-01"
+   ],
+   "kind": "infra",
+   "gate": "Unit tests; pure, unwired (wiring in W2-03); depends only on memspine.schemas",
+   "status": "Ready",
+   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "layers": [
+    "L0",
+    "L1",
+    "L5",
+    "ctx"
+   ],
+   "operators": [
+    "D"
+   ],
+   "files": [
+    "src/memspine/config/schema.py",
+    "src/memspine/engine.py"
+   ],
+   "owns": [
+    "src/memspine/ingest/roles.py",
+    "tests/unit/lib/test_lib_13*.py"
+   ],
+   "lane": "other",
+   "agent": "sonnet",
+   "components": [
+    "intake.RolePolicy (raw keeps all roles; derivation filter: assistant=proposed, tool=evidence, system=excluded, echo guard on)",
+    "intake.TypeRouter (unkeyed -> episodic/resource raw; keyed entity/attribute, skill, plan -> typed write with parents)"
+   ],
+   "review": []
+  },
+  {
    "id": "F-05",
    "phase": 1,
    "title": "Package skeleton; move store and trust leaves",
@@ -1426,7 +1584,8 @@
     "W-09"
    ],
    "depends_on": [
-    "F-08"
+    "F-08",
+    "LIB-13"
    ],
    "kind": "move",
    "gate": "Golden",
@@ -1464,7 +1623,8 @@
     "R-05"
    ],
    "depends_on": [
-    "F-09"
+    "F-09",
+    "LIB-10"
    ],
    "kind": "move",
    "gate": "Golden byte-identical hit order",
@@ -1501,7 +1661,9 @@
     "R-05"
    ],
    "depends_on": [
-    "F-10a"
+    "F-10a",
+    "LIB-11",
+    "LIB-12"
    ],
    "kind": "move",
    "gate": "Golden byte-identical hit order",
@@ -2755,7 +2917,8 @@
     "W-09"
    ],
    "depends_on": [
-    "W2-02"
+    "W2-02",
+    "LIB-13"
    ],
    "kind": "behaviour",
    "gate": "Focus slice non-inferior",
@@ -3748,7 +3911,8 @@
     "R-13"
    ],
    "depends_on": [
-    "R3-04"
+    "R3-04",
+    "LIB-10"
    ],
    "kind": "behaviour",
    "gate": "Source-family pool non-inferior to per-leg pool",
@@ -3832,7 +3996,8 @@
    ],
    "depends_on": [
     "R3-06",
-    "F-16a"
+    "F-16a",
+    "LIB-11"
    ],
    "kind": "behaviour",
    "gate": "Focus non-inferior",
@@ -3977,7 +4142,8 @@
     "R-21"
    ],
    "depends_on": [
-    "R3-10"
+    "R3-10",
+    "LIB-12"
    ],
    "kind": "behaviour",
    "gate": "OP-Bench up; no recall loss on MAB-CR, ConvoMem, LoCoMo",
