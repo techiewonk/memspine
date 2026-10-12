@@ -41,7 +41,7 @@ WP = [
     ("X-03", 0, "Golden fixture: synthetic conversations, hash embedder, reranker off", ["G-04"], [], "infra",
      "No benchmark text; deterministic", "Ready", ""),
     ("X-04", 0, "Docs and ADR: ADR-067 restructure, no-shim wording, G-23 migration-time upcaster", ["G-23"], [], "infra",
-     "Docs consistent with 'no shims'", "Ready", ""),
+     "Docs consistent with 'no shims'", "Done", "ADR-067 (40fb1e2)"),
     ("X-05", 0, "Labelled sets: grounding, alias/homonym/numeric pairs, contradiction recall, global questions",
      ["W-17", "W-19", "O-13", "O-12", "O-17"], [], "infra", "Invented names, several languages; versioned", "Not started", ""),
     ("MOD-01", 0, "memspine.schemas: versioned Pydantic input/output types for every pipeline step; JSON Schema export to docs/v2/schemas", ["G-16", "M-26"], ["X-00"], "infra",

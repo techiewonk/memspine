@@ -729,7 +729,7 @@
       "src/memspine/services/storage/sqlite/alembic/versions/",
       "src/memspine/engine.py:13357"
     ],
-    "v2_component": "memspine.migrate (V1Upcaster, ReplayBuilder, v1 compat shim)",
+    "v2_component": "memspine.migrate (V1Upcaster, ReplayBuilder, migration-time upcaster, no runtime shim)",
     "operators": [
       "D",
       "K_C"

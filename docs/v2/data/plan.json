@@ -515,8 +515,8 @@
    "depends_on": [],
    "kind": "infra",
    "gate": "Docs consistent with 'no shims'",
-   "status": "Ready",
-   "note": "",
+   "status": "Done",
+   "note": "ADR-067 (40fb1e2)",
    "layers": [
     "L0",
     "L1",
@@ -537,7 +537,7 @@
    "lane": "infra",
    "agent": "sonnet",
    "components": [
-    "memspine.migrate (V1Upcaster, ReplayBuilder, v1 compat shim)"
+    "memspine.migrate (V1Upcaster, ReplayBuilder, migration-time upcaster, no runtime shim)"
    ],
    "review": [
     "ER-01"
@@ -1699,7 +1699,7 @@
    "components": [
     "EventLog + MarkdownExportView",
     "Upcasters + Record.derivation",
-    "memspine.migrate (V1Upcaster, ReplayBuilder, v1 compat shim)"
+    "memspine.migrate (V1Upcaster, ReplayBuilder, migration-time upcaster, no runtime shim)"
    ],
    "review": [
     "ER-27",
@@ -4450,7 +4450,7 @@
    "lane": "release",
    "agent": "sonnet",
    "components": [
-    "memspine.migrate (V1Upcaster, ReplayBuilder, v1 compat shim)"
+    "memspine.migrate (V1Upcaster, ReplayBuilder, migration-time upcaster, no runtime shim)"
    ],
    "review": []
   }
