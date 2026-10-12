@@ -13,6 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from memspine.config import constants
 from memspine.core.registry import validate_types
 from memspine.exceptions import ConfigError
+from memspine.schemas.public.plugins import CapabilityManifest
 from memspine.store.events import EventLogMode
 from memspine.store.scope import validate_namespace
 
@@ -1850,6 +1851,11 @@ class MemspineConfig(BaseModel):
     prompts: PromptsConfig = Field(default_factory=PromptsConfig)
     memories: dict[str, MemoryTypeConfig] = Field(default_factory=dict)
     namespaces: dict[str, NamespaceConfig] = Field(default_factory=dict)
+    #: MOD-02 / ER-34: pinned third-party plug-ins. Discovery is not enablement: an entry-point
+    #: provider is used only when listed here with ``name``, ``slot`` (``<kind>:<name>``), an exact
+    #: ``version`` pin, ``lifetime`` and optionally ``hash`` (``sha256:`` of the dist's RECORD).
+    #: Empty (default) = no plug-in code is imported.
+    plugins: list[CapabilityManifest] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _asset_keys_agree(self) -> MemspineConfig:

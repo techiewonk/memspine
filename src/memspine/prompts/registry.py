@@ -9,19 +9,32 @@ always see a changed identity for changed content.
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from typing import Any
 
 from jinja2 import Environment
 
 from memspine.exceptions import ConfigError
 from memspine.models.encoders.query.shape import is_inference, is_temporal
+from memspine.plugins import Registry
 from memspine.prompts.base import Prompt
 from memspine.prompts.env import build_environment, partials_fingerprint
 from memspine.prompts.loader import load_default_pack
 from memspine.prompts.models import OUTPUT_MODELS
 
-__all__ = ["BY_SHAPE_SUFFIX", "QUESTION_SHAPES", "PromptRegistry", "question_shape"]
+__all__ = [
+    "BY_SHAPE_SUFFIX",
+    "PROMPT_SETS",
+    "QUESTION_SHAPES",
+    "PromptRegistry",
+    "question_shape",
+]
+
+#: MOD-02 typed registry of prompt sets: name -> ``() -> list[Prompt]``. ``default`` is the
+#: shipped pack; an enabled plug-in may add a set (selected only by programmatic use today, so
+#: the engine always resolves ``default`` and behaviour is unchanged).
+PROMPT_SETS: Registry[Callable[[], list[Prompt]]] = Registry("prompt_sets")
+PROMPT_SETS.register("default", load_default_pack)
 
 #: C2: ``prompts.selection.<role>_by_shape`` maps a question shape to the ``condition``
 #: of ``<role>`` used for questions of that shape (``chat_by_shape: {temporal: infer}``).
@@ -78,7 +91,7 @@ class PromptRegistry:
                     "(valid: memory_type, condition)"
                 )
         self._prompts: dict[str, Prompt] = {}
-        for prompt in load_default_pack():
+        for prompt in PROMPT_SETS.get("default")():
             self._prompts[prompt.id] = self._bind(prompt)
         for prompt in extra_prompts or ():  # programmatic/test-only variants
             self._prompts[prompt.id] = self._bind(prompt)
