@@ -14,8 +14,6 @@ from collections.abc import Awaitable, Callable, Collection, Sequence
 from typing import Any, ClassVar, Protocol
 
 from memspine.config.constants import LINK_BUDGET, SEARCH_TOP_K
-from memspine.core.events import EventKind, MemoryEvent
-from memspine.core.records import MemoryRecord, RecordStatus
 from memspine.exceptions import ConfigError, ConflictError
 from memspine.memories.associative import links as link_rules
 from memspine.memories.associative.entities import (
@@ -31,6 +29,8 @@ from memspine.services.embedding.base import EmbeddingService
 from memspine.services.graph.base import GraphEdge, GraphStore, capped_neighbors
 from memspine.services.lexical.base import LexicalHit, rrf_fuse
 from memspine.services.vector.base import VectorStore
+from memspine.store.events import EventKind, MemoryEvent
+from memspine.store.records import MemoryRecord, RecordStatus
 
 __all__ = ["AssociativeMemory"]
 

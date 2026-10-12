@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from memspine.core.events import EventKind, MemoryEvent
-from memspine.core.records import MemoryRecord, SourceInfo
 from memspine.services.lexical.base import LexicalHit
 from memspine.services.lexical.projector import LexicalProjector
+from memspine.store.events import EventKind, MemoryEvent
+from memspine.store.records import MemoryRecord, SourceInfo
 
 
 class FakeLexical:

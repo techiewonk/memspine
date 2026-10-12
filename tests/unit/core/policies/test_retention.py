@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from memspine.core.policies.retention import RetentionPolicy
-from memspine.core.records import MemoryRecord, PiiTier
+from memspine.store.records import MemoryRecord, PiiTier
 
 
 def rec(namespace: str = "agent/a", pii: PiiTier = PiiTier.NONE) -> MemoryRecord:

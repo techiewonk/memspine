@@ -11,11 +11,11 @@ from collections.abc import Awaitable, Callable
 from typing import ClassVar
 
 from memspine.config.constants import WORKING_PAGE_SIZE as DEFAULT_PAGE_SIZE
-from memspine.core.events import EventKind, MemoryEvent
-from memspine.core.records import MemoryRecord
 from memspine.memories.base import BaseMemory
 from memspine.memories.working.paging import select_page_out
 from memspine.observability.logging import EVENT_DECAY_TRANSITION, get_logger
+from memspine.store.events import EventKind, MemoryEvent
+from memspine.store.records import MemoryRecord
 
 __all__ = ["DEFAULT_PAGE_SIZE", "WorkingMemory"]
 

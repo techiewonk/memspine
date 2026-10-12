@@ -7,8 +7,8 @@ from typing import Any
 
 from memspine import Engine
 from memspine.config.schema import ReadConfig
-from memspine.core.records import MemoryRecord
 from memspine.core.temporal_query import SPEAKER_PREFIX, speaker_leg, speaker_of
+from memspine.store.records import MemoryRecord
 
 T0 = datetime(2023, 5, 1, tzinfo=UTC)
 TURNS = [

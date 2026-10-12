@@ -32,9 +32,7 @@ from memspine.core.event_date import (
     normalise_label,
     resolve_happened,
 )
-from memspine.core.events import EventKind, EventLogMode, MemoryEvent, fingerprint_payload
 from memspine.core.fact_chain import fact_projection_on, validate_assertions
-from memspine.core.firewall import Firewall, FirewallVerdict, instruction_shaped
 from memspine.core.perspective import inherit_perspective_tags
 from memspine.core.policies.community import CommunityOptions, CommunityPolicy
 from memspine.core.policies.compression import CompressionPolicy
@@ -47,7 +45,6 @@ from memspine.core.policies.decay import DecayPolicy
 from memspine.core.policies.retention import RetentionPolicy
 from memspine.core.policies.trust import TrustPolicy
 from memspine.core.query_shape import content_words
-from memspine.core.records import MemoryRecord, RecordStatus, SourceInfo, chrono_key
 from memspine.core.rule_edges import BECAUSE_REL, causal_links, kinship_relations
 from memspine.core.temporal_resolve import WeekMode
 from memspine.exceptions import ConfigError, ConflictError
@@ -85,6 +82,9 @@ from memspine.memories.semantic.write_pipeline import (
 from memspine.observability.logging import get_logger
 from memspine.prompts.models import AnticipatedCue, AssertionOut, ExtractedEdge, ExtractedFact
 from memspine.services.graph.base import GraphEdge, GraphStore
+from memspine.store.events import EventKind, EventLogMode, MemoryEvent, fingerprint_payload
+from memspine.store.records import MemoryRecord, RecordStatus, SourceInfo, chrono_key
+from memspine.trust.firewall import Firewall, FirewallVerdict, instruction_shaped
 from memspine.workers.list_cards import (
     LIST_CLASSES_MARKER,
     DepositListCard,

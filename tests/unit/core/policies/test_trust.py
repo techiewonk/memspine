@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from memspine.core.policies.trust import TrustPolicy
-from memspine.core.records import MemoryRecord, SourceInfo
+from memspine.store.records import MemoryRecord, SourceInfo
 
 
 def rec(role: str = "user", channel: str = "internal", trust: float = 0.5) -> MemoryRecord:

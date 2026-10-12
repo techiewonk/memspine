@@ -6,8 +6,6 @@ from collections.abc import Callable
 
 import pytest
 
-from memspine.core.events import EventKind, MemoryEvent
-from memspine.core.records import MemoryRecord
 from memspine.exceptions import ConflictError
 from memspine.memories.associative.entities import (
     MENTIONS_REL,
@@ -21,6 +19,8 @@ from memspine.memories.associative.links import RESERVED_RELS, link_event
 from memspine.memories.associative.projector import GraphProjector
 from memspine.memories.associative.store import AssociativeMemory
 from memspine.services.graph.sqlite_adjacency import SQLiteAdjacencyGraph
+from memspine.store.events import EventKind, MemoryEvent
+from memspine.store.records import MemoryRecord
 
 ON = EntityPolicy.from_policy(True)
 

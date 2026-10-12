@@ -6,9 +6,9 @@ import pytest
 
 from memspine import Engine
 from memspine.config.schema import FirewallConfig
-from memspine.core.records import PiiTier
-from memspine.core.redaction import redact
 from memspine.core.sensitive import sensitive_topics
+from memspine.store.records import PiiTier
+from memspine.trust.redaction import redact
 
 
 @pytest.mark.parametrize(

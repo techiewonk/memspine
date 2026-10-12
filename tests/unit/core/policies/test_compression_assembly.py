@@ -9,8 +9,8 @@ import pytest
 from memspine.core.policies import compression as compression_module
 from memspine.core.policies.assembly import AssemblyPolicy
 from memspine.core.policies.compression import CompressionPolicy
-from memspine.core.records import MemoryRecord, RecordStatus, SourceInfo
 from memspine.exceptions import ConfigError
+from memspine.store.records import MemoryRecord, RecordStatus, SourceInfo
 
 
 def rec(

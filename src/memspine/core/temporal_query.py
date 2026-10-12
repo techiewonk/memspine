@@ -23,8 +23,8 @@ from datetime import UTC, datetime, timedelta
 from memspine.config.constants import MENTION_CACHE_MAX, TEMPORAL_SOFT_MARGIN_DAYS
 from memspine.core.event_date import happened_of, label_span
 from memspine.core.language import blocked
-from memspine.core.records import MemoryRecord, chrono_key
 from memspine.core.temporal_resolve import WeekMode, resolve
+from memspine.store.records import MemoryRecord, chrono_key
 
 __all__ = [
     "RECOMMENDATION_TAG",

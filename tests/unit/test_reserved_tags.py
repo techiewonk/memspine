@@ -10,7 +10,7 @@ import pytest
 
 from memspine import Engine
 from memspine.config import constants
-from memspine.core.records import MemoryRecord
+from memspine.store.records import MemoryRecord
 
 
 def _engine(**extra: Any) -> Engine:

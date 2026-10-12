@@ -14,7 +14,7 @@ from typing import Any
 import pytest
 
 from memspine import Engine
-from memspine.core.records import MemoryRecord, RecordStatus
+from memspine.store.records import MemoryRecord, RecordStatus
 from memspine.workers.pipelines import reorganize
 
 MELANIE = [

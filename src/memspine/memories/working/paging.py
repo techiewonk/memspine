@@ -5,7 +5,7 @@ through the write door. Persona records are pinned and never paged."""
 
 from __future__ import annotations
 
-from memspine.core.records import MemoryRecord
+from memspine.store.records import MemoryRecord
 
 __all__ = ["select_page_out"]
 

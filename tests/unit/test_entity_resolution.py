@@ -14,7 +14,6 @@ from typing import Any
 import pytest
 
 from memspine import Engine
-from memspine.core.records import MemoryRecord, SourceInfo
 from memspine.exceptions import ConfigError
 from memspine.memories.associative.resolution import (
     EntityResolver,
@@ -23,6 +22,7 @@ from memspine.memories.associative.resolution import (
     name_jaccard,
 )
 from memspine.prompts.models import ExtractedEdge
+from memspine.store.records import MemoryRecord, SourceInfo
 from memspine.workers.pipelines import (
     ENTITY_RESOLVED_MARKER,
     SessionIndex,
@@ -403,7 +403,7 @@ async def test_forgetting_any_cited_turn_erases_a_session_decision(forget: str) 
     is keyed by every cited turn, so hard-forgetting ANY of them (not just the
     least trusted "owner") erases the decision: the alias is gone after a
     rebuild and ``verify_forget`` is clean."""
-    from memspine.core.events import EventKind, MemoryEvent
+    from memspine.store.events import EventKind, MemoryEvent
 
     eng = Engine(
         template="core",

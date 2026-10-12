@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from memspine.core.records import MemoryRecord, RecordStatus
 from memspine.memories.shared.subscriptions import (
     SUBSCRIPTION_ATTRIBUTE,
     active_subscriptions,
     make_subscription_record,
     parse_subscription,
 )
+from memspine.store.records import MemoryRecord, RecordStatus
 
 
 def test_subscription_record_shape_and_parse_round_trip() -> None:

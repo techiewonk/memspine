@@ -10,9 +10,9 @@ from typing import Any
 import pytest
 
 from memspine import Engine
-from memspine.core import erasure
-from memspine.core.records import SourceInfo
 from memspine.exceptions import MemspineError
+from memspine.store.records import SourceInfo
+from memspine.trust import erasure
 
 
 def _engine(**extra: Any) -> Engine:

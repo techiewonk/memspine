@@ -6,8 +6,8 @@ from typing import Any
 
 from memspine import Engine
 from memspine.config import constants
-from memspine.core.records import SourceInfo
 from memspine.engine import _RECALL_MARKERS
+from memspine.store.records import SourceInfo
 
 _TOOL = SourceInfo(role="tool", channel="external")
 _RAW = "Office wifi note: the guest network for the Lisbon office is called LisbonGuest"

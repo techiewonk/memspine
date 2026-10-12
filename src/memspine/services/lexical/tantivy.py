@@ -46,9 +46,9 @@ from memspine.config.constants import (
     TANTIVY_COMMIT_RETRIES,
     TANTIVY_WRITER_HEAP_BYTES,
 )
-from memspine.core.records import MemoryRecord
 from memspine.observability.logging import get_logger
 from memspine.services.lexical.base import LexicalHit
+from memspine.store.records import MemoryRecord
 
 if TYPE_CHECKING:
     pass

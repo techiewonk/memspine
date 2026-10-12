@@ -96,7 +96,7 @@ def _fixed_ids(monkeypatch: pytest.MonkeyPatch) -> None:
     """Record ids break score ties: make them a fixed sequence, so runs compare."""
     import uuid
 
-    from memspine.core import records
+    from memspine.store import records
 
     counter = iter(range(1, 1_000_000))
     monkeypatch.setattr(records, "uuid4", lambda: uuid.UUID(int=next(counter)))

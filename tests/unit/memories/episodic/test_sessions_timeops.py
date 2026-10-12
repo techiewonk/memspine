@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from memspine.core.records import MemoryRecord
 from memspine.memories.episodic.sessions import detect_sessions
 from memspine.memories.episodic.timeops import sort_timeline, within
+from memspine.store.records import MemoryRecord
 
 NOW = datetime(2026, 7, 7, 12, 0, tzinfo=UTC)
 GAP = timedelta(minutes=30)

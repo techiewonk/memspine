@@ -13,9 +13,9 @@ import pytest
 from memspine import Engine
 from memspine.config import constants
 from memspine.config.schema import MemspineConfig
-from memspine.core.records import MemoryRecord, RecordStatus, SourceInfo
 from memspine.prompts.models import ExtractedFact
 from memspine.services.llm.base import LLMRouter, LLMService
+from memspine.store.records import MemoryRecord, RecordStatus, SourceInfo
 from memspine.workers.list_cards import (
     class_key,
     fact_class,

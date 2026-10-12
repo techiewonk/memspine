@@ -9,10 +9,8 @@ never recurses; edge facts inherit source trust (E1).
 from __future__ import annotations
 
 from memspine.clients.sqlite import SQLiteClient
-from memspine.core.events import MemoryEvent
 from memspine.core.policies.conflict import ConflictPolicy
 from memspine.core.policies.dedup import DedupPolicy
-from memspine.core.records import MemoryRecord
 from memspine.memories.semantic.store import SemanticMemory
 from memspine.memories.semantic.write_pipeline import (
     EDGE_CHANNEL,
@@ -24,6 +22,8 @@ from memspine.prompts.models import ExtractedEdge
 from memspine.services.embedding.hash_local import HashEmbedding
 from memspine.services.storage.projector import RecordProjector
 from memspine.services.storage.sqlite.engine import SQLiteStorage
+from memspine.store.events import MemoryEvent
+from memspine.store.records import MemoryRecord
 
 
 async def _memory(edges: list[ExtractedEdge] | None):

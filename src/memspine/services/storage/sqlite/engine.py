@@ -13,11 +13,11 @@ from __future__ import annotations
 import asyncio
 
 from memspine.clients.sqlite import SQLiteClient
-from memspine.core.events import EventLogMode
 from memspine.services.base import CapabilityManifest
 from memspine.services.storage.sql_base import SqlStorage
 from memspine.services.storage.sqlite.migrations import ensure_schema
 from memspine.services.storage.sqlite.schema import metadata
+from memspine.store.events import EventLogMode
 
 __all__ = ["SQLiteStorage"]
 

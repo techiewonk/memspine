@@ -12,10 +12,10 @@ from datetime import datetime, timedelta
 from typing import ClassVar, Protocol
 
 from memspine.config.constants import SESSION_GAP_MINUTES
-from memspine.core.records import MemoryRecord, RecordStatus
 from memspine.memories.base import BaseMemory
 from memspine.memories.episodic.sessions import Session, detect_sessions
 from memspine.memories.episodic.timeops import sort_timeline, within
+from memspine.store.records import MemoryRecord, RecordStatus
 
 __all__ = ["EpisodicMemory"]
 

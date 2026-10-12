@@ -9,9 +9,9 @@ import pytest
 
 from memspine import Engine
 from memspine.core.query_shape import is_set_question
-from memspine.core.records import MemoryRecord
 from memspine.core.temporal_query import LegHit, speaker_vector_leg
 from memspine.engine import search_forensics
+from memspine.store.records import MemoryRecord
 
 T0 = datetime(2023, 5, 1, 9, 0, tzinfo=UTC)
 

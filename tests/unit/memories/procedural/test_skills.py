@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import pytest
 
-from memspine.core.events import EventKind, MemoryEvent
-from memspine.core.records import MemoryRecord, RecordStatus
 from memspine.exceptions import ConflictError
 from memspine.memories.procedural.lifecycle import SkillStage
 from memspine.memories.procedural.skills import (
@@ -13,6 +11,8 @@ from memspine.memories.procedural.skills import (
     make_skill_record,
     stage_status,
 )
+from memspine.store.events import EventKind, MemoryEvent
+from memspine.store.records import MemoryRecord, RecordStatus
 
 
 class FakeStorage:

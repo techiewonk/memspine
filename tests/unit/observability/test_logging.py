@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from memspine.core.events import EventKind
 from memspine.observability import logging as obs_logging
+from memspine.store.events import EventKind
 
 
 def test_m11_vocabulary_matches_event_kinds() -> None:

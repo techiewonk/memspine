@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from memspine import Engine
-from memspine.core.events import EventKind
 from memspine.prompts.models import ExtractedEdge
+from memspine.store.events import EventKind
 from memspine.workers.pipelines import GRAPH_EXTRACTED_MARKER, extract_graph
 
 

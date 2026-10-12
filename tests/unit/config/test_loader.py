@@ -7,8 +7,8 @@ from pathlib import Path
 import pytest
 
 from memspine.config.loader import load_config, template_dir
-from memspine.core.events import EventLogMode
 from memspine.exceptions import ConfigError
+from memspine.store.events import EventLogMode
 
 
 def test_defaults_only() -> None:

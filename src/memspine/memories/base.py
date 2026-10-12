@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import ClassVar
 
-from memspine.core.records import MemoryRecord
+from memspine.store.records import MemoryRecord
 
 __all__ = ["BaseMemory"]
 

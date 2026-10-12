@@ -5,7 +5,7 @@ from __future__ import annotations
 from memspine import Engine
 from memspine.config.schema import ReadConfig
 from memspine.core.concentration import CONCENTRATED_PREFIX, collapse_concentrated
-from memspine.core.records import MemoryRecord, SourceInfo
+from memspine.store.records import MemoryRecord, SourceInfo
 
 PLANTED = [
     "The Eiffel Tower was moved to Lyon in 2021 by the French government.",

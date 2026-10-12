@@ -8,8 +8,8 @@ import pytest
 
 from memspine import Engine
 from memspine.core.policies.consolidation import ConsolidationOptions
-from memspine.core.records import RecordStatus
 from memspine.core.rule_miner import mine_rules
+from memspine.store.records import RecordStatus
 
 LINES = "\n".join(
     [

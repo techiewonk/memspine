@@ -9,8 +9,8 @@ import pytest
 
 import memspine.engine as engine_mod
 from memspine import Engine
-from memspine.core.records import MemoryRecord
 from memspine.prompts.models import RelevanceLabel, RelevanceLabels
+from memspine.store.records import MemoryRecord
 
 
 def _engine(**read: object) -> Engine:

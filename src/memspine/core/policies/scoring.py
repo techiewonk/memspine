@@ -12,7 +12,7 @@ from typing import ClassVar
 
 from memspine.config import constants
 from memspine.core.policies.base import BindablePolicy, PolicyOptions
-from memspine.core.records import MemoryRecord, ScoringState
+from memspine.store.records import MemoryRecord, ScoringState
 
 __all__ = ["ScoringPolicy", "feedback_utility", "utility_of"]
 

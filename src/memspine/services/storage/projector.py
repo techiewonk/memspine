@@ -34,10 +34,10 @@ from typing import Protocol
 import orjson
 
 from memspine.config import constants
-from memspine.core.events import EventKind, MemoryEvent
-from memspine.core.projector import Projector
-from memspine.core.records import MemoryRecord, RecordStatus
 from memspine.observability.logging import get_logger
+from memspine.store.events import EventKind, MemoryEvent
+from memspine.store.projections.projector import Projector
+from memspine.store.records import MemoryRecord, RecordStatus
 
 __all__ = ["RecordProjector", "RecordStore"]
 

@@ -37,7 +37,7 @@ def _mem(storage, graph, log, **kw):  # type: ignore[no-untyped-def]
 
 
 def _record(content: str):  # type: ignore[no-untyped-def]
-    from memspine.core.records import MemoryRecord
+    from memspine.store.records import MemoryRecord
 
     return MemoryRecord(namespace="default", memory_type="semantic", content=content)
 

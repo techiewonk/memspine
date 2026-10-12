@@ -17,7 +17,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from memspine.core.query_shape import content_words
-from memspine.core.records import MemoryRecord
+from memspine.store.records import MemoryRecord
 
 __all__ = ["CONCENTRATED_PREFIX", "collapse_concentrated"]
 

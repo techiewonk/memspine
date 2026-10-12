@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from memspine.core.events import EventKind, MemoryEvent
-from memspine.core.records import MemoryRecord
 from memspine.memories.working.manager import WorkingMemory
 from memspine.memories.working.paging import select_page_out
 from memspine.memories.working.persona import is_persona, make_persona_record
+from memspine.store.events import EventKind, MemoryEvent
+from memspine.store.records import MemoryRecord
 
 
 def working_record(content: str, age_minutes: int = 0) -> MemoryRecord:

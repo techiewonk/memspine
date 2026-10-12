@@ -101,7 +101,7 @@ def _fixed_ids(monkeypatch: pytest.MonkeyPatch) -> None:
     """Record ids break score ties: make them a fixed sequence, so runs compare."""
     import uuid
 
-    from memspine.core import records
+    from memspine.store import records
 
     counter = iter(range(1, 1_000_000))
     monkeypatch.setattr(records, "uuid4", lambda: uuid.UUID(int=next(counter)))
@@ -113,8 +113,8 @@ def _fixed_now(monkeypatch: pytest.MonkeyPatch) -> None:
 
     Recency decays with the real time between write and search, so a search score
     on a 4-decimal rounding boundary (0.6465 / 0.6464) flipped from run to run."""
-    from memspine.core import records
     from memspine.core.policies import scoring
+    from memspine.store import records
 
     frozen = datetime(2023, 7, 15, 12, 0, tzinfo=UTC)
 

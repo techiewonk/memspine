@@ -28,8 +28,8 @@ import sqlite3
 from datetime import UTC, datetime
 from typing import Any
 
-from memspine.core.events import EventLogMode
 from memspine.exceptions import RebuildUnavailableError
+from memspine.store.events import EventLogMode
 
 #: A fixed cutoff far past any event's wall-clock ``ts`` — pruning with it deletes
 #: every already-applied event deterministically (no dependence on "now").

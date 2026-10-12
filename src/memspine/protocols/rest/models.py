@@ -12,7 +12,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from memspine.config import constants
-from memspine.core.records import MemoryRecord, PiiTier, SourceInfo
+from memspine.store.records import MemoryRecord, PiiTier, SourceInfo
 
 __all__ = [
     "AssembleRequest",

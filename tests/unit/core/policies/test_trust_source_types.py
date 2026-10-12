@@ -5,10 +5,10 @@ from __future__ import annotations
 import pytest
 
 from memspine.config import constants
-from memspine.core.firewall import Firewall
 from memspine.core.policies.trust import TrustPolicy
-from memspine.core.records import MemoryRecord, SourceInfo
 from memspine.exceptions import ConfigError
+from memspine.store.records import MemoryRecord, SourceInfo
+from memspine.trust.firewall import Firewall
 
 TYPES = {"register": 3, "news": 2, "media": 1, "agent_report": 0}
 

@@ -39,10 +39,6 @@ from fastapi.responses import JSONResponse
 
 from memspine.config import constants
 from memspine.config.schema import RestConfig, RestRateLimitConfig
-from memspine.core.audit import TaintReport
-from memspine.core.namespace import validate_namespace
-from memspine.core.privacy import principal_scope
-from memspine.core.records import MemoryRecord, SourceInfo
 from memspine.engine import Engine
 from memspine.exceptions import ConflictError, MemspineError, MissingServiceError
 from memspine.observability.logging import get_logger
@@ -74,6 +70,10 @@ from memspine.protocols.rest.models import (
     WriteMessagesRequest,
     WriteRequest,
 )
+from memspine.store.records import MemoryRecord, SourceInfo
+from memspine.store.scope import validate_namespace
+from memspine.trust.audit import TaintReport
+from memspine.trust.privacy import principal_scope
 
 __all__ = ["build_app", "resolve_namespace", "resolve_operator"]
 

@@ -95,8 +95,8 @@ async def test_longer_prefix_threshold_is_tunable() -> None:
 
 
 def test_outlier_exemption_is_role_scoped() -> None:
-    from memspine.core.firewall import Firewall, FirewallSignals
-    from memspine.core.records import MemoryRecord, SourceInfo
+    from memspine.store.records import MemoryRecord, SourceInfo
+    from memspine.trust.firewall import Firewall, FirewallSignals
 
     sims = [0.01] * 8  # far from every neighbour: an embedding outlier
 

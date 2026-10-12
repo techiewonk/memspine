@@ -22,9 +22,9 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 
 from memspine.config.constants import LINK_BUDGET
-from memspine.core.events import EventKind, MemoryEvent
 from memspine.exceptions import ConflictError
 from memspine.services.graph.base import GraphEdge, GraphStore
+from memspine.store.events import EventKind, MemoryEvent
 
 __all__ = [
     "LINK_BUDGET",

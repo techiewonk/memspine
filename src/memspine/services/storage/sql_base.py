@@ -30,9 +30,6 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from memspine.config.constants import ZSTD_LEVEL
-from memspine.core.erasure import redact_record, scrub_partition_nodes
-from memspine.core.events import EventKind, EventLogMode, MemoryEvent, canonical_payload
-from memspine.core.records import MemoryRecord
 from memspine.exceptions import StorageError
 from memspine.services.base import CapabilityManifest, ServiceAdapter
 from memspine.services.storage.sqlite.schema import (
@@ -40,6 +37,9 @@ from memspine.services.storage.sqlite.schema import (
     memory_records,
     projector_offsets,
 )
+from memspine.store.events import EventKind, EventLogMode, MemoryEvent, canonical_payload
+from memspine.store.records import MemoryRecord
+from memspine.trust.erasure import redact_record, scrub_partition_nodes
 
 __all__ = ["SqlClient", "SqlStorage"]
 
@@ -476,7 +476,7 @@ class SqlStorage(ServiceAdapter):
         Rewrites every event payload carrying a snapshot of ``record_id`` (one
         id or several, in one pass over the log) so its identifying fields
         (content, fingerprint, fact key, tags, history; see
-        :mod:`memspine.core.erasure`) are emptied and a ``redacted`` marker
+        :mod:`memspine.trust.erasure`) are emptied and a ``redacted`` marker
         is set — the event's seq, kind, and fingerprint (of the ORIGINAL
         payload) stay, so ordering and audit chains survive while the erased
         content is unrecoverable (GDPR erasure in an append-only design).
@@ -485,7 +485,7 @@ class SqlStorage(ServiceAdapter):
 
         ``node_renames`` (old entity node id -> opaque id) also renames those
         node ids in ``community_partition`` markers in the same pass
-        (:func:`~memspine.core.erasure.scrub_partition_nodes`).
+        (:func:`~memspine.trust.erasure.scrub_partition_nodes`).
         """
         if self._mode is EventLogMode.EPHEMERAL:
             return []

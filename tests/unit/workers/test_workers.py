@@ -6,8 +6,8 @@ from datetime import UTC, datetime
 
 from memspine.clients.sqlite import SQLiteClient
 from memspine.config.loader import load_config
-from memspine.core.events import EventKind, EventLogMode, MemoryEvent
 from memspine.services.storage.sqlite.engine import SQLiteStorage
+from memspine.store.events import EventKind, EventLogMode, MemoryEvent
 from memspine.workers.inline import InlineRunner
 from memspine.workers.pipelines import PIPELINES, PipelineContext
 from memspine.workers.schedule import SLEEP_CYCLE_ORDER, run_sleep_cycle

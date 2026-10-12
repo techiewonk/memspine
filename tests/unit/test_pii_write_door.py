@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from memspine import Engine
-from memspine.core.records import PiiTier
+from memspine.store.records import PiiTier
 
 
 def _engine(**extra: Any) -> Engine:

@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 
-from memspine.core.events import MemoryEvent
-from memspine.core.records import MemoryRecord
 from memspine.memories.associative.store import AssociativeMemory
 from memspine.services.graph.base import GraphEdge, GraphNode
+from memspine.store.events import MemoryEvent
+from memspine.store.records import MemoryRecord
 
 
 class SpyGraph:

@@ -20,8 +20,8 @@ from typing import TYPE_CHECKING, Any
 
 import orjson
 
-from memspine.core.events import EventKind, MemoryEvent, canonical_payload
-from memspine.core.records import MemoryRecord, PiiTier
+from memspine.store.events import EventKind, MemoryEvent, canonical_payload
+from memspine.store.records import MemoryRecord, PiiTier
 
 if TYPE_CHECKING:
     from memspine.config.schema import ConsentConfig, RetentionClassConfig

@@ -14,7 +14,7 @@ from typing import ClassVar
 from pydantic import Field
 
 from memspine.core.policies.base import BindablePolicy, PolicyOptions
-from memspine.core.records import MemoryRecord
+from memspine.store.records import MemoryRecord
 
 __all__ = ["RetentionPolicy"]
 

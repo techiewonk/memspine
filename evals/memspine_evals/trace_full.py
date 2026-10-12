@@ -104,7 +104,8 @@ def write_signals(text: str) -> dict[str, Any]:
     """The deterministic write-side signals of one turn's text: the instruction-framing
     screens of the firewall, PII hits and the sensitivity grade. The embedding-outlier and
     MINJA prefix signals need the store's history and are not reproducible from one turn."""
-    from memspine.core import firewall, redaction, sensitivity
+    from memspine.core import sensitivity
+    from memspine.trust import firewall, redaction
 
     out: dict[str, Any] = {
         "instruction_shaped": bool(firewall.instruction_shaped(text)),

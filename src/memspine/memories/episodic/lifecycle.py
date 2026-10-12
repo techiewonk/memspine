@@ -20,8 +20,8 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
-from memspine.core.records import MemoryRecord, RecordStatus
 from memspine.exceptions import ConfigError
+from memspine.store.records import MemoryRecord, RecordStatus
 
 __all__ = [
     "SessionTransition",

@@ -14,7 +14,7 @@ import re
 from collections.abc import Sequence
 from typing import Any
 
-from memspine.core.records import MemoryRecord
+from memspine.store.records import MemoryRecord
 
 __all__ = ["final_answer", "numbered_context", "verification"]
 

@@ -14,7 +14,7 @@ from test_graph_leg_off_golden import T0, seed
 
 from memspine import Engine
 from memspine.config import constants
-from memspine.core.records import MemoryRecord, RecordStatus
+from memspine.store.records import MemoryRecord, RecordStatus
 from memspine.workers.pipelines import (
     ENTITY_SUMMARIZED_MARKER,
     PIPELINES,
@@ -188,7 +188,7 @@ async def test_membership_drift_supersedes_the_summary() -> None:
 
 
 async def test_trust_is_the_least_member_trust() -> None:
-    from memspine.core.records import SourceInfo
+    from memspine.store.records import SourceInfo
 
     eng = _engine()
     await eng.start()
@@ -262,7 +262,7 @@ async def test_watermark_marker_is_erasable() -> None:
         assert len(markers) == 1
         entry = markers[0].payload["entities"][0]
         assert set(entry) == {"record_id", "namespace", "entity", "content_fingerprint"}
-        from memspine.core.erasure import redact_record
+        from memspine.trust.erasure import redact_record
 
         payload = dict(markers[0].payload)
         assert redact_record(payload, entry["record_id"])

@@ -39,8 +39,8 @@ from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from typing import Any, Protocol
 
-from memspine.core.records import MemoryRecord
 from memspine.core.sensitive import sensitive_topics
+from memspine.store.records import MemoryRecord
 
 __all__ = [
     "ALL_AXES",

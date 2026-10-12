@@ -55,22 +55,19 @@ from memspine.config.schema import FirewallConfig, MemspineConfig
 from memspine.core import trace_sink
 from memspine.core.agentic import clean_query, evidence_view, fuse_new, merge_budget
 from memspine.core.answer import final_answer, numbered_context, verification
-from memspine.core.audit import IntegrityReport, TaintReport, trace_taint, verify_events
 from memspine.core.concentration import collapse_concentrated
 from memspine.core.correction import Correction, detect_correction
 from memspine.core.dedupe import dedupe_scored
-from memspine.core.erasure import redact_record, retained_fields
 from memspine.core.escaping import escape_markers
 from memspine.core.event_date import SAID_PREFIX, date_anchor, happened_of, happened_tag
-from memspine.core.events import EventKind, EventLogMode, MemoryEvent, fingerprint_payload
-from memspine.core.evidence import evidence_signal, second_round_probe
-from memspine.core.excerpt import focused_excerpt
 from memspine.core.event_ledger import (
     is_event_question,
     link_mentions,
     render_ledger,
     validate_events,
 )
+from memspine.core.evidence import evidence_signal, second_round_probe
+from memspine.core.excerpt import focused_excerpt
 from memspine.core.fact_chain import (
     fact_projection_on,
     join_chains,
@@ -80,7 +77,6 @@ from memspine.core.fact_chain import (
     validate_assertions,
 )
 from memspine.core.fact_views import view_tags
-from memspine.core.firewall import Firewall, FirewallSignals, FirewallVerdict, QueryHistory
 from memspine.core.forget_request import forget_target, is_forget_request
 from memspine.core.inference import (
     INFERRED_CHANNELS,
@@ -110,7 +106,6 @@ from memspine.core.lead import (
     render_timeline,
     timeline_line,
 )
-from memspine.core.namespace import grant_allows, validate_namespace
 from memspine.core.owner_check import (
     InjectionLog,
     entity_note,
@@ -152,26 +147,7 @@ from memspine.core.policies.dedup import DedupPolicy
 from memspine.core.policies.retention import RetentionPolicy
 from memspine.core.policies.scoring import ScoringPolicy
 from memspine.core.policies.trust import TrustPolicy
-from memspine.core.privacy import (
-    AUDIT_GENESIS,
-    AUDIT_KINDS,
-    AuditChainReport,
-    chain_digest,
-    current_principal,
-    current_purpose,
-    export_line,
-    export_record,
-    inherited_consent,
-    inherited_pii,
-    matching_class,
-    payload_mentions,
-    pii_rank,
-    purpose_allows,
-    read_scope,
-    verify_audit_chain,
-)
 from memspine.core.profile_pack import pack_profile, render_packed_profile
-from memspine.core.projector import Projector
 from memspine.core.query_contract import (
     QueryContract,
     build_contract,
@@ -216,22 +192,9 @@ from memspine.core.read_filters import (
     time_expr_span,
     to_utc,
 )
-from memspine.core.records import (
-    ArchivedVersion,
-    MemoryRecord,
-    PiiTier,
-    RecordStatus,
-    SkillStage,
-    SourceInfo,
-    chrono_key,
-    new_record_id,
-)
-from memspine.core.redaction import find_pii, redact
+from memspine.core.reference_edges import REF_PREFIX, antecedent_kind, reference_kinds
 from memspine.core.registry import SERVICE_EXTRAS, dependency_closure, missing_services
 from memspine.core.relevance_probes import OFF_TOPIC_PROBES, Calibration, calibrate
-from memspine.core.replay import catch_up
-from memspine.core.replay import rebuild as replay_rebuild
-from memspine.core.reference_edges import REF_PREFIX, antecedent_kind, reference_kinds
 from memspine.core.rule_edges import BECAUSE_REL, is_why_question
 from memspine.core.rule_miner import mine_rules
 from memspine.core.sensitive import sensitive_topics
@@ -273,13 +236,6 @@ from memspine.core.temporal_resolve import annotate as annotate_relative_dates
 from memspine.core.temporal_resolve import resolve
 from memspine.core.ties import settle_ties
 from memspine.core.vetting import VetFlag, draft_sentences, vet_sentences
-from memspine.core.visibility import (
-    PARTICIPANT_PREFIX,
-    VISIBILITY_PREFIX,
-    inherit_tags,
-    participant_tags,
-    visibility_tag,
-)
 from memspine.core.window import WindowSettings
 from memspine.exceptions import (
     ConfigError,
@@ -372,10 +328,10 @@ from memspine.prompts.models import (
     AnticipatedCues,
     AssertionOut,
     AssertionsOut,
-    EventsOut,
     ConflictVerdictOut,
     EntityMatches,
     EntitySummaries,
+    EventsOut,
     ExtractedEdge,
     ExtractedEdges,
     ExtractedFact,
@@ -414,6 +370,50 @@ from memspine.services.storage.sql_base import SqlStorage
 from memspine.services.storage.sqlite.engine import SQLiteStorage
 from memspine.services.vector.base import VectorHit, VectorStore
 from memspine.services.vector.projector import VectorProjector
+from memspine.store.events import EventKind, EventLogMode, MemoryEvent, fingerprint_payload
+from memspine.store.projections.projector import Projector
+from memspine.store.records import (
+    ArchivedVersion,
+    MemoryRecord,
+    PiiTier,
+    RecordStatus,
+    SkillStage,
+    SourceInfo,
+    chrono_key,
+    new_record_id,
+)
+from memspine.store.replay import catch_up
+from memspine.store.replay import rebuild as replay_rebuild
+from memspine.store.scope import grant_allows, validate_namespace
+from memspine.trust.audit import IntegrityReport, TaintReport, trace_taint, verify_events
+from memspine.trust.erasure import redact_record, retained_fields
+from memspine.trust.firewall import Firewall, FirewallSignals, FirewallVerdict, QueryHistory
+from memspine.trust.privacy import (
+    AUDIT_GENESIS,
+    AUDIT_KINDS,
+    AuditChainReport,
+    chain_digest,
+    current_principal,
+    current_purpose,
+    export_line,
+    export_record,
+    inherited_consent,
+    inherited_pii,
+    matching_class,
+    payload_mentions,
+    pii_rank,
+    purpose_allows,
+    read_scope,
+    verify_audit_chain,
+)
+from memspine.trust.redaction import find_pii, redact
+from memspine.trust.visibility import (
+    PARTICIPANT_PREFIX,
+    VISIBILITY_PREFIX,
+    inherit_tags,
+    participant_tags,
+    visibility_tag,
+)
 from memspine.workers.inline import InlineRunner
 from memspine.workers.list_cards import (
     LIST_CARD_KEY_PREFIX,

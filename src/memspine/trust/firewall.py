@@ -29,7 +29,7 @@ from dataclasses import dataclass, field
 from memspine.config import constants
 from memspine.core import trace_sink
 from memspine.core.policies.trust import TrustPolicy
-from memspine.core.records import MemoryRecord, RecordStatus
+from memspine.store.records import MemoryRecord, RecordStatus
 
 __all__ = [
     "Firewall",

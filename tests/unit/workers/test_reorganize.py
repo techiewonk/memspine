@@ -17,13 +17,13 @@ import pytest
 from memspine.clients.sqlite import SQLiteClient
 from memspine.config import constants
 from memspine.config.loader import load_config
-from memspine.core.events import EventKind, MemoryEvent
-from memspine.core.records import MemoryRecord, RecordStatus
 from memspine.memories.associative.communities import PartitionResult, communities_available
 from memspine.memories.associative.projector import GraphProjector
 from memspine.services.graph.sqlite_adjacency import SQLiteAdjacencyGraph
 from memspine.services.storage.projector import RecordProjector
 from memspine.services.storage.sqlite.engine import SQLiteStorage
+from memspine.store.events import EventKind, MemoryEvent
+from memspine.store.records import MemoryRecord, RecordStatus
 from memspine.workers import pipelines
 from memspine.workers.pipelines import PipelineContext, reorganize
 

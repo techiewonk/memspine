@@ -32,9 +32,6 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 
-from memspine.core.events import EventKind, MemoryEvent
-from memspine.core.projector import Projector
-from memspine.core.records import MemoryRecord
 from memspine.memories.associative.entities import (
     ENTITY_LABEL,
     MENTIONS_REL,
@@ -45,6 +42,9 @@ from memspine.memories.associative.entities import (
 )
 from memspine.observability.logging import get_logger
 from memspine.services.graph.base import GraphStore
+from memspine.store.events import EventKind, MemoryEvent
+from memspine.store.projections.projector import Projector
+from memspine.store.records import MemoryRecord
 
 __all__ = ["GraphProjector"]
 

@@ -3,9 +3,9 @@ directory rides sys.path, and this filename is unique repo-wide)."""
 
 from __future__ import annotations
 
-from memspine.core.events import MemoryEvent
-from memspine.core.records import MemoryRecord
 from memspine.memories.associative.projector import GraphProjector
+from memspine.store.events import MemoryEvent
+from memspine.store.records import MemoryRecord
 
 __all__ = ["EventLog", "FakeStorage"]
 

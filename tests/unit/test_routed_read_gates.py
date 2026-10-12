@@ -10,12 +10,12 @@ import pytest
 from memspine import Engine
 from memspine.config import constants
 from memspine.config.schema import ReadConfig
-from memspine.core import records as records_module
 from memspine.core.event_date import label_span
 from memspine.core.lead import card_line
 from memspine.core.policies.assembly import estimate_tokens
-from memspine.core.records import MemoryRecord, SourceInfo
 from memspine.core.temporal_query import temporal_leg
+from memspine.store import records as records_module
+from memspine.store.records import MemoryRecord, SourceInfo
 from memspine.workers.list_cards import ListCard
 
 T0 = datetime(2023, 5, 1, 9, 0, tzinfo=UTC)

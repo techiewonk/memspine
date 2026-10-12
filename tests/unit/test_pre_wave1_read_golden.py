@@ -94,7 +94,7 @@ def _fixed_ids(monkeypatch: pytest.MonkeyPatch) -> None:
     """Record ids break score ties: make them a fixed sequence, so runs compare."""
     import uuid
 
-    from memspine.core import records
+    from memspine.store import records
 
     counter = iter(range(1, 1_000_000))
     monkeypatch.setattr(records, "uuid4", lambda: uuid.UUID(int=next(counter)))
@@ -111,8 +111,8 @@ def _now() -> datetime:
 @pytest.fixture(autouse=True)
 def _frozen_clock(monkeypatch: pytest.MonkeyPatch) -> None:
     """Pin the wall-clock reads on the write/read path to one fixed instant."""
-    from memspine.core import records
     from memspine.core.policies import scoring
+    from memspine.store import records
 
     class _Frozen(datetime):
         @classmethod

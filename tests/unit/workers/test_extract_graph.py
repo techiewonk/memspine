@@ -14,13 +14,13 @@ from datetime import UTC, datetime
 import pytest
 
 from memspine.clients.sqlite import SQLiteClient
-from memspine.core.events import EventKind, MemoryEvent
-from memspine.core.records import MemoryRecord
 from memspine.memories.associative.projector import GraphProjector
 from memspine.prompts.models import ExtractedEdge
 from memspine.services.graph.sqlite_adjacency import SQLiteAdjacencyGraph
 from memspine.services.storage.projector import RecordProjector
 from memspine.services.storage.sqlite.engine import SQLiteStorage
+from memspine.store.events import EventKind, MemoryEvent
+from memspine.store.records import MemoryRecord
 from memspine.workers.pipelines import PipelineContext, extract_graph
 
 NOW = datetime.now(UTC)
@@ -357,7 +357,7 @@ async def test_watermark_marker_is_erasable_and_forget_drops_it() -> None:
     dicts, the shape the M7 walker scrubs, and a FORGET drops the watermark."""
     import copy
 
-    from memspine.core.erasure import redact_record, retained_fields
+    from memspine.trust.erasure import redact_record, retained_fields
     from memspine.workers.pipelines import GRAPH_EXTRACTED_MARKER, SessionIndex
 
     ctx, harness, _graph = await _make([])

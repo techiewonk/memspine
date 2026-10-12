@@ -8,9 +8,9 @@ from datetime import UTC, datetime, timedelta
 
 from memspine import Engine
 from memspine.config.schema import ReadConfig
-from memspine.core.records import MemoryRecord
 from memspine.core.temporal_query import cohesion_leg, entity_expand_leg
 from memspine.services.lexical.base import minmax_fuse, rrf_fuse
+from memspine.store.records import MemoryRecord
 
 T0 = datetime(2023, 5, 1, 9, 0, tzinfo=UTC)
 
@@ -188,7 +188,7 @@ async def _fact_engine(**read: object) -> Engine:
 
 
 async def _seed_fact(eng: Engine) -> tuple[str, str]:
-    from memspine.core.records import SourceInfo
+    from memspine.store.records import SourceInfo
 
     turn = await eng.write(
         "Ana: my cat Luna is three", namespace="a", memory_type="episodic", valid_from=T0

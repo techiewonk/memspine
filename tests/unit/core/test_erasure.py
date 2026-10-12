@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from memspine.core.erasure import redact_record, retained_fields
+from memspine.trust.erasure import redact_record, retained_fields
 
 
 def _snapshot(record_id: str, content: str, history: list[dict] | None = None) -> dict:

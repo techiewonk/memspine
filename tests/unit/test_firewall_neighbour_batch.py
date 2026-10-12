@@ -13,7 +13,7 @@ from typing import Any
 import pytest
 
 from memspine import Engine
-from memspine.core.firewall import Firewall
+from memspine.trust.firewall import Firewall
 
 _WORDS = [
     "caroline",

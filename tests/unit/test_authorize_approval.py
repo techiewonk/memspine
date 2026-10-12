@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from memspine import Engine
-from memspine.core.records import SourceInfo
+from memspine.store.records import SourceInfo
 
 NOW = datetime(2026, 10, 7, 12, 0, tzinfo=UTC)
 

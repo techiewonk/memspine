@@ -15,7 +15,7 @@ from memspine.core.perspective import (
     resolve_write,
 )
 from memspine.core.policies.conflict import ConflictPolicy, ConflictVerdict
-from memspine.core.records import MemoryRecord
+from memspine.store.records import MemoryRecord
 
 TWO = {"caroline", "melanie"}
 CHAT = {"user", "assistant"}

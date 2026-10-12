@@ -26,9 +26,9 @@ import asyncio
 from typing import Any
 
 from memspine.clients.sqlite import SQLiteClient
-from memspine.core.events import EventKind, MemoryEvent
-from memspine.core.records import MemoryRecord
 from memspine.services.storage.sqlite.engine import SQLiteStorage
+from memspine.store.events import EventKind, MemoryEvent
+from memspine.store.records import MemoryRecord
 
 #: Writes per writer. Enough concurrent contention on the shared file to expose a
 #: locking/seq defect, small enough to stay fast.

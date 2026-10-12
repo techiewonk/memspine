@@ -12,14 +12,14 @@ import pytest
 
 from memspine import Engine
 from memspine.clients.sqlite import SQLiteClient
-from memspine.core.events import MemoryEvent
 from memspine.core.policies.conflict import ConflictPolicy
 from memspine.core.policies.dedup import DedupPolicy
-from memspine.core.records import MemoryRecord, PiiTier
 from memspine.memories.semantic.store import SemanticMemory
 from memspine.services.embedding.hash_local import HashEmbedding
 from memspine.services.storage.projector import RecordProjector
 from memspine.services.storage.sqlite.engine import SQLiteStorage
+from memspine.store.events import MemoryEvent
+from memspine.store.records import MemoryRecord, PiiTier
 
 T1 = datetime(2023, 1, 1, tzinfo=UTC)
 T2 = datetime(2023, 6, 1, tzinfo=UTC)

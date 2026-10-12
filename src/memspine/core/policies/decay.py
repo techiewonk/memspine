@@ -18,7 +18,7 @@ from typing import ClassVar
 
 from memspine.config import constants
 from memspine.core.policies.base import BindablePolicy, PolicyOptions
-from memspine.core.records import MemoryRecord
+from memspine.store.records import MemoryRecord
 
 __all__ = ["DecayPolicy", "DecayTier"]
 

@@ -16,8 +16,8 @@ from typing import Any
 from memspine.config import constants
 from memspine.core.policies.assembly import estimate_tokens
 from memspine.core.query_contract import QueryContract
-from memspine.core.records import MemoryRecord
 from memspine.core.temporal_resolve import resolve
+from memspine.store.records import MemoryRecord
 
 __all__ = [
     "CalcError",

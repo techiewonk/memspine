@@ -35,7 +35,7 @@ from datetime import UTC, datetime
 from typing import Literal
 
 from memspine.core.query_shape import content_words
-from memspine.core.records import MemoryRecord, RecordStatus
+from memspine.store.records import MemoryRecord, RecordStatus
 
 __all__ = [
     "DISPUTED_TAG",

@@ -24,7 +24,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
 from memspine.core.query_shape import content_words
-from memspine.core.records import MemoryRecord
+from memspine.store.records import MemoryRecord
 
 __all__ = ["DedupeDrop", "dedupe_scored"]
 

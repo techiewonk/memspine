@@ -7,8 +7,8 @@ from collections.abc import AsyncIterator
 import pytest
 
 from memspine import Engine
-from memspine.core.records import RecordStatus
 from memspine.exceptions import MemspineError, RebuildUnavailableError
+from memspine.store.records import RecordStatus
 
 
 @pytest.fixture

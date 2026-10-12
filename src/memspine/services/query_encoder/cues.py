@@ -16,8 +16,8 @@ from collections.abc import Awaitable, Callable
 
 from memspine.config import constants
 from memspine.core.query_shape import content_words
-from memspine.core.records import MemoryRecord, RecordStatus
 from memspine.services.query_encoder.base import CueMatch, EncodedQuery
+from memspine.store.records import MemoryRecord, RecordStatus
 
 __all__ = ["CueQueryEncoder"]
 

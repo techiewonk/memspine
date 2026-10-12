@@ -22,12 +22,12 @@ from collections.abc import AsyncIterator, Sequence
 import pytest
 
 from memspine.clients.sqlite import SQLiteClient
-from memspine.core.events import EventKind, MemoryEvent
-from memspine.core.records import MemoryRecord
 from memspine.memories.associative.links import link_event
 from memspine.memories.associative.projector import GraphProjector
 from memspine.services.graph.base import GraphEdge, GraphStore, capped_neighbors
 from memspine.services.storage.sqlite.schema import metadata
+from memspine.store.events import EventKind, MemoryEvent
+from memspine.store.records import MemoryRecord
 
 ADAPTERS = ["sqlite_adjacency", "ladybug", "kuzu"]
 

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from memspine.core.records import MemoryRecord, chrono_key
+from memspine.store.records import MemoryRecord, chrono_key
 
 __all__ = ["sort_timeline", "within"]
 

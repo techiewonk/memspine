@@ -8,8 +8,8 @@ import pytest
 
 from memspine import Engine
 from memspine.config.schema import ReadConfig
-from memspine.core.records import MemoryRecord, SourceInfo
 from memspine.services.lexical.tantivy import TantivyLexical
+from memspine.store.records import MemoryRecord, SourceInfo
 
 
 def rec(record_id: str, content: str, namespace: str = "a") -> MemoryRecord:

@@ -8,8 +8,8 @@ raises so a caller can never silently skip verification.
 
 from __future__ import annotations
 
-from memspine.core.records import SkillStage
 from memspine.exceptions import ConflictError
+from memspine.store.records import SkillStage
 
 __all__ = ["SKILL_STAGES", "SkillStage", "is_usable", "next_stage", "requires_dry_run"]
 

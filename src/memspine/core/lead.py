@@ -17,8 +17,8 @@ from memspine.config import constants
 from memspine.core.escaping import escape_markers
 from memspine.core.event_date import date_anchor, happened_of, label_start
 from memspine.core.query_shape import core_terms
-from memspine.core.records import MemoryRecord, chrono_key
 from memspine.core.temporal_resolve import WeekMode, resolve
+from memspine.store.records import MemoryRecord, chrono_key
 
 __all__ = [
     "card_line",

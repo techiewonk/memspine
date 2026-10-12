@@ -14,10 +14,10 @@ pre-alpha, ``create_all`` gives the same schema deterministically.
 from __future__ import annotations
 
 from memspine.clients.postgres import PostgresClient
-from memspine.core.events import EventLogMode
 from memspine.services.base import CapabilityManifest
 from memspine.services.storage.sql_base import SqlStorage
 from memspine.services.storage.sqlite.schema import metadata
+from memspine.store.events import EventLogMode
 
 __all__ = ["PostgresStorage"]
 

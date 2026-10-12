@@ -241,7 +241,7 @@ async def _two_sessions(eng: Engine) -> None:
 async def test_event_facts_never_supersede_each_other(monkeypatch: pytest.MonkeyPatch) -> None:
     """G1a: two events of one person (same attribute "event") both stay ACTIVATED;
     before the kind field the newer one archived the older through the ladder."""
-    from memspine.core.records import RecordStatus
+    from memspine.store.records import RecordStatus
 
     eng = _engine(mine=True)
 
@@ -265,7 +265,7 @@ async def test_event_facts_never_supersede_each_other(monkeypatch: pytest.Monkey
 
 async def test_state_facts_still_supersede(monkeypatch: pytest.MonkeyPatch) -> None:
     """G1a: a state (where someone lives) is single-valued: the newer city wins."""
-    from memspine.core.records import RecordStatus
+    from memspine.store.records import RecordStatus
 
     eng = _engine(mine=True)
 

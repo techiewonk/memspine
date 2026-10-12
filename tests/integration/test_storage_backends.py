@@ -15,8 +15,8 @@ from typing import Any
 
 import pytest
 
-from memspine.core.events import EventKind, EventLogMode, MemoryEvent
-from memspine.core.records import MemoryRecord, SourceInfo
+from memspine.store.events import EventKind, EventLogMode, MemoryEvent
+from memspine.store.records import MemoryRecord, SourceInfo
 
 
 def _ev(namespace: str, content: str) -> MemoryEvent:

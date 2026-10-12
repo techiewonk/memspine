@@ -17,8 +17,8 @@ from memspine.core.lead import (
     render_occurrences,
 )
 from memspine.core.query_shape import is_count
-from memspine.core.records import MemoryRecord
 from memspine.exceptions import ConfigError
+from memspine.store.records import MemoryRecord
 
 T0 = datetime(2023, 5, 7, 10, 0, tzinfo=UTC)
 QUERY = "How many times has Melanie gone to the beach?"

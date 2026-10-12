@@ -13,7 +13,7 @@ from typing import Any, Protocol
 
 from pydantic import BaseModel, Field
 
-from memspine.core.events import EventKind, MemoryEvent
+from memspine.store.events import EventKind, MemoryEvent
 
 __all__ = ["IntegrityReport", "TaintReport", "trace_taint", "verify_events"]
 
@@ -294,7 +294,7 @@ def verify_events(
     import hashlib
     import hmac
 
-    from memspine.core.events import canonical_payload, fingerprint_payload
+    from memspine.store.events import canonical_payload, fingerprint_payload
 
     report = IntegrityReport(keyed=key is not None)
     head = b"memspine-log-v1"

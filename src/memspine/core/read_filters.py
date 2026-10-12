@@ -30,10 +30,10 @@ from dataclasses import dataclass, fields
 from datetime import UTC, date, datetime, time, timedelta
 from typing import Literal
 
-from memspine.core.records import MemoryRecord
 from memspine.core.temporal_query import LegHit, query_interval
 from memspine.core.temporal_resolve import WeekMode, resolve
-from memspine.core.visibility import visible_to
+from memspine.store.records import MemoryRecord
+from memspine.trust.visibility import visible_to
 
 __all__ = [
     "PERSON_TAG_PREFIX",
@@ -281,7 +281,7 @@ class RecordScope:
     roles: frozenset[str] | None = None
     memory_types: frozenset[str] | None = None
     tags_any: frozenset[str] | None = None
-    #: I53: the reader; only records that reader may see (``core/visibility.py``).
+    #: I53: the reader; only records that reader may see (``trust/visibility.py``).
     viewer: str | None = None
     #: I48 / I52: an extra per-record read predicate (the sensitivity bar and the
     #: inferred-support bar), built by the engine for the question in hand.

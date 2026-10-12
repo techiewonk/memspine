@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import pytest
 
-from memspine.core.events import EventKind, MemoryEvent
-from memspine.core.records import MemoryRecord, RecordStatus
 from memspine.exceptions import ConflictError
 from memspine.memories.shared.grants import (
     GRANT_ATTRIBUTE,
@@ -14,6 +12,8 @@ from memspine.memories.shared.grants import (
     make_grant_record,
     parse_grant,
 )
+from memspine.store.events import EventKind, MemoryEvent
+from memspine.store.records import MemoryRecord, RecordStatus
 
 
 class FakeStorage:

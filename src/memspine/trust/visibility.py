@@ -1,6 +1,6 @@
 """I53: participants, a per-record visibility, and the optional ``viewer`` read predicate.
 
-The namespace stays the hard isolation boundary (``core/namespace.py``); nothing here
+The namespace stays the hard isolation boundary (``store/scope.py``); nothing here
 crosses it. Inside one namespace a conversation can have several speakers (a group chat, a
 household assistant, a support thread). ``participant:<name>`` tags record who was present;
 ``visibility:<private|participants|owner_shared>`` says who may see the record:

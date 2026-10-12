@@ -10,8 +10,8 @@ from types import SimpleNamespace
 import pytest
 
 from memspine import Engine
-from memspine.core.records import SourceInfo
 from memspine.exceptions import ConflictError, MemspineError
+from memspine.store.records import SourceInfo
 
 #: GR-1 (ADR-064): ``graph.provider: auto`` picks LadybugDB when installed.
 _AUTO_GRAPH = (

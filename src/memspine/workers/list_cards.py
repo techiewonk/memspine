@@ -29,7 +29,6 @@ from typing import TYPE_CHECKING
 
 from memspine.config import constants
 from memspine.core.event_date import happened_of
-from memspine.core.events import EventKind, MemoryEvent, fingerprint_payload
 from memspine.core.fact_views import (
     PERSON_PREFIX,
     TOPIC_PREFIX,
@@ -37,8 +36,9 @@ from memspine.core.fact_views import (
     tag_values,
     view_tags,
 )
-from memspine.core.records import MemoryRecord, RecordStatus, chrono_key
 from memspine.observability.logging import get_logger
+from memspine.store.events import EventKind, MemoryEvent, fingerprint_payload
+from memspine.store.records import MemoryRecord, RecordStatus, chrono_key
 
 if TYPE_CHECKING:
     from memspine.workers.pipelines import PipelineContext

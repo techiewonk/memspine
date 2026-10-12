@@ -221,7 +221,7 @@ async def _session(engine: Any, texts: list[str], start: datetime = T0, **kw: An
 
 
 def _src(role: str, channel: str | None = None, principal: str | None = None) -> Any:
-    from memspine.core.records import SourceInfo
+    from memspine.store.records import SourceInfo
 
     extra: dict[str, Any] = {}
     if channel:
@@ -336,7 +336,7 @@ _CLEAN = [
 
 
 async def _summary_id(eng: Any) -> str:
-    from memspine.core.events import EventKind
+    from memspine.store.events import EventKind
 
     events = await eng._require_started().read_events()
     [ev] = [e for e in events if e.kind is EventKind.CONSOLIDATE]
@@ -559,8 +559,8 @@ async def check_c2_query_input_type() -> bool:
 
 
 async def check_c3_temporal_and_metadata_legs() -> bool:
-    from memspine.core.records import MemoryRecord
     from memspine.core.temporal_query import metadata_leg, temporal_leg
+    from memspine.store.records import MemoryRecord
 
     def rec(content: str, when: datetime, entity: str | None = None) -> MemoryRecord:
         return MemoryRecord(
@@ -597,7 +597,7 @@ async def check_c3_temporal_and_metadata_legs() -> bool:
 
 
 async def check_c4_current_state_and_retract() -> bool:
-    from memspine.core.records import RecordStatus
+    from memspine.store.records import RecordStatus
 
     eng = _engine_kw(memories={"semantic": {"enabled": True}}, read={"current_state_view": True})
     await eng.start()
@@ -1086,7 +1086,7 @@ def check_qa_prompts() -> bool:
 
 async def check_h9_contest() -> bool:
     from memspine.core.policies.conflict import ConflictPolicy, ConflictVerdict
-    from memspine.core.records import MemoryRecord
+    from memspine.store.records import MemoryRecord
 
     def rec(content: str) -> MemoryRecord:
         return MemoryRecord(
@@ -1131,7 +1131,7 @@ async def check_h9_contest() -> bool:
 
 def check_h10_relevance_first() -> bool:
     from memspine.core.policies.scoring import ScoringPolicy
-    from memspine.core.records import MemoryRecord
+    from memspine.store.records import MemoryRecord
 
     now = datetime(2026, 1, 1, tzinfo=UTC)
     old = MemoryRecord(
@@ -1161,8 +1161,8 @@ async def check_h13_core_terms_leg() -> bool:
 
 
 def check_h15_topic_segments() -> bool:
-    from memspine.core.records import MemoryRecord
     from memspine.memories.episodic.sessions import topic_segments
+    from memspine.store.records import MemoryRecord
 
     def turns(texts: list[str]) -> list[MemoryRecord]:
         return [
@@ -1277,7 +1277,7 @@ async def check_order_norerank() -> bool:
 
 def check_h19_latest_slots() -> bool:
     from memspine.core.policies.assembly import AssemblyPolicy
-    from memspine.core.records import MemoryRecord
+    from memspine.store.records import MemoryRecord
 
     def rec(content: str, days: int) -> MemoryRecord:
         return MemoryRecord(
@@ -1296,7 +1296,7 @@ def check_h19_latest_slots() -> bool:
 
 
 async def check_h20_superseded_excluded() -> bool:
-    from memspine.core.records import RecordStatus
+    from memspine.store.records import RecordStatus
 
     eng = _engine_kw(
         memories={"semantic": {"enabled": True}}, read={"hybrid": False, "record_access": False}
@@ -1388,7 +1388,7 @@ async def check_h22_gap_markers() -> bool:
 
 def check_h23_dedupe() -> bool:
     from memspine.core.policies.assembly import AssemblyPolicy
-    from memspine.core.records import MemoryRecord
+    from memspine.store.records import MemoryRecord
 
     def rec(content: str, days: int) -> MemoryRecord:
         return MemoryRecord(

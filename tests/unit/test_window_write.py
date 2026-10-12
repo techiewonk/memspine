@@ -874,7 +874,7 @@ async def test_episode_fragment_is_derived_inferred_and_parented(
 
 
 def test_build_transcript_names_the_speaker_and_numbers_the_lines() -> None:
-    from memspine.core.records import MemoryRecord, SourceInfo
+    from memspine.store.records import MemoryRecord, SourceInfo
 
     rec = MemoryRecord(
         namespace="a",

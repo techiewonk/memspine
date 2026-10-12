@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
 
-from memspine.core.records import MemoryRecord
+from memspine.store.records import MemoryRecord
 
 __all__ = ["Reranker", "concat_background"]
 

@@ -15,7 +15,7 @@ from datasketch import MinHash, MinHashLSH
 
 from memspine.config import constants
 from memspine.core.policies.base import BindablePolicy, PolicyOptions
-from memspine.core.records import MemoryRecord
+from memspine.store.records import MemoryRecord
 
 __all__ = ["DedupPolicy"]
 

@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from memspine.core.evidence import answer_type, contains_answer_type, evidence_signal
-from memspine.core.records import MemoryRecord, SourceInfo
+from memspine.store.records import MemoryRecord, SourceInfo
 
 T0 = datetime(2023, 5, 1, 9, 0, tzinfo=UTC)
 
