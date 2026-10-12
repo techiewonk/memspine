@@ -1498,8 +1498,8 @@
    ],
    "kind": "infra",
    "gate": "Unit tests; pure, unwired (wiring in R3-15); depends only on memspine.schemas",
-   "status": "Ready",
-   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "status": "Done",
+   "note": "read/cache.py: per-kind keys incl. generations and model/prompt, POL-1 revalidate on hit, off by default (e81bf0c)",
    "layers": [
     "L0",
     "L1",
@@ -1678,6 +1678,41 @@
    "agent": "sonnet",
    "components": [
     "read.router (Router)"
+   ],
+   "review": []
+  },
+  {
+   "id": "LIB-24",
+   "phase": 1,
+   "title": "Library: neighbour windows after rerank (context turns around hits, budget-aware, viewer-checked)",
+   "decisions": [
+    "R-19"
+   ],
+   "depends_on": [
+    "MOD-01"
+   ],
+   "kind": "infra",
+   "gate": "Unit tests; pure, unwired (wiring in R3-10); depends only on memspine.schemas",
+   "status": "Ready",
+   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "layers": [
+    "L0"
+   ],
+   "operators": [
+    "C"
+   ],
+   "files": [
+    "src/memspine/engine.py",
+    "src/memspine/config/schema.py"
+   ],
+   "owns": [
+    "src/memspine/read/neighbours.py",
+    "tests/unit/lib/test_lib_24*.py"
+   ],
+   "lane": "other",
+   "agent": "sonnet",
+   "components": [
+    "compose.windows (TokenWindow)"
    ],
    "review": []
   },
@@ -2027,7 +2062,8 @@
     "LIB-16",
     "LIB-19",
     "LIB-22",
-    "LIB-23"
+    "LIB-23",
+    "LIB-24"
    ],
    "kind": "move",
    "gate": "Golden byte-identical hit order",
@@ -4517,7 +4553,8 @@
     "R-19"
    ],
    "depends_on": [
-    "R3-07"
+    "R3-07",
+    "LIB-24"
    ],
    "kind": "behaviour",
    "gate": "Focus non-inferior",
