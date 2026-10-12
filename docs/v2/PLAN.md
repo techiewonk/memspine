@@ -8,11 +8,11 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | Status | Count |
 |---|---|
 | Not started | 92 |
-| Ready | 9 |
+| Ready | 8 |
 | In progress | 0 |
 | Blocked | 1 |
 | Needs measurement | 3 |
-| Done | 42 |
+| Done | 43 |
 | Dropped | 0 |
 
 ## Phase 0: settle and prepare
@@ -67,7 +67,7 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | LIB-24 | Library: neighbour windows after rerank (context turns around hits, budget-aware, viewer-checked) | L0 | C | R-19 | - | MOD-01 | infra | other | `src/memspine/read/neighbours.py` +1 | Unit tests; pure, unwired (wiring in R3-10); depends only on memspine.schemas | **Done** | read/neighbours.py: budget-aware, viewer-checked neighbour windows (LIB-24) |
 | LIB-25 | Library: low-trust and tentative rendering in context (labels, quoting, separation) | L0 L1 ctx | C | G-09 | - | MOD-01 | infra | other | `src/memspine/compose/render_trust.py` +1 | Unit tests; pure, unwired (wiring in T5-02); depends only on memspine.schemas | **Done** | compose/render_trust.py: bands, contested grouping, neutralised low-trust text (23f2ce5) |
 | LIB-26 | Library: background budget and read-side freshness (covers_seq, staleness verdicts) | L0 L1 L3 L4 ctx | K_C K_P R | O-05, O-06 | - | MOD-01 | infra | other | `src/memspine/runtime/freshness.py` +1 | Unit tests; pure, unwired (wiring in O4-01b); depends only on memspine.schemas | **Done** | runtime/freshness.py: covers_seq, freshness verdicts, read barrier, background budget (7888485) |
-| LIB-27 | Library: per-stage cost ledger, write targets and budget reporting (cost classes, no content) | L0 L1 L3 L4 L5 | D K_C K_P | W-26, P-14, P-22 | - | MOD-01 | infra | other | `src/memspine/observability/stage_ledger.py` +1 | Unit tests; pure, unwired (wiring in W2-12); depends only on memspine.schemas | **Ready** | Library-first split (owner 2026-10-13: parallel agents) |
+| LIB-27 | Library: per-stage cost ledger, write targets and budget reporting (cost classes, no content) | L0 L1 L3 L4 L5 | D K_C K_P | W-26, P-14, P-22 | - | MOD-01 | infra | other | `src/memspine/observability/stage_ledger.py` +1 | Unit tests; pure, unwired (wiring in W2-12); depends only on memspine.schemas | **Done** | observability/stage_ledger.py: content-guarded ledger, aggregates, calls/turn, write targets, OTel attrs (87071b5) |
 | LIB-28 | Library: prospective and procedural memory (advisory reminders, procedures; opt-in) | L5 | K_C | O-23, O-24 | - | MOD-01 | infra | other | `src/memspine/memory/prospective.py` +2 | Unit tests; pure, unwired (wiring in O4-10); depends only on memspine.schemas | **Ready** | Library-first split (owner 2026-10-13: parallel agents) |
 | LIB-29 | Library: stamping (three clocks, time zone, speaker/addressee/participants, provenance class) | L0 L1 L4 scope | D R | W-04, W-05, W-08, M-08 | - | MOD-01 | infra | other | `src/memspine/ingest/stamp.py` +1 | Unit tests; pure, unwired (wiring in W2-02); depends only on memspine.schemas | **Ready** | Library-first split (owner 2026-10-13: parallel agents) |
 | LIB-30 | Library: source envelope intake, receipt and readiness, write ids and re-ingest | L0 L1 | D K_C | W-01, W-02, W-03, W-24 | - | MOD-01 | infra | other | `src/memspine/ingest/intake.py` +1 | Unit tests; pure, unwired (wiring in W2-01); depends only on memspine.schemas | **Ready** | Library-first split (owner 2026-10-13: parallel agents) |

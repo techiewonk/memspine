@@ -1809,8 +1809,8 @@
    ],
    "kind": "infra",
    "gate": "Unit tests; pure, unwired (wiring in W2-12); depends only on memspine.schemas",
-   "status": "Ready",
-   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "status": "Done",
+   "note": "observability/stage_ledger.py: content-guarded ledger, aggregates, calls/turn, write targets, OTel attrs (87071b5)",
    "layers": [
     "L0",
     "L1",

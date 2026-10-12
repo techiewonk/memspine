@@ -100,7 +100,7 @@ WP = [
     ("LIB-26", 1, "Library: background budget and read-side freshness (covers_seq, staleness verdicts)", ["O-05", "O-06"], ["MOD-01"], "infra",
      "Unit tests; pure, unwired (wiring in O4-01b); depends only on memspine.schemas", "Done", "runtime/freshness.py: covers_seq, freshness verdicts, read barrier, background budget (7888485)"),
     ("LIB-27", 1, "Library: per-stage cost ledger, write targets and budget reporting (cost classes, no content)", ["W-26", "P-14", "P-22"], ["MOD-01"], "infra",
-     "Unit tests; pure, unwired (wiring in W2-12); depends only on memspine.schemas", "Ready", "Library-first split (owner 2026-10-13: parallel agents)"),
+     "Unit tests; pure, unwired (wiring in W2-12); depends only on memspine.schemas", "Done", "observability/stage_ledger.py: content-guarded ledger, aggregates, calls/turn, write targets, OTel attrs (87071b5)"),
     ("LIB-28", 1, "Library: prospective and procedural memory (advisory reminders, procedures; opt-in)", ["O-23", "O-24"], ["MOD-01"], "infra",
      "Unit tests; pure, unwired (wiring in O4-10); depends only on memspine.schemas", "Ready", "Library-first split (owner 2026-10-13: parallel agents)"),
     ("LIB-29", 1, "Library: stamping (three clocks, time zone, speaker/addressee/participants, provenance class)", ["W-04", "W-05", "W-08", "M-08"], ["MOD-01"], "infra",
