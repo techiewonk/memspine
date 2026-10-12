@@ -8,11 +8,11 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | Status | Count |
 |---|---|
 | Not started | 93 |
-| Ready | 9 |
+| Ready | 8 |
 | In progress | 0 |
 | Blocked | 1 |
 | Needs measurement | 3 |
-| Done | 15 |
+| Done | 16 |
 | Dropped | 0 |
 
 ## Phase 0: settle and prepare
@@ -48,7 +48,7 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | LIB-05 | Library: ItemV1 to AssertionEnvelope compiler (reserved names, item rejection, citations, ids) | L0 L1 L3 | D | W-14, W-15, P-05, P-06 | - | MOD-01 | infra | other | `src/memspine/derive/compile.py` +1 | Unit tests; pure, unwired (wiring in W2-06a); depends only on memspine.schemas | **Ready** | Library-first split (owner 2026-10-13: parallel agents) |
 | LIB-06 | Library: exact tokenizer budget and complete evidence bundles | ctx | C | R-18 | - | MOD-01 | infra | other | `src/memspine/compose/budget.py` +2 | Unit tests; pure, unwired (wiring in R3-09b); depends only on memspine.schemas | **Ready** | Library-first split (owner 2026-10-13: parallel agents) |
 | LIB-07 | Library: job leases, epochs, watermark and holes, handles, coalescing, quotas | L0 L1 L3 ctx | D K_C | W-02, W-10, W-13, W-25, G-19, P-21 | - | MOD-01 | infra | other | `src/memspine/runtime/jobs.py` +2 | Unit tests; pure, unwired (wiring in F-04); depends only on memspine.schemas | **Ready** | Library-first split (owner 2026-10-13: parallel agents) |
-| LIB-08 | Library: source families, quarantine release rule, restated count | L0 L1 scope | D | W-07, G-06 | - | MOD-01 | infra | other | `src/memspine/trust/families.py` +1 | Unit tests; pure, unwired (wiring in W2-04); depends only on memspine.schemas | **Ready** | Library-first split (owner 2026-10-13: parallel agents) |
+| LIB-08 | Library: source families, quarantine release rule, restated count | L0 L1 scope | D | W-07, G-06 | - | MOD-01 | infra | other | `src/memspine/trust/families.py` +1 | Unit tests; pure, unwired (wiring in W2-04); depends only on memspine.schemas | **Done** | trust/families.py: S4-2/4-3/4-4, author-known docs join the author family |
 | LIB-09 | Library: erasure planner (hide then re-derive over lineage) and manifest | L0 L1 L3 L4 L5 ctx scope | D K_C | G-13, M-25 | - | MOD-01 | infra | other | `src/memspine/trust/erasure_plan.py` +1 | Unit tests; pure, unwired (wiring in T5-04); depends only on memspine.schemas | **Ready** | Library-first split (owner 2026-10-13: parallel agents) |
 | F-05 | Package skeleton; move store and trust leaves | L0 L1 L4 L5 ctx scope | D K_C K_P R C | G-16 | - | P0-04, X-00, X-01, X-02 | move | S1 split (serial) | `src/memspine/store/records.py` +23 | Both suites and golden green; no old import paths | **Done** | S5: 11 modules moved, codemod_move.py; unit 3343, evals 1435, golden, 14 contracts kept (afb3d16) |
 | F-06 | Move read, compose and models leaves | L0 L1 L4 L5 ctx scope | D K_C K_P R C | G-16 | - | F-05 | move | S1 split (serial) | `src/memspine/read/contract.py` +34 | Same as F-05 | **Not started** | S6 |
