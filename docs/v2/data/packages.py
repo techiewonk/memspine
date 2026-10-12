@@ -269,7 +269,7 @@ OWNS: dict[str, list[str]] = {
               "evals/README.md"],
     "P0-09": ["tests/unit/test_prompt_gold_lint.py", "src/memspine/prompts/lint.py"],
     # RESTRUCTURE.md section 3
-    "F-05": _F05 + ["scripts/codemod_move.py", "scripts/moves/F-05.toml", "src/memspine/{ingest,derive,read,compose,models,runtime,api,memory}/__init__.py", "tests/golden/harness.py"],
+    "F-05": _F05 + ["src/memspine/store/{replay,visibility}.py", "src/memspine/store/projections/**", "src/memspine/store/__init__.py", "scripts/codemod_move.py", "scripts/moves/F-05.toml", "src/memspine/{ingest,derive,read,compose,models,runtime,api,memory}/__init__.py", "tests/golden/harness.py"],
     "F-06": _F06,
     "MOD-02": _src("*/registry.py"),
     "F-07": _src("config/schema/**", "config/flags.py", "config/schema.py"),

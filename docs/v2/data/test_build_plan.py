@@ -98,7 +98,12 @@ class RealPlan(unittest.TestCase):
         rows, titles = bp._build_rows()
         tpl = "{{forbidden}}"
         text = bp.render_brief("X-03", rows, bp.OWNS, titles, bp.ALLOWED_SHARED, tpl)
-        self.assertIn("P0-09", text)
+        # Any owned package still open and outside X-03's dependency chain must appear (the live set changes as work lands).
+        live = [r["id"] for r in rows if r["id"] in bp.OWNS and r["id"] != "X-03" and not r["depends_on"]
+                and r["status"] not in bp.RELEASED]
+        if not live:
+            self.skipTest("no concurrently open owned package without dependencies")
+        self.assertTrue(any(f"({pid})" in text for pid in live), text)
 
 
 if __name__ == "__main__":
