@@ -114,7 +114,7 @@ WP = [
     ("LIB-33", 1, "Library: decay tiers, compression policy and multi-resolution text plan (K_C)", ["O-22", "M-22", "P-16"], ["MOD-01"], "infra",
      "Unit tests; pure, unwired (wiring in O4-09); depends only on memspine.schemas", "Done", "derive/decay.py: activation, hysteresis tiers, protected kinds, multi-resolution compression plans, never deletes (c1d4fc6)"),
     ("LIB-34", 1, "Library: entity leg scoring with anti-hub damping", ["R-08"], ["MOD-01"], "infra",
-     "Unit tests; pure, unwired (wiring in R3-05a); depends only on memspine.schemas", "Ready", "Library-first split (owner 2026-10-13: parallel agents)"),
+     "Unit tests; pure, unwired (wiring in R3-05a); depends only on memspine.schemas", "Done", "read/entity_leg.py: R-08 max-with-cap default (cap 0.5 = Mem0 max boost), mem0 hub damping, sum mode optional (e9376da)"),
     ("LIB-35", 1, "Library: edge compiler from assertions (n-ary role edges, tentative tags, link projection)", ["M-16"], ["MOD-01"], "infra",
      "Unit tests; pure, unwired (wiring in F-02c); depends only on memspine.schemas", "Ready", "Library-first split (owner 2026-10-13: parallel agents)"),
     ("LIB-36", 1, "Library: entity communities (deterministic clustering over the assertion graph) and summary job plans", ["O-16", "O-17", "M-19"], ["MOD-01"], "infra",

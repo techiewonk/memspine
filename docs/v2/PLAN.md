@@ -8,11 +8,11 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | Status | Count |
 |---|---|
 | Not started | 92 |
-| Ready | 9 |
+| Ready | 8 |
 | In progress | 0 |
 | Blocked | 1 |
 | Needs measurement | 3 |
-| Done | 45 |
+| Done | 46 |
 | Dropped | 0 |
 
 ## Phase 0: settle and prepare
@@ -74,7 +74,7 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | LIB-31 | Library: pattern observations from value histories and events (recurrence, frequency, trend; opt-in L4) | L1 L4 | K_C | O-15, M-13 | - | MOD-01 | infra | other | `src/memspine/derive/patterns.py` +1 | Unit tests; pure, unwired (wiring in O4-05); depends only on memspine.schemas | **Ready** | Library-first split (owner 2026-10-13: parallel agents) |
 | LIB-32 | Library: standing answers and changed-group invalidation (L5, ER-28) | L1 L4 | K_P | O-21 | - | MOD-01 | infra | other | `src/memspine/derive/standing.py` +1 | Unit tests; pure, unwired (wiring in O4-08); depends only on memspine.schemas | **Ready** | Library-first split (owner 2026-10-13: parallel agents) |
 | LIB-33 | Library: decay tiers, compression policy and multi-resolution text plan (K_C) | L0 L1 ctx | K_C C | O-22, M-22, P-16 | - | MOD-01 | infra | other | `src/memspine/derive/decay.py` +1 | Unit tests; pure, unwired (wiring in O4-09); depends only on memspine.schemas | **Done** | derive/decay.py: activation, hysteresis tiers, protected kinds, multi-resolution compression plans, never deletes (c1d4fc6) |
-| LIB-34 | Library: entity leg scoring with anti-hub damping | L1 L3 | R | R-08 | - | MOD-01 | infra | other | `src/memspine/read/entity_leg.py` +1 | Unit tests; pure, unwired (wiring in R3-05a); depends only on memspine.schemas | **Ready** | Library-first split (owner 2026-10-13: parallel agents) |
+| LIB-34 | Library: entity leg scoring with anti-hub damping | L1 L3 | R | R-08 | - | MOD-01 | infra | other | `src/memspine/read/entity_leg.py` +1 | Unit tests; pure, unwired (wiring in R3-05a); depends only on memspine.schemas | **Done** | read/entity_leg.py: R-08 max-with-cap default (cap 0.5 = Mem0 max boost), mem0 hub damping, sum mode optional (e9376da) |
 | LIB-35 | Library: edge compiler from assertions (n-ary role edges, tentative tags, link projection) | L1 L3 | D R | M-16 | - | MOD-01 | infra | other | `src/memspine/derive/edges.py` +1 | Unit tests; pure, unwired (wiring in F-02c); depends only on memspine.schemas | **Ready** | Library-first split (owner 2026-10-13: parallel agents) |
 | LIB-36 | Library: entity communities (deterministic clustering over the assertion graph) and summary job plans | L1 L3 L4 | K_C | O-16, O-17, M-19 | - | MOD-01 | infra | other | `src/memspine/derive/communities.py` +1 | Unit tests; pure, unwired (wiring in O4-06); depends only on memspine.schemas | **Ready** | Library-first split (owner 2026-10-13: parallel agents) |
 | LIB-37 | Library: reconcile backlog and contradiction sweep (staged resolution queue, contest detection across sessions) | L1 L3 | K_C | O-10, O-11, O-12 | - | MOD-01 | infra | other | `src/memspine/derive/reconcile.py` +1 | Unit tests; pure, unwired (wiring in O4-03); depends only on memspine.schemas | **Ready** | Library-first split (owner 2026-10-13: parallel agents) |

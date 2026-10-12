@@ -2096,8 +2096,8 @@
    ],
    "kind": "infra",
    "gate": "Unit tests; pure, unwired (wiring in R3-05a); depends only on memspine.schemas",
-   "status": "Ready",
-   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "status": "Done",
+   "note": "read/entity_leg.py: R-08 max-with-cap default (cap 0.5 = Mem0 max boost), mem0 hub damping, sum mode optional (e9376da)",
    "layers": [
     "L1",
     "L3"
