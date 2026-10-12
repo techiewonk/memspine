@@ -27,6 +27,9 @@ the same gates.
 | `areas/*.md` | One chapter per area: the design as decided, each decision verified, what will happen, where in code, migration, gates |
 | `VERIFY.md` | Cross-area check: conflicts, combined choices, what needs the owner, what must be measured first |
 | `ARCHITECTURE.md` | The v2 architecture end to end: insert, offline, retrieve, layers, models, operations |
+| `PLAN.md` | The work packages with layers, operators, dependencies, agent lanes, gates and status |
+| `EXECUTION.md` | How the work is executed: branching, review, agents, Python, GPU policy |
+| `pipelines/` | Insert, offline and retrieve specs with typed step schemas, scenarios and owner decisions |
 | `ROADMAP.md` | Build order in phases with entry and exit gates |
 | `data/` | The question set as published (`questions.json`), the answers (`decisions_answered.json`, `owner_followup_2026-10-12.json`), per-area verification (`verify_<area>.json`), the briefs |
 
