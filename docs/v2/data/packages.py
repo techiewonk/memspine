@@ -261,7 +261,7 @@ OWNS: dict[str, list[str]] = {
     "P0-04": [".importlinter", "tests/golden/**", "tests/unit/test_import_contracts.py", "docs/v2/data/engine_method_map*", "scripts/engine_method_map.py"],
     "P0-01": ["evals/eval_blind.py", "evals/eval_focus.py", "evals/eval_screen.py", "evals/eval_paired.py", "evals/memspine_evals/metrics.py", "evals/memspine_evals/paired_gate.py", "evals/memspine_evals/seal*.py", "evals/tests/test_paired_gate.py", "evals/tests/test_eval_gate_wiring.py", "evals/tests/test_seal*.py", "evals/memspine_evals/runner.py", "evals/memspine_evals/results.py", "evals/memspine_evals/cli.py", "evals/tests/test_runner_identity.py", "evals/tests/test_blind_validation.py", "evals/README.md"],
     "X-05": ["evals/labelled/**", "evals/tests/test_labelled_sets.py"],
-    "X-02": [".github/workflows/**", "scripts/ci_*.py", "tests/unit/test_flag_evidence.py", "tests/unit/test_alembic_single_head.py"],
+    "X-02": [".github/workflows/**", "scripts/ci_*.py", "tests/unit/test_flag_evidence.py", "tests/unit/test_alembic_single_head.py", "pyproject.toml", "uv.lock", ".importlinter", "tests/unit/test_import_contracts.py"],
     "P0-08": ["evals/suite/**", "evals/memspine_evals/behavioural*.py", "evals/tests/test_suite*.py", "evals/tests/test_behavioural*.py"],
     "X-06": ["docs/v2/data/reranker_licences_*.md"],
     "P0-02": ["evals/pinned_run.sh", "evals/memspine_evals/provenance.py", "evals/memspine_evals/paired_gate.py",

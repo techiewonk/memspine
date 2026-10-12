@@ -519,7 +519,11 @@
     ".github/workflows/**",
     "scripts/ci_*.py",
     "tests/unit/test_flag_evidence.py",
-    "tests/unit/test_alembic_single_head.py"
+    "tests/unit/test_alembic_single_head.py",
+    "pyproject.toml",
+    "uv.lock",
+    ".importlinter",
+    "tests/unit/test_import_contracts.py"
    ],
    "lane": "infra",
    "agent": "sonnet",
