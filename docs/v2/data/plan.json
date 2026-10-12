@@ -163,7 +163,13 @@
     "src/memspine/engine.py",
     "src/memspine/protocols/tools.py"
    ],
-   "owns": [],
+   "owns": [
+    ".importlinter",
+    "tests/golden/**",
+    "tests/unit/test_import_contracts.py",
+    "docs/v2/data/engine_method_map*",
+    "scripts/engine_method_map.py"
+   ],
    "lane": "infra",
    "agent": "sonnet",
    "components": [

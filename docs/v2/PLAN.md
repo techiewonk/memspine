@@ -22,7 +22,7 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | P0-01 | Paired adoption gate (focus, blind, full set) | L0 L1 L4 L5 ctx scope | D K_C K_P R C G | G-01, G-03 | ER-35 | - | infra | infra | - | Replay: identical arm NO CHANGE; missing set INCOMPLETE | **In progress** | Built 2026-10-12 (d0ab058, 5bf5643); open: sealed one-shot blind run per adoption |
 | P0-02 | Environment pinning: separate venv per pinned run | - | R G | G-24 | ER-35 | - | infra | infra | `evals/pinned_run.sh` +3 | A fresh per-run venv reproduces clean-jina-full | **Needs measurement** | Per-run venv cache keyed by lock hash, dry-run, shared escape hatch (5f5a7f2); one GPU reproduction run pending (GPU stopped) |
 | P0-03 | Run manifest and comparability key | - | D R C G | G-25 | ER-35, ER-34 | - | infra | infra | `evals/pinned_run.sh` +3 | Manifest records commit, env hash, flags, prompts, models, data hashes | **Done** | manifest.py, comparability key incl. budget, INCOMPARABLE verdict, cost block (5f5a7f2, 7346aca); runners populate identity in P0-01 |
-| P0-04 | CPU golden, import-boundary contracts, method-to-module map of engine.py | L0 L1 L4 L5 ctx scope | D K_C K_P R C | G-16 | - | X-03 | infra | infra | - | Golden identical on two runs at HEAD; map covers every engine method | **Not started** | S0; guards every move |
+| P0-04 | CPU golden, import-boundary contracts, method-to-module map of engine.py | L0 L1 L4 L5 ctx scope | D K_C K_P R C | G-16 | - | X-03 | infra | infra | `.importlinter` +4 | Golden identical on two runs at HEAD; map covers every engine method | **Not started** | S0; guards every move |
 | P0-05 | Engine LLM fixes: hard per-call bound, think=False on Ollama | L1 L4 | G | P-15 | - | - | behaviour | infra | - | Regression tests | **Done** | 2d05ac7, 798c4b5; re-screens in P0-06 |
 | P0-06 | Re-screen engine-LLM arms on the thinking fix (f-gc9, f-gc3, f-win, f-gc2) | L0 L1 L3 ctx | D K_C K_P R | O-07, O-16, W-12 | - | P0-01, P0-05 | measure | infra | - | Paired gate vs f-jref2-i2 on the focus slice | **Needs measurement** | GPU stopped by the owner; f-gc9 was net +15 before the fix |
 | P0-07 | A03 query contract: full set, then blind sets | ctx | R | R-03 | - | P0-01 | measure | infra | - | PROMOTE on 1,540 vs clean-jina-full, then CONFIRMS on MAB-CR and ConvoMem | **Needs measurement** | Focus +15/-7 net +8 HOLD; full run stopped partway |
@@ -170,6 +170,7 @@ Files each package may write (glob patterns, repo-relative; includes removal and
 |---|---|
 | P0-02 | `evals/pinned_run.sh`<br>`evals/memspine_evals/provenance.py`<br>`evals/memspine_evals/paired_gate.py`<br>`evals/README.md` |
 | P0-03 | `evals/pinned_run.sh`<br>`evals/memspine_evals/provenance.py`<br>`evals/memspine_evals/paired_gate.py`<br>`evals/README.md` |
+| P0-04 | `.importlinter`<br>`tests/golden/**`<br>`tests/unit/test_import_contracts.py`<br>`docs/v2/data/engine_method_map*`<br>`scripts/engine_method_map.py` |
 | P0-09 | `tests/unit/test_prompt_gold_lint.py`<br>`src/memspine/prompts/lint.py` |
 | X-01 | `docs/v2/data/build_plan.py`<br>`docs/v2/data/packages.py`<br>`docs/v2/briefs/**` |
 | X-03 | `tests/golden/**` |
@@ -204,4 +205,4 @@ Files each package may write (glob patterns, repo-relative; includes removal and
 | F-16e | `src/memspine/store/lineage.py`<br>`src/memspine/store/migrate.py`<br>`src/memspine/store/profiles.py`<br>`src/memspine/store/backends/postgres/**`<br>`src/memspine/store/backends/neo4j/**`<br>`src/memspine/derive/write.py`<br>`src/memspine/services/graph/neo4j.py` |
 | F-16f | `src/memspine/store/lineage.py`<br>`src/memspine/store/migrate.py`<br>`src/memspine/store/profiles.py`<br>`src/memspine/store/backends/postgres/**`<br>`src/memspine/store/backends/neo4j/**`<br>`src/memspine/derive/write.py`<br>`src/memspine/services/graph/neo4j.py` |
 
-No ownership yet (cannot be briefed): 75 packages.
+No ownership yet (cannot be briefed): 74 packages.
