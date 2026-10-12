@@ -1,0 +1,25 @@
+{
+  "additionalProperties": true,
+  "properties": {
+    "derive": {
+      "title": "Derive",
+      "type": "boolean"
+    },
+    "route": {
+      "enum": [
+        "raw_episodic",
+        "raw_resource",
+        "keyed_fact",
+        "keyed_procedural"
+      ],
+      "title": "Route",
+      "type": "string"
+    }
+  },
+  "required": [
+    "route",
+    "derive"
+  ],
+  "title": "InsertStep07Output",
+  "type": "object"
+}

@@ -1,0 +1,196 @@
+{
+  "$defs": {
+    "Window": {
+      "additionalProperties": true,
+      "description": "Segmentation window (W-11). draft: pending schema session 8.",
+      "properties": {
+        "reason": {
+          "enum": [
+            "topic",
+            "turns",
+            "tokens",
+            "time_gap",
+            "calendar_day",
+            "session_end",
+            "idle",
+            "flush",
+            "truncation"
+          ],
+          "title": "Reason",
+          "type": "string"
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Session"
+        },
+        "source_versions": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Source Versions",
+          "type": "array"
+        },
+        "tokens": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tokens"
+        },
+        "turns": {
+          "items": {
+            "$ref": "#/$defs/WindowTurn"
+          },
+          "title": "Turns",
+          "type": "array"
+        },
+        "window_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Window Id"
+        }
+      },
+      "required": [
+        "reason"
+      ],
+      "title": "Window",
+      "type": "object"
+    },
+    "WindowTurn": {
+      "additionalProperties": true,
+      "description": "draft: field layout pending schema session 8.",
+      "properties": {
+        "record_id": {
+          "title": "Record Id",
+          "type": "string"
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Session"
+        },
+        "source_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source At"
+        },
+        "source_version": {
+          "title": "Source Version",
+          "type": "integer"
+        },
+        "tokens": {
+          "title": "Tokens",
+          "type": "integer"
+        },
+        "vector": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Vector"
+        }
+      },
+      "required": [
+        "record_id",
+        "source_version",
+        "tokens"
+      ],
+      "title": "WindowTurn",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "description": "draft: field layout pending schema session 9 (overload and accounting).",
+  "properties": {
+    "batch_id": {
+      "title": "Batch Id",
+      "type": "string"
+    },
+    "created_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Created At"
+    },
+    "prompt_hash": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Prompt Hash"
+    },
+    "tokens_in": {
+      "title": "Tokens In",
+      "type": "integer"
+    },
+    "windows": {
+      "items": {
+        "$ref": "#/$defs/Window"
+      },
+      "title": "Windows",
+      "type": "array"
+    }
+  },
+  "required": [
+    "batch_id",
+    "windows",
+    "tokens_in"
+  ],
+  "title": "CallBatch",
+  "type": "object"
+}

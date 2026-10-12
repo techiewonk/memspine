@@ -1,0 +1,143 @@
+{
+  "$defs": {
+    "ContextBlock": {
+      "additionalProperties": true,
+      "description": "draft: pending schema session 10.",
+      "properties": {
+        "cap": {
+          "default": 0,
+          "title": "Cap",
+          "type": "integer"
+        },
+        "kind": {
+          "enum": [
+            "contract",
+            "profile",
+            "raw",
+            "notes",
+            "public"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "lines": {
+          "items": {
+            "$ref": "#/$defs/RenderedLine"
+          },
+          "title": "Lines",
+          "type": "array"
+        },
+        "tokens": {
+          "default": 0,
+          "title": "Tokens",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "ContextBlock",
+      "type": "object"
+    },
+    "RenderedLine": {
+      "additionalProperties": true,
+      "description": "draft: pending schema session 10.",
+      "properties": {
+        "alias": {
+          "title": "Alias",
+          "type": "string"
+        },
+        "date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Date"
+        },
+        "modality": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Modality"
+        },
+        "record_id": {
+          "title": "Record Id",
+          "type": "string"
+        },
+        "speaker": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Speaker"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "wrapped": {
+          "default": "none",
+          "enum": [
+            "none",
+            "untrusted",
+            "instruction",
+            "claim"
+          ],
+          "title": "Wrapped",
+          "type": "string"
+        }
+      },
+      "required": [
+        "alias",
+        "record_id",
+        "text"
+      ],
+      "title": "RenderedLine",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "properties": {
+    "block": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ContextBlock"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "public_query": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Public Query"
+    }
+  },
+  "title": "RetrieveStep14Output",
+  "type": "object"
+}

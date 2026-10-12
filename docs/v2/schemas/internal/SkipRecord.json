@@ -1,0 +1,27 @@
+{
+  "additionalProperties": true,
+  "description": "draft: pending schema session 10. The spec names the type without fields.",
+  "properties": {
+    "reason": {
+      "title": "Reason",
+      "type": "string"
+    },
+    "record_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Record Id"
+    }
+  },
+  "required": [
+    "reason"
+  ],
+  "title": "SkipRecord",
+  "type": "object"
+}

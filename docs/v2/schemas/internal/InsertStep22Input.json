@@ -1,0 +1,996 @@
+{
+  "$defs": {
+    "AssertionEnvelope": {
+      "additionalProperties": true,
+      "description": "Stored assertion, compiled in code (W-15 C, M-06).\n\ndraft: field layout pending schema session 2 follow-up and sessions 3-6. ``extras`` holds unknown\nmodel-authored fields (SESSIONS_01_02 condition 1); it is not indexed.",
+      "properties": {
+        "asserter": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Asserter"
+        },
+        "checks": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GroundingChecks"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "event": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EventInterval"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "evidence": {
+          "items": {
+            "$ref": "#/$defs/EvidenceRef"
+          },
+          "title": "Evidence",
+          "type": "array"
+        },
+        "extras": {
+          "additionalProperties": true,
+          "title": "Extras",
+          "type": "object"
+        },
+        "graph": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Graph"
+        },
+        "grounding": {
+          "anyOf": [
+            {
+              "enum": [
+                "grounded",
+                "uncertain",
+                "rejected"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Grounding"
+        },
+        "key": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AssertionKey"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "key_aliases": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Key Aliases",
+          "type": "array"
+        },
+        "kind": {
+          "anyOf": [
+            {
+              "enum": [
+                "state",
+                "event",
+                "fact"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Kind"
+        },
+        "mode": {
+          "anyOf": [
+            {
+              "enum": [
+                "asserted",
+                "planned",
+                "hoped",
+                "asked",
+                "hedged"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mode"
+        },
+        "occurrence_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Occurrence Id"
+        },
+        "parents": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Parents",
+          "type": "array"
+        },
+        "polarity": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Polarity"
+        },
+        "prompt_hash": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Prompt Hash"
+        },
+        "source_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source At"
+        },
+        "spk": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Spk"
+        },
+        "src": {
+          "anyOf": [
+            {
+              "enum": [
+                "user_stated",
+                "assistant_proposed",
+                "user_confirmed",
+                "tool",
+                "document",
+                "external",
+                "derived"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Src"
+        },
+        "subject": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Subject",
+          "type": "array"
+        },
+        "tau": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tau"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "v": {
+          "default": 1,
+          "title": "V",
+          "type": "integer"
+        },
+        "valid": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ValidityWindow"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "value": {
+          "default": null,
+          "title": "Value"
+        },
+        "verdict": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/IntegrationVerdict"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "title": "AssertionEnvelope",
+      "type": "object"
+    },
+    "AssertionKey": {
+      "additionalProperties": true,
+      "description": "draft: field layout pending schema session 3 (identity).",
+      "properties": {
+        "dst": {
+          "title": "Dst",
+          "type": "string"
+        },
+        "key_v": {
+          "default": 1,
+          "title": "Key V",
+          "type": "integer"
+        },
+        "kind": {
+          "title": "Kind",
+          "type": "string"
+        },
+        "rel": {
+          "title": "Rel",
+          "type": "string"
+        },
+        "scope": {
+          "title": "Scope",
+          "type": "string"
+        },
+        "src": {
+          "title": "Src",
+          "type": "string"
+        }
+      },
+      "required": [
+        "scope",
+        "src",
+        "rel",
+        "dst",
+        "kind"
+      ],
+      "title": "AssertionKey",
+      "type": "object"
+    },
+    "DeposableEnvelope": {
+      "additionalProperties": true,
+      "description": "An envelope with its verdict, key and resolutions, as step 22 consumes it.",
+      "properties": {
+        "envelope": {
+          "$ref": "#/$defs/AssertionEnvelope"
+        },
+        "key": {
+          "$ref": "#/$defs/AssertionKey"
+        },
+        "resolutions": {
+          "items": {
+            "$ref": "#/$defs/Resolution"
+          },
+          "title": "Resolutions",
+          "type": "array"
+        },
+        "verdict": {
+          "$ref": "#/$defs/IntegrationVerdict"
+        }
+      },
+      "required": [
+        "envelope",
+        "verdict",
+        "key"
+      ],
+      "title": "DeposableEnvelope",
+      "type": "object"
+    },
+    "EventInterval": {
+      "additionalProperties": true,
+      "description": "draft: field layout pending schema session 6 (time).",
+      "properties": {
+        "end": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "End"
+        },
+        "precision": {
+          "default": "unknown",
+          "enum": [
+            "day",
+            "month",
+            "year",
+            "unknown"
+          ],
+          "title": "Precision",
+          "type": "string"
+        },
+        "start": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Start"
+        }
+      },
+      "title": "EventInterval",
+      "type": "object"
+    },
+    "EvidenceRef": {
+      "additionalProperties": true,
+      "description": "draft: field layout pending schema session 4 (evidence and lineage).",
+      "properties": {
+        "line": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Line"
+        },
+        "source_id": {
+          "title": "Source Id",
+          "type": "string"
+        },
+        "source_version": {
+          "title": "Source Version",
+          "type": "integer"
+        },
+        "span": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Span"
+        }
+      },
+      "required": [
+        "source_id",
+        "source_version"
+      ],
+      "title": "EvidenceRef",
+      "type": "object"
+    },
+    "GroundingChecks": {
+      "additionalProperties": true,
+      "description": "draft: field layout pending schema session 5 (assessment).",
+      "properties": {
+        "endpoints": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Endpoints"
+        },
+        "names": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Names"
+        },
+        "numbers": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Numbers"
+        },
+        "polarity": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Polarity"
+        },
+        "span": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Span"
+        }
+      },
+      "title": "GroundingChecks",
+      "type": "object"
+    },
+    "IntegrationVerdict": {
+      "additionalProperties": true,
+      "description": "draft: field layout pending schema session 5 (assessment).",
+      "properties": {
+        "hint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Hint"
+        },
+        "op": {
+          "enum": [
+            "append",
+            "supersede",
+            "merge",
+            "coexist",
+            "contest",
+            "noop",
+            "defer_kc"
+          ],
+          "title": "Op",
+          "type": "string"
+        },
+        "rung": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rung"
+        }
+      },
+      "required": [
+        "op"
+      ],
+      "title": "IntegrationVerdict",
+      "type": "object"
+    },
+    "OutboxRow": {
+      "additionalProperties": true,
+      "description": "draft: field layout pending schema session 8 (jobs and progress).\n\nInsert and offline specs differ (kinds, ``scope`` vs ``namespace``, ``source_ids`` vs ``members``); both\nspellings are accepted until session 8.",
+      "properties": {
+        "attempts": {
+          "default": 0,
+          "title": "Attempts",
+          "type": "integer"
+        },
+        "epoch": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Epoch"
+        },
+        "failure_class": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Failure Class"
+        },
+        "fingerprint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Fingerprint"
+        },
+        "generation": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Generation"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "projection",
+            "derivation",
+            "session_close",
+            "sleep_stage",
+            "rederive",
+            "pending_merge",
+            "asset",
+            "window",
+            "heavy_projection"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "last_error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Error"
+        },
+        "lease_owner": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lease Owner"
+        },
+        "lease_until": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lease Until"
+        },
+        "members": {
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Members",
+          "type": "array"
+        },
+        "namespace": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Namespace"
+        },
+        "not_before": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Not Before"
+        },
+        "scope": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Scope"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "source_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Id"
+        },
+        "source_ids": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Source Ids",
+          "type": "array"
+        },
+        "source_version": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Version"
+        },
+        "status": {
+          "default": "pending",
+          "enum": [
+            "pending",
+            "leased",
+            "done",
+            "failed",
+            "dead",
+            "underived"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "kind"
+      ],
+      "title": "OutboxRow",
+      "type": "object"
+    },
+    "Resolution": {
+      "additionalProperties": true,
+      "description": "Step 19 output. draft: pending schema session 3.",
+      "properties": {
+        "candidate": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Candidate"
+        },
+        "entity_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Entity Id"
+        },
+        "method": {
+          "enum": [
+            "exact",
+            "alias",
+            "minhash",
+            "new",
+            "pending_merge",
+            "contested"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "method"
+      ],
+      "title": "Resolution",
+      "type": "object"
+    },
+    "Scope": {
+      "additionalProperties": true,
+      "description": "draft: field layout pending schema session 3 (identity).",
+      "properties": {
+        "agent": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Agent"
+        },
+        "principal": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Principal"
+        },
+        "purpose": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Purpose"
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Session"
+        },
+        "tenant": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tenant"
+        },
+        "user": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "User"
+        },
+        "viewer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Viewer"
+        }
+      },
+      "title": "Scope",
+      "type": "object"
+    },
+    "ValidityWindow": {
+      "additionalProperties": true,
+      "description": "draft: field layout pending schema session 6 (time).",
+      "properties": {
+        "from": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "From"
+        },
+        "to": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "To"
+        }
+      },
+      "title": "ValidityWindow",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "properties": {
+    "claim_epoch": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Claim Epoch"
+    },
+    "envelopes": {
+      "items": {
+        "$ref": "#/$defs/DeposableEnvelope"
+      },
+      "title": "Envelopes",
+      "type": "array"
+    },
+    "outbox_row": {
+      "$ref": "#/$defs/OutboxRow"
+    }
+  },
+  "required": [
+    "envelopes",
+    "outbox_row"
+  ],
+  "title": "InsertStep22Input",
+  "type": "object"
+}

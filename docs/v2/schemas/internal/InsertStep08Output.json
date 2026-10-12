@@ -1,0 +1,88 @@
+{
+  "$defs": {
+    "Receipt": {
+      "additionalProperties": true,
+      "description": "draft: field layout pending schema session 7 (receipt and readiness).",
+      "properties": {
+        "accepted_seq": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Accepted Seq"
+        },
+        "event_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Event Ids",
+          "type": "array"
+        },
+        "intent_id": {
+          "title": "Intent Id",
+          "type": "string"
+        },
+        "quarantined": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Quarantined",
+          "type": "array"
+        },
+        "readiness_by_capability": {
+          "additionalProperties": true,
+          "title": "Readiness By Capability",
+          "type": "object"
+        },
+        "record_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Record Ids",
+          "type": "array"
+        },
+        "retried": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Retried",
+          "type": "array"
+        },
+        "source_id": {
+          "title": "Source Id",
+          "type": "string"
+        },
+        "source_version": {
+          "title": "Source Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "event_ids",
+        "record_ids",
+        "intent_id",
+        "source_id",
+        "source_version"
+      ],
+      "title": "Receipt",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "description": "``Receipt`` field names are proposed only (spec: \"exact schema to be settled separately\").",
+  "properties": {
+    "receipt": {
+      "$ref": "#/$defs/Receipt"
+    }
+  },
+  "required": [
+    "receipt"
+  ],
+  "title": "InsertStep08Output",
+  "type": "object"
+}

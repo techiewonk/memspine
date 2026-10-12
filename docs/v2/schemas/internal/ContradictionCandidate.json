@@ -1,0 +1,30 @@
+{
+  "additionalProperties": true,
+  "properties": {
+    "new_fact_id": {
+      "title": "New Fact Id",
+      "type": "string"
+    },
+    "old_fact_id": {
+      "title": "Old Fact Id",
+      "type": "string"
+    },
+    "source": {
+      "enum": [
+        "same_key",
+        "word_overlap",
+        "predicate_family",
+        "embedding"
+      ],
+      "title": "Source",
+      "type": "string"
+    }
+  },
+  "required": [
+    "new_fact_id",
+    "old_fact_id",
+    "source"
+  ],
+  "title": "ContradictionCandidate",
+  "type": "object"
+}

@@ -1,0 +1,71 @@
+{
+  "$defs": {
+    "Resolution": {
+      "additionalProperties": true,
+      "description": "Step 19 output. draft: pending schema session 3.",
+      "properties": {
+        "candidate": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Candidate"
+        },
+        "entity_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Entity Id"
+        },
+        "method": {
+          "enum": [
+            "exact",
+            "alias",
+            "minhash",
+            "new",
+            "pending_merge",
+            "contested"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "method"
+      ],
+      "title": "Resolution",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "properties": {
+    "resolutions": {
+      "items": {
+        "$ref": "#/$defs/Resolution"
+      },
+      "title": "Resolutions",
+      "type": "array"
+    }
+  },
+  "required": [
+    "resolutions"
+  ],
+  "title": "InsertStep19Output",
+  "type": "object"
+}

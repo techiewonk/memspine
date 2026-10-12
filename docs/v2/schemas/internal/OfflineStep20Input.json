@@ -1,0 +1,25 @@
+{
+  "additionalProperties": true,
+  "description": "S17 Compression.",
+  "properties": {
+    "legal_holds": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Legal Holds",
+      "type": "array"
+    },
+    "record_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Record Ids",
+      "type": "array"
+    }
+  },
+  "required": [
+    "record_ids"
+  ],
+  "title": "OfflineStep20Input",
+  "type": "object"
+}

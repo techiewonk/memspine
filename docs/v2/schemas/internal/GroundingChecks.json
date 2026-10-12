@@ -1,0 +1,68 @@
+{
+  "additionalProperties": true,
+  "description": "draft: field layout pending schema session 5 (assessment).",
+  "properties": {
+    "endpoints": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Endpoints"
+    },
+    "names": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Names"
+    },
+    "numbers": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Numbers"
+    },
+    "polarity": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Polarity"
+    },
+    "span": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Span"
+    }
+  },
+  "title": "GroundingChecks",
+  "type": "object"
+}

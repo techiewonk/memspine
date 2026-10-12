@@ -1,0 +1,34 @@
+{
+  "additionalProperties": true,
+  "description": "draft: field layout pending schema session 6 (time).",
+  "properties": {
+    "from": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "From"
+    },
+    "to": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "To"
+    }
+  },
+  "title": "ValidityWindow",
+  "type": "object"
+}

@@ -1,0 +1,63 @@
+{
+  "additionalProperties": true,
+  "description": "draft: field layout pending schema session 9 (overload and accounting).",
+  "properties": {
+    "attempts": {
+      "default": 0,
+      "title": "Attempts",
+      "type": "integer"
+    },
+    "batch_id": {
+      "title": "Batch Id",
+      "type": "string"
+    },
+    "failure_class": {
+      "enum": [
+        "raised",
+        "malformed",
+        "valid_empty",
+        "truncated",
+        "size_skip",
+        "partial_commit",
+        "invented_alias"
+      ],
+      "title": "Failure Class",
+      "type": "string"
+    },
+    "item_index": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Item Index"
+    },
+    "retry_allowed": {
+      "default": false,
+      "title": "Retry Allowed",
+      "type": "boolean"
+    },
+    "row_id": {
+      "title": "Row Id",
+      "type": "string"
+    },
+    "validator_errors": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Validator Errors",
+      "type": "array"
+    }
+  },
+  "required": [
+    "row_id",
+    "batch_id",
+    "failure_class"
+  ],
+  "title": "FailureRecord",
+  "type": "object"
+}

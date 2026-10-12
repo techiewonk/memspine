@@ -1,0 +1,121 @@
+{
+  "$defs": {
+    "Fingerprint": {
+      "additionalProperties": true,
+      "description": "draft: field layout pending schema session 8 (jobs) / P-12 derivation fingerprint.",
+      "properties": {
+        "decoding": {
+          "title": "Decoding",
+          "type": "string"
+        },
+        "input_blocks": {
+          "title": "Input Blocks",
+          "type": "string"
+        },
+        "model_id": {
+          "title": "Model Id",
+          "type": "string"
+        },
+        "prompt_hash": {
+          "title": "Prompt Hash",
+          "type": "string"
+        },
+        "quant": {
+          "title": "Quant",
+          "type": "string"
+        },
+        "runtime_libs": {
+          "title": "Runtime Libs",
+          "type": "string"
+        },
+        "schema_v": {
+          "title": "Schema V",
+          "type": "string"
+        }
+      },
+      "required": [
+        "prompt_hash",
+        "schema_v",
+        "model_id",
+        "quant",
+        "decoding",
+        "input_blocks",
+        "runtime_libs"
+      ],
+      "title": "Fingerprint",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "description": "draft: field layout pending schema session 4 (evidence and lineage).\n\nThe insert spec lists roles evidence|context|version_of|supersedes|merge_member; the offline spec lists\nmember|evidence|merged_from|cites. Both sets are accepted until session 4 settles one.",
+  "properties": {
+    "child": {
+      "title": "Child",
+      "type": "string"
+    },
+    "derivation": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Fingerprint"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "parent": {
+      "title": "Parent",
+      "type": "string"
+    },
+    "parent_version": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Parent Version"
+    },
+    "role": {
+      "enum": [
+        "evidence",
+        "context",
+        "version_of",
+        "supersedes",
+        "merge_member",
+        "member",
+        "merged_from",
+        "cites"
+      ],
+      "title": "Role",
+      "type": "string"
+    },
+    "span": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Span"
+    }
+  },
+  "required": [
+    "child",
+    "parent",
+    "role"
+  ],
+  "title": "LineageEdge",
+  "type": "object"
+}

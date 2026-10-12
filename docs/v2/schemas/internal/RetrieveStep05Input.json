@@ -1,0 +1,30 @@
+{
+  "additionalProperties": true,
+  "description": "Embed the query texts: ``[query, *probes]``.",
+  "properties": {
+    "embedder_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Embedder Id"
+    },
+    "texts": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Texts",
+      "type": "array"
+    }
+  },
+  "required": [
+    "texts"
+  ],
+  "title": "RetrieveStep05Input",
+  "type": "object"
+}

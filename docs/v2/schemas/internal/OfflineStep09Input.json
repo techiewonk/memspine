@@ -1,0 +1,18 @@
+{
+  "additionalProperties": true,
+  "description": "S6 Value histories.",
+  "properties": {
+    "touched_keys": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Touched Keys",
+      "type": "array"
+    }
+  },
+  "required": [
+    "touched_keys"
+  ],
+  "title": "OfflineStep09Input",
+  "type": "object"
+}

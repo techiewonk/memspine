@@ -1,0 +1,172 @@
+{
+  "$defs": {
+    "LegPlan": {
+      "additionalProperties": true,
+      "properties": {
+        "legs": {
+          "items": {
+            "$ref": "#/$defs/LegSpec"
+          },
+          "title": "Legs",
+          "type": "array"
+        },
+        "list_mode": {
+          "default": false,
+          "title": "List Mode",
+          "type": "boolean"
+        },
+        "probes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Probes",
+          "type": "array"
+        },
+        "reasons": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Reasons",
+          "type": "array"
+        },
+        "time_view": {
+          "default": "current",
+          "enum": [
+            "current",
+            "history",
+            "as_of"
+          ],
+          "title": "Time View",
+          "type": "string"
+        }
+      },
+      "required": [
+        "legs"
+      ],
+      "title": "LegPlan",
+      "type": "object"
+    },
+    "LegSpec": {
+      "additionalProperties": true,
+      "properties": {
+        "family": {
+          "enum": [
+            "dense",
+            "lexical",
+            "structured",
+            "derived"
+          ],
+          "title": "Family",
+          "type": "string"
+        },
+        "fetch_k": {
+          "title": "Fetch K",
+          "type": "integer"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "timeout_ms": {
+          "title": "Timeout Ms",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "family",
+        "fetch_k",
+        "timeout_ms",
+        "reason"
+      ],
+      "title": "LegSpec",
+      "type": "object"
+    },
+    "TierPolicy": {
+      "additionalProperties": true,
+      "properties": {
+        "allow_external": {
+          "title": "Allow External",
+          "type": "boolean"
+        },
+        "depth": {
+          "enum": [
+            "fast",
+            "standard",
+            "deep"
+          ],
+          "title": "Depth",
+          "type": "string"
+        },
+        "keep": {
+          "title": "Keep",
+          "type": "integer"
+        },
+        "model_calls": {
+          "title": "Model Calls",
+          "type": "integer"
+        },
+        "pool_per_leg": {
+          "title": "Pool Per Leg",
+          "type": "integer"
+        },
+        "pool_size": {
+          "title": "Pool Size",
+          "type": "integer"
+        },
+        "rerank_mode": {
+          "enum": [
+            "always",
+            "gated",
+            "off"
+          ],
+          "title": "Rerank Mode",
+          "type": "string"
+        },
+        "slo_p95_ms": {
+          "title": "Slo P95 Ms",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "depth",
+        "pool_per_leg",
+        "pool_size",
+        "keep",
+        "model_calls",
+        "rerank_mode",
+        "allow_external",
+        "slo_p95_ms"
+      ],
+      "title": "TierPolicy",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "description": "Execution, caching and latency budgets (cross-cutting).",
+  "properties": {
+    "plan": {
+      "$ref": "#/$defs/LegPlan"
+    },
+    "policy": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TierPolicy"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "plan"
+  ],
+  "title": "RetrieveStep20Input",
+  "type": "object"
+}

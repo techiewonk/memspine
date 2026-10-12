@@ -1,0 +1,64 @@
+{
+  "additionalProperties": true,
+  "properties": {
+    "addr": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Addr"
+    },
+    "base_trust": {
+      "title": "Base Trust",
+      "type": "number"
+    },
+    "participant_tags": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Participant Tags",
+      "type": "array"
+    },
+    "participants": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Participants",
+      "type": "array"
+    },
+    "spk": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Spk"
+    },
+    "src_class": {
+      "enum": [
+        "user_stated",
+        "assistant_proposed",
+        "tool",
+        "document",
+        "external"
+      ],
+      "title": "Src Class",
+      "type": "string"
+    }
+  },
+  "required": [
+    "src_class",
+    "base_trust"
+  ],
+  "title": "InsertStep04Output",
+  "type": "object"
+}

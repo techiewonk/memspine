@@ -1,0 +1,48 @@
+{
+  "additionalProperties": true,
+  "description": "draft: field layout pending schema session 5 (assessment).",
+  "properties": {
+    "hint": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Hint"
+    },
+    "op": {
+      "enum": [
+        "append",
+        "supersede",
+        "merge",
+        "coexist",
+        "contest",
+        "noop",
+        "defer_kc"
+      ],
+      "title": "Op",
+      "type": "string"
+    },
+    "rung": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Rung"
+    }
+  },
+  "required": [
+    "op"
+  ],
+  "title": "IntegrationVerdict",
+  "type": "object"
+}

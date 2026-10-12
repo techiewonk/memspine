@@ -1,0 +1,88 @@
+{
+  "$defs": {
+    "LegSpec": {
+      "additionalProperties": true,
+      "properties": {
+        "family": {
+          "enum": [
+            "dense",
+            "lexical",
+            "structured",
+            "derived"
+          ],
+          "title": "Family",
+          "type": "string"
+        },
+        "fetch_k": {
+          "title": "Fetch K",
+          "type": "integer"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "timeout_ms": {
+          "title": "Timeout Ms",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "family",
+        "fetch_k",
+        "timeout_ms",
+        "reason"
+      ],
+      "title": "LegSpec",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "properties": {
+    "legs": {
+      "items": {
+        "$ref": "#/$defs/LegSpec"
+      },
+      "title": "Legs",
+      "type": "array"
+    },
+    "list_mode": {
+      "default": false,
+      "title": "List Mode",
+      "type": "boolean"
+    },
+    "probes": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Probes",
+      "type": "array"
+    },
+    "reasons": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Reasons",
+      "type": "array"
+    },
+    "time_view": {
+      "default": "current",
+      "enum": [
+        "current",
+        "history",
+        "as_of"
+      ],
+      "title": "Time View",
+      "type": "string"
+    }
+  },
+  "required": [
+    "legs"
+  ],
+  "title": "LegPlan",
+  "type": "object"
+}

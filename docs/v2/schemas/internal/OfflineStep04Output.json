@@ -1,0 +1,26 @@
+{
+  "additionalProperties": true,
+  "properties": {
+    "expired": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Expired",
+      "type": "array"
+    },
+    "held": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Held",
+      "type": "array"
+    },
+    "rederive_rows": {
+      "default": 0,
+      "title": "Rederive Rows",
+      "type": "integer"
+    }
+  },
+  "title": "OfflineStep04Output",
+  "type": "object"
+}

@@ -1,0 +1,42 @@
+{
+  "additionalProperties": true,
+  "properties": {
+    "members_fp": {
+      "title": "Members Fp",
+      "type": "string"
+    },
+    "missing_sections": {
+      "items": {
+        "enum": [
+          "summary",
+          "episode",
+          "profile_ops"
+        ],
+        "type": "string"
+      },
+      "title": "Missing Sections",
+      "type": "array"
+    },
+    "ns": {
+      "title": "Ns",
+      "type": "string"
+    },
+    "reason": {
+      "title": "Reason",
+      "type": "string"
+    },
+    "session_id": {
+      "title": "Session Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "ns",
+    "session_id",
+    "members_fp",
+    "missing_sections",
+    "reason"
+  ],
+  "title": "SessionGap",
+  "type": "object"
+}

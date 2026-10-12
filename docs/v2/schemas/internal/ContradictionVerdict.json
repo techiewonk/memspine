@@ -1,0 +1,48 @@
+{
+  "additionalProperties": true,
+  "properties": {
+    "adjudicator": {
+      "enum": [
+        "rules",
+        "llm"
+      ],
+      "title": "Adjudicator",
+      "type": "string"
+    },
+    "pair": {
+      "maxItems": 2,
+      "minItems": 2,
+      "prefixItems": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "string"
+        }
+      ],
+      "title": "Pair",
+      "type": "array"
+    },
+    "reason_code": {
+      "title": "Reason Code",
+      "type": "string"
+    },
+    "verdict": {
+      "enum": [
+        "supersede",
+        "contest",
+        "coexist"
+      ],
+      "title": "Verdict",
+      "type": "string"
+    }
+  },
+  "required": [
+    "pair",
+    "verdict",
+    "reason_code",
+    "adjudicator"
+  ],
+  "title": "ContradictionVerdict",
+  "type": "object"
+}

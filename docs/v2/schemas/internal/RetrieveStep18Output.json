@@ -1,0 +1,39 @@
+{
+  "$defs": {
+    "Sufficiency": {
+      "additionalProperties": true,
+      "properties": {
+        "enough": {
+          "title": "Enough",
+          "type": "boolean"
+        },
+        "missing": {
+          "default": "",
+          "title": "Missing",
+          "type": "string"
+        }
+      },
+      "required": [
+        "enough"
+      ],
+      "title": "Sufficiency",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "properties": {
+    "rerun": {
+      "default": false,
+      "title": "Rerun",
+      "type": "boolean"
+    },
+    "sufficiency": {
+      "$ref": "#/$defs/Sufficiency"
+    }
+  },
+  "required": [
+    "sufficiency"
+  ],
+  "title": "RetrieveStep18Output",
+  "type": "object"
+}

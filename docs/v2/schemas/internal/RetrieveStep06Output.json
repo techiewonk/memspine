@@ -1,0 +1,82 @@
+{
+  "$defs": {
+    "LegHit": {
+      "additionalProperties": true,
+      "description": "draft: pending schema session 10.",
+      "properties": {
+        "record_id": {
+          "title": "Record Id",
+          "type": "string"
+        },
+        "score": {
+          "title": "Score",
+          "type": "number"
+        }
+      },
+      "required": [
+        "record_id",
+        "score"
+      ],
+      "title": "LegHit",
+      "type": "object"
+    },
+    "NamedLeg": {
+      "additionalProperties": true,
+      "description": "draft: pending schema session 10. ``list[LegHit]`` plus a name and family.",
+      "properties": {
+        "family": {
+          "enum": [
+            "dense",
+            "lexical",
+            "structured",
+            "derived"
+          ],
+          "title": "Family",
+          "type": "string"
+        },
+        "hits": {
+          "items": {
+            "$ref": "#/$defs/LegHit"
+          },
+          "title": "Hits",
+          "type": "array"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "family"
+      ],
+      "title": "NamedLeg",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "properties": {
+    "dropped_legs": {
+      "items": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "type": "object"
+      },
+      "title": "Dropped Legs",
+      "type": "array"
+    },
+    "legs": {
+      "items": {
+        "$ref": "#/$defs/NamedLeg"
+      },
+      "title": "Legs",
+      "type": "array"
+    }
+  },
+  "required": [
+    "legs"
+  ],
+  "title": "RetrieveStep06Output",
+  "type": "object"
+}

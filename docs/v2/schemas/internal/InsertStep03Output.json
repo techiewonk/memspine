@@ -1,0 +1,43 @@
+{
+  "additionalProperties": true,
+  "properties": {
+    "recorded_at": {
+      "format": "date-time",
+      "title": "Recorded At",
+      "type": "string"
+    },
+    "seq_tiebreak": {
+      "title": "Seq Tiebreak",
+      "type": "integer"
+    },
+    "source_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source At"
+    },
+    "source_tz": {
+      "title": "Source Tz",
+      "type": "string"
+    },
+    "tz_unknown": {
+      "title": "Tz Unknown",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "source_tz",
+    "tz_unknown",
+    "recorded_at",
+    "seq_tiebreak"
+  ],
+  "title": "InsertStep03Output",
+  "type": "object"
+}

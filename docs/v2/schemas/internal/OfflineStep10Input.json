@@ -1,0 +1,62 @@
+{
+  "$defs": {
+    "PatternGroup": {
+      "additionalProperties": true,
+      "properties": {
+        "member_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Member Ids",
+          "type": "array"
+        },
+        "members_fp": {
+          "title": "Members Fp",
+          "type": "string"
+        },
+        "ns": {
+          "title": "Ns",
+          "type": "string"
+        },
+        "predicate_family": {
+          "title": "Predicate Family",
+          "type": "string"
+        },
+        "recurrence": {
+          "title": "Recurrence",
+          "type": "integer"
+        },
+        "subject_id": {
+          "title": "Subject Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ns",
+        "subject_id",
+        "predicate_family",
+        "member_ids",
+        "recurrence",
+        "members_fp"
+      ],
+      "title": "PatternGroup",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "description": "S7 Pattern observations (opt-in L4).",
+  "properties": {
+    "groups": {
+      "items": {
+        "$ref": "#/$defs/PatternGroup"
+      },
+      "title": "Groups",
+      "type": "array"
+    }
+  },
+  "required": [
+    "groups"
+  ],
+  "title": "OfflineStep10Input",
+  "type": "object"
+}

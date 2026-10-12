@@ -1,0 +1,40 @@
+{
+  "additionalProperties": true,
+  "properties": {
+    "event": {
+      "enum": [
+        "commit",
+        "idle_timer",
+        "interval",
+        "manual",
+        "open",
+        "backlog",
+        "rederive"
+      ],
+      "title": "Event",
+      "type": "string"
+    },
+    "ns": {
+      "title": "Ns",
+      "type": "string"
+    },
+    "seq": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Seq"
+    }
+  },
+  "required": [
+    "ns",
+    "event"
+  ],
+  "title": "TriggerInput",
+  "type": "object"
+}

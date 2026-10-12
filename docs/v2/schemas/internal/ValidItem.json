@@ -1,0 +1,156 @@
+{
+  "$defs": {
+    "ItemV1": {
+      "additionalProperties": true,
+      "description": "Model-output wire schema, compact keys (W-15 B, P-06).\n\ndraft: field layout pending schema session 2 follow-up. Session 2 fixed the split (the model authors\ncontent only, with citations); the compact keys below are not frozen. The kind set is open (S2-3), so\n``kind`` is a plain string here and the closed ``state|event|fact`` check belongs to the compiler.\nReserved system names (``reserved.py``) in model output are rejected by the compiler, not here.",
+      "properties": {
+        "kind": {
+          "title": "Kind",
+          "type": "string"
+        },
+        "lines": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Lines",
+          "type": "array"
+        },
+        "mode": {
+          "enum": [
+            "asserted",
+            "planned",
+            "hoped",
+            "asked",
+            "hedged"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "neg": {
+          "title": "Neg",
+          "type": "boolean"
+        },
+        "o": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "O"
+        },
+        "r": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "R"
+        },
+        "s": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "S"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "enum": [
+                "user_stated",
+                "assistant_proposed",
+                "user_confirmed",
+                "tool"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source"
+        },
+        "span": {
+          "title": "Span",
+          "type": "string"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "until": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Until"
+        },
+        "when": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "When"
+        }
+      },
+      "required": [
+        "text",
+        "kind",
+        "mode",
+        "neg",
+        "lines",
+        "span"
+      ],
+      "title": "ItemV1",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "description": "A valid ItemV1 with its batch block (step 15 output).",
+  "properties": {
+    "block": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Block"
+    },
+    "item": {
+      "$ref": "#/$defs/ItemV1"
+    }
+  },
+  "required": [
+    "item"
+  ],
+  "title": "ValidItem",
+  "type": "object"
+}

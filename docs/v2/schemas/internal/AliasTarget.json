@@ -1,0 +1,20 @@
+{
+  "additionalProperties": true,
+  "description": "Alias map value ``n -> (record_id, version)``.",
+  "properties": {
+    "record_id": {
+      "title": "Record Id",
+      "type": "string"
+    },
+    "version": {
+      "title": "Version",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "record_id",
+    "version"
+  ],
+  "title": "AliasTarget",
+  "type": "object"
+}

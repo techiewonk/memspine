@@ -1,0 +1,35 @@
+{
+  "additionalProperties": true,
+  "description": "Decoding settings for the extraction call (step 14).",
+  "properties": {
+    "grammar": {
+      "default": true,
+      "title": "Grammar",
+      "type": "boolean"
+    },
+    "max_tokens": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Max Tokens"
+    },
+    "temperature": {
+      "default": 0.0,
+      "title": "Temperature",
+      "type": "number"
+    },
+    "thinking": {
+      "default": false,
+      "title": "Thinking",
+      "type": "boolean"
+    }
+  },
+  "title": "DecodingParams",
+  "type": "object"
+}

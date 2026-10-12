@@ -1,0 +1,1325 @@
+{
+  "$defs": {
+    "AliasTarget": {
+      "additionalProperties": true,
+      "description": "Alias map value ``n -> (record_id, version)``.",
+      "properties": {
+        "record_id": {
+          "title": "Record Id",
+          "type": "string"
+        },
+        "version": {
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "record_id",
+        "version"
+      ],
+      "title": "AliasTarget",
+      "type": "object"
+    },
+    "AssertionEnvelope": {
+      "additionalProperties": true,
+      "description": "Stored assertion, compiled in code (W-15 C, M-06).\n\ndraft: field layout pending schema session 2 follow-up and sessions 3-6. ``extras`` holds unknown\nmodel-authored fields (SESSIONS_01_02 condition 1); it is not indexed.",
+      "properties": {
+        "asserter": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Asserter"
+        },
+        "checks": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GroundingChecks"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "event": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EventInterval"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "evidence": {
+          "items": {
+            "$ref": "#/$defs/EvidenceRef"
+          },
+          "title": "Evidence",
+          "type": "array"
+        },
+        "extras": {
+          "additionalProperties": true,
+          "title": "Extras",
+          "type": "object"
+        },
+        "graph": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Graph"
+        },
+        "grounding": {
+          "anyOf": [
+            {
+              "enum": [
+                "grounded",
+                "uncertain",
+                "rejected"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Grounding"
+        },
+        "key": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AssertionKey"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "key_aliases": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Key Aliases",
+          "type": "array"
+        },
+        "kind": {
+          "anyOf": [
+            {
+              "enum": [
+                "state",
+                "event",
+                "fact"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Kind"
+        },
+        "mode": {
+          "anyOf": [
+            {
+              "enum": [
+                "asserted",
+                "planned",
+                "hoped",
+                "asked",
+                "hedged"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mode"
+        },
+        "occurrence_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Occurrence Id"
+        },
+        "parents": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Parents",
+          "type": "array"
+        },
+        "polarity": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Polarity"
+        },
+        "prompt_hash": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Prompt Hash"
+        },
+        "source_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source At"
+        },
+        "spk": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Spk"
+        },
+        "src": {
+          "anyOf": [
+            {
+              "enum": [
+                "user_stated",
+                "assistant_proposed",
+                "user_confirmed",
+                "tool",
+                "document",
+                "external",
+                "derived"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Src"
+        },
+        "subject": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Subject",
+          "type": "array"
+        },
+        "tau": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tau"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "v": {
+          "default": 1,
+          "title": "V",
+          "type": "integer"
+        },
+        "valid": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ValidityWindow"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "value": {
+          "default": null,
+          "title": "Value"
+        },
+        "verdict": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/IntegrationVerdict"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "title": "AssertionEnvelope",
+      "type": "object"
+    },
+    "AssertionKey": {
+      "additionalProperties": true,
+      "description": "draft: field layout pending schema session 3 (identity).",
+      "properties": {
+        "dst": {
+          "title": "Dst",
+          "type": "string"
+        },
+        "key_v": {
+          "default": 1,
+          "title": "Key V",
+          "type": "integer"
+        },
+        "kind": {
+          "title": "Kind",
+          "type": "string"
+        },
+        "rel": {
+          "title": "Rel",
+          "type": "string"
+        },
+        "scope": {
+          "title": "Scope",
+          "type": "string"
+        },
+        "src": {
+          "title": "Src",
+          "type": "string"
+        }
+      },
+      "required": [
+        "scope",
+        "src",
+        "rel",
+        "dst",
+        "kind"
+      ],
+      "title": "AssertionKey",
+      "type": "object"
+    },
+    "EventInterval": {
+      "additionalProperties": true,
+      "description": "draft: field layout pending schema session 6 (time).",
+      "properties": {
+        "end": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "End"
+        },
+        "precision": {
+          "default": "unknown",
+          "enum": [
+            "day",
+            "month",
+            "year",
+            "unknown"
+          ],
+          "title": "Precision",
+          "type": "string"
+        },
+        "start": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Start"
+        }
+      },
+      "title": "EventInterval",
+      "type": "object"
+    },
+    "EvidenceRef": {
+      "additionalProperties": true,
+      "description": "draft: field layout pending schema session 4 (evidence and lineage).",
+      "properties": {
+        "line": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Line"
+        },
+        "source_id": {
+          "title": "Source Id",
+          "type": "string"
+        },
+        "source_version": {
+          "title": "Source Version",
+          "type": "integer"
+        },
+        "span": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Span"
+        }
+      },
+      "required": [
+        "source_id",
+        "source_version"
+      ],
+      "title": "EvidenceRef",
+      "type": "object"
+    },
+    "Fingerprint": {
+      "additionalProperties": true,
+      "description": "draft: field layout pending schema session 8 (jobs) / P-12 derivation fingerprint.",
+      "properties": {
+        "decoding": {
+          "title": "Decoding",
+          "type": "string"
+        },
+        "input_blocks": {
+          "title": "Input Blocks",
+          "type": "string"
+        },
+        "model_id": {
+          "title": "Model Id",
+          "type": "string"
+        },
+        "prompt_hash": {
+          "title": "Prompt Hash",
+          "type": "string"
+        },
+        "quant": {
+          "title": "Quant",
+          "type": "string"
+        },
+        "runtime_libs": {
+          "title": "Runtime Libs",
+          "type": "string"
+        },
+        "schema_v": {
+          "title": "Schema V",
+          "type": "string"
+        }
+      },
+      "required": [
+        "prompt_hash",
+        "schema_v",
+        "model_id",
+        "quant",
+        "decoding",
+        "input_blocks",
+        "runtime_libs"
+      ],
+      "title": "Fingerprint",
+      "type": "object"
+    },
+    "GroundingChecks": {
+      "additionalProperties": true,
+      "description": "draft: field layout pending schema session 5 (assessment).",
+      "properties": {
+        "endpoints": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Endpoints"
+        },
+        "names": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Names"
+        },
+        "numbers": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Numbers"
+        },
+        "polarity": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Polarity"
+        },
+        "span": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Span"
+        }
+      },
+      "title": "GroundingChecks",
+      "type": "object"
+    },
+    "IntegrationVerdict": {
+      "additionalProperties": true,
+      "description": "draft: field layout pending schema session 5 (assessment).",
+      "properties": {
+        "hint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Hint"
+        },
+        "op": {
+          "enum": [
+            "append",
+            "supersede",
+            "merge",
+            "coexist",
+            "contest",
+            "noop",
+            "defer_kc"
+          ],
+          "title": "Op",
+          "type": "string"
+        },
+        "rung": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rung"
+        }
+      },
+      "required": [
+        "op"
+      ],
+      "title": "IntegrationVerdict",
+      "type": "object"
+    },
+    "ItemV1": {
+      "additionalProperties": true,
+      "description": "Model-output wire schema, compact keys (W-15 B, P-06).\n\ndraft: field layout pending schema session 2 follow-up. Session 2 fixed the split (the model authors\ncontent only, with citations); the compact keys below are not frozen. The kind set is open (S2-3), so\n``kind`` is a plain string here and the closed ``state|event|fact`` check belongs to the compiler.\nReserved system names (``reserved.py``) in model output are rejected by the compiler, not here.",
+      "properties": {
+        "kind": {
+          "title": "Kind",
+          "type": "string"
+        },
+        "lines": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Lines",
+          "type": "array"
+        },
+        "mode": {
+          "enum": [
+            "asserted",
+            "planned",
+            "hoped",
+            "asked",
+            "hedged"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "neg": {
+          "title": "Neg",
+          "type": "boolean"
+        },
+        "o": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "O"
+        },
+        "r": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "R"
+        },
+        "s": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "S"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "enum": [
+                "user_stated",
+                "assistant_proposed",
+                "user_confirmed",
+                "tool"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source"
+        },
+        "span": {
+          "title": "Span",
+          "type": "string"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "until": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Until"
+        },
+        "when": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "When"
+        }
+      },
+      "required": [
+        "text",
+        "kind",
+        "mode",
+        "neg",
+        "lines",
+        "span"
+      ],
+      "title": "ItemV1",
+      "type": "object"
+    },
+    "Record": {
+      "additionalProperties": true,
+      "description": "One record shape for all layers (M-02..M-10).\n\ndraft: field layout pending schema sessions 3-6; this will become a durable kind later.",
+      "properties": {
+        "addr": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Addr"
+        },
+        "ask": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ask"
+        },
+        "consent_tags": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Consent Tags",
+          "type": "array"
+        },
+        "content": {
+          "title": "Content",
+          "type": "string"
+        },
+        "content_fingerprint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Content Fingerprint"
+        },
+        "covers_seq": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Covers Seq"
+        },
+        "derivation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Fingerprint"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "derive_use": {
+          "anyOf": [
+            {
+              "enum": [
+                "proposal",
+                "evidence",
+                "stated",
+                "excluded"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Derive Use"
+        },
+        "echo": {
+          "default": false,
+          "title": "Echo",
+          "type": "boolean"
+        },
+        "envelope": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AssertionEnvelope"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "generation": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Generation"
+        },
+        "idem_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Idem Key"
+        },
+        "instruction_flag": {
+          "default": false,
+          "title": "Instruction Flag",
+          "type": "boolean"
+        },
+        "invalid_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Invalid At"
+        },
+        "layer": {
+          "anyOf": [
+            {
+              "enum": [
+                "L0",
+                "L1",
+                "L2",
+                "L3",
+                "L4",
+                "L5"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Layer"
+        },
+        "participants": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Participants",
+          "type": "array"
+        },
+        "pii_tier": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pii Tier"
+        },
+        "quarantined": {
+          "default": false,
+          "title": "Quarantined",
+          "type": "boolean"
+        },
+        "record_id": {
+          "title": "Record Id",
+          "type": "string"
+        },
+        "recorded_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Recorded At"
+        },
+        "scope": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Scope"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "seg_index": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seg Index"
+        },
+        "source_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source At"
+        },
+        "source_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Id"
+        },
+        "source_tz": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Tz"
+        },
+        "source_version": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Version"
+        },
+        "spk": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Spk"
+        },
+        "src_class": {
+          "anyOf": [
+            {
+              "enum": [
+                "user_stated",
+                "assistant_proposed",
+                "user_confirmed",
+                "tool",
+                "document",
+                "external",
+                "derived"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Src Class"
+        },
+        "status": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Status"
+        },
+        "sub": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Sub",
+          "type": "array"
+        },
+        "superseded_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Superseded At"
+        },
+        "support_count": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Support Count"
+        },
+        "trust": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Trust"
+        },
+        "type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Type"
+        },
+        "tz_unknown": {
+          "default": false,
+          "title": "Tz Unknown",
+          "type": "boolean"
+        },
+        "valid_from": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Valid From"
+        },
+        "valid_to": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Valid To"
+        },
+        "version": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Version"
+        }
+      },
+      "required": [
+        "record_id",
+        "content"
+      ],
+      "title": "Record",
+      "type": "object"
+    },
+    "Scope": {
+      "additionalProperties": true,
+      "description": "draft: field layout pending schema session 3 (identity).",
+      "properties": {
+        "agent": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Agent"
+        },
+        "principal": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Principal"
+        },
+        "purpose": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Purpose"
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Session"
+        },
+        "tenant": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tenant"
+        },
+        "user": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "User"
+        },
+        "viewer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Viewer"
+        }
+      },
+      "title": "Scope",
+      "type": "object"
+    },
+    "ValidityWindow": {
+      "additionalProperties": true,
+      "description": "draft: field layout pending schema session 6 (time).",
+      "properties": {
+        "from": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "From"
+        },
+        "to": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "To"
+        }
+      },
+      "title": "ValidityWindow",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "properties": {
+    "alias_map": {
+      "additionalProperties": {
+        "$ref": "#/$defs/AliasTarget"
+      },
+      "title": "Alias Map",
+      "type": "object"
+    },
+    "cited_records": {
+      "items": {
+        "$ref": "#/$defs/Record"
+      },
+      "title": "Cited Records",
+      "type": "array"
+    },
+    "item": {
+      "$ref": "#/$defs/ItemV1"
+    },
+    "prompt_hash": {
+      "title": "Prompt Hash",
+      "type": "string"
+    }
+  },
+  "required": [
+    "item",
+    "alias_map",
+    "cited_records",
+    "prompt_hash"
+  ],
+  "title": "InsertStep16Input",
+  "type": "object"
+}

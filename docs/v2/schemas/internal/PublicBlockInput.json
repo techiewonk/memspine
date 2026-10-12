@@ -1,0 +1,15 @@
+{
+  "additionalProperties": true,
+  "description": "Step 14 input helper: evidence texts handed to the privacy filter.",
+  "properties": {
+    "evidence_texts": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Evidence Texts",
+      "type": "array"
+    }
+  },
+  "title": "PublicBlockInput",
+  "type": "object"
+}

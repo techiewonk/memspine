@@ -1,0 +1,50 @@
+{
+  "$defs": {
+    "ContradictionCandidate": {
+      "additionalProperties": true,
+      "properties": {
+        "new_fact_id": {
+          "title": "New Fact Id",
+          "type": "string"
+        },
+        "old_fact_id": {
+          "title": "Old Fact Id",
+          "type": "string"
+        },
+        "source": {
+          "enum": [
+            "same_key",
+            "word_overlap",
+            "predicate_family",
+            "embedding"
+          ],
+          "title": "Source",
+          "type": "string"
+        }
+      },
+      "required": [
+        "new_fact_id",
+        "old_fact_id",
+        "source"
+      ],
+      "title": "ContradictionCandidate",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "description": "S4 Contradictions and invalidation.",
+  "properties": {
+    "candidates": {
+      "items": {
+        "$ref": "#/$defs/ContradictionCandidate"
+      },
+      "title": "Candidates",
+      "type": "array"
+    }
+  },
+  "required": [
+    "candidates"
+  ],
+  "title": "OfflineStep07Input",
+  "type": "object"
+}

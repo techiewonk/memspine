@@ -1,0 +1,57 @@
+{
+  "additionalProperties": true,
+  "description": "draft: pending schema session 5.",
+  "properties": {
+    "cites": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Cites",
+      "type": "array"
+    },
+    "key": {
+      "title": "Key",
+      "type": "string"
+    },
+    "since": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Since"
+    },
+    "stance": {
+      "enum": [
+        "stated",
+        "inferred"
+      ],
+      "title": "Stance",
+      "type": "string"
+    },
+    "type": {
+      "title": "Type",
+      "type": "string"
+    },
+    "value": {
+      "title": "Value",
+      "type": "string"
+    }
+  },
+  "required": [
+    "key",
+    "type",
+    "value",
+    "stance"
+  ],
+  "title": "CardEntry",
+  "type": "object"
+}

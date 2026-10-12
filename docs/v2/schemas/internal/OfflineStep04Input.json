@@ -1,0 +1,60 @@
+{
+  "$defs": {
+    "RetentionClass": {
+      "additionalProperties": true,
+      "properties": {
+        "applies_to_layers": {
+          "items": {
+            "enum": [
+              "L0",
+              "L1",
+              "L2",
+              "L3",
+              "L4",
+              "L5"
+            ],
+            "type": "string"
+          },
+          "title": "Applies To Layers",
+          "type": "array"
+        },
+        "match": {
+          "title": "Match",
+          "type": "string"
+        },
+        "ttl": {
+          "title": "Ttl",
+          "type": "string"
+        }
+      },
+      "required": [
+        "match",
+        "ttl"
+      ],
+      "title": "RetentionClass",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "description": "S1 Retention.",
+  "properties": {
+    "classes": {
+      "items": {
+        "$ref": "#/$defs/RetentionClass"
+      },
+      "title": "Classes",
+      "type": "array"
+    },
+    "now": {
+      "format": "date-time",
+      "title": "Now",
+      "type": "string"
+    }
+  },
+  "required": [
+    "classes",
+    "now"
+  ],
+  "title": "OfflineStep04Input",
+  "type": "object"
+}

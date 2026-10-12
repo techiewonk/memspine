@@ -1,0 +1,54 @@
+{
+  "additionalProperties": true,
+  "description": "draft: pending schema session 10.",
+  "properties": {
+    "boosts": {
+      "default": 1.0,
+      "title": "Boosts",
+      "type": "number"
+    },
+    "fused_score": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Fused Score"
+    },
+    "record_id": {
+      "title": "Record Id",
+      "type": "string"
+    },
+    "rerank_raw": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Rerank Raw"
+    },
+    "score": {
+      "title": "Score",
+      "type": "number"
+    },
+    "source_rank": {
+      "default": 0,
+      "title": "Source Rank",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "record_id",
+    "score"
+  ],
+  "title": "ScoredHit",
+  "type": "object"
+}

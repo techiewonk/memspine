@@ -1,0 +1,34 @@
+{
+  "additionalProperties": true,
+  "description": "A name to resolve (step 19 input). draft: pending schema session 3.",
+  "properties": {
+    "co_mentioned": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Co Mentioned",
+      "type": "array"
+    },
+    "name": {
+      "title": "Name",
+      "type": "string"
+    },
+    "type_hint": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Type Hint"
+    }
+  },
+  "required": [
+    "name"
+  ],
+  "title": "EntityMention",
+  "type": "object"
+}

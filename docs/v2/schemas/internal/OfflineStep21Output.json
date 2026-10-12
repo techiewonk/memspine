@@ -1,0 +1,32 @@
+{
+  "additionalProperties": true,
+  "properties": {
+    "cutoff": {
+      "format": "date-time",
+      "title": "Cutoff",
+      "type": "string"
+    },
+    "min_watermark_seq": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Min Watermark Seq"
+    },
+    "pruned": {
+      "title": "Pruned",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "pruned",
+    "cutoff"
+  ],
+  "title": "OfflineStep21Output",
+  "type": "object"
+}

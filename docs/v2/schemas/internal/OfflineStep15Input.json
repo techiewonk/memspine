@@ -1,0 +1,28 @@
+{
+  "additionalProperties": true,
+  "description": "S12 Observer views.",
+  "properties": {
+    "pairs": {
+      "items": {
+        "maxItems": 2,
+        "minItems": 2,
+        "prefixItems": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "string"
+          }
+        ],
+        "type": "array"
+      },
+      "title": "Pairs",
+      "type": "array"
+    }
+  },
+  "required": [
+    "pairs"
+  ],
+  "title": "OfflineStep15Input",
+  "type": "object"
+}

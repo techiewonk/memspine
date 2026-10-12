@@ -1,0 +1,74 @@
+{
+  "$defs": {
+    "TierPolicy": {
+      "additionalProperties": true,
+      "properties": {
+        "allow_external": {
+          "title": "Allow External",
+          "type": "boolean"
+        },
+        "depth": {
+          "enum": [
+            "fast",
+            "standard",
+            "deep"
+          ],
+          "title": "Depth",
+          "type": "string"
+        },
+        "keep": {
+          "title": "Keep",
+          "type": "integer"
+        },
+        "model_calls": {
+          "title": "Model Calls",
+          "type": "integer"
+        },
+        "pool_per_leg": {
+          "title": "Pool Per Leg",
+          "type": "integer"
+        },
+        "pool_size": {
+          "title": "Pool Size",
+          "type": "integer"
+        },
+        "rerank_mode": {
+          "enum": [
+            "always",
+            "gated",
+            "off"
+          ],
+          "title": "Rerank Mode",
+          "type": "string"
+        },
+        "slo_p95_ms": {
+          "title": "Slo P95 Ms",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "depth",
+        "pool_per_leg",
+        "pool_size",
+        "keep",
+        "model_calls",
+        "rerank_mode",
+        "allow_external",
+        "slo_p95_ms"
+      ],
+      "title": "TierPolicy",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "properties": {
+    "policy": {
+      "$ref": "#/$defs/TierPolicy"
+    }
+  },
+  "required": [
+    "policy"
+  ],
+  "title": "RetrieveStep01Output",
+  "type": "object"
+}
