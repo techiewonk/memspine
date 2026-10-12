@@ -962,3 +962,21 @@ place of it. A default changes only through an ADR, after U5 (two independent co
 - `python evals/noise_floor.py --a <run> --b <same-config repeat>`: measured noise floor (I16).
 - `python -m memspine_evals.leakage`: two-user namespace leakage probe, exit 1 on any leak (I19).
 - `forensics_report.py` now also writes abstention P/R/F1, a per-category table with cat 5, trigger fired rates and the memory-used rate (I24).
+## Run manifest
+
+Every run records a `RunManifest` (`memspine_evals/provenance.py`). Its `identity` block (`memspine_evals/manifest.py`,
+`build_identity`) holds the commit, env hash and venv hash (exported by `pinned_run.sh` as `MEMSPINE_PINNED_COMMIT`,
+`MEMSPINE_ENV_HASH`, `MEMSPINE_VENV_HASH`), the effective flags and their hash, a name and content hash for every
+prompt, the reader/judge/embedder/reranker/worker model ids, dataset and slice ids with data-file hashes, and the
+harness version. An optional `cost` block (`build_cost`) adds token counts per role, embedding and rerank call counts,
+run duration and p50/p95 per-question latency; missing figures are null.
+
+`comparability_key` hashes only what two arms must share: dataset revision and content hash, slice id and hash, judge
+(model, prompt hash, scale, id), reader model, token budget and harness version. The arm's flags, commit, env and cost are left out.
+`paired(..., arm_manifest=, ref_manifest=)` returns `INCOMPARABLE` with the differing fields when both manifests are
+given and their keys differ. With a manifest missing the verdict is unchanged and `warnings` says comparability was not
+verified.
+
+`pinned_run.sh` builds each pinned commit's venv from its own `uv.lock` under `../memspine-venvs/<hash>/`
+(`PINNED_SHARED_VENV=1` keeps the shared venv, `PINNED_DRY_RUN=1` prints the plan, `PINNED_EXTRAS` sets the extras,
+default `--all-extras`).
