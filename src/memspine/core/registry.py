@@ -9,6 +9,7 @@ from __future__ import annotations
 import structlog
 
 from memspine.exceptions import ConfigError
+from memspine.memory.registry import MEMORY_TYPES as _TYPE_REGISTRY
 
 __all__ = [
     "MEMORY_TYPES",
@@ -74,11 +75,11 @@ def missing_services(enabled: set[str], available: set[str]) -> dict[str, set[st
 
 
 def validate_types(names: set[str]) -> None:
-    unknown = names - MEMORY_TYPES
+    # MOD-02: the typed ``memory_types`` registry (built-ins + enabled plug-ins).
+    valid = set(_TYPE_REGISTRY.names())
+    unknown = names - valid
     if unknown:
-        raise ConfigError(
-            f"unknown memory type(s): {sorted(unknown)} — valid: {sorted(MEMORY_TYPES)}"
-        )
+        raise ConfigError(f"unknown memory type(s): {sorted(unknown)} — valid: {sorted(valid)}")
 
 
 def dependency_closure(enabled: set[str]) -> tuple[set[str], list[str]]:

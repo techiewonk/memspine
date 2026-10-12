@@ -295,6 +295,7 @@ from memspine.models.providers.llm.structured import structured_call
 from memspine.models.providers.llm.tier_gate import WITHHELD_MARKER, TierGatedLLM, is_local_provider
 from memspine.models.providers.rerank.base import Reranker, concat_background
 from memspine.models.providers.rerank.factory import RerankSettings, build_reranker, rerank_modes
+from memspine.models.registry import LLM_PROVIDERS, build_embedder, llm_provider_name
 from memspine.observability.logging import (
     EVENT_FEEDBACK,
     EVENT_FORGET,
@@ -306,6 +307,7 @@ from memspine.observability.logging import (
     redact_error,
 )
 from memspine.observability.timers import StepTimers, timed
+from memspine.plugins import enable as enable_plugins
 from memspine.prompts.models import (
     AgenticStepOut,
     AnswerVerdictOut,
@@ -358,6 +360,7 @@ from memspine.read.lead import (
     render_timeline,
     timeline_line,
 )
+from memspine.read.registry import leg_family
 from memspine.services.graph.base import GraphStore
 from memspine.services.graph.sqlite_adjacency import SQLiteAdjacencyGraph
 from memspine.services.lexical.base import LexicalHit, LexicalStore, minmax_fuse, rrf_fuse
@@ -382,6 +385,7 @@ from memspine.store.records import (
     chrono_key,
     new_record_id,
 )
+from memspine.store.registry import GRAPH_STORES, LEXICAL_INDEXES, VECTOR_STORES
 from memspine.store.replay import catch_up
 from memspine.store.replay import rebuild as replay_rebuild
 from memspine.store.scope import grant_allows, validate_namespace
@@ -872,22 +876,12 @@ def _protected_ids(legs: Sequence[tuple[str, Sequence[Any]]], per_leg: int) -> d
 #: R02 / I75 v2: legs that vote from the same evidence form one *source family*. A leg that
 #: replays or re-filters another leg's order (the perspective leg replays the vector order by
 #: subject) is not an independent vote; keyword legs and temporal legs are separate evidence.
-_FAMILY_EXACT = {
-    "vector": "semantic", "perspective": "semantic", "maxsim": "semantic",
-    "word_vector": "semantic", "session": "semantic", "graph_nodes": "semantic",
-    "lexical": "lexical", "entity": "lexical", "view_tags": "lexical",
-}  # fmt: skip
-_FAMILY_PREFIX = (("speaker_vote", "semantic"), ("temporal", "temporal"))
+#: The leg -> family table is the typed ``read_legs`` registry (memspine.read.registry).
 
 
 def _leg_family(name: str) -> str:
-    """R02: the source family of a leg name (``lexical`` | ``semantic`` | ``temporal`` | ``other``)."""
-    if name in _FAMILY_EXACT:
-        return _FAMILY_EXACT[name]
-    for prefix, fam in _FAMILY_PREFIX:
-        if name.startswith(prefix):
-            return fam
-    return "other"
+    """R02: the source family of a leg name (lexical | semantic | temporal | other)."""
+    return leg_family(name)  # MOD-02: the typed ``read_legs`` registry
 
 
 def _family_slots(
@@ -1392,6 +1386,9 @@ class Engine:
                 gaps={k: sorted(v) for k, v in gaps.items()},
                 first_missing=f"{mem_type} needs {service}",
             )
+
+        # MOD-02: enable the pinned plug-ins (config ``plugins:``; empty = nothing happens).
+        enable_plugins(config.plugins)
 
         # 3./4. construct services + open the write door.
         self._storage = await self._build_storage(config)
@@ -14811,61 +14808,8 @@ class Engine:
         )
 
     def _build_embedder(self, config: MemspineConfig) -> EmbeddingService:
-        if config.embedding.provider == "hash":
-            from memspine.models.encoders.embedding.hash_local import HashEmbedding
-
-            return HashEmbedding()
-        if config.embedding.provider == "fastembed":
-            from memspine.models.encoders.embedding.fastembed_local import FastembedEmbedding
-
-            return FastembedEmbedding(
-                model=config.embedding.model,
-                query_instruction=config.embedding.query_instruction,
-            )
-        if config.embedding.provider == "st":
-            if config.embedding.dim is None:
-                raise ConfigError("embedding.dim is required when embedding.provider='st'")
-            from memspine.models.encoders.embedding.st_local import SentenceTransformersEmbedding
-
-            return SentenceTransformersEmbedding(
-                config.embedding.model,
-                config.embedding.dim,
-                query_instruction=config.embedding.query_instruction,
-                device=config.embedding.device,
-                dtype=config.embedding.dtype,
-                query_prompt_name=config.embedding.query_prompt_name,
-                document_prompt_name=config.embedding.document_prompt_name,
-                trust_remote_code=config.embedding.trust_remote_code,
-            )
-        if config.embedding.provider == "static":
-            # E4 model2vec (ADR-020): a missing [static] extra hard-fails here
-            # (D-10) because the deployer chose it as their embedder — as a mere
-            # prefilter *stage* the engine skip-logs instead (see search()).
-            from memspine.models.encoders.embedding.static_local import StaticEmbedder
-
-            return StaticEmbedder(model=config.embedding.model)
-        if config.embedding.provider == "litellm":
-            if config.embedding.dim is None:
-                raise ConfigError(
-                    "embedding.dim is required when embedding.provider='litellm' — "
-                    "a cloud embedder's output dimension is not locally discoverable"
-                )
-            from memspine.models.encoders.embedding.litellm_embed import LiteLLMEmbedding
-
-            return LiteLLMEmbedding(
-                config.embedding.model,
-                config.embedding.dim,
-                api_base=config.embedding.api_base,
-                api_key=config.embedding.api_key,
-                aws_region=config.embedding.aws_region,
-                request_dimensions=config.embedding.request_dimensions,
-                query_input_type=config.embedding.query_input_type,
-                document_input_type=config.embedding.document_input_type,
-            )
-        raise ConfigError(
-            f"unknown embedding.provider {config.embedding.provider!r} "
-            "(valid: fastembed, hash, static, litellm, st)"
-        )
+        # MOD-02: the typed ``embedders`` registry (memspine.models.registry) holds the factories.
+        return cast("EmbeddingService", build_embedder(config.embedding))
 
     def _rescore_settings(self, config: MemspineConfig) -> tuple[str | None, int | None]:
         """E4 (ADR-020): resolve the effective (quantization, matryoshka_dim)
@@ -14960,7 +14904,13 @@ class Engine:
         quantization, matryoshka_dim = self._rescore_settings(config)
         self._rescore_active = quantization is not None or matryoshka_dim is not None
         backend = config.vector.backend
-        if backend != "lance":
+        plug = VECTOR_STORES.find(backend)
+        if plug is not None:  # MOD-02: an enabled plug-in vector store
+            return cast(
+                "VectorStore",
+                plug(config, self._derived_base(config), self._client_is_memory(config)),
+            )
+        if backend not in VECTOR_STORES:
             # ``weaviate`` (and future remote stores) keep the config seam open
             # but are not built yet — LanceDB is the sole reference adapter
             # (ADR-021, amends D-09). The zero-dep SQLite brute-force store was
@@ -15042,6 +14992,12 @@ class Engine:
         transactional-DB ``sqlite_fts5`` provider was removed (v0.2): the lexical
         leg is a dedicated search index, never bolted onto the system-of-record."""
         provider = config.read.lexical_provider
+        plug = LEXICAL_INDEXES.find(provider)
+        if plug is not None:  # MOD-02: an enabled plug-in lexical index
+            return cast(
+                "LexicalStore",
+                plug(config, self._derived_base(config), self._client_is_memory(config)),
+            )
         if provider == "tantivy":
             from memspine.services.lexical.tantivy import TantivyLexical
 
@@ -15080,6 +15036,12 @@ class Engine:
 
             has_ladybug = importlib.util.find_spec("ladybug") is not None
             provider = "ladybug" if has_ladybug or self._client is None else "sqlite_adjacency"
+        plug = GRAPH_STORES.find(provider)
+        if plug is not None:  # MOD-02: an enabled plug-in graph store
+            return cast(
+                "GraphStore",
+                plug(config, self._derived_base(config), self._client_is_memory(config)),
+            )
         if provider == "sqlite_adjacency":
             if self._client is None:
                 raise ConfigError(
@@ -15146,23 +15108,9 @@ class Engine:
         _structured.configure(config.llm.structured.model_dump())  # I69 (process-wide)
         for role, role_config in config.llm.roles.items():
             model = role_config.model
-            if model.startswith("llamacpp/"):
-                from memspine.models.providers.llm.llama_cpp import LlamaCppLLM
-
-                providers[role] = LlamaCppLLM(
-                    model_path=model[len("llamacpp/") :], no_think=role_config.no_think
-                )
-            elif model:
-                from memspine.models.providers.llm.litellm_llm import LiteLLMLLM
-
-                providers[role] = LiteLLMLLM(
-                    model,
-                    api_base=role_config.api_base,
-                    api_key=role_config.api_key,
-                    aws_region=role_config.aws_region,
-                    timeout_seconds=role_config.timeout_seconds,
-                    no_think=role_config.no_think,
-                )
+            if model:
+                # MOD-02: typed ``llm_providers`` registry (llamacpp/, plug-in, else LiteLLM).
+                providers[role] = LLM_PROVIDERS.get(llm_provider_name(model))(model, role_config)
             else:
                 raise ConfigError(
                     f"llm.roles.{role}.model is required — a LiteLLM model id "
