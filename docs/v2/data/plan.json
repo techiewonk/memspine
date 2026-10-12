@@ -766,8 +766,8 @@
    ],
    "kind": "move",
    "gate": "Both suites and golden green; no old import paths",
-   "status": "Not started",
-   "note": "S5",
+   "status": "Done",
+   "note": "S5: 11 modules moved, codemod_move.py; unit 3343, evals 1435, golden, 14 contracts kept (afb3d16)",
    "layers": [
     "L0",
     "L1",
@@ -875,7 +875,10 @@
     "src/memspine/services/rerank/**",
     "src/memspine/services/query_encoder/**",
     "src/memspine/services/decision/**",
-    "src/memspine/services/cache/**"
+    "src/memspine/services/cache/**",
+    "scripts/codemod_move.py",
+    "scripts/moves/F-06.toml",
+    "tests/golden/harness.py"
    ],
    "lane": "S1 split (serial)",
    "agent": "sonnet",

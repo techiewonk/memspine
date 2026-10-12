@@ -48,7 +48,7 @@ WP = [
     ("X-06", 0, "Licence check for a permissive reranker fallback", ["R-14"], [], "infra", "Named fallback with licence", "Done", "Qwen3-Reranker-0.6B (Apache-2.0) primary, MiniLM-L6 CPU (5544e88); owner to confirm"),
     # ---- Phase 1a: pure-move split (one serial lane, golden-gated) ----
     ("F-05", 1, "Package skeleton; move store and trust leaves", ["G-16"], ["P0-04", "X-00", "X-01", "X-02"], "move",
-     "Both suites and golden green; no old import paths", "Not started", "S5"),
+     "Both suites and golden green; no old import paths", "Done", "S5: 11 modules moved, codemod_move.py; unit 3343, evals 1435, golden, 14 contracts kept (afb3d16)"),
     ("F-06", 1, "Move read, compose and models leaves", ["G-16"], ["F-05"], "move", "Same as F-05", "Not started", "S6"),
     ("MOD-02", 1, "Typed registries + entry points (discovery is not enablement: pinned capability manifest)", ["G-16"], ["F-06", "MOD-01"], "api",
      "Built-ins register at import; entry-point plug-in test; golden unchanged", "Not started", "Owner 2026-10-13"),
@@ -270,7 +270,7 @@ OWNS: dict[str, list[str]] = {
     "P0-09": ["tests/unit/test_prompt_gold_lint.py", "src/memspine/prompts/lint.py"],
     # RESTRUCTURE.md section 3
     "F-05": _F05 + ["src/memspine/store/{replay,visibility}.py", "src/memspine/store/projections/**", "src/memspine/store/__init__.py", "scripts/codemod_move.py", "scripts/moves/F-05.toml", "src/memspine/{ingest,derive,read,compose,models,runtime,api,memory}/__init__.py", "tests/golden/harness.py"],
-    "F-06": _F06,
+    "F-06": _F06 + ["scripts/codemod_move.py", "scripts/moves/F-06.toml", "tests/golden/harness.py"],
     "MOD-02": _src("*/registry.py"),
     "F-07": _src("config/schema/**", "config/flags.py", "config/schema.py"),
     "F-08": _src("runtime/container.py") + [_ENGINE],

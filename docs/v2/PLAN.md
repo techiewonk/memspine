@@ -7,12 +7,12 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 
 | Status | Count |
 |---|---|
-| Not started | 94 |
+| Not started | 93 |
 | Ready | 0 |
 | In progress | 0 |
 | Blocked | 1 |
 | Needs measurement | 3 |
-| Done | 14 |
+| Done | 15 |
 | Dropped | 0 |
 
 ## Phase 0: settle and prepare
@@ -41,8 +41,8 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 
 | Id | Work package | Layers | Ops | Decisions | Review | Depends on | Kind | Agent lane | Owns | Gate | Status | Note |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| F-05 | Package skeleton; move store and trust leaves | L0 L1 L4 L5 ctx scope | D K_C K_P R C | G-16 | - | P0-04, X-00, X-01, X-02 | move | S1 split (serial) | `src/memspine/store/records.py` +23 | Both suites and golden green; no old import paths | **Not started** | S5 |
-| F-06 | Move read, compose and models leaves | L0 L1 L4 L5 ctx scope | D K_C K_P R C | G-16 | - | F-05 | move | S1 split (serial) | `src/memspine/read/**` +21 | Same as F-05 | **Not started** | S6 |
+| F-05 | Package skeleton; move store and trust leaves | L0 L1 L4 L5 ctx scope | D K_C K_P R C | G-16 | - | P0-04, X-00, X-01, X-02 | move | S1 split (serial) | `src/memspine/store/records.py` +23 | Both suites and golden green; no old import paths | **Done** | S5: 11 modules moved, codemod_move.py; unit 3343, evals 1435, golden, 14 contracts kept (afb3d16) |
+| F-06 | Move read, compose and models leaves | L0 L1 L4 L5 ctx scope | D K_C K_P R C | G-16 | - | F-05 | move | S1 split (serial) | `src/memspine/read/**` +24 | Same as F-05 | **Not started** | S6 |
 | MOD-02 | Typed registries + entry points (discovery is not enablement: pinned capability manifest) | L0 L1 L4 L5 ctx scope | D K_C K_P R C | G-16 | ER-03, ER-33, ER-34 | F-06, MOD-01 | api | S1 split (serial) | `src/memspine/*/registry.py` | Built-ins register at import; entry-point plug-in test; golden unchanged | **Not started** | Owner 2026-10-13 |
 | F-07 | Config split and flag registry (per-area flag modules) | L0 L1 L4 L5 ctx scope | D R C | G-21, G-22 | - | MOD-02 | move | S1 split (serial) | `src/memspine/config/schema/**` +2 | Same YAML keys; every default flag has evidence | **Not started** | S7 |
 | F-08 | Wiring out of the engine into a dishka container (app, job, request scopes) | L0 L1 L4 L5 ctx scope | D K_C K_P R C | G-16 | ER-03, ER-10, ER-34 | F-07 | api | S1 split (serial) | `src/memspine/runtime/container.py` +1 | Golden | **Not started** | S8 |
@@ -182,7 +182,7 @@ Files each package may write (glob patterns, repo-relative; includes removal and
 | MOD-01 | `src/memspine/schemas/**`<br>`docs/v2/schemas/durable/**`<br>`docs/v2/schemas/public/**`<br>`docs/v2/schemas/internal/**`<br>`tests/unit/schemas/**` |
 | X-06 | `docs/v2/data/reranker_licences_*.md` |
 | F-05 | `src/memspine/store/records.py`<br>`src/memspine/store/events.py`<br>`src/memspine/store/log.py`<br>`src/memspine/store/scope.py`<br>`src/memspine/store/lineage.py`<br>`src/memspine/trust/**`<br>`src/memspine/core/records.py`<br>`src/memspine/core/events.py`<br>`src/memspine/core/replay.py`<br>`src/memspine/core/projector.py`<br>`src/memspine/core/namespace.py`<br>`src/memspine/core/visibility.py`<br>`src/memspine/core/firewall.py`<br>`src/memspine/core/audit.py`<br>`src/memspine/core/erasure.py`<br>`src/memspine/core/privacy.py`<br>`src/memspine/core/redaction.py`<br>`src/memspine/store/{replay,visibility}.py`<br>`src/memspine/store/projections/**`<br>`src/memspine/store/__init__.py`<br>`scripts/codemod_move.py`<br>`scripts/moves/F-05.toml`<br>`src/memspine/{ingest,derive,read,compose,models,runtime,api,memory}/__init__.py`<br>`tests/golden/harness.py` |
-| F-06 | `src/memspine/read/**`<br>`src/memspine/compose/**`<br>`src/memspine/models/**`<br>`src/memspine/core/query_*`<br>`src/memspine/core/temporal_*`<br>`src/memspine/core/perspective.py`<br>`src/memspine/core/lead.py`<br>`src/memspine/core/policies/assembly.py`<br>`src/memspine/core/policies/compression.py`<br>`src/memspine/core/answer*`<br>`src/memspine/services/llm*`<br>`src/memspine/services/embedding*`<br>`src/memspine/services/rerank*`<br>`src/memspine/services/query_encoder*`<br>`src/memspine/services/decision*`<br>`src/memspine/services/cache*`<br>`src/memspine/services/llm/**`<br>`src/memspine/services/embedding/**`<br>`src/memspine/services/rerank/**`<br>`src/memspine/services/query_encoder/**`<br>`src/memspine/services/decision/**`<br>`src/memspine/services/cache/**` |
+| F-06 | `src/memspine/read/**`<br>`src/memspine/compose/**`<br>`src/memspine/models/**`<br>`src/memspine/core/query_*`<br>`src/memspine/core/temporal_*`<br>`src/memspine/core/perspective.py`<br>`src/memspine/core/lead.py`<br>`src/memspine/core/policies/assembly.py`<br>`src/memspine/core/policies/compression.py`<br>`src/memspine/core/answer*`<br>`src/memspine/services/llm*`<br>`src/memspine/services/embedding*`<br>`src/memspine/services/rerank*`<br>`src/memspine/services/query_encoder*`<br>`src/memspine/services/decision*`<br>`src/memspine/services/cache*`<br>`src/memspine/services/llm/**`<br>`src/memspine/services/embedding/**`<br>`src/memspine/services/rerank/**`<br>`src/memspine/services/query_encoder/**`<br>`src/memspine/services/decision/**`<br>`src/memspine/services/cache/**`<br>`scripts/codemod_move.py`<br>`scripts/moves/F-06.toml`<br>`tests/golden/harness.py` |
 | MOD-02 | `src/memspine/*/registry.py` |
 | F-07 | `src/memspine/config/schema/**`<br>`src/memspine/config/flags.py`<br>`src/memspine/config/schema.py` |
 | F-08 | `src/memspine/runtime/container.py`<br>`src/memspine/engine.py` |
