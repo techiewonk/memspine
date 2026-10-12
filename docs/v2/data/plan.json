@@ -1375,8 +1375,8 @@
    ],
    "kind": "infra",
    "gate": "Unit tests; pure, unwired (wiring in R3-02); depends only on memspine.schemas",
-   "status": "Ready",
-   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "status": "Done",
+   "note": "read/contract_rules.py: rule contract en/de/nl/es, render header, parity with LIB-01 (c578ef9)",
    "layers": [
     "ctx"
    ],
@@ -1621,8 +1621,8 @@
    ],
    "kind": "infra",
    "gate": "Unit tests; pure, unwired (wiring in R3-14); depends only on memspine.schemas",
-   "status": "Ready",
-   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "status": "Done",
+   "note": "read/timeview.py: current/true_at/known_at/both/history/range, three-valued, rederive hook (85ad6bd)",
    "layers": [
     "L0",
     "L1"
@@ -1658,8 +1658,8 @@
    ],
    "kind": "infra",
    "gate": "Unit tests; pure, unwired (wiring in R3-03); depends only on memspine.schemas",
-   "status": "Ready",
-   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "status": "Done",
+   "note": "read/router_rules.py: legs by layer/service/shape, skips with reasons, deep-only rewrite (27f1e47)",
    "layers": [
     "ctx"
    ],
@@ -1693,8 +1693,8 @@
    ],
    "kind": "infra",
    "gate": "Unit tests; pure, unwired (wiring in R3-10); depends only on memspine.schemas",
-   "status": "Ready",
-   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "status": "Done",
+   "note": "read/neighbours.py: budget-aware, viewer-checked neighbour windows (LIB-24)",
    "layers": [
     "L0"
    ],
@@ -1728,8 +1728,8 @@
    ],
    "kind": "infra",
    "gate": "Unit tests; pure, unwired (wiring in T5-02); depends only on memspine.schemas",
-   "status": "Ready",
-   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "status": "Done",
+   "note": "compose/render_trust.py: bands, contested grouping, neutralised low-trust text (23f2ce5)",
    "layers": [
     "L0",
     "L1",
@@ -1765,8 +1765,8 @@
    ],
    "kind": "infra",
    "gate": "Unit tests; pure, unwired (wiring in O4-01b); depends only on memspine.schemas",
-   "status": "Ready",
-   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "status": "Done",
+   "note": "runtime/freshness.py: covers_seq, freshness verdicts, read barrier, background budget (7888485)",
    "layers": [
     "L0",
     "L1",
