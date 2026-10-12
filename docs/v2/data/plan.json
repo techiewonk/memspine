@@ -2054,8 +2054,8 @@
    ],
    "kind": "infra",
    "gate": "Unit tests; pure, unwired (wiring in O4-09); depends only on memspine.schemas",
-   "status": "Ready",
-   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "status": "Done",
+   "note": "derive/decay.py: activation, hysteresis tiers, protected kinds, multi-resolution compression plans, never deletes (c1d4fc6)",
    "layers": [
     "L0",
     "L1",
@@ -2198,6 +2198,87 @@
     "GroupingKinds {community, entity_summary, observation_scope (held)}",
     "memspine.derive.communities.Reorganiser",
     "memspine.derive.entity_summary.EntitySummariser"
+   ],
+   "review": []
+  },
+  {
+   "id": "LIB-37",
+   "phase": 1,
+   "title": "Library: reconcile backlog and contradiction sweep (staged resolution queue, contest detection across sessions)",
+   "decisions": [
+    "O-10",
+    "O-11",
+    "O-12"
+   ],
+   "depends_on": [
+    "MOD-01"
+   ],
+   "kind": "infra",
+   "gate": "Unit tests; pure, unwired (wiring in O4-03); depends only on memspine.schemas",
+   "status": "Ready",
+   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "layers": [
+    "L1",
+    "L3"
+   ],
+   "operators": [
+    "K_C"
+   ],
+   "files": [
+    "workers/pipelines.py",
+    "config/constants.py",
+    "memories/associative/resolution.py"
+   ],
+   "owns": [
+    "src/memspine/derive/reconcile.py",
+    "tests/unit/lib/test_lib_37*.py"
+   ],
+   "lane": "other",
+   "agent": "sonnet",
+   "components": [
+    "memspine.derive.contradict.ContradictionSweep",
+    "memspine.derive.reconcile.BacklogReconciler",
+    "memspine.derive.resolve.EntityResolver (v2, ResolutionStage list)"
+   ],
+   "review": []
+  },
+  {
+   "id": "LIB-38",
+   "phase": 1,
+   "title": "Library: firewall at three gates (insert, derive, read) with base and extended signals",
+   "decisions": [
+    "W-07",
+    "G-06"
+   ],
+   "depends_on": [
+    "MOD-01"
+   ],
+   "kind": "infra",
+   "gate": "Unit tests; pure, unwired (wiring in W2-04); depends only on memspine.schemas",
+   "status": "Ready",
+   "note": "Library-first split (owner 2026-10-13: parallel agents)",
+   "layers": [
+    "L0",
+    "L1",
+    "scope"
+   ],
+   "operators": [
+    "D"
+   ],
+   "files": [
+    "src/memspine/core/firewall.py",
+    "src/memspine/engine.py",
+    "src/memspine/config/schema.py"
+   ],
+   "owns": [
+    "src/memspine/trust/gates.py",
+    "tests/unit/lib/test_lib_38*.py"
+   ],
+   "lane": "other",
+   "agent": "sonnet",
+   "components": [
+    "firewall.WriteGates (gate 1 raw, gate 2 extraction input filter, gate 3 derived + parent trust cap always on)",
+    "memspine.trust.firewall (layered SignalStack)"
    ],
    "review": []
   },
@@ -2671,7 +2752,8 @@
     "LIB-09",
     "LIB-18",
     "LIB-21",
-    "LIB-28"
+    "LIB-28",
+    "LIB-38"
    ],
    "kind": "move",
    "gate": "Golden",
@@ -3894,7 +3976,8 @@
    "depends_on": [
     "W2-03",
     "F-16a",
-    "LIB-08"
+    "LIB-08",
+    "LIB-38"
    ],
    "kind": "behaviour",
    "gate": "False-positive screen on the behavioural suite",
@@ -5513,7 +5596,8 @@
    "depends_on": [
     "O4-01a",
     "W2-09",
-    "X-05"
+    "X-05",
+    "LIB-37"
    ],
    "kind": "behaviour",
    "gate": "Contradiction-recall set; MAB-CR non-inferior",
