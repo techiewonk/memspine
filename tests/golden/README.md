@@ -41,9 +41,27 @@ the snapshot is compact but any text change shows.
 PYTHONPATH=src pytest tests/golden -m golden
 ```
 
+CI (X-02) and move PRs call the wrapper, which sets `PYTHONPATH`, `-o addopts=""` and the marker (set
+`PYTHON=<venv python>` to choose the interpreter; extra arguments go to pytest):
+
+```
+tests/golden/run_golden.sh
+```
+
 The test runs the scenario twice in fresh temp directories and asserts that the two runs are equal and
 that they equal the committed snapshot, printing a unified diff on mismatch. The `golden` marker is
 registered in `tests/golden/conftest.py`, not in `pyproject.toml`.
+
+## Moving modules: update the frozen clock in the same PR
+
+The harness freezes time by replacing the `datetime` name inside the modules listed in `_CLOCK_MODULES`
+(`tests/golden/harness.py`): today `memspine.core.policies.scoring`, `memspine.core.policies.decay`,
+`memspine.engine` and `memspine.workers.pipelines`. `importlib.import_module` fails loudly when a listed
+module no longer exists, but a moved module that still calls `datetime.now()` and is missing from the list
+would silently run on the wall clock and make the golden flaky. A move PR must therefore, in the same
+commit, rename the entries to the new module paths and add every new module that calls `datetime.now()`
+or `datetime.utcnow()` (grep the moved code for `datetime` before finishing). When `engine.py` is split,
+each target module that holds a clock call needs its own entry.
 
 ## Regenerating
 
