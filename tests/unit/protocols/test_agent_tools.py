@@ -8,7 +8,6 @@ from typing import Any
 import pytest
 
 from memspine import Engine
-from memspine.core.records import SourceInfo
 from memspine.protocols.tools import (
     AGENT_TOOL_CHANNEL,
     AgentMemoryTools,
@@ -17,6 +16,7 @@ from memspine.protocols.tools import (
     openai_tools,
     tool_specs,
 )
+from memspine.store.records import SourceInfo
 
 
 def _engine() -> Engine:

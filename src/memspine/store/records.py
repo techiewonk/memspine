@@ -30,7 +30,7 @@ from pydantic import (
 )
 
 from memspine.config.constants import REFLECTION_DEPTH_CAP, TRUST_DEFAULT
-from memspine.core.events import fingerprint_payload
+from memspine.store.events import fingerprint_payload
 
 __all__ = [
     "ArchivedVersion",

@@ -7,7 +7,7 @@ else (the most stable token in the prompt prefix).
 
 from __future__ import annotations
 
-from memspine.core.records import MemoryRecord, ScoringState, SourceInfo
+from memspine.store.records import MemoryRecord, ScoringState, SourceInfo
 
 __all__ = ["is_persona", "make_persona_record"]
 

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from memspine.core.firewall import instruction_shaped, normalize_for_screening
+from memspine.trust.firewall import instruction_shaped, normalize_for_screening
 
 ZWSP = "​"
 ZWJ = "‍"

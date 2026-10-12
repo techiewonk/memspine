@@ -19,11 +19,11 @@ from memspine.config.constants import (
     EVOLUTION_MAX_LINKS_PER_WRITE,
     LINK_BUDGET,
 )
-from memspine.core.events import MemoryEvent
-from memspine.core.records import MemoryRecord, RecordStatus
 from memspine.memories.associative.links import link_event, live_links
 from memspine.services.graph.base import GraphStore
 from memspine.services.vector.base import VectorHit
+from memspine.store.events import MemoryEvent
+from memspine.store.records import MemoryRecord, RecordStatus
 
 __all__ = ["propose_links"]
 

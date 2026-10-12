@@ -10,8 +10,8 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from memspine.config.constants import REFLECTION_DEPTH_CAP
-from memspine.core.records import MemoryRecord, RecordStatus
 from memspine.exceptions import ConflictError
+from memspine.store.records import MemoryRecord, RecordStatus
 
 __all__ = ["reflection_depth_for"]
 

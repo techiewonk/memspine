@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from memspine.core.records import MemoryRecord
 from memspine.memories.episodic.sessions import topic_segments
+from memspine.store.records import MemoryRecord
 
 T0 = datetime(2023, 5, 1, tzinfo=UTC)
 

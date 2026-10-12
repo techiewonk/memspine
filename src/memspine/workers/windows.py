@@ -34,8 +34,6 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from memspine.config import constants
-from memspine.core.events import fingerprint_payload
-from memspine.core.records import MemoryRecord, RecordStatus
 from memspine.core.window import (
     Window,
     WindowSegmenter,
@@ -54,6 +52,8 @@ from memspine.prompts.models import (
 )
 from memspine.services.llm.base import LLMService
 from memspine.services.llm.structured import structured_call
+from memspine.store.events import fingerprint_payload
+from memspine.store.records import MemoryRecord, RecordStatus
 from memspine.workers.pipelines import (
     SessionClosed,
     WindowEdgeBatch,

@@ -5,11 +5,11 @@ from __future__ import annotations
 import pytest
 
 from memspine.config.constants import REFLECTION_DEPTH_CAP
-from memspine.core.events import EventKind, MemoryEvent
-from memspine.core.records import MemoryRecord, RecordStatus
 from memspine.exceptions import ConflictError
 from memspine.memories.reflective.guards import reflection_depth_for
 from memspine.memories.reflective.reflections import ReflectiveMemory
+from memspine.store.events import EventKind, MemoryEvent
+from memspine.store.records import MemoryRecord, RecordStatus
 
 
 def _episode(depth: int = 0, **updates: object) -> MemoryRecord:

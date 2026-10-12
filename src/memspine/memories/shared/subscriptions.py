@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from memspine.core.records import MemoryRecord, RecordStatus, SourceInfo
+from memspine.store.records import MemoryRecord, RecordStatus, SourceInfo
 
 __all__ = [
     "SUBSCRIPTION_ATTRIBUTE",

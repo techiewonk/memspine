@@ -5,7 +5,6 @@ from __future__ import annotations
 import pytest
 
 from memspine.config import constants
-from memspine.core.records import MemoryRecord, SkillStage, SourceInfo
 from memspine.exceptions import ConflictError
 from memspine.memories.procedural import lifecycle
 from memspine.memories.procedural.lessons import (
@@ -23,6 +22,7 @@ from memspine.memories.procedural.lessons import (
     source_signature,
 )
 from memspine.memories.procedural.skills import make_skill_record
+from memspine.store.records import MemoryRecord, SkillStage, SourceInfo
 
 
 def test_failure_lesson_has_fixed_fields() -> None:

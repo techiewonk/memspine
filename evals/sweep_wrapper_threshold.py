@@ -180,7 +180,7 @@ async def _probe(fixture: Fixture, threshold: float) -> tuple[str, float | None]
     from memspine_evals.multiagent.constructions import BENIGN_FACT, _paraphrase
 
     from memspine import Engine
-    from memspine.core.records import SourceInfo
+    from memspine.store.records import SourceInfo
 
     engine = Engine(template="base", storage={"path": ":memory:"}, **_engine_config(threshold))
     await engine.start()

@@ -8,8 +8,10 @@ from typing import Any
 import orjson
 
 from memspine.config.schema import ConsentConfig, RetentionClassConfig
-from memspine.core.events import EventKind, MemoryEvent
-from memspine.core.privacy import (
+from memspine.services.llm.tier_gate import is_local_provider, withheld_variants
+from memspine.store.events import EventKind, MemoryEvent
+from memspine.store.records import MemoryRecord
+from memspine.trust.privacy import (
     AUDIT_GENESIS,
     chain_digest,
     current_purpose,
@@ -18,8 +20,6 @@ from memspine.core.privacy import (
     read_scope,
     verify_audit_chain,
 )
-from memspine.core.records import MemoryRecord
-from memspine.services.llm.tier_gate import is_local_provider, withheld_variants
 
 
 def _rec(*purposes: str, ns: str = "u", memory_type: str = "semantic") -> MemoryRecord:

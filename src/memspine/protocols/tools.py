@@ -40,11 +40,11 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from memspine.core.escaping import escape_markers
-from memspine.core.namespace import validate_namespace
-from memspine.core.records import MemoryRecord, RecordStatus, SourceInfo
 from memspine.exceptions import MemspineError
 from memspine.memories.episodic.lifecycle import session_of
 from memspine.observability.logging import get_logger
+from memspine.store.records import MemoryRecord, RecordStatus, SourceInfo
+from memspine.store.scope import validate_namespace
 
 if TYPE_CHECKING:
     from memspine.engine import Engine

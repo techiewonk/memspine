@@ -21,7 +21,7 @@ from memspine.core.perspective import (
     resolve_write,
     scope_of,
 )
-from memspine.core.records import MemoryRecord
+from memspine.store.records import MemoryRecord
 
 TWO = {"caroline", "melanie"}
 

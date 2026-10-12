@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from memspine.core.events import MemoryEvent
+from memspine.store.events import MemoryEvent
 
 __all__ = ["Projector"]
 

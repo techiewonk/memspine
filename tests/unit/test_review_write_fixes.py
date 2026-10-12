@@ -13,11 +13,11 @@ import pytest
 
 from memspine import Engine
 from memspine.config import constants
-from memspine.core.events import EventKind, MemoryEvent
 from memspine.core.policies.compression import CompressionPolicy
 from memspine.core.policies.conflict import ConflictPolicy, ConflictVerdict
-from memspine.core.records import MemoryRecord, RecordStatus, SourceInfo
 from memspine.prompts.models import AnticipatedCue, ExtractedFact
+from memspine.store.events import EventKind, MemoryEvent
+from memspine.store.records import MemoryRecord, RecordStatus, SourceInfo
 from memspine.workers.pipelines import (
     _fact_date,
     anticipate,

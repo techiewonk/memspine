@@ -8,8 +8,8 @@ import pytest
 
 from memspine import Engine
 from memspine.config.schema import ReadConfig
-from memspine.core.records import MemoryRecord
 from memspine.core.temporal_query import query_interval, temporal_leg
+from memspine.store.records import MemoryRecord
 
 
 def _d(y: int, m: int, d: int) -> datetime:

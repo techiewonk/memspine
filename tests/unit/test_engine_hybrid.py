@@ -18,9 +18,9 @@ import pytest
 from sqlalchemy import text
 
 from memspine import Engine
-from memspine.core.records import SourceInfo
 from memspine.services.lexical.base import LexicalHit
 from memspine.services.vector.base import VectorHit
+from memspine.store.records import SourceInfo
 
 
 class OnlyRecordVector:

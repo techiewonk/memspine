@@ -5,16 +5,16 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 from memspine.clients.sqlite import SQLiteClient
-from memspine.core.events import EventKind, MemoryEvent
 from memspine.core.policies.conflict import ConflictPolicy
 from memspine.core.policies.dedup import DedupPolicy
-from memspine.core.records import MemoryRecord, RecordStatus
 from memspine.memories.semantic.facts import fact_at
 from memspine.memories.semantic.store import SemanticMemory
 from memspine.prompts.models import ExtractedFact
 from memspine.services.embedding.hash_local import HashEmbedding
 from memspine.services.storage.projector import RecordProjector
 from memspine.services.storage.sqlite.engine import SQLiteStorage
+from memspine.store.events import EventKind, MemoryEvent
+from memspine.store.records import MemoryRecord, RecordStatus
 
 NOW = datetime(2026, 7, 7, tzinfo=UTC)
 
@@ -81,7 +81,7 @@ async def test_plain_add_annotates_sketches() -> None:
 
 async def test_near_duplicate_merges_union_preserving() -> None:
     semantic = await make_semantic()
-    from memspine.core.records import PiiTier
+    from memspine.store.records import PiiTier
 
     first = await semantic.write(rec("alice prefers her coffee black in the morning"))
     dup = rec("alice prefers her coffee black in the morning !")

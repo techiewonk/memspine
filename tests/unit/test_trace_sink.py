@@ -11,10 +11,10 @@ import pytest
 from memspine import Engine
 from memspine.config import constants
 from memspine.core import trace_sink
-from memspine.core.firewall import Firewall
 from memspine.core.policies.conflict import ConflictPolicy, ConflictVerdict
-from memspine.core.records import MemoryRecord, SourceInfo
 from memspine.engine import search_forensics
+from memspine.store.records import MemoryRecord, SourceInfo
+from memspine.trust.firewall import Firewall
 
 T0 = datetime(2023, 5, 7, 10, 0, tzinfo=UTC)
 

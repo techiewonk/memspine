@@ -44,7 +44,7 @@ def test_asb_items_mark_attack_turns() -> None:
 
 
 def test_engine_detector_flags_context_ignoring() -> None:
-    pytest.importorskip("memspine.core.firewall")
+    pytest.importorskip("memspine.trust.firewall")
     samples = asb_samples(FIX, variants=["context_ignoring", "naive"])
     base = firewall_rates(samples, "base")
     assert base["groups"]["injected/context_ignoring"]["tpr"] == 1.0

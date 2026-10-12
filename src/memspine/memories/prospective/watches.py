@@ -23,12 +23,12 @@ from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from typing import ClassVar, Protocol
 
-from memspine.core.events import EventKind, MemoryEvent
-from memspine.core.records import MemoryRecord, RecordStatus, SourceInfo
 from memspine.exceptions import ConflictError
 from memspine.memories.base import BaseMemory
 from memspine.memories.prospective.triggers import fired_watches
 from memspine.observability.logging import EVENT_DECAY_TRANSITION, get_logger
+from memspine.store.events import EventKind, MemoryEvent
+from memspine.store.records import MemoryRecord, RecordStatus, SourceInfo
 
 __all__ = ["ProspectiveMemory", "make_watch_record"]
 

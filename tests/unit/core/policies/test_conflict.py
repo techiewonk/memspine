@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 from memspine.core.policies.conflict import ConflictPolicy, ConflictVerdict
-from memspine.core.records import MemoryRecord
+from memspine.store.records import MemoryRecord
 
 NOW = datetime(2026, 7, 7, tzinfo=UTC)
 

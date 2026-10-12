@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 from memspine.core.policies.decay import DecayPolicy, DecayTier
-from memspine.core.records import MemoryRecord, ScoringState
+from memspine.store.records import MemoryRecord, ScoringState
 
 NOW = datetime(2026, 7, 7, tzinfo=UTC)
 

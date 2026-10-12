@@ -15,11 +15,11 @@ from test_graph_leg_off_golden import T0, _engine, seed
 
 from memspine import Engine
 from memspine.config import constants
-from memspine.core.records import SourceInfo
 from memspine.core.temporal_query import LegHit
 from memspine.exceptions import ConfigError
 from memspine.services.lexical.base import LexicalHit
 from memspine.services.vector.base import VectorHit
+from memspine.store.records import SourceInfo
 
 
 async def _started(**read: Any) -> Engine:

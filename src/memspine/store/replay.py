@@ -9,9 +9,9 @@ from __future__ import annotations
 from typing import Protocol
 
 from memspine.config.constants import REPLAY_BATCH_SIZE
-from memspine.core.events import MemoryEvent
-from memspine.core.projector import Projector
 from memspine.exceptions import RebuildUnavailableError
+from memspine.store.events import MemoryEvent
+from memspine.store.projections.projector import Projector
 
 __all__ = ["ReplayableStorage", "catch_up", "rebuild"]
 

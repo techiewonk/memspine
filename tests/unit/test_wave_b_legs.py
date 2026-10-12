@@ -11,8 +11,8 @@ import pytest
 from memspine import Engine
 from memspine.config.schema import ReadConfig
 from memspine.core.query_shape import question_shape, statement_form
-from memspine.core.records import MemoryRecord
 from memspine.core.temporal_query import entity_leg, named_terms
+from memspine.store.records import MemoryRecord
 
 T0 = datetime(2023, 5, 1, 9, 0, tzinfo=UTC)
 

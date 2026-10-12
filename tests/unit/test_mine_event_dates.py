@@ -353,7 +353,7 @@ async def test_happened_fact_is_not_shifted_twice_at_read(
 def test_legacy_happened_fact_without_said_tag_is_not_resolved() -> None:
     from memspine.core.event_date import date_anchor
     from memspine.core.lead import event_day
-    from memspine.core.records import MemoryRecord
+    from memspine.store.records import MemoryRecord
 
     moved = MemoryRecord(
         namespace="a",

@@ -6,8 +6,8 @@ import pytest
 import zstandard
 
 from memspine.core.policies.compression import CompressionPolicy
-from memspine.core.records import MemoryRecord
 from memspine.exceptions import StorageError
+from memspine.store.records import MemoryRecord
 
 
 def rec(tier: str = "dormant", content: str = "a long-forgotten memory " * 20) -> MemoryRecord:

@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from memspine import Engine
-from memspine.core.records import SourceInfo
+from memspine.store.records import SourceInfo
 
 FACT = "The quarterly offsite is booked at the lakeside lodge"
 CUE = "where are we going for the team retreat trip"

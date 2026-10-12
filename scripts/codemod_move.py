@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 """Move modules and rewrite every reference (restructure codemod, reused by each move package).
 
 Usage:
@@ -34,6 +35,7 @@ import re
 import subprocess
 import sys
 import tomllib
+import warnings
 from pathlib import Path
 
 SCAN_DIRS = ("src", "tests", "evals", "scripts")
@@ -127,7 +129,9 @@ def rewrite_imports(text: str, cur: tuple[str, bool] | None, old_name: tuple[str
                     moves: dict[str, str]) -> str:
     """AST-guided rewrite of ``from X import Y`` forms the dotted regex cannot reach."""
     try:
-        tree = ast.parse(text)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            tree = ast.parse(text)
     except SyntaxError:
         return text
     # for relative-import resolution use the pre-move location when the file moved in this run
@@ -150,7 +154,6 @@ def rewrite_imports(text: str, cur: tuple[str, bool] | None, old_name: tuple[str
         if not base:
             continue
         # group aliases by target (module, bound-name rewrite)
-        groups: dict[str, list[ast.alias]] = {}
         renamed = False
         new_aliases: list[tuple[str, str, str | None]] = []  # (target module, name, asname)
         for a in node.names:
@@ -225,7 +228,9 @@ def process(root: Path, moves: dict[str, str], moved_now: dict[str, str], dry: b
 def absolutise_relative(text: str, ctx: tuple[str, bool]) -> str:
     """Rewrite remaining relative imports in a moved file to absolute names (resolved from the OLD location)."""
     try:
-        tree = ast.parse(text)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            tree = ast.parse(text)
     except SyntaxError:
         return text
     lines = text.splitlines(keepends=True)

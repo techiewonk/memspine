@@ -16,8 +16,8 @@ import re
 from collections.abc import Iterable, Sequence
 from datetime import date, datetime
 
-from memspine.core.records import MemoryRecord
 from memspine.core.temporal_resolve import WeekMode, resolve
+from memspine.store.records import MemoryRecord
 
 __all__ = [
     "HAPPENED_PREFIX",

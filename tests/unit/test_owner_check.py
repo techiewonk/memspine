@@ -16,7 +16,7 @@ from memspine.core.owner_check import (
     user_header,
 )
 from memspine.core.perspective import asker_scope, record_view, resolve_question
-from memspine.core.records import MemoryRecord
+from memspine.store.records import MemoryRecord
 
 TWO = {"caroline", "melanie"}
 CHAT = {"user", "assistant"}

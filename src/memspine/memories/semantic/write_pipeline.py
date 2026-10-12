@@ -44,11 +44,11 @@ from typing import Any, Protocol
 from pydantic import BaseModel
 
 from memspine.config.constants import DERIVED_ROLE
-from memspine.core.firewall import instruction_shaped
 from memspine.core.perspective import inherit_perspective_tags
-from memspine.core.records import MemoryRecord, SourceInfo
 from memspine.observability.logging import get_logger
 from memspine.prompts.models import ExtractedEdge
+from memspine.store.records import MemoryRecord, SourceInfo
+from memspine.trust.firewall import instruction_shaped
 
 __all__ = [
     "EDGE_CHANNEL",

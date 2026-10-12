@@ -11,10 +11,10 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from memspine.config import constants
-from memspine.core.events import EventLogMode
-from memspine.core.namespace import validate_namespace
 from memspine.core.registry import validate_types
 from memspine.exceptions import ConfigError
+from memspine.store.events import EventLogMode
+from memspine.store.scope import validate_namespace
 
 __all__ = [
     "AuditConfig",

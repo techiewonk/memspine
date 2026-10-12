@@ -8,8 +8,8 @@ import pytest
 
 from memspine import Engine
 from memspine.config import constants
-from memspine.core.records import RecordStatus
 from memspine.prompts.models import ExtractedFact
+from memspine.store.records import RecordStatus
 
 
 def _engine(policies: dict[str, object] | None) -> Engine:
@@ -245,7 +245,7 @@ async def test_a_predicted_line_never_suppresses_storage(monkeypatch: pytest.Mon
 async def test_a_low_trust_record_does_not_suppress_the_true_fact(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from memspine.core.records import SourceInfo
+    from memspine.store.records import SourceInfo
 
     eng = _engine({"predict_calibrate": True})
     fact = ExtractedFact(entity="Alice", attribute="plan", value="Alice is moving to Paris")

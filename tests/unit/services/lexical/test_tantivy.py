@@ -12,8 +12,8 @@ import pytest
 pytest.importorskip("tantivy")
 
 from memspine.config.constants import MAX_LEXICAL_QUERY_TERMS
-from memspine.core.records import MemoryRecord, SourceInfo
 from memspine.services.lexical.tantivy import TantivyLexical, tokenize_content
+from memspine.store.records import MemoryRecord, SourceInfo
 
 
 def rec(record_id: str, namespace: str, content: str) -> MemoryRecord:

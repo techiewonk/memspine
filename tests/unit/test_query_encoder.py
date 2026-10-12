@@ -8,12 +8,12 @@ from typing import Any
 import pytest
 
 from memspine import Engine
-from memspine.core.records import MemoryRecord, SourceInfo
 from memspine.services.query_encoder import (
     CueQueryEncoder,
     NoopQueryEncoder,
     QueryEncoder,
 )
+from memspine.store.records import MemoryRecord, SourceInfo
 
 FILLER = [
     "Bob repaired the garden fence on Sunday",
@@ -198,7 +198,7 @@ async def test_an_erased_or_held_cue_leaves_the_encoder(how: str) -> None:
 async def test_a_forgotten_cue_is_not_reloaded_after_a_restart() -> None:
     """The per-namespace load skips cues that are not live (a fresh encoder)."""
     from memspine.config import constants
-    from memspine.core.records import RecordStatus
+    from memspine.store.records import RecordStatus
 
     async def load(_ns: str) -> list[MemoryRecord]:
         live = MemoryRecord(

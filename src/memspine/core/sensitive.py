@@ -1,6 +1,6 @@
 """W16 (plan v3.2, G20): sensitive-topic tagging. Lexicon only, no model.
 
-The identifier patterns (``core/redaction.py``) find what can be masked: keys, card
+The identifier patterns (``trust/redaction.py``) find what can be masked: keys, card
 numbers, addresses. Sensitive *topics* cannot be masked without losing the memory,
 but they need governance: GDPR art. 9 special categories (health, religion or belief,
 sexual orientation, political opinion, ethnic origin, trade-union membership),

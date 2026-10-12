@@ -11,9 +11,9 @@ from test_graph_leg_off_golden import _engine, seed
 
 from memspine import Engine
 from memspine.config import constants
-from memspine.core.records import MemoryRecord
 from memspine.memories.associative.ppr import local_push_ppr, personalized_pagerank
 from memspine.services.graph.base import GraphEdge
+from memspine.store.records import MemoryRecord
 
 QUERY = "what books has Melanie read"
 MELANIE = {'Melanie read "Charlotte\'s Web"', 'Melanie read "Nothing Is Impossible"'}
@@ -140,7 +140,7 @@ def test_local_push_ppr_without_live_seeds_is_empty() -> None:
 async def test_episode_mentions_count_only_admitted_sources() -> None:
     """fix/graph-review #5: an ``edge_source:`` tag whose episode is forgotten,
     quarantined, missing or below ``read.graph_min_trust`` lends no lift."""
-    from memspine.core.records import SourceInfo
+    from memspine.store.records import SourceInfo
 
     eng = await _started(graph_rerank="distance", graph_min_trust=0.75)
     try:

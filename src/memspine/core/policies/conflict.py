@@ -41,7 +41,7 @@ from typing import ClassVar
 from memspine.core.inference import INFERRED_TAG
 from memspine.core.policies.base import BindablePolicy, PolicyOptions
 from memspine.core.query_shape import content_words
-from memspine.core.records import MemoryRecord
+from memspine.store.records import MemoryRecord
 
 __all__ = ["ConflictPolicy", "ConflictVerdict"]
 

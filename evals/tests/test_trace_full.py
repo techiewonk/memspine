@@ -19,7 +19,7 @@ from memspine_evals.readers import QA_PROMPTS, OpenAICompatReader
 from memspine_evals.runner import EvalRunner, RunConfig
 from memspine_evals.systems import VerbatimSystem
 
-from memspine.core.records import MemoryRecord, SourceInfo
+from memspine.store.records import MemoryRecord, SourceInfo
 
 REPLY = "Answer: a dog"
 

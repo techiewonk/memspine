@@ -7,7 +7,7 @@ from typing import Any
 
 from memspine import Engine
 from memspine.core.policies.assembly import estimate_tokens
-from memspine.core.records import RecordStatus
+from memspine.store.records import RecordStatus
 
 T0 = datetime(2023, 5, 7, 10, 0, tzinfo=UTC)
 

@@ -8,10 +8,10 @@ ONLY when hybrid retrieval is enabled, so rebuild() replays it and the
 
 from __future__ import annotations
 
-from memspine.core.events import EventKind, MemoryEvent
-from memspine.core.projector import Projector
-from memspine.core.records import MemoryRecord
 from memspine.services.lexical.base import LexicalStore
+from memspine.store.events import EventKind, MemoryEvent
+from memspine.store.projections.projector import Projector
+from memspine.store.records import MemoryRecord
 
 __all__ = ["LexicalProjector"]
 

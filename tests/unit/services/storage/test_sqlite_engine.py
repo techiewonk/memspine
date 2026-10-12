@@ -8,13 +8,13 @@ from pathlib import Path
 import pytest
 
 from memspine.clients.sqlite import SQLiteClient
-from memspine.core.events import EventKind, EventLogMode, MemoryEvent
-from memspine.core.projector import Projector
-from memspine.core.records import MemoryRecord, PiiTier, RecordStatus, SourceInfo
-from memspine.core.replay import catch_up, rebuild
 from memspine.exceptions import RebuildUnavailableError, StorageError
 from memspine.services.storage.sqlite.engine import SQLiteStorage
 from memspine.services.storage.sqlite.migrations import upgrade_to_head
+from memspine.store.events import EventKind, EventLogMode, MemoryEvent
+from memspine.store.projections.projector import Projector
+from memspine.store.records import MemoryRecord, PiiTier, RecordStatus, SourceInfo
+from memspine.store.replay import catch_up, rebuild
 
 
 class DictProjector(Projector):

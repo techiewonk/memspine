@@ -12,7 +12,7 @@ from __future__ import annotations
 import unicodedata
 from collections.abc import Iterable, Sequence
 
-from memspine.core.records import MemoryRecord
+from memspine.store.records import MemoryRecord
 
 __all__ = [
     "LOCATION_PREFIX",

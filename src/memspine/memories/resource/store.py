@@ -13,11 +13,11 @@ from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import ClassVar, Protocol
 
-from memspine.core.events import EventKind, MemoryEvent
-from memspine.core.records import MemoryRecord, PiiTier, SourceInfo
 from memspine.memories.base import BaseMemory
 from memspine.memories.resource.extraction import chunk_text, extract_text
 from memspine.observability.logging import get_logger
+from memspine.store.events import EventKind, MemoryEvent
+from memspine.store.records import MemoryRecord, PiiTier, SourceInfo
 
 __all__ = ["ResourceMemory"]
 

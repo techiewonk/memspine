@@ -11,8 +11,8 @@ from collections.abc import Sequence
 from datetime import datetime
 from typing import Protocol, runtime_checkable
 
-from memspine.core.events import MemoryEvent
-from memspine.core.records import MemoryRecord
+from memspine.store.events import MemoryEvent
+from memspine.store.records import MemoryRecord
 
 __all__ = ["StorageService"]
 

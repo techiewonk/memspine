@@ -11,11 +11,11 @@ import pytest
 from assoc_helpers import EventLog, FakeStorage
 
 from memspine.clients.sqlite import SQLiteClient
-from memspine.core.events import EventKind, MemoryEvent
-from memspine.core.records import MemoryRecord
 from memspine.memories.associative.projector import GraphProjector
 from memspine.services.graph.sqlite_adjacency import SQLiteAdjacencyGraph
 from memspine.services.storage.sqlite.schema import metadata
+from memspine.store.events import EventKind, MemoryEvent
+from memspine.store.records import MemoryRecord
 
 
 @pytest.fixture

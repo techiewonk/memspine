@@ -30,7 +30,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from memspine.config.constants import CUE_TAG, ENTITY_NODE_BLOCKLIST
-from memspine.core.records import MemoryRecord
+from memspine.store.records import MemoryRecord
 
 __all__ = [
     "ENTITY_LABEL",

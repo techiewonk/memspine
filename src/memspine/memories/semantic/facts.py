@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Protocol
 
-from memspine.core.records import MemoryRecord, RecordStatus
+from memspine.store.records import MemoryRecord, RecordStatus
 
 __all__ = ["FactStorage", "fact_at", "fact_key"]
 

@@ -14,13 +14,13 @@ from memspine import Engine
 from memspine.config.schema import MemspineConfig
 from memspine.core.agentic import clean_query, evidence_view, fuse_new, merge_budget
 from memspine.core.query_shape import is_multi_hop
-from memspine.core.records import MemoryRecord
 from memspine.engine import search_forensics
 from memspine.prompts.models import OUTPUT_MODELS, AgenticStepOut
 from memspine.services.decision.decider import TASKS, Decision, HeuristicDecider
 from memspine.services.llm import structured
 from memspine.services.llm.base import LLMRouter, LLMService
 from memspine.services.llm.structured import StructuredOptions
+from memspine.store.records import MemoryRecord
 
 T0 = datetime(2023, 5, 7, 10, 0, tzinfo=UTC)
 

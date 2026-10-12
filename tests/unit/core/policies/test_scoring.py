@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 from memspine.core.policies.scoring import ScoringPolicy
-from memspine.core.records import MemoryRecord, ScoringState
+from memspine.store.records import MemoryRecord, ScoringState
 
 NOW = datetime(2026, 7, 7, tzinfo=UTC)
 
@@ -61,7 +61,7 @@ def test_relevance_first_keeps_relevance_order_and_breaks_ties() -> None:
     from datetime import UTC, datetime, timedelta
 
     from memspine.core.policies.scoring import ScoringPolicy
-    from memspine.core.records import MemoryRecord
+    from memspine.store.records import MemoryRecord
 
     now = datetime(2026, 1, 1, tzinfo=UTC)
     old = MemoryRecord(

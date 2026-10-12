@@ -15,10 +15,10 @@ import httpx  # noqa: E402
 
 from memspine import Engine  # noqa: E402
 from memspine.config.schema import RestConfig  # noqa: E402
-from memspine.core.events import EventKind  # noqa: E402
 from memspine.exceptions import ConfigError  # noqa: E402
 from memspine.protocols.rest import create_app  # noqa: E402
 from memspine.protocols.rest.auth import RateLimiter  # noqa: E402
+from memspine.store.events import EventKind  # noqa: E402
 
 _ISS_AUD = {"issuer": "https://issuer.test", "audience": "memspine-test"}
 

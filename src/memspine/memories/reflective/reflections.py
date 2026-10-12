@@ -13,12 +13,12 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable, Sequence
 from typing import ClassVar, Protocol
 
-from memspine.core.events import EventKind, MemoryEvent
-from memspine.core.records import MemoryRecord, SourceInfo
 from memspine.exceptions import ConflictError
 from memspine.memories.base import BaseMemory
 from memspine.memories.reflective.guards import reflection_depth_for
 from memspine.observability.logging import get_logger
+from memspine.store.events import EventKind, MemoryEvent
+from memspine.store.records import MemoryRecord, SourceInfo
 
 __all__ = ["ReflectiveMemory"]
 

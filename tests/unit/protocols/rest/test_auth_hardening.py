@@ -26,11 +26,11 @@ from fastapi import FastAPI  # noqa: E402
 
 from memspine import Engine  # noqa: E402
 from memspine.config.schema import RestConfig  # noqa: E402
-from memspine.core.events import EventKind  # noqa: E402
 from memspine.protocols.rest import app as rest_app  # noqa: E402
 from memspine.protocols.rest import auth as rest_auth  # noqa: E402
 from memspine.protocols.rest import create_app  # noqa: E402
 from memspine.protocols.rest.auth import Authenticator, AuthError  # noqa: E402
+from memspine.store.events import EventKind  # noqa: E402
 
 ALICE_KEY = "alice-test-key-0001"
 ADMIN_KEY = "admin-test-key-0002"

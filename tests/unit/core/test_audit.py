@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from memspine.core.audit import trace_taint
-from memspine.core.events import EventKind, MemoryEvent
+from memspine.store.events import EventKind, MemoryEvent
+from memspine.trust.audit import trace_taint
 
 
 class FakeEventSource:

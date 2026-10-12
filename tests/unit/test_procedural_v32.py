@@ -11,8 +11,8 @@ import pytest
 
 from memspine import Engine
 from memspine.config import constants
-from memspine.core.records import RecordStatus, SkillStage, SourceInfo
 from memspine.exceptions import ConflictError
+from memspine.store.records import RecordStatus, SkillStage, SourceInfo
 
 
 async def _engine(

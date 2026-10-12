@@ -109,8 +109,8 @@ async def test_aged_lifecycle_end_to_end_through_the_engine(engine: Engine) -> N
     search/retrieve, and survive a real Engine.rebuild() with both projectors."""
     from datetime import UTC, datetime, timedelta
 
-    from memspine.core.events import EventKind, MemoryEvent
-    from memspine.core.records import MemoryRecord
+    from memspine.store.events import EventKind, MemoryEvent
+    from memspine.store.records import MemoryRecord
 
     original = "the shinagawa office badge code was rotated in march " * 5
     moment = datetime.now(UTC) - timedelta(days=200)
@@ -176,8 +176,8 @@ async def test_ingest_empty_document_is_a_loud_noop(engine: Engine, tmp_path: Pa
 async def test_sessions_gap_override_and_timeline_window(engine: Engine) -> None:
     from datetime import UTC, datetime, timedelta
 
-    from memspine.core.events import EventKind, MemoryEvent
-    from memspine.core.records import MemoryRecord
+    from memspine.store.events import EventKind, MemoryEvent
+    from memspine.store.records import MemoryRecord
 
     now = datetime.now(UTC)
     for minutes_ago in (30, 20, 5):

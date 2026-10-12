@@ -22,9 +22,9 @@ from memspine.core.perspective import (
     unacknowledged_claim,
 )
 from memspine.core.read_filters import as_of_scope
-from memspine.core.records import MemoryRecord, RecordStatus
 from memspine.memories.semantic.write_pipeline import GraphWritePipeline
 from memspine.prompts.models import ExtractedEdge
+from memspine.store.records import MemoryRecord, RecordStatus
 
 TWO = {"caroline", "melanie"}
 CHAT = {"user", "assistant"}

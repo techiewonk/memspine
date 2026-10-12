@@ -18,7 +18,7 @@ from memspine.core import trace_sink
 from memspine.core.evidence import EvidenceSignal
 from memspine.core.policies.base import BindablePolicy, PolicyOptions
 from memspine.core.policies.compression import CompressionPolicy
-from memspine.core.records import MemoryRecord
+from memspine.store.records import MemoryRecord
 
 __all__ = ["AssembledContext", "AssemblyPolicy", "estimate_tokens"]
 

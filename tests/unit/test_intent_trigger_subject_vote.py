@@ -6,13 +6,13 @@ import pytest
 
 from memspine.config.schema import ReadConfig
 from memspine.core.query_shape import is_intent_list
-from memspine.core.records import MemoryRecord, SourceInfo
 from memspine.core.temporal_query import (
     LegHit,
     question_subject,
     speaker_vector_leg,
     subject_vector_leg,
 )
+from memspine.store.records import MemoryRecord, SourceInfo
 
 # -- I4 -----------------------------------------------------------------------------------
 

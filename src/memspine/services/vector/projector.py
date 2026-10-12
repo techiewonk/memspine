@@ -6,11 +6,11 @@ cache makes that cheap when content is unchanged).
 
 from __future__ import annotations
 
-from memspine.core.events import EventKind, MemoryEvent
-from memspine.core.projector import Projector
-from memspine.core.records import MemoryRecord
 from memspine.services.embedding.base import EmbeddingService
 from memspine.services.vector.base import VectorStore
+from memspine.store.events import EventKind, MemoryEvent
+from memspine.store.projections.projector import Projector
+from memspine.store.records import MemoryRecord
 
 __all__ = ["VectorProjector"]
 

@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from memspine import Engine
-from memspine.core.records import RecordStatus, SourceInfo
+from memspine.store.records import RecordStatus, SourceInfo
 
 
 def _engine(**extra: Any) -> Engine:

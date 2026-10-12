@@ -7,10 +7,10 @@ from collections.abc import Callable
 import pytest
 from assoc_helpers import EventLog, FakeStorage
 
-from memspine.core.records import MemoryRecord
 from memspine.memories.associative.links import link_event
 from memspine.memories.associative.store import AssociativeMemory
 from memspine.services.graph.sqlite_adjacency import SQLiteAdjacencyGraph
+from memspine.store.records import MemoryRecord
 
 
 @pytest.fixture

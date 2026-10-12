@@ -13,12 +13,12 @@ from pydantic import ValidationError
 from memspine import Engine
 from memspine.config.schema import MemspineConfig
 from memspine.core.query_contract import build_contract
-from memspine.core.records import MemoryRecord
 from memspine.core.slot_loop import CalcError, calculate, slot_hint, slot_view, step_signature
 from memspine.engine import search_forensics
 from memspine.prompts.models import SlotStepOut
 from memspine.services.llm import structured
 from memspine.services.llm.base import LLMRouter, LLMService
+from memspine.store.records import MemoryRecord
 
 T0 = datetime(2023, 5, 7, 10, 0, tzinfo=UTC)
 QUESTION = "What do Caroline and Melanie both like?"

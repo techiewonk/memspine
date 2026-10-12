@@ -6,10 +6,10 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from memspine.core.events import EventKind, MemoryEvent
-from memspine.core.records import MemoryRecord, RecordStatus
 from memspine.exceptions import ConflictError
 from memspine.memories.prospective.watches import ProspectiveMemory, make_watch_record
+from memspine.store.events import EventKind, MemoryEvent
+from memspine.store.records import MemoryRecord, RecordStatus
 
 NOW = datetime(2026, 7, 7, 12, 0, tzinfo=UTC)
 

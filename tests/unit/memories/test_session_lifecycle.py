@@ -10,10 +10,10 @@ from typing import Any
 import pytest
 
 from memspine import Engine
-from memspine.core.events import EventKind
-from memspine.core.records import MemoryRecord, ScoringState, SourceInfo
 from memspine.exceptions import ConfigError
 from memspine.memories.episodic.lifecycle import parse_duration, plan_transitions
+from memspine.store.events import EventKind
+from memspine.store.records import MemoryRecord, ScoringState, SourceInfo
 
 HORIZON = 1.0  # seconds; the tests wait past it in real time
 

@@ -9,7 +9,7 @@ import pytest
 
 from memspine import Engine
 from memspine.config.schema import ReadConfig
-from memspine.core import records as records_module
+from memspine.store import records as records_module
 
 T0 = datetime(2023, 5, 1, 9, 0, tzinfo=UTC)
 

@@ -13,7 +13,6 @@ import pytest
 from memspine import Engine
 from memspine.config.schema import ReadConfig
 from memspine.core.query_shape import is_set_question, is_set_question_wide
-from memspine.core.records import MemoryRecord
 from memspine.core.temporal_query import (
     LegHit,
     bridge_phrases,
@@ -21,6 +20,7 @@ from memspine.core.temporal_query import (
     has_bridge_cue,
 )
 from memspine.engine import _RERANK_SUPPORT, search_forensics
+from memspine.store.records import MemoryRecord
 
 T0 = datetime(2023, 5, 1, 9, 0, tzinfo=UTC)
 LOCOMO = Path(__file__).resolve().parents[2] / "data" / "locomo10.json"

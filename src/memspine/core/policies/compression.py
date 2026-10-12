@@ -44,9 +44,9 @@ from pydantic import Field, field_validator
 
 from memspine.config import constants
 from memspine.core.policies.base import BindablePolicy, PolicyOptions
-from memspine.core.records import MemoryRecord, RecordStatus
 from memspine.exceptions import StorageError
 from memspine.observability.logging import get_logger
+from memspine.store.records import MemoryRecord, RecordStatus
 
 __all__ = ["ASSEMBLY_STAGES", "CompressionPolicy"]
 

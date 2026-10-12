@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-from memspine.core.records import MemoryRecord, SourceInfo
 from memspine.exceptions import MissingServiceError
 from memspine.services.rerank.base import Reranker, concat_background
+from memspine.store.records import MemoryRecord, SourceInfo
 
 
 def test_concat_background_prepends_structural_context() -> None:

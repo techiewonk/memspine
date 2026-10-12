@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from memspine.core.events import EventKind, MemoryEvent
-from memspine.core.records import MemoryRecord
 from memspine.memories.associative.links import link_event
 from memspine.memories.associative.projector import GraphProjector
 from memspine.services.graph.sqlite_adjacency import SQLiteAdjacencyGraph
+from memspine.store.events import EventKind, MemoryEvent
+from memspine.store.records import MemoryRecord
 
 
 async def test_write_projects_one_node_per_record(

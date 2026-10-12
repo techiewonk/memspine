@@ -57,8 +57,8 @@ from typing import Any
 import pytest
 
 from memspine import Engine
-from memspine.core.events import EventKind, MemoryEvent
-from memspine.core.records import MemoryRecord, RecordStatus
+from memspine.store.events import EventKind, MemoryEvent
+from memspine.store.records import MemoryRecord, RecordStatus
 from memspine.workers.pipelines import consolidate
 
 # episodic + semantic: consolidation reads closed episodic sessions and writes

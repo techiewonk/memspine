@@ -13,9 +13,9 @@ from itertools import pairwise
 
 from pydantic import BaseModel
 
-from memspine.core.events import fingerprint_payload
-from memspine.core.records import MemoryRecord
 from memspine.memories.episodic.timeops import sort_timeline
+from memspine.store.events import fingerprint_payload
+from memspine.store.records import MemoryRecord
 
 __all__ = [
     "Session",

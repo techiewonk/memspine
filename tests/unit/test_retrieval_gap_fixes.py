@@ -10,7 +10,7 @@ from pydantic import ValidationError
 
 from memspine import Engine
 from memspine.config.schema import ReadConfig
-from memspine.core.records import MemoryRecord
+from memspine.store.records import MemoryRecord
 
 WORDS = [f"w{i}x{i * 7}" for i in range(60)]
 T0 = datetime(2023, 5, 7, 10, 0, tzinfo=UTC)

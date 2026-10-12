@@ -21,7 +21,6 @@ from memspine.core.inference import (
     support_tags,
 )
 from memspine.core.policies.conflict import ConflictPolicy, ConflictVerdict
-from memspine.core.records import MemoryRecord, SourceInfo
 from memspine.core.sensitivity import (
     grade_rank,
     grade_text,
@@ -30,14 +29,15 @@ from memspine.core.sensitivity import (
     passes_gate,
     query_topics,
 )
-from memspine.core.visibility import (
+from memspine.services.decision.decider import Decision, HeuristicDecider
+from memspine.store.records import MemoryRecord, SourceInfo
+from memspine.trust.visibility import (
     inherit_tags,
     participant_tags,
     visibility_of,
     visibility_tag,
     visible_to,
 )
-from memspine.services.decision.decider import Decision, HeuristicDecider
 
 T0 = datetime(2023, 5, 1, 9, 0, tzinfo=UTC)
 

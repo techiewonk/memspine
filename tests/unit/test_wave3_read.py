@@ -22,10 +22,10 @@ from memspine.core.read_filters import (
     time_expr_span,
     to_utc,
 )
-from memspine.core.records import MemoryRecord
 from memspine.exceptions import MissingServiceError
 from memspine.prompts.models import AnswerVerdictOut, MissingInfoOut, ReadPlan
 from memspine.services.llm.base import LLMRouter, LLMService
+from memspine.store.records import MemoryRecord
 
 T0 = datetime(2023, 5, 7, 10, 0, tzinfo=UTC)
 

@@ -13,11 +13,11 @@ import pytest
 
 from memspine.clients.sqlite import SQLiteClient
 from memspine.config.loader import load_config
-from memspine.core.events import EventKind, MemoryEvent
-from memspine.core.records import MemoryRecord
 from memspine.memories.prospective.watches import make_watch_record
 from memspine.services.storage.projector import RecordProjector
 from memspine.services.storage.sqlite.engine import SQLiteStorage
+from memspine.store.events import EventKind, MemoryEvent
+from memspine.store.records import MemoryRecord
 from memspine.workers.pipelines import PipelineContext, check_watches
 
 NOW = datetime.now(UTC)
