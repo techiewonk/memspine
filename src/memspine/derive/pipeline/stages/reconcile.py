@@ -24,7 +24,7 @@ from collections.abc import Iterable
 from datetime import UTC, datetime
 
 from memspine.derive.integrate import CardinalityRegistry, ordering_key, record_id
-from memspine.derive.pipeline.stages.context import PipelineContext
+from memspine.derive.pipeline.stages.context import PipelineContext, sweep_namespaces
 from memspine.derive.pipeline.stages.envelope_adapter import is_fact, key_of, to_envelope
 from memspine.derive.reconcile import (
     PendingMerge,
@@ -86,7 +86,7 @@ async def reconcile(ctx: PipelineContext) -> dict[str, object]:
     now = datetime.now(UTC)
     totals: Counter[str] = Counter()
     errors: list[str] = []
-    for namespace in await ctx.storage.list_namespaces():
+    for namespace in await sweep_namespaces(ctx):
         try:
             async with ctx.lock(namespace):
                 totals.update(await _reconcile_one(ctx, namespace, now))

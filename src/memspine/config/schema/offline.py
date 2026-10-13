@@ -125,6 +125,15 @@ class OfflineConfig(BaseModel):
     budget_calls_per_cycle: int | None = Field(default=None, ge=0)
     #: O4-01b: tokens one namespace may spend per cycle (None = no cap on tokens).
     budget_tokens_per_cycle: int | None = Field(default=None, ge=0)
+    #: FU-SLEEP (follow-up to O4-01a; needs ``sleep_v2``): ``True``: a namespace job (a trigger-fired
+    #: or ``sleep(namespace)`` job) runs its stages over that namespace only (``PipelineContext.
+    #: scope_namespace``); today every stage sweeps every namespace, so one namespace's trigger
+    #: re-touches the rest. Its model calls are costed under the real namespace (not the engine-wide
+    #: pool ``"-"``) and ``economy.budget`` applies per namespace. A manual ``sleep()`` (lease key
+    #: ``*``) stays engine-wide. Stages not converted (engine-wide in every job): ``retention_expire``,
+    #: ``event_log_prune``, ``sleep_compute``. ``False`` (default): every stage sweeps every
+    #: namespace, exactly as before.
+    sleep_scoped: bool = False
 
     @model_validator(mode="after")
     def _decay_bands(self) -> OfflineConfig:

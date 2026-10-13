@@ -18,6 +18,7 @@ from memspine.derive.pipeline.stages.context import (
     PipelineContext,
     _int_option,
     _parents_gone,
+    sweep_namespaces,
 )
 from memspine.derive.pipeline.stages.entity_summaries import (
     _archive_summaries,
@@ -55,7 +56,7 @@ async def summarize_entities_v2(ctx: PipelineContext) -> dict[str, object]:
     await index.refresh(ctx.storage)
     counts: Counter[str] = Counter()
     errors: list[str] = []
-    for namespace in await ctx.storage.list_namespaces():
+    for namespace in await sweep_namespaces(ctx):
         try:
             # 1. Read under the lock: which entities changed, and what they say.
             async with ctx.lock(namespace):

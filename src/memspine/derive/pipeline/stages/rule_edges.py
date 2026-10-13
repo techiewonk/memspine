@@ -5,7 +5,12 @@ from __future__ import annotations
 from memspine.config import constants
 from memspine.config.schema import MemspineConfig
 from memspine.core.rule_edges import BECAUSE_REL, causal_links, kinship_relations
-from memspine.derive.pipeline.stages.context import PipelineContext, _int_option, _local_screen
+from memspine.derive.pipeline.stages.context import (
+    PipelineContext,
+    _int_option,
+    _local_screen,
+    sweep_namespaces,
+)
 from memspine.exceptions import ConflictError
 from memspine.memories.associative.entities import canonical_entity
 from memspine.memories.associative.links import assert_within_budget, link_event
@@ -77,7 +82,7 @@ async def rule_edges(ctx: PipelineContext) -> dict[str, object]:
     screen = ctx.screen or _local_screen(ctx)
     protected = ctx.config.firewall.protected_keys
     linked = facts = existing_links = budget_full = quarantined = 0
-    for namespace in await ctx.storage.list_namespaces():
+    for namespace in await sweep_namespaces(ctx):
         async with ctx.lock(namespace):
             turns = _rule_turns(await ctx.storage.list_records(namespace, "episodic"))
             by_id = {t.record_id: t for t in turns}

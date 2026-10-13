@@ -21,7 +21,7 @@ from memspine.config import constants
 from memspine.core.escaping import escape_markers
 from memspine.derive import standing as lib
 from memspine.derive.histories import value_history
-from memspine.derive.pipeline.stages.context import PipelineContext, _parents_gone
+from memspine.derive.pipeline.stages.context import PipelineContext, _parents_gone, sweep_namespaces
 from memspine.derive.pipeline.stages.offline_common import (
     STANDING_CHANNEL,
     archive_records,
@@ -151,7 +151,7 @@ async def standing_answers(ctx: PipelineContext) -> dict[str, object]:
     hit_log = list(HIT_LOG)
     built = stale = evicted = emptied = skipped_parents = 0
     errors: list[str] = []
-    for namespace in await ctx.storage.list_namespaces():
+    for namespace in await sweep_namespaces(ctx):
         async with ctx.lock(namespace):
             records = await ctx.storage.list_records(namespace, "semantic")
             by_record = {r.record_id: r for r in records}

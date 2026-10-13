@@ -7,7 +7,12 @@ from datetime import UTC, datetime
 from memspine.compose.compression import CompressionPolicy
 from memspine.config import constants
 from memspine.core.policies.consolidation import ConsolidationPolicy, ConsolidationTrigger
-from memspine.derive.pipeline.stages.context import PipelineContext, _parents_gone, _policy_options
+from memspine.derive.pipeline.stages.context import (
+    PipelineContext,
+    _parents_gone,
+    _policy_options,
+    sweep_namespaces,
+)
 from memspine.memories.episodic.sessions import Session, detect_sessions
 from memspine.observability.logging import get_logger
 from memspine.store.events import EventKind, MemoryEvent
@@ -62,7 +67,7 @@ async def consolidate(ctx: PipelineContext) -> dict[str, object]:
     superseded = 0
     errors: list[str] = []
 
-    for namespace in await ctx.storage.list_namespaces():
+    for namespace in await sweep_namespaces(ctx):
         episodes = [
             record
             for record in await ctx.storage.list_records(namespace, "episodic")

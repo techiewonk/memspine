@@ -41,7 +41,12 @@ from memspine.derive.decay import (
     compression_plan,
     tier_plan,
 )
-from memspine.derive.pipeline.stages.context import PipelineContext, _parents_gone, _policy_options
+from memspine.derive.pipeline.stages.context import (
+    PipelineContext,
+    _parents_gone,
+    _policy_options,
+    sweep_namespaces,
+)
 from memspine.derive.pipeline.stages.offline_door import (
     MULTIRES_CHANNEL,
     MULTIRES_TAG,
@@ -63,12 +68,52 @@ _TIER_NAMES = {t: t.name.lower() for t in Tier}
 _TIER_OF = {name: tier for tier, name in _TIER_NAMES.items()}
 _STOP = frozenset(
     {
-        "about", "after", "again", "also", "because", "been", "before", "being",
-        "between", "could", "does", "from", "have", "into", "just", "more", "most",
-        "only", "other", "over", "said", "same", "some", "such", "than", "that",
-        "their", "them", "then", "there", "these", "they", "this", "those", "very",
-        "was", "were", "what", "when", "where", "which", "while", "will", "with",
-        "would", "your",
+        "about",
+        "after",
+        "again",
+        "also",
+        "because",
+        "been",
+        "before",
+        "being",
+        "between",
+        "could",
+        "does",
+        "from",
+        "have",
+        "into",
+        "just",
+        "more",
+        "most",
+        "only",
+        "other",
+        "over",
+        "said",
+        "same",
+        "some",
+        "such",
+        "than",
+        "that",
+        "their",
+        "them",
+        "then",
+        "there",
+        "these",
+        "they",
+        "this",
+        "those",
+        "very",
+        "was",
+        "were",
+        "what",
+        "when",
+        "where",
+        "which",
+        "while",
+        "will",
+        "with",
+        "would",
+        "your",
     }
 )
 
@@ -125,7 +170,7 @@ async def decay_sweep_v2(ctx: PipelineContext) -> dict[str, object]:
     now = _now()
     transitions = 0
     errors: list[str] = []
-    for namespace in await ctx.storage.list_namespaces():
+    for namespace in await sweep_namespaces(ctx):
         moved: Counter[str] = Counter()
         reasons: Counter[str] = Counter()
         seen = protected = frozen = 0
@@ -247,7 +292,7 @@ async def multires_v2(ctx: PipelineContext) -> dict[str, object]:
     inflate = CompressionPolicy.bind()
     counts: Counter[str] = Counter()
     errors: list[str] = []
-    for namespace in await ctx.storage.list_namespaces():
+    for namespace in await sweep_namespaces(ctx):
         local: Counter[str] = Counter()
         try:
             await _multires_namespace(

@@ -287,8 +287,9 @@ def _build_cost_ledger(config: MemspineConfig) -> _economy_ledger.WriteCostLedge
     """W2-12: the cost ledger, with the optional budget (which needs the durable outbox, since
     paused work is kept there, marked underived)."""
     spec = config.economy.budget
+    store = _build_ledger_store(config)  # FU-SLEEP (economy.ledger_persist); None = in-process
     if spec is None:
-        return _economy_ledger.WriteCostLedger()
+        return _economy_ledger.WriteCostLedger(store=store)
     if not config.workers.outbox:
         raise ConfigError(
             "economy.budget pauses derivation by parking the work in the outbox: "
@@ -297,8 +298,28 @@ def _build_cost_ledger(config: MemspineConfig) -> _economy_ledger.WriteCostLedge
     return _economy_ledger.WriteCostLedger(
         budget=_economy_ledger.Budget(
             max_calls=spec.max_calls, max_tokens=spec.max_tokens, period_s=spec.period_s
-        )
+        ),
+        store=store,
     )
+
+
+def _build_ledger_store(config: MemspineConfig) -> _economy_ledger.LedgerStore | None:
+    """FU-SLEEP (``economy.ledger_persist``): the sibling SQLite file of the ledger rows
+    (``<storage.path>.cost``; for Postgres ``<storage.data_dir>/memspine.cost``). None when the flag
+    is off, or when there is no file to keep it in (``:memory:`` storage: logged)."""
+    if not config.economy.ledger_persist:
+        return None
+    storage = config.storage
+    if storage.backend == "sqlite" and storage.path != ":memory:":
+        path = f"{storage.path}.cost"
+    elif storage.backend != "sqlite" and storage.data_dir:
+        path = str(Path(storage.data_dir) / "memspine.cost")
+    else:
+        _log.warning(
+            "ledger_persist.in_memory", detail="no storage file: the cost ledger is not persisted"
+        )
+        return None
+    return _economy_ledger.LedgerStore(path)
 
 
 class Engine:
@@ -817,6 +838,7 @@ class Engine:
         if getattr(self, "_cost_ledger", None) is not None:
             if _economy_ledger.installed() is self._cost_ledger:
                 _economy_ledger.install(None)
+            self._cost_ledger.close()  # FU-SLEEP: flush the persisted rows
             self._cost_ledger = None
         if getattr(self, "_sched_v2", None) is not None:
             sched, self._sched_v2 = self._sched_v2, None
@@ -4961,6 +4983,7 @@ class Engine:
         ledger = self._cost_ledger
         if ledger is None:
             return {}
+        ledger.flush()
         report = ledger.report(namespace)
         if namespace is not None and self._windows is not None:
             report["deferred_windows"] = self._windows.deferred_count(namespace)

@@ -18,6 +18,8 @@ installed every hook is a pass-through.
 from __future__ import annotations
 
 import contextlib
+import dataclasses
+import sqlite3
 import threading
 import time
 from collections import defaultdict
@@ -36,6 +38,7 @@ __all__ = [
     "Budget",
     "CallCost",
     "CostScope",
+    "LedgerStore",
     "WriteCostLedger",
     "cost_scope",
     "current_scope",
@@ -47,7 +50,8 @@ __all__ = [
 #: Namespace/layer/stage used when a call carries no scope (and for engine-wide sleep stages).
 UNSCOPED = "-"
 #: Namespace key of engine-wide sleep stages: they run over every namespace and carry no per-call
-#: namespace, so their spend (and the sleep budget) is one pool.
+#: namespace, so their spend (and the sleep budget) is one pool. A namespace-scoped sleep job
+#: (``offline.sleep_scoped``) is costed under its real namespace instead.
 SLEEP_POOL = UNSCOPED
 
 Kind = Literal["generative", "embedding", "rerank", "tool"]
@@ -204,20 +208,134 @@ def _ns_hash(namespace: str) -> str:
 
 def _id(value: str) -> str:
     """Keep a stage or model name inside the LIB-27 id alphabet (its guard rejects the rest)."""
-    return "".join(ch if (ch.isalnum() or ch in "._:/@+#=-") else "-" for ch in value)[:128] or "-"
+    clean = "".join(ch if (ch.isalnum() or ch in "._:/@+#=-") else "-" for ch in value)[:128]
+    # the LIB-27 id guard wants a letter or digit first: an unscoped call ("-") is "unscoped"
+    return clean if clean[:1].isalnum() else f"unscoped{clean.strip('-')}"
+
+
+# --------------------------------------------------------------------------------- persistence
+_STORE_SCHEMA = """
+CREATE TABLE IF NOT EXISTS cost_entry (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, run TEXT NOT NULL, ns_hash TEXT NOT NULL,
+  layer TEXT NOT NULL, stage TEXT NOT NULL, kind TEXT NOT NULL, model TEXT, calls INTEGER NOT NULL,
+  tokens_in INTEGER NOT NULL, tokens_out INTEGER NOT NULL, latency_ms REAL NOT NULL,
+  outcome TEXT NOT NULL);
+"""
+
+
+class LedgerStore:
+    """``economy.ledger_persist``: compact ledger rows in a SQLite file (a sibling of the storage
+    database, like the O4-01a lease store), so the totals survive a restart. A row is ids, the
+    namespace *hash*, layer, stage, kind, calls, tokens and latency: never a name or content. Rows
+    are buffered and written in one transaction every ``flush_every`` records, on ``flush()`` and on
+    ``close()``, so the call path pays no per-call commit."""
+
+    def __init__(self, path: str, *, flush_every: int = 32) -> None:
+        self.path = path
+        self._flush_every = max(1, flush_every)
+        self._run = f"{int(time.time())}-{id(self) & 0xFFFF:x}"
+        self._buf: list[tuple[Any, ...]] = []
+        self._lock = threading.Lock()
+        self._con: sqlite3.Connection | None = sqlite3.connect(
+            path, timeout=10.0, isolation_level=None, check_same_thread=False
+        )
+        if path != ":memory:":
+            self._con.execute("PRAGMA journal_mode=WAL")
+        self._con.executescript(_STORE_SCHEMA)
+
+    def load(self, limit: int) -> list[CallCost]:
+        """The newest ``limit`` persisted rows, oldest first, as records (namespace = its hash;
+        ``seq`` 0, renumbered by the ledger)."""
+        with self._lock:
+            if self._con is None:
+                return []
+            rows = self._con.execute(
+                "SELECT ns_hash, layer, stage, kind, model, calls, tokens_in, tokens_out, "
+                "latency_ms, outcome FROM (SELECT * FROM cost_entry ORDER BY id DESC LIMIT ?) "
+                "ORDER BY id",
+                (limit,),
+            ).fetchall()
+        return [CallCost(0, *r) for r in rows]
+
+    def add(self, rec: CallCost) -> None:
+        ns = rec.namespace if rec.namespace == UNSCOPED else _ns_hash(rec.namespace)
+        row = (
+            self._run,
+            ns,
+            rec.layer,
+            rec.stage,
+            rec.kind,
+            rec.model,
+            rec.calls,
+            rec.tokens_in,
+            rec.tokens_out,
+            rec.latency_ms,
+            rec.outcome,
+        )
+        with self._lock:
+            self._buf.append(row)
+            full = len(self._buf) >= self._flush_every
+        if full:
+            self.flush()
+
+    def flush(self) -> None:
+        with self._lock:
+            rows, self._buf = self._buf, []
+            if not rows or self._con is None:
+                return
+            self._con.execute("BEGIN")
+            try:
+                self._con.executemany(
+                    "INSERT INTO cost_entry (run, ns_hash, layer, stage, kind, model, calls, "
+                    "tokens_in, tokens_out, latency_ms, outcome) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                    rows,
+                )
+            except BaseException:
+                self._con.execute("ROLLBACK")
+                raise
+            self._con.execute("COMMIT")
+
+    def close(self) -> None:
+        with contextlib.suppress(Exception):
+            self.flush()
+        with self._lock:
+            if self._con is not None:
+                self._con.close()
+                self._con = None
 
 
 # --------------------------------------------------------------------------------- ledger
 class WriteCostLedger:
-    """Per-call cost records, aggregated per layer, namespace and stage. Thread-safe, bounded."""
+    """Per-call cost records, aggregated per layer, namespace and stage. Thread-safe, bounded.
 
-    def __init__(self, *, budget: Budget | None = None, max_records: int = 100_000) -> None:
+    With a ``store`` (``economy.ledger_persist``) every record is also persisted and the earlier
+    runs' rows are reloaded here, so the totals survive a restart. A reloaded row knows only its
+    namespace hash: ``report(namespace)`` matches it by hash, and ``by_namespace`` names it once the
+    namespace is seen again in this run. Budget spend is not reloaded (it is per period)."""
+
+    def __init__(
+        self,
+        *,
+        budget: Budget | None = None,
+        max_records: int = 100_000,
+        store: LedgerStore | None = None,
+    ) -> None:
         self.budget = budget
         self.stage_ledger = StageLedger()  # LIB-27 view: ids, counts, durations only
         self._records: list[CallCost] = []
         self._max = max_records
         self._seq = 0
         self._lock = threading.Lock()
+        self.store = store
+        self._names: dict[str, str] = {}  # namespace hash -> name, learned from this run's calls
+        self._reloaded: set[str] = set()  # namespace hashes that came from the store
+        if store is not None:
+            for old in store.load(max_records):
+                self._seq += 1
+                rec = dataclasses.replace(old, seq=self._seq)
+                self._records.append(rec)
+                self._reloaded.add(rec.namespace)
+                self._stage_entry(rec)
 
     def record(
         self,
@@ -249,21 +367,12 @@ class WriteCostLedger:
             )
             if len(self._records) < self._max:
                 self._records.append(rec)
-                self.stage_ledger.append(
-                    StageEntry(
-                        stage=_id(sc.stage),
-                        scope_hash=_ns_hash(sc.namespace),
-                        request_or_job_id=f"call-{rec.seq}",
-                        cost_class=kind,
-                        model_id=_id(model) if model else None,
-                        prompt_tokens=rec.tokens_in,
-                        completion_tokens=rec.tokens_out,
-                        calls=rec.calls,
-                        duration_ms=rec.latency_ms,
-                        outcome=outcome,
-                        is_job=True,
-                    )
-                )
+                self._stage_entry(rec)
+                if sc.namespace != UNSCOPED:
+                    self._names[_ns_hash(sc.namespace)] = sc.namespace
+        if self.store is not None:
+            with contextlib.suppress(Exception):  # persistence never fails a model call
+                self.store.add(rec)
         if self.budget is not None and kind == "generative":
             self.budget.charge(sc.namespace, calls=rec.calls, tokens=rec.tokens_in + rec.tokens_out)
         if tap.enabled():
@@ -282,6 +391,38 @@ class WriteCostLedger:
             )
         return rec
 
+    def _stage_entry(self, rec: CallCost) -> None:
+        """The LIB-27 view of one record (ids, counts, durations only)."""
+        reloaded = rec.namespace in self._reloaded and rec.namespace != UNSCOPED
+        self.stage_ledger.append(
+            StageEntry(
+                stage=_id(rec.stage),
+                scope_hash=rec.namespace if reloaded else _ns_hash(rec.namespace),
+                request_or_job_id=f"call-{rec.seq}",
+                cost_class=rec.kind,
+                model_id=_id(rec.model) if rec.model else None,
+                prompt_tokens=rec.tokens_in,
+                completion_tokens=rec.tokens_out,
+                calls=rec.calls,
+                duration_ms=rec.latency_ms,
+                outcome=rec.outcome,
+                is_job=True,
+            )
+        )
+
+    def flush(self) -> None:
+        """Write buffered rows to the store (a no-op without ``economy.ledger_persist``)."""
+        if self.store is not None:
+            self.store.flush()
+
+    def close(self) -> None:
+        if self.store is not None:
+            self.store.close()
+
+    def _label(self, namespace: str) -> str:
+        """A record's namespace name: a reloaded hash shows its name once this run has seen it."""
+        return self._names.get(namespace, namespace)
+
     @property
     def records(self) -> tuple[CallCost, ...]:
         with self._lock:
@@ -297,7 +438,11 @@ class WriteCostLedger:
         return [
             r
             for r in self.records
-            if (namespace is None or r.namespace == namespace)
+            if (
+                namespace is None
+                or r.namespace == namespace
+                or (r.namespace in self._reloaded and r.namespace == _ns_hash(namespace))
+            )
             and (stages is None or r.stage in stages)
             and (kind is None or r.kind == kind)
         ]
@@ -329,13 +474,25 @@ class WriteCostLedger:
         for r in rows:
             split["by_layer"][r.layer].append(r)
             split["by_stage"][r.stage].append(r)
-            split["by_namespace"][r.namespace].append(r)
+            split["by_namespace"][self._label(r.namespace)].append(r)
         out: dict[str, Any] = {"namespace": namespace, **self._totals(rows)}
         for name, groups in split.items():
             out[name] = {k: self._totals(v) for k, v in sorted(groups.items())}
         out["budget"] = None
         if self.budget is not None:
-            spaces = [namespace] if namespace else sorted({r.namespace for r in rows})
+            spaces = (
+                [namespace]
+                if namespace
+                else sorted(
+                    {
+                        self._label(r.namespace)
+                        for r in rows
+                        if r.namespace not in self._reloaded
+                        or r.namespace in self._names
+                        or r.namespace == UNSCOPED
+                    }
+                )
+            )
             out["budget"] = {
                 "deferred": self.budget.deferred,
                 "namespaces": {ns: self.budget.status(ns) for ns in spaces},

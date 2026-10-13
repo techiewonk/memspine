@@ -8,7 +8,12 @@ from datetime import UTC, datetime
 from memspine.compose.compression import CompressionPolicy
 from memspine.core.policies.decay import DecayPolicy
 from memspine.core.policies.retention import RetentionPolicy
-from memspine.derive.pipeline.stages.context import PipelineContext, _policy_options, _sweep_stats
+from memspine.derive.pipeline.stages.context import (
+    PipelineContext,
+    _policy_options,
+    _sweep_stats,
+    sweep_namespaces,
+)
 from memspine.memories.episodic.lifecycle import passive_after, plan_transitions
 from memspine.observability.logging import get_logger
 from memspine.store.events import EventKind, MemoryEvent
@@ -37,7 +42,7 @@ async def session_lifecycle(ctx: PipelineContext) -> dict[str, object]:
     now = datetime.now(UTC)
     counts = {"passive": 0, "active": 0}
     errors: list[str] = []
-    for namespace in await ctx.storage.list_namespaces():
+    for namespace in await sweep_namespaces(ctx):
         async with ctx.lock(namespace):  # a reopening write must not interleave
             records = await ctx.storage.list_records(namespace, "episodic")
             for change in plan_transitions(records, now, horizon):
@@ -90,7 +95,7 @@ async def decay_sweep(ctx: PipelineContext) -> dict[str, object]:
     now = datetime.now(UTC)
     transitions = 0
     errors: list[str] = []
-    for namespace in await ctx.storage.list_namespaces():
+    for namespace in await sweep_namespaces(ctx):
         for memory_type in _SWEEP_TYPES:
             policy = DecayPolicy.bind(_policy_options(ctx, memory_type, "decay"))
             for record in await ctx.storage.list_records(namespace, memory_type):
@@ -134,7 +139,7 @@ async def compress(ctx: PipelineContext) -> dict[str, object]:
         return {"status": "skipped", "reason": "read-only context (no write door)"}
     compressed = 0
     errors: list[str] = []
-    for namespace in await ctx.storage.list_namespaces():
+    for namespace in await sweep_namespaces(ctx):
         for memory_type in _SWEEP_TYPES:
             policy = CompressionPolicy.bind(_policy_options(ctx, memory_type, "compression"))
             retention = RetentionPolicy.bind(_policy_options(ctx, memory_type, "retention"))
