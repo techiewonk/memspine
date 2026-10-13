@@ -9,10 +9,10 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 |---|---|
 | Not started | 33 |
 | Ready | 0 |
-| In progress | 5 |
+| In progress | 3 |
 | Blocked | 0 |
-| Needs measurement | 43 |
-| Done | 80 |
+| Needs measurement | 44 |
+| Done | 81 |
 | Dropped | 1 |
 
 ## Phase 0: settle and prepare
@@ -102,7 +102,7 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | F-12 | Trust, admin and memory-type mechanisms out | L4 ctx scope | K_C R C | M-21, M-24 | - | F-11, LIB-08, LIB-09, LIB-18, LIB-21, LIB-28, LIB-38, LIB-41 | move | S1 split (serial) | `src/memspine/trust/**` +2 | Golden | **Done** | S12: 91 units to trust/pipeline + memory/pipeline, engine 8028->6369; 12 units left (contract-blocked helpers, go with F-13a); unit 5905, evals 1435, golden, 14 contracts (9a4876e) |
 | F-13a | Scoped handle; engine reduced to lifecycle and admin | L0 L1 L4 L5 ctx scope | D K_C K_P R C | G-16 | ER-03 | F-12 | api | S1 split (serial) | `src/memspine/api/**` +3 | Golden | **Done** | Memory handle + open(); Engine moved to memspine.api.engine (no alias), engine 5566->4818; 7305 tests (22ab2d7) |
 | F-13b | REST and MCP on the handle | ctx scope | D R | G-17, G-18 | - | F-13a | move | S1 split (serial) | `src/memspine/api/**` +3 | Protocol tests | **Done** | REST/MCP/tools on scoped Memory handle; protocols/ -> api/ (no alias); principal-bound viewer; tap middleware |
-| F-13c | Eval-harness adapter and test-import migration; paired-gate replay | L0 L1 L4 L5 ctx scope | D K_C K_P R C | G-16 | - | F-13a | move | S1 split (serial) | `src/memspine/api/**` +3 | Paired-gate replay NO CHANGE vs f-jref2-i2 (GPU, one run) | **In progress** | Built (18e811d): adapter on open()/Memory handle, parity snapshot test, S29 parity row; merge held until B1 sample batch finishes (touches run_v2_queue.sh) |
+| F-13c | Eval-harness adapter and test-import migration; paired-gate replay | L0 L1 L4 L5 ctx scope | D K_C K_P R C | G-16 | - | F-13a | move | S1 split (serial) | `src/memspine/api/**` +3 | Paired-gate replay NO CHANGE vs f-jref2-i2 (GPU, one run) | **Done** | Merged after B1; S29 parity row queued (B4) |
 | F-15 | Split the pipelines module into derive stages | L0 L1 L3 L4 L5 ctx | K_C K_P | O-04 | - | F-11 | move | S1 split (serial) | `src/memspine/derive/stages/**` +1 | Golden; stage order unchanged | **Done** | S15: workers/pipelines.py split into derive/pipeline/stages (18 modules, same order) + 34 engine units; merged with F-12, fact helpers deduplicated; unit 5905, evals 1435, golden, 14 contracts (26f586f) |
 | F-14a | Retire measured-negative and owner-retired code (slot loop, fact chain, word vectors, decider gate, kuzu, opensearch stub, full/compose read modes, v1 read headers) | L0 L1 L4 L5 ctx scope | D R C | G-22 | ER-40 | F-11 | move | S1 split (serial) | - | Golden unchanged; retired flags raise ConfigError | **Done** | 6 items retired (slot loop, read-time fact chain, word-vector leg, decider gate, kuzu, opensearch stub) with RETIRED.md; full/compose modes and v1 headers kept (default-on / not decided); unit 5860, evals 1435, golden, 14 contracts (bbf0280) |
 | F-14b | Retire unscreened candidates | L0 L1 L4 L5 ctx scope | D R C | G-22 | ER-40 | F-14a | move | S1 split (serial) | - | Owner decision per item | **Needs measurement** | Coordinator decision 2026-10-13 (owner delegated choices): defer deletion; candidates stay flag-off until GPU screens decide |
@@ -159,7 +159,7 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | R3-04 | Core legs: vector, language-aware BM25, temporal on event intervals | L0 L1 L3 L5 | R | R-05, R-06, R-07 | - | R3-03 | behaviour | S3 read (serial) | - | Focus non-inferior; no-model template: L1 legs empty, not error | **Needs measurement** | read.legs_v2 flag-off; lexical scorer pluggable (read.lexical_scorer); not byte-identical vs tantivy -> screen |
 | R3-05a | Entity leg with anti-hub damping | L1 L3 | R | R-08 | - | LIB-34 | behaviour | S3 read (serial) | - | Own focus and blind screen | **Needs measurement** | Wired flag-off (RW-E ece067e); screen queued |
 | R3-05b | Graph one-hop leg (only when L3 exists) | L3 | R | R-09 | ER-19 | R3-04, F-02c, F-16e | behaviour | S3 read (serial) | - | Own focus and blind screen | **Not started** |  |
-| R3-05c | Episode leg lifted to turns (only when L2 exists) | L0 L4 | R | R-10 | - | R3-04, O4-02 | behaviour | S3 read (serial) | - | L2-enabled template arm | **In progress** | Sonnet agent launched 2026-10-13 (worktree memspine-R3-05c) |
+| R3-05c | Episode leg lifted to turns (only when L2 exists) | L0 L4 | R | R-10 | - | R3-04, O4-02 | behaviour | S3 read (serial) | - | L2-enabled template arm | **Needs measurement** | read.episode_leg_v2 flag-off (needs legs_v2); L2-arm screen pending |
 | R3-06 | Family fusion, protected pool, calibrated floors | L0 L1 | R | R-11, R-12, R-13 | - | LIB-10 | behaviour | S3 read (serial) | - | Source-family pool non-inferior to per-leg pool | **Needs measurement** | Wired flag-off (RW-B d1941c2); screen queued |
 | R3-07 | Jina rerank on every read (pools capped at 64); licence fallback; bounded boosts | L0 L1 L4 ctx | R | R-14, R-15, R-16, P-18 | ER-21 | R3-08, X-06 | behaviour | S3 read (serial) | - | Matches the 81.4% reference; boosts off until screened | **Needs measurement** | Wired flag-off (RW-B d1941c2); screen queued |
 | R3-08 | Lift derived hits to turns BEFORE rerank (via lineage) | L0 L1 L3 L4 | R | R-17 | ER-21, ER-22, POL-2 | LIB-11, R3-06 | behaviour | S3 read (serial) | - | Focus non-inferior | **Needs measurement** | Wired flag-off (RW-B d1941c2); screen queued |

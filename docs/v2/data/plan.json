@@ -3372,8 +3372,8 @@
    ],
    "kind": "move",
    "gate": "Paired-gate replay NO CHANGE vs f-jref2-i2 (GPU, one run)",
-   "status": "In progress",
-   "note": "Built (18e811d): adapter on open()/Memory handle, parity snapshot test, S29 parity row; merge held until B1 sample batch finishes (touches run_v2_queue.sh)",
+   "status": "Done",
+   "note": "Merged after B1; S29 parity row queued (B4)",
    "layers": [
     "L0",
     "L1",
@@ -5415,8 +5415,8 @@
    ],
    "kind": "behaviour",
    "gate": "L2-enabled template arm",
-   "status": "In progress",
-   "note": "Sonnet agent launched 2026-10-13 (worktree memspine-R3-05c)",
+   "status": "Needs measurement",
+   "note": "read.episode_leg_v2 flag-off (needs legs_v2); L2-arm screen pending",
    "layers": [
     "L0",
     "L4"
