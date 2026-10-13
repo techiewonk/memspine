@@ -9,9 +9,9 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 |---|---|
 | Not started | 7 |
 | Ready | 0 |
-| In progress | 4 |
+| In progress | 2 |
 | Blocked | 0 |
-| Needs measurement | 67 |
+| Needs measurement | 69 |
 | Done | 83 |
 | Dropped | 1 |
 
@@ -139,11 +139,11 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | W2-14 | Temporal extraction by every means: anchor ladder, basis and precision, relations without dates | L0 L1 L3 L5 | D R | W-04, M-10, R-07 | ER-18 | W2-06c, LIB-01 | behaviour | S4 extraction (serial) | - | Temporal category up; no invented exact dates (precision audit) | **Needs measurement** | write.temporal_v2 stage (order 100) + read.temporal_precision_aware; precision audit test; full unit run pending (machine load) |
 | W2-15 | Coverage check and targeted re-extraction (screened) | L1 L3 | D | W-17, W-15 | ER-12 | W2-08, LIB-17 | behaviour | S4 extraction (serial) | - | Omitted-fact recall and unsupported additions measured separately on unseen domains; extra calls counted | **In progress** | Sonnet agent launched |
 | W2-08 | Grounding: spans per assertion, rule checks, assent | L1 L3 | D | W-17 | ER-11, ER-14 | W2-14, X-05, LIB-03 | behaviour | S4 extraction (serial) | - | Grounding at least 95% on the labelled set | **Needs measurement** | write.grounding_v2 stage (order 200); labelled set 85.5% CPU-only (rules+lexical) vs 95% gate; non-English undecided items need an LLM adjudicator (GPU) |
-| W2-09 | Online entity resolution with pending_merge | L1 L3 | D K_C | W-19, M-15 | ER-13, ER-20 | W2-08, LIB-04 | behaviour | S4 extraction (serial) | - | Calibrated thresholds: no homonym merges above a stated rate | **In progress** | Parallel build on the W2-06c envelope stage hook list (derive/envelope_stages.py); merged in order 14,08,09,10,13 |
+| W2-09 | Online entity resolution with pending_merge | L1 L3 | D K_C | W-19, M-15 | ER-13, ER-20 | W2-08, LIB-04 | behaviour | S4 extraction (serial) | - | Calibrated thresholds: no homonym merges above a stated rate | **Needs measurement** | write.resolver_v2 stage (order 300); EntityRegistry MERGE/SPLIT events; homonym merges 0/200 (rules; recalibrate with production embedder) |
 | W2-10 | Integration ladder and cardinality registry | L1 L3 | D K_C | W-21, W-22, M-12 | ER-14, ER-17 | W2-09, F-01, LIB-02 | behaviour | S4 extraction (serial) | - | MAB-CR non-inferior; A-B-A tests; behavioural INV-ORDER-SWAP passes | **Needs measurement** | write.integration_v2 stage (order 400); INV-ORDER-SWAP passes with flag on; MAB-CR screen pending (GPU) |
 | W2-11 | Asset describer (ingest and read triggers, off by default) | L0 | D R | W-23 | ER-25 | W2-01 | behaviour | write | - | Off by default; on-arm screen | **Needs measurement** | write.asset_describer off|ingest|on_read; metadata fallback; vision path untested vs real model |
 | W2-12 | Cost ledger and write targets | L0 L1 L3 L4 L5 | D K_C K_P | W-26, P-14, P-22 | ER-08, ER-15, ER-16, ER-37, ER-39 | EX-1a, LIB-27 | infra | write | - | Targets as regression tests | **Needs measurement** | economy.ledger_v2/budget + FU-SLEEP: per-namespace sleep pool, economy.ledger_persist (sibling sqlite, hashed ns) |
-| W2-13 | Small local pre-pass (GLiNER2) as hints | L1 L3 | D | P-23 | - | W2-10 | behaviour | S4 extraction (serial) | - | Calls down, grounded facts not down | **In progress** | Parallel build on the W2-06c envelope stage hook list (derive/envelope_stages.py); merged in order 14,08,09,10,13 |
+| W2-13 | Small local pre-pass (GLiNER2) as hints | L1 L3 | D | P-23 | - | W2-10 | behaviour | S4 extraction (serial) | - | Calls down, grounded facts not down | **Needs measurement** | write.prepass rules|gliner2 (CPU, cached fastino/gliner2-base-v1); filler-window skip 100->50 stub calls, no fact window skipped; hints->prompt wiring pending |
 | MD-03 | Second GPU (AMD Radeon iGPU via DirectML): embedder and small reranker offload, measured | L0 L1 | R | P-19, P-17 | - | LIB-42 | behaviour | models | - | Identical outputs (cosine >= 0.999, same rank order) and a measured speed gain, else not adopted | **Dropped** | Measured negative (d0b65ac): AMD iGPU DirectML 5-8x slower than contended CPU, driver reset on bge-small; models stay on RTX 5080/CPU |
 | MD-01 | Model tiers, placement, no-model fallbacks, device plan, thinking per role | L0 L1 L4 | D K_C R G | P-01, P-02, P-03, P-15, P-19 | - | EX-1a, LIB-42 | behaviour | models | - | Worker-tier screen per role; no-model template zero calls | **Needs measurement** | models.tiers_v2; CUDA/CPU placement; reranker chain jina->qwen3->MiniLM; per-role worker-tier screens pending |
 | MD-02 | Default embedders (CPU multilingual, GPU profile) | L0 L1 | R | P-17, M-23 | - | EX-1a, F-03 | behaviour | models | - | English R@k within band; non-English probe | **Needs measurement** | embedding.profile/pin_profile/migrate_profile flag-off; cpu_multilingual = paraphrase-multilingual-MiniLM (fastembed cache); R@k screen + non-English probe pending |
