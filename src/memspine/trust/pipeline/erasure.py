@@ -70,8 +70,24 @@ async def forget(
         ids = [record_id]
         if hard if cascade is None else cascade:
             ids.extend(await eng._descendants(storage, ns, [record_id]))
+        elif cascade is None:  # FU-HARDERASE: a soft forget still hides the turn's window facts
+            ids.extend(await _sole_source_window_facts(storage, ns, record_id))
         await eng._forget_many(storage, ns, ids, hard)
     await eng._audit_action("forget", ns, ids, actor=actor, reason=reason, hard=hard)
+
+
+async def _sole_source_window_facts(storage: SqlStorage, ns: str, record_id: str) -> list[str]:
+    """FU-HARDERASE: live window facts (mined verbatim from turns; tag ``window_fact``) whose only
+    parent is ``record_id``. A soft forget has no cascade by default (generic derived records,
+    summaries and cues stay), but a window fact repeats the forgotten turn's content, so it must
+    stop being served with it. A fact that also cites another turn is kept."""
+    return [
+        c.record_id
+        for c in await storage.list_children(ns, [record_id])
+        if c.status is not RecordStatus.DELETED
+        and "window_fact" in c.tags
+        and set(map(str, c.source.parents)) <= {record_id}
+    ]
 
 
 async def erase_subject(

@@ -186,3 +186,38 @@ async def test_write_and_trust_profiles_together_erase_the_derived_facts(
         assert not await _find(mem, SECRET), "the derived facts must be gone with their parent"
     finally:
         await eng.stop()
+
+
+_V2_STAGES = (
+    "segmentation_v2", "envelope_v2", "prompt_v2", "stamping_v2", "role_policy_v2", "intake_v2",
+    "temporal_v2", "grounding_v2", "coverage_v2", "resolver_v2", "integration_v2",
+)  # fmt: skip
+
+
+@pytest.mark.parametrize("hard", [True, False])
+@pytest.mark.parametrize("envelope", [True, False])
+async def test_write_v2_alone_forget_reaches_derived_facts(
+    envelope: bool, hard: bool, tmp_path: Path, stub_roles: WindowLLM
+) -> None:
+    """FU-HARDERASE: forgetting a raw turn (v1 forget, no privacy.erasure_v2) removes (hard) or
+    stops serving (soft) every window fact derived from it, on the envelope path and on the old
+    window path (the W2 stage flags off) alike."""
+    raw = _overrides("write-v2", tmp_path / "m.db")
+    if not envelope:
+        raw["write"].update({k: False for k in _V2_STAGES})
+    eng = await memspine.open(dotenv_path=None, **raw)
+    try:
+        mem = eng.scope(NS, principal="ilse", viewer="ilse", purpose="assist")
+        await mem.write_messages(_turns(LINES), session_id="s1", group_id="s1")
+        await eng.flush_windows()
+        storage = eng._require_started()
+        recs = {r.record_id: r for r in await storage.list_records(NS)}
+        found = await _find(mem, SECRET)
+        turn = [r for r in found if not recs[r].source.parents]
+        facts = [r for r in found if recs[r].source.parents]
+        assert turn and facts, f"a raw turn and a derived fact carry the text: {found}"
+        assert all(turn[0] in recs[f].source.parents for f in facts)
+        await mem.forget(turn[0], hard=hard)
+        assert not await _find(mem, SECRET), "the derived facts must go with their only source"
+    finally:
+        await eng.stop()
