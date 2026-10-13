@@ -3770,8 +3770,8 @@
    ],
    "kind": "behaviour",
    "gate": "Fault-injection tests; golden unchanged with barrier",
-   "status": "In progress",
-   "note": "Foundations: durable outbox + inline runner (agent running, parallel with F-02a)",
+   "status": "Needs measurement",
+   "note": "Durable outbox + InlineRunner + read barrier behind workers.outbox; alembic f04_outbox; screen: outbox on/off parity + kill/restart",
    "layers": [
     "L0",
     "L1",
@@ -6180,8 +6180,8 @@
    ],
    "kind": "behaviour",
    "gate": "OP-Bench, PrefEval, MAB-CR non-inferior; sleep calls within budget",
-   "status": "In progress",
-   "note": "Swarm: offline wiring flag-off (agent running)",
+   "status": "Needs measurement",
+   "note": "OW-C wired flag-off (offline.patterns_v2 / standing_v2 + read.standing_v2); 0 model calls",
    "layers": [
     "L1",
     "L4"
@@ -6303,8 +6303,8 @@
    ],
    "kind": "behaviour",
    "gate": "Refresh on watermark; cited sources",
-   "status": "In progress",
-   "note": "Swarm: offline wiring flag-off (agent running)",
+   "status": "Needs measurement",
+   "note": "OW-C wired flag-off (offline.patterns_v2 / standing_v2 + read.standing_v2); 0 model calls",
    "layers": [
     "L1",
     "L4"
@@ -6379,8 +6379,8 @@
    ],
    "kind": "behaviour",
    "gate": "Off by default",
-   "status": "In progress",
-   "note": "Swarm: offline wiring flag-off (agent running)",
+   "status": "Needs measurement",
+   "note": "OW-E wired flag-off (memories.*.policies.v2, write.feedback_v2, observer_views_v2); recomputed, no derived records",
    "layers": [
     "L5"
    ],
@@ -6416,8 +6416,8 @@
    ],
    "kind": "behaviour",
    "gate": "Multi-agent template tests",
-   "status": "In progress",
-   "note": "Swarm: offline wiring flag-off (agent running)",
+   "status": "Needs measurement",
+   "note": "OW-E wired flag-off (memories.*.policies.v2, write.feedback_v2, observer_views_v2); recomputed, no derived records",
    "layers": [
     "L1",
     "L4",
