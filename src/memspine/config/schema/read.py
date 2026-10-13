@@ -841,6 +841,19 @@ class ReadConfig(BaseModel):
     lexical_language: str = "en"
     #: R3-04 (R-06): per-namespace language override, ``{"ns-de": "de"}``. Empty: the default.
     lexical_namespace_languages: dict[str, str] = Field(default_factory=dict)
+    #: R3-05c (R-10; needs ``legs_v2``): the ``episode`` leg (family ``derived``, layer L2) searches
+    #: episode records (window episodes, ``kind:episode`` facts, session-close episodes) by vector
+    #: and BM25, then lifts each hit to its member turns through lineage (``source.parents``, or
+    #: the lineage table under ``write.lineage_table``) and joins fusion with turn ids. Lifted
+    #: turns pass the read gates (status, quarantine, consent, erasure, date and scope filters).
+    #: A namespace with no L2 record gives an empty leg (``no_records:L2``), never an error.
+    #: Off: unchanged.
+    episode_leg_v2: bool = False
+    #: R3-05c: the most member turns one episode hit lifts to.
+    episode_lift_max_turns: int = Field(default=8, ge=1)
+    #: R3-05c: score carry-over of the lift: a turn scores ``episode_score * carry ** hops``
+    #: (best episode wins when several lift the same turn).
+    episode_lift_carry: float = Field(default=0.9, gt=0.0, le=1.0)
     #: R3-14 (LIB-22, R-24, S6-3): as-of reads through the three-valued time view: ``true_at``
     #: judges event time (valid_from/valid_to), ``known_at`` recorded time, undecidable
     #: records are kept (flagged) rather than dropped. Applies to the read's date allow-list

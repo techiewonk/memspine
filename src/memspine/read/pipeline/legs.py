@@ -331,7 +331,17 @@ async def registry_base_legs(
         vector_search=search_vector if eng._embedder is not None else None,
     )
     names = ["vector", *(["lexical"] if use_hybrid else []), "temporal"]
-    out = await lib.run_legs(lib.REGISTRY, names, ctx)
+    registry = lib.REGISTRY
+    if read.episode_leg_v2:
+        # R3-05c: the episode leg (L2) joins; the layer registry says whether L2 holds records
+        from memspine.store.layer_registry import LayerRegistry, LayerTemplate
+
+        ctx.layer_registry = LayerRegistry.of(
+            ns, LayerTemplate(), await eng._require_started().layer_counts(ns)
+        )
+        registry = lib.with_episode_leg(lib.REGISTRY)
+        names.append("episode")
+    out = await lib.run_legs(registry, names, ctx)
     vector_hits = list(out["vector"].hits)
     lexical_hits = (
         [LexicalHit(h.record_id, h.score) for h in out["lexical"].hits] if use_hybrid else []
@@ -340,6 +350,19 @@ async def registry_base_legs(
     temporal = [LegHit(h.record_id, h.score) for h in out["temporal"].hits]
     if temporal:
         extra_legs.append(NamedLeg("temporal", temporal))
+    if read.episode_leg_v2 and out["episode"].hits:
+        from memspine.read.pipeline.lift import lift_episode_hits
+
+        turns = await lift_episode_hits(
+            eng,
+            ns,
+            out["episode"].hits,
+            {r.record_id: r for r in live if r.layer == "L2"},
+            max_turns=read.episode_lift_max_turns,
+            carry=read.episode_lift_carry,
+        )
+        if turns:
+            extra_legs.append(NamedLeg("episode", turns))
     if read.query_encoder != "none":
         extra_legs += await eng._encoder_legs(ns, query)
     for text, vector in zip(probe_texts, probe_vectors, strict=True):
