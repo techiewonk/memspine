@@ -183,6 +183,28 @@ def audit_taint(
     typer.echo(yaml.safe_dump(report, sort_keys=False).strip())
 
 
+@app.command("migrate")
+def migrate_cmd(
+    source: Annotated[Path, typer.Argument(help="Existing (v1) SQLite database; never written")],
+    target: Annotated[Path, typer.Argument(help="Fresh database to build by replay of the log")],
+) -> None:
+    """Migrate by replay (G-23): upcast the retained event log into a fresh store.
+
+    Limited rebuild is advertised: the report lists the derived layers replay does not rebuild.
+    """
+    import asyncio
+
+    from memspine.exceptions import RebuildUnavailableError
+    from memspine.store.migrate import migrate_sqlite
+
+    try:
+        report = asyncio.run(migrate_sqlite(str(source), str(target)))
+    except RebuildUnavailableError as exc:
+        typer.secho(f"cannot migrate: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(yaml.safe_dump(report.as_dict(), sort_keys=False).strip())
+
+
 @app.command("forget")
 def forget_cmd(
     record_id: str,
