@@ -262,6 +262,7 @@ class RefusalRetryReader:
         decider_min_confidence: float = 0.5,
         guard_absent_entity: bool = False,
         refusal_match: str = "whole",
+        inference_gate: Any = None,
     ) -> None:
         if refusal_match not in REFUSAL_MATCH_MODES:
             raise ValueError(f"refusal_match must be one of {REFUSAL_MATCH_MODES}")
@@ -270,6 +271,10 @@ class RefusalRetryReader:
         if mode not in RETRY_MODES:
             raise ValueError(f"retry mode must be one of {sorted(RETRY_MODES)}, got {mode!r}")
         self.inner = inner
+        #: R14-M-9 (``read.inference_mode = gated``): optional ``question -> bool``. When it is
+        #: true the retry uses the commit-with-cited-reason instruction (the inner prompt
+        #: already carried the clause); other questions keep the neutral retry. No extra call.
+        self.inference_gate = inference_gate
         #: C10 (default off, reader ids unchanged): do not retry when the question names an
         #: entity the context never mentions (the question cannot be answered from the store).
         self.guard_absent_entity = guard_absent_entity
@@ -290,6 +295,8 @@ class RefusalRetryReader:
             self.reader_id += f"-{getattr(decider, 'decider_id', 'decider')}"
         if guard_absent_entity:
             self.reader_id += "-entityguard"
+        if inference_gate is not None:
+            self.reader_id += "-inferGate"
         self.model = inner.model
         self.makes_model_calls = True
         self._counter = HeuristicTokenCounter()
@@ -306,6 +313,7 @@ class RefusalRetryReader:
             "retry_mode": self.mode,
             "retry_require_context_overlap": self.require_context_overlap,
             **({"retry_guard_absent_entity": True} if self.guard_absent_entity else {}),
+            **({"retry_inference_gate": True} if self.inference_gate is not None else {}),
             **({"refusal_match": self.refusal_match} if self.refusal_match != "whole" else {}),
             **({"decider": self.decider.decider_id} if self.decider is not None else {}),
         }
@@ -347,8 +355,14 @@ class RefusalRetryReader:
                 },
             )
         self.retried += 1
+        instruction = self.instruction
+        inference = self.inference_gate is not None and bool(self.inference_gate(question))
+        if inference:
+            from .readers import INFERENCE_RETRY_INSTRUCTION
+
+            instruction = INFERENCE_RETRY_INSTRUCTION
         second: ReaderAnswer = await self.inner.answer(
-            question + self.instruction, context, question_date
+            question + instruction, context, question_date
         )
         accepted = not await self._refusal(question, second.text, decisions)
         if accepted and self.require_context_overlap:
@@ -374,6 +388,7 @@ class RefusalRetryReader:
                 "retry_accepted": accepted,
                 "retry_mode": self.mode,
                 "retry_require_context_overlap": self.require_context_overlap,
+                **({"retry_inference": True} if inference else {}),
                 **({"decisions": decisions} if decisions else {}),
                 # D3 [HAR-2]: row prompt_tokens sums both calls; keep the split
                 "first_prompt_tokens": first.prompt_tokens,

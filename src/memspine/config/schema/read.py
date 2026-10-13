@@ -1219,6 +1219,17 @@ class ReadConfig(BaseModel):
     #: arm, screened +15/-7 HOLD), which stays available; with both on both headers appear.
     #: Off (default): unchanged.
     contract_rules: bool = False
+    #: R14-M-9 / OBS-06 (typed commit route): ``gated`` = the reader prompt gets a versioned
+    #: commit-with-cited-reason clause ONLY for a question the rules contract
+    #: (``read.contract.build_contract``, ``request == "inference"``: would / likely / might /
+    #: hypothetical) types as a judgement; every other shape keeps the unchanged prompt (the
+    #: ``grounded_v2`` clause on every shape cost dev 86.7 -> 81.5). The clause still allows
+    #: "not mentioned" when no memory line bears on the question (category 5 stays answerable
+    #: by abstaining). The refusal retry (``--retry-refusal``) uses the same clause on those
+    #: questions instead of the neutral retry. Rules only, no extra model call. Consumed by the
+    #: eval reader (``memspine_evals.readers``); the engine read path is untouched. Off (default):
+    #: prompts and retry unchanged.
+    inference_mode: Literal["off", "gated"] = "off"
     #: R3-03 (LIB-23, R-04/R-05): the rule router. On: the legs come from a ``RoutePlan`` over the
     #: layers the store actually has populated (L0 turns, L1 facts, L2 sessions, L3 graph, L5
     #: profile); the optional entity / graph / episode legs that the plan leaves out or skips
