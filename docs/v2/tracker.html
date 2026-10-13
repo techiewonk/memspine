@@ -5124,6 +5124,41 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "review": []
   },
   {
+   "id": "MD-03",
+   "phase": 2,
+   "title": "Second GPU (AMD Radeon iGPU via DirectML): embedder and small reranker offload, measured",
+   "decisions": [
+    "P-19",
+    "P-17"
+   ],
+   "depends_on": [
+    "LIB-42"
+   ],
+   "kind": "behaviour",
+   "gate": "Identical outputs (cosine >= 0.999, same rank order) and a measured speed gain, else not adopted",
+   "status": "In progress",
+   "note": "Owner 2026-10-13: use both GPUs where it helps",
+   "layers": [
+    "L0",
+    "L1"
+   ],
+   "operators": [
+    "R"
+   ],
+   "files": [
+    "src/memspine/config/schema.py",
+    "src/memspine/engine.py"
+   ],
+   "owns": [],
+   "lane": "models",
+   "agent": "sonnet",
+   "components": [
+    "retrieval.encoders.embedder",
+    "runtime.planner"
+   ],
+   "review": []
+  },
+  {
    "id": "MD-01",
    "phase": 2,
    "title": "Model tiers, placement, no-model fallbacks, device plan, thinking per role",

@@ -232,6 +232,8 @@ WP = [
     ("W2-11", 2, "Asset describer (ingest and read triggers, off by default)", ["W-23"], ["W2-01"], "behaviour", "Off by default; on-arm screen", "Not started", ""),
     ("W2-12", 2, "Cost ledger and write targets", ["W-26", "P-14", "P-22"], ["EX-1a", "LIB-27"], "infra", "Targets as regression tests", "Not started", ""),
     ("W2-13", 2, "Small local pre-pass (GLiNER2) as hints", ["P-23"], ["W2-10"], "behaviour", "Calls down, grounded facts not down", "Not started", ""),
+    ("MD-03", 2, "Second GPU (AMD Radeon iGPU via DirectML): embedder and small reranker offload, measured", ["P-19", "P-17"], ["LIB-42"], "behaviour",
+     "Identical outputs (cosine >= 0.999, same rank order) and a measured speed gain, else not adopted", "In progress", "Owner 2026-10-13: use both GPUs where it helps"),
     ("MD-01", 2, "Model tiers, placement, no-model fallbacks, device plan, thinking per role",
      ["P-01", "P-02", "P-03", "P-15", "P-19"], ["EX-1a", "LIB-42"], "behaviour", "Worker-tier screen per role; no-model template zero calls", "Not started", ""),
     ("MD-02", 2, "Default embedders (CPU multilingual, GPU profile)", ["P-17", "M-23"], ["EX-1a", "F-03"], "behaviour",

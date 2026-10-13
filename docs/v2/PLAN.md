@@ -1,7 +1,7 @@
 # MemSpine restructure plan: work packages and status
 
 Generated from `data/build_plan.py` (the source of truth for rows); status is also kept on the live tracker page and synced back here.
-161 packages cover all 155 decisions. Kinds: **move** = pure restructure (tests and CPU golden), **migration** = persisted schema change (upcaster and replay-equivalence tests), **api** = new contract or lifetime (contract tests), **behaviour** = needs a GPU screen through the paired gate, **measure** = a run, **infra** = tooling.
+162 packages cover all 155 decisions. Kinds: **move** = pure restructure (tests and CPU golden), **migration** = persisted schema change (upcaster and replay-equivalence tests), **api** = new contract or lifetime (contract tests), **behaviour** = needs a GPU screen through the paired gate, **measure** = a run, **infra** = tooling.
 
 Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summaries, L3 graph, L4 observations and profile, L5 standing answers, procedures and plans; ctx = working context. Ops are the loop operators (D deposit, K_C consolidate, K_P personalise, R retrieve, C compose, G generate). Each package is one task for one agent (Sonnet); packages in a `serial` lane run one at a time, different lanes may run in parallel once their dependencies are Done. Owns = first owned path and the count of further patterns (full list in the ownership table at the end; `OWNS` in `data/packages.py`).
 
@@ -9,7 +9,7 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 |---|---|
 | Not started | 64 |
 | Ready | 0 |
-| In progress | 20 |
+| In progress | 21 |
 | Blocked | 0 |
 | Needs measurement | 4 |
 | Done | 73 |
@@ -144,6 +144,7 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | W2-11 | Asset describer (ingest and read triggers, off by default) | L0 | D R | W-23 | ER-25 | W2-01 | behaviour | write | - | Off by default; on-arm screen | **Not started** |  |
 | W2-12 | Cost ledger and write targets | L0 L1 L3 L4 L5 | D K_C K_P | W-26, P-14, P-22 | ER-08, ER-15, ER-16, ER-37, ER-39 | EX-1a, LIB-27 | infra | write | - | Targets as regression tests | **Not started** |  |
 | W2-13 | Small local pre-pass (GLiNER2) as hints | L1 L3 | D | P-23 | - | W2-10 | behaviour | S4 extraction (serial) | - | Calls down, grounded facts not down | **Not started** |  |
+| MD-03 | Second GPU (AMD Radeon iGPU via DirectML): embedder and small reranker offload, measured | L0 L1 | R | P-19, P-17 | - | LIB-42 | behaviour | models | - | Identical outputs (cosine >= 0.999, same rank order) and a measured speed gain, else not adopted | **In progress** | Owner 2026-10-13: use both GPUs where it helps |
 | MD-01 | Model tiers, placement, no-model fallbacks, device plan, thinking per role | L0 L1 L4 | D K_C R G | P-01, P-02, P-03, P-15, P-19 | - | EX-1a, LIB-42 | behaviour | models | - | Worker-tier screen per role; no-model template zero calls | **Not started** |  |
 | MD-02 | Default embedders (CPU multilingual, GPU profile) | L0 L1 | R | P-17, M-23 | - | EX-1a, F-03 | behaviour | models | - | English R@k within band; non-English probe | **Not started** |  |
 | EX-2 | Phase 2 exit: window arm non-inferior, grounding 95%, write p95 | L0 L1 L4 L5 ctx scope | D K_C K_P R C G | G-01 | - | W2-10, W2-04, W2-13 | measure | exit | - | ROADMAP Phase 2 exit gate | **Not started** |  |
@@ -305,4 +306,4 @@ Files each package may write (glob patterns, repo-relative; includes removal and
 | F-16e | `src/memspine/store/lineage.py`<br>`src/memspine/store/migrate.py`<br>`src/memspine/store/profiles.py`<br>`src/memspine/store/backends/postgres/**`<br>`src/memspine/store/backends/neo4j/**`<br>`src/memspine/derive/write.py`<br>`src/memspine/services/graph/neo4j.py` |
 | F-16f | `src/memspine/store/lineage.py`<br>`src/memspine/store/migrate.py`<br>`src/memspine/store/profiles.py`<br>`src/memspine/store/backends/postgres/**`<br>`src/memspine/store/backends/neo4j/**`<br>`src/memspine/derive/write.py`<br>`src/memspine/services/graph/neo4j.py` |
 
-No ownership yet (cannot be briefed): 71 packages.
+No ownership yet (cannot be briefed): 72 packages.
