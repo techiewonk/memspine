@@ -33,7 +33,7 @@ _TABLE_START = "<!-- CONFIG-KEYS-TABLE:START -->"
 _TABLE_END = "<!-- CONFIG-KEYS-TABLE:END -->"
 
 #: A dotted config key path: lowercase segments (or ``*``), dot-separated.
-_KEY_RE = re.compile(r"^[a-z_]+(?:\.(?:[a-z_]+|\*))*$")
+_KEY_RE = re.compile(r"^[a-z_][a-z0-9_]*(?:\.(?:[a-z_][a-z0-9_]*|\*))*$")
 
 
 def _is_model(annotation: object) -> bool:
