@@ -11,8 +11,10 @@ from memspine.derive.pipeline.stages.context import (
     PipelineContext,
     _parents_gone,
     _policy_options,
+    live_records,
     sweep_namespaces,
 )
+from memspine.derive.pipeline.stages.offline_door import link_summary, stamp_summary
 from memspine.memories.episodic.sessions import Session, detect_sessions
 from memspine.observability.logging import get_logger
 from memspine.store.events import EventKind, MemoryEvent
@@ -70,7 +72,7 @@ async def consolidate(ctx: PipelineContext) -> dict[str, object]:
     for namespace in await sweep_namespaces(ctx):
         episodes = [
             record
-            for record in await ctx.storage.list_records(namespace, "episodic")
+            for record in await live_records(ctx, namespace, "episodic")
             if record.status is RecordStatus.ACTIVATED and record.source.channel != "consolidation"
         ]
         if not episodes:
@@ -78,7 +80,7 @@ async def consolidate(ctx: PipelineContext) -> dict[str, object]:
         by_id = {record.record_id: record for record in episodes}
         active_summaries = [
             record
-            for record in await ctx.storage.list_records(namespace, "semantic")
+            for record in await live_records(ctx, namespace, "semantic")
             if record.source.channel == "consolidation" and record.status is RecordStatus.ACTIVATED
         ]
         existing_keys = {record.source.message_id for record in active_summaries}
@@ -257,6 +259,7 @@ async def _append_summary_locked(
     extra: dict[str, object],
 ) -> None:
     assert ctx.append_event is not None
+    summary = stamp_summary(ctx, summary, "consolidate")  # FU-SAFE: layer + derivation
     # The WRITE event carries the consolidation provenance too, so even if a
     # crash tears the WRITE/CONSOLIDATE pair, member ids survive in the log.
     await ctx.append_event(
@@ -273,6 +276,7 @@ async def _append_summary_locked(
             },
         )
     )
+    await link_summary(ctx, namespace, summary, session.record_ids, "consolidate")  # FU-SAFE
     for old in stale:
         await ctx.append_event(
             MemoryEvent(

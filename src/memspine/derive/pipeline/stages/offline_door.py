@@ -60,6 +60,25 @@ async def write_summary_record(
     return screened, bool(reasons)
 
 
+def stamp_summary(ctx: PipelineContext, record: MemoryRecord, site: str) -> MemoryRecord:
+    """FU-SAFE: the door's envelope stamp (layer, derivation) on a summary a legacy stage appends
+    raw; the identity unless ``write.lineage_table`` is on (``ctx.link_derived`` set)."""
+    if ctx.link_derived is None:
+        return record
+    from memspine.derive.write import stamp_derived
+
+    return stamp_derived(record, "summary", site)
+
+
+async def link_summary(
+    ctx: PipelineContext, namespace: str, record: MemoryRecord, parents: Sequence[str], site: str
+) -> None:
+    """FU-SAFE: write the lineage edges of a summary appended raw, so erasure finds it as a
+    dependant of its parents. A no-op unless ``write.lineage_table`` is on."""
+    if ctx.link_derived is not None:
+        await ctx.link_derived(namespace, record, list(parents), site)
+
+
 async def archive_records(
     ctx: PipelineContext, namespace: str, old: Sequence[MemoryRecord], transition: str, reason: str
 ) -> int:

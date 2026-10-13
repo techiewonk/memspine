@@ -24,7 +24,7 @@ from collections.abc import Iterable
 from datetime import UTC, datetime
 
 from memspine.derive.integrate import CardinalityRegistry, ordering_key, record_id
-from memspine.derive.pipeline.stages.context import PipelineContext, sweep_namespaces
+from memspine.derive.pipeline.stages.context import PipelineContext, live_records, sweep_namespaces
 from memspine.derive.pipeline.stages.envelope_adapter import is_fact, key_of, to_envelope
 from memspine.derive.reconcile import (
     PendingMerge,
@@ -101,7 +101,7 @@ async def reconcile(ctx: PipelineContext) -> dict[str, object]:
 
 async def _reconcile_one(ctx: PipelineContext, namespace: str, now: datetime) -> Counter[str]:
     assert ctx.append_event is not None
-    records = await ctx.storage.list_records(namespace, "semantic")
+    records = await live_records(ctx, namespace, "semantic")
     report, _before, after = reconcile_namespace(records, namespace, now=now)
     plan = report.plan
     by_id = {r.record_id: r for r in records}

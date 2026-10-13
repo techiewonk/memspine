@@ -33,7 +33,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from memspine.derive.edges import GraphDelta, GraphEdge, GraphNode, compile_edges
-from memspine.derive.pipeline.stages.context import PipelineContext, sweep_namespaces
+from memspine.derive.pipeline.stages.context import PipelineContext, live_records, sweep_namespaces
 from memspine.derive.pipeline.stages.envelope_adapter import is_fact
 from memspine.memories.associative.entities import (
     EntityPolicy,
@@ -405,7 +405,7 @@ async def _compile_one(
 ) -> dict[str, int]:
     assert ctx.graph is not None and ctx.append_event is not None
     projection = LinkProjection(ctx.graph, ctx.append_event)
-    records = await ctx.storage.list_records(namespace, "semantic")
+    records = await live_records(ctx, namespace, "semantic")
     tap.event("graph.compile.start", namespace=namespace, records=len(records))
     compiled = compiler.compile(records, namespace)
     delta = compiled.delta

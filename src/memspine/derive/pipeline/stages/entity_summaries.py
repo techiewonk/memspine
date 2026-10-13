@@ -12,10 +12,13 @@ from memspine.derive.pipeline.stages.context import (
     PipelineContext,
     _int_option,
     _local_screen,
+    live_record,
+    live_records,
     sweep_namespaces,
 )
 from memspine.derive.pipeline.stages.extract_graph import _record_names
 from memspine.derive.pipeline.stages.index import ENTITY_SUMMARIZED_MARKER
+from memspine.derive.pipeline.stages.offline_door import link_summary, stamp_summary
 from memspine.memories.associative.entities import (
     MENTIONS_REL,
     canonical_entity,
@@ -147,7 +150,7 @@ async def summarize_entities(ctx: PipelineContext) -> dict[str, object]:
                 if parsed is not None and parsed[0] == namespace:
                     members_of.setdefault(edge.dst, set()).add(edge.src)
             live: dict[str, list[MemoryRecord]] = {}
-            for record in await ctx.storage.list_records(namespace, "semantic"):
+            for record in await live_records(ctx, namespace, "semantic"):
                 if (
                     record.source.channel != constants.ENTITY_SUMMARY_CHANNEL
                     or record.status
@@ -164,7 +167,7 @@ async def summarize_entities(ctx: PipelineContext) -> dict[str, object]:
             for node in sorted(members_of):
                 members: list[MemoryRecord] = []
                 for record_id in sorted(members_of[node]):
-                    member = await ctx.storage.get_record(record_id)
+                    member = await live_record(ctx, record_id)
                     if (
                         member is not None
                         and member.namespace == namespace
@@ -294,7 +297,7 @@ async def _write_entity_summary(
         instruction_flag=instruction_shaped(item.text)
         or any(m.instruction_flag for m in item.members),
     )
-    summary, reasons = await screen(summary, [trust])
+    summary, reasons = await screen(stamp_summary(ctx, summary, "entity_summary"), [trust])
     payload: dict[str, object] = {"record": summary.model_dump(mode="json")}
     if reasons:
         payload["firewall"] = {"reasons": reasons}
@@ -304,6 +307,7 @@ async def _write_entity_summary(
     await ctx.append_event(
         MemoryEvent(kind=EventKind.WRITE, namespace=namespace, actor="system", payload=payload)
     )
+    await link_summary(ctx, namespace, summary, member_ids, "entity_summary")  # FU-SAFE
     return summary, reasons
 
 

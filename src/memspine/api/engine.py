@@ -71,6 +71,7 @@ from memspine.core.read_filters import (
 )
 from memspine.core.relevance_probes import Calibration
 from memspine.core.vetting import VetFlag
+from memspine.derive import write as derive_write
 from memspine.derive.feedback import LatencyStats
 from memspine.derive.pipeline import builders as derive_builders
 from memspine.derive.pipeline import graph as derive_graph
@@ -4924,6 +4925,36 @@ class Engine:
         naming the site and the vanished parent ids (ids only, never content)."""
         return await trust_erasure._derived_parents_gone(self, namespace, parents, site)
 
+    async def _write_derived(
+        self,
+        storage: SqlStorage,
+        ns: str,
+        record: MemoryRecord,
+        memory_type: str,
+        actor: str,
+        *,
+        parents: Sequence[str],
+        trust_cap: list[float] | None = None,
+        site: str,
+    ) -> MemoryRecord:
+        """FU-SAFE: the derived-write door for callers outside ``derive`` (procedural lessons)."""
+        return await derive_write.write_derived(
+            self, storage, ns, record, memory_type, actor,
+            parents=parents, trust_cap=trust_cap, site=site,
+        )  # fmt: skip
+
+    async def _link_derived_summary(
+        self, namespace: str, record: MemoryRecord, parents: Sequence[str], site: str
+    ) -> None:
+        """FU-SAFE: lineage edges for a summary a legacy stage appended as a raw WRITE event."""
+        storage = self._require_started()
+        stored = await storage.get_record(record.record_id)
+        await derive_write.link_derived(storage, namespace, stored or record, parents, site)
+
+    async def _offline_live(self, records: list[MemoryRecord]) -> list[MemoryRecord]:
+        """FU-SAFE (T5-05): the records an offline stage may read (consent, erasure, quarantine)."""
+        return await trust_consent.offline_live(self, records)
+
     def _pipeline_ctx(self) -> PipelineContext:
         assert self._storage is not None and self._resolved is not None
         return PipelineContext(
@@ -4957,6 +4988,14 @@ class Engine:
             write_fact=self._write_extracted_fact,
             write_summary=self._write_offline_summary,
             erasure_engine=self if self._config().privacy.erasure_rederive else None,
+            link_derived=(
+                self._link_derived_summary if self._config().write.lineage_table else None
+            ),
+            live_gate=(
+                self._offline_live
+                if self._config().consent.v2 or self._config().privacy.erasure_v2
+                else None
+            ),
             # Only when associative projects it (ADR-015): an explicit-config
             # graph store without the projector would reorganize a stale graph.
             graph=self._graph if self._associative is not None else None,

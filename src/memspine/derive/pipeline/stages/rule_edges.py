@@ -9,6 +9,7 @@ from memspine.derive.pipeline.stages.context import (
     PipelineContext,
     _int_option,
     _local_screen,
+    live_records,
     sweep_namespaces,
 )
 from memspine.exceptions import ConflictError
@@ -84,7 +85,7 @@ async def rule_edges(ctx: PipelineContext) -> dict[str, object]:
     linked = facts = existing_links = budget_full = quarantined = 0
     for namespace in await sweep_namespaces(ctx):
         async with ctx.lock(namespace):
-            turns = _rule_turns(await ctx.storage.list_records(namespace, "episodic"))
+            turns = _rule_turns(await live_records(ctx, namespace, "episodic"))
             by_id = {t.record_id: t for t in turns}
             if causal:
                 pairs = [(t.record_id, t.content) for t in turns]

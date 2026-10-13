@@ -45,6 +45,7 @@ from memspine.derive.pipeline.stages.context import (
     PipelineContext,
     _parents_gone,
     _policy_options,
+    live_records,
     sweep_namespaces,
 )
 from memspine.derive.pipeline.stages.offline_door import (
@@ -346,7 +347,7 @@ async def _multires_namespace(
     cold: dict[str, MemoryRecord] = {}
     for memory_type in _SWEEP_TYPES:
         retention = RetentionPolicy.bind(_policy_options(ctx, memory_type, "retention"))
-        for record in await ctx.storage.list_records(namespace, memory_type):
+        for record in await live_records(ctx, namespace, memory_type):
             if (
                 not is_live(record)
                 or record.source.channel == MULTIRES_CHANNEL
@@ -431,7 +432,7 @@ async def _supersede_covered(ctx: PipelineContext, namespace: str, job: Compress
     lineage = set(job.lineage)
     stale = [
         r
-        for r in await ctx.storage.list_records(namespace, "semantic")
+        for r in await live_records(ctx, namespace, "semantic")
         if r.source.channel == MULTIRES_CHANNEL
         and r.status is RecordStatus.ACTIVATED
         and f"mres:{job.job_id}" not in r.tags

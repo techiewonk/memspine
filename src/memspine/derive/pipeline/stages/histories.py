@@ -35,7 +35,7 @@ from memspine.derive.histories import (
     value_history,
 )
 from memspine.derive.integrate import CardinalityRegistry
-from memspine.derive.pipeline.stages.context import PipelineContext, sweep_namespaces
+from memspine.derive.pipeline.stages.context import PipelineContext, live_records, sweep_namespaces
 from memspine.derive.pipeline.stages.envelope_adapter import is_fact, key_of, to_envelope
 from memspine.observability import tap
 from memspine.observability.logging import get_logger
@@ -94,7 +94,7 @@ async def histories(ctx: PipelineContext) -> dict[str, object]:
 
 async def _histories_one(ctx: PipelineContext, namespace: str, now: datetime) -> Counter[str]:
     assert ctx.append_event is not None
-    records = await ctx.storage.list_records(namespace, "semantic")
+    records = await live_records(ctx, namespace, "semantic")
     by_id = {r.record_id: r for r in records}
     live = [r for r in records if is_fact(r)]
     envelopes = [to_envelope(r, namespace) for r in live]

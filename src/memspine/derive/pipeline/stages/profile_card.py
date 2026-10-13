@@ -24,7 +24,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from memspine.config.constants import PROFILE_CARD_MARKER
-from memspine.derive.pipeline.stages.context import PipelineContext
+from memspine.derive.pipeline.stages.context import PipelineContext, live_record
 from memspine.derive.profile import (
     ChangedGroup,
     ContestNote,
@@ -139,7 +139,7 @@ async def _evidence_index(
 ) -> dict[str, AssertionEnvelope]:
     out: dict[str, AssertionEnvelope] = {}
     for rid in dict.fromkeys(ids):
-        record = await ctx.storage.get_record(rid)
+        record = await live_record(ctx, rid)
         if record is not None and record.namespace == tenant:
             out[rid] = turn_assertion(record, tenant, owner)
     return out

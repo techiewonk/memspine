@@ -24,7 +24,12 @@ import re
 from collections import Counter
 from datetime import datetime
 
-from memspine.derive.pipeline.stages.context import PipelineContext, SessionClosed
+from memspine.derive.pipeline.stages.context import (
+    PipelineContext,
+    SessionClosed,
+    live_record,
+    live_records,
+)
 from memspine.derive.pipeline.stages.index import stage_marker
 from memspine.derive.pipeline.stages.profile_card import apply_session_ops
 from memspine.derive.pipeline.stages.session_stage import _live_members
@@ -74,7 +79,7 @@ def _turn(record: MemoryRecord, session_id: str) -> Turn:
 
 
 async def _session_turns(ctx: PipelineContext, namespace: str, session_id: str) -> list[Turn]:
-    records = await ctx.storage.list_records(namespace, "episodic")
+    records = await live_records(ctx, namespace, "episodic")
     ids = [r.record_id for r in records if session_of(r) == session_id]
     members = await _live_members(ctx, ids)
     return [_turn(m, session_id) for m in members if m.content.strip()]
@@ -89,14 +94,14 @@ async def _stubs(
         return []
     lo, hi = min(times).timestamp() - adjacency_s, max(times).timestamp() + adjacency_s
     out: list[ExistingEpisode] = []
-    for record in await ctx.storage.list_records(namespace, "semantic"):
+    for record in await live_records(ctx, namespace, "semantic"):
         if "kind:episode" not in record.tags or record.status is not RecordStatus.ACTIVATED:
             continue
         if record.quarantined or _aware(record.valid_from) is None:
             continue
         parents = [
             p
-            for p in [await ctx.storage.get_record(pid) for pid in record.source.parents]
+            for p in [await live_record(ctx, pid) for pid in record.source.parents]
             if p is not None
         ]
         spans = [t for p in parents if (t := _aware(p.valid_from)) is not None]

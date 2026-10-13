@@ -11,6 +11,7 @@ from memspine.derive.pipeline.stages.context import (
     PipelineContext,
     _local_screen,
     _policy_options,
+    live_records,
     sweep_namespaces,
 )
 from memspine.derive.pipeline.stages.index import (
@@ -300,7 +301,7 @@ async def _retract_contradicted(
     words = set(fact.content.lower().split())
     candidates = [
         r
-        for r in await ctx.storage.list_records(namespace, "semantic")
+        for r in await live_records(ctx, namespace, "semantic")
         if r.source.channel == "extract_graph"
         and r.record_id != fact.record_id
         and r.status is RecordStatus.ACTIVATED
@@ -439,7 +440,7 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
             sources: list[MemoryRecord] = []
             known: list[MemoryRecord] = []
             for mtype in ("episodic", "semantic"):
-                for record in await ctx.storage.list_records(namespace, mtype):
+                for record in await live_records(ctx, namespace, mtype):
                     if mtype == "semantic" and record.status is RecordStatus.ACTIVATED:
                         known.append(record)
                     if record.source.channel == "extract_graph":

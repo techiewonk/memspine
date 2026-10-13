@@ -148,16 +148,8 @@ async def _write_derived(
     parent_records = [r for r in [await storage.get_record(p) for p in pids] if r is not None]
     cap = list(trust_cap or [])
     cap.extend(r.trust for r in parent_records)
-    layer_label = layer if layer in LAYERS else derive_layer(memory_type, record.source.channel)
-    fp = fingerprint_payload(
-        {"site": site, "channel": record.source.channel, "layer": layer_label}
-    )[:16]
-    record = record.model_copy(
-        update={
-            "layer": layer_label,
-            "fingerprint": record.fingerprint.model_copy(update={"derivation": fp}),
-        }
-    )
+    record = stamp_derived(record, memory_type, site, layer)
+    layer_label = record.layer
 
     written = await eng._write_locked(storage, ns, record, memory_type, actor, cap or None)
 
@@ -167,6 +159,56 @@ async def _write_derived(
         written = written.model_copy(update={"trust": cap_value})
         await storage.upsert_record(written)
 
+    return await add_lineage(
+        storage, ns, written, pids, role_of, spans, site, parent_records, cap_value, layer_label
+    )
+
+
+def stamp_derived(
+    record: MemoryRecord, memory_type: str, site: str, layer: str | None = None
+) -> MemoryRecord:
+    """The envelope fields the door sets: ``layer`` and ``fingerprint.derivation``."""
+    layer_label = layer if layer in LAYERS else derive_layer(memory_type, record.source.channel)
+    fp = fingerprint_payload(
+        {"site": site, "channel": record.source.channel, "layer": layer_label}
+    )[:16]
+    return record.model_copy(
+        update={
+            "layer": layer_label,
+            "fingerprint": record.fingerprint.model_copy(update={"derivation": fp}),
+        }
+    )
+
+
+async def link_derived(
+    storage: Any, ns: str, written: MemoryRecord, parents: Sequence[str], site: str
+) -> MemoryRecord:
+    """FU-SAFE: lineage edges for a derived record that was appended as a raw WRITE event (the
+    legacy summary paths keep their event payload, e.g. ``consolidation``, for the graph projector).
+    The record must already be stamped with :func:`stamp_derived`; nothing is written if no parent
+    is named. Only called under ``write.lineage_table``."""
+    pids = [p for p in dict.fromkeys(parents) if p != written.record_id]
+    if not pids:
+        return written
+    found = [r for r in [await storage.get_record(p) for p in pids] if r is not None]
+    return await add_lineage(
+        storage, ns, written, pids, {p: "support" for p in pids}, None, site, found,
+        deposit_trust(1.0, [min(r.trust for r in found)]) if found else 1.0, written.layer,
+    )  # fmt: skip
+
+
+async def add_lineage(
+    storage: Any,
+    ns: str,
+    written: MemoryRecord,
+    pids: Sequence[str],
+    role_of: Mapping[str, str],
+    spans: Mapping[str, Span] | None,
+    site: str,
+    parent_records: Sequence[MemoryRecord],
+    cap_value: float,
+    layer_label: str | None,
+) -> MemoryRecord:
     by_id = {r.record_id: r for r in parent_records}
     edges = [
         LineageEdge(

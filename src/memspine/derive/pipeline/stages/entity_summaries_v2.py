@@ -18,6 +18,8 @@ from memspine.derive.pipeline.stages.context import (
     PipelineContext,
     _int_option,
     _parents_gone,
+    live_record,
+    live_records,
     sweep_namespaces,
 )
 from memspine.derive.pipeline.stages.entity_summaries import (
@@ -181,7 +183,7 @@ async def _gather(
         if parsed is not None and parsed[0] == namespace:
             members_of.setdefault(edge.dst, set()).add(edge.src)
     live: dict[str, list[MemoryRecord]] = {}
-    for record in await ctx.storage.list_records(namespace, "semantic"):
+    for record in await live_records(ctx, namespace, "semantic"):
         if record.source.channel != constants.ENTITY_SUMMARY_CHANNEL or record.status not in (
             RecordStatus.ACTIVATED,
             RecordStatus.QUARANTINED,
@@ -194,7 +196,7 @@ async def _gather(
     for node in sorted(members_of):
         members: list[MemoryRecord] = []
         for record_id in sorted(members_of[node]):
-            member = await ctx.storage.get_record(record_id)
+            member = await live_record(ctx, record_id)
             if (
                 member is not None
                 and member.namespace == namespace
