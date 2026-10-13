@@ -1,0 +1,50 @@
+# screen -> targeted slice (FAIL-SLICE; written by evals/build_targeted_slices.py, read by run_v2_queue.sh in MODE=sample)
+# columns: screen<TAB>set<TAB>slice (reader-flag rows, kind J)<TAB>slice_gc (engine-LLM rows, kind GC: top-3 conversations)<TAB>note
+# A screen with several rows runs once per slice. A screen without a row keeps the random sample slices.
+# Disable the whole map with V2_SLICE_MAP= (empty); use another file with V2_SLICE_MAP=path. OP-Bench ('o') sets are not mapped.
+S01	loc	analysis/fail_slice_fail_retrieval_s20261013.json	analysis/fail_slice_fail_retrieval_s20261013_c3.json	fail_retrieval; arm scr-gc9-summary-jina; targets implicit_or_paraphrased_gold
+S02	loc	analysis/fail_slice_fail_retrieval_s20261013.json	analysis/fail_slice_fail_retrieval_s20261013_c3.json	fail_retrieval; arm scr-gc3-graph-jina; targets multi_evidence_recall
+S03	loc	analysis/fail_slice_fail_retrieval_s20261013.json	analysis/fail_slice_fail_retrieval_s20261013_c3.json	fail_retrieval; arm scr-window-facts-jina; targets (secondary only)
+S04	loc	analysis/fail_slice_fail_retrieval_s20261013.json	analysis/fail_slice_fail_retrieval_s20261013_c3.json	fail_retrieval; arm scr-gc2-facts-jina; targets (secondary only)
+S06	loc	analysis/fail_slice_fail_list_s20261013.json	analysis/fail_slice_fail_list_s20261013_c3.json	fail_list; arm scr-contract-jina; targets list_incomplete, count_wrong
+S10	loc	analysis/fail_slice_fail_fusion_s20261013.json	analysis/fail_slice_fail_fusion_s20261013_c3.json	fail_fusion; arm v2-R3-01-tiers_v2; targets (secondary only)
+S11	loc	analysis/fail_slice_fail_list_s20261013.json	analysis/fail_slice_fail_list_s20261013_c3.json	fail_list; arm v2-R3-02-contract_rules; targets list_incomplete, count_wrong
+S12	loc	analysis/fail_slice_fail_fusion_s20261013.json	analysis/fail_slice_fail_fusion_s20261013_c3.json	fail_fusion; arm v2-R3-03-router_rules; targets (secondary only)
+S13	loc	analysis/fail_slice_fail_retrieval_s20261013.json	analysis/fail_slice_fail_retrieval_s20261013_c3.json	fail_retrieval; arm v2-R3-05a-entity_leg_v2; targets multi_evidence_recall
+S14	loc	analysis/fail_slice_fail_fusion_s20261013.json	analysis/fail_slice_fail_fusion_s20261013_c3.json	fail_fusion; arm v2-R3-06-family_fusion; targets fusion_loss_vector_only, fusion_loss_lexical_only, fusion_loss_two_leg_crowded
+S14	loc	analysis/fail_slice_fail_mix_120_s20261013.json	analysis/fail_slice_fail_mix_120_s20261013_c3.json	fail_mix_120; arm v2-R3-06-family_fusion; targets fusion_loss_vector_only, fusion_loss_lexical_only, fusion_loss_two_leg_crowded
+S15	loc	analysis/fail_slice_fail_fusion_s20261013.json	analysis/fail_slice_fail_fusion_s20261013_c3.json	fail_fusion; arm v2-R3-08-lift_before_rerank; targets (secondary only)
+S16	loc	analysis/fail_slice_fail_fusion_s20261013.json	analysis/fail_slice_fail_fusion_s20261013_c3.json	fail_fusion; arm v2-R3-07-rerank_v2; targets rerank_keep_cut
+S19	loc	analysis/fail_slice_fail_reader_s20261013.json	analysis/fail_slice_fail_reader_s20261013_c3.json	fail_reader; arm v2-R3-10-neighbours_v2; targets (secondary only)
+S24	loc	analysis/fail_slice_fail_retrieval_s20261013.json	analysis/fail_slice_fail_retrieval_s20261013_c3.json	fail_retrieval; arm v2-R3-14-timeview_v2; targets temporal_evidence_missing
+S28	loc	analysis/fail_slice_fail_retrieval_s20261013.json	analysis/fail_slice_fail_retrieval_s20261013_c3.json	fail_retrieval; arm v2-F-01-key_v2; targets multi_evidence_recall
+S30	loc	analysis/fail_slice_fail_retrieval_s20261013.json	analysis/fail_slice_fail_retrieval_s20261013_c3.json	fail_retrieval; arm scr-gc3-graphleg; targets multi_evidence_recall
+S31	loc	analysis/fail_slice_fail_retrieval_s20261013.json	analysis/fail_slice_fail_retrieval_s20261013_c3.json	fail_retrieval; arm scr-gc3-episodeleg; targets implicit_or_paraphrased_gold
+S32	loc	analysis/fail_slice_fail_retrieval_s20261013.json	analysis/fail_slice_fail_retrieval_s20261013_c3.json	fail_retrieval; arm scr-gc3-entityleg; targets multi_evidence_recall
+S33	loc	analysis/fail_slice_fail_retrieval_s20261013.json	analysis/fail_slice_fail_retrieval_s20261013_c3.json	fail_retrieval; arm scr-gc3-sessionclose; targets implicit_or_paraphrased_gold
+S34	loc	analysis/fail_slice_fail_list_s20261013.json	analysis/fail_slice_fail_list_s20261013_c3.json	fail_list; arm scr-gc3-standing; targets list_aggregation_generic
+S35	loc	analysis/fail_slice_fail_list_s20261013.json	analysis/fail_slice_fail_list_s20261013_c3.json	fail_list; arm scr-gc3-patterns; targets list_aggregation_generic
+S36	loc	analysis/fail_slice_fail_fusion_s20261013.json	analysis/fail_slice_fail_fusion_s20261013_c3.json	fail_fusion; arm scr-gc3-tiers; targets (secondary only)
+S37	loc	analysis/fail_slice_fail_fusion_s20261013.json	analysis/fail_slice_fail_fusion_s20261013_c3.json	fail_fusion; arm scr-gc3-router; targets (secondary only)
+S38	loc	analysis/fail_slice_fail_fusion_s20261013.json	analysis/fail_slice_fail_fusion_s20261013_c3.json	fail_fusion; arm scr-gc3-legs; targets (secondary only)
+S39	loc	analysis/fail_slice_fail_retrieval_s20261013.json	analysis/fail_slice_fail_retrieval_s20261013_c3.json	fail_retrieval; arm scr-gc3-edgecomp; targets multi_evidence_recall
+S40	loc	analysis/fail_slice_fail_list_s20261013.json	analysis/fail_slice_fail_list_s20261013_c3.json	fail_list; arm scr-gc3-communities; targets list_aggregation_generic
+S44	loc	analysis/fail_slice_fail_retrieval_s20261013.json	analysis/fail_slice_fail_retrieval_s20261013_c3.json	fail_retrieval; arm scr-gc3-envelope; targets (secondary only)
+S45	loc	analysis/fail_slice_fail_retrieval_s20261013.json	analysis/fail_slice_fail_retrieval_s20261013_c3.json	fail_retrieval; arm scr-gc3-segmentation; targets (secondary only)
+S48	loc	analysis/fail_slice_fail_retrieval_s20261013.json	analysis/fail_slice_fail_retrieval_s20261013_c3.json	fail_retrieval; arm scr-gc3-stamping; targets (secondary only)
+S51	loc	analysis/fail_slice_fail_fusion_s20261013.json	analysis/fail_slice_fail_fusion_s20261013_c3.json	fail_fusion; arm v2-R3-06-family_fusion; targets fusion_loss_vector_only, fusion_loss_lexical_only, fusion_loss_two_leg_crowded
+S51	loc	analysis/fail_slice_fail_mix_120_s20261013.json	analysis/fail_slice_fail_mix_120_s20261013_c3.json	fail_mix_120; arm v2-R3-06-family_fusion; targets fusion_loss_vector_only, fusion_loss_lexical_only, fusion_loss_two_leg_crowded
+S53	loc	analysis/fail_slice_fail_reader_s20261013.json	analysis/fail_slice_fail_reader_s20261013_c3.json	fail_reader; arm scr-b7-exactbudget; targets (secondary only)
+S54	loc	analysis/fail_slice_fail_reader_s20261013.json	analysis/fail_slice_fail_reader_s20261013_c3.json	fail_reader; arm scr-b7-bundles; targets (secondary only)
+S55	loc	analysis/fail_slice_fail_retrieval_s20261013.json	analysis/fail_slice_fail_retrieval_s20261013_c3.json	fail_retrieval; arm scr-b7-deep; targets multi_evidence_recall
+S56	loc	analysis/fail_slice_fail_list_s20261013.json	analysis/fail_slice_fail_list_s20261013_c3.json	fail_list; arm scr-b7-obligations; targets list_incomplete, count_wrong
+S56	loc	analysis/fail_slice_fail_retrieval_s20261013.json	analysis/fail_slice_fail_retrieval_s20261013_c3.json	fail_retrieval; arm scr-b7-obligations; targets list_incomplete, count_wrong
+S60	loc	analysis/fail_slice_fail_fusion_s20261013.json	analysis/fail_slice_fail_fusion_s20261013_c3.json	fail_fusion; arm scr-b8-read-v2-core; targets fusion_loss_vector_only, fusion_loss_lexical_only, fusion_loss_two_leg_crowded, rerank_keep_cut
+S60	loc	analysis/fail_slice_fail_mix_120_s20261013.json	analysis/fail_slice_fail_mix_120_s20261013_c3.json	fail_mix_120; arm scr-b8-read-v2-core; targets fusion_loss_vector_only, fusion_loss_lexical_only, fusion_loss_two_leg_crowded, rerank_keep_cut
+S61	loc	analysis/fail_slice_fail_retrieval_s20261013.json	analysis/fail_slice_fail_retrieval_s20261013_c3.json	fail_retrieval; arm scr-b8-read-v2-graph; targets fusion_loss_vector_only, fusion_loss_lexical_only, fusion_loss_two_leg_crowded, rerank_keep_cut
+S62	loc	analysis/fail_slice_fail_temporal_s20261013.json	analysis/fail_slice_fail_temporal_s20261013_c3.json	fail_temporal; arm scr-b8-write-v2; targets temporal_evidence_missing, date_offset_small
+S63	loc	analysis/fail_slice_fail_reader_s20261013.json	analysis/fail_slice_fail_reader_s20261013_c3.json	fail_reader; arm scr-b8-read-v2-safe; targets multi_evidence_recall, list_incomplete, count_wrong, temporal_evidence_missing
+S64	loc	analysis/fail_slice_fail_list_s20261013.json	analysis/fail_slice_fail_list_s20261013_c3.json	fail_list; arm scr-b8-offline-v2; targets implicit_or_paraphrased_gold, list_aggregation_generic
+S64	loc	analysis/fail_slice_fail_retrieval_s20261013.json	analysis/fail_slice_fail_retrieval_s20261013_c3.json	fail_retrieval; arm scr-b8-offline-v2; targets implicit_or_paraphrased_gold, list_aggregation_generic
+S67	loc	analysis/fail_slice_fail_fusion_s20261013.json	analysis/fail_slice_fail_fusion_s20261013_c3.json	fail_fusion; arm v2-R3-07b-rerank_v2_pool; targets rerank_keep_cut
+S67	loc	analysis/fail_slice_fail_mix_120_s20261013.json	analysis/fail_slice_fail_mix_120_s20261013_c3.json	fail_mix_120; arm v2-R3-07b-rerank_v2_pool; targets rerank_keep_cut

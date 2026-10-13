@@ -64,6 +64,73 @@ the focus-first plan; **final** about 110 min per promote_candidate with a blind
 10 h. Each further sample iteration of one non-GC screen costs about 7 min. These are planning figures derived from the measured
 runs above; no sample run has been made yet.
 
+## Targeted slices (FAIL-SLICE, 2026-10-13)
+
+Why. The random LoCoMo samples hold only 13-15 wrong questions, almost none in the class a screen targets, so a sample cannot show
+whether a screen fixes its class. Reference reruns are deterministic (0 of 80 flips, `LOCOMO_PROBLEM_MAP.md`), so every flip is caused
+by the screen. A targeted slice is mostly the questions the screen is meant to fix, plus controls that catch regressions.
+
+Built by `evals/build_targeted_slices.py` (seed 20261013) from the problem labels of `clean-jina-full`
+(`analysis/locomo_problem_labels_clean_jina_full.txt`) and the classes of `analysis/locomo_solution_map.json`; files
+`analysis/fail_slice_<name>_s20261013[_c3].json`, same format as the sample slices (`query_ids`, `category`, `slice_id`, `hash`) plus
+`target_ids`, `control_ids`, `target_class`, `family`. Ids only, no text. Each slice = all wrong questions of the family (cap 60,
+class-stratified when over the cap) + correct controls matched on conversation x category (about 40% of the slice). `gold_error`,
+`judge_false_negative`, `no_gold_resolvable`, `write_path_loss` are never targets.
+
+| Slice | Classes | Wrong | Controls | n | `_c3` variant (wrong / controls) |
+|---|---|---|---|---|---|
+| `fail_list` | list_aggregation_generic, list_incomplete, count_wrong | 60 (of 62) | 40 | 100 | 31 / 21 |
+| `fail_retrieval` | open_domain_inference_retrieval, temporal_evidence_missing, multi_evidence_recall, vocabulary_mismatch_recall, implicit_or_paraphrased_gold | 55 | 37 | 92 | 27 / 18 |
+| `fail_fusion` | fusion_loss_* (3), rerank_keep_cut, lexical_outranked_recall | 23 | 15 | 38 | 12 / 8 |
+| `fail_temporal` | date_duration_arithmetic, date_offset_small, date_wrong_event, relative_date_gold_vs_judge | 20 | 13 | 33 | 11 / 7 |
+| `fail_reader` | wrong_detail, refusal_premise_denial, inference_open_domain, distractor_line, image_caption_misuse, speaker_confusion | 60 (of 96) | 40 | 100 | 45 / 30 |
+| `fail_mix_120` | 23 fixable classes, 60 wrong class-stratified (floor 2) | 60 | 60 | 120 | 60 / 60 |
+
+`lexical_outranked_recall` sits in `fail_fusion` (a cut/outrank loss) and `speaker_confusion` in `fail_reader`; the brief did not place them.
+The `_c3` variant keeps the 3 conversations with the most failures of the family (engine-LLM rows are ingest-bound, so they ingest 3
+conversations, like `sample_slice_loc_60_s20261013_c3`).
+
+Conversations. The owner allowed all 10 conversations for the logged full run (2026-10-10), so the slices use dev and held-out conversations
+(held-out policy of `build_forensics_explorer.py`: conv-43/44/47/48/49/50 dropped by default). Every slice says which in its metadata:
+`uses_heldout_conversations`, `dev_conversations_used`, `heldout_conversations_used`, `conv_policy`. They are screening slices, never blind sets.
+
+**Reading rule.** A targeted slice is NOT an estimate of overall accuracy. Read two numbers, printed by `eval_sample.py` and shown as
+`tgt_rec` / `ctl_lost` by `python evals/v2_ledger.py summary`:
+
+* `tgt_rec a/b`: target-class questions recovered (wrong in the reference run, right in the arm) / wrong target questions in the slice
+  (wrong in the reference run). Per-class split in the `eval_sample.py` output.
+* `ctl_lost a/b`: controls lost (right in the reference, wrong in the arm) / controls the reference had right.
+
+A good screen recovers a visible share of its target class with `ctl_lost` near 0. The ledger gained two columns at the end; a ledger file
+that already exists keeps its header and the two values are written into `notes` (`tgt_rec=a/b ctl_lost=a/b`), which `summary` also reads.
+
+**Screen to slice mapping** (`evals/v2_slice_map.tsv`, written by the builder; read by `run_v2_queue.sh` in MODE=sample). Columns: screen,
+set, slice (reader-flag rows), slice for engine-LLM rows (the `_c3` file), note. A screen with several rows runs once per slice, run id
+`smp-<id>-tgt-<family>-<stamp>`, each with its own cached reference (`smp-ref-<ref arm>-<commit>-<slice_id>`). A screen without a row keeps
+the random sample slices (old behaviour); `V2_SLICE_MAP=` (empty) turns the map off, `V2_SLICE_MAP=file` uses another one. OP-Bench sets
+are not remapped. The mapping comes from each screen's primary target classes in the solution map (secondary classes if it has no
+primary, one slice), with the owner's examples as overrides; PARITY / REF / REPORT rows (S05, S25, S26, S29, S47, S65, S66) and screens
+without target classes (S41, S42, S49, S50 ...) are not mapped.
+
+| Slice | Screens |
+|---|---|
+| `fail_list` | S34, S35, S40, S06, S11, S56, S64 |
+| `fail_retrieval` | S55, S56, S61, S64, S01-S04, S13, S24, S28, S30-S33, S39, S44, S45, S48 |
+| `fail_fusion` + `fail_mix_120` | S60, S67, S14, S51 |
+| `fail_fusion` | S10, S12, S15, S16, S36-S38 |
+| `fail_temporal` | S62 (write-v2 and the W2 / temporal bundles) |
+| `fail_reader` | S63 (plus its OP-Bench sample slice), S19, S53, S54 |
+| random sample slices (not mapped) | S05, S25, S26, S29, S47, S65, S66 (parity / report), S41, S42, S49, S50 (no target class) |
+
+S56 also runs `fail_list` (its primary classes are list_incomplete and count_wrong; it sits on the S55 deep reader). The exact table is the
+TSV; `evals/tests/test_fail_slices.py` checks it against the builder.
+
+GPU time (planning figures from the table above; 40 mapped screens: 15 reader-flag rows, 25 engine-LLM rows): focus runs of these rows
+cost about 4,720 min (805 + 3,915); the targeted runs about 1,250 min (128 + 1,119), a saving of about 3,470 min (58 h, 74%), plus
+one-off references per ref arm x slice (about 7 min reader-flag, about 39 min gc3 per `_c3` slice; at most about 280 min for all six
+families). The random sample runs of the same rows would cost about 1,120 min, so targeted slices cost about 10% more than the random
+samples but hold 20-60 wrong target questions instead of 13-15 mostly off-target ones.
+
 ## How to run the whole batch
 
 1. Merge the wiring branches first. The queue is pinned to ONE commit (`--commit`, default HEAD) and `pinned_run.sh` builds that
