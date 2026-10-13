@@ -85,14 +85,15 @@ PIPELINE_PRIORITIES: dict[str, int] = {
     "rule_edges": 10,  # W12: rule edges right after the LLM ones (opt-in stage)
     "reconcile": 11,  # O4-03: contradiction sweep after the edges (opt-in)
     "histories": 12,  # O4-04: near-duplicates and value histories (opt-in)
-    "summarize_entities": 13,  # GP-6: entity summaries over the fresh facts
-    "reorganize": 14,
-    "session_lifecycle": 15,  # #53: idle sessions -> PASSIVE, before the decay sweep
-    "decay_sweep": 16,
-    "compress": 17,
-    "sleep_compute": 18,
-    "retention_expire": 19,  # #48: expiry is housekeeping, never urgent
-    "event_log_prune": 20,
+    "compile_edges": 13,  # F-02c: assertions -> graph edges once the facts settle (opt-in)
+    "summarize_entities": 14,  # GP-6: entity summaries over the fresh facts
+    "reorganize": 15,
+    "session_lifecycle": 16,  # #53: idle sessions -> PASSIVE, before the decay sweep
+    "decay_sweep": 17,
+    "compress": 18,
+    "sleep_compute": 19,
+    "retention_expire": 20,  # #48: expiry is housekeeping, never urgent
+    "event_log_prune": 21,
 }
 
 #: Labels outside the known pipeline set (deployment-registered pipelines,

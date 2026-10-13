@@ -3069,6 +3069,12 @@ class Engine:
         and every archived version."""
         return trust_erasure._erasable_texts(self, record)
 
+    async def _retract_compiled_edges(self, namespace: str, record_ids: Sequence[str]) -> None:
+        """F-02c (``graph.edge_compiler_v2``): compiled graph edges of erased records go."""
+        from memspine.derive.pipeline.stages.edge_compiler_v2 import retract_after_forget
+
+        await retract_after_forget(self, namespace, record_ids)
+
     async def _purge_caches(self, texts: Sequence[str]) -> None:
         """#43: drop the embedding and extraction cache entries of erased texts, and
         the read-side caches keyed by text (N60 sentence vectors, N30 date spans)."""

@@ -371,6 +371,8 @@ async def _purge_step(eng: Any, ns: str, step: Any, texts: Sequence[str]) -> Non
         if eng._graph is not None:
             for rid in step.ids:
                 await eng._graph.delete_node(rid)
+            if eng._config().graph.edge_compiler_v2:  # F-02c: compiled edges sourced from them
+                await eng._retract_compiled_edges(ns, list(step.ids))
     elif step.kind == "bump_generation":
         d = eng.__dict__
         d["_erasure_generation"] = max(d.get("_erasure_generation", 0), step.generation)

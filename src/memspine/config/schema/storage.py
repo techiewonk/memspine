@@ -121,6 +121,13 @@ class GraphConfig(BaseModel):
     #: instead of being swallowed as a duplicate of the closed A; old keys stay valid as aliases.
     #: Off: today's ``(namespace, src, rel, dst)`` key, byte-identical.
     key_v2: bool = False
+    #: F-02c (M-16, S5-3, LIB-35): the ``compile_edges`` sleep stage compiles the assertion
+    #: records into typed graph edges (assertion node, role edges, one subject-object edge; time
+    #: axes from the tri-temporal fields, evidence ids, trust, a ``tentative`` tag that default
+    #: reads exclude) and projects them as LINK events, idempotently. An erased or retired record
+    #: takes its edges with it. With ``isolation.scope_keys_v2`` the edge keys use tenant + owner.
+    #: Off (default): no compiled edges, byte-identical. Tap: ``graph.compile.*``.
+    edge_compiler_v2: bool = False
 
 
 class CacheConfig(BaseModel):

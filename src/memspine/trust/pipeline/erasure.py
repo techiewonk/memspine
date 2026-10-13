@@ -344,6 +344,8 @@ async def _forget_locked(
             payload={"record_id": record_id, "hard": hard},
         )
     )
+    if eng._config().graph.edge_compiler_v2:  # F-02c: its compiled graph edges go with it
+        await eng._retract_compiled_edges(ns, [record_id])
     if hard and redact:
         redacted = await storage.redact_event_payloads(record_id)
         # D-18: the hard-delete cascade escalates to alert severity.
