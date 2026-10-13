@@ -38,7 +38,7 @@ from memspine.derive.communities import (
     plan_summary_jobs,
     update,
 )
-from memspine.derive.pipeline.stages.context import PipelineContext, _parents_gone
+from memspine.derive.pipeline.stages.context import PipelineContext, _parents_gone, sweep_namespaces
 from memspine.derive.pipeline.stages.offline_door import (
     COMMUNITY_CHANNEL,
     COMMUNITY_TAG,
@@ -160,7 +160,7 @@ async def reorganize_v2(ctx: PipelineContext) -> dict[str, object]:
         return {"status": "skipped", "reason": "no graph store (associative memory disabled)"}
     totals: Counter[str] = Counter()
     errors: list[str] = []
-    for namespace in await ctx.storage.list_namespaces():
+    for namespace in await sweep_namespaces(ctx):
         try:
             await _namespace(ctx, namespace, totals)
         except Exception as exc:  # one bad namespace must not kill the sweep

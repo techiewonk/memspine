@@ -8,7 +8,12 @@ from datetime import UTC, datetime
 
 from memspine.compose.compression import CompressionPolicy
 from memspine.config import constants
-from memspine.derive.pipeline.stages.context import PipelineContext, _int_option, _local_screen
+from memspine.derive.pipeline.stages.context import (
+    PipelineContext,
+    _int_option,
+    _local_screen,
+    sweep_namespaces,
+)
 from memspine.derive.pipeline.stages.extract_graph import _record_names
 from memspine.derive.pipeline.stages.index import ENTITY_SUMMARIZED_MARKER
 from memspine.memories.associative.entities import (
@@ -132,7 +137,7 @@ async def summarize_entities(ctx: PipelineContext) -> dict[str, object]:
     counts = {"summarized": 0, "free": 0, "llm_calls": 0, "unchanged": 0, "superseded": 0}
     quarantined = 0
     errors: list[str] = []
-    for namespace in await ctx.storage.list_namespaces():
+    for namespace in await sweep_namespaces(ctx):
         async with ctx.lock(namespace):
             members_of: dict[str, set[str]] = {}
             for edge in await ctx.graph.edge_list(namespace):

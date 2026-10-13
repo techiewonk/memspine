@@ -25,6 +25,12 @@ class EconomyConfig(BaseModel):
     - ``ledger_v2`` (W2-12; W-26, P-22 C, LIB-27): count model calls, tokens in/out, latency and
       embed calls per write, per layer, per namespace and per stage (window extract, sleep
       stages). Read it with ``Engine.cost_report(namespace)``. Tap: ``economy.cost``.
+    - ``ledger_persist`` (FU-SLEEP; needs ``ledger_v2``): also keep every ledger entry as a compact
+      row (ids, hashed namespace, stage, calls, tokens, latency; no content) in a sibling SQLite
+      file
+      of the storage database (``<path>.cost``), and reload the totals at start, so ``cost_report``
+      survives a restart. In-memory and non-sqlite storage: not persisted (a warning is logged).
+      Reloaded rows carry the namespace hash; ``cost_report(namespace)`` matches it by hash.
     - ``budget`` (W-26 D, P-22 C; needs ``ledger_v2`` and ``workers.outbox``): optional spend
       limit that pauses derivation. Tap: ``economy.budget``. ``None`` = no limit.
     """
@@ -32,4 +38,5 @@ class EconomyConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     ledger_v2: bool = False
+    ledger_persist: bool = False
     budget: BudgetConfig | None = None

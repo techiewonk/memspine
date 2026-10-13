@@ -9,7 +9,7 @@ from typing import Any
 
 from memspine.config import constants
 from memspine.derive import patterns as lib
-from memspine.derive.pipeline.stages.context import PipelineContext, _parents_gone
+from memspine.derive.pipeline.stages.context import PipelineContext, _parents_gone, sweep_namespaces
 from memspine.derive.pipeline.stages.offline_common import (
     OBSERVATION_CHANNEL,
     archive_records,
@@ -93,7 +93,7 @@ async def pattern_observations(ctx: PipelineContext) -> dict[str, object]:
     emitted: Counter[str] = Counter()
     invalidated = retired = skipped_parents = deferred = groups_changed = 0
     errors: list[str] = []
-    for namespace in await ctx.storage.list_namespaces():
+    for namespace in await sweep_namespaces(ctx):
         async with ctx.lock(namespace):
             records = await ctx.storage.list_records(namespace, "semantic")
             live_ids = {

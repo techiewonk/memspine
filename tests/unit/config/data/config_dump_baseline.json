@@ -36,6 +36,7 @@
   },
   "economy": {
    "budget": null,
+   "ledger_persist": false,
    "ledger_v2": false
   },
   "embedding": {
@@ -231,6 +232,7 @@
    "sleep_manual_only": false,
    "sleep_min_gap_minutes": 60.0,
    "sleep_min_turns": 20,
+   "sleep_scoped": false,
    "sleep_v2": false,
    "standing_idle_after": 5,
    "standing_max_answers": 50,
@@ -535,6 +537,7 @@
    "temporal_leg": false,
    "temporal_leg_event_dates": false,
    "temporal_leg_mentions": false,
+   "temporal_precision_aware": false,
    "temporal_rank": "midpoint",
    "temporal_relative": false,
    "temporal_soft": false,
@@ -645,6 +648,7 @@
    "stamp_default_tz": null,
    "stamp_participant_tags": "v1",
    "stamping_v2": false,
+   "temporal_v2": false,
    "window_async": true,
    "window_cache": true,
    "window_extract": "off",
@@ -655,7 +659,7 @@
    "window_topic_k": 2.0
   }
  },
- "json_schema_sha256": "7b179c79d3f58e9d60ae89381be425893d9c605c1c1b9d52374ff7ac9726f79f",
+ "json_schema_sha256": "a7bddf02467fced59036857283a7e6ca8ccc1c70dc3108a53ffd3de621d28296",
  "preset:chat_roles": {
   "audit": {
    "actions": false,
@@ -693,6 +697,7 @@
   },
   "economy": {
    "budget": null,
+   "ledger_persist": false,
    "ledger_v2": false
   },
   "embedding": {
@@ -909,6 +914,7 @@
    "sleep_manual_only": false,
    "sleep_min_gap_minutes": 60.0,
    "sleep_min_turns": 20,
+   "sleep_scoped": false,
    "sleep_v2": false,
    "standing_idle_after": 5,
    "standing_max_answers": 50,
@@ -1223,6 +1229,7 @@
    "temporal_leg": true,
    "temporal_leg_event_dates": false,
    "temporal_leg_mentions": false,
+   "temporal_precision_aware": false,
    "temporal_rank": "midpoint",
    "temporal_relative": false,
    "temporal_soft": false,
@@ -1333,6 +1340,7 @@
    "stamp_default_tz": null,
    "stamp_participant_tags": "v1",
    "stamping_v2": false,
+   "temporal_v2": false,
    "window_async": true,
    "window_cache": true,
    "window_extract": "off",
@@ -1380,6 +1388,7 @@
   },
   "economy": {
    "budget": null,
+   "ledger_persist": false,
    "ledger_v2": false
   },
   "embedding": {
@@ -1592,6 +1601,7 @@
    "sleep_manual_only": false,
    "sleep_min_gap_minutes": 60.0,
    "sleep_min_turns": 20,
+   "sleep_scoped": false,
    "sleep_v2": false,
    "standing_idle_after": 5,
    "standing_max_answers": 50,
@@ -1906,6 +1916,7 @@
    "temporal_leg": true,
    "temporal_leg_event_dates": false,
    "temporal_leg_mentions": false,
+   "temporal_precision_aware": false,
    "temporal_rank": "midpoint",
    "temporal_relative": false,
    "temporal_soft": false,
@@ -2016,6 +2027,7 @@
    "stamp_default_tz": null,
    "stamp_participant_tags": "v1",
    "stamping_v2": false,
+   "temporal_v2": false,
    "window_async": true,
    "window_cache": true,
    "window_extract": "off",
@@ -2063,6 +2075,7 @@
   },
   "economy": {
    "budget": null,
+   "ledger_persist": false,
    "ledger_v2": false
   },
   "embedding": {
@@ -2275,6 +2288,7 @@
    "sleep_manual_only": false,
    "sleep_min_gap_minutes": 60.0,
    "sleep_min_turns": 20,
+   "sleep_scoped": false,
    "sleep_v2": false,
    "standing_idle_after": 5,
    "standing_max_answers": 50,
@@ -2589,6 +2603,7 @@
    "temporal_leg": true,
    "temporal_leg_event_dates": false,
    "temporal_leg_mentions": false,
+   "temporal_precision_aware": false,
    "temporal_rank": "midpoint",
    "temporal_relative": false,
    "temporal_soft": false,
@@ -2699,6 +2714,7 @@
    "stamp_default_tz": null,
    "stamp_participant_tags": "v1",
    "stamping_v2": false,
+   "temporal_v2": false,
    "window_async": true,
    "window_cache": true,
    "window_extract": "off",
@@ -2746,6 +2762,7 @@
   },
   "economy": {
    "budget": null,
+   "ledger_persist": false,
    "ledger_v2": false
   },
   "embedding": {
@@ -2958,6 +2975,7 @@
    "sleep_manual_only": false,
    "sleep_min_gap_minutes": 60.0,
    "sleep_min_turns": 20,
+   "sleep_scoped": false,
    "sleep_v2": false,
    "standing_idle_after": 5,
    "standing_max_answers": 50,
@@ -3272,6 +3290,7 @@
    "temporal_leg": true,
    "temporal_leg_event_dates": false,
    "temporal_leg_mentions": false,
+   "temporal_precision_aware": false,
    "temporal_rank": "midpoint",
    "temporal_relative": false,
    "temporal_soft": false,
@@ -3382,6 +3401,7 @@
    "stamp_default_tz": null,
    "stamp_participant_tags": "v1",
    "stamping_v2": false,
+   "temporal_v2": false,
    "window_async": true,
    "window_cache": true,
    "window_extract": "off",
@@ -3429,6 +3449,7 @@
   },
   "economy": {
    "budget": null,
+   "ledger_persist": false,
    "ledger_v2": false
   },
   "embedding": {
@@ -3641,6 +3662,7 @@
    "sleep_manual_only": false,
    "sleep_min_gap_minutes": 60.0,
    "sleep_min_turns": 20,
+   "sleep_scoped": false,
    "sleep_v2": false,
    "standing_idle_after": 5,
    "standing_max_answers": 50,
@@ -3955,6 +3977,7 @@
    "temporal_leg": true,
    "temporal_leg_event_dates": false,
    "temporal_leg_mentions": false,
+   "temporal_precision_aware": false,
    "temporal_rank": "midpoint",
    "temporal_relative": false,
    "temporal_soft": false,
@@ -4065,6 +4088,7 @@
    "stamp_default_tz": null,
    "stamp_participant_tags": "v1",
    "stamping_v2": false,
+   "temporal_v2": false,
    "window_async": true,
    "window_cache": true,
    "window_extract": "off",
@@ -4112,6 +4136,7 @@
   },
   "economy": {
    "budget": null,
+   "ledger_persist": false,
    "ledger_v2": false
   },
   "embedding": {
@@ -4324,6 +4349,7 @@
    "sleep_manual_only": false,
    "sleep_min_gap_minutes": 60.0,
    "sleep_min_turns": 20,
+   "sleep_scoped": false,
    "sleep_v2": false,
    "standing_idle_after": 5,
    "standing_max_answers": 50,
@@ -4638,6 +4664,7 @@
    "temporal_leg": true,
    "temporal_leg_event_dates": false,
    "temporal_leg_mentions": false,
+   "temporal_precision_aware": false,
    "temporal_rank": "midpoint",
    "temporal_relative": false,
    "temporal_soft": false,
@@ -4748,6 +4775,7 @@
    "stamp_default_tz": null,
    "stamp_participant_tags": "v1",
    "stamping_v2": false,
+   "temporal_v2": false,
    "window_async": true,
    "window_cache": true,
    "window_extract": "off",
@@ -4795,6 +4823,7 @@
   },
   "economy": {
    "budget": null,
+   "ledger_persist": false,
    "ledger_v2": false
   },
   "embedding": {
@@ -5007,6 +5036,7 @@
    "sleep_manual_only": false,
    "sleep_min_gap_minutes": 60.0,
    "sleep_min_turns": 20,
+   "sleep_scoped": false,
    "sleep_v2": false,
    "standing_idle_after": 5,
    "standing_max_answers": 50,
@@ -5321,6 +5351,7 @@
    "temporal_leg": false,
    "temporal_leg_event_dates": false,
    "temporal_leg_mentions": false,
+   "temporal_precision_aware": false,
    "temporal_rank": "midpoint",
    "temporal_relative": false,
    "temporal_soft": false,
@@ -5431,6 +5462,7 @@
    "stamp_default_tz": null,
    "stamp_participant_tags": "v1",
    "stamping_v2": false,
+   "temporal_v2": false,
    "window_async": true,
    "window_cache": true,
    "window_extract": "off",
@@ -5478,6 +5510,7 @@
   },
   "economy": {
    "budget": null,
+   "ledger_persist": false,
    "ledger_v2": false
   },
   "embedding": {
@@ -5690,6 +5723,7 @@
    "sleep_manual_only": false,
    "sleep_min_gap_minutes": 60.0,
    "sleep_min_turns": 20,
+   "sleep_scoped": false,
    "sleep_v2": false,
    "standing_idle_after": 5,
    "standing_max_answers": 50,
@@ -6004,6 +6038,7 @@
    "temporal_leg": true,
    "temporal_leg_event_dates": false,
    "temporal_leg_mentions": false,
+   "temporal_precision_aware": false,
    "temporal_rank": "midpoint",
    "temporal_relative": false,
    "temporal_soft": false,
@@ -6114,6 +6149,7 @@
    "stamp_default_tz": null,
    "stamp_participant_tags": "v1",
    "stamping_v2": false,
+   "temporal_v2": false,
    "window_async": true,
    "window_cache": true,
    "window_extract": "off",
@@ -6161,6 +6197,7 @@
   },
   "economy": {
    "budget": null,
+   "ledger_persist": false,
    "ledger_v2": false
   },
   "embedding": {
@@ -6373,6 +6410,7 @@
    "sleep_manual_only": false,
    "sleep_min_gap_minutes": 60.0,
    "sleep_min_turns": 20,
+   "sleep_scoped": false,
    "sleep_v2": false,
    "standing_idle_after": 5,
    "standing_max_answers": 50,
@@ -6687,6 +6725,7 @@
    "temporal_leg": true,
    "temporal_leg_event_dates": false,
    "temporal_leg_mentions": false,
+   "temporal_precision_aware": false,
    "temporal_rank": "midpoint",
    "temporal_relative": false,
    "temporal_soft": false,
@@ -6797,6 +6836,7 @@
    "stamp_default_tz": null,
    "stamp_participant_tags": "v1",
    "stamping_v2": false,
+   "temporal_v2": false,
    "window_async": true,
    "window_cache": true,
    "window_extract": "off",
@@ -6844,6 +6884,7 @@
   },
   "economy": {
    "budget": null,
+   "ledger_persist": false,
    "ledger_v2": false
   },
   "embedding": {
@@ -7063,6 +7104,7 @@
    "sleep_manual_only": false,
    "sleep_min_gap_minutes": 60.0,
    "sleep_min_turns": 20,
+   "sleep_scoped": false,
    "sleep_v2": false,
    "standing_idle_after": 5,
    "standing_max_answers": 50,
@@ -7379,6 +7421,7 @@
    "temporal_leg": true,
    "temporal_leg_event_dates": false,
    "temporal_leg_mentions": false,
+   "temporal_precision_aware": false,
    "temporal_rank": "midpoint",
    "temporal_relative": false,
    "temporal_soft": false,
@@ -7489,6 +7532,7 @@
    "stamp_default_tz": null,
    "stamp_participant_tags": "v1",
    "stamping_v2": false,
+   "temporal_v2": false,
    "window_async": true,
    "window_cache": true,
    "window_extract": "off",
@@ -7536,6 +7580,7 @@
   },
   "economy": {
    "budget": null,
+   "ledger_persist": false,
    "ledger_v2": false
   },
   "embedding": {
@@ -7753,6 +7798,7 @@
    "sleep_manual_only": false,
    "sleep_min_gap_minutes": 60.0,
    "sleep_min_turns": 20,
+   "sleep_scoped": false,
    "sleep_v2": false,
    "standing_idle_after": 5,
    "standing_max_answers": 50,
@@ -8067,6 +8113,7 @@
    "temporal_leg": true,
    "temporal_leg_event_dates": false,
    "temporal_leg_mentions": false,
+   "temporal_precision_aware": false,
    "temporal_rank": "midpoint",
    "temporal_relative": false,
    "temporal_soft": false,
@@ -8177,6 +8224,7 @@
    "stamp_default_tz": null,
    "stamp_participant_tags": "v1",
    "stamping_v2": false,
+   "temporal_v2": false,
    "window_async": true,
    "window_cache": true,
    "window_extract": "off",
@@ -8224,6 +8272,7 @@
   },
   "economy": {
    "budget": null,
+   "ledger_persist": false,
    "ledger_v2": false
   },
   "embedding": {
@@ -8432,6 +8481,7 @@
    "sleep_manual_only": false,
    "sleep_min_gap_minutes": 60.0,
    "sleep_min_turns": 20,
+   "sleep_scoped": false,
    "sleep_v2": false,
    "standing_idle_after": 5,
    "standing_max_answers": 50,
@@ -8736,6 +8786,7 @@
    "temporal_leg": false,
    "temporal_leg_event_dates": false,
    "temporal_leg_mentions": false,
+   "temporal_precision_aware": false,
    "temporal_rank": "midpoint",
    "temporal_relative": false,
    "temporal_soft": false,
@@ -8846,6 +8897,7 @@
    "stamp_default_tz": null,
    "stamp_participant_tags": "v1",
    "stamping_v2": false,
+   "temporal_v2": false,
    "window_async": true,
    "window_cache": true,
    "window_extract": "off",
@@ -8893,6 +8945,7 @@
   },
   "economy": {
    "budget": null,
+   "ledger_persist": false,
    "ledger_v2": false
   },
   "embedding": {
@@ -9113,6 +9166,7 @@
    "sleep_manual_only": false,
    "sleep_min_gap_minutes": 60.0,
    "sleep_min_turns": 20,
+   "sleep_scoped": false,
    "sleep_v2": false,
    "standing_idle_after": 5,
    "standing_max_answers": 50,
@@ -9427,6 +9481,7 @@
    "temporal_leg": true,
    "temporal_leg_event_dates": false,
    "temporal_leg_mentions": false,
+   "temporal_precision_aware": false,
    "temporal_rank": "midpoint",
    "temporal_relative": false,
    "temporal_soft": false,
@@ -9537,6 +9592,7 @@
    "stamp_default_tz": null,
    "stamp_participant_tags": "v1",
    "stamping_v2": false,
+   "temporal_v2": false,
    "window_async": true,
    "window_cache": true,
    "window_extract": "off",
@@ -9584,6 +9640,7 @@
   },
   "economy": {
    "budget": null,
+   "ledger_persist": false,
    "ledger_v2": false
   },
   "embedding": {
@@ -9800,6 +9857,7 @@
    "sleep_manual_only": false,
    "sleep_min_gap_minutes": 60.0,
    "sleep_min_turns": 20,
+   "sleep_scoped": false,
    "sleep_v2": false,
    "standing_idle_after": 5,
    "standing_max_answers": 50,
@@ -10114,6 +10172,7 @@
    "temporal_leg": true,
    "temporal_leg_event_dates": false,
    "temporal_leg_mentions": false,
+   "temporal_precision_aware": false,
    "temporal_rank": "midpoint",
    "temporal_relative": false,
    "temporal_soft": false,
@@ -10224,6 +10283,7 @@
    "stamp_default_tz": null,
    "stamp_participant_tags": "v1",
    "stamping_v2": false,
+   "temporal_v2": false,
    "window_async": true,
    "window_cache": true,
    "window_extract": "off",
@@ -10271,6 +10331,7 @@
   },
   "economy": {
    "budget": null,
+   "ledger_persist": false,
    "ledger_v2": false
   },
   "embedding": {
@@ -10491,6 +10552,7 @@
    "sleep_manual_only": false,
    "sleep_min_gap_minutes": 60.0,
    "sleep_min_turns": 20,
+   "sleep_scoped": false,
    "sleep_v2": false,
    "standing_idle_after": 5,
    "standing_max_answers": 50,
@@ -10805,6 +10867,7 @@
    "temporal_leg": true,
    "temporal_leg_event_dates": false,
    "temporal_leg_mentions": false,
+   "temporal_precision_aware": false,
    "temporal_rank": "midpoint",
    "temporal_relative": false,
    "temporal_soft": false,
@@ -10915,6 +10978,7 @@
    "stamp_default_tz": null,
    "stamp_participant_tags": "v1",
    "stamping_v2": false,
+   "temporal_v2": false,
    "window_async": true,
    "window_cache": true,
    "window_extract": "off",
@@ -10962,6 +11026,7 @@
   },
   "economy": {
    "budget": null,
+   "ledger_persist": false,
    "ledger_v2": false
   },
   "embedding": {
@@ -11174,6 +11239,7 @@
    "sleep_manual_only": false,
    "sleep_min_gap_minutes": 60.0,
    "sleep_min_turns": 20,
+   "sleep_scoped": false,
    "sleep_v2": false,
    "standing_idle_after": 5,
    "standing_max_answers": 50,
@@ -11488,6 +11554,7 @@
    "temporal_leg": true,
    "temporal_leg_event_dates": false,
    "temporal_leg_mentions": false,
+   "temporal_precision_aware": false,
    "temporal_rank": "midpoint",
    "temporal_relative": false,
    "temporal_soft": false,
@@ -11598,6 +11665,7 @@
    "stamp_default_tz": null,
    "stamp_participant_tags": "v1",
    "stamping_v2": false,
+   "temporal_v2": false,
    "window_async": true,
    "window_cache": true,
    "window_extract": "off",
@@ -11645,6 +11713,7 @@
   },
   "economy": {
    "budget": null,
+   "ledger_persist": false,
    "ledger_v2": false
   },
   "embedding": {
@@ -11858,6 +11927,7 @@
    "sleep_manual_only": false,
    "sleep_min_gap_minutes": 60.0,
    "sleep_min_turns": 20,
+   "sleep_scoped": false,
    "sleep_v2": false,
    "standing_idle_after": 5,
    "standing_max_answers": 50,
@@ -12172,6 +12242,7 @@
    "temporal_leg": true,
    "temporal_leg_event_dates": false,
    "temporal_leg_mentions": false,
+   "temporal_precision_aware": false,
    "temporal_rank": "midpoint",
    "temporal_relative": false,
    "temporal_soft": false,
@@ -12282,6 +12353,7 @@
    "stamp_default_tz": null,
    "stamp_participant_tags": "v1",
    "stamping_v2": false,
+   "temporal_v2": false,
    "window_async": true,
    "window_cache": true,
    "window_extract": "off",
@@ -12329,6 +12401,7 @@
   },
   "economy": {
    "budget": null,
+   "ledger_persist": false,
    "ledger_v2": false
   },
   "embedding": {
@@ -12543,6 +12616,7 @@
    "sleep_manual_only": false,
    "sleep_min_gap_minutes": 60.0,
    "sleep_min_turns": 20,
+   "sleep_scoped": false,
    "sleep_v2": false,
    "standing_idle_after": 5,
    "standing_max_answers": 50,
@@ -12857,6 +12931,7 @@
    "temporal_leg": true,
    "temporal_leg_event_dates": false,
    "temporal_leg_mentions": false,
+   "temporal_precision_aware": false,
    "temporal_rank": "midpoint",
    "temporal_relative": false,
    "temporal_soft": false,
@@ -12967,6 +13042,7 @@
    "stamp_default_tz": null,
    "stamp_participant_tags": "v1",
    "stamping_v2": false,
+   "temporal_v2": false,
    "window_async": true,
    "window_cache": true,
    "window_extract": "off",

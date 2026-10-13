@@ -8,7 +8,7 @@ from typing import Any
 
 from memspine.derive.budget import COVERS_SEQ, DerivationBudget
 from memspine.derive.job import LeaseStore
-from memspine.derive.scheduler import DerivationScheduler
+from memspine.derive.scheduler import DerivationScheduler, job_namespace
 from memspine.derive.triggers import TriggerConfig, TriggerPolicy
 from memspine.exceptions import MemspineError, StorageError
 from memspine.memories.procedural.prompt_registry import prompt_version_records
@@ -67,8 +67,10 @@ def build_sleep_v2(eng: Any, config: Any) -> DerivationScheduler:
     path = ":memory:"
     if storage.backend == "sqlite" and storage.path != ":memory:":
         path = f"{storage.path}.sleep"
+    elif storage.backend == "postgres" and storage.url:
+        path = storage.url  # FU-SLEEP: the lease tables live in the storage database
     elif storage.backend != "sqlite":
-        _log.warning("sleep_v2.leases_in_memory", detail="non-sqlite backend: per-process leases")
+        _log.warning("sleep_v2.leases_in_memory", detail="no storage url: per-process leases")
     policy = TriggerPolicy(
         TriggerConfig(
             min_turns=off.sleep_min_turns,
@@ -79,9 +81,14 @@ def build_sleep_v2(eng: Any, config: Any) -> DerivationScheduler:
         )
     )
 
+    scoped = bool(off.sleep_scoped)  # FU-SLEEP: a namespace job sweeps its own namespace only
+
     async def _run_stage(name: str) -> dict[str, object]:
         assert eng._runner is not None
-        return await run_sleep_stage(eng._runner, eng._pipeline_ctx(), name)
+        ctx = eng._pipeline_ctx()
+        if scoped:
+            ctx.scope_namespace = job_namespace()
+        return await run_sleep_stage(eng._runner, ctx, name)
 
     async def _prepare() -> None:
         if eng._windows is not None:  # W1: call 1 first (same as the blocking sleep)

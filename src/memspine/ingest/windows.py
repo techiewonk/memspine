@@ -198,6 +198,10 @@ def _envelope_stages(eng: Any, config: MemspineConfig) -> tuple[Any, ...]:
     """W2-06c: the post-compile stage list. Each W2 package appends ONE builder line here, gated
     on its own flag (see ``derive/envelope_stages.py`` for the order)."""
     stages: list[Any] = []
+    if config.write.temporal_v2:  # W2-14, order 100
+        from memspine.derive.temporal_stage import build_stage
+
+        stages.append(build_stage(trust_valid_from=not config.write.stamping_v2))
     return tuple(stages)
 
 

@@ -258,6 +258,12 @@ def _groups(
     return groups
 
 
+async def _sweep_namespaces(ctx: PipelineContext) -> list[str]:
+    from memspine.derive.pipeline.stages.context import sweep_namespaces  # cycle: lazy
+
+    return await sweep_namespaces(ctx)
+
+
 async def derive_list_cards(ctx: PipelineContext) -> dict[str, object]:
     """#30: keep one list card per (person, class) of live event facts, per namespace."""
     if ctx.deposit_list_card is None or ctx.append_event is None:
@@ -265,7 +271,7 @@ async def derive_list_cards(ctx: PipelineContext) -> dict[str, object]:
     await ctx.session_index.refresh(ctx.storage)
     written = kept = archived = 0
     errors: list[str] = []
-    for namespace in await ctx.storage.list_namespaces():
+    for namespace in await _sweep_namespaces(ctx):
         records = await ctx.storage.list_records(namespace, "semantic")
         facts = [r for r in records if _live_event_fact(r)]
         existing: dict[str, list[MemoryRecord]] = {}

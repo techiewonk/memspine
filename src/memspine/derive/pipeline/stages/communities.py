@@ -11,7 +11,12 @@ from memspine.compose.compression import CompressionPolicy
 from memspine.config import constants
 from memspine.core.policies.community import CommunityOptions, CommunityPolicy
 from memspine.core.policies.consolidation import extractive_summary
-from memspine.derive.pipeline.stages.context import PipelineContext, _parents_gone, _policy_options
+from memspine.derive.pipeline.stages.context import (
+    PipelineContext,
+    _parents_gone,
+    _policy_options,
+    sweep_namespaces,
+)
 from memspine.derive.pipeline.stages.index import COMMUNITY_PARTITION_MARKER, CommunityState
 from memspine.memories.associative.communities import (
     PartitionResult,
@@ -180,7 +185,7 @@ async def reorganize(ctx: PipelineContext) -> dict[str, object]:
     fresh_keys: dict[str, set[str]] = {}  # namespace -> live community keys
     # KB-9: one partition per namespace, over that namespace's edges only, so
     # no community (and no summary parent) ever spans two tenants.
-    for graph_namespace in await ctx.storage.list_namespaces():
+    for graph_namespace in await sweep_namespaces(ctx):
         reorg = await _reorganize_records(ctx, graph_namespace)
         parent_ids = {record.record_id for record in reorg}
         active = [record for record in reorg if record.status is RecordStatus.ACTIVATED]
@@ -259,7 +264,7 @@ async def reorganize(ctx: PipelineContext) -> dict[str, object]:
             kept += int(live_key != found.key)
     # Membership drift: a stale parent whose community dissolved or changed
     # membership is archived — never a silent second active summary (D-42).
-    for namespace in await ctx.storage.list_namespaces():
+    for namespace in await sweep_namespaces(ctx):
         try:
             # Same per-namespace unit as the engine's write verbs (M5): the
             # read-then-archive-then-tombstone pass must not interleave with

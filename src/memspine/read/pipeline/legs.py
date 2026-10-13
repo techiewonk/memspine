@@ -330,6 +330,7 @@ async def registry_base_legs(
         if live
         else None,
         week=read.relative_week,
+        precision_aware=read.temporal_precision_aware,
         vector_search=search_vector if eng._embedder is not None else None,
     )
     names = ["vector", *(["lexical"] if use_hybrid else []), "temporal"]
