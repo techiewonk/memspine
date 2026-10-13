@@ -1,0 +1,29 @@
+# id	batch	pkg	arm	ref_run	rule	sets	deps	kind	est_min	flag
+# sets: f=LoCoMo focus 437, o=OP-Bench dev 331, F=LoCoMo full 1540, b=blind MAB-CR+ConvoMem. Later sets run only if the earlier verdict allows (see run_v2_queue.sh).
+# kind: J = reader flags only; GC = reader flags + --memspine-build-sleep (engine LLM roles). ref_run '-' = none
+S01	B1	P0-06	scr-gc9-summary-jina	f-jref2-i2	PROMOTE	f	-	GC	45	(thinking fix; existing arm)
+S02	B1	P0-06	scr-gc3-graph-jina	f-jref2-i2	PROMOTE	f	-	GC	150	(thinking fix; existing arm)
+S03	B1	P0-06	scr-window-facts-jina	f-jref2-i2	PROMOTE	f	-	GC	120	(window_extract; existing arm)
+S04	B1	P0-06	scr-gc2-facts-jina	f-jref2-i2	PROMOTE	f	-	GC	90	(thinking fix; existing arm)
+S05	B1	P0-02	scr-pool-protect-jina	clean-jina-full	PARITY	F	-	J	43	(none: reproduction run)
+S06	B1	P0-07	scr-contract-jina	clean-jina-full	PROMOTE	Fb	S05	J	108	query_contract=heuristic (existing arm)
+S09	B2	P0-01	scr-pool-protect-jina	-	REF	f	-	J	20	(none: same-commit focus reference)
+S10	B2	R3-01	v2-R3-01-tiers_v2	f-jref2-i2	NONINF	f	-	J	20	read.tiers_v2
+S11	B2	R3-02	v2-R3-02-contract_rules	f-jref2-i2	PROMOTE	fFb	S06	J	128	read.contract_rules
+S12	B2	R3-03	v2-R3-03-router_rules	f-jref2-i2	NONINF	f	-	J	20	read.router_rules
+S13	B2	R3-05a	v2-R3-05a-entity_leg_v2	f-jref2-i2	PROMOTE	fFb	-	J	128	read.entity_leg_v2
+S14	B2	R3-06	v2-R3-06-family_fusion	f-jref2-i2	NONINF	f	-	J	20	read.family_fusion
+S15	B2	R3-08	v2-R3-08-lift_before_rerank	f-jref2-i2	NONINF	f	-	J	20	read.lift_before_rerank
+S16	B2	R3-07	v2-R3-07-rerank_v2	v2-S15-i2	NONINF	fF	S15	J	63	read.rerank_v2
+S17	B2	R3-09a	v2-R3-09a-exact_budget	f-jref2-i2	NONINF	f	-	J	20	read.exact_budget
+S18	B2	R3-09b	v2-R3-09b-evidence_bundles	v2-S17-i2	NONINF	f	S17	J	20	read.evidence_bundles
+S19	B2	R3-10	v2-R3-10-neighbours_v2	f-jref2-i2	NONINF	f	-	J	20	read.neighbours_v2
+S20	B2	R3-11	v2-R3-11-gate_v2	f-jref2-i2	PROMOTE	ofb	-	J	105	read.gate_v2
+S21	B2	R3-12	v2-R3-12-deep_v2	v2-S20-i2	NONINF	f	S20	J	20	read.deep_v2
+S22	B2	R3-16	v2-R3-16-obligations	v2-S21-i2	NONINF	f	S21	J	20	read.obligations
+S23	B2	R3-13	v2-R3-13-external_v2	f-jref2-i2	REPORT	o	-	J	20	read.external_v2
+S24	B2	R3-14	v2-R3-14-timeview_v2	f-jref2-i2	NONINF	fb	-	J	85	read.timeview_v2
+S25	B2	R3-15	v2-R3-15-cache-enabled	f-jref2-i2	PARITY	f	-	J	20	read.cache.enabled
+S26	B2	R3-15	v2-R3-15-parallel_legs	f-jref2-i2	PARITY	f	-	J	20	read.parallel_legs
+S27	B2	T5-02	v2-T5-02-trust_rendering	f-jref2-i2	NONINF	fo	-	J	40	read.trust_rendering
+S28	B3	F-01	v2-F-01-key_v2	v2-S02-i2	NONINF	f	S02	GC	150	graph.key_v2
