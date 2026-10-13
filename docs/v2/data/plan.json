@@ -4186,8 +4186,8 @@
    ],
    "kind": "behaviour",
    "gate": "Matrix green on embedded and server",
-   "status": "Not started",
-   "note": "",
+   "status": "In progress",
+   "note": "Sonnet agent launched 2026-10-13",
    "layers": [
     "L0",
     "L1",
@@ -4378,8 +4378,8 @@
    ],
    "kind": "behaviour",
    "gate": "Focus slice non-inferior",
-   "status": "Not started",
-   "note": "",
+   "status": "In progress",
+   "note": "Sonnet agent launched 2026-10-13",
    "layers": [
     "L0",
     "L1",
@@ -4498,8 +4498,8 @@
    ],
    "kind": "behaviour",
    "gate": "Calls per turn down, grounding inside band",
-   "status": "Not started",
-   "note": "",
+   "status": "In progress",
+   "note": "Sonnet agent launched 2026-10-13",
    "layers": [
     "L0"
    ],
@@ -4911,8 +4911,8 @@
    ],
    "kind": "behaviour",
    "gate": "Off by default; on-arm screen",
-   "status": "Not started",
-   "note": "",
+   "status": "In progress",
+   "note": "Sonnet agent launched 2026-10-13",
    "layers": [
     "L0"
    ],
@@ -5380,8 +5380,8 @@
    ],
    "kind": "behaviour",
    "gate": "Own focus and blind screen",
-   "status": "Not started",
-   "note": "",
+   "status": "In progress",
+   "note": "Sonnet agent launched 2026-10-13",
    "layers": [
     "L3"
    ],
