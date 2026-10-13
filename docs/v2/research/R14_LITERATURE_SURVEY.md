@@ -25,20 +25,20 @@ Ranking rule: (size of the targeted wrong-answer family) x (credible effect from
 
 Not in the top 10 on purpose: HyDE and RAG-Fusion style query-time expansion (Weller et al. and our B14 point to neutral or harmful on a strong hybrid), GraphRAG-scale graph extraction (very high write cost; benefit is on global questions that LoCoMo cat 1-4 rarely asks), ColBERT/SPLADE legs (real but costly to integrate; listed as a later retrieval-only screen), LLM listwise reranking (token cost).
 ## Coverage map: problem to existing MemSpine item
-| problem | built | wired / screened | main open gap |
+| problem | layer | priority | main open gap |
 |---|---|---|---|
-| P01 Turn decontextualisation and coreference | see section | see section | No embedded-text context prefix and no coref step on the raw-turn index; L1 facts cover this only when extraction is on. |
-| P02 Entity linking and alias resolution in conversations | see section | see section | Nickname and role-word aliasing on real dialogue is untested (only the synthetic X-05 set); I5 speaker parsing. |
-| P03 Temporal reasoning and normalisation | see section | see section | Reader-side date arithmetic helper (no code-execution path); screens S24/S62/S63 results pending. |
-| P04 Query rewriting and expansion | see section | see section | No document expansion and no learned sparse leg; HyDE/planner have no screen. |
-| P05 Question decomposition and multi-hop | see section | see section | No screen for agentic_mode/second_round; I4 and I11 generalisation. |
-| P06 Hierarchical summaries and memory structures | see section | see section | No recursive multi-level tree; most screens not yet run (flag-off). |
-| P07 Personal profile, attribute extraction and knowledge update | see section | see section | Update handling has no screen on LongMemEval-style or MAB-CR data (LongMemEval excluded from suite by owner decision; MAB-CR is the proxy). |
-| P08 Reader inference vs refusal; calibrated abstention; context use | see section | see section | Cat 5 never measured; no calibrated abstention policy; no answer-style/contract check on output. |
-| P09 Retrieval fusion and reranking | see section | see section | No learned fusion; no late-interaction or SPLADE leg; reranker adopted on coverage (I9). |
-| P10 Multimodal (image caption) memory; tool and world-knowledge augmentation | see section | see section | No image memory; external block unscreened. |
-| P11 LLM-as-judge reliability for memory QA | see section | see section | Single judge family equal to reader; kappa not measured outside LoCoMo. |
-| P12 Memory benchmark methodology: what leading systems report and how | see section | see section | Cat 5 and official-judge reproduction. |
+| P01 Turn decontextualisation and coreference | ingest | M | No embedded-text context prefix and no coref step on the raw-turn index; L1 facts cover this only when extraction is on. |
+| P02 Entity linking and alias resolution in conversations | ingest | L | Nickname and role-word aliasing on real dialogue is untested (only the synthetic X-05 set); I5 speaker parsing. |
+| P03 Temporal reasoning and normalisation | ingest / reader | H | Reader-side date arithmetic helper (no code-execution path); screens S24/S62/S63 results pending. |
+| P04 Query rewriting and expansion | retrieve | M | No document expansion and no learned sparse leg; HyDE/planner have no screen. |
+| P05 Question decomposition and multi-hop | retrieve / reader | H | No screen for agentic_mode/second_round; I4 and I11 generalisation. |
+| P06 Hierarchical summaries and memory structures | ingest | H | No recursive multi-level tree; most screens not yet run (flag-off). |
+| P07 Personal profile, attribute extraction and knowledge update | ingest | M | Update handling has no screen on LongMemEval-style or MAB-CR data (LongMemEval excluded from suite by owner decision; MAB-CR is the proxy). |
+| P08 Reader inference vs refusal; calibrated abstention; context use | reader | H | Cat 5 never measured; no calibrated abstention policy; no answer-style/contract check on output. |
+| P09 Retrieval fusion and reranking | retrieve | M | No learned fusion; no late-interaction or SPLADE leg; reranker adopted on coverage (I9). |
+| P10 Multimodal (image caption) memory; tool and world-knowledge augmentation | compose / reader | L | No image memory; external block unscreened. |
+| P11 LLM-as-judge reliability for memory QA | judge | M | Single judge family equal to reader; kappa not measured outside LoCoMo. |
+| P12 Memory benchmark methodology: what leading systems report and how | judge | M | Cat 5 and official-judge reproduction. |
 
 ---
 
