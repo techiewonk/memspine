@@ -1,0 +1,95 @@
+{
+  "findings": {
+    "F1": "write.participants=off (default): a fact mined from a private turn of a multi-party namespace carries no visibility tag and is served to a non-participant. The workload sets write.participants=session; isolation.viewer_required alone does not protect derived records.",
+    "F2": "privacy.erasure_v2 hides dependants for re-derivation but keeps their rows and their WRITE events, which still carry the erased text on disk (not served by any read). Replay reproduces exactly that set.",
+    "F3": "A kept dependant (another live support parent) still lists the erased id in source.parents; the lineage table edge is removed. An id, no text.",
+    "F4": "Engine.verify_forget()['clean'] is False under erasure_v2 whenever a dependant row is retained (descendants_remaining); it is not erasure_v2-aware.",
+    "F5": "Memory.retrieve() with a handle purpose raised TypeError (fixed in src/memspine/api/handle.py)."
+  },
+  "flags_on": [
+    "write.lineage_table",
+    "workers.outbox",
+    "isolation.scope_keys_v2",
+    "isolation.viewer_required",
+    "privacy.erasure_v2",
+    "retention.v2",
+    "audit.chain_v2",
+    "consent.v2",
+    "graph.edge_compiler_v2",
+    "offline.session_close_v2",
+    "read.legs_v2"
+  ],
+  "milestone": "EX-1a",
+  "profile": "embedded (SQLite, hash embedder, stub LLM roles)",
+  "steps": {
+    "test_step1_workload_written": {
+      "records": {
+        "acme/bram": 8,
+        "acme/household": 2,
+        "acme/ilse": 14
+      },
+      "result": "pass",
+      "seconds": 0.005,
+      "turns": {
+        "acme/bram": 3,
+        "acme/ilse": 6
+      }
+    },
+    "test_step2_sleep_and_read": {
+      "cited": 4,
+      "close_calls": 3,
+      "lineage_edges": 29,
+      "result": "pass",
+      "seconds": 1.491,
+      "sleep_stages": 15,
+      "window_calls": 4
+    },
+    "test_step3_restart_state": {
+      "audit_checked": 4,
+      "consent_generation": 3,
+      "lineage_edges": 29,
+      "outbox": {
+        "coalesced": 4,
+        "succeeded": 4
+      },
+      "records": 29,
+      "result": "pass",
+      "seconds": 1.846
+    },
+    "test_step4_hard_erase": {
+      "dependants_hidden": 2,
+      "generation": 2,
+      "purges": 1,
+      "queued": 2,
+      "result": "pass",
+      "seconds": 1.892
+    },
+    "test_step5_replay_migrate": {
+      "by_kind": {
+        "memory.consolidate": 3,
+        "memory.forget": 1,
+        "memory.link": 35,
+        "memory.marker": 13,
+        "memory.merge": 2,
+        "memory.write": 31
+      },
+      "events": 85,
+      "hidden_dependants_holding_erased_text": 2,
+      "migrate_seconds": 0.536,
+      "not_rebuilt": [
+        "caches",
+        "graph (L3)",
+        "lexical index",
+        "model-derived records (L2, L4, L5, unlogged L1)",
+        "vector index"
+      ],
+      "projected": {
+        "records": 85
+      },
+      "records_live": 28,
+      "records_replayed": 28,
+      "result": "pass",
+      "seconds": 4.075
+    }
+  }
+}

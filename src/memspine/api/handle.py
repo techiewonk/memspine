@@ -355,10 +355,10 @@ class Memory:
 
     async def retrieve(self, **kwargs: Any) -> Any:
         """List records of one type (``Engine.retrieve``); the handle's purpose applies."""
-        self._check(kwargs)
+        out = self._viewer_kw(kwargs)  # checks the bound keys before the purpose is added
         if self.purpose is not None:
-            kwargs["purpose"] = self.purpose
-        return await self._engine.retrieve(namespace=self.namespace, **self._viewer_kw(kwargs))
+            out["purpose"] = self.purpose
+        return await self._engine.retrieve(namespace=self.namespace, **out)
 
     async def feedback(self, record_id: str, signal: Any, **kwargs: Any) -> Any:
         """Utility feedback on one record (``Engine.feedback``)."""
