@@ -617,7 +617,13 @@ def main() -> None:
     if a.check:
         print(f"ok: {len(m['solutions'])} solutions, {len(m['classes'])} classes, {len(m['screens'])} screens")
         return
-    Path(a.out).write_text(json.dumps(m, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
+    # R14 additions are maintained by hand (sourced from docs/v2/data/r14_master.json); keep them across rebuilds
+    out = Path(a.out)
+    if out.exists():
+        prev = json.loads(out.read_text(encoding="utf-8"))
+        if "r14_additions" in prev:
+            m["r14_additions"] = prev["r14_additions"]
+    out.write_text(json.dumps(m, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
     print(f"wrote {a.out}: {len(m['solutions'])} solutions, {len(m['classes'])} classes, {len(m['screens'])} screens, {len(m['structural_gaps'])} structural gaps")
 
 
