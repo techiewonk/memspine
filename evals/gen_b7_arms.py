@@ -47,10 +47,11 @@ B7: dict[str, tuple[str, dict]] = {
 #: B8 profile -> (base arm, extra overlay on top of the preset: roles and eval determinism the preset cannot carry)
 B8: dict[str, dict] = {
     "read-v2-core": {},
-    "read-v2-graph": {"llm": {"roles": {"session_close": ROLE}}},
+    # FX-EVAL: summarize feeds communities_v2 summaries (extractive without it)
+    "read-v2-graph": {"llm": {"roles": {"session_close": ROLE, "summarize": ROLE}}},
     "write-v2": {"write": {"window_async": False}, "llm": {"roles": {"window_extract": ROLE}}},
     "read-v2-safe": SUFF,
-    "offline-v2": {"llm": {"roles": {"session_close": ROLE}}},
+    "offline-v2": {"llm": {"roles": {"session_close": ROLE, "summarize": ROLE}}},
     "trust-v2": {},
     "run-v2": {},
 }

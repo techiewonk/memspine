@@ -91,8 +91,9 @@ RULE_EDGES_STAGE = "rule_edges"
 PROJECT_FACTS_STAGE = "project_facts"
 
 
-#: O4-05 (``offline.patterns_v2``) and O4-08 (``offline.standing_v2``): run right after
-#: ``reflect_profile``, in that order, and only when their flag is on (default cycle unchanged).
+#: O4-05 (``offline.patterns_v2``) and O4-08 (``offline.standing_v2``): run in that order after the graph
+#: stages (``extract_graph`` and its opt-in followers, FX-EVAL: they read the fresh facts), and only when
+#: their flag is on (default cycle unchanged).
 PATTERN_OBSERVATIONS_STAGE = "pattern_observations"
 STANDING_ANSWERS_STAGE = "standing_answers"
 
@@ -135,13 +136,6 @@ def sleep_stage_order(ctx: PipelineContext) -> tuple[str, ...]:
     if rule_edges_options(ctx.config) is not None:
         at = order.index("extract_graph") + 1
         order = (*order[:at], RULE_EDGES_STAGE, *order[at:])
-    if ctx.config.offline.patterns_v2:
-        at = order.index("reflect_profile") + 1
-        order = (*order[:at], PATTERN_OBSERVATIONS_STAGE, *order[at:])
-    if ctx.config.offline.standing_v2:
-        after = PATTERN_OBSERVATIONS_STAGE if ctx.config.offline.patterns_v2 else "reflect_profile"
-        at = order.index(after) + 1
-        order = (*order[:at], STANDING_ANSWERS_STAGE, *order[at:])
     if ctx.config.offline.reconcile_v2 or ctx.config.offline.histories_v2:
         at = order.index(RULE_EDGES_STAGE if RULE_EDGES_STAGE in order else "extract_graph") + 1
         extra = tuple(
@@ -153,6 +147,24 @@ def sleep_stage_order(ctx: PipelineContext) -> tuple[str, ...]:
             if on
         )
         order = (*order[:at], *extra, *order[at:])
+    if ctx.config.offline.patterns_v2 or ctx.config.offline.standing_v2:
+        # FX-EVAL: both read the stored facts as assertions, so they run once the graph facts
+        # (extract_graph, rule_edges, reconcile, histories) exist; before this the first sleep saw none.
+        # With both flags off the order is SLEEP_CYCLE_ORDER unchanged.
+        after = max(
+            order.index(n)
+            for n in ("extract_graph", RULE_EDGES_STAGE, RECONCILE_STAGE, HISTORIES_STAGE)
+            if n in order
+        )
+        extra = tuple(
+            name
+            for name, on in (
+                (PATTERN_OBSERVATIONS_STAGE, ctx.config.offline.patterns_v2),
+                (STANDING_ANSWERS_STAGE, ctx.config.offline.standing_v2),
+            )
+            if on
+        )
+        order = (*order[: after + 1], *extra, *order[after + 1 :])
     if ctx.config.graph.edge_compiler_v2:  # F-02c: once the facts settled
         at = order.index("summarize_entities")
         order = (*order[:at], COMPILE_EDGES_STAGE, *order[at:])

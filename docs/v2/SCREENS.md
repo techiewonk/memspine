@@ -373,3 +373,25 @@ Bundles first, single flags only to explain a bundle result. Queue restarted (S3
 Then B6 focus (S51 family_fusion, 437 q), and a reference-vs-reference noise run.
 
 **Deferred (run only to bisect a bundle that regresses):** S36 tiers, S37 router, S39 edge compiler alone (covered by S30), S47 decay (ranking-neutral by design), and the write singles S43–S45, S48–S50 (covered by the write-v2 bundle S62). S46 stays skipped. Saves about 4–5 GPU hours.
+
+## FX-EVAL (2026-10-13): eval and engine fixes behind inert screens
+
+Findings from `docs/v2/data/screen_internals_sleep.json`. Fixes are in the adapter, the sleep order and the arm generators; every engine
+change is flag-gated (flags off, the order and behaviour are unchanged).
+
+- **Session close in evals (S33, S46, S61 episode leg, S31 L2 source).** `MemspineSystem.build()` now calls `Engine.close_session(ns, sid)`
+  for every ingested session when `offline.session_close_v2` is on, before the build sleep (skipped when `write.window_extract` is on: the
+  final window flush already fires the hook; the stage is idempotent). The calls are billed to the write cost; the per-session result is in
+  `meta["session_close"]`. The arms already bind `llm.roles.session_close` (checked: sessionclose, episodeleg, profilecard, b8 read-v2-graph, b8 offline-v2).
+- **`sleep_v2` handle (S64).** The adapter awaits `SleepHandle.wait()` and uses the returned stage stats.
+- **Patterns and standing answers run after the graph (S35, S34).** With `offline.patterns_v2` / `offline.standing_v2` on, the stages now
+  sit after `extract_graph`, `rule_edges`, `reconcile` and `histories` (before `compile_edges` / `summarize_entities`); taskiq priorities renumbered
+  and still distinct. With both off the order is `SLEEP_CYCLE_ORDER`.
+- **Community summaries (S40).** `communities_v2` calls the `summarize` role for communities of 3+ entities; the S40 arm and the B8
+  `offline-v2` / `read-v2-graph` arms now bind it (qwen3.5:9b, no_think). Caveat: binding `summarize` also makes the consolidation summarizer
+  use the model, so S40 against the gc3 reference differs in more than communities; read S40 with that in mind.
+- **Standing answers need `kind:state` facts (S34).** gc3's `extract_graph` does write `kind:state` facts (a state edge keeps `attribute=rel`
+  and carries the tag `kind:state`; `edge_fact_key`), and they pass `is_input_fact`. The stage only ran before them. The reorder fixes it, so S34
+  stays on the gc3 base (no window-facts base needed). Its groups are (source entity, relation), valued by the edge sentence.
+
+**Now meaningful (re-queue):** S33, S34, S35, S40, S46 (was skipped; its session-close leg now runs, and the card ops need the model to return ops), S61, S64, and S31 for the L2 source. Run the new tests with `evals/tests/test_fx_eval_adapter.py` and `tests/unit/wiring/test_fx_eval_order.py`.

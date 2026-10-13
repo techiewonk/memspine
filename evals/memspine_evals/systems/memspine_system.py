@@ -661,6 +661,21 @@ class MemspineSystem:
             )
         if self._engine is not None:
             await self._write_derived_trace()
+        close_calls = 0
+        if self._engine is not None:
+            # FX-EVAL: call 2 per ingested session, before the sleep so its L2 records exist for reads
+            c0 = self._calls()
+            closed = await self._close_sessions()
+            c1 = self._calls()
+            close_calls = c1 - c0 if c0 is not None and c1 is not None else 0
+            if closed:
+                flushed = DepositResult(
+                    n_records=flushed.n_records,
+                    record_ids=flushed.record_ids,
+                    latency_ms=flushed.latency_ms,
+                    model_calls=flushed.model_calls + close_calls,
+                    meta={**flushed.meta, "session_close": closed},
+                )
         if not self._build_sleep or self._engine is None:
             return flushed
         estimate = self.sleep_calls_per_session * max(len(self._sessions), 1)
@@ -678,10 +693,12 @@ class MemspineSystem:
         before = self._calls()
         usage_before = self._usage()
         prompts_before = self._prompt_usage()
-        stats = await self._memory.sleep()
+        stats = await self._await_sleep(await self._memory.sleep())
         await self._write_derived_trace()  # --trace-full: what the sleep cycle derived
         after = self._calls()
         meta: dict[str, Any] = {"sleep": {name: dict(stage) for name, stage in stats.items()}}
+        if flushed.meta.get("session_close"):
+            meta["session_close"] = flushed.meta["session_close"]
         engine_llm = self._usage_delta(usage_before, self._usage())
         if engine_llm:
             meta["engine_llm"] = engine_llm
@@ -700,6 +717,38 @@ class MemspineSystem:
             meta["cost_unknown_reason"] = "engine does not expose model_calls()"
             return DepositResult(model_calls=0, meta=meta)
         return DepositResult(model_calls=after - before + flushed.model_calls, meta=meta)
+
+    async def _close_sessions(self) -> dict[str, Any]:
+        """FX-EVAL: with ``offline.session_close_v2`` on, fire the session-close stage (call 2:
+        summary, L2 episodes, profile ops) once per ingested session, before the build sleep.
+
+        The eval adapter never ran it: the stage is not in the sleep cycle and only the window
+        machinery or ``Engine.close_session`` fires it. With ``write.window_extract`` on, the final
+        window flush already fired it for every open session, so this is skipped. The stage is
+        idempotent (a done marker per session), so a repeat is a cheap no-op. A failure is
+        recorded, never raised: the model is an enhancer."""
+        offline = self.config.get("offline") or {}
+        if self._engine is None or not offline.get("session_close_v2") or self._windows_on():
+            return {}
+        close = getattr(self._engine, "close_session", None)
+        if not callable(close):
+            return {}
+        out: dict[str, Any] = {}
+        for sid in sorted(self._sessions):
+            try:
+                out[sid] = await close(self.namespace, sid)
+            except Exception as exc:
+                out[sid] = {"status": "error", "reason": f"{type(exc).__name__}: {exc}"}
+        return out
+
+    @staticmethod
+    async def _await_sleep(result: Any) -> dict[str, Any]:
+        """FX-EVAL: ``offline.sleep_v2`` makes ``sleep()`` return a ``SleepHandle`` at once; wait
+        for the cycle and use its stage stats. A plain stats dict passes through."""
+        wait = getattr(result, "wait", None)
+        if callable(wait) and not isinstance(result, dict):
+            return dict(await wait())
+        return result
 
     def _windows_on(self) -> bool:
         """``write.window_extract`` is set in the arm (the engine has the window write)."""

@@ -80,12 +80,12 @@ PIPELINE_PRIORITIES: dict[str, int] = {
     "project_facts": 4,  # E01: right after mine_facts (opt-in stage)
     "anticipate": 5,  # H8: cues right after their session is consolidated
     "reflect_profile": 6,  # H14: profile insights right after their session
-    "pattern_observations": 7,  # O4-05: opt-in L4 observations over the fresh facts
-    "standing_answers": 8,  # O4-08: opt-in L5 standing answers after the observations
-    "extract_graph": 9,  # C2: LLM edges before communities form over them
-    "rule_edges": 10,  # W12: rule edges right after the LLM ones (opt-in stage)
-    "reconcile": 11,  # O4-03: contradiction sweep after the edges (opt-in)
-    "histories": 12,  # O4-04: near-duplicates and value histories (opt-in)
+    "extract_graph": 7,  # C2: LLM edges before communities form over them
+    "rule_edges": 8,  # W12: rule edges right after the LLM ones (opt-in stage)
+    "reconcile": 9,  # O4-03: contradiction sweep after the edges (opt-in)
+    "histories": 10,  # O4-04: near-duplicates and value histories (opt-in)
+    "pattern_observations": 11,  # O4-05: opt-in L4 observations over the settled facts (FX-EVAL: after the graph)
+    "standing_answers": 12,  # O4-08: opt-in L5 standing answers after the observations
     "compile_edges": 13,  # F-02c: assertions -> graph edges once the facts settle (opt-in)
     "summarize_entities": 14,  # GP-6: entity summaries over the fresh facts
     "reorganize": 15,

@@ -28,7 +28,8 @@ OVERLAYS: dict[str, dict] = {
     "patterns": {"offline": {"patterns_v2": True}},
     "tiers": {"read": {"tiers_v2": True}},
     "router": {"read": {"router_rules": True}},
-    "communities": {"offline": {"communities_v2": True}},
+    # FX-EVAL: the summarize role is what communities_v2 calls for 3+ member communities (else extractive)
+    "communities": {"offline": {"communities_v2": True}, "llm": {"roles": {"summarize": ROLE}}},
     "reconcile": {"offline": {"reconcile_v2": True}},
     "histories": {"offline": {"histories_v2": True}},
     "profilecard": {"offline": {"session_close_v2": True, "profile_card_v2": True}, **SC},
