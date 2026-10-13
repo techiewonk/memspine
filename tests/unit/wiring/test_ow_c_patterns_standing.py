@@ -121,9 +121,10 @@ async def test_sleep_order_inserts_the_stages_only_when_on() -> None:
     await eng.start()
     try:
         keys = list(await eng.sleep())
-        assert keys.index("reflect_profile") < keys.index("pattern_observations")
+        # FX-EVAL: after the graph stages, so a single build sleep sees the graph facts
+        assert keys.index("extract_graph") < keys.index("pattern_observations")
         assert keys.index("pattern_observations") < keys.index("standing_answers")
-        assert keys.index("standing_answers") < keys.index("extract_graph")
+        assert keys.index("standing_answers") < keys.index("summarize_entities")
     finally:
         await eng.stop()
     off = _engine()

@@ -80,6 +80,12 @@
     "api_base": "http://127.0.0.1:11434",
     "timeout_seconds": 180.0,
     "no_think": true
+   },
+   "summarize": {
+    "model": "ollama/qwen3.5:9b",
+    "api_base": "http://127.0.0.1:11434",
+    "timeout_seconds": 180.0,
+    "no_think": true
    }
   },
   "structured": {
