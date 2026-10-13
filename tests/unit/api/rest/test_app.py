@@ -13,8 +13,8 @@ fastapi = pytest.importorskip("fastapi")
 import httpx  # noqa: E402
 
 from memspine import Engine  # noqa: E402
+from memspine.api.rest import create_app  # noqa: E402
 from memspine.exceptions import MissingServiceError  # noqa: E402
-from memspine.protocols.rest import create_app  # noqa: E402
 
 NOW = datetime.now(UTC)
 
@@ -364,7 +364,7 @@ async def test_unknown_errors_map_to_500_without_leaking(
 async def test_create_app_without_fastapi_names_the_extra() -> None:
     """The factory guard (D-10): documented here, exercised in envs without
     the extra — with fastapi importable the guard branch cannot fire."""
-    from memspine.protocols import rest
+    from memspine.api import rest
 
     assert rest.create_app is create_app  # the lazy entry point is the public surface
 
@@ -384,7 +384,7 @@ async def test_quarantine_review_routes(engine: Engine, client: httpx.AsyncClien
     assert [r["record_id"] for r in listed.json()] == [held.record_id]
     assert (await client.get("/quarantine", headers=ns("bob"))).json() == []
 
-    from memspine.protocols.rest.app import resolve_operator
+    from memspine.api.rest.app import resolve_operator
 
     # No operator seam filled: a tenant cannot review, not even its own holds.
     tenant = await client.post(f"/quarantine/{held.record_id}/approve", headers=ns("alice"))
@@ -409,7 +409,7 @@ async def test_quarantine_review_routes(engine: Engine, client: httpx.AsyncClien
 async def test_quarantine_author_cannot_approve_over_rest(
     engine: Engine, client: httpx.AsyncClient
 ) -> None:
-    from memspine.protocols.rest.app import resolve_operator
+    from memspine.api.rest.app import resolve_operator
     from memspine.store.records import SourceInfo
 
     held = await engine.write(

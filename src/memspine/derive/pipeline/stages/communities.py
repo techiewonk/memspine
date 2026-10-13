@@ -150,6 +150,10 @@ async def reorganize(ctx: PipelineContext) -> dict[str, object]:
     trust) (D-47 §5), instruction framing stays flagged, quarantined/non-active
     members never contribute.
     """
+    if ctx.config.offline.communities_v2:  # O4-06 (LIB-36); off by default
+        from memspine.derive.pipeline.stages.communities_v2 import reorganize_v2
+
+        return await reorganize_v2(ctx)
     if ctx.append_event is None:
         return {"status": "skipped", "reason": "read-only context (no write door)"}
     if ctx.graph is None:

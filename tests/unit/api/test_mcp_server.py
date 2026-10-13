@@ -12,8 +12,8 @@ from typing import Any
 import pytest
 
 from memspine import Engine
-from memspine.protocols.mcp import McpServer, serve_stdio
-from memspine.protocols.tools import AgentMemoryTools, ToolContext
+from memspine.api.mcp import McpServer, serve_stdio
+from memspine.api.tools import AgentMemoryTools, ToolContext
 
 
 @pytest.fixture

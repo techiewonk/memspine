@@ -7,12 +7,12 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 
 | Status | Count |
 |---|---|
-| Not started | 46 |
+| Not started | 41 |
 | Ready | 0 |
 | In progress | 12 |
 | Blocked | 0 |
-| Needs measurement | 26 |
-| Done | 77 |
+| Needs measurement | 30 |
+| Done | 78 |
 | Dropped | 1 |
 
 ## Phase 0: settle and prepare
@@ -101,7 +101,7 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | F-11 | Compose out of the engine | ctx | C | R-20 | - | F-10b, LIB-06, LIB-25 | move | S1 split (serial) | `src/memspine/compose/**` +1 | Golden context hash identical | **Done** | S11: 68 units to compose/pipeline/{render,sections,pack,windows,answer,state}.py, engine 9821->8028; unit 5905, evals 1435, golden, 14 contracts (2902f19) |
 | F-12 | Trust, admin and memory-type mechanisms out | L4 ctx scope | K_C R C | M-21, M-24 | - | F-11, LIB-08, LIB-09, LIB-18, LIB-21, LIB-28, LIB-38, LIB-41 | move | S1 split (serial) | `src/memspine/trust/**` +2 | Golden | **Done** | S12: 91 units to trust/pipeline + memory/pipeline, engine 8028->6369; 12 units left (contract-blocked helpers, go with F-13a); unit 5905, evals 1435, golden, 14 contracts (9a4876e) |
 | F-13a | Scoped handle; engine reduced to lifecycle and admin | L0 L1 L4 L5 ctx scope | D K_C K_P R C | G-16 | ER-03 | F-12 | api | S1 split (serial) | `src/memspine/api/**` +3 | Golden | **Done** | Memory handle + open(); Engine moved to memspine.api.engine (no alias), engine 5566->4818; 7305 tests (22ab2d7) |
-| F-13b | REST and MCP on the handle | ctx scope | D R | G-17, G-18 | - | F-13a | move | S1 split (serial) | `src/memspine/api/**` +3 | Protocol tests | **In progress** | Swarm: agent running |
+| F-13b | REST and MCP on the handle | ctx scope | D R | G-17, G-18 | - | F-13a | move | S1 split (serial) | `src/memspine/api/**` +3 | Protocol tests | **Done** | REST/MCP/tools on scoped Memory handle; protocols/ -> api/ (no alias); principal-bound viewer; tap middleware |
 | F-13c | Eval-harness adapter and test-import migration; paired-gate replay | L0 L1 L4 L5 ctx scope | D K_C K_P R C | G-16 | - | F-13a | move | S1 split (serial) | `src/memspine/api/**` +3 | Paired-gate replay NO CHANGE vs f-jref2-i2 (GPU, one run) | **In progress** | Built (18e811d): adapter on open()/Memory handle, parity snapshot test, S29 parity row; merge held until B1 sample batch finishes (touches run_v2_queue.sh) |
 | F-15 | Split the pipelines module into derive stages | L0 L1 L3 L4 L5 ctx | K_C K_P | O-04 | - | F-11 | move | S1 split (serial) | `src/memspine/derive/stages/**` +1 | Golden; stage order unchanged | **Done** | S15: workers/pipelines.py split into derive/pipeline/stages (18 modules, same order) + 34 engine units; merged with F-12, fact helpers deduplicated; unit 5905, evals 1435, golden, 14 contracts (26f586f) |
 | F-14a | Retire measured-negative and owner-retired code (slot loop, fact chain, word vectors, decider gate, kuzu, opensearch stub, full/compose read modes, v1 read headers) | L0 L1 L4 L5 ctx scope | D R C | G-22 | ER-40 | F-11 | move | S1 split (serial) | - | Golden unchanged; retired flags raise ConfigError | **Done** | 6 items retired (slot loop, read-time fact chain, word-vector leg, decider gate, kuzu, opensearch stub) with RETIRED.md; full/compose modes and v1 headers kept (default-on / not decided); unit 5860, evals 1435, golden, 14 contracts (bbf0280) |
@@ -130,7 +130,7 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | W2-01 | Source envelope intake, receipt, idempotency, re-ingest | L0 L1 | D K_C | W-01, W-02, W-03, W-24 | ER-06 | EX-1a, LIB-30 | behaviour | write | - | Write p95 at most 250 ms; idempotent retries; receipt never claims an unavailable capability; crash tests at every commit/projector boundary | **Not started** |  |
 | W2-02 | Stamping: three clocks, time zone, speaker/addressee/participants, provenance class | L0 L1 L4 scope | D R | W-04, W-05, W-08, M-08 | - | W2-01, LIB-29 | behaviour | write | - | Focus slice non-inferior | **Not started** |  |
 | W2-03 | Role policy, echo guard (marker + last-read overlap) and routing | L0 L1 L5 ctx | D | W-06, W-09 | ER-17 | W2-02, LIB-13 | behaviour | write | - | Focus slice non-inferior | **Not started** |  |
-| W2-04 | Firewall at three gates; base plus extended signals | L0 L1 scope | D | W-07, G-06 | - | W2-03, F-16a, LIB-08, LIB-38 | behaviour | write | - | False-positive screen on the behavioural suite | **Not started** | Q8 chat-preset exemption |
+| W2-04 | Firewall at three gates; base plus extended signals | L0 L1 scope | D | W-07, G-06 | - | LIB-38, F-16a | behaviour | write | - | False-positive screen on the behavioural suite | **In progress** | Swarm: trust wiring flag-off (agent running) |
 | W2-05 | Segmentation: adaptive window, time-gap cut, token batching | L0 | D | W-11 | - | W2-01, LIB-14 | behaviour | write | - | Calls per turn down, grounding inside band | **Not started** |  |
 | W2-07 | Prompt layout rules: no examples, stable prefix, same language | L0 L1 L3 ctx | D C | W-18, P-07, P-08, P-10 | ER-16 | P0-09, EX-1a, LIB-46 | behaviour | write | - | English output unchanged on focus slice (per partial) | **Not started** |  |
 | W2-06a | ItemV1 to AssertionEnvelope compile, validation, repair re-ask, dead letters | L0 L1 L3 | D | W-14, W-15, P-05, P-06 | ER-11, ER-15, ER-32 | W2-05, F-16a, LIB-05 | behaviour | S4 extraction (serial) | - | Unit tests; items dropped counted | **Not started** |  |
@@ -180,14 +180,14 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
 | O4-01a | Non-blocking sleep handles, triggers ((N AND M) OR context C, gap K), namespace jobs, leases, watermarks, daily maintenance | L0 L1 L3 L4 L5 ctx | K_C K_P | O-01, O-02, O-03 | ER-07, ER-26 | EX-1a, F-15 | behaviour | offline | - | Restart and lock fault tests; off by default | **Not started** |  |
 | O4-01b | Background budget and freshness (covers_seq; read-side freshness) | L0 L1 L3 L4 ctx | K_C K_P R | O-05, O-06 | ER-09, ER-26 | O4-01a, F-16a, LIB-26 | behaviour | offline | - | Deferred work counted, never dropped | **Not started** |  |
-| O4-02 | Call 2 at session close: summary, stitched episode, profile ops (L2, opt-in) | L0 L1 ctx | K_C K_P | O-07, O-08, O-09, M-14 | ER-26 | LIB-40, F-16a | behaviour | offline | - | G-C9-style screen; golden unchanged with flag off | **In progress** | Swarm: offline wiring flag-off (agent running) |
+| O4-02 | Call 2 at session close: summary, stitched episode, profile ops (L2, opt-in) | L0 L1 ctx | K_C K_P | O-07, O-08, O-09, M-14 | ER-26 | LIB-40, F-16a | behaviour | offline | - | G-C9-style screen; golden unchanged with flag off | **Needs measurement** | OW-A wired flag-off (offline.session_close_v2 / profile_card_v2); erasure gap on card markers pending owner |
 | O4-03 | Reconcile backlog, staged entity resolution, contradictions | L1 L3 | K_C | O-10, O-11, O-12 | - | LIB-37, F-16a | behaviour | offline | - | Contradiction-recall set; MAB-CR non-inferior | **Needs measurement** | Wired flag-off (OW-B 15e27536); INV-ORDER-SWAP passes with offline.reconcile_v2+histories_v2; sample screen queued |
 | O4-04 | Near-duplicate merge and value histories | L1 L4 | K_C | O-13, O-14, M-13 | ER-17 | LIB-20, O4-03 | behaviour | offline | - | Zero wrong numeric merges; MAB-CR token check | **Needs measurement** | Wired flag-off (OW-B 15e27536); INV-ORDER-SWAP passes with offline.reconcile_v2+histories_v2; sample screen queued |
 | O4-05 | Pattern observations (opt-in L4) | L1 L4 | K_C | O-15, M-13 | ER-28 | LIB-31, F-16a | behaviour | offline | - | OP-Bench, PrefEval, MAB-CR non-inferior; sleep calls within budget | **In progress** | Swarm: offline wiring flag-off (agent running) |
-| O4-06 | Entity summaries and communities (opt-in) | L1 L3 L4 | K_C | O-16, O-17, M-19 | - | LIB-36, F-16a | behaviour | offline | - | Global-question workload | **In progress** | Swarm: offline wiring flag-off (agent running) |
-| O4-07 | Profile card, guarded operations, reflection (opt-in) | L1 L4 ctx | K_P | O-18, O-19, O-20, M-20 | ER-28 | LIB-39, O4-02 | behaviour | offline | - | OP-Bench and PrefEval up; hand audit at least 90% | **In progress** | Swarm: offline wiring flag-off (agent running) |
+| O4-06 | Entity summaries and communities (opt-in) | L1 L3 L4 | K_C | O-16, O-17, M-19 | - | LIB-36, F-16a | behaviour | offline | - | Global-question workload | **Needs measurement** | OW-D wired flag-off (offline.communities_v2 / decay_v2); summaries via door type summary |
+| O4-07 | Profile card, guarded operations, reflection (opt-in) | L1 L4 ctx | K_P | O-18, O-19, O-20, M-20 | ER-28 | LIB-39, O4-02 | behaviour | offline | - | OP-Bench and PrefEval up; hand audit at least 90% | **Needs measurement** | OW-A wired flag-off (offline.session_close_v2 / profile_card_v2); erasure gap on card markers pending owner |
 | O4-08 | Standing answers (opt-in) | L1 L4 | K_P | O-21 | ER-28 | LIB-32, F-16a | behaviour | offline | - | Refresh on watermark; cited sources | **In progress** | Swarm: offline wiring flag-off (agent running) |
-| O4-09 | Decay tiers, compression, multi-resolution text (K_C, opt-in) | L0 L1 ctx | K_C C | O-22, M-22, P-16 | - | LIB-33, F-16a | behaviour | offline | - | Context tokens down at no QA loss | **In progress** | Swarm: offline wiring flag-off (agent running) |
+| O4-09 | Decay tiers, compression, multi-resolution text (K_C, opt-in) | L0 L1 ctx | K_C C | O-22, M-22, P-16 | - | LIB-33, F-16a | behaviour | offline | - | Context tokens down at no QA loss | **Needs measurement** | OW-D wired flag-off (offline.communities_v2 / decay_v2); summaries via door type summary |
 | O4-10 | Prospective and procedural memory (advisory, opt-in) | L5 | K_C | O-23, O-24 | - | LIB-28, F-16a | behaviour | offline | - | Off by default | **In progress** | Swarm: offline wiring flag-off (agent running) |
 | O4-11 | Explicit feedback only; observer views (multi-agent) | L1 L4 L5 scope | K_C K_P R | O-25, O-26, M-24 | - | LIB-44, F-16a | behaviour | offline | - | Multi-agent template tests | **In progress** | Swarm: offline wiring flag-off (agent running) |
 | EX-4 | Phase 4 exit: OP-Bench and PrefEval up, no LoCoMo loss, sleep at most 0.2 calls per turn | L0 L1 L4 L5 ctx scope | D K_C K_P R C G | G-01 | - | O4-07, O4-05, O4-06, O4-09 | measure | exit | - | ROADMAP Phase 4 exit gate | **Not started** |  |
@@ -196,11 +196,11 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 
 | Id | Work package | Layers | Ops | Decisions | Review | Depends on | Kind | Agent lane | Owns | Gate | Status | Note |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| T5-01 | Trust horizon on grants | scope | D R | G-07 | ER-29, POL-2 | F-16c, W2-04, LIB-21 | behaviour | trust | - | Read cost of the bound; N1 tests | **Not started** |  |
+| T5-01 | Trust horizon on grants | scope | D R | G-07 | ER-29, POL-2 | LIB-21, F-16a | behaviour | trust | - | Read cost of the bound; N1 tests | **In progress** | Swarm: trust wiring flag-off (agent running) |
 | T5-02 | Low-trust rendering in context | L0 L1 ctx | C | G-09 | ER-22 | LIB-25 | behaviour | trust | - | Count wrapped blocks; QA non-inferior | **Needs measurement** | Wired flag-off (RW-C bb21249); screen queued |
-| T5-03 | Privacy tiers, consent and purpose scopes | L0 L1 L4 | D K_P R C | G-10, G-11 | ER-31 | EX-1a, LIB-18 | behaviour | trust | - | Remote-tier gate tests | **Not started** |  |
-| T5-04 | Erasure index across caches and projections (contract re-run per layer) | L0 L1 L3 L4 L5 ctx scope | D K_C | G-13, M-25 | ER-30, ER-31, POL-1 | F-16f, LIB-09 | behaviour | trust | - | Forget probes on both profiles; every layer registered | **Not started** |  |
-| T5-05 | Retention and audit per profile | L0 L1 L4 L5 ctx scope | D K_C R | G-14, G-15 | ER-27 | EX-1a, LIB-41 | infra | trust | - | Profile tests | **Not started** |  |
+| T5-03 | Privacy tiers, consent and purpose scopes | L0 L1 L4 | D K_P R C | G-10, G-11 | ER-31 | LIB-18 | behaviour | trust | - | Remote-tier gate tests | **In progress** | Swarm: trust wiring flag-off (agent running) |
+| T5-04 | Erasure index across caches and projections (contract re-run per layer) | L0 L1 L3 L4 L5 ctx scope | D K_C | G-13, M-25 | ER-30, ER-31, POL-1 | LIB-09, F-16a | behaviour | trust | - | Forget probes on both profiles; every layer registered | **In progress** | Swarm: trust wiring flag-off (agent running) |
+| T5-05 | Retention and audit per profile | L0 L1 L4 L5 ctx scope | D K_C R | G-14, G-15 | ER-27 | LIB-41 | infra | trust | - | Profile tests | **In progress** | Swarm: trust wiring flag-off (agent running) |
 | T5-06 | Observability: per-stage ledger, optional OTel, no content in spans | L0 L1 L4 L5 ctx scope | D K_C K_P R C G | G-20 | - | W2-12 | infra | trust | - | Tests | **Not started** |  |
 | T5-07 | N1 attack and utility run with enforcement on | L0 L1 scope | D R | G-07, G-06 | - | T5-01, W2-04 | measure | trust | - | Attack/utility frontier | **Not started** |  |
 | EX-5 | Phase 5 exit: behavioural suite, N1, isolation and erasure on both profiles | L0 L1 L4 L5 ctx scope | D K_C K_P R C G | G-01 | - | T5-01, T5-02, T5-03, T5-04, T5-05, T5-06, T5-07 | measure | exit | - | ROADMAP Phase 5 exit gate | **Not started** |  |

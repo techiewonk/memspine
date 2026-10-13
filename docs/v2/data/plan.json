@@ -3330,8 +3330,8 @@
    ],
    "kind": "move",
    "gate": "Protocol tests",
-   "status": "In progress",
-   "note": "Swarm: agent running",
+   "status": "Done",
+   "note": "REST/MCP/tools on scoped Memory handle; protocols/ -> api/ (no alias); principal-bound viewer; tap middleware",
    "layers": [
     "ctx",
     "scope"
@@ -4456,15 +4456,13 @@
     "G-06"
    ],
    "depends_on": [
-    "W2-03",
-    "F-16a",
-    "LIB-08",
-    "LIB-38"
+    "LIB-38",
+    "F-16a"
    ],
    "kind": "behaviour",
    "gate": "False-positive screen on the behavioural suite",
-   "status": "Not started",
-   "note": "Q8 chat-preset exemption",
+   "status": "In progress",
+   "note": "Swarm: trust wiring flag-off (agent running)",
    "layers": [
     "L0",
     "L1",
@@ -6059,8 +6057,8 @@
    ],
    "kind": "behaviour",
    "gate": "G-C9-style screen; golden unchanged with flag off",
-   "status": "In progress",
-   "note": "Swarm: offline wiring flag-off (agent running)",
+   "status": "Needs measurement",
+   "note": "OW-A wired flag-off (offline.session_close_v2 / profile_card_v2); erasure gap on card markers pending owner",
    "layers": [
     "L0",
     "L1",
@@ -6221,8 +6219,8 @@
    ],
    "kind": "behaviour",
    "gate": "Global-question workload",
-   "status": "In progress",
-   "note": "Swarm: offline wiring flag-off (agent running)",
+   "status": "Needs measurement",
+   "note": "OW-D wired flag-off (offline.communities_v2 / decay_v2); summaries via door type summary",
    "layers": [
     "L1",
     "L3",
@@ -6263,8 +6261,8 @@
    ],
    "kind": "behaviour",
    "gate": "OP-Bench and PrefEval up; hand audit at least 90%",
-   "status": "In progress",
-   "note": "Swarm: offline wiring flag-off (agent running)",
+   "status": "Needs measurement",
+   "note": "OW-A wired flag-off (offline.session_close_v2 / profile_card_v2); erasure gap on card markers pending owner",
    "layers": [
     "L1",
     "L4",
@@ -6340,8 +6338,8 @@
    ],
    "kind": "behaviour",
    "gate": "Context tokens down at no QA loss",
-   "status": "In progress",
-   "note": "Swarm: offline wiring flag-off (agent running)",
+   "status": "Needs measurement",
+   "note": "OW-D wired flag-off (offline.communities_v2 / decay_v2); summaries via door type summary",
    "layers": [
     "L0",
     "L1",
@@ -6501,14 +6499,13 @@
     "G-07"
    ],
    "depends_on": [
-    "F-16c",
-    "W2-04",
-    "LIB-21"
+    "LIB-21",
+    "F-16a"
    ],
    "kind": "behaviour",
    "gate": "Read cost of the bound; N1 tests",
-   "status": "Not started",
-   "note": "",
+   "status": "In progress",
+   "note": "Swarm: trust wiring flag-off (agent running)",
    "layers": [
     "scope"
    ],
@@ -6577,13 +6574,12 @@
     "G-11"
    ],
    "depends_on": [
-    "EX-1a",
     "LIB-18"
    ],
    "kind": "behaviour",
    "gate": "Remote-tier gate tests",
-   "status": "Not started",
-   "note": "",
+   "status": "In progress",
+   "note": "Swarm: trust wiring flag-off (agent running)",
    "layers": [
     "L0",
     "L1",
@@ -6619,13 +6615,13 @@
     "M-25"
    ],
    "depends_on": [
-    "F-16f",
-    "LIB-09"
+    "LIB-09",
+    "F-16a"
    ],
    "kind": "behaviour",
    "gate": "Forget probes on both profiles; every layer registered",
-   "status": "Not started",
-   "note": "",
+   "status": "In progress",
+   "note": "Swarm: trust wiring flag-off (agent running)",
    "layers": [
     "L0",
     "L1",
@@ -6665,13 +6661,12 @@
     "G-15"
    ],
    "depends_on": [
-    "EX-1a",
     "LIB-41"
    ],
    "kind": "infra",
    "gate": "Profile tests",
-   "status": "Not started",
-   "note": "",
+   "status": "In progress",
+   "note": "Swarm: trust wiring flag-off (agent running)",
    "layers": [
     "L0",
     "L1",

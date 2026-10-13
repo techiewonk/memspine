@@ -52,6 +52,14 @@ AppendEvent = Callable[[MemoryEvent], Awaitable[None]]
 WriteDerivedFact = Callable[[MemoryRecord, list[float]], Awaitable[MemoryRecord]]
 
 
+#: Offline wiring (O4-06, O4-09): the derived-write door for a summary record, called with the
+#: namespace lock held: (namespace, record, parent ids, layer label, site, parent trust cap) -> the
+#: stored record (lineage and trust cap with ``write.lineage_table``, firewall screening always).
+WriteSummary = Callable[
+    [str, MemoryRecord, Sequence[str], str, str, list[float]], Awaitable[MemoryRecord]
+]
+
+
 Summarize = Callable[[str], Awaitable[str]]
 
 
@@ -146,6 +154,34 @@ class SessionClosed:
 
 #: Call 2: handler of a closed session; returns its stats. None installed => the stub.
 SessionCloseHandler = Callable[[SessionClosed], Awaitable[dict[str, object]]]
+
+
+#: O4-02: the call-2 model call: chat messages (stable prefix, data body) -> the raw reply.
+#: None => ``offline.session_close_v2`` has no LLM role to call and the stage reports ``skipped``.
+CloseCall = Callable[[list[dict[str, str]]], Awaitable[str]]
+
+
+class DepositSessionRecord(Protocol):
+    """O4-02: engine-side deposit of one call-2 record (a session summary or an episode) through
+    the derived-write door: (namespace, kind ``summary`` | ``episode``, text, parent ids,
+    valid_from, session id) plus the validated extras. Returns None when a parent is no longer
+    live (I72) or the record was refused; the deposit takes the namespace lock itself."""
+
+    def __call__(
+        self,
+        namespace: str,
+        kind: str,
+        text: str,
+        parents: list[str],
+        valid_from: datetime,
+        session_id: str,
+        *,
+        extends: str | None = None,
+        when_text: str | None = None,
+        participants: Sequence[str] = (),
+        idem_key: str = "",
+        folded: bool = False,
+    ) -> Awaitable[MemoryRecord | None]: ...
 
 
 class DepositFact(Protocol):
@@ -273,6 +309,14 @@ class PipelineContext:
     window_edges: WindowEdges | None = None
     #: W1 (call 2 interface): the session-closed handler. None => the stub.
     close_session: SessionCloseHandler | None = None
+    #: O4-02 (``offline.session_close_v2``): the call-2 model call and the record deposit. Either
+    #: None => the v2 close reports ``skipped`` and the stub runs as before.
+    close_call: CloseCall | None = None
+    deposit_session_record: DepositSessionRecord | None = None
+    #: O4-06 / O4-09: the derived-write door for community, entity and multi-resolution summaries
+    #: (``offline.communities_v2`` / ``offline.decay_v2``). None (bare contexts) => screened and
+    #: appended raw.
+    write_summary: WriteSummary | None = None
 
 
 async def _parents_gone(
