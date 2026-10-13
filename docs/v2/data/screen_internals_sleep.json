@@ -1,0 +1,1656 @@
+[
+ {
+  "id": "S01",
+  "settings": {
+   "vs scr-pool-protect-jina": "memories.semantic.enabled; memories.reflective.enabled; memories.episodic.policies.consolidation.reflect_profile true; llm.roles.summarize and llm.roles.reflect (qwen3.5:9b, no_think, 180 s); llm.structured.retry_on_error; read.profile_header_packing true; read.profile_header_budget 300",
+   "note": "P0-06 thinking fix on the existing gc9 arm (G-C9: session summaries plus profile insights packed into the context)"
+  },
+  "stage": "K",
+  "trigger": "Sleep after ingestion (consolidate and reflect_profile stages) and per read (packed header).",
+  "steps": [
+   {
+    "n": 1,
+    "what": "Sleep stage consolidate: for each closed session (30 min gap, at least 3 records) call the summarize role once (prompt summarize.yaml, at most 3 sentences). Flagged members are wrapped as data before the call; on a failed call the extractive fallback is used. The summary is a semantic record (channel consolidation) with the session turns as parents and trust = min.",
+    "code": "src/memspine/derive/pipeline/stages/consolidate.py:_consolidate_session (131)",
+    "kind": "llm"
+   },
+   {
+    "n": 2,
+    "what": "Sleep stage reflect_profile: through the per-session runner (each consolidated session once, done marker per session and member fingerprint), call the reflect role with the dated turn lines; the structured reply is a list of insights with evidence indices (prompt reflect.yaml, token budget 384).",
+    "code": "src/memspine/derive/pipeline/stages/reflect.py:reflect_profile (12); session_stage.py:_run_session_stage (52); derive/pipeline/builders.py:_build_reflector (173)",
+    "kind": "llm"
+   },
+   {
+    "n": 3,
+    "what": "Each insight with valid evidence is deposited through the governed reflect door as a reflective record (role assistant, channel reflection, message_id 'reflected:<session key>', parents = evidence turns).",
+    "code": "src/memspine/derive/pipeline/integrate.py:_deposit_profile_reflection (164)",
+    "kind": "storage"
+   },
+   {
+    "n": 4,
+    "what": "Per-session marker is appended once the LLM call succeeded, whatever it produced, so a session is never re-sent.",
+    "code": "src/memspine/derive/pipeline/stages/session_stage.py:_run_session_stage (52)",
+    "kind": "storage"
+   },
+   {
+    "n": 5,
+    "what": "Read side: read.profile_header_packing replaces the plain profile header by a packed block: three gated searches (semantic consolidation summaries, reflective insights, other hits) packed in that order within read.profile_header_budget (300 tokens, capped at PROFILE_PACK_MAX_SHARE of the budget); skipped for temporal questions and general-knowledge questions when the profile gates are on.",
+    "code": "src/memspine/compose/pipeline/sections.py:_packed_profile_section (909), _profile_section (856)",
+    "kind": "algorithm"
+   }
+  ],
+  "algorithms": [
+   "session boundary detection by time gap",
+   "LLM abstractive summary",
+   "LLM insight extraction with evidence indices",
+   "priority packing summaries then insights then hits under a token budget"
+  ],
+  "libraries": [
+   "LIB-27 stage ledger (cost attribution)",
+   "external: ollama qwen3.5:9b"
+  ],
+  "models": [
+   {
+    "role": "summarize",
+    "model": "ollama/qwen3.5:9b via Ollama (127.0.0.1:11434, no_think, timeout 180 s, structured retry_on_error)",
+    "calls": "1 per closed session (about 270 for the full 272-session set)",
+    "prompt": "src/memspine/prompts/defaults/summarize.yaml"
+   },
+   {
+    "role": "extract",
+    "model": "reflect role -> ollama/qwen3.5:9b via Ollama (127.0.0.1:11434, no_think, timeout 180 s, structured retry_on_error)",
+    "calls": "1 per consolidated session (about 270 for the full set)",
+    "prompt": "src/memspine/prompts/defaults/reflect.yaml"
+   }
+  ],
+  "storage": "Appends semantic summaries (consolidation channel) and reflective records (reflection channel) plus per-session stage_done markers; reflective records need memories.reflective.enabled.",
+  "cost": "About 11 min engine-LLM ingest per 3-conversation sample, 45 min row estimate (est_min 45); roughly 270 summarize + 270 reflect calls on the full set (run_screens_gc.sh note).",
+  "inputs": "Closed sessions with at least 3 records; a bound reflect role plus enabled reflective memory.",
+  "outputs": "Adds a packed lead block of summaries and insights to the context (token cost 300 at most) and the summary/insight records to the search pool.",
+  "failure_modes": [
+   "Insights are LLM-authored and untrusted-derived: trust is capped but they can restate the same fact (no dedup beyond the session marker).",
+   "The block is skipped on date questions (profile_skip_temporal), so temporal gains are not expected."
+  ],
+  "tests": [
+   "tests/unit/test_reflect_profile.py",
+   "tests/unit/memories/reflective/test_reflective.py",
+   "tests/unit/core/policies/test_consolidation.py"
+  ],
+  "mermaid": "flowchart LR\n  A[sleep] --> B[consolidate LLM summary]\n  B --> C[reflect_profile LLM insights]\n  C --> D[reflective records]\n  D --> E[read packed profile header]"
+ },
+ {
+  "id": "S02",
+  "settings": {
+   "vs scr-pool-protect-jina": "adds the gc3 write-time graph: memories.semantic.enabled, extract_graph{granularity: session, resolve: rules}, memories.associative{enabled, entity_nodes, entity_summaries}, graph.entity_embeddings, read.graph_leg(+_k 10, depth 2), read.graph_node_search, read.entity_summaries, llm.roles.extract_edges and summarize_entity (qwen3.5:9b, no_think), llm.structured.retry_on_error",
+   "note": "P0-06 'thinking fix': the roles carry no_think true (/no_think soft switch) so the 9B model does not spend its budget thinking; the arm itself already existed"
+  },
+  "stage": "K",
+  "trigger": "Sleep after ingestion (see REF-SLEEP); the read legs run per read.",
+  "steps": [
+   {
+    "n": 1,
+    "what": "Ingestion writes turns as episodic records (batched embedding, batch-turns 32).",
+    "code": "evals/memspine_evals/systems/memspine_system.py:build / write_messages",
+    "kind": "io"
+   },
+   {
+    "n": 2,
+    "what": "Sleep stage consolidate: one extractive semantic summary per closed session.",
+    "code": "src/memspine/derive/pipeline/stages/consolidate.py:consolidate (46)",
+    "kind": "algorithm"
+   },
+   {
+    "n": 3,
+    "what": "Sleep stage extract_graph: one extract_edges@session LLM call per session returns typed edges with turn citations.",
+    "code": "src/memspine/derive/pipeline/stages/extract_graph.py:extract_graph (369), session branch (515)",
+    "kind": "llm"
+   },
+   {
+    "n": 4,
+    "what": "Rules entity resolution (exact, alias, embedding top-15, MinHash 0.9).",
+    "code": "src/memspine/derive/pipeline/stages/extract_graph.py:_resolve_edges (87)",
+    "kind": "algorithm"
+   },
+   {
+    "n": 5,
+    "what": "Edges written as semantic facts through the semantic door, with asserted LINKs from the cited turns; the graph projector adds ent: nodes with mentions links and (graph.entity_embeddings) embeds entity names.",
+    "code": "src/memspine/derive/pipeline/stages/extract_graph.py:emit (604)",
+    "kind": "storage"
+   },
+   {
+    "n": 6,
+    "what": "Sleep stage summarize_entities: free lines under 2000 chars, else batched summarize_entity LLM calls; entity_summary records.",
+    "code": "src/memspine/derive/pipeline/stages/entity_summaries.py:summarize_entities (102)",
+    "kind": "llm"
+   },
+   {
+    "n": 7,
+    "what": "Read side (owned by the read agents): graph leg BFS from seed hits to depth 2 with k 10, entity-node vector search, and entity summaries joining the candidate pool before rerank.",
+    "code": "src/memspine/read/ (read.graph_leg, graph_node_search, entity_summaries)",
+    "kind": "algorithm"
+   }
+  ],
+  "algorithms": [
+   "see REF-SLEEP",
+   "BFS graph expansion depth 2 (read side)"
+  ],
+  "libraries": [
+   "see REF-SLEEP",
+   "external: LanceDB entity index (graph.entity_embeddings)"
+  ],
+  "models": [
+   {
+    "role": "extract",
+    "model": "ollama/qwen3.5:9b via Ollama (127.0.0.1:11434, no_think, timeout 180 s, structured retry_on_error)",
+    "calls": "1 per session",
+    "prompt": "src/memspine/prompts/defaults/extract_edges@session.yaml"
+   },
+   {
+    "role": "summarize",
+    "model": "ollama/qwen3.5:9b via Ollama (127.0.0.1:11434, no_think, timeout 180 s, structured retry_on_error)",
+    "calls": "0-few batches per sleep",
+    "prompt": "src/memspine/prompts/defaults/summarize_entity.yaml"
+   },
+   {
+    "role": "reader",
+    "model": "qwen3.5:9b (thinking off) as reader and judge in the eval harness",
+    "calls": "per question",
+    "prompt": "eval QA prompt grounded"
+   }
+  ],
+  "storage": "As REF-SLEEP.",
+  "cost": "About 39 min engine-LLM ingest per 3-conversation sample; 150 min row estimate in v2_queue.tsv (est_min 150, sets f).",
+  "inputs": "extract_edges role bound and reachable; consolidated sessions.",
+  "outputs": "Graph facts, links, entity nodes and summaries that every B3/B5 GC row builds on; reference run v2-S02-i2 for all of them.",
+  "failure_modes": [
+   "Thinking models can burn the whole token budget on reasoning and return no YAML: the reason for the P0-05/P0-06 no_think fix; structured retry_on_error is the second guard.",
+   "Ollama is shared: nothing else may use it during the build."
+  ],
+  "tests": [
+   "tests/unit/workers/test_extract_graph_session.py",
+   "tests/unit/test_entity_summaries.py"
+  ],
+  "mermaid": "flowchart LR\n  A[ingest turns] --> B[consolidate]\n  B --> C[extract_graph LLM]\n  C --> D[resolve rules]\n  D --> E[facts links entity nodes]\n  E --> F[summarize_entities]\n  F --> G[read graph leg]"
+ },
+ {
+  "id": "S28",
+  "settings": {
+   "graph.key_v2": true,
+   "vs": "scr-gc3-graph-jina"
+  },
+  "stage": "K",
+  "trigger": "Inside the extract_graph sleep stage, per extracted edge (during the same sleep as REF-SLEEP).",
+  "steps": [
+   {
+    "n": 1,
+    "what": "Existing extract_graph facts are indexed first: every live or closed fact of the namespace goes into an EdgeKeyIndex by v2 key, by base (from its edge_base: tag) or as a v1 alias key.",
+    "code": "src/memspine/derive/pipeline/stages/extract_graph.py:extract_graph (369), index build ~470",
+    "kind": "storage"
+   },
+   {
+    "n": 2,
+    "what": "For each extracted edge compute the v1 key (namespace, src, rel, dst; with isolation.scope_keys_v2 the tenant+owner identity) and the v2 base key = hash(scope, kind, src, rel, dst, extras) where extras are the event day and numerals for dated event edges.",
+    "code": "src/memspine/derive/pipeline/stages/extract_graph.py:_edge_key (256); store/keys.py:base_key (73)",
+    "kind": "algorithm"
+   },
+   {
+    "n": 3,
+    "what": "Occurrence = hash of the sorted cited turns (content fingerprint @ valid_from), so re-extracting the same turns gives the same key (replay idempotent) while a new statement later gives a new one.",
+    "code": "src/memspine/store/keys.py:occurrence_of",
+    "kind": "algorithm"
+   },
+   {
+    "n": 4,
+    "what": "EdgeKeyIndex.decide: duplicate if the exact v2 key exists; duplicate via base if a live sibling of the same base exists; duplicate via alias if a live v1 key exists; new_occurrence if only closed siblings exist (the A -> B -> A return); else new.",
+    "code": "src/memspine/store/keys.py:EdgeKeyIndex.decide (150)",
+    "kind": "rule"
+   },
+   {
+    "n": 5,
+    "what": "A 'duplicate' only adds edge_source provenance to the existing fact (no write). A stale duplicate (record closed since) is re-checked against storage and turned into new_occurrence.",
+    "code": "src/memspine/derive/pipeline/stages/extract_graph.py:emit (604), key decision (637), _add_edge_provenance (828)",
+    "kind": "rule"
+   },
+   {
+    "n": 6,
+    "what": "A new key is written as the fact's message_id and the base is stored as an edge_base: tag so later occurrences find their siblings. A derive.graph.key tap event records outcome, via and kind.",
+    "code": "src/memspine/derive/pipeline/stages/extract_graph.py:emit (604)",
+    "kind": "storage"
+   }
+  ],
+  "algorithms": [
+   "content-addressed hashing (SHA-256, domain gb/gk/oc)",
+   "occurrence keys for A-B-A returns",
+   "v1 alias compatibility index"
+  ],
+  "libraries": [
+   "store/keys.py (F-01 pure key functions, shared with LIB-35 edge compiler)"
+  ],
+  "models": [
+   {
+    "role": "none",
+    "model": "none (the extraction call count is unchanged from S02)",
+    "calls": "0 extra",
+    "prompt": "none"
+   }
+  ],
+  "storage": "Writes an extra edge_base:<hash> tag on each extract_graph fact; message_id carries the v2 key. Reads all prior extract_graph facts at sweep start.",
+  "cost": "No model calls; a full graph rebuild is needed because keys change, so the row re-ingests (150 min row, about 2.5 h).",
+  "inputs": "extract_graph facts (this is the gc3 base).",
+  "outputs": "Fewer or different duplicates: an edge restated after a different value is kept as a new occurrence instead of being absorbed by the closed one. Stored records change identity; QA effect is expected near zero (NONINF).",
+  "failure_modes": [
+   "Only visible on questions with value reversals; most LoCoMo questions are unaffected.",
+   "Changes record ids and keys, so it cannot be compared record-for-record with S02."
+  ],
+  "tests": [
+   "tests/unit/store/test_keys.py",
+   "tests/unit/workers/test_extract_graph_session.py"
+  ],
+  "mermaid": "flowchart LR\n  A[edge from LLM] --> B[v1 key and v2 base]\n  B --> C[occurrence from cited turns]\n  C --> D{EdgeKeyIndex decide}\n  D -->|duplicate| E[add provenance]\n  D -->|new or new occurrence| F[write fact with edge_base tag]"
+ },
+ {
+  "id": "S33",
+  "settings": {
+   "offline.session_close_v2": true,
+   "llm.roles.session_close": "ollama/qwen3.5:9b, no_think, 180 s",
+   "vs": "scr-gc3-graph-jina"
+  },
+  "stage": "K",
+  "trigger": "At session close (call 2), NOT in the sleep cycle. Session close (call 2) is NOT part of the sleep cycle. It fires only from the window machinery (ingest/windows.py:_window_session_closed, needs write.window_extract) or an explicit Engine.close_session(). This arm has no write.window_extract and the eval adapter (evals/memspine_evals/systems/memspine_system.py) never calls close_session, so the stage never runs: expect zero session-close records.",
+  "steps": [
+   {
+    "n": 1,
+    "what": "Hook: Engine.close_session or the window worker's session-closed callback builds a SessionClosed event and calls the session_close stage; with session_close_v2 on it calls run_close_v2 (the stub only writes a session_closed MARKER).",
+    "code": "src/memspine/derive/pipeline/stages/close.py:session_close (13); ingest/windows.py:close_session (475)",
+    "kind": "rule"
+   },
+   {
+    "n": 2,
+    "what": "Read the session's live turns (activated, unquarantined, inflated; role policy and gate-2 input filters applied) and the episode stubs (semantic kind:episode records) within the stitch adjacency of the session.",
+    "code": "src/memspine/derive/pipeline/stages/close_v2.py:_session_turns, _stubs; session_stage.py:_live_members",
+    "kind": "io"
+   },
+   {
+    "n": 3,
+    "what": "plan_session_close builds an immutable budgeted plan (6000 prompt tokens; turns beyond it are deferred and cannot be cited) with a membership fingerprint; if a done marker with the same fingerprint exists the close is a no-op.",
+    "code": "src/memspine/derive/session_close.py:plan_session_close (247)",
+    "kind": "algorithm"
+   },
+   {
+    "n": 4,
+    "what": "ONE structured model call outside any lock (role session_close, else summarize, else extract) with a stable instruction prefix and a data body; output sections summary, episodes, profile_ops.",
+    "code": "src/memspine/derive/pipeline/stages/close_v2.py:run_close_v2 (152); derive/pipeline/builders.py:_build_close_call (448)",
+    "kind": "llm"
+   },
+   {
+    "n": 5,
+    "what": "validate_call2 checks every item alone: reserved names, numbered citations, derived time ranges (never taken from the model); near-JSON gets one lenient repair; bad items are dropped with typed reasons.",
+    "code": "src/memspine/derive/session_close.py:validate_call2 (490)",
+    "kind": "rule"
+   },
+   {
+    "n": 6,
+    "what": "Deterministic stitching: a new episode extends an existing stub when participants are equal, token overlap passes, and time gap is within adjacency (O-09).",
+    "code": "src/memspine/derive/session_close.py:_stitch (763)",
+    "kind": "algorithm"
+   },
+   {
+    "n": 7,
+    "what": "Survivors are written through the derived-write door (parents = cited turns, lineage when write.lineage_table); profile ops are only counted unless offline.profile_card_v2 is on; a stage_done marker keyed by session and turn fingerprint is appended.",
+    "code": "src/memspine/derive/pipeline/stages/close_v2.py:run_close_v2; engine _deposit_session_record",
+    "kind": "storage"
+   }
+  ],
+  "algorithms": [
+   "budgeted prompt planning",
+   "citation-validated LLM output",
+   "deterministic episode stitching by participants, token overlap and time adjacency",
+   "fingerprint idempotence"
+  ],
+  "libraries": [
+   "LIB-40 derive/session_close.py",
+   "external: ollama qwen3.5:9b"
+  ],
+  "models": [
+   {
+    "role": "summarize",
+    "model": "session_close -> ollama/qwen3.5:9b via Ollama (127.0.0.1:11434, no_think, timeout 180 s, structured retry_on_error)",
+    "calls": "1 per closed session",
+    "prompt": "none as a YAML file: built in code by derive/session_close.py:render_prompt (prompt_id session_close)"
+   }
+  ],
+  "storage": "Semantic summary and episode records (channel session_close, kind:episode tag), stage_done marker, session_closed marker.",
+  "cost": "Designed as one call per session; planned est. 45 min over the gc3 base. Actual: zero in this arm (see failure modes).",
+  "inputs": "A fired session close. This arm does not provide one.",
+  "outputs": "L2 summary and episode records; the only reader of episodes is read.episode_leg_v2, which is off in S33.",
+  "failure_modes": [
+   "INERT as configured: no write.window_extract and no close_session call in the eval adapter, so run_close_v2 never runs and the arm is identical to S02 (audit finding; S46 and S61 share this).",
+   "Even if it ran, no read consumer is on in S33 (read.episode_leg_v2 is off), so QA could only change through the summaries entering the generic search pool."
+  ],
+  "tests": [
+   "tests/unit/lib/test_lib_40_session_close.py",
+   "tests/unit/wiring/test_ow_a_close_call2_profile.py"
+  ],
+  "mermaid": "flowchart LR\n  A[session closed event] --> B[read live turns and stubs]\n  B --> C[plan budget 6000]\n  C --> D[one LLM call]\n  D --> E[validate and stitch]\n  E --> F[derived write door]\n  F --> G[done marker]"
+ },
+ {
+  "id": "S34",
+  "settings": {
+   "offline.standing_v2": true,
+   "read.standing_v2": true,
+   "vs": "scr-gc3-graph-jina",
+   "prerequisite check": "read.standing_v2 requires offline.standing_v2 (config/requires.py)"
+  },
+  "stage": "K",
+  "trigger": "Sleep stage standing_answers (inserted right after reflect_profile, or after pattern_observations when patterns_v2 is on) plus a per-read lead block.",
+  "steps": [
+   {
+    "n": 1,
+    "what": "Insert the stage in the order after reflect_profile.",
+    "code": "src/memspine/workers/schedule.py:sleep_stage_order (126)",
+    "kind": "rule"
+   },
+   {
+    "n": 2,
+    "what": "Per namespace under the write lock: read live semantic records; keep keyed facts tagged kind:state from non-derived channels (is_input_fact) and project them to assertion envelopes.",
+    "code": "src/memspine/derive/pipeline/stages/standing.py:standing_answers (142), _state_envelopes; offline_common.py:is_input_fact, fact_envelope",
+    "kind": "rule"
+   },
+   {
+    "n": 3,
+    "what": "Build value histories per (subject, attribute) from the envelopes (LIB-02 replay, event-time ordered).",
+    "code": "src/memspine/derive/histories.py:value_history",
+    "kind": "algorithm"
+   },
+   {
+    "n": 4,
+    "what": "Invalidate by changed group: for each stored answer recompute its probe fingerprint; if different, mark the group stale, refresh the answer; retire duplicates and emptied answers.",
+    "code": "src/memspine/derive/standing.py:invalidate / refresh (LIB-32)",
+    "kind": "algorithm"
+   },
+   {
+    "n": 5,
+    "what": "Add new answers for groups that have a current or open-contest value, newest group first, up to offline.standing_max_answers (50); evict idle (only once reads were logged), low-hit-rate or surplus answers.",
+    "code": "src/memspine/derive/pipeline/stages/standing.py:standing_answers; derive/standing.py:usefulness, eviction_candidates",
+    "kind": "algorithm"
+   },
+   {
+    "n": 6,
+    "what": "Write each answer as a derived semantic record (channel standing, text render_answer, tags carry question key, dependency fingerprint, seq, contested flag; parents = supporting facts; trust capped at the weakest parent) through the derived write door; archive retired ones.",
+    "code": "src/memspine/derive/pipeline/stages/standing.py:standing_answers; offline_common.py:archive_records",
+    "kind": "storage"
+   },
+   {
+    "n": 7,
+    "what": "Read side (read.standing_v2): pick the topic entities of the best keyed semantic hits, take their top attribute as the question key, select fresh answers within read.standing_answers_budget (stale ones, whose live fact set differs, are never shown and are logged as misses) and prepend one lead block 'standing answers' plus guarded standing instructions.",
+    "code": "src/memspine/derive/pipeline/stages/standing.py:standing_block (318); compose/pipeline/sections.py:_standing_block (227)",
+    "kind": "algorithm"
+   }
+  ],
+  "algorithms": [
+   "value-history replay",
+   "dependency-fingerprint invalidation by changed group",
+   "usefulness-based eviction (hit/miss log)",
+   "budgeted selection by question key"
+  ],
+  "libraries": [
+   "LIB-32 derive/standing.py",
+   "LIB-20 derive/histories.py",
+   "LIB-02 derive/integrate.py"
+  ],
+  "models": [
+   {
+    "role": "none",
+    "model": "none (rule-built answers)",
+    "calls": "0",
+    "prompt": "none"
+   }
+  ],
+  "storage": "Reads semantic records; writes/archives standing-channel semantic records; HIT_LOG is an in-process list for eviction.",
+  "cost": "No model calls; CPU only. 150 min row is dominated by the gc3 ingest; standing rows add no GPU.",
+  "inputs": "Keyed state facts (kind:state, attribute = rel) from extract_graph. If extract_graph yields no state edges for the questions' entities, no answer is built and the read block is empty (SCREENS.md: check the job.standing tap, built 0 = inert).",
+  "outputs": "A lead block of precomputed current values in the context; no change to the candidate set.",
+  "failure_modes": [
+   "May be inert on LoCoMo: gc3 'state' edges are rare; the audit says re-arm on a window-facts base if built is 0.",
+   "Idle eviction only after reads are logged in this process; a fresh worker never evicts by idleness.",
+   "The block competes for context budget with evidence (answers_budget)."
+  ],
+  "tests": [
+   "tests/unit/lib/test_lib_32_standing.py",
+   "tests/unit/wiring/test_ow_c_patterns_standing.py"
+  ],
+  "mermaid": "flowchart LR\n  A[state facts] --> B[value histories]\n  B --> C[invalidate stale groups]\n  C --> D[build and evict answers]\n  D --> E[standing records]\n  E --> F[read lead block]"
+ },
+ {
+  "id": "S35",
+  "settings": {
+   "offline.patterns_v2": true,
+   "vs": "scr-gc3-graph-jina"
+  },
+  "stage": "K",
+  "trigger": "Sleep stage pattern_observations, inserted right after reflect_profile (before extract_graph in the order).",
+  "steps": [
+   {
+    "n": 1,
+    "what": "Stage order note: it runs BEFORE extract_graph in the cycle, so on the single build sleep it sees no graph facts yet (facts exist only from a prior sleep or from mined facts).",
+    "code": "src/memspine/workers/schedule.py:sleep_stage_order (126)",
+    "kind": "rule"
+   },
+   {
+    "n": 2,
+    "what": "Per namespace under the write lock, read live semantic records and project eligible facts (is_input_fact: entity-keyed, not derived channels, not cues, not flagged) to envelopes with happened/valid_from times.",
+    "code": "src/memspine/derive/pipeline/stages/patterns.py:pattern_observations (82); offline_common.py:fact_envelope",
+    "kind": "rule"
+   },
+   {
+    "n": 3,
+    "what": "find_observations runs the five miners: recurrence (regular weekly/monthly/yearly intervals), frequency (N occurrences in a trailing window), trend (numeric attribute over 3+ dated points), co-occurrence (two kinds in the same session/day), preference stability (restated across sessions).",
+    "code": "src/memspine/derive/patterns.py:find_observations (LIB-31)",
+    "kind": "algorithm"
+   },
+   {
+    "n": 4,
+    "what": "Same-day same-kind assertions count once (independence); a preference restated by one source family has capped confidence.",
+    "code": "src/memspine/derive/patterns.py",
+    "kind": "rule"
+   },
+   {
+    "n": 5,
+    "what": "Invalidate: stored observations whose supporting facts are no longer live, or that the new run no longer produces, are archived (observation->retired).",
+    "code": "src/memspine/derive/pipeline/stages/patterns.py:pattern_observations",
+    "kind": "storage"
+   },
+   {
+    "n": 6,
+    "what": "Write each new observation (up to patterns_max_new 50 per namespace per sleep) as a derived semantic record (channel observation, tags observation, observation:<kind>, obs:<id>, obsgrp:<hash>; parents = supporting facts; trust capped at the weakest) via the derived write door; text from render_observation.",
+    "code": "src/memspine/derive/pipeline/stages/patterns.py:render_observation, pattern_observations",
+    "kind": "storage"
+   }
+  ],
+  "algorithms": [
+   "periodicity detection",
+   "windowed frequency counting",
+   "monotone trend over dated points",
+   "co-occurrence counting",
+   "preference stability across sessions",
+   "changed-group invalidation"
+  ],
+  "libraries": [
+   "LIB-31 derive/patterns.py",
+   "LIB-20 derive/histories.py"
+  ],
+  "models": [
+   {
+    "role": "none",
+    "model": "none",
+    "calls": "0",
+    "prompt": "none"
+   }
+  ],
+  "storage": "Reads semantic records; writes observation-channel semantic records; archives retired ones.",
+  "cost": "No model calls, CPU only.",
+  "inputs": "Dated keyed facts with enough repeats. On the single-sleep eval build, extract_graph has not run yet when this stage runs, so the input set may be nearly empty.",
+  "outputs": "Extra short observation sentences entering the semantic search pool.",
+  "failure_modes": [
+   "Stage order puts it before extract_graph: on one build sleep it mines nothing from gc3 facts (likely inert, SCREENS.md already expects 'small, may be inert on LoCoMo').",
+   "Observation text is rule-rendered boilerplate and may add noise to the pool."
+  ],
+  "tests": [
+   "tests/unit/lib/test_lib_31_patterns.py",
+   "tests/unit/wiring/test_ow_c_patterns_standing.py"
+  ],
+  "mermaid": "flowchart LR\n  A[live facts] --> B[envelopes]\n  B --> C[five miners]\n  C --> D[invalidate stale]\n  D --> E[observation records]"
+ },
+ {
+  "id": "S39",
+  "settings": {
+   "graph.edge_compiler_v2": true,
+   "vs": "scr-gc3-graph-jina",
+   "note": "alone: no read.graph_leg_v2, so no consumer of the compiled layer other than the old graph traversal"
+  },
+  "stage": "K",
+  "trigger": "Sleep stage compile_edges, inserted immediately before summarize_entities (after extract_graph).",
+  "steps": [
+   {
+    "n": 1,
+    "what": "Insert compile_edges before summarize_entities.",
+    "code": "src/memspine/workers/schedule.py:sleep_stage_order (126)",
+    "kind": "rule"
+   },
+   {
+    "n": 2,
+    "what": "Per namespace under the lock, read live semantic records and keep eligible assertions (facts, not summaries or cues).",
+    "code": "src/memspine/derive/pipeline/stages/edge_compiler_v2.py:compile_graph_edges (450), _compile_one (403)",
+    "kind": "rule"
+   },
+   {
+    "n": 3,
+    "what": "EdgeCompiler: convert each fact to an assertion envelope (store.envelope.to_envelope with the tri-temporal fields), enrich from the rel:/dst:/kind: tags, resolve subject and object to existing ent:<ns>:<canonical> nodes (entity policy applied), scope by tenant+owner if isolation.scope_keys_v2.",
+    "code": "src/memspine/derive/pipeline/stages/edge_compiler_v2.py:EdgeCompiler.compile",
+    "kind": "algorithm"
+   },
+   {
+    "n": 4,
+    "what": "compile_edges (LIB-35) emits an assertion node, role edges and one binary projection edge per fact with A-B-A occurrence keys, valid_from/valid_to (closed when superseded), evidence ids, trust; tentative rule tags hypothetical, planned, reported, question, unconfirmed assistant or partly bound edges.",
+    "code": "src/memspine/derive/edges.py:compile_edges (230)",
+    "kind": "algorithm"
+   },
+   {
+    "n": 5,
+    "what": "LinkProjection writes the delta as LINK events (idempotent: only edges whose stored form differs), with typed props in payload and the marker 'compiled=edge_compiler_v2'.",
+    "code": "src/memspine/derive/pipeline/stages/edge_compiler_v2.py:LinkProjection.project",
+    "kind": "storage"
+   },
+   {
+    "n": 6,
+    "what": "Retire: records that are no longer assertions (erased, hidden, archived without successor) get tombstone LINKs and their unused assertion/value/time nodes are deleted.",
+    "code": "src/memspine/derive/pipeline/stages/edge_compiler_v2.py:_compile_one (403), retract_records",
+    "kind": "storage"
+   }
+  ],
+  "algorithms": [
+   "n-ary role-edge compilation",
+   "tentative classification (S5-3)",
+   "occurrence-keyed edge identity",
+   "idempotent link projection with tombstones"
+  ],
+  "libraries": [
+   "LIB-35 derive/edges.py",
+   "store/keys.py"
+  ],
+  "models": [
+   {
+    "role": "none",
+    "model": "none",
+    "calls": "0",
+    "prompt": "none"
+   }
+  ],
+  "storage": "Appends LINK events with edge props and tombstones; graph store gains assertion, value and time nodes. Edge properties hold ids, times, flags and trust only, never text.",
+  "cost": "CPU only; one pass over the semantic records per sleep.",
+  "inputs": "extract_graph facts with rel:/dst:/kind: tags.",
+  "outputs": "A typed compiled layer in the graph. Without read.graph_leg_v2 only the legacy graph leg could see it (it BFS-walks all non-reserved edges), so reads are expected near-identical (SCREENS.md: 'tests the stage').",
+  "failure_modes": [
+   "Changes the graph the legacy leg and community code traverse (new node types), a possible small side effect on S02-style reads.",
+   "Decomposition row: meaningful only next to S30/S61."
+  ],
+  "tests": [
+   "tests/unit/lib/test_lib_35_edges.py",
+   "tests/unit/wiring/test_f_02c_edge_compiler.py"
+  ],
+  "mermaid": "flowchart LR\n  A[extract_graph facts] --> B[to envelope]\n  B --> C[resolve entity nodes]\n  C --> D[compile_edges]\n  D --> E[LINK events]\n  E --> F[retire gone records]"
+ },
+ {
+  "id": "S40",
+  "settings": {
+   "offline.communities_v2": true,
+   "vs": "scr-gc3-graph-jina",
+   "defaults used": "community_min_size 3, community_max_size 200, community_hub_fraction 0.5, community_max_entities_per_record 8, community_summary_budget_tokens 20000"
+  },
+  "stage": "K",
+  "trigger": "Two sleep stages switch to the v2 implementation: reorganize (entity communities) and summarize_entities (model call outside the lock).",
+  "steps": [
+   {
+    "n": 1,
+    "what": "reorganize delegates to reorganize_v2, which does not need graspologic-native (it replaces the Leiden path).",
+    "code": "src/memspine/derive/pipeline/stages/communities.py:reorganize (140) -> communities_v2.py:reorganize_v2 (161)",
+    "kind": "rule"
+   },
+   {
+    "n": 2,
+    "what": "Adapter in: from live mentions links build entity-pair edges (one per pair of entities a record names; weight = number of such records; records naming more than 8 entities add none).",
+    "code": "src/memspine/derive/pipeline/stages/communities_v2.py:_entity_edges",
+    "kind": "algorithm"
+   },
+   {
+    "n": 3,
+    "what": "Hubs (configured names plus entities linked to 50% of others) are removed from the graph.",
+    "code": "src/memspine/derive/pipeline/stages/communities_v2.py:_hubs",
+    "kind": "rule"
+   },
+   {
+    "n": 4,
+    "what": "LIB-36 update(): deterministic weighted label propagation in fixed node order, stable ids com_<sha256 of members>, reuse of previous ids at Jaccard threshold, reports created/changed/unchanged/removed; oversized groups (>200) flagged.",
+    "code": "src/memspine/derive/communities.py:update",
+    "kind": "algorithm"
+   },
+   {
+    "n": 5,
+    "what": "plan_summary_jobs fits dirty communities into the 20000-token budget; the rest stay dirty and are counted.",
+    "code": "src/memspine/derive/communities.py:plan_summary_jobs",
+    "kind": "algorithm"
+   },
+   {
+    "n": 6,
+    "what": "Per job, outside the lock: extractive summary of the member records; if ctx.summarize is bound AND the community has 3+ entities the existing summarize role words it. gc3 binds no summarize role, so every community summary here is extractive (no model call).",
+    "code": "src/memspine/derive/pipeline/stages/communities_v2.py:_namespace (181)",
+    "kind": "llm"
+   },
+   {
+    "n": 7,
+    "what": "Under the lock: re-check parents still live, write the summary through the derived door (channel community_summary, tags com:/cm:, lineage, trust cap), archive the replaced summary; dissolved communities' summaries are archived.",
+    "code": "src/memspine/derive/pipeline/stages/communities_v2.py:_namespace; offline_door.py:write_summary_record (33)",
+    "kind": "storage"
+   },
+   {
+    "n": 8,
+    "what": "summarize_entities also switches to summarize_entities_v2: same free-vs-LLM rule and summarize_entity role (batch 30), but the model batch runs without the namespace lock and the write goes through the derived door with a parents-gone re-check.",
+    "code": "src/memspine/derive/pipeline/stages/entity_summaries_v2.py:summarize_entities_v2 (46), _gather (171)",
+    "kind": "llm"
+   }
+  ],
+  "algorithms": [
+   "weighted label propagation (fixed order, deterministic)",
+   "hub exclusion by degree fraction",
+   "stable community ids via member hash and Jaccard reuse",
+   "token-budgeted job planning"
+  ],
+  "libraries": [
+   "LIB-36 derive/communities.py",
+   "external: none (graspologic not needed)"
+  ],
+  "models": [
+   {
+    "role": "summarize",
+    "model": "summarize role is NOT bound in this arm: community summaries are extractive; entity summaries still use summarize_entity -> ollama/qwen3.5:9b via Ollama (127.0.0.1:11434, no_think, timeout 180 s, structured retry_on_error)",
+    "calls": "communities: 0; entity summaries: same batches as S02",
+    "prompt": "src/memspine/prompts/defaults/summarize.yaml (only if a summarize role is bound); summarize_entity.yaml for entities"
+   }
+  ],
+  "storage": "Appends community_summary semantic records and archives superseded ones; entity_summarized markers as before.",
+  "cost": "SCREENS.md says 'adds model calls', but with no summarize role bound the community path makes none; extra latency is CPU label propagation. Row estimate 170 min.",
+  "inputs": "mentions links from entity nodes (gc3 provides them), at least 3 entities per community.",
+  "outputs": "Community summary records added to the semantic pool; a few extra candidates.",
+  "failure_modes": [
+   "Without a summarize role the community text is a concatenated extractive snippet, so the effect measures 'community records exist', not 'community LLM summaries'.",
+   "Dense LoCoMo graphs: the owner/speaker entities are hubs; oversized components are flagged and unsummarised."
+  ],
+  "tests": [
+   "tests/unit/lib/test_lib_36_communities.py",
+   "tests/unit/wiring/test_ow_d_communities.py"
+  ],
+  "mermaid": "flowchart LR\n  A[mentions links] --> B[entity pair edges]\n  B --> C[hub removal]\n  C --> D[label propagation]\n  D --> E[plan jobs by budget]\n  E --> F[extractive or LLM summary]\n  F --> G[derived write door]"
+ },
+ {
+  "id": "S41",
+  "settings": {
+   "offline.reconcile_v2": true,
+   "vs": "scr-gc3-graph-jina"
+  },
+  "stage": "K",
+  "trigger": "Sleep stage reconcile, inserted right after extract_graph (or rule_edges).",
+  "steps": [
+   {
+    "n": 1,
+    "what": "Insert the stage after extract_graph so it sees this sleep's fresh facts.",
+    "code": "src/memspine/workers/schedule.py:sleep_stage_order (126)",
+    "kind": "rule"
+   },
+   {
+    "n": 2,
+    "what": "Per namespace under the lock, keep live semantic facts that have an (entity, attribute) key (is_fact, key_of; perspective sub:/scope: tags are folded into the entity); event edges without an attribute are not keyed and are ignored.",
+    "code": "src/memspine/derive/pipeline/stages/reconcile.py:reconcile (92), _reconcile_one (102); envelope_adapter.py:is_fact, key_of",
+    "kind": "rule"
+   },
+   {
+    "n": 3,
+    "what": "Project facts to envelopes and declare every attribute cardinality one (the M4 write ladder's assumption).",
+    "code": "src/memspine/derive/pipeline/stages/reconcile.py:reconcile_namespace",
+    "kind": "rule"
+   },
+   {
+    "n": 4,
+    "what": "sweep() re-folds each (entity, attribute) group in event-time order with the LIB-02 integrate ladder, so a reverse-order ingest ends with the same current value as a forward one; true ties become contested; also computes merges, closures, contest flags.",
+    "code": "src/memspine/derive/reconcile.py:sweep / apply_plan (LIB-37)",
+    "kind": "algorithm"
+   },
+   {
+    "n": 5,
+    "what": "Apply the plan as lifecycle deltas: superseded or merged copies are archived with evolve_to the group's current record and valid_to closed; contested records get the add-only 'disputed' tag; closure-only changes set valid_to.",
+    "code": "src/memspine/derive/pipeline/stages/reconcile.py:_reconcile_one, _transition",
+    "kind": "storage"
+   }
+  ],
+  "algorithms": [
+   "event-time ordered re-fold (integrate ladder)",
+   "contradiction/contest detection",
+   "validity closure"
+  ],
+  "libraries": [
+   "LIB-37 derive/reconcile.py",
+   "LIB-02 derive/integrate.py"
+  ],
+  "models": [
+   {
+    "role": "none",
+    "model": "none",
+    "calls": "0",
+    "prompt": "none"
+   }
+  ],
+  "storage": "DECAY_TRANSITION events setting status/evolve_to/valid_to/tags on existing semantic records; tap job.reconcile.sweep.",
+  "cost": "CPU only.",
+  "inputs": "Keyed state facts (kind:state) from extract_graph, which write via the M4 ladder in extraction order. Reverse-order ingest only happens when facts arrive out of event-time order, e.g. sessions processed in a different order than their dates.",
+  "outputs": "Fewer live stale values (older value archived, validity closed) and 'disputed' tags; helps knowledge-update and temporal questions in principle.",
+  "failure_modes": [
+   "Pending entity merges are not fed (no pending_merge outbox yet, per module docstring).",
+   "Event edges have no attribute, so they are never reconciled.",
+   "Archiving a value removes it from default search, which could lose a needed earlier value for 'before' questions."
+  ],
+  "tests": [
+   "tests/unit/lib/test_lib_37_reconcile.py",
+   "tests/unit/wiring/test_ow_b_reconcile_histories.py"
+  ],
+  "mermaid": "flowchart LR\n  A[live keyed facts] --> B[envelopes cardinality one]\n  B --> C[event-time re-fold]\n  C --> D[plan supersede merge contest]\n  D --> E[archive evolve_to or disputed tag]"
+ },
+ {
+  "id": "S42",
+  "settings": {
+   "offline.histories_v2": true,
+   "near_duplicate_text": "0.80 (default)",
+   "vs": "scr-gc3-graph-jina"
+  },
+  "stage": "K",
+  "trigger": "Sleep stage histories, inserted right after reconcile (or after extract_graph when reconcile is off, as here).",
+  "steps": [
+   {
+    "n": 1,
+    "what": "Insert after extract_graph (reconcile is off in this arm).",
+    "code": "src/memspine/workers/schedule.py:sleep_stage_order (126)",
+    "kind": "rule"
+   },
+   {
+    "n": 2,
+    "what": "Per namespace under the lock, take live facts (is_fact) as envelopes.",
+    "code": "src/memspine/derive/pipeline/stages/histories.py:histories (80), _histories_one (95)",
+    "kind": "rule"
+   },
+   {
+    "n": 3,
+    "what": "scan_near_duplicates clusters facts of one key by shingle similarity >= 0.80, guarded by numbers, dates, negation and modality; the guard reports what it blocked by reason.",
+    "code": "src/memspine/derive/histories.py:scan_near_duplicates (LIB-20)",
+    "kind": "algorithm"
+   },
+   {
+    "n": 4,
+    "what": "Stage-level code-only check: every member of a cluster must name the same capitalised tokens as the canonical (stops 'works at Acme Corp' vs 'Apex Corp').",
+    "code": "src/memspine/derive/pipeline/stages/histories.py:_names",
+    "kind": "rule"
+   },
+   {
+    "n": 5,
+    "what": "merge_group keeps the earliest record as canonical; each other member is archived (evolve_to canonical, reason near_duplicate); with write.lineage_table one merge_member lineage edge per dropped record is written.",
+    "code": "src/memspine/derive/pipeline/stages/histories.py:_histories_one; derive/histories.py:merge_group",
+    "kind": "storage"
+   },
+   {
+    "n": 6,
+    "what": "Rebuild the disposable value histories (live and superseded) for taps only; nothing is stored (callers such as standing and patterns recompute it).",
+    "code": "src/memspine/derive/pipeline/stages/histories.py:build_value_history",
+    "kind": "algorithm"
+   }
+  ],
+  "algorithms": [
+   "shingle (n-gram) similarity near-duplicate clustering with number/date/negation/modality guards",
+   "earliest-wins canonical choice",
+   "value-history replay"
+  ],
+  "libraries": [
+   "LIB-20 derive/histories.py"
+  ],
+  "models": [
+   {
+    "role": "none",
+    "model": "none",
+    "calls": "0",
+    "prompt": "none"
+   }
+  ],
+  "storage": "DECAY_TRANSITION archive events; optional lineage rows; tap job.histories.",
+  "cost": "CPU only.",
+  "inputs": "Keyed facts of the same (entity, attribute) key; extract_graph facts keyed by rel state edges. Event edges lack an attribute, so duplicates among them are not merged.",
+  "outputs": "Removes near-duplicate keyed facts from the live pool (small).",
+  "failure_modes": [
+   "Gain is small by design; extract_graph already dedups by key, so overlap is rare.",
+   "The reinforcement count goes to the tap only; merged repeats never count as corroboration."
+  ],
+  "tests": [
+   "tests/unit/lib/test_lib_20_histories.py",
+   "tests/unit/wiring/test_ow_b_reconcile_histories.py"
+  ],
+  "mermaid": "flowchart LR\n  A[live facts] --> B[shingle clusters]\n  B --> C[guards numbers dates names]\n  C --> D[merge group earliest kept]\n  D --> E[archive duplicates]\n  E --> F[rebuild histories]"
+ },
+ {
+  "id": "S46",
+  "settings": {
+   "offline.profile_card_v2": true,
+   "offline.session_close_v2": true,
+   "llm.roles.session_close": "ollama/qwen3.5:9b",
+   "vs": "scr-gc3-graph-jina",
+   "defaults": "profile_kappa_p 24, profile_max_chars 2400, profile_alpha 0.3, inferred ops rejected"
+  },
+  "stage": "K",
+  "trigger": "Card ops are applied at session close (call 2); card upkeep runs inside the reflect_profile sleep stage. Session close (call 2) is NOT part of the sleep cycle. It fires only from the window machinery (ingest/windows.py:_window_session_closed, needs write.window_extract) or an explicit Engine.close_session(). This arm has no write.window_extract and the eval adapter (evals/memspine_evals/systems/memspine_system.py) never calls close_session, so the stage never runs: expect zero session-close records.",
+  "steps": [
+   {
+    "n": 1,
+    "what": "Session close call 2 returns profile_ops alongside summary/episodes (see S33).",
+    "code": "src/memspine/derive/pipeline/stages/close_v2.py:run_close_v2 (152)",
+    "kind": "llm"
+   },
+   {
+    "n": 2,
+    "what": "apply_session_ops maps each ProposedProfileOp to the library ProfileOp, with the cited turns as evidence assertions (the engine has no stored assertion envelopes yet, so live turn records are the evidence unit).",
+    "code": "src/memspine/derive/pipeline/stages/profile_card.py:apply_session_ops (279), to_library_op, turn_assertion",
+    "kind": "rule"
+   },
+   {
+    "n": 3,
+    "what": "LIB-39 apply_ops: guarded operations (shape, evidence, stance, firm-evidence, staleness, trust, kappa_P bound of 24 entries, EMA drift P_{t+1} = alpha p_t + (1-alpha) P_t).",
+    "code": "src/memspine/derive/profile.py:apply_ops",
+    "kind": "algorithm"
+   },
+   {
+    "n": 4,
+    "what": "The card is stored in the event log as one profile_card_v2 MARKER per change (latest wins, folded by SessionIndex); read-modify-write under the namespace lock.",
+    "code": "src/memspine/derive/pipeline/stages/profile_card.py:_save_card, load_card",
+    "kind": "storage"
+   },
+   {
+    "n": 5,
+    "what": "Sleep: reflect_profile first runs profile_sleep, which invalidates entries whose supporting turns were forgotten, quarantined or archived and reports the reflection plan; it iterates only namespaces that already have a card.",
+    "code": "src/memspine/derive/pipeline/stages/reflect.py:reflect_profile (12); profile_card.py:profile_sleep (346)",
+    "kind": "algorithm"
+   },
+   {
+    "n": 6,
+    "what": "No read-side consumer: offline.profile_card_v2 is not linked to read.profile_header, so the card never reaches the context.",
+    "code": "docs/v2/SCREENS.md (B7 table, S46 row)",
+    "kind": "rule"
+   }
+  ],
+  "algorithms": [
+   "guarded profile operations with evidence checks",
+   "kappa_P entry bound",
+   "EMA drift",
+   "invalidation of entries by forgotten support (ER-28)"
+  ],
+  "libraries": [
+   "LIB-39 derive/profile.py",
+   "LIB-40 derive/session_close.py"
+  ],
+  "models": [
+   {
+    "role": "summarize",
+    "model": "session_close -> ollama/qwen3.5:9b via Ollama (127.0.0.1:11434, no_think, timeout 180 s, structured retry_on_error)",
+    "calls": "1 per closed session, none here",
+    "prompt": "built in code (render_prompt)"
+   }
+  ],
+  "storage": "profile_card_v2 MARKER events; no records.",
+  "cost": "Zero in this arm.",
+  "inputs": "Session-close call 2 output. Absent in this arm.",
+  "outputs": "Nothing visible to QA, by design and by wiring.",
+  "failure_modes": [
+   "Doubly inert: session close never fires here and no read consumer exists. The queue skips it ('S46 stays skipped'); the stage is covered by test_ow_a_close_call2_profile.py instead."
+  ],
+  "tests": [
+   "tests/unit/wiring/test_ow_a_close_call2_profile.py",
+   "tests/unit/lib/test_lib_39_profile.py"
+  ],
+  "mermaid": "flowchart LR\n  A[call 2 profile ops] --> B[guarded apply_ops]\n  B --> C[card MARKER in log]\n  C --> D[sleep invalidates forgotten support]\n  D --> E[no read consumer]"
+ },
+ {
+  "id": "S47",
+  "settings": {
+   "offline.decay_v2": true,
+   "decay_boundaries": "(0.50, 0.30, 0.15) hot|warm|cold|dormant",
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "vs": "scr-gc3-graph-jina"
+  },
+  "stage": "K",
+  "trigger": "Sleep stages decay_sweep (tiers) and compress (multi-resolution plan), stage order position unchanged (after reorganize, check_watches, session_lifecycle).",
+  "steps": [
+   {
+    "n": 1,
+    "what": "decay_sweep delegates to decay_sweep_v2.",
+    "code": "src/memspine/derive/pipeline/stages/maintenance.py:decay_sweep (77) -> decay_v2.py:decay_sweep_v2 (166)",
+    "kind": "rule"
+   },
+   {
+    "n": 2,
+    "what": "Per record (episodic, semantic, resource; not deleted/quarantined/legal-hold) compute activation = w_rec * exp(-idle_days/S_kind) + w_freq * min(1, ln(1+n)/ln(1+n_sat)) + w_imp * importance, with idle_days counted from the later of last_accessed_at and recorded_at.",
+    "code": "src/memspine/derive/decay.py:tier_plan (LIB-33); decay_v2.py:_stats (146)",
+    "kind": "algorithm"
+   },
+   {
+    "n": 3,
+    "what": "Tier plan with hysteresis: move down while activation is below a boundary, move up only past boundary plus 0.05; protected records (pinned, standing, contested, protected kinds) are never moved colder and a cold one is restored to hot.",
+    "code": "src/memspine/derive/decay.py:tier_plan",
+    "kind": "rule"
+   },
+   {
+    "n": 4,
+    "what": "Each move is a DECAY_TRANSITION delta on the tier (reason idle, reactivated or protected_restore). Nothing is deleted and tiers do not change ranking (O-22).",
+    "code": "src/memspine/derive/pipeline/stages/decay_v2.py:decay_sweep_v2",
+    "kind": "storage"
+   },
+   {
+    "n": 5,
+    "what": "compress runs the zstd step as before, then multires_v2 plans paragraph/sentence/keyword jobs for cold or dormant groups; with decay_multires_jobs 0 it only plans and reports (no summarize calls).",
+    "code": "src/memspine/derive/pipeline/stages/maintenance.py:compress (134); decay_v2.py:multires_v2 (289)",
+    "kind": "algorithm"
+   }
+  ],
+  "algorithms": [
+   "ACT-R/Ebbinghaus activation score",
+   "hysteresis tiering",
+   "multi-resolution compression plan"
+  ],
+  "libraries": [
+   "LIB-33 derive/decay.py"
+  ],
+  "models": [
+   {
+    "role": "none",
+    "model": "none (multires jobs 0)",
+    "calls": "0",
+    "prompt": "none"
+   }
+  ],
+  "storage": "DECAY_TRANSITION tier deltas only.",
+  "cost": "CPU only, one pass over all records.",
+  "inputs": "Records that have aged: recorded_at is the wall-clock write time in an eval, so every record is minutes old at sleep and stays hot; the sweep is a near no-op.",
+  "outputs": "No change to answers (PARITY rule). Deferred in the queue: ranking-neutral by design.",
+  "failure_modes": [
+   "Cannot show an effect in a single-build eval because nothing ages; real value needs long-running stores."
+  ],
+  "tests": [
+   "tests/unit/lib/test_lib_33_decay.py",
+   "tests/unit/wiring/test_ow_d_decay.py"
+  ],
+  "mermaid": "flowchart LR\n  A[records] --> B[activation score]\n  B --> C[hysteresis tier plan]\n  C --> D[tier delta events]\n  D --> E[compress plan only]"
+ },
+ {
+  "id": "S27",
+  "settings": {
+   "read.trust_rendering": true,
+   "vs": "scr-pool-protect-jina / f-jref2-i2",
+   "note": "Read-time rendering, so this is not a sleep screen; included because it belongs to the trust group."
+  },
+  "stage": "C",
+  "trigger": "Per read, in the final presentation step (_render) of every read mode, before the dated render and budget fit.",
+  "steps": [
+   {
+    "n": 1,
+    "what": "After placement and ordering of the volatile records, if read.trust_rendering is on call trust_render(volatile).",
+    "code": "src/memspine/compose/pipeline/render.py:_render (~332)",
+    "kind": "rule"
+   },
+   {
+    "n": 2,
+    "what": "Each record becomes a TrustItem with an envelope (source trust, src_class, status), its quarantined flag and instruction_flag.",
+    "code": "src/memspine/compose/pipeline/render.py:trust_render (186), record_envelope",
+    "kind": "rule"
+   },
+   {
+    "n": 3,
+    "what": "classify assigns a band by precedence quarantined > contested > tentative > low_trust > trusted (low-trust = source trust below TRUST_DEFAULT 0.5 or src_class tool/document/external).",
+    "code": "src/memspine/compose/render_trust.py:classify (203)",
+    "kind": "rule"
+   },
+   {
+    "n": 4,
+    "what": "render() orders bands trusted, contested, tentative, low-trust; low-trust text is NFKC-normalised, control and zero-width chars stripped, brackets and backticks replaced, imperative phrases wrapped in double angle brackets and the line flagged instruction-like, then emitted as a quoted escaped string; contested values of one key share a line; quarantined records are withheld.",
+    "code": "src/memspine/compose/render_trust.py:render, neutralise (169), find_directives (164)",
+    "kind": "algorithm"
+   },
+   {
+    "n": 5,
+    "what": "Each output line becomes a copy of its first source record with the line text as content; the old B6 untrusted-note wrapper is disabled while the flag is on.",
+    "code": "src/memspine/compose/pipeline/render.py:trust_render, _wrap_untrusted",
+    "kind": "rule"
+   },
+   {
+    "n": 6,
+    "what": "Tap compose.render.bands logs band counts, neutralised and injection-like counts.",
+    "code": "src/memspine/compose/pipeline/render.py:trust_render",
+    "kind": "io"
+   }
+  ],
+  "algorithms": [
+   "rule-based trust banding",
+   "Unicode normalisation and defanging",
+   "contested-value side-by-side rendering"
+  ],
+  "libraries": [
+   "LIB-25 compose/render_trust.py"
+  ],
+  "models": [
+   {
+    "role": "none",
+    "model": "none",
+    "calls": "0",
+    "prompt": "none"
+   }
+  ],
+  "storage": "none (read-only transformation).",
+  "cost": "No model calls; microseconds per record; slight token overhead from section markers.",
+  "inputs": "Records with differing trust. LoCoMo records are uniform trust, so every record lands in the trusted band and the output equals the input apart from ordering/labels: that is why the audit made S27 inert and replaced it with S57.",
+  "outputs": "Re-ordered and labelled context text.",
+  "failure_modes": [
+   "Inert on uniform-trust data (LoCoMo). The real test is OP-Bench / the N1 poisoning set.",
+   "Section headers may cost tokens against the budget."
+  ],
+  "tests": [
+   "tests/unit/lib/test_lib_25_render_trust.py"
+  ],
+  "mermaid": "flowchart LR\n  A[volatile records] --> B[envelope per record]\n  B --> C[classify band]\n  C --> D[neutralise low trust]\n  D --> E[ordered labelled lines]"
+ },
+ {
+  "id": "S57",
+  "settings": {
+   "read.trust_rendering": true,
+   "set": "OP-Bench only (sets o), REPORT rule; replaces S27",
+   "vs": "f-jref2-i2"
+  },
+  "stage": "C",
+  "trigger": "Per read, as S27, but measured on OP-Bench probes only.",
+  "steps": [
+   {
+    "n": 1,
+    "what": "Same pipeline as S27: trust_render in _render.",
+    "code": "src/memspine/compose/pipeline/render.py:trust_render (186)",
+    "kind": "rule"
+   },
+   {
+    "n": 2,
+    "what": "Band classification by source trust, tentative/contested status and instruction flags (OP-Bench records vary in trust and some carry directive-like text).",
+    "code": "src/memspine/compose/render_trust.py:classify (203)",
+    "kind": "rule"
+   },
+   {
+    "n": 3,
+    "what": "Neutralise low-trust and flagged text; wrap directive phrases; withhold quarantined records.",
+    "code": "src/memspine/compose/render_trust.py:neutralise (169)",
+    "kind": "algorithm"
+   },
+   {
+    "n": 4,
+    "what": "Result reported (not gated): the poisoning (N1) set is the real test per SCREENS.md.",
+    "code": "docs/v2/SCREENS.md (B7 table)",
+    "kind": "rule"
+   }
+  ],
+  "algorithms": [
+   "see S27"
+  ],
+  "libraries": [
+   "LIB-25 compose/render_trust.py"
+  ],
+  "models": [
+   {
+    "role": "none",
+    "model": "none",
+    "calls": "0",
+    "prompt": "none"
+   }
+  ],
+  "storage": "none.",
+  "cost": "Same as S27 (20 min row, OP-Bench only).",
+  "inputs": "Mixed-trust records and flagged text, which OP-Bench provides; whether a probe's candidate set contains any low-trust record decides whether the screen changes anything.",
+  "outputs": "Labelled, quoted low-trust evidence.",
+  "failure_modes": [
+   "REPORT only: no pass/fail gate; low-trust text quoted as data may lower reader accuracy on benign probes."
+  ],
+  "tests": [
+   "tests/unit/lib/test_lib_25_render_trust.py"
+  ],
+  "mermaid": "flowchart LR\n  A[OP-Bench candidates] --> B[classify band]\n  B --> C[quote and defang low trust]\n  C --> D[ordered sections]"
+ },
+ {
+  "id": "S29",
+  "settings": {
+   "flags": "none: the reference arm scr-pool-protect-jina is run on the F-13c commit and compared with a sample reference built on the commit before the port (7ddd111)"
+  },
+  "stage": "X",
+  "trigger": "Once, as a regression parity check of the eval adapter port (F-13c), sample mode (7 min).",
+  "steps": [
+   {
+    "n": 1,
+    "what": "F-13c moved memspine_system.py from private engine calls onto the public API: memspine.open(template, **overrides) returns the engine, and a scoped Memory(engine, namespace) handle does read/compose/sleep.",
+    "code": "evals/memspine_evals/systems/memspine_system.py:_build_engine (339), _memory (383)",
+    "kind": "io"
+   },
+   {
+    "n": 2,
+    "what": "Writes go through engine.write_messages (batched turns per session); build() runs flush then optional sleep through Memory.sleep().",
+    "code": "evals/memspine_evals/systems/memspine_system.py:build (647)",
+    "kind": "io"
+   },
+   {
+    "n": 3,
+    "what": "Queries call Memory.read(mode=...) or Memory.compose(...), with as_of/session options, inside search_forensics and asker_scope contexts.",
+    "code": "evals/memspine_evals/systems/memspine_system.py (read path ~1026)",
+    "kind": "io"
+   },
+   {
+    "n": 4,
+    "what": "Reference: S25-row machinery builds smp-ref-scr-pool-protect-jina on the pre-port commit; SMP_REF_COMMIT pins it so the runner reuses it and fails loudly if missing instead of rebuilding on the new commit.",
+    "code": "docs/v2/SCREENS.md (F-13c parity check); evals/run_v2_queue.sh",
+    "kind": "rule"
+   },
+   {
+    "n": 5,
+    "what": "Paired gate compares answers question by question; expected verdict NO CHANGE (identical). CPU-side parity is covered by a hash-embedder snapshot test.",
+    "code": "evals/tests/test_adapter_parity.py",
+    "kind": "rule"
+   }
+  ],
+  "algorithms": [
+   "paired question-level answer comparison (the same gate as the focus runs)"
+  ],
+  "libraries": [
+   "public API: memspine.open, memspine.Memory (src/memspine/api/handle.py)"
+  ],
+  "models": [
+   {
+    "role": "reader",
+    "model": "qwen3.5:9b local reader and judge as in the J reference arms",
+    "calls": "per question of the 7-minute sample",
+    "prompt": "eval QA prompt"
+   },
+   {
+    "role": "reranker",
+    "model": "jina-reranker-v3.5",
+    "calls": "per read",
+    "prompt": "none"
+   },
+   {
+    "role": "embedder",
+    "model": "Qwen3-Embedding-0.6B",
+    "calls": "ingest and reads",
+    "prompt": "none"
+   }
+  ],
+  "storage": "Temp-dir sqlite store per item (storage.path tempdir).",
+  "cost": "7 minutes, plus a one-time pre-port reference build.",
+  "inputs": "A pre-built pre-port reference run for the same slice and arm.",
+  "outputs": "A verdict only: NO CHANGE expected; any answer diff flags a behaviour change from the adapter port.",
+  "failure_modes": [
+   "If the reference is built on the new commit the check compares the code with itself (guarded by SMP_REF_COMMIT).",
+   "Nondeterminism in GPU rerank or sampling can show as spurious diffs; the reader runs with thinking off."
+  ],
+  "tests": [
+   "evals/tests/test_adapter_parity.py"
+  ],
+  "mermaid": "flowchart LR\n  A[pre-port reference run] --> C[paired gate]\n  B[same arm on F-13c commit] --> C\n  C --> D[NO CHANGE expected]"
+ },
+ {
+  "id": "S61",
+  "settings": {
+   "profile read-v2-graph on scr-gc3-graph-jina": "read.legs_v2, family_fusion, lift_before_rerank, rerank_v2, exact_budget, contract_rules, router_rules, tiers_v2, entity_leg_v2, graph_leg_v2, episode_leg_v2; graph.edge_compiler_v2; offline.session_close_v2; llm.roles.session_close bound",
+   "sleep-side members": "graph.edge_compiler_v2 (compile_edges stage) and offline.session_close_v2 (session close). Read legs: see the read agent's records for legs_v2, entity_leg_v2, graph_leg_v2, episode_leg_v2, rerank_v2, fusion etc."
+  },
+  "stage": "B",
+  "trigger": "Sleep (compile_edges stage) and session close (episodes) on the write/build side; the read legs run per read.",
+  "steps": [
+   {
+    "n": 1,
+    "what": "Build: the gc3 sleep as in REF-SLEEP (consolidate, extract_graph, entity summaries).",
+    "code": "src/memspine/workers/schedule.py:SLEEP_CYCLE_ORDER (45)",
+    "kind": "rule"
+   },
+   {
+    "n": 2,
+    "what": "compile_edges runs before summarize_entities and projects the typed compiled edge layer (see S39); read.graph_leg_v2 walks only these compiled edges and requires graph.edge_compiler_v2 (config/requires.py).",
+    "code": "src/memspine/derive/pipeline/stages/edge_compiler_v2.py:compile_graph_edges (450)",
+    "kind": "algorithm"
+   },
+   {
+    "n": 3,
+    "what": "Session close would add L2 episode records for read.episode_leg_v2 (see S33), but it is not triggered in this arm (no windows, no close_session): the episode leg has nothing to lift.",
+    "code": "src/memspine/derive/pipeline/stages/close_v2.py:run_close_v2 (152); ingest/windows.py:close_session (475)",
+    "kind": "llm"
+   },
+   {
+    "n": 4,
+    "what": "Read legs (owned by other agent records): leg registry (legs_v2) gathers vector, BM25 lexical, entity-id boost (entity_leg_v2), compiled-edge one-hop walk (graph_leg_v2) and episode lift (episode_leg_v2); family fusion, lift before rerank, rerank v2, exact budget, contract and router rules, depth tiers.",
+    "code": "src/memspine/read/legs/*.py, read/pipeline/legs.py",
+    "kind": "algorithm"
+   }
+  ],
+  "algorithms": [
+   "see S39 (edge compilation)",
+   "see S33 (session close)",
+   "read-side fusion and graph legs: see read records"
+  ],
+  "libraries": [
+   "LIB-35 derive/edges.py",
+   "LIB-40 derive/session_close.py",
+   "LIB-34 read/entity_leg.py",
+   "LIB-47 read/tiers.py"
+  ],
+  "models": [
+   {
+    "role": "extract",
+    "model": "extract_edges and summarize_entity as S02; session_close -> ollama/qwen3.5:9b via Ollama (127.0.0.1:11434, no_think, timeout 180 s, structured retry_on_error)",
+    "calls": "S02 calls + 0 session_close (inert)",
+    "prompt": "see S02/S33"
+   },
+   {
+    "role": "reranker",
+    "model": "jina-reranker-v3.5",
+    "calls": "per read (rerank_v2)",
+    "prompt": "none"
+   }
+  ],
+  "storage": "LINK events of the compiled layer; the rest as S02.",
+  "cost": "190 min row estimate; sleep-side addition is CPU only.",
+  "inputs": "Compiled edges (from extract_graph facts) for graph_leg_v2; L2 episodes for episode_leg_v2 (missing here); entity nodes for entity_leg_v2.",
+  "outputs": "See read records; sleep side adds only the compiled edge layer.",
+  "failure_modes": [
+   "episode_leg_v2 inert because session close never fires in the GC arm.",
+   "Bundle masks which member helps: bisect one flag at a time if it regresses."
+  ],
+  "tests": [
+   "tests/unit/wiring/test_f_02c_edge_compiler.py",
+   "tests/combinations/test_profiles_v2.py",
+   "evals/tests/test_b7_b8_arms.py"
+  ],
+  "mermaid": "flowchart LR\n  A[gc3 sleep] --> B[compile_edges]\n  B --> C[compiled edge layer]\n  C --> D[graph_leg_v2 at read]\n  A --> E[session close not fired]\n  E --> F[episode leg empty]"
+ },
+ {
+  "id": "S64",
+  "settings": {
+   "profile offline-v2 on scr-gc3-graph-jina": "offline.sleep_v2, budget_v2, reconcile_v2, histories_v2, patterns_v2, standing_v2, communities_v2, decay_v2, session_close_v2, profile_card_v2; read.standing_v2; llm.roles.session_close bound",
+   "members": "S33-S35, S40-S42, S46, S47 plus the non-blocking sleep and the budget/freshness stamp"
+  },
+  "stage": "K",
+  "trigger": "Sleep. With sleep_v2 on Engine.sleep() starts a namespace job under a lease and returns a SleepHandle instead of running inline.",
+  "steps": [
+   {
+    "n": 1,
+    "what": "sleep_v2: Engine.sleep() calls DerivationScheduler.sleep, creating a NamespaceJob with a persisted lease (sibling <path>.sleep SQLite file, epoch-fenced) and a per-stage watermark; the handle exposes status(), wait(), cancel().",
+    "code": "src/memspine/derive/pipeline/scheduler.py:sleep (118), build_sleep_v2 (60); derive/scheduler.py:sleep (106); derive/job.py:NamespaceJob (537)",
+    "kind": "rule"
+   },
+   {
+    "n": 2,
+    "what": "Stage list = sleep_stage_order(ctx) with the extras in order: consolidate, ..., reflect_profile, pattern_observations, standing_answers, extract_graph, reconcile, histories, summarize_entities (v2), reorganize (v2), ..., decay_sweep (v2), compress (+multires plan).",
+    "code": "src/memspine/workers/schedule.py:sleep_stage_order (126)",
+    "kind": "rule"
+   },
+   {
+    "n": 3,
+    "what": "Each stage as in S34 (standing), S35 (patterns), S41 (reconcile), S42 (histories), S40 (communities and entity summaries v2), S47 (decay v2); reflect_profile also runs the profile card upkeep (S46).",
+    "code": "src/memspine/derive/pipeline/stages/(see member records)",
+    "kind": "algorithm"
+   },
+   {
+    "n": 4,
+    "what": "budget_v2: with no budget_calls/tokens_per_cycle set no DerivationBudget exists (cap None); the freshness tracker still stamps every derived record with covers_seq (newest raw-turn seq when the cycle started), the read-side key of read.freshness_v2.",
+    "code": "src/memspine/derive/pipeline/scheduler.py:build_sleep_v2 (60); derive/budget.py:DerivationBudget (92)",
+    "kind": "storage"
+   },
+   {
+    "n": 5,
+    "what": "Triggers (min turns 20 AND idle 10 min, or context pressure 0.70, behind a 60 min gap; daily maintenance of decay/retention/compress) also exist, but the harness calls sleep() once manually.",
+    "code": "src/memspine/derive/triggers.py:TriggerPolicy (57)",
+    "kind": "rule"
+   },
+   {
+    "n": 6,
+    "what": "Session close (summary, episodes, card ops) is not triggered in this arm (see S33).",
+    "code": "src/memspine/derive/pipeline/stages/close_v2.py:run_close_v2",
+    "kind": "llm"
+   }
+  ],
+  "algorithms": [
+   "epoch-fenced leases with watermarks (LIB-07)",
+   "trigger policy N AND M OR C behind gap K",
+   "covers_seq freshness stamping",
+   "plus all member algorithms (S33-S35, S40-S42, S46, S47)"
+  ],
+  "libraries": [
+   "LIB-07 runtime/jobs.py leases",
+   "LIB-26 runtime/freshness.py",
+   "LIB-31, 32, 33, 36, 37, 20, 39, 40"
+  ],
+  "models": [
+   {
+    "role": "extract",
+    "model": "extract_edges and summarize_entity as S02; summarize role unbound so communities are extractive; session_close inert",
+    "calls": "same as S02",
+    "prompt": "see S02"
+   }
+  ],
+  "storage": "Lease/watermark tables in <path>.sleep; observation, standing, community_summary records; archive/evolve deltas; covers_seq stamps.",
+  "cost": "230 min row estimate. Model calls roughly equal S02; nothing in the bundle adds an LLM call when session_close is inert and no summarize role is bound.",
+  "inputs": "gc3 facts; stage-order caveats: patterns_v2 and standing_v2 run BEFORE extract_graph on a single build sleep.",
+  "outputs": "Adds observation, standing and community records plus reconcile/dedup archives; read.standing_v2 prepends the answer block.",
+  "failure_modes": [
+   "LIKELY RUN_FAILED at build: with sleep_v2 on, Engine.sleep() returns a SleepHandle immediately, but the eval adapter does 'stats = await self._memory.sleep()' and then iterates 'stats.items()' (memspine_system.py:build ~681-684). SleepHandle has no items(); even without the crash the cycle would not be awaited, so reads could start before the sleep finishes. offline.sleep_manual_only is not set either. Needs adapter support (await handle.wait()) before this row can measure anything.",
+   "Stage-order: patterns/standing before extract_graph.",
+   "session_close and profile_card inert (no trigger, no read consumer)."
+  ],
+  "tests": [
+   "tests/unit/wiring/test_o4_01a_sleep_v2.py",
+   "tests/unit/wiring/test_o4_01b_budget_freshness.py",
+   "tests/unit/wiring/test_fu_sleep.py",
+   "tests/unit/workers/test_scheduler.py",
+   "tests/combinations/test_profiles_v2.py"
+  ],
+  "mermaid": "flowchart LR\n  A[Engine.sleep] --> B[SleepHandle and lease]\n  B --> C[consolidate]\n  C --> D[patterns standing]\n  D --> E[extract_graph]\n  E --> F[reconcile histories]\n  F --> G[entity summaries communities]\n  G --> H[decay compress]\n  H --> I[handle done]"
+ },
+ {
+  "id": "S65",
+  "settings": {
+   "profile trust-v2 on scr-gc3-graph-jina": "isolation.scope_keys_v2, viewer_required, owner_bound_handles; privacy.erasure_v2, erasure_redact_hidden; retention.v2; audit.chain_v2; consent.v2; firewall.gates_v2; integrity.enabled, horizon_v2"
+  },
+  "stage": "T",
+  "trigger": "Mostly per write and per read, with sleep-side effects in how derived stages read and write. Few of these flags add a sleep stage.",
+  "steps": [
+   {
+    "n": 1,
+    "what": "isolation.scope_keys_v2: extract_graph and the edge compiler key edges by typed tenant+owner identity instead of the namespace string (session never part of a key); the read cache key uses the same scope.",
+    "code": "src/memspine/derive/pipeline/stages/extract_graph.py:_edge_key (256)",
+    "kind": "rule"
+   },
+   {
+    "n": 2,
+    "what": "isolation.viewer_required + owner_bound_handles: a read must carry a viewer bound to the principal; derived records inherit the intersection of their parents' visibility/participant tags (restrict_to_parents). This may refuse the eval adapter's unscoped reads (SCREENS.md: RUN_FAILED is then the finding).",
+    "code": "src/memspine/derive/write.py:_inherit_visibility; read/pipeline/scope_guard.py:viewer_required (53); api/handle.py (owner-bound handle)",
+    "kind": "rule"
+   },
+   {
+    "n": 3,
+    "what": "firewall.gates_v2 (needs firewall.enabled): gate 1 on insert, gate 2 filters extraction inputs in the session stages, gate 3 on derived writes (derive_hold): a flagged derived record is written but held in quarantine, never served or used as a parent.",
+    "code": "src/memspine/trust/pipeline/gates_v2.py:derive_hold (237); derive/pipeline/stages/session_stage.py:_live_members (filter_input)",
+    "kind": "rule"
+   },
+   {
+    "n": 4,
+    "what": "consent.v2 and privacy.erasure_v2 turn on the live_gate for every sleep stage: offline_live drops erased/hidden ids, consent-refused records, quarantined records and subjects marked do-not-derive before a stage reads them; write_derived refuses (holds) derived records the consent registry denies.",
+    "code": "src/memspine/trust/pipeline/consent.py:offline_live (57); derive/write.py:write_derived (43); derive/pipeline/stages/context.py (live_gate)",
+    "kind": "rule"
+   },
+   {
+    "n": 5,
+    "what": "privacy.erasure_v2: forgetting hides dependants and queues them (LIB-09 plan); erasure_redact_hidden hard-forgets hidden rows. The erasure_rederive sleep stage that re-derives them is only scheduled when privacy.erasure_rederive is ALSO on, which the preset does not set.",
+    "code": "src/memspine/trust/pipeline/erasure_v2.py; ST erasure_rederive.py:erasure_rederive (72)",
+    "kind": "storage"
+   },
+   {
+    "n": 6,
+    "what": "retention.v2 + audit.chain_v2 + integrity.horizon_v2: retention classes plan expiry (retention_expire is scheduled only when retention.classes is non-empty; none is set), event_log_prune stamps rebuild limited only in rolling mode, the audit log is hash-chained (verify_audit_chain_v2) and the trust horizon bounds cross-agent reach via grant attenuation (LIB-21).",
+    "code": "src/memspine/derive/pipeline/stages/retention.py; trust/pipeline/audit_v2.py; core/integrity.py",
+    "kind": "algorithm"
+   }
+  ],
+  "algorithms": [
+   "typed scope keys",
+   "visibility intersection over lineage",
+   "three-gate firewall",
+   "consent purpose registry with generations",
+   "hide-then-rederive erasure over lineage",
+   "hash-chained audit log",
+   "grant horizon/kappa attenuation"
+  ],
+  "libraries": [
+   "LIB-09 trust/erasure_plan.py",
+   "LIB-18 trust/consent.py",
+   "LIB-21 trust/horizon.py",
+   "LIB-38 trust/gates.py",
+   "LIB-41 trust/retention.py"
+  ],
+  "models": [
+   {
+    "role": "none",
+    "model": "none (no model call added)",
+    "calls": "0",
+    "prompt": "none"
+   }
+  ],
+  "storage": "Audit chain records, consent/erasure registries and markers, hidden/purge tables; derived records carry restricted visibility tags.",
+  "cost": "No model calls; small CPU/IO overhead per write and read.",
+  "inputs": "A multi-party or poisoned data set for a real effect. LoCoMo has none, so QA should be unchanged and REPORT-only. The real test is the behavioural suite plus the N1 set.",
+  "outputs": "Isolation, erasure and gating behaviour, not accuracy.",
+  "failure_modes": [
+   "viewer_required may refuse eval reads (then RUN_FAILED is the finding).",
+   "Sleep-side: retention_expire and erasure_rederive are not scheduled by the preset, so those parts are off despite retention.v2/erasure_v2.",
+   "Gates can hold benign derived facts (false positives; MINJA false positives target at most 1%)."
+  ],
+  "tests": [
+   "tests/unit/lib/test_lib_38_gates.py",
+   "tests/unit/lib/test_lib_18_consent.py",
+   "tests/unit/lib/test_lib_21_horizon.py",
+   "tests/unit/lib/test_lib_41_retention.py",
+   "tests/unit/lib/test_lib_09_erasure_plan.py",
+   "tests/unit/test_consent_derived.py",
+   "tests/unit/test_erasure_cascade.py",
+   "tests/unit/wiring/test_f_16c_scope.py",
+   "tests/unit/wiring/test_owner_bound_handles.py",
+   "tests/unit/wiring/test_tw_b_erasure_retention_audit.py"
+  ],
+  "mermaid": "flowchart LR\n  A[write] --> B[gate 1 insert]\n  C[sleep stages] --> D[live_gate offline_live]\n  D --> E[gate 3 derive hold]\n  E --> F[derived write door]\n  G[read] --> H[viewer and scope check]\n  I[forget] --> J[hide and queue rederive]"
+ },
+ {
+  "id": "S66",
+  "settings": {
+   "profile run-v2 on scr-gc3-graph-jina": "workers.outbox; runtime.scheduler_v2; economy.ledger_v2, ledger_persist; read.cache.enabled; read.parallel_legs (workers.transport taskiq left out)"
+  },
+  "stage": "X",
+  "trigger": "Per write window, per sleep stage, per read: runtime plumbing around existing work.",
+  "steps": [
+   {
+    "n": 1,
+    "what": "workers.outbox: window jobs become durable outbox rows drained by an inline runner (matters only if windows are on; gc3 has no write.window_extract, so this is idle).",
+    "code": "src/memspine/config/schema/llm.py (workers.outbox)",
+    "kind": "storage"
+   },
+   {
+    "n": 2,
+    "what": "runtime.scheduler_v2: micro-batched encoder executors for document and query embedding, backpressure policy and SLO ledger. Its background-priority sleep class only applies to sleep_v2 jobs (off here).",
+    "code": "src/memspine/derive/pipeline/scheduler.py:build_sleep_v2 (background_priority)",
+    "kind": "rule"
+   },
+   {
+    "n": 3,
+    "what": "economy.ledger_v2: every sleep stage runs inside a cost scope (namespace '-' pool, layer = stage), counting model calls, tokens, latency and embed calls; cost_report() reads it. ledger_persist keeps compact rows in <path>.cost so totals survive restarts.",
+    "code": "src/memspine/workers/schedule.py:_run_sleep_stage (196), _stage_cost; economy/ledger.py:cost_scope (77)",
+    "kind": "io"
+   },
+   {
+    "n": 4,
+    "what": "read.cache.enabled: whole read results cached by scope, viewer, query, config, model ids and store/erasure generations; every hit is revalidated (POL-1) against the live store; reads naming a session_id are never cached. In QA each question is asked once, so hits are rare.",
+    "code": "src/memspine/read/cache.py (LIB-19)",
+    "kind": "storage"
+   },
+   {
+    "n": 5,
+    "what": "read.parallel_legs: independent retrieval legs run with asyncio.gather; the result order stays the sequential order.",
+    "code": "src/memspine/read/pipeline/ (parallel legs)",
+    "kind": "algorithm"
+   }
+  ],
+  "algorithms": [
+   "micro-batching of encoder calls",
+   "generation-aware cache keys with revalidation",
+   "asyncio.gather leg concurrency"
+  ],
+  "libraries": [
+   "LIB-27 observability/stage_ledger.py",
+   "LIB-19 read/cache.py",
+   "LIB-07 runtime/jobs.py (outbox)"
+  ],
+  "models": [
+   {
+    "role": "none",
+    "model": "none",
+    "calls": "0 added",
+    "prompt": "none"
+   }
+  ],
+  "storage": "<path>.cost sqlite file; outbox tables (if windows used); cache entries.",
+  "cost": "Expected: lower read latency (parallel legs, batching), unchanged answers. Row estimate 150 min.",
+  "inputs": "Nothing special; effects are on latency and accounting.",
+  "outputs": "No change to answers (PARITY): any difference is a bug (e.g. leg order).",
+  "failure_modes": [
+   "Parallel legs may alter tie order if a leg is not deterministic.",
+   "Cache across repeated questions would hide latency in timing comparisons."
+  ],
+  "tests": [
+   "tests/unit/wiring/test_w2_12_cost_ledger.py",
+   "tests/unit/lib/test_lib_27_stage_ledger.py",
+   "tests/unit/lib/test_lib_19_cache.py",
+   "tests/unit/wiring/test_rt_02_scheduler.py",
+   "tests/unit/runtime/test_outbox.py"
+  ],
+  "mermaid": "flowchart LR\n  A[sleep stage] --> B[cost scope ledger]\n  C[read] --> D[cache lookup]\n  D --> E[parallel legs]\n  E --> F[result same order]\n  G[embed calls] --> H[micro batch]"
+ },
+ {
+  "id": "REF-SLEEP",
+  "settings": {
+   "arm": "scr-gc3-graph-jina (reference of every B3/B5/B8 GC row; run id v2-S02-i2)",
+   "memories.semantic.enabled": true,
+   "memories.semantic.policies.extract_graph": {
+    "granularity": "session",
+    "resolve": "rules"
+   },
+   "memories.associative.enabled": true,
+   "memories.associative.policies": {
+    "entity_nodes": true,
+    "entity_summaries": true
+   },
+   "graph.entity_embeddings": true,
+   "read.graph_leg": true,
+   "read.graph_leg_k": 10,
+   "read.graph_depth": 2,
+   "read.graph_node_search": true,
+   "read.entity_summaries": true,
+   "llm.roles.extract_edges": "ollama/qwen3.5:9b, no_think",
+   "llm.roles.summarize_entity": "ollama/qwen3.5:9b, no_think",
+   "llm.structured.retry_on_error": true
+  },
+  "stage": "K",
+  "trigger": "Once per conversation, after all sessions are written: the eval adapter calls Memory.sleep() in build() (memspine_system.py:build), which runs run_sleep_cycle over sleep_stage_order(ctx). No offline.* flag is set, so the order is the plain SLEEP_CYCLE_ORDER with no extra stages and the blocking path (not sleep_v2).",
+  "steps": [
+   {
+    "n": 1,
+    "what": "Order. SLEEP_CYCLE_ORDER = consolidate, mine_facts, anticipate, reflect_profile, extract_graph, summarize_entities, reorganize, check_watches, session_lifecycle, decay_sweep, compress, sleep_compute, event_log_prune. sleep_stage_order() only inserts extra stages when their flag is on (predict_calibrate, project_facts, rule_edges, pattern_observations, standing_answers, reconcile, histories, compile_edges, erasure_rederive, retention_expire); none is on in gc3, so all 13 names run in this order, each timed and costed through run_sleep_stage.",
+    "code": "src/memspine/workers/schedule.py:SLEEP_CYCLE_ORDER (45), sleep_stage_order (126), run_sleep_cycle (224)",
+    "kind": "rule"
+   },
+   {
+    "n": 2,
+    "what": "1 consolidate (RUNS, no LLM): detect sessions by a 30-minute gap over live episodic records; for each closed session of at least 3 records write ONE semantic summary record (channel consolidation, parents = the session turns, trust = min of members). No summarize role is bound in gc3, so the text is the deterministic extractive fallback (max 600 chars). It also emits the CONSOLIDATE/session index that extract_graph reads.",
+    "code": "src/memspine/derive/pipeline/stages/consolidate.py:consolidate (46), _consolidate_session (131); core/policies/consolidation.py:fallback_summary (180)",
+    "kind": "algorithm"
+   },
+   {
+    "n": 3,
+    "what": "2 mine_facts (SKIPPED): consolidation.mine_facts is off and no extract role is bound. 3 anticipate (SKIPPED): consolidation.anticipate off. 4 reflect_profile (SKIPPED): consolidation.reflect_profile off and no reflect role (this is the stage S01/gc9 turns on).",
+    "code": "src/memspine/derive/pipeline/stages/mining.py:mine_facts (134); anticipate.py:anticipate (11); reflect.py:reflect_profile (12)",
+    "kind": "rule"
+   },
+   {
+    "n": 4,
+    "what": "5 extract_graph (RUNS, LLM role extract_edges): granularity=session. Group the live episodic turns of each consolidated session (skipping cues, entity-summary and window-episode records, quarantined or instruction-flagged turns); skip a session whose membership fingerprint already has a stage_done marker. For each remaining session, render a numbered transcript '[n] [date] turn', optionally ask the GLiNER2 decision provider for allowed entity names (only if configured; not in gc3), then ONE structured call (prompt extract_edges@session, 1 round) returns edges {src_entity, rel, dst_entity, fact, kind state|event, valid_from/valid_to, confidence, episode_indices}. Turns not in any consolidated session (sessions under 3 records) fall back to one per-record call with the plain extract_edges prompt.",
+    "code": "src/memspine/derive/pipeline/stages/extract_graph.py:extract_graph (369), session branch (515); derive/pipeline/builders.py:_build_session_edge_extractor (400), _edge_extract_callable (331)",
+    "kind": "llm"
+   },
+   {
+    "n": 5,
+    "what": "5b Entity resolution (resolve=rules, no LLM): every src/dst name goes through the ladder exact canonical match -> alias table (MARKER events) -> top-15 embedding candidates (Qwen3-Embedding-0.6B) -> entropy gate -> MinHash character-shingle Jaccard >= 0.9, with a trust guard; merges are logged as one entity_resolved MARKER.",
+    "code": "src/memspine/derive/pipeline/stages/extract_graph.py:_resolve_edges (87); memories/associative/resolution.py:EntityResolver (164)",
+    "kind": "algorithm"
+   },
+   {
+    "n": 6,
+    "what": "5c Write: each edge becomes a semantic fact (content = edge.fact, entity = src, attribute = rel for kind:state, no attribute for kind:event; tags kind:/rel:/dst:; channel extract_graph; parents = the cited turns), written through the semantic door (firewall trust cap, M5 dedup, M4 ladder so a newer state value supersedes). A verbatim duplicate only adds edge_source provenance. Then an asserted LINK from every parent turn to the fact (weight = min of confidence and trusts, subject to the link budget) and a graph_extracted MARKER watermark per source and a per-session stage_done marker.",
+    "code": "src/memspine/derive/pipeline/stages/extract_graph.py:emit (604), write_fact (701), link_event (759), _add_edge_provenance (828); memories/semantic/write_pipeline.py:edge_fact_key (127)",
+    "kind": "storage"
+   },
+   {
+    "n": 7,
+    "what": "6 summarize_entities (RUNS, LLM role summarize_entity, only when needed): the graph projector has turned entity/dst names of live records into ent:<ns>:<name> nodes with mentions links (associative.entity_nodes). For each entity node whose member fingerprint changed, build dated fact lines; if the joined lines fit 2000 chars the summary is those lines (free, no call); otherwise entities are batched (30 per call) into prompt summarize_entity.yaml, with a newest-lines fallback on failure. Each result is a derived semantic record (channel entity_summary, tag about:<Name>, parents = the members, trust = min), firewall-screened, and an entity_summarized MARKER stores the watermark.",
+    "code": "src/memspine/derive/pipeline/stages/entity_summaries.py:summarize_entities (102), _write_entity_summary (273); derive/pipeline/builders.py:_build_entity_summarizer (46)",
+    "kind": "llm"
+   },
+   {
+    "n": 8,
+    "what": "7 reorganize (SKIPPED in practice): needs a graph store and either the [community] extra (graspologic-native, absent from the dev venv) or community.algorithm=lpa; with the default algorithm auto and no extra it returns skipped. If it did run it would write community summary parents.",
+    "code": "src/memspine/derive/pipeline/stages/communities.py:reorganize (140), _community_algorithm",
+    "kind": "rule"
+   },
+   {
+    "n": 9,
+    "what": "8 check_watches, 9 session_lifecycle, 10 decay_sweep, 11 compress, 12 sleep_compute, 13 event_log_prune: check_watches only logs fired prospective watches (none); session_lifecycle needs sessions.passive_after (unset: skipped); decay_sweep moves idle records between tiers by days since recorded_at/last access (all records are fresh in an eval, so no moves); compress zstd-compresses cold-tier content (none cold); sleep_compute is the no-op E7 hook; event_log_prune runs only in rolling event-log mode (skipped).",
+    "code": "src/memspine/derive/pipeline/stages/watches.py:check_watches (23); maintenance.py:session_lifecycle (30), decay_sweep (77), compress (134), sleep_compute (195); retention.py:event_log_prune (23)",
+    "kind": "rule"
+   }
+  ],
+  "algorithms": [
+   "gap-based session detection (30 min)",
+   "extractive summary (first-sentence/char budget)",
+   "LLM edge extraction with episode_indices citations",
+   "entity resolution ladder: exact, alias table, embedding top-15, MinHash Jaccard 0.9 with entropy gate and trust guard",
+   "M4 supersede ladder for state facts",
+   "membership-fingerprint watermarks (idempotent re-run)",
+   "free-vs-LLM entity summary threshold 2000 chars"
+  ],
+  "libraries": [
+   "LIB-02 integrate ladder (via the semantic write door)",
+   "external: datasketch (MinHash)",
+   "external: sentence-transformers Qwen/Qwen3-Embedding-0.6B (resolution candidates, entity embeddings)",
+   "external: sqlite event log, lancedb, tantivy (indexes updated by projectors as the stages append events)",
+   "external: ollama qwen3.5:9b"
+  ],
+  "models": [
+   {
+    "role": "extract",
+    "model": "extract_edges -> ollama/qwen3.5:9b via Ollama (127.0.0.1:11434, no_think, timeout 180 s, structured retry_on_error)",
+    "calls": "1 per consolidated session (not yet fingerprinted) + 1 per loose turn outside any session; about 550-650 calls for the 272-session full set per GAP_REGISTER L; a 3-conversation sample is proportionally smaller",
+    "prompt": "src/memspine/prompts/defaults/extract_edges@session.yaml (session) and extract_edges.yaml (loose turns); the layout-v2 copies under defaults/v2 are used only with prompts.layout_v2 (off)"
+   },
+   {
+    "role": "summarize",
+    "model": "summarize_entity -> ollama/qwen3.5:9b via Ollama (127.0.0.1:11434, no_think, timeout 180 s, structured retry_on_error)",
+    "calls": "0 for entities whose fact lines fit 2000 chars; else 1 per batch of up to 30 entities per sleep (a few per conversation)",
+    "prompt": "src/memspine/prompts/defaults/summarize_entity.yaml"
+   },
+   {
+    "role": "none",
+    "model": "consolidate summary uses no model (no summarize role bound)",
+    "calls": "0",
+    "prompt": "none"
+   },
+   {
+    "role": "embedder",
+    "model": "Qwen/Qwen3-Embedding-0.6B (cuda, bf16)",
+    "calls": "entity-resolution candidates and graph.entity_embeddings, batched",
+    "prompt": "none"
+   }
+  ],
+  "storage": "Reads the event log and the episodic/semantic stores. Appends WRITE events (consolidation summaries, extract_graph facts, entity_summary records), LINK events (asserted, mentions, derived_from), MARKER events (graph_extracted, entity_resolved, entity_summarized, stage_done per session) and DECAY_TRANSITION events (supersede/archive). Projectors update the vector, FTS and graph stores.",
+  "cost": "Dominated by extract_edges: one 9B call per session at roughly 1.5-2 h for the 10-conversation set (GAP_REGISTER L estimate); the stage list adds no GPU model other than the embedder. Doc: gc3 about 39 min per 3-conversation sample run ('11 gc9 / 24 gc2 / 39 gc3' min engine-LLM ingest in SCREENS.md).",
+  "inputs": "Episodic turns written with group/session ids and event dates; an extract_edges role; associative memory enabled so the graph projector exists.",
+  "outputs": "Semantic summaries, graph facts with parents, asserted/mentions links, entity-summary records. The read side then uses read.graph_leg (BFS depth 2, 10 seeds), graph_node_search and read.entity_summaries over these.",
+  "failure_modes": [
+   "A failed extract_edges call leaves no watermark: the session is retried next sweep (errors counted in the stage stats, status partial).",
+   "reorganize is a silent skip without graspologic-native: no community summaries in any gc3-based arm unless offline.communities_v2 is on.",
+   "Session grouping depends on consolidate having produced a session index; sessions under 3 records are extracted per record.",
+   "Sleep has no budget cap in this arm (offline.budget_v2 off): a slow Ollama server stalls the build."
+  ],
+  "tests": [
+   "tests/unit/workers/test_scheduler.py",
+   "tests/unit/workers/test_extract_graph.py",
+   "tests/unit/workers/test_extract_graph_session.py",
+   "tests/unit/test_entity_summaries.py",
+   "tests/unit/test_extract_graph_ladder.py"
+  ],
+  "mermaid": "flowchart LR\n  A[Engine.sleep] --> B[consolidate]\n  B --> C[mine_facts anticipate reflect skipped]\n  C --> D[extract_graph LLM per session]\n  D --> E[resolve rules]\n  E --> F[facts and links]\n  F --> G[summarize_entities]\n  G --> H[reorganize skipped]\n  H --> I[decay compress prune]"
+ }
+]
