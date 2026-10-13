@@ -241,3 +241,7 @@ Forensics check (`evals/runs/smp-S*-loc-1013-1228--forensics/forensics.jsonl` vs
 | S14 | `read.family_fusion` (R3-06) | 80 / 80 / 74 | Live: +4/-1, net +3. Candidate for a focus run. |
 
 Rule taken: a 0/0/0 forensic diff means the screen did not exercise the flag; it is marked `iterate`, never `drop`, and re-queued on an arm that builds the layer it needs.
+
+## GPU paused 2026-10-13 15:20 (owner request)
+
+The owner took the GPU for another task. B2 stopped: S16 (`read.rerank_v2`) crashed at 13:52 with a host `MemoryError` while several CPU test suites ran in parallel, and hung until killed; S17 was killed at start. Unrun and to resume when the GPU is released: S16 (rerun), S17–S27, B3 (S28), B4 (S29), and the B5/B6 GC-arm plan. Lesson: do not run a GPU screen while more than one full unit suite is running on the same host.
