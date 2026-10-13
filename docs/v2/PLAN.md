@@ -9,10 +9,10 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 |---|---|
 | Not started | 48 |
 | Ready | 0 |
-| In progress | 14 |
+| In progress | 13 |
 | Blocked | 0 |
 | Needs measurement | 23 |
-| Done | 76 |
+| Done | 77 |
 | Dropped | 1 |
 
 ## Phase 0: settle and prepare
@@ -107,7 +107,7 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | F-14a | Retire measured-negative and owner-retired code (slot loop, fact chain, word vectors, decider gate, kuzu, opensearch stub, full/compose read modes, v1 read headers) | L0 L1 L4 L5 ctx scope | D R C | G-22 | ER-40 | F-11 | move | S1 split (serial) | - | Golden unchanged; retired flags raise ConfigError | **Done** | 6 items retired (slot loop, read-time fact chain, word-vector leg, decider gate, kuzu, opensearch stub) with RETIRED.md; full/compose modes and v1 headers kept (default-on / not decided); unit 5860, evals 1435, golden, 14 contracts (bbf0280) |
 | F-14b | Retire unscreened candidates | L0 L1 L4 L5 ctx scope | D R C | G-22 | ER-40 | F-14a | move | S1 split (serial) | - | Owner decision per item | **Needs measurement** | Coordinator decision 2026-10-13 (owner delegated choices): defer deletion; candidates stay flag-off until GPU screens decide |
 | F-01 | Graph key identity: kind, occurrence, A-B-A, old-key aliases | L0 L1 L3 | D | M-17, W-20 | ER-13, ER-20 | F-15 | behaviour | S2 foundations (serial: Alembic) | `src/memspine/store/keys.py` +1 | A-B-A returns to A; same-day events stay two; replay idempotent; built flag-off, then GC arm screen | **Needs measurement** | graph.key_v2 flag-off: store/keys.py v2 keys with occurrence, A-B-A, alias lookup (f15cfc5); screen queued |
-| F-02a | Record envelope: layer field, type tag, provenance class, axes, fingerprint; Alembic and upcaster | L0 L1 L3 L4 L5 ctx scope | D K_C R | M-02, M-03, M-06, M-07, M-08, P-12 | ER-03, ER-14, ER-32 | F-01, MOD-01 | migration | S2 foundations (serial: Alembic) | `src/memspine/store/envelope.py` +4 | Replay byte-stable; upcaster round-trips; golden unchanged | **In progress** | Foundations: envelope + Alembic (agent running) |
+| F-02a | Record envelope: layer field, type tag, provenance class, axes, fingerprint; Alembic and upcaster | L0 L1 L3 L4 L5 ctx scope | D K_C R | M-02, M-03, M-06, M-07, M-08, P-12 | ER-03, ER-14, ER-32 | F-01, MOD-01 | migration | S2 foundations (serial: Alembic) | `src/memspine/store/envelope.py` +4 | Replay byte-stable; upcaster round-trips; golden unchanged | **Done** | Envelope fields on MemoryRecord (layer, type_tag, provenance_class, axes, fingerprint, schema_version), 0007 migration + backfill, store/envelope.py, store/layers.py (F-02a) |
 | F-02b | Tri-temporal times with precision; LayerRegistry (template-enabled and populated layers) | L0 L1 L3 L4 ctx | D K_C | M-10, M-02 | ER-03, ER-18 | F-02a | migration | S2 foundations (serial: Alembic) | `src/memspine/store/envelope.py` +4 | Golden unchanged; registry reports layers per namespace | **Not started** | Legs run only when their layer exists |
 | F-02c | Edge compiler and link projection from assertions (graph ON by default with a worker model) | L1 L3 | D R | M-16 | ER-20 | F-02b, LIB-35 | behaviour | S2 foundations (serial: Alembic) | `src/memspine/store/envelope.py` +4 | GC arm screen before the default counts in results | **Not started** | I-7: L3 on by default |
 | F-03 | Model upgrades: versioned vector spaces, selective re-derivation | - | K_C | P-25 | - | F-02a | behaviour | S2 foundations (serial: Alembic) | - | Shadow index switch test | **Not started** |  |

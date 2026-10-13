@@ -174,7 +174,7 @@ WP = [
      "A-B-A returns to A; same-day events stay two; replay idempotent; built flag-off, then GC arm screen", "Needs measurement", "graph.key_v2 flag-off: store/keys.py v2 keys with occurrence, A-B-A, alias lookup (f15cfc5); screen queued"),
     ("F-02a", 1, "Record envelope: layer field, type tag, provenance class, axes, fingerprint; Alembic and upcaster",
      ["M-02", "M-03", "M-06", "M-07", "M-08", "P-12"], ["F-01", "MOD-01"], "migration", "Replay byte-stable; upcaster round-trips; golden unchanged",
-     "In progress", "Foundations: envelope + Alembic (agent running)"),
+     "Done", "Envelope fields on MemoryRecord (layer, type_tag, provenance_class, axes, fingerprint, schema_version), 0007 migration + backfill, store/envelope.py, store/layers.py (F-02a)"),
     ("F-02b", 1, "Tri-temporal times with precision; LayerRegistry (template-enabled and populated layers)", ["M-10", "M-02"], ["F-02a"],
      "migration", "Golden unchanged; registry reports layers per namespace", "Not started", "Legs run only when their layer exists"),
     ("F-02c", 1, "Edge compiler and link projection from assertions (graph ON by default with a worker model)", ["M-16"], ["F-02b", "LIB-35"], "behaviour", "GC arm screen before the default counts in results", "Not started", "I-7: L3 on by default"),
