@@ -89,6 +89,7 @@ from memspine.derive.pipeline.stages.edge_compiler_v2 import COMPILED as _EDGE_C
 from memspine.derive.pipeline.stages.table import PIPELINES
 from memspine.derive.scheduler import DerivationScheduler
 from memspine.economy import ledger as _economy_ledger
+from memspine.economy import slo as _slo
 from memspine.economy.slo import timed_read
 from memspine.exceptions import (
     ConfigError,
@@ -161,6 +162,8 @@ from memspine.observability.logging import (
     get_logger,
 )
 from memspine.observability.timers import StepTimers, timed
+from memspine.ops import ledger as _ops
+from memspine.ops.otel import OtelExporter
 from memspine.prompts.models import (
     ReadPlan,
 )
@@ -396,6 +399,8 @@ class Engine:
         self._runner: TaskRunner | None = None
         self._sched_v2: _scheduler_rt.Scheduler | None = None  # RT-02
         self._cost_ledger: _economy_ledger.WriteCostLedger | None = None  # W2-12
+        self._ops_ledger: _ops.OpsLedger | None = None  # T5-06 (observability.ops_ledger)
+        self._otel: OtelExporter | None = None  # T5-06 (observability.otel)
         self._scheduler: SleepScheduler | None = None  # D1: autonomous sleep loop
         #: O4-01a: namespace jobs, leases, watermarks and triggers (``offline.sleep_v2``).
         self._derive_sched: DerivationScheduler | None = None
@@ -491,6 +496,8 @@ class Engine:
         )
         self._resolved = await container.get(ResolvedConfig)
         config = self._resolved.config
+        if config.observability.otel.enabled:  # T5-06: MissingServiceError names memspine[otel]
+            self._otel = OtelExporter()
 
         # 2. validate combination (C1b) + required services (D-10); MOD-02: enable the
         # pinned plug-ins (config ``plugins:``; empty = nothing happens).
@@ -729,9 +736,19 @@ class Engine:
             if not config.offline.sleep_manual_only:
                 await self._derive_sched.on_open()
         self._install_write_timers(config)
-        if config.observability.tap.enabled:  # WT-01: debugging wiretap, off by default
-            tap.configure(config.observability.tap)
+        if config.observability.ops_ledger:  # T5-06: per-stage ops ledger, off by default
+            self._ops_ledger = _ops.OpsLedger()
+            _ops.install(self._ops_ledger)
+        if config.observability.tap.enabled or config.observability.otel.enabled:
+            # WT-01: debugging wiretap, off by default. T5-06: the OTel exporter is a second sink
+            # on the tap; without a tap config it runs on a sink-less, content-free tap.
+            tap_cfg = config.observability.tap
+            if not tap_cfg.enabled:
+                tap_cfg = tap_cfg.model_copy(update={"enabled": True, "sink": "none"})
+            tap.configure(tap_cfg)
             self._tap_owner = True
+            if self._otel is not None:
+                tap.add_sink(self._otel)
         if config.privacy.erasure_v2:  # T5-04: erased / hidden ids, queue, purge table
             await trust_erasure_v2.load(self)
         self._started = True
@@ -788,6 +805,11 @@ class Engine:
         await self._teardown()
 
     async def _teardown(self) -> None:
+        if getattr(self, "_ops_ledger", None) is not None:
+            if _ops.installed() is self._ops_ledger:
+                _ops.install(None)
+            self._ops_ledger = None
+        self._otel = None
         if getattr(self, "_cost_ledger", None) is not None:
             if _economy_ledger.installed() is self._cost_ledger:
                 _economy_ledger.install(None)
@@ -832,6 +854,7 @@ class Engine:
     # ── public verbs (P0: write / retrieve / rebuild / describe) ─────────────
 
     @tap.traced("write")
+    @_ops.staged("write")  # T5-06: per-stage ops ledger (a pass-through when it is off)
     @prioritised(Priority.WRITE)  # RT-02: foreground write class (a no-op without the gate)
     async def write(
         self,
@@ -1590,6 +1613,7 @@ class Engine:
         return await trust_firewall._parent_trust_cap(self, ns, parents)
 
     @tap.traced("write")
+    @_ops.staged("write")  # T5-06: per-stage ops ledger (a pass-through when it is off)
     @prioritised(Priority.WRITE)  # RT-02: foreground write class (a no-op without the gate)
     async def write_messages(
         self,
@@ -1672,6 +1696,7 @@ class Engine:
         return await ingest_write._prewarm_embeddings(self, texts)
 
     @tap.traced("write")
+    @_ops.staged("write")  # T5-06: per-stage ops ledger (a pass-through when it is off)
     @prioritised(Priority.WRITE)  # RT-02: foreground write class (a no-op without the gate)
     async def write_episode(
         self,
@@ -1771,6 +1796,7 @@ class Engine:
     @scope_guard.viewer_guarded("retrieve")
     @_passive_scoped
     @tap.traced("read")
+    @_ops.staged("read")  # T5-06
     @timed_read  # RT-02: read p95 into the SLO ledger (a pass-through when it is off)
     async def retrieve(
         self,
@@ -1808,6 +1834,7 @@ class Engine:
     @_passive_scoped
     @_snapshot_scoped
     @tap.traced("read")
+    @_ops.staged("read")  # T5-06
     @timed_read  # RT-02: read p95 into the SLO ledger (a pass-through when it is off)
     async def search(
         self,
@@ -1969,6 +1996,7 @@ class Engine:
     @_passive_scoped
     @_snapshot_scoped
     @tap.traced("read")
+    @_ops.staged("read")  # T5-06
     @timed_read
     async def assemble(
         self,
@@ -2215,6 +2243,7 @@ class Engine:
     @_passive_scoped
     @_snapshot_scoped
     @tap.traced("read")
+    @_ops.staged("read")  # T5-06
     @timed_read  # RT-02: read p95 into the SLO ledger (a pass-through when it is off)
     async def read(
         self,
@@ -4932,6 +4961,22 @@ class Engine:
         if namespace is not None and self._windows is not None:
             report["deferred_windows"] = self._windows.deferred_count(namespace)
         return report
+
+    def ops_report(self, namespace: str | None = None) -> dict[str, Any]:
+        """T5-06 (G-20): one report over the ops ledger (``observability.ops_ledger``: runs,
+        errors, items, dropped, deferred and p50 / p95 per read verb, write verb, window extract
+        and sleep stage), the SLO ledger (``runtime.scheduler_v2``: read p95, lag, backlog) and the
+        write cost ledger (``economy.ledger_v2``: model calls, tokens, embed calls, budget). A
+        ledger that is off contributes nothing; ``namespace`` filters the cost rows. Ids, counts
+        and durations only."""
+        slo_ledger = _slo.installed_ledger()
+        return _ops.ops_report(
+            self._ops_ledger,
+            slo=slo_ledger.report() if slo_ledger is not None else None,
+            cost=self._cost_ledger,
+            namespace=namespace,
+            otel=self._otel.stats() if self._otel is not None else None,
+        )
 
     async def resume_deferred(self, namespace: str) -> int:
         """W2-12: derive the windows a spent ``economy.budget`` paused (they were kept in the

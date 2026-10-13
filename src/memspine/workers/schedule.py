@@ -22,6 +22,7 @@ from memspine.derive.pipeline.stages.rule_edges import rule_edges_options
 from memspine.economy import ledger as _costs
 from memspine.observability import tap
 from memspine.observability.logging import get_logger
+from memspine.ops import ledger as _ops
 from memspine.workers.runner import TaskRunner
 
 _log = get_logger(__name__)
@@ -165,6 +166,25 @@ def maintenance_stage_order(ctx: PipelineContext) -> tuple[str, ...]:
 
 
 async def run_sleep_stage(
+    runner: TaskRunner, ctx: PipelineContext, name: str
+) -> dict[str, object]:
+    """Run one named stage, timed in the ops ledger when ``observability.ops_ledger`` is on
+    (T5-06: runs, errors, dropped and deferred counts; a pass-through otherwise)."""
+    with _ops.stage("sleep", name) as handle:
+        stat = await _run_sleep_stage(runner, ctx, name)
+        if handle is not None:
+            if str(stat.get("status", "")).startswith("deferred"):
+                handle.add(deferred=1)
+            if "error" in stat:
+                handle.add(errors=1)
+            for key in ("dropped", "deferred"):
+                val = stat.get(key)
+                if isinstance(val, int) and not isinstance(val, bool):
+                    handle.add(**{key: val})
+        return stat
+
+
+async def _run_sleep_stage(
     runner: TaskRunner, ctx: PipelineContext, name: str
 ) -> dict[str, object]:
     """Run one named stage (one line per stage, so a silent stall names its stage; WT-02 trace)."""

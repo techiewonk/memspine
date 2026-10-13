@@ -53,6 +53,7 @@ from memspine.models.providers.llm.base import LLMService
 from memspine.models.providers.llm.structured import structured_call
 from memspine.observability import tap
 from memspine.observability.logging import get_logger
+from memspine.ops import ledger as _ops
 from memspine.prompts.base import Prompt
 from memspine.prompts.models import (
     ExtractedEdge,
@@ -728,7 +729,9 @@ class WindowPipeline:
                         with tap.request("job", stage="window_session_closed"):
                             await self._session_closed(ns, store, job.closed_session)
                     else:
-                        with tap.request("job", stage="window_extract"):
+                        with tap.request("job", stage="window_extract"), _ops.stage(
+                            "write", "window_extract"
+                        ):
                             await self._run_job(ns, store, job)
                 except asyncio.CancelledError:
                     raise
@@ -1043,7 +1046,7 @@ class WindowPipeline:
             store.queue.remove(job)
         store.inflight_batch = list(jobs)
         try:
-            with tap.request("job", stage="window_extract"):
+            with tap.request("job", stage="window_extract"), _ops.stage("write", "window_extract"):
                 prepared = await self._prepare_batch(
                     ns, jobs, strict=False, reason=self._batch_reason
                 )

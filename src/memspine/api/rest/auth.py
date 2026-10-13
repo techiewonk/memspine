@@ -56,7 +56,7 @@ __all__ = [
 ]
 
 #: Route prefixes that need the admin role once authentication is on.
-ADMIN_PATHS = ("/sleep", "/rebuild", "/export", "/quarantine")
+ADMIN_PATHS = ("/sleep", "/rebuild", "/export", "/quarantine", "/ops")
 
 
 def is_admin_path(path: str) -> bool:

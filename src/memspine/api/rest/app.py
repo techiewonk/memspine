@@ -603,6 +603,11 @@ def build_app(engine: Engine, rest: RestConfig | None = None) -> FastAPI:
     async def sleep(request: Request) -> dict[str, dict[str, Any]]:
         return await scope(request, "default").sleep()
 
+    @app.get("/ops/report", dependencies=admin_only)
+    async def ops_report() -> dict[str, Any]:
+        # T5-06: engine-wide, ids / counts / durations only (no content, no namespaces).
+        return engine.ops_report()
+
     @app.post("/rebuild", dependencies=admin_only)
     async def rebuild(request: Request) -> dict[str, int]:
         return await scope(request, "default").rebuild()
