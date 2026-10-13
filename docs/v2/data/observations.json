@@ -1,0 +1,784 @@
+[
+ {
+  "id": "OBS-01",
+  "title": "Name variants and entity linking",
+  "capability": "Participant-scoped alias binding at write (vocative and short form to canonical participant)",
+  "status": "partial",
+  "existing": [
+   {
+    "key": "write.resolver_v2 (W2-09, off; S62)",
+    "package": "memspine.derive",
+    "file": "src/memspine/derive/resolve.py:resolve_pair,_person_alias,_given_match; derive/resolve_stage.py:EntityResolveStage"
+   },
+   {
+    "key": "write.stamping_v2 (W2-02, off; S48)",
+    "package": "memspine.ingest",
+    "file": "src/memspine/ingest/stamp.py:stamp,normalise_principal"
+   },
+   {
+    "key": "write.prepass (W2-13) / write.learned_persist",
+    "package": "memspine.derive",
+    "file": "src/memspine/derive/prepass.py:rule_hints"
+   },
+   {
+    "key": "perspective (ref)",
+    "package": "memspine.models.encoders.query",
+    "file": "src/memspine/models/encoders/query/perspective.py (Name: prefix, exact names only)"
+   }
+  ],
+  "gap": "Resolver sees only subject/object of extracted assertions; nickname table is a closed lexicon without a prefix/short-form rule; a bare given name against a full name is only pending_merge; vocatives and query names never use aliases; the reference run extracts nothing so nothing is resolved.",
+  "proposal": "write.vocative_alias_v2: in the stamping step detect a greeting/vocative token and bind it to a participant by exact match, nickname table, or unique >=3-letter prefix of exactly one participant; set typed addressee, learn the alias (learned.alias marker), tag alias:<token>; optional read.alias_expand for the BM25 leg. Bind nothing when ambiguous.",
+  "plug_in": "write path, stamping stage (before the window segmenter); optional read-side BM25 query expansion",
+  "model_calls": "0 per turn, window, session and read",
+  "locomo_targets": {
+   "count": 9,
+   "upper_bound": 54,
+   "classes": {
+    "wrong_detail": 4,
+    "date_duration_arithmetic": 2,
+    "list_aggregation_generic": 1,
+    "inference_open_domain": 1,
+    "open_domain_inference_retrieval": 1
+   }
+  },
+  "measurements": [
+   {
+    "what": "turns with a short-form vocative of a speaker name",
+    "value": "74 of 5882 (1.3%)",
+    "method": "heuristic: greeting word + capitalised token that is a >=3-letter strict prefix of a speaker name"
+   },
+   {
+    "what": "sessions with at least one",
+    "value": "42 of 272",
+    "method": "heuristic (same rule)"
+   },
+   {
+    "what": "questions whose gold turn is in such a session / holds the short form",
+    "value": "289 (54 wrong) / 35 (9 wrong)",
+    "method": "heuristic (same rule)"
+   }
+  ],
+  "other_benchmarks": "Useful for multi-party and user/assistant logs (OP-Bench personas, ConvoMem); neutral on PrefEval (one user); MAB-CR benefits through subject aliases at supersede. Rule on participants only, no dataset vocabulary; low overfitting risk.",
+  "effort": "S",
+  "risk": "Wrong prefix bind when two participants share a prefix (mitigated by exactly-one rule); no privacy change; no text is edited.",
+  "priority": "P3",
+  "test_plan": "Unit tests in tests/unit/lib (invented participants Bramwell and Ilse): 'Hey Bram!' binds addressee Bramwell; 2-letter prefix binds nothing; Bram+Bramwell both present binds nothing; nickname-table pair Tomasz/Tomek binds. Precision check of the 74 detected turns against a local hand list. Slice fail_retrieval.",
+  "proposed_flag": "write.vocative_alias_v2",
+  "proposed_screen": "S68"
+ },
+ {
+  "id": "OBS-02",
+  "title": "Decontextualise turns into standalone dated statements",
+  "capability": "Turn restatement (standalone text, absolute date, resolved speaker) plus a deterministic index view",
+  "status": "built-off (window_extract + W2 stack); index view missing",
+  "existing": [
+   {
+    "key": "write.window_extract=facts (S03, S43)",
+    "package": "memspine.prompts",
+    "file": "src/memspine/prompts/defaults/window_extract.yaml (rules 3 and 5: name people, absolute dates)"
+   },
+   {
+    "key": "write.envelope_v2, prompt_v2, temporal_v2, grounding_v2, coverage_v2 (S44, S62)",
+    "package": "memspine.derive",
+    "file": "src/memspine/derive/compile.py; temporal.py; temporal_stage.py; ground.py; grounding_stage.py; coverage.py"
+   },
+   {
+    "key": "consolidation.mine_facts / extract@session4 (S04)",
+    "package": "memspine.core",
+    "file": "src/memspine/prompts/defaults/extract@session4.yaml; core/rule_miner.py:mine_rules"
+   },
+   {
+    "key": "read.resolve_relative_dates + relative_dates_anchored (ref)",
+    "package": "memspine.models.encoders.query",
+    "file": "src/memspine/models/encoders/query/temporal_resolve.py:annotate"
+   },
+   {
+    "key": "read.facts_to_sources, read.raw_turn_floor",
+    "package": "memspine.config",
+    "file": "src/memspine/config/schema/read.py"
+   }
+  ],
+  "gap": "A restated fact is a separate record competing in the pool; the index of the turn itself never improves (ingest/write.py:626 embeds record.content, there is no embed_text); no verdict exists for any write-v2 screen.",
+  "proposal": "Step 1 write.index_view=context: deterministic embed/BM25 text '{speaker}, {session date}, {topic}: {text}' with the read-side resolved date, content and lineage unchanged. Step 2: the gated restate stage of OBS-03 writes a grounded derived child whose slot goes to the source turn (facts_to_sources).",
+  "plug_in": "write path just before embedding (ingest/write.py:626) and the lexical indexer; step 2 in the window envelope stages after temporal (100) and grounding (200)",
+  "model_calls": "step 1: 0; step 2: see OBS-03",
+  "locomo_targets": {
+   "count": 33,
+   "range": "14 to 33",
+   "classes": {
+    "temporal_evidence_missing": 14,
+    "date_duration_arithmetic": 10,
+    "date_wrong_event": 8,
+    "date_offset_small": 1
+   }
+  },
+  "measurements": [
+   {
+    "what": "turns with a relative-time phrase",
+    "value": "555 of 5882 (9.4%)",
+    "method": "heuristic regex"
+   },
+   {
+    "what": "questions with a relative-time gold turn",
+    "value": "637 (149 wrong); 40 of the 54 wrong temporal",
+    "method": "heuristic regex x evidence ids"
+   },
+   {
+    "what": "temporal-category questions",
+    "value": "321 (54 wrong)",
+    "method": "measured"
+   }
+  ],
+  "other_benchmarks": "Index view needs timestamps (BEAM, MAB-CR ordering); skipped when no source time exists (ConvoMem, PrefEval). Restatement helps first-person implicit preference turns. Risk: date tokens bias retrieval to same-date turns (screen on/off).",
+  "effort": "S (index view), M (restatement)",
+  "risk": "Date in the embedding can reduce diversity; restatement hallucination handled by grounding.",
+  "priority": "P2",
+  "test_plan": "Model-free: index text equals the expected string; unknown date adds no token; content byte-identical. Slices fail_temporal, fail_retrieval.",
+  "proposed_flag": "write.index_view",
+  "proposed_screen": "S69"
+ },
+ {
+  "id": "OBS-03",
+  "title": "Context carry-over within a session; when to rephrase",
+  "capability": "Gated turn completion with an antecedent link (rule-scored incompleteness, one grounded call only for flagged windows)",
+  "status": "partial",
+  "existing": [
+   {
+    "key": "write.prompt_v2 CONTEXT lines (prompt_context_turns=3)",
+    "package": "memspine.derive",
+    "file": "src/memspine/derive/prompt_context.py:PromptContextBuilder"
+   },
+   {
+    "key": "write.segmentation_v2 (no overlap in NEW lines)",
+    "package": "memspine.ingest",
+    "file": "src/memspine/ingest/segment.py:24"
+   },
+   {
+    "key": "read.replay_window_before/after=2/4 (ref); read.neighbours_v2 (S19)",
+    "package": "memspine.compose",
+    "file": "src/memspine/read/neighbours.py; compose/pipeline/windows.py"
+   }
+  ],
+  "gap": "No decision about when a turn is incomplete; extraction runs for every window or none; CONTEXT is a read-only coreference aid, not overlap and not an edge; no refers_to link.",
+  "proposal": "derive/standalone.py (pure): weighted incompleteness score (unresolved pronoun .4, deictic .4, back-reference .4, follow-up question .5, ellipsis .3, missing subject .2; missing time is resolved by rule, not rephrased); rephrase when score >= 0.5; complete turns (named entity + verb + >=6 words) score 0; pure reactions are linked, not rephrased; system/tool/echo skipped. Flagged window -> one window_extract call asking for standalone text and refers_to line numbers; W2-08 grounding drops any rewrite with an entity/number/date not in cited or known lines; stored as a derived child with a context lineage edge.",
+  "plug_in": "write path: segmenter gate, then window_extract, envelope stages (grounding mandatory), derived-write door",
+  "model_calls": "0 for unflagged windows; 1 per flagged window (about 450 of 1095 six-turn windows on the dataset by the strict rule)",
+  "locomo_targets": {
+   "count": 15,
+   "upper_bound": 21,
+   "classes": {
+    "list_aggregation_generic": 5,
+    "implicit_or_paraphrased_gold": 2,
+    "open_domain_inference_retrieval": 2,
+    "temporal_evidence_missing": 2,
+    "wrong_detail": 2,
+    "other": 2
+   }
+  },
+  "measurements": [
+   {
+    "what": "incomplete turns",
+    "value": "726 of 5882 (12.3%); strict 642",
+    "method": "heuristic: dependent pronoun/deictic/back-reference <=20 words, or short follow-up question, or <=6 words, or reaction opener <=8 words"
+   },
+   {
+    "what": "six-turn windows with an incomplete turn",
+    "value": "452 of 1095 (41%)",
+    "method": "heuristic"
+   },
+   {
+    "what": "four-turn windows stride 3 with one",
+    "value": "623 of 1958 (32%)",
+    "method": "heuristic"
+   },
+   {
+    "what": "questions with an incomplete gold turn",
+    "value": "98 (21 wrong); retrieval-stage wrong 15",
+    "method": "heuristic x measured stage"
+   },
+   {
+    "what": "questions where the previous turn, not the gold turn, holds the question terms",
+    "value": "150 (13 wrong)",
+    "method": "heuristic stem overlap"
+   }
+  ],
+  "other_benchmarks": "Strong for user/assistant chat with short replies (BEAM, OP-Bench, ConvoMem); English-only rules need language_guard and fail closed. Syntactic rule, low overfitting risk.",
+  "effort": "M",
+  "risk": "Highest hallucination risk of the set; grounding stage is mandatory (flag refuses to start without write.grounding_v2). Derived text inherits the strictest parent tier.",
+  "priority": "P2",
+  "test_plan": "Model-free unit tests: elliptical follow-up after an Ilse turn is flagged with the right antecedent; 'Congrats!' is link-only; a complete Noor turn scores 0; a rewrite adding an unseen place is dropped. Slices: new fail_context (21 wrong incomplete-gold questions) plus fail_retrieval.",
+  "proposed_flag": "write.restate_gate",
+  "proposed_screen": "S70"
+ },
+ {
+  "id": "OBS-04",
+  "title": "Personal profile with attribute history",
+  "capability": "Attribute-history profile with a typed registry (cardinality, sensitivity tier, consent purpose) shared by miner, ladder and card",
+  "status": "partial (three unlinked pieces)",
+  "existing": [
+   {
+    "key": "consolidation.mine_facts, miner=rules|llm; read.profile_slots_header, profile_subject_card, profile_sensitive (S04)",
+    "package": "memspine.core",
+    "file": "src/memspine/core/rule_miner.py:mine_rules; prompts/defaults/extract@session4.yaml"
+   },
+   {
+    "key": "write.integration_v2 + integration_cardinality (default {}) (W2-10; S62)",
+    "package": "memspine.derive",
+    "file": "src/memspine/derive/integrate.py; integration_stage.py"
+   },
+   {
+    "key": "offline.reconcile_v2, histories_v2 (O4-03, O4-04; S64)",
+    "package": "memspine.derive",
+    "file": "src/memspine/derive/histories.py:value_history; derive/pipeline/stages/histories.py:build_value_history"
+   },
+   {
+    "key": "offline.session_close_v2, profile_card_v2 (O4-02, O4-07; S33, S46, S64)",
+    "package": "memspine.derive",
+    "file": "src/memspine/derive/session_close.py:plan_session_close; derive/profile.py:apply_ops (5 sections, kappa_P=24)"
+   },
+   {
+    "key": "write.sensitivity; trust.consent; privacy.remote_llm_max_tier",
+    "package": "memspine.trust",
+    "file": "src/memspine/core/sensitivity.py (sexuality_gender, health = high); trust/consent.py; config/schema/privacy.py:127"
+   }
+  ],
+  "gap": "No default attribute registry (every attribute undeclared); value_history is a projection never rendered to the reader; the card has 5 coarse sections and 24 slots; extractor not wired to ask consent before writing sensitive attributes such as gender.",
+  "proposal": "offline.person_attributes_v2: declarative registry (attribute -> cardinality, state/event, sensitivity tier, consent purpose) feeding integration_cardinality and the miner; sleep histories stage persists an attribute-timeline derived record per (person, attribute) with dated parents; read.profile_history renders 'attribute: A (until d1) -> B (from d2)' for persons and attributes the query contract targets; user-stated evidence only for active values, assistant-proposed stays tentative; sensitive tiers default-deny without a personalisation:profile grant.",
+  "plug_in": "sleep stage (histories), derived-write door, read compose header (within profile_budget_share), consent registry at write",
+  "model_calls": "no new calls: miner 1 per session and session-close call 2 (1 per session, 272 on the dataset) already specified; timeline build is CPU",
+  "locomo_targets": {
+   "count": 33,
+   "upper_bound": 60,
+   "classes": {
+    "list_aggregation_generic": 7,
+    "wrong_detail": 7,
+    "list_incomplete": 5,
+    "temporal_evidence_missing": 5,
+    "date_duration_arithmetic": 3,
+    "other": 6
+   }
+  },
+  "measurements": [
+   {
+    "what": "attribute-lookup questions",
+    "value": "331 (60 wrong; 33 in single/multi-hop)",
+    "method": "heuristic regex over question text"
+   },
+   {
+    "what": "questions worded as a state change",
+    "value": "30 (3 wrong)",
+    "method": "heuristic regex; the benchmark barely tests history"
+   }
+  ],
+  "other_benchmarks": "Most transferable item: PrefEval (preference through filler), ConvoMem (changing-fact, user-fact), MAB-CR (newest overrides), OP-Bench sycophancy/diversity. History half must be validated on MAB-CR, not LoCoMo. Registry is domain-neutral; low overfitting risk.",
+  "effort": "M",
+  "risk": "Privacy is the main risk: default-deny for sensitive and special-category attributes, remote_llm_max_tier, erasure re-derives the timeline (LIB-09).",
+  "priority": "P2",
+  "test_plan": "Model-free: two lives_in values give a two-span chain, hobbies coexist, a gender write without a grant is refused and counted, render golden test. Slices: new fail_attr (33 wrong) and MAB-CR dev for history.",
+  "proposed_flag": "offline.person_attributes_v2 + read.profile_history",
+  "proposed_screen": "S71"
+ },
+ {
+  "id": "OBS-05",
+  "title": "Layer 3: images and world knowledge",
+  "capability": "Asset-grounded evidence record (caption note) plus opt-in labelled public enrichment",
+  "status": "partial",
+  "existing": [
+   {
+    "key": "[image: caption] folded into turn text (harness) ; reader grounded_v2/v3 caption line",
+    "package": "evals",
+    "file": "evals/memspine_evals/datasets/locomo.py:170; readers.py:236-252"
+   },
+   {
+    "key": "write.asset_describer off|ingest|on_read (W2-11); ingest.assets; read.asset_evidence",
+    "package": "memspine.ingest",
+    "file": "src/memspine/ingest/asset_describer.py:LLMDescriber,MetadataDescriber; prompts/defaults/describe_asset.yaml"
+   },
+   {
+    "key": "read.external_evidence + read.external_v2 (R3-13, S23; read-time, generic questions only)",
+    "package": "memspine.read",
+    "file": "src/memspine/read/external.py:plan_external; read/pipeline/legs.py:_external_overlay"
+   }
+  ],
+  "gap": "A caption is just words in a turn: no typed image-evidence record, no relevance note, no write-time enrichment layer; external_v2 never plans a lookup for a personal question and takes no caption as input; S23 is inert as configured and egress is undecided.",
+  "proposal": "write.caption_facts (rule, 0 calls): caption wrapper -> asset_note derived record 'speaker shared a photo: caption' with the turn as parent, tagged asset:caption. Opt-in write.enrich_external: for a caption with a proper-noun/title noun phrase, a privacy-filtered generic lookup stored as a labelled public layer-3 record (family = registrable domain, trust capped, parent = the caption note), rendered only in a separate block, never as a user fact.",
+  "plug_in": "write path (derived-write door) for the note; enrichment as a sleep or on-read step through the external provider port",
+  "model_calls": "0 for caption notes; 1 lookup per enrichable caption, bounded by external_max_calls",
+  "locomo_targets": {
+   "count": 16,
+   "classes": {
+    "open_domain_inference_retrieval": 4,
+    "list_aggregation_generic": 3,
+    "gold_error": 2,
+    "list_incomplete": 2,
+    "image_caption_misuse (classifier, whole)": 6
+   }
+  },
+  "measurements": [
+   {
+    "what": "turns with a caption",
+    "value": "1226 of 5882 (20.8%); 910 with a URL",
+    "method": "measured (dataset field)"
+   },
+   {
+    "what": "questions whose evidence includes a caption turn",
+    "value": "700 (169 wrong, 24.1% vs 18.6% overall)",
+    "method": "measured"
+   },
+   {
+    "what": "caption decisive for the question",
+    "value": "55 (16 wrong)",
+    "method": "heuristic: question stems overlap caption, not spoken text"
+   },
+   {
+    "what": "classifier image_caption_misuse",
+    "value": "6 wrong",
+    "method": "measured"
+   }
+  ],
+  "other_benchmarks": "Caption note generalises to alt text/OCR logs; none of the target benchmarks carries images. Enrichment needs egress, a provider and a licence decision (web mode deferred by the owner). Least general item.",
+  "effort": "S (captions), M (enrichment)",
+  "risk": "Egress and licence; wrong identification contained in the labelled block.",
+  "priority": "P3",
+  "test_plan": "Model-free: wrapper -> one asset_note with no text the turn lacks; non-caption turn -> none; external planner refuses a personal-only contract. Slices fail_reader, new fail_caption (55).",
+  "proposed_flag": "write.caption_facts (+ write.enrich_external)",
+  "proposed_screen": "S72"
+ },
+ {
+  "id": "OBS-06",
+  "title": "Inference from memory, not only retrieval",
+  "capability": "Shape-gated inference route (commit with a cited reason) plus evidence-seeking probes",
+  "status": "partial (harness variants, planner probes built-off, no screen)",
+  "existing": [
+   {
+    "key": "reader prompts dated_infer, grounded_generic_infer, dated_world, routed (shape-v1)",
+    "package": "evals",
+    "file": "evals/memspine_evals/readers.py: INFER_RULE, INFER_CLAUSE, ROUTED_QA_VARIANTS"
+   },
+   {
+    "key": "reference prompt grounded: 'best-supported answer, even if indirect'",
+    "package": "evals",
+    "file": "evals/memspine_evals/legacy_prompts.py (GROUNDED_LEGACY_QA_PROMPT, placeholders substituted)"
+   },
+   {
+    "key": "read.query_contract (A03; request=recall|inference|recommendation)",
+    "package": "memspine.read",
+    "file": "src/memspine/read/contract.py:build_contract; read/pipeline/request.py:_query_contract"
+   },
+   {
+    "key": "read.planner=llm, planner_version v2|v3 (evidence-seeking subqueries)",
+    "package": "memspine.prompts",
+    "file": "src/memspine/prompts/defaults/plan@v3.yaml; read/pipeline/router.py:1318"
+   },
+   {
+    "key": "read.deep_v2 (S55)",
+    "package": "memspine.read",
+    "file": "src/memspine/read/deep.py; read/pipeline/deep.py:_deep_extend"
+   }
+  ],
+  "gap": "(a) Reader: the clauses that commit are not gated by shape; grounded_v2 regressed (81.5 vs 86.7, 5 gained / 17 lost) because a yes/no rule leaked into when/what answers. (b) Retrieval: 28 answers have no gold turn in any leg because the evidence is indirect (an activity implying a preference). True HyDE leg not built.",
+  "proposal": "read.inference_mode: when the contract says request=inference, append a commit-first clause with a one-line reason that cites a memory line (other shapes keep grounded byte-identical; answer marked inferred in the render; checker drops an answer citing a missing line). Probes: planner v2 restricted to inference reads yields 2 subqueries naming activities or traits that imply each option; rule fallback '{person} {option noun}' from the 'A or B' structure; fused as RRF legs.",
+  "plug_in": "compose/reader prompt selection by contract; read spine probes (router) before the pool cut",
+  "model_calls": "prompt: 0; probes: 1 planner call per inference-shaped read (about 5% of reads)",
+  "locomo_targets": {
+   "count": 54,
+   "extra": 14,
+   "classes": {
+    "inference_open_domain": 26,
+    "open_domain_inference_retrieval": 28,
+    "refusal_premise_denial (partly)": 14
+   }
+  },
+  "measurements": [
+   {
+    "what": "open-domain category",
+    "value": "96 (55 wrong, 57%)",
+    "method": "measured"
+   },
+   {
+    "what": "wrong answers in a refusal/'not mentioned' form",
+    "value": "28 over all categories, 14 inside open-domain wrong",
+    "method": "heuristic regex on the answer text"
+   },
+   {
+    "what": "inference-stem questions (would, likely, might, prefer ...)",
+    "value": "71 (28 wrong, 39%)",
+    "method": "heuristic regex"
+   },
+   {
+    "what": "gold in neither leg's top 60",
+    "value": "200 (96 wrong, 48%); 25 of them open_domain_inference_retrieval",
+    "method": "measured"
+   }
+  ],
+  "other_benchmarks": "High: PrefEval is the same task, ConvoMem implicit-connection/preference, OP-Bench sycophancy/diversity. Opposite risk on OP-Bench irrelevance probes (over-committing); guard with gate_v2, cat-5 slice and OP-Bench dev 60; average-led adoption rule.",
+  "effort": "S (prompt) + S (probes)",
+  "risk": "Moderate: over-commitment; mitigated by contract gate, citation check, inferred label.",
+  "priority": "P1",
+  "test_plan": "Model-free: contract classifies 'Would Noor prefer a national park or a theme park?' as inference; prompt builder returns the clause for it and the unchanged grounded text for a 'when did' question (golden hash); rule probe yields two probes; checker drops an answer citing line 99 of 5. Slices fail_reader, fail_retrieval, cat-5 guard, OP-Bench dev 60.",
+  "proposed_flag": "read.inference_mode",
+  "proposed_screen": "S73 (prompt), S74 (probes)"
+ },
+ {
+  "id": "OBS-07",
+  "title": "Session and window summaries",
+  "capability": "Multi-resolution, topic-labelled summaries that lift to member turns",
+  "status": "built-off (screens queued; S33 fired zero calls)",
+  "existing": [
+   {
+    "key": "write.window_extract=all (episode section: title, summary, narrative, topics) (S61)",
+    "package": "memspine.prompts",
+    "file": "src/memspine/prompts/defaults/window_extract.yaml"
+   },
+   {
+    "key": "offline.session_close_v2 (O4-02; S33; fires only from the window machinery)",
+    "package": "memspine.derive",
+    "file": "src/memspine/derive/session_close.py:plan_session_close"
+   },
+   {
+    "key": "read.episode_leg_v2 (R3-05c; S31, S61)",
+    "package": "memspine.read",
+    "file": "src/memspine/read/legs/episode.py:EpisodeLeg; read/pipeline/lift.py:323"
+   },
+   {
+    "key": "consolidation.reflect_profile + read.profile_header_packing (S01)",
+    "package": "memspine.memories",
+    "file": "arm scr-gc9-summary-jina"
+   },
+   {
+    "key": "offline.communities_v2 (S40), decay_v2 multi-resolution (S47), read.session_digest (N31)",
+    "package": "memspine.derive",
+    "file": "src/memspine/derive/communities.py; derive/decay.py"
+   }
+  ],
+  "gap": "No window stride/overlap (segmentation: 'no overlap and no gap in NEW lines'); CONTEXT is a read-only coreference aid; topic is not required on every summary; nothing measured.",
+  "proposal": "write.window_overlap_turns (default 0): windows of size N advance by N-overlap; overlapping turns eligible in both windows, evidence deduped by write_id; add topic (lower-case plural class) to the episode and session-summary schemas and use it as a view tag (view_tag_leg). Decide the overlap only after S31/S33/S61 show the episode leg finds evidence the turn legs miss.",
+  "plug_in": "segmenter (LIB-14), episode section schema, sleep summary job",
+  "model_calls": "windows of 4 stride 3: 1958 on the dataset vs 1095 for 6/6; session level: 272",
+  "locomo_targets": {
+   "count": 59,
+   "classes": {
+    "list_aggregation_generic": 26,
+    "open_domain_inference_retrieval": 12,
+    "list_incomplete": 6,
+    "wrong_detail": 5,
+    "multi_evidence_recall": 2,
+    "count_wrong": 2,
+    "other": 6
+   }
+  },
+  "measurements": [
+   {
+    "what": "gold in >=3 sessions",
+    "value": "129 (59 wrong)",
+    "method": "measured"
+   },
+   {
+    "what": "gold in >=3 turns",
+    "value": "187 (79 wrong)",
+    "method": "measured"
+   }
+  ],
+  "other_benchmarks": "Helps long topic-drifting logs (BEAM, ConvoMem); hurts precision if summaries displace raw turns, hence lift-to-turns. Low overfitting risk.",
+  "effort": "S",
+  "risk": "Summary drift; episodes are grounded to cited lines and written as close paraphrase.",
+  "priority": "P2",
+  "test_plan": "Model-free: size 4 overlap 1 gives [1-4],[4-7],[7-10]; each turn deposited once; a fact citing turn 4 gets one write id. Slices fail_retrieval, fail_list.",
+  "proposed_flag": "write.window_overlap_turns",
+  "proposed_screen": "S75"
+ },
+ {
+  "id": "OBS-08",
+  "title": "Link new turns to older facts; synonym and paraphrase query expansion",
+  "capability": "Backreference linking at write and multi-probe paraphrase retrieval at read",
+  "status": "partial (all probes built-off, no screen; HyDE leg not built)",
+  "existing": [
+   {
+    "key": "read.planner=llm v2|v3; read.compose_rewrites; read.statement_probe; read.prf_expansion; read.multi_intent_split; read.bridge_hop; read.second_round; read.cluster_expand",
+    "package": "memspine.read",
+    "file": "src/memspine/read/pipeline/router.py; compose/pipeline/windows.py:218; prompts/defaults/query_rewrite.yaml (HyDE passage prompt, no leg)"
+   },
+   {
+    "key": "semantic embedder (Qwen3-Embedding-0.6B + query instruction) (ref)",
+    "package": "memspine.config",
+    "file": "evals/arms/scr-pool-protect-jina.json"
+   },
+   {
+    "key": "write.lineage_table (F-16a); fact_projection (source-turn edge)",
+    "package": "memspine.derive",
+    "file": "src/memspine/derive/write.py"
+   }
+  ],
+  "gap": "No rule paraphrase/synonym probe, no HyDE leg, no backreference detection or refers_to edge; measurements show lexical mismatch is not the failure driver where the vector leg finds the gold.",
+  "proposal": "read.paraphrase_probes: up to 2 probes per read (planner-v2 subqueries when bound, else rules: statement form + closed verb-synonym swaps), fused as RRF legs at weight 0.5. write.backref_link: rule-detect a backreference phrase, retrieve the best two earlier turns of the same pair by the embedding of the noun phrase after it, write a refers_to lineage edge above a calibrated floor; the antecedent rides with the hit.",
+  "plug_in": "read spine probes (router) ; write path after stamping",
+  "model_calls": "0 by rules; 1 per read with the planner; backref: 1 vector query per backreference turn, 0 model calls",
+  "locomo_targets": {
+   "count": 10,
+   "extra": 17,
+   "classes": {
+    "vocabulary_mismatch_recall": 4,
+    "implicit_or_paraphrased_gold": 4,
+    "lexical_outranked_recall": 2,
+    "backreference gold (any class)": 17
+   }
+  },
+  "measurements": [
+   {
+    "what": "gold found by vector top10 but not BM25 top10",
+    "value": "484 (100 wrong, 20.7%, about the 18.6% base rate)",
+    "method": "measured"
+   },
+   {
+    "what": "gold found by BM25 but not vector",
+    "value": "133 (35 wrong, 26%)",
+    "method": "measured"
+   },
+   {
+    "what": "gold in neither leg top 60",
+    "value": "200 (96 wrong, 48%)",
+    "method": "measured"
+   },
+   {
+    "what": "zero content-word overlap question vs every gold turn",
+    "value": "271 (81 wrong, 30%)",
+    "method": "heuristic stem overlap"
+   },
+   {
+    "what": "gold turns that are back-references",
+    "value": "54 (17 wrong)",
+    "method": "heuristic regex"
+   }
+  ],
+  "other_benchmarks": "PrefEval implicit form and ConvoMem benefit (request never uses the preference's words); risk of extra injection on OP-Bench irrelevance probes, guarded by gate_v2. English-only verb list: language_guard.",
+  "effort": "S (probes) to M (backref)",
+  "risk": "Low; probe noise bounded by weight and gate.",
+  "priority": "P3",
+  "test_plan": "Model-free: a question with 'suggest' yields a probe with 'recommended'; probe weight 0.5 in the fused output; backref detector fires on an invented 'book you suggested' turn and not on its negative list. Slices fail_retrieval, fail_fusion.",
+  "proposed_flag": "read.paraphrase_probes (+ write.backref_link)",
+  "proposed_screen": "S76"
+ },
+ {
+  "id": "OBS-09",
+  "title": "Plural and pronoun enrichment",
+  "capability": "Referent annotation on facts (who 'they' and 'we' are, with a count for groups)",
+  "status": "partial",
+  "existing": [
+   {
+    "key": "window_extract rule 3 (never write he/she/they), persons field",
+    "package": "memspine.prompts",
+    "file": "src/memspine/prompts/defaults/window_extract.yaml"
+   },
+   {
+    "key": "write.prompt_v2 KNOWN entities and CONTEXT",
+    "package": "memspine.derive",
+    "file": "src/memspine/derive/prompt_context.py"
+   },
+   {
+    "key": "kin/possessive binding (I54, implemented)",
+    "package": "memspine.core",
+    "file": "src/memspine/core/rule_miner.py"
+   },
+   {
+    "key": "write.prepass hints",
+    "package": "memspine.derive",
+    "file": "src/memspine/derive/prepass.py"
+   }
+  ],
+  "gap": "A group referent ('the kids') has no field: persons lists named people only; 'we' resolves to speaker plus unknown; unmeasured.",
+  "proposal": "referents: [{surface, resolves_to, kind, count, source_turns}] on the restate item, required only for gate-flagged pronouns; grounding requires resolves_to and count to occur in cited or CONTEXT lines else the referent is dropped; render '[they = the kids (2)]' as an annotation beside the line, stored text unchanged.",
+  "plug_in": "inside the OBS-03 restate stage (item schema + renderer)",
+  "model_calls": "0 beyond the OBS-03 call",
+  "locomo_targets": {
+   "count": 2,
+   "upper_bound": 18,
+   "classes": {
+    "list_incomplete": 1,
+    "wrong_detail": 1
+   }
+  },
+  "measurements": [
+   {
+    "what": "turns with a plural pronoun and no named antecedent",
+    "value": "103",
+    "method": "heuristic"
+   },
+   {
+    "what": "questions with such a gold turn",
+    "value": "27 (2 wrong)",
+    "method": "heuristic"
+   },
+   {
+    "what": "turns with an unresolved third-person pronoun",
+    "value": "346; gold questions 100 (18 wrong)",
+    "method": "heuristic"
+   },
+   {
+    "what": "turns using we/us/our",
+    "value": "1010 (17.2%)",
+    "method": "heuristic (referent ambiguous by nature)"
+   }
+  ],
+  "other_benchmarks": "More value for small readers and multi-party logs (family, team) than for a 9B on two-person logs; low overfitting risk, low gain here.",
+  "effort": "S (inside OBS-03)",
+  "risk": "A wrong referent is a visible error; grounding and drop-on-doubt bound it.",
+  "priority": "P3",
+  "test_plan": "Model-free: fake item 'they were scared' with CONTEXT 'Ilse's two children' passes; referent naming absent Bram fails; render golden test. Slice fail_context.",
+  "proposed_flag": "write.restate_referents",
+  "proposed_screen": "S70b (variant inside S70)"
+ },
+ {
+  "id": "OBS-10",
+  "title": "Multi-entity and multi-hop questions as map-reduce",
+  "capability": "Query decomposition with per-entity retrieval quotas and deterministic combine operators",
+  "status": "partial (retired: slot loop, fact chain; built-off, unscreened: agentic query loop, planner v3 persons)",
+  "existing": [
+   {
+    "key": "read.multi_intent_split (G34; discourse markers only)",
+    "package": "memspine.models.encoders.query",
+    "file": "src/memspine/models/encoders/query/shape.py:split_intents"
+   },
+   {
+    "key": "read.planner=llm v3 persons + person_time_leg_k",
+    "package": "memspine.read",
+    "file": "src/memspine/prompts/defaults/plan@v3.yaml; read/pipeline/router.py"
+   },
+   {
+    "key": "read.agentic (I67; trigger multi_hop) ; agentic_mode=slot and read.fact_chain RETIRED",
+    "package": "memspine.core",
+    "file": "src/memspine/core/agentic.py; config/flags.py:126"
+   },
+   {
+    "key": "read.deep_v2 + read.obligations (R3-12/R3-16; join, compare, count, list, order; S55, S56, S63)",
+    "package": "memspine.read",
+    "file": "src/memspine/read/obligations.py; read/pipeline/deep.py"
+   },
+   {
+    "key": "harness --count-verify, --evidence-table, --verify-slots (no screen)",
+    "package": "evals",
+    "file": "evals/memspine_evals/count_verify.py; evidence_table.py; slot_verify.py"
+   },
+   {
+    "key": "read.list_mode (ref)",
+    "package": "memspine.read",
+    "file": "src/memspine/config/schema/read.py:681"
+   }
+  ],
+  "gap": "No decomposition into per-entity sub-questions and no combine step: one pooled search for a two-person question is dominated by the better-covered entity; the agentic loop searches again but has no entity quota or combine rule.",
+  "proposal": "read.decompose_v2: (1) rule detection (>=2 targets that are participants or known entities plus a set operator, comparison, per-entity count or before/after; shared-event verbs without an operator are not decomposed); (2) map: one sub-read per entity with a person filter and an equal token quota, cap 3, parallel, one shared rerank pass; (3) reduce in code: evidence table (entity, value, source line, date) and operators intersection, union, difference, compare, count (distinct merged events), before/after; reader answers from the table; (4) a missing operand reports which entity lacks evidence (obligations hole).",
+  "plug_in": "read spine after the request/contract stage and before the pool cut (router); combine in compose",
+  "model_calls": "0 extra for detection and map; 1 reader call as today; optional planner v3 persons +1",
+  "locomo_targets": {
+   "count": 43,
+   "upper_bound": 55,
+   "classes": {
+    "wrong_detail": 11,
+    "list_aggregation_generic": 11,
+    "open_domain_inference_retrieval": 7,
+    "fusion_loss_lexical_only": 4,
+    "gold_error": 4,
+    "other": 18
+   }
+  },
+  "measurements": [
+   {
+    "what": "questions naming both speakers",
+    "value": "149 (48 wrong)",
+    "method": "heuristic regex over speaker names"
+   },
+   {
+    "what": "questions with a set-operation word",
+    "value": "82 (22 wrong)",
+    "method": "heuristic regex (both, in common, same, share, together, either, neither)"
+   },
+   {
+    "what": "either of the above",
+    "value": "195 (55 wrong): single-hop 25, multi-hop 18, open-domain 9, temporal 3",
+    "method": "heuristic; over-counts single-event questions"
+   },
+   {
+    "what": "how-many questions",
+    "value": "37 (21 wrong, 57%)",
+    "method": "heuristic regex"
+   },
+   {
+    "what": "multi-hop category wrong",
+    "value": "94",
+    "method": "measured"
+   }
+  ],
+  "other_benchmarks": "Rare in single-user logs (BEAM, ConvoMem); common in multi-party logs and MAB-CR multi-hop. Operator vocabulary is English: language_guard. Moderate overfitting risk for the vocabulary; the retired slot loop is the warning, so the first step is the 0-call version.",
+  "effort": "M",
+  "risk": "Entity extraction errors from the question; latency of n sub-reads (cap 3, shared rerank); no hallucination path since the table quotes source lines.",
+  "priority": "P1",
+  "test_plan": "Model-free: detector on 'Which city have both Bram and Ilse visited?' -> intersection of two entity reads; 'What did Bram and Ilse do together?' -> not decomposed; operators on small tables (intersection, union, difference, count merges one event on one date, before/after); entity-quota test. Slices fail_list plus new fail_multi (43).",
+  "proposed_flag": "read.decompose_v2",
+  "proposed_screen": "S77"
+ },
+ {
+  "id": "OBS-11",
+  "title": "Dates on facts and context",
+  "capability": "Event-time and said-time on every fact and context line, with precision and basis",
+  "status": "partial",
+  "existing": [
+   {
+    "key": "read.resolve_relative_dates, relative_dates_anchored, resolve_durations, order_by_time_for_ordering, temporal_leg_mentions ; [date] prefix (ref)",
+    "package": "memspine.models.encoders.query",
+    "file": "src/memspine/models/encoders/query/temporal_resolve.py; compose/pipeline/render.py"
+   },
+   {
+    "key": "write.temporal_v2 (W2-14 anchor ladder; S62 on fail_temporal)",
+    "package": "memspine.derive",
+    "file": "src/memspine/derive/temporal.py; temporal_stage.py"
+   },
+   {
+    "key": "read.timeview_v2 (R3-14; S24), temporal_relative, temporal_infer_year, temporal_leg_event_dates",
+    "package": "memspine.read",
+    "file": "src/memspine/read/timeview.py"
+   },
+   {
+    "key": "read.span_line (N10); harness --duration-solve, --milestones, --date-repair (no screen)",
+    "package": "evals",
+    "file": "evals/memspine_evals/duration_solve.py; milestones.py; date_repair.py"
+   }
+  ],
+  "gap": "For a non-relative event the only date on a line is the said-date; the happened-date is a read-time annotation on relative phrases and is lost once the line leaves context; event time lives on the extracted fact, not on the turn the reader sees; cross-fact ordering by event time is best effort.",
+  "proposal": "Fold into OBS-02/03: the restate item carries happened (ISO, precision, basis explicit|relative|inferred|unknown) from the existing anchor ladder; render '[said d1 | happened d2]' for restated lines and the raw line plus [= date] otherwise; read.timeline_block: a compact sorted event list for questions whose contract time view is order or duration (span_line generalised to n events).",
+  "plug_in": "window envelope stage 100 (existing) + renderer; compose header",
+  "model_calls": "0 extra",
+  "locomo_targets": {
+   "count": 33,
+   "upper_bound": 54,
+   "classes": {
+    "date_duration_arithmetic": 10,
+    "temporal_evidence_missing": 14,
+    "date_wrong_event": 8,
+    "date_offset_small": 1
+   }
+  },
+  "measurements": [
+   {
+    "what": "temporal-category questions",
+    "value": "321 (54 wrong, 16.8%)",
+    "method": "measured"
+   },
+   {
+    "what": "temporal wrong with a relative-time gold turn",
+    "value": "40 of 54",
+    "method": "heuristic regex"
+   },
+   {
+    "what": "reader-side date/duration (d:dar) / refusal in temporal (d:ref)",
+    "value": "19 / 10",
+    "method": "measured (classifier stage)"
+   }
+  ],
+  "other_benchmarks": "Matters wherever timestamps exist (BEAM temporal, MAB-CR ordering, LoCoMo-Plus); ConvoMem and PrefEval have none (skip). The 'week before' convention is LoCoMo's own: keep it behind relative_dates_anchored.",
+  "effort": "S (inside OBS-02)",
+  "risk": "Wrong happened-date shown with authority; precision and basis shown in the render.",
+  "priority": "P2",
+  "test_plan": "Model-free: LIB-01 tests plus a golden render of the two-clock line; ordering test on a three-event table. Slice fail_temporal.",
+  "proposed_flag": "write.restate_v2 (renders happened); read.timeline_block",
+  "proposed_screen": "S70 (shared), S78"
+ }
+]
