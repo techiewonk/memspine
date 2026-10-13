@@ -188,7 +188,7 @@ WP = [
     ("RT-02", 1, "Executors, priority classes, global model semaphore, backpressure (coalesce, never drop)", ["P-20", "W-25", "P-21"], ["RT-01"], "behaviour",
      "Load test: reads keep p95 under background load; no dropped work", "Not started", "Async core; GPU encoders micro-batched in dedicated executors"),
     ("F-16a", 1, "Lineage table and the single derived-write door (layer, parents, trust cap, fingerprint)",
-     ["M-09", "G-08"], ["RT-02"], "behaviour", "Every L1-L5 writer goes through the door; erasure contract test registered", "In progress", "Foundations: lineage table + single derived-write door (agent running)"),
+     ["M-09", "G-08"], ["RT-02"], "behaviour", "Every L1-L5 writer goes through the door; erasure contract test registered", "Needs measurement", "Lineage table (0006_lineage) + write door, flag write.lineage_table off; 7 derived sites routed; procedural lessons + event-appending summaries not yet routed (d858924)"),
     ("F-16b", 1, "Event upcasters and migration by replay of the retained log (limited rebuild advertised)", ["M-01", "M-26", "G-23"], ["F-16a"], "migration", "v1 log replays byte-stably", "Not started", ""),
     ("F-16c", 1, "Stable memory scope in every key (session as provenance); viewer required on every multi-party read, bound to the authenticated principal", ["M-05", "G-12"], ["F-16a"], "behaviour",
      "Isolation probes", "Not started", ""),
