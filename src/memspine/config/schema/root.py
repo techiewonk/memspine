@@ -16,6 +16,7 @@ from memspine.config.schema.llm import (
     WorkersConfig,
 )
 from memspine.config.schema.observability import ObservabilityConfig
+from memspine.config.schema.offline import OfflineConfig
 from memspine.config.schema.privacy import AuditConfig, ConsentConfig, RetentionConfig
 from memspine.config.schema.read import ReadConfig
 from memspine.config.schema.rest import RestConfig
@@ -69,6 +70,7 @@ class MemspineConfig(BaseModel):
     llm: LLMConfig = Field(default_factory=LLMConfig)
     read: ReadConfig = Field(default_factory=ReadConfig)
     write: WriteConfig = Field(default_factory=WriteConfig)
+    offline: OfflineConfig = Field(default_factory=OfflineConfig)
     ingest: IngestConfig = Field(default_factory=IngestConfig)
     decision: DecisionConfig = Field(default_factory=DecisionConfig)
     integrity: IntegrityConfig = Field(default_factory=IntegrityConfig)

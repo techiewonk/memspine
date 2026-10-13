@@ -438,6 +438,14 @@ class ReadConfig(BaseModel):
     #: user stated, never as system instructions. Deterministic cue rules.
     standing_instructions: bool = False
     standing_min_trust: float = Field(default=0.7, ge=0.0, le=1.0)
+    #: O4-08 (LIB-32, opt-in L5): lead the context with the precomputed standing answers the
+    #: ``offline.standing_v2`` sleep stage stored, for the topic entities of the retrieved keyed
+    #: facts, plus the guarded standing instructions (only when ``standing_instructions`` is off,
+    #: which keeps its own block). A stale answer (its fact group changed since the build) is never
+    #: shown; the reader falls back to live evidence. Read-only: nothing is written at read time.
+    standing_v2: bool = False
+    #: O4-08: words the standing-answer block may use.
+    standing_answers_budget: int = Field(default=120, ge=10)
     #: N18 (plan v3.2): the standing-preference cues. ``narrow`` (unchanged): requests
     #: aimed at the assistant ("from now on", "please always", "call me").
     #: ``wide``: also first-person evaluative forms ("I avoid / can't stand / am

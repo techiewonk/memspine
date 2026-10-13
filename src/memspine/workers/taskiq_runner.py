@@ -79,6 +79,8 @@ PIPELINE_PRIORITIES: dict[str, int] = {
     "project_facts": 4,  # E01: right after mine_facts (opt-in stage)
     "anticipate": 5,  # H8: cues right after their session is consolidated
     "reflect_profile": 6,  # H14: profile insights right after their session
+    "pattern_observations": 6,  # O4-05: opt-in L4 observations over the fresh facts
+    "standing_answers": 6,  # O4-08: opt-in L5 standing answers after the observations
     "extract_graph": 7,  # C2: LLM edges before communities form over them
     "rule_edges": 8,  # W12: rule edges right after the LLM ones (opt-in stage)
     "summarize_entities": 9,  # GP-6: entity summaries over the fresh facts

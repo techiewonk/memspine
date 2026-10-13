@@ -24,11 +24,13 @@ from memspine.workers.runner import TaskRunner
 _log = get_logger(__name__)
 
 __all__ = [
+    "PATTERN_OBSERVATIONS_STAGE",
     "PREDICT_CALIBRATE_STAGE",
     "PROJECT_FACTS_STAGE",
     "RETENTION_STAGE",
     "RULE_EDGES_STAGE",
     "SLEEP_CYCLE_ORDER",
+    "STANDING_ANSWERS_STAGE",
     "run_sleep_cycle",
 ]
 
@@ -77,6 +79,12 @@ RULE_EDGES_STAGE = "rule_edges"
 PROJECT_FACTS_STAGE = "project_facts"
 
 
+#: O4-05 (``offline.patterns_v2``) and O4-08 (``offline.standing_v2``): run right after
+#: ``reflect_profile``, in that order, and only when their flag is on (default cycle unchanged).
+PATTERN_OBSERVATIONS_STAGE = "pattern_observations"
+STANDING_ANSWERS_STAGE = "standing_answers"
+
+
 def _predict_calibrate_on(ctx: PipelineContext) -> bool:
     mem = ctx.config.memories.get("episodic")
     options = mem.policies.get("consolidation") if mem is not None else None
@@ -94,6 +102,13 @@ async def run_sleep_cycle(runner: TaskRunner, ctx: PipelineContext) -> dict[str,
     if rule_edges_options(ctx.config) is not None:
         at = order.index("extract_graph") + 1
         order = (*order[:at], RULE_EDGES_STAGE, *order[at:])
+    if ctx.config.offline.patterns_v2:
+        at = order.index("reflect_profile") + 1
+        order = (*order[:at], PATTERN_OBSERVATIONS_STAGE, *order[at:])
+    if ctx.config.offline.standing_v2:
+        after = PATTERN_OBSERVATIONS_STAGE if ctx.config.offline.patterns_v2 else "reflect_profile"
+        at = order.index(after) + 1
+        order = (*order[:at], STANDING_ANSWERS_STAGE, *order[at:])
     if ctx.config.retention.classes:
         order = (RETENTION_STAGE, *order)
     stats: dict[str, dict[str, object]] = {}

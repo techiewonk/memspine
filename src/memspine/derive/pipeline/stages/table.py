@@ -15,10 +15,12 @@ from memspine.derive.pipeline.stages.maintenance import (
     sleep_compute,
 )
 from memspine.derive.pipeline.stages.mining import mine_facts, project_facts
+from memspine.derive.pipeline.stages.patterns import pattern_observations
 from memspine.derive.pipeline.stages.predict import predict_calibrate
 from memspine.derive.pipeline.stages.reflect import reflect_profile
 from memspine.derive.pipeline.stages.retention import event_log_prune, retention_expire
 from memspine.derive.pipeline.stages.rule_edges import rule_edges
+from memspine.derive.pipeline.stages.standing import standing_answers
 from memspine.derive.pipeline.stages.watches import check_watches
 
 #: Name -> pipeline. Runners register from this table; the M11-adjacent names
@@ -35,6 +37,8 @@ PIPELINES: dict[str, Pipeline] = {
     "predict_calibrate": predict_calibrate,
     "anticipate": anticipate,
     "reflect_profile": reflect_profile,
+    "pattern_observations": pattern_observations,
+    "standing_answers": standing_answers,
     "check_watches": check_watches,
     "session_lifecycle": session_lifecycle,
     "decay_sweep": decay_sweep,
