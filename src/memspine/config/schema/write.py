@@ -104,6 +104,25 @@ class WriteConfig(BaseModel):
     #: ``False`` (default): the old fact section.
     envelope_v2: bool = False
 
+    #: W2-08 (W-17, W-08; LIB-03): grounding stage over the compiled envelopes (needs ``envelope_v2``;
+    #: envelope-stage order 200). Per assertion it locates the supporting span in the cited lines and
+    #: writes the offsets onto the evidence, runs the rule checks (cited turns exist; number, unit,
+    #: date and name appear in the span; negation and modality preserved; the speaker matches the
+    #: asserter), settles what the rules cannot decide with the adjudicator, and promotes an
+    #: assistant proposal to ``user_confirmed`` only on a real user yes on the next line. An ungrounded
+    #: assertion is dropped or marked tentative (``ground_action``) with a reason code counted in the
+    #: window stats (``ground.dropped.<code>``). Taps ``write.ground.*``. ``False`` (default): the
+    #: compiled envelopes are deposited as they are.
+    grounding_v2: bool = False
+    #: W2-08: what happens to an assertion the checks find unsupported or only partly supported:
+    #: ``drop`` it, or keep it ``tentative`` (never promoted, never superseding).
+    ground_action: Literal["drop", "tentative"] = "drop"
+    #: W2-08: who settles the assertions the rules leave ``undecided``. ``lexical``: word overlap
+    #: (accepts at high coverage, rejects only same-language text with almost none). ``decider``:
+    #: the OpenDecider ``grounded`` task first (``read.decider``, CPU unless set otherwise), lexical
+    #: when it is unsure or unavailable. ``off``: stays ``uncertain`` (kept).
+    ground_adjudicator: Literal["lexical", "decider", "off"] = "lexical"
+
     #: F-16a (M-09, G-08, POL-2): the lineage table and the single derived-write door. ``True``:
     #: every derived record written through ``derive/write.py`` gets one lineage edge per parent
     #: (``support`` unless the site names a role), its trust capped at the least-trusted parent, a

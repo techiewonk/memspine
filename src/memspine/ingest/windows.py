@@ -16,6 +16,7 @@ from memspine.config.schema import MemspineConfig
 from memspine.core.window import WindowSettings
 from memspine.derive.envelope_compiler import EnvelopeCompiler
 from memspine.derive.failure_ledger import FailureLedger
+from memspine.derive.grounding_stage import build_grounding_stage
 from memspine.derive.items import ItemValidator, RepairAsk
 from memspine.derive.pipeline.stages.close import session_close
 from memspine.derive.pipeline.stages.context import SessionClosed
@@ -198,6 +199,8 @@ def _envelope_stages(eng: Any, config: MemspineConfig) -> tuple[Any, ...]:
     """W2-06c: the post-compile stage list. Each W2 package appends ONE builder line here, gated
     on its own flag (see ``derive/envelope_stages.py`` for the order)."""
     stages: list[Any] = []
+    if config.write.grounding_v2:
+        stages.append(build_grounding_stage(eng, config))
     return tuple(stages)
 
 
