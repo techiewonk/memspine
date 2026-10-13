@@ -148,3 +148,33 @@ Today: `tests/unit` 6,944 tests in 446 files, `evals/tests` 1,548, about 11 min 
 - No test, benchmark or model was run, so every cost figure is an estimate from code paths and the documented measurements, and the "probably inert" labels (#6) need the forensic diff to confirm.
 - The ledger shows only B1 and part of B2. B5 rows, S17-S27 and S29 have no results yet, so nothing is said about their effect.
 - Postgres, Neo4j and live Redis paths were not exercised here (see `MILESTONES.md` for what ran).
+
+## 8. R14 additions (2026-10-14)
+
+Findings from the R14 deep dive (retrieval, reader, judge, literature, engines, owner observations) added to this audit. `R14` = new; `R14-confirmed` = strengthens an existing finding or gap. Full text: `docs/v2/research/R14_MASTER.md`.
+
+| Master id | Tag | Finding | Relation | Effort | Priority | Next action |
+|---|---|---|---|---|---|---|
+| R14-M-3 | R14-confirmed | Fusion and rerank cut loss: ranked gold discarded when legs are fused into a small pool | confirms B7, B9, B10, I75, I78, R02 | S | P1 | screen only: offline CPU re-fusion from forensics first (no run) |
+| R14-M-7 | R14-confirmed | Explicit-date questions: the date is treated as ordinary words, no session-date prior at fusion | confirms B4, I8 | S | P1 | CPU replay first: S87 date_prior (CPU re-fusion first) |
+| R14-M-1 | R14-confirmed | Multi-evidence recall: fixed depth, no coverage objective, weak aggregation trigger | confirms B1, I4, I28, I56, R01 | S | P1 | CPU replay first: S79 trigger + coverage (CPU first, offline over forensics) |
+| R14-M-17 | R14-confirmed | Judge false negatives after the date guard: superset lists, annotation equivalence, containment | confirms A2, I58, I77 | S | P1 | screen only: S96 judge conventions v3 (re-score stored answers, no retrieval) |
+| R14-M-18 | R14-confirmed | Judge false positives and the honest headline: partial lists credited, 81.4 is not 81.4 | confirms A1, A3, A10, A13 | S | P1 | screen only: S97 triple-column re-score of stored answers (reference run plus last two full runs) |
+| R14-M-8 | R14-confirmed | Date and duration arithmetic done by the 9B reader; event dates lack precision and status | confirms C5, I57, I76, I79, E05 | S | P1 | screen only: S88 duration_solve + milestones (built-off, needs a screen only) |
+| R14-M-9 | R14-confirmed | Over-refusal and premise denial: no typed commit route for judgement questions | confirms C3, C4, C10, I1, I61 | S | P1 | screen only: S73 prompt, S74 probes (OBS-GAPS) |
+| R14-M-10 | R14-confirmed | Wrong detail and distractor use; one window size for every question shape | confirms C1, C2, C9, I6, R2-4 | M | P1 | build then screen: S90 quote-then-answer |
+| R14-M-11 | R14-confirmed | List and count completeness: partial lists, over-counted events, 'at least N' | confirms C6, I56 | S | P1 | screen only: S93 evidence_table / two_call |
+| R14-M-14 | R14-confirmed | Verbosity against a short gold: answer length follows difficulty, the lever is an output contract | confirms READER_GAPS_FORENSIC 0.4, SOL-CONTRACT | S | P2 | screen only: S06, S11 (queued) |
+| R14-M-19 | R14-confirmed | Gold errata, sibling evidence, id hygiene and retrieval metrics that overstate success | confirms A5, A12, I24, I62, A16 | S | P2 | CPU replay first: S98 support-recall report (CPU, no run) |
+| R14-M-2 | R14-confirmed | Cross-session spread: turn-level, session-agnostic retrieval; summaries and episodes as legs | confirms B8, SOL-EPISODE, SOL-GRAPH | M | P2 | build then screen: S81 session_cover |
+| R14-M-5 | R14-confirmed | Elliptical and context-dependent turns: decontextualisation and an index view | confirms A07, I6, B12 | M | P2 | CPU replay first: S85 exchange_records (CPU simulation first) |
+| R14-M-12 | R14 | Multi-turn join and multi-entity decomposition at read | new | M | P2 | build then screen: S94 reader-side join (after S77) |
+| R14-M-13 | R14-confirmed | Ungrounded answers: new content words appear nowhere in the context | confirms SOL-VERIFY, defect_diagnosis | S | P2 | screen only: S95 slot_verify diagnosed |
+| R14-M-4 | R14-confirmed | Lexical-zero and paraphrase gold: surface form is the strongest predictor of a miss | confirms B2, B5, B6, B15 | M | P2 | build then screen: S84 doc expansion |
+| R14-M-6 | R14-confirmed | Indirect gold for judgement questions: evidence describes behaviour, never the question's words | confirms B3, C3, C4 | M | P2 | build then screen: S86 evidence_kind_probes |
+| R14-M-20 | R14-confirmed | Profile and attribute state with history; knowledge update; destructive edits | confirms G-W4, S34 S42 S46 | M | P2 | build then screen: S99 known_keys (after S34/S42) |
+| R14-M-21 | R14-confirmed | Entity aliasing and link tables: seed-to-neighbour expansion without per-session LLM graph builds | confirms I54 (kin resolution), SOL-GRAPH | M | P3 | build then screen: S100 link_table |
+| R14-M-15 | R14-confirmed | Image captions: misattributed or photo-only evidence | confirms C7, E04 | S | P3 | build then screen: S72 (OBS-GAPS) |
+| R14-M-16 | R14 | Speaker attribution: wrong-speaker answers are rare, but swapped-speaker golds penalise correct attribution | new | S | P3 | CPU replay first: no new screen |
+
+Audit-level conclusions from R14: (1) several 'built, no screen' flags (duration_solve, milestones, evidence_table, slot_verify diagnosed, the inference reader variants) are the cheapest wins and need only a screen; (2) the 81.4% headline is about 80.5% after judge errors, so multi-hop gains under 5 points need the strict column; (3) reader position reordering needs no further screen at this context length.

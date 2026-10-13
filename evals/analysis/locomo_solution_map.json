@@ -3901,5 +3901,734 @@
    "gap": "no_screen_for_built_solution",
    "detail": "built primary solutions exist but none has a v2 screen id"
   }
- ]
+ ],
+ "r14_additions": {
+  "note": "R14 (2026-10-14) master items, text-free; hypotheses not measurements. Source docs/v2/research/R14_MASTER.md. Not produced by build_locomo_solution_map.py; re-add after regeneration.",
+  "items": [
+   {
+    "id": "R14-M-1",
+    "tag": "R14-confirmed",
+    "title": "Multi-evidence recall: fixed depth, no coverage objective, weak aggregation trigger",
+    "layer": "retrieval",
+    "confirms": "B1, I4, I28, I56, R01",
+    "priority": "P1",
+    "effort": "S",
+    "rank": 3,
+    "targeted_q": 55,
+    "solutions": [
+     {
+      "name": "Score-profile aggregation trigger",
+      "flag": "read.list_mode_trigger_v2 (new)",
+      "cost": "0"
+     },
+     {
+      "name": "Coverage-aware selection",
+      "flag": "read.coverage_select (new)",
+      "cost": "0"
+     },
+     {
+      "name": "Missing-slot second retrieval",
+      "flag": "read.agentic_mode=slot / read.deep_v2 (existing)",
+      "cost": "1-2 calls on about 12-18% of questions"
+     }
+    ],
+    "slice": "fail_list (+ 60 matched n_gold>=3 correct as guard)",
+    "screen": "S79 trigger + coverage (CPU first, offline over forensics); S80 second-retrieval bounded",
+    "expected_effect": {
+     "label": "hypothesis",
+     "text": "10-20 of 55 recovered (hypothesis); reader ceiling on cat1 given all gold is 75.5%, so recovery is capped at about 0.75 of the retrieval gain"
+    }
+   },
+   {
+    "id": "R14-M-2",
+    "tag": "R14-confirmed",
+    "title": "Cross-session spread: turn-level, session-agnostic retrieval; summaries and episodes as legs",
+    "layer": "retrieval",
+    "confirms": "B8, SOL-EPISODE, SOL-GRAPH",
+    "priority": "P2",
+    "effort": "M",
+    "rank": 12,
+    "targeted_q": 43,
+    "solutions": [
+     {
+      "name": "Per-session best turn after a session leg",
+      "flag": "read.session_cover (new), read.episode_leg_v2",
+      "cost": "0 at read; digest calls at session close (already built)"
+     },
+     {
+      "name": "Parent summary beside the hit",
+      "flag": "read.parent_line (new)",
+      "cost": "0 at read"
+     },
+     {
+      "name": "Dated observation log, no retrieval",
+      "flag": "offline.observation_log (new, GC arm)",
+      "cost": "1 call per token threshold"
+     },
+     {
+      "name": "Summary degeneracy guard",
+      "flag": "offline.summary_guard (new, unit test)",
+      "cost": "0"
+     }
+    ],
+    "slice": "fail_retrieval (b+cf) and fail_mix_120; metric distinct gold sessions represented",
+    "screen": "S81 session_cover; S31/S33/S61 stay as queued",
+    "expected_effect": {
+     "label": "hypothesis",
+     "text": "43 questions in scope; expect 6-10 recovered if session coverage reaches 45% (hypothesis); overlaps M-1"
+    }
+   },
+   {
+    "id": "R14-M-3",
+    "tag": "R14-confirmed",
+    "title": "Fusion and rerank cut loss: ranked gold discarded when legs are fused into a small pool",
+    "layer": "retrieval",
+    "confirms": "B7, B9, B10, I75, I78, R02",
+    "priority": "P1",
+    "effort": "S",
+    "rank": 1,
+    "targeted_q": 68,
+    "solutions": [
+     {
+      "name": "Deeper per-leg protection",
+      "flag": "read.pool_protect_per_leg=8 (existing config)",
+      "cost": "0 (rerank time grows with pool)"
+     },
+     {
+      "name": "Score-aware fusion",
+      "flag": "read.fusion_convex (new)",
+      "cost": "0"
+     },
+     {
+      "name": "Budget-driven keep",
+      "flag": "read.rerank_keep=15 / read.exact_budget (existing)",
+      "cost": "0"
+     },
+     {
+      "name": "Wider rerank pool",
+      "flag": "read.rerank_v2_search_pool (existing, S67)",
+      "cost": "GPU/CPU reranker time"
+     }
+    ],
+    "slice": "fail_fusion (+95 lucky/barely cases as guard)",
+    "screen": "offline CPU re-fusion from forensics first (no run); S82 protect8 + convex fusion; S83 budget keep; S67 queued",
+    "expected_effect": {
+     "label": "hypothesis",
+     "text": "8-20 of 72 recovered (hypothesis, upper bound about 20 within depth 30)"
+    }
+   },
+   {
+    "id": "R14-M-4",
+    "tag": "R14-confirmed",
+    "title": "Lexical-zero and paraphrase gold: surface form is the strongest predictor of a miss",
+    "layer": "retrieval",
+    "confirms": "B2, B5, B6, B15",
+    "priority": "P2",
+    "effort": "M",
+    "rank": 16,
+    "targeted_q": 81,
+    "solutions": [
+     {
+      "name": "Document expansion at write",
+      "flag": "write.doc_expansion (new)",
+      "cost": "one batched call per fact set at ingest"
+     },
+     {
+      "name": "Record-styled multi-search plus HyDE note",
+      "flag": "read.planner=llm v3, read.hyde_leg (proposed), read.paraphrase_probes (S76)",
+      "cost": "1 call per question"
+     },
+     {
+      "name": "Learned sparse or late interaction leg",
+      "flag": "read.word_vector_leg (existing, 21 ids screen)",
+      "cost": "model inference at index and query"
+     }
+    ],
+    "slice": "fail_retrieval (81 ids, 21 paraphrase)",
+    "screen": "S84 doc expansion; S76 paraphrase probes (OBS-GAPS); word_vector_leg on the 21 ids",
+    "expected_effect": {
+     "label": "hypothesis",
+     "text": "6-8 of 21 paraphrase questions (hypothesis); small share of the rest"
+    }
+   },
+   {
+    "id": "R14-M-5",
+    "tag": "R14-confirmed",
+    "title": "Elliptical and context-dependent turns: decontextualisation and an index view",
+    "layer": "ingest",
+    "confirms": "A07, I6, B12",
+    "priority": "P2",
+    "effort": "M",
+    "rank": 13,
+    "targeted_q": 32,
+    "solutions": [
+     {
+      "name": "Exchange-pair records",
+      "flag": "write.exchange_records (new)",
+      "cost": "0; index 2-3x"
+     },
+     {
+      "name": "Rule-built context prefix on embedded text",
+      "flag": "write.index_view (S69, OBS-GAPS)",
+      "cost": "0"
+     },
+     {
+      "name": "Gated restatement of flagged turns",
+      "flag": "write.restate_gate (S70, OBS-GAPS)",
+      "cost": "1 call per flagged window (10-15% of turns)"
+     },
+     {
+      "name": "Day/session-first window boundary",
+      "flag": "write.window_overlap_turns (S75, OBS-GAPS)",
+      "cost": "0"
+     }
+    ],
+    "slice": "fail_retrieval + fail_context (OBS-GAPS)",
+    "screen": "S85 exchange_records (CPU simulation first); S69/S70/S75 per OBS-GAPS",
+    "expected_effect": {
+     "label": "hypothesis",
+     "text": "8-10 of 32 (hypothesis) for the rule-only forms"
+    }
+   },
+   {
+    "id": "R14-M-6",
+    "tag": "R14-confirmed",
+    "title": "Indirect gold for judgement questions: evidence describes behaviour, never the question's words",
+    "layer": "retrieval",
+    "confirms": "B3, C3, C4",
+    "priority": "P2",
+    "effort": "M",
+    "rank": 17,
+    "targeted_q": 28,
+    "solutions": [
+     {
+      "name": "Evidence-kind query decomposition",
+      "flag": "read.planner=llm v3 / read.evidence_kind_probes (new)",
+      "cost": "1 call per open-domain-shaped question"
+     },
+     {
+      "name": "Trait and preference synthesis at write",
+      "flag": "offline.profile_card_v2 + read.profile_header_packing",
+      "cost": "sleep-time calls"
+     }
+    ],
+    "slice": "fail_retrieval (28) + all 96 cat3; oracle-gold reader-only run first to size the ceiling",
+    "screen": "S86 evidence_kind_probes; shares S74 probes (OBS-06)",
+    "expected_effect": {
+     "label": "hypothesis",
+     "text": "4-7 questions net (hypothesis)"
+    }
+   },
+   {
+    "id": "R14-M-7",
+    "tag": "R14-confirmed",
+    "title": "Explicit-date questions: the date is treated as ordinary words, no session-date prior at fusion",
+    "layer": "retrieval",
+    "confirms": "B4, I8",
+    "priority": "P1",
+    "effort": "S",
+    "rank": 2,
+    "targeted_q": 13,
+    "solutions": [
+     {
+      "name": "Date-scoped retrieval prior",
+      "flag": "read.date_prior (new)",
+      "cost": "0"
+     },
+     {
+      "name": "Explicit reference_time on every read",
+      "flag": "read.temporal_relative (existing) + unit test",
+      "cost": "0"
+     },
+     {
+      "name": "LLM interval extraction for unsure phrases",
+      "flag": "read.temporal_infer_year (existing)",
+      "cost": "0-1 call on unparsed phrases"
+     }
+    ],
+    "slice": "fail_temporal (13 fail + matched controls from the 180)",
+    "screen": "S87 date_prior (CPU re-fusion first); S24/S62/S63 queued",
+    "expected_effect": {
+     "label": "hypothesis",
+     "text": "9-11 of 13 recovered (hypothesis; about 0.6-0.7 points)"
+    }
+   },
+   {
+    "id": "R14-M-8",
+    "tag": "R14-confirmed",
+    "title": "Date and duration arithmetic done by the 9B reader; event dates lack precision and status",
+    "layer": "reader",
+    "confirms": "C5, I57, I76, I79, E05",
+    "priority": "P1",
+    "effort": "S",
+    "rank": 6,
+    "targeted_q": 19,
+    "solutions": [
+     {
+      "name": "Deterministic date calculator",
+      "flag": "duration_solve / read.resolve_durations (existing)",
+      "cost": "0 (+1 call on about 5% for endpoint extraction)"
+     },
+     {
+      "name": "Precision/status/type on event time",
+      "flag": "write.temporal_envelope (new, S62 arm)",
+      "cost": "within the extraction call"
+     },
+     {
+      "name": "Fake-clock invariant test",
+      "flag": "unit test",
+      "cost": "0"
+     }
+    ],
+    "slice": "fail_temporal date_* classes (19) + 38 unit questions",
+    "screen": "S88 duration_solve + milestones (built-off, needs a screen only)",
+    "expected_effect": {
+     "label": "hypothesis",
+     "text": "about 5 questions (hypothesis)"
+    }
+   },
+   {
+    "id": "R14-M-9",
+    "tag": "R14-confirmed",
+    "title": "Over-refusal and premise denial: no typed commit route for judgement questions",
+    "layer": "reader",
+    "confirms": "C3, C4, C10, I1, I61",
+    "priority": "P1",
+    "effort": "S",
+    "rank": 7,
+    "targeted_q": 40,
+    "solutions": [
+     {
+      "name": "Typed commit route",
+      "flag": "read.inference_mode (S73, OBS-GAPS)",
+      "cost": "0"
+     },
+     {
+      "name": "Sufficiency-gated answer/infer/abstain",
+      "flag": "read.deep_v2 (S55 queued)",
+      "cost": "0-1 call"
+     },
+     {
+      "name": "Self-consistency vote on judgement shapes",
+      "flag": "read.vote_judgement (new)",
+      "cost": "+2-4 calls on about 6%"
+     },
+     {
+      "name": "Empty-context abstention without a call",
+      "flag": "read.empty_abstain (new, unit test)",
+      "cost": "0 (saves a call)"
+     }
+    ],
+    "slice": "fail_reader (40 + 25 refusal rows); guards cat5 and OP-Bench irrelevance",
+    "screen": "S73 prompt, S74 probes (OBS-GAPS); S89 vote; S20 cat5 guard",
+    "expected_effect": {
+     "label": "hypothesis",
+     "text": "+6 to +10 questions (hypothesis)"
+    }
+   },
+   {
+    "id": "R14-M-10",
+    "tag": "R14-confirmed",
+    "title": "Wrong detail and distractor use; one window size for every question shape",
+    "layer": "reader",
+    "confirms": "C1, C2, C9, I6, R2-4",
+    "priority": "P1",
+    "effort": "M",
+    "rank": 8,
+    "targeted_q": 59,
+    "solutions": [
+     {
+      "name": "Provenance check (owner/event/date binding)",
+      "flag": "read.verify_binding (new) / --verify-answer",
+      "cost": "+1 call on mismatches only"
+     },
+     {
+      "name": "Quote-then-answer",
+      "flag": "reader.quote_first (new, harness)",
+      "cost": "longer completion"
+     },
+     {
+      "name": "Per-shape window and budget",
+      "flag": "read.window_by_shape (new)",
+      "cost": "0"
+     },
+     {
+      "name": "Evidence compression",
+      "flag": "read.compress (existing idea, not built)",
+      "cost": "+1 call"
+     }
+    ],
+    "slice": "fail_reader (46 + 59 ids); 2x2 narrow/wide window by shape on the dev slice",
+    "screen": "S90 quote-then-answer; S91 window_by_shape; S92 verify_binding; S52-S54 queued",
+    "expected_effect": {
+     "label": "hypothesis",
+     "text": "+10 to +14 (binding) and about +1 point single-hop (window), partly overlapping (hypothesis)"
+    }
+   },
+   {
+    "id": "R14-M-11",
+    "tag": "R14-confirmed",
+    "title": "List and count completeness: partial lists, over-counted events, 'at least N'",
+    "layer": "reader",
+    "confirms": "C6, I56",
+    "priority": "P1",
+    "effort": "S",
+    "rank": 9,
+    "targeted_q": 25,
+    "solutions": [
+     {
+      "name": "Evidence table, enumerate then count",
+      "flag": "harness evidence_table / two_call (existing)",
+      "cost": "+1 call on list/count shapes (about 6%)"
+     },
+     {
+      "name": "Obligation coverage for list/count",
+      "flag": "read.obligations (S56 queued)",
+      "cost": "0-2 calls"
+     },
+     {
+      "name": "Contract-shaped output",
+      "flag": "read.query_contract (S06/S11 queued)",
+      "cost": "0"
+     }
+    ],
+    "slice": "fail_list (25 + list/count-shaped controls)",
+    "screen": "S93 evidence_table / two_call; S06, S11, S56 queued",
+    "expected_effect": {
+     "label": "hypothesis",
+     "text": "about 5-7 questions (hypothesis)"
+    }
+   },
+   {
+    "id": "R14-M-12",
+    "tag": "R14",
+    "title": "Multi-turn join and multi-entity decomposition at read",
+    "layer": "reader",
+    "confirms": null,
+    "priority": "P2",
+    "effort": "M",
+    "rank": 14,
+    "targeted_q": 54,
+    "solutions": [
+     {
+      "name": "Decompose then join",
+      "flag": "read.decompose_v2 (S77, OBS-GAPS)",
+      "cost": "+2-3 calls on about 10%"
+     },
+     {
+      "name": "Evidence obligations join",
+      "flag": "read.obligations (S56 queued)",
+      "cost": "0-2 calls"
+     },
+     {
+      "name": "Cross-session evidence table",
+      "flag": "harness evidence_table (existing)",
+      "cost": "+1 call"
+     }
+    ],
+    "slice": "fail_list + new fail_multi (43, OBS-GAPS)",
+    "screen": "S94 reader-side join (after S77); S56 queued",
+    "expected_effect": {
+     "label": "hypothesis",
+     "text": "about +7 questions (hypothesis)"
+    }
+   },
+   {
+    "id": "R14-M-13",
+    "tag": "R14-confirmed",
+    "title": "Ungrounded answers: new content words appear nowhere in the context",
+    "layer": "reader",
+    "confirms": "SOL-VERIFY, defect_diagnosis",
+    "priority": "P2",
+    "effort": "S",
+    "rank": 15,
+    "targeted_q": 37,
+    "solutions": [
+     {
+      "name": "Diagnosed repair",
+      "flag": "--verify-slots diagnosed (existing)",
+      "cost": "+1 call on about 10% of answers"
+     },
+     {
+      "name": "Larger reader or thinking mode",
+      "flag": "reader model role",
+      "cost": "high"
+     }
+    ],
+    "slice": "fail_reader (37 ids); false-defect rate on the 188 correct",
+    "screen": "S95 slot_verify diagnosed",
+    "expected_effect": {
+     "label": "hypothesis",
+     "text": "about +8 (hypothesis, upper)"
+    }
+   },
+   {
+    "id": "R14-M-14",
+    "tag": "R14-confirmed",
+    "title": "Verbosity against a short gold: answer length follows difficulty, the lever is an output contract",
+    "layer": "reader",
+    "confirms": "READER_GAPS_FORENSIC 0.4, SOL-CONTRACT",
+    "priority": "P2",
+    "effort": "S",
+    "rank": 10,
+    "targeted_q": 49,
+    "solutions": [
+     {
+      "name": "Answer-type contract",
+      "flag": "read.query_contract (existing, S06/S11)",
+      "cost": "0"
+     }
+    ],
+    "slice": "ratio>8 ids from fail_reader",
+    "screen": "S06, S11 (queued); add ratio>8 and list-recall columns",
+    "expected_effect": {
+     "label": "hypothesis",
+     "text": "no direct gain; reduces judge partial-credit exposure (hypothesis)"
+    }
+   },
+   {
+    "id": "R14-M-15",
+    "tag": "R14-confirmed",
+    "title": "Image captions: misattributed or photo-only evidence",
+    "layer": "reader",
+    "confirms": "C7, E04",
+    "priority": "P3",
+    "effort": "S",
+    "rank": 20,
+    "targeted_q": 6,
+    "solutions": [
+     {
+      "name": "Caption as its own typed line",
+      "flag": "write.caption_facts (S72, OBS-GAPS)",
+      "cost": "0"
+     },
+     {
+      "name": "Ingest-time image description",
+      "flag": "ingest.assets (existing)",
+      "cost": "1 vision call per image"
+     }
+    ],
+    "slice": "fail_reader (6) + 28 caption-only",
+    "screen": "S72 (OBS-GAPS)",
+    "expected_effect": {
+     "label": "hypothesis",
+     "text": "+2 to +3 (hypothesis)"
+    }
+   },
+   {
+    "id": "R14-M-16",
+    "tag": "R14",
+    "title": "Speaker attribution: wrong-speaker answers are rare, but swapped-speaker golds penalise correct attribution",
+    "layer": "eval",
+    "confirms": null,
+    "priority": "P3",
+    "effort": "S",
+    "rank": 21,
+    "targeted_q": 39,
+    "solutions": [
+     {
+      "name": "Speaker-swap stratum in every report",
+      "flag": "report column (no flag)",
+      "cost": "0"
+     },
+     {
+      "name": "Per-speaker perspective ingestion",
+      "flag": "write.restate_referents (S70b, OBS-GAPS)",
+      "cost": "0"
+     }
+    ],
+    "slice": "perspective screens with the 23-row stratum split out",
+    "screen": "no new screen; apply to any perspective screen",
+    "expected_effect": {
+     "label": "hypothesis",
+     "text": "reporting fix; at most 1 question reader-side (hypothesis)"
+    }
+   },
+   {
+    "id": "R14-M-17",
+    "tag": "R14-confirmed",
+    "title": "Judge false negatives after the date guard: superset lists, annotation equivalence, containment",
+    "layer": "judge",
+    "confirms": "A2, I58, I77",
+    "priority": "P1",
+    "effort": "S",
+    "rank": 4,
+    "targeted_q": 23,
+    "solutions": [
+     {
+      "name": "Judge conventions v3",
+      "flag": "judge_conventions v3 (new, S96 re-score)",
+      "cost": "0"
+     },
+     {
+      "name": "Second judge on disagreement",
+      "flag": "--judge-second (existing second_view)",
+      "cost": "about 230 calls per run"
+     }
+    ],
+    "slice": "23 FN ids + 34 FP ids frozen as a 57-row calibration extension; judge_calibration_dev.jsonl",
+    "screen": "S96 judge conventions v3 (re-score stored answers, no retrieval)",
+    "expected_effect": {
+     "label": "hypothesis",
+     "text": "credits 7-10 rows (0.5-0.65 points) with no engine change (hypothesis)"
+    }
+   },
+   {
+    "id": "R14-M-18",
+    "tag": "R14-confirmed",
+    "title": "Judge false positives and the honest headline: partial lists credited, 81.4 is not 81.4",
+    "layer": "judge",
+    "confirms": "A1, A3, A10, A13",
+    "priority": "P1",
+    "effort": "S",
+    "rank": 5,
+    "targeted_q": 34,
+    "solutions": [
+     {
+      "name": "Triple reporting",
+      "flag": "report columns (no flag)",
+      "cost": "0"
+     },
+     {
+      "name": "Item-recall column and calibrated 'missing item' side",
+      "flag": "judge_conventions (new rows)",
+      "cost": "0"
+     },
+     {
+      "name": "Two-judge adjudication",
+      "flag": "--judge-second",
+      "cost": "about 350 calls"
+     },
+     {
+      "name": "Token-efficiency table next to accuracy",
+      "flag": "report column",
+      "cost": "0"
+     }
+    ],
+    "slice": "34 FP + 23 FN ids as a frozen calibration extension; whole-run re-score",
+    "screen": "S97 triple-column re-score of stored answers (reference run plus last two full runs)",
+    "expected_effect": {
+     "label": "hypothesis",
+     "text": "no engine gain; changes what a gain means (hypothesis: central -0.9 points, range -2.3 to +0.4)"
+    }
+   },
+   {
+    "id": "R14-M-19",
+    "tag": "R14-confirmed",
+    "title": "Gold errata, sibling evidence, id hygiene and retrieval metrics that overstate success",
+    "layer": "eval",
+    "confirms": "A5, A12, I24, I62, A16",
+    "priority": "P2",
+    "effort": "S",
+    "rank": 11,
+    "targeted_q": 21,
+    "solutions": [
+     {
+      "name": "Errata extension and accept set",
+      "flag": "locomo_errata.json (data)",
+      "cost": "0 (about 1 hour hand adjudication)"
+     },
+     {
+      "name": "Strict evidence parser with existence check",
+      "flag": "unit test",
+      "cost": "0"
+     },
+     {
+      "name": "Answer-support recall metric",
+      "flag": "forensics report columns",
+      "cost": "0 (string) or 1 judge call"
+     },
+     {
+      "name": "Dual headline with explicit exclusion set",
+      "flag": "report columns",
+      "cost": "0"
+     }
+    ],
+    "slice": "the 10 + 8 + 3 + 59 ids; guard: correct questions with context-dependent gold",
+    "screen": "S98 support-recall report (CPU, no run); unit tests for the parser and errata",
+    "expected_effect": {
+     "label": "hypothesis",
+     "text": "measurement honesty; no accuracy gain (hypothesis)"
+    }
+   },
+   {
+    "id": "R14-M-20",
+    "tag": "R14-confirmed",
+    "title": "Profile and attribute state with history; knowledge update; destructive edits",
+    "layer": "ingest",
+    "confirms": "G-W4, S34 S42 S46",
+    "priority": "P2",
+    "effort": "M",
+    "rank": 18,
+    "targeted_q": 33,
+    "solutions": [
+     {
+      "name": "Person attributes v2",
+      "flag": "offline.person_attributes_v2 (S71, OBS-GAPS)",
+      "cost": "0-1 per entity"
+     },
+     {
+      "name": "Known-keys context to the extractor",
+      "flag": "write.known_keys (new, G-W4)",
+      "cost": "0 extra (prompt grows)"
+     },
+     {
+      "name": "Supersede-not-delete invariant and judge-empty counter",
+      "flag": "unit test + counter (new)",
+      "cost": "0"
+     },
+     {
+      "name": "Read-time withdrawal of covered records",
+      "flag": "read.withdraw_covered (new)",
+      "cost": "judge calls (Mnemon)"
+     }
+    ],
+    "slice": "fail_mix_120 attribute subset (33) + MAB-CR dev for the history half",
+    "screen": "S99 known_keys (after S34/S42); S71 per OBS-GAPS",
+    "expected_effect": {
+     "label": "hypothesis",
+     "text": "not sized beyond 33 targeted; history half is a benchmark claim (hypothesis)"
+    }
+   },
+   {
+    "id": "R14-M-21",
+    "tag": "R14-confirmed",
+    "title": "Entity aliasing and link tables: seed-to-neighbour expansion without per-session LLM graph builds",
+    "layer": "ingest",
+    "confirms": "I54 (kin resolution), SOL-GRAPH",
+    "priority": "P3",
+    "effort": "M",
+    "rank": 19,
+    "targeted_q": 9,
+    "solutions": [
+     {
+      "name": "Link-table expansion",
+      "flag": "write.link_table (new, S100)",
+      "cost": "0 extra LLM"
+     },
+     {
+      "name": "Rule alias binding",
+      "flag": "write.vocative_alias_v2 (S68, OBS-GAPS)",
+      "cost": "0"
+     },
+     {
+      "name": "Context-weighted resolution score",
+      "flag": "write.resolver_v2 (existing)",
+      "cost": "0 + batched calls for unsure"
+     },
+     {
+      "name": "Memory evolution at sleep",
+      "flag": "offline.evolve (new, deferred)",
+      "cost": "2+ calls per note"
+     }
+    ],
+    "slice": "fail_retrieval + fail_mix_120; CPU prototype over stored embeddings of one conversation first",
+    "screen": "S100 link_table; S68 per OBS-GAPS",
+    "expected_effect": {
+     "label": "hypothesis",
+     "text": "not sized separately (hypothesis); overlaps M-2"
+    }
+   }
+  ]
+ }
 }

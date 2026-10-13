@@ -1,0 +1,2721 @@
+{
+ "schema": "r14_master/v1",
+ "date": "2026-10-14",
+ "package": "R14-SYN",
+ "tag": "R14",
+ "licence_note": "Text-free: question ids, counts, mechanisms, flag and screen names. No LoCoMo/OP-Bench text, quotes or speaker names.",
+ "honest_headline": {
+  "raw": 0.8136,
+  "adjusted_central": 0.805,
+  "adjusted_range": [
+   0.7909,
+   0.8175
+  ],
+  "errata_excluded": 0.8256,
+  "bootstrap_ci_pm": 0.022,
+  "fn_central": 16.6,
+  "fp_central": 29.9,
+  "note": "81.4% raw becomes about 80.5% (79.1-81.7) after hand-read judge errors in both directions; multi-hop 66.7% raw becomes about 61.1% central. Shift is inside the bootstrap CI but concentrated in multi-hop."
+ },
+ "proposed_screens_note": "S79-S100 are proposals, not queued; S68-S78 belong to OBS-GAPS (provisional).",
+ "items": [
+  {
+   "id": "R14-M-1",
+   "tag": "R14-confirmed",
+   "title": "Multi-evidence recall: fixed depth, no coverage objective, weak aggregation trigger",
+   "problem": "Questions that need three or more independent evidence items (list, count, 'all', 'both') get a fixed top-k anchor set. The chance that every needed item reaches the reader falls steeply with the number of items, and the trigger that deepens retrieval for such questions fires on fewer than half of them.",
+   "evidence": {
+    "count": 55,
+    "detail": "55 aggregation retrieval losses (39 exclusive primary pattern); 37 of them not in list mode; all-gold-in-context 95.9% at one gold turn falls to 8.7% as n_gold grows; list mode fires on 39% of n_gold>=3 questions",
+    "method": "measured (RET-1, RET-11) on the reference full run; trigger precision/recall is a CPU computation over the 1,540 rows",
+    "question_ids": [
+     "0-15",
+     "0-69",
+     "1-3",
+     "1-23",
+     "2-64",
+     "3-1",
+     "3-23",
+     "3-30",
+     "3-34",
+     "3-42",
+     "3-55",
+     "3-58",
+     "3-61",
+     "3-66",
+     "3-68",
+     "3-74",
+     "3-78",
+     "3-79",
+     "4-3",
+     "4-7",
+     "4-17",
+     "4-18",
+     "4-19",
+     "4-34",
+     "4-38",
+     "4-67",
+     "4-70",
+     "5-3",
+     "5-12",
+     "5-23",
+     "5-28",
+     "5-33",
+     "5-52",
+     "6-2",
+     "6-24",
+     "6-51",
+     "7-8",
+     "7-36",
+     "7-54",
+     "7-55",
+     "7-82",
+     "7-86",
+     "7-88",
+     "8-18",
+     "8-20",
+     "8-26",
+     "8-36",
+     "8-43",
+     "8-44",
+     "8-45",
+     "8-49",
+     "8-51",
+     "8-81",
+     "8-82",
+     "9-29"
+    ],
+    "sources": [
+     "docs/v2/OBSERVATIONS_GAP_ANALYSIS.md",
+     "docs/v2/research/R14_ENGINE_SURVEY.md"
+    ]
+   },
+   "layer": "retrieval",
+   "existing": [
+    "read.list_mode",
+    "read.query_contract",
+    "read.pool_protect_per_leg",
+    "read.agentic_mode=slot (net -3 at about 8x cost)",
+    "SOL-LISTMODE",
+    "SOL-AGENTIC"
+   ],
+   "gap": "B1 (aggregation retrieval) and I4 (list-mode trigger is an English regex): R14 adds the measured n_gold curve and the 37 missed-trigger questions. The 0-call trigger and the coverage objective are not built.",
+   "confirms": "B1, I4, I28, I56, R01",
+   "hypothesis": "A trigger that combines question shape with the leg score profile fires on at least 70% of n_gold>=3 questions at no more than 15% false fire on single-gold ones; list-mode depth plus entity/session-diverse selection lifts all-gold-in-context for n_gold>=3 from 34% (non-list) to 50% or more, recovering 10-20 of 55 questions (about 0.6-1.3 points) without the cost of the slot loop.",
+   "survey": {
+    "literature": [
+     "Trivedi2023-ircot",
+     "Press2023-self-ask",
+     "Jeong2024-adaptive-rag",
+     "Zhou2023-least-to-most"
+    ],
+    "engines": [
+     "Mnemon ALL-need paging",
+     "EverOS sufficiency",
+     "Hindsight link expansion"
+    ]
+   },
+   "solutions": [
+    {
+     "name": "Score-profile aggregation trigger",
+     "mechanism": "Decide list-depth from question shape AND the retrieval score profile (flat top scores, many same-entity hits); no model call.",
+     "source": "ours (RET-11); Adaptive-RAG routing idea [Jeong2024-adaptive-rag]",
+     "cost": "0",
+     "risk": "false fire on single-gold questions adds distractors",
+     "flag": "read.list_mode_trigger_v2 (new)"
+    },
+    {
+     "name": "Coverage-aware selection",
+     "mechanism": "MMR-style selection with entity/session diversity so near-duplicates stop crowding the anchors.",
+     "source": "ours (RET-1, RET-10); BEIR diversity baseline",
+     "cost": "0",
+     "risk": "diversity can drop a true duplicate gold turn",
+     "flag": "read.coverage_select (new)"
+    },
+    {
+     "name": "Missing-slot second retrieval",
+     "mechanism": "One bounded sufficiency check that names the missing slot, then exactly one targeted re-search (not the open slot loop).",
+     "source": "IRCoT / Self-Ask [Trivedi2023-ircot] [Press2023-self-ask]; Mnemon ALL-need paging (R14-qry-2); EverOS sufficiency check (R14-hop-1)",
+     "cost": "1-2 calls on about 12-18% of questions",
+     "risk": "slot loop already measured net -3 at 8x cost; keep the bound",
+     "flag": "read.agentic_mode=slot / read.deep_v2 (existing)"
+    }
+   ],
+   "test": {
+    "slice": "fail_list (+ 60 matched n_gold>=3 correct as guard)",
+    "screen": "S79 trigger + coverage (CPU first, offline over forensics); S80 second-retrieval bounded"
+   },
+   "priority": "P1",
+   "effort": "S",
+   "expected_effect": {
+    "label": "hypothesis",
+    "text": "10-20 of 55 recovered (hypothesis); reader ceiling on cat1 given all gold is 75.5%, so recovery is capped at about 0.75 of the retrieval gain"
+   },
+   "rank": 3,
+   "cpu_no_llm_first_step": true,
+   "built_off_screen_only": false,
+   "source_items": [
+    "R14-RET-1",
+    "R14-RET-11",
+    "R14-RET-10",
+    "R14-LIT-P05",
+    "R14-qry-2",
+    "R14-hop-1",
+    "OBS-10"
+   ]
+  },
+  {
+   "id": "R14-M-2",
+   "tag": "R14-confirmed",
+   "title": "Cross-session spread: turn-level, session-agnostic retrieval; summaries and episodes as legs",
+   "problem": "Evidence for one question is spread over several sessions while retrieval is turn-level and session-agnostic; nothing asks whether each session that mentions the entity or topic is represented. Higher-grain units (session summary, episode, dated observation log) are the usual remedy, but the unit returned to the reader matters more than the quality of the summary text.",
+   "evidence": {
+    "count": 43,
+    "detail": "43 questions with gold in three or more sessions; all-gold rate 35.8% at 3 sessions and 15.5% at 4+; in-context accuracy 72.9% at two sessions, 62.5% at three",
+    "method": "measured (RET-8, READ multi-turn table)",
+    "question_ids": [
+     "0-15",
+     "0-69",
+     "1-23",
+     "2-64",
+     "3-1",
+     "3-23",
+     "3-30",
+     "3-42",
+     "3-55",
+     "3-58",
+     "3-66",
+     "3-68",
+     "3-74",
+     "3-78",
+     "3-79",
+     "4-7",
+     "4-17",
+     "4-18",
+     "4-34",
+     "4-38",
+     "4-67",
+     "4-70",
+     "5-3",
+     "5-12",
+     "5-33",
+     "5-52",
+     "6-2",
+     "6-24",
+     "6-51",
+     "7-8",
+     "7-36",
+     "7-82",
+     "7-86",
+     "7-88",
+     "8-18",
+     "8-20",
+     "8-36",
+     "8-43",
+     "8-44",
+     "8-49",
+     "8-81",
+     "8-82",
+     "9-29"
+    ],
+    "sources": [
+     "docs/v2/OBSERVATIONS_GAP_ANALYSIS.md",
+     "docs/v2/research/R14_ENGINE_SURVEY.md"
+    ]
+   },
+   "layer": "retrieval",
+   "existing": [
+    "read.episode_leg_v2",
+    "read.session_leg",
+    "offline.session_close_v2",
+    "write.window_extract=all",
+    "S31 S33 S61 S64 (queued)"
+   ],
+   "gap": "B8 (sessions with no hit). R14 sharpens it to a per-session coverage objective and adds three engine ideas: render the parent summary next to each fact (MemOS background, Memori), return the parent unit with facts as keys (EverOS, Supermemory), and a dated always-in-context observation log without retrieval (Mastra OM).",
+   "confirms": "B8, SOL-EPISODE, SOL-GRAPH",
+   "hypothesis": "A session-level leg followed by one best turn per matched session lifts all-gold coverage for n_sessions>=3 from 26% to 45% or more; rendering the parent summary line next to a hit adds context for 'which event' questions at under 200 tokens.",
+   "survey": {
+    "literature": [
+     "Sarthi2024-raptor",
+     "Edge2024-local-global",
+     "Lee2024-readagent",
+     "Pan2025-memory-construction-retrieval"
+    ],
+    "engines": [
+     "Nemori episodes",
+     "EverOS MemCell",
+     "Mastra OM",
+     "MemOS background",
+     "Honcho summaries"
+    ]
+   },
+   "solutions": [
+    {
+     "name": "Per-session best turn after a session leg",
+     "mechanism": "Session digest leg picks sessions, then one best turn per matched session joins the anchors.",
+     "source": "ours (RET-8); RAPTOR / ReadAgent / SeCom idea [Sarthi2024-raptor] [Lee2024-readagent]",
+     "cost": "0 at read; digest calls at session close (already built)",
+     "risk": "digest hallucination; S33 fired zero calls so its inputs must be checked",
+     "flag": "read.session_cover (new), read.episode_leg_v2"
+    },
+    {
+     "name": "Parent summary beside the hit",
+     "mechanism": "Print the one-line parent episode/summary under each retrieved fact.",
+     "source": "MemOS background field, Memori summary attach (R14-epi-1)",
+     "cost": "0 at read",
+     "risk": "adds tokens; worse on single-hop",
+     "flag": "read.parent_line (new)"
+    },
+    {
+     "name": "Dated observation log, no retrieval",
+     "mechanism": "Background observer writes dated, prioritised observations that replace raw history; reader gets the log.",
+     "source": "Mastra Observational Memory (R14-epi-3)",
+     "cost": "1 call per token threshold",
+     "risk": "lossy; large design change",
+     "flag": "offline.observation_log (new, GC arm)"
+    },
+    {
+     "name": "Summary degeneracy guard",
+     "mechanism": "Reject looping summaries (<35% distinct 4-grams) and keep the previous one.",
+     "source": "Honcho (R14-epi-2)",
+     "cost": "0",
+     "risk": "none",
+     "flag": "offline.summary_guard (new, unit test)"
+    }
+   ],
+   "test": {
+    "slice": "fail_retrieval (b+cf) and fail_mix_120; metric distinct gold sessions represented",
+    "screen": "S81 session_cover; S31/S33/S61 stay as queued"
+   },
+   "priority": "P2",
+   "effort": "M",
+   "expected_effect": {
+    "label": "hypothesis",
+    "text": "43 questions in scope; expect 6-10 recovered if session coverage reaches 45% (hypothesis); overlaps M-1"
+   },
+   "rank": 12,
+   "cpu_no_llm_first_step": false,
+   "built_off_screen_only": false,
+   "source_items": [
+    "R14-RET-8",
+    "R14-LIT-P06",
+    "R14-epi-1",
+    "R14-epi-2",
+    "R14-epi-3",
+    "OBS-07"
+   ]
+  },
+  {
+   "id": "R14-M-3",
+   "tag": "R14-confirmed",
+   "title": "Fusion and rerank cut loss: ranked gold discarded when legs are fused into a small pool",
+   "problem": "Gold turns that one retrieval leg ranks well are dropped when the legs are fused into a small candidate pool (especially lexical-only or vector-only evidence that no other leg corroborates), and some survivors are dropped by a fixed keep-line while the token budget is half empty.",
+   "evidence": {
+    "count": 68,
+    "detail": "68 stage-b/cf fusion-cut questions plus 4 rerank-keep cuts; 11 of 15 top-10 cuts never entered the 20-pool; in-context rate 95.8% at best leg rank 4-10 falls to 67.9% at 21-30; 105 of 115 retrieval failures use under 3,000 of 4,096 tokens; 84 gold turns cut at fusion, 11 at rerank",
+    "method": "measured (RET-4, RET-7, POS-2) from logged leg ranks to depth 60",
+    "question_ids": [
+     "0-11",
+     "0-15",
+     "0-35",
+     "0-42",
+     "0-43",
+     "0-69",
+     "0-142",
+     "1-3",
+     "1-23",
+     "1-31",
+     "2-42",
+     "2-133",
+     "3-1",
+     "3-22",
+     "3-23",
+     "3-26",
+     "3-30",
+     "3-55",
+     "3-58",
+     "3-60",
+     "3-61",
+     "3-68",
+     "3-70",
+     "3-78",
+     "3-85",
+     "3-95",
+     "3-148",
+     "3-173",
+     "3-195",
+     "4-3",
+     "4-17",
+     "4-18",
+     "4-19",
+     "4-34",
+     "4-38",
+     "4-40",
+     "4-41",
+     "4-45",
+     "4-48",
+     "4-51",
+     "4-67",
+     "4-70",
+     "4-76",
+     "4-113",
+     "4-135",
+     "4-151",
+     "5-0",
+     "5-2",
+     "5-3",
+     "5-12",
+     "5-17",
+     "5-18",
+     "5-23",
+     "5-24",
+     "5-46",
+     "5-47",
+     "5-52",
+     "5-55",
+     "6-2",
+     "6-5",
+     "6-6",
+     "6-20",
+     "6-22",
+     "6-24",
+     "6-32",
+     "6-51",
+     "6-75",
+     "7-8",
+     "7-48",
+     "7-71",
+     "7-82",
+     "7-86",
+     "7-88",
+     "7-108",
+     "7-134",
+     "7-158",
+     "7-179",
+     "7-188",
+     "8-18",
+     "8-20",
+     "8-24",
+     "8-25",
+     "8-44",
+     "8-45",
+     "8-49",
+     "8-51",
+     "8-70",
+     "8-81",
+     "8-82",
+     "8-110",
+     "9-10",
+     "9-29",
+     "9-48",
+     "9-96",
+     "9-110",
+     "9-118",
+     "9-120"
+    ],
+    "sources": [
+     "docs/v2/research/R14_ENGINE_SURVEY.md"
+    ]
+   },
+   "layer": "retrieval",
+   "existing": [
+    "read.pool_protect_per_leg=3",
+    "read.rerank_v2_search_pool (S67)",
+    "read.rerank_keep",
+    "read.exact_budget",
+    "SOL-FAMFUS",
+    "SOL-POOLPROT",
+    "SOL-RRPOOL",
+    "SOL-RERANKKEEP"
+   ],
+   "gap": "B7/B9/B10/I75/I78 are confirmed: protection stops at rank 3 per leg, fusion is rank-based, no fusion cut is logged. R14 contributes the rank-band table (best leg rank vs survival) that sizes a deeper protection value offline, and the convex-combination-versus-RRF question.",
+   "confirms": "B7, B9, B10, I75, I78, R02",
+   "hypothesis": "Protecting the top 8 per leg, fusing with score-normalised weights and letting the keep-line fill the token budget (about 15 anchors) keeps most of the 15 top-10 cuts and part of the 11-30 band, recovering 8-20 of 72 questions at zero model cost. Ceiling if every gold within depth 30 is kept: 20 questions.",
+   "survey": {
+    "literature": [
+     "Cormack2009-rrf",
+     "Bruch2023-fusion-functions",
+     "Thakur2021-beir",
+     "Khattab2020-colbert"
+    ],
+    "engines": [
+     "Hindsight proximity rerank"
+    ]
+   },
+   "solutions": [
+    {
+     "name": "Deeper per-leg protection",
+     "mechanism": "Raise pool_protect_per_leg from 3 to 8 so BM25-top-10 or vector-top-10 gold survives fusion.",
+     "source": "ours (RET-4); family-level protected pool",
+     "cost": "0 (rerank time grows with pool)",
+     "risk": "pool noise; rerank latency",
+     "flag": "read.pool_protect_per_leg=8 (existing config)"
+    },
+    {
+     "name": "Score-aware fusion",
+     "mechanism": "Convex combination of normalised scores instead of RRF k=60, calibrated on logged ranks.",
+     "source": "Bruch et al. [Bruch2023-fusion-functions]; RRF [Cormack2009-rrf]",
+     "cost": "0",
+     "risk": "weights overfit to the dev conversations",
+     "flag": "read.fusion_convex (new)"
+    },
+    {
+     "name": "Budget-driven keep",
+     "mechanism": "Keep anchors until the token budget is filled (keep 15 or budget-driven) instead of a fixed 10.",
+     "source": "ours (RET-7)",
+     "cost": "0",
+     "risk": "more distractors (see M-10)",
+     "flag": "read.rerank_keep=15 / read.exact_budget (existing)"
+    },
+    {
+     "name": "Wider rerank pool",
+     "mechanism": "Rerank 30-40 candidates, already queued as S67.",
+     "source": "ours (R3-07b)",
+     "cost": "GPU/CPU reranker time",
+     "risk": "latency",
+     "flag": "read.rerank_v2_search_pool (existing, S67)"
+    }
+   ],
+   "test": {
+    "slice": "fail_fusion (+95 lucky/barely cases as guard)",
+    "screen": "offline CPU re-fusion from forensics first (no run); S82 protect8 + convex fusion; S83 budget keep; S67 queued"
+   },
+   "priority": "P1",
+   "effort": "S",
+   "expected_effect": {
+    "label": "hypothesis",
+    "text": "8-20 of 72 recovered (hypothesis, upper bound about 20 within depth 30)"
+   },
+   "rank": 1,
+   "cpu_no_llm_first_step": true,
+   "built_off_screen_only": true,
+   "source_items": [
+    "R14-RET-4",
+    "R14-RET-7",
+    "R14-POS-2",
+    "R14-LIT-P09"
+   ]
+  },
+  {
+   "id": "R14-M-4",
+   "tag": "R14-confirmed",
+   "title": "Lexical-zero and paraphrase gold: surface form is the strongest predictor of a miss",
+   "problem": "Gold turns that share almost no content words with the question (paraphrase, synonym, category-versus-instance wording) are missed by both lexical and dense legs. Neither the stored record nor the query is enriched with the vocabulary of the other.",
+   "evidence": {
+    "count": 81,
+    "detail": "81 questions with gold turns of near-zero word overlap; word overlap is the strongest single predictor of a gold turn being found (embedding correlation about -0.48); 72 combined retrieval-stage questions are zero-overlap or BM25-miss with a vector hit",
+    "method": "measured (RET-5, OBS-measurements lexical predicate)",
+    "question_ids": [
+     "0-11",
+     "0-15",
+     "0-34",
+     "0-42",
+     "0-69",
+     "0-75",
+     "1-23",
+     "1-44",
+     "1-56",
+     "2-8",
+     "2-10",
+     "2-40",
+     "2-45",
+     "2-49",
+     "2-64",
+     "3-1",
+     "3-14",
+     "3-22",
+     "3-23",
+     "3-30",
+     "3-34",
+     "3-42",
+     "3-55",
+     "3-58",
+     "3-61",
+     "3-66",
+     "3-74",
+     "3-79",
+     "3-134",
+     "3-135",
+     "3-151",
+     "3-195",
+     "4-3",
+     "4-7",
+     "4-17",
+     "4-34",
+     "4-38",
+     "4-41",
+     "4-45",
+     "4-53",
+     "4-67",
+     "4-70",
+     "5-12",
+     "5-18",
+     "5-23",
+     "5-24",
+     "5-33",
+     "5-39",
+     "5-43",
+     "5-46",
+     "5-52",
+     "6-2",
+     "6-5",
+     "6-6",
+     "6-11",
+     "6-19",
+     "6-32",
+     "6-33",
+     "7-19",
+     "7-23",
+     "7-36",
+     "7-48",
+     "7-54",
+     "7-55",
+     "7-82",
+     "7-86",
+     "7-88",
+     "7-121",
+     "8-18",
+     "8-20",
+     "8-36",
+     "8-43",
+     "8-45",
+     "8-49",
+     "8-51",
+     "8-82",
+     "8-110",
+     "9-3",
+     "9-27",
+     "9-29",
+     "9-48"
+    ],
+    "sources": [
+     "docs/v2/OBSERVATIONS_GAP_ANALYSIS.md",
+     "docs/v2/research/R14_ENGINE_SURVEY.md"
+    ]
+   },
+   "layer": "retrieval",
+   "existing": [
+    "read.word_vector_leg",
+    "read.lexical_analyzer=english",
+    "read.planner=llm",
+    "read.hyde_leg (proposed only)",
+    "SOL-LEXICAL",
+    "SOL-GAP-HYDE"
+   ],
+   "gap": "B2/B5/B6/B15 confirmed. R14 adds the engine finding that most engines expand at write time (keys per fact), not at query time, and the literature view that query-time HyDE is net-neutral when a strong hybrid plus reranker is in place.",
+   "confirms": "B2, B5, B6, B15",
+   "hypothesis": "Document-side enrichment (generated question or instance-to-category terms per fact, filtered) lifts the no-leg answer-bearing gold turns; expect 6-8 of the 21 paraphrase questions. Query-side multi-query helps less than document expansion on this pipeline.",
+   "survey": {
+    "literature": [
+     "Gao2022-hyde",
+     "Wang2023-query2doc",
+     "Zheng2023-step-back",
+     "Rackauckas2024-rag-fusion",
+     "Ma2023-rewrite-retrieve-read",
+     "Chen2024-bge-m3"
+    ],
+    "engines": [
+     "Mnemon planner",
+     "EverOS keyword+question+HyDE",
+     "MIRIX topic BM25"
+    ]
+   },
+   "solutions": [
+    {
+     "name": "Document expansion at write",
+     "mechanism": "Per fact, generate 2-3 questions it answers plus category words; filter with Doc2Query-minus; index with the fact.",
+     "source": "Doc2Query / Doc2Query-minus; EverOS facts-as-keys (R14-decon-1)",
+     "cost": "one batched call per fact set at ingest",
+     "risk": "noise terms; index grows",
+     "flag": "write.doc_expansion (new)"
+    },
+    {
+     "name": "Record-styled multi-search plus HyDE note",
+     "mechanism": "Rewrite the question in the store's own wording (dated third-person) and add one invented answering note.",
+     "source": "Mnemon planner, EverOS trio (R14-qry-1); HyDE [Gao2022-hyde]; Query2doc [Wang2023-query2doc]",
+     "cost": "1 call per question",
+     "risk": "negative on strong hybrid; keep behind a guard slice",
+     "flag": "read.planner=llm v3, read.hyde_leg (proposed), read.paraphrase_probes (S76)"
+    },
+    {
+     "name": "Learned sparse or late interaction leg",
+     "mechanism": "SPLADE / ColBERT / BGE-M3 multi-functional leg alongside BM25 and dense.",
+     "source": "[Khattab2020-colbert] [Chen2024-bge-m3]",
+     "cost": "model inference at index and query",
+     "risk": "memory and latency",
+     "flag": "read.word_vector_leg (existing, 21 ids screen)"
+    }
+   ],
+   "test": {
+    "slice": "fail_retrieval (81 ids, 21 paraphrase)",
+    "screen": "S84 doc expansion; S76 paraphrase probes (OBS-GAPS); word_vector_leg on the 21 ids"
+   },
+   "priority": "P2",
+   "effort": "M",
+   "expected_effect": {
+    "label": "hypothesis",
+    "text": "6-8 of 21 paraphrase questions (hypothesis); small share of the rest"
+   },
+   "rank": 16,
+   "cpu_no_llm_first_step": false,
+   "built_off_screen_only": false,
+   "source_items": [
+    "R14-RET-5",
+    "R14-LIT-P04",
+    "R14-qry-1",
+    "OBS-08"
+   ]
+  },
+  {
+   "id": "R14-M-5",
+   "tag": "R14-confirmed",
+   "title": "Elliptical and context-dependent turns: decontextualisation and an index view",
+   "problem": "Gold turns that are elliptical or anaphoric (a reply that carries the answer but not the topic) are unfindable because the topic lives in the neighbouring turn; a +-2 window around anchors reaches them only if the topical neighbour was itself found. Pronoun and plural referents are lost the same way.",
+   "evidence": {
+    "count": 32,
+    "detail": "32 context-dependent-gold questions (10 exclusive); 19 retrieval losses in sessions with a short-form window; elliptical turns about 10-15% of turns by the overlap rule",
+    "method": "measured/heuristic (RET-6 overlap rule; OBS-03, OBS-09 measurements)",
+    "question_ids": [
+     "0-11",
+     "0-15",
+     "0-34",
+     "1-23",
+     "1-44",
+     "1-56",
+     "2-8",
+     "2-10",
+     "3-14",
+     "3-22",
+     "3-30",
+     "3-42",
+     "3-58",
+     "3-74",
+     "3-79",
+     "4-7",
+     "4-45",
+     "5-18",
+     "5-24",
+     "6-5",
+     "6-6",
+     "6-11",
+     "6-33",
+     "7-19",
+     "7-36",
+     "7-82",
+     "8-49",
+     "8-82",
+     "8-110",
+     "9-3",
+     "9-27",
+     "9-29"
+    ],
+    "sources": [
+     "docs/v2/OBSERVATIONS_GAP_ANALYSIS.md",
+     "docs/v2/research/R14_ENGINE_SURVEY.md"
+    ]
+   },
+   "layer": "ingest",
+   "existing": [
+    "write.window_extract=facts",
+    "write.prompt_v2 CONTEXT lines",
+    "read.neighbours_v2",
+    "S03 S04 S43-S45 S62 (queued)",
+    "SOL-BUNDLES"
+   ],
+   "gap": "A07/I6/B12 confirmed. OBS-GAPS already proposes write.index_view (S69) and write.restate_gate (S70); R14 adds exchange-pair records as a CPU-only alternative and the engine finding that window-fact arms lose on their own (S03 -4, S04 -6) because the returned unit matters.",
+   "confirms": "A07, I6, B12",
+   "hypothesis": "Indexing exchange-level records (turn plus the turn it answers) as an extra leg, or a rule-built context prefix on the embedded text, recovers 8-10 of the 32 questions with no model call; LLM restatement only for rule-flagged turns adds 3-5 more.",
+   "survey": {
+    "literature": [
+     "Choi2021-decontextualization",
+     "Chen2023-dense-x",
+     "Anthropic2024-contextual-retr",
+     "Gunther2024-late-chunking",
+     "Zhong2024-mix-of-granularity"
+    ],
+    "engines": [
+     "EverOS episode as unit",
+     "Supermemory chunk attach",
+     "Mem0 15-80 word facts",
+     "MemOS background"
+    ]
+   },
+   "solutions": [
+    {
+     "name": "Exchange-pair records",
+     "mechanism": "Index each turn together with its addressed turn as an additional leg; return the pair.",
+     "source": "ours (RET-6); Mix-of-Granularity [Zhong2024-mix-of-granularity]",
+     "cost": "0; index 2-3x",
+     "risk": "index size",
+     "flag": "write.exchange_records (new)"
+    },
+    {
+     "name": "Rule-built context prefix on embedded text",
+     "mechanism": "Prepend speaker, session date and subject of the previous turn to the embedded text; content stays byte-identical.",
+     "source": "Anthropic contextual retrieval [Anthropic2024-contextual-retr]; OBS-02 index view",
+     "cost": "0",
+     "risk": "dilutes embedding if prefix too long",
+     "flag": "write.index_view (S69, OBS-GAPS)"
+    },
+    {
+     "name": "Gated restatement of flagged turns",
+     "mechanism": "Rule score marks incomplete turns; one grounded call restates only those; grounding check drops invented words.",
+     "source": "Decontextualisation [Choi2021-decontextualization]; Dense-X [Chen2023-dense-x]; Supermemory chunk attach",
+     "cost": "1 call per flagged window (10-15% of turns)",
+     "risk": "S03/S04 lost: facts alone regress",
+     "flag": "write.restate_gate (S70, OBS-GAPS)"
+    },
+    {
+     "name": "Day/session-first window boundary",
+     "mechanism": "Cut windows at session or calendar-day change first.",
+     "source": "EverOS boundary order (R14-seg-1)",
+     "cost": "0",
+     "risk": "none",
+     "flag": "write.window_overlap_turns (S75, OBS-GAPS)"
+    }
+   ],
+   "test": {
+    "slice": "fail_retrieval + fail_context (OBS-GAPS)",
+    "screen": "S85 exchange_records (CPU simulation first); S69/S70/S75 per OBS-GAPS"
+   },
+   "priority": "P2",
+   "effort": "M",
+   "expected_effect": {
+    "label": "hypothesis",
+    "text": "8-10 of 32 (hypothesis) for the rule-only forms"
+   },
+   "rank": 13,
+   "cpu_no_llm_first_step": true,
+   "built_off_screen_only": false,
+   "source_items": [
+    "R14-RET-6",
+    "R14-LIT-P01",
+    "R14-decon-1",
+    "R14-decon-3",
+    "R14-seg-1",
+    "OBS-02",
+    "OBS-03",
+    "OBS-09"
+   ]
+  },
+  {
+   "id": "R14-M-6",
+   "tag": "R14-confirmed",
+   "title": "Indirect gold for judgement questions: evidence describes behaviour, never the question's words",
+   "problem": "Open-domain (hypothetical or trait) questions ask for a judgement while the supporting turns describe behaviour; single-shot retrieval on the question text finds neither. The reader ceiling given all gold is also low.",
+   "evidence": {
+    "count": 28,
+    "detail": "28 open-domain retrieval losses with 47.6% of their gold turns missing; reader accuracy given all gold 46.9% on cat3 (96 questions); 41 open-domain wrong answers are not refusals",
+    "method": "measured (RET-2; OBS-measurements)",
+    "question_ids": [
+     "0-42",
+     "0-69",
+     "2-8",
+     "2-45",
+     "2-64",
+     "3-14",
+     "3-66",
+     "3-68",
+     "4-3",
+     "4-19",
+     "4-34",
+     "4-53",
+     "4-67",
+     "4-70",
+     "5-19",
+     "5-33",
+     "5-43",
+     "5-44",
+     "5-52",
+     "6-6",
+     "6-19",
+     "6-33",
+     "7-23",
+     "7-36",
+     "7-48",
+     "8-20",
+     "8-43",
+     "8-51"
+    ],
+    "sources": [
+     "docs/v2/OBSERVATIONS_GAP_ANALYSIS.md",
+     "docs/v2/research/R14_ENGINE_SURVEY.md"
+    ]
+   },
+   "layer": "retrieval",
+   "existing": [
+    "read.planner=llm",
+    "SOL-PLANNER",
+    "SOL-GAP-HYDE",
+    "SOL-AGENTIC",
+    "SOL-GRAPH",
+    "SOL-EPISODE"
+   ],
+   "gap": "B3 confirmed; the class open_domain_inference_retrieval has no built primary solution in the solution map. OBS-06 proposes inference probes (S74).",
+   "confirms": "B3, C3, C4",
+   "hypothesis": "Rewriting the question into 3-4 evidence-kind sub-queries (what X chose, enjoys, said about A, B) recovers about half the missing gold (14 of 28), but the 47% reader ceiling caps the accuracy gain at 4-7 questions.",
+   "survey": {
+    "literature": [
+     "Zheng2023-step-back",
+     "Gao2022-hyde"
+    ],
+    "engines": [
+     "Mnemon need-plan",
+     "Honcho peer card"
+    ]
+   },
+   "solutions": [
+    {
+     "name": "Evidence-kind query decomposition",
+     "mechanism": "Planner emits sub-queries for the kinds of evidence that would settle the judgement.",
+     "source": "ours (RET-2); Step-back [Zheng2023-step-back]; Mnemon need-plan",
+     "cost": "1 call per open-domain-shaped question",
+     "risk": "reader ceiling",
+     "flag": "read.planner=llm v3 / read.evidence_kind_probes (new)"
+    },
+    {
+     "name": "Trait and preference synthesis at write",
+     "mechanism": "Sleep-time profile/trait facts that give judgement questions a direct hit.",
+     "source": "ours (profile_card_v2); Honcho peer card, Memobase profile",
+     "cost": "sleep-time calls",
+     "risk": "unread card today (S46 skipped)",
+     "flag": "offline.profile_card_v2 + read.profile_header_packing"
+    }
+   ],
+   "test": {
+    "slice": "fail_retrieval (28) + all 96 cat3; oracle-gold reader-only run first to size the ceiling",
+    "screen": "S86 evidence_kind_probes; shares S74 probes (OBS-06)"
+   },
+   "priority": "P2",
+   "effort": "M",
+   "expected_effect": {
+    "label": "hypothesis",
+    "text": "4-7 questions net (hypothesis)"
+   },
+   "rank": 17,
+   "cpu_no_llm_first_step": false,
+   "built_off_screen_only": false,
+   "source_items": [
+    "R14-RET-2",
+    "OBS-06",
+    "OBS-08"
+   ]
+  },
+  {
+   "id": "R14-M-7",
+   "tag": "R14-confirmed",
+   "title": "Explicit-date questions: the date is treated as ordinary words, no session-date prior at fusion",
+   "problem": "A question that contains an explicit calendar date points at the session of that date, yet the engine treats the date as ordinary words; the gold turn is found by one leg and lost in fusion. The temporal leg fires on few questions and is off in the reference.",
+   "evidence": {
+    "count": 13,
+    "detail": "13 failing of 180 explicit-date questions (167 pass as guard); 12 of 13 are fusion cuts with the gold session 0-12 days from the query date; temporal leg fires on 187 of 1,540",
+    "method": "measured (RET-3)",
+    "question_ids": [
+     "2-107",
+     "2-133",
+     "3-103",
+     "3-122",
+     "5-46",
+     "6-11",
+     "6-32",
+     "6-75",
+     "7-121",
+     "8-45",
+     "8-110",
+     "9-27",
+     "9-48"
+    ],
+    "sources": [
+     "docs/v2/OBSERVATIONS_GAP_ANALYSIS.md",
+     "docs/v2/research/R14_ENGINE_SURVEY.md"
+    ]
+   },
+   "layer": "retrieval",
+   "existing": [
+    "read.temporal_relative",
+    "read.temporal_infer_year",
+    "read.lexical_dates",
+    "SOL-TEMPLEG",
+    "SOL-RELANCHOR",
+    "S24 S62 S63"
+   ],
+   "gap": "B4/I8 sharpened: the loss is concentrated in explicit-date questions, not relative ones. Engine survey adds window overlap plus proximity boost inside the window instead of a hard span filter (Hindsight) and reference_time on every read (R14-time-2).",
+   "confirms": "B4, I8",
+   "hypothesis": "Boosting (not filtering) candidates whose session date is within a few days of the question date recovers 9-11 of 13 questions with no loss on the 167 passing ones.",
+   "survey": {
+    "literature": [
+     "Gade2024-tempralm",
+     "Strotgen2010-heideltime",
+     "Allen1983-interval-algebra"
+    ],
+    "engines": [
+     "Hindsight temporal arm",
+     "Cognee TEMPORAL",
+     "Mastra three dates"
+    ]
+   },
+   "solutions": [
+    {
+     "name": "Date-scoped retrieval prior",
+     "mechanism": "Soft boost at fusion for candidates in sessions within N days of a date in the question.",
+     "source": "ours (RET-3); Hindsight window overlap plus proximity (R14-time-3); TempRALM [Gade2024-tempralm]",
+     "cost": "0",
+     "risk": "boost on the wrong year; keep soft",
+     "flag": "read.date_prior (new)"
+    },
+    {
+     "name": "Explicit reference_time on every read",
+     "mechanism": "Pass the conversation date, never the wall clock, to relative-phrase resolution.",
+     "source": "Hindsight (R14-time-2); MIRIX wall-clock defect",
+     "cost": "0",
+     "risk": "none",
+     "flag": "read.temporal_relative (existing) + unit test"
+    },
+    {
+     "name": "LLM interval extraction for unsure phrases",
+     "mechanism": "Rule first; one call only when the rule cannot parse.",
+     "source": "Cognee TEMPORAL (R14-time-3)",
+     "cost": "0-1 call on unparsed phrases",
+     "risk": "latency",
+     "flag": "read.temporal_infer_year (existing)"
+    }
+   ],
+   "test": {
+    "slice": "fail_temporal (13 fail + matched controls from the 180)",
+    "screen": "S87 date_prior (CPU re-fusion first); S24/S62/S63 queued"
+   },
+   "priority": "P1",
+   "effort": "S",
+   "expected_effect": {
+    "label": "hypothesis",
+    "text": "9-11 of 13 recovered (hypothesis; about 0.6-0.7 points)"
+   },
+   "rank": 2,
+   "cpu_no_llm_first_step": true,
+   "built_off_screen_only": false,
+   "source_items": [
+    "R14-RET-3",
+    "R14-LIT-P03",
+    "R14-time-2",
+    "R14-time-3",
+    "OBS-11"
+   ]
+  },
+  {
+   "id": "R14-M-8",
+   "tag": "R14-confirmed",
+   "title": "Date and duration arithmetic done by the 9B reader; event dates lack precision and status",
+   "problem": "Spans between two events, 'for N years' start dates and 'N months now' are answered by the reader's own subtraction; the wrong event line is picked for a 'when' question; a stored date does not say how precise it is or whether the state is still running.",
+   "evidence": {
+    "count": 19,
+    "detail": "19 date/duration reader failures; 15 how-long failures remain although every endpoint is annotated; 38 how_long/how_many-unit questions in scope; 10 pure arithmetic plus 8 wrong-event classes",
+    "method": "measured (READ-4; OBS-11 predicates)",
+    "question_ids": [
+     "0-35",
+     "1-14",
+     "3-26",
+     "3-41",
+     "3-44",
+     "3-54",
+     "4-16",
+     "5-34",
+     "5-47",
+     "5-59",
+     "6-41",
+     "6-62",
+     "7-46",
+     "7-71",
+     "7-134",
+     "8-25",
+     "8-39",
+     "9-61",
+     "9-62"
+    ],
+    "sources": [
+     "docs/v2/OBSERVATIONS_GAP_ANALYSIS.md",
+     "docs/v2/research/R14_ENGINE_SURVEY.md"
+    ]
+   },
+   "layer": "reader",
+   "existing": [
+    "duration_solve (built, no screen)",
+    "milestones E05",
+    "read.resolve_durations",
+    "date repair I57 (+1/0)",
+    "SOL-DURATION",
+    "SOL-RELANCHOR (S62)"
+   ],
+   "gap": "C5/I76/E05: R14 confirms the class is the best covered on paper and the least screened. Engine survey adds precision, status and type tags on the temporal pass (Mem0 platform) and a three-date line (Mastra).",
+   "confirms": "C5, I57, I76, I79, E05",
+   "hypothesis": "duration_solve plus milestones on the 38 how-long/unit questions converts at least a third of the 15 in-context failures (5 questions, about 0.3 points) with zero model calls beyond endpoint extraction.",
+   "survey": {
+    "literature": [
+     "Chen2022-pot",
+     "Gao2023-pal",
+     "Allen1983-interval-algebra",
+     "Chen2021-timeqa"
+    ],
+    "engines": [
+     "Mem0 platform temporal pass",
+     "Mastra OM dates",
+     "Hindsight occurred_start/end"
+    ]
+   },
+   "solutions": [
+    {
+     "name": "Deterministic date calculator",
+     "mechanism": "Resolved event dates in, closed set of operations out (difference, ordering, N weeks before); code, not model.",
+     "source": "PoT / PAL idea [Chen2022-pot] [Gao2023-pal]; ours duration_solve",
+     "cost": "0 (+1 call on about 5% for endpoint extraction)",
+     "risk": "wrong endpoint pick",
+     "flag": "duration_solve / read.resolve_durations (existing)"
+    },
+    {
+     "name": "Precision/status/type on event time",
+     "mechanism": "Add precision (day/month/year) and ongoing-or-completed to the temporal envelope.",
+     "source": "Mem0 platform temporal pass (R14-time-1)",
+     "cost": "within the extraction call",
+     "risk": "schema change",
+     "flag": "write.temporal_envelope (new, S62 arm)"
+    },
+    {
+     "name": "Fake-clock invariant test",
+     "mechanism": "Guard that every replayed line carries its own timestamp, not the run date.",
+     "source": "Mem0 OSS / Memori / Nemori defect (R14-decon-2)",
+     "cost": "0",
+     "risk": "none",
+     "flag": "unit test"
+    }
+   ],
+   "test": {
+    "slice": "fail_temporal date_* classes (19) + 38 unit questions",
+    "screen": "S88 duration_solve + milestones (built-off, needs a screen only)"
+   },
+   "priority": "P1",
+   "effort": "S",
+   "expected_effect": {
+    "label": "hypothesis",
+    "text": "about 5 questions (hypothesis)"
+   },
+   "rank": 6,
+   "cpu_no_llm_first_step": true,
+   "built_off_screen_only": true,
+   "source_items": [
+    "R14-READ-4",
+    "R14-LIT-P03",
+    "R14-time-1",
+    "R14-decon-2",
+    "OBS-11"
+   ]
+  },
+  {
+   "id": "R14-M-9",
+   "tag": "R14-confirmed",
+   "title": "Over-refusal and premise denial: no typed commit route for judgement questions",
+   "problem": "The reader answers 'not mentioned' or denies the premise when the evidence supports a committed inference (hypothetical, 'likely', world-knowledge hop). Prompt-only yes/no rules misfire on other question shapes, and abstention policy has no shared test.",
+   "evidence": {
+    "count": 40,
+    "detail": "40 over-refusal/premise-denial rows (26 cat3 failures); 14 open-domain refusals; 37 ungrounded rows overlap",
+    "method": "measured (READ-1; OBS-measurements)",
+    "question_ids": [
+     "0-22",
+     "0-26",
+     "0-49",
+     "0-59",
+     "0-71",
+     "1-71",
+     "2-17",
+     "2-31",
+     "2-41",
+     "3-4",
+     "3-12",
+     "3-43",
+     "3-60",
+     "3-73",
+     "3-85",
+     "4-5",
+     "4-8",
+     "4-15",
+     "4-28",
+     "4-40",
+     "4-48",
+     "4-51",
+     "4-66",
+     "4-113",
+     "6-0",
+     "6-4",
+     "6-7",
+     "6-16",
+     "6-17",
+     "6-30",
+     "6-35",
+     "6-53",
+     "6-64",
+     "7-44",
+     "7-70",
+     "7-75",
+     "8-57",
+     "8-70",
+     "9-7",
+     "9-13"
+    ],
+    "sources": [
+     "docs/v2/OBSERVATIONS_GAP_ANALYSIS.md",
+     "docs/v2/research/R14_ENGINE_SURVEY.md"
+    ]
+   },
+   "layer": "reader",
+   "existing": [
+    "--retry-refusal",
+    "reader variants dated_infer / grounded_generic_infer / dated_world / routed",
+    "read.query_contract + contract_rules",
+    "read.deep_v2 (S55 queued)",
+    "SOL-READERPROMPT"
+   ],
+   "gap": "C3 (yes/no rule rejected +5/-17) and C4 (screen pending) confirmed. R14 adds the gating principle: decide the route by code from the typed contract, not by prompt wording, plus the sufficiency-gated answer/infer/abstain literature and the shared-test finding that engines set abstention per engine.",
+   "confirms": "C3, C4, C10, I1, I61",
+   "hypothesis": "Gating the commit route on the typed contract (yes/no, would/likely/might) keeps the C3 regression away and converts about one third of the 26 cat3 failures (+6 to +10 questions, 0.4-0.6 points) with no extra calls; a self-consistency vote on judgement shapes only (about 6% of questions) adds a few more.",
+   "survey": {
+    "literature": [
+     "Joren2024-sufficient-context",
+     "Yu2023-chain-of-note",
+     "Yan2024-crag",
+     "Wen2024-abstention-survey",
+     "Kadavath2022-know-what-they-k"
+    ],
+    "engines": [
+     "EverOS inference CoT",
+     "Mem0 proxy",
+     "MIRIX guess rule",
+     "Mnemon exact string"
+    ]
+   },
+   "solutions": [
+    {
+     "name": "Typed commit route",
+     "mechanism": "Contract rule marks 'inference' shape; builder adds the commit-with-cited-line clause for that shape only; other shapes keep the unchanged text.",
+     "source": "ours (OBS-06); Sufficient Context [Joren2024-sufficient-context]; Chain-of-Note [Yu2023-chain-of-note]",
+     "cost": "0",
+     "risk": "cat5 over-commit; OP-Bench sycophancy",
+     "flag": "read.inference_mode (S73, OBS-GAPS)"
+    },
+    {
+     "name": "Sufficiency-gated answer/infer/abstain",
+     "mechanism": "Three-way policy using a sufficiency verdict before answering.",
+     "source": "CRAG [Yan2024-crag]; Abstention survey [Wen2024-abstention-survey]",
+     "cost": "0-1 call",
+     "risk": "same-model confound",
+     "flag": "read.deep_v2 (S55 queued)"
+    },
+    {
+     "name": "Self-consistency vote on judgement shapes",
+     "mechanism": "Three samples, majority, on judgement questions only.",
+     "source": "Self-consistency; ours (READ-1)",
+     "cost": "+2-4 calls on about 6%",
+     "risk": "cost",
+     "flag": "read.vote_judgement (new)"
+    },
+    {
+     "name": "Empty-context abstention without a call",
+     "mechanism": "No context lines means abstain with no model call.",
+     "source": "Mnemon / combined engine (R14-ans-2)",
+     "cost": "0 (saves a call)",
+     "risk": "none",
+     "flag": "read.empty_abstain (new, unit test)"
+    }
+   ],
+   "test": {
+    "slice": "fail_reader (40 + 25 refusal rows); guards cat5 and OP-Bench irrelevance",
+    "screen": "S73 prompt, S74 probes (OBS-GAPS); S89 vote; S20 cat5 guard"
+   },
+   "priority": "P1",
+   "effort": "S",
+   "expected_effect": {
+    "label": "hypothesis",
+    "text": "+6 to +10 questions (hypothesis)"
+   },
+   "rank": 7,
+   "cpu_no_llm_first_step": false,
+   "built_off_screen_only": true,
+   "source_items": [
+    "R14-READ-1",
+    "R14-LIT-P08",
+    "R14-ans-1",
+    "R14-ans-2",
+    "R14-wk-1",
+    "OBS-06"
+   ]
+  },
+  {
+   "id": "R14-M-10",
+   "tag": "R14-confirmed",
+   "title": "Wrong detail and distractor use; one window size for every question shape",
+   "problem": "The reader answers from a plausible sibling line: topical, near the gold line, but a different or generic detail. The distractor is a window neighbour of the gold in about a third of cases and a retrieval hit in over half. Context size is the same for every shape, so the window that helps temporal questions is paid for by single-hop distractors. Position effects (lost in the middle) do not reproduce at this context length.",
+   "evidence": {
+    "count": 59,
+    "detail": "46 wrong_detail rows, 59 distractor-source rows (19 window neighbours, 32 retrieval hits); accuracy given all gold falls 91% (<=40 turns) to 83.6% (>60 turns); position quintiles 0.89-0.92 (Fisher p=0.90) so no position effect; rank>3 gold 74.8% vs 90.8%",
+    "method": "measured/heuristic (READ-2, DIST-1, LEN-1, POS-1, POS-2); 13 hand-confirmed",
+    "question_ids": [
+     "0-35",
+     "0-43",
+     "0-49",
+     "0-66",
+     "0-142",
+     "0-151",
+     "1-14",
+     "1-17",
+     "1-43",
+     "1-48",
+     "1-57",
+     "1-75",
+     "2-17",
+     "2-35",
+     "2-85",
+     "2-99",
+     "3-19",
+     "3-26",
+     "3-41",
+     "3-60",
+     "3-70",
+     "3-85",
+     "3-113",
+     "3-116",
+     "3-148",
+     "3-169",
+     "4-30",
+     "4-40",
+     "4-48",
+     "4-51",
+     "4-60",
+     "4-76",
+     "4-86",
+     "4-106",
+     "4-113",
+     "4-117",
+     "4-128",
+     "4-135",
+     "4-151",
+     "4-169",
+     "5-2",
+     "5-16",
+     "5-17",
+     "5-21",
+     "5-47",
+     "5-79",
+     "6-17",
+     "6-20",
+     "6-22",
+     "6-64",
+     "6-112",
+     "6-147",
+     "7-13",
+     "7-44",
+     "7-71",
+     "7-77",
+     "7-87",
+     "7-108",
+     "7-115",
+     "7-116",
+     "7-134",
+     "7-136",
+     "7-145",
+     "7-151",
+     "7-155",
+     "7-178",
+     "8-24",
+     "8-25",
+     "8-62",
+     "8-70",
+     "8-78",
+     "8-104",
+     "8-109",
+     "8-144",
+     "8-154",
+     "9-1",
+     "9-54",
+     "9-56",
+     "9-60",
+     "9-64",
+     "9-67",
+     "9-96",
+     "9-109",
+     "9-110",
+     "9-115",
+     "9-120",
+     "9-125",
+     "9-147"
+    ],
+    "sources": [
+     "docs/v2/research/R14_ENGINE_SURVEY.md"
+    ]
+   },
+   "layer": "reader",
+   "existing": [
+    "read.present_order (hits-first rejected R2-4)",
+    "SOL-VERIFY / --verify-answer",
+    "SOL-BUNDLES S19/S52-S54",
+    "read.exact_budget",
+    "SOL-GAP-DISTRACTOR (not built)"
+   ],
+   "gap": "C1/C9/R2-4/I6 confirmed: reordering was rejected, verification not screened, owner/event check not built. R14 adds the negative position result (do not spend a screen), the per-shape window, and Mastra/MemOS style attached source context.",
+   "confirms": "C1, C2, C9, I6, R2-4",
+   "hypothesis": "A binding check that the cited line shares the question's event noun phrase and date (code), plus one repair call on mismatches, removes about a third of true distractor cases (+10 to +14 questions); a per-shape window (1/1 for non-temporal single-hop) recovers about 1 point on single-hop at no loss on temporal.",
+   "survey": {
+    "literature": [
+     "Yu2023-chain-of-note",
+     "Liu2024-lost-middle",
+     "Hsieh2024-found-in-middle",
+     "Yoran2023-retrobust"
+    ],
+    "engines": [
+     "Supermemory source chunk attach",
+     "Mnemon keyed state block"
+    ]
+   },
+   "solutions": [
+    {
+     "name": "Provenance check (owner/event/date binding)",
+     "mechanism": "Code checks the cited line against the question's head noun phrase and date; one repair call on mismatch only.",
+     "source": "ours (DIST-1); Chain-of-Note [Yu2023-chain-of-note]",
+     "cost": "+1 call on mismatches only",
+     "risk": "false mismatch cost",
+     "flag": "read.verify_binding (new) / --verify-answer"
+    },
+    {
+     "name": "Quote-then-answer",
+     "mechanism": "Reader quotes the line first; the quote must contain the head noun phrase.",
+     "source": "ours (READ-2)",
+     "cost": "longer completion",
+     "risk": "verbosity",
+     "flag": "reader.quote_first (new, harness)"
+    },
+    {
+     "name": "Per-shape window and budget",
+     "mechanism": "Narrow window for single-fact shapes, wide for temporal and multi-turn.",
+     "source": "ours (LEN-1); S52/S53 exact budget (queued)",
+     "cost": "0",
+     "risk": "temporal regression if misrouted",
+     "flag": "read.window_by_shape (new)"
+    },
+    {
+     "name": "Evidence compression",
+     "mechanism": "Compress distractor-heavy context before reading.",
+     "source": "RECOMP [Xu2023-recomp] idea",
+     "cost": "+1 call",
+     "risk": "loses the gold",
+     "flag": "read.compress (existing idea, not built)"
+    }
+   ],
+   "test": {
+    "slice": "fail_reader (46 + 59 ids); 2x2 narrow/wide window by shape on the dev slice",
+    "screen": "S90 quote-then-answer; S91 window_by_shape; S92 verify_binding; S52-S54 queued"
+   },
+   "priority": "P1",
+   "effort": "M",
+   "expected_effect": {
+    "label": "hypothesis",
+    "text": "+10 to +14 (binding) and about +1 point single-hop (window), partly overlapping (hypothesis)"
+   },
+   "rank": 8,
+   "cpu_no_llm_first_step": false,
+   "built_off_screen_only": false,
+   "source_items": [
+    "R14-READ-2",
+    "R14-DIST-1",
+    "R14-LEN-1",
+    "R14-POS-1",
+    "R14-POS-2",
+    "R14-prof-1"
+   ]
+  },
+  {
+   "id": "R14-M-11",
+   "tag": "R14-confirmed",
+   "title": "List and count completeness: partial lists, over-counted events, 'at least N'",
+   "problem": "The reader returns one or two of several items, counts one event twice because it is mentioned on two dates, or hedges with 'at least N'. Retrieval of list members is handled; enumeration and de-duplication at read are not.",
+   "evidence": {
+    "count": 25,
+    "detail": "25 incomplete-list/wrong-count rows; 16 list_incomplete + 9 count_wrong; 7 of 9 counts are over-counts",
+    "method": "measured (READ-3)",
+    "question_ids": [
+     "0-66",
+     "1-48",
+     "3-5",
+     "3-19",
+     "3-49",
+     "3-52",
+     "3-70",
+     "3-80",
+     "4-2",
+     "4-30",
+     "4-49",
+     "5-2",
+     "5-17",
+     "5-89",
+     "6-20",
+     "6-22",
+     "6-26",
+     "6-27",
+     "6-60",
+     "7-1",
+     "7-155",
+     "8-37",
+     "8-104",
+     "9-47",
+     "9-59"
+    ],
+    "sources": [
+     "docs/v2/research/R14_ENGINE_SURVEY.md"
+    ]
+   },
+   "layer": "reader",
+   "existing": [
+    "count_verify single (REJECTED +1/-16)",
+    "two_call and evidence_table (unscreened)",
+    "S06 S11 S56 (queued)",
+    "SOL-COUNT",
+    "SOL-OBLIG"
+   ],
+   "gap": "C6/I56 confirmed; the two_call and evidence-table variants have never been screened. R14 adds code-side counting from the model's listed events (PoT idea) and the enumerate-then-count shape.",
+   "confirms": "C6, I56",
+   "hypothesis": "An evidence table (one row per distinct event: actor, object, date) built by code from the context lines, followed by a count over the rows, fixes the over-count class (7 of 9) without the single-call collapse failure.",
+   "survey": {
+    "literature": [
+     "Chen2022-pot"
+    ],
+    "engines": [
+     "Mnemon ALL-need paging"
+    ]
+   },
+   "solutions": [
+    {
+     "name": "Evidence table, enumerate then count",
+     "mechanism": "Code builds event rows; the model lists; a function counts and de-duplicates.",
+     "source": "ours (READ-3); PoT idea [Chen2022-pot]",
+     "cost": "+1 call on list/count shapes (about 6%)",
+     "risk": "collapse to one item (seen in count_verify)",
+     "flag": "harness evidence_table / two_call (existing)"
+    },
+    {
+     "name": "Obligation coverage for list/count",
+     "mechanism": "Evidence obligations name each required item before abstaining.",
+     "source": "ours S56",
+     "cost": "0-2 calls",
+     "risk": "queued",
+     "flag": "read.obligations (S56 queued)"
+    },
+    {
+     "name": "Contract-shaped output",
+     "mechanism": "List shape prints one bullet per item; count prints number plus list.",
+     "source": "ours (READ-8)",
+     "cost": "0",
+     "risk": "none",
+     "flag": "read.query_contract (S06/S11 queued)"
+    }
+   ],
+   "test": {
+    "slice": "fail_list (25 + list/count-shaped controls)",
+    "screen": "S93 evidence_table / two_call; S06, S11, S56 queued"
+   },
+   "priority": "P1",
+   "effort": "S",
+   "expected_effect": {
+    "label": "hypothesis",
+    "text": "about 5-7 questions (hypothesis)"
+   },
+   "rank": 9,
+   "cpu_no_llm_first_step": true,
+   "built_off_screen_only": true,
+   "source_items": [
+    "R14-READ-3",
+    "R14-qry-2"
+   ]
+  },
+  {
+   "id": "R14-M-12",
+   "tag": "R14",
+   "title": "Multi-turn join and multi-entity decomposition at read",
+   "problem": "Questions that need two or more turns, especially across sessions or about several entities (intersection, difference, 'both'), are not joined by the reader even when all evidence is in context. Retrieval-side hop work is plentiful; reader-side decomposition with per-entity quotas and deterministic combine operators is not covered.",
+   "evidence": {
+    "count": 54,
+    "detail": "54 multi-turn reader failures (52 multi-session of 140 in-context); 43 multi-entity wrong answers; accuracy 90.0% at one evidence turn, 78.5% at two, 68.2% at three, 72.9% across two sessions",
+    "method": "measured (MH-1; OBS-10 predicate)",
+    "question_ids": [
+     "0-43",
+     "0-59",
+     "0-66",
+     "0-71",
+     "1-9",
+     "1-17",
+     "2-35",
+     "3-5",
+     "3-12",
+     "3-19",
+     "3-43",
+     "3-49",
+     "3-52",
+     "3-70",
+     "3-80",
+     "4-2",
+     "4-8",
+     "4-16",
+     "4-30",
+     "4-49",
+     "4-55",
+     "5-2",
+     "5-17",
+     "5-21",
+     "5-34",
+     "5-47",
+     "6-20",
+     "6-22",
+     "6-26",
+     "6-27",
+     "6-53",
+     "6-60",
+     "6-62",
+     "6-64",
+     "7-1",
+     "7-13",
+     "7-46",
+     "7-77",
+     "7-87",
+     "8-37",
+     "8-39",
+     "8-62",
+     "8-70",
+     "8-78",
+     "9-1",
+     "9-47",
+     "9-53",
+     "9-54",
+     "9-56",
+     "9-59",
+     "9-60",
+     "9-61",
+     "9-62",
+     "9-64"
+    ],
+    "sources": [
+     "docs/v2/OBSERVATIONS_GAP_ANALYSIS.md",
+     "docs/v2/research/R14_ENGINE_SURVEY.md"
+    ]
+   },
+   "layer": "reader",
+   "existing": [
+    "read.multi_intent_split (discourse markers only)",
+    "read.bridge_hop (gated)",
+    "read.agentic_mode",
+    "SOL-OBLIG (S56)",
+    "SOL-DEEPREAD (S55)",
+    "retired: slot loop, fact chain"
+   ],
+   "gap": "New: reader-side decomposition when all evidence is already in context. Nearest existing: OBS-10 read.decompose_v2 (S77) for the retrieval side; the retired slot loop is not to be repeated.",
+   "confirms": null,
+   "hypothesis": "Decomposition into per-entity sub-questions answered per turn and joined by code lifts multi-session in-context accuracy from 72.9% by +5 points (about +7 questions) at +2-3 calls on about 10% of questions.",
+   "survey": {
+    "literature": [
+     "Zhou2023-least-to-most",
+     "Khot2023-decomposed-prompting",
+     "Press2023-self-ask"
+    ],
+    "engines": [
+     "Cognee DECOMPOSITION",
+     "MemMachine SplitQuery (+0.46 points at 2x tokens)"
+    ]
+   },
+   "solutions": [
+    {
+     "name": "Decompose then join",
+     "mechanism": "Sub-questions per entity answered per turn; combine operators (intersection, union, difference, count merge) in code with entity quotas.",
+     "source": "Least-to-Most [Zhou2023-least-to-most]; Decomposed Prompting [Khot2023-decomposed-prompting]; OBS-10",
+     "cost": "+2-3 calls on about 10%",
+     "risk": "slot-loop style regression",
+     "flag": "read.decompose_v2 (S77, OBS-GAPS)"
+    },
+    {
+     "name": "Evidence obligations join",
+     "mechanism": "Join obligations stated before the answer.",
+     "source": "ours S56",
+     "cost": "0-2 calls",
+     "risk": "queued",
+     "flag": "read.obligations (S56 queued)"
+    },
+    {
+     "name": "Cross-session evidence table",
+     "mechanism": "One table across sessions, one call.",
+     "source": "ours (MH-1)",
+     "cost": "+1 call",
+     "risk": "table noise",
+     "flag": "harness evidence_table (existing)"
+    }
+   ],
+   "test": {
+    "slice": "fail_list + new fail_multi (43, OBS-GAPS)",
+    "screen": "S94 reader-side join (after S77); S56 queued"
+   },
+   "priority": "P2",
+   "effort": "M",
+   "expected_effect": {
+    "label": "hypothesis",
+    "text": "about +7 questions (hypothesis)"
+   },
+   "rank": 14,
+   "cpu_no_llm_first_step": false,
+   "built_off_screen_only": false,
+   "source_items": [
+    "R14-MH-1",
+    "OBS-10",
+    "R14-LIT-P05"
+   ]
+  },
+  {
+   "id": "R14-M-13",
+   "tag": "R14-confirmed",
+   "title": "Ungrounded answers: new content words appear nowhere in the context",
+   "problem": "The answer contains content words that occur in no context line (inference output, arithmetic result, world knowledge or fabrication). The diagnosed verification mode already flags such cases but is unscreened.",
+   "evidence": {
+    "count": 37,
+    "detail": "37 ungrounded wrong rows (22% of in-context wrong rows); 188 correct answers are also 'ungrounded' (false-defect risk)",
+    "method": "measured (READ-7)",
+    "question_ids": [
+     "0-22",
+     "0-26",
+     "0-35",
+     "0-71",
+     "0-135",
+     "1-9",
+     "1-71",
+     "2-69",
+     "3-24",
+     "3-44",
+     "3-54",
+     "3-85",
+     "3-92",
+     "4-6",
+     "4-8",
+     "4-16",
+     "4-40",
+     "4-49",
+     "4-55",
+     "4-66",
+     "4-174",
+     "5-4",
+     "5-16",
+     "5-17",
+     "5-59",
+     "6-7",
+     "6-41",
+     "6-53",
+     "6-62",
+     "7-46",
+     "7-70",
+     "7-174",
+     "8-39",
+     "9-1",
+     "9-7",
+     "9-47",
+     "9-61"
+    ],
+    "sources": [
+     "docs/v2/research/R14_ENGINE_SURVEY.md"
+    ]
+   },
+   "layer": "reader",
+   "existing": [
+    "--verify-answer",
+    "--verify-slots diagnosed",
+    "defect_diagnosis.py",
+    "SOL-VERIFY"
+   ],
+   "gap": "Confirmed: diagnosed mode flags 'a name no memory line contains' but has no screen. R14 adds the false-defect rate requirement.",
+   "confirms": "SOL-VERIFY, defect_diagnosis",
+   "hypothesis": "slot_verify diagnosed repairs 1 in 4 of the 37 (+8 questions) at about 1.8% extra calls; without a gold, abstaining is the safe alternative on cat1-4.",
+   "survey": {
+    "literature": [
+     "Yu2023-chain-of-note"
+    ],
+    "engines": [
+     "EverOS trimmed CoT"
+    ]
+   },
+   "solutions": [
+    {
+     "name": "Diagnosed repair",
+     "mechanism": "One repair call only when a defect rule fires.",
+     "source": "ours (READ-7)",
+     "cost": "+1 call on about 10% of answers",
+     "risk": "false defects on the 188 correct ones",
+     "flag": "--verify-slots diagnosed (existing)"
+    },
+    {
+     "name": "Larger reader or thinking mode",
+     "mechanism": "Reader capacity.",
+     "source": "COMBINED_ENGINE comparison (R14-ans-1)",
+     "cost": "high",
+     "risk": "thinking mode measured and not adopted (A9)",
+     "flag": "reader model role"
+    }
+   ],
+   "test": {
+    "slice": "fail_reader (37 ids); false-defect rate on the 188 correct",
+    "screen": "S95 slot_verify diagnosed"
+   },
+   "priority": "P2",
+   "effort": "S",
+   "expected_effect": {
+    "label": "hypothesis",
+    "text": "about +8 (hypothesis, upper)"
+   },
+   "rank": 15,
+   "cpu_no_llm_first_step": false,
+   "built_off_screen_only": true,
+   "source_items": [
+    "R14-READ-7",
+    "R14-ans-1"
+   ]
+  },
+  {
+   "id": "R14-M-14",
+   "tag": "R14-confirmed",
+   "title": "Verbosity against a short gold: answer length follows difficulty, the lever is an output contract",
+   "problem": "Wrong answers are enumerations or explanations many times the gold length. The length is a difficulty correlate (long answers follow refusals, lists and uncertain counts) so a length cap is not a fix; the lever is an answer-type contract that fixes the output shape per question type.",
+   "evidence": {
+    "count": 49,
+    "detail": "49 rows with answer/gold length ratio above 8",
+    "method": "measured (READ-8)",
+    "question_ids": [
+     "0-22",
+     "0-26",
+     "0-35",
+     "0-49",
+     "0-71",
+     "1-9",
+     "1-14",
+     "1-71",
+     "2-31",
+     "2-41",
+     "3-12",
+     "3-19",
+     "3-43",
+     "3-44",
+     "3-52",
+     "4-8",
+     "4-16",
+     "4-28",
+     "4-30",
+     "4-40",
+     "4-48",
+     "4-51",
+     "4-113",
+     "4-152",
+     "4-165",
+     "5-17",
+     "5-59",
+     "6-7",
+     "6-16",
+     "6-17",
+     "6-20",
+     "6-30",
+     "6-31",
+     "6-53",
+     "6-62",
+     "6-64",
+     "7-44",
+     "7-46",
+     "7-70",
+     "7-75",
+     "7-77",
+     "7-108",
+     "7-178",
+     "8-39",
+     "8-57",
+     "8-109",
+     "9-7",
+     "9-47",
+     "9-61"
+    ],
+    "sources": [
+     "docs/v2/research/R14_ENGINE_SURVEY.md"
+    ]
+   },
+   "layer": "reader",
+   "existing": [
+    "read.query_contract + contract_rules",
+    "GROUNDED prompts (short, direct)",
+    "judge_conventions list_superset",
+    "S06 S11 (queued)"
+   ],
+   "gap": "Confirmed; no new screen needed beyond S06/S11 plus a report column.",
+   "confirms": "READER_GAPS_FORENSIC 0.4, SOL-CONTRACT",
+   "hypothesis": "Contract-fixed shapes (single fact one phrase; list bullet per item; count number plus list) lower the ratio>8 rate without lowering list recall.",
+   "survey": {
+    "literature": [],
+    "engines": []
+   },
+   "solutions": [
+    {
+     "name": "Answer-type contract",
+     "mechanism": "Output shape fixed per typed question shape.",
+     "source": "ours (READ-8)",
+     "cost": "0",
+     "risk": "list recall",
+     "flag": "read.query_contract (existing, S06/S11)"
+    }
+   ],
+   "test": {
+    "slice": "ratio>8 ids from fail_reader",
+    "screen": "S06, S11 (queued); add ratio>8 and list-recall columns"
+   },
+   "priority": "P2",
+   "effort": "S",
+   "expected_effect": {
+    "label": "hypothesis",
+    "text": "no direct gain; reduces judge partial-credit exposure (hypothesis)"
+   },
+   "rank": 10,
+   "cpu_no_llm_first_step": true,
+   "built_off_screen_only": true,
+   "source_items": [
+    "R14-READ-8"
+   ]
+  },
+  {
+   "id": "R14-M-15",
+   "tag": "R14-confirmed",
+   "title": "Image captions: misattributed or photo-only evidence",
+   "problem": "The answer is in an image caption but the reader uses a caption from another turn, or the gold fact exists only in the photo. Captions rendered inline in speech make ownership unclear; ingest-time description records are the common engine pattern, not read-time fetch.",
+   "evidence": {
+    "count": 6,
+    "detail": "6 caption-misuse rows (3 cross-turn mixing); 28 caption-only questions; 55 caption-decisive in OBS-05",
+    "method": "measured (READ-5; OBS-05)",
+    "question_ids": [
+     "4-152",
+     "8-106",
+     "8-108",
+     "8-109",
+     "8-144",
+     "9-115"
+    ],
+    "sources": [
+     "docs/v2/OBSERVATIONS_GAP_ANALYSIS.md",
+     "docs/v2/research/R14_ENGINE_SURVEY.md"
+    ]
+   },
+   "layer": "reader",
+   "existing": [
+    "ingest.assets",
+    "read.asset_evidence",
+    "reader grounded_v2/v3 caption line",
+    "SOL-ASSET"
+   ],
+   "gap": "C7 (caption rule 85.8 vs 86.7, not adopted) confirmed. R14 adds the engine finding that Mem0, Hindsight, MemOS and EverOS describe images at ingest.",
+   "confirms": "C7, E04",
+   "hypothesis": "Rendering each caption on its own typed line with turn id, speaker and date lowers cross-turn mixing (3 of 6); photo-only golds are not fixable here (+2 to +3 questions).",
+   "survey": {
+    "literature": [
+     "Li2023-blip2",
+     "Wang2025-mirix"
+    ],
+    "engines": [
+     "Mem0 vision",
+     "Hindsight attachments",
+     "MemOS parsers"
+    ]
+   },
+   "solutions": [
+    {
+     "name": "Caption as its own typed line",
+     "mechanism": "Own 'Photo (turn, speaker, date)' line next to the turn.",
+     "source": "ours (READ-5); MIRIX/Mem0 description records",
+     "cost": "0",
+     "risk": "tokens",
+     "flag": "write.caption_facts (S72, OBS-GAPS)"
+    },
+    {
+     "name": "Ingest-time image description",
+     "mechanism": "Vision call once at ingest, stored as a record with provenance.",
+     "source": "Mem0 enable_vision, Hindsight attachments (R14-mm-1)",
+     "cost": "1 vision call per image",
+     "risk": "latency at ingest",
+     "flag": "ingest.assets (existing)"
+    }
+   ],
+   "test": {
+    "slice": "fail_reader (6) + 28 caption-only",
+    "screen": "S72 (OBS-GAPS)"
+   },
+   "priority": "P3",
+   "effort": "S",
+   "expected_effect": {
+    "label": "hypothesis",
+    "text": "+2 to +3 (hypothesis)"
+   },
+   "rank": 20,
+   "cpu_no_llm_first_step": false,
+   "built_off_screen_only": false,
+   "source_items": [
+    "R14-READ-5",
+    "R14-LIT-P10",
+    "R14-mm-1",
+    "OBS-05"
+   ]
+  },
+  {
+   "id": "R14-M-16",
+   "tag": "R14",
+   "title": "Speaker attribution: wrong-speaker answers are rare, but swapped-speaker golds penalise correct attribution",
+   "problem": "Attribution by speaker is the right behaviour, yet in a set of questions the gold turn is spoken by the other person, so a system that ignores the named speaker gains and one that enforces it loses. Restatement can also erase who said it (speaker labels discarded).",
+   "evidence": {
+    "count": 39,
+    "detail": "1 reader-side wrong-speaker row; 39 speaker-swapped questions of which 23 are credited and not in the errata; 5 speaker candidates still to verify",
+    "method": "measured (READ-6, GOLD-2)",
+    "question_ids": [
+     "0-72",
+     "0-94",
+     "0-106",
+     "0-107",
+     "0-132",
+     "0-139",
+     "1-44",
+     "2-5",
+     "2-129",
+     "3-54",
+     "3-119",
+     "3-121",
+     "3-184",
+     "4-60",
+     "4-74",
+     "4-86",
+     "4-135",
+     "4-136",
+     "4-164",
+     "4-165",
+     "4-166",
+     "6-37",
+     "7-78",
+     "7-116",
+     "7-120",
+     "7-122",
+     "7-123",
+     "7-152",
+     "7-155",
+     "7-179",
+     "8-24",
+     "9-53",
+     "9-70",
+     "9-80",
+     "9-87",
+     "9-88",
+     "9-111",
+     "9-137",
+     "9-147",
+     "9-151"
+    ],
+    "sources": [
+     "docs/v2/research/R14_ENGINE_SURVEY.md"
+    ]
+   },
+   "layer": "eval",
+   "existing": [
+    "SOL-PERSPECTIVE (subject_weight, in reference)",
+    "I59 owner_check (tag only)",
+    "I39 perspective layer"
+   ],
+   "gap": "New: perspective features are scored against labels that sometimes contradict them; no stratum separates the 23 credited swapped-speaker rows.",
+   "confirms": null,
+   "hypothesis": "Reporting the swapped-speaker rows as their own stratum explains any perspective-feature loss up to 1.5 points and prevents rejecting a correct attribution feature; owner tags stay tags, not filters.",
+   "survey": {
+    "literature": [],
+    "engines": [
+     "SimpleMem speaker discard",
+     "MemOS per-speaker"
+    ]
+   },
+   "solutions": [
+    {
+     "name": "Speaker-swap stratum in every report",
+     "mechanism": "Report the swapped rows separately.",
+     "source": "ours (GOLD-2)",
+     "cost": "0",
+     "risk": "none",
+     "flag": "report column (no flag)"
+    },
+    {
+     "name": "Per-speaker perspective ingestion",
+     "mechanism": "Keep speaker as subject/owner on restated facts.",
+     "source": "MemOS per-speaker (R14-decon-3)",
+     "cost": "0",
+     "risk": "restatement erasing speaker (SimpleMem)",
+     "flag": "write.restate_referents (S70b, OBS-GAPS)"
+    }
+   ],
+   "test": {
+    "slice": "perspective screens with the 23-row stratum split out",
+    "screen": "no new screen; apply to any perspective screen"
+   },
+   "priority": "P3",
+   "effort": "S",
+   "expected_effect": {
+    "label": "hypothesis",
+    "text": "reporting fix; at most 1 question reader-side (hypothesis)"
+   },
+   "rank": 21,
+   "cpu_no_llm_first_step": true,
+   "built_off_screen_only": false,
+   "source_items": [
+    "R14-READ-6",
+    "R14-GOLD-2",
+    "R14-decon-3"
+   ]
+  },
+  {
+   "id": "R14-M-17",
+   "tag": "R14-confirmed",
+   "title": "Judge false negatives after the date guard: superset lists, annotation equivalence, containment",
+   "problem": "WRONG verdicts whose answer states the gold fact: a superset or concluding list, an equivalent annotation, a typo, containment with extra detail, a country/city or paraphrase pair, and relative-phrase golds the date guard does not parse. The judge is nearly deterministic, so these errors are systematic, not random.",
+   "evidence": {
+    "count": 23,
+    "detail": "23 false-negative rows by hand (10 clear, 4 likely, 9 borderline); central 16.6 (range 10-23); conventions v1/v2 reach only 6 of 14 clear/likely; 20 unparsed relative-phrase golds; 1,696 identical-answer groups across 6 runs with 4 flips",
+    "method": "hand read of all 287 wrong rows (JUDGE-1, JUDGE-4, JUDGE-5)",
+    "question_ids": [
+     "0-22",
+     "0-70",
+     "0-135",
+     "1-17",
+     "1-31",
+     "2-107",
+     "3-4",
+     "3-43",
+     "3-134",
+     "3-148",
+     "3-173",
+     "3-183",
+     "4-16",
+     "4-30",
+     "4-34",
+     "4-174",
+     "5-34",
+     "5-47",
+     "6-26",
+     "6-30",
+     "6-35",
+     "6-53",
+     "6-62",
+     "6-64",
+     "7-8",
+     "7-46",
+     "7-101",
+     "7-134",
+     "7-145",
+     "8-18",
+     "8-37",
+     "8-39",
+     "8-43",
+     "8-54",
+     "8-70",
+     "8-154",
+     "9-1",
+     "9-60",
+     "9-61",
+     "9-62",
+     "9-64",
+     "9-127"
+    ],
+    "sources": [
+     "docs/v2/research/R14_ENGINE_SURVEY.md"
+    ]
+   },
+   "layer": "judge",
+   "existing": [
+    "judge_conventions v1/v2",
+    "--judge-date-check (89 deterministic credits)",
+    "second_view.py",
+    "SOL-DATEGUARD",
+    "SOL-JUDGE-I77 (not built)"
+   ],
+   "gap": "A2/I58/I77 confirmed; v3 conventions are not built. R14 adds that the residue after the date guard is list/containment/annotation/geography.",
+   "confirms": "A2, I58, I77",
+   "hypothesis": "Conventions v3 (all gold items anywhere incl. a concluding list; annotation-equivalent year; containment with extra detail when no contradiction; edit-distance names; relative_year) credits 7 to 10 of the 14 clear/likely rows with 0 new false positives on the calibration set.",
+   "survey": {
+    "literature": [
+     "Zheng2023-judging-llm-judge",
+     "Wang2023-unfair-evaluators",
+     "Liu2023-geval",
+     "Verga2024-poll",
+     "Thakur2024-judging-the-judges",
+     "Kamalloo2023-eval-odqa",
+     "Bulian2022-tomayto"
+    ],
+    "engines": [
+     "EverOS lenient judge",
+     "Nemori reader=judge"
+    ]
+   },
+   "solutions": [
+    {
+     "name": "Judge conventions v3",
+     "mechanism": "Deterministic pre-judge rules, scored on the hand-labelled calibration file; require 0 new FP.",
+     "source": "ours (JUDGE-1); string-match + LLM hybrid [Kamalloo2023-eval-odqa]; token-F1 normalisation [Bulian2022-tomayto]",
+     "cost": "0",
+     "risk": "FP on lenient list rule",
+     "flag": "judge_conventions v3 (new, S96 re-score)"
+    },
+    {
+     "name": "Second judge on disagreement",
+     "mechanism": "Different-family judge only on rows where the first judge and the pre-judge disagree.",
+     "source": "PoLL [Verga2024-poll]",
+     "cost": "about 230 calls per run",
+     "risk": "same-family bias",
+     "flag": "--judge-second (existing second_view)"
+    }
+   ],
+   "test": {
+    "slice": "23 FN ids + 34 FP ids frozen as a 57-row calibration extension; judge_calibration_dev.jsonl",
+    "screen": "S96 judge conventions v3 (re-score stored answers, no retrieval)"
+   },
+   "priority": "P1",
+   "effort": "S",
+   "expected_effect": {
+    "label": "hypothesis",
+    "text": "credits 7-10 rows (0.5-0.65 points) with no engine change (hypothesis)"
+   },
+   "rank": 4,
+   "cpu_no_llm_first_step": true,
+   "built_off_screen_only": true,
+   "source_items": [
+    "R14-JUDGE-1",
+    "R14-JUDGE-4",
+    "R14-JUDGE-5",
+    "R14-LIT-P11",
+    "R14-eval-1"
+   ]
+  },
+  {
+   "id": "R14-M-18",
+   "tag": "R14-confirmed",
+   "title": "Judge false positives and the honest headline: partial lists credited, 81.4 is not 81.4",
+   "problem": "CORRECT verdicts for answers that omit required gold items, give a vague description instead of the named item or a coarse stand-in. The credit is a convention, applied unevenly, and it concentrates in multi-hop, which carries most claimed improvements. Reported scores across engines are not comparable (different judges, category sets, readers, budgets).",
+   "evidence": {
+    "count": 34,
+    "detail": "34 false-positive rows by hand (17 clear, 12 likely, 5 borderline), central about 30 (range 17-45 incl. 3 unseen); 201 rule-flagged plus 70 random correct rows read; multi-hop adjusted 66.7% to 61.1%",
+    "method": "hand read with explicit weights (JUDGE-2, JUDGE-3)",
+    "question_ids": [
+     "0-2",
+     "0-23",
+     "0-60",
+     "0-78",
+     "0-147",
+     "2-6",
+     "2-30",
+     "2-32",
+     "2-36",
+     "2-91",
+     "3-8",
+     "3-11",
+     "3-46",
+     "3-59",
+     "3-63",
+     "3-75",
+     "3-83",
+     "3-88",
+     "4-4",
+     "4-9",
+     "4-52",
+     "4-62",
+     "4-65",
+     "5-9",
+     "6-38",
+     "6-40",
+     "7-59",
+     "7-74",
+     "7-85",
+     "7-99",
+     "8-7",
+     "8-50",
+     "9-5",
+     "9-30"
+    ],
+    "sources": [
+     "docs/v2/research/R14_ENGINE_SURVEY.md"
+    ]
+   },
+   "layer": "judge",
+   "existing": [
+    "list_recall column (A3)",
+    "accuracy_ci cluster bootstrap (A10)",
+    "errata with both headlines (A5)",
+    "A1 second judge deferred"
+   ],
+   "gap": "A1/A3/A10/A13 confirmed. R14 gives the quantified band (see Honest headline) and the rule that per-category claims under 5 points use the strict column. Engine survey: the same engine moves 20-45 points between harnesses; MemSpine's 672-1,571 token context is the one axis on which a fair claim exists.",
+   "confirms": "A1, A3, A10, A13",
+   "hypothesis": "Reporting raw, convention-adjusted and strict-list numbers per category with CIs shows the multi-hop figure is overstated by about 5 points (66.7% to 61.1% central); a strict all-items rule would drop a further 12-17 questions; multi-hop deltas under 5 points are uninterpretable on the raw column.",
+   "survey": {
+    "literature": [
+     "Maharana2024-locomo",
+     "Wu2024-longmemeval",
+     "Li2026-locomo-plus",
+     "Verga2024-poll"
+    ],
+    "engines": [
+     "Zep 58-75 across harnesses",
+     "Mem0 77.7-92.5",
+     "Memori 41-87"
+    ]
+   },
+   "solutions": [
+    {
+     "name": "Triple reporting",
+     "mechanism": "Raw, convention-adjusted, strict-list headline per category with CIs, plus judge/category/reader/budget header.",
+     "source": "ours (JUDGE-3); cross-engine table (R14-eval-1)",
+     "cost": "0",
+     "risk": "none",
+     "flag": "report columns (no flag)"
+    },
+    {
+     "name": "Item-recall column and calibrated 'missing item' side",
+     "mechanism": "Calibrate the missing-item direction on the 34 FP rows.",
+     "source": "ours (JUDGE-2)",
+     "cost": "0",
+     "risk": "none",
+     "flag": "judge_conventions (new rows)"
+    },
+    {
+     "name": "Two-judge adjudication",
+     "mechanism": "Different-family judge on disputed rows (A1, deferred).",
+     "source": "PoLL [Verga2024-poll]; LoCoMo-Plus [Li2026-locomo-plus]",
+     "cost": "about 350 calls",
+     "risk": "owner decision A1",
+     "flag": "--judge-second"
+    },
+    {
+     "name": "Token-efficiency table next to accuracy",
+     "mechanism": "Tokens per question beside each accuracy.",
+     "source": "Cognee (R14-eval-1)",
+     "cost": "0",
+     "risk": "none",
+     "flag": "report column"
+    }
+   ],
+   "test": {
+    "slice": "34 FP + 23 FN ids as a frozen calibration extension; whole-run re-score",
+    "screen": "S97 triple-column re-score of stored answers (reference run plus last two full runs)"
+   },
+   "priority": "P1",
+   "effort": "S",
+   "expected_effect": {
+    "label": "hypothesis",
+    "text": "no engine gain; changes what a gain means (hypothesis: central -0.9 points, range -2.3 to +0.4)"
+   },
+   "rank": 5,
+   "cpu_no_llm_first_step": true,
+   "built_off_screen_only": true,
+   "source_items": [
+    "R14-JUDGE-2",
+    "R14-JUDGE-3",
+    "R14-LIT-P12",
+    "R14-eval-1"
+   ]
+  },
+  {
+   "id": "R14-M-19",
+   "tag": "R14-confirmed",
+   "title": "Gold errata, sibling evidence, id hygiene and retrieval metrics that overstate success",
+   "problem": "Gold and question defects (gold not entailed by its evidence turn, premise differing from the transcript), sibling turns that also answer a single-answer question, evidence ids lost by the parser, and correct answers that lack gold in context. Gold-id recall is treated as necessary and sufficient when it is neither.",
+   "evidence": {
+    "count": 21,
+    "detail": "8 gold/premise/speaker candidates not in errata; 3 sibling-evidence rows of 18 hand-checked (about 7-10 of 59 extrapolated, low confidence); 10 ids with malformed evidence (11 gold ids dropped); 95 correct answers lack gold in context (28 have the answer string elsewhere), 153 barely in; conversations 3 and 5 have the highest loss rates",
+    "method": "hand + measured (GOLD-1, DIST-2, RET-12, RET-9, RET-10)",
+    "question_ids": [
+     "0-7",
+     "0-14",
+     "0-30",
+     "0-32",
+     "0-38",
+     "0-39",
+     "0-46",
+     "0-47",
+     "0-48",
+     "0-50",
+     "0-135",
+     "0-149",
+     "1-17",
+     "1-18",
+     "1-27",
+     "1-57",
+     "2-3",
+     "2-6",
+     "2-11",
+     "2-28",
+     "2-30",
+     "2-44",
+     "2-47",
+     "2-50",
+     "3-0",
+     "3-11",
+     "3-50",
+     "3-51",
+     "3-54",
+     "3-56",
+     "3-58",
+     "3-63",
+     "3-67",
+     "3-69",
+     "3-81",
+     "3-83",
+     "3-84",
+     "3-198",
+     "4-4",
+     "4-9",
+     "4-11",
+     "4-14",
+     "4-20",
+     "4-26",
+     "4-50",
+     "4-52",
+     "4-55",
+     "4-61",
+     "4-65",
+     "5-8",
+     "5-9",
+     "5-13",
+     "5-26",
+     "5-27",
+     "5-31",
+     "5-35",
+     "5-40",
+     "5-42",
+     "5-45",
+     "5-50",
+     "5-51",
+     "5-53",
+     "5-54",
+     "5-56",
+     "5-60",
+     "6-3",
+     "6-8",
+     "6-38",
+     "6-40",
+     "7-11",
+     "7-40",
+     "7-41",
+     "7-78",
+     "7-116",
+     "7-133",
+     "7-155",
+     "7-178",
+     "7-179",
+     "8-7",
+     "8-10",
+     "8-11",
+     "8-14",
+     "8-19",
+     "8-25",
+     "8-28",
+     "8-31",
+     "8-32",
+     "8-38",
+     "8-46",
+     "8-48",
+     "8-50",
+     "8-55",
+     "8-64",
+     "8-72",
+     "8-77",
+     "8-86",
+     "9-4",
+     "9-5",
+     "9-19",
+     "9-23",
+     "9-31",
+     "9-37",
+     "9-39",
+     "9-42",
+     "9-43",
+     "9-46",
+     "9-57",
+     "9-58",
+     "9-63",
+     "9-66",
+     "9-69",
+     "9-147"
+    ],
+    "sources": [
+     "docs/v2/research/R14_ENGINE_SURVEY.md"
+    ]
+   },
+   "layer": "eval",
+   "existing": [
+    "locomo_errata.json (52 entries)",
+    "evidence_label_error tag",
+    "A12 sufficiency_on_qa_set",
+    "A16 noise floor"
+   ],
+   "gap": "A5/I62/A12/I24 confirmed. New: accept-set annotation for sibling evidence; answer-support recall column; strict evidence parser with an existence check. Estimated unread gold errors (16-24) were not found: the errata is close to complete for the wrong side.",
+   "confirms": "A5, A12, I24, I62, A16",
+   "hypothesis": "Adding the errata extension changes the excluded accuracy by under 0.2 points; accept-set re-judging of sibling rows lowers the true reader error rate by about 0.5 points; answer-support recall removes about 28 of the 95 'lucky' labels as a cleaner retrieval target.",
+   "survey": {
+    "literature": [
+     "Maharana2024-locomo"
+    ],
+    "engines": [
+     "Cognee 143 excluded",
+     "LoCoMo-Refined 1,382 revised"
+    ]
+   },
+   "solutions": [
+    {
+     "name": "Errata extension and accept set",
+     "mechanism": "Add the 8 entries (after verifying 5 speaker candidates) and a multi-gold accept set for sibling evidence.",
+     "source": "ours (GOLD-1, DIST-2); LoCoMo-Refined idea (R14-eval-2)",
+     "cost": "0 (about 1 hour hand adjudication)",
+     "risk": "judgement",
+     "flag": "locomo_errata.json (data)"
+    },
+    {
+     "name": "Strict evidence parser with existence check",
+     "mechanism": "Split on whitespace, zero-pad, assert every gold id exists.",
+     "source": "ours (RET-12)",
+     "cost": "0",
+     "risk": "none",
+     "flag": "unit test"
+    },
+    {
+     "name": "Answer-support recall metric",
+     "mechanism": "Gold answer string or judge-checked support present in context, next to gold-id recall; per-conversation columns.",
+     "source": "ours (RET-9, RET-10)",
+     "cost": "0 (string) or 1 judge call",
+     "risk": "string match misses paraphrase",
+     "flag": "forensics report columns"
+    },
+    {
+     "name": "Dual headline with explicit exclusion set",
+     "mechanism": "Publish both headlines and the exclusion list.",
+     "source": "Cognee 143 excluded golds (R14-eval-2)",
+     "cost": "0",
+     "risk": "none",
+     "flag": "report columns"
+    }
+   ],
+   "test": {
+    "slice": "the 10 + 8 + 3 + 59 ids; guard: correct questions with context-dependent gold",
+    "screen": "S98 support-recall report (CPU, no run); unit tests for the parser and errata"
+   },
+   "priority": "P2",
+   "effort": "S",
+   "expected_effect": {
+    "label": "hypothesis",
+    "text": "measurement honesty; no accuracy gain (hypothesis)"
+   },
+   "rank": 11,
+   "cpu_no_llm_first_step": true,
+   "built_off_screen_only": false,
+   "source_items": [
+    "R14-GOLD-1",
+    "R14-DIST-2",
+    "R14-RET-12",
+    "R14-RET-9",
+    "R14-RET-10",
+    "R14-eval-2"
+   ]
+  },
+  {
+   "id": "R14-M-20",
+   "tag": "R14-confirmed",
+   "title": "Profile and attribute state with history; knowledge update; destructive edits",
+   "problem": "User facts change over time. The store must track attribute values with history, supersede by event time, answer 'what is X's ...' from the keyed value rather than the first-ranked raw turn, and never destroy the old value. The profile card is built but no read path consumes it.",
+   "evidence": {
+    "count": 33,
+    "detail": "33 attribute questions (single-hop or multi-hop) wrong; profile_card_v2 has no read consumer (S46 skipped); standing answers and histories unscreened on a keyed-state arm",
+    "method": "measured (OBS-04 predicate; engine survey)",
+    "question_ids": [],
+    "sources": [
+     "docs/v2/OBSERVATIONS_GAP_ANALYSIS.md",
+     "docs/v2/research/R14_ENGINE_SURVEY.md"
+    ]
+   },
+   "layer": "ingest",
+   "existing": [
+    "offline.profile_card_v2",
+    "offline.standing_v2 + read.standing_v2",
+    "offline.histories_v2",
+    "read.profile_header_packing",
+    "ladder 13 rungs",
+    "S34 S35 S40 S42 S46"
+   ],
+   "gap": "G-W4 (extractor does not see keys of earlier facts) confirmed. OBS-04 proposes offline.person_attributes_v2 (S71). R14 adds: known-keys context to the extractor (Mnemon), predict-calibrate delta extraction (Nemori), a supersede-not-delete invariant (MemMachine/MIRIX defect), a judge-empty counter (Graphiti #1666) and read-time withdrawal of covered records.",
+   "confirms": "G-W4, S34 S42 S46",
+   "hypothesis": "Event-time-ordered supersede with the cardinality registry yields a correct current value and a history block; known-keys context removes duplicate-key facts and lets same-key supersession be model-driven; validate the history half on a knowledge-update benchmark.",
+   "survey": {
+    "literature": [
+     "Zhang2018-personalizing-dialo",
+     "Wu2019-trade",
+     "Chhikara2025-mem0",
+     "Rasmussen2025-zep",
+     "Wu2024-longmemeval"
+    ],
+    "engines": [
+     "Mnemon keyed state",
+     "Memobase profile slots",
+     "Honcho peer card",
+     "Graphiti bi-temporal",
+     "Supermemory isLatest"
+    ]
+   },
+   "solutions": [
+    {
+     "name": "Person attributes v2",
+     "mechanism": "Typed registry shared by miner, ladder and card; history render.",
+     "source": "ours OBS-04; Memobase / Honcho cards",
+     "cost": "0-1 per entity",
+     "risk": "privacy default-deny test needed",
+     "flag": "offline.person_attributes_v2 (S71, OBS-GAPS)"
+    },
+    {
+     "name": "Known-keys context to the extractor",
+     "mechanism": "Show earlier state keys and latest values so the model reuses identities.",
+     "source": "Mnemon fold prompt (R14-link-2); Nemori predict-calibrate",
+     "cost": "0 extra (prompt grows)",
+     "risk": "prompt size on a 9B model",
+     "flag": "write.known_keys (new, G-W4)"
+    },
+    {
+     "name": "Supersede-not-delete invariant and judge-empty counter",
+     "mechanism": "Never destroy an old value; count empty contradiction lists.",
+     "source": "MemMachine/MIRIX defect; Graphiti #1666 (R14-prof-2, R14-upd-1)",
+     "cost": "0",
+     "risk": "none",
+     "flag": "unit test + counter (new)"
+    },
+    {
+     "name": "Read-time withdrawal of covered records",
+     "mechanism": "Drop superseded or covered records at render.",
+     "source": "Mnemon, Hindsight (R14-upd-2)",
+     "cost": "judge calls (Mnemon)",
+     "risk": "wrong withdrawal",
+     "flag": "read.withdraw_covered (new)"
+    }
+   ],
+   "test": {
+    "slice": "fail_mix_120 attribute subset (33) + MAB-CR dev for the history half",
+    "screen": "S99 known_keys (after S34/S42); S71 per OBS-GAPS"
+   },
+   "priority": "P2",
+   "effort": "M",
+   "expected_effect": {
+    "label": "hypothesis",
+    "text": "not sized beyond 33 targeted; history half is a benchmark claim (hypothesis)"
+   },
+   "rank": 18,
+   "cpu_no_llm_first_step": false,
+   "built_off_screen_only": false,
+   "source_items": [
+    "R14-LIT-P07",
+    "R14-prof-1",
+    "R14-prof-2",
+    "R14-link-2",
+    "R14-upd-1",
+    "R14-upd-2",
+    "OBS-04"
+   ]
+  },
+  {
+   "id": "R14-M-21",
+   "tag": "R14-confirmed",
+   "title": "Entity aliasing and link tables: seed-to-neighbour expansion without per-session LLM graph builds",
+   "problem": "Names appear as nicknames, short forms, role words and typos, so entity-seeded legs are inert until aliases bind; multi-session evidence needs a hop from a seed hit to related stored items, but a graph built by an LLM per session is costly. String and embedding similarity alone mis-merge short names.",
+   "evidence": {
+    "count": 9,
+    "detail": "9 questions targeted by vocative/short-form binding (74 detected turns); entity leg inert until the graph arm builds entities; link expansion shares the 43 cross-session questions with M-2",
+    "method": "measured (OBS-01) + engine survey",
+    "question_ids": [],
+    "sources": [
+     "docs/v2/OBSERVATIONS_GAP_ANALYSIS.md",
+     "docs/v2/research/R14_ENGINE_SURVEY.md"
+    ]
+   },
+   "layer": "ingest",
+   "existing": [
+    "write.resolver_v2 (W2-09, off)",
+    "entity ladder rules/llm",
+    "extract_graph (sleep)",
+    "read.graph_leg_v2",
+    "read.neighbours_v2",
+    "S13 S32 S30 S38 S39"
+   ],
+   "gap": "I54 confirmed and OBS-01 proposes write.vocative_alias_v2 (S68). R14 adds: LLM-free semantic/temporal link table (Hindsight) so multi-evidence recall does not depend on extract_graph calls, context-weighted merge score (name 0.5, co-occurrence 0.3, time 0.2), and the rule that tentative aliases stay 'maybe same'.",
+   "confirms": "I54 (kin resolution), SOL-GRAPH",
+   "hypothesis": "A link table built at write with no extra LLM call (temporal within 24 h, semantic kNN, entity co-occurrence) plus one-hop expansion from semantic seeds lifts all-gold coverage on the cross-session set, and a context-weighted merge score cuts wrong merges on open-cast data.",
+   "survey": {
+    "literature": [
+     "Wu2020-blink",
+     "DeCao2021-genre",
+     "Joko2021-conv-entity-linking",
+     "Peeters2023-llm-entity-matchi",
+     "Bae2024-hipporag"
+    ],
+    "engines": [
+     "Hindsight memory_links",
+     "Graphiti entity-pair edges",
+     "A-Mem evolution",
+     "Supermemory updates/extends/derives"
+    ]
+   },
+   "solutions": [
+    {
+     "name": "Link-table expansion",
+     "mechanism": "Write-time temporal, semantic and entity-co-occurrence links; one-hop expansion from seeds at read.",
+     "source": "Hindsight memory_links (R14-link-1); HippoRAG [Bae2024-hipporag]",
+     "cost": "0 extra LLM",
+     "risk": "hub entities; timeout drops the leg",
+     "flag": "write.link_table (new, S100)"
+    },
+    {
+     "name": "Rule alias binding",
+     "mechanism": "Vocative and short-form binding with a participant table.",
+     "source": "ours OBS-01; BLINK-style linking [Wu2020-blink]",
+     "cost": "0",
+     "risk": "false bind on 2-letter names",
+     "flag": "write.vocative_alias_v2 (S68, OBS-GAPS)"
+    },
+    {
+     "name": "Context-weighted resolution score",
+     "mechanism": "Add co-occurrence and temporal proximity to the merge score.",
+     "source": "Hindsight (R14-ent-1); LLM matching only for the unsure band [Peeters2023-llm-entity-matching]",
+     "cost": "0 + batched calls for unsure",
+     "risk": "tuning per embedder",
+     "flag": "write.resolver_v2 (existing)"
+    },
+    {
+     "name": "Memory evolution at sleep",
+     "mechanism": "Rewrite neighbour context and tags when a new note arrives.",
+     "source": "A-Mem (R14-link-3)",
+     "cost": "2+ calls per note",
+     "risk": "drift; do after link table",
+     "flag": "offline.evolve (new, deferred)"
+    }
+   ],
+   "test": {
+    "slice": "fail_retrieval + fail_mix_120; CPU prototype over stored embeddings of one conversation first",
+    "screen": "S100 link_table; S68 per OBS-GAPS"
+   },
+   "priority": "P3",
+   "effort": "M",
+   "expected_effect": {
+    "label": "hypothesis",
+    "text": "not sized separately (hypothesis); overlaps M-2"
+   },
+   "rank": 19,
+   "cpu_no_llm_first_step": false,
+   "built_off_screen_only": false,
+   "source_items": [
+    "R14-LIT-P02",
+    "R14-ent-1",
+    "R14-link-1",
+    "R14-link-3",
+    "R14-hop-1",
+    "OBS-01"
+   ]
+  }
+ ]
+}
