@@ -4285,8 +4285,8 @@
    ],
    "kind": "measure",
    "gate": "ROADMAP Phase 1 exit gate",
-   "status": "Not started",
-   "note": "",
+   "status": "In progress",
+   "note": "Sonnet agent: server profile via local Docker Postgres(pgvector)+Neo4j; CPU only (GPU reserved by owner)",
    "layers": [
     "L0",
     "L1",
@@ -4629,8 +4629,8 @@
    ],
    "kind": "behaviour",
    "gate": "Window arm: items dropped down; at most 1 call per window",
-   "status": "Not started",
-   "note": "G-W49",
+   "status": "In progress",
+   "note": "Sonnet agent launched",
    "layers": [
     "L0",
     "L1",
@@ -4709,8 +4709,8 @@
    ],
    "kind": "behaviour",
    "gate": "Temporal category up; no invented exact dates (precision audit)",
-   "status": "Not started",
-   "note": "Owner I-2",
+   "status": "In progress",
+   "note": "Parallel build on the W2-06c envelope stage hook list (derive/envelope_stages.py); merged in order 14,08,09,10,13",
    "layers": [
     "L0",
     "L1",
@@ -4792,8 +4792,8 @@
    ],
    "kind": "behaviour",
    "gate": "Grounding at least 95% on the labelled set",
-   "status": "Not started",
-   "note": "",
+   "status": "In progress",
+   "note": "Parallel build on the W2-06c envelope stage hook list (derive/envelope_stages.py); merged in order 14,08,09,10,13",
    "layers": [
     "L1",
     "L3"
@@ -4829,8 +4829,8 @@
    ],
    "kind": "behaviour",
    "gate": "Calibrated thresholds: no homonym merges above a stated rate",
-   "status": "Not started",
-   "note": "",
+   "status": "In progress",
+   "note": "Parallel build on the W2-06c envelope stage hook list (derive/envelope_stages.py); merged in order 14,08,09,10,13",
    "layers": [
     "L1",
     "L3"
@@ -4870,8 +4870,8 @@
    ],
    "kind": "behaviour",
    "gate": "MAB-CR non-inferior; A-B-A tests; behavioural INV-ORDER-SWAP passes",
-   "status": "Not started",
-   "note": "Q7 coexist unless marked; INV-ORDER-SWAP now fixed offline by O4-03/04 (flag-on); W2-10 adds the online ladder (LIB-02)",
+   "status": "In progress",
+   "note": "Parallel build on the W2-06c envelope stage hook list (derive/envelope_stages.py); merged in order 14,08,09,10,13",
    "layers": [
     "L1",
     "L3"
@@ -4994,8 +4994,8 @@
    ],
    "kind": "behaviour",
    "gate": "Calls down, grounded facts not down",
-   "status": "Not started",
-   "note": "",
+   "status": "In progress",
+   "note": "Parallel build on the W2-06c envelope stage hook list (derive/envelope_stages.py); merged in order 14,08,09,10,13",
    "layers": [
     "L1",
     "L3"
