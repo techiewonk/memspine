@@ -16,7 +16,6 @@ import asyncio
 import functools
 import inspect
 import itertools
-import math
 import re
 import secrets
 import threading
@@ -25,9 +24,7 @@ from collections.abc import (
     AsyncIterator,
     Awaitable,
     Callable,
-    Collection,
     Coroutine,
-    Iterable,
     Iterator,
     Mapping,
     Sequence,
@@ -90,15 +87,9 @@ from memspine.core.language import language_scope
 from memspine.core.latest_wins import apply_latest_wins, recent_first
 from memspine.core.owner_check import (
     InjectionLog,
-    entity_note,
     first_person,
-    judge,
-    missing_names,
-    owner_marker,
     referenced_names,
     store_vocab,
-    unknown_lines,
-    user_header,
 )
 from memspine.core.policies.conflict import ConflictPolicy
 from memspine.core.policies.dedup import DedupPolicy
@@ -115,17 +106,13 @@ from memspine.core.read_filters import (
     active_record_scope,
     as_of_scope,
     date_filter_scope,
-    person_time_leg,
     record_scope,
-    time_expr_span,
     to_utc,
 )
 from memspine.core.reference_edges import reference_kinds
 from memspine.core.relevance_probes import OFF_TOPIC_PROBES, Calibration, calibrate
-from memspine.core.rule_edges import BECAUSE_REL, is_why_question
 from memspine.core.rule_miner import mine_rules
 from memspine.core.slot_loop import CalcError, calculate, slot_hint, slot_view, step_signature
-from memspine.core.ties import settle_ties
 from memspine.core.vetting import VetFlag, draft_sentences, vet_sentences
 from memspine.exceptions import (
     ConfigError,
@@ -149,18 +136,16 @@ from memspine.ingest.write import (
 )
 from memspine.memories.associative.entities import (
     ENTITY_PREFIX,
-    MENTIONS_REL,
     EntityPolicy,
     canonical_entity,
     entity_node_id,
-    is_entity_node,
 )
 from memspine.memories.associative.evolution import propose_links
 from memspine.memories.associative.projector import GraphProjector
 from memspine.memories.associative.resolution import ResolveBatch
-from memspine.memories.associative.store import AssociativeMemory, match_key
-from memspine.memories.episodic.lifecycle import passive_after, session_of
-from memspine.memories.episodic.sessions import Session, topic_segments
+from memspine.memories.associative.store import AssociativeMemory
+from memspine.memories.episodic.lifecycle import passive_after
+from memspine.memories.episodic.sessions import Session
 from memspine.memories.episodic.store import EpisodicMemory
 from memspine.memories.procedural.knn import Exemplar, knn_vote, render_table
 from memspine.memories.procedural.lessons import (
@@ -211,7 +196,7 @@ from memspine.memories.working.persona import make_persona_record
 from memspine.models.cache.base import KVCache
 from memspine.models.cache.semantic import CachedExtractor
 from memspine.models.encoders.embedding.base import EmbeddingService, embed_queries
-from memspine.models.encoders.query import CueQueryEncoder, NoopQueryEncoder, QueryEncoder
+from memspine.models.encoders.query import QueryEncoder
 from memspine.models.encoders.query.perspective import (
     PerspectiveOptions,
     QuestionPerspective,
@@ -236,17 +221,12 @@ from memspine.models.encoders.query.shape import (
     is_aggregation,
     is_count,
     is_duration,
-    is_intent_list,
     is_multi_hop,
     is_novelty,
     is_ordering,
     is_personal,
-    is_set_question,
-    is_set_question_wide,
     is_temporal,
     is_verbatim,
-    question_shape,
-    rule_read_mode,
     split_intents,
     statement_form,
 )
@@ -254,23 +234,8 @@ from memspine.models.encoders.query.temporal_query import (
     SPEAKER_PREFIX,
     LegHit,
     NamedLeg,
-    assistant_leg,
-    bridge_phrases,
-    cohesion_leg,
-    comparison_speaker_legs,
-    entity_expand_leg,
-    entity_leg,
     forget_mentions,
-    has_bridge_cue,
-    metadata_leg,
-    sentence_leg,
     sentences,
-    speaker_leg,
-    speaker_of,
-    speaker_vector_leg,
-    subject_vector_leg,
-    temporal_leg,
-    view_tag_leg,
 )
 from memspine.models.encoders.query.temporal_resolve import annotate as annotate_relative_dates
 from memspine.models.encoders.query.temporal_resolve import resolve
@@ -311,7 +276,6 @@ from memspine.prompts.models import (
     FactDates,
     Insights,
     MissingInfoOut,
-    QueryContractOut,
     ReadPlan,
     RelevanceLabels,
     SlotStepOut,
@@ -320,12 +284,6 @@ from memspine.prompts.models import (
 from memspine.prompts.registry import PromptRegistry
 from memspine.read.contract import (
     QueryContract,
-    build_contract,
-    contract_header,
-    is_ambiguous,
-    merge_contract,
-    parse_contract,
-    rerank_hint,
 )
 from memspine.read.lead import (
     card_line,
@@ -344,7 +302,25 @@ from memspine.read.lead import (
     render_timeline,
     timeline_line,
 )
-from memspine.read.registry import leg_family
+from memspine.read.pipeline import fusion as read_fusion
+from memspine.read.pipeline import legs as read_legs
+from memspine.read.pipeline import request as read_request
+from memspine.read.pipeline import rerank as read_rerank
+from memspine.read.pipeline import router as read_router
+from memspine.read.pipeline.fusion import _cosine, _jaccard
+from memspine.read.pipeline.state import (
+    _FOCAL_ENTITY,
+    _FORENSICS,
+    _LIST_MODE,
+    _PASSIVE_SCOPE,
+    _RAW_SCORES,
+    _RERANKED,
+    _TAINT_ARCHIVED_TAG,
+    CUE_TAG,
+    ReadResult,
+    _passive_hidden,
+    _PassiveScope,
+)
 from memspine.runtime.container import (
     Capabilities,
     DecisionState,
@@ -359,7 +335,7 @@ from memspine.runtime.container import (
     memory_policy,
 )
 from memspine.services.graph.base import GraphStore
-from memspine.services.lexical.base import LexicalHit, LexicalStore, minmax_fuse, rrf_fuse
+from memspine.services.lexical.base import LexicalHit, LexicalStore
 from memspine.services.lexical.projector import LexicalProjector
 from memspine.services.storage.projector import RecordProjector
 from memspine.services.storage.sql_base import SqlStorage
@@ -432,8 +408,6 @@ from memspine.workers.windows import WindowPipeline
 __all__ = ["Engine"]
 
 
-
-
 def _gap_marker(days: int) -> str:
     """H22: ``[N days/weeks/months later]`` for gaps of at least a day; ``""`` otherwise."""
     if days >= 60:
@@ -458,10 +432,6 @@ def _unrendered(content: str) -> str:
     return _RENDER_PREFIX.sub("", content, count=1)
 
 
-
-
-
-
 def _json_line(value: object) -> str:
     """#10: ``value`` as one line of JSON. orjson escapes quotes and control
     characters; the Unicode line and paragraph separators are escaped too, since
@@ -470,14 +440,8 @@ def _json_line(value: object) -> str:
     return text.replace("\u2028", "\\u2028").replace("\u2029", "\\u2029")
 
 
-
-
 #: #3: tag on a held record an operator rejected (archived, never releasable).
 _QUARANTINE_REJECTED_TAG = "quarantine_rejected"
-
-
-
-
 
 
 def _attributed(
@@ -490,10 +454,6 @@ def _attributed(
     if marker is None or record.content.startswith(marker):
         return record
     return record.model_copy(update={"content": f"{marker} {record.content}"})
-
-
-
-
 
 
 #: A thousands separator between digit groups ("1,000", "1_000").
@@ -524,12 +484,6 @@ def _fact_value(content: str) -> str:
     return " ".join(tokens)
 
 
-#: N3: tag stamped on a record archived by a taint rollback or repair, so the
-#: C4' history filter still recognises it when the log no longer holds the event
-#: (``event_log.mode: ephemeral`` or a rolling prune).
-_TAINT_ARCHIVED_TAG = "taint_archived"
-
-
 def _taint_archive_delta(record: MemoryRecord) -> dict[str, object]:
     """Rollback/repair archive patch. An open interval is closed at its start, so
     an archived poison never stays the M4 incumbent (``find_active_fact`` keys
@@ -543,10 +497,6 @@ def _taint_archive_delta(record: MemoryRecord) -> dict[str, object]:
     return change
 
 
-
-
-
-
 @dataclass(frozen=True)
 class AuthorizeDecision:
     """``Engine.authorize`` result (B6): decision, weakest evidence trust, why."""
@@ -557,11 +507,7 @@ class AuthorizeDecision:
     reason: str
 
 
-
-
 _log = get_logger(__name__)
-
-
 
 
 #: I2 (isolation review 2026-10-08): the records a read has listed, by (namespace,
@@ -618,122 +564,10 @@ def _snapshot_scoped[**P, R](
     return wrapper
 
 
-#: G-11 (Graphiti center node): the focal entity of the read in progress, if any.
-_FOCAL_ENTITY: ContextVar[str | None] = ContextVar("memspine_focal_entity", default=None)
-
-#: Search forensics (opt-in, evals/debugging): while a sink dict is installed by
-#: :func:`search_forensics`, ``Engine._search`` records the ranked ``(record_id, score)``
-#: list of every stage: each leg, the fusion, the gated candidate pool, the reranker's raw
-#: scores and the final cut. Unset (the default) the hook is a single ``is not None`` test.
-_FORENSICS = trace_sink.FORENSICS  # the same ContextVar, shared with the policies
-
-#: R2-1b: the raw reranker score of the second-best candidate of the latest ``_search`` in
-#: this task (None: no rerank ran, fewer than two candidates, or the rerank failed). The
-#: ``bridge_hop_gate = "weak"`` signal: a lone confident anchor with no support.
-_RERANK_SUPPORT: ContextVar[float | None] = ContextVar("memspine_rerank_support", default=None)
-#: Whether the last ``_search`` of the current read reranked its candidates
-#: (``read.rerank_floor="skip"`` needs it at assembly).
-_RERANKED: ContextVar[bool] = ContextVar("memspine_reranked", default=False)
-#: I30 (``read.abstain_on_raw``): record id -> the reranker's raw score (before min-max), merged
-#: over the searches of the current read; None outside a read or when the option is off.
-_RAW_SCORES: ContextVar[dict[str, float] | None] = ContextVar("memspine_raw_scores", default=None)
-#: B1 (``read.list_mode``): True while the routed read searches for a list / set question;
-#: the search then adds the speaker vote leg, widens the pool and skips ``rerank_keep``.
-_LIST_MODE: ContextVar[bool] = ContextVar("memspine_list_mode", default=False)
-
-
-def _ids(pairs: Iterable[tuple[Any, Any]]) -> list[str] | None:
-    """Record ids of ``(record, score)`` pairs, only while a forensics sink is installed."""
-    if _FORENSICS.get() is None:
-        return None
-    return [pair[0].record_id for pair in pairs]
-
-
-def _cut_missing(
-    before: list[str] | None, after: Iterable[tuple[Any, Any]], reason: str, **detail: Any
-) -> None:
-    """Record every id in ``before`` that ``after`` no longer holds as cut for ``reason``."""
-    if before is None:
-        return
-    kept = {pair[0].record_id for pair in after}
-    for rid in before:
-        if rid not in kept:
-            trace_sink.cut(reason, rid, **detail)
-
-
-def _log_leg_floor(leg: str, hits: Any, floor: float) -> None:
-    """V02: one ``leg_floor`` cut per hit a per-leg score floor (``read.leg_min_scores``)
-    drops, with the leg, the hit's score, its rank in that leg and the floor. Called only
-    while a forensics sink is active."""
-    for pos, hit in enumerate(hits, start=1):
-        if hit.score < floor:
-            trace_sink.cut(
-                "leg_floor",
-                hit.record_id,
-                leg=leg,
-                score=round(float(hit.score), 6),
-                leg_rank=pos,
-                floor=floor,
-            )
-
-
-def _leg_rank_map(
-    legs: Sequence[tuple[str, Sequence[Any]]],
-) -> dict[str, tuple[str, int]]:
-    """I78/I75a: for each record id, the (leg name, 1-based rank) of its best rank in any leg."""
-    best: dict[str, tuple[str, int]] = {}
-    for name, hits in legs:
-        for rank, hit in enumerate(hits, start=1):
-            rid = hit.record_id
-            if rid not in best or rank < best[rid][1]:
-                best[rid] = (name, rank)
-    return best
-
-
-def _protected_ids(legs: Sequence[tuple[str, Sequence[Any]]], per_leg: int) -> dict[str, str]:
-    """I75a: record id -> leg name for the top ``per_leg`` hits of every leg."""
-    out: dict[str, str] = {}
-    if per_leg <= 0:
-        return out
-    for name, hits in legs:
-        for hit in list(hits)[:per_leg]:
-            out.setdefault(hit.record_id, name)
-    return out
-
-
 #: R02 / I75 v2: legs that vote from the same evidence form one *source family*. A leg that
 #: replays or re-filters another leg's order (the perspective leg replays the vector order by
 #: subject) is not an independent vote; keyword legs and temporal legs are separate evidence.
 #: The leg -> family table is the typed ``read_legs`` registry (memspine.read.registry).
-
-
-def _leg_family(name: str) -> str:
-    """R02: the source family of a leg name (lexical | semantic | temporal | other)."""
-    return leg_family(name)  # MOD-02: the typed ``read_legs`` registry
-
-
-def _family_slots(
-    legs: Sequence[tuple[str, Sequence[Any]]], per_family: int
-) -> dict[str, list[str]]:
-    """R02: family -> its top ``per_family`` record ids, each id counted once per family.
-
-    The member legs of a family are merged by best rank (ties: the leg listed first, so the
-    base leg of the family leads); an id that several correlated legs vote for takes one slot.
-    """
-    if per_family <= 0:
-        return {}
-    best: dict[str, dict[str, tuple[int, int]]] = {}
-    for order, (name, hits) in enumerate(legs):
-        fam = best.setdefault(_leg_family(name), {})
-        for rank, hit in enumerate(hits):
-            key = (rank, order)
-            if hit.record_id not in fam or key < fam[hit.record_id]:
-                fam[hit.record_id] = key
-    return {
-        fam: [rid for rid, _ in sorted(ids.items(), key=lambda kv: kv[1])[:per_family]]
-        for fam, ids in best.items()
-        if ids
-    }
 
 
 @contextmanager
@@ -752,26 +586,11 @@ def search_forensics() -> Iterator[dict[str, Any]]:
         _FORENSICS.reset(token)
 
 
-
 #: #30: contents of the engine's own list cards a re-derived card replaces. A new card
 #: repeats its predecessor's prefix by construction, so those (and only those) are
 #: left out of the MINJA bridge-prefix comparison of that one write.
 _REPLACED_CONTENTS: ContextVar[frozenset[str]] = ContextVar(
     "memspine_replaced_contents", default=frozenset()
-)
-
-
-@dataclass(frozen=True, slots=True)
-class _PassiveScope:
-    """#53: which PASSIVE-session records the running read may see."""
-
-    include_all: bool = False
-    sessions: frozenset[str] = frozenset()
-
-
-#: #53: the passive-session scope of the read running in this task (None: default).
-_PASSIVE_SCOPE: ContextVar[_PassiveScope | None] = ContextVar(
-    "memspine_passive_scope", default=None
 )
 
 
@@ -814,20 +633,6 @@ def _without_entity(text: str, entity: str) -> str:
     return normal
 
 
-def _passive_hidden(record: MemoryRecord, group_id: str | None = None) -> bool:
-    """#53: whether a PASSIVE-session record stays out of this read. A read that
-    asks for passive records, names the session (``session_id``) or filters on the
-    record's ``group_id`` sees it; every other read does not."""
-    if not record.scoring.passive:
-        return False
-    if group_id is not None and record.group_id == group_id:
-        return False
-    scope = _PASSIVE_SCOPE.get()
-    if scope is None:
-        return True
-    return not (scope.include_all or session_of(record) in scope.sessions)
-
-
 class AnswerVerification(TypedDict):
     """#39: :meth:`Engine.verify_answer`'s verdict on one answer."""
 
@@ -838,17 +643,6 @@ class AnswerVerification(TypedDict):
     revised_answer: str | None
 
 
-@dataclass(frozen=True, slots=True)
-class ReadResult:
-    """C7': what :meth:`Engine.read` chose (``full``/``replay``/``retrieve``) and the context."""
-
-    mode: str
-    context: AssembledContext
-
-
-#: C8': tag marking an anticipatory cue record (a retrieval key, never content).
-CUE_TAG = constants.CUE_TAG
-
 _T = TypeVar("_T")
 
 #: Services the Phase-0 engine always constructs (core install, D-03).
@@ -857,22 +651,6 @@ _CORE_SERVICES = frozenset({"storage", "secrets"})
 #: Roles whose writes may corroborate a quarantined record out of quarantine
 #: (E1). Excludes assistant/tool — the indirect-injection authorship surface.
 _CORROBORATION_ROLES = frozenset({"operator", "system", "user"})
-
-#: R1-2: how far :meth:`Engine.search` widens its leg windows (x1, x4, x16, x64) when
-#: the gates leave fewer than ``top_k`` live candidates.
-_SEARCH_MAX_WIDEN = 64
-
-
-def _cosine(u: list[float], v: list[float]) -> float:
-    """Dot product over the unit-normalized vectors every embedder emits."""
-    if len(u) != len(v):
-        # A dimension mismatch means the embedder changed under us — a silent
-        # 0.0 would read as "plan cache has no coverage" forever (D-10).
-        raise MemspineError(
-            f"embedding dimension mismatch ({len(u)} vs {len(v)}) — was the "
-            "embedder model changed without a rebuild?"
-        )
-    return sum(a * b for a, b in zip(u, v, strict=True))
 
 
 def _excerpted(record: MemoryRecord, query: str) -> MemoryRecord:
@@ -890,16 +668,6 @@ def _gisted(record: MemoryRecord, query: str) -> MemoryRecord:
     asked = content_words(query)
     best = max(parts, key=lambda part: (len(asked & content_words(part)), -parts.index(part)))
     return record.model_copy(update={"content": best})
-
-
-def _jaccard(a: Collection[str], b: Collection[str]) -> float:
-    """Word-set Jaccard (N25)."""
-    sa, sb = set(a), set(b)
-    return len(sa & sb) / len(sa | sb) if sa and sb else 0.0
-
-
-
-
 
 
 def _current_at(record: MemoryRecord, as_of: datetime | None) -> bool:
@@ -930,80 +698,6 @@ def _as_options_dict(raw: Any) -> dict[str, object] | None:
     """Policy sub-blocks arrive as plain config dicts; anything else is a typo
     the policy's own extra='forbid' validation will surface."""
     return dict(raw) if isinstance(raw, dict) else None
-
-
-
-
-def _static_prefilter(
-    query: str, candidates: list[tuple[MemoryRecord, float]]
-) -> list[tuple[MemoryRecord, float]]:
-    """E8 optional first stage (opt-in): a cheap lexical-overlap gate over the
-    candidate set. Applied *after* the vector leg (a true pre-vector
-    static-embedding prefilter is the E4 model2vec track); when nothing
-    overlaps it keeps the original set — a precision stage must never turn a
-    working retrieval into an empty one."""
-    query_tokens = set(query.lower().split())
-    kept = [
-        (record, relevance)
-        for record, relevance in candidates
-        if query_tokens & set(record.content.lower().split())
-    ]
-    return kept or candidates
-
-
-def _unit(vector: Sequence[float]) -> list[float]:
-    """N60: ``vector`` scaled to unit length (a zero vector stays zero)."""
-    norm = sum(x * x for x in vector) ** 0.5
-    return [x / norm for x in vector] if norm > 0 else list(vector)
-
-
-def _balanced_pool(
-    candidates: list[tuple[MemoryRecord, float]], legs: Sequence[Sequence[Any]], keep: int
-) -> list[tuple[MemoryRecord, float]]:
-    """GR-15: ``candidates`` reordered so the first ``keep`` take each leg's best
-    remaining hit in turn (legs in the order given); the rest follow in their order.
-    Only candidates already admitted are moved; nothing is added."""
-    by_id = {record.record_id: (record, score) for record, score in candidates}
-    chosen: list[str] = []
-    cursors = [iter(leg) for leg in legs if leg]
-    while cursors and len(chosen) < keep:
-        alive = []
-        for cursor in cursors:
-            for hit in cursor:
-                rid = getattr(hit, "record_id", None)
-                if rid in by_id and rid not in chosen:
-                    chosen.append(rid)
-                    alive.append(cursor)
-                    break
-            if len(chosen) >= keep:
-                break
-        cursors = alive
-    picked = set(chosen)
-    rest = [pair for pair in candidates if pair[0].record_id not in picked]
-    return [by_id[rid] for rid in chosen] + rest
-
-
-def _minmax_quiet(scores: list[float]) -> list[float]:
-    """N41: min-max to [0, 1] without the degenerate-reranker warning (retrieval
-    scores may legitimately tie)."""
-    lo, hi = min(scores), max(scores)
-    if hi - lo <= 1e-12:
-        return [0.5] * len(scores)
-    return [(score - lo) / (hi - lo) for score in scores]
-
-
-def _minmax_normalize(scores: list[float]) -> list[float]:
-    """Cross-encoder logits → [0, 1] relevance (rank-preserving) so reranked
-    scores compose with the M1 composite exactly like cosine similarities."""
-    lo, hi = min(scores), max(scores)
-    if hi - lo <= 1e-12:
-        # SF-2/ADR-018: >1 candidate collapsing to a single score is the
-        # signature of a broken/misconfigured cross-encoder. Stay neutral
-        # (behavior unchanged) but surface it once so it is not silent.
-        if len(scores) > 1:
-            _log.warning("rerank.degenerate_scores", count=len(scores), value=lo)
-        return [0.5] * len(scores)
-    return [(score - lo) / (hi - lo) for score in scores]
 
 
 class Engine:
@@ -1549,52 +1243,18 @@ class Engine:
 
     @staticmethod
     def _ledger_key(ns: str, session_id: str | None) -> tuple[str, str]:
-        """B0 ledger key. Reads without a session id share ONE anonymous ledger
-        per namespace (``""``): the engine cannot tell their callers apart.
-
-        R4-1 choice: that ledger is fail-closed. It is never reset by a read or
-        consumed by a write (``turn`` acts like ``session`` for it), and is only
-        cleared by ``end_session(namespace)``. Resetting it would let caller Y's
-        read or write drop caller X's reads before X writes (laundering);
-        keeping it can only over-attribute parents, which lowers trust, never
-        raises it. Callers that want per-turn precision pass a ``session_id``.
-        """
-        return (ns, session_id or "")
+        return read_router._ledger_key(ns, session_id)
 
     def _record_reads(
-        self, ns: str, session_id: str | None, results: Sequence[tuple[MemoryRecord, float]]
+        self,
+        ns: str,
+        session_id: str | None,
+        results: Sequence[tuple[MemoryRecord, float]],
     ) -> None:
-        """B0: remember what this session was shown, with the view trust it saw."""
-        policy = self._integrity()
-        if not policy.enabled or policy.implicit_parents == "off" or not results:
-            return
-        key = self._ledger_key(ns, session_id)
-        if policy.implicit_parents == "turn" and session_id and key in self._ledger_written:
-            # The first read after a write opens a new turn: the old turn's
-            # parents stop applying (they applied to every write of that turn).
-            self._read_ledger.pop(key, None)
-            self._ledger_written.discard(key)
-        ledger = self._read_ledger.setdefault(key, {})
-        for record, _ in results:
-            if record.memory_type == "shared":
-                continue
-            seen = ledger.get(record.record_id)
-            ledger[record.record_id] = record.trust if seen is None else min(seen, record.trust)
+        return read_router._record_reads(self, ns, session_id, results)
 
     def _consume_reads(self, ns: str, session_id: str | None) -> dict[str, float]:
-        """B0: the reads that become implicit parents of this write.
-
-        ``turn`` (R4-1): the parents apply to EVERY write until the session's
-        next read, not just the first one; a read-once, write-twice agent cannot
-        launder through its second write. ``session``: until ``end_session``.
-        """
-        policy = self._integrity()
-        if not policy.enabled or policy.implicit_parents == "off":
-            return {}
-        key = self._ledger_key(ns, session_id)
-        if policy.implicit_parents == "turn" and session_id and key in self._read_ledger:
-            self._ledger_written.add(key)
-        return dict(self._read_ledger.get(key, {}))
+        return read_router._consume_reads(self, ns, session_id)
 
     async def add_cues(
         self,
@@ -1983,292 +1643,47 @@ class Engine:
         return cache[reader]
 
     async def _probe_legs(
-        self, ns: str, text: str, vector: list[float], fetch_k: int, lexical: bool
+        self,
+        ns: str,
+        text: str,
+        vector: list[float],
+        fetch_k: int,
+        lexical: bool,
     ) -> list[list[LegHit]]:
-        """#35: one probe's legs: its vector leg, plus its BM25 leg under hybrid."""
-        legs = [[LegHit(h.record_id, h.score) for h in await self._vector_leg(ns, vector, fetch_k)]]
-        if lexical and self._lexical is not None:
-            try:
-                hits = await self._lexical_leg(ns, text, fetch_k)
-                legs.append([LegHit(h.record_id, 1.0) for h in hits])
-            except Exception as exc:  # an enhancer, never a gate
-                _log.warning("read.probe_leg_failed", namespace=ns, error=str(exc))
-        return [leg for leg in legs if leg]
+        return await read_legs._probe_legs(self, ns, text, vector, fetch_k, lexical)
 
     def _encoder(self) -> QueryEncoder:
-        """#61: the configured query encoder (``read.query_encoder``), built once."""
-        if self._query_encoder is None:
-            if self._config().read.query_encoder == "cues":
-                storage = self._require_started()
-
-                async def load(ns: str) -> list[MemoryRecord]:
-                    return [
-                        r for r in await storage.list_records(ns, "semantic") if CUE_TAG in r.tags
-                    ]
-
-                self._query_encoder = CueQueryEncoder(load)
-            else:
-                self._query_encoder = NoopQueryEncoder()
-        return self._query_encoder
+        return read_legs._encoder(self)
 
     async def _encoder_legs(self, ns: str, query: str) -> list[list[LegHit]]:
-        """#61: the query encoder's proposals as one fused leg (none: no leg).
-
-        Each match is re-checked here: the cue must be live, unquarantined, in this
-        namespace and at or above ``read.cue_min_trust``; its target then passes the
-        same read gates as any other hit. An encoder failure degrades to no leg."""
-        try:
-            encoded = await self._encoder().encode(ns, query)
-        except Exception as exc:  # an enhancer, never a gate
-            _log.warning("read.query_encoder_failed", namespace=ns, error=str(exc))
-            return []
-        storage = self._require_started()
-        floor = self._config().read.cue_min_trust
-        leg: list[LegHit] = []
-        for match in encoded.matches:
-            cue = await storage.get_record(match.cue_id)
-            if (
-                cue is None
-                or cue.namespace != ns
-                or cue.status is not RecordStatus.ACTIVATED
-                or cue.quarantined
-                or cue.trust < floor
-                or CUE_TAG not in cue.tags
-                or match.target_id not in cue.source.parents
-            ):
-                continue
-            leg.append(LegHit(match.target_id, match.score))
-        return [leg] if leg else []
+        return await read_legs._encoder_legs(self, ns, query)
 
     async def _metadata_legs(self, ns: str, query: str, fetch_k: int) -> list[list[LegHit]]:
-        """C3': the non-empty temporal / metadata legs for this query (opt-in)."""
-        read = self._config().read
-        legs: list[list[LegHit]] = []
-        if read.core_terms_leg and self._lexical is not None:
-            # H13: BM25 over the question without interrogative/function words.
-            terms = core_terms(query)
-            if terms and terms.lower() != query.lower():
-                try:
-                    hits = await self._lexical_leg(ns, terms, fetch_k)
-                    legs.append([LegHit(h.record_id, 1.0) for h in hits])
-                except Exception as exc:  # an enhancer, never a gate
-                    _log.warning("read.core_terms_leg_failed", namespace=ns, error=str(exc))
-        if not (
-            read.temporal_leg
-            or read.metadata_leg
-            or read.subject_leg
-            or read.role_aware
-            or read.sentence_leg
-            or read.recency_leg
-            or read.entity_leg
-            or read.speaker_probe
-            or read.view_tag_leg
-        ):
-            return [leg for leg in legs if leg]
-        try:
-            live = [
-                r
-                for r in await self._records(ns)
-                if r.status is RecordStatus.ACTIVATED
-                and not r.quarantined
-                and r.memory_type != "shared"
-            ]
-            if read.temporal_leg:
-                # F2 / W7: relative phrases in the question resolve against the as-of
-                # time or the read time; without either the call is unchanged.
-                anchored: dict[str, Any] = {}
-                if read.temporal_relative or active_as_of() is not None:
-                    anchored = {
-                        "anchor": active_as_of() or self._clock(),
-                        "week": read.relative_week,
-                    }
-                if read.temporal_infer_year and live:
-                    # N45: a yearless date resolves against the conversation's "now".
-                    anchored["year_ref"] = active_as_of() or max(
-                        r.valid_from if r.valid_from.tzinfo else r.valid_from.replace(tzinfo=UTC)
-                        for r in live
-                    )
-                if read.temporal_rank != "midpoint":
-                    anchored["rank"] = read.temporal_rank
-                if read.temporal_soft:
-                    anchored["soft"] = True
-                if read.temporal_leg_mentions:
-                    anchored["mentions"] = True
-                legs.append(
-                    NamedLeg(
-                        "temporal",
-                        temporal_leg(
-                            query,
-                            live,
-                            fetch_k,
-                            event_dates=read.temporal_leg_event_dates,
-                            **anchored,
-                        ),
-                    )
-                )
-            if read.metadata_leg:
-                legs.append(metadata_leg(query, live, fetch_k))
-            if read.subject_leg:
-                # W8 (plan v3.2): the named speaker's own turns, best word overlap first.
-                legs.append(speaker_leg(query, live, fetch_k))
-            if read.role_aware:
-                # W11 (plan v3.2): "what did you recommend" reads the assistant's turns.
-                legs.append(assistant_leg(query, live, fetch_k))
-            if read.sentence_leg:
-                # N05 (plan v3.2): the best single sentence of each record, lexically.
-                legs.append(sentence_leg(query, live, fetch_k))
-            if read.recency_leg:
-                # N16 (plan v3.2, LaMP RSPG): a recency-only leg, newest first.
-                newest = sorted(live, key=chrono_key, reverse=True)[:fetch_k]
-                legs.append([LegHit(r.record_id, 1.0) for r in newest])
-            if read.view_tag_leg:
-                # G-16 (SimpleMem symbolic leg): location / topic / person view tags.
-                legs.append(NamedLeg("view_tags", view_tag_leg(query, live, fetch_k)))
-            if read.entity_leg or read.speaker_probe:
-                speakers = {s for r in live if (s := speaker_of(r.content)) is not None}
-                if read.entity_leg:
-                    # N59 (Dakera name boost): proper nouns and years the question
-                    # names, beyond the speakers, matched in raw turns.
-                    legs.append(NamedLeg("entity", entity_leg(query, live, fetch_k, speakers)))
-                if read.speaker_probe:
-                    # N40 (MemMachine): the question in stored-turn form, "Name: ...".
-                    named = sorted(
-                        (
-                            s
-                            for s in speakers
-                            if re.search(rf"(?<!\w){re.escape(s)}(?!\w)", query, re.I)
-                        ),
-                        key=lambda s: query.lower().find(s),  # the first one named
-                    )
-                    if named and self._embedder is not None:
-                        text = f"{named[0].title()}: {core_terms(query) or query}"
-                        vector = (await embed_queries(self._embedder, [text]))[0]
-                        legs += await self._probe_legs(ns, text, vector, fetch_k, lexical=False)
-        except Exception as exc:  # an enhancer, never a gate: degrade to the base legs
-            _log.warning("read.metadata_legs_failed", namespace=ns, error=str(exc))
-            return []
-        return [leg for leg in legs if leg]
+        return await read_legs._metadata_legs(self, ns, query, fetch_k)
 
     async def _person_time_leg(self, ns: str, plan: ReadPlan) -> list[LegHit]:
-        """#36: the ``plan@v3`` structured leg: live records whose ``valid_from`` lies in
-        the span the plan's ``time_expr`` names and/or that are about its ``persons``.
-
-        The span comes from the H1 rules (an absolute date first, else a relative phrase
-        resolved with ``read.relative_week``) anchored on the namespace's newest record
-        (the conversation's "now"; the clock when the namespace is empty). At most
-        ``read.person_time_leg_k`` hits; the search gates still judge each one."""
-        read_cfg = self._config().read
-        if not plan.persons and not (plan.time_expr or "").strip():
-            return []
-        try:
-            live = [
-                r
-                for r in await self._records(ns)
-                if r.status is RecordStatus.ACTIVATED
-                and not r.quarantined
-                and r.memory_type != "shared"
-                and CUE_TAG not in r.tags
-            ]
-        except Exception as exc:  # an enhancer, never a gate
-            _log.warning("read.person_time_leg_failed", namespace=ns, error=str(exc))
-            return []
-        anchor = max((r.valid_from for r in live), default=datetime.now(UTC))
-        span = time_expr_span(plan.time_expr, anchor, week=read_cfg.relative_week)
-        return person_time_leg(live, plan.persons, span, read_cfg.person_time_leg_k)
+        return await read_legs._person_time_leg(self, ns, plan)
 
     def _graph_admit(self, ns: str, *, history: bool = False) -> Callable[[MemoryRecord], bool]:
-        """GP-10: may a graph walk enter (and return) this record?
-
-        Never a record of another namespace, an erased or quarantined one, a cue or
-        grant, a taint-rolled-back one, or one below ``read.graph_min_trust``; under
-        ``integrity.enabled`` also never one below the admission threshold (stored
-        trust; the read gates re-judge the leg's hits on live trust). ``history``
-        (the facts block) also admits superseded (ARCHIVED) facts, to show their
-        validity range; the read leg admits only live records. A passive-session
-        record the read did not ask for, or one the read's purpose may not see
-        (#50), is never admitted."""
-        floor = self._config().read.graph_min_trust
-        integrity = self._integrity()
-        statuses = (
-            (RecordStatus.ACTIVATED, RecordStatus.ARCHIVED)
-            if history
-            else (RecordStatus.ACTIVATED,)
-        )
-
-        def admit(record: MemoryRecord) -> bool:
-            return (
-                record.namespace == ns
-                and record.status in statuses
-                and not record.quarantined
-                and record.memory_type != "shared"
-                and CUE_TAG not in record.tags
-                and _TAINT_ARCHIVED_TAG not in record.tags
-                and record.trust >= floor
-                and (not integrity.enabled or integrity.admits(record.trust))
-                and not _passive_hidden(record)  # #53, as every other read leg
-                and self._consent_ok(record)  # #50: the read's purpose
-            )
-
-        return admit
+        return read_legs._graph_admit(self, ns, history=history)
 
     async def _graph_seeds(
-        self, ns: str, query: str, fallback_ids: Sequence[str] = ()
+        self,
+        ns: str,
+        query: str,
+        fallback_ids: Sequence[str] = (),
     ) -> list[str]:
-        """GP-3: the entity nodes a graph walk starts from.
-
-        The entities the query names: its 1..``GRAPH_SEED_MAX_NGRAM``-word n-grams
-        matched against the namespace's entity names (canonical words, punctuation
-        dropped), plus the names the decision provider's optional ``entities`` hook
-        finds (GLiNER2; never required, failures ignored). When nothing is named,
-        the entities mentioned by ``fallback_ids`` (the best non-graph hits)."""
-        assert self._associative is not None
-        index = await self._associative.entity_index(ns)
-        if not index:
-            return []
-        words = match_key(query).split()
-        seeds: list[str] = []
-        focal = _FOCAL_ENTITY.get()
-        if focal:
-            # G-11: the caller's focal entity seeds the walk first (when it is known).
-            for node in index.get(match_key(focal), []):
-                if node not in seeds:
-                    seeds.append(node)
-        for size in range(min(constants.GRAPH_SEED_MAX_NGRAM, len(words)), 0, -1):
-            for start in range(len(words) - size + 1):
-                for node in index.get(" ".join(words[start : start + size]), []):
-                    if node not in seeds:
-                        seeds.append(node)
-        provider = self._decision_provider()
-        hook = getattr(provider, "entities", None) if provider is not None else None
-        if callable(hook):
-            try:
-                for name in await hook(query):
-                    for node in index.get(match_key(str(name)), []):
-                        if node not in seeds:
-                            seeds.append(node)
-            except Exception as exc:  # an enhancer, never a gate
-                _log.warning("read.graph_seed_ner_failed", namespace=ns, error=str(exc))
-        if not seeds and fallback_ids:
-            seeds = await self._associative.entities_of(ns, fallback_ids)
-        return seeds
+        return await read_legs._graph_seeds(self, ns, query, fallback_ids)
 
     async def _graph_walk(
-        self, ns: str, query: str, fallback_ids: Sequence[str] = (), *, history: bool = False
+        self,
+        ns: str,
+        query: str,
+        fallback_ids: Sequence[str] = (),
+        *,
+        history: bool = False,
     ) -> list[tuple[MemoryRecord, int]]:
-        """GP-3: the records reached from the query's seed entities (nearest first)."""
-        if self._associative is None:
-            return []
-        read_cfg = self._config().read
-        seeds = await self._graph_seeds(ns, query, fallback_ids)
-        if not seeds:
-            return []
-        return await self._associative.seed_expand(
-            ns,
-            seeds,
-            depth=min(read_cfg.graph_depth, constants.GRAPH_LEG_MAX_DEPTH),
-            admit=self._graph_admit(ns, history=history),
-            max_degree=constants.GRAPH_LEG_MAX_DEGREE,
-        )
+        return await read_legs._graph_walk(self, ns, query, fallback_ids, history=history)
 
     async def _graph_leg(
         self,
@@ -2279,104 +1694,32 @@ class Engine:
         extra_legs: list[list[LegHit]],
         use_hybrid: bool,
     ) -> list[LegHit]:
-        """GP-3 (``read.graph_leg``): one more RRF leg from the association graph.
-
-        Seeds are the entities the query names, else the entities of the best
-        ``GRAPH_LEG_FALLBACK_HITS`` hits of the other legs. The walk
-        (:meth:`AssociativeMemory.seed_expand`, ``read.graph_depth`` entity hops,
-        GP-10 trust caps) yields fact records nearest first; each is followed by
-        its source turns (``source.parents``) that the same gate admits. The first
-        ``read.graph_leg_k`` form the leg. Its hits then pass every search gate
-        (status, quarantine, admission) like any other leg's. Failures degrade to
-        no leg (an enhancer, never a gate)."""
-        if self._associative is None:
-            return []
-        try:
-            if use_hybrid or extra_legs:
-                prelim = [
-                    rid
-                    for rid, _ in rrf_fuse(list(vector_hits), list(lexical_hits), extra=extra_legs)
-                ]
-            else:
-                prelim = [hit.record_id for hit in vector_hits]
-            reached = await self._graph_walk(ns, query, prelim[: constants.GRAPH_LEG_FALLBACK_HITS])
-            storage = self._require_started()
-            admit = self._graph_admit(ns)
-            limit = self._config().read.graph_leg_k
-            ids: list[str] = []
-            for record, _hops in reached:
-                if len(ids) >= limit:
-                    break
-                if record.record_id not in ids:
-                    ids.append(record.record_id)
-                for parent_id in record.source.parents:
-                    if len(ids) >= limit or parent_id in ids:
-                        continue
-                    parent = await storage.get_record(parent_id)
-                    if parent is not None and admit(parent):
-                        ids.append(parent_id)
-        except Exception as exc:  # an enhancer, never a gate
-            _log.warning("read.graph_leg_failed", namespace=ns, error=str(exc))
-            return []
-        return [LegHit(rid, 1.0) for rid in ids]
+        return await read_legs._graph_leg(
+            self,
+            ns,
+            query,
+            vector_hits,
+            lexical_hits,
+            extra_legs,
+            use_hybrid,
+        )
 
     async def _graph_node_legs(
-        self, ns: str, query: str, query_vector: list[float], fetch_k: int
+        self,
+        ns: str,
+        query: str,
+        query_vector: list[float],
+        fetch_k: int,
     ) -> list[list[LegHit]]:
-        """GR-6 (Graphiti node search): the entity nodes best matching the question
-        (embedded names by cosine + text match, fused in the graph store), then the
-        records that mention them, best entity first. One named leg ("graph_nodes")."""
-        search = getattr(self._graph, "search_entities", None)
-        if search is None or self._graph is None:
-            return []
-        try:
-            entities = await search(ns, query_vector, query, constants.GRAPH_NODE_SEARCH_TOP)
-            leg: list[LegHit] = []
-            seen: set[str] = set()
-            for node_id, score in entities:
-                for node in await self._graph.neighbors(node_id, MENTIONS_REL, 1, namespace=ns):
-                    if is_entity_node(node.node_id) or node.node_id in seen:
-                        continue
-                    seen.add(node.node_id)
-                    leg.append(LegHit(node.node_id, score))
-                    if len(leg) >= fetch_k:
-                        break
-            return [NamedLeg("graph_nodes", leg)] if leg else []
-        except Exception as exc:  # an enhancer, never a gate
-            _log.warning("read.graph_node_search_failed", namespace=ns, error=str(exc))
-            return []
+        return await read_legs._graph_node_legs(self, ns, query, query_vector, fetch_k)
 
     async def _mmr_order(
-        self, query: str, scored: list[tuple[MemoryRecord, float]], lam: float
+        self,
+        query: str,
+        scored: list[tuple[MemoryRecord, float]],
+        lam: float,
     ) -> list[tuple[MemoryRecord, float]]:
-        """G-10: maximal marginal relevance on embeddings. Greedily takes the hit with
-        the best ``lam * relevance - (1 - lam) * max cosine to the hits already taken``;
-        scores are kept, only the order changes. Vectors come from the embedder (its
-        cache serves the stored documents); a failure keeps the order."""
-        if self._embedder is None:
-            return scored
-        try:
-            vectors = [_unit(v) for v in await self._embedder.embed([r.content for r, _ in scored])]
-        except Exception as exc:  # an enhancer, never a gate
-            _log.warning("read.mmr_failed", error=str(exc))
-            return scored
-        rel = _minmax_quiet([s for _, s in scored])
-        left = list(range(len(scored)))
-        order: list[int] = []
-        while left:
-
-            def gain(i: int) -> float:
-                if not order:
-                    return rel[i]
-                sim = max(
-                    sum(a * b for a, b in zip(vectors[i], vectors[j], strict=False)) for j in order
-                )
-                return lam * rel[i] - (1.0 - lam) * sim
-
-            best = max(left, key=lambda i: (gain(i), -i))
-            order.append(best)
-            left.remove(best)
-        return [scored[i] for i in order]
+        return await read_fusion._mmr_order(self, query, scored, lam)
 
     async def _maxsim_leg(
         self,
@@ -2385,93 +1728,10 @@ class Engine:
         vector_hits: Sequence[Any],
         lexical_hits: Sequence[Any],
     ) -> list[list[LegHit]]:
-        """N60 (EverMemOS MaxSim, Dakera sentence sub-memories): the first-pass
-        candidates with two or more sentences, ranked by their best sentence's cosine
-        with the query, so one matching sentence in a long turn is not diluted. Only
-        candidates are embedded (no index); sentence vectors are cached per record."""
-        if self._embedder is None:
-            return []
-        try:
-            storage = self._require_started()
-            ids = list(dict.fromkeys(h.record_id for h in [*vector_hits, *lexical_hits]))
-            scored: list[tuple[float, str]] = []
-            q = _unit(query_vector)
-            for rid in ids:
-                record = await storage.get_record(rid)
-                if record is None or record.namespace != ns or record.quarantined:
-                    continue
-                key = (rid, record.content)
-                vectors = self._sentence_vectors.get(key)
-                if vectors is None:
-                    parts = sentences(record.content)
-                    vectors = (
-                        [_unit(v) for v in await self._embedder.embed(parts)]
-                        if len(parts) > 1
-                        else []
-                    )
-                    if len(self._sentence_vectors) >= constants.MAXSIM_CACHE_MAX:
-                        self._sentence_vectors.clear()
-                    self._sentence_vectors[key] = vectors
-                if vectors:
-                    scored.append(
-                        (max(sum(a * b for a, b in zip(q, v, strict=False)) for v in vectors), rid)
-                    )
-            scored.sort(key=lambda pair: -pair[0])
-            leg = NamedLeg("maxsim", [LegHit(rid, score) for score, rid in scored])
-            return [leg] if leg else []
-        except Exception as exc:  # an enhancer, never a gate
-            _log.warning("read.maxsim_leg_failed", namespace=ns, error=str(exc))
-            return []
+        return await read_legs._maxsim_leg(self, ns, query_vector, vector_hits, lexical_hits)
 
     async def _word_vector_leg(self, ns: str, query: str, fetch_k: int) -> list[list[LegHit]]:
-        """Word-vector leg (``read.word_vector_leg``): every live record of ``ns`` ranked by
-        the cosine of pooled static word vectors with the query. Vectors are cached per
-        (record, content); a missing provider skip-logs once and the leg stays empty, so
-        retrieval never fails because of it."""
-        read = self._config().read
-        try:
-            if self._word_vectors is None:
-                if self._word_vectors_unavailable:
-                    return []
-                from memspine.models.encoders.embedding.word_vectors import WordVectorEncoder
-
-                self._word_vectors = WordVectorEncoder(
-                    read.word_vector_provider, read.word_vector_model
-                )
-            encoder = self._word_vectors
-            storage = self._require_started()
-            records = [r for r in await storage.list_records(ns) if not r.quarantined]
-            cache = self._word_vector_cache
-            missing = [r for r in records if (r.record_id, r.content) not in cache]
-            if missing:
-                vectors = await asyncio.to_thread(encoder.encode, [r.content for r in missing])
-                if len(cache) + len(missing) > constants.MAXSIM_CACHE_MAX:
-                    cache.clear()
-                for r, v in zip(missing, vectors, strict=True):
-                    cache[(r.record_id, r.content)] = v
-            [q] = await asyncio.to_thread(encoder.encode, [query])
-            scored = sorted(
-                (
-                    (
-                        sum(
-                            a * b for a, b in zip(q, cache[(r.record_id, r.content)], strict=False)
-                        ),
-                        r.record_id,
-                    )
-                    for r in records
-                    if (r.record_id, r.content) in cache
-                ),
-                key=lambda pair: -pair[0],
-            )[: read.word_vector_top_k or fetch_k]
-            leg = NamedLeg("word_vector", [LegHit(rid, score) for score, rid in scored])
-            return [leg] if leg else []
-        except MissingServiceError as exc:
-            self._word_vectors_unavailable = True
-            _log.info("read.word_vector_leg_unavailable", error=str(exc))
-            return []
-        except Exception as exc:  # an enhancer, never a gate
-            _log.warning("read.word_vector_leg_failed", namespace=ns, error=str(exc))
-            return []
+        return await read_legs._word_vector_leg(self, ns, query, fetch_k)
 
     def _perspective_options(self) -> PerspectiveOptions:
         """I39: ``memories.episodic.policies.perspective`` (off unless set)."""
@@ -2586,17 +1846,12 @@ class Engine:
         )
 
     def _penalise_reinjected(
-        self, candidates: list[tuple[MemoryRecord, float]], ns: str, session_id: str
+        self,
+        candidates: list[tuple[MemoryRecord, float]],
+        ns: str,
+        session_id: str,
     ) -> list[tuple[MemoryRecord, float]]:
-        """I64: relevance x ``1 - penalty * uses / window`` for records injected in the
-        last ``read.reinjection_window`` replies of this (namespace, session)."""
-        pen = self._config().read.reinjection_penalty
-        out = [
-            (rec, rel * self._injections.factor(ns, session_id, rec.record_id, pen))
-            for rec, rel in candidates
-        ]
-        out.sort(key=lambda t: t[1], reverse=True)
-        return out
+        return read_fusion._penalise_reinjected(self, candidates, ns, session_id)
 
     async def _entity_vocabulary(self, ns: str) -> frozenset[str]:
         records = [r for r in await self._records(ns) if not r.quarantined]
@@ -2663,83 +1918,12 @@ class Engine:
         return ingest_assets._register_assets(self, refs, turn, index, session_id, record_id)
 
     async def _asset_overlay(
-        self, query: str, ns: str, context: AssembledContext
+        self,
+        query: str,
+        ns: str,
+        context: AssembledContext,
     ) -> AssembledContext:
-        """E04 ``read.asset_evidence``: for a question that needs what a picture shows, each
-        retrieved turn that carries an attachment gets one evidence line after it: the
-        vision description with its ``asset:<hash>`` provenance, or an explicit note of why
-        there is none. The source's search hint is never used. Never drops a record; a
-        failure keeps the context as it was."""
-        mode = self._config().read.asset_evidence
-        if mode == "off":
-            return context
-        from memspine.services.assets import ASSET_TAG_PREFIX, needs_visual_detail
-
-        if not needs_visual_detail(query):
-            return context
-        try:
-            adapter = self._asset_adapter()
-            records = list(context.records)
-            added: list[str] = []
-            audit: list[dict[str, Any]] = []
-            budget = self._config().read.asset_max_per_read
-            offset = 0
-            for pos, record in enumerate(list(records)):
-                if budget <= 0:
-                    break
-                ids = [
-                    t[len(ASSET_TAG_PREFIX) :]
-                    for t in record.tags
-                    if t.startswith(ASSET_TAG_PREFIX)
-                ]
-                lines: list[str] = []
-                for aid in ids[:budget]:
-                    entry = await adapter.resolve(aid, allow_network=mode == "fetch")
-                    if entry is None:
-                        continue
-                    budget -= 1
-                    audit.append(
-                        {
-                            "asset": aid,
-                            "availability": entry.availability,
-                            "evidence": entry.evidence_status,
-                            "error": entry.error,
-                        }
-                    )
-                    if entry.evidence_status == "ok" and entry.evidence:
-                        lines.append(
-                            f"[image evidence {entry.provenance}, turn {entry.source_turn_id}; "
-                            f"read from the original image by a vision model, may be imperfect] "
-                            f"{entry.evidence[:600]}"
-                        )
-                    else:
-                        why = entry.error or (
-                            "not downloaded (read.asset_evidence: cached)"
-                            if entry.availability == "unfetched"
-                            else "no description"
-                        )
-                        lines.append(
-                            f"[image evidence unavailable for turn {entry.source_turn_id}: {why}; "
-                            "the picture was not seen, do not guess what it shows]"
-                        )
-                if lines:
-                    block = self._lead_record(
-                        ns, "\n".join(lines), [record], extra_tags=("asset_evidence",)
-                    )
-                    at = pos + 1 + offset
-                    records.insert(at, block)
-                    offset += 1
-                    if at <= context.boundary_index:
-                        context.boundary_index += 1
-                    added.extend(lines)
-            if added:
-                context.records = records
-                context.tokens_used += sum(estimate_tokens(t) for t in added)
-            if (fx := _FORENSICS.get()) is not None and audit:
-                fx["asset_evidence"] = audit
-        except Exception as exc:  # an enhancer, never a gate
-            _log.warning("read.asset_evidence_failed", namespace=ns, error=str(exc))
-        return context
+        return await read_legs._asset_overlay(self, query, ns, context)
 
     def _external_broker(self) -> Any:
         if self._external is None:
@@ -2773,50 +1957,12 @@ class Engine:
         return self._external
 
     async def _external_overlay(
-        self, query: str, ns: str, context: AssembledContext
+        self,
+        query: str,
+        ns: str,
+        context: AssembledContext,
     ) -> AssembledContext:
-        """E03 ``read.external_evidence``: for an invited inference or a recommendation
-        request only, one ``[public knowledge]`` block built from a generic public query (the
-        question's lowercase topic words, with every name, place and retrieved-context
-        capital word removed). The block carries its own clause: it never proves that a
-        person did, owns, visited or said anything. Nothing is stored. A failure or refusal
-        leaves the context as it was and is recorded in the forensics."""
-        mode = self._config().read.external_evidence
-        if mode == "off":
-            return context
-        from memspine.services.external import (
-            format_public_block,
-            invites_inference,
-            private_terms_from,
-        )
-
-        if not invites_inference(query):
-            return context
-        evidence = [r for r in context.records if constants.LEAD_TAG not in r.tags]
-        if not evidence:
-            return context  # no personal premise to join the public relation to
-        try:
-            state = await self._persp_state_for(ns)
-            private = private_terms_from((r.content for r in evidence), names=state["known"])
-            result = await self._external_broker().lookup(
-                query, private, allow_network=mode == "web"
-            )
-            if (fx := _FORENSICS.get()) is not None:
-                fx["external_evidence"] = {
-                    "status": result.status,
-                    "public_query": result.public_query,
-                    "provider": result.provider,
-                    "n_snippets": len(result.snippets),
-                }
-            if not result.usable:
-                return context
-            text = format_public_block(result)
-            block = self._lead_record(ns, text, evidence, extra_tags=("ext:public",))
-            context.records = [*context.records, block]
-            context.tokens_used += estimate_tokens(text)
-        except Exception as exc:  # an enhancer, never a gate
-            _log.warning("read.external_evidence_failed", namespace=ns, error=str(exc))
-        return context
+        return await read_legs._external_overlay(self, query, ns, context)
 
     async def _read_overlay(
         self,
@@ -2827,96 +1973,7 @@ class Engine:
         *,
         shared: bool = False,
     ) -> AssembledContext:
-        """I59 / I60 / I63 / I64: the read-side attribution layer, after retrieval and before
-        the reader. Marks lines with speaker and subject, adds reader notes (nobody in the
-        context is about the named person; a named person is not in the store) and the
-        user header; records which memories were injected. Never drops a record. All off by
-        default; a failure keeps the context as it was."""
-        read = self._config().read
-        if shared or not (
-            read.owner_check != "off"
-            or read.entity_check != "off"
-            or read.user_header != "off"
-            or read.reinjection_penalty > 0.0
-            or (read.query_contract != "off" and "header" in read.query_contract_use)
-        ):
-            return context
-        records = list(context.records)
-
-        def is_evidence(r: MemoryRecord) -> bool:
-            return constants.LEAD_TAG not in r.tags and r.source.channel not in ("lead", "persona")
-
-        evid = [i for i, r in enumerate(records) if is_evidence(r)]
-        if not evid:
-            return context
-        try:
-            if read.reinjection_penalty > 0.0 and session_id:  # I64
-                self._injections.record(
-                    ns, session_id, [records[i].record_id for i in evid], read.reinjection_window
-                )
-            notes: list[str] = []
-            audit: dict[str, Any] = {}
-            if read.owner_check != "off":
-                qp = await self._question_perspective(ns, query)
-                views = [record_view(records[i]) for i in evid]
-                tagged = [v if v.annotated else None for v in views]
-                verdict = judge(qp, tagged)
-                if qp.bound and self._decider_active("about_target"):
-                    overrides: dict[int, bool] = {}
-                    for j in unknown_lines(verdict)[:10]:
-                        label = await self._decided(
-                            "about_target", query, records[evid[j]].content, "about"
-                        )
-                        overrides[j] = label == "about"
-                    if overrides:
-                        verdict = judge(qp, tagged, overrides=overrides)
-                if read.owner_check in ("mark", "both"):
-                    for j, i in enumerate(evid):
-                        marker = owner_marker(views[j]) if views[j].annotated else None
-                        if marker and not records[i].content.startswith(marker):
-                            records[i] = records[i].model_copy(
-                                update={"content": f"{marker} {records[i].content}"}
-                            )
-                if read.owner_check in ("note", "both") and verdict.note:
-                    notes.append(verdict.note)
-                audit["owner"] = {"labels": verdict.labels, "note": verdict.note}
-            if read.entity_check != "off":
-                names = missing_names(query, await self._entity_vocabulary(ns))
-                text = entity_note(names)
-                if text:
-                    notes.append(text)
-                audit["entity_missing"] = names
-            parts = [records[i] for i in evid]
-            at = min(context.boundary_index, len(records))
-            for k, text in enumerate(notes):
-                records.insert(at + k, self._lead_record(ns, text, parts))
-            head = (
-                user_header(read.perspective_asker or active_asker())
-                if read.user_header == "on"
-                else None
-            )
-            if head:
-                records.insert(0, self._lead_record(ns, head, parts))
-                context.boundary_index += 1
-                audit["user_header"] = head
-            answer_line: str | None = None
-            if read.query_contract != "off" and "header" in read.query_contract_use:
-                contract = await self._query_contract(query)  # A03
-                answer_line = contract_header(contract)
-                audit["query_contract"] = contract.as_meta()
-                if answer_line:
-                    records.insert(1 if head else 0, self._lead_record(ns, answer_line, parts))
-                    context.boundary_index += 1
-                    audit["query_contract_header"] = answer_line
-            context.records = records
-            context.tokens_used += sum(
-                estimate_tokens(t) for t in [*notes, head or "", answer_line or ""]
-            )
-            if (fx := _FORENSICS.get()) is not None and audit:
-                fx["read_overlay"] = audit
-        except Exception as exc:  # an enhancer, never a gate
-            _log.warning("read.overlay_failed", namespace=ns, error=str(exc))
-        return context
+        return await read_legs._read_overlay(self, query, ns, context, session_id, shared=shared)
 
     async def _perspective_leg(
         self, ns: str, qp: QuestionPerspective, vector_hits: Sequence[Any]
@@ -2987,87 +2044,15 @@ class Engine:
         return [(rec, rel) for rec, rel, _ in out]
 
     async def _strip_speaker_names(self, ns: str, query: str) -> str:
-        """``read.lexical_strip_names``: the query without the speaker names of ``ns``
-        (the "Speaker:" prefix of its records), for the BM25 leg only. Names are cached
-        per namespace and refreshed when the record count changes. A query that would
-        be left empty, or any failure, keeps the original text."""
-        try:
-            records = await self._records(ns)
-            cached = self._speaker_names.get(ns)
-            if cached is None or cached[0] != len(records):
-                found: set[str] = set()
-                for r in records:
-                    head, sep, _ = r.content.partition(":")
-                    word = head.strip()
-                    if sep and word.isalpha() and word[:1].isupper():
-                        found.add(word.lower())
-                cached = (len(records), frozenset(found))
-                self._speaker_names[ns] = cached
-            names = cached[1]
-            if not names:
-                return query
-            kept = [
-                tok
-                for tok in query.split()
-                if re.sub(r"(?:['\u2019]s)?\W*$", "", tok.strip("\"'(")).lower() not in names
-            ]
-            if not any(re.search(r"\w", tok) for tok in kept):
-                return query
-            return " ".join(kept)
-        except Exception as exc:  # an enhancer, never a gate
-            _log.warning("read.lexical_strip_names_failed", namespace=ns, error=str(exc))
-            return query
+        return await read_legs._strip_speaker_names(self, ns, query)
 
     async def _session_leg(
-        self, ns: str, query_vector: list[float], fetch_k: int
+        self,
+        ns: str,
+        query_vector: list[float],
+        fetch_k: int,
     ) -> list[list[LegHit]]:
-        """``read.session_leg``: sessions (``group_id``) ranked by the cosine of the query
-        with the mean of their records' vectors; the best ``session_leg_per_session``
-        records (by cosine) of each of the top ``session_leg_top_sessions`` sessions form
-        the leg. Record vectors are embedded once and cached per (record, content)."""
-        read = self._config().read
-        if self._embedder is None:
-            return []
-        try:
-            records = [
-                r for r in await self._records(ns) if not r.quarantined and r.group_id is not None
-            ]
-            cache = self._session_vectors
-            missing = [r for r in records if (r.record_id, r.content) not in cache]
-            if missing:
-                if len(cache) + len(missing) > constants.MAXSIM_CACHE_MAX:
-                    cache.clear()
-                    missing = records
-                for start in range(0, len(missing), 64):
-                    chunk = missing[start : start + 64]
-                    vectors = await self._embedder.embed([r.content for r in chunk])
-                    for r, v in zip(chunk, vectors, strict=True):
-                        cache[(r.record_id, r.content)] = _unit(v)
-            q = _unit(query_vector)
-
-            def cos(v: Sequence[float]) -> float:
-                return sum(a * b for a, b in zip(q, v, strict=False))
-
-            groups: dict[str, list[tuple[float, str]]] = {}
-            sums: dict[str, list[float]] = {}
-            for r in records:
-                v = cache[(r.record_id, r.content)]
-                gid = str(r.group_id)
-                groups.setdefault(gid, []).append((cos(v), r.record_id))
-                acc = sums.setdefault(gid, [0.0] * len(v))
-                for i, x in enumerate(v):
-                    acc[i] += x
-            ranked = sorted(sums, key=lambda g: (-cos(sums[g]), g))[: read.session_leg_top_sessions]
-            hits: list[tuple[float, str]] = []
-            for gid in ranked:
-                best = sorted(groups[gid], key=lambda pair: (-pair[0], pair[1]))
-                hits += best[: read.session_leg_per_session]
-            hits.sort(key=lambda pair: -pair[0])
-            leg = NamedLeg("session", [LegHit(rid, score) for score, rid in hits[:fetch_k]])
-            return [leg] if leg else []
-        except Exception as exc:  # an enhancer, never a gate
-            _log.warning("read.session_leg_failed", namespace=ns, error=str(exc))
-            return []
+        return await read_legs._session_leg(self, ns, query_vector, fetch_k)
 
     async def _speaker_vote_leg(
         self,
@@ -3077,57 +2062,13 @@ class Engine:
         vector_hits: Sequence[Any],
         fetch_k: int,
     ) -> list[list[LegHit]]:
-        """``read.list_mode``: the vector leg fetched ``list_vote_depth`` deep, kept to the
-        turns of the one speaker the question names (top ``list_vote_top_k``), as the
-        ``speaker_vote`` leg. Empty when no or several speakers are named."""
-        read = self._config().read
-        try:
-            depth = max(read.list_vote_depth, fetch_k)
-            deep = vector_hits
-            if depth > fetch_k:
-                deep = await self._vector_leg(ns, query_vector, depth)
-            records = [r for r in await self._records(ns) if not r.quarantined]
-            vote = subject_vector_leg if read.speaker_vote_mode != "name" else speaker_vector_leg
-            hits = vote(query, records, deep, read.list_vote_top_k)
-            if read.speaker_vote_mode == "perspective":
-                # I39: the subject vote on the resolved question perspective (subsumes "subject")
-                qp = await self._question_perspective(ns, query)
-                deep_ids = [h.record_id for h in deep]
-                ids = perspective_leg(qp, records, deep_ids, read.list_vote_top_k)
-                hits = [LegHit(rid, 1.0) for rid in ids] or hits
-            if not hits:
-                # R2-2: two named speakers with a comparison cue vote once each.
-                pair = comparison_speaker_legs(query, records, deep, read.list_vote_top_k)
-                legs = [
-                    NamedLeg(f"speaker_vote_{tag}", votes)
-                    for tag, (_, votes) in zip("ab", pair, strict=False)
-                ]
-                return [leg for leg in legs if leg]
-            leg = NamedLeg("speaker_vote", hits)
-            return [leg] if leg else []
-        except Exception as exc:  # an enhancer, never a gate
-            _log.warning("read.speaker_vote_leg_failed", namespace=ns, error=str(exc))
-            return []
+        return await read_legs._speaker_vote_leg(
+            self, ns, query, query_vector, vector_hits, fetch_k
+        )
 
     @staticmethod
     def _bridge_gate(query: str, read: Any) -> bool:
-        """R2-1b (``read.bridge_hop_gate``): whether the bridge hop fires for this read.
-        ``always`` (default) fires; ``cue``: the question describes its answer's entity;
-        ``weak``: the first pass found one confident anchor without support (the
-        second-best raw reranker score is under ``bridge_hop_weak_threshold``);
-        ``cue_or_weak``: either. Records ``bridge_gate`` ("always" / "cue" / "weak" /
-        "skipped") in the forensics."""
-        gate = read.bridge_hop_gate
-        why = "always" if gate == "always" else "skipped"
-        if gate in ("cue", "cue_or_weak") and has_bridge_cue(query):
-            why = "cue"
-        elif gate in ("weak", "cue_or_weak"):
-            support = _RERANK_SUPPORT.get()
-            if support is not None and support < read.bridge_hop_weak_threshold:
-                why = "weak"
-        if (fx := _FORENSICS.get()) is not None:
-            fx["bridge_gate"] = why
-        return why != "skipped"
+        return read_legs._bridge_gate(query, read)
 
     async def _bridge_leg(
         self,
@@ -3140,34 +2081,16 @@ class Engine:
         hide: Callable[[MemoryRecord], bool] | None,
         probes: Sequence[str],
     ) -> NamedLeg | None:
-        """``read.bridge_hop``: one extra search for "<subject> <phrase> ..." where the
-        phrases are the key noun phrases of the top first-hop hits that the question lacks.
-        Fails soft (None). The phrases are recorded as the forensic ``bridge_phrases``."""
-        read = self._config().read
-        try:
-            phrases = bridge_phrases(
-                query, [r.content for r, _ in scored[: constants.SECOND_ROUND_TOP]]
-            )
-            if (fx := _FORENSICS.get()) is not None:
-                fx["bridge_phrases"] = list(phrases)
-            if not phrases:
-                return None
-            names = [w for w in re.findall(r"\b[A-Z][a-z][\w'-]*", query)[1:2]]
-            subject = " ".join(names) or core_terms(query)
-            extra = await self._search(
-                f"{subject} {' '.join(phrases)}".strip(),
-                ns,
-                read.bridge_hop_top_k,
-                session_id=session_id,
-                keep_k=read.bridge_hop_top_k,
-                hide=hide,
-                probes=[],
-            )
-            leg = NamedLeg("bridge", [LegHit(r.record_id, float(score)) for r, score in extra])
-            return leg if leg else None
-        except Exception as exc:  # an enhancer, never a gate
-            _log.warning("read.bridge_hop_failed", namespace=ns, error=str(exc))
-            return None
+        return await read_legs._bridge_leg(
+            self,
+            query,
+            ns,
+            scored,
+            session_id=session_id,
+            keep_k=keep_k,
+            hide=hide,
+            probes=probes,
+        )
 
     async def _anchor_legs(
         self,
@@ -3176,66 +2099,10 @@ class Engine:
         lexical_hits: Sequence[Any],
         fetch_k: int,
     ) -> list[list[LegHit]]:
-        """N43 cohesion and N32 entity-expansion legs, anchored on the first-pass top
-        hits (``ANCHOR_TOP`` from the vector leg, then the lexical leg). Only live,
-        unquarantined records anchor or join; the search gates still judge every hit."""
-        read = self._config().read
-        try:
-            live = [
-                r
-                for r in await self._records(ns)
-                if r.status is RecordStatus.ACTIVATED
-                and not r.quarantined
-                and r.memory_type != "shared"
-                and CUE_TAG not in r.tags
-            ]
-            by_id = {r.record_id: r for r in live}
-            anchor_ids: list[str] = []
-            for hit in [
-                *vector_hits[: constants.ANCHOR_TOP],
-                *lexical_hits[: constants.ANCHOR_TOP],
-            ]:
-                if hit.record_id in by_id and hit.record_id not in anchor_ids:
-                    anchor_ids.append(hit.record_id)
-            anchors = [by_id[rid] for rid in anchor_ids[: constants.ANCHOR_TOP]]
-            if not anchors:
-                return []
-            legs: list[list[LegHit]] = []
-            if read.cohesion_leg:
-                window = timedelta(minutes=constants.COHESION_WINDOW_MINUTES)
-                legs.append(NamedLeg("cohesion", cohesion_leg(anchors, live, fetch_k, window)))
-            if read.entity_expand_leg:
-                speakers = {s for r in live if (s := speaker_of(r.content)) is not None}
-                legs.append(
-                    NamedLeg(
-                        "entity_expand",
-                        entity_expand_leg(
-                            anchors,
-                            live,
-                            fetch_k,
-                            speakers,
-                            constants.ENTITY_EXPAND_MAX_SHARE,
-                        ),
-                    )
-                )
-            return [leg for leg in legs if leg]
-        except Exception as exc:  # an enhancer, never a gate
-            _log.warning("read.anchor_legs_failed", namespace=ns, error=str(exc))
-            return []
+        return await read_legs._anchor_legs(self, ns, vector_hits, lexical_hits, fetch_k)
 
     def _leg_weights_for(self, query: str) -> dict[str, float]:
-        """N16 leg weights, then N62's for this question's shape, then N33's lexical
-        weight for a very short question. Empty = unweighted RRF (unchanged)."""
-        read = self._config().read
-        weights = dict(read.leg_weights)
-        if read.leg_weights_by_shape:
-            weights.update(read.leg_weights_by_shape.get(question_shape(query), {}))
-        if (
-            read.short_query_lexical_weight is not None
-            and len(content_words(query)) <= constants.SHORT_QUERY_WORDS
-        ):
-            weights["lexical"] = read.short_query_lexical_weight
-        return weights
+        return read_legs._leg_weights_for(self, query)
 
     async def _with_session_neighbours(
         self,
@@ -3244,90 +2111,15 @@ class Engine:
         documents: list[str],
         width: int,
     ) -> list[str]:
-        """N42: each reranker input with ``width`` neighbouring turns of its session
-        on each side (in time order), so a short reply is judged with its question.
-        Sessions are the episodic store's (the same ones replay expands). A record in
-        no session, a neighbour that is not live, or a failure keeps its own text."""
-        if self._episodic is None:
-            return documents
-        try:
-            session_ids: dict[str, list[str]] = {}
-            for s in await self._episodic.sessions(ns, constants.SESSION_GAP_MINUTES):
-                for rid in s.record_ids:
-                    session_ids.setdefault(rid, s.record_ids)
-            text = {
-                r.record_id: r.content
-                for r in await self._records(ns)
-                if r.status is RecordStatus.ACTIVATED and not r.quarantined
-            }
-            out: list[str] = []
-            for (record, _), doc in zip(candidates, documents, strict=True):
-                ids = session_ids.get(record.record_id)
-                if not ids:
-                    out.append(doc)
-                    continue
-                i = ids.index(record.record_id)
-                before = [text[x] for x in ids[max(0, i - width) : i] if x in text]
-                after = [text[x] for x in ids[i + 1 : i + 1 + width] if x in text]
-                out.append("\n".join([*before, doc, *after]))
-            return out
-        except Exception as exc:  # an enhancer, never a gate
-            _log.warning("rerank.context_failed", namespace=ns, error=str(exc))
-            return documents
+        return await read_legs._with_session_neighbours(self, ns, candidates, documents, width)
 
     async def _graph_rerank(
-        self, ns: str, query: str, candidates: list[tuple[MemoryRecord, float]]
+        self,
+        ns: str,
+        query: str,
+        candidates: list[tuple[MemoryRecord, float]],
     ) -> list[tuple[MemoryRecord, float]]:
-        """#22 (``read.graph_rerank``): lift graph-near and often-restated candidates.
-
-        Proximity comes from the graph leg's seeds (the entities the query names,
-        else those of the best ``GRAPH_LEG_FALLBACK_HITS`` candidates) through
-        :meth:`AssociativeMemory.graph_proximity` (``distance`` or ``ppr``). The
-        episode-mentions boost is ``log(1 + n) / log(1 + n_max)`` over the
-        candidates' admitted ``edge_source:`` provenance counts ``n`` (GR-9). Each boost
-        ``b`` in [0, 1] lifts relevance ``r`` to ``r + w * b * (1 - r)``, so a
-        candidate with no boost keeps its score; the stable re-sort keeps ties in
-        their fused order. Failures leave the candidates as they were (an
-        enhancer, never a gate)."""
-        read_cfg = self._config().read
-        weight = read_cfg.graph_rerank_weight
-        if weight <= 0.0:
-            return candidates
-        proximity: dict[str, float] = {}
-        if self._associative is not None:
-            try:
-                fallback = [r.record_id for r, _ in candidates[: constants.GRAPH_LEG_FALLBACK_HITS]]
-                seeds = await self._graph_seeds(ns, query, fallback)
-                if seeds:
-                    proximity = await self._associative.graph_proximity(
-                        ns,
-                        seeds,
-                        depth=min(read_cfg.graph_depth, constants.GRAPH_LEG_MAX_DEPTH),
-                        admit=self._graph_admit(ns),
-                        mode=read_cfg.graph_rerank,
-                        max_degree=constants.GRAPH_LEG_MAX_DEGREE,
-                    )
-            except Exception as exc:  # an enhancer, never a gate
-                _log.warning("read.graph_rerank_failed", namespace=ns, error=str(exc))
-                proximity = {}
-        mentions = {
-            record.record_id: await self._admitted_edge_sources(ns, record)
-            for record, _ in candidates
-        }
-        top = max(mentions.values(), default=0)
-
-        def lift(relevance: float, boost: float) -> float:
-            return relevance + weight * boost * (1.0 - relevance) if boost > 0 else relevance
-
-        boosted = []
-        for record, relevance in candidates:
-            relevance = lift(relevance, proximity.get(record.record_id, 0.0))
-            if top > 0:
-                relevance = lift(
-                    relevance, math.log1p(mentions[record.record_id]) / math.log1p(top)
-                )
-            boosted.append((record, relevance))
-        return sorted(boosted, key=lambda pair: pair[1], reverse=True)
+        return await read_legs._graph_rerank(self, ns, query, candidates)
 
     async def _causal_walk(
         self,
@@ -3337,43 +2129,7 @@ class Engine:
         tags: list[str] | None,
         memory_type: str | None,
     ) -> list[tuple[MemoryRecord, float]]:
-        """W12/G27 (``read.causal_walk``, ADR-061): a ranked directed walk.
-
-        From the best ``CAUSAL_WALK_SEEDS`` candidates, follow ``because`` (effect
-        -> cause) and ``reply_to`` (reply -> answered) LINKs up to
-        ``read.causal_walk_hops`` hops (:meth:`AssociativeMemory.rel_walk`, GP-10
-        admission). A record reached ``h`` hops from a seed of relevance ``r``
-        scores ``r x CAUSAL_WALK_DECAY ** h`` (its best path); it joins the
-        candidates, or lifts one already there that scored less, after the same
-        search gates as every leg. The stable re-sort keeps ties in fused order.
-        Failures leave the candidates as they were (an enhancer, never a gate)."""
-        assert self._associative is not None
-        seeds = candidates[: constants.CAUSAL_WALK_SEEDS]
-        seed_score = {record.record_id: relevance for record, relevance in seeds}
-        try:
-            reached = await self._associative.rel_walk(
-                ns,
-                list(seed_score),
-                (BECAUSE_REL, constants.REPLY_TO_REL),
-                depth=self._config().read.causal_walk_hops,
-                admit=self._graph_admit(ns),
-            )
-        except Exception as exc:  # an enhancer, never a gate
-            _log.warning("read.causal_walk_failed", namespace=ns, error=str(exc))
-            return candidates
-        current = {record.record_id: relevance for record, relevance in candidates}
-        best: dict[str, float] = {}
-        for record, hops, origin in reached:
-            score = seed_score[origin] * constants.CAUSAL_WALK_DECAY**hops
-            if score > max(best.get(record.record_id, 0.0), current.get(record.record_id, -1.0)):
-                best[record.record_id] = score
-        if not best:
-            return candidates
-        gated = await self._gate_hits(ns, list(best.items()), group_id, tags, memory_type)
-        merged = {record.record_id: (record, relevance) for record, relevance in candidates}
-        for record, relevance in gated:
-            merged[record.record_id] = (record, relevance)
-        return sorted(merged.values(), key=lambda pair: pair[1], reverse=True)
+        return await read_legs._causal_walk(self, ns, candidates, group_id, tags, memory_type)
 
     async def _community_gate(
         self,
@@ -3384,38 +2140,15 @@ class Engine:
         extra_legs: list[list[LegHit]],
         use_hybrid: bool,
     ) -> list[str]:
-        """GP-9 (``read.graph_communities``): the community summaries this query may read.
-
-        The live ``reorganize`` parents of the communities a seed entity of the graph
-        leg belongs to: a community counts when one of the records the entity
-        mentions is a member (communities are built over association edges, so
-        membership goes through the mentioned records). Seeds as for the graph leg.
-        Parents pass the graph admission gate. Failures admit none (the gate
-        stays shut)."""
-        if self._associative is None:
-            return []
-        try:
-            if use_hybrid or extra_legs:
-                prelim = [
-                    rid
-                    for rid, _ in rrf_fuse(list(vector_hits), list(lexical_hits), extra=extra_legs)
-                ]
-            else:
-                prelim = [hit.record_id for hit in vector_hits]
-            seeds = await self._graph_seeds(ns, query, prelim[: constants.GRAPH_LEG_FALLBACK_HITS])
-            if not seeds:
-                return []
-            storage = self._require_started()
-            admit = self._graph_admit(ns)
-            allowed: list[str] = []
-            for parent_id in await self._associative.entity_communities(ns, seeds):
-                parent = await storage.get_record(parent_id)
-                if parent is not None and parent.source.channel == "reorganize" and admit(parent):
-                    allowed.append(parent_id)
-            return allowed
-        except Exception as exc:
-            _log.warning("read.graph_communities_failed", namespace=ns, error=str(exc))
-            return []
+        return await read_legs._community_gate(
+            self,
+            ns,
+            query,
+            vector_hits,
+            lexical_hits,
+            extra_legs,
+            use_hybrid,
+        )
 
     async def _graph_facts_section(
         self, ns: str, query: str, allowance: int
@@ -3479,34 +2212,10 @@ class Engine:
         return sorted(lines.values(), key=lambda v: chrono_key(v[0]))
 
     async def _admitted_edge_sources(self, ns: str, fact: MemoryRecord) -> int:
-        """#22: the ``edge_source:`` episodes of ``fact`` a graph walk may enter
-        (:meth:`_graph_admit`: live, unquarantined, at least
-        ``read.graph_min_trust``). A forgotten, quarantined or low-trust source
-        lends the rerank's episode-mentions boost nothing."""
-        prefix = constants.EDGE_SOURCE_TAG_PREFIX
-        ids = [t[len(prefix) :] for t in fact.tags if t.startswith(prefix)]
-        if not ids:
-            return 0
-        storage = self._require_started()
-        admit = self._graph_admit(ns)
-        count = 0
-        for record_id in dict.fromkeys(ids):
-            source = await storage.get_record(record_id)
-            if source is not None and admit(source):
-                count += 1
-        return count
+        return await read_legs._admitted_edge_sources(self, ns, fact)
 
     async def _edge_sources(self, storage: SqlStorage, fact: MemoryRecord) -> int:
-        """GR-9: the live episodes stating ``fact``: its parents and the episodes
-        duplicates added (``edge_source:`` tags), erased ones not counted."""
-        prefix = constants.EDGE_SOURCE_TAG_PREFIX
-        ids = [*fact.source.parents, *(t[len(prefix) :] for t in fact.tags if t.startswith(prefix))]
-        count = 0
-        for record_id in dict.fromkeys(ids):
-            source = await storage.get_record(record_id)
-            if source is not None and source.status is not RecordStatus.DELETED:
-                count += 1
-        return max(count, 1)
+        return await read_legs._edge_sources(self, storage, fact)
 
     async def _current_state_view(
         self, ns: str, scored: list[tuple[MemoryRecord, float]]
@@ -4042,7 +2751,7 @@ class Engine:
     @_passive_scoped
     async def retrieve(
         self,
-        namespace: str = "default",
+        namespace: str = 'default',
         memory_type: str | None = None,
         group_id: str | None = None,
         tags: list[str] | None = None,
@@ -4061,28 +2770,23 @@ class Engine:
         ``purpose`` (#50): the read's purpose, checked under ``consent.enforce``.
         #53: records of PASSIVE sessions are left out unless ``include_passive=True``
         or ``group_id`` names their group."""
-        storage = self._require_started()
-        ns = validate_namespace(namespace)
-        with read_scope(purpose) as outer:
-            listed = await storage.list_records(ns, memory_type, group_id)
-            if not include_held:
-                listed = [r for r in listed if not r.quarantined]
-            listed = [r for r in listed if not _passive_hidden(r, group_id)]
-            records = [r for r in self._inflate_all(listed, ns) if self._consent_ok(r)]
-            if tags:
-                wanted = set(tags)
-                records = [r for r in records if wanted.issubset(r.tags)]
-            _log.info(EVENT_RETRIEVE, namespace=ns, memory_type=memory_type, count=len(records))
-            if outer:
-                await self._audit_read("retrieve", ns, [r.record_id for r in records])
-        return records
+        return await read_router.retrieve(
+            self,
+            namespace,
+            memory_type,
+            group_id,
+            tags,
+            include_held,
+            purpose,
+            include_passive,
+        )
 
     @_passive_scoped
     @_snapshot_scoped
     async def search(
         self,
         query: str,
-        namespace: str = "default",
+        namespace: str = 'default',
         top_k: int = constants.SEARCH_TOP_K,
         group_id: str | None = None,
         tags: list[str] | None = None,
@@ -4102,7 +2806,7 @@ class Engine:
         valid_to_before: DateBound | None = None,
         recorded_after: DateBound | None = None,
         recorded_before: DateBound | None = None,
-        date_filter_mode: str = "and",
+        date_filter_mode: str = 'and',
         viewer: str | None = None,
     ) -> list[tuple[MemoryRecord, float]]:
         """Semantic retrieval (P1 + E8 opt-in stages, D-51):
@@ -4145,44 +2849,31 @@ class Engine:
         the ``top_k`` cut (each leg looks over the whole namespace), so a filter never
         costs recall. No bound: unchanged.
         """
-        session_id = ledger_id if ledger_id is not None else session_id  # I9
-        if focal_entity:  # G-11: an extra graph seed for this read
-            _FOCAL_ENTITY.set(focal_entity)
-        date_filter = DateFilter.build(
+        return await read_router.search(
+            self,
+            query,
+            namespace,
+            top_k,
+            group_id,
+            tags,
+            session_id,
+            ledger_id,
+            sessions,
+            roles,
+            memory_types,
+            tags_any,
+            focal_entity,
+            purpose,
+            include_passive,
             valid_from_after=valid_from_after,
             valid_from_before=valid_from_before,
             valid_to_after=valid_to_after,
             valid_to_before=valid_to_before,
             recorded_after=recorded_after,
             recorded_before=recorded_before,
-            mode=date_filter_mode,
+            date_filter_mode=date_filter_mode,
+            viewer=viewer,
         )
-        with (
-            read_scope(purpose) as outer,
-            date_filter_scope(date_filter),
-            record_scope(  # I7/I8/G-12, I53 viewer, I48/I52 bars
-                RecordScope.build(
-                    sessions,
-                    roles,
-                    memory_types,
-                    tags_any,
-                    viewer=viewer,
-                    check=await self._scope_check(query),
-                )
-            ),
-        ):
-            scored = await self._search(
-                query,
-                namespace,
-                top_k,
-                group_id=group_id,
-                tags=tags,
-                session_id=session_id,
-                keep_k=top_k,
-            )
-            if outer:
-                await self._audit_read("search", namespace, [r.record_id for r, _ in scored])
-        return scored
 
     async def _date_allowed(self, ns: str) -> tuple[set[str], int] | None:
         """#37: under an active date filter, the ids a search leg may return, and how
@@ -4207,61 +2898,18 @@ class Engine:
         return allowed, len(listed)
 
     async def _vector_leg(
-        self, ns: str, query_vector: list[float], fetch_k: int
+        self,
+        ns: str,
+        query_vector: list[float],
+        fetch_k: int,
     ) -> list[VectorHit]:
-        """The vector leg of :meth:`search` (E4 two-stage rescore when active)."""
-        assert self._embedder is not None and self._vector is not None
-        # E4 (ADR-020): the two-stage quantized rescore replaces the plain cosine
-        # query ONLY when active (a quantized/Matryoshka manifest or the
-        # vector.quantization override). Off, this is exactly query() — the
-        # vector-only pipeline stays byte-identical. Rescore happens here, at the
-        # vector leg, BEFORE fusion/gate/rerank compose over the candidates.
-        vector_store = self._vector
-        embedder_id = self._embedder.embedder_id
-        if self._rescore_active:
-            try:
-                # #87: ANN (quantized) search is approximate by design; its ties
-                # are settled like the exact path's, its recall is not (ADR-051).
-                return await settle_ties(
-                    lambda n: vector_store.search_rescore(
-                        ns, query_vector, embedder_id=embedder_id, top_k=n
-                    ),
-                    fetch_k,
-                    self._tie_keys,
-                )
-            except Exception as exc:
-                # Defense in depth (mirrors the lexical leg below): any residual
-                # rescore error — e.g. a corrupt code row surviving the scheme/dim
-                # guards — degrades to the exact query() path, never crashes search().
-                _log.warning("vector.rescore_failed", namespace=ns, error=str(exc))
-        return await settle_ties(
-            lambda n: vector_store.query(ns, query_vector, embedder_id=embedder_id, top_k=n),
-            fetch_k,
-            self._tie_keys,
-        )
+        return await read_legs._vector_leg(self, ns, query_vector, fetch_k)
 
     async def _lexical_leg(self, ns: str, text: str, fetch_k: int) -> list[LexicalHit]:
-        """One BM25 leg, its equal-score runs in content order (#87). Raises what the
-        lexical store raises; each caller decides how a failed leg degrades."""
-        lexical = self._lexical
-        assert lexical is not None
-        return await settle_ties(
-            lambda n: lexical.search(ns, text, top_k=n), fetch_k, self._tie_keys
-        )
+        return await read_legs._lexical_leg(self, ns, text, fetch_k)
 
     async def _tie_keys(self, record_ids: list[str]) -> dict[str, Any]:
-        """#87: the order of tied leg hits, by record id: write order (record time,
-        strictly increasing, see :func:`record_time`), then content. Write order is
-        what an exact flat scan of an append-only table yields, so a leg whose
-        store order was already stable keeps it; one whose order was not (segment
-        merges, multi-threaded scans) now gets it too."""
-        storage = self._require_started()
-        keys: dict[str, Any] = {}
-        for rid in dict.fromkeys(record_ids):
-            record = await storage.get_record(rid)
-            if record is not None:
-                keys[rid] = (record.recorded_at, record.content_fingerprint, record.record_id)
-        return keys
+        return await read_fusion._tie_keys(self, record_ids)
 
     async def _gate_hits(
         self,
@@ -4369,516 +3017,20 @@ class Engine:
         probes: Sequence[str] = (),
         fused_legs: Sequence[list[LegHit]] = (),
     ) -> list[tuple[MemoryRecord, float]]:
-        """:meth:`search` with ``keep_k``: how many results the caller finally keeps
-        (assembly fetches ``candidate_pool x top_k``); the H18 rerank gate uses it.
-
-        ``probes`` (#35, the LLM planner v2's lookup subqueries): each adds a vector
-        leg (and a lexical leg under hybrid) to the RRF fusion. Empty: unchanged.
-
-        ``hide`` (G1b/G3b): records a read header already shows leave with the gates,
-        before the cut, the rerank, the ``rerank_keep`` cut, the RETRIEVE event and the
-        B0 ledger. The legs widen until ``top_k`` visible candidates survive, so a
-        header that hides most of the best hits never leaves the read short.
-
-        ``fused_legs`` (#36): precomputed ranked legs (the persons / time leg) fused by RRF
-        like the C3' legs. Empty: unchanged.
-
-        The active date filter (#37, :func:`active_date_filter`) keeps only matching
-        records in every leg, before fusion; each leg then looks over the whole
-        namespace so no matching record is cut by a leg window."""
-        if self._embedder is None or self._vector is None or self._scoring is None:
-            raise MemspineError("retrieval services not constructed — engine not started?")
-        if top_k < 1:
-            # SQLite LIMIT treats -1 as unbounded while Python's ``[:top_k]`` slice
-            # would diverge; reject rather than let the two layers silently disagree
-            # (REST already guards ``ge=1``).
-            raise ValueError(f"top_k must be >= 1, got {top_k}")
-        ns = validate_namespace(namespace)
-        [query_vector] = await embed_queries(self._embedder, [query])
-        if self._firewall.signals.query_anomaly:
-            self._query_history.observe(ns, query_vector)  # N22
-        use_hybrid = self._config().read.hybrid and self._lexical is not None
-        probe_texts = list(
-            dict.fromkeys(
-                p.strip() for p in probes if p.strip() and p.strip().lower() != query.lower()
-            )
+        return await read_router._search(
+            self,
+            query,
+            namespace,
+            top_k,
+            group_id=group_id,
+            tags=tags,
+            session_id=session_id,
+            keep_k=keep_k,
+            memory_type=memory_type,
+            hide=hide,
+            probes=probes,
+            fused_legs=fused_legs,
         )
-        probe_vectors = await embed_queries(self._embedder, probe_texts) if probe_texts else []
-        # Hybrid recall (E8/D-25): fetch a wider candidate window per leg so a
-        # record ranked just outside a single leg's top_k, but strong when the two
-        # legs combine, can still enter the fused top_k.
-        # The word-vector leg is a second fused leg like BM25, so it widens the window the
-        # same way; without this, ``hybrid: false`` + word vectors cut the vector leg to top_k.
-        wide = use_hybrid or self._config().read.word_vector_leg or self._config().read.session_leg
-        base_fetch = top_k * constants.LEXICAL_FETCH_MULTIPLIER if wide else top_k
-        allowed = await self._date_allowed(ns)
-        if allowed is not None:
-            if not allowed[0]:
-                _log.info(EVENT_RETRIEVE, namespace=ns, query=True, count=0)
-                return []
-            base_fetch = max(base_fetch, allowed[1])
-        widen = 1
-        # A header can hide most of the best hits (mined facts outrank raw turns), so
-        # a hiding search may look further down the legs than the gates alone would.
-        max_widen = _SEARCH_MAX_WIDEN * (constants.HEADER_HIDE_OVERFETCH if hide else 1)
-        # GP-3 (read.graph_leg): computed once, from the first widen's legs.
-        read_persp = self._config().read
-        persp_qp: QuestionPerspective | None = None
-        if read_persp.perspective_mode != "off" or read_persp.speaker_vote_mode == "perspective":
-            persp_qp = await self._question_perspective(ns, query)
-        graph_leg: list[LegHit] | None = None if self._config().read.graph_leg else []
-        # GP-9 (read.graph_communities): community summaries this query may read.
-        community_gate: list[str] | None = None
-        protected: dict[str, str] = {}  # I75a: record id -> leg whose top-N it belongs to
-        family_slots: dict[str, list[str]] = {}  # R02: family -> protected ids (source_family)
-        while True:
-            protected = {}
-            fetch_k = base_fetch * widen
-            vector_hits = await self._vector_leg(ns, query_vector, fetch_k)
-            # Hybrid (D-25): fuse the lexical BM25 leg via RRF. Off (default),
-            # ``ranked`` is exactly the vector hits in cosine order — bit-identical.
-            if use_hybrid:
-                assert self._lexical is not None  # narrowed by use_hybrid
-                try:
-                    lexical_query = (
-                        await self._strip_speaker_names(ns, query)
-                        if self._config().read.lexical_strip_names
-                        else query
-                    )
-                    lexical_hits = await self._lexical_leg(ns, lexical_query, fetch_k)
-                except Exception as exc:
-                    # Defense in depth: a broken lexical leg degrades to vector-only
-                    # (fusing an empty leg preserves the vector ordering), it never
-                    # takes down the whole search().
-                    _log.warning("lexical.search_failed", namespace=ns, error=str(exc))
-                    lexical_hits = []
-            else:
-                lexical_hits = []
-            extra_legs = await self._metadata_legs(ns, query, fetch_k)
-            if self._config().read.query_encoder != "none":
-                extra_legs += await self._encoder_legs(ns, query)
-            for text, vector in zip(probe_texts, probe_vectors, strict=True):
-                extra_legs += await self._probe_legs(ns, text, vector, fetch_k, use_hybrid)
-            if community_gate is None and self._config().read.graph_communities:
-                community_gate = await self._community_gate(
-                    ns, query, vector_hits, lexical_hits, extra_legs, use_hybrid
-                )
-            if graph_leg is None:
-                graph_leg = await self._graph_leg(
-                    ns, query, vector_hits, lexical_hits, extra_legs, use_hybrid
-                )
-                if community_gate:
-                    in_leg = {hit.record_id for hit in graph_leg}
-                    graph_leg += [LegHit(pid, 1.0) for pid in community_gate if pid not in in_leg]
-            if graph_leg:
-                extra_legs = [*extra_legs, graph_leg]
-            read_now = self._config().read
-            if read_now.cohesion_leg or read_now.entity_expand_leg:
-                extra_legs += await self._anchor_legs(ns, vector_hits, lexical_hits, fetch_k)
-            if read_now.graph_node_search:
-                extra_legs += await self._graph_node_legs(ns, query, query_vector, fetch_k)
-            if read_now.maxsim_leg:
-                extra_legs += await self._maxsim_leg(ns, query_vector, vector_hits, lexical_hits)
-            if read_now.word_vector_leg:
-                extra_legs += await self._word_vector_leg(ns, query, fetch_k)
-            if read_now.session_leg:
-                extra_legs += await self._session_leg(ns, query_vector, fetch_k)
-            if (
-                persp_qp is not None
-                and read_now.perspective_mode != "off"
-                and "subject" in read_now.perspective_axes
-                and read_now.perspective_leg  # I75b: False = multiplier only, no RRF leg
-            ):
-                extra_legs += await self._perspective_leg(ns, persp_qp, vector_hits)
-            if read_now.list_mode and _LIST_MODE.get():
-                extra_legs += await self._speaker_vote_leg(
-                    ns, query, query_vector, vector_hits, fetch_k
-                )
-            extra_legs += [
-                leg if isinstance(leg, NamedLeg) else list(leg) for leg in fused_legs if leg
-            ]
-            floors = self._config().read.leg_min_scores
-            if floors:
-                # C6 (per-leg score floors): weak hits never enter the fusion.
-                logging_floors = _FORENSICS.get() is not None  # V02: zero cost when off
-                if "vector" in floors:
-                    if logging_floors:
-                        _log_leg_floor("vector", vector_hits, floors["vector"])
-                    vector_hits = [h for h in vector_hits if h.score >= floors["vector"]]
-                if "lexical" in floors:
-                    if logging_floors:
-                        _log_leg_floor("lexical", lexical_hits, floors["lexical"])
-                    lexical_hits = [h for h in lexical_hits if h.score >= floors["lexical"]]
-            if allowed is not None:
-                vector_hits = [h for h in vector_hits if h.record_id in allowed[0]]
-                lexical_hits = [h for h in lexical_hits if h.record_id in allowed[0]]
-                ids = allowed[0]
-                extra_legs = [
-                    kept for leg in extra_legs if (kept := [h for h in leg if h.record_id in ids])
-                ]
-            if use_hybrid or extra_legs:
-                rrf_k = self._config().read.rrf_k or constants.RRF_K
-                # N16 (plan v3.2): per-leg weights (vector, lexical, extra legs).
-                lw = self._leg_weights_for(query)
-                weights = (
-                    [lw.get("vector", 1.0), lw.get("lexical", 1.0)]
-                    + [
-                        lw.get(getattr(leg, "name", "extra"), lw.get("extra", 1.0))
-                        for leg in extra_legs
-                    ]
-                    if lw
-                    else None
-                )
-                minmax = self._config().read.fusion == "minmax"
-                if minmax:
-                    # N52: min-max-normalised scores summed per leg, in place of RRF.
-                    fused = minmax_fuse(vector_hits, lexical_hits, extra_legs, weights)
-                else:
-                    fused = rrf_fuse(
-                        vector_hits, lexical_hits, k=rrf_k, extra=extra_legs, weights=weights
-                    )
-                read_cut = self._config().read
-                # GR-15 fix (2026-10-10): with ``rerank_balanced`` the fused list must keep more
-                # than the pool size, or ``_balanced_pool`` below has nothing to choose from and
-                # is a no-op (measured: identical answers on 233 dev questions).
-                over = 3 if read_cut.rerank_balanced and read_cut.rerank != "off" else 1
-                fused_full = fused
-                fused = fused[: top_k * widen * over]
-                protect_n = read_cut.pool_protect_per_leg
-                if protect_n > 0:
-                    # I75a: keep each leg's top-N alive through the fused-list cut (bounded:
-                    # at most legs * N extra entries, in fused order).
-                    named = [
-                        ("vector", vector_hits),
-                        *([("lexical", lexical_hits)] if use_hybrid else []),
-                        *[(getattr(leg, "name", "extra"), leg) for leg in extra_legs],
-                    ]
-                    if read_cut.pool_protect_mode == "source_family":
-                        family_slots = _family_slots(named, protect_n)
-                        protected = {rid: fam for fam, ids in family_slots.items() for rid in ids}
-                    else:
-                        protected = _protected_ids(named, protect_n)
-                    kept_ids = {rid for rid, _ in fused}
-                    fused = fused + [
-                        (rid, sc)
-                        for rid, sc in fused_full
-                        if rid in protected and rid not in kept_ids
-                    ]
-                if _FORENSICS.get() is not None and len(fused) < len(fused_full):
-                    # I78: the fused-list cut, before any gate: where each dropped hit stood.
-                    survived = {rid for rid, _ in fused}
-                    leg_rank = _leg_rank_map(
-                        [
-                            ("vector", vector_hits),
-                            *([("lexical", lexical_hits)] if use_hybrid else []),
-                            *[(getattr(leg, "name", "extra"), leg) for leg in extra_legs],
-                        ]
-                    )
-                    for pos, (rid, _) in enumerate(fused_full, start=1):
-                        if rid not in survived:
-                            leg_name, leg_pos = leg_rank.get(rid, (None, None))
-                            trace_sink.cut(
-                                "pool_cut",
-                                rid,
-                                pool=top_k,
-                                fused_rank=pos,
-                                best_leg=leg_name,
-                                best_leg_rank=leg_pos,
-                            )
-                # F1: raw RRF scores are ~1/(k+1) (≈0.016), but the M1 composite
-                # expects relevance in [0, 1]. Normalize by the theoretical max (a
-                # record ranked #1 in EVERY non-empty leg) so the fused relevance
-                # composes with recency/importance exactly like a cosine similarity
-                # would — otherwise relevance collapses and recency/importance
-                # dominate under hybrid. Without C3' legs this is 2/(k+1).
-                legs = 2 + len(extra_legs) if use_hybrid else 1 + len(extra_legs)
-                if weights is not None:  # N16: the max is the weighted leg sum
-                    leg_ws = weights if use_hybrid else [weights[0], *weights[2:]]
-                    rrf_max = sum(leg_ws) / (rrf_k + 1) or 1.0
-                else:
-                    rrf_max = legs / (rrf_k + 1)
-                if minmax:  # N52: the max is the (weighted) leg count, without 1/(k+1)
-                    rrf_max *= rrf_k + 1
-                ranked: list[tuple[str, float]] = [(rid, score / rrf_max) for rid, score in fused]
-            else:
-                ranked = [(hit.record_id, hit.score) for hit in vector_hits]
-            if (fx := _FORENSICS.get()) is not None:
-                fx["vector"] = [(h.record_id, h.score) for h in vector_hits]
-                fx["lexical"] = [(h.record_id, h.score) for h in lexical_hits]
-                fx["extra_legs"] = [
-                    (getattr(leg, "name", "extra"), [(h.record_id, h.score) for h in leg])
-                    for leg in extra_legs
-                ]
-                fx["fused"] = list(ranked)
-            candidates = await self._gate_hits(ns, ranked, group_id, tags, memory_type)
-            if community_gate is not None:
-                # GP-9: a community summary no seed entity belongs to is never read.
-                admitted = set(community_gate)
-                _pre = _ids(candidates)
-                candidates = [
-                    pair
-                    for pair in candidates
-                    if pair[0].source.channel != "reorganize" or pair[0].record_id in admitted
-                ]
-                _cut_missing(_pre, candidates, "community_gate")
-            if allowed is not None:
-                # A cue passed the leg filter as a key; its resolved target is judged here.
-                date_filter = active_date_filter()
-                scope = active_record_scope()  # I7 / I8
-                _pre = _ids(candidates)
-                candidates = [
-                    pair
-                    for pair in candidates
-                    if (date_filter is None or date_filter.matches(pair[0]))
-                    and (scope is None or scope.matches(pair[0]))
-                ]
-                _cut_missing(_pre, candidates, "date_or_session_scope")
-            if hide is not None:
-                _pre = _ids(candidates)
-                candidates = [pair for pair in candidates if not hide(pair[0])]
-                _cut_missing(_pre, candidates, "header_hide")
-            if persp_qp is not None and read_persp.perspective_mode != "off":
-                _pre = _ids(candidates)
-                candidates = self._apply_perspective(candidates, persp_qp)
-                _cut_missing(_pre, candidates, "perspective_filter")
-            if read_persp.reinjection_penalty > 0.0 and session_id:  # I64
-                candidates = self._penalise_reinjected(candidates, ns, session_id)
-            # Exhaustion is judged on the legs (before any gate or cut).
-            exhausted = len(vector_hits) < fetch_k and len(lexical_hits) < fetch_k
-            if len(candidates) >= top_k or exhausted or widen >= max_widen:
-                break
-            widen *= 4  # the gates removed too many: look further down the legs
-        if self._config().read.anticipatory_cues and candidates:
-            # C8': a target reached both directly and via a cue keeps its best score.
-            best: dict[str, tuple[MemoryRecord, float]] = {}
-            for rec, rel in candidates:
-                if rec.record_id not in best or rel > best[rec.record_id][1]:
-                    best[rec.record_id] = (rec, rel)
-            candidates = sorted(best.values(), key=lambda pair: pair[1], reverse=True)
-        if candidates and self._config().read.graph_rerank != "off":
-            # #22: graph-proximity and episode-mentions boosts, before the cut.
-            candidates = await self._graph_rerank(ns, query, candidates)
-        walk = self._config().read.causal_walk
-        if (
-            candidates
-            and walk != "off"
-            and self._associative is not None
-            and (walk == "always" or is_why_question(query))
-        ):
-            # W12/G27: the causes and answered messages of the best candidates.
-            candidates = await self._causal_walk(ns, candidates, group_id, tags, memory_type)
-            if hide is not None:
-                candidates = [pair for pair in candidates if not hide(pair[0])]
-            date_filter = active_date_filter()
-            if date_filter is not None:
-                candidates = [pair for pair in candidates if date_filter.matches(pair[0])]
-        read_pre = self._config().read
-        if read_pre.rerank_balanced and read_pre.rerank != "off" and len(candidates) > top_k:
-            # GR-15 (Graphiti d40da88): the pool the reranker sees takes the legs'
-            # best hits in turn, so one leg cannot fill it before the cut.
-            candidates = _balanced_pool(candidates, [vector_hits, lexical_hits, *extra_legs], top_k)
-        _pre = _ids(candidates)
-        if protected and self._config().read.pool_protect_mode == "source_family":
-            # R02: the pool stays ``top_k``: family-protected hits first, then RRF order; the
-            # lowest-ranked unprotected candidates are evicted, never a protected one.
-            held = [pair for pair in candidates if pair[0].record_id in protected][:top_k]
-            held_ids = {pair[0].record_id for pair in held}
-            room = max(top_k - len(held), 0)
-            rest = [pair for pair in candidates if pair[0].record_id not in held_ids]
-            keep_ids = held_ids | {pair[0].record_id for pair in rest[:room]}
-            evicted = [pair[0].record_id for pair in rest[room:]]
-            candidates = [pair for pair in candidates if pair[0].record_id in keep_ids]
-            if (fx := _FORENSICS.get()) is not None:
-                fx["protected"] = {rid: protected[rid] for rid in held_ids}
-                fx["pool_family"] = {
-                    "slots": {
-                        fam: [rid for rid in ids if rid in held_ids]
-                        for fam, ids in family_slots.items()
-                    },
-                    "evicted": evicted,
-                    "pool_size": len(candidates),
-                }
-        elif protected:
-            # I75a: the fused pool plus each leg's protected top-N (at most legs * N more).
-            candidates = candidates[:top_k] + [
-                pair for pair in candidates[top_k:] if pair[0].record_id in protected
-            ]
-            if (fx := _FORENSICS.get()) is not None:
-                fx["protected"] = dict(protected)
-        else:
-            candidates = candidates[:top_k]
-        if _pre is not None:
-            # I78: a pool cut says where the dropped hit stood (fused rank, best leg and rank).
-            kept_pool = {pair[0].record_id for pair in candidates}
-            fused_rank = {rid: i for i, (rid, _) in enumerate(ranked, start=1)}
-            leg_rank = _leg_rank_map(
-                [
-                    ("vector", vector_hits),
-                    ("lexical", lexical_hits),
-                    *[(getattr(leg, "name", "extra"), leg) for leg in extra_legs],
-                ]
-            )
-            for rid in _pre:
-                if rid not in kept_pool:
-                    leg_name, leg_pos = leg_rank.get(rid, (None, None))
-                    trace_sink.cut(
-                        "pool_cut",
-                        rid,
-                        pool=top_k,
-                        fused_rank=fused_rank.get(rid),
-                        best_leg=leg_name,
-                        best_leg_rank=leg_pos,
-                    )
-        # E8 stage: static prefilter (opt-in, default off).
-        if candidates and self._config().read.static_prefilter:
-            _pre = _ids(candidates)
-            candidates = _static_prefilter(query, candidates)
-            _cut_missing(_pre, candidates, "static_prefilter")
-        # E4 stage: model2vec static-embedding prefilter (opt-in, default off).
-        # A cheap static-cosine gate that narrows the candidate set before the
-        # expensive rerank/score; a missing [static] extra self-disables it.
-        if candidates and self._static_prefilter_on and not self._static_unavailable:
-            candidates = await self._static_embedding_prefilter(query, candidates, top_k)
-        # E8 stage: cross-encoder rerank (opt-in, default off). The reranked
-        # relevance replaces the vector similarity; the E1 gates above already
-        # ran, so a reranker can only reorder live content, never resurface
-        # held content. Failures degrade loudly to the vector ordering.
-        if candidates and self._config().read.relevance_filter:
-            _pre = _ids(candidates)
-            candidates = await self._relevance_filter(query, candidates)
-            _cut_missing(_pre, candidates, "relevance_filter")
-        reranker = self._rerank_provider()
-        gate = self._config().read.rerank_max_top_k
-        if gate is not None and keep_k > gate:
-            # H18: reranking pays when few of many candidates are kept. The gate
-            # judges what the caller keeps, not the (candidate_pool-wide) fetch.
-            reranker = None
-        read_cfg = self._config().read
-        if read_cfg.skip_rerank_for_ordering and is_ordering(query):
-            reranker = None  # Agent Zero: a relevance reranker scrambles temporal order
-        reranked = False
-        _RERANK_SUPPORT.set(None)
-        if (fx := _FORENSICS.get()) is not None:
-            fx["pool"] = [(record.record_id, score) for record, score in candidates]
-            fx["reranker"] = getattr(reranker, "reranker_id", None)
-        rerank_query = query
-        if read_cfg.query_contract != "off":  # A03: the contract is logged; the hint is opt-in
-            contract = await self._query_contract(query)
-            hint = rerank_hint(contract) if "rerank" in read_cfg.query_contract_use else None
-            if hint and reranker is not None:
-                rerank_query = query + hint
-            if (fx := _FORENSICS.get()) is not None:
-                fx["query_contract"] = {
-                    **contract.as_meta(),
-                    "rerank_hint": hint,
-                    "mode": read_cfg.query_contract,
-                    "use": list(read_cfg.query_contract_use),
-                    "status": "observed",
-                }
-        elif (fx := _FORENSICS.get()) is not None:
-            # V02: say that the contract was not computed rather than leave the field out
-            fx["query_contract"] = {"mode": "off", "status": "absent"}
-        if reranker is not None and candidates:
-            documents = [concat_background(record) for record, _ in candidates]
-            if read_cfg.rerank_date_prefix:
-                # Hindsight: the cross-encoder sees when each candidate happened.
-                documents = [
-                    doc
-                    if constants.UNDATED_TAG in record.tags
-                    else f"[Date: {record.valid_from:%Y-%m-%d}] {doc}"
-                    for (record, _), doc in zip(candidates, documents, strict=True)
-                ]
-            if read_cfg.rerank_context:
-                documents = await self._with_session_neighbours(
-                    ns, candidates, documents, read_cfg.rerank_context
-                )
-            try:
-                self._rerank_calls += 1
-                raw_scores = await reranker.rerank(rerank_query, documents)
-                if len(raw_scores) > 1:
-                    _RERANK_SUPPORT.set(sorted(raw_scores, reverse=True)[1])
-                if (raw_sink := _RAW_SCORES.get()) is not None:
-                    for (record, _), raw in zip(candidates, raw_scores, strict=True):
-                        raw_sink[record.record_id] = max(
-                            float(raw), raw_sink.get(record.record_id, float("-inf"))
-                        )
-                if (fx := _FORENSICS.get()) is not None:
-                    fx["rerank_scores"] = [
-                        (record.record_id, float(raw))
-                        for (record, _), raw in zip(candidates, raw_scores, strict=True)
-                    ]
-                if read_cfg.rerank_gate is not None and max(raw_scores) < read_cfg.rerank_gate:
-                    # N41: the reranker is not confident: keep the retrieval order.
-                    self._rerank_gated += 1
-                else:
-                    relevances = _minmax_normalize(raw_scores)
-                    if read_cfg.rerank_blend is not None:
-                        w = read_cfg.rerank_blend
-                        prior = _minmax_quiet([score for _, score in candidates])
-                        relevances = [
-                            w * r + (1.0 - w) * p for r, p in zip(relevances, prior, strict=True)
-                        ]
-                    candidates = [
-                        (record, relevance)
-                        for (record, _), relevance in zip(candidates, relevances, strict=True)
-                    ]
-                    reranked = True
-            except Exception as exc:
-                self._rerank_failures += 1
-                _log.warning(
-                    "rerank.failed", namespace=ns, reranker=reranker.reranker_id, error=str(exc)
-                )
-        scored = [
-            (record, self._scoring.composite_score(record, relevance=relevance))
-            for record, relevance in candidates
-        ]
-        integrity = self._integrity()
-        if integrity.enabled and integrity.live_reevaluation:
-            live = []
-            for record, score in scored:
-                effective = await self.effective_trust(record.record_id)
-                live.append((record.model_copy(update={"trust": effective}), score))
-            scored = live
-        if integrity.enabled:
-            # MTI read door, own namespace: view trust is the record's trust.
-            _pre = _ids(scored)
-            scored = [
-                (record, integrity.ranked(score, record.trust))
-                for record, score in scored
-                if integrity.admits(record.trust)
-            ]
-            _cut_missing(_pre, scored, "integrity_admission_theta")
-        scored = rank_pairs(scored)
-        mmr_lambda = self._config().read.mmr_lambda
-        if mmr_lambda is not None and len(scored) > 2:
-            # G-10 (Graphiti MMR): diversity among near-duplicate hits, on embeddings.
-            scored = await self._mmr_order(query, scored, mmr_lambda)
-        _RERANKED.set(reranked)
-        if (
-            reranked
-            and read_cfg.rerank_keep is not None
-            and read_cfg.candidate_pool > 1
-            and not _LIST_MODE.get()  # B1: list mode keeps the whole reranked pool
-        ):
-            # G5b: the wider pool fed the reranker; only its best few go on.
-            _pre = _ids(scored)
-            scored = scored[: read_cfg.rerank_keep]
-            _cut_missing(_pre, scored, "rerank_keep", keep=read_cfg.rerank_keep)
-        if scored and self._config().read.record_access:
-            # Reinforcement stats via the log (M1): last_accessed_at + access_count.
-            await self._append_and_project(
-                MemoryEvent(
-                    kind=EventKind.RETRIEVE,
-                    namespace=ns,
-                    actor="system",
-                    payload={"record_ids": [record.record_id for record, _ in scored]},
-                )
-            )
-        if (fx := _FORENSICS.get()) is not None:
-            fx["final"] = [(record.record_id, score) for record, score in scored]
-        _log.info(EVENT_RETRIEVE, namespace=ns, query=True, count=len(scored))
-        self._record_reads(ns, session_id, scored)
-        return scored
 
     def _reply_budget(self, budget_tokens: int) -> int:
         """ContextPipe: the budget left once ``read.reply_reserve_tokens`` is kept free."""
@@ -5623,7 +3775,7 @@ class Engine:
     async def read(
         self,
         query: str,
-        namespace: str = "default",
+        namespace: str = 'default',
         mode: str | None = None,
         budget_tokens: int = constants.ASSEMBLE_BUDGET_TOKENS,
         top_k: int = constants.ASSEMBLE_TOP_K,
@@ -5645,7 +3797,7 @@ class Engine:
         valid_to_before: DateBound | None = None,
         recorded_after: DateBound | None = None,
         recorded_before: DateBound | None = None,
-        date_filter_mode: str = "and",
+        date_filter_mode: str = 'and',
         as_of: DateBound | None = None,
         viewer: str | None = None,
     ) -> ReadResult:
@@ -5698,52 +3850,34 @@ class Engine:
         current one, and relative phrases in the question resolve against it. For
         "what did memory know then" add ``recorded_before``. None: unchanged.
         """
-        session_id = ledger_id if ledger_id is not None else session_id  # I9
-        if focal_entity:  # G-11: an extra graph seed for this read
-            _FOCAL_ENTITY.set(focal_entity)
-        if as_of is not None:
-            moment = to_utc(as_of) + timedelta(microseconds=1)
-            valid_from_before = valid_from_before if valid_from_before is not None else moment
-        date_filter = DateFilter.build(
+        return await read_router.read(
+            self,
+            query,
+            namespace,
+            mode,
+            budget_tokens,
+            top_k,
+            replay_window,
+            compose_pool,
+            session_id,
+            ledger_id,
+            sessions,
+            roles,
+            memory_types,
+            tags_any,
+            focal_entity,
+            purpose,
+            include_passive,
             valid_from_after=valid_from_after,
             valid_from_before=valid_from_before,
             valid_to_after=valid_to_after,
             valid_to_before=valid_to_before,
             recorded_after=recorded_after,
             recorded_before=recorded_before,
-            mode=date_filter_mode,
+            date_filter_mode=date_filter_mode,
+            as_of=as_of,
+            viewer=viewer,
         )
-        with (
-            read_scope(purpose) as outer,
-            date_filter_scope(date_filter),
-            as_of_scope(as_of),
-            language_scope(self._config().read.language_guard == "on"),  # I23
-            record_scope(  # I7/I8/G-12, I53 viewer, I48/I52 bars
-                RecordScope.build(
-                    sessions,
-                    roles,
-                    memory_types,
-                    tags_any,
-                    viewer=viewer,
-                    check=await self._scope_check(query),
-                )
-            ),
-        ):
-            result = await self._read(
-                query,
-                namespace,
-                mode,
-                budget_tokens,
-                top_k,
-                replay_window,
-                compose_pool,
-                session_id,
-            )
-            result = ReadResult(result.mode, self._consent_context(result.context))
-            if outer:
-                ids = [r.record_id for r in result.context.records]
-                await self._audit_read("read", namespace, ids)
-        return result
 
     async def _read(
         self,
@@ -5756,55 +3890,17 @@ class Engine:
         compose_pool: int,
         session_id: str | None,
     ) -> ReadResult:
-        """:meth:`read` without the purpose scope and the read audit."""
-        if mode is None:
-            mode = self._config().read.default_mode  # "auto" unless a template pins one
-        if mode not in ("auto", "full", "replay", "retrieve", "compose"):
-            raise ValueError(f"unknown read mode {mode!r}")
-        self._require_started()
-        ns = validate_namespace(namespace)
-        budget_tokens = self._reply_budget(budget_tokens)
-        # G1b/G3b: the read headers take their shares first; the routed read gets the
-        # rest and leaves out what they carry, so nothing appears twice.
-        strong = await self._raw_evidence_strong(ns, query, top_k, session_id)
-        headers = await self._read_headers(ns, query, budget_tokens, session_id, strong=strong)
-        # E3: a count question keeps room for the occurrences block, built afterwards
-        # from what the routed read retrieved.
-        count_share = self._count_allowance(query, budget_tokens)
-        headers, count_share = self._cap_lead_blocks(headers, count_share, budget_tokens)
-        # ADR-055 addendum: a gated question reads raw turns only, in every mode.
-        gated = self._cards_gated(query, strong=strong)
-        routed_budget = budget_tokens - self._headers_cost(headers) - count_share
-        hide = self._header_hide(headers, hide_facts=gated)
-        result = await self._read_routed(
+        return await read_router._read(
+            self,
             query,
-            ns,
+            namespace,
             mode,
-            routed_budget,
+            budget_tokens,
             top_k,
             replay_window,
             compose_pool,
-            hide=hide,
-            full_hide=self._header_hide(headers, all_facts=False, hide_facts=gated),
-            session_id=session_id,
+            session_id,
         )
-        if self._config().read.agentic:  # I67: opt-in; step 0 above is today's read
-            result = await self._agentic_extend(
-                query, ns, result, routed_budget, hide=hide, session_id=session_id
-            )
-        if self._config().read.fact_chain == "read_time":  # E01: opt-in, read-time only
-            result = await self._fact_chain_extend(query, ns, result, routed_budget)
-        if self._config().read.event_ledger == "on":  # A02: opt-in, read-time only
-            result = await self._event_ledger_extend(query, ns, result, routed_budget)
-        headers = self._count_section(ns, query, result.context, count_share, headers)
-        headers = self._duration_section(ns, query, result.context, headers)
-        gated = await self._relevance_gate(
-            query, ReadResult(result.mode, self._attach_headers(result.context, headers)), ns
-        )
-        overlaid = await self._read_overlay(query, ns, gated.context, session_id)
-        overlaid = await self._asset_overlay(query, ns, overlaid)  # E04, off by default
-        overlaid = await self._external_overlay(query, ns, overlaid)  # E03, off by default
-        return ReadResult(gated.mode, overlaid)
 
     async def _agentic_fires(self, query: str, read: Any, records: Sequence[MemoryRecord]) -> bool:
         """I67 ``read.agentic_trigger``: ``always``; ``multi_hop`` (the surface heuristic);
@@ -6563,239 +4659,18 @@ class Engine:
         full_hide: Callable[[MemoryRecord], bool] | None = None,
         session_id: str | None = None,
     ) -> ReadResult:
-        """:meth:`read` after the reply reserve and the read headers: route and read.
-
-        ``hide`` leaves out what the headers carry (with the cards header, every mined
-        fact). ``full_hide`` (default ``hide``) is the narrower rule of a ``full`` read:
-        it holds every live record, so only the records a header actually shows leave
-        (A-4: the header shows ``cards_top_k`` facts, not all of them)."""
-        storage = self._require_started()
-        if full_hide is None:
-            full_hide = hide
-        scale = self._budget_factor(budget_tokens)
-        if scale < 1.0:  # I20: a tight budget shrinks the candidate pool with the window
-            top_k = max(1, round(top_k * scale))
-        if mode in ("auto", "full"):
-            live = []
-            date_filter = active_date_filter()
-            for record in await storage.list_records(ns):
-                if full_hide is not None and full_hide(record):
-                    continue
-                if date_filter is not None and not date_filter.matches(record):
-                    continue
-                view = await self._live_view(record)
-                if view is not None:
-                    live.append(view)
-            live.sort(key=chrono_key)
-            decorated = await self._decorate(
-                ns, [(r, 0.0) for r in self._inflate_all(live, ns)], hide=full_hide
-            )
-            records = [r for r, _ in decorated]
-            cost = sum(estimate_tokens(r.content) for r in records)
-            if records and cost <= budget_tokens:
-                # N4: judged again on the rendered text; a full read that the dated
-                # render pushes over budget falls back rather than being cut.
-                full = self._render(query, AssembledContext(records=records, tokens_used=cost))
-                if full.tokens_used <= budget_tokens:
-                    return ReadResult("full", full)
-            if mode == "full":
-                mode = "retrieve"
-        read_cfg = self._config().read
-        planner = read_cfg.planner
-        routed = mode == "auto"
-        probes: list[str] = []
-        lookup_probes: list[str] = []
-        plan: ReadPlan | None = None
-        legs: list[list[LegHit]] = []
-        if mode == "auto" and planner == "decision":
-            mode = await self._plan_read_mode(query) or mode
-        elif mode == "auto" and planner == "llm":
-            plan = await self._llm_read_plan(query)
-            if plan is not None:
-                # G2a: lookup and replay both read by replay; aggregate by compose.
-                mode = "compose" if plan.mode == "aggregate" else "replay"
-                probes = list(plan.subqueries) if plan.mode == "aggregate" else []
-                if plan.mode != "aggregate" and read_cfg.planner_version in ("v2", "v3"):
-                    # #35: a lookup's subqueries join its search as extra RRF legs.
-                    lookup_probes = list(plan.subqueries[: constants.PLAN_LOOKUP_PROBES])
-                if read_cfg.planner_version == "v3":
-                    # #36: the plan's persons / time expression become a structured leg.
-                    legs = [await self._person_time_leg(ns, plan)]
-        if mode == "compose" or (mode == "auto" and is_aggregation(query)):
-            # G11: a routed aggregation read pools more candidates (budget-capped).
-            k = read_cfg.aggregate_top_k if routed and read_cfg.aggregate_top_k else top_k
-            aggregate = (plan is not None and plan.mode == "aggregate") or (
-                is_aggregation(query) or is_count(query)
-            )
-            if read_cfg.completeness_check and aggregate:
-                return await self._compose_checked(
-                    query,
-                    ns,
-                    budget_tokens,
-                    k,
-                    compose_pool,
-                    hide=hide,
-                    extra_probes=probes,
-                    replay_window=replay_window,
-                    session_id=session_id,
-                    legs=legs,
-                )
-            return await self._compose(
-                query,
-                ns,
-                budget_tokens,
-                k,
-                compose_pool,
-                hide=hide,
-                extra_probes=probes,
-                replay_window=replay_window,
-                session_id=session_id,
-                legs=legs,
-            )
-        if (
-            mode in ("replay", "auto")
-            and read_cfg.aggregate_in_replay
-            and read_cfg.aggregate_top_k
-            and (is_aggregation(query) or is_count(query))
-        ):
-            # A1 (ADR-055): a list or count question read by replay pools more
-            # candidates too; replay rendering, no compose. The budget still caps it.
-            top_k = read_cfg.aggregate_top_k
-        list_fire = await self._list_fires(query)
-        list_token = _LIST_MODE.set(list_fire)  # B1: the search widens for a list question
-        try:
-            base = await self._assemble_core(
-                query,
-                ns,
-                budget_tokens,
-                top_k,
-                session_id=session_id,
-                hide=hide,
-                probes=lookup_probes,
-                legs=legs,
-            )
-        finally:
-            _LIST_MODE.reset(list_token)
-        episodic_hits = [r for r in base.records if r.memory_type == "episodic"]
-        # H6: a mined atomic fact replays the source turn it best matches (its
-        # derived_from lists the whole session, which would not fit the budget).
-        for fact in (r for r in base.records if "atomic_fact" in r.tags and r.source.parents):
-            source = await self._best_source_turn(fact)
-            if source is not None and all(source.record_id != h.record_id for h in episodic_hits):
-                episodic_hits.append(source)
-        if mode == "retrieve" or self._episodic is None or not episodic_hits:
-            return ReadResult("retrieve", self._render(query, base, budget_tokens))
-        sessions = await self._episodic.sessions(ns, constants.SESSION_GAP_MINUTES)
-        where = {rid: s for s in sessions for rid in s.record_ids}
-        segment_of: dict[str, list[str]] = {}
-        if self._config().read.replay_topic_segments:
-            # H15: restrict each replay window to the hit's topic segment. Only the
-            # sessions holding a hit are segmented, from one batched listing.
-            hit_sessions = {
-                id(where[h.record_id]): where[h.record_id]
-                for h in episodic_hits
-                if h.record_id in where
-            }
-            if hit_sessions:
-                by_id = {r.record_id: r for r in await storage.list_records(ns, "episodic")}
-                for sess in hit_sessions.values():
-                    members = [by_id[i] for i in sess.record_ids if i in by_id]
-                    for segment in topic_segments(members):
-                        ids_in = [r.record_id for r in segment]
-                        for rid in ids_in:
-                            segment_of[rid] = ids_in
-        chosen: list[MemoryRecord] = [r for r in base.records if r.memory_type != "episodic"]
-        seen = {r.record_id for r in chosen}
-        used = sum(len(r.content) // 4 + 1 for r in chosen)
-        best_window: set[str] = set()
-        if read_cfg.replay_hits_first:
-            # I20: every hit (best first) is admitted before any neighbour, so the best
-            # evidence is never cut for the neighbours of a better-ranked hit.
-            for rank, hit in enumerate(episodic_hits):
-                cost = len(hit.content) // 4 + 1
-                if hit.record_id in seen or used + cost > budget_tokens:
-                    continue
-                chosen.append(hit)
-                seen.add(hit.record_id)
-                used += cost
-                if rank == 0:
-                    best_window.add(hit.record_id)
-        factor = self._budget_factor(budget_tokens)
-        for rank, hit in enumerate(episodic_hits):
-            session = where.get(hit.record_id)
-            ids = segment_of.get(hit.record_id) or (
-                session.record_ids if session else [hit.record_id]
-            )
-            at = ids.index(hit.record_id) if hit.record_id in ids else 0
-            # B1 tier: hits past ``window_full_hits`` are single turns (no neighbours).
-            single = (
-                list_fire
-                and read_cfg.window_full_hits is not None
-                and rank >= read_cfg.window_full_hits
-            )
-            # The hit first, then its neighbours nearest first (older on a tie): a
-            # neighbour that does not fit is skipped, it never costs the hit its place.
-            for rid, turn, cost in await self._window_turns(
-                ns,
-                ids,
-                at,
-                replay_window,
-                budget_tokens=budget_tokens,
-                used=used,
-                seen=seen,
-                hit=hit,
-                single=single,
-                factor=factor,
-            ):
-                chosen.append(turn)
-                seen.add(rid)
-                used += cost
-                if rank == 0:
-                    best_window.add(rid)
-            if read_cfg.reply_links and not single:
-                # G27: a reply also shows the message it answers (gated, in budget).
-                for answered in _reply_targets(hit):
-                    if answered in seen:
-                        continue
-                    turn = await self._replay_neighbour(answered, ns)
-                    if turn is None or turn.namespace != ns:
-                        continue
-                    cost = len(turn.content) // 4 + 1
-                    if used + cost > budget_tokens:
-                        continue
-                    chosen.append(turn)
-                    seen.add(answered)
-                    used += cost
-                    if rank == 0:
-                        best_window.add(answered)
-        if read_cfg.reference_edges == "on":
-            used = await self._attach_antecedents(
-                ns, episodic_hits, chosen, seen, best_window, used, budget_tokens, read_cfg
-            )
-        stable = [r for r in chosen if r.memory_type != "episodic"]
-        turns = sorted(
-            (r for r in chosen if r.memory_type == "episodic"),
-            key=chrono_key,
-        )
-        if read_cfg.evidence_first and best_window:
-            # T10 (plan v3.2): the best hit's window opens the turns (time order inside),
-            # then the other windows in time order.
-            turns = [r for r in turns if r.record_id in best_window] + [
-                r for r in turns if r.record_id not in best_window
-            ]
-        return ReadResult(
-            "replay",
-            self._render(
-                query,
-                AssembledContext(
-                    records=[*stable, *turns],
-                    boundary_index=min(base.boundary_index, len(stable)),
-                    abstained=base.abstained,
-                    tokens_used=used,
-                    evidence=base.evidence,
-                ),
-                budget_tokens,
-            ),
+        return await read_router._read_routed(
+            self,
+            query,
+            ns,
+            mode,
+            budget_tokens,
+            top_k,
+            replay_window,
+            compose_pool,
+            hide=hide,
+            full_hide=full_hide,
+            session_id=session_id,
         )
 
     async def _attach_antecedents(
@@ -6848,17 +4723,7 @@ class Engine:
         return used
 
     def _list_mode_fires(self, query: str) -> bool:
-        """B1: ``read.list_mode`` is on and the question matches ``read.list_trigger``."""
-        read = self._config().read
-        if not read.list_mode:
-            return False
-        if read.list_trigger == "aggregation":
-            return is_aggregation(query) or is_count(query)
-        if read.list_trigger == "intent":
-            return is_intent_list(query)
-        if read.list_trigger == "set_question_wide":
-            return is_set_question_wide(query)
-        return is_set_question(query)
+        return read_request._list_mode_fires(self, query)
 
     # -- I28: the optional decider (OpenDecider-nano) at the read path's decision points --
 
@@ -6910,51 +4775,18 @@ class Engine:
         return cached[1]
 
     async def _decided(self, task: str, question: str, context: str | None, heuristic: str) -> str:
-        """The label for ``task``: the decider's when it is configured for the task and sure
-        enough, else ``heuristic`` (the existing rule's label, computed by the caller). Never
-        raises. Every decision is recorded in the forensics as ``decisions``."""
-        if not self._decider_active(task):
-            return heuristic
-        read = self._config().read
-        entry: dict[str, Any] = {"task": task, "adapter": read.decider, "heuristic": heuristic}
-        label = heuristic
-        try:
-            decision = await self._decider_adapter().decide(task, question, context)
-            entry.update(decision.as_meta())
-            sure = (
-                decision.confidence is not None
-                and decision.confidence >= read.decider_min_confidence
-            )
-            if sure:
-                label = decision.label
-            entry["used"] = sure
-        except Exception as exc:  # an enhancer, never a gate
-            _log.warning("read.decider_failed", task=task, error=str(exc))
-            entry.update({"label": None, "confidence": None, "used": False, "error": str(exc)})
-        entry["final"] = label
-        if (fx := _FORENSICS.get()) is not None:
-            fx.setdefault("decisions", []).append(entry)
-        return label
+        return await read_request._decided(self, task, question, context, heuristic)
 
     async def _list_fires(self, query: str) -> bool:
-        """B1 list-mode trigger; ``task=list_mode`` of the decider replaces the regex."""
-        fired = self._list_mode_fires(query)
-        if not self._config().read.list_mode or not self._decider_active("list_mode"):
-            return fired
-        return await self._decided("list_mode", query, None, "set" if fired else "single") == "set"
+        return await read_request._list_fires(self, query)
 
     async def _bridge_fires(
-        self, query: str, read: Any, scored: Sequence[tuple[MemoryRecord, float]]
+        self,
+        query: str,
+        read: Any,
+        scored: Sequence[tuple[MemoryRecord, float]],
     ) -> bool:
-        """R2-1b gate; ``task=bridge_hop`` of the decider replaces ``read.bridge_hop_gate``."""
-        fired = self._bridge_gate(query, read)
-        if not self._decider_active("bridge_hop"):
-            return fired
-        snippets = chr(10).join(f"- {r.content}" for r, _ in scored[:5])
-        label = await self._decided("bridge_hop", query, snippets, "hop" if fired else "no_hop")
-        if (fx := _FORENSICS.get()) is not None:
-            fx["bridge_gate"] = "decider" if label == "hop" else "skipped"
-        return label == "hop"
+        return await read_request._bridge_fires(self, query, read, scored)
 
     async def _gate_raw_tops(self, ns: str, text: str, legs: Sequence[str]) -> dict[str, float]:
         """I29: the top RAW score of ``text`` against the namespace's live records, per leg
@@ -7930,23 +5762,12 @@ class Engine:
         return sum(estimate_tokens(h.content) for h in headers)
 
     async def _cluster_legs(
-        self, ns: str, scored: list[tuple[MemoryRecord, float]], fetch_k: int
+        self,
+        ns: str,
+        scored: list[tuple[MemoryRecord, float]],
+        fetch_k: int,
     ) -> list[list[LegHit]]:
-        """N06: one ranked leg per top hit (``CLUSTER_EXPAND_SEEDS`` of them): its
-        nearest stored neighbours by embedding. Best-effort, never a gate."""
-        if self._embedder is None or self._vector is None:
-            return []
-        seeds = [r for r, _ in scored[: constants.CLUSTER_EXPAND_SEEDS]]
-        try:
-            vectors = await self._embedder.embed([r.content for r in seeds])
-            legs: list[list[LegHit]] = []
-            for vector in vectors:
-                hits = await self._vector_leg(ns, list(vector), fetch_k)
-                legs.append([LegHit(h.record_id, 1.0) for h in hits])
-            return legs
-        except Exception as exc:  # an enhancer, never a gate
-            _log.warning("read.cluster_expand_failed", namespace=ns, error=str(exc))
-            return []
+        return await read_legs._cluster_legs(self, ns, scored, fetch_k)
 
     async def _session_capped(
         self,
@@ -7960,40 +5781,17 @@ class Engine:
         probes: Sequence[str],
         legs: Sequence[list[LegHit]],
     ) -> list[tuple[MemoryRecord, float]]:
-        """W10 (plan v3.2, ``read.session_cap``): ``want`` candidates, best first, with
-        at most ``cap`` raw turns from any one session, drawn from a pool
-        :data:`constants.SESSION_CAP_POOL` times wider. Evidence spread over sessions
-        ("what activities has X done?") then reaches the read instead of the few
-        best-matching turns of one or two sessions. Sessions are the episodic
-        timeline's (gap-split); without episodic memory, the calendar day. Derived
-        records are never capped."""
-        pool = await self._search(
+        return await read_fusion._session_capped(
+            self,
             query,
             ns,
-            want * constants.SESSION_CAP_POOL,
+            want,
+            cap,
             session_id=session_id,
-            keep_k=want,
             hide=hide,
             probes=probes,
-            fused_legs=legs,
+            legs=legs,
         )
-        session_of: dict[str, str] = {}
-        if self._episodic is not None:
-            for session in await self._episodic.sessions(ns, constants.SESSION_GAP_MINUTES):
-                for rid in session.record_ids:
-                    session_of[rid] = session.session_key
-        kept: list[tuple[MemoryRecord, float]] = []
-        per: dict[str, int] = {}
-        for record, score in pool:
-            if record.memory_type == "episodic":
-                key = session_of.get(record.record_id) or f"{record.valid_from:%Y-%m-%d}"
-                if per.get(key, 0) >= cap:
-                    continue
-                per[key] = per.get(key, 0) + 1
-            kept.append((record, score))
-            if len(kept) >= want:
-                break
-        return kept
 
     async def _raw_evidence_strong(
         self, ns: str, query: str, top_k: int, session_id: str | None
@@ -10664,55 +8462,12 @@ class Engine:
         return self._reranker
 
     async def _static_embedding_prefilter(
-        self, query: str, candidates: list[tuple[MemoryRecord, float]], top_k: int
+        self,
+        query: str,
+        candidates: list[tuple[MemoryRecord, float]],
+        top_k: int,
     ) -> list[tuple[MemoryRecord, float]]:
-        """E4 model2vec gate (ADR-020): rank the candidates by cheap static
-        cosine and keep the strongest ``top_k * STATIC_PREFILTER_KEEP_MULTIPLIER``
-        before the expensive rerank/score. The embedder loads lazily.
-
-        Two failure modes, deliberately different: a genuinely absent ``[static]``
-        extra (MissingServiceError/ImportError at construction) STICKY-disables
-        the stage for the process — it can never work, so stop trying. A transient
-        embed/count error (weight download, a model2vec vector-count mismatch)
-        skips the prefilter for THIS search ONLY and is NOT sticky, so a later
-        search retries. Either way retrieval degrades to the unfiltered set."""
-        if self._static_embedder is None:
-            try:
-                from memspine.models.encoders.embedding.static_local import StaticEmbedder
-
-                self._static_embedder = StaticEmbedder()
-            except (MissingServiceError, ImportError) as exc:
-                # The extra is genuinely absent — disable permanently.
-                self._static_unavailable = True
-                _log.info(
-                    "static_prefilter.unavailable",
-                    detail=f"E4 static-embedding prefilter disabled — {exc}",
-                )
-                return candidates
-        keep = max(top_k * constants.STATIC_PREFILTER_KEEP_MULTIPLIER, top_k)
-        if len(candidates) <= keep:
-            return candidates  # nothing to narrow — skip the embed cost entirely
-        try:
-            vectors = await self._static_embedder.embed(
-                [query, *(record.content for record, _ in candidates)]
-            )
-            # Unpack + zip INSIDE the try: a model2vec count mismatch (vectors not
-            # 1 + len(candidates)) must degrade to the unfiltered set, not raise.
-            query_vec, doc_vecs = vectors[0], vectors[1:]
-            scored = sorted(
-                zip(candidates, doc_vecs, strict=True),
-                key=lambda pair: sum(a * b for a, b in zip(query_vec, pair[1], strict=True)),
-                reverse=True,
-            )
-        except Exception as exc:
-            # Transient (OSError weight download, RuntimeError, a length mismatch):
-            # skip THIS search only — not sticky, so a later search tries again.
-            _log.warning(
-                "static_prefilter.skipped",
-                detail=f"E4 static-embedding prefilter skipped this search — {exc}",
-            )
-            return candidates
-        return [candidate for candidate, _ in scored[:keep]]
+        return await read_rerank._static_embedding_prefilter(self, query, candidates, top_k)
 
     async def timeline(
         self,
@@ -12393,22 +10148,7 @@ class Engine:
             self._evict_from_encoder(event)
 
     def _evict_from_encoder(self, event: MemoryEvent) -> None:
-        """#61: a forgotten, quarantined or archived record leaves the query
-        encoder's in-process index (its text must not outlive the erasure)."""
-        assert self._query_encoder is not None
-        record_id = event.payload.get("record_id")
-        if not isinstance(record_id, str):
-            return
-        if event.kind is EventKind.FORGET:
-            self._query_encoder.evict(event.namespace, record_id)
-        elif event.kind is EventKind.DECAY_TRANSITION:
-            changes = event.payload.get("set")
-            if isinstance(changes, dict) and (
-                changes.get("quarantined") is True
-                or changes.get("status", RecordStatus.ACTIVATED.value)
-                != RecordStatus.ACTIVATED.value
-            ):
-                self._query_encoder.evict(event.namespace, record_id)
+        return read_legs._evict_from_encoder(self, event)
 
     async def _inherit_governance(self, event: MemoryEvent) -> MemoryEvent:
         """#50: a derived record's purposes and PII tier follow its parents.
@@ -12707,112 +10447,19 @@ class Engine:
         return self._decision
 
     async def _plan_read_mode(self, query: str) -> str | None:
-        """H24: the decision provider's read mode, or None (rules) on any failure.
-
-        G24: the ``query_shape`` rules go first (counts and sets -> compose, ordering ->
-        replay, not gated by confidence); the provider chooses only what they leave open.
-        """
-        provider = self._decision_provider()
-        if provider is None:
-            return None
-        ruled = rule_read_mode(query)
-        if ruled is not None:
-            return ruled
-        options = {label: desc for label, (_mode, desc) in self._READ_OPTIONS.items()}
-        try:
-            label, confidence = await provider.choose(query, options)
-        except Exception as exc:  # an enhancer, never a gate
-            _log.warning("read.planner_failed", error=str(exc))
-            return None
-        if label not in self._READ_OPTIONS:
-            return None
-        gate = self._config().read.planner_min_confidence
-        # A bare label carries no confidence (None): below any positive gate.
-        if (confidence is None and gate > 0) or (confidence is not None and confidence < gate):
-            # G2b: an unsure choice does not route; keep the default replay read.
-            _log.info("read.planner_unsure", label=label, confidence=confidence, gate=gate)
-            return "replay"
-        return self._READ_OPTIONS[label][0]
+        return await read_request._plan_read_mode(self, query)
 
     async def _query_contract(self, query: str) -> QueryContract:
-        """A03: the typed query contract of ``query`` under ``read.query_contract``.
-
-        ``heuristic``: the rules (``core/query_contract``). ``llm``: the rules first; ONE
-        ``plan@contract`` call only when the rules are unsure of the answer type
-        (:func:`is_ambiguous`), and the reply may refine but never blank the contract; any
-        failure keeps the rules' contract. Cached per question text (bounded), so the
-        reranker hint, the reader header and the forensics share one build and one call."""
-        cache: dict[str, QueryContract] = self.__dict__.setdefault("_contract_cache", {})
-        hit = cache.get(query)
-        if hit is not None:
-            return hit
-        contract = build_contract(query)
-        if self._config().read.query_contract == "llm" and is_ambiguous(contract):
-            contract = merge_contract(contract, await self._llm_query_contract(query, contract))
-        if len(cache) >= 512:
-            cache.clear()
-        cache[query] = contract
-        return contract
+        return await read_request._query_contract(self, query)
 
     async def _llm_query_contract(self, query: str, rules: QueryContract) -> QueryContract | None:
-        """One ``plan`` role call (``plan@contract``), or None (the rules' contract stands)."""
-        if self._llm is None or self._prompts is None or "plan" not in self._llm.roles:
-            _log.warning("read.query_contract_unbound", role="plan")
-            return None
-        try:
-            out = await structured_call(
-                self._llm.for_role("plan"),
-                self._prompts.select("plan", condition="contract"),
-                {"query": query},
-                QueryContractOut,
-            )
-            return parse_contract(out.model_dump(), rules)
-        except Exception as exc:  # an enhancer, never a gate
-            _log.warning("read.query_contract_failed", error=str(exc))
-            return None
+        return await read_request._llm_query_contract(self, query, rules)
 
     async def _llm_read_plan(self, query: str) -> ReadPlan | None:
-        """G2a: one ``plan`` role call (counted by the router), or None (rules).
-
-        None when the role is not bound, the call fails, or the reply is not a
-        valid :class:`ReadPlan`; each case logs a warning (an enhancer, never a gate).
-        """
-        if self._llm is None or self._prompts is None or "plan" not in self._llm.roles:
-            _log.warning("read.planner_unbound", planner="llm", role="plan")
-            return None
-        try:
-            version = self._config().read.planner_version
-            return await structured_call(
-                self._llm.for_role("plan"),
-                # #35: plan@v2 also writes evidence-seeking subqueries for lookups;
-                # #36: plan@v3 also names the persons and the time expression.
-                self._prompts.select("plan", condition=None if version == "v1" else version),
-                {"query": query},
-                ReadPlan,
-            )
-        except Exception as exc:
-            _log.warning("read.planner_failed", planner="llm", error=str(exc))
-            return None
+        return await read_request._llm_read_plan(self, query)
 
     async def _query_rewrite_probes(self, query: str) -> list[str]:
-        """P4 (JustMem COMPOSE): up to two answer-free rewrites from the ``query_rewrite``
-        role (``@compose`` variant), when ``read.compose_rewrites`` is on and the role is
-        bound. Any failure yields no extra probes (an enhancer, never a gate)."""
-        if (
-            not self._config().read.compose_rewrites
-            or self._llm is None
-            or self._prompts is None
-            or "query_rewrite" not in self._llm.roles
-        ):
-            return []
-        prompt = self._prompts.select("query_rewrite", condition="compose")
-        try:
-            text = await self._llm.for_role("query_rewrite").chat(prompt.render({"query": query}))
-        except Exception as exc:
-            _log.warning("read.query_rewrite_failed", error=str(exc))
-            return []
-        lines = [line.strip(" -*0123456789.\t") for line in text.splitlines()]
-        return [line for line in lines if line and line.lower() != query.lower()][:2]
+        return await read_request._query_rewrite_probes(self, query)
 
     def _build_summarize(self) -> Summarize | None:
         """The consolidation summarizer (M2): only when a ``summarize`` LLM role

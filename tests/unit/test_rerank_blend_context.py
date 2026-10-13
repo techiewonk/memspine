@@ -95,7 +95,7 @@ def test_balanced_pool_takes_each_leg_in_turn() -> None:
     """GR-15: the pre-rerank pool interleaves the legs' best hits."""
     from dataclasses import dataclass
 
-    from memspine.engine import _balanced_pool
+    from memspine.read.pipeline.fusion import _balanced_pool
     from memspine.store.records import MemoryRecord
 
     @dataclass

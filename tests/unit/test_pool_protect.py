@@ -6,7 +6,8 @@ from typing import Any
 
 from memspine import Engine
 from memspine.config.schema import ReadConfig
-from memspine.engine import _leg_rank_map, _protected_ids, search_forensics
+from memspine.engine import search_forensics
+from memspine.read.pipeline.fusion import _leg_rank_map, _protected_ids
 
 _POOL = 5
 _GOLD = "zyzzyva"
@@ -144,7 +145,7 @@ def _hits(*ids: str) -> list[_H]:
 
 
 def test_families_group_correlated_legs() -> None:
-    from memspine.engine import _leg_family
+    from memspine.read.pipeline.fusion import _leg_family
 
     assert _leg_family("vector") == _leg_family("perspective") == "semantic"
     assert _leg_family("speaker_vote_x") == "semantic"
@@ -154,7 +155,7 @@ def test_families_group_correlated_legs() -> None:
 
 
 def test_correlated_votes_count_once() -> None:
-    from memspine.engine import _family_slots
+    from memspine.read.pipeline.fusion import _family_slots
 
     legs = [
         ("vector", _hits("a", "b", "c", "d")),

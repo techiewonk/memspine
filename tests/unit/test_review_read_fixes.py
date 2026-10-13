@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-import memspine.engine as engine_module
+import memspine.read.pipeline.router as engine_module
 from memspine import Engine
 from memspine.compose.pack import AssembledContext, AssemblyPolicy
 from memspine.models.encoders.query.shape import is_aggregation, is_ordering

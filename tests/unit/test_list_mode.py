@@ -161,7 +161,7 @@ async def test_leg_failure_is_soft(monkeypatch: pytest.MonkeyPatch) -> None:
         def boom(*_: Any, **__: Any) -> Any:
             raise RuntimeError("boom")
 
-        monkeypatch.setattr("memspine.engine.speaker_vector_leg", boom)
+        monkeypatch.setattr("memspine.read.pipeline.legs.speaker_vector_leg", boom)
         out = await eng.read("What activities does Melanie do?", namespace="a", mode="replay")
         assert out.context.records  # the read still answers
     finally:

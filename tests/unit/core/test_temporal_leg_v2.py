@@ -93,7 +93,7 @@ def test_overlap_rank_puts_the_matching_turn_first() -> None:
 async def test_engine_passes_the_newest_record_time_as_year_ref(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import memspine.engine as engine_module
+    import memspine.read.pipeline.legs as engine_module
 
     seen: list[dict] = []
     real = engine_module.temporal_leg
