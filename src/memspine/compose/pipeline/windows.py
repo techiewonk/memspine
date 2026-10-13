@@ -6,8 +6,9 @@ from collections.abc import Callable, Sequence
 from datetime import timedelta
 from typing import Any
 
-from memspine.compose.pack import AssembledContext, estimate_tokens
-from memspine.compose.pipeline.render import _gisted
+from memspine.compose.pack import AssembledContext
+from memspine.compose.pipeline.pack import bundle_selected
+from memspine.compose.pipeline.render import _gisted, activate_counter, tok
 from memspine.config import constants
 from memspine.core.concentration import collapse_concentrated
 from memspine.core.evidence import evidence_signal, second_round_probe
@@ -30,6 +31,7 @@ from memspine.models.encoders.query.shape import (
     statement_form,
 )
 from memspine.models.encoders.query.temporal_query import LegHit
+from memspine.observability import tap
 from memspine.read.pipeline.state import (
     _FOCAL_ENTITY,
     _FORENSICS,
@@ -124,6 +126,7 @@ async def _assemble(
     """:meth:`assemble` without the purpose scope and the read audit."""
     if eng._assembly is None:
         raise MemspineError("assembly policy not bound — engine not started?")
+    counter = activate_counter(eng)  # R3-09a
     budget = eng._reply_budget(budget_tokens)
     ns = validate_namespace(namespace)
     strong = False if shared else await eng._raw_evidence_strong(ns, query, top_k, session_id)
@@ -134,7 +137,7 @@ async def _assemble(
     headers, count_share = eng._cap_lead_blocks(headers, count_share, budget)
     inner = budget - eng._headers_cost(headers) - count_share
     pinned, lessons = ([], []) if shared else await eng._procedural_blocks(ns, query, session_id)
-    inner = max(1, inner - sum(estimate_tokens(r.content) for r in [*pinned, *lessons]))
+    inner = max(1, inner - sum(tok(r.content) for r in [*pinned, *lessons]))
     assembled = await eng._assemble_core(
         query,
         ns,
@@ -151,9 +154,21 @@ async def _assemble(
         rendered = eng._place_procedural(rendered, pinned, lessons)
     headers = eng._count_section(ns, query, rendered, count_share, headers)
     headers = eng._duration_section(ns, query, rendered, headers)
-    return await eng._read_overlay(
+    final = await eng._read_overlay(
         query, ns, eng._attach_headers(rendered, headers), session_id, shared=shared
     )
+    if tap.enabled():
+        tap.event(
+            "compose.budget",
+            total=budget_tokens,
+            reserves={"reply": budget_tokens - budget},
+            headers=eng._headers_cost(headers),
+            used=sum(tok(r.content) for r in final.records),
+            accounting=counter.accounting if counter is not None else "estimated",
+            tokenizer=counter.name if counter is not None else "estimate:len//4+1",
+            exact_budget=counter is not None,
+        )
+    return final
 
 
 async def _assemble_core(
@@ -177,6 +192,7 @@ async def _assemble_core(
     ``legs`` (#36): precomputed ranked legs fused into the search by RRF."""
     if eng._assembly is None:
         raise MemspineError("assembly policy not bound — engine not started?")
+    counter = activate_counter(eng)  # R3-09a
     pool = eng._config().read.candidate_pool
     if _LIST_MODE.get():  # B1: a list question draws a wider pool
         pool = max(pool, eng._config().read.list_pool)
@@ -378,7 +394,7 @@ async def _assemble_core(
     timelines: list[MemoryRecord] = []
     if not shared and (read_cfg.topic_timelines or read_cfg.standing_instructions):
         standing, timelines = await eng._lead_section(ns, scored, budget_tokens)
-    lead_cost = sum(estimate_tokens(r.content) for r in [*standing, *timelines])
+    lead_cost = sum(tok(r.content) for r in [*standing, *timelines])
     scored = await eng._decorate(ns, scored, hide=hide)
     gist_after = read_cfg.gist_after
     if gist_after is not None and not is_verbatim(query):
@@ -391,13 +407,23 @@ async def _assemble_core(
         ]
     # E5 (D-51): the compression policy's own master switch decides whether
     # the fit stage runs; with the default options this is a no-op.
+    true_budget = max(1, budget_tokens - lead_cost)
     assembled = eng._assembly.assemble(
         scored,
-        budget_tokens=max(1, budget_tokens - lead_cost),
+        # R3-09b: bundles are packed under the true budget afterwards, from a wider pool.
+        budget_tokens=(
+            int(true_budget * read_cfg.bundle_pool_factor)
+            if read_cfg.evidence_bundles
+            else true_budget
+        ),
         compression=eng._assembly_compression,
         apply_floor=not (read_cfg.rerank_floor == "skip" and _RERANKED.get()),
         raw_scores=_RAW_SCORES.get() if read_cfg.abstain_on_raw else None,
+        cost=tok if counter is not None else None,
+        max_skips=read_cfg.exact_budget_max_skips if counter is not None else None,
     )
+    if read_cfg.evidence_bundles and not assembled.abstained:
+        assembled = await bundle_selected(eng, ns, assembled, true_budget)
     if read_cfg.abstain_on_raw and (fx := _FORENSICS.get()) is not None:
         raw_seen = _RAW_SCORES.get() or {}
         fx["abstain_on_raw"] = {
@@ -416,7 +442,7 @@ async def _assemble_core(
         records = list(assembled.records)
         records.insert(min(assembled.boundary_index, len(records)), note)
         assembled.records = records
-        assembled.tokens_used += estimate_tokens(note.content)
+        assembled.tokens_used += tok(note.content)
     return assembled
 
 

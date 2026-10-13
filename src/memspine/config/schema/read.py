@@ -146,6 +146,34 @@ class ReadConfig(BaseModel):
     rrf_k: int | None = Field(default=None, ge=1)
     #: ContextPipe: tokens kept free for the reply inside the assembly budget.
     reply_reserve_tokens: int = Field(default=0, ge=0)
+    #: R3-09a (ER-24, LIB-06): count every budgeted piece (selected records, headers, lead blocks,
+    #: the rendered text) with the reader's own tokenizer instead of ``len // 4 + 1``, and when a
+    #: record does not fit skip it and try smaller later ones (early break after
+    #: ``exact_budget_max_skips`` skips) instead of stopping at the first overflow. Off: unchanged.
+    exact_budget: bool = False
+    #: R3-09a: the reader's tokenizer, resolved OFFLINE only (never downloads): a Hugging Face
+    #: tokenizer already in the local cache (``hf:<name>`` or a bare name) or a tiktoken encoding /
+    #: model whose files are cached (``tiktoken:<name>``). Unset or unresolvable: the chars/4
+    #: estimate, and ``compose.budget`` reports ``accounting=estimated``.
+    reader_tokenizer: str | None = None
+    #: R3-09a: how many over-budget records may be skipped before the rest are dropped.
+    exact_budget_max_skips: int = Field(default=8, ge=1)
+    #: R3-09b (ER-24 C+A, LIB-06): selected mined facts enter the context as complete evidence
+    #: bundles (the fact plus its source turn(s), cited, whole or not at all) packed under the
+    #: budget. Today's records carry no evidence lists, so a fact's bundle is the fact plus its
+    #: eligible parent turns (``source.parents``); other records are their own evidence.
+    #: Off: unchanged.
+    evidence_bundles: bool = False
+    #: R3-09b: with bundles on, the selection pool is this many times the budget, so bundles that
+    #: do not fit whole can give way to smaller later ones.
+    bundle_pool_factor: float = Field(default=2.0, ge=1.0)
+    #: R3-09b: share of the retrieved-evidence budget fact bundles may take while other records
+    #: still wait; with no other records they may use all of it.
+    bundle_fact_share: float = Field(default=0.6, ge=0.0, le=1.0)
+    #: T5-02 (G-09, LIB-25): low-trust, tentative and contested records are rendered in labelled
+    #: sections as quoted, neutralised data (injection-like text defanged), quarantined ones
+    #: withheld. Replaces the B6 untrusted-note wrapper while on. Off: unchanged.
+    trust_rendering: bool = False
     #: The mode ``Engine.read()`` uses when the caller passes none. ``auto`` keeps the
     #: routed behaviour; the ``assistant`` template pins ``replay`` (combo-A, LoCoMo:
     #: compose routing measured -2.1, replay is the base of every winning arm).
