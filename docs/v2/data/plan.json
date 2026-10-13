@@ -6011,8 +6011,8 @@
    ],
    "kind": "behaviour",
    "gate": "Deferred work counted, never dropped",
-   "status": "Not started",
-   "note": "",
+   "status": "In progress",
+   "note": "Sonnet agent launched (after O4-01a)",
    "layers": [
     "L0",
     "L1",
