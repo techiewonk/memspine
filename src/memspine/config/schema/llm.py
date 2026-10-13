@@ -160,7 +160,7 @@ class WorkersConfig(BaseModel):
     transport: Literal["inline", "taskiq"] = "inline"
     #: RT-01: which broker carries the ids when ``transport="taskiq"``. ``memory``: taskiq's
     #: InMemoryBroker, drained in this process (library mode). ``redis``: a Redis stream on
-    #: ``broker_url``; this process only enqueues and ``python -m memspine.runtime.worker`` drains.
+    #: ``broker_url``; this process only enqueues and ``python -m memspine.api.worker`` drains.
     transport_broker: Literal["memory", "redis"] = "memory"
 
 

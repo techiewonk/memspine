@@ -15,7 +15,7 @@ lease epoch and the contiguous watermark (``runtime.jobs``) are what make a comm
   the job lease.
 - ``workers.transport_broker = "redis"`` (server mode): a ``RedisStreamBroker`` on
   ``workers.broker_url``. The producing process only enqueues and kicks (``local_drain`` is off, so
-  its own ``drain`` is a no-op and the read barrier polls); ``python -m memspine.runtime.worker``
+  its own ``drain`` is a no-op and the read barrier polls); ``python -m memspine.api.worker``
   opens the same store, registers the same stage handlers and consumes the stream.
 
 On ``start()`` every unfinished row is sent again (``resend_unfinished``): jobs still queued, and
