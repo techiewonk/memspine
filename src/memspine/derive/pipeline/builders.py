@@ -17,10 +17,12 @@ from memspine.derive.pipeline.stages.context import (
     SummarizeIncremental,
 )
 from memspine.derive.pipeline.stages.extract_graph import resolve_mode
+from memspine.derive.session_close import CALL2_SCHEMA
 from memspine.exceptions import ConfigError
 from memspine.memories.associative.resolution import ResolveBatch
 from memspine.memories.semantic.write_pipeline import EdgeContext, ExtractEdges, extraction_rounds
 from memspine.models.providers.llm.structured import structured_call
+from memspine.prompts.base import RenderedMessages
 from memspine.prompts.models import (
     AnticipatedCue,
     AnticipatedCues,
@@ -438,3 +440,29 @@ def _build_edge_adjudicator(eng: Any) -> Callable[[str, str, str, str], Awaitabl
         return str(result.verdict)
 
     return adjudicate
+
+
+#: O4-02: LLM roles the call-2 model call may use, first bound one wins.
+CLOSE_ROLES = ("session_close", "summarize", "extract")
+
+
+def _build_close_call(eng: Any) -> Callable[[list[dict[str, str]]], Awaitable[str]] | None:
+    """O4-02: the call-2 model call, only with ``write.session_close_v2`` and a bound role.
+
+    The prompt is the library's (``derive.session_close.render_prompt``: a stable prefix with no
+    examples and the same-language rule, then the data body), sent as raw messages through an
+    existing role's model binding, so no new prompt template exists."""
+    if not eng._config().write.session_close_v2 or eng._llm is None:
+        return None
+    role = next((r for r in CLOSE_ROLES if r in eng._llm.roles), None)
+    if role is None:
+        return None
+    llm = eng._llm.for_role(role)
+
+    async def call(messages: list[dict[str, str]]) -> str:
+        tagged = RenderedMessages(
+            messages, prompt_id="session_close", prompt_version=CALL2_SCHEMA
+        )
+        return await llm.chat(tagged)
+
+    return call

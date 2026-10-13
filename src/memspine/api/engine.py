@@ -4575,6 +4575,8 @@ class Engine:
             deposit_cues=self._deposit_anticipated_cues,
             reflect=self._build_reflector(),
             deposit_reflection=self._deposit_profile_reflection,
+            close_call=derive_builders._build_close_call(self),
+            deposit_session_record=self._deposit_session_record,
             screen=self._screen_derived,
             write_fact=self._write_extracted_fact,
             # Only when associative projects it (ADR-015): an explicit-config
@@ -4743,6 +4745,37 @@ class Engine:
     ) -> MemoryRecord | None:
         return await derive_integrate._deposit_profile_reflection(
             self, namespace, content, evidence_ids, session_key
+        )
+
+    async def _deposit_session_record(
+        self,
+        namespace: str,
+        kind: str,
+        text: str,
+        parents: list[str],
+        valid_from: datetime,
+        session_id: str,
+        *,
+        extends: str | None = None,
+        when_text: str | None = None,
+        participants: Sequence[str] = (),
+        idem_key: str = "",
+        folded: bool = False,
+    ) -> MemoryRecord | None:
+        """O4-02: a call-2 summary or episode through the derived-write door."""
+        return await derive_integrate._deposit_session_record(
+            self,
+            namespace,
+            kind,
+            text,
+            parents,
+            valid_from,
+            session_id,
+            extends=extends,
+            when_text=when_text,
+            participants=participants,
+            idem_key=idem_key,
+            folded=folded,
         )
 
     def _build_anticipator(self) -> Any:

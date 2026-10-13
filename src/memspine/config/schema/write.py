@@ -68,6 +68,30 @@ class WriteConfig(BaseModel):
     #: (default): the old write path exactly, and the table is never written.
     lineage_table: bool = False
 
+    #: O4-02 (O-07..O-09, M-14; LIB-40): the real call 2 at session close. ``True``: when a session
+    #: closes, ONE structured call (role ``session_close``, else ``summarize``, else ``extract``)
+    #: reads the session's turns and returns a summary, episode narratives and proposed profile
+    #: ops; code validates every item (citations, reserved fields, derived time), stitches episodes
+    #: onto adjacent stubs (deterministic) and writes the survivors through the derived-write door
+    #: (parents = the cited turns). ``False`` (default): the stub (a marker only).
+    session_close_v2: bool = False
+    #: Prompt budget (tokens, 4 chars each) of the call-2 plan; turns beyond it are deferred.
+    session_close_budget: int = Field(default=6000, ge=256)
+    #: O4-07 (O-18..O-20, M-20; LIB-39): the profile card (L4/L5), opt-in. ``True``: the profile
+    #: ops call 2 proposes go through the guarded ``apply_ops`` (shape, evidence, stance, trust,
+    #: staleness, kappa_P bound, EMA drift) and the card is kept in the event log (marker
+    #: ``profile_card_v2``); the sleep stage ``reflect_profile`` then invalidates entries whose
+    #: support was forgotten and reports the reflection plan. Needs ``session_close_v2`` to
+    #: receive ops. ``False`` (default): no card, call-2 profile ops are only counted.
+    profile_card_v2: bool = False
+    #: kappa_P: the L5 profile bound (maximum card entries) and the card's character budget.
+    profile_kappa_p: int = Field(default=24, ge=1)
+    profile_max_chars: int = Field(default=2400, ge=64)
+    #: O-19: ``inferred`` ops are rejected unless this is on (stated-only card by default).
+    profile_allow_inferred: bool = False
+    #: EMA gain of the preference drift ``P_{t+1} = alpha p_t + (1 - alpha) P_t``.
+    profile_alpha: float = Field(default=0.3, gt=0.0, le=1.0)
+
 
 class IngestConfig(BaseModel):
     """E04 attachment handling at write time. Off by default: a message's ``attachments`` are
