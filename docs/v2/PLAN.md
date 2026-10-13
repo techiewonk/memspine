@@ -7,12 +7,12 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 
 | Status | Count |
 |---|---|
-| Not started | 85 |
+| Not started | 84 |
 | Ready | 0 |
 | In progress | 0 |
 | Blocked | 0 |
 | Needs measurement | 4 |
-| Done | 72 |
+| Done | 73 |
 | Dropped | 0 |
 
 ## Phase 0: settle and prepare
@@ -104,7 +104,7 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | F-13b | REST and MCP on the handle | ctx scope | D R | G-17, G-18 | - | F-13a | move | S1 split (serial) | `src/memspine/api/**` +3 | Protocol tests | **Not started** |  |
 | F-13c | Eval-harness adapter and test-import migration; paired-gate replay | L0 L1 L4 L5 ctx scope | D K_C K_P R C | G-16 | - | F-13a | move | S1 split (serial) | `src/memspine/api/**` +3 | Paired-gate replay NO CHANGE vs f-jref2-i2 (GPU, one run) | **Not started** | Exit of the split |
 | F-15 | Split the pipelines module into derive stages | L0 L1 L3 L4 L5 ctx | K_C K_P | O-04 | - | F-11 | move | S1 split (serial) | `src/memspine/derive/stages/**` +1 | Golden; stage order unchanged | **Done** | S15: workers/pipelines.py split into derive/pipeline/stages (18 modules, same order) + 34 engine units; merged with F-12, fact helpers deduplicated; unit 5905, evals 1435, golden, 14 contracts (26f586f) |
-| F-14a | Retire measured-negative and owner-retired code (slot loop, fact chain, word vectors, decider gate, kuzu, opensearch stub, full/compose read modes, v1 read headers) | L0 L1 L4 L5 ctx scope | D R C | G-22 | ER-40 | F-11 | move | S1 split (serial) | - | Golden unchanged; retired flags raise ConfigError | **Not started** |  |
+| F-14a | Retire measured-negative and owner-retired code (slot loop, fact chain, word vectors, decider gate, kuzu, opensearch stub, full/compose read modes, v1 read headers) | L0 L1 L4 L5 ctx scope | D R C | G-22 | ER-40 | F-11 | move | S1 split (serial) | - | Golden unchanged; retired flags raise ConfigError | **Done** | 6 items retired (slot loop, read-time fact chain, word-vector leg, decider gate, kuzu, opensearch stub) with RETIRED.md; full/compose modes and v1 headers kept (default-on / not decided); unit 5860, evals 1435, golden, 14 contracts (bbf0280) |
 | F-14b | Retire unscreened candidates | L0 L1 L4 L5 ctx scope | D R C | G-22 | ER-40 | F-14a | move | S1 split (serial) | - | Owner decision per item | **Needs measurement** | Coordinator decision 2026-10-13 (owner delegated choices): defer deletion; candidates stay flag-off until GPU screens decide |
 | F-01 | Graph key identity: kind, occurrence, A-B-A, old-key aliases | L0 L1 L3 | D | M-17, W-20 | ER-13, ER-20 | F-15 | behaviour | S2 foundations (serial: Alembic) | `src/memspine/store/keys.py` +1 | A-B-A returns to A; same-day events stay two; replay idempotent; built flag-off, then GC arm screen | **Not started** | S1; G-W50 |
 | F-02a | Record envelope: layer field, type tag, provenance class, axes, fingerprint; Alembic and upcaster | L0 L1 L3 L4 L5 ctx scope | D K_C R | M-02, M-03, M-06, M-07, M-08, P-12 | ER-03, ER-14, ER-32 | F-01, MOD-01 | migration | S2 foundations (serial: Alembic) | `src/memspine/store/envelope.py` +4 | Replay byte-stable; upcaster round-trips; golden unchanged | **Not started** | S2+S3; Q1 |
@@ -305,4 +305,4 @@ Files each package may write (glob patterns, repo-relative; includes removal and
 | F-16e | `src/memspine/store/lineage.py`<br>`src/memspine/store/migrate.py`<br>`src/memspine/store/profiles.py`<br>`src/memspine/store/backends/postgres/**`<br>`src/memspine/store/backends/neo4j/**`<br>`src/memspine/derive/write.py`<br>`src/memspine/services/graph/neo4j.py` |
 | F-16f | `src/memspine/store/lineage.py`<br>`src/memspine/store/migrate.py`<br>`src/memspine/store/profiles.py`<br>`src/memspine/store/backends/postgres/**`<br>`src/memspine/store/backends/neo4j/**`<br>`src/memspine/derive/write.py`<br>`src/memspine/services/graph/neo4j.py` |
 
-No ownership yet (cannot be briefed): 72 packages.
+No ownership yet (cannot be briefed): 71 packages.

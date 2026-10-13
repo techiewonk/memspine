@@ -3458,8 +3458,8 @@
    ],
    "kind": "move",
    "gate": "Golden unchanged; retired flags raise ConfigError",
-   "status": "Not started",
-   "note": "",
+   "status": "Done",
+   "note": "6 items retired (slot loop, read-time fact chain, word-vector leg, decider gate, kuzu, opensearch stub) with RETIRED.md; full/compose modes and v1 headers kept (default-on / not decided); unit 5860, evals 1435, golden, 14 contracts (bbf0280)",
    "layers": [
     "L0",
     "L1",

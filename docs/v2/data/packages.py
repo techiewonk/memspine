@@ -166,7 +166,7 @@ WP = [
      "Paired-gate replay NO CHANGE vs f-jref2-i2 (GPU, one run)", "Not started", "Exit of the split"),
     ("F-15", 1, "Split the pipelines module into derive stages", ["O-04"], ["F-11"], "move", "Golden; stage order unchanged", "Done", "S15: workers/pipelines.py split into derive/pipeline/stages (18 modules, same order) + 34 engine units; merged with F-12, fact helpers deduplicated; unit 5905, evals 1435, golden, 14 contracts (26f586f)"),
     ("F-14a", 1, "Retire measured-negative and owner-retired code (slot loop, fact chain, word vectors, decider gate, kuzu, opensearch stub, full/compose read modes, v1 read headers)",
-     ["G-22"], ["F-11"], "move", "Golden unchanged; retired flags raise ConfigError", "Not started", ""),
+     ["G-22"], ["F-11"], "move", "Golden unchanged; retired flags raise ConfigError", "Done", "6 items retired (slot loop, read-time fact chain, word-vector leg, decider gate, kuzu, opensearch stub) with RETIRED.md; full/compose modes and v1 headers kept (default-on / not decided); unit 5860, evals 1435, golden, 14 contracts (bbf0280)"),
     ("F-14b", 1, "Retire unscreened candidates", ["G-22"], ["F-14a"], "move", "Owner decision per item", "Needs measurement",
      "Coordinator decision 2026-10-13 (owner delegated choices): defer deletion; candidates stay flag-off until GPU screens decide"),
     # ---- Phase 1b: foundations in the new modules (serial lane: each adds an Alembic revision) ----
