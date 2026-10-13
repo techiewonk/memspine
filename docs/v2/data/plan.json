@@ -4629,8 +4629,8 @@
    ],
    "kind": "behaviour",
    "gate": "Window arm: items dropped down; at most 1 call per window",
-   "status": "In progress",
-   "note": "Sonnet agent launched",
+   "status": "Needs measurement",
+   "note": "write.prompt_v2: one call per window/batch (facts_graph/all 2->1), NEW/CONTEXT/KNOWN, json_schema where supported",
    "layers": [
     "L0",
     "L1",
@@ -4792,8 +4792,8 @@
    ],
    "kind": "behaviour",
    "gate": "Grounding at least 95% on the labelled set",
-   "status": "In progress",
-   "note": "Parallel build on the W2-06c envelope stage hook list (derive/envelope_stages.py); merged in order 14,08,09,10,13",
+   "status": "Needs measurement",
+   "note": "write.grounding_v2 stage (order 200); labelled set 85.5% CPU-only (rules+lexical) vs 95% gate; non-English undecided items need an LLM adjudicator (GPU)",
    "layers": [
     "L1",
     "L3"
@@ -6058,7 +6058,7 @@
    "kind": "behaviour",
    "gate": "G-C9-style screen; golden unchanged with flag off",
    "status": "Needs measurement",
-   "note": "OW-A wired flag-off (offline.session_close_v2 / profile_card_v2); erasure gap on card markers pending owner",
+   "note": "session_close_v2 + FU-CLOSE (summary door, no dedup loss)",
    "layers": [
     "L0",
     "L1",
@@ -6262,7 +6262,7 @@
    "kind": "behaviour",
    "gate": "OP-Bench and PrefEval up; hand audit at least 90%",
    "status": "Needs measurement",
-   "note": "OW-A wired flag-off (offline.session_close_v2 / profile_card_v2); erasure gap on card markers pending owner",
+   "note": "profile_card_v2 + FU-CLOSE (scrub on forget, hard-forget marker redaction)",
    "layers": [
     "L1",
     "L4",
