@@ -7,8 +7,8 @@ from datetime import UTC, datetime, timedelta, timezone
 import pytest
 from structlog.testing import capture_logs
 
+from memspine.api.engine import Engine
 from memspine.config.schema import ReadConfig
-from memspine.engine import Engine
 
 NAIVE = datetime(2023, 5, 8, 23, 30)  # 23:30 wall clock, no zone
 

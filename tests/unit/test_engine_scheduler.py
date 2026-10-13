@@ -9,7 +9,7 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 
-from memspine.engine import Engine
+from memspine.api.engine import Engine
 
 
 async def _engine(interval: float | None, path: str = ":memory:") -> Engine:

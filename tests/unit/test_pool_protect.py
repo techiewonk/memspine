@@ -6,7 +6,7 @@ from typing import Any
 
 from memspine import Engine
 from memspine.config.schema import ReadConfig
-from memspine.engine import search_forensics
+from memspine.observability.trace import search_forensics
 from memspine.read.pipeline.fusion import _leg_rank_map, _protected_ids
 
 _POOL = 5

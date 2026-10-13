@@ -14,8 +14,8 @@ from memspine.exceptions import MissingServiceError
 if TYPE_CHECKING:
     from fastapi import FastAPI
 
+    from memspine.api.engine import Engine
     from memspine.config.schema import RestConfig
-    from memspine.engine import Engine
 
 __all__ = ["create_app"]
 

@@ -242,7 +242,7 @@ async def test_adapter_stamps_hit_rank_on_evidence(monkeypatch: pytest.MonkeyPat
     def fake_forensics() -> Any:
         yield {"final": [("h1", 0.9), ("h2", 0.8)]}
 
-    monkeypatch.setattr("memspine.engine.search_forensics", fake_forensics)
+    monkeypatch.setattr("memspine.observability.trace.search_forensics", fake_forensics)
     system = MemspineSystem()
     system._engine = _Engine()
     system._read_mode = "replay"

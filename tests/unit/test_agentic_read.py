@@ -13,12 +13,12 @@ from pydantic import ValidationError
 from memspine import Engine
 from memspine.config.schema import MemspineConfig
 from memspine.core.agentic import clean_query, evidence_view, fuse_new, merge_budget
-from memspine.engine import search_forensics
 from memspine.models.encoders.query.shape import is_multi_hop
 from memspine.models.providers.decision.decider import TASKS, Decision, HeuristicDecider
 from memspine.models.providers.llm import structured
 from memspine.models.providers.llm.base import LLMRouter, LLMService
 from memspine.models.providers.llm.structured import StructuredOptions
+from memspine.observability.trace import search_forensics
 from memspine.prompts.models import OUTPUT_MODELS, AgenticStepOut
 from memspine.store.records import MemoryRecord
 

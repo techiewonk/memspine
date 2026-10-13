@@ -12,8 +12,8 @@ from typing import Any
 
 import pytest
 
+from memspine.api.engine import Engine
 from memspine.config.schema import MemspineConfig
-from memspine.engine import Engine
 from memspine.models.encoders.embedding.base import EmbeddingService
 from memspine.models.encoders.embedding.hash_local import HashEmbedding
 
