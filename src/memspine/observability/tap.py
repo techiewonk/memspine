@@ -53,6 +53,7 @@ __all__ = [
     "TapConfigError",
     "TapEvent",
     "TapSink",
+    "add_sink",
     "configure",
     "content",
     "content_enabled",
@@ -78,6 +79,7 @@ _MAX_CHARS = 200
 _SAMPLE = 1.0
 _KINDS: frozenset[str] = frozenset({"read", "write", "job"})
 _SINK: TapSink | None = None
+_EXTRA_SINKS: list[TapSink] = []  # T5-06: sinks next to the configured one (OTel exporter)
 _SINK_LOCK = threading.Lock()
 _CUR: ContextVar[RequestTrace | None] = ContextVar("memspine_tap_request", default=None)
 _ERRORS = 0  # sink failures swallowed (never raised into the engine)
@@ -473,15 +475,26 @@ def _ranked_fields(val: Any) -> dict[str, Any]:
 # ── sinks plumbing ───────────────────────────────────────────────────────────
 def _emit(trace: RequestTrace) -> None:
     global _ERRORS
-    sink = _SINK
-    if sink is None:
+    sinks = [s for s in (_SINK, *_EXTRA_SINKS) if s is not None]
+    if not sinks:
         return
     try:
         data = trace.to_dict()
-        with _SINK_LOCK:
-            sink.write(data)
     except Exception:
         _ERRORS += 1
+        return
+    for sink in sinks:
+        try:
+            with _SINK_LOCK:
+                sink.write(data)
+        except Exception:
+            _ERRORS += 1
+
+
+def add_sink(sink: TapSink) -> None:
+    """Add a sink that receives every finished trace next to the configured one (T5-06). The tap
+    must be enabled; ``shutdown()`` closes and drops it. Sinks never raise into the engine."""
+    _EXTRA_SINKS.append(sink)
 
 
 def memory_traces() -> list[dict[str, Any]]:
@@ -524,6 +537,8 @@ def shutdown() -> None:
     _ON = False
     _CONTENT = False
     sink, _SINK = _SINK, None
-    if sink is not None:
+    extras = list(_EXTRA_SINKS)
+    _EXTRA_SINKS.clear()
+    for closing in ([sink] if sink is not None else []) + extras:
         with contextlib.suppress(Exception):
-            sink.close()
+            closing.close()

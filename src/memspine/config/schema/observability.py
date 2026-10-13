@@ -28,6 +28,21 @@ class TapConfig(BaseModel):
     )
 
 
+class OtelConfig(BaseModel):
+    """T5-06 (G-20): optional OpenTelemetry export of request -> stage spans.
+
+    Off by default. On, ``Engine.start()`` raises ``MissingServiceError`` naming ``memspine[otel]``
+    unless ``opentelemetry`` is importable, switches the wiretap on (sink ``none`` when the tap is
+    not configured; its own sink is kept otherwise, content stays off) and adds the exporter as a
+    second sink. Spans carry ids, hashes, counts, codes and durations only: a string attribute that
+    looks like text is dropped and counted (``ops_report()["otel"]["rejected_attributes"]``).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = False
+
+
 class ObservabilityConfig(BaseModel):
     """I73 diagnostics, opt-in.
 
@@ -35,9 +50,15 @@ class ObservabilityConfig(BaseModel):
       embedding, projection, dedup, conflict ladder, perspective / sensitivity tagging and
       the inline LLM steps) with the monotonic clock; per step count, total, p50 and p95
       through ``Engine.write_timers()`` and ``describe()``. Off: nothing is wrapped.
+    - ``ops_ledger`` (T5-06, G-20): time every read verb, write verb, window-extract job and sleep
+      stage (runs, errors, items, dropped, deferred, p50 / p95) in ``memspine.ops.ledger``;
+      ``Engine.ops_report()`` merges it with the SLO and write-cost ledgers. Off: nothing is timed.
+    - ``otel``: see :class:`OtelConfig`.
     """
 
     model_config = ConfigDict(extra="forbid")
 
     write_timers: bool = False
+    ops_ledger: bool = False
+    otel: OtelConfig = Field(default_factory=OtelConfig)
     tap: TapConfig = Field(default_factory=TapConfig)

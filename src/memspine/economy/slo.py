@@ -24,7 +24,14 @@ from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import Any
 
-__all__ = ["SloLedger", "SloReport", "install_ledger", "percentile", "timed_read"]
+__all__ = [
+    "SloLedger",
+    "SloReport",
+    "install_ledger",
+    "installed_ledger",
+    "percentile",
+    "timed_read",
+]
 
 
 def percentile(values: list[float], q: float) -> float:
@@ -134,6 +141,11 @@ def install_ledger(ledger: SloLedger | None) -> SloLedger | None:
     global _LEDGER
     previous, _LEDGER = _LEDGER, ledger
     return previous
+
+
+def installed_ledger() -> SloLedger | None:
+    """The process-wide read-latency ledger, if one is installed (T5-06 ops report)."""
+    return _LEDGER
 
 
 def timed_read[F: Callable[..., Awaitable[Any]]](fn: F) -> F:

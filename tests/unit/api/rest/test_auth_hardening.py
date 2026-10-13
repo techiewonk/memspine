@@ -40,6 +40,7 @@ _ADMIN_ROUTES = (
     ("post", "/rebuild"),
     ("get", "/export"),
     ("get", "/quarantine"),
+    ("get", "/ops/report"),
     ("post", "/quarantine/some-id/approve"),
     ("post", "/quarantine/some-id/reject"),
 )

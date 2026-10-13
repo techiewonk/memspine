@@ -171,6 +171,10 @@
   },
   "namespaces": {},
   "observability": {
+   "ops_ledger": false,
+   "otel": {
+    "enabled": false
+   },
    "tap": {
     "content": false,
     "dir": "runs/_tap",
@@ -650,7 +654,7 @@
    "window_topic_k": 2.0
   }
  },
- "json_schema_sha256": "1468ededc5af9cd388dfd6a8d64fd2df72d24c26e50333d36c41a463044e8e69",
+ "json_schema_sha256": "a6a3a7ea07701eafd4dfb1eb6d0c6244aca3834567c64863b8e9cd55da114c2e",
  "preset:chat_roles": {
   "audit": {
    "actions": false,
@@ -844,6 +848,10 @@
   },
   "namespaces": {},
   "observability": {
+   "ops_ledger": false,
+   "otel": {
+    "enabled": false
+   },
    "tap": {
     "content": false,
     "dir": "runs/_tap",
@@ -1522,6 +1530,10 @@
   },
   "namespaces": {},
   "observability": {
+   "ops_ledger": false,
+   "otel": {
+    "enabled": false
+   },
    "tap": {
     "content": false,
     "dir": "runs/_tap",
@@ -2200,6 +2212,10 @@
   },
   "namespaces": {},
   "observability": {
+   "ops_ledger": false,
+   "otel": {
+    "enabled": false
+   },
    "tap": {
     "content": false,
     "dir": "runs/_tap",
@@ -2878,6 +2894,10 @@
   },
   "namespaces": {},
   "observability": {
+   "ops_ledger": false,
+   "otel": {
+    "enabled": false
+   },
    "tap": {
     "content": false,
     "dir": "runs/_tap",
@@ -3556,6 +3576,10 @@
   },
   "namespaces": {},
   "observability": {
+   "ops_ledger": false,
+   "otel": {
+    "enabled": false
+   },
    "tap": {
     "content": false,
     "dir": "runs/_tap",
@@ -4234,6 +4258,10 @@
   },
   "namespaces": {},
   "observability": {
+   "ops_ledger": false,
+   "otel": {
+    "enabled": false
+   },
    "tap": {
     "content": false,
     "dir": "runs/_tap",
@@ -4912,6 +4940,10 @@
   },
   "namespaces": {},
   "observability": {
+   "ops_ledger": false,
+   "otel": {
+    "enabled": false
+   },
    "tap": {
     "content": false,
     "dir": "runs/_tap",
@@ -5590,6 +5622,10 @@
   },
   "namespaces": {},
   "observability": {
+   "ops_ledger": false,
+   "otel": {
+    "enabled": false
+   },
    "tap": {
     "content": false,
     "dir": "runs/_tap",
@@ -6268,6 +6304,10 @@
   },
   "namespaces": {},
   "observability": {
+   "ops_ledger": false,
+   "otel": {
+    "enabled": false
+   },
    "tap": {
     "content": false,
     "dir": "runs/_tap",
@@ -6953,6 +6993,10 @@
   },
   "namespaces": {},
   "observability": {
+   "ops_ledger": false,
+   "otel": {
+    "enabled": false
+   },
    "tap": {
     "content": false,
     "dir": "runs/_tap",
@@ -7638,6 +7682,10 @@
   },
   "namespaces": {},
   "observability": {
+   "ops_ledger": false,
+   "otel": {
+    "enabled": false
+   },
    "tap": {
     "content": false,
     "dir": "runs/_tap",
@@ -8312,6 +8360,10 @@
   },
   "namespaces": {},
   "observability": {
+   "ops_ledger": false,
+   "otel": {
+    "enabled": false
+   },
    "tap": {
     "content": false,
     "dir": "runs/_tap",
@@ -8988,6 +9040,10 @@
   },
   "namespaces": {},
   "observability": {
+   "ops_ledger": false,
+   "otel": {
+    "enabled": false
+   },
    "tap": {
     "content": false,
     "dir": "runs/_tap",
@@ -9670,6 +9726,10 @@
   },
   "namespaces": {},
   "observability": {
+   "ops_ledger": false,
+   "otel": {
+    "enabled": false
+   },
    "tap": {
     "content": false,
     "dir": "runs/_tap",
@@ -10356,6 +10416,10 @@
   },
   "namespaces": {},
   "observability": {
+   "ops_ledger": false,
+   "otel": {
+    "enabled": false
+   },
    "tap": {
     "content": false,
     "dir": "runs/_tap",
@@ -11034,6 +11098,10 @@
   },
   "namespaces": {},
   "observability": {
+   "ops_ledger": false,
+   "otel": {
+    "enabled": false
+   },
    "tap": {
     "content": false,
     "dir": "runs/_tap",
@@ -11713,6 +11781,10 @@
   },
   "namespaces": {},
   "observability": {
+   "ops_ledger": false,
+   "otel": {
+    "enabled": false
+   },
    "tap": {
     "content": false,
     "dir": "runs/_tap",
@@ -12393,6 +12465,10 @@
   },
   "namespaces": {},
   "observability": {
+   "ops_ledger": false,
+   "otel": {
+    "enabled": false
+   },
    "tap": {
     "content": false,
     "dir": "runs/_tap",

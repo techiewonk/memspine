@@ -127,3 +127,30 @@ New gap rules: `extraction_rejected` (also on `write.extract.facts/edges/episode
 uncited above 0), `extraction_failed`, `stage_failed`, `stage_partial`, `stage_skipped` (also `write.*.skipped`),
 `firewall_flag`, `write_replayed`, `time_unanchored`, `time_unparsed`, `window_anomaly`; `model_error` and
 `model_timeout` fire on `model.call`. SLOs: `model.call` 60 s, `job.stage.*` 120 s.
+
+## Ops ledger, wiretap and OTel (T5-06)
+
+Three views, three purposes; all are off by default and none holds content.
+
+| | Ops ledger | Wiretap | OTel export |
+|---|---|---|---|
+| Flag | `observability.ops_ledger` | `observability.tap.enabled` | `observability.otel.enabled` |
+| For | Production health: how often, how long, how many failed, dropped or deferred | Debugging one request: every decision, id and score | Shipping request -> stage spans to a tracing backend |
+| Granularity | Per stage, aggregated (read, write, sleep) | Per request, per event | Per request, per stage |
+| Read with | `Engine.ops_report()`, `GET /ops/report` (admin) | the sink (jsonl, sqlite, memory, log) | your OTel collector |
+| Text | never | only under `tap.content` (truncated, redacted) | never |
+
+`Engine.ops_report(namespace=None)` merges three ledgers: the ops ledger (`memspine.ops.ledger`:
+runs, errors, items, dropped, deferred, p50 / p95 per read verb, write verb, `window_extract` and
+sleep stage), the SLO ledger (`runtime.scheduler_v2`: read p95, background lag, backlog) and the
+write cost ledger (`economy.ledger_v2`: model, embed and rerank calls, tokens in and out, budget).
+A stage seen only by the cost ledger still gets a row. A ledger that is off contributes nothing.
+
+OTel is a wiretap sink (`memspine.ops.otel.OtelExporter`): one span per request, one child span per
+stage, a nested span per sleep-stage job. It needs `memspine[otel]`; without `opentelemetry`
+`Engine.start()` raises `MissingServiceError` naming that extra. Span attributes pass
+`validate_span_attributes` before they reach the tracer: keys are `memspine.*`; values are numbers,
+booleans or short identifier strings (the tap's content guard, plus a lowercase-code or hex-hash
+shape, except `memspine.error` and `memspine.model_id`). Tap event fields never become attributes;
+only the event count per stage and the integer counts in them (`memspine.n.<field>`) do. A rejected
+attribute is dropped and counted, never raised into the engine.

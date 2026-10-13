@@ -55,6 +55,7 @@ opensearch = ["opensearch-py>=2.6"]                 # server-scale lexical/BM25 
 dbos       = ["dbos>=2.20,<3.0"]                     # durable worker runner (D-16); needs the SQLite system-db support (zero-infra, D-10) verified against 2.26
 taskiq     = ["taskiq>=0.11", "taskiq-redis>=1.0"]  # brokered worker runner (D-16)
 rest       = ["fastapi>=0.115", "uvicorn>=0.32"]    # REST protocol (D-06)
+otel       = ["opentelemetry-api>=1.27", "opentelemetry-sdk>=1.27"]  # optional span export (G-20, T5-06): ids/counts only, no content
 rerank     = ["flashrank>=0.2"]                      # E8 cross-encoder rerank alt (D-51)
 st         = ["transformers>=4.51", "torch>=2.4", "sentence-transformers>=3", "bitsandbytes>=0.45"]   # local torch rerankers: Qwen3-Reranker (G5a)
 static     = ["model2vec>=0.3"]                      # E4 static-embedding prefilter (ADR-020)
