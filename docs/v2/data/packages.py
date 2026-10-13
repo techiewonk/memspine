@@ -177,7 +177,7 @@ WP = [
      "Done", "Envelope fields on MemoryRecord (layer, type_tag, provenance_class, axes, fingerprint, schema_version), 0007 migration + backfill, store/envelope.py, store/layers.py (F-02a)"),
     ("F-02b", 1, "Tri-temporal times with precision; LayerRegistry (template-enabled and populated layers)", ["M-10", "M-02"], ["F-02a"],
      "migration", "Golden unchanged; registry reports layers per namespace", "Done", "Tri-temporal record fields (alembic 0009) + LayerRegistry; router layer_state from registry"),
-    ("F-02c", 1, "Edge compiler and link projection from assertions (graph ON by default with a worker model)", ["M-16"], ["F-02b", "LIB-35"], "behaviour", "GC arm screen before the default counts in results", "In progress", "Sonnet agent launched 2026-10-13 (worktree memspine-F-02c)"),
+    ("F-02c", 1, "Edge compiler and link projection from assertions (graph ON by default with a worker model)", ["M-16"], ["F-02b", "LIB-35"], "behaviour", "GC arm screen before the default counts in results", "Needs measurement", "graph.edge_compiler_v2 flag-off; GC-arm screen before template default (I-7); no reader consumes compiled edges yet"),
     ("F-03", 1, "Model upgrades: versioned vector spaces, selective re-derivation", ["P-25"], ["F-02a"], "behaviour",
      "Shadow index switch test", "Needs measurement", "VersionedSpaceStore, shadow reembed + switch, stale_derivations/rederive plan; flag off (3a78b6e1); parity screen queued"),
     ("F-04", 1, "Durable outbox and inline runner, read barrier; model calls outside namespace locks",
