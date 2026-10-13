@@ -30,7 +30,7 @@ from typing import Any, ClassVar, Self, TypeVar
 import orjson
 from dishka import AsyncContainer
 
-from memspine.api import admin, handle, ops_memory, ops_trust
+from memspine.api import admin, handle, ops_advisory, ops_memory, ops_trust
 from memspine.api.handle import Memory
 from memspine.clients.cashews import CashewsClient
 from memspine.clients.ladybug import LadybugClient
@@ -70,6 +70,7 @@ from memspine.core.read_filters import (
 )
 from memspine.core.relevance_probes import Calibration
 from memspine.core.vetting import VetFlag
+from memspine.derive.feedback import LatencyStats
 from memspine.derive.pipeline import builders as derive_builders
 from memspine.derive.pipeline import graph as derive_graph
 from memspine.derive.pipeline import integrate as derive_integrate
@@ -129,6 +130,8 @@ from memspine.memory.pipeline import procedural as memory_procedural
 from memspine.memory.pipeline import prospective as memory_prospective
 from memspine.memory.pipeline import shared as memory_shared
 from memspine.memory.pipeline import working as memory_working
+from memspine.memory.procedural import Suggestion
+from memspine.memory.prospective import Reminder
 from memspine.models.cache.base import KVCache
 from memspine.models.cache.semantic import CachedExtractor
 from memspine.models.encoders.embedding.base import EmbeddingService
@@ -145,11 +148,11 @@ from memspine.models.providers.decision.decider import Decider, build_decider
 from memspine.models.providers.llm.base import LLMRouter, LLMService
 from memspine.models.providers.rerank.base import Reranker
 from memspine.models.providers.rerank.factory import RerankSettings, build_reranker, rerank_modes
+from memspine.observability import tap
 from memspine.observability.logging import (
     EVENT_REBUILD,
     get_logger,
 )
-from memspine.observability import tap
 from memspine.observability.timers import StepTimers, timed
 from memspine.prompts.models import (
     ReadPlan,
@@ -3633,8 +3636,19 @@ class Engine:
         note: str | None = None,
         actor: str = "user",
         namespace: str = "default",
+        channel: str | None = None,
+        new_value: str | int | float | bool | None = None,
+        new_text: str | None = None,
+        rating: int | None = None,
+        quote: str | None = None,
+        turn: int | None = None,
+        source_id: str | None = None,
     ) -> MemoryRecord:
         """#54: record a user's ``like`` / ``dislike`` / ``note`` on one record.
+
+        O4-11 (``write.feedback_v2``, off): the keyword arguments after ``namespace`` and the kinds
+        ``correction`` / ``rejection`` / ``confirmation`` / ``rating`` are explicit-feedback only;
+        see :func:`memspine.api.ops_trust.feedback`. With the flag off they are refused.
 
         Appends one FEEDBACK event through the door; the record projector keeps the
         per-record counts (``scoring.likes`` / ``dislikes`` / ``notes``). With
@@ -3651,8 +3665,25 @@ class Engine:
         ``ConflictError``. Returns the record with its updated counts.
         """
         return await ops_trust.feedback(
-            self, record_id, signal, note=note, actor=actor, namespace=namespace
+            self,
+            record_id,
+            signal,
+            note=note,
+            actor=actor,
+            namespace=namespace,
+            channel=channel,
+            new_value=new_value,
+            new_text=new_text,
+            rating=rating,
+            quote=quote,
+            turn=turn,
+            source_id=source_id,
         )
+
+    async def correction_latency(self, namespace: str = "default") -> LatencyStats:
+        """O4-11 (``write.feedback_v2``): turns from a wrong memory first being surfaced to its
+        explicit correction, from the log (one turn = one search of the namespace)."""
+        return await ops_trust.correction_latency(self, namespace)
 
     def _config(self) -> MemspineConfig:
         assert self._resolved is not None
@@ -4178,6 +4209,26 @@ class Engine:
         ``now`` defaults to the current UTC instant; pass it explicitly to
         own time (tests always should)."""
         return await memory_prospective.due(self, namespace, now)
+
+    async def reminders(
+        self,
+        namespace: str = "default",
+        now: datetime | None = None,
+        cues: Sequence[str] = (),
+    ) -> list[Reminder]:
+        """Advisory reminders from stated plans (O4-10, ``memories.prospective.policies.v2``).
+        Read-only and pull-based: it never acts, writes or delivers. See ``ops_advisory``."""
+        return await ops_advisory.reminders(self, namespace, now, cues)
+
+    async def suggest_procedures(
+        self,
+        context_tags: Sequence[str],
+        namespace: str = "default",
+        limit: int | None = None,
+    ) -> list[Suggestion]:
+        """Advisory procedure ranking (O4-10, ``memories.procedural.policies.v2``); counts move on
+        explicit feedback only. Never executes anything. See ``ops_advisory``."""
+        return await ops_advisory.suggest_procedures(self, context_tags, namespace, limit)
 
     async def acknowledge_watch(self, record_id: str, namespace: str = "default") -> MemoryRecord:
         """Acknowledge a fired watch: archived via a delta event

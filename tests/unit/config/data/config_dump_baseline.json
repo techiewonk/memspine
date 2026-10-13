@@ -517,6 +517,8 @@
    "sleep_interval_seconds": null
   },
   "write": {
+   "feedback_operators": [],
+   "feedback_v2": false,
    "inferred": "off",
    "inferred_explicit_overlap": 0.6,
    "inferred_support_overlap": 0.3,
@@ -534,7 +536,7 @@
    "window_topic_k": 2.0
   }
  },
- "json_schema_sha256": "e39f98474c67f011bae2d37f22dd2a8a1ac8f3e666ae852e447667a5d3a89a5c",
+ "json_schema_sha256": "21fbe33fca87ce4e5fcef9222aadc1edb6f914e9f2610002b01548c9afd38284",
  "preset:chat_roles": {
   "audit": {
    "actions": false,
@@ -1084,6 +1086,8 @@
    "sleep_interval_seconds": null
   },
   "write": {
+   "feedback_operators": [],
+   "feedback_v2": false,
    "inferred": "off",
    "inferred_explicit_overlap": 0.6,
    "inferred_support_overlap": 0.3,
@@ -1646,6 +1650,8 @@
    "sleep_interval_seconds": null
   },
   "write": {
+   "feedback_operators": [],
+   "feedback_v2": false,
    "inferred": "off",
    "inferred_explicit_overlap": 0.6,
    "inferred_support_overlap": 0.3,
@@ -2208,6 +2214,8 @@
    "sleep_interval_seconds": null
   },
   "write": {
+   "feedback_operators": [],
+   "feedback_v2": false,
    "inferred": "off",
    "inferred_explicit_overlap": 0.6,
    "inferred_support_overlap": 0.3,
@@ -2770,6 +2778,8 @@
    "sleep_interval_seconds": null
   },
   "write": {
+   "feedback_operators": [],
+   "feedback_v2": false,
    "inferred": "off",
    "inferred_explicit_overlap": 0.6,
    "inferred_support_overlap": 0.3,
@@ -3332,6 +3342,8 @@
    "sleep_interval_seconds": null
   },
   "write": {
+   "feedback_operators": [],
+   "feedback_v2": false,
    "inferred": "off",
    "inferred_explicit_overlap": 0.6,
    "inferred_support_overlap": 0.3,
@@ -3894,6 +3906,8 @@
    "sleep_interval_seconds": null
   },
   "write": {
+   "feedback_operators": [],
+   "feedback_v2": false,
    "inferred": "off",
    "inferred_explicit_overlap": 0.6,
    "inferred_support_overlap": 0.3,
@@ -4456,6 +4470,8 @@
    "sleep_interval_seconds": null
   },
   "write": {
+   "feedback_operators": [],
+   "feedback_v2": false,
    "inferred": "off",
    "inferred_explicit_overlap": 0.6,
    "inferred_support_overlap": 0.3,
@@ -5018,6 +5034,8 @@
    "sleep_interval_seconds": null
   },
   "write": {
+   "feedback_operators": [],
+   "feedback_v2": false,
    "inferred": "off",
    "inferred_explicit_overlap": 0.6,
    "inferred_support_overlap": 0.3,
@@ -5580,6 +5598,8 @@
    "sleep_interval_seconds": null
   },
   "write": {
+   "feedback_operators": [],
+   "feedback_v2": false,
    "inferred": "off",
    "inferred_explicit_overlap": 0.6,
    "inferred_support_overlap": 0.3,
@@ -6151,6 +6171,8 @@
    "sleep_interval_seconds": null
   },
   "write": {
+   "feedback_operators": [],
+   "feedback_v2": false,
    "inferred": "off",
    "inferred_explicit_overlap": 0.6,
    "inferred_support_overlap": 0.3,
@@ -6718,6 +6740,8 @@
    "sleep_interval_seconds": null
   },
   "write": {
+   "feedback_operators": [],
+   "feedback_v2": false,
    "inferred": "off",
    "inferred_explicit_overlap": 0.6,
    "inferred_support_overlap": 0.3,
@@ -7266,6 +7290,8 @@
    "sleep_interval_seconds": null
   },
   "write": {
+   "feedback_operators": [],
+   "feedback_v2": false,
    "inferred": "off",
    "inferred_explicit_overlap": 0.6,
    "inferred_support_overlap": 0.3,
@@ -7836,6 +7862,8 @@
    "sleep_interval_seconds": null
   },
   "write": {
+   "feedback_operators": [],
+   "feedback_v2": false,
    "inferred": "off",
    "inferred_explicit_overlap": 0.6,
    "inferred_support_overlap": 0.3,
@@ -8402,6 +8430,8 @@
    "sleep_interval_seconds": null
   },
   "write": {
+   "feedback_operators": [],
+   "feedback_v2": false,
    "inferred": "off",
    "inferred_explicit_overlap": 0.6,
    "inferred_support_overlap": 0.3,
@@ -8972,6 +9002,8 @@
    "sleep_interval_seconds": null
   },
   "write": {
+   "feedback_operators": [],
+   "feedback_v2": false,
    "inferred": "off",
    "inferred_explicit_overlap": 0.6,
    "inferred_support_overlap": 0.3,
@@ -9534,6 +9566,8 @@
    "sleep_interval_seconds": null
   },
   "write": {
+   "feedback_operators": [],
+   "feedback_v2": false,
    "inferred": "off",
    "inferred_explicit_overlap": 0.6,
    "inferred_support_overlap": 0.3,
@@ -10097,6 +10131,8 @@
    "sleep_interval_seconds": null
   },
   "write": {
+   "feedback_operators": [],
+   "feedback_v2": false,
    "inferred": "off",
    "inferred_explicit_overlap": 0.6,
    "inferred_support_overlap": 0.3,
@@ -10661,6 +10697,8 @@
    "sleep_interval_seconds": null
   },
   "write": {
+   "feedback_operators": [],
+   "feedback_v2": false,
    "inferred": "off",
    "inferred_explicit_overlap": 0.6,
    "inferred_support_overlap": 0.3,

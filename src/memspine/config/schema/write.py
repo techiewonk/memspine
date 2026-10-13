@@ -68,6 +68,20 @@ class WriteConfig(BaseModel):
     #: at all. ``False`` (default): the old write path exactly, and the table is never written.
     lineage_table: bool = False
 
+    #: O4-11 (LIB-44, O-25): explicit feedback only. ``True``: ``Engine.feedback`` refuses any
+    #: channel that is not a deliberate one (``user_message``, ``ui_control``, ``operator_edit``,
+    #: ``api``; silence, dwell, regeneration and classifier signals are refused), checks who may
+    #: give it (the memory owner, or a name in ``feedback_operators`` for corrections,
+    #: rejections and ratings; an agent never), and adds the kinds ``correction`` /
+    #: ``rejection`` / ``confirmation`` (each becomes a bound assertion that goes through the
+    #: write door and the conflict ladder, never an edit of the record) and ``rating`` (logged,
+    #: no assertion). Also enables ``Engine.correction_latency``. ``False`` (default): the
+    #: like / dislike / note verb exactly as before.
+    feedback_v2: bool = False
+    #: O4-11: principals allowed to give operator feedback under ``feedback_v2`` (never a
+    #: confirmation).
+    feedback_operators: list[str] = Field(default_factory=list)
+
 
 class IngestConfig(BaseModel):
     """E04 attachment handling at write time. Off by default: a message's ``attachments`` are

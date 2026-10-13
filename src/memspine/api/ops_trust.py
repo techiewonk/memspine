@@ -2,18 +2,23 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Mapping
+from datetime import UTC, datetime
 from typing import Any
 
 from memspine.compose.pack import AssembledContext, estimate_tokens
+from memspine.compose.pipeline.render import record_envelope
 from memspine.compose.pipeline.sections import _without_entity
 from memspine.config import constants
 from memspine.core.fact_chain import fact_projection_on
+from memspine.derive import feedback as fb
 from memspine.derive.pipeline.stages.index import DERIVED_STAGES, stage_marker
 from memspine.exceptions import ConflictError, MemspineError
 from memspine.ingest.write import _NEIGHBOUR_BATCH, _message_sender, _screen_text
+from memspine.observability import tap
 from memspine.observability.logging import EVENT_FEEDBACK, get_logger
+from memspine.schemas.durable.evidence import TurnRef
 from memspine.services.vector.base import VectorHit
-from memspine.store.events import EventKind, MemoryEvent
+from memspine.store.events import EventKind, EventLogMode, MemoryEvent, fingerprint_payload
 from memspine.store.records import MemoryRecord, RecordStatus, SourceInfo
 from memspine.store.scope import grant_allows, validate_namespace
 from memspine.trust.firewall import FirewallVerdict
@@ -143,7 +148,311 @@ async def _withheld_texts(eng: Any) -> list[str]:
     return list(dict.fromkeys(t for t in texts if t))
 
 
+_V2_KINDS = ("correction", "rejection", "confirmation", "rating")
+_LEGACY_SIGNALS = ("like", "dislike", "note")
+#: Names that stand for software acting on its own: never allowed to give feedback (O-25).
+_AGENT_ACTORS = frozenset({"assistant", "agent", "system", "tool"})
+
+
 async def feedback(
+    eng: Any,
+    record_id: str,
+    signal: str,
+    *,
+    note: str | None = None,
+    actor: str = "user",
+    namespace: str = "default",
+    channel: str | None = None,
+    new_value: str | int | float | bool | None = None,
+    new_text: str | None = None,
+    rating: int | None = None,
+    quote: str | None = None,
+    turn: int | None = None,
+    source_id: str | None = None,
+) -> MemoryRecord:
+    """#54 + O4-11: record explicit feedback on one record.
+
+    ``write.feedback_v2`` off (default): the ``like`` / ``dislike`` / ``note`` verb exactly as
+    before (see :func:`_legacy_feedback`); the v2 keywords are refused.
+
+    On: ``channel`` (default ``api``) must be a deliberate one (``user_message``, ``ui_control``,
+    ``operator_edit``, ``api``); silence, dwell, regeneration, classifier and other inferred signals
+    are refused. The actor must be the memory owner (``"user"`` or the namespace), or a name in
+    ``write.feedback_operators`` (never for a confirmation); an agent never may. The signals are
+    the three above plus ``correction`` (needs ``new_value``, optional ``new_text``),
+    ``rejection``, ``confirmation`` and ``rating`` (needs ``rating`` 1..5, logged only). A
+    correction, rejection or confirmation never edits the record: it becomes a bound assertion
+    (the owner's new value, a negation of the recalled one, a restatement) written through the
+    write door and the conflict ladder; the first written record is returned. ``source_id`` names
+    the turn carrying the feedback (default: this call); ``turn`` the read-turn index (default: the
+    number of reads of the namespace so far, which ``Engine.correction_latency`` uses).
+    """
+    cfg = eng._config().write
+    extra = any(
+        v is not None for v in (channel, new_value, new_text, rating, quote, turn, source_id)
+    )
+    if not cfg.feedback_v2:
+        if extra:
+            raise MemspineError("feedback keywords need write.feedback_v2: true")
+        return await _legacy_feedback(
+            eng, record_id, signal, note=note, actor=actor, namespace=namespace
+        )
+    return await _feedback_v2(
+        eng,
+        record_id,
+        signal,
+        note=note,
+        actor=actor,
+        namespace=namespace,
+        channel=channel or "api",
+        new_value=new_value,
+        new_text=new_text,
+        rating=rating,
+        quote=quote,
+        turn=turn,
+        source_id=source_id,
+    )
+
+
+def _feedback_refused(signal: str, channel: str, reason: str, message: str) -> MemspineError:
+    if tap.enabled():
+        tap.event(
+            "api.feedback",
+            kind=signal,
+            channel=channel,
+            accepted=False,
+            reason=reason,
+            assertions=0,
+        )
+    return MemspineError(f"feedback refused ({reason}): {message}")
+
+
+async def _events_of(eng: Any, ns: str, kinds: tuple[EventKind, ...]) -> list[MemoryEvent]:
+    """The namespace's events of ``kinds``, oldest first (one scan of the log)."""
+    if eng._config().event_log.mode is EventLogMode.EPHEMERAL:
+        return []
+    storage = eng._require_started()
+    found: list[MemoryEvent] = []
+    after = 0
+    while True:
+        batch = await storage.read_events(after_seq=after)
+        if not batch:
+            return found
+        found.extend(e for e in batch if e.kind in kinds and e.namespace == ns)
+        last = batch[-1].seq
+        if last is None:
+            return found
+        after = last
+
+
+async def _read_turn(eng: Any, ns: str) -> int | None:
+    """The read-turn index: searches the namespace has served so far (None: no log is kept)."""
+    if eng._config().event_log.mode is EventLogMode.EPHEMERAL:
+        return None
+    return len(await _events_of(eng, ns, (EventKind.RETRIEVE,)))
+
+
+async def _feedback_v2(
+    eng: Any,
+    record_id: str,
+    signal: str,
+    *,
+    note: str | None,
+    actor: str,
+    namespace: str,
+    channel: str,
+    new_value: str | int | float | bool | None,
+    new_text: str | None,
+    rating: int | None,
+    quote: str | None,
+    turn: int | None,
+    source_id: str | None,
+) -> MemoryRecord:
+    ns = validate_namespace(namespace)
+    if channel in fb.INFERRED_CHANNELS:
+        raise _feedback_refused(
+            signal, channel, "implicit_channel", f"{channel!r} is an inferred signal"
+        )
+    if channel not in fb.EXPLICIT_CHANNELS:
+        raise _feedback_refused(
+            signal, channel, "unknown_channel", f"{channel!r} is not a feedback channel"
+        )
+    if signal not in (*_LEGACY_SIGNALS, *_V2_KINDS):
+        raise MemspineError(
+            f"feedback signal must be one of {[*_LEGACY_SIGNALS, *_V2_KINDS]}, got {signal!r}"
+        )
+    operators = tuple(eng._config().write.feedback_operators)
+    if actor in operators:
+        who = fb.Actor(principal=actor, kind="operator")
+    elif actor in _AGENT_ACTORS:
+        who = fb.Actor(principal=actor, kind="agent")
+    else:
+        who = fb.Actor(principal=ns if actor == "user" else actor, kind="user")
+    storage = eng._require_started()
+    target = await storage.get_record(record_id)
+    if target is None or target.namespace != ns or target.status is RecordStatus.DELETED:
+        raise ConflictError(f"no such record {record_id!r} in namespace {ns!r}")
+    kind = signal if signal in _V2_KINDS else "rating"
+    eid = "fb_" + fingerprint_payload(
+        {
+            "ns": ns,
+            "record": record_id,
+            "signal": signal,
+            "channel": channel,
+            "value": repr(new_value),
+            "text": new_text,
+            "rating": rating,
+            "turn": turn,
+            "source": source_id,
+            "note": note,
+        }
+    )[:24]
+    try:
+        event = fb.FeedbackEvent(
+            event_id=eid,
+            kind=kind,  # type: ignore[arg-type]
+            channel=channel,
+            target_ids=(record_id,),
+            actor=who,
+            owner=ns,
+            at=datetime.now(UTC),
+            turn=turn,
+            source=None
+            if kind == "rating"
+            else TurnRef(source_id=source_id or f"api:{eid}", source_version=1, seg_index=0),
+            quote=quote,
+            new_value=new_value,
+            new_text=new_text,
+            # a like / dislike / note only probes the permission check below
+            rating=rating if signal in _V2_KINDS else 3,
+        )
+        fb.check_feedback(event, operators=operators)
+    except fb.FeedbackError as exc:
+        raise _feedback_refused(signal, channel, "not_permitted", str(exc)) from exc
+    except ValueError as exc:  # pydantic validation of the event shape
+        raise _feedback_refused(signal, channel, "invalid", str(exc).splitlines()[0]) from exc
+
+    if signal in _LEGACY_SIGNALS:
+        updated = await _legacy_feedback(
+            eng, record_id, signal, note=note, actor=actor, namespace=ns
+        )
+        if tap.enabled():
+            tap.event(
+                "api.feedback",
+                kind=signal,
+                channel=channel,
+                accepted=True,
+                reason="ok",
+                assertions=0,
+                target=record_id,
+            )
+        return updated
+
+    written: list[MemoryRecord] = []
+    if kind != "rating":
+        try:
+            drafts = fb.to_assertions(
+                event, {record_id: record_envelope(target)}, operators=operators
+            )
+        except fb.FeedbackError as exc:
+            raise _feedback_refused(signal, channel, "not_permitted", str(exc)) from exc
+        mem_type = (
+            target.memory_type if target.memory_type in ("semantic", "episodic") else "semantic"
+        )
+        async with eng._write_locks.setdefault(ns, asyncio.Lock()):
+            for draft in drafts:
+                tags = [f"feedback:{kind}", f"feedback_target:{record_id}"]
+                if draft.assessment.modality == "negated":
+                    tags.append("pol:neg")
+                if draft.src_class == "user_confirmed":
+                    tags.append("user_confirmed")
+                record = MemoryRecord(
+                    namespace=ns,
+                    memory_type=mem_type,
+                    content=draft.text,
+                    entity=target.entity,
+                    attribute=target.attribute,
+                    group_id=target.group_id,
+                    tags=tags,
+                    source=SourceInfo(
+                        role="user", channel="feedback", principal=draft.provenance.principal
+                    ),
+                )
+                written.append(await eng._write_locked(storage, ns, record, mem_type, actor))
+    if turn is None and kind in ("correction", "rejection"):
+        turn = await _read_turn(eng, ns)
+    payload: dict[str, object] = {
+        "record_id": record_id,
+        "signal": kind,
+        # structure only: the new value, text and quote live in the written record, not the log
+        "feedback": event.model_copy(update={"turn": turn}).model_dump(
+            mode="json", exclude={"new_value", "new_text", "quote"}
+        ),
+    }
+    async with eng._write_locks.setdefault(ns, asyncio.Lock()):
+        await eng._append_and_project(
+            MemoryEvent(kind=EventKind.FEEDBACK, namespace=ns, actor=actor, payload=payload)
+        )
+    await eng._audit_action("feedback", ns, [record_id], actor=actor, reason=None, signal=kind)
+    if tap.enabled():
+        tap.event(
+            "api.feedback",
+            kind=kind,
+            channel=channel,
+            accepted=True,
+            reason="ok",
+            assertions=len(written),
+            target=record_id,
+            written=[w.record_id for w in written],
+            quarantined=sum(1 for w in written if w.quarantined),
+        )
+    if written:
+        return written[0]
+    refreshed = await storage.get_record(record_id)
+    assert refreshed is not None
+    return refreshed
+
+
+async def correction_latency(eng: Any, namespace: str = "default") -> fb.LatencyStats:
+    """O4-11 (``write.feedback_v2``): turns between a wrong memory first being surfaced (a search
+    that returned it) and the explicit correction or rejection of it, from the log. A turn is one
+    search of the namespace. Corrections given with an explicit ``turn`` use the caller's index."""
+    if not eng._config().write.feedback_v2:
+        raise MemspineError("correction_latency needs write.feedback_v2: true")
+    if eng._config().event_log.mode is EventLogMode.EPHEMERAL:
+        raise ConflictError("event_log.mode=ephemeral keeps no events to measure from")
+    ns = validate_namespace(namespace)
+    events = await _events_of(eng, ns, (EventKind.RETRIEVE, EventKind.FEEDBACK))
+    exposures: list[fb.ExposureRecord] = []
+    given: list[fb.FeedbackEvent] = []
+    turn = 0
+    for ev in events:
+        if ev.kind is EventKind.RETRIEVE:
+            turn += 1
+            exposures.extend(
+                fb.ExposureRecord(record_id=str(r), turn=turn)
+                for r in ev.payload.get("record_ids", [])
+            )
+        elif isinstance(ev.payload.get("feedback"), dict):
+            dump = dict(ev.payload["feedback"])
+            if dump.get("kind") == "correction":
+                dump["new_value"] = "-"  # the log keeps structure only; latency never reads values
+            given.append(fb.FeedbackEvent.model_validate(dump))
+    stats = fb.correction_latency(given, exposures)
+    if tap.enabled():
+        tap.event(
+            "api.feedback.latency",
+            total=stats.total,
+            measured=stats.measured,
+            unmatched=stats.unmatched,
+            unturned=stats.unturned,
+            mean=stats.mean,
+            p90=stats.p90,
+        )
+    return stats
+
+
+async def _legacy_feedback(
     eng: Any,
     record_id: str,
     signal: str,
