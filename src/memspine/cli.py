@@ -79,6 +79,8 @@ def _registry(template: str | None, config_file: Path | None) -> PromptRegistry:
         overrides=resolved.config.prompts.overrides,
         partials=resolved.config.prompts.partials,
         selection=resolved.config.prompts.selection,
+        layout_v2=resolved.config.prompts.layout_v2,
+        layout_partials=resolved.config.prompts.layout_partials,
     )
 
 

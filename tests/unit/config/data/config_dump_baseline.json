@@ -197,6 +197,11 @@
   },
   "profile": "simple",
   "prompts": {
+   "layout_partials": [
+    "same_language",
+    "coarse_date"
+   ],
+   "layout_v2": false,
    "overrides": {},
    "partials": {},
    "selection": {}
@@ -578,7 +583,7 @@
    "window_topic_k": 2.0
   }
  },
- "json_schema_sha256": "0cfbdb93207cb22175140c9f5a7954171aac428075b0d1e0967d0de04dce094e",
+ "json_schema_sha256": "f5b93e912ddfcb11d62ea68a48d0aa178a6da87079f5240774e85d0e57f5b7ae",
  "preset:chat_roles": {
   "audit": {
    "actions": false,
@@ -798,6 +803,11 @@
   },
   "profile": "simple",
   "prompts": {
+   "layout_partials": [
+    "same_language",
+    "coarse_date"
+   ],
+   "layout_v2": false,
    "overrides": {},
    "partials": {},
    "selection": {
@@ -1404,6 +1414,11 @@
   },
   "profile": "simple",
   "prompts": {
+   "layout_partials": [
+    "same_language",
+    "coarse_date"
+   ],
+   "layout_v2": false,
    "overrides": {},
    "partials": {},
    "selection": {
@@ -2010,6 +2025,11 @@
   },
   "profile": "simple",
   "prompts": {
+   "layout_partials": [
+    "same_language",
+    "coarse_date"
+   ],
+   "layout_v2": false,
    "overrides": {},
    "partials": {},
    "selection": {
@@ -2616,6 +2636,11 @@
   },
   "profile": "simple",
   "prompts": {
+   "layout_partials": [
+    "same_language",
+    "coarse_date"
+   ],
+   "layout_v2": false,
    "overrides": {},
    "partials": {},
    "selection": {
@@ -3222,6 +3247,11 @@
   },
   "profile": "simple",
   "prompts": {
+   "layout_partials": [
+    "same_language",
+    "coarse_date"
+   ],
+   "layout_v2": false,
    "overrides": {},
    "partials": {},
    "selection": {
@@ -3828,6 +3858,11 @@
   },
   "profile": "simple",
   "prompts": {
+   "layout_partials": [
+    "same_language",
+    "coarse_date"
+   ],
+   "layout_v2": false,
    "overrides": {},
    "partials": {},
    "selection": {
@@ -4434,6 +4469,11 @@
   },
   "profile": "simple",
   "prompts": {
+   "layout_partials": [
+    "same_language",
+    "coarse_date"
+   ],
+   "layout_v2": false,
    "overrides": {},
    "partials": {},
    "selection": {
@@ -5040,6 +5080,11 @@
   },
   "profile": "assistant",
   "prompts": {
+   "layout_partials": [
+    "same_language",
+    "coarse_date"
+   ],
+   "layout_v2": false,
    "overrides": {},
    "partials": {},
    "selection": {
@@ -5646,6 +5691,11 @@
   },
   "profile": "simple",
   "prompts": {
+   "layout_partials": [
+    "same_language",
+    "coarse_date"
+   ],
+   "layout_v2": false,
    "overrides": {},
    "partials": {},
    "selection": {
@@ -6259,6 +6309,11 @@
   },
   "profile": "benchmark",
   "prompts": {
+   "layout_partials": [
+    "same_language",
+    "coarse_date"
+   ],
+   "layout_v2": false,
    "overrides": {},
    "partials": {},
    "selection": {
@@ -6872,6 +6927,11 @@
   },
   "profile": "coding",
   "prompts": {
+   "layout_partials": [
+    "same_language",
+    "coarse_date"
+   ],
+   "layout_v2": false,
    "overrides": {},
    "partials": {},
    "selection": {
@@ -7474,6 +7534,11 @@
   },
   "profile": "core",
   "prompts": {
+   "layout_partials": [
+    "same_language",
+    "coarse_date"
+   ],
+   "layout_v2": false,
    "overrides": {},
    "partials": {},
    "selection": {}
@@ -8078,6 +8143,11 @@
   },
   "profile": "graph",
   "prompts": {
+   "layout_partials": [
+    "same_language",
+    "coarse_date"
+   ],
+   "layout_v2": false,
    "overrides": {},
    "partials": {},
    "selection": {
@@ -8688,6 +8758,11 @@
   },
   "profile": "multi_agent",
   "prompts": {
+   "layout_partials": [
+    "same_language",
+    "coarse_date"
+   ],
+   "layout_v2": false,
    "overrides": {},
    "partials": {},
    "selection": {
@@ -9302,6 +9377,11 @@
   },
   "profile": "personal",
   "prompts": {
+   "layout_partials": [
+    "same_language",
+    "coarse_date"
+   ],
+   "layout_v2": false,
    "overrides": {},
    "partials": {},
    "selection": {
@@ -9908,6 +9988,11 @@
   },
   "profile": "protected",
   "prompts": {
+   "layout_partials": [
+    "same_language",
+    "coarse_date"
+   ],
+   "layout_v2": false,
    "overrides": {},
    "partials": {},
    "selection": {
@@ -10515,6 +10600,11 @@
   },
   "profile": "regulated_financial",
   "prompts": {
+   "layout_partials": [
+    "same_language",
+    "coarse_date"
+   ],
+   "layout_v2": false,
    "overrides": {},
    "partials": {},
    "selection": {
@@ -11123,6 +11213,11 @@
   },
   "profile": "voice",
   "prompts": {
+   "layout_partials": [
+    "same_language",
+    "coarse_date"
+   ],
+   "layout_v2": false,
    "overrides": {},
    "partials": {},
    "selection": {
