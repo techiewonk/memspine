@@ -13,6 +13,7 @@ from memspine.config.schema.llm import (
     DecisionConfig,
     EmbeddingConfig,
     LLMConfig,
+    ModelsConfig,
     PromptsConfig,
     WorkersConfig,
 )
@@ -76,6 +77,7 @@ class MemspineConfig(BaseModel):
     cache: CacheConfig = Field(default_factory=CacheConfig)
     graph: GraphConfig = Field(default_factory=GraphConfig)
     llm: LLMConfig = Field(default_factory=LLMConfig)
+    models: ModelsConfig = Field(default_factory=ModelsConfig)
     read: ReadConfig = Field(default_factory=ReadConfig)
     write: WriteConfig = Field(default_factory=WriteConfig)
     offline: OfflineConfig = Field(default_factory=OfflineConfig)

@@ -105,9 +105,28 @@ CHAIN_MODELS: dict[str, str] = {
 }
 
 
-def _chain_provider(eng: Any, mode: str, read_cfg: Any) -> Any:
+def _planned_chain(eng: Any) -> list[tuple[str, str]] | None:
+    """MD-01 (``models.tiers_v2``): the planned reranker chain as ``(mode, device)``, computed once
+    per engine; None when the flag is off (the chain is then ``read.rerank_v2_chain``)."""
+    cfg_of = getattr(eng, "_config", None)
+    models = cfg_of().models if callable(cfg_of) else None
+    if models is None or not models.tiers_v2:
+        return None
+    cached = eng.__dict__.get("_rerank_planned_chain")
+    if cached is None:
+        from memspine.models.resolve import rerank_chain, resolve_models
+
+        cached = rerank_chain(resolve_models(models))
+        eng.__dict__["_rerank_planned_chain"] = cached
+        tap.event(
+            "models.rerank_chain", modes=[m for m, _ in cached], devices=[d for _, d in cached]
+        )
+    return cached
+
+
+def _chain_provider(eng: Any, mode: str, read_cfg: Any, device: str | None = None) -> Any:
     """The reranker of ``mode``, built once per engine; None when it cannot be built (kept, not
-    retried)."""
+    retried). ``device`` is the planned device (MD-01); None keeps ``read.rerank_device``."""
     cache: dict[str, Any] = eng.__dict__.setdefault("_rerank_v2_cache", {})
     if mode in cache:
         return cache[mode]
@@ -115,7 +134,7 @@ def _chain_provider(eng: Any, mode: str, read_cfg: Any) -> Any:
         RerankSettings(
             mode=mode,
             instruction=read_cfg.rerank_instruction if mode == "qwen3" else None,
-            device=read_cfg.rerank_device if mode in ("jina", "qwen3") else None,
+            device=(device or read_cfg.rerank_device) if mode in ("jina", "qwen3") else None,
             quant=read_cfg.rerank_quant if mode == "qwen3" else None,
         )
     )
@@ -135,8 +154,10 @@ async def chain_score(
     None). ``fallback_used`` names the mode that answered when it is not the first of the chain.
     """
     tried: list[dict[str, str]] = []
-    for pos, mode in enumerate(read_cfg.rerank_v2_chain):
-        reranker = _chain_provider(eng, mode, read_cfg)
+    planned = _planned_chain(eng)
+    chain = planned if planned is not None else [(m, "") for m in read_cfg.rerank_v2_chain]
+    for pos, (mode, device) in enumerate(chain):
+        reranker = _chain_provider(eng, mode, read_cfg, device or None)
         if reranker is None:
             tried.append({"mode": mode, "outcome": "unavailable"})
             continue

@@ -152,6 +152,23 @@
    }
   },
   "memories": {},
+  "models": {
+   "allow_hosted": false,
+   "catalogue": [],
+   "default_rerankers": "shipped",
+   "detect_gpus": false,
+   "embedder_profile": "auto",
+   "gpu_headroom_mb": 512,
+   "gpus": [],
+   "on_missing_model": "error",
+   "pins": {},
+   "ram_mb": 0,
+   "required_roles": [],
+   "rerank": "chain",
+   "role_tier": {},
+   "thinking": {},
+   "tiers_v2": false
+  },
   "namespaces": {},
   "observability": {
    "tap": {
@@ -631,7 +648,7 @@
    "window_topic_k": 2.0
   }
  },
- "json_schema_sha256": "a981fac3ed0318233c4c0a4e05fa323ffe8a76fddc06fea5a3f5271501a67bf8",
+ "json_schema_sha256": "2444e4d393554377c4a6adcaec2fc7773246b422a678736c676777cd2e3ee89c",
  "preset:chat_roles": {
   "audit": {
    "actions": false,
@@ -805,6 +822,23 @@
     "enabled": true,
     "policies": {}
    }
+  },
+  "models": {
+   "allow_hosted": false,
+   "catalogue": [],
+   "default_rerankers": "shipped",
+   "detect_gpus": false,
+   "embedder_profile": "auto",
+   "gpu_headroom_mb": 512,
+   "gpus": [],
+   "on_missing_model": "error",
+   "pins": {},
+   "ram_mb": 0,
+   "required_roles": [],
+   "rerank": "chain",
+   "role_tier": {},
+   "thinking": {},
+   "tiers_v2": false
   },
   "namespaces": {},
   "observability": {
@@ -1465,6 +1499,23 @@
     "policies": {}
    }
   },
+  "models": {
+   "allow_hosted": false,
+   "catalogue": [],
+   "default_rerankers": "shipped",
+   "detect_gpus": false,
+   "embedder_profile": "auto",
+   "gpu_headroom_mb": 512,
+   "gpus": [],
+   "on_missing_model": "error",
+   "pins": {},
+   "ram_mb": 0,
+   "required_roles": [],
+   "rerank": "chain",
+   "role_tier": {},
+   "thinking": {},
+   "tiers_v2": false
+  },
   "namespaces": {},
   "observability": {
    "tap": {
@@ -2123,6 +2174,23 @@
     "enabled": true,
     "policies": {}
    }
+  },
+  "models": {
+   "allow_hosted": false,
+   "catalogue": [],
+   "default_rerankers": "shipped",
+   "detect_gpus": false,
+   "embedder_profile": "auto",
+   "gpu_headroom_mb": 512,
+   "gpus": [],
+   "on_missing_model": "error",
+   "pins": {},
+   "ram_mb": 0,
+   "required_roles": [],
+   "rerank": "chain",
+   "role_tier": {},
+   "thinking": {},
+   "tiers_v2": false
   },
   "namespaces": {},
   "observability": {
@@ -2783,6 +2851,23 @@
     "policies": {}
    }
   },
+  "models": {
+   "allow_hosted": false,
+   "catalogue": [],
+   "default_rerankers": "shipped",
+   "detect_gpus": false,
+   "embedder_profile": "auto",
+   "gpu_headroom_mb": 512,
+   "gpus": [],
+   "on_missing_model": "error",
+   "pins": {},
+   "ram_mb": 0,
+   "required_roles": [],
+   "rerank": "chain",
+   "role_tier": {},
+   "thinking": {},
+   "tiers_v2": false
+  },
   "namespaces": {},
   "observability": {
    "tap": {
@@ -3441,6 +3526,23 @@
     "enabled": true,
     "policies": {}
    }
+  },
+  "models": {
+   "allow_hosted": false,
+   "catalogue": [],
+   "default_rerankers": "shipped",
+   "detect_gpus": false,
+   "embedder_profile": "auto",
+   "gpu_headroom_mb": 512,
+   "gpus": [],
+   "on_missing_model": "error",
+   "pins": {},
+   "ram_mb": 0,
+   "required_roles": [],
+   "rerank": "chain",
+   "role_tier": {},
+   "thinking": {},
+   "tiers_v2": false
   },
   "namespaces": {},
   "observability": {
@@ -4101,6 +4203,23 @@
     "policies": {}
    }
   },
+  "models": {
+   "allow_hosted": false,
+   "catalogue": [],
+   "default_rerankers": "shipped",
+   "detect_gpus": false,
+   "embedder_profile": "auto",
+   "gpu_headroom_mb": 512,
+   "gpus": [],
+   "on_missing_model": "error",
+   "pins": {},
+   "ram_mb": 0,
+   "required_roles": [],
+   "rerank": "chain",
+   "role_tier": {},
+   "thinking": {},
+   "tiers_v2": false
+  },
   "namespaces": {},
   "observability": {
    "tap": {
@@ -4759,6 +4878,23 @@
     "enabled": true,
     "policies": {}
    }
+  },
+  "models": {
+   "allow_hosted": false,
+   "catalogue": [],
+   "default_rerankers": "shipped",
+   "detect_gpus": false,
+   "embedder_profile": "auto",
+   "gpu_headroom_mb": 512,
+   "gpus": [],
+   "on_missing_model": "error",
+   "pins": {},
+   "ram_mb": 0,
+   "required_roles": [],
+   "rerank": "chain",
+   "role_tier": {},
+   "thinking": {},
+   "tiers_v2": false
   },
   "namespaces": {},
   "observability": {
@@ -5419,6 +5555,23 @@
     "policies": {}
    }
   },
+  "models": {
+   "allow_hosted": false,
+   "catalogue": [],
+   "default_rerankers": "shipped",
+   "detect_gpus": false,
+   "embedder_profile": "auto",
+   "gpu_headroom_mb": 512,
+   "gpus": [],
+   "on_missing_model": "error",
+   "pins": {},
+   "ram_mb": 0,
+   "required_roles": [],
+   "rerank": "chain",
+   "role_tier": {},
+   "thinking": {},
+   "tiers_v2": false
+  },
   "namespaces": {},
   "observability": {
    "tap": {
@@ -6077,6 +6230,23 @@
     "enabled": true,
     "policies": {}
    }
+  },
+  "models": {
+   "allow_hosted": false,
+   "catalogue": [],
+   "default_rerankers": "shipped",
+   "detect_gpus": false,
+   "embedder_profile": "auto",
+   "gpu_headroom_mb": 512,
+   "gpus": [],
+   "on_missing_model": "error",
+   "pins": {},
+   "ram_mb": 0,
+   "required_roles": [],
+   "rerank": "chain",
+   "role_tier": {},
+   "thinking": {},
+   "tiers_v2": false
   },
   "namespaces": {},
   "observability": {
@@ -6744,6 +6914,23 @@
     "policies": {}
    }
   },
+  "models": {
+   "allow_hosted": false,
+   "catalogue": [],
+   "default_rerankers": "shipped",
+   "detect_gpus": false,
+   "embedder_profile": "auto",
+   "gpu_headroom_mb": 512,
+   "gpus": [],
+   "on_missing_model": "error",
+   "pins": {},
+   "ram_mb": 0,
+   "required_roles": [],
+   "rerank": "chain",
+   "role_tier": {},
+   "thinking": {},
+   "tiers_v2": false
+  },
   "namespaces": {},
   "observability": {
    "tap": {
@@ -7410,6 +7597,23 @@
     "policies": {}
    }
   },
+  "models": {
+   "allow_hosted": false,
+   "catalogue": [],
+   "default_rerankers": "shipped",
+   "detect_gpus": false,
+   "embedder_profile": "auto",
+   "gpu_headroom_mb": 512,
+   "gpus": [],
+   "on_missing_model": "error",
+   "pins": {},
+   "ram_mb": 0,
+   "required_roles": [],
+   "rerank": "chain",
+   "role_tier": {},
+   "thinking": {},
+   "tiers_v2": false
+  },
   "namespaces": {},
   "observability": {
    "tap": {
@@ -8064,6 +8268,23 @@
     "enabled": true,
     "policies": {}
    }
+  },
+  "models": {
+   "allow_hosted": false,
+   "catalogue": [],
+   "default_rerankers": "shipped",
+   "detect_gpus": false,
+   "embedder_profile": "auto",
+   "gpu_headroom_mb": 512,
+   "gpus": [],
+   "on_missing_model": "error",
+   "pins": {},
+   "ram_mb": 0,
+   "required_roles": [],
+   "rerank": "chain",
+   "role_tier": {},
+   "thinking": {},
+   "tiers_v2": false
   },
   "namespaces": {},
   "observability": {
@@ -8721,6 +8942,23 @@
     "enabled": true,
     "policies": {}
    }
+  },
+  "models": {
+   "allow_hosted": false,
+   "catalogue": [],
+   "default_rerankers": "shipped",
+   "detect_gpus": false,
+   "embedder_profile": "auto",
+   "gpu_headroom_mb": 512,
+   "gpus": [],
+   "on_missing_model": "error",
+   "pins": {},
+   "ram_mb": 0,
+   "required_roles": [],
+   "rerank": "chain",
+   "role_tier": {},
+   "thinking": {},
+   "tiers_v2": false
   },
   "namespaces": {},
   "observability": {
@@ -9384,6 +9622,23 @@
     "enabled": true,
     "policies": {}
    }
+  },
+  "models": {
+   "allow_hosted": false,
+   "catalogue": [],
+   "default_rerankers": "shipped",
+   "detect_gpus": false,
+   "embedder_profile": "auto",
+   "gpu_headroom_mb": 512,
+   "gpus": [],
+   "on_missing_model": "error",
+   "pins": {},
+   "ram_mb": 0,
+   "required_roles": [],
+   "rerank": "chain",
+   "role_tier": {},
+   "thinking": {},
+   "tiers_v2": false
   },
   "namespaces": {},
   "observability": {
@@ -10052,6 +10307,23 @@
     "policies": {}
    }
   },
+  "models": {
+   "allow_hosted": false,
+   "catalogue": [],
+   "default_rerankers": "shipped",
+   "detect_gpus": false,
+   "embedder_profile": "auto",
+   "gpu_headroom_mb": 512,
+   "gpus": [],
+   "on_missing_model": "error",
+   "pins": {},
+   "ram_mb": 0,
+   "required_roles": [],
+   "rerank": "chain",
+   "role_tier": {},
+   "thinking": {},
+   "tiers_v2": false
+  },
   "namespaces": {},
   "observability": {
    "tap": {
@@ -10710,6 +10982,23 @@
     "enabled": true,
     "policies": {}
    }
+  },
+  "models": {
+   "allow_hosted": false,
+   "catalogue": [],
+   "default_rerankers": "shipped",
+   "detect_gpus": false,
+   "embedder_profile": "auto",
+   "gpu_headroom_mb": 512,
+   "gpus": [],
+   "on_missing_model": "error",
+   "pins": {},
+   "ram_mb": 0,
+   "required_roles": [],
+   "rerank": "chain",
+   "role_tier": {},
+   "thinking": {},
+   "tiers_v2": false
   },
   "namespaces": {},
   "observability": {
@@ -11371,6 +11660,23 @@
     "policies": {}
    }
   },
+  "models": {
+   "allow_hosted": false,
+   "catalogue": [],
+   "default_rerankers": "shipped",
+   "detect_gpus": false,
+   "embedder_profile": "auto",
+   "gpu_headroom_mb": 512,
+   "gpus": [],
+   "on_missing_model": "error",
+   "pins": {},
+   "ram_mb": 0,
+   "required_roles": [],
+   "rerank": "chain",
+   "role_tier": {},
+   "thinking": {},
+   "tiers_v2": false
+  },
   "namespaces": {},
   "observability": {
    "tap": {
@@ -12031,6 +12337,23 @@
      "page_size": 8
     }
    }
+  },
+  "models": {
+   "allow_hosted": false,
+   "catalogue": [],
+   "default_rerankers": "shipped",
+   "detect_gpus": false,
+   "embedder_profile": "auto",
+   "gpu_headroom_mb": 512,
+   "gpus": [],
+   "on_missing_model": "error",
+   "pins": {},
+   "ram_mb": 0,
+   "required_roles": [],
+   "rerank": "chain",
+   "role_tier": {},
+   "thinking": {},
+   "tiers_v2": false
   },
   "namespaces": {},
   "observability": {
