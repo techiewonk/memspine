@@ -1,0 +1,388 @@
+<title>MemSpine Screen Atlas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Source+Sans+3:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a working atlas — loop diagram first, then results, then a filterable catalogue of every screen, then the plan. */
+:root{
+  --bg:#f6f7f9; --panel:#ffffff; --ink:#18202c; --muted:#5b6474; --line:#dfe3ea;
+  --accent:#2c56c9; --accent-soft:#e7edfb;
+  --good:#1f7a4a; --good-soft:#e3f3ea; --warn:#9a5b00; --warn-soft:#fbf0dc; --bad:#b4282f; --bad-soft:#fbe5e6;
+  --neutral-soft:#eef0f4;
+  --r:#2c56c9; --c:#7a4fc0; --d:#0f7c86; --k:#a2581a; --t:#b4282f; --x:#56606f;
+  --f-display:"Sora",ui-sans-serif,system-ui,sans-serif;
+  --f-body:"Source Sans 3",ui-sans-serif,system-ui,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#11151c; --panel:#171d27; --ink:#e7ebf2; --muted:#9aa4b4; --line:#2a3240;
+  --accent:#7d9bf0; --accent-soft:#1d2740;
+  --good:#5cc58c; --good-soft:#14281e; --warn:#e3a94a; --warn-soft:#2c2214; --bad:#f07a80; --bad-soft:#2e1719;
+  --neutral-soft:#1e2531;
+  --r:#7d9bf0; --c:#b394ec; --d:#4cc3cc; --k:#e09a5b; --t:#f07a80; --x:#a3adbd; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#11151c; --panel:#171d27; --ink:#e7ebf2; --muted:#9aa4b4; --line:#2a3240;
+  --accent:#7d9bf0; --accent-soft:#1d2740;
+  --good:#5cc58c; --good-soft:#14281e; --warn:#e3a94a; --warn-soft:#2c2214; --bad:#f07a80; --bad-soft:#2e1719;
+  --neutral-soft:#1e2531;
+  --r:#7d9bf0; --c:#b394ec; --d:#4cc3cc; --k:#e09a5b; --t:#f07a80; --x:#a3adbd; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:16px/1.55 var(--f-body);margin:0}
+.wrap{max-width:1180px;margin:0 auto;padding-inline:20px;padding-block:28px 64px;display:grid;gap:40px}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0;line-height:1.2}
+h1{font-size:clamp(28px,4vw,40px);font-weight:700;letter-spacing:-.01em}
+h2{font-size:24px;font-weight:600}
+h3{font-size:17px;font-weight:600}
+p{margin:0;max-width:72ch}
+.lede{color:var(--muted);font-size:18px;max-width:70ch}
+.eyebrow{font:500 12px/1 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+code,.mono{font-family:var(--f-mono);font-size:.86em}
+section{display:grid;gap:16px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+.stage{border-left:4px solid var(--x);padding:12px 14px;background:var(--panel);border-radius:0 8px 8px 0;border-top:1px solid var(--line);border-right:1px solid var(--line);border-bottom:1px solid var(--line);display:grid;gap:6px}
+.stage h3{display:flex;gap:8px;align-items:baseline}
+.stage .tag{font:600 12px var(--f-mono);color:var(--muted)}
+.lR{border-left-color:var(--r)} .lC{border-left-color:var(--c)} .lD{border-left-color:var(--d)} .lK{border-left-color:var(--k)} .lT{border-left-color:var(--t)} .lX{border-left-color:var(--x)}
+.mermaid{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;overflow-x:auto;margin:0}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+table{border-collapse:collapse;width:100%;font-size:14.5px}
+th,td{padding:9px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{font:600 12px var(--f-mono);text-transform:uppercase;letter-spacing:.05em;color:var(--muted);background:var(--neutral-soft)}
+td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+tr:last-child td{border-bottom:none}
+.pill{display:inline-block;font:600 11.5px/1 var(--f-mono);padding:4px 7px;border-radius:999px;white-space:nowrap}
+.s-promote{background:var(--good-soft);color:var(--good)}
+.s-pass{background:var(--good-soft);color:var(--good)}
+.s-iterate{background:var(--warn-soft);color:var(--warn)}
+.s-drop{background:var(--bad-soft);color:var(--bad)}
+.s-queued{background:var(--accent-soft);color:var(--accent)}
+.s-deferred,.s-skipped{background:var(--neutral-soft);color:var(--muted)}
+.lay{font:600 11.5px/1 var(--f-mono);padding:4px 7px;border-radius:4px;color:#fff}
+.bR{background:var(--r)} .bC{background:var(--c)} .bD{background:var(--d)} .bK{background:var(--k)} .bT{background:var(--t)} .bX{background:var(--x)}
+:root:not([data-theme="light"]) .lay{color:var(--bg)}
+@media (prefers-color-scheme: light){:root:not([data-theme="dark"]) .lay{color:#fff}}
+:root[data-theme="light"] .lay{color:#fff}
+.filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.filters label{font:500 13px var(--f-mono);color:var(--muted);margin-right:4px}
+.chip{font:500 13px var(--f-body);border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:999px;padding:6px 12px;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--bg)}
+.chip:focus-visible,summary:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+input[type=search]{font:15px var(--f-body);padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink);min-width:0;flex:1 1 220px}
+.cards{display:grid;gap:10px}
+details.scr{background:var(--panel);border:1px solid var(--line);border-radius:10px}
+details.scr>summary{list-style:none;cursor:pointer;padding:12px 14px;display:grid;grid-template-columns:auto auto 1fr auto;gap:10px;align-items:center}
+details.scr>summary::-webkit-details-marker{display:none}
+.sid{font:600 14px var(--f-mono);min-width:3.2em}
+.sname{min-width:0}
+.sname b{font-weight:600}
+.sname span{color:var(--muted);font-size:14px;display:block}
+.body{padding:0 16px 16px;display:grid;gap:14px;border-top:1px solid var(--line);padding-top:14px}
+.kv{display:grid;grid-template-columns:150px 1fr;gap:6px 14px;font-size:15px}
+.kv dt{color:var(--muted);font:500 13px var(--f-mono);padding-top:2px}
+.kv dd{margin:0;min-width:0}
+.hyp{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+.hcell{border:1px solid var(--line);border-radius:8px;padding:8px 10px;display:grid;gap:2px}
+.hcell .bn{font:500 11.5px var(--f-mono);color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.hcell .hv{font:600 16px var(--f-display);font-variant-numeric:tabular-nums}
+.up{color:var(--good)} .dn{color:var(--bad)} .flat{color:var(--muted)}
+.note{font-size:14px;color:var(--muted)}
+.count{font:500 13px var(--f-mono);color:var(--muted)}
+.callout{border:1px solid var(--accent);background:var(--accent-soft);border-radius:10px;padding:16px 18px;display:grid;gap:8px}
+ol.plan{margin:0;padding-left:22px;display:grid;gap:8px}
+ul.tight{margin:0;padding-left:20px;display:grid;gap:4px}
+@media (max-width:560px){
+  details.scr>summary{grid-template-columns:auto 1fr;}
+  details.scr>summary .lay{display:none}
+  .kv{grid-template-columns:1fr}
+}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+
+<header style="display:grid;gap:12px">
+  <div class="eyebrow">MemSpine 2.0 restructure · screen plan · 13 Oct 2026</div>
+  <h1>MemSpine Screen Atlas</h1>
+  <p class="lede">How the engine works end to end, what every GPU screen switches on, where it sits in the flow, what we expect it to do on LoCoMo and the other benchmarks, and which ones to run next. Measured numbers are marked as measured; every benchmark effect below is a <b>hypothesis</b> for discussion.</p>
+</header>
+
+<!-- 1. ARCHITECTURE -->
+<section id="architecture">
+  <div class="eyebrow">1 · The loop</div>
+  <h2>What MemSpine does on every turn</h2>
+  <p>MemSpine is a memory engine for a chat agent. Each turn runs one loop: <b>retrieve</b> evidence for the question, <b>compose</b> it into the context window, let the model <b>generate</b> the answer, <b>deposit</b> the new turn and what can be learned from it, and later, during <b>sleep</b>, consolidate and personalise what was stored. The restructure split each stage into a v1 path (today's behaviour) and a v2 path behind off-by-default settings. A screen turns one setting (or one bundle) on and measures the change.</p>
+  <pre class="mermaid">
+flowchart LR
+  Q([User turn / question]) --> R
+  subgraph READ["R · Retrieve (read path)"]
+    R[Router &amp; legs:<br/>vector · BM25 · temporal ·<br/>entity · episode · graph] --> F[Fusion<br/>family_fusion]
+    F --> L[Lift to source turns] --> RR[Rerank<br/>jina v3.5] --> G1[Gate &amp; trust<br/>gate_v2 · consent · erasure]
+  end
+  G1 --> C
+  subgraph COMP["C · Compose"]
+    C[Budget &amp; contract rules<br/>exact_budget · bundles ·<br/>neighbours · standing answers]
+  end
+  C --> GEN[[G · Model answers<br/>qwen3.5 9B]]
+  GEN --> D
+  subgraph WRITE["D · Deposit (write path)"]
+    D[Intake &amp; stamping<br/>roles · echo guard] --> W[Windows &amp; batching<br/>segmentation]
+    W --> X[One structured extraction call<br/>prompt v2 · envelope]
+    X --> ST[Stages: temporal → grounding →<br/>coverage → resolve → integrate → pre-pass]
+    ST --> S[(Store: records · lineage ·<br/>graph · vectors · outbox)]
+  end
+  S -. sleep jobs .-> K
+  subgraph SLEEP["K · Sleep (offline)"]
+    K[Consolidate · mine facts · graph ·<br/>session close · communities ·<br/>patterns · standing · reconcile ·<br/>histories · decay · profile card]
+  end
+  K --> S
+  S --> R
+  T{{Trust layer:<br/>scope · consent · erasure ·<br/>firewall · audit}} -.- G1
+  T -.- S
+  </pre>
+  <div class="grid3">
+    <div class="stage lR"><h3><span class="tag">R</span> Retrieve</h3><p>Several search "legs" each return candidates; fusion merges them; the reranker reorders; the gate drops what the asker may not see or what is off-topic.</p></div>
+    <div class="stage lC"><h3><span class="tag">C</span> Compose</h3><p>Packs the chosen evidence into the window under a token budget, with rules that keep cited source turns, neighbours and standing answers.</p></div>
+    <div class="stage lD"><h3><span class="tag">D</span> Deposit</h3><p>Stores every turn raw, then extracts facts from windows of turns in one model call, checks each fact against its source line, resolves names, and decides replace / keep both / contest.</p></div>
+    <div class="stage lK"><h3><span class="tag">K</span> Sleep</h3><p>Background jobs that summarise sessions, mine facts, build the graph and communities, find patterns, keep value histories and decay old material.</p></div>
+    <div class="stage lT"><h3><span class="tag">T</span> Trust</h3><p>Tenant and owner scope, viewer checks, consent, erasure with re-derivation, the memory firewall and an audit chain. Mostly measured by tests, not QA accuracy.</p></div>
+    <div class="stage lX"><h3><span class="tag">X</span> Runtime</h3><p>Outbox, scheduler, cost ledger, caches, parallel legs. Expected to change cost and latency, never the answers.</p></div>
+  </div>
+</section>
+
+<!-- 2. HOW A SCREEN WORKS -->
+<section id="method">
+  <div class="eyebrow">2 · How a screen is run</div>
+  <h2>Reading a screen result</h2>
+  <div class="grid2">
+    <div class="panel" style="display:grid;gap:10px">
+      <h3>Two kinds of run</h3>
+      <ul class="tight">
+        <li><b>J (reader only)</b>: memory is written, no sleep runs. Fast (about 10–20 min on the sample). Shows read-path settings only.</li>
+        <li><b>GC (with sleep)</b>: sleep jobs run with the model, so derived layers (facts, graph, episodes) exist. About 15 min each on the sample so far; needed for anything that reads derived memory.</li>
+      </ul>
+      <p class="note">Lesson from today: S10, S12, S13 changed nothing on J runs because their layers were never built. A 0/0 result on a J run means "not tested", not "no effect".</p>
+    </div>
+    <div class="panel" style="display:grid;gap:10px">
+      <h3>Rules and noise</h3>
+      <ul class="tight">
+        <li><b>PROMOTE</b>: must beat the reference. <b>NONINF</b>: must not lose. <b>PARITY</b>: answers must not change. <b>REPORT</b>: describe only.</li>
+        <li>Samples are 60 LoCoMo questions (GC) or 80 (J), plus 60 OP-Bench where set. Each row shows questions gained / lost against the reference.</li>
+        <li><b>Noise:</b> GC runs re-run the extraction model, which moves about ±5 answers per 60 on its own. A result of +6/−5 is noise; a planned reference-vs-reference run will measure it exactly.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- 3. RESULTS -->
+<section id="results">
+  <div class="eyebrow">3 · Measured so far</div>
+  <h2>Results on the sample sets</h2>
+  <p class="note">Measured, small samples, descriptive only. Δ is the change in accuracy points on the sample with its bootstrap interval.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Screen</th><th>What it switches on</th><th>Set</th><th>Gained / lost</th><th>Δ (interval)</th><th>Call</th></tr></thead>
+    <tbody id="resultsBody"></tbody>
+  </table></div>
+</section>
+
+<!-- 4. CATALOGUE -->
+<section id="catalogue">
+  <div class="eyebrow">4 · Every screen</div>
+  <h2>Screen catalogue</h2>
+  <p>Open any screen for what it does, where it sits in the flow, the expected effect on each benchmark, and the recommendation. Benchmarks: <b>LoCoMo</b> (long multi-session chat QA, incl. category 5 adversarial), <b>OP-Bench</b> (relevance, irrelevance, sycophancy), <b>PrefEval</b> (preference following), <b>MAB-CR</b> (conflict resolution / knowledge update), <b>ConvoMem</b> (conversational memory recall).</p>
+  <div class="filters" role="toolbar" aria-label="Filter screens">
+    <label>Layer</label>
+    <button class="chip" data-f="layer" data-v="all" aria-pressed="true">All</button>
+    <button class="chip" data-f="layer" data-v="R" aria-pressed="false">Retrieve</button>
+    <button class="chip" data-f="layer" data-v="C" aria-pressed="false">Compose</button>
+    <button class="chip" data-f="layer" data-v="D" aria-pressed="false">Deposit</button>
+    <button class="chip" data-f="layer" data-v="K" aria-pressed="false">Sleep</button>
+    <button class="chip" data-f="layer" data-v="T" aria-pressed="false">Trust</button>
+    <button class="chip" data-f="layer" data-v="X" aria-pressed="false">Runtime</button>
+    <button class="chip" data-f="layer" data-v="B" aria-pressed="false">Bundles</button>
+  </div>
+  <div class="filters" role="toolbar" aria-label="Filter by status">
+    <label>Status</label>
+    <button class="chip" data-f="status" data-v="all" aria-pressed="true">All</button>
+    <button class="chip" data-f="status" data-v="promote" aria-pressed="false">Promote</button>
+    <button class="chip" data-f="status" data-v="iterate" aria-pressed="false">Iterate</button>
+    <button class="chip" data-f="status" data-v="pass" aria-pressed="false">Pass</button>
+    <button class="chip" data-f="status" data-v="drop" aria-pressed="false">Dropped</button>
+    <button class="chip" data-f="status" data-v="queued" aria-pressed="false">Queued</button>
+    <button class="chip" data-f="status" data-v="deferred" aria-pressed="false">Deferred / skipped</button>
+  </div>
+  <div class="filters"><input id="q" type="search" placeholder="Search screen, setting or idea" aria-label="Search screens"><span class="count" id="count"></span></div>
+  <div class="cards" id="cards"></div>
+</section>
+
+<!-- 5. RECOMMENDATION -->
+<section id="recommend">
+  <div class="eyebrow">5 · What to choose</div>
+  <h2>Recommended selection</h2>
+  <div class="callout">
+    <h3>Candidate configuration "v2-pick-1" (hypothesis to confirm)</h3>
+    <p>Start from the reference arm (<code>scr-pool-protect-jina</code>, jina v3.5 reranker, Qwen3 0.6B embeddings) plus graph extraction during sleep (S02), and add only what has shown a gain or is designed to be safe:</p>
+    <ul class="tight">
+      <li><b>read.gate_v2</b> (S20): the only screen with an interval above zero; expected to help OP-Bench irrelevance and LoCoMo category 5.</li>
+      <li><b>read.family_fusion</b> (S14): +4/−1 on LoCoMo; confirm on the 437-question focus set (S51).</li>
+      <li><b>graph extraction in sleep</b> (S02): +5/−1; already the base of every B5 screen.</li>
+      <li><b>Session summaries</b> (S01): +3/−1; small but consistent with S02.</li>
+      <li><b>Runtime bundle</b> (run-v2, S66): only if parity holds; it changes cost and latency, not answers.</li>
+      <li><b>Trust bundle</b> (trust-v2): always on for production, judged by the safety suite, not by accuracy.</li>
+    </ul>
+    <p><b>Hypothesis:</b> LoCoMo focus accuracy from the 81.4% reference to about 83–85%; OP-Bench +4 to +8 points (mostly irrelevance); PrefEval and ConvoMem flat; MAB-CR flat until the write bundle is added.</p>
+  </div>
+  <div class="grid2">
+    <div class="panel" style="display:grid;gap:8px">
+      <h3>Hold until the bundles report</h3>
+      <p>Entity, episode and graph search legs (S30–S32) are within noise on 60 questions. Let the read-v2-graph bundle (S61) decide; only bisect if it moves.</p>
+    </div>
+    <div class="panel" style="display:grid;gap:8px">
+      <h3>Write path: test as one bundle</h3>
+      <p>The window-facts arms lost on their own (S03 −4, S04 −6). The full write-v2 bundle (S62) adds grounding, coverage and integration, which target exactly those losses. Expect it to win on MAB-CR and lose a little on LoCoMo latency and cost.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 6. PLAN -->
+<section id="plan">
+  <div class="eyebrow">6 · Plan and time</div>
+  <h2>Run order and GPU time</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Step</th><th>What</th><th>Screens</th><th>GPU time (est.)</th></tr></thead>
+    <tbody>
+      <tr><td class="num">1</td><td>Sleep and read singles still worth a look</td><td>S33 S34 S35 S38 S40 S41 S42</td><td class="num">~2 h</td></tr>
+      <tr><td class="num">2</td><td>Bundles</td><td>S60–S66</td><td class="num">~3 h</td></tr>
+      <tr><td class="num">3</td><td>Re-armed screens</td><td>S52 S53 S55 S56 S57 S54</td><td class="num">~2 h</td></tr>
+      <tr><td class="num">4</td><td>Reranker search pool</td><td>S67</td><td class="num">~0.5 h</td></tr>
+      <tr><td class="num">5</td><td>Focus set for family_fusion; noise run</td><td>S51 + ref-vs-ref</td><td class="num">~1.5 h</td></tr>
+      <tr><td class="num">6</td><td>One combined candidate on full LoCoMo and blind MAB-CR + ConvoMem (serves EX-3 and EX-4)</td><td>v2-pick-1</td><td class="num">~6–8 h</td></tr>
+      <tr><td class="num">7</td><td>Safety: N1 attack/utility, EX-5</td><td>T5-07</td><td class="num">~3–4 h</td></tr>
+      <tr><td class="num">8</td><td>Freeze, sealed blind runs, release</td><td>R6-01, R6-02</td><td class="num">~6 h</td></tr>
+    </tbody>
+  </table></div>
+  <p class="note">Steps 1–5 are already in the GPU queue in this order (about 9 hours). Ten single-setting screens are deferred and only run to explain a bundle that loses.</p>
+</section>
+
+<!-- 7. DISCUSSION -->
+<section id="discuss">
+  <div class="eyebrow">7 · For discussion</div>
+  <h2>Open questions</h2>
+  <div class="grid2">
+    <div class="panel"><h3>1 · Sample size</h3><p>GC samples of 60 cannot separate ±2 from noise. Options: raise GC samples to 120 (doubles time) or send anything within ±3 straight to the 437-question focus set.</p></div>
+    <div class="panel"><h3>2 · Bundles or singles</h3><p>Bundles answer "is v2 better" fastest. Singles answer "which setting". The current order runs bundles first and bisects only on a loss.</p></div>
+    <div class="panel"><h3>3 · Write path cost</h3><p>With every write setting on, the estimate is 0.35–0.58 model calls per turn against a 0.19 target. Is accuracy worth that, or do we cap with the budget setting?</p></div>
+    <div class="panel"><h3>4 · Grounding gap</h3><p>Grounding is 85.5% on CPU checks against a 95% target. Closing it needs one model call per window to judge non-English lines.</p></div>
+  </div>
+</section>
+
+<footer class="note">Source: <code>evals/v2_queue.tsv</code>, the sample ledger (<code>evals/v2_ledger.py</code>), <code>docs/v2/SCREENS.md</code> and <code>docs/v2/IMPROVEMENT_AUDIT_2026-10-13.md</code> on the <code>restructure</code> branch. Benchmark effects are hypotheses, not measurements.</footer>
+</div>
+
+<script>
+const BENCH=["LoCoMo","OP-Bench","PrefEval","MAB-CR","ConvoMem"];
+// [id, layer, title, setting, kind, status, result, what, flow, hyp(LoCoMo,OPB,PrefEval,MABCR,ConvoMem), rec]
+const S=[
+["S01","K","Session summaries in sleep","sleep summary arm (gc9)","GC","iterate","+3/−1 (+3.33)","During sleep, each session is summarised and the summary is stored as a derived record that search can find.","K → store → R (summary records join the vector and BM25 candidates).",["+1 to +2","0","0","0","+1"],"Keep in the candidate set; small but consistent."],
+["S02","K","Graph extraction in sleep","graph arm (gc3)","GC","iterate","+5/−1 (+6.67)","Sleep extracts entities and relations into a graph, so multi-hop questions can follow links between people, places and events.","K builds graph → R graph-aware legs and lifting.",["+2 to +4","0","0","+1","+1"],"Use as the base for all sleep screens and the candidate configuration."],
+["S03","D","Window facts","write.window_extract=facts","GC","drop","+3/−7 (−6.67)","Extracts facts from windows of turns at write time (v1 extractor).","D → facts stored → R.",["−3 to −1","0","0","+1","0"],"Dropped alone; re-tested inside the write-v2 bundle with grounding."],
+["S04","D","Graph facts variant","gc2 arm","GC","drop","+1/−7 (−10)","An older graph-plus-facts sleep variant.","K/D → store.",["−4 to −2","0","0","0","0"],"Dropped."],
+["S05","R","Pool protection (reproduction)","read.pool_protect_per_leg","J","pass","0/0","Reproduces the reference: keeps the top few candidates from each leg so fusion cannot drop them.","R legs → fusion.",["0","0","0","0","0"],"Already in the reference."],
+["S06","C","Answer contract","read.query_contract=heuristic","J","iterate","+1/−0 (+1.25)","Detects the question shape (list, when, yes/no) and shapes the evidence and answer format to match.","C (composition rules).",["+0.5 to +1","+1","0","0","0"],"Watch; cheap."],
+["S09","R","Same-commit reference","none","J","pass","—","Rebuilds the reference on the current code so later screens compare like with like.","—",["0","0","0","0","0"],"Infrastructure."],
+["S10","R","Memory tiers in search","read.tiers_v2","J","deferred","0/0 (inert on J)","Searches hot / warm / cold tiers differently so recent and important memory comes first.","R (before legs).",["0 to +1","0","+0.5","0","+0.5"],"Deferred; covered by the read-v2-core bundle."],
+["S11","C","Contract rules v2","read.contract_rules","J","iterate","+1/−1 (0)","Stricter answer-contract rules on top of S06.","C.",["0","+0.5","0","0","0"],"Covered by read-v2-core."],
+["S12","R","Router rules","read.router_rules","J","deferred","0/0 (inert on J)","Picks which legs run per question type (e.g. skip the graph for single-fact questions).","R router.",["0 to +1","0","0","0","0"],"Deferred; covered by read-v2-core."],
+["S13","R","Entity leg (J)","read.entity_leg_v2","J","deferred","0/0 (inert on J)","Boosts records about the entities named in the question.","R leg.",["see S32","","","",""],"Replaced by S32 on a sleep run."],
+["S14","R","Family fusion","read.family_fusion","J","iterate","+4/−1 (+3.75)","Fuses legs by family (dense, lexical, structured, derived) so one family cannot crowd out the others.","R fusion.",["+1 to +3","+1","0","0","+1"],"Strong candidate; confirm on the 437-question focus set (S51)."],
+["S15","R","Lift before rerank","read.lift_before_rerank","J","iterate","0/0","Maps derived hits back to their source turns before reranking, so the reranker scores the original words.","R lift → rerank.",["0 to +1","0","0","0","0"],"Covered by read-v2-core."],
+["S16","R","Reranker v2","read.rerank_v2","J","iterate","0/0; INV-FILLER was a test artefact","New reranker stage with the jina v3.5 → Qwen3 → MiniLM fallback chain.","R rerank.",["0 to +1","+1","0","0","+0.5"],"Re-test with the wider search pool (S67)."],
+["S17","C","Exact token budget","read.exact_budget","J","deferred","0/0 (budget never bound)","Counts tokens exactly when packing evidence, so nothing is cut or wasted.","C budget.",["see S53","","","",""],"Replaced by S53 with a tight budget."],
+["S18","C","Evidence bundles","read.evidence_bundles","J","skipped","not run","Keeps a fact together with the turns it was extracted from.","C.",["see S54","","","",""],"Replaced by S54."],
+["S19","C","Neighbour turns v2","read.neighbours_v2","J","iterate","0/0","Adds the turns just before and after each hit so the model sees the conversation around it.","C.",["0 to +1","0","0","0","+0.5"],"Covered by read-v2-safe."],
+["S20","R","Gate v2","read.gate_v2","J","promote","OP-Bench +4/−0 (+4.45, +0.14…+9.78)","A relevance gate after reranking: drops evidence that does not answer the question, so the model can say it does not know.","R gate (end of read).",["+0.5 to +2 (cat 5)","+4 to +8","0","0","0"],"Promote. Include in the candidate configuration."],
+["S21","R","Deep read","read.deep_v2","J","skipped","not run (no sufficiency role)","When evidence looks insufficient, runs one more targeted search.","R ladder (second pass).",["see S55","","","",""],"Replaced by S55."],
+["S22","R","Obligations","read.obligations","J","skipped","not run","Lists what a complete answer must cover and searches for any missing part.","R ladder.",["see S56","","","",""],"Replaced by S56."],
+["S23","R","External knowledge","read.external_v2","J","skipped","not run (no network egress)","Looks up general knowledge outside memory.","R extra leg.",["0","+1","0","0","0"],"Skipped: needs internet access."],
+["S24","R","Time view (as-of)","read.timeview_v2","J","skipped","not run (no as-of questions)","Answers \"what was true on date X\" using the three time axes.","R filter.",["0 (no as-of questions)","0","0","+2","0"],"Skipped until an as-of question set exists."],
+["S25","X","Read cache","read.cache.enabled","J","pass","0/0 (parity holds)","Caches read results; keyed by scope, consent and erasure state.","R (in front).",["0","0","0","0","0"],"Pass; safe to enable for latency."],
+["S26","X","Parallel legs","read.parallel_legs","J","pass","0/0 (parity holds)","Runs search legs concurrently.","R legs.",["0","0","0","0","0"],"Pass; safe to enable for latency."],
+["S27","T","Trust rendering","read.trust_rendering","J","skipped","not run on LoCoMo","Shows the model how much to trust each piece of evidence.","C.",["see S57","","","",""],"Replaced by S57."],
+["S28","D","Graph key v2","graph.key_v2","GC","iterate","+4/−4 (0)","New graph node key (tenant + owner + normalised name).","K graph.",["0","0","0","0","0"],"Noise; keep for isolation, not accuracy."],
+["S29","X","Restructure parity","none (public API adapter)","J","pass","0/0 (parity holds)","Confirms the restructured engine gives the old engine's answers.","—",["0","0","0","0","0"],"Pass."],
+["S30","R","Graph search leg","read.graph_leg_v2 + edge compiler","GC","iterate","+6/−5 (+1.67)","Follows one link from the question's entities and keeps what two or more of them reach.","R leg over compiled edges.",["+0.5 to +2 (multi-hop)","0","0","+0.5","+0.5"],"Within noise; decided by the read-v2-graph bundle."],
+["S31","R","Episode search leg","read.episode_leg_v2","GC","iterate","+5/−6 (−1.67)","Searches session summaries / episodes and lifts hits to their turns.","R leg (L2).",["0 to +1","0","0","0","+1"],"Within noise; bundle decides."],
+["S32","R","Entity search leg","read.entity_leg_v2","GC","iterate","+4/−6 (−3.33)","Entity leg on a run where the graph exists.","R leg.",["0 to +1","0","0","0","0"],"Within noise; bundle decides."],
+["S33","K","Session close","offline.session_close_v2","GC","queued","running","At session end, one model call writes a summary and episodes with citations.","K → store (L2).",["+0.5 to +1.5","0","+0.5","0","+1"],"Run (in queue)."],
+["S34","K","Standing answers","offline.standing_v2 + read.standing_v2","GC","queued","queued","Keeps a current answer for frequently asked state questions (\"where does Ilse live now\").","K builds, C injects.",["+0.5 to +1","0","+1","+1 to +2","0"],"Run."],
+["S35","K","Patterns","offline.patterns_v2","GC","queued","queued","Finds recurring behaviour across sessions (\"usually runs on Sundays\").","K → store (L4).",["0 to +1","0","+1 to +2","0","0"],"Run."],
+["S36","R","Tiers (sleep run)","read.tiers_v2","GC","deferred","deferred","Re-test of S10 with derived layers present.","R.",["0 to +1","0","0","0","0"],"Deferred to bundle."],
+["S37","R","Router (sleep run)","read.router_rules","GC","deferred","deferred","Re-test of S12 with derived layers present.","R.",["0 to +1","0","0","0","0"],"Deferred to bundle."],
+["S38","R","v2 legs alone","read.legs_v2","GC","queued","queued","The v2 leg registry on its own; old temporal rules now ported, so mostly lexical score scale changes.","R legs.",["0 ± 1","0","0","0","0"],"Run: checks the new path is safe."],
+["S39","K","Edge compiler alone","graph.edge_compiler_v2","GC","deferred","deferred","Compiles typed graph edges from facts without the reading leg.","K.",["0","0","0","0","0"],"Deferred: covered by S30."],
+["S40","K","Communities","offline.communities_v2","GC","queued","queued","Clusters entities and writes one summary per community for broad questions.","K → store.",["0 to +1","0","0","0","+0.5"],"Run."],
+["S41","K","Reconcile","offline.reconcile_v2","GC","queued","queued","Sweeps contradictions and decides which value stands.","K.",["0","0","0","+1 to +3","0"],"Run; main value on MAB-CR."],
+["S42","K","Value histories","offline.histories_v2","GC","queued","queued","Merges near-duplicates and keeps the history of a changing value.","K.",["0 to +0.5","0","0","+1 to +2","0"],"Run."],
+["S43","D","Window-facts reference","reference only","GC","deferred","deferred","Reference for the single write screens.","—",["—","","","",""],"Deferred with the write singles."],
+["S44","D","Envelope v2","write.envelope_v2","GC","deferred","deferred","Validates each extracted fact, repairs once, sets bad items aside.","D extraction.",["+0.5 to +1.5","0","0","+0.5","0"],"Covered by write-v2."],
+["S45","D","Segmentation","write.segmentation_v2","GC","deferred","deferred","Cuts windows at time gaps and batches small windows into one call.","D windows.",["0 ± 0.5 (cost −80%)","0","0","0","0"],"Covered by write-v2."],
+["S46","K","Profile card","offline.profile_card_v2","GC","skipped","skipped (no reader)","Keeps a short user profile card.","K.",["0 (not read yet)","0","+1 when read","0","0"],"Skipped until a reader exists."],
+["S47","K","Decay v2","offline.decay_v2","GC","deferred","deferred","Moves idle memory to colder tiers; ranking unchanged by design.","K.",["0","0","0","0","0"],"Deferred."],
+["S48","D","Stamping","write.stamping_v2","GC","deferred","deferred","Three clocks, time zone, speaker / addressee / participants, provenance on each record.","D intake.",["+0 to +1 (temporal)","0","0","0","0"],"Covered by write-v2."],
+["S49","D","Role policy","write.role_policy_v2","GC","deferred","deferred","Keeps every role raw but stops system and echoed turns becoming facts.","D.",["0 to +1","+0.5","0","0","0"],"Covered by write-v2."],
+["S50","D","Intake v2","write.intake_v2","GC","deferred","deferred","Idempotent writes and honest receipts.","D intake.",["0","0","0","0","0"],"Covered by write-v2."],
+["S51","R","Family fusion focus","read.family_fusion (437 q)","J","queued","queued","S14 on the full 437-question focus set.","R fusion.",["+1 to +3","—","—","—","—"],"Run after the bundles."],
+["S52","C","Tight-budget reference","reply_reserve 3072","J","queued","queued","Reference with a budget that binds.","—",["—","","","",""],"Run."],
+["S53","C","Exact budget (bound)","read.exact_budget","J","queued","queued","S17 again where the budget really binds.","C.",["0 to +1","0","0","0","0"],"Run."],
+["S54","C","Evidence bundles","read.evidence_bundles","GC","queued","queued","S18 on mined facts that cite their turns.","C.",["0 to +1","0","0","0","0"],"Run."],
+["S55","R","Deep read (bound)","read.deep_v2 + sufficiency role","J","queued","queued","S21 with the sufficiency model bound; at most one extra search.","R ladder.",["+0.5 to +2","+1","0","0","0"],"Run; reports extra calls per read."],
+["S56","R","Obligations (bound)","read.obligations","J","queued","queued","S22 on top of S55.","R ladder.",["0 to +1 (list questions)","0","0","0","0"],"Run."],
+["S57","T","Trust rendering (OP-Bench)","read.trust_rendering","J","queued","queued","S27 on OP-Bench only.","C.",["—","0 to +2","0","0","0"],"Run (report only)."],
+["S60","B","Bundle: read-v2-core","profile read-v2-core","GC","queued","queued","Every core read setting together.","R + C.",["+1 to +3","+1 to +3","0","0","+1"],"Run first among bundles."],
+["S61","B","Bundle: read-v2-graph","profile read-v2-graph","GC","queued","queued","Core plus entity, graph and episode legs and session close.","R legs + K.",["+1 to +4 (multi-hop)","0","0","+1","+1"],"Run; decides S30–S32."],
+["S62","B","Bundle: write-v2","profile write-v2","GC","queued","queued","The whole new write path: intake, stamping, roles, one call per window, temporal, grounding, coverage, resolver, integration.","D.",["−1 to +2","0","0","+2 to +5","0"],"Run; watch cost per turn."],
+["S63","B","Bundle: read-v2-safe","profile read-v2-safe","GC","queued","queued","Gate, deep read, obligations, trust rendering, time view, neighbours.","R + C.",["+1 to +2","+3 to +6","0","0","0"],"Run."],
+["S64","B","Bundle: offline-v2","profile offline-v2","GC","queued","queued","All new sleep jobs.","K.",["0 to +2","0","+1 to +2","+1 to +3","+1"],"Run."],
+["S65","B","Bundle: trust-v2","profile trust-v2","GC","queued","queued","Scope, viewer, consent, erasure, audit, firewall.","T.",["0 (may refuse reads)","0","0","0","0"],"Report; the real test is the safety suite."],
+["S66","B","Bundle: run-v2","profile run-v2","GC","queued","queued","Outbox, scheduler, cost ledger, caches, parallel legs.","X.",["0 (parity)","0","0","0","0"],"Parity; enable if it holds."],
+["S67","R","Reranker with wider pool","read.rerank_v2_search_pool=30","J","queued","queued","Reranks 30 candidates instead of 5, then cuts back.","R rerank.",["+0.5 to +2","+1","0","0","+0.5"],"Run."]
+];
+const STATUS={promote:"Promote",pass:"Pass",iterate:"Iterate",drop:"Dropped",queued:"Queued",deferred:"Deferred",skipped:"Skipped"};
+const LAYER={R:"Retrieve",C:"Compose",D:"Deposit",K:"Sleep",T:"Trust",X:"Runtime",B:"Bundle"};
+function cls(v){if(!v||v==="—")return"flat";if(/^\+|^0 to \+/.test(v))return"up";if(/^−|^-/.test(v))return"dn";return"flat"}
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
+// results table: measured rows only
+const measured=S.filter(r=>["promote","pass","iterate","drop"].includes(r[5])&&!/inert|not run|—/.test(r[6]));
+document.getElementById("resultsBody").innerHTML=measured.map(r=>{
+  const m=r[6].match(/([+−-]?\d+\/[−-]\d+|\+\d+\/−\d+)/);const gl=r[6];
+  return `<tr><td class="mono">${r[0]}</td><td>${esc(r[2])}<br><span class="note mono">${esc(r[3])}</span></td><td>${r[4]==="GC"?"LoCoMo 60":"LoCoMo 80"}${/OP-Bench/.test(r[6])?" · OP-Bench 60":""}</td><td class="num">${esc(gl.split(" (")[0])}</td><td class="num">${esc((gl.match(/\(([^)]*)\)/)||["",""])[1])}</td><td><span class="pill s-${r[5]}">${STATUS[r[5]]}</span></td></tr>`}).join("");
+// catalogue
+const state={layer:"all",status:"all",q:""};
+function render(){
+  const q=state.q.toLowerCase();
+  const rows=S.filter(r=>(state.layer==="all"||r[1]===state.layer)&&(state.status==="all"||(state.status==="deferred"?["deferred","skipped"].includes(r[5]):r[5]===state.status))&&(!q||r.join(" ").toLowerCase().includes(q)));
+  document.getElementById("count").textContent=`${rows.length} of ${S.length} screens`;
+  document.getElementById("cards").innerHTML=rows.map(r=>`
+  <details class="scr" id="${r[0]}">
+    <summary><span class="sid">${r[0]}</span><span class="lay b${r[1]}">${LAYER[r[1]]}</span><span class="sname"><b>${esc(r[2])}</b><span class="mono">${esc(r[3])} · ${r[4]==="GC"?"with sleep":"reader only"}</span></span><span class="pill s-${r[5]}">${STATUS[r[5]]}</span></summary>
+    <div class="body">
+      <dl class="kv">
+        <dt>What it does</dt><dd>${esc(r[7])}</dd>
+        <dt>Where in the flow</dt><dd>${esc(r[8])}</dd>
+        <dt>Measured</dt><dd>${esc(r[6])}</dd>
+        <dt>Recommendation</dt><dd>${esc(r[10])}</dd>
+      </dl>
+      <div>
+        <div class="note" style="margin-bottom:6px">Hypothesised effect in accuracy points (not measured)</div>
+        <div class="hyp">${BENCH.map((b,i)=>`<div class="hcell"><span class="bn">${b}</span><span class="hv ${cls(r[9][i])}">${esc(r[9][i]||"0")}</span></div>`).join("")}</div>
+      </div>
+    </div>
+  </details>`).join("");
+}
+document.querySelectorAll(".chip").forEach(b=>b.addEventListener("click",()=>{
+  const f=b.dataset.f;state[f]=b.dataset.v;
+  document.querySelectorAll(`.chip[data-f="${f}"]`).forEach(x=>x.setAttribute("aria-pressed",String(x===b)));render();}));
+document.getElementById("q").addEventListener("input",e=>{state.q=e.target.value;render()});
+render();
+if(location.hash){const el=document.getElementById(location.hash.slice(1));if(el&&el.tagName==="DETAILS"){el.open=true;el.scrollIntoView()}}
+</script>
