@@ -15,8 +15,8 @@ clock fields (``recorded_at`` and the like) are never snapshotted.
 from __future__ import annotations
 
 import hashlib
-import json
 import importlib
+import json
 from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime
@@ -43,7 +43,14 @@ _CLOCK_MODULES = (
     "memspine.memory.pipeline.procedural",
     "memspine.memory.pipeline.prospective",
     "memspine.memory.pipeline.working",
-    "memspine.workers.pipelines",
+    "memspine.derive.pipeline.integrate",
+    "memspine.derive.pipeline.stages.communities",
+    "memspine.derive.pipeline.stages.consolidate",
+    "memspine.derive.pipeline.stages.entity_summaries",
+    "memspine.derive.pipeline.stages.maintenance",
+    "memspine.derive.pipeline.stages.mining",
+    "memspine.derive.pipeline.stages.retention",
+    "memspine.derive.pipeline.stages.watches",
 )
 
 

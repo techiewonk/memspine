@@ -11,11 +11,13 @@ from datetime import UTC, datetime, timedelta
 from memspine.clients.sqlite import SQLiteClient
 from memspine.config import constants
 from memspine.config.loader import load_config
+from memspine.derive.pipeline.stages.consolidate import consolidate
+from memspine.derive.pipeline.stages.context import PipelineContext
+from memspine.derive.pipeline.stages.index import SessionIndex
 from memspine.services.storage.projector import RecordProjector
 from memspine.services.storage.sqlite.engine import SQLiteStorage
 from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import MemoryRecord, RecordStatus
-from memspine.workers.pipelines import PipelineContext, SessionIndex, consolidate
 
 NS = "agent/a"
 

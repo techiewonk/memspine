@@ -10,9 +10,9 @@ from typing import Any
 from memspine import Engine
 from memspine.config.schema import ReadConfig
 from memspine.core.latest_wins import apply_latest_wins, mark_latest
+from memspine.derive.pipeline.stages.extract_graph import extract_graph
 from memspine.prompts.models import ExtractedEdge
 from memspine.store.records import MemoryRecord, SourceInfo
-from memspine.workers.pipelines import extract_graph
 
 T0 = datetime(2023, 1, 1, tzinfo=UTC)
 

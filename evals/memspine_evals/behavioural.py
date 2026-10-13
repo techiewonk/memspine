@@ -60,7 +60,14 @@ _CLOCK_MODULES = (
     "memspine.memory.pipeline.procedural",
     "memspine.memory.pipeline.prospective",
     "memspine.memory.pipeline.working",
-    "memspine.workers.pipelines",
+    "memspine.derive.pipeline.integrate",
+    "memspine.derive.pipeline.stages.communities",
+    "memspine.derive.pipeline.stages.consolidate",
+    "memspine.derive.pipeline.stages.entity_summaries",
+    "memspine.derive.pipeline.stages.maintenance",
+    "memspine.derive.pipeline.stages.mining",
+    "memspine.derive.pipeline.stages.retention",
+    "memspine.derive.pipeline.stages.watches",
 )
 _BACK = {v: k for k, v in RENAME_MAP.items()}
 

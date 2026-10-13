@@ -11,11 +11,12 @@ from datetime import UTC, datetime, timedelta
 
 from test_extract_graph import Harness, _make, _seed
 
+from memspine.derive.pipeline.stages.context import PipelineContext
+from memspine.derive.pipeline.stages.extract_graph import extract_graph
 from memspine.memories.semantic.write_pipeline import EdgeContext
 from memspine.prompts.models import ExtractedEdge
 from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import MemoryRecord
-from memspine.workers.pipelines import PipelineContext, extract_graph
 
 T0 = datetime(2023, 5, 1, 9, 0, tzinfo=UTC)
 TURNS = [

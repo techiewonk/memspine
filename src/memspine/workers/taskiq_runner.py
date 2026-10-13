@@ -5,7 +5,7 @@ D-42 §3 (the MemOS ``SchedulerRedisQueue`` pattern, adopted):
 - **per-scope stream keys** — one stream per ``(namespace-scope, task_label)``,
   built by :func:`stream_key`, so one tenant's backlog never starves another's;
 - **priority labels** mirroring the pipeline set (:data:`PIPELINE_PRIORITIES`
-  covers exactly ``workers.pipelines.PIPELINES``: check_watches / consolidate / mine_facts /
+  covers exactly ``stages.table.PIPELINES``: check_watches / consolidate / mine_facts /
   reorganize / decay_sweep / compress / sleep_compute / event_log_prune);
 - **consumer-group delivery + XAUTOCLAIM claim-recovery** — every run appends
   a durable work marker (XADD), claims it into the consumer group (XREADGROUP)
@@ -37,9 +37,9 @@ import re
 from typing import Any
 
 from memspine.config import constants
+from memspine.derive.pipeline.stages.context import Pipeline, PipelineContext
 from memspine.exceptions import MemspineError, MissingServiceError
 from memspine.observability.logging import get_logger
-from memspine.workers.pipelines import Pipeline, PipelineContext
 
 __all__ = [
     "CONSUMER_GROUP",

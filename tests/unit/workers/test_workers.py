@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
+import importlib
 from datetime import UTC, datetime
 
 from memspine.clients.sqlite import SQLiteClient
 from memspine.config.loader import load_config
+from memspine.derive.pipeline.stages.context import PipelineContext
+from memspine.derive.pipeline.stages.table import PIPELINES
 from memspine.services.storage.sqlite.engine import SQLiteStorage
 from memspine.store.events import EventKind, EventLogMode, MemoryEvent
 from memspine.workers.inline import InlineRunner
-from memspine.workers.pipelines import PIPELINES, PipelineContext
 from memspine.workers.schedule import SLEEP_CYCLE_ORDER, run_sleep_cycle
 
 
@@ -34,14 +36,16 @@ def make_runner() -> InlineRunner:
 
 
 async def test_pipelines_contain_no_runner_imports() -> None:
-    """D-17 anti-lock-in: pipelines.py must not import any runner module."""
+    """D-17 anti-lock-in: the derive stages must not import any runner module."""
     import inspect
+    import pkgutil
 
-    import memspine.workers.pipelines as pipelines
+    import memspine.derive.pipeline.stages as stages
 
-    source = inspect.getsource(pipelines)
-    for forbidden in ("inline", "dbos", "taskiq", "runner"):
-        assert f"workers.{forbidden}" not in source
+    for info in pkgutil.iter_modules(stages.__path__, f"{stages.__name__}."):
+        source = inspect.getsource(importlib.import_module(info.name))
+        for forbidden in ("inline", "dbos", "taskiq", "runner"):
+            assert f"workers.{forbidden}" not in source, info.name
 
 
 async def test_sleep_cycle_runs_all_steps_idempotently() -> None:

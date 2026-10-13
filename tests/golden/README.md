@@ -56,7 +56,8 @@ registered in `tests/golden/conftest.py`, not in `pyproject.toml`.
 
 The harness freezes time by replacing the `datetime` name inside the modules listed in `_CLOCK_MODULES`
 (`tests/golden/harness.py`): today `memspine.core.policies.scoring`, `memspine.core.policies.decay`,
-`memspine.engine` and `memspine.workers.pipelines`. `importlib.import_module` fails loudly when a listed
+`memspine.engine`, `memspine.derive.pipeline.integrate` and the `memspine.derive.pipeline.stages` modules that call
+`datetime.now()` (communities, consolidate, entity_summaries, maintenance, mining, retention, watches). `importlib.import_module` fails loudly when a listed
 module no longer exists, but a moved module that still calls `datetime.now()` and is missing from the list
 would silently run on the wall clock and make the golden flaky. A move PR must therefore, in the same
 commit, rename the entries to the new module paths and add every new module that calls `datetime.now()`

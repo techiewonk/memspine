@@ -41,7 +41,7 @@ from memspine.store.events import EventKind, MemoryEvent, fingerprint_payload
 from memspine.store.records import MemoryRecord, RecordStatus, chrono_key
 
 if TYPE_CHECKING:
-    from memspine.workers.pipelines import PipelineContext
+    from memspine.derive.pipeline.stages.context import PipelineContext
 
 __all__ = [
     "LIST_CARD_KEY_PREFIX",

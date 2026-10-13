@@ -23,12 +23,13 @@ import pytest
 
 from memspine.clients.sqlite import SQLiteClient
 from memspine.config.loader import load_config
+from memspine.derive.pipeline.stages.context import PipelineContext
+from memspine.derive.pipeline.stages.table import PIPELINES
 from memspine.services.storage.projector import RecordProjector
 from memspine.services.storage.sqlite.engine import SQLiteStorage
 from memspine.store.events import EventKind, EventLogMode, MemoryEvent
 from memspine.store.records import MemoryRecord, RecordStatus
 from memspine.workers.inline import InlineRunner
-from memspine.workers.pipelines import PIPELINES, PipelineContext
 from memspine.workers.runner import TaskRunner
 from memspine.workers.schedule import SLEEP_CYCLE_ORDER, run_sleep_cycle
 

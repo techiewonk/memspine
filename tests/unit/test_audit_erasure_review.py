@@ -10,10 +10,10 @@ from typing import Any
 import orjson
 
 from memspine import Engine
+from memspine.derive.pipeline.stages.index import COMMUNITY_PARTITION_MARKER
 from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import SourceInfo
 from memspine.trust.erasure import PARTITION_MARKER, scrub_partition_nodes
-from memspine.workers.pipelines import COMMUNITY_PARTITION_MARKER
 
 
 def _engine(**extra: Any) -> Engine:

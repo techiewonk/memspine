@@ -14,6 +14,8 @@ from datetime import UTC, datetime
 import pytest
 
 from memspine.clients.sqlite import SQLiteClient
+from memspine.derive.pipeline.stages.context import PipelineContext
+from memspine.derive.pipeline.stages.extract_graph import extract_graph
 from memspine.memories.associative.projector import GraphProjector
 from memspine.prompts.models import ExtractedEdge
 from memspine.services.graph.sqlite_adjacency import SQLiteAdjacencyGraph
@@ -21,7 +23,6 @@ from memspine.services.storage.projector import RecordProjector
 from memspine.services.storage.sqlite.engine import SQLiteStorage
 from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import MemoryRecord
-from memspine.workers.pipelines import PipelineContext, extract_graph
 
 NOW = datetime.now(UTC)
 
@@ -254,7 +255,7 @@ async def test_second_sweep_without_new_records_makes_no_llm_calls() -> None:
     assert second["skipped_sources"] == 2
 
     # A fresh context (new sleep cycle) reads the watermark back from the log.
-    from memspine.workers.pipelines import SessionIndex
+    from memspine.derive.pipeline.stages.index import SessionIndex
 
     ctx.session_index = SessionIndex()
     await extract_graph(ctx)
@@ -357,8 +358,8 @@ async def test_watermark_marker_is_erasable_and_forget_drops_it() -> None:
     dicts, the shape the M7 walker scrubs, and a FORGET drops the watermark."""
     import copy
 
+    from memspine.derive.pipeline.stages.index import GRAPH_EXTRACTED_MARKER, SessionIndex
     from memspine.trust.erasure import redact_record, retained_fields
-    from memspine.workers.pipelines import GRAPH_EXTRACTED_MARKER, SessionIndex
 
     ctx, harness, _graph = await _make([])
     source = await _seed(harness, "Alice works at Acme.")
@@ -392,7 +393,7 @@ async def test_watermark_marker_is_erasable_and_forget_drops_it() -> None:
 
 
 async def test_legacy_dict_marker_is_still_read() -> None:
-    from memspine.workers.pipelines import GRAPH_EXTRACTED_MARKER, SessionIndex
+    from memspine.derive.pipeline.stages.index import GRAPH_EXTRACTED_MARKER, SessionIndex
 
     index = SessionIndex()
     index.observe(

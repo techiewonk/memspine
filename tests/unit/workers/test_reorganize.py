@@ -17,6 +17,10 @@ import pytest
 from memspine.clients.sqlite import SQLiteClient
 from memspine.config import constants
 from memspine.config.loader import load_config
+from memspine.derive.pipeline.stages import communities as pipelines
+from memspine.derive.pipeline.stages.communities import reorganize
+from memspine.derive.pipeline.stages.context import PipelineContext
+from memspine.derive.pipeline.stages.index import SessionIndex
 from memspine.memories.associative.communities import PartitionResult, communities_available
 from memspine.memories.associative.projector import GraphProjector
 from memspine.services.graph.sqlite_adjacency import SQLiteAdjacencyGraph
@@ -24,8 +28,6 @@ from memspine.services.storage.projector import RecordProjector
 from memspine.services.storage.sqlite.engine import SQLiteStorage
 from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import MemoryRecord, RecordStatus
-from memspine.workers import pipelines
-from memspine.workers.pipelines import PipelineContext, reorganize
 
 NOW = datetime.now(UTC)
 
@@ -425,7 +427,7 @@ async def test_incremental_mode_places_then_refreshes_and_rebuilds_from_the_log(
 
     state = ctx.session_index.communities["agent/a"]
     await ctx.session_index.refresh(ctx.storage)
-    rebuilt = pipelines.SessionIndex()
+    rebuilt = SessionIndex()
     await rebuilt.refresh(ctx.storage)
     assert rebuilt.communities["agent/a"] == ctx.session_index.communities["agent/a"]
     assert state.anchors[newcomer.record_id] == state.anchors[a[0].record_id]

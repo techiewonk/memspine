@@ -1,7 +1,7 @@
 """W5 (plan v3.2, G01): a rule-based fact miner for personal facts. No model.
 
 ``consolidation.miner: rules`` plugs :func:`mine_rules` in where the LLM miner sits
-(:func:`memspine.workers.pipelines.mine_facts`), so the whole mining path stays the
+(:func:`memspine.derive.pipeline.stages.mining.mine_facts`), so the whole mining path stays the
 same: deposit through the write door, the conflict ladder (a newer home supersedes
 the old one), list cards and the cards header. It reads first-person statements of
 the speaker of each transcript line ("Caroline: I moved to Sweden ...").

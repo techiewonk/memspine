@@ -14,14 +14,10 @@ from test_graph_leg_off_golden import T0, seed
 
 from memspine import Engine
 from memspine.config import constants
+from memspine.derive.pipeline.stages.entity_summaries import entity_summary_name, summarize_entities
+from memspine.derive.pipeline.stages.index import ENTITY_SUMMARIZED_MARKER, SessionIndex
+from memspine.derive.pipeline.stages.table import PIPELINES
 from memspine.store.records import MemoryRecord, RecordStatus
-from memspine.workers.pipelines import (
-    ENTITY_SUMMARIZED_MARKER,
-    PIPELINES,
-    SessionIndex,
-    entity_summary_name,
-    summarize_entities,
-)
 from memspine.workers.schedule import SLEEP_CYCLE_ORDER
 
 
@@ -309,8 +305,8 @@ async def test_about_block_off_by_default() -> None:
 
 
 async def test_summaries_are_not_extract_graph_sources() -> None:
+    from memspine.derive.pipeline.stages.extract_graph import extract_graph
     from memspine.prompts.models import ExtractedEdge
-    from memspine.workers.pipelines import extract_graph
 
     eng = _engine()
     await eng.start()

@@ -41,6 +41,8 @@ from memspine.core.window import (
     WindowTurn,
     estimate_tokens,
 )
+from memspine.derive.pipeline.stages.context import SessionClosed, WindowEdgeBatch
+from memspine.derive.pipeline.stages.mining import _fact_date
 from memspine.models.providers.llm.base import LLMService
 from memspine.models.providers.llm.structured import structured_call
 from memspine.observability.logging import get_logger
@@ -54,11 +56,6 @@ from memspine.prompts.models import (
 )
 from memspine.store.events import fingerprint_payload
 from memspine.store.records import MemoryRecord, RecordStatus
-from memspine.workers.pipelines import (
-    SessionClosed,
-    WindowEdgeBatch,
-    _fact_date,
-)
 
 __all__ = [
     "SECTION_MODES",
@@ -128,7 +125,7 @@ class PromptWindowExtractor:
 
 
 #: ``(namespace, text, entity, attribute, parents, valid_from, session_key, **views)``: the
-#: engine's mined-fact door (:class:`~memspine.workers.pipelines.DepositFact`).
+#: engine's mined-fact door (:class:`~memspine.derive.pipeline.stages.context.DepositFact`).
 DepositFactFn = Callable[..., Awaitable[object]]
 #: ``(namespace, text, parents, valid_from, window_id, require_live)``: the episode door.
 DepositEpisodeFn = Callable[..., Awaitable[object]]

@@ -8,8 +8,8 @@ than raised, so one failing background pipeline never kills the engine.
 
 from __future__ import annotations
 
+from memspine.derive.pipeline.stages.context import Pipeline, PipelineContext
 from memspine.observability.logging import get_logger
-from memspine.workers.pipelines import Pipeline, PipelineContext
 
 __all__ = ["InlineRunner"]
 

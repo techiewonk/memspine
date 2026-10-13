@@ -413,7 +413,7 @@ async def test_fact_resolves_against_the_turn_holding_its_phrase(
 
 
 async def test_fill_dates_ceiling_is_the_sessions_last_turn() -> None:
-    from memspine.workers.pipelines import _fill_dates, _Happened
+    from memspine.derive.pipeline.stages.mining import _fill_dates, _Happened
 
     async def dater(transcript: str, facts: list[str]) -> dict[int, str]:
         return {1: "2023-05-01", 2: "2025-01-01"}  # the second is far past the session
