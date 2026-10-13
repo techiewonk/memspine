@@ -1,0 +1,1898 @@
+{
+ "schema": "r14_reader_judge/v1",
+ "package": "DEEP-READ",
+ "run": "clean-jina-full",
+ "tag": "R14",
+ "licence_note": "ids, counts and paraphrases only; no dataset text",
+ "tables": {
+  "funnel": {
+   "questions": 1540,
+   "correct": 1253,
+   "wrong": 287,
+   "acc": 0.8136,
+   "all_gold_in_context": 1323,
+   "acc_all_gold_in_context": 0.8723,
+   "wrong_with_all_gold_in_context": 169,
+   "of_which_reader_stage_d_label": 140,
+   "of_which_gold_error_label_f": 23,
+   "of_which_judge_label_e": 6,
+   "wrong_without_all_gold": 118,
+   "method": "measured: all_gold_in_ctx = every evidence id that exists in the conversation is among the context turn ids; labels from evals/analysis/locomo_problem_labels_clean_jina_full.txt"
+  },
+  "by_category": {
+   "cat1": {
+    "n": 282,
+    "acc": 0.667,
+    "acc_gold_in_ctx": 0.755,
+    "n_gold_in_ctx": 159
+   },
+   "cat2": {
+    "n": 321,
+    "acc": 0.832,
+    "acc_gold_in_ctx": 0.866,
+    "n_gold_in_ctx": 298
+   },
+   "cat3": {
+    "n": 96,
+    "acc": 0.427,
+    "acc_gold_in_ctx": 0.469,
+    "n_gold_in_ctx": 49
+   },
+   "cat4": {
+    "n": 841,
+    "acc": 0.9,
+    "acc_gold_in_ctx": 0.922,
+    "n_gold_in_ctx": 817
+   }
+  },
+  "position_single_evidence_in_ctx": {
+   "context_order": "chronological in 1540 of 1540 contexts (position = position in time, not rank)",
+   "by_quintile_of_gold_position": {
+    "(-0.01, 0.2]": {
+     "n": 207,
+     "acc": 0.903
+    },
+    "(0.2, 0.4]": {
+     "n": 208,
+     "acc": 0.904
+    },
+    "(0.4, 0.6]": {
+     "n": 200,
+     "acc": 0.915
+    },
+    "(0.6, 0.8]": {
+     "n": 208,
+     "acc": 0.909
+    },
+    "(0.8, 1.0]": {
+     "n": 168,
+     "acc": 0.899
+    }
+   },
+   "early_third_vs_late_third": {
+    "early": {
+     "n": 340,
+     "acc": 0.897
+    },
+    "late": {
+     "n": 305,
+     "acc": 0.902
+    },
+    "fisher_p": 0.896
+   },
+   "logit_single_ev_cat_nctx_pos_rank": {
+    "n": 991,
+    "coef_per_sd": {
+     "n_ctx": -0.186,
+     "gold_pos_first": -0.048,
+     "gold_best_final_rank": -0.266,
+     "cat_cat2": 0.393,
+     "cat_cat3": -0.325,
+     "cat_cat4": 0.469
+    },
+    "z": {
+     "n_ctx": -1.6,
+     "gold_pos_first": -0.4,
+     "gold_best_final_rank": -2.6,
+     "cat_cat2": 0.2,
+     "cat_cat3": -0.5,
+     "cat_cat4": 0.3
+    }
+   },
+   "method": "measured; logistic regression of correct on standardised covariates, bootstrap SE (200 resamples)"
+  },
+  "context_length": {
+   "by_n_context_turns": {
+    "(0, 40]": {
+     "n": 139,
+     "acc": 0.914
+    },
+    "(40, 50]": {
+     "n": 437,
+     "acc": 0.876
+    },
+    "(50, 60]": {
+     "n": 478,
+     "acc": 0.877
+    },
+    "(60, 200]": {
+     "n": 269,
+     "acc": 0.836
+    }
+   },
+   "single_ev_by_tertile_n_ctx": {
+    "(22.999, 48.0]": {
+     "n": 368,
+     "acc": 0.929
+    },
+    "(48.0, 56.0]": {
+     "n": 331,
+     "acc": 0.894
+    },
+    "(56.0, 89.0]": {
+     "n": 292,
+     "acc": 0.89
+    }
+   },
+   "single_ev_by_tertile_ctx_tokens": {
+    "(685.999, 1774.0]": {
+     "n": 331,
+     "acc": 0.927
+    },
+    "(1774.0, 2210.0]": {
+     "n": 330,
+     "acc": 0.9
+    },
+    "(2210.0, 3734.0]": {
+     "n": 330,
+     "acc": 0.891
+    }
+   },
+   "logit_all_in_ctx": {
+    "n": 1232,
+    "coef_per_sd": {
+     "n_ev_c": 0.149,
+     "n_sess_c": -0.827,
+     "n_ctx": -0.121,
+     "gold_pos_first": -0.06,
+     "gold_best_final_rank": -0.299,
+     "cat_cat2": -0.43,
+     "cat_cat3": -0.602,
+     "cat_cat4": -0.31
+    },
+    "z": {
+     "n_ev_c": 1.0,
+     "n_sess_c": -4.4,
+     "n_ctx": -1.3,
+     "gold_pos_first": -0.5,
+     "gold_best_final_rank": -3.5,
+     "cat_cat2": -2.1,
+     "cat_cat3": -5.5,
+     "cat_cat4": -1.2
+    }
+   },
+   "method": "measured"
+  },
+  "retrieval_rank_of_gold": {
+   "clean_in_ctx_rank_le3": {
+    "n": 1101,
+    "acc": 0.908
+   },
+   "clean_in_ctx_rank_gt3": {
+    "n": 107,
+    "acc": 0.748
+   },
+   "wrong_in_ctx_best_rank_gt3": 29,
+   "wrong_in_ctx_best_rank_le3": 123,
+   "wrong_in_ctx_no_final_rank": 17,
+   "note": "'clean' drops stage f (gold error) and e (judge). Hits-first and hit_blocks presentation were screened and rejected (GAP_REGISTER R2-4), so this is an association, not a presentation lever.",
+   "method": "measured"
+  },
+  "multi_turn": {
+   "by_n_evidence_turns": {
+    "1": {
+     "n": 1076,
+     "acc": 0.9
+    },
+    "2": {
+     "n": 177,
+     "acc": 0.785
+    },
+    "3": {
+     "n": 44,
+     "acc": 0.682
+    },
+    "4": {
+     "n": 17,
+     "acc": 0.647
+    },
+    "5": {
+     "n": 7,
+     "acc": 0.857
+    },
+    "7": {
+     "n": 2,
+     "acc": 0.0
+    }
+   },
+   "by_n_evidence_sessions": {
+    "1": {
+     "n": 1146,
+     "acc": 0.9
+    },
+    "2": {
+     "n": 144,
+     "acc": 0.729
+    },
+    "3": {
+     "n": 24,
+     "acc": 0.625
+    },
+    "4": {
+     "n": 7,
+     "acc": 0.429
+    },
+    "6": {
+     "n": 1,
+     "acc": 0.0
+    },
+    "7": {
+     "n": 1,
+     "acc": 0.0
+    }
+   },
+   "stage_d_with_ge2_evidence_turns": 58,
+   "stage_d_with_ge2_sessions": 52,
+   "stage_d_total": 140,
+   "multi_evidence_questions": {
+    "n": 413,
+    "acc": 0.651,
+    "all_gold_in_ctx_share": 0.598
+   },
+   "method": "measured"
+  },
+  "verbosity": {
+   "in_ctx_by_answer_over_gold_word_ratio": {
+    "(0, 1]": {
+     "n": 272,
+     "acc": 0.89
+    },
+    "(1, 2]": {
+     "n": 270,
+     "acc": 0.885
+    },
+    "(16, 1000]": {
+     "n": 59,
+     "acc": 0.576
+    },
+    "(2, 4]": {
+     "n": 376,
+     "acc": 0.923
+    },
+    "(4, 8]": {
+     "n": 232,
+     "acc": 0.871
+    },
+    "(8, 16]": {
+     "n": 114,
+     "acc": 0.789
+    }
+   },
+   "wrong_in_ctx_ratio_gt8": 49,
+   "wrong_in_ctx": 169,
+   "correct_in_ctx_ratio_gt8": 124,
+   "correct_in_ctx": 1154,
+   "method": "measured (word counts); a correlate of difficulty as much as a cause"
+  },
+  "question_shape_in_ctx": {
+   "how_long": {
+    "n": 37,
+    "acc": 0.595
+   },
+   "how_many": {
+    "n": 26,
+    "acc": 0.654
+   },
+   "list": {
+    "n": 49,
+    "acc": 0.918
+   },
+   "other": {
+    "n": 21,
+    "acc": 0.905
+   },
+   "what_which": {
+    "n": 688,
+    "acc": 0.874
+   },
+   "when": {
+    "n": 284,
+    "acc": 0.905
+   },
+   "where": {
+    "n": 48,
+    "acc": 0.854
+   },
+   "who": {
+    "n": 24,
+    "acc": 0.833
+   },
+   "why": {
+    "n": 120,
+    "acc": 0.942
+   },
+   "yesno": {
+    "n": 26,
+    "acc": 0.731
+   }
+  },
+  "gold_type_in_ctx": {
+   "abs_day": {
+    "n": 79,
+    "acc": 0.911
+   },
+   "date_other": {
+    "n": 9,
+    "acc": 0.889
+   },
+   "duration": {
+    "n": 6,
+    "acc": 1.0
+   },
+   "list": {
+    "n": 355,
+    "acc": 0.868
+   },
+   "month": {
+    "n": 64,
+    "acc": 0.906
+   },
+   "number": {
+    "n": 26,
+    "acc": 0.577
+   },
+   "phrase": {
+    "n": 260,
+    "acc": 0.904
+   },
+   "rel_other": {
+    "n": 35,
+    "acc": 0.543
+   },
+   "short_entity": {
+    "n": 397,
+    "acc": 0.882
+   },
+   "week_rel": {
+    "n": 23,
+    "acc": 1.0
+   },
+   "weekday_rel": {
+    "n": 18,
+    "acc": 0.889
+   },
+   "weekend_rel": {
+    "n": 9,
+    "acc": 1.0
+   },
+   "year": {
+    "n": 24,
+    "acc": 0.833
+   },
+   "yesno": {
+    "n": 18,
+    "acc": 0.833
+   }
+  },
+  "refusals": {
+   "refusal_like_answers": 25,
+   "credited": 0,
+   "with_all_gold_in_ctx": 11,
+   "retry_fired_rows": 25,
+   "retry_fired_correct": 0
+  },
+  "caption": {
+   "caption_only_gold_in_ctx": {
+    "n": 28,
+    "acc": 0.679
+   },
+   "other_in_ctx": {
+    "n": 1295,
+    "acc": 0.876
+   },
+   "gold_turn_has_caption_in_ctx": {
+    "n": 560,
+    "acc": 0.834
+   },
+   "no_caption_in_ctx": {
+    "n": 763,
+    "acc": 0.9
+   },
+   "rule": "caption-only: a content token of the gold answer (not in the question) occurs in the gold turn's image caption and in none of its spoken text"
+  },
+  "answer_source_in_ctx": {
+   "distractor": {
+    "n": 207,
+    "wrong": 59
+   },
+   "from_gold_turn": {
+    "n": 347,
+    "wrong": 33
+   },
+   "mixed": {
+    "n": 86,
+    "wrong": 19
+   },
+   "no_novel": {
+    "n": 447,
+    "wrong": 10
+   },
+   "refusal": {
+    "n": 11,
+    "wrong": 11
+   },
+   "ungrounded": {
+    "n": 225,
+    "wrong": 37
+   }
+  },
+  "distractor_hand_check": {
+   "reviewed": 18,
+   "true_distractor_use": 13,
+   "sibling_evidence_among_true": 3,
+   "heuristic_wrong_in_ctx": 59,
+   "estimate_true_distractor": "about 43 (13/18 precision applied to 59; Wilson 95% interval for 13/18 is 0.49-0.88, i.e. 29-52)"
+  },
+  "judge": {
+   "hand_read_wrong_rows": 287,
+   "hand_read_correct_rows": {
+    "flagged_by_rules": 201,
+    "random_unflagged": 70
+   },
+   "false_negative_hand": {
+    "clear": 10,
+    "likely": 4,
+    "borderline": 9,
+    "total": 23
+   },
+   "false_positive_hand": {
+    "clear": 17,
+    "likely": 12,
+    "borderline": 5,
+    "total": 34,
+    "unflagged_sample": "0 of 70 random unflagged corrects; rule-of-three 95% upper bound 4.3%, so up to ~40 unseen of 933 is not excluded; 3 added as central"
+   },
+   "central_estimate": {
+    "false_negatives": 16.6,
+    "false_positives": 29.9,
+    "weights": "FN clear 1.0 / likely 0.75 / borderline 0.4; FP clear 1.0 / likely 0.7 / borderline 0.3 (judgement)"
+   },
+   "headline_raw": 0.8136,
+   "headline_adjusted_central": 0.805,
+   "headline_adjusted_range": [
+    0.7909,
+    0.8175
+   ],
+   "errata_excluded_rows": 26,
+   "errata_excluded_correct": 3,
+   "headline_errata_excluded": 0.8256,
+   "deterministic_flag_recall": {
+    "fn_rules_flagged_wrong_rows": 9,
+    "fn_clear_or_likely_flagged": 6,
+    "fn_clear_or_likely_total": 14,
+    "fp_rules_flagged_correct_rows": 201,
+    "fp_clear_or_likely_flagged": 29,
+    "fp_clear_or_likely_total": 29
+   },
+   "deterministic_date_guard_credits": 89,
+   "judge_repeat_noise": {
+    "identical_answer_groups_across_6_runs": 1696,
+    "groups_with_verdict_flip": 4
+   },
+   "by_category_adjusted": {
+    "cat1": {
+     "n": 282,
+     "raw": 0.667,
+     "adjusted_central": 0.611,
+     "fp_weighted": 22.9,
+     "fn_weighted": 7.2
+    },
+    "cat2": {
+     "n": 321,
+     "raw": 0.832,
+     "adjusted_central": 0.829,
+     "fp_weighted": 1.0,
+     "fn_weighted": 0.0
+    },
+    "cat3": {
+     "n": 96,
+     "raw": 0.427,
+     "adjusted_central": 0.435,
+     "fp_weighted": 0.7,
+     "fn_weighted": 1.5
+    },
+    "cat4": {
+     "n": 841,
+     "raw": 0.9,
+     "adjusted_central": 0.907,
+     "fp_weighted": 2.3,
+     "fn_weighted": 8.0
+    }
+   }
+  },
+  "gold": {
+   "errata_entries_by_tag": {
+    "gold_error": 23,
+    "evidence_label_error": 20,
+    "needs_image": 4,
+    "premise_error": 1,
+    "bad_evidence_id": 1
+   },
+   "speaker_mismatch_rows": 39,
+   "speaker_mismatch_correct": 24,
+   "speaker_mismatch_wrong_not_in_errata": [
+    "conv-42/3-54",
+    "conv-48/7-116",
+    "conv-48/7-155",
+    "conv-48/7-179",
+    "conv-50/9-147"
+   ],
+   "speaker_mismatch_correct_not_in_errata": 23,
+   "bad_or_missing_evidence_rows": 7,
+   "new_candidates_from_hand_read": [
+    "conv-26/0-135",
+    "conv-43/4-55",
+    "conv-49/8-25"
+   ]
+  }
+ },
+ "items": [
+  {
+   "id": "R14-READ-1",
+   "layer": "reader",
+   "problem": "Over-refusal and premise denial: the reader answers 'not mentioned' or denies the premise when the evidence supports a committed inference (hypothetical, 'likely', world-knowledge hop).",
+   "evidence": {
+    "count": 40,
+    "question_ids": [
+     "conv-26/0-22",
+     "conv-26/0-26",
+     "conv-26/0-49",
+     "conv-26/0-59",
+     "conv-26/0-71",
+     "conv-30/1-71",
+     "conv-41/2-17",
+     "conv-41/2-31",
+     "conv-41/2-41",
+     "conv-42/3-4",
+     "conv-42/3-12",
+     "conv-42/3-43",
+     "conv-42/3-60",
+     "conv-42/3-73",
+     "conv-42/3-85",
+     "conv-43/4-5",
+     "conv-43/4-8",
+     "conv-43/4-15",
+     "conv-43/4-28",
+     "conv-43/4-40",
+     "conv-43/4-48",
+     "conv-43/4-51",
+     "conv-43/4-66",
+     "conv-43/4-113",
+     "conv-47/6-0",
+     "conv-47/6-4",
+     "conv-47/6-7",
+     "conv-47/6-16",
+     "conv-47/6-17",
+     "conv-47/6-30",
+     "conv-47/6-35",
+     "conv-47/6-53",
+     "conv-47/6-64",
+     "conv-48/7-44",
+     "conv-48/7-70",
+     "conv-48/7-75",
+     "conv-49/8-57",
+     "conv-49/8-70",
+     "conv-50/9-7",
+     "conv-50/9-13"
+    ],
+    "method": "measured: label classes refusal_premise_denial (14) + inference_open_domain (26, all cat3); refusal-like answers (memspine_evals.refusal.is_refusal) 25 in total, 0 credited, 11 with all gold in context; the retry fired on 25 rows and rescued 0",
+    "extra": {
+     "cat3_acc": 0.427,
+     "cat3_acc_gold_in_ctx": 0.469
+    }
+   },
+   "existing": [
+    "GAP_REGISTER C3 (yes/no rule rejected), C4 (grounded_generic_infer / routed_generic, screen pending), C10, I1, I61",
+    "SOL-READERPROMPT",
+    "SOL-DEEPREAD / read.deep_v2 (S55 queued)",
+    "read.query_contract + read.contract_rules (S06 +1/-0, S11 0)",
+    "neutral refusal retry"
+   ],
+   "gap": "No answer-type contract says 'this question asks for a judgement, commit to yes/no/likely and cite the supporting line'. Prompt-only yes/no rules misfired on non-yes/no questions (C3: +5/-17), and the retry does not rescue (0 of 25 here).",
+   "hypothesis": "Gating the commit route on the typed contract (shape yes/no or would/likely/might, decided by code) rather than by prompt wording keeps the C3 regression away and converts about one third of the 26 cat3 failures (+6 to +10 q, +0.4 to +0.6 points) with no change on other categories.",
+   "solutions": [
+    {
+     "name": "Typed commit route",
+     "generic_mechanism": "query_contract marks the question 'judgement'; reader prompt asks for 'Yes/No/Likely + one supporting line' only for that type; code checks the polarity token",
+     "source": "ours: read.query_contract + contract_rules; CoT-style note-then-answer (Yu et al. 2023, Chain-of-Note)",
+     "cost": "0 extra calls",
+     "risk": "mis-typing a factual question as judgement; guard with the cat5 and OP-Bench slices"
+    },
+    {
+     "name": "Self-consistency vote on judgement questions only",
+     "generic_mechanism": "3-5 samples at temperature>0, majority polarity",
+     "source": "Wang et al. 2022 (self-consistency)",
+     "cost": "+2 to +4 calls on ~6% of questions",
+     "risk": "votes of a 9B reader may agree on the same wrong prior"
+    },
+    {
+     "name": "Evidence obligations for 'latest/join' questions before abstaining",
+     "generic_mechanism": "refuse only when obligations report unmet; otherwise answer with caveat",
+     "source": "ours: read.obligations, deep_v2",
+     "cost": "0-2 calls",
+     "risk": "obligation derivation is regex-based"
+    }
+   ],
+   "test": "Slice: the 40 ids plus the 25 refusal rows; guard slices cat5 (answerable/abstention split) and OP-Bench irrelevance; paired screen on dev conversations, adoption rule average-led.",
+   "priority": "H",
+   "tag": "R14"
+  },
+  {
+   "id": "R14-READ-2",
+   "layer": "reader",
+   "problem": "Wrong or vague detail from the right region of the context: the answer is topical, near the gold line, but states a different or generic detail (median gold-token recall 0.0).",
+   "evidence": {
+    "count": 46,
+    "question_ids": [
+     "conv-26/0-43",
+     "conv-26/0-142",
+     "conv-26/0-151",
+     "conv-30/1-17",
+     "conv-30/1-75",
+     "conv-41/2-35",
+     "conv-41/2-85",
+     "conv-41/2-99",
+     "conv-42/3-113",
+     "conv-42/3-116",
+     "conv-42/3-148",
+     "conv-42/3-169",
+     "conv-43/4-76",
+     "conv-43/4-106",
+     "conv-43/4-117",
+     "conv-43/4-128",
+     "conv-43/4-151",
+     "conv-43/4-169",
+     "conv-44/5-16",
+     "conv-44/5-21",
+     "conv-44/5-79",
+     "conv-47/6-112",
+     "conv-47/6-147",
+     "conv-48/7-13",
+     "conv-48/7-77",
+     "conv-48/7-87",
+     "conv-48/7-115",
+     "conv-48/7-116",
+     "conv-48/7-145",
+     "conv-48/7-151",
+     "conv-48/7-178",
+     "conv-49/8-62",
+     "conv-49/8-78",
+     "conv-49/8-154",
+     "conv-50/9-1",
+     "conv-50/9-54",
+     "conv-50/9-56",
+     "conv-50/9-60",
+     "conv-50/9-64",
+     "conv-50/9-67",
+     "conv-50/9-96",
+     "conv-50/9-109",
+     "conv-50/9-110",
+     "conv-50/9-120",
+     "conv-50/9-125",
+     "conv-50/9-147"
+    ],
+    "method": "measured: label class wrong_detail (46 of the 140 stage-d rows). Heuristic: 28 of 46 are classed 'distractor' source (answer tokens come from a non-gold line), 9 'from_gold_turn', 7 mixed, 2 ungrounded (rule in R14-DIST-1)"
+   },
+   "existing": [
+    "GAP_REGISTER C2 (answer-style clause, dev neutral), C9",
+    "SOL-READERPROMPT grounded_det",
+    "SOL-PRESENT (hits-first rejected, R2-4)",
+    "SOL-BUNDLES S19/S52-S54 queued",
+    "SOL-VERIFY / --verify-answer"
+   ],
+   "gap": "The reader sees ~53 lines with several about the same topic and nothing tells it which line the question's specific noun phrase binds to. Presentation tricks (hits-first, markers) were neutral or negative; verification was not screened.",
+   "hypothesis": "A quote-then-answer step restricted to 'what kind / which / what did X say' shapes, where the quoted line must contain the question's head noun phrase, removes a third of the cases whose answer is a plausible sibling line (+5 to +10 q).",
+   "solutions": [
+    {
+     "name": "Quote-then-answer",
+     "generic_mechanism": "reader first copies the one supporting line, code checks the line is in context and shares the question's rarest content word, then answers from that line",
+     "source": "Chain-of-Verification (Dhuliawala et al. 2023); ours: slot_verify pattern",
+     "cost": "+1 call or longer completion",
+     "risk": "terse outputs lost 3.6 points in dated3; screen per shape"
+    },
+    {
+     "name": "Typed slot check",
+     "generic_mechanism": "slot_verify: the answer must contain an entity of the question's expected type and a token of the cited line",
+     "source": "ours: slot_verify.py (E06), count_verify.py",
+     "cost": "0-1 call on defects",
+     "risk": "false defects trigger a repair that drops a right answer"
+    },
+    {
+     "name": "Bundle composition",
+     "generic_mechanism": "evidence bundles: claim + speaker + time + antecedent kept together",
+     "source": "ours: read.evidence_bundles, neighbours_v2, exact_budget",
+     "cost": "0",
+     "risk": "S54 not run yet"
+    }
+   ],
+   "test": "Slice: the 46 ids + the 59 distractor-source ids; screen on the 304-q dev slice, paired; report per-shape deltas.",
+   "priority": "H",
+   "tag": "R14"
+  },
+  {
+   "id": "R14-READ-3",
+   "layer": "reader",
+   "problem": "Incomplete lists and wrong counts: the reader returns one or two of several items, over-counts one event mentioned on two dates, or gives 'at least N'.",
+   "evidence": {
+    "count": 25,
+    "question_ids": [
+     "conv-26/0-66",
+     "conv-30/1-48",
+     "conv-42/3-5",
+     "conv-42/3-19",
+     "conv-42/3-49",
+     "conv-42/3-52",
+     "conv-42/3-70",
+     "conv-42/3-80",
+     "conv-43/4-2",
+     "conv-43/4-30",
+     "conv-43/4-49",
+     "conv-44/5-2",
+     "conv-44/5-17",
+     "conv-44/5-89",
+     "conv-47/6-20",
+     "conv-47/6-22",
+     "conv-47/6-26",
+     "conv-47/6-27",
+     "conv-47/6-60",
+     "conv-48/7-1",
+     "conv-48/7-155",
+     "conv-49/8-37",
+     "conv-49/8-104",
+     "conv-50/9-47",
+     "conv-50/9-59"
+    ],
+    "method": "measured: label classes list_incomplete (16) + count_wrong (9) at stage d. Lists dominate in-ctx wrong rows by gold type: 47 of 169 wrong in-ctx rows have a list-type gold (gold-type rule: >=2 items split on commas/and). how_many shape: 26 in-ctx questions at 65.4% with 9 wrong; all 38 how_many questions 55.3%"
+   },
+   "existing": [
+    "GAP_REGISTER C6, I56 (count-verify single REJECTED +1/-16; two_call and evidence_table unscreened)",
+    "SOL-LISTMODE (in reference)",
+    "SOL-CONTRACT S06/S11",
+    "SOL-OBLIG S56 queued",
+    "SOL-COUNT (no screen)",
+    "SOL-STANDING"
+   ],
+   "gap": "Retrieval of list members is addressed (list_mode) but the reader neither enumerates nor dedupes events; the only screened count wrapper collapsed sets to one item. The two_call and evidence-table variants have never been screened.",
+   "hypothesis": "An evidence table (one row per distinct event: actor, object, date) built by code from the context lines, followed by a count/list over the rows, fixes the over-count class (7 of 9 counts) without the collapse failure of single-call count-verify (+4 to +8 q).",
+   "solutions": [
+    {
+     "name": "Evidence table + enumerate-then-count",
+     "generic_mechanism": "extract rows with a JSON reader call, merge mentions by actor+object+date window, answer from the merged rows",
+     "source": "ours: count_verify two_call, evidence_table.py (A04); Program-aided reasoning (Gao et al. 2022)",
+     "cost": "+1 call on count/list shapes (~6%)",
+     "risk": "extraction misses a row; collapse failure seen in single mode"
+    },
+    {
+     "name": "Obligations: list/count coverage",
+     "generic_mechanism": "answer_with_caveat unless coverage is complete; follow-up retrieval for missing members",
+     "source": "ours: read.obligations + deep_v2",
+     "cost": "0-2 calls",
+     "risk": "regex-derived obligations"
+    },
+    {
+     "name": "Contract-shaped output",
+     "generic_mechanism": "'list every item, one per line' only for list contract; 'one number' for count",
+     "source": "ours: contract_rules",
+     "cost": "0",
+     "risk": "S11 is neutral so far"
+    }
+   ],
+   "test": "Slice: the 25 ids + list/count shaped questions (shape rule how_many / list); screens S06, S11, S56 and an unqueued two_call/evidence_table arm.",
+   "priority": "H",
+   "tag": "R14"
+  },
+  {
+   "id": "R14-READ-4",
+   "layer": "reader",
+   "problem": "Date and duration arithmetic: spans between two events, 'for N years' start dates and 'N months now' are answered by the 9B reader's own subtraction; wrong event line picked for a 'when' question.",
+   "evidence": {
+    "count": 19,
+    "question_ids": [
+     "conv-26/0-35",
+     "conv-30/1-14",
+     "conv-42/3-26",
+     "conv-42/3-41",
+     "conv-42/3-44",
+     "conv-42/3-54",
+     "conv-43/4-16",
+     "conv-44/5-34",
+     "conv-44/5-47",
+     "conv-44/5-59",
+     "conv-47/6-41",
+     "conv-47/6-62",
+     "conv-48/7-46",
+     "conv-48/7-71",
+     "conv-48/7-134",
+     "conv-49/8-25",
+     "conv-49/8-39",
+     "conv-50/9-61",
+     "conv-50/9-62"
+    ],
+    "method": "measured: label classes date_duration_arithmetic 10, date_wrong_event 8, date_offset_small 1. how_long shape: 34 in-ctx questions at 58.8% with 15 wrong (all 38: 57.9%); gold_type number 50.0% (n=36), relative-phrase gold 50.0% (n=40); abs-day gold 89.0% (n=82)"
+   },
+   "existing": [
+    "GAP_REGISTER C5, I57 (date_repair +1/0, 7 fired), I76 (duration_solve built, no screen), I79 (annotator), E05 milestones",
+    "SOL-DURATION, SOL-RELANCHOR (S62 queued), SOL-TEMPLEG"
+   ],
+   "gap": "The date path is the best-covered class on paper but duration_solve and milestones have no screen; 15 how_long failures remain although every endpoint is annotated.",
+   "hypothesis": "duration_solve + milestones on the 38 how_long/how_many-unit questions converts at least a third of the 15 in-ctx failures (+5 q, +0.3 points) with zero model calls beyond the endpoint extraction.",
+   "solutions": [
+    {
+     "name": "Calculator for dates",
+     "generic_mechanism": "reader extracts the two endpoint events as JSON, code subtracts in the requested unit and rounds",
+     "source": "ours: duration_solve.py (I76), milestones.py (E05); PAL (Gao et al. 2022); date-reasoning benchmarks show LLM span arithmetic is unreliable (Fatemi et al. 2024, Test of Time)",
+     "cost": "+1 call on ~5% of questions",
+     "risk": "wrong endpoint pairing gives a confident wrong number (abstain rules exist)"
+    },
+    {
+     "name": "Start-date annotation",
+     "generic_mechanism": "'for N years' / 'N months now' -> [= since ~date] in the context line",
+     "source": "ours: I79 read.relative_dates_durations",
+     "cost": "0",
+     "risk": "annotation of retrospective statements"
+    },
+    {
+     "name": "Date repair post-step",
+     "generic_mechanism": "weekday/date consistency and relative-phrase rewrite",
+     "source": "ours: date_repair.py (I57)",
+     "cost": "0",
+     "risk": "fail-closed; small effect"
+    }
+   ],
+   "test": "Slice: the 19 ids + the 38 how_long/how_many-unit questions; run duration_solve and milestones on the dev slice, paired; check abstain rate.",
+   "priority": "H",
+   "tag": "R14"
+  },
+  {
+   "id": "R14-READ-5",
+   "layer": "reader",
+   "problem": "Image-caption misuse: the answer is in an [image: ...] caption but the reader uses a caption from another turn, or the gold fact is only in the photo.",
+   "evidence": {
+    "count": 6,
+    "question_ids": [
+     "conv-43/4-152",
+     "conv-49/8-106",
+     "conv-49/8-108",
+     "conv-49/8-109",
+     "conv-49/8-144",
+     "conv-50/9-115"
+    ],
+    "method": "measured: label class 6 rows at stage d. caption-only gold (rule: a gold content token occurs in the gold turn's caption and in no spoken text): 28 in-ctx questions at 67.9% vs 87.6% for others"
+   },
+   "existing": [
+    "GAP_REGISTER C7 (caption rule screened 85.8 vs 86.7, +3/-5, not adopted)",
+    "SOL-ASSET (ingest.assets, read.asset_evidence)",
+    "SOL-READERPROMPT"
+   ],
+   "gap": "Captions are rendered inline in the same sentence as speech, so the 9B reader cannot tell whose caption belongs to which turn; photo-only answers need the asset.",
+   "hypothesis": "Rendering each caption on its own 'Photo (turn id, speaker, date): ...' line next to its turn lowers cross-turn caption mixing (3 of the 6) but cannot fix photo-only golds (+2 to +3 q).",
+   "solutions": [
+    {
+     "name": "Caption as its own line with turn metadata",
+     "generic_mechanism": "separate sentence + speaker + date",
+     "source": "ours: renderer change",
+     "cost": "0",
+     "risk": "prompt-only caption rule was already neutral/negative (C7/C8)"
+    },
+    {
+     "name": "Asset evidence",
+     "generic_mechanism": "describe the original image once at ingest",
+     "source": "ours: ingest.assets / read.asset_evidence",
+     "cost": "1 vision call per image at ingest",
+     "risk": "needs image access and licence check"
+    }
+   ],
+   "test": "Slice: the 6 ids + 28 caption-only questions.",
+   "priority": "L",
+   "tag": "R14"
+  },
+  {
+   "id": "R14-READ-6",
+   "layer": "reader",
+   "problem": "Answer about the wrong speaker: the fact exists in context but is attributed to the person the question does not name.",
+   "evidence": {
+    "count": 1,
+    "question_ids": [
+     "conv-50/9-53"
+    ],
+    "method": "measured/heuristic: label speaker_confusion 1; heuristic wrong_speaker_answer (question names exactly one of the two speakers, wrong answer names only the other) 1. The visible effect is mostly on the data side (R14-GOLD-2)"
+   },
+   "existing": [
+    "SOL-PERSPECTIVE (in reference)",
+    "I59 owner_check (built, no screen)",
+    "GAP_REGISTER I39/I47/I54"
+   ],
+   "gap": "Rare as a reader failure here (1 row) but the gold is itself speaker-swapped in 39 rows; any attribution enforcement is penalised there.",
+   "hypothesis": "Owner tags (I59) stay a tag, not a filter; expect <=1 q gain, risk of losing credited swapped-speaker rows.",
+   "solutions": [
+    {
+     "name": "Owner/subject tag",
+     "generic_mechanism": "'stated by X' tag on hits where the speaker is not the named person",
+     "source": "ours: core/owner_check.py",
+     "cost": "0",
+     "risk": "see R14-GOLD-2"
+    }
+   ],
+   "test": "Screen only with R14-GOLD-2's 23 credited swapped-speaker rows reported separately.",
+   "priority": "L",
+   "tag": "R14"
+  },
+  {
+   "id": "R14-READ-7",
+   "layer": "reader",
+   "problem": "Ungrounded answers: the answer's new content words appear nowhere in the context (inference, arithmetic output, world knowledge or fabrication).",
+   "evidence": {
+    "count": 37,
+    "question_ids": [
+     "conv-26/0-22",
+     "conv-26/0-26",
+     "conv-26/0-35",
+     "conv-26/0-71",
+     "conv-26/0-135",
+     "conv-30/1-9",
+     "conv-30/1-71",
+     "conv-41/2-69",
+     "conv-42/3-24",
+     "conv-42/3-44",
+     "conv-42/3-54",
+     "conv-42/3-85",
+     "conv-42/3-92",
+     "conv-43/4-6",
+     "conv-43/4-8",
+     "conv-43/4-16",
+     "conv-43/4-40",
+     "conv-43/4-49",
+     "conv-43/4-55",
+     "conv-43/4-66",
+     "conv-43/4-174",
+     "conv-44/5-4",
+     "conv-44/5-16",
+     "conv-44/5-17",
+     "conv-44/5-59",
+     "conv-47/6-7",
+     "conv-47/6-41",
+     "conv-47/6-53",
+     "conv-47/6-62",
+     "conv-48/7-46",
+     "conv-48/7-70",
+     "conv-48/7-174",
+     "conv-49/8-39",
+     "conv-50/9-1",
+     "conv-50/9-7",
+     "conv-50/9-47",
+     "conv-50/9-61"
+    ],
+    "method": "heuristic: wrong, all gold in ctx, >=50% of the answer's content stems that are not in the question nor the gold answer occur in no context line. Rate: 37 wrong of 225 answers of this source (16%) vs 10 wrong of 447 'no_novel' answers (2%)"
+   },
+   "existing": [
+    "SOL-VERIFY (--verify-answer, --verify-slots diagnosed: unsupported-claim defect)",
+    "defect_diagnosis.py",
+    "SOL-GAP-BIGREADER"
+   ],
+   "gap": "diagnosed mode already flags 'a name no memory line contains' but is unscreened; ungrounded wrong answers are 22% of in-ctx wrong rows.",
+   "hypothesis": "slot_verify diagnosed on ungrounded answers repairs 1 in 4 (+8 q) at ~1.8% extra calls; without a gold, abstaining is the safe alternative on cat1-4.",
+   "solutions": [
+    {
+     "name": "Diagnosed repair",
+     "generic_mechanism": "code detects unsupported tokens and asks once with the defect named",
+     "source": "ours: slot_verify diagnosed (G01)",
+     "cost": "+1 call on ~10% of answers",
+     "risk": "numbers and derived words look unsupported by construction"
+    },
+    {
+     "name": "Larger reader or thinking mode",
+     "generic_mechanism": "reader size",
+     "source": "ours: SOL-GAP-BIGREADER; A9 thinking mode not adopted",
+     "cost": "high",
+     "risk": "GPU memory"
+    }
+   ],
+   "test": "Slice: the 37 ids; false-defect rate on the 188 correct 'ungrounded' answers.",
+   "priority": "M",
+   "tag": "R14"
+  },
+  {
+   "id": "R14-READ-8",
+   "layer": "reader",
+   "problem": "Verbosity versus a short gold: wrong answers are enumerations or explanations many times the gold length; long answers carry both hedges and the judge's partial-credit habits.",
+   "evidence": {
+    "count": 49,
+    "question_ids": [
+     "conv-26/0-22",
+     "conv-26/0-26",
+     "conv-26/0-35",
+     "conv-26/0-49",
+     "conv-26/0-71",
+     "conv-30/1-9",
+     "conv-30/1-14",
+     "conv-30/1-71",
+     "conv-41/2-31",
+     "conv-41/2-41",
+     "conv-42/3-12",
+     "conv-42/3-19",
+     "conv-42/3-43",
+     "conv-42/3-44",
+     "conv-42/3-52",
+     "conv-43/4-8",
+     "conv-43/4-16",
+     "conv-43/4-28",
+     "conv-43/4-30",
+     "conv-43/4-40",
+     "conv-43/4-48",
+     "conv-43/4-51",
+     "conv-43/4-113",
+     "conv-43/4-152",
+     "conv-43/4-165",
+     "conv-44/5-17",
+     "conv-44/5-59",
+     "conv-47/6-7",
+     "conv-47/6-16",
+     "conv-47/6-17",
+     "conv-47/6-20",
+     "conv-47/6-30",
+     "conv-47/6-31",
+     "conv-47/6-53",
+     "conv-47/6-62",
+     "conv-47/6-64",
+     "conv-48/7-44",
+     "conv-48/7-46",
+     "conv-48/7-70",
+     "conv-48/7-75",
+     "conv-48/7-77",
+     "conv-48/7-108",
+     "conv-48/7-178",
+     "conv-49/8-39",
+     "conv-49/8-57",
+     "conv-49/8-109",
+     "conv-50/9-7",
+     "conv-50/9-47",
+     "conv-50/9-61"
+    ],
+    "method": "measured: answer words / gold words > 8. 49 of 169 wrong in-ctx rows (29%) vs 124 of 1154 correct in-ctx (10.7%); accuracy by ratio bucket 0-1: 0.890, 1-2: 0.885, 2-4: 0.923, 4-8: 0.871, 8-16: 0.789, >16: 0.576"
+   },
+   "existing": [
+    "READER_GAPS_FORENSIC section 0.4 (answers got 44% shorter)",
+    "SOL-CONTRACT answer contracts",
+    "GROUNDED prompts in readers.py (short, direct answer)",
+    "judge_conventions list_superset"
+   ],
+   "gap": "The signal is a difficulty correlate (long answers follow refusals, lists and uncertain counts), so length-capping is not a fix; the lever is an answer-type contract that fixes the output shape per question type.",
+   "hypothesis": "Contract-fixed output shape (single fact: one phrase; list: bullet per item; count: a number plus the list) lowers the >8-ratio rate without lowering list recall.",
+   "solutions": [
+    {
+     "name": "Answer-type contract",
+     "generic_mechanism": "typed output template chosen by code",
+     "source": "ours: read.query_contract + contract_rules; slot_verify strict",
+     "cost": "0",
+     "risk": "S11 neutral so far"
+    }
+   ],
+   "test": "Slice: ratio>8 ids; compare list recall and judge verdicts.",
+   "priority": "M",
+   "tag": "R14"
+  },
+  {
+   "id": "R14-DIST-1",
+   "layer": "reader",
+   "problem": "Answering from a distractor turn: the context holds a non-gold line with answer-like content (same topic, another event, another speaker's similar remark) and the reader uses it.",
+   "evidence": {
+    "count": 59,
+    "question_ids": [
+     "conv-26/0-43",
+     "conv-26/0-49",
+     "conv-26/0-66",
+     "conv-26/0-142",
+     "conv-26/0-151",
+     "conv-30/1-14",
+     "conv-30/1-17",
+     "conv-30/1-43",
+     "conv-30/1-48",
+     "conv-30/1-57",
+     "conv-30/1-75",
+     "conv-41/2-17",
+     "conv-41/2-85",
+     "conv-42/3-19",
+     "conv-42/3-41",
+     "conv-42/3-60",
+     "conv-42/3-70",
+     "conv-42/3-148",
+     "conv-42/3-169",
+     "conv-43/4-30",
+     "conv-43/4-48",
+     "conv-43/4-51",
+     "conv-43/4-60",
+     "conv-43/4-76",
+     "conv-43/4-86",
+     "conv-43/4-106",
+     "conv-43/4-113",
+     "conv-43/4-117",
+     "conv-43/4-128",
+     "conv-43/4-135",
+     "conv-44/5-2",
+     "conv-47/6-17",
+     "conv-47/6-20",
+     "conv-47/6-64",
+     "conv-47/6-112",
+     "conv-47/6-147",
+     "conv-48/7-13",
+     "conv-48/7-44",
+     "conv-48/7-77",
+     "conv-48/7-108",
+     "conv-48/7-116",
+     "conv-48/7-136",
+     "conv-48/7-145",
+     "conv-48/7-155",
+     "conv-48/7-178",
+     "conv-49/8-24",
+     "conv-49/8-62",
+     "conv-49/8-104",
+     "conv-49/8-109",
+     "conv-49/8-144",
+     "conv-49/8-154",
+     "conv-50/9-54",
+     "conv-50/9-56",
+     "conv-50/9-64",
+     "conv-50/9-109",
+     "conv-50/9-110",
+     "conv-50/9-115",
+     "conv-50/9-120",
+     "conv-50/9-147"
+    ],
+    "method": "heuristic: wrong, all gold in ctx; novel stems = stems of the answer not in the question and not in the gold answer; source 'distractor' when >=2 and >=40% of novel stems occur only in non-gold context lines (not in any gold turn) and exceed the novel stems found in gold turns. Hand check of 18: 13 true (72%), 5 other (count, premise, refusal, inference, vague detail from the right turn). Distractor rate by source over all 1323 in-ctx rows: 59 wrong of 207",
+    "extra": {
+     "same_session_as_gold": 24,
+     "within_4_turns_of_gold": 19,
+     "distractor_turn_in_final_top10": 32,
+     "distractor_outranks_gold": 11,
+     "estimated_true": "about 43 (29-52)"
+    }
+   },
+   "existing": [
+    "GAP_REGISTER C1, C9, R2-4 (hits-first rejected: 86.7 vs 88.4)",
+    "SOL-PRESENT",
+    "SOL-VERIFY",
+    "SOL-GAP-DISTRACTOR (not built)",
+    "SOL-BUNDLES",
+    "I31 dedupe"
+   ],
+   "gap": "The distractor is a window neighbour of the gold in 19 of 59 cases and a retrieval hit in 32; reordering was rejected, verification not screened, owner/event check not built.",
+   "hypothesis": "A binding check that the cited line shares the question's event noun phrase and date (code) plus one repair call removes about a third of the true cases (+10 to +14 q); a per-shape window (1/1 for non-temporal single-hop) removes the 19 window-neighbour cases at the cost of the +19 net gains window 2/4 gave.",
+   "solutions": [
+    {
+     "name": "Provenance check (owner/event/date binding)",
+     "generic_mechanism": "answer must cite a turn id; code checks the turn id's speaker, date and head noun phrase against the question",
+     "source": "ours: SOL-GAP-DISTRACTOR; irrelevant-context robustness (Shi et al. 2023, 'LLMs can be easily distracted by irrelevant context'; Yoran et al. 2023)",
+     "cost": "+1 call on mismatches only",
+     "risk": "citation errors by a 9B reader"
+    },
+    {
+     "name": "Per-shape window",
+     "generic_mechanism": "wide window for temporal/multi-turn shapes, narrow elsewhere",
+     "source": "ours: replay_window_before/after per shape (SOL-PRESENT)",
+     "cost": "0",
+     "risk": "window 2/4 produced 49 of the 154 gains in the forensic run"
+    },
+    {
+     "name": "Contrastive selection",
+     "generic_mechanism": "reader picks among the top-3 candidate lines before answering",
+     "source": "Self-Ask style decomposition (Press et al. 2022); RECOMP-style extractive compression (Xu et al. 2023)",
+     "cost": "+1 call",
+     "risk": "adds latency"
+    }
+   ],
+   "test": "Slice: 59 ids + 13 hand-confirmed; paired dev screen with per-shape report; count window-neighbour vs hit cases separately.",
+   "priority": "H",
+   "tag": "R14"
+  },
+  {
+   "id": "R14-DIST-2",
+   "layer": "data",
+   "problem": "Sibling evidence: for a single-answer question, other turns in the same conversation also answer it correctly; the gold names only one, so a right answer from the sibling turn is scored wrong.",
+   "evidence": {
+    "count": 3,
+    "question_ids": [
+     "conv-30/1-17",
+     "conv-30/1-57",
+     "conv-48/7-178"
+    ],
+    "method": "hand: 3 of the 18 hand-checked distractor rows (17%); extrapolated to about 7-10 of the 59 heuristic rows (low confidence). The reader's answer restates a true fact from another turn about the same subject"
+   },
+   "existing": [
+    "R2-5 evidence_label_error entries",
+    "judge_conventions superset",
+    "none for multi-gold"
+   ],
+   "gap": "No multi-gold or accept-set annotation exists; errata tags evidence labels but not 'alternative valid answers'.",
+   "hypothesis": "Re-judging the hand-flagged rows with a gold set extended by the sibling answer lifts 3 of 18 sampled rows; if it holds at 7-10 of 59, the true reader error rate is lower by ~0.5 points.",
+   "solutions": [
+    {
+     "name": "Accept-set errata",
+     "generic_mechanism": "errata tag sibling_valid with the alternative answer paraphrased and turn ids",
+     "source": "ours: errata.py new tag",
+     "cost": "0",
+     "risk": "adjudication cost"
+    },
+    {
+     "name": "Second judge with evidence access",
+     "generic_mechanism": "judge sees the cited evidence lines, not only the gold",
+     "source": "LLM-as-judge with references (Zheng et al. 2023)",
+     "cost": "1 call per disputed row",
+     "risk": "same-model blind spots (A1)"
+    }
+   ],
+   "test": "Hand-adjudicate the 59 ids once (about 1 hour), freeze labels.",
+   "priority": "M",
+   "tag": "R14"
+  },
+  {
+   "id": "R14-POS-1",
+   "layer": "compose",
+   "problem": "Reader position effects (lost-in-the-middle): accuracy depends on where the gold turn sits in the context.",
+   "evidence": {
+    "count": 0,
+    "question_ids": [],
+    "method": "measured: single-evidence questions with the gold in context (n=991 after dropping rows without ranks). Early third 89.7% vs late third 90.2% (Fisher p=0.90); quintile accuracy 0.89-0.92 flat; logistic coefficient of gold position z=-0.4 controlling category, context size and gold rank. Context order is chronological in 1540/1540, so position is position in time. No dependence seen",
+    "extra": {
+     "early": {
+      "n": 340,
+      "acc": 0.897
+     },
+     "late": {
+      "n": 305,
+      "acc": 0.902
+     },
+     "fisher_p": 0.896
+    }
+   },
+   "existing": [
+    "SOL-PRESENT / read.present_order (hits-first, hit_blocks rejected)",
+    "R2-4",
+    "Lost in the Middle (Liu et al. 2023) as the prior"
+   ],
+   "gap": "A negative result: nothing to fix for a 2k-token context with a 9B reader; the U-shape does not reproduce at this length.",
+   "hypothesis": "Reordering by position will not move accuracy (consistent with R2-4); the effect may appear at BEAM-scale contexts (I20), so re-measure there, not here.",
+   "solutions": [
+    {
+     "name": "None needed here; re-measure on long-context benchmarks",
+     "generic_mechanism": "same regression on BEAM / long-history runs",
+     "source": "Liu et al. 2023; Peysakhovich and Lerer 2023 (attention sorting)",
+     "cost": "0",
+     "risk": "n/a"
+    }
+   ],
+   "test": "Repeat r14_build_report on any run with >=8k-token contexts.",
+   "priority": "L",
+   "tag": "R14"
+  },
+  {
+   "id": "R14-POS-2",
+   "layer": "retrieve",
+   "problem": "Gold retrieved but ranked low in the final candidate list: accuracy given gold in context falls when the best gold turn is not in the top 3.",
+   "evidence": {
+    "count": 29,
+    "question_ids": [
+     "conv-26/0-35",
+     "conv-26/0-43",
+     "conv-26/0-142",
+     "conv-42/3-26",
+     "conv-42/3-60",
+     "conv-42/3-70",
+     "conv-42/3-85",
+     "conv-42/3-148",
+     "conv-43/4-40",
+     "conv-43/4-48",
+     "conv-43/4-51",
+     "conv-43/4-76",
+     "conv-43/4-113",
+     "conv-43/4-135",
+     "conv-43/4-151",
+     "conv-44/5-2",
+     "conv-44/5-17",
+     "conv-44/5-47",
+     "conv-47/6-20",
+     "conv-47/6-22",
+     "conv-48/7-71",
+     "conv-48/7-108",
+     "conv-48/7-134",
+     "conv-49/8-24",
+     "conv-49/8-25",
+     "conv-49/8-70",
+     "conv-50/9-96",
+     "conv-50/9-110",
+     "conv-50/9-120"
+    ],
+    "method": "measured: clean in-ctx rows (gold errors and judge labels dropped) 90.8% (n=1101) when best gold rank <=3 vs 74.8% (n=107) when >3; logistic z=-2.6 to -3.5 for the rank covariate. 29 of 169 wrong in-ctx rows have best rank >3 and 17 more have no final rank (in context through the window only)"
+   },
+   "existing": [
+    "R2-4 hits_first and hit_blocks rejected",
+    "SOL-RRPOOL / SOL-POOLPROT / SOL-FAMFUS",
+    "GAP_REGISTER B9, B10"
+   ],
+   "gap": "The gap is large but presentation reordering was rejected; it is probably a difficulty correlate and a signal that rank >3 hits are weakly related to the question.",
+   "hypothesis": "Improving the rank of the gold (reranker v2 over a wider pool) helps more than reordering the same context; expect up to +5 q if half of the 29 rank>3 failures move into the top 3.",
+   "solutions": [
+    {
+     "name": "Reranker v2 over a wider pool",
+     "generic_mechanism": "rerank 30 candidates, keep 10",
+     "source": "ours: read.rerank_v2 (S16 iterate 0/0)",
+     "cost": "GPU rerank time",
+     "risk": "S16 neutral so far"
+    }
+   ],
+   "test": "Track the rank>3 share per screen; report accuracy by rank bucket for every screen.",
+   "priority": "M",
+   "tag": "R14"
+  },
+  {
+   "id": "R14-LEN-1",
+   "layer": "compose",
+   "problem": "Context length effect: accuracy given all gold in context falls as the number of context turns and tokens grows.",
+   "evidence": {
+    "count": 0,
+    "question_ids": [],
+    "method": "measured: all in-ctx rows: n_ctx <=40: ~91%, 41-50: 87.6%, 51-60: 87.7%, >60: 83.6%. Single-evidence tertiles of n_ctx: 92.9 / 89.4 / 89.0%; of tokens 92.7 / 90.0 / 89.1%. Controlled logistic coefficients per sd: n_ctx -0.12 to -0.19 (z -1.3 to -1.6), ctx_tokens -0.25 (z -2.2); weak but consistent in sign",
+    "extra": {
+     "(0, 40]": {
+      "n": 139,
+      "acc": 0.914
+     },
+     "(40, 50]": {
+      "n": 437,
+      "acc": 0.876
+     },
+     "(50, 60]": {
+      "n": 478,
+      "acc": 0.877
+     },
+     "(60, 200]": {
+      "n": 269,
+      "acc": 0.836
+     }
+    }
+   },
+   "existing": [
+    "GAP_REGISTER I6 (window counted in turns, 4,096 budget)",
+    "SOL-PRESENT per-shape window",
+    "SOL-BUNDLES S52/S53 exact budget (queued)",
+    "READER_GAPS_FORENSIC 2.3: 9 DIST regressions with 53 vs 39 lines"
+   ],
+   "gap": "No per-shape context size; the window that helps temporal questions (+19 net) is paid for by single-hop distractors.",
+   "hypothesis": "A per-shape budget (narrow for single-fact, wide for temporal/multi-turn) recovers about 1 point on single-hop at no loss on temporal; effect size about 0.2 sd per extra 10 turns.",
+   "solutions": [
+    {
+     "name": "Per-shape window / budget",
+     "generic_mechanism": "context size chosen by the contract shape",
+     "source": "ours: replay_window_* per shape; exact_budget",
+     "cost": "0",
+     "risk": "interacts with R14-DIST-1"
+    },
+    {
+     "name": "Evidence compression",
+     "generic_mechanism": "extract the supporting sentences before the reader",
+     "source": "RECOMP (Xu et al. 2023); Chain-of-Note (Yu et al. 2023)",
+     "cost": "+1 call",
+     "risk": "extraction drops needed context"
+    },
+    {
+     "name": "Check at length",
+     "generic_mechanism": "context-length-alone degradation even with perfect retrieval",
+     "source": "Levy et al. 2024 (Same Task, More Tokens); Du et al. 2025 (from memory, not re-fetched)",
+     "cost": "0",
+     "risk": "n/a"
+    }
+   ],
+   "test": "2x2 narrow/wide window by shape on the dev slice; paired.",
+   "priority": "M",
+   "tag": "R14"
+  },
+  {
+   "id": "R14-MH-1",
+   "layer": "reader",
+   "problem": "Questions that need two or more turns, especially across sessions: the reader does not join them (or misses one of them) even when all are in context.",
+   "evidence": {
+    "count": 54,
+    "question_ids": [
+     "conv-26/0-43",
+     "conv-26/0-59",
+     "conv-26/0-66",
+     "conv-26/0-71",
+     "conv-30/1-9",
+     "conv-30/1-17",
+     "conv-41/2-35",
+     "conv-42/3-5",
+     "conv-42/3-12",
+     "conv-42/3-19",
+     "conv-42/3-43",
+     "conv-42/3-49",
+     "conv-42/3-52",
+     "conv-42/3-70",
+     "conv-42/3-80",
+     "conv-43/4-2",
+     "conv-43/4-8",
+     "conv-43/4-16",
+     "conv-43/4-30",
+     "conv-43/4-49",
+     "conv-43/4-55",
+     "conv-44/5-2",
+     "conv-44/5-17",
+     "conv-44/5-21",
+     "conv-44/5-34",
+     "conv-44/5-47",
+     "conv-47/6-20",
+     "conv-47/6-22",
+     "conv-47/6-26",
+     "conv-47/6-27",
+     "conv-47/6-53",
+     "conv-47/6-60",
+     "conv-47/6-62",
+     "conv-47/6-64",
+     "conv-48/7-1",
+     "conv-48/7-13",
+     "conv-48/7-46",
+     "conv-48/7-77",
+     "conv-48/7-87",
+     "conv-49/8-37",
+     "conv-49/8-39",
+     "conv-49/8-62",
+     "conv-49/8-70",
+     "conv-49/8-78",
+     "conv-50/9-1",
+     "conv-50/9-47",
+     "conv-50/9-53",
+     "conv-50/9-54",
+     "conv-50/9-56",
+     "conv-50/9-59",
+     "conv-50/9-60",
+     "conv-50/9-61",
+     "conv-50/9-62",
+     "conv-50/9-64"
+    ],
+    "method": "measured: in-ctx accuracy by number of evidence sessions 1: 89.9% (n=1146), 2: 72.9% (144), 3: 62.5% (24), 4+: 3 of 9; by evidence turns 1: 90.0%, 2: 78.5%, 3: 68.2%, 4: 64.7%. Logistic: sessions z=-4.4 controlling category and rank. 52 of the 140 stage-d rows are multi-session"
+   },
+   "existing": [
+    "SOL-AGENTIC / second_round (not screened)",
+    "SOL-OBLIG join obligations (S56 queued)",
+    "SOL-GRAPH",
+    "SOL-DEEPREAD S55",
+    "R2-1 bridge hop (gated)"
+   ],
+   "gap": "Retrieval-side hop work is plentiful; reader-side decomposition for cases where all evidence is already in context is not covered. Multi-session ones are 52 of 140.",
+   "hypothesis": "Decomposition into sub-questions answered per turn and joined by code lifts multi-session in-ctx accuracy from 72.9% by +5 points (about +7 q).",
+   "solutions": [
+    {
+     "name": "Decompose then join",
+     "generic_mechanism": "reader emits 2 sub-questions; each answered over the cited lines; code or one call joins",
+     "source": "Self-Ask (Press et al. 2022); Least-to-Most (Zhou et al. 2022)",
+     "cost": "+2 to +3 calls on ~10% of questions",
+     "risk": "wrong decomposition; screen on cat1 only"
+    },
+    {
+     "name": "Evidence obligations join",
+     "generic_mechanism": "link fact + attribute fact for each linked entity",
+     "source": "ours: read.obligations join kind",
+     "cost": "0-2",
+     "risk": "regex derivation"
+    },
+    {
+     "name": "Evidence table across sessions",
+     "generic_mechanism": "rows keyed by actor+object+date",
+     "source": "ours: evidence_table.py",
+     "cost": "+1 call",
+     "risk": "extraction cost"
+    }
+   ],
+   "test": "Slice: 52 multi-session stage-d ids + 144 two-session in-ctx questions.",
+   "priority": "M",
+   "tag": "R14"
+  },
+  {
+   "id": "R14-JUDGE-1",
+   "layer": "judge",
+   "problem": "Judge false negatives after the date guard: WRONG verdicts whose answer states the gold fact (superset or concluding list, equivalent annotation, typo, containment plus extra detail, country/city or paraphrase).",
+   "evidence": {
+    "count": 23,
+    "question_ids": [
+     "conv-26/0-70",
+     "conv-26/0-135",
+     "conv-30/1-17",
+     "conv-42/3-134",
+     "conv-42/3-148",
+     "conv-42/3-173",
+     "conv-42/3-183",
+     "conv-43/4-30",
+     "conv-43/4-174",
+     "conv-47/6-26",
+     "conv-47/6-30",
+     "conv-47/6-35",
+     "conv-48/7-8",
+     "conv-48/7-101",
+     "conv-48/7-145",
+     "conv-49/8-18",
+     "conv-49/8-37",
+     "conv-49/8-54",
+     "conv-49/8-154",
+     "conv-50/9-1",
+     "conv-50/9-60",
+     "conv-50/9-64",
+     "conv-50/9-127"
+    ],
+    "method": "hand: all 287 WRONG verdicts read, one annotator. clear 10, likely 4, borderline 9. Deterministic rules (date equivalence, gold containment, token recall >=0.8, conventions v1/v2, number-in-answer) flag 9 wrong rows and 6 of the 14 clear/likely ones, so their recall is 43%. Mechanisms seen: a concluding list that holds all gold items after a hedged longer list, list supersets, an annotation-equivalent year, a typo copied from the transcript, the gold fact plus extra date detail, city/country or county/state pairs, paraphrase"
+   },
+   "existing": [
+    "GAP_REGISTER A2 (date guard in reference), I58 (conventions v1), I77 (conventions v2 built; v3 not built)",
+    "SOL-DATEGUARD",
+    "SOL-JUDGE-I77 (not_built)",
+    "judge_conventions.py check_conventions_v2",
+    "second_view.py (Mem0 official judge, batch prepared, no model run)"
+   ],
+   "gap": "The relative-date class that dominated earlier runs (7 of 24) is closed by the date guard (89 deterministic credits). What remains is list/containment/annotation/geography; the existing v1/v2 conventions reach only 6 of the 14.",
+   "hypothesis": "Conventions v3 (contains_all_gold_items_anywhere_in_answer incl. a concluding list; annotation-equivalent year; containment with extra detail when no contradiction; edit-distance names) credits 7 to 10 of the 14 clear/likely rows with no new false credit on the 17+12 hand-FP rows.",
+   "solutions": [
+    {
+     "name": "Conventions v3",
+     "generic_mechanism": "item-level containment over the whole answer, concluding-list extraction ('Therefore, ...'), annotation equivalence ('N years ago [= ~YYYY]'), fuzzy proper nouns",
+     "source": "ours: judge_conventions.py + I77",
+     "cost": "0",
+     "risk": "can credit shotgun lists; keep as a second column"
+    },
+    {
+     "name": "Second judge on disagreement",
+     "generic_mechanism": "independent-family or larger judge on rows where rules and the 9B disagree, plus all list golds with >=3 items",
+     "source": "ours: A1 deferred; PoLL panel (Verga et al. 2024); Zheng et al. 2023",
+     "cost": "~230 calls per run",
+     "risk": "judge drift; pin versions"
+    },
+    {
+     "name": "Judge sees evidence",
+     "generic_mechanism": "give the judge the cited lines to separate gold errors from reader errors",
+     "source": "Zheng et al. 2023 (reference-guided)",
+     "cost": "longer prompts",
+     "risk": "n/a"
+    }
+   ],
+   "test": "Score every convention change on judge_calibration_dev.jsonl (43 hand labels) and on these 23 + 34 hand rows; require 0 new FP.",
+   "priority": "H",
+   "tag": "R14"
+  },
+  {
+   "id": "R14-JUDGE-2",
+   "layer": "judge",
+   "problem": "Judge false positives: CORRECT verdicts for answers that omit one or more required gold items, state a vague description instead of the named item, or give a coarse stand-in.",
+   "evidence": {
+    "count": 34,
+    "question_ids": [
+     "conv-26/0-2",
+     "conv-26/0-23",
+     "conv-26/0-60",
+     "conv-26/0-78",
+     "conv-26/0-147",
+     "conv-41/2-6",
+     "conv-41/2-30",
+     "conv-41/2-32",
+     "conv-41/2-36",
+     "conv-41/2-91",
+     "conv-42/3-8",
+     "conv-42/3-11",
+     "conv-42/3-46",
+     "conv-42/3-59",
+     "conv-42/3-63",
+     "conv-42/3-75",
+     "conv-42/3-83",
+     "conv-42/3-88",
+     "conv-43/4-4",
+     "conv-43/4-9",
+     "conv-43/4-52",
+     "conv-43/4-62",
+     "conv-43/4-65",
+     "conv-44/5-9",
+     "conv-47/6-38",
+     "conv-47/6-40",
+     "conv-48/7-59",
+     "conv-48/7-74",
+     "conv-48/7-85",
+     "conv-48/7-99",
+     "conv-49/8-7",
+     "conv-49/8-50",
+     "conv-50/9-5",
+     "conv-50/9-30"
+    ],
+    "method": "hand: 193 rule-flagged CORRECT rows read (list_item_missing 136, low_gold_recall 33, hedged_or 31, long_answer 26, month/year/date mismatch 10, overlapping) plus 70 random unflagged. clear 17, likely 12, borderline 5; 0 of 70 unflagged. Flag rule list_item_missing: gold has >=2 items (comma/and split) and fewer than all have >=60% of their content stems in the answer: 136 flagged, 27 of them clear/likely (20%). By category: multi-hop (cat1) 25 of the 29 clear/likely",
+    "extra": {
+     "cat1_correct": 188,
+     "cat1_fp_weighted": 22.9
+    }
+   },
+   "existing": [
+    "GAP_REGISTER A3 (list_recall column), I58",
+    "judge_calibration_dev.jsonl complete_list convention (CORRECT with extra true items; the reverse - missing items - is not calibrated)",
+    "list_recall in reports"
+   ],
+   "gap": "Missing-item credit is a convention (LoCoMo graders usually accept it), but it is applied unevenly: the same run rejects other partial lists (stage d:lst has 16 such rows).",
+   "hypothesis": "Reporting item recall as a second column and a strict-list headline shows the multi-hop figure is overstated by about 5 points (66.7% to 61.1% central); a strict all-items rule would drop a further 12-17 q.",
+   "solutions": [
+    {
+     "name": "Item-recall column + strict list headline",
+     "generic_mechanism": "per-item coverage using the same containment rule as conventions",
+     "source": "ours: list_recall (A3) extended to strict",
+     "cost": "0",
+     "risk": "choice of convention; publish both"
+    },
+    {
+     "name": "Two-judge adjudication",
+     "generic_mechanism": "second judge only on list golds with >=2 items",
+     "source": "Verga et al. 2024 (PoLL)",
+     "cost": "~350 calls",
+     "risk": "cost"
+    },
+    {
+     "name": "Calibrate the 'missing item' side",
+     "generic_mechanism": "add 15 hand-labelled partial-list cases to judge_calibration_dev.jsonl",
+     "source": "ours",
+     "cost": "0",
+     "risk": "label noise"
+    }
+   ],
+   "test": "Freeze the 34 FP ids + 23 FN ids as a 57-row calibration extension; measure every judge change on it.",
+   "priority": "H",
+   "tag": "R14"
+  },
+  {
+   "id": "R14-JUDGE-3",
+   "layer": "judge",
+   "problem": "How far off is the 81.4% headline: net effect of judge errors in both directions and of gold errors.",
+   "evidence": {
+    "count": 0,
+    "question_ids": [],
+    "method": "hand estimate with explicit weights (see tables.judge.central_estimate): FN central 16.6 (range 10-23), FP central about 30 (range 17-45 incl. 3 unseen); headline 1253/1540 = 81.4% -> central about 80.5%, range 79.1 to 81.7; errata-excluded raw 82.6%; category: cat1 66.7 -> 61.1, cat3 42.7 -> 43.5, cat4 90.0 -> 90.7, cat2 83.2 -> 82.9",
+    "extra": {
+     "cat1": {
+      "n": 282,
+      "raw": 0.667,
+      "adjusted_central": 0.611,
+      "fp_weighted": 22.9,
+      "fn_weighted": 7.2
+     },
+     "cat2": {
+      "n": 321,
+      "raw": 0.832,
+      "adjusted_central": 0.829,
+      "fp_weighted": 1.0,
+      "fn_weighted": 0.0
+     },
+     "cat3": {
+      "n": 96,
+      "raw": 0.427,
+      "adjusted_central": 0.435,
+      "fp_weighted": 0.7,
+      "fn_weighted": 1.5
+     },
+     "cat4": {
+      "n": 841,
+      "raw": 0.9,
+      "adjusted_central": 0.907,
+      "fp_weighted": 2.3,
+      "fn_weighted": 8.0
+     }
+    }
+   },
+   "existing": [
+    "GAP_REGISTER A1 (second judge deferred), A5, A10 (bootstrap CI +-2.2)",
+    "locomo_errata.json (52 entries)"
+   ],
+   "gap": "The judge-adjusted shift (-0.9 central) is inside the bootstrap CI (+-2.2) but is concentrated in multi-hop, which carries most of the claimed improvements.",
+   "hypothesis": "Reporting raw, convention-adjusted and strict-list numbers per category with CIs makes multi-hop deltas under 5 points uninterpretable; per-category claims should use the strict column.",
+   "solutions": [
+    {
+     "name": "Triple reporting",
+     "generic_mechanism": "raw / conventions v3 / strict list, all with cluster-bootstrap CI",
+     "source": "ours: forensics_report two-column layout",
+     "cost": "0",
+     "risk": "none"
+    }
+   ],
+   "test": "Add the adjusted columns to the screen report.",
+   "priority": "H",
+   "tag": "R14"
+  },
+  {
+   "id": "R14-JUDGE-4",
+   "layer": "judge",
+   "problem": "Is the judge noisy or systematically wrong? Repeat verdicts on identical answers.",
+   "evidence": {
+    "count": 4,
+    "question_ids": [],
+    "method": "measured: 1,696 groups of identical normalised answers judged by the guarded LLM judge across 6 full runs (clean-jina-full, full-persp-loc, r7-multprot/post/protect-full, qa-full-qs-eq06-fix); 4 groups (0.24%) contain both verdicts. 89 more rows are credited by the deterministic date guard without an LLM call"
+   },
+   "existing": [
+    "GAP_REGISTER A16 noise floor, READER_GAPS_FORENSIC 4.1 (3 of 256 near-identical flips)"
+   ],
+   "gap": "The judge is nearly deterministic at temperature 0; its errors are systematic (conventions), not random, so averaging runs will not remove them.",
+   "hypothesis": "Fixes must be convention changes or a second judge, not repeats.",
+   "solutions": [
+    {
+     "name": "Convention changes + second judge",
+     "generic_mechanism": "see R14-JUDGE-1/2",
+     "source": "ours",
+     "cost": "-",
+     "risk": "-"
+    }
+   ],
+   "test": "n/a (confirmed).",
+   "priority": "L",
+   "tag": "R14"
+  },
+  {
+   "id": "R14-JUDGE-5",
+   "layer": "judge",
+   "problem": "Relative-phrase golds that the date guard does not parse ('a year ago', 'few days before <month>', 'the last week of <month>', 'since <year>'): answered in absolute or annotated form.",
+   "evidence": {
+    "count": 20,
+    "question_ids": [
+     "conv-26/0-22",
+     "conv-30/1-31",
+     "conv-41/2-107",
+     "conv-42/3-4",
+     "conv-42/3-43",
+     "conv-43/4-16",
+     "conv-43/4-34",
+     "conv-44/5-34",
+     "conv-44/5-47",
+     "conv-47/6-53",
+     "conv-47/6-62",
+     "conv-47/6-64",
+     "conv-48/7-46",
+     "conv-48/7-101",
+     "conv-48/7-134",
+     "conv-49/8-39",
+     "conv-49/8-43",
+     "conv-49/8-70",
+     "conv-50/9-61",
+     "conv-50/9-62"
+    ],
+    "method": "heuristic: gold_type rel_other = relative words (ago, last, next, since, week, month, year) and no digit and not parsed as a day/week/weekend/month/year. 40 questions at 50.0% accuracy; 20 wrong; 1 hand-FN (annotation-equivalent year), others real reader failures or gold limits"
+   },
+   "existing": [
+    "SOL-DATEGUARD",
+    "I77 relative_year convention (proposed)"
+   ],
+   "gap": "Small (one FN found) but unguarded; the relative gold carries no machine-readable anchor.",
+   "hypothesis": "relative_year convention ('N years ago [= ~YYYY]') credits the one case; expected effect <=2 q.",
+   "solutions": [
+    {
+     "name": "relative_year convention",
+     "generic_mechanism": "session year minus N equals the answer year",
+     "source": "ours: I77",
+     "cost": "0",
+     "risk": "none"
+    }
+   ],
+   "test": "calibration rows.",
+   "priority": "L",
+   "tag": "R14"
+  },
+  {
+   "id": "R14-GOLD-1",
+   "layer": "data",
+   "problem": "Gold and question defects not yet in the errata: gold not entailed by its evidence turn, question premise that differs from the transcript, and speaker-attribution mismatches.",
+   "evidence": {
+    "count": 8,
+    "question_ids": [
+     "conv-26/0-135",
+     "conv-43/4-55",
+     "conv-49/8-25",
+     "conv-42/3-54",
+     "conv-48/7-116",
+     "conv-48/7-155",
+     "conv-48/7-179",
+     "conv-50/9-147"
+    ],
+    "method": "hand (3: gold date not entailed; question month differs from the evidence's resolved month; gold year needs an unresolved computation) + heuristic (5: question names exactly one speaker, every evidence turn is spoken by the other, wrong, not in errata; unverified). The errata file has 52 entries; excluding gold_error + needs_image rows gives 82.6% (26 rows, 3 of them credited)"
+   },
+   "existing": [
+    "SOL-ERRATA, locomo_errata.json tags gold_error/needs_image/evidence_label_error/premise_error",
+    "GAP_REGISTER A5, I62"
+   ],
+   "gap": "The estimated 16-24 unread gold errors were not found: reading all 287 wrong rows added only about 3 certain and 5 candidate items; the errata is close to complete for the wrong side.",
+   "hypothesis": "Adding these 8 entries changes the excluded-accuracy by <0.2 points; the larger distortion is on the credited side (R14-GOLD-2).",
+   "solutions": [
+    {
+     "name": "Errata extension with adjudication",
+     "generic_mechanism": "two-person review of the 8",
+     "source": "ours: errata.py",
+     "cost": "0",
+     "risk": "n/a"
+    }
+   ],
+   "test": "Verify the 5 speaker candidates against the transcript.",
+   "priority": "L",
+   "tag": "R14"
+  },
+  {
+   "id": "R14-GOLD-2",
+   "layer": "data",
+   "problem": "Speaker-swapped questions reward ignoring the person the question names: when the gold turn is spoken by the other person, a system that attributes by speaker loses the point and one that ignores speaker gains it.",
+   "evidence": {
+    "count": 39,
+    "question_ids": [
+     "conv-26/0-72",
+     "conv-26/0-94",
+     "conv-26/0-106",
+     "conv-26/0-107",
+     "conv-26/0-132",
+     "conv-26/0-139",
+     "conv-30/1-44",
+     "conv-41/2-5",
+     "conv-41/2-129",
+     "conv-42/3-54",
+     "conv-42/3-119",
+     "conv-42/3-121",
+     "conv-42/3-184",
+     "conv-43/4-60",
+     "conv-43/4-74",
+     "conv-43/4-86",
+     "conv-43/4-135",
+     "conv-43/4-136",
+     "conv-43/4-164",
+     "conv-43/4-165",
+     "conv-43/4-166",
+     "conv-47/6-37",
+     "conv-48/7-78",
+     "conv-48/7-116",
+     "conv-48/7-120",
+     "conv-48/7-122",
+     "conv-48/7-123",
+     "conv-48/7-152",
+     "conv-48/7-155",
+     "conv-48/7-179",
+     "conv-49/8-24",
+     "conv-50/9-70",
+     "conv-50/9-80",
+     "conv-50/9-87",
+     "conv-50/9-88",
+     "conv-50/9-111",
+     "conv-50/9-137",
+     "conv-50/9-147",
+     "conv-50/9-151"
+    ],
+    "method": "heuristic: the question names exactly one of the two conversation speakers and every valid evidence turn is spoken by the other. 39 rows: 24 credited (1 in errata, 23 not), 15 wrong (10 in errata, 5 not)"
+   },
+   "existing": [
+    "SOL-PERSPECTIVE (subject_weight), I59 owner_check, I39 perspective layer"
+   ],
+   "gap": "Perspective improvements are scored against labels that sometimes contradict them: 23 credited, un-errata'd rows depend on ignoring speaker attribution.",
+   "hypothesis": "Reporting the 23 credited swapped-speaker rows separately explains any perspective-feature loss up to 1.5 points and prevents rejecting a correct attribution feature.",
+   "solutions": [
+    {
+     "name": "Report speaker-swap rows as their own stratum",
+     "generic_mechanism": "tag in errata as speaker_swap, keep in headline, show delta with and without",
+     "source": "ours: errata.py",
+     "cost": "0",
+     "risk": "none"
+    }
+   ],
+   "test": "Run any perspective screen with the stratum split.",
+   "priority": "M",
+   "tag": "R14"
+  }
+ ]
+}
