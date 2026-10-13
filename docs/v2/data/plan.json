@@ -4285,8 +4285,8 @@
    ],
    "kind": "measure",
    "gate": "ROADMAP Phase 1 exit gate",
-   "status": "In progress",
-   "note": "Sonnet agent: server profile via local Docker Postgres(pgvector)+Neo4j; CPU only (GPU reserved by owner)",
+   "status": "Needs measurement",
+   "note": "Server profile live on Docker PG+Neo4j: F-16d contract, F-16f 12/14 server cells (2 replay skip by design), EX-1a server steps 1-4 pass; simhash BigInteger fix; raw-only read non-inferiority deferred to GPU",
    "layers": [
     "L0",
     "L1",
@@ -4870,8 +4870,8 @@
    ],
    "kind": "behaviour",
    "gate": "MAB-CR non-inferior; A-B-A tests; behavioural INV-ORDER-SWAP passes",
-   "status": "In progress",
-   "note": "Parallel build on the W2-06c envelope stage hook list (derive/envelope_stages.py); merged in order 14,08,09,10,13",
+   "status": "Needs measurement",
+   "note": "write.integration_v2 stage (order 400); INV-ORDER-SWAP passes with flag on; MAB-CR screen pending (GPU)",
    "layers": [
     "L1",
     "L3"
@@ -6621,7 +6621,7 @@
    "kind": "behaviour",
    "gate": "Forget probes on both profiles; every layer registered",
    "status": "Needs measurement",
-   "note": "TW-B wired flag-off (privacy.erasure_v2 / retention.v2 / audit.chain_v2); offline raw-read consent gap open",
+   "note": "erasure_v2 + FX-EX1A + FU-ERASE (privacy.erasure_rederive re-derives summaries/facts, member-list kept classification)",
    "layers": [
     "L0",
     "L1",

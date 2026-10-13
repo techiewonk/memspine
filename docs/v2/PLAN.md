@@ -9,9 +9,9 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 |---|---|
 | Not started | 9 |
 | Ready | 0 |
-| In progress | 6 |
+| In progress | 4 |
 | Blocked | 0 |
-| Needs measurement | 63 |
+| Needs measurement | 65 |
 | Done | 83 |
 | Dropped | 1 |
 
@@ -121,7 +121,7 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | F-16e | Neo4j graph adapter fed through the outbox | L3 | R | M-18 | - | F-16d, F-04 | behaviour | S2 foundations (serial: Alembic) | `src/memspine/store/lineage.py` +6 | Graph contract on Neo4j | **Needs measurement** | graph.neo4j_outbox mirror flag-off; fake-driver contract passes; live Neo4j untested (no driver/server here) |
 | F-16f | Isolation, erasure and rebuild matrix on both profiles | L0 L1 L3 L4 L5 ctx scope | K_C | M-25 | ER-05, ER-30 | F-16e, F-16c | behaviour | S2 foundations (serial: Alembic) | `src/memspine/store/lineage.py` +6 | Matrix green on embedded and server | **Needs measurement** | matrix 26 pass on embedded (incl. neo4j fake) after G1 fix; 14 server cells skip until MEMSPINE_TEST_PG_URL run |
 | EX-1a | Embedded milestone: one synthetic end-to-end workload survives restart and erasure | L0 L1 L4 L5 ctx scope | D K_C K_P R C G | G-01 | ER-05 | F-16c, F-16b, F-02c, F-03 | measure | S2 foundations (serial: Alembic) | - | Restart, erasure and replay on the embedded profile; not a server release | **Done** | 5/5 steps pass; FX-EX1A merged: F1 fixed (multi-party participants+inherit under viewer_required), F4 verify_forget v2-aware, F2 privacy.erasure_redact_hidden; F3 noted |
-| EX-1 | Phase 1 exit (server milestone): raw-only read non-inferior; golden; replay NO CHANGE | L0 L1 L4 L5 ctx scope | D K_C K_P R C G | G-01 | ER-05 | F-16f, EX-1a, P0-03 | measure | S2 foundations (serial: Alembic) | - | ROADMAP Phase 1 exit gate | **In progress** | Sonnet agent: server profile via local Docker Postgres(pgvector)+Neo4j; CPU only (GPU reserved by owner) |
+| EX-1 | Phase 1 exit (server milestone): raw-only read non-inferior; golden; replay NO CHANGE | L0 L1 L4 L5 ctx scope | D K_C K_P R C G | G-01 | ER-05 | F-16f, EX-1a, P0-03 | measure | S2 foundations (serial: Alembic) | - | ROADMAP Phase 1 exit gate | **Needs measurement** | Server profile live on Docker PG+Neo4j: F-16d contract, F-16f 12/14 server cells (2 replay skip by design), EX-1a server steps 1-4 pass; simhash BigInteger fix; raw-only read non-inferiority deferred to GPU |
 
 ## Phase 2: write path and models
 
@@ -140,7 +140,7 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | W2-15 | Coverage check and targeted re-extraction (screened) | L1 L3 | D | W-17, W-15 | ER-12 | W2-08, LIB-17 | behaviour | S4 extraction (serial) | - | Omitted-fact recall and unsupported additions measured separately on unseen domains; extra calls counted | **Not started** | ER-12 |
 | W2-08 | Grounding: spans per assertion, rule checks, assent | L1 L3 | D | W-17 | ER-11, ER-14 | W2-14, X-05, LIB-03 | behaviour | S4 extraction (serial) | - | Grounding at least 95% on the labelled set | **In progress** | Parallel build on the W2-06c envelope stage hook list (derive/envelope_stages.py); merged in order 14,08,09,10,13 |
 | W2-09 | Online entity resolution with pending_merge | L1 L3 | D K_C | W-19, M-15 | ER-13, ER-20 | W2-08, LIB-04 | behaviour | S4 extraction (serial) | - | Calibrated thresholds: no homonym merges above a stated rate | **In progress** | Parallel build on the W2-06c envelope stage hook list (derive/envelope_stages.py); merged in order 14,08,09,10,13 |
-| W2-10 | Integration ladder and cardinality registry | L1 L3 | D K_C | W-21, W-22, M-12 | ER-14, ER-17 | W2-09, F-01, LIB-02 | behaviour | S4 extraction (serial) | - | MAB-CR non-inferior; A-B-A tests; behavioural INV-ORDER-SWAP passes | **In progress** | Parallel build on the W2-06c envelope stage hook list (derive/envelope_stages.py); merged in order 14,08,09,10,13 |
+| W2-10 | Integration ladder and cardinality registry | L1 L3 | D K_C | W-21, W-22, M-12 | ER-14, ER-17 | W2-09, F-01, LIB-02 | behaviour | S4 extraction (serial) | - | MAB-CR non-inferior; A-B-A tests; behavioural INV-ORDER-SWAP passes | **Needs measurement** | write.integration_v2 stage (order 400); INV-ORDER-SWAP passes with flag on; MAB-CR screen pending (GPU) |
 | W2-11 | Asset describer (ingest and read triggers, off by default) | L0 | D R | W-23 | ER-25 | W2-01 | behaviour | write | - | Off by default; on-arm screen | **Needs measurement** | write.asset_describer off|ingest|on_read; metadata fallback; vision path untested vs real model |
 | W2-12 | Cost ledger and write targets | L0 L1 L3 L4 L5 | D K_C K_P | W-26, P-14, P-22 | ER-08, ER-15, ER-16, ER-37, ER-39 | EX-1a, LIB-27 | infra | write | - | Targets as regression tests | **Needs measurement** | economy.ledger_v2/budget + FU-SLEEP: per-namespace sleep pool, economy.ledger_persist (sibling sqlite, hashed ns) |
 | W2-13 | Small local pre-pass (GLiNER2) as hints | L1 L3 | D | P-23 | - | W2-10 | behaviour | S4 extraction (serial) | - | Calls down, grounded facts not down | **In progress** | Parallel build on the W2-06c envelope stage hook list (derive/envelope_stages.py); merged in order 14,08,09,10,13 |
@@ -199,7 +199,7 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | T5-01 | Trust horizon on grants | scope | D R | G-07 | ER-29, POL-2 | LIB-21, F-16a | behaviour | trust | - | Read cost of the bound; N1 tests | **Needs measurement** | TW-A wired flag-off (integrity.horizon_v2 / consent.v2 / firewall.gates_v2); MINJA FP rate needs OP-Bench screen |
 | T5-02 | Low-trust rendering in context | L0 L1 ctx | C | G-09 | ER-22 | LIB-25 | behaviour | trust | - | Count wrapped blocks; QA non-inferior | **Needs measurement** | Wired flag-off (RW-C bb21249); screen queued |
 | T5-03 | Privacy tiers, consent and purpose scopes | L0 L1 L4 | D K_P R C | G-10, G-11 | ER-31 | LIB-18 | behaviour | trust | - | Remote-tier gate tests | **Needs measurement** | TW-A wired flag-off (integrity.horizon_v2 / consent.v2 / firewall.gates_v2); MINJA FP rate needs OP-Bench screen |
-| T5-04 | Erasure index across caches and projections (contract re-run per layer) | L0 L1 L3 L4 L5 ctx scope | D K_C | G-13, M-25 | ER-30, ER-31, POL-1 | LIB-09, F-16a | behaviour | trust | - | Forget probes on both profiles; every layer registered | **Needs measurement** | TW-B wired flag-off (privacy.erasure_v2 / retention.v2 / audit.chain_v2); offline raw-read consent gap open |
+| T5-04 | Erasure index across caches and projections (contract re-run per layer) | L0 L1 L3 L4 L5 ctx scope | D K_C | G-13, M-25 | ER-30, ER-31, POL-1 | LIB-09, F-16a | behaviour | trust | - | Forget probes on both profiles; every layer registered | **Needs measurement** | erasure_v2 + FX-EX1A + FU-ERASE (privacy.erasure_rederive re-derives summaries/facts, member-list kept classification) |
 | T5-05 | Retention and audit per profile | L0 L1 L4 L5 ctx scope | D K_C R | G-14, G-15 | ER-27 | LIB-41 | infra | trust | - | Profile tests | **Needs measurement** | TW-B wired flag-off (privacy.erasure_v2 / retention.v2 / audit.chain_v2); offline raw-read consent gap open |
 | T5-06 | Observability: per-stage ledger, optional OTel, no content in spans | L0 L1 L4 L5 ctx scope | D K_C K_P R C G | G-20 | - | W2-12 | infra | trust | - | Tests | **Done** | ops ledger + Engine.ops_report + GET /ops/report; OTel sink behind observability.otel.enabled; no-content span guard tested over scripted workload; SDK path skipped (sdk import fails here) |
 | T5-07 | N1 attack and utility run with enforcement on | L0 L1 scope | D R | G-07, G-06 | - | T5-01, W2-04 | measure | trust | - | Attack/utility frontier | **Not started** |  |
