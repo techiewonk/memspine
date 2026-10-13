@@ -7,9 +7,9 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 
 | Status | Count |
 |---|---|
-| Not started | 9 |
+| Not started | 7 |
 | Ready | 0 |
-| In progress | 2 |
+| In progress | 4 |
 | Blocked | 0 |
 | Needs measurement | 67 |
 | Done | 83 |
@@ -135,9 +135,9 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | W2-07 | Prompt layout rules: no examples, stable prefix, same language | L0 L1 L3 ctx | D C | W-18, P-07, P-08, P-10 | ER-16 | P0-09, EX-1a, LIB-46 | behaviour | write | - | English output unchanged on focus slice (per partial) | **Needs measurement** | prompts.layout_v2 flag-off; flag-off byte-identical; v2 English diff = examples removed + schema to user part + coarse_date; screen per partial pending |
 | W2-06a | ItemV1 to AssertionEnvelope compile, validation, repair re-ask, dead letters | L0 L1 L3 | D | W-14, W-15, P-05, P-06 | ER-11, ER-15, ER-32 | W2-05, F-16a, LIB-05 | behaviour | S4 extraction (serial) | - | Unit tests; items dropped counted | **Needs measurement** | write.envelope_v2: validate, one repair re-ask, dead letters, kind cap 64; envelope not yet persisted as column |
 | W2-06b | Prompt v2 and schema-constrained decoding | L0 L1 L3 | D | W-16, P-04, P-09, P-11 | ER-12, ER-15 | W2-06a, W2-07 | behaviour | S4 extraction (serial) | - | Window arm: items dropped down; at most 1 call per window | **Needs measurement** | write.prompt_v2: one call per window/batch (facts_graph/all 2->1), NEW/CONTEXT/KNOWN, json_schema where supported |
-| W2-06c | Online extraction via the outbox with a stage hook list | L1 L3 | D R | W-12 | - | W2-06b, F-04 | behaviour | S4 extraction (serial) | - | No-model template: zero calls; window arm screen | **Not started** |  |
+| W2-06c | Online extraction via the outbox with a stage hook list | L1 L3 | D R | W-12 | - | W2-06b, F-04 | behaviour | S4 extraction (serial) | - | No-model template: zero calls; window arm screen | **In progress** | Sonnet agent launched |
 | W2-14 | Temporal extraction by every means: anchor ladder, basis and precision, relations without dates | L0 L1 L3 L5 | D R | W-04, M-10, R-07 | ER-18 | W2-06c, LIB-01 | behaviour | S4 extraction (serial) | - | Temporal category up; no invented exact dates (precision audit) | **Needs measurement** | write.temporal_v2 stage (order 100) + read.temporal_precision_aware; precision audit test; full unit run pending (machine load) |
-| W2-15 | Coverage check and targeted re-extraction (screened) | L1 L3 | D | W-17, W-15 | ER-12 | W2-08, LIB-17 | behaviour | S4 extraction (serial) | - | Omitted-fact recall and unsupported additions measured separately on unseen domains; extra calls counted | **Not started** | ER-12 |
+| W2-15 | Coverage check and targeted re-extraction (screened) | L1 L3 | D | W-17, W-15 | ER-12 | W2-08, LIB-17 | behaviour | S4 extraction (serial) | - | Omitted-fact recall and unsupported additions measured separately on unseen domains; extra calls counted | **In progress** | Sonnet agent launched |
 | W2-08 | Grounding: spans per assertion, rule checks, assent | L1 L3 | D | W-17 | ER-11, ER-14 | W2-14, X-05, LIB-03 | behaviour | S4 extraction (serial) | - | Grounding at least 95% on the labelled set | **Needs measurement** | write.grounding_v2 stage (order 200); labelled set 85.5% CPU-only (rules+lexical) vs 95% gate; non-English undecided items need an LLM adjudicator (GPU) |
 | W2-09 | Online entity resolution with pending_merge | L1 L3 | D K_C | W-19, M-15 | ER-13, ER-20 | W2-08, LIB-04 | behaviour | S4 extraction (serial) | - | Calibrated thresholds: no homonym merges above a stated rate | **In progress** | Parallel build on the W2-06c envelope stage hook list (derive/envelope_stages.py); merged in order 14,08,09,10,13 |
 | W2-10 | Integration ladder and cardinality registry | L1 L3 | D K_C | W-21, W-22, M-12 | ER-14, ER-17 | W2-09, F-01, LIB-02 | behaviour | S4 extraction (serial) | - | MAB-CR non-inferior; A-B-A tests; behavioural INV-ORDER-SWAP passes | **Needs measurement** | write.integration_v2 stage (order 400); INV-ORDER-SWAP passes with flag on; MAB-CR screen pending (GPU) |

@@ -4670,8 +4670,8 @@
    ],
    "kind": "behaviour",
    "gate": "No-model template: zero calls; window arm screen",
-   "status": "Not started",
-   "note": "",
+   "status": "In progress",
+   "note": "Sonnet agent launched",
    "layers": [
     "L1",
     "L3"
@@ -4753,8 +4753,8 @@
    ],
    "kind": "behaviour",
    "gate": "Omitted-fact recall and unsupported additions measured separately on unseen domains; extra calls counted",
-   "status": "Not started",
-   "note": "ER-12",
+   "status": "In progress",
+   "note": "Sonnet agent launched",
    "layers": [
     "L1",
     "L3"
