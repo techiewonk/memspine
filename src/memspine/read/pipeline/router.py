@@ -21,6 +21,7 @@ from memspine.core.read_filters import (
     DateBound,
     DateFilter,
     RecordScope,
+    active_as_of,
     active_date_filter,
     active_record_scope,
     as_of_scope,
@@ -58,6 +59,7 @@ from memspine.prompts.models import (
 from memspine.read.contract import (
     rerank_hint,
 )
+from memspine.read.pipeline import date_prior
 from memspine.read.pipeline import freshness as read_freshness
 from memspine.read.pipeline import request as read_request
 from memspine.read.pipeline.fusion import (
@@ -390,6 +392,46 @@ async def search(
     return scored
 
 
+async def _date_prior(
+    eng: Any,
+    ns: str,
+    query: str,
+    fused: list[tuple[str, float]],
+    named: list[tuple[str, Any]],
+) -> tuple[list[tuple[str, float]], dict[str, str]]:
+    """R14-M-7 (``read.date_prior``): boost fused candidates near the question's explicit date.
+
+    Returns the re-scored fused list and the boosted ids to protect into the rerank pool. The
+    question's span comes from the temporal parser; relative phrases resolve only against an
+    explicit as-of, a yearless date against the newest record time (never the system clock)."""
+    read = eng._config().read
+    as_of = active_as_of()
+    year_ref = None
+    if read.temporal_infer_year:
+        year_ref = as_of
+    span = date_prior.prior_span(query, anchor=as_of, year_ref=year_ref)
+    if span is None or not fused:
+        return fused, {}
+    wanted = {rid for rid, _ in fused}
+    records = {r.record_id: r for r in await eng._records(ns) if r.record_id in wanted}
+    out, boosted = date_prior.apply_prior(
+        fused,
+        records,
+        span,
+        window_days=read.date_prior_days,
+        boost=read.date_prior_boost,
+    )
+    protect = date_prior.protect_ids(boosted, _leg_rank_map(named))
+    if tap.enabled():
+        tap.event(
+            "read.date_prior",
+            span=[span[0].isoformat(), span[1].isoformat()],
+            boosted=len(boosted),
+            protected=list(protect),
+        )
+    return out, protect
+
+
 async def _search(
     eng: Any,
     query: str,
@@ -594,6 +636,19 @@ async def _search(
                     vector_hits, lexical_hits, k=rrf_k, extra=extra_legs, weights=weights
                 )
             read_cut = eng._config().read
+            date_protected: dict[str, str] = {}
+            if read_cut.date_prior:
+                fused, date_protected = await _date_prior(
+                    eng,
+                    ns,
+                    query,
+                    fused,
+                    [
+                        ("vector", vector_hits),
+                        *([("lexical", lexical_hits)] if use_hybrid else []),
+                        *[(getattr(leg, "name", "extra"), leg) for leg in extra_legs],
+                    ],
+                )
             # GR-15 fix (2026-10-10): with ``rerank_balanced`` the fused list must keep more
             # than the pool size, or ``_balanced_pool`` below has nothing to choose from and
             # is a no-op (measured: identical answers on 233 dev questions).
@@ -601,7 +656,7 @@ async def _search(
             fused_full = fused
             fused = fused[: top_k * widen * over]
             protect_n = read_cut.pool_protect_per_leg
-            if protect_n > 0:
+            if protect_n > 0 or date_protected:
                 # I75a: keep each leg's top-N alive through the fused-list cut (bounded:
                 # at most legs * N extra entries, in fused order).
                 named = [
@@ -614,6 +669,8 @@ async def _search(
                     protected = {rid: fam for fam, ids in family_slots.items() for rid in ids}
                 else:
                     protected = _protected_ids(named, protect_n)
+                for rid, why in date_protected.items():  # R14-M-7
+                    protected.setdefault(rid, why)
                 kept_ids = {rid for rid, _ in fused}
                 fused = fused + [
                     (rid, sc) for rid, sc in fused_full if rid in protected and rid not in kept_ids
@@ -654,6 +711,8 @@ async def _search(
             if minmax:  # N52: the max is the (weighted) leg count, without 1/(k+1)
                 rrf_max *= rrf_k + 1
             ranked: list[tuple[str, float]] = [(rid, score / rrf_max) for rid, score in fused]
+            if read_cut.date_prior:  # R14-M-7: a boosted relevance stays in [0, 1]
+                ranked = [(rid, min(sc, 1.0)) for rid, sc in ranked]
         else:
             if read_now.family_fusion and floors and "vector" in floors:
                 vector_hits = [h for h in vector_hits if h.score >= floors["vector"]]

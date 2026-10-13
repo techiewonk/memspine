@@ -516,3 +516,5 @@ From `docs/v2/research/R14_MASTER.md` (2026-10-14). Proposals only: none is in `
 | S98 | R14-M-19 | support-recall report | the 10 + 8 + 3 + 59 ids; guard: correct questions with context-dependent gold | yes |
 | S99 | R14-M-20 | known_keys (after S34/S42) | fail_mix_120 attribute subset (33) + MAB-CR dev for the history half | no |
 | S100 | R14-M-21 | link_table | fail_retrieval + fail_mix_120; CPU prototype over stored embeddings of one conversation first | no |
+
+**R14-DATEPRIOR (S87, S82/S83 share).** Built flag-off: `read.date_prior` (with `date_prior_days` 14, `date_prior_boost` 1.0) and the arms `v2-R14-DATEPRIOR-date_prior` and `v2-R14-DATEPRIOR-pool_protect_8` (overlays on `scr-pool-protect-jina`; `pool_protect_per_leg` already guarantees each leg's top-N, so no second key). Proposed slices: `fail_temporal` (S87, date_prior) and `fail_fusion` (S82, protect 8). Offline first: `evals/r14_dateprior_offline.py`, results (ids and counts only) in `evals/analysis/r14_dateprior_offline.json`. Run: S87 on `fail_temporal`, S82 on `fail_fusion`; read by `tgt_rec` and `ctl_lost`. Zero model calls.

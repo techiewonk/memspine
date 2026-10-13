@@ -206,6 +206,17 @@ class ReadConfig(BaseModel):
     #: the reranker even when their fused (RRF) rank falls outside the pool size; the rest is
     #: filled by RRF. The pool grows by at most ``legs * N``. 0 = off (unchanged).
     pool_protect_per_leg: int = Field(default=0, ge=0, le=20)
+    #: R14-M-7: when the question names an explicit date (or month) the temporal parser resolves
+    #: (never the system clock; relative phrases only against an explicit as-of), multiply the
+    #: fused score of candidates whose session / ``happened:`` date lies within
+    #: ``date_prior_days`` of it by up to ``1 + date_prior_boost`` (linear in closeness), and
+    #: protect up to five boosted candidates that a leg ranks in its top 10 into the rerank pool.
+    #: Boost only: nothing is added or filtered. Per-leg RRF path only (not ``family_fusion``).
+    date_prior: bool = False
+    #: R14-M-7: the window, in days either side of the question's date span.
+    date_prior_days: int = Field(default=14, ge=1, le=366)
+    #: R14-M-7: the largest extra multiplier a candidate on the date itself receives.
+    date_prior_boost: float = Field(default=1.0, ge=0.0, le=3.0)
     #: R02 / I75 v2: how ``pool_protect_per_leg`` counts. ``per_leg`` (default) = I75a: every leg
     #: protects its own top-N, so the pool grows. ``source_family`` groups legs into independent
     #: families (lexical; semantic = vector + perspective + other vector-derived legs; temporal;
