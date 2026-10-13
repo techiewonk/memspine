@@ -81,6 +81,28 @@ class WriteConfig(BaseModel):
     #: (default): the old write path, unchanged.
     intake_v2: bool = False
 
+    #: W2-02 (LIB-29; W-04, W-05, W-08, M-08): stamping on every raw turn. ``True``: three
+    #: clocks (``source_at`` from the turn's own timestamp and never "now", ``source_tz``
+    #: declared by the turn or envelope else ``unknown``, ``recorded_at`` the engine clock),
+    #: a naive time with an unknown zone kept as wall clock flagged ``tz_unknown`` (not
+    #: shifted by ``read.naive_timezone``), the speaker / addressee / participants typed
+    #: columns (participants on by default, filled from the call's speakers), and the
+    #: provenance class from the role. A user turn that answers an assistant turn in the
+    #: same call is run through the assent check (a real yes is tagged
+    #: ``assent_of:<assistant record>``, "ok, thanks" is not). Runs on the direct path and
+    #: inside the intake gateway (``write.intake_v2``). The event interval and its precision
+    #: are filled at derivation, not here. Taps ``write.stamp.*``. ``False`` (default):
+    #: turns are stamped as before.
+    stamping_v2: bool = False
+    #: W2-02 (W-05): with ``stamping_v2``, also write the v1 ``participant:<name>`` tags
+    #: (``v1``, kept for the dual-read period; ``none`` writes only the typed column). They
+    #: feed the ``viewer`` read filter, so a deployment that reads with ``viewer=`` may set
+    #: ``none`` and rely on the typed column.
+    stamp_participant_tags: Literal["v1", "none"] = "v1"
+    #: W2-02 (W-04): the zone a naive source time with no declared zone is read in (as wall
+    #: clock; the record is still flagged ``unknown``). ``None``: ``read.naive_timezone``.
+    stamp_default_tz: str | None = None
+
     #: O4-11 (LIB-44, O-25): explicit feedback only. ``True``: ``Engine.feedback`` refuses any
     #: channel that is not a deliberate one (``user_message``, ``ui_control``, ``operator_edit``,
     #: ``api``; silence, dwell, regeneration and classifier signals are refused), checks who may

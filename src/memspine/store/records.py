@@ -189,6 +189,17 @@ class RecordAxes(BaseModel):
     subject: list[str] = Field(default_factory=list)
     addressee: str | None = None
     asker: str | None = None
+    #: W2-02 (W-05, M-08 note): everyone present for the turn, normalised principal ids, speaker
+    #: first. Empty = not stamped (the v1 ``participant:`` tags still carry it). Left out of a dump
+    #: while empty, so a record that never set it serialises as before.
+    participants: list[str] = Field(default_factory=list)
+
+    @model_serializer(mode="wrap")
+    def _omit_empty_participants(self, handler: SerializerFunctionWrapHandler) -> Any:
+        data = handler(self)
+        if isinstance(data, dict) and not data.get("participants"):
+            data.pop("participants", None)
+        return data
 
 
 class RecordFingerprint(BaseModel):
@@ -307,6 +318,10 @@ class MemoryRecord(BaseModel):
     event_precision: TimePrecision | None = None
     event_approximate: bool = False
     event_basis: TimeBasis | None = None
+    #: W2-02 (W-04): the zone the source time was said in: an IANA name, a fixed offset such as
+    #: ``+09:00``, or ``"unknown"`` (a naive time nobody gave a zone for: kept as wall clock, never
+    #: shifted). None = not stamped.
+    source_tz: str | None = None
 
     # A context block the engine built at read time (lead section, cards and
     # profile headers). Private: it is never serialised and no payload, tag or
@@ -334,7 +349,7 @@ class MemoryRecord(BaseModel):
             return data
         if self.invalid_at is None:
             data.pop("invalid_at", None)
-        for key in ("source_at", "source_precision", "event_precision", "event_basis"):
+        for key in ("source_at", "source_precision", "event_precision", "event_basis", "source_tz"):
             if data.get(key) is None:
                 data.pop(key, None)
         if not data.get("event_approximate"):
