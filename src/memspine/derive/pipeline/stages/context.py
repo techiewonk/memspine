@@ -6,7 +6,7 @@ from collections.abc import Awaitable, Callable, Sequence
 from contextlib import AbstractAsyncContextManager, nullcontext
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Protocol
+from typing import Any, Protocol
 
 from memspine.config.schema import MemspineConfig
 from memspine.core.policies.trust import TrustPolicy
@@ -319,6 +319,9 @@ class PipelineContext:
     #: (``offline.communities_v2`` / ``offline.decay_v2``). None (bare contexts) => screened and
     #: appended raw.
     write_summary: WriteSummary | None = None
+    #: FU-ERASE (``privacy.erasure_rederive``): the engine whose erasure queue the
+    #: ``erasure_rederive`` stage consumes. None (bare contexts) => the stage self-skips.
+    erasure_engine: Any | None = None
 
 
 async def _parents_gone(

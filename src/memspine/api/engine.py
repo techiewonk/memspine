@@ -4908,6 +4908,7 @@ class Engine:
             screen=self._screen_derived,
             write_fact=self._write_extracted_fact,
             write_summary=self._write_offline_summary,
+            erasure_engine=self if self._config().privacy.erasure_rederive else None,
             # Only when associative projects it (ADR-015): an explicit-config
             # graph store without the projector would reorganize a stale graph.
             graph=self._graph if self._associative is not None else None,

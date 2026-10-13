@@ -50,6 +50,8 @@ from memspine.trust.erasure_plan import (
 )
 
 __all__ = [
+    "DROPPED",
+    "MARKER_DROP",
     "MARKER_MANIFEST",
     "MARKER_PURGE",
     "MARKER_RELEASE",
@@ -58,6 +60,7 @@ __all__ = [
     "enabled",
     "forget",
     "load",
+    "mark_dropped",
     "queue",
     "release",
     "resume_purges",
@@ -70,6 +73,7 @@ DROPPED = "dropped_no_rederive"
 MARKER_MANIFEST = "erasure_manifest"
 MARKER_PURGE = "erasure_purge"
 MARKER_RELEASE = "erasure_release"
+MARKER_DROP = "erasure_drop"  # FU-ERASE: queue entries hard-forgotten as ``dropped_no_rederive``
 PURGE_STORES = ("vector", "lexical", "graph", "cache")
 PURGE_BATCH = 256
 
@@ -162,6 +166,10 @@ async def load(eng: Any) -> None:
                     purges[str(p["manifest_id"])].update(
                         state=p.get("state"), done=p.get("done", 0), total=p.get("total", 0)
                     )
+                elif kind == MARKER_DROP:
+                    for rid in p.get("record_ids") or []:
+                        if str(rid) in q:
+                            q[str(rid)]["state"] = DROPPED
                 elif kind == MARKER_RELEASE:
                     for rid in p.get("record_ids") or []:
                         hidden.discard(rid)
@@ -522,6 +530,7 @@ async def classify_descendants(
     st = state(eng)
     q: dict[str, dict[str, object]] = eng.__dict__.get("_erasure_queue", {})
     out: dict[str, list[str]] = {"hidden_pending_rederive": [], "kept": [], "leaked": []}
+    members: dict[str, dict[str, list[str]]] = {}  # ns -> child -> member parents (event log)
     for rid in descendants:
         if rid in st.hidden:
             queued = rid in q and q[rid].get("state") != DROPPED
@@ -534,6 +543,14 @@ async def classify_descendants(
         if eng._config().write.lineage_table:
             edges = await lineage_store.parents_of(storage._client.engine, [rid])
             parents.extend(e.parent for e in edges.get(rid, []))
+        # FU-ERASE: a summary linked only by the member lists of the event log (consolidation,
+        # reflection, CONSOLIDATE) is supported by those members, as build_graph plans it.
+        if row.namespace not in members:
+            by_child: dict[str, list[str]] = {}
+            for child, parent in await _derivation_roles(storage, row.namespace):
+                by_child.setdefault(child, []).append(parent)
+            members[row.namespace] = by_child
+        parents.extend(members[row.namespace].get(rid, []))
         live = []
         for p in dict.fromkeys(parents):
             if p == erased_id or p in st.erased or p in st.hidden:
@@ -543,6 +560,19 @@ async def classify_descendants(
                 live.append(p)
         out["kept" if live else "leaked"].append(rid)
     return out
+
+
+async def mark_dropped(eng: Any, record_ids: Sequence[str], namespace: str) -> int:
+    """FU-ERASE: these queued hidden ids were hard-forgotten instead of re-derived. Their entries
+    stay in the queue as ``dropped_no_rederive`` (hidden, row gone); survives a restart."""
+    ns = validate_namespace(namespace)
+    q: dict[str, dict[str, object]] = eng.__dict__.setdefault("_erasure_queue", {})
+    ids = [r for r in dict.fromkeys(record_ids) if r in q]
+    for rid in ids:
+        q[rid]["state"] = DROPPED
+    if ids:
+        await _marker(eng, ns, {"marker": MARKER_DROP, "record_ids": ids})
+    return len(ids)
 
 
 async def release(eng: Any, record_ids: Sequence[str], namespace: str = "default") -> int:

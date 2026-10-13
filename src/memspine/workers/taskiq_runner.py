@@ -72,6 +72,7 @@ CONSUMER_GROUP = "memspine-workers"
 #: ``test_taskiq_runner`` asserts the two sets never drift. Watches fire first
 #: (a due reminder beats housekeeping); pruning always goes last.
 PIPELINE_PRIORITIES: dict[str, int] = {
+    "erasure_rederive": -1,  # FU-ERASE: a pending erasure beats everything (opt-in stage)
     "check_watches": 0,
     "consolidate": 1,
     "mine_facts": 2,  # C6': atomic facts right after their session is consolidated

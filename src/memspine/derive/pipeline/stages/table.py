@@ -8,6 +8,7 @@ from memspine.derive.pipeline.stages.consolidate import consolidate
 from memspine.derive.pipeline.stages.context import Pipeline
 from memspine.derive.pipeline.stages.edge_compiler_v2 import compile_graph_edges
 from memspine.derive.pipeline.stages.entity_summaries import summarize_entities
+from memspine.derive.pipeline.stages.erasure_rederive import erasure_rederive
 from memspine.derive.pipeline.stages.extract_graph import extract_graph
 from memspine.derive.pipeline.stages.histories import histories
 from memspine.derive.pipeline.stages.maintenance import (
@@ -30,6 +31,7 @@ from memspine.derive.pipeline.stages.watches import check_watches
 #: are stable identifiers used in schedules and dead-letter reporting.
 PIPELINES: dict[str, Pipeline] = {
     "retention_expire": retention_expire,
+    "erasure_rederive": erasure_rederive,
     "consolidate": consolidate,
     "reorganize": reorganize,
     "extract_graph": extract_graph,

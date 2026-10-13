@@ -105,15 +105,16 @@ def _fake_neo4j() -> Any:
 class Cell:
     """One matrix cell's running engine, its handles and (neo4j cells) its fake graph."""
 
-    def __init__(self, profile: str, graph: str, tmp: Path) -> None:
+    def __init__(self, profile: str, graph: str, tmp: Path, rederive: bool = False) -> None:
         self.profile, self.graph, self.tmp = profile, graph, tmp
+        self.rederive = rederive  # FU-ERASE: privacy.erasure_rederive
         self.db = tmp / "f16f.db"
         self.fake: Any = None
         self.ids: dict[str, str] = {}
         self.world: World | None = None
 
     def overrides(self, db: Path | None = None) -> dict[str, Any]:
-        o = _overrides(db or self.db)
+        o = _overrides(db or self.db, rederive=self.rederive)
         if self.profile == "server":
             o["storage"] = {
                 "profile": "server",
@@ -480,3 +481,46 @@ async def test_service_execute_matches_the_handle(tmp_path: Path, stubs: dict[st
         _ = dump_store  # the dump helper is exercised by the replay cell
     finally:
         await c.w.eng.stop()
+
+
+async def test_erase_then_sleep_rederives_and_reads_stay_clean(
+    tmp_path: Path, stubs: dict[str, Any]
+) -> None:
+    """FU-ERASE: with ``privacy.erasure_rederive`` on, the sleep after an erasure re-derives (or
+    drops) every queued dependant; reads stay clean before and after, across a restart, and no
+    erased text is left in the sqlite file or its WAL."""
+    c = Cell("embedded", "embedded", tmp_path, rederive=True)
+    c.world = await c.open()
+    try:
+        w = c.w
+        for handle, session, lines, start in (
+            (w.ilse, "ilse-s1", _ILSE_S1, 0),
+            (w.ilse, "ilse-s2", _ILSE_S2, 60),
+        ):
+            await handle.write_messages(_turns(lines, start), session_id=session, group_id=session)
+        await w.eng.consent_grant(NS_ILSE, "assist")
+        await w.eng.close_session(NS_ILSE, "ilse-s1")
+        await w.eng.close_session(NS_ILSE, "ilse-s2")
+        await w.eng.flush_windows()
+        await w.ilse.sleep()
+        c.ids["secret_turn"] = await w._turn_id(NS_ILSE, SECRET)
+        await _erase(c)
+        await _assert_erased_clean(c, "after-erase")
+        queued = {str(i["record_id"]) for i in w.eng.erasure_queue()}
+        assert queued, "nothing queued: the variant proves nothing"
+        await w.sleep()
+        assert not w.eng.erasure_queue()
+        storage = w.eng._require_started()
+        for rid in queued:
+            assert await storage.get_record(rid) is None, f"{rid} kept its row"
+        await _assert_erased_clean(c, "after-rederive")
+        await c.restart()
+        await _assert_erased_clean(c, "after-rederive-restart")
+        assert not c.w.eng.erasure_queue()
+        await c.w.eng.stop()
+        raw = SECRET.encode()
+        for f in (c.db, c.db.with_name(c.db.name + "-wal")):
+            assert not (f.exists() and raw in f.read_bytes()), f"{f.name} still holds the text"
+    finally:
+        if c.world is not None and c.world.eng.is_started:
+            await c.world.eng.stop()
