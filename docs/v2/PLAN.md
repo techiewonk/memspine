@@ -1,13 +1,13 @@
 # MemSpine restructure plan: work packages and status
 
 Generated from `data/build_plan.py` (the source of truth for rows); status is also kept on the live tracker page and synced back here.
-159 packages cover all 155 decisions. Kinds: **move** = pure restructure (tests and CPU golden), **migration** = persisted schema change (upcaster and replay-equivalence tests), **api** = new contract or lifetime (contract tests), **behaviour** = needs a GPU screen through the paired gate, **measure** = a run, **infra** = tooling.
+161 packages cover all 155 decisions. Kinds: **move** = pure restructure (tests and CPU golden), **migration** = persisted schema change (upcaster and replay-equivalence tests), **api** = new contract or lifetime (contract tests), **behaviour** = needs a GPU screen through the paired gate, **measure** = a run, **infra** = tooling.
 
 Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summaries, L3 graph, L4 observations and profile, L5 standing answers, procedures and plans; ctx = working context. Ops are the loop operators (D deposit, K_C consolidate, K_P personalise, R retrieve, C compose, G generate). Each package is one task for one agent (Sonnet); packages in a `serial` lane run one at a time, different lanes may run in parallel once their dependencies are Done. Owns = first owned path and the count of further patterns (full list in the ownership table at the end; `OWNS` in `data/packages.py`).
 
 | Status | Count |
 |---|---|
-| Not started | 83 |
+| Not started | 85 |
 | Ready | 0 |
 | In progress | 0 |
 | Blocked | 0 |
@@ -88,6 +88,8 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | LIB-45 | Library: external public knowledge as a separate, labelled, opt-in context block | L0 | R | R-23 | - | MOD-01 | infra | other | `src/memspine/read/external.py` +1 | Unit tests; pure, unwired (wiring in R3-13); depends only on memspine.schemas | **Done** | read/external.py: opt-in plan, labelled public block, domain family, trust cap, dedupe/caps, deposit guard |
 | LIB-46 | Library: prompt layout rules (no examples, stable prefix, same language) as a checker and builder | L0 L1 L3 ctx | D C | W-18, P-07, P-08, P-10 | - | MOD-01 | infra | other | `src/memspine/prompts/layout.py` +1 | Unit tests; pure, unwired (wiring in W2-07); depends only on memspine.schemas | **Done** | prompts/layout.py: stable prefix builder, layout checker; today 51/51 prompts lack same-language rule, 6 have e.g.-quotes, 2 variable-in-prefix (c297f4e) |
 | LIB-47 | Library: depth tiers, ReadRequest normalisation and the evidence unit | L0 L1 L4 ctx | R C | R-01, R-02 | - | MOD-01 | infra | other | `src/memspine/read/tiers.py` +1 | Unit tests; pure, unwired (wiring in R3-01); depends only on memspine.schemas | **Done** | read/tiers.py: tier budgets, viewer-bound ReadRequest, tier choice, evidence unit (eb1b1a1) |
+| WT-01 | Wiretap core: request tracer, stage events, configurable sinks (off by default), gap report CLI and HTML view | L0 L1 L4 L5 ctx scope | D K_C K_P R C G | G-20 | - | F-07 | infra | other | - | Off by default; ids+scores, text opt-in; gap report lists per-request gaps | **Not started** | Owner 2026-10-13 |
+| WT-02 | Wiretap instrumentation of the write and derive paths (ingest/write, windows, derive stages, outbox) | L0 L1 L4 L5 ctx scope | D K_C K_P R C G | G-20 | - | WT-01 | infra | other | - | Every write and derive stage emits events; golden unchanged with tap off | **Not started** | Owner 2026-10-13 |
 | F-05 | Package skeleton; move store and trust leaves | L0 L1 L4 L5 ctx scope | D K_C K_P R C | G-16 | - | P0-04, X-00, X-01, X-02 | move | S1 split (serial) | `src/memspine/store/records.py` +23 | Both suites and golden green; no old import paths | **Done** | S5: 11 modules moved, codemod_move.py; unit 3343, evals 1435, golden, 14 contracts kept (afb3d16) |
 | F-06 | Move read, compose and models leaves | L0 L1 L4 L5 ctx scope | D K_C K_P R C | G-16 | - | F-05 | move | S1 split (serial) | `src/memspine/read/contract.py` +34 | Same as F-05 | **Done** | S6: 10 modules + 6 packages moved (query helpers to models/encoders/query); unit 4400, evals 1435, golden, 14 contracts (7ba2427) |
 | MOD-02 | Typed registries + entry points (discovery is not enablement: pinned capability manifest) | L0 L1 L4 L5 ctx scope | D K_C K_P R C | G-16 | ER-03, ER-33, ER-34 | F-06, MOD-01 | api | S1 split (serial) | `src/memspine/*/registry.py` | Built-ins register at import; entry-point plug-in test; golden unchanged | **Done** | Registry[T] + entry points, pinned enable, duplicate/lifetime errors, plugins: config; unit 5871, evals 1435, golden, 14 contracts (c5226f1) |
@@ -150,25 +152,25 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 
 | Id | Work package | Layers | Ops | Decisions | Review | Depends on | Kind | Agent lane | Owns | Gate | Status | Note |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| R3-01 | Depth tiers and ReadRequest; evidence unit | L0 L1 L4 ctx | R C | R-01, R-02 | - | EX-1a, LIB-47 | behaviour | S3 read (serial) | - | Fast tier zero generative calls; embed/rerank cost reported separately; p95 SLO | **Not started** |  |
-| R3-02 | Typed query contract by rules; render header | ctx | R C | R-03, R-20 | ER-19 | P0-07, R3-01, F-11, LIB-16 | behaviour | S3 read (serial) | - | A03 full set and blind | **Not started** | Waits for P0-07 |
-| R3-03 | Rule router reading the LayerRegistry; LLM rewrites only in deep tier | ctx | R | R-04 | - | R3-01, F-02b, LIB-23 | behaviour | S3 read (serial) | - | Focus non-inferior | **Not started** |  |
+| R3-01 | Depth tiers and ReadRequest; evidence unit | L0 L1 L4 ctx | R C | R-01, R-02 | - | LIB-47 | behaviour | S3 read (serial) | - | Fast tier zero generative calls; embed/rerank cost reported separately; p95 SLO | **Not started** |  |
+| R3-02 | Typed query contract by rules; render header | ctx | R C | R-03, R-20 | ER-19 | LIB-16, R3-01 | behaviour | S3 read (serial) | - | A03 full set and blind | **Not started** | Waits for P0-07 |
+| R3-03 | Rule router reading the LayerRegistry; LLM rewrites only in deep tier | ctx | R | R-04 | - | LIB-23, R3-01 | behaviour | S3 read (serial) | - | Focus non-inferior | **Not started** |  |
 | R3-04 | Core legs: vector, language-aware BM25, temporal on event intervals | L0 L1 L3 L5 | R | R-05, R-06, R-07 | - | R3-03 | behaviour | S3 read (serial) | - | Focus non-inferior; no-model template: L1 legs empty, not error | **Not started** |  |
-| R3-05a | Entity leg with anti-hub damping | L1 L3 | R | R-08 | - | R3-04, W2-09, LIB-34 | behaviour | S3 read (serial) | - | Own focus and blind screen | **Not started** |  |
+| R3-05a | Entity leg with anti-hub damping | L1 L3 | R | R-08 | - | LIB-34 | behaviour | S3 read (serial) | - | Own focus and blind screen | **Not started** |  |
 | R3-05b | Graph one-hop leg (only when L3 exists) | L3 | R | R-09 | ER-19 | R3-04, F-02c, F-16e | behaviour | S3 read (serial) | - | Own focus and blind screen | **Not started** |  |
 | R3-05c | Episode leg lifted to turns (only when L2 exists) | L0 L4 | R | R-10 | - | R3-04, O4-02 | behaviour | S3 read (serial) | - | L2-enabled template arm | **Not started** |  |
-| R3-06 | Family fusion, protected pool, calibrated floors | L0 L1 | R | R-11, R-12, R-13 | - | R3-04, LIB-10 | behaviour | S3 read (serial) | - | Source-family pool non-inferior to per-leg pool | **Not started** |  |
+| R3-06 | Family fusion, protected pool, calibrated floors | L0 L1 | R | R-11, R-12, R-13 | - | LIB-10 | behaviour | S3 read (serial) | - | Source-family pool non-inferior to per-leg pool | **Not started** |  |
 | R3-07 | Jina rerank on every read (pools capped at 64); licence fallback; bounded boosts | L0 L1 L4 ctx | R | R-14, R-15, R-16, P-18 | ER-21 | R3-08, X-06 | behaviour | S3 read (serial) | - | Matches the 81.4% reference; boosts off until screened | **Not started** | Q5, Q6 |
-| R3-08 | Lift derived hits to turns BEFORE rerank (via lineage) | L0 L1 L3 L4 | R | R-17 | ER-21, ER-22, POL-2 | R3-06, F-16a, LIB-11 | behaviour | S3 read (serial) | - | Focus non-inferior | **Not started** |  |
-| R3-09a | Packer: exact reader-tokenizer accounting incl. headers, citations, reserves; early-break fix | ctx | C | R-18 | ER-24 | F-11 | behaviour | S3 read (serial) | - | Exact-tokenizer, multilingual and long-token tests; estimated mode labelled | **Not started** | ER-24; no quality screen needed |
-| R3-09b | Adaptive complete evidence bundles and block shares | ctx | C | R-18 | ER-24 | R3-09a, R3-07, LIB-06 | behaviour | S3 read (serial) | - | Equal-budget screen; adaptive bundle selection gets a separate quality screen (ER-24) | **Not started** |  |
-| R3-10 | Neighbour windows after rerank | L0 | C | R-19 | ER-24 | R3-07, LIB-24 | behaviour | S3 read (serial) | - | Focus non-inferior | **Not started** |  |
-| R3-11 | Store-calibrated relevance gate with named bypass | L1 ctx | R | R-21 | ER-23, POL-1 | R3-10, LIB-12 | behaviour | S3 read (serial) | - | OP-Bench up; no recall loss on MAB-CR, ConvoMem, LoCoMo | **Not started** |  |
-| R3-12 | Deep tier: one sufficiency check and one rewrite | L0 ctx | R C | R-22 | ER-19, ER-23 | R3-11, LIB-43 | behaviour | S3 read (serial) | - | f-suff: net beyond band, no category loss, at most 2x wall time | **Not started** |  |
-| R3-13 | External public knowledge (opt-in, separate block) | L0 | R | R-23 | ER-25 | R3-01, LIB-45 | behaviour | S3 read (serial) | - | Separate arm; never mixed in headline | **Not started** |  |
-| R3-14 | Time view and two-axis as-of reads | L0 L1 | R | R-24, M-11 | ER-18 | F-02b, R3-04, LIB-22 | behaviour | S3 read (serial) | - | Temporal and MAB-CR non-inferior | **Not started** |  |
-| R3-16 | Evidence obligations for joins, durations and lists (screened) | L0 ctx | R C | R-03, R-22 | ER-19 | R3-12, W2-09, LIB-15 | behaviour | S3 read (serial) | - | Unseen intersections, durations and enumerations improve at fixed reader/token budgets; no more unsupported answers | **Not started** | ER-19 |
-| R3-15 | Parallel legs, latency SLOs (declared hardware/concurrency), caches keyed by scope/version (off until ER-31 tests pass), prefix layout | L0 L1 ctx | D R C | R-25, R-26, P-20, P-24 | ER-09, ER-31, ER-39 | R3-12, LIB-19 | infra | S3 read (serial) | - | p95 SLO tests in CI; caching (result/context caches disabled until ER-31 keys and use-time admission tests pass) | **Not started** | Last in the read lane |
+| R3-08 | Lift derived hits to turns BEFORE rerank (via lineage) | L0 L1 L3 L4 | R | R-17 | ER-21, ER-22, POL-2 | LIB-11, R3-06 | behaviour | S3 read (serial) | - | Focus non-inferior | **Not started** |  |
+| R3-09a | Packer: exact reader-tokenizer accounting incl. headers, citations, reserves; early-break fix | ctx | C | R-18 | ER-24 | LIB-06 | behaviour | S3 read (serial) | - | Exact-tokenizer, multilingual and long-token tests; estimated mode labelled | **Not started** | ER-24; no quality screen needed |
+| R3-09b | Adaptive complete evidence bundles and block shares | ctx | C | R-18 | ER-24 | R3-09a | behaviour | S3 read (serial) | - | Equal-budget screen; adaptive bundle selection gets a separate quality screen (ER-24) | **Not started** |  |
+| R3-10 | Neighbour windows after rerank | L0 | C | R-19 | ER-24 | LIB-24 | behaviour | S3 read (serial) | - | Focus non-inferior | **Not started** |  |
+| R3-11 | Store-calibrated relevance gate with named bypass | L1 ctx | R | R-21 | ER-23, POL-1 | LIB-12 | behaviour | S3 read (serial) | - | OP-Bench up; no recall loss on MAB-CR, ConvoMem, LoCoMo | **Not started** |  |
+| R3-12 | Deep tier: one sufficiency check and one rewrite | L0 ctx | R C | R-22 | ER-19, ER-23 | LIB-43, R3-11 | behaviour | S3 read (serial) | - | f-suff: net beyond band, no category loss, at most 2x wall time | **Not started** |  |
+| R3-13 | External public knowledge (opt-in, separate block) | L0 | R | R-23 | ER-25 | LIB-45 | behaviour | S3 read (serial) | - | Separate arm; never mixed in headline | **Not started** |  |
+| R3-14 | Time view and two-axis as-of reads | L0 L1 | R | R-24, M-11 | ER-18 | LIB-22 | behaviour | S3 read (serial) | - | Temporal and MAB-CR non-inferior | **Not started** |  |
+| R3-16 | Evidence obligations for joins, durations and lists (screened) | L0 ctx | R C | R-03, R-22 | ER-19 | LIB-15, R3-12 | behaviour | S3 read (serial) | - | Unseen intersections, durations and enumerations improve at fixed reader/token budgets; no more unsupported answers | **Not started** | ER-19 |
+| R3-15 | Parallel legs, latency SLOs (declared hardware/concurrency), caches keyed by scope/version (off until ER-31 tests pass), prefix layout | L0 L1 ctx | D R C | R-25, R-26, P-20, P-24 | ER-09, ER-31, ER-39 | LIB-19 | infra | S3 read (serial) | - | p95 SLO tests in CI; caching (result/context caches disabled until ER-31 keys and use-time admission tests pass) | **Not started** | Last in the read lane |
 | EX-3 | Phase 3 exit: beats or matches 81.4% beyond band; blind sets hold | L0 L1 L4 L5 ctx scope | D K_C K_P R C G | G-01 | - | R3-15, R3-02 | measure | exit | - | ROADMAP Phase 3 exit gate | **Not started** |  |
 
 ## Phase 4: offline memory
@@ -194,7 +196,7 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | Id | Work package | Layers | Ops | Decisions | Review | Depends on | Kind | Agent lane | Owns | Gate | Status | Note |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
 | T5-01 | Trust horizon on grants | scope | D R | G-07 | ER-29, POL-2 | F-16c, W2-04, LIB-21 | behaviour | trust | - | Read cost of the bound; N1 tests | **Not started** |  |
-| T5-02 | Low-trust rendering in context | L0 L1 ctx | C | G-09 | ER-22 | R3-02, LIB-25 | behaviour | trust | - | Count wrapped blocks; QA non-inferior | **Not started** |  |
+| T5-02 | Low-trust rendering in context | L0 L1 ctx | C | G-09 | ER-22 | LIB-25 | behaviour | trust | - | Count wrapped blocks; QA non-inferior | **Not started** |  |
 | T5-03 | Privacy tiers, consent and purpose scopes | L0 L1 L4 | D K_P R C | G-10, G-11 | ER-31 | EX-1a, LIB-18 | behaviour | trust | - | Remote-tier gate tests | **Not started** |  |
 | T5-04 | Erasure index across caches and projections (contract re-run per layer) | L0 L1 L3 L4 L5 ctx scope | D K_C | G-13, M-25 | ER-30, ER-31, POL-1 | F-16f, LIB-09 | behaviour | trust | - | Forget probes on both profiles; every layer registered | **Not started** |  |
 | T5-05 | Retention and audit per profile | L0 L1 L4 L5 ctx scope | D K_C R | G-14, G-15 | ER-27 | EX-1a, LIB-41 | infra | trust | - | Profile tests | **Not started** |  |
@@ -303,4 +305,4 @@ Files each package may write (glob patterns, repo-relative; includes removal and
 | F-16e | `src/memspine/store/lineage.py`<br>`src/memspine/store/migrate.py`<br>`src/memspine/store/profiles.py`<br>`src/memspine/store/backends/postgres/**`<br>`src/memspine/store/backends/neo4j/**`<br>`src/memspine/derive/write.py`<br>`src/memspine/services/graph/neo4j.py` |
 | F-16f | `src/memspine/store/lineage.py`<br>`src/memspine/store/migrate.py`<br>`src/memspine/store/profiles.py`<br>`src/memspine/store/backends/postgres/**`<br>`src/memspine/store/backends/neo4j/**`<br>`src/memspine/derive/write.py`<br>`src/memspine/services/graph/neo4j.py` |
 
-No ownership yet (cannot be briefed): 70 packages.
+No ownership yet (cannot be briefed): 72 packages.

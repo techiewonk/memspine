@@ -2677,6 +2677,90 @@
    "review": []
   },
   {
+   "id": "WT-01",
+   "phase": 1,
+   "title": "Wiretap core: request tracer, stage events, configurable sinks (off by default), gap report CLI and HTML view",
+   "decisions": [
+    "G-20"
+   ],
+   "depends_on": [
+    "F-07"
+   ],
+   "kind": "infra",
+   "gate": "Off by default; ids+scores, text opt-in; gap report lists per-request gaps",
+   "status": "Not started",
+   "note": "Owner 2026-10-13",
+   "layers": [
+    "L0",
+    "L1",
+    "L4",
+    "L5",
+    "ctx",
+    "scope"
+   ],
+   "operators": [
+    "D",
+    "K_C",
+    "K_P",
+    "R",
+    "C",
+    "G"
+   ],
+   "files": [
+    "src/memspine/engine.py",
+    "src/memspine/config/schema.py"
+   ],
+   "owns": [],
+   "lane": "other",
+   "agent": "sonnet",
+   "components": [
+    "memspine.ops.ledger (StageLedger), memspine[otel] extra"
+   ],
+   "review": []
+  },
+  {
+   "id": "WT-02",
+   "phase": 1,
+   "title": "Wiretap instrumentation of the write and derive paths (ingest/write, windows, derive stages, outbox)",
+   "decisions": [
+    "G-20"
+   ],
+   "depends_on": [
+    "WT-01"
+   ],
+   "kind": "infra",
+   "gate": "Every write and derive stage emits events; golden unchanged with tap off",
+   "status": "Not started",
+   "note": "Owner 2026-10-13",
+   "layers": [
+    "L0",
+    "L1",
+    "L4",
+    "L5",
+    "ctx",
+    "scope"
+   ],
+   "operators": [
+    "D",
+    "K_C",
+    "K_P",
+    "R",
+    "C",
+    "G"
+   ],
+   "files": [
+    "src/memspine/engine.py",
+    "src/memspine/config/schema.py"
+   ],
+   "owns": [],
+   "lane": "other",
+   "agent": "sonnet",
+   "components": [
+    "memspine.ops.ledger (StageLedger), memspine[otel] extra"
+   ],
+   "review": []
+  },
+  {
    "id": "F-05",
    "phase": 1,
    "title": "Package skeleton; move store and trust leaves",
@@ -5071,7 +5155,6 @@
     "R-02"
    ],
    "depends_on": [
-    "EX-1a",
     "LIB-47"
    ],
    "kind": "behaviour",
@@ -5111,10 +5194,8 @@
     "R-20"
    ],
    "depends_on": [
-    "P0-07",
-    "R3-01",
-    "F-11",
-    "LIB-16"
+    "LIB-16",
+    "R3-01"
    ],
    "kind": "behaviour",
    "gate": "A03 full set and blind",
@@ -5152,9 +5233,8 @@
     "R-04"
    ],
    "depends_on": [
-    "R3-01",
-    "F-02b",
-    "LIB-23"
+    "LIB-23",
+    "R3-01"
    ],
    "kind": "behaviour",
    "gate": "Focus non-inferior",
@@ -5227,8 +5307,6 @@
     "R-08"
    ],
    "depends_on": [
-    "R3-04",
-    "W2-09",
     "LIB-34"
    ],
    "kind": "behaviour",
@@ -5336,7 +5414,6 @@
     "R-13"
    ],
    "depends_on": [
-    "R3-04",
     "LIB-10"
    ],
    "kind": "behaviour",
@@ -5420,9 +5497,8 @@
     "R-17"
    ],
    "depends_on": [
-    "R3-06",
-    "F-16a",
-    "LIB-11"
+    "LIB-11",
+    "R3-06"
    ],
    "kind": "behaviour",
    "gate": "Focus non-inferior",
@@ -5461,7 +5537,7 @@
     "R-18"
    ],
    "depends_on": [
-    "F-11"
+    "LIB-06"
    ],
    "kind": "behaviour",
    "gate": "Exact-tokenizer, multilingual and long-token tests; estimated mode labelled",
@@ -5496,9 +5572,7 @@
     "R-18"
    ],
    "depends_on": [
-    "R3-09a",
-    "R3-07",
-    "LIB-06"
+    "R3-09a"
    ],
    "kind": "behaviour",
    "gate": "Equal-budget screen; adaptive bundle selection gets a separate quality screen (ER-24)",
@@ -5533,7 +5607,6 @@
     "R-19"
    ],
    "depends_on": [
-    "R3-07",
     "LIB-24"
    ],
    "kind": "behaviour",
@@ -5568,7 +5641,6 @@
     "R-21"
    ],
    "depends_on": [
-    "R3-10",
     "LIB-12"
    ],
    "kind": "behaviour",
@@ -5607,8 +5679,8 @@
     "R-22"
    ],
    "depends_on": [
-    "R3-11",
-    "LIB-43"
+    "LIB-43",
+    "R3-11"
    ],
    "kind": "behaviour",
    "gate": "f-suff: net beyond band, no category loss, at most 2x wall time",
@@ -5647,7 +5719,6 @@
     "R-23"
    ],
    "depends_on": [
-    "R3-01",
     "LIB-45"
    ],
    "kind": "behaviour",
@@ -5683,8 +5754,6 @@
     "M-11"
    ],
    "depends_on": [
-    "F-02b",
-    "R3-04",
     "LIB-22"
    ],
    "kind": "behaviour",
@@ -5722,9 +5791,8 @@
     "R-22"
    ],
    "depends_on": [
-    "R3-12",
-    "W2-09",
-    "LIB-15"
+    "LIB-15",
+    "R3-12"
    ],
    "kind": "behaviour",
    "gate": "Unseen intersections, durations and enumerations improve at fixed reader/token budgets; no more unsupported answers",
@@ -5766,7 +5834,6 @@
     "P-24"
    ],
    "depends_on": [
-    "R3-12",
     "LIB-19"
    ],
    "kind": "infra",
@@ -6447,7 +6514,6 @@
     "G-09"
    ],
    "depends_on": [
-    "R3-02",
     "LIB-25"
    ],
    "kind": "behaviour",
