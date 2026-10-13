@@ -38,6 +38,8 @@ from memspine.read.pipeline.state import (
 )
 from memspine.read.pipeline.timeview import _current_at
 from memspine.store.records import MemoryRecord, RecordStatus
+from memspine.trust.pipeline import consent as trust_consent
+from memspine.trust.pipeline import gates_v2
 
 _log = get_logger(__name__)
 
@@ -54,6 +56,9 @@ async def _gate_hits(
     storage = eng._require_started()
     candidates: list[tuple[MemoryRecord, float]] = []
     tracing = _FORENSICS.get() is not None
+    gates_on = gates_v2.gates_on(eng)
+    if eng._config().consent.v2:
+        await trust_consent.ensure_registry(eng)
     for record_id, relevance in ranked:
         record = await storage.get_record(record_id)
         if record is None or (
@@ -78,6 +83,10 @@ async def _gate_hits(
             if tracing:
                 trace_sink.cut("consent_purpose", record_id)
             continue  # #50: the record's purposes do not allow this read
+        if gates_on and gates_v2.read_item(record, ns).action != "accept":
+            if tracing:
+                trace_sink.cut("gate4", record_id)
+            continue  # W2-04: the read gate (own namespace: quarantine and trust)
         if record.memory_type == "shared":
             # EI-1: grant/subscription bookkeeping is authorization state, not
             # memory content — it must never occupy retrieval slots (shared_search

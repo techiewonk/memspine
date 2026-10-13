@@ -11,12 +11,16 @@ from memspine.core.fact_chain import fact_projection_on
 from memspine.derive.pipeline.stages.index import DERIVED_STAGES, stage_marker
 from memspine.exceptions import ConflictError, MemspineError
 from memspine.ingest.write import _NEIGHBOUR_BATCH, _message_sender, _screen_text
+from memspine.observability import tap
 from memspine.observability.logging import EVENT_FEEDBACK, get_logger
 from memspine.services.vector.base import VectorHit
 from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import MemoryRecord, RecordStatus, SourceInfo
 from memspine.store.scope import grant_allows, validate_namespace
+from memspine.trust import horizon as _horizon
 from memspine.trust.firewall import FirewallVerdict
+from memspine.trust.horizon import Grant
+from memspine.trust.pipeline import gates_v2
 from memspine.trust.pipeline.quarantine import _taint_archive_delta
 from memspine.trust.pipeline.state import _REPLACED_CONTENTS, _as_options_dict
 from memspine.trust.privacy import pii_rank
@@ -43,9 +47,11 @@ async def effective_trust(eng: Any, record_id: str) -> float:
     """
     storage = eng._require_started()
     memo: dict[str, float] = {}
+    chains: dict[str, tuple[Grant, ...]] = {}  # T5-01: the longest cross-namespace chain below
     grants_cache: dict[str, Mapping[str, frozenset[str] | None]] = {}
     policy = eng._integrity()
     check_grants = policy.enabled and policy.live_reevaluation
+    chained = policy.enabled and policy.horizon_v2
 
     async def walk(rid: str) -> float:
         if rid in memo:
@@ -72,10 +78,18 @@ async def effective_trust(eng: Any, record_id: str) -> float:
                     memo[rid] = 0.0
                     return 0.0
                 reader = sender
+        longest: tuple[Grant, ...] = ()
         for parent_id in record.source.parents:
             parent = await storage.get_record(parent_id)
             parent_ns = parent.namespace if parent is not None else record.namespace
             view = policy.view_trust(await walk(parent_id), parent_ns, record.namespace)
+            if chained:
+                # T5-01: the cross-namespace edges of a lineage are one grant chain.
+                below = chains.get(parent_id, ())
+                if parent_ns != record.namespace:
+                    below = (*below, policy.grant(parent_ns, record.namespace))
+                if len(below) > len(longest):
+                    longest = below
             if (
                 check_grants
                 and parent is not None
@@ -88,6 +102,19 @@ async def effective_trust(eng: Any, record_id: str) -> float:
             ):
                 view = 0.0  # N6: the grant that carried this parent is gone
             value = min(value, view * policy.derivation_decay)
+        if chained:
+            chains[rid] = longest
+            visible = _horizon.chain_visible(longest)
+            if tap.enabled() and longest:
+                tap.event(
+                    "trust.horizon",
+                    id=rid,
+                    chain=[f"{g.grantor}:{g.grantee}" for g in longest],
+                    attenuation=_horizon.chain_attenuation(longest),
+                    visible=visible,
+                )
+            if not visible:
+                value = 0.0  # past the horizon: fail closed
         memo[rid] = value
         return value
 
@@ -99,7 +126,7 @@ def _consent_context(eng: Any, context: AssembledContext) -> AssembledContext:
 
     The gates already keep them out of every search leg; this catches the
     records assembly adds from elsewhere (persona, full-mode listing)."""
-    if not eng._config().consent.enforce:
+    if not (eng._config().consent.enforce or eng._config().consent.v2):
         return context
     kept: list[MemoryRecord] = []
     boundary = context.boundary_index
@@ -248,6 +275,14 @@ async def _assess_write(eng: Any, record: MemoryRecord) -> FirewallVerdict:
     replaced = _REPLACED_CONTENTS.get()
     if replaced:
         recent_contents = [c for c in recent_contents if c not in replaced]
+    if gates_v2.gates_on(eng):  # W2-04: gate 1 through the LIB-38 library
+        return gates_v2.assess_insert(
+            eng._firewall,
+            record,
+            neighbour_similarities=neighbour_sims,
+            recent_contents=recent_contents,
+            query_anomaly=query_z,
+        )
     return eng._firewall.assess(
         record,
         neighbour_similarities=neighbour_sims,

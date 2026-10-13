@@ -9,6 +9,7 @@ from memspine.derive.pipeline.stages.context import PipelineContext
 from memspine.derive.pipeline.stages.index import _members_fp, stage_marker
 from memspine.store.events import EventLogMode
 from memspine.store.records import MemoryRecord, RecordStatus, chrono_key
+from memspine.trust.pipeline import gates_v2
 
 
 async def _live_members(ctx: PipelineContext, member_ids: list[str]) -> list[MemoryRecord]:
@@ -26,6 +27,8 @@ async def _live_members(ctx: PipelineContext, member_ids: list[str]) -> list[Mem
             continue
         members.append(inflate.inflate(record))
     members.sort(key=chrono_key)
+    if gates_v2.config_gates_on(ctx.config):  # W2-04 gate 2: the extraction input filter
+        members = gates_v2.filter_input(members)
     return members
 
 

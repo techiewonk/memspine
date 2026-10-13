@@ -8,7 +8,8 @@
       "enforce": false,
       "local_hosts": [],
       "remote_llm_max_tier": null,
-      "untagged": "allow"
+      "untagged": "allow",
+      "v2": false
     },
     "decision": {
       "model": "fastino/gliner2-base-v1",
@@ -16,6 +17,7 @@
     },
     "firewall": {
       "enabled": true,
+      "gates_v2": false,
       "hearsay_trust_cap": null,
       "max_content_chars": null,
       "pii": "off",
@@ -47,6 +49,8 @@
       "derivation_decay": 1.0,
       "edge_kappa": {},
       "enabled": false,
+      "grant_horizon": null,
+      "horizon_v2": false,
       "implicit_parents": "off",
       "kappa": 0.5,
       "live_reevaluation": false,

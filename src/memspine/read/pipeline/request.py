@@ -54,6 +54,7 @@ from memspine.store.events import EventKind
 from memspine.store.records import (
     MemoryRecord,
 )
+from memspine.trust.pipeline import consent as trust_consent
 
 _log = get_logger(__name__)
 
@@ -289,6 +290,7 @@ def _read_cache_key(eng: Any, query: str, namespace: str, viewer: str | None, pa
             model_ids=model_ids,
             store_generation=eng.__dict__.get("_store_generation", 0),
             erasure_generation=eng.__dict__.get("_erasure_generation", 0),
+            consent_generation=trust_consent.generation(eng),  # T5-03: None unless consent.v2
         )
     except ValueError:  # e.g. an empty query: not cacheable
         return None

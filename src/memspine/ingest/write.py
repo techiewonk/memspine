@@ -71,6 +71,8 @@ from memspine.store.records import (
 )
 from memspine.store.scope import validate_namespace
 from memspine.trust.firewall import FirewallVerdict
+from memspine.trust.pipeline import consent as trust_consent
+from memspine.trust.pipeline.gates_v2 import GATE_HOLD
 from memspine.trust.redaction import find_pii, redact
 from memspine.trust.visibility import (
     PARTICIPANT_PREFIX,
@@ -948,6 +950,17 @@ async def _screen_write(
     else:
         # N1 ablation arm: trust scoring only — no flags, anomaly or quarantine.
         verdict = FirewallVerdict(trust=eng._firewall.policy.trust_at_write(record.source))
+    if eng._config().consent.v2:
+        # T5-03: may_store. A write the owner has not opted in to (a sensitive or special-category
+        # tier with no grant, or a revoked purpose) is held inert, like any other quarantined write.
+        await trust_consent.ensure_registry(eng)
+        denied = trust_consent.store_denial(eng, record)
+        if denied is not None:
+            verdict = _held(verdict, [f"consent:{denied}"])
+    hold = GATE_HOLD.get()
+    if hold is not None and hold[0] == record.record_id:
+        # W2-04 gate 3 / T5-03 may_derive: a derived record the gates refused
+        verdict = _held(verdict, [f"gate3:{reason}" for reason in hold[1]])
     record = verdict.apply(record)
     if tap.enabled():
         tap.event(
@@ -985,6 +998,18 @@ async def _screen_write(
         if record.trust > cap:
             record = record.model_copy(update={"trust": cap})
     return record, verdict
+
+
+def _held(verdict: FirewallVerdict, reasons: list[str]) -> FirewallVerdict:
+    """``verdict`` with ``reasons`` added and the write quarantined (stored inert, never served)."""
+    kept = [r for r in verdict.reasons if r != "quarantined"]
+    return FirewallVerdict(
+        trust=verdict.trust,
+        instruction_flag=verdict.instruction_flag,
+        anomalous=verdict.anomalous,
+        quarantine=True,
+        reasons=[*kept, *reasons, "quarantined"],
+    )
 
 
 def _redact_fields(eng: Any, record: MemoryRecord, fw: FirewallConfig) -> MemoryRecord:

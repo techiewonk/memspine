@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from memspine.exceptions import ConfigError
 
@@ -78,6 +78,24 @@ class IntegrityConfig(BaseModel):
     #: a new or clean principal keeps full trust, a bad history lowers it. It can
     #: only LOWER trust, so the per-hop gain stays below 1 and the horizon holds.
     principal_reputation: bool = False
+    #: T5-01 (LIB-21, G-07): trust horizon on grants. On, a grant edge is a
+    #: ``trust.horizon.Grant`` and every view of a foreign record goes through the
+    #: library (``effective_trust``: ``trust * kappa``, no amplification), the
+    #: deposit cap is the library's ``deposit_trust`` (POL-2), and the B4' walk
+    #: treats the cross-namespace edges of a lineage as one grant chain that must
+    #: stay visible (connected, within ``grant_horizon``). Needs
+    #: ``attenuation: product``. Off: unchanged.
+    horizon_v2: bool = False
+    #: With ``horizon_v2``: the hops a deposit may travel beyond its first grantee
+    #: (``0``: read but never re-shared). None = no explicit cap (only the implicit
+    #: horizon where ``kappa ** n`` falls under ``admission_threshold``).
+    grant_horizon: int | None = Field(default=None, ge=0)
+
+    @model_validator(mode="after")
+    def _horizon_needs_product(self) -> IntegrityConfig:
+        if self.horizon_v2 and self.attenuation != "product":
+            raise ConfigError("integrity.horizon_v2 needs integrity.attenuation 'product'")
+        return self
 
     @field_validator("attenuation")
     @classmethod

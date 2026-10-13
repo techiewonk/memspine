@@ -56,6 +56,13 @@ class FirewallConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     enabled: bool = True
+    #: W2-04 (LIB-38, G-06): the Memory Firewall at its gates through
+    #: ``trust.gates``: gate 1 (write screen, en/de/nl/es signals, MINJA recall
+    #: bridge), gate 2 (extraction input filter), gate 3 (derived records: the
+    #: POL-2 cap and a hold on a quarantined, unreadable or missing parent),
+    #: gate 4 (read admission) and the S4-4 family rule on quarantine release.
+    #: ``enabled: false`` still disables it. Off: unchanged.
+    gates_v2: bool = False
     redact_secrets: bool = False
     #: #44 PII pack (phone, Luhn-checked card, US SSN, mod-97 IBAN, IPv4/IPv6) over
     #: content, entity, attribute and tags. ``redact`` replaces each match with
