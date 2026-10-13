@@ -28,3 +28,25 @@ S26	B2	R3-15	v2-R3-15-parallel_legs	f-jref2-i2	PARITY	f	-	J	20	read.parallel_leg
 S27	B2	T5-02	v2-T5-02-trust_rendering	f-jref2-i2	NONINF	fo	-	J	40	read.trust_rendering
 S28	B3	F-01	v2-F-01-key_v2	v2-S02-i2	NONINF	f	S02	GC	150	graph.key_v2
 S29	B4	F-13c	scr-pool-protect-jina	f-jref2-i2	PARITY	f	-	J	7	(none: eval adapter on the public API; reference built on the pre-port commit)
+S30	B5	F-02c/R3-05b	scr-gc3-graphleg	v2-S02-i2	PROMOTE	f	S02	GC	150	read.legs_v2 + read.graph_leg_v2 + graph.edge_compiler_v2
+S31	B5	R3-05c	scr-gc3-episodeleg	v2-S02-i2	PROMOTE	f	S02	GC	160	read.legs_v2 + read.episode_leg_v2 (L2 via offline.session_close_v2)
+S32	B5	R3-05a	scr-gc3-entityleg	v2-S02-i2	PROMOTE	f	S02	GC	150	read.entity_leg_v2 (re-screen of S13 on GC)
+S33	B5	O4-02	scr-gc3-sessionclose	v2-S02-i2	NONINF	f	S02	GC	160	offline.session_close_v2
+S34	B5	O4-08	scr-gc3-standing	v2-S02-i2	NONINF	fo	S02	GC	150	offline.standing_v2 + read.standing_v2
+S35	B5	O4-05	scr-gc3-patterns	v2-S02-i2	NONINF	f	S02	GC	150	offline.patterns_v2
+S36	B5	R3-01	scr-gc3-tiers	v2-S02-i2	NONINF	f	S02	GC	150	read.tiers_v2 (re-screen of S10 on GC)
+S37	B5	R3-03	scr-gc3-router	v2-S02-i2	NONINF	f	S02	GC	150	read.router_rules (re-screen of S12 on GC)
+S38	B5	R3-04	scr-gc3-legs	v2-S02-i2	NONINF	f	S02	GC	150	read.legs_v2 (alone; decomposes S30/S31)
+S39	B5	F-02c	scr-gc3-edgecomp	v2-S02-i2	NONINF	f	S02	GC	150	graph.edge_compiler_v2 (alone; decomposes S30)
+S40	B5	O4-06	scr-gc3-communities	v2-S02-i2	NONINF	f	S02	GC	170	offline.communities_v2
+S41	B5	O4-03	scr-gc3-reconcile	v2-S02-i2	NONINF	f	S02	GC	150	offline.reconcile_v2
+S42	B5	O4-04	scr-gc3-histories	v2-S02-i2	NONINF	f	S02	GC	150	offline.histories_v2
+S43	B5	W2-ref	scr-gc3-windowfacts	-	REF	f	S02	GC	150	(reference for S44/S45: gc3 + write.window_extract=facts)
+S44	B5	W2-06a	scr-gc3-envelope	v2-S43-i2	NONINF	f	S43	GC	170	write.envelope_v2 (on window_extract=facts)
+S45	B5	W2-05	scr-gc3-segmentation	v2-S43-i2	NONINF	f	S43	GC	170	write.segmentation_v2 (on window_extract=facts)
+S46	B5	O4-07	scr-gc3-profilecard	v2-S02-i2	NONINF	f	S02	GC	160	offline.profile_card_v2 (+ session_close_v2; no read consumer yet)
+S47	B5	O4-09	scr-gc3-decay	v2-S02-i2	PARITY	f	S02	GC	150	offline.decay_v2 (tiers do not change ranking, O-22)
+S48	B5	W2-02	scr-gc3-stamping	v2-S02-i2	NONINF	f	S02	GC	150	write.stamping_v2
+S49	B5	W2-03	scr-gc3-rolepolicy	v2-S02-i2	NONINF	f	S02	GC	150	write.role_policy_v2
+S50	B5	W2-01	scr-gc3-intake	v2-S02-i2	NONINF	f	S02	GC	150	write.intake_v2
+S51	B6	R3-06	v2-R3-06-family_fusion	f-jref2-i2	NONINF	f	-	J	20	read.family_fusion (focus candidate after S14 sample +4/-1; run MODE=focus after B2)
