@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
+from memspine.config.constants import PROFILE_CARD_MARKER
 from memspine.memories.associative.entities import canonical_entity
 from memspine.memories.associative.resolution import MERGE_METHODS
 from memspine.store.events import EventKind, MemoryEvent, fingerprint_payload
@@ -149,6 +150,9 @@ class SessionIndex:
     #: GP-6 (#17): (namespace, entity node id) -> membership fingerprint the
     #: ``summarize_entities`` stage last summarised (``entity_summarized`` markers).
     entity_summaries: dict[tuple[str, str], str] = field(default_factory=dict)
+    #: O4-07: namespace -> the latest serialised profile card (``profile_card_v2`` markers,
+    #: latest wins; an empty ``entries`` list is a card with nothing left).
+    profile_cards: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     async def refresh(self, storage: PipelineStorage) -> None:
         while True:
@@ -189,6 +193,8 @@ class SessionIndex:
                     entity, fp = entry.get("entity"), entry.get("content_fingerprint")
                     if entity and fp:  # a redacted entry (erased summary) is no watermark
                         self.entity_summaries[(event.namespace, str(entity))] = str(fp)
+            elif marker == PROFILE_CARD_MARKER and isinstance(payload.get("card"), dict):
+                self.profile_cards[event.namespace] = payload["card"]
             elif marker in ("stage_done", "stage_cleared"):
                 fp = payload.get("members_fp")
                 self.mark(

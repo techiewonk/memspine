@@ -22,6 +22,7 @@ from memspine.config.schema.llm import (
     WorkersConfig,
 )
 from memspine.config.schema.observability import ObservabilityConfig
+from memspine.config.schema.offline import OfflineConfig
 from memspine.config.schema.privacy import (
     AuditConfig,
     ConsentConfig,
@@ -67,6 +68,7 @@ __all__ = [
     "MemspineConfig",
     "NamespaceConfig",
     "ObservabilityConfig",
+    "OfflineConfig",
     "PromptsConfig",
     "ReadConfig",
     "RestApiKeyConfig",

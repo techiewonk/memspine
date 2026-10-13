@@ -1,7 +1,7 @@
 """REST protocol factory (D-06, ``[rest]``): the lazy entry point.
 
 Only this function is safe to import without fastapi installed — the actual
-app module (``memspine.protocols.rest.app``) imports fastapi at the top, so it
+app module (``memspine.api.rest.app``) imports fastapi at the top, so it
 must never be imported from engine-side code (D-10 guard lives here).
 """
 
@@ -31,7 +31,7 @@ def create_app(engine: Engine, rest: RestConfig | None = None) -> FastAPI:
     rate limit); None reads it from the engine once it is started.
     """
     try:
-        from memspine.protocols.rest.app import build_app
+        from memspine.api.rest.app import build_app
     except ImportError as exc:
-        raise MissingServiceError("protocols.rest", extra="rest") from exc
+        raise MissingServiceError("api.rest", extra="rest") from exc
     return build_app(engine, rest)

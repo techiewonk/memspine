@@ -1,7 +1,7 @@
 """Framework-neutral agent memory tool-set (I65).
 
 Five JSON-schema tools a model can call, plus ONE dispatcher that maps a call to an
-``Engine`` verb. REST, MCP (``protocols/mcp``) and framework adapters all go through
+``Engine`` verb. REST, MCP (``api/mcp``) and framework adapters all go through
 :meth:`AgentMemoryTools.call`, so the guards live in one place. No third-party imports.
 
 ======================  ==========================================================
@@ -39,9 +39,11 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
+from memspine.api.handle import Memory
 from memspine.core.escaping import escape_markers
 from memspine.exceptions import MemspineError
 from memspine.memories.episodic.lifecycle import session_of
+from memspine.observability import tap
 from memspine.observability.logging import get_logger
 from memspine.store.records import MemoryRecord, RecordStatus, SourceInfo
 from memspine.store.scope import validate_namespace
@@ -268,6 +270,13 @@ class AgentMemoryTools:
 
     # ── public surface ──────────────────────────────────────────────────────
 
+    def _mem(self, purpose: str | None = None) -> Memory:
+        """The scoped handle for one call: namespace and principal come from the host's
+        :class:`ToolContext`, never from the model (G-16 D, G-17 C)."""
+        return Memory(
+            self.engine, self.ctx.namespace, principal=self.ctx.principal, purpose=purpose
+        )
+
     def definitions(self) -> list[dict[str, Any]]:
         """Neutral function definitions for this context's profile."""
         return [s.definition() for s in tool_specs(self.ctx.profile)]
@@ -292,7 +301,9 @@ class AgentMemoryTools:
                 raise _ToolError("unknown_tool", f"no such tool {name!r} in this profile")
             self._validate(spec, args)
             handler = getattr(self, f"_do_{name}")
-            result: dict[str, Any] = await handler(args)
+            kind = "read" if name == "memory_search" else "write"
+            with tap.request(kind, scope=self.ctx.namespace, via="tool", tool=name):
+                result: dict[str, Any] = await handler(args)
         except _ToolError as exc:
             result = _fail(exc.code, str(exc))
         except MemspineError as exc:  # engine refusals (conflict, namespace, ...)
@@ -369,13 +380,8 @@ class AgentMemoryTools:
 
     async def _record(self, record_id: str) -> MemoryRecord:
         """A live record of THIS namespace, else not_found (a foreign id looks missing)."""
-        storage = self.engine._require_started()
-        record = await storage.get_record(record_id)
-        if (
-            record is None
-            or record.namespace != self.ctx.namespace
-            or record.status is RecordStatus.DELETED
-        ):
+        record = await self._mem().get_record(record_id)
+        if record is None or record.status is RecordStatus.DELETED:
             raise _ToolError("not_found", f"no such record {record_id!r}")
         return record
 
@@ -416,12 +422,10 @@ class AgentMemoryTools:
     # ── tools ───────────────────────────────────────────────────────────────
 
     async def _do_memory_search(self, args: dict[str, Any]) -> dict[str, Any]:
-        scored = await self.engine.search(
+        scored = await self._mem(args.get("purpose")).recall(
             args["query"],
-            namespace=self.ctx.namespace,
             top_k=args.get("top_k", 8),
             memory_types=args.get("kinds") or None,
-            purpose=args.get("purpose"),
             session_id=None,
         )
         rows: list[dict[str, Any]] = []
@@ -441,9 +445,8 @@ class AgentMemoryTools:
         if not content.strip():
             raise _ToolError("too_short", "content is empty")
         self._spend_write()
-        outcome = await self.engine.write_ex(
+        outcome = await self._mem().remember_ex(
             content,  # verbatim: no rewriting, no LLM on this path
-            namespace=self.ctx.namespace,
             memory_type=args.get("kind", "semantic"),
             source=self._source(),
             actor="assistant",
@@ -471,12 +474,11 @@ class AgentMemoryTools:
         if not self._may_touch(record):
             raise _ToolError("not_permitted", "you can only update memories you saved")
         self._spend_write()
-        new = await self.engine.correct(
+        new = await self._mem().correct(
             record.record_id,
             args["content"],
             actor="assistant",
             reason=args.get("reason", ""),
-            namespace=self.ctx.namespace,
             source=self._source(),
             tags=[PROPOSED_TAG],
         )
@@ -497,9 +499,8 @@ class AgentMemoryTools:
         record = await self._record(args["id"])
         if not self._may_touch(record):
             raise _ToolError("not_permitted", "you can only forget memories you saved")
-        await self.engine.forget(
+        await self._mem().forget(
             record.record_id,
-            namespace=self.ctx.namespace,
             hard=False,
             cascade=False,
             actor="assistant",
@@ -509,8 +510,7 @@ class AgentMemoryTools:
 
     async def _user_turn_containing(self, quote: str) -> MemoryRecord | None:
         wanted = _norm(quote)
-        storage = self.engine._require_started()
-        for turn in await storage.list_records(self.ctx.namespace, "episodic"):
+        for turn in await self._mem().list_records("episodic"):
             if turn.status is RecordStatus.DELETED or turn.quarantined:
                 continue
             if turn.source.role != "user" or turn.source.channel in (
@@ -544,12 +544,11 @@ class AgentMemoryTools:
             message_id=turn.record_id,
             parents=[turn.record_id],
         )
-        new = await self.engine.correct(
+        new = await self._mem().correct(
             record.record_id,
             record.content,  # the confirmed text is exactly what was proposed
             actor="user",
             reason=f"user-confirmed via quote from {turn.record_id}",
-            namespace=self.ctx.namespace,
             source=source,
             tags=[CONFIRMED_TAG, f"confirms:{record.record_id}"],
         )
@@ -576,9 +575,8 @@ class AgentMemoryTools:
         self.audit.append(entry)
         _log.info("agent_tool.call", **entry)
         try:  # the engine's hash-chained audit event (no-op unless audit.actions is on)
-            await self.engine._audit_action(
+            await self._mem().audit_action(
                 f"agent_tool.{name}",
-                self.ctx.namespace,
                 ids,
                 actor=self.ctx.principal,
                 reason=result.get("error") or result.get("verdict"),

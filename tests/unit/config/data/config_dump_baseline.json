@@ -48,7 +48,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -143,6 +144,35 @@
     "sink": "jsonl"
    },
    "write_timers": false
+  },
+  "offline": {
+   "communities_v2": false,
+   "community_hub_fraction": 0.5,
+   "community_hubs": [],
+   "community_max_entities_per_record": 8,
+   "community_max_size": 200,
+   "community_min_size": 3,
+   "community_summary_budget_tokens": 20000,
+   "decay_boundaries": [
+    0.5,
+    0.3,
+    0.15
+   ],
+   "decay_group_min_size": 2,
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "decay_protected_kinds": [],
+   "decay_v2": false,
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "profile_allow_inferred": false,
+   "profile_alpha": 0.3,
+   "profile_card_v2": false,
+   "profile_kappa_p": 24,
+   "profile_max_chars": 2400,
+   "reconcile_v2": false,
+   "session_close_budget": 6000,
+   "session_close_v2": false
   },
   "plugins": [],
   "profile": "simple",
@@ -496,7 +526,7 @@
    "window_topic_k": 2.0
   }
  },
- "json_schema_sha256": "ce68927475ecf9a62b6a968a2c8b0c1802b0333388bee003be7637fd3cf46094",
+ "json_schema_sha256": "4e48b1e89059c0e2d3e664a7adbbeee3a0efb3cf2f1dce5cbc1fc9b471ad38f0",
  "preset:chat_roles": {
   "audit": {
    "actions": false,
@@ -546,7 +576,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -662,6 +693,35 @@
     "sink": "jsonl"
    },
    "write_timers": false
+  },
+  "offline": {
+   "communities_v2": false,
+   "community_hub_fraction": 0.5,
+   "community_hubs": [],
+   "community_max_entities_per_record": 8,
+   "community_max_size": 200,
+   "community_min_size": 3,
+   "community_summary_budget_tokens": 20000,
+   "decay_boundaries": [
+    0.5,
+    0.3,
+    0.15
+   ],
+   "decay_group_min_size": 2,
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "decay_protected_kinds": [],
+   "decay_v2": false,
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "profile_allow_inferred": false,
+   "profile_alpha": 0.3,
+   "profile_card_v2": false,
+   "profile_kappa_p": 24,
+   "profile_max_chars": 2400,
+   "reconcile_v2": false,
+   "session_close_budget": 6000,
+   "session_close_v2": false
   },
   "plugins": [],
   "profile": "simple",
@@ -1074,7 +1134,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -1186,6 +1247,35 @@
     "sink": "jsonl"
    },
    "write_timers": false
+  },
+  "offline": {
+   "communities_v2": false,
+   "community_hub_fraction": 0.5,
+   "community_hubs": [],
+   "community_max_entities_per_record": 8,
+   "community_max_size": 200,
+   "community_min_size": 3,
+   "community_summary_budget_tokens": 20000,
+   "decay_boundaries": [
+    0.5,
+    0.3,
+    0.15
+   ],
+   "decay_group_min_size": 2,
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "decay_protected_kinds": [],
+   "decay_v2": false,
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "profile_allow_inferred": false,
+   "profile_alpha": 0.3,
+   "profile_card_v2": false,
+   "profile_kappa_p": 24,
+   "profile_max_chars": 2400,
+   "reconcile_v2": false,
+   "session_close_budget": 6000,
+   "session_close_v2": false
   },
   "plugins": [],
   "profile": "simple",
@@ -1598,7 +1688,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -1710,6 +1801,35 @@
     "sink": "jsonl"
    },
    "write_timers": false
+  },
+  "offline": {
+   "communities_v2": false,
+   "community_hub_fraction": 0.5,
+   "community_hubs": [],
+   "community_max_entities_per_record": 8,
+   "community_max_size": 200,
+   "community_min_size": 3,
+   "community_summary_budget_tokens": 20000,
+   "decay_boundaries": [
+    0.5,
+    0.3,
+    0.15
+   ],
+   "decay_group_min_size": 2,
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "decay_protected_kinds": [],
+   "decay_v2": false,
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "profile_allow_inferred": false,
+   "profile_alpha": 0.3,
+   "profile_card_v2": false,
+   "profile_kappa_p": 24,
+   "profile_max_chars": 2400,
+   "reconcile_v2": false,
+   "session_close_budget": 6000,
+   "session_close_v2": false
   },
   "plugins": [],
   "profile": "simple",
@@ -2122,7 +2242,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -2234,6 +2355,35 @@
     "sink": "jsonl"
    },
    "write_timers": false
+  },
+  "offline": {
+   "communities_v2": false,
+   "community_hub_fraction": 0.5,
+   "community_hubs": [],
+   "community_max_entities_per_record": 8,
+   "community_max_size": 200,
+   "community_min_size": 3,
+   "community_summary_budget_tokens": 20000,
+   "decay_boundaries": [
+    0.5,
+    0.3,
+    0.15
+   ],
+   "decay_group_min_size": 2,
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "decay_protected_kinds": [],
+   "decay_v2": false,
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "profile_allow_inferred": false,
+   "profile_alpha": 0.3,
+   "profile_card_v2": false,
+   "profile_kappa_p": 24,
+   "profile_max_chars": 2400,
+   "reconcile_v2": false,
+   "session_close_budget": 6000,
+   "session_close_v2": false
   },
   "plugins": [],
   "profile": "simple",
@@ -2646,7 +2796,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -2758,6 +2909,35 @@
     "sink": "jsonl"
    },
    "write_timers": false
+  },
+  "offline": {
+   "communities_v2": false,
+   "community_hub_fraction": 0.5,
+   "community_hubs": [],
+   "community_max_entities_per_record": 8,
+   "community_max_size": 200,
+   "community_min_size": 3,
+   "community_summary_budget_tokens": 20000,
+   "decay_boundaries": [
+    0.5,
+    0.3,
+    0.15
+   ],
+   "decay_group_min_size": 2,
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "decay_protected_kinds": [],
+   "decay_v2": false,
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "profile_allow_inferred": false,
+   "profile_alpha": 0.3,
+   "profile_card_v2": false,
+   "profile_kappa_p": 24,
+   "profile_max_chars": 2400,
+   "reconcile_v2": false,
+   "session_close_budget": 6000,
+   "session_close_v2": false
   },
   "plugins": [],
   "profile": "simple",
@@ -3170,7 +3350,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -3282,6 +3463,35 @@
     "sink": "jsonl"
    },
    "write_timers": false
+  },
+  "offline": {
+   "communities_v2": false,
+   "community_hub_fraction": 0.5,
+   "community_hubs": [],
+   "community_max_entities_per_record": 8,
+   "community_max_size": 200,
+   "community_min_size": 3,
+   "community_summary_budget_tokens": 20000,
+   "decay_boundaries": [
+    0.5,
+    0.3,
+    0.15
+   ],
+   "decay_group_min_size": 2,
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "decay_protected_kinds": [],
+   "decay_v2": false,
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "profile_allow_inferred": false,
+   "profile_alpha": 0.3,
+   "profile_card_v2": false,
+   "profile_kappa_p": 24,
+   "profile_max_chars": 2400,
+   "reconcile_v2": false,
+   "session_close_budget": 6000,
+   "session_close_v2": false
   },
   "plugins": [],
   "profile": "simple",
@@ -3694,7 +3904,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -3806,6 +4017,35 @@
     "sink": "jsonl"
    },
    "write_timers": false
+  },
+  "offline": {
+   "communities_v2": false,
+   "community_hub_fraction": 0.5,
+   "community_hubs": [],
+   "community_max_entities_per_record": 8,
+   "community_max_size": 200,
+   "community_min_size": 3,
+   "community_summary_budget_tokens": 20000,
+   "decay_boundaries": [
+    0.5,
+    0.3,
+    0.15
+   ],
+   "decay_group_min_size": 2,
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "decay_protected_kinds": [],
+   "decay_v2": false,
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "profile_allow_inferred": false,
+   "profile_alpha": 0.3,
+   "profile_card_v2": false,
+   "profile_kappa_p": 24,
+   "profile_max_chars": 2400,
+   "reconcile_v2": false,
+   "session_close_budget": 6000,
+   "session_close_v2": false
   },
   "plugins": [],
   "profile": "simple",
@@ -4218,7 +4458,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -4330,6 +4571,35 @@
     "sink": "jsonl"
    },
    "write_timers": false
+  },
+  "offline": {
+   "communities_v2": false,
+   "community_hub_fraction": 0.5,
+   "community_hubs": [],
+   "community_max_entities_per_record": 8,
+   "community_max_size": 200,
+   "community_min_size": 3,
+   "community_summary_budget_tokens": 20000,
+   "decay_boundaries": [
+    0.5,
+    0.3,
+    0.15
+   ],
+   "decay_group_min_size": 2,
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "decay_protected_kinds": [],
+   "decay_v2": false,
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "profile_allow_inferred": false,
+   "profile_alpha": 0.3,
+   "profile_card_v2": false,
+   "profile_kappa_p": 24,
+   "profile_max_chars": 2400,
+   "reconcile_v2": false,
+   "session_close_budget": 6000,
+   "session_close_v2": false
   },
   "plugins": [],
   "profile": "assistant",
@@ -4742,7 +5012,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -4854,6 +5125,35 @@
     "sink": "jsonl"
    },
    "write_timers": false
+  },
+  "offline": {
+   "communities_v2": false,
+   "community_hub_fraction": 0.5,
+   "community_hubs": [],
+   "community_max_entities_per_record": 8,
+   "community_max_size": 200,
+   "community_min_size": 3,
+   "community_summary_budget_tokens": 20000,
+   "decay_boundaries": [
+    0.5,
+    0.3,
+    0.15
+   ],
+   "decay_group_min_size": 2,
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "decay_protected_kinds": [],
+   "decay_v2": false,
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "profile_allow_inferred": false,
+   "profile_alpha": 0.3,
+   "profile_card_v2": false,
+   "profile_kappa_p": 24,
+   "profile_max_chars": 2400,
+   "reconcile_v2": false,
+   "session_close_budget": 6000,
+   "session_close_v2": false
   },
   "plugins": [],
   "profile": "simple",
@@ -5266,7 +5566,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -5385,6 +5686,35 @@
     "sink": "jsonl"
    },
    "write_timers": false
+  },
+  "offline": {
+   "communities_v2": false,
+   "community_hub_fraction": 0.5,
+   "community_hubs": [],
+   "community_max_entities_per_record": 8,
+   "community_max_size": 200,
+   "community_min_size": 3,
+   "community_summary_budget_tokens": 20000,
+   "decay_boundaries": [
+    0.5,
+    0.3,
+    0.15
+   ],
+   "decay_group_min_size": 2,
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "decay_protected_kinds": [],
+   "decay_v2": false,
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "profile_allow_inferred": false,
+   "profile_alpha": 0.3,
+   "profile_card_v2": false,
+   "profile_kappa_p": 24,
+   "profile_max_chars": 2400,
+   "reconcile_v2": false,
+   "session_close_budget": 6000,
+   "session_close_v2": false
   },
   "plugins": [],
   "profile": "benchmark",
@@ -5799,7 +6129,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -5916,6 +6247,35 @@
     "sink": "jsonl"
    },
    "write_timers": false
+  },
+  "offline": {
+   "communities_v2": false,
+   "community_hub_fraction": 0.5,
+   "community_hubs": [],
+   "community_max_entities_per_record": 8,
+   "community_max_size": 200,
+   "community_min_size": 3,
+   "community_summary_budget_tokens": 20000,
+   "decay_boundaries": [
+    0.5,
+    0.3,
+    0.15
+   ],
+   "decay_group_min_size": 2,
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "decay_protected_kinds": [],
+   "decay_v2": false,
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "profile_allow_inferred": false,
+   "profile_alpha": 0.3,
+   "profile_card_v2": false,
+   "profile_kappa_p": 24,
+   "profile_max_chars": 2400,
+   "reconcile_v2": false,
+   "session_close_budget": 6000,
+   "session_close_v2": false
   },
   "plugins": [],
   "profile": "coding",
@@ -6328,7 +6688,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -6436,6 +6797,35 @@
     "sink": "jsonl"
    },
    "write_timers": false
+  },
+  "offline": {
+   "communities_v2": false,
+   "community_hub_fraction": 0.5,
+   "community_hubs": [],
+   "community_max_entities_per_record": 8,
+   "community_max_size": 200,
+   "community_min_size": 3,
+   "community_summary_budget_tokens": 20000,
+   "decay_boundaries": [
+    0.5,
+    0.3,
+    0.15
+   ],
+   "decay_group_min_size": 2,
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "decay_protected_kinds": [],
+   "decay_v2": false,
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "profile_allow_inferred": false,
+   "profile_alpha": 0.3,
+   "profile_card_v2": false,
+   "profile_kappa_p": 24,
+   "profile_max_chars": 2400,
+   "reconcile_v2": false,
+   "session_close_budget": 6000,
+   "session_close_v2": false
   },
   "plugins": [],
   "profile": "core",
@@ -6838,7 +7228,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -6958,6 +7349,35 @@
     "sink": "jsonl"
    },
    "write_timers": false
+  },
+  "offline": {
+   "communities_v2": false,
+   "community_hub_fraction": 0.5,
+   "community_hubs": [],
+   "community_max_entities_per_record": 8,
+   "community_max_size": 200,
+   "community_min_size": 3,
+   "community_summary_budget_tokens": 20000,
+   "decay_boundaries": [
+    0.5,
+    0.3,
+    0.15
+   ],
+   "decay_group_min_size": 2,
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "decay_protected_kinds": [],
+   "decay_v2": false,
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "profile_allow_inferred": false,
+   "profile_alpha": 0.3,
+   "profile_card_v2": false,
+   "profile_kappa_p": 24,
+   "profile_max_chars": 2400,
+   "reconcile_v2": false,
+   "session_close_budget": 6000,
+   "session_close_v2": false
   },
   "plugins": [],
   "profile": "graph",
@@ -7370,7 +7790,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -7486,6 +7907,35 @@
     "sink": "jsonl"
    },
    "write_timers": false
+  },
+  "offline": {
+   "communities_v2": false,
+   "community_hub_fraction": 0.5,
+   "community_hubs": [],
+   "community_max_entities_per_record": 8,
+   "community_max_size": 200,
+   "community_min_size": 3,
+   "community_summary_budget_tokens": 20000,
+   "decay_boundaries": [
+    0.5,
+    0.3,
+    0.15
+   ],
+   "decay_group_min_size": 2,
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "decay_protected_kinds": [],
+   "decay_v2": false,
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "profile_allow_inferred": false,
+   "profile_alpha": 0.3,
+   "profile_card_v2": false,
+   "profile_kappa_p": 24,
+   "profile_max_chars": 2400,
+   "reconcile_v2": false,
+   "session_close_budget": 6000,
+   "session_close_v2": false
   },
   "plugins": [],
   "profile": "multi_agent",
@@ -7898,7 +8348,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -8018,6 +8469,35 @@
     "sink": "jsonl"
    },
    "write_timers": false
+  },
+  "offline": {
+   "communities_v2": false,
+   "community_hub_fraction": 0.5,
+   "community_hubs": [],
+   "community_max_entities_per_record": 8,
+   "community_max_size": 200,
+   "community_min_size": 3,
+   "community_summary_budget_tokens": 20000,
+   "decay_boundaries": [
+    0.5,
+    0.3,
+    0.15
+   ],
+   "decay_group_min_size": 2,
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "decay_protected_kinds": [],
+   "decay_v2": false,
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "profile_allow_inferred": false,
+   "profile_alpha": 0.3,
+   "profile_card_v2": false,
+   "profile_kappa_p": 24,
+   "profile_max_chars": 2400,
+   "reconcile_v2": false,
+   "session_close_budget": 6000,
+   "session_close_v2": false
   },
   "plugins": [],
   "profile": "personal",
@@ -8430,7 +8910,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -8542,6 +9023,35 @@
     "sink": "jsonl"
    },
    "write_timers": false
+  },
+  "offline": {
+   "communities_v2": false,
+   "community_hub_fraction": 0.5,
+   "community_hubs": [],
+   "community_max_entities_per_record": 8,
+   "community_max_size": 200,
+   "community_min_size": 3,
+   "community_summary_budget_tokens": 20000,
+   "decay_boundaries": [
+    0.5,
+    0.3,
+    0.15
+   ],
+   "decay_group_min_size": 2,
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "decay_protected_kinds": [],
+   "decay_v2": false,
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "profile_allow_inferred": false,
+   "profile_alpha": 0.3,
+   "profile_card_v2": false,
+   "profile_kappa_p": 24,
+   "profile_max_chars": 2400,
+   "reconcile_v2": false,
+   "session_close_budget": 6000,
+   "session_close_v2": false
   },
   "plugins": [],
   "profile": "protected",
@@ -8954,7 +9464,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": true,
@@ -9067,6 +9578,35 @@
     "sink": "jsonl"
    },
    "write_timers": false
+  },
+  "offline": {
+   "communities_v2": false,
+   "community_hub_fraction": 0.5,
+   "community_hubs": [],
+   "community_max_entities_per_record": 8,
+   "community_max_size": 200,
+   "community_min_size": 3,
+   "community_summary_budget_tokens": 20000,
+   "decay_boundaries": [
+    0.5,
+    0.3,
+    0.15
+   ],
+   "decay_group_min_size": 2,
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "decay_protected_kinds": [],
+   "decay_v2": false,
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "profile_allow_inferred": false,
+   "profile_alpha": 0.3,
+   "profile_card_v2": false,
+   "profile_kappa_p": 24,
+   "profile_max_chars": 2400,
+   "reconcile_v2": false,
+   "session_close_budget": 6000,
+   "session_close_v2": false
   },
   "plugins": [],
   "profile": "regulated_financial",
@@ -9479,7 +10019,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": true,
@@ -9593,6 +10134,35 @@
     "sink": "jsonl"
    },
    "write_timers": false
+  },
+  "offline": {
+   "communities_v2": false,
+   "community_hub_fraction": 0.5,
+   "community_hubs": [],
+   "community_max_entities_per_record": 8,
+   "community_max_size": 200,
+   "community_min_size": 3,
+   "community_summary_budget_tokens": 20000,
+   "decay_boundaries": [
+    0.5,
+    0.3,
+    0.15
+   ],
+   "decay_group_min_size": 2,
+   "decay_margin": 0.05,
+   "decay_multires_jobs": 0,
+   "decay_protected_kinds": [],
+   "decay_v2": false,
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "profile_allow_inferred": false,
+   "profile_alpha": 0.3,
+   "profile_card_v2": false,
+   "profile_kappa_p": 24,
+   "profile_max_chars": 2400,
+   "reconcile_v2": false,
+   "session_close_budget": 6000,
+   "session_close_v2": false
   },
   "plugins": [],
   "profile": "voice",

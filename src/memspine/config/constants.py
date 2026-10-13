@@ -512,6 +512,10 @@ WINDOW_PENDING_EDGES_MAX = 5000
 WINDOW_EPISODE_MAX_CHARS = 4000
 #: Channel of an episode fragment record (a derived, inferred record).
 WINDOW_EPISODE_CHANNEL = "window_episode"
+#: O4-02: channel of a session summary / stitched episode written by call 2 at session close.
+SESSION_CLOSE_CHANNEL = "session_close"
+#: O4-07: MARKER payload name of the profile card state of one namespace (latest wins).
+PROFILE_CARD_MARKER = "profile_card_v2"
 
 #: #30 (person-level list cards): a (person, class) group needs at least this many
 #: event facts to get a card; a card lists at most the newest ``MAX_ITEMS`` of them

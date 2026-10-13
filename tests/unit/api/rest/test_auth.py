@@ -14,10 +14,10 @@ fastapi = pytest.importorskip("fastapi")
 import httpx  # noqa: E402
 
 from memspine import Engine  # noqa: E402
+from memspine.api.rest import create_app  # noqa: E402
+from memspine.api.rest.auth import RateLimiter  # noqa: E402
 from memspine.config.schema import RestConfig  # noqa: E402
 from memspine.exceptions import ConfigError  # noqa: E402
-from memspine.protocols.rest import create_app  # noqa: E402
-from memspine.protocols.rest.auth import RateLimiter  # noqa: E402
 from memspine.store.events import EventKind  # noqa: E402
 
 _ISS_AUD = {"issuer": "https://issuer.test", "audience": "memspine-test"}
@@ -150,7 +150,7 @@ async def test_mode_none_is_unchanged(engine: Engine) -> None:
 
 
 def test_missing_key_env_is_a_config_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    from memspine.protocols.rest.auth import Authenticator
+    from memspine.api.rest.auth import Authenticator
 
     monkeypatch.delenv("MS_TEST_ALICE_KEY", raising=False)
     with pytest.raises(ConfigError, match="MS_TEST_ALICE_KEY"):
@@ -158,7 +158,7 @@ def test_missing_key_env_is_a_config_error(monkeypatch: pytest.MonkeyPatch) -> N
 
 
 def test_oidc_jwt_without_pyjwt_is_a_clear_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    from memspine.protocols.rest.auth import Authenticator
+    from memspine.api.rest.auth import Authenticator
 
     monkeypatch.setitem(sys.modules, "jwt", None)  # import jwt -> ImportError
     rest = RestConfig.model_validate(
