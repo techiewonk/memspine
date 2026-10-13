@@ -5305,8 +5305,8 @@
    ],
    "kind": "behaviour",
    "gate": "Focus non-inferior; no-model template: L1 legs empty, not error",
-   "status": "In progress",
-   "note": "Sonnet agent launched 2026-10-13 (worktree memspine-R3-04)",
+   "status": "Needs measurement",
+   "note": "read.legs_v2 flag-off; lexical scorer pluggable (read.lexical_scorer); not byte-identical vs tantivy -> screen",
    "layers": [
     "L0",
     "L1",
@@ -6620,8 +6620,8 @@
    ],
    "kind": "behaviour",
    "gate": "Forget probes on both profiles; every layer registered",
-   "status": "In progress",
-   "note": "Swarm: trust wiring flag-off (agent running)",
+   "status": "Needs measurement",
+   "note": "TW-B wired flag-off (privacy.erasure_v2 / retention.v2 / audit.chain_v2); offline raw-read consent gap open",
    "layers": [
     "L0",
     "L1",
@@ -6665,8 +6665,8 @@
    ],
    "kind": "infra",
    "gate": "Profile tests",
-   "status": "In progress",
-   "note": "Swarm: trust wiring flag-off (agent running)",
+   "status": "Needs measurement",
+   "note": "TW-B wired flag-off (privacy.erasure_v2 / retention.v2 / audit.chain_v2); offline raw-read consent gap open",
    "layers": [
     "L0",
     "L1",

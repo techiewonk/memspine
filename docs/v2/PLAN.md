@@ -9,9 +9,9 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 |---|---|
 | Not started | 37 |
 | Ready | 0 |
-| In progress | 11 |
+| In progress | 8 |
 | Blocked | 0 |
-| Needs measurement | 35 |
+| Needs measurement | 38 |
 | Done | 78 |
 | Dropped | 1 |
 
@@ -156,7 +156,7 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | R3-01 | Depth tiers and ReadRequest; evidence unit | L0 L1 L4 ctx | R C | R-01, R-02 | - | LIB-47 | behaviour | S3 read (serial) | - | Fast tier zero generative calls; embed/rerank cost reported separately; p95 SLO | **Needs measurement** | Wired flag-off (RW-A 9ebc35c, merged with RW-F cache); screen queued |
 | R3-02 | Typed query contract by rules; render header | ctx | R C | R-03, R-20 | ER-19 | LIB-16, R3-01 | behaviour | S3 read (serial) | - | A03 full set and blind | **Needs measurement** | Wired flag-off (RW-A 9ebc35c, merged with RW-F cache); screen queued |
 | R3-03 | Rule router reading the LayerRegistry; LLM rewrites only in deep tier | ctx | R | R-04 | - | LIB-23, R3-01 | behaviour | S3 read (serial) | - | Focus non-inferior | **Needs measurement** | Wired flag-off (RW-A 9ebc35c, merged with RW-F cache); screen queued |
-| R3-04 | Core legs: vector, language-aware BM25, temporal on event intervals | L0 L1 L3 L5 | R | R-05, R-06, R-07 | - | R3-03 | behaviour | S3 read (serial) | - | Focus non-inferior; no-model template: L1 legs empty, not error | **In progress** | Sonnet agent launched 2026-10-13 (worktree memspine-R3-04) |
+| R3-04 | Core legs: vector, language-aware BM25, temporal on event intervals | L0 L1 L3 L5 | R | R-05, R-06, R-07 | - | R3-03 | behaviour | S3 read (serial) | - | Focus non-inferior; no-model template: L1 legs empty, not error | **Needs measurement** | read.legs_v2 flag-off; lexical scorer pluggable (read.lexical_scorer); not byte-identical vs tantivy -> screen |
 | R3-05a | Entity leg with anti-hub damping | L1 L3 | R | R-08 | - | LIB-34 | behaviour | S3 read (serial) | - | Own focus and blind screen | **Needs measurement** | Wired flag-off (RW-E ece067e); screen queued |
 | R3-05b | Graph one-hop leg (only when L3 exists) | L3 | R | R-09 | ER-19 | R3-04, F-02c, F-16e | behaviour | S3 read (serial) | - | Own focus and blind screen | **Not started** |  |
 | R3-05c | Episode leg lifted to turns (only when L2 exists) | L0 L4 | R | R-10 | - | R3-04, O4-02 | behaviour | S3 read (serial) | - | L2-enabled template arm | **Not started** |  |
@@ -199,8 +199,8 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | T5-01 | Trust horizon on grants | scope | D R | G-07 | ER-29, POL-2 | LIB-21, F-16a | behaviour | trust | - | Read cost of the bound; N1 tests | **In progress** | Swarm: trust wiring flag-off (agent running) |
 | T5-02 | Low-trust rendering in context | L0 L1 ctx | C | G-09 | ER-22 | LIB-25 | behaviour | trust | - | Count wrapped blocks; QA non-inferior | **Needs measurement** | Wired flag-off (RW-C bb21249); screen queued |
 | T5-03 | Privacy tiers, consent and purpose scopes | L0 L1 L4 | D K_P R C | G-10, G-11 | ER-31 | LIB-18 | behaviour | trust | - | Remote-tier gate tests | **In progress** | Swarm: trust wiring flag-off (agent running) |
-| T5-04 | Erasure index across caches and projections (contract re-run per layer) | L0 L1 L3 L4 L5 ctx scope | D K_C | G-13, M-25 | ER-30, ER-31, POL-1 | LIB-09, F-16a | behaviour | trust | - | Forget probes on both profiles; every layer registered | **In progress** | Swarm: trust wiring flag-off (agent running) |
-| T5-05 | Retention and audit per profile | L0 L1 L4 L5 ctx scope | D K_C R | G-14, G-15 | ER-27 | LIB-41 | infra | trust | - | Profile tests | **In progress** | Swarm: trust wiring flag-off (agent running) |
+| T5-04 | Erasure index across caches and projections (contract re-run per layer) | L0 L1 L3 L4 L5 ctx scope | D K_C | G-13, M-25 | ER-30, ER-31, POL-1 | LIB-09, F-16a | behaviour | trust | - | Forget probes on both profiles; every layer registered | **Needs measurement** | TW-B wired flag-off (privacy.erasure_v2 / retention.v2 / audit.chain_v2); offline raw-read consent gap open |
+| T5-05 | Retention and audit per profile | L0 L1 L4 L5 ctx scope | D K_C R | G-14, G-15 | ER-27 | LIB-41 | infra | trust | - | Profile tests | **Needs measurement** | TW-B wired flag-off (privacy.erasure_v2 / retention.v2 / audit.chain_v2); offline raw-read consent gap open |
 | T5-06 | Observability: per-stage ledger, optional OTel, no content in spans | L0 L1 L4 L5 ctx scope | D K_C K_P R C G | G-20 | - | W2-12 | infra | trust | - | Tests | **Not started** |  |
 | T5-07 | N1 attack and utility run with enforcement on | L0 L1 scope | D R | G-07, G-06 | - | T5-01, W2-04 | measure | trust | - | Attack/utility frontier | **Not started** |  |
 | EX-5 | Phase 5 exit: behavioural suite, N1, isolation and erasure on both profiles | L0 L1 L4 L5 ctx scope | D K_C K_P R C G | G-01 | - | T5-01, T5-02, T5-03, T5-04, T5-05, T5-06, T5-07 | measure | exit | - | ROADMAP Phase 5 exit gate | **Not started** |  |
