@@ -50,8 +50,8 @@ def _pg_url() -> str | None:
     return os.environ.get("MEMSPINE_TEST_PG_URL") or os.environ.get("MEMSPINE_TEST_POSTGRES_URL")
 
 
-def _server_overrides(db: Path, redact: bool = False) -> dict[str, Any]:
-    o = _EMBEDDED_OVERRIDES(db, redact)
+def _server_overrides(db: Path, redact: bool = False, rederive: bool = False) -> dict[str, Any]:
+    o = _EMBEDDED_OVERRIDES(db, redact, rederive)
     o["storage"] = {
         "profile": "server",
         "url": _pg_url(),
