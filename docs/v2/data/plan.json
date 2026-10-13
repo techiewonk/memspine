@@ -4334,8 +4334,8 @@
    ],
    "kind": "behaviour",
    "gate": "Write p95 at most 250 ms; idempotent retries; receipt never claims an unavailable capability; crash tests at every commit/projector boundary",
-   "status": "In progress",
-   "note": "Sonnet agent launched 2026-10-13 (Phase 2 wave 1)",
+   "status": "Needs measurement",
+   "note": "write.intake_v2 flag-off; idempotent retries, crash-tested commit order, honest receipts, re-ingest versioning; double-send screen pending",
    "layers": [
     "L0",
     "L1"

@@ -203,7 +203,7 @@ WP = [
      "ROADMAP Phase 1 exit gate", "Not started", ""),
     # ---- Phase 2: write path and models ----
     ("W2-01", 2, "Source envelope intake, receipt, idempotency, re-ingest", ["W-01", "W-02", "W-03", "W-24"], ["EX-1a", "LIB-30"], "behaviour",
-     "Write p95 at most 250 ms; idempotent retries; receipt never claims an unavailable capability; crash tests at every commit/projector boundary", "In progress", "Sonnet agent launched 2026-10-13 (Phase 2 wave 1)"),
+     "Write p95 at most 250 ms; idempotent retries; receipt never claims an unavailable capability; crash tests at every commit/projector boundary", "Needs measurement", "write.intake_v2 flag-off; idempotent retries, crash-tested commit order, honest receipts, re-ingest versioning; double-send screen pending"),
     ("W2-02", 2, "Stamping: three clocks, time zone, speaker/addressee/participants, provenance class",
      ["W-04", "W-05", "W-08", "M-08"], ["W2-01", "LIB-29"], "behaviour", "Focus slice non-inferior", "Not started", ""),
     ("W2-03", 2, "Role policy, echo guard (marker + last-read overlap) and routing", ["W-06", "W-09"], ["W2-02", "LIB-13"], "behaviour", "Focus slice non-inferior", "Not started", ""),

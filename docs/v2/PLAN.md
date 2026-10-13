@@ -9,9 +9,9 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 |---|---|
 | Not started | 24 |
 | Ready | 0 |
-| In progress | 4 |
+| In progress | 3 |
 | Blocked | 0 |
-| Needs measurement | 51 |
+| Needs measurement | 52 |
 | Done | 82 |
 | Dropped | 1 |
 
@@ -127,7 +127,7 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 
 | Id | Work package | Layers | Ops | Decisions | Review | Depends on | Kind | Agent lane | Owns | Gate | Status | Note |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| W2-01 | Source envelope intake, receipt, idempotency, re-ingest | L0 L1 | D K_C | W-01, W-02, W-03, W-24 | ER-06 | EX-1a, LIB-30 | behaviour | write | - | Write p95 at most 250 ms; idempotent retries; receipt never claims an unavailable capability; crash tests at every commit/projector boundary | **In progress** | Sonnet agent launched 2026-10-13 (Phase 2 wave 1) |
+| W2-01 | Source envelope intake, receipt, idempotency, re-ingest | L0 L1 | D K_C | W-01, W-02, W-03, W-24 | ER-06 | EX-1a, LIB-30 | behaviour | write | - | Write p95 at most 250 ms; idempotent retries; receipt never claims an unavailable capability; crash tests at every commit/projector boundary | **Needs measurement** | write.intake_v2 flag-off; idempotent retries, crash-tested commit order, honest receipts, re-ingest versioning; double-send screen pending |
 | W2-02 | Stamping: three clocks, time zone, speaker/addressee/participants, provenance class | L0 L1 L4 scope | D R | W-04, W-05, W-08, M-08 | - | W2-01, LIB-29 | behaviour | write | - | Focus slice non-inferior | **Not started** |  |
 | W2-03 | Role policy, echo guard (marker + last-read overlap) and routing | L0 L1 L5 ctx | D | W-06, W-09 | ER-17 | W2-02, LIB-13 | behaviour | write | - | Focus slice non-inferior | **Not started** |  |
 | W2-04 | Firewall at three gates; base plus extended signals | L0 L1 scope | D | W-07, G-06 | - | LIB-38, F-16a | behaviour | write | - | False-positive screen on the behavioural suite | **Needs measurement** | TW-A wired flag-off (integrity.horizon_v2 / consent.v2 / firewall.gates_v2); MINJA FP rate needs OP-Bench screen |
