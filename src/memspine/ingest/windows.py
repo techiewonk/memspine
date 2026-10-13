@@ -190,7 +190,15 @@ def _envelope_write(eng: Any, config: MemspineConfig) -> EnvelopeWrite:
         validator=ItemValidator(compiler),
         repair=RepairAsk(llm, max_tokens=4096),
         ledger=FailureLedger(ledger_path),
+        stages=_envelope_stages(eng, config),
     )
+
+
+def _envelope_stages(eng: Any, config: MemspineConfig) -> tuple[Any, ...]:
+    """W2-06c: the post-compile stage list. Each W2 package appends ONE builder line here, gated
+    on its own flag (see ``derive/envelope_stages.py`` for the order)."""
+    stages: list[Any] = []
+    return tuple(stages)
 
 
 def _segmentation(config: MemspineConfig) -> SegmentationSettings | None:

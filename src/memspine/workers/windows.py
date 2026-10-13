@@ -47,6 +47,11 @@ from memspine.derive.backpressure import BackpressureRejected
 from memspine.derive.call_batcher import BatchItem, CallBatcher
 from memspine.derive.compile import WindowLine
 from memspine.derive.envelope_compiler import EnvelopeCompiler, storage_kind
+from memspine.derive.envelope_stages import (
+    EnvelopeStage,
+    EnvelopeStageContext,
+    run_envelope_stages,
+)
 from memspine.derive.failure_ledger import FailureLedger
 from memspine.derive.items import (
     ItemsOutcome,
@@ -438,6 +443,8 @@ class EnvelopeWrite:
     validator: ItemValidator
     repair: RepairAsk
     ledger: FailureLedger
+    #: W2-06c hook list: ordered post-compile stages (W2-14, W2-08, W2-09, W2-10, W2-13); empty = none
+    stages: tuple[EnvelopeStage, ...] = ()
 
 
 @dataclass
@@ -1541,6 +1548,12 @@ class WindowPipeline:
                 ns=ns,
                 window_id=window_id,
             )
+        if env.stages:
+            stage_ctx = EnvelopeStageContext(
+                namespace=ns, window_id=window_id, lines=lines, records=records, compile_ctx=ctx
+            )
+            outcome.envelopes = await run_envelope_stages(env.stages, outcome.envelopes, stage_ctx)
+            outcome.notes.update(stage_ctx.notes)
         merged["facts"] = outcome
 
     async def _run_groups(
