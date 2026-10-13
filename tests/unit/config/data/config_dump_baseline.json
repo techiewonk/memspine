@@ -553,6 +553,7 @@
    "user_header": "off",
    "verbatim_raw_only": false,
    "view_tag_leg": false,
+   "wait_for_pending_s": 0.0,
    "window_full_hits": 10
   },
   "rest": {
@@ -648,6 +649,7 @@
    "integration_decide_unhinted": false,
    "integration_v2": false,
    "lineage_table": false,
+   "online_extractor_v2": false,
    "participants": "off",
    "prepass": "off",
    "prompt_context_turns": 3,
@@ -679,7 +681,7 @@
    "window_topic_k": 2.0
   }
  },
- "json_schema_sha256": "de83adb9404ce5310d16cea6400dccad1add1c5e971579bc19059abca350d69f",
+ "json_schema_sha256": "d0fbeb2274640f8f57382bd6dbbdcd67aea4a219dbb6830af2e0a6583165b3ab",
  "preset:chat_roles": {
   "audit": {
    "actions": false,
@@ -1265,6 +1267,7 @@
    "user_header": "off",
    "verbatim_raw_only": false,
    "view_tag_leg": false,
+   "wait_for_pending_s": 0.0,
    "window_full_hits": 10
   },
   "rest": {
@@ -1360,6 +1363,7 @@
    "integration_decide_unhinted": false,
    "integration_v2": false,
    "lineage_table": false,
+   "online_extractor_v2": false,
    "participants": "off",
    "prepass": "off",
    "prompt_context_turns": 3,
@@ -1972,6 +1976,7 @@
    "user_header": "off",
    "verbatim_raw_only": false,
    "view_tag_leg": false,
+   "wait_for_pending_s": 0.0,
    "window_full_hits": 10
   },
   "rest": {
@@ -2067,6 +2072,7 @@
    "integration_decide_unhinted": false,
    "integration_v2": false,
    "lineage_table": false,
+   "online_extractor_v2": false,
    "participants": "off",
    "prepass": "off",
    "prompt_context_turns": 3,
@@ -2679,6 +2685,7 @@
    "user_header": "off",
    "verbatim_raw_only": false,
    "view_tag_leg": false,
+   "wait_for_pending_s": 0.0,
    "window_full_hits": 10
   },
   "rest": {
@@ -2774,6 +2781,7 @@
    "integration_decide_unhinted": false,
    "integration_v2": false,
    "lineage_table": false,
+   "online_extractor_v2": false,
    "participants": "off",
    "prepass": "off",
    "prompt_context_turns": 3,
@@ -3386,6 +3394,7 @@
    "user_header": "off",
    "verbatim_raw_only": false,
    "view_tag_leg": false,
+   "wait_for_pending_s": 0.0,
    "window_full_hits": 10
   },
   "rest": {
@@ -3481,6 +3490,7 @@
    "integration_decide_unhinted": false,
    "integration_v2": false,
    "lineage_table": false,
+   "online_extractor_v2": false,
    "participants": "off",
    "prepass": "off",
    "prompt_context_turns": 3,
@@ -4093,6 +4103,7 @@
    "user_header": "off",
    "verbatim_raw_only": false,
    "view_tag_leg": false,
+   "wait_for_pending_s": 0.0,
    "window_full_hits": 10
   },
   "rest": {
@@ -4188,6 +4199,7 @@
    "integration_decide_unhinted": false,
    "integration_v2": false,
    "lineage_table": false,
+   "online_extractor_v2": false,
    "participants": "off",
    "prepass": "off",
    "prompt_context_turns": 3,
@@ -4800,6 +4812,7 @@
    "user_header": "off",
    "verbatim_raw_only": false,
    "view_tag_leg": false,
+   "wait_for_pending_s": 0.0,
    "window_full_hits": 10
   },
   "rest": {
@@ -4895,6 +4908,7 @@
    "integration_decide_unhinted": false,
    "integration_v2": false,
    "lineage_table": false,
+   "online_extractor_v2": false,
    "participants": "off",
    "prepass": "off",
    "prompt_context_turns": 3,
@@ -5507,6 +5521,7 @@
    "user_header": "off",
    "verbatim_raw_only": false,
    "view_tag_leg": false,
+   "wait_for_pending_s": 0.0,
    "window_full_hits": 10
   },
   "rest": {
@@ -5602,6 +5617,7 @@
    "integration_decide_unhinted": false,
    "integration_v2": false,
    "lineage_table": false,
+   "online_extractor_v2": false,
    "participants": "off",
    "prepass": "off",
    "prompt_context_turns": 3,
@@ -6214,6 +6230,7 @@
    "user_header": "off",
    "verbatim_raw_only": false,
    "view_tag_leg": false,
+   "wait_for_pending_s": 0.0,
    "window_full_hits": 10
   },
   "rest": {
@@ -6309,6 +6326,7 @@
    "integration_decide_unhinted": false,
    "integration_v2": false,
    "lineage_table": false,
+   "online_extractor_v2": false,
    "participants": "off",
    "prepass": "off",
    "prompt_context_turns": 3,
@@ -6921,6 +6939,7 @@
    "user_header": "off",
    "verbatim_raw_only": false,
    "view_tag_leg": false,
+   "wait_for_pending_s": 0.0,
    "window_full_hits": 10
   },
   "rest": {
@@ -7016,6 +7035,7 @@
    "integration_decide_unhinted": false,
    "integration_v2": false,
    "lineage_table": false,
+   "online_extractor_v2": false,
    "participants": "off",
    "prepass": "off",
    "prompt_context_turns": 3,
@@ -7637,6 +7657,7 @@
    "user_header": "off",
    "verbatim_raw_only": false,
    "view_tag_leg": false,
+   "wait_for_pending_s": 0.0,
    "window_full_hits": 10
   },
   "rest": {
@@ -7732,6 +7753,7 @@
    "integration_decide_unhinted": false,
    "integration_v2": false,
    "lineage_table": false,
+   "online_extractor_v2": false,
    "participants": "off",
    "prepass": "off",
    "prompt_context_turns": 3,
@@ -8349,6 +8371,7 @@
    "user_header": "off",
    "verbatim_raw_only": false,
    "view_tag_leg": false,
+   "wait_for_pending_s": 0.0,
    "window_full_hits": 10
   },
   "rest": {
@@ -8444,6 +8467,7 @@
    "integration_decide_unhinted": false,
    "integration_v2": false,
    "lineage_table": false,
+   "online_extractor_v2": false,
    "participants": "off",
    "prepass": "off",
    "prompt_context_turns": 3,
@@ -9042,6 +9066,7 @@
    "user_header": "off",
    "verbatim_raw_only": false,
    "view_tag_leg": false,
+   "wait_for_pending_s": 0.0,
    "window_full_hits": 10
   },
   "rest": {
@@ -9137,6 +9162,7 @@
    "integration_decide_unhinted": false,
    "integration_v2": false,
    "lineage_table": false,
+   "online_extractor_v2": false,
    "participants": "off",
    "prepass": "off",
    "prompt_context_turns": 3,
@@ -9757,6 +9783,7 @@
    "user_header": "off",
    "verbatim_raw_only": false,
    "view_tag_leg": false,
+   "wait_for_pending_s": 0.0,
    "window_full_hits": 10
   },
   "rest": {
@@ -9852,6 +9879,7 @@
    "integration_decide_unhinted": false,
    "integration_v2": false,
    "lineage_table": false,
+   "online_extractor_v2": false,
    "participants": "off",
    "prepass": "off",
    "prompt_context_turns": 3,
@@ -10468,6 +10496,7 @@
    "user_header": "off",
    "verbatim_raw_only": false,
    "view_tag_leg": false,
+   "wait_for_pending_s": 0.0,
    "window_full_hits": 10
   },
   "rest": {
@@ -10563,6 +10592,7 @@
    "integration_decide_unhinted": false,
    "integration_v2": false,
    "lineage_table": false,
+   "online_extractor_v2": false,
    "participants": "off",
    "prepass": "off",
    "prompt_context_turns": 3,
@@ -11183,6 +11213,7 @@
    "user_header": "off",
    "verbatim_raw_only": false,
    "view_tag_leg": false,
+   "wait_for_pending_s": 0.0,
    "window_full_hits": 10
   },
   "rest": {
@@ -11278,6 +11309,7 @@
    "integration_decide_unhinted": false,
    "integration_v2": false,
    "lineage_table": false,
+   "online_extractor_v2": false,
    "participants": "off",
    "prepass": "off",
    "prompt_context_turns": 3,
@@ -11890,6 +11922,7 @@
    "user_header": "off",
    "verbatim_raw_only": false,
    "view_tag_leg": false,
+   "wait_for_pending_s": 0.0,
    "window_full_hits": 10
   },
   "rest": {
@@ -11985,6 +12018,7 @@
    "integration_decide_unhinted": false,
    "integration_v2": false,
    "lineage_table": false,
+   "online_extractor_v2": false,
    "participants": "off",
    "prepass": "off",
    "prompt_context_turns": 3,
@@ -12598,6 +12632,7 @@
    "user_header": "off",
    "verbatim_raw_only": false,
    "view_tag_leg": false,
+   "wait_for_pending_s": 0.0,
    "window_full_hits": 10
   },
   "rest": {
@@ -12693,6 +12728,7 @@
    "integration_decide_unhinted": false,
    "integration_v2": false,
    "lineage_table": false,
+   "online_extractor_v2": false,
    "participants": "off",
    "prepass": "off",
    "prompt_context_turns": 3,
@@ -13307,6 +13343,7 @@
    "user_header": "off",
    "verbatim_raw_only": false,
    "view_tag_leg": false,
+   "wait_for_pending_s": 0.0,
    "window_full_hits": 10
   },
   "rest": {
@@ -13402,6 +13439,7 @@
    "integration_decide_unhinted": false,
    "integration_v2": false,
    "lineage_table": false,
+   "online_extractor_v2": false,
    "participants": "off",
    "prepass": "off",
    "prompt_context_turns": 3,

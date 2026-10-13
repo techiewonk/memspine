@@ -18,6 +18,8 @@ from memspine.derive.envelope_compiler import EnvelopeCompiler
 from memspine.derive.failure_ledger import FailureLedger
 from memspine.derive.grounding_stage import build_grounding_stage
 from memspine.derive.items import ItemValidator, RepairAsk
+from memspine.derive.known_sources import prepass_known, resolver_known
+from memspine.derive.online_extractor import OnlineExtractor
 from memspine.derive.pipeline.stages.close import session_close
 from memspine.derive.pipeline.stages.context import SessionClosed
 from memspine.derive.pipeline.stages.index import SessionIndex
@@ -35,6 +37,7 @@ from memspine.models.encoders.query.perspective import (
 )
 from memspine.observability.logging import get_logger
 from memspine.prompts.structured import STRUCTURED_PROMPT_ID, STRUCTURED_VERSION
+from memspine.read.pending_barrier import BarrierResult, PendingBarrier
 from memspine.services.storage.sql_base import SqlStorage
 from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import (
@@ -118,6 +121,13 @@ def _build_windows(eng: Any, config: MemspineConfig) -> WindowPipeline | None:
     if mode == "off":
         return None
     if eng._llm is None or eng._prompts is None or "window_extract" not in eng._llm.roles:
+        if config.write.online_extractor_v2:
+            # W2-06c: the no-model template. No extraction (the L1/L2 stages do not run), no call.
+            _log.warning(
+                "window.no_model",
+                detail=f"write.window_extract={mode!r} skipped: no llm.roles.window_extract",
+            )
+            return None
         raise ConfigError(
             f"write.window_extract={mode!r} needs an LLM role: set llm.roles.window_extract"
         )
@@ -155,10 +165,14 @@ def _build_windows(eng: Any, config: MemspineConfig) -> WindowPipeline | None:
             raise ConfigError(
                 "write.prompt_v2 needs write.envelope_v2 and a window_extract mode with facts"
             )
+        pre = _prepass(eng, config)  # W2-13 hints -> KNOWN
+        resolve = getattr(eng, "_entity_resolve_stage", None)  # W2-09 registry -> KNOWN
         context_builder = PromptContextBuilder(
             _known_from_store(eng),
             cap=config.write.prompt_known_cap,
             context_turns=config.write.prompt_context_turns,
+            prepass=prepass_known(pre) if pre is not None else None,
+            resolver=resolver_known(resolve) if config.write.resolver_v2 and resolve else None,
         )
     return WindowPipeline(
         settings=WindowSettings(
@@ -253,6 +267,7 @@ def _envelope_write(eng: Any, config: MemspineConfig) -> EnvelopeWrite:
         repair=RepairAsk(llm, max_tokens=4096),
         ledger=FailureLedger(ledger_path),
         stages=_envelope_stages(eng, config),
+        report_stages=config.write.online_extractor_v2,
     )
 
 
@@ -383,7 +398,21 @@ async def flush_windows(
     if eng._windows is None:
         return {}
     ns = validate_namespace(namespace) if namespace is not None else None
-    return await eng._windows.flush(ns, final=final)
+    return await online_extractor(eng).flush(ns, final=final)
+
+
+def online_extractor(eng: Any) -> OnlineExtractor:
+    """W2-06c: the named entry for online extraction over the engine's window pipeline."""
+    return OnlineExtractor(eng._windows)
+
+
+async def wait_for_pending(
+    eng: Any, namespace: str = "default", timeout_s: float = 0.0
+) -> BarrierResult:
+    """W2-06c: ``read.PendingBarrier`` over the engine outbox (``off`` when ``timeout_s`` <= 0)."""
+    return await PendingBarrier(lambda ns, caps, t: readiness(eng, ns, caps, t)).wait(
+        validate_namespace(namespace), timeout_s
+    )
 
 
 async def readiness(

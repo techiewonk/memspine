@@ -196,6 +196,14 @@ class WriteConfig(BaseModel):
     #: Needs ``prompt_v2``.
     prompt_schema: Literal["auto", "off"] = "auto"
 
+    #: W2-06c (W-12): ``derive.OnlineExtractor`` is the single named entry for online extraction
+    #: (turns in, envelopes out, deposited) over the outbox window stage. ``True``: the window stats
+    #: carry the stage hook list (``online_extractor``) and the per-stage drop / rewrite counters
+    #: (``envelope_stages``), and a window mode with no LLM role configured (the no-model ``core``
+    #: template) skips extraction with a warning instead of failing at start, so ingestion makes zero
+    #: model calls. ``False`` (default): the stats are unchanged and that start fails (D-10).
+    online_extractor_v2: bool = False
+
     #: W2-13 (P-23; needs ``window_extract``). A small local pre-pass over each window's raw turns,
     #: as hints, before the extraction call. ``rules``: a regex baseline (capitalised names, dates,
     #: numbers, aliases learned from deposited envelopes). ``gliner``: the rules plus GLiNER2

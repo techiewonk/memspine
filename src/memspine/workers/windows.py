@@ -572,6 +572,8 @@ class EnvelopeWrite:
     ledger: FailureLedger
     #: W2-06c hook list: ordered post-compile stages (W2-14, W2-08, W2-09, W2-10, W2-13); empty = none
     stages: tuple[EnvelopeStage, ...] = ()
+    #: W2-06c (``write.online_extractor_v2``): report the stage list and notes in the window stats
+    report_stages: bool = False
 
 
 @dataclass
@@ -671,6 +673,7 @@ class WindowPipeline:
         self._calls_by_layer: Counter[str] = Counter()
         self._dropped_by_layer: Counter[str] = Counter()
         self._dead_by_code: Counter[str] = Counter()
+        self._stage_notes: Counter[str] = Counter()
         self._recent: deque[bool] = deque(maxlen=constants.WINDOW_SPLIT_RECENT)
         self._auto_split = False
         self._keys_by_record: dict[str, set[str]] = {}
@@ -1769,6 +1772,7 @@ class WindowPipeline:
             )
             outcome.envelopes = await run_envelope_stages(env.stages, outcome.envelopes, stage_ctx)
             outcome.notes.update(stage_ctx.notes)
+            self._stage_notes.update(stage_ctx.notes)  # W2-06c: reach the window stats
         merged["facts"] = outcome
 
     async def _run_groups(
@@ -2210,6 +2214,11 @@ class WindowPipeline:
             out["dead_letters"] = self._env.ledger.count()
             out["kinds"] = len(self._env.compiler.kinds)
             out["kinds_capped"] = self._env.compiler.kinds.capped
+            if self._env.report_stages:  # W2-06c: only present with write.online_extractor_v2
+                out["online_extractor"] = {
+                    "stages": [s.name for s in sorted(self._env.stages, key=lambda s: s.order)]
+                }
+                out["envelope_stages"] = dict(self._stage_notes)
         if self._prepass is not None:  # W2-13: only present with write.prepass
             out["prepass"] = self._prepass.mode
             out["windows_prepass_checked"] = c["prepass_checked"]
@@ -2234,6 +2243,7 @@ class WindowPipeline:
             self._calls_by_layer.clear()
             self._dropped_by_layer.clear()
             self._dead_by_code.clear()
+            self._stage_notes.clear()
         return out
 
 

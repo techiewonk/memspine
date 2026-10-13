@@ -360,6 +360,7 @@
       "user_header": "off",
       "verbatim_raw_only": false,
       "view_tag_leg": false,
+      "wait_for_pending_s": 0.0,
       "window_full_hits": 10
     },
     "rest": {
@@ -413,6 +414,7 @@
       "integration_decide_unhinted": false,
       "integration_v2": false,
       "lineage_table": false,
+      "online_extractor_v2": false,
       "participants": "off",
       "prepass": "off",
       "prompt_context_turns": 3,

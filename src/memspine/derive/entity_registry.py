@@ -82,6 +82,10 @@ class EntityRegistry:
     def get(self, key: ScopeKey, entity_id: str) -> Entity | None:
         return self._ents.get(key, {}).get(entity_id)
 
+    def scopes(self) -> list[ScopeKey]:
+        """Every scope that holds at least one entity."""
+        return list(self._ents)
+
     def active(self, key: ScopeKey) -> list[Entity]:
         """The live entities of one scope, in creation order."""
         return [e for e in self._ents.get(key, {}).values() if e.active]
