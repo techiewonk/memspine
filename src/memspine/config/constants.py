@@ -600,6 +600,13 @@ CAUSAL_WALK_DECAY = 0.9
 #: G27 (``write(reply_to=)``, ADR-061): the tag prefix naming the record a turn
 #: answers, and the rel of the LINK written beside it (associative memory on).
 REPLY_TO_PREFIX = "reply_to:"
+
+# W2-03 (``write.role_policy_v2``): tags a raw turn carries so derivation can tell what it may use.
+ROLE_USE_TAG_PREFIX = "derive_use:"  # derive_use:stated|proposal|evidence|excluded
+ECHO_TAG = "echo"  # the turn repeats memory text the engine injected or the last read returned
+ECHO_OF_PREFIX = "echo_of:"  # echo_of:<memory id>
+ASSENT_CANDIDATE_TAG = "assent_candidate"  # a user turn that restates a shown memory
+ROUTED_TAG = "routed"  # a typed record the TypeRouter wrote from a keyed turn
 REPLY_TO_REL = "reply_to"
 
 #: W13 (``integrity.corroboration_roots``): the most lineage records one root walk

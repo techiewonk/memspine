@@ -126,10 +126,20 @@ def _ledger_key(ns: str, session_id: str | None) -> tuple[str, str]:
     return (ns, session_id or "")
 
 
+def _remember_last_read(
+    eng: Any, ns: str, session_id: str | None, results: Sequence[tuple[MemoryRecord, float]]
+) -> None:
+    from memspine.ingest import role_wiring  # lazy: the echo guard lives on the write side
+
+    role_wiring.remember_last_read(eng, ns, session_id, results)
+
+
 def _record_reads(
     eng: Any, ns: str, session_id: str | None, results: Sequence[tuple[MemoryRecord, float]]
 ) -> None:
     """B0: remember what this session was shown, with the view trust it saw."""
+    if eng._config().write.role_policy_v2 and results:  # W2-03: the echo guard's last read
+        _remember_last_read(eng, ns, session_id, results)
     policy = eng._integrity()
     if not policy.enabled or policy.implicit_parents == "off" or not results:
         return
