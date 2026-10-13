@@ -112,7 +112,7 @@ async def test_turn_mentions_let_the_graph_reach_raw_turns(tmp_path: Path, provi
 
 async def test_focal_entity_seeds_the_graph_and_does_not_leak(tmp_path: Path) -> None:
     """G-11: ``focal_entity=`` adds a graph seed for one read only."""
-    from memspine.engine import _FOCAL_ENTITY
+    from memspine.read.pipeline.state import _FOCAL_ENTITY
 
     eng = _engine(tmp_path, "sqlite_adjacency")
     await eng.start()

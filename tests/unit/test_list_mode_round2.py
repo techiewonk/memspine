@@ -12,7 +12,7 @@ import pytest
 
 from memspine import Engine
 from memspine.config.schema import ReadConfig
-from memspine.engine import _RERANK_SUPPORT, search_forensics
+from memspine.engine import search_forensics
 from memspine.models.encoders.query.shape import is_set_question, is_set_question_wide
 from memspine.models.encoders.query.temporal_query import (
     LegHit,
@@ -20,6 +20,7 @@ from memspine.models.encoders.query.temporal_query import (
     comparison_speaker_legs,
     has_bridge_cue,
 )
+from memspine.read.pipeline.state import _RERANK_SUPPORT
 from memspine.store.records import MemoryRecord
 
 T0 = datetime(2023, 5, 1, 9, 0, tzinfo=UTC)
@@ -235,7 +236,7 @@ async def test_bridge_hop_fails_soft(monkeypatch: pytest.MonkeyPatch) -> None:
         def boom(*_: Any, **__: Any) -> Any:
             raise RuntimeError("boom")
 
-        monkeypatch.setattr("memspine.engine.bridge_phrases", boom)
+        monkeypatch.setattr("memspine.read.pipeline.legs.bridge_phrases", boom)
         out = await eng.read("Where did Caroline move from?", namespace="a", mode="replay")
         assert out.context.records
     finally:

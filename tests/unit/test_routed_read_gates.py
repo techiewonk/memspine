@@ -276,7 +276,7 @@ def test_temporal_leg_event_dates_order_is_deterministic() -> None:
 
 
 async def test_engine_passes_the_event_dates_switch(monkeypatch: pytest.MonkeyPatch) -> None:
-    import memspine.engine as engine_module
+    import memspine.read.pipeline.legs as engine_module
 
     calls: list[bool] = []
     real = engine_module.temporal_leg
