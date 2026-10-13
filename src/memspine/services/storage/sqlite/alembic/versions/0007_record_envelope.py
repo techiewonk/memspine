@@ -12,8 +12,8 @@ Existing rows are backfilled from their own data with the same mapping new recor
 tags. ``fingerprint`` stays NULL: the record derives it from its content fingerprint and prompt version.
 Downgrade drops the columns; nothing else reads them, so no data is lost that the mapping cannot restore.
 
-Revision ID: 0006
-Revises: 0005
+Revision ID: 0007
+Revises: 0006_lineage
 Create Date: 2026-10-13
 """
 
@@ -25,8 +25,8 @@ from alembic import op
 
 from memspine.store.layers import derive_axes, derive_layer, derive_provenance_class
 
-revision = "0006"
-down_revision = "0005"
+revision = "0007"
+down_revision = "0006_lineage"
 branch_labels = None
 depends_on = None
 

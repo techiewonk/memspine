@@ -1,6 +1,6 @@
 # ruff: noqa: E501
 """F-02a: the record envelope (layer, type tag, provenance class, axes, fingerprint), its derivation
-mapping, the 0006 migration (up, down, backfill), the write path and the envelope round trip."""
+mapping, the 0007 migration (up, down, backfill), the write path and the envelope round trip."""
 
 from __future__ import annotations
 
@@ -251,7 +251,7 @@ async def test_migration_down_up_and_backfill(tmp_path: Path) -> None:
     path = tmp_path / "m.db"
     await _seed(path)
     assert _columns(path) >= _NEW_COLUMNS
-    command.downgrade(alembic_config(path), "0005")
+    command.downgrade(alembic_config(path), "0006_lineage")
     assert not _NEW_COLUMNS & _columns(path)
     # Turn the two rows into a graph fact and a reflection, with perspective tags, behind the app's back.
     with sqlite3.connect(path) as db:
