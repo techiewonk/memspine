@@ -15,6 +15,7 @@ from typing import Any, Protocol, runtime_checkable
 from json_repair import repair_json
 
 from memspine.config.constants import TOKEN_ESTIMATE_CHARS_PER_TOKEN
+from memspine.economy import ledger as _costs
 from memspine.exceptions import ConfigError
 from memspine.models.concurrency import model_slot
 from memspine.observability import tap
@@ -89,17 +90,40 @@ class _Counted:
 
     async def chat(self, messages: list[dict[str, str]], **options: Any) -> str:
         self._counts[self._role] = self._counts.get(self._role, 0) + 1
-        async with model_slot("llm"):  # RT-02: no-op unless runtime.model_concurrency is on
-            if tap.enabled():
-                reply = await self._tapped_chat(messages, options)
-            else:
-                reply = await self._inner.chat(messages, **options)
+        costed = _costs.installed() is not None  # W2-12: economy.ledger_v2
+        t0 = time.perf_counter() if costed else 0.0
+        try:
+            async with model_slot("llm"):  # RT-02: no-op unless runtime.model_concurrency is on
+                if tap.enabled():
+                    reply = await self._tapped_chat(messages, options)
+                else:
+                    reply = await self._inner.chat(messages, **options)
+        except BaseException as exc:
+            if costed:
+                _costs.record_call(
+                    "generative",
+                    model=str(getattr(self._inner, "model", None) or self._inner.provider_id),
+                    tokens_in=sum(len(str(m.get("content", ""))) for m in messages)
+                    // _CHARS_PER_TOKEN,
+                    latency_ms=(time.perf_counter() - t0) * 1000.0,
+                    outcome="timeout" if isinstance(exc, TimeoutError) else "error",
+                )
+            raise
         # Chars/4 estimate, used only for providers that report no usage of their own.
         est_in = sum(len(str(m.get("content", ""))) for m in messages) // _CHARS_PER_TOKEN
         est_out = len(reply) // _CHARS_PER_TOKEN
         acc = self._estimates.setdefault(self._role, [0, 0])
         acc[0] += est_in
         acc[1] += est_out
+        if costed:
+            reported_cost = _reported_usage(self._inner)
+            _costs.record_call(
+                "generative",
+                model=str(getattr(self._inner, "model", None) or self._inner.provider_id),
+                tokens_in=reported_cost[0] if reported_cost else est_in,
+                tokens_out=reported_cost[1] if reported_cost else est_out,
+                latency_ms=(time.perf_counter() - t0) * 1000.0,
+            )
         if self._usage is not None:
             # #33: no await since the provider returned, so ``last_usage`` is still
             # this call's report even with concurrent calls on the same provider.

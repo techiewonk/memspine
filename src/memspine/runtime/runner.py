@@ -256,6 +256,43 @@ class InlineRunner:
         )
         return handle
 
+    # ------------------------------------------------------------------ budget parking (W2-12)
+    @staticmethod
+    def parked_stage(stage: str) -> str:
+        """The outbox stage that holds work a spent budget paused (it has no handler, so nothing
+        drains it; the rows stay as persisted underived markers until ``resume_parked``)."""
+        return f"{stage}.deferred"
+
+    async def park(self, scope: OwnerScope, stage: str, payload: dict[str, Any]) -> bool:
+        """Hold one item back, marked underived (W-26 D). Idempotent: an identical payload that
+        is already parked is not parked twice (a crash between park and checkpoint redoes it).
+        Returns whether a row was written."""
+        return bool(await self._io(self._park, scope, stage, payload))
+
+    def _park(self, scope: OwnerScope, stage: str, payload: dict[str, Any]) -> bool:
+        held = {**payload, UNDERIVED_KEY: True}
+        parked = self.parked_stage(stage)
+        if any(p == held for _, p in self.store.items_after(scope, parked, -1)):
+            return False
+        self.store.put_item(scope, parked, held, self.clock())
+        return True
+
+    def parked(self, scope: OwnerScope, stage: str) -> int:
+        """How many items of ``stage`` wait, paused by a budget."""
+        return len(self.store.items_after(scope, self.parked_stage(stage), -1))
+
+    async def resume_parked(self, scope: OwnerScope, stage: str) -> int:
+        """Enqueue every parked item of ``stage`` again, in order, then clear the parked rows.
+        Enqueue first and prune after, so a crash in between duplicates (derivation is
+        idempotent) and never loses. Returns the number re-enqueued."""
+        parked = self.parked_stage(stage)
+        items = self.store.items_after(scope, parked, -1)
+        for _, payload in items:
+            await self.enqueue(scope, stage, payload, force=True)  # past a hard cap, never dropped
+        if items:
+            await self._io(self.store.prune_items, scope, parked, items[-1][0])
+        return len(items)
+
     def depth(self, scope: OwnerScope | None = None) -> int:
         return self.book.queue_depth(scope)
 

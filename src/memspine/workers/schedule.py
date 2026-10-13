@@ -14,9 +14,12 @@ counts — delivery stays pull-based via ``Engine.due()`` in v0.1.
 
 from __future__ import annotations
 
+from contextlib import AbstractContextManager, nullcontext
+
 from memspine.derive.pipeline.stages.context import PipelineContext
 from memspine.derive.pipeline.stages.mining import projection_on
 from memspine.derive.pipeline.stages.rule_edges import rule_edges_options
+from memspine.economy import ledger as _costs
 from memspine.observability import tap
 from memspine.observability.logging import get_logger
 from memspine.workers.runner import TaskRunner
@@ -143,21 +146,39 @@ async def run_sleep_cycle(runner: TaskRunner, ctx: PipelineContext) -> dict[str,
     if ctx.config.retention.classes:
         order = (RETENTION_STAGE, *order)
     stats: dict[str, dict[str, object]] = {}
+    ledger = _costs.installed()  # W2-12 (economy.ledger_v2); None = the original loop
     for name in order:
         # one line per stage, so a silent stall names its stage (f-gc3, 2026-10-12)
         _log.info("sleep.stage", stage=name)
+        if ledger is not None and ledger.budget_exhausted(_costs.SLEEP_POOL):
+            # W-26 D / O-05: the sleep budget is spent. The stage is not run; its work stays
+            # dirty (every stage reads the store, so the next cycle picks it up), counted here.
+            assert ledger.budget is not None
+            ledger.budget.note_paused(_costs.SLEEP_POOL)
+            stats[name] = {"status": "deferred_budget", "underived": True}
+            continue
         if not tap.enabled():
-            stats[name] = await runner.run(name, ctx)
+            with _stage_cost(ledger, name):
+                stats[name] = await runner.run(name, ctx)
             continue
         with tap.request("job", stage=name):  # WT-02: one child trace per stage
             tap.event("job.stage.start", stage=name)
             try:
-                stats[name] = await runner.run(name, ctx)
+                with _stage_cost(ledger, name):
+                    stats[name] = await runner.run(name, ctx)
             except BaseException as exc:
                 tap.event("job.stage.end", stage=name, status="raised", error=type(exc).__name__)
                 raise
             tap.event("job.stage.end", **_stage_fields(name, stats[name]))
     return stats
+
+
+def _stage_cost(ledger: _costs.WriteCostLedger | None, name: str) -> AbstractContextManager[None]:
+    """W2-12: attribute a sleep stage's model calls to it (engine-wide: namespace ``"-"``, the
+    ``SLEEP_POOL`` budget key); a null context without a ledger."""
+    if ledger is None:
+        return nullcontext()
+    return _costs.cost_scope(namespace=_costs.SLEEP_POOL, layer=name, stage=name)
 
 
 def _stage_fields(name: str, stat: dict[str, object]) -> dict[str, object]:

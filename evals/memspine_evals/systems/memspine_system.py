@@ -731,6 +731,11 @@ class MemspineSystem:
         engine_prompts = self._prompt_delta(prompts_before, self._prompt_usage())
         if engine_prompts:
             meta["engine_prompts"] = engine_prompts
+        from ..cost import cost_block
+
+        write_cost = cost_block(self._engine, self.namespace)  # W2-12: {} unless economy.ledger_v2
+        if write_cost:
+            meta["write_cost"] = write_cost
         self._write_window_log(stats, final=final)
         if before is None or after is None:
             meta["cost_observable"] = False
