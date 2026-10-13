@@ -120,6 +120,18 @@ class GraphProjector(Projector):
             kind = payload.get("kind")
             if isinstance(kind, str) and kind:
                 properties["kind"] = kind
+            extra = payload.get("props")
+            if isinstance(extra, dict):  # F-02c: typed edge properties of a compiled edge
+                properties.update({str(k): v for k, v in extra.items() if k != "weight"})
+            for side in ("src_node", "dst_node"):  # F-02c: labelled nodes the compiler owns
+                node = payload.get(side)
+                if isinstance(node, dict):
+                    await self._store.upsert_node(
+                        str(payload["src" if side == "src_node" else "dst"]),
+                        labels=[str(x) for x in node.get("labels", ())],
+                        properties=dict(node.get("properties") or {}),
+                        namespace=event.namespace,
+                    )
             await self._store.upsert_edge(
                 str(payload["src"]),
                 str(payload["dst"]),

@@ -6,6 +6,7 @@ from memspine.derive.pipeline.stages.anticipate import anticipate
 from memspine.derive.pipeline.stages.communities import reorganize
 from memspine.derive.pipeline.stages.consolidate import consolidate
 from memspine.derive.pipeline.stages.context import Pipeline
+from memspine.derive.pipeline.stages.edge_compiler_v2 import compile_graph_edges
 from memspine.derive.pipeline.stages.entity_summaries import summarize_entities
 from memspine.derive.pipeline.stages.extract_graph import extract_graph
 from memspine.derive.pipeline.stages.histories import histories
@@ -35,6 +36,7 @@ PIPELINES: dict[str, Pipeline] = {
     "rule_edges": rule_edges,
     "reconcile": reconcile,
     "histories": histories,
+    "compile_edges": compile_graph_edges,
     "summarize_entities": summarize_entities,
     "mine_facts": mine_facts,
     "project_facts": project_facts,

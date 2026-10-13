@@ -85,6 +85,7 @@
    "tag_assistant_claims": false
   },
   "graph": {
+   "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
    "provider": "auto"
@@ -561,7 +562,7 @@
    "window_topic_k": 2.0
   }
  },
- "json_schema_sha256": "543f60a371b8ecbeb5fca2c0755617dbcff0d147e1da371cd00f30db789be349",
+ "json_schema_sha256": "34f0c4e9d74467731ae9889cb27ee91e6cea9516446fbc11867ac16b6f5aa696",
  "preset:chat_roles": {
   "audit": {
    "actions": false,
@@ -650,6 +651,7 @@
    "tag_assistant_claims": false
   },
   "graph": {
+   "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
    "provider": "auto"
@@ -1241,6 +1243,7 @@
    "tag_assistant_claims": false
   },
   "graph": {
+   "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
    "provider": "auto"
@@ -1830,6 +1833,7 @@
    "tag_assistant_claims": false
   },
   "graph": {
+   "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
    "provider": "auto"
@@ -2419,6 +2423,7 @@
    "tag_assistant_claims": false
   },
   "graph": {
+   "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
    "provider": "auto"
@@ -3008,6 +3013,7 @@
    "tag_assistant_claims": false
   },
   "graph": {
+   "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
    "provider": "auto"
@@ -3597,6 +3603,7 @@
    "tag_assistant_claims": false
   },
   "graph": {
+   "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
    "provider": "auto"
@@ -4186,6 +4193,7 @@
    "tag_assistant_claims": false
   },
   "graph": {
+   "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
    "provider": "auto"
@@ -4775,6 +4783,7 @@
    "tag_assistant_claims": false
   },
   "graph": {
+   "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
    "provider": "auto"
@@ -5364,6 +5373,7 @@
    "tag_assistant_claims": false
   },
   "graph": {
+   "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
    "provider": "auto"
@@ -5953,6 +5963,7 @@
    "tag_assistant_claims": false
   },
   "graph": {
+   "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
    "provider": "sqlite_adjacency"
@@ -6551,6 +6562,7 @@
    "tag_assistant_claims": false
   },
   "graph": {
+   "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
    "provider": "auto"
@@ -7145,6 +7157,7 @@
    "tag_assistant_claims": false
   },
   "graph": {
+   "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
    "provider": "auto"
@@ -7720,6 +7733,7 @@
    "tag_assistant_claims": false
   },
   "graph": {
+   "edge_compiler_v2": false,
    "entity_embeddings": true,
    "key_v2": false,
    "provider": "auto"
@@ -8317,6 +8331,7 @@
    "tag_assistant_claims": false
   },
   "graph": {
+   "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
    "provider": "auto"
@@ -8910,6 +8925,7 @@
    "tag_assistant_claims": false
   },
   "graph": {
+   "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
    "provider": "auto"
@@ -9507,6 +9523,7 @@
    "tag_assistant_claims": true
   },
   "graph": {
+   "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
    "provider": "auto"
@@ -10096,6 +10113,7 @@
    "tag_assistant_claims": false
   },
   "graph": {
+   "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
    "provider": "auto"
@@ -10686,6 +10704,7 @@
    "tag_assistant_claims": false
   },
   "graph": {
+   "edge_compiler_v2": false,
    "entity_embeddings": false,
    "key_v2": false,
    "provider": "auto"

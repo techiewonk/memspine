@@ -24,8 +24,9 @@ from memspine.workers.runner import TaskRunner
 _log = get_logger(__name__)
 
 __all__ = [
-    "PATTERN_OBSERVATIONS_STAGE",
+    "COMPILE_EDGES_STAGE",
     "HISTORIES_STAGE",
+    "PATTERN_OBSERVATIONS_STAGE",
     "PREDICT_CALIBRATE_STAGE",
     "PROJECT_FACTS_STAGE",
     "RECONCILE_STAGE",
@@ -97,6 +98,10 @@ RECONCILE_STAGE = "reconcile"
 HISTORIES_STAGE = "histories"
 
 
+#: F-02c: runs right before ``summarize_entities``, only when ``graph.edge_compiler_v2`` is on.
+COMPILE_EDGES_STAGE = "compile_edges"
+
+
 def _predict_calibrate_on(ctx: PipelineContext) -> bool:
     mem = ctx.config.memories.get("episodic")
     options = mem.policies.get("consolidation") if mem is not None else None
@@ -132,6 +137,9 @@ async def run_sleep_cycle(runner: TaskRunner, ctx: PipelineContext) -> dict[str,
             if on
         )
         order = (*order[:at], *extra, *order[at:])
+    if ctx.config.graph.edge_compiler_v2:  # F-02c: once the facts settled
+        at = order.index("summarize_entities")
+        order = (*order[:at], COMPILE_EDGES_STAGE, *order[at:])
     if ctx.config.retention.classes:
         order = (RETENTION_STAGE, *order)
     stats: dict[str, dict[str, object]] = {}
