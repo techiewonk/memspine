@@ -41,8 +41,10 @@ from memspine.core.window import (
     WindowTurn,
     estimate_tokens,
 )
+from memspine.derive.backpressure import BackpressureRejected
 from memspine.derive.pipeline.stages.context import SessionClosed, WindowEdgeBatch
 from memspine.derive.pipeline.stages.mining import _fact_date
+from memspine.models.concurrency import Priority, priority_scope
 from memspine.models.providers.llm.base import LLMService
 from memspine.models.providers.llm.structured import structured_call
 from memspine.observability import tap
@@ -404,6 +406,7 @@ class WindowPipeline:
         self._outbox = outbox
         self._recover_task: asyncio.Task[Any] | None = None
         self._staged: list[tuple[str, dict[str, Any]]] = []
+        self._persist_retry: asyncio.Task[None] | None = None  # RT-02 backpressure retry
         self._persist_lock = asyncio.Lock()
         self._recovered = outbox is None
         if outbox is not None:
@@ -517,19 +520,50 @@ class WindowPipeline:
         if self._async and self._outbox is None:
             self._ensure_worker(ns, store)
 
-    async def _persist_staged(self) -> None:
+    async def _persist_staged(self, *, force: bool = False) -> None:
         """Outbox mode: write the items ``_enqueue`` staged (in order), then wake the workers.
         Staging keeps the segmenter code synchronous and in its old order; the database write
         happens here, off the event loop (``InlineRunner.enqueue``)."""
         if self._outbox is None or not self._staged:
             return
+        deferred_s: float | None = None
         async with self._persist_lock:
             staged, self._staged = self._staged, []
-            for ns, payload in staged:
-                await self._outbox.enqueue(self._scope(ns), WINDOW_STAGE, payload)
+            for at, (ns, payload) in enumerate(staged):
+                try:
+                    if force:  # flush / session close: accept past the hard cap, never defer
+                        await self._outbox.enqueue(
+                            self._scope(ns), WINDOW_STAGE, payload, force=True
+                        )
+                    else:
+                        await self._outbox.enqueue(self._scope(ns), WINDOW_STAGE, payload)
+                except BackpressureRejected as rejected:
+                    # RT-02 (W-25 B): refused BEFORE it was accepted, so nothing was written; keep
+                    # this item and the rest staged, in order, and offer them again later.
+                    self._staged = staged[at:] + self._staged
+                    staged = staged[:at]
+                    self._counts["windows_deferred_backpressure"] += 1
+                    deferred_s = rejected.receipt.retry_after_s
+                    break
         if self._async and not self._stopped:
             for ns in dict.fromkeys(n for n, _ in staged):
                 self._ensure_worker(ns, self._store(ns))
+            if deferred_s is not None:
+                self._retry_persist_later(deferred_s)
+
+    def _retry_persist_later(self, delay_s: float) -> None:
+        """Offer the deferred (backpressured) items again after the receipt's retry time."""
+        if self._persist_retry is not None and not self._persist_retry.done():
+            return
+        loop = asyncio.get_running_loop()
+
+        async def again() -> None:
+            await asyncio.sleep(max(delay_s, 0.01))
+            self._persist_retry = None
+            if not self._stopped:
+                await self._persist_staged()
+
+        self._persist_retry = loop.create_task(again())
 
     # -- timers and workers ---------------------------------------------------------------
 
@@ -556,7 +590,8 @@ class WindowPipeline:
     def _ensure_worker(self, ns: str, store: _Store) -> None:
         if store.worker is not None and not store.worker.done():
             return
-        store.worker = asyncio.get_running_loop().create_task(self._drain(ns, store))
+        with priority_scope(Priority.DERIVE):  # RT-02: window work is background derive
+            store.worker = asyncio.get_running_loop().create_task(self._drain(ns, store))
 
     async def _drain(self, ns: str, store: _Store) -> None:
         if self._outbox is not None:
@@ -602,7 +637,7 @@ class WindowPipeline:
                 if store.session is not None:
                     self._enqueue_closed(ns, store, store.session)
                     store.session = None
-                await self._persist_staged()
+                await self._persist_staged(force=True)  # an explicit flush defers nothing
             if store.worker is not None and not store.worker.done():
                 await asyncio.shield(store.worker)
             await self._drain(ns, store)
@@ -629,7 +664,7 @@ class WindowPipeline:
             store.session = None
         before = self._counts["sessions_closed"]
         self._enqueue_closed(namespace, store, session)
-        await self._persist_staged()
+        await self._persist_staged(force=True)
         if store.worker is not None and not store.worker.done():
             await asyncio.shield(store.worker)
         await self._drain(namespace, store)
@@ -1236,6 +1271,8 @@ class WindowPipeline:
             "sessions_closed": c["sessions_closed"],
             "queued": sum(len(s.queue) for s in self._stores.values()),
         }
+        if c["windows_deferred_backpressure"]:  # RT-02: only present once backpressure bit
+            out["deferred_backpressure"] = c["windows_deferred_backpressure"]
         if self._outbox is not None:
             out["queued"] += self._outbox.depth()
             out["outbox"] = True

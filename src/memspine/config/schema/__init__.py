@@ -39,6 +39,7 @@ from memspine.config.schema.rest import (
     RestRateLimitConfig,
 )
 from memspine.config.schema.root import MemoryTypeConfig, MemspineConfig, NamespaceConfig
+from memspine.config.schema.runtime import RuntimeConfig
 from memspine.config.schema.storage import (
     CacheConfig,
     EncryptionConfig,
@@ -80,6 +81,7 @@ __all__ = [
     "RestRateLimitConfig",
     "RetentionClassConfig",
     "RetentionConfig",
+    "RuntimeConfig",
     "StorageConfig",
     "StructuredConfig",
     "VectorConfig",

@@ -27,6 +27,14 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 
+from memspine.derive.backpressure import (
+    UNDERIVED_KEY,
+    Backlog,
+    Backpressure,
+    BackpressureRejected,
+)
+from memspine.economy.slo import SloLedger
+from memspine.models.concurrency import Priority, priority_scope
 from memspine.observability import tap
 from memspine.observability.logging import get_logger
 from memspine.runtime.freshness import read_barrier
@@ -131,6 +139,9 @@ class InlineRunner:
         self._stopping = False
         self._current: Claim | None = None
         self._retry_holes_next = True
+        #: RT-02 (``runtime.scheduler_v2``): both None = unchanged behaviour
+        self._backpressure: Backpressure | None = None
+        self._ledger: SloLedger | None = None
 
     # ------------------------------------------------------------------ setup
     def register(
@@ -154,6 +165,14 @@ class InlineRunner:
     def stages(self) -> tuple[str, ...]:
         return tuple(self._handlers)
 
+    def configure_scheduler(
+        self, backpressure: Backpressure | None, ledger: SloLedger | None = None
+    ) -> None:
+        """RT-02: apply a backpressure policy at enqueue, run items as background derive work,
+        and record time-to-searchable in ``ledger``. Called once at build (flag on only)."""
+        self._backpressure = backpressure
+        self._ledger = ledger
+
     # ------------------------------------------------------------------ enqueue
     async def _io(self, fn: Callable[..., Any], *args: Any, **kw: Any) -> Any:
         """Run one book or store mutation on a worker thread, under the book lock.
@@ -170,15 +189,63 @@ class InlineRunner:
         return await asyncio.to_thread(run)
 
     def _enqueue(
-        self, scope: OwnerScope, stage: str, payload: dict[str, Any]
+        self, scope: OwnerScope, stage: str, payload: dict[str, Any], force: bool = False
     ) -> tuple[JobHandle, int]:
+        if self._backpressure is not None:
+            payload = self._admit(scope, stage, payload, force)
         offset = self.store.put_item(scope, stage, payload, self.clock())
         return self.book.enqueue(scope, stage, offset), offset
 
-    async def enqueue(self, scope: OwnerScope, stage: str, payload: dict[str, Any]) -> JobHandle:
+    def _admit(
+        self, scope: OwnerScope, stage: str, payload: dict[str, Any], force: bool = False
+    ) -> dict[str, Any]:
+        """Backpressure (W-25 B): reject before accepting, or coalesce and mark underived.
+        Raises ``BackpressureRejected`` with nothing written; never drops accepted work."""
+        bp = self._backpressure
+        assert bp is not None
+        items, oldest = self.store.backlog(scope, stage)
+        now = self.clock()
+        age = 0.0 if oldest is None else max(0.0, (now - oldest).total_seconds())
+        total = self.store.backlog()[0] if bp.max_total_items else items
+        try:
+            verdict = bp.admit(f"{scope.tenant}/{scope.owner}", stage, Backlog(items, age), total)
+        except BackpressureRejected as exc:
+            if force:  # an explicit flush: accept past the hard cap, marked underived
+                tap.event("runtime.backpressure.forced", stage=stage, items=items)
+                return {**payload, UNDERIVED_KEY: True}
+            receipt = exc.receipt
+            if self._ledger is not None:
+                self._ledger.note_rejected()
+            tap.event(
+                "runtime.backpressure.reject",
+                stage=stage,
+                reason=receipt.reason,
+                items=items,
+                oldest_age_s=round(age, 3),
+                retry_after_s=receipt.retry_after_s,
+            )
+            raise
+        if self._ledger is not None:
+            self._ledger.set_backlog(items + 1, age)
+        if verdict.decision == "coalesce":
+            if self._ledger is not None:
+                self._ledger.note_coalesced()
+            tap.event(
+                "runtime.backpressure.coalesce",
+                stage=stage,
+                reason=verdict.reason,
+                items=items,
+                oldest_age_s=round(age, 3),
+            )
+            return {**payload, UNDERIVED_KEY: True}
+        return payload
+
+    async def enqueue(
+        self, scope: OwnerScope, stage: str, payload: dict[str, Any], *, force: bool = False
+    ) -> JobHandle:
         """Persist one item and ask the book for a job covering it. Returns the job handle, which
         is ``coalesced`` when an existing queued or running job already covers the offset."""
-        handle, offset = await self._io(self._enqueue, scope, stage, payload)
+        handle, offset = await self._io(self._enqueue, scope, stage, payload, force)
         tap.event(
             "runtime.outbox.enqueue",
             job_id=handle.job_id,
@@ -317,6 +384,19 @@ class InlineRunner:
         payload = self.store.get_item(scope, stage, offset)
         if payload is None:  # pruned or never written: nothing to do, not an error
             return
+        if self._backpressure is None and self._ledger is None:  # flag off: the original path
+            await self._phases(handler, scope, offset, payload)
+            return
+        with priority_scope(Priority.DERIVE):  # RT-02: background derive work
+            await self._phases(handler, scope, offset, payload)
+        if self._ledger is not None:
+            queued_at = self.store.item_created_at(scope, stage, offset)
+            if queued_at is not None:
+                self._ledger.record_lag(max(0.0, (self.clock() - queued_at).total_seconds()))
+
+    async def _phases(
+        self, handler: StageHandler, scope: OwnerScope, offset: int, payload: dict[str, Any]
+    ) -> None:
         prepared = await handler.prepare(scope, offset, payload)
         if handler.commit_locked and self._commit_lock is not None:
             async with self._commit_lock(scope.owner):

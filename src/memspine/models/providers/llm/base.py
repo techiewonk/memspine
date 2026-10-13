@@ -16,6 +16,7 @@ from json_repair import repair_json
 
 from memspine.config.constants import TOKEN_ESTIMATE_CHARS_PER_TOKEN
 from memspine.exceptions import ConfigError
+from memspine.models.concurrency import model_slot
 from memspine.observability import tap
 from memspine.observability.logging import get_logger
 from memspine.observability.usage import UsageLedger
@@ -88,10 +89,11 @@ class _Counted:
 
     async def chat(self, messages: list[dict[str, str]], **options: Any) -> str:
         self._counts[self._role] = self._counts.get(self._role, 0) + 1
-        if tap.enabled():
-            reply = await self._tapped_chat(messages, options)
-        else:
-            reply = await self._inner.chat(messages, **options)
+        async with model_slot("llm"):  # RT-02: no-op unless runtime.model_concurrency is on
+            if tap.enabled():
+                reply = await self._tapped_chat(messages, options)
+            else:
+                reply = await self._inner.chat(messages, **options)
         # Chars/4 estimate, used only for providers that report no usage of their own.
         est_in = sum(len(str(m.get("content", ""))) for m in messages) // _CHARS_PER_TOKEN
         est_out = len(reply) // _CHARS_PER_TOKEN

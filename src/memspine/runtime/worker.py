@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import contextlib
+import importlib
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
@@ -56,8 +57,9 @@ async def serve(eng: Any, finish_event: asyncio.Event | None = None) -> None:
 
 
 async def _run(template: str | None, config: str | None) -> None:
-    from memspine import Engine
-
+    # the process entry point builds the public Engine (api sits above runtime), so it is loaded
+    # by name: a static import here would make runtime import api
+    Engine = importlib.import_module("memspine").Engine
     eng = Engine(template=template, user_config=config)
     await eng.start()
     try:

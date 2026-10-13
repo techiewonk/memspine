@@ -86,6 +86,7 @@ from memspine.derive.pipeline.stages.context import (
     SummarizeIncremental,
 )
 from memspine.derive.pipeline.stages.table import PIPELINES
+from memspine.economy.slo import timed_read
 from memspine.exceptions import (
     ConfigError,
     MemspineError,
@@ -134,6 +135,7 @@ from memspine.memory.procedural import Suggestion
 from memspine.memory.prospective import Reminder
 from memspine.models.cache.base import KVCache
 from memspine.models.cache.semantic import CachedExtractor
+from memspine.models.concurrency import Priority, prioritised
 from memspine.models.encoders.embedding.base import EmbeddingService
 from memspine.models.encoders.query import QueryEncoder
 from memspine.models.encoders.query.perspective import (
@@ -180,6 +182,7 @@ from memspine.read.pipeline.timeview import (
     _snapshot_listings,
     _snapshot_scoped,
 )
+from memspine.runtime import scheduler as _scheduler_rt
 from memspine.runtime.container import (
     Capabilities,
     DecisionState,
@@ -362,6 +365,7 @@ class Engine:
         self._extract_edges: ExtractEdges | None = None
         self._extract_session_edges: ExtractEdges | None = None
         self._runner: TaskRunner | None = None
+        self._sched_v2: _scheduler_rt.Scheduler | None = None  # RT-02
         self._scheduler: SleepScheduler | None = None  # D1: autonomous sleep loop
         self._started = False
         self._write_locks: dict[str, asyncio.Lock] = {}
@@ -476,7 +480,12 @@ class Engine:
         # caches; the emb:/ext: producer key prefixes keep them isolated in it.
         self._cache = await container.get(KVCache)
         self._cashews = wiring.cashews
+        # RT-02 (flags runtime.scheduler_v2 / runtime.model_concurrency): the shared scheduler;
+        # None when both are off, and then nothing below changes.
+        self._sched_v2 = _scheduler_rt.acquire(config.runtime)
         self._embedder = await container.get(EmbeddingService)
+        if self._sched_v2 is not None:
+            self._embedder = self._sched_v2.wrap_embedder(self._embedder)
         self._vector = await container.get(VectorStore)
         self._lance, self._rescore_active = wiring.lance, wiring.rescore_active
         # E4 model2vec prefilter (ADR-020): only the intent is recorded here; the
@@ -711,6 +720,9 @@ class Engine:
         await self._teardown()
 
     async def _teardown(self) -> None:
+        if getattr(self, "_sched_v2", None) is not None:
+            sched, self._sched_v2 = self._sched_v2, None
+            await _scheduler_rt.release(sched)
         if self._scheduler is not None:
             await self._scheduler.stop()  # stop the loop before tearing down its deps
             self._scheduler = None
@@ -741,6 +753,7 @@ class Engine:
     # ── public verbs (P0: write / retrieve / rebuild / describe) ─────────────
 
     @tap.traced("write")
+    @prioritised(Priority.WRITE)  # RT-02: foreground write class (a no-op without the gate)
     async def write(
         self,
         content: str,
@@ -1498,6 +1511,7 @@ class Engine:
         return await trust_firewall._parent_trust_cap(self, ns, parents)
 
     @tap.traced("write")
+    @prioritised(Priority.WRITE)  # RT-02: foreground write class (a no-op without the gate)
     async def write_messages(
         self,
         messages: Sequence[Mapping[str, str]],
@@ -1579,6 +1593,7 @@ class Engine:
         return await ingest_write._prewarm_embeddings(self, texts)
 
     @tap.traced("write")
+    @prioritised(Priority.WRITE)  # RT-02: foreground write class (a no-op without the gate)
     async def write_episode(
         self,
         messages: Sequence[Mapping[str, str]],
@@ -1677,6 +1692,7 @@ class Engine:
     @scope_guard.viewer_guarded("retrieve")
     @_passive_scoped
     @tap.traced("read")
+    @timed_read  # RT-02: read p95 into the SLO ledger (a pass-through when it is off)
     async def retrieve(
         self,
         namespace: str = 'default',
@@ -1713,6 +1729,7 @@ class Engine:
     @_passive_scoped
     @_snapshot_scoped
     @tap.traced("read")
+    @timed_read  # RT-02: read p95 into the SLO ledger (a pass-through when it is off)
     async def search(
         self,
         query: str,
@@ -1870,6 +1887,7 @@ class Engine:
     @_passive_scoped
     @_snapshot_scoped
     @tap.traced("read")
+    @timed_read
     async def assemble(
         self,
         query: str,
@@ -2115,6 +2133,7 @@ class Engine:
     @_passive_scoped
     @_snapshot_scoped
     @tap.traced("read")
+    @timed_read  # RT-02: read p95 into the SLO ledger (a pass-through when it is off)
     async def read(
         self,
         query: str,

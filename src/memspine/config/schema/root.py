@@ -26,6 +26,7 @@ from memspine.config.schema.privacy import (
 )
 from memspine.config.schema.read import ReadConfig
 from memspine.config.schema.rest import RestConfig
+from memspine.config.schema.runtime import RuntimeConfig
 from memspine.config.schema.storage import (
     CacheConfig,
     EventLogConfig,
@@ -83,6 +84,7 @@ class MemspineConfig(BaseModel):
     firewall: FirewallConfig = Field(default_factory=FirewallConfig)
     isolation: IsolationConfig = Field(default_factory=IsolationConfig)
     workers: WorkersConfig = Field(default_factory=WorkersConfig)
+    runtime: RuntimeConfig = Field(default_factory=RuntimeConfig)
     retention: RetentionConfig = Field(default_factory=RetentionConfig)
     audit: AuditConfig = Field(default_factory=AuditConfig)
     observability: ObservabilityConfig = Field(default_factory=ObservabilityConfig)

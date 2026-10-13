@@ -17,6 +17,7 @@ import orjson
 import xxhash
 
 from memspine.models.cache.base import KVCache
+from memspine.models.concurrency import model_slot
 from memspine.models.encoders.embedding.base import EmbedderManifest, EmbeddingService
 from memspine.prompts.models import ExtractedFact
 
@@ -99,7 +100,8 @@ class CachedEmbedding:
                 miss_texts[key] = text
         if miss_texts:
             keys = list(miss_texts)
-            fresh = await producer([miss_texts[key] for key in keys])
+            async with model_slot("embed"):  # RT-02: no-op unless the model gate is on
+                fresh = await producer([miss_texts[key] for key in keys])
             for key, vector in zip(keys, fresh, strict=True):
                 for position in miss_positions[key]:
                     vectors[position] = vector

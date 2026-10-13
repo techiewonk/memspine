@@ -16,7 +16,7 @@ from memspine.core.relevance_probes import OFF_TOPIC_PROBES, Calibration, calibr
 from memspine.exceptions import StorageError
 from memspine.models.encoders.embedding.base import embed_queries
 from memspine.models.providers.llm.structured import structured_call
-from memspine.models.providers.rerank.base import concat_background
+from memspine.models.providers.rerank.base import concat_background, gated_rerank
 from memspine.observability import tap
 from memspine.observability.logging import get_logger, redact_error
 from memspine.prompts.models import RelevanceLabels
@@ -160,7 +160,7 @@ async def _gate_raw_tops(eng: Any, ns: str, text: str, legs: Sequence[str]) -> d
     if "rerank" in legs:
         reranker = eng._rerank_provider()
         if reranker is not None:
-            raws = await reranker.rerank(text, [concat_background(r) for r, _ in live])
+            raws = await gated_rerank(reranker, text, [concat_background(r) for r, _ in live])
             out["rerank"] = float(max(raws))
     return out
 
@@ -410,7 +410,7 @@ async def _gate_v2_scores(
     read = eng._config().read
     if leg == "rerank":
         reranker = eng._rerank_provider()
-        raws = await reranker.rerank(query, [concat_background(r) for r in records])
+        raws = await gated_rerank(reranker, query, [concat_background(r) for r in records])
         return {r.record_id: float(s) for r, s in zip(records, raws, strict=True)}
     [qv] = await embed_queries(eng._embedder, [query])
     n = max(read.relevance_gate_candidates, 4 * len(records))
