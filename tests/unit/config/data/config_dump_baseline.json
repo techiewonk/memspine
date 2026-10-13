@@ -161,7 +161,10 @@
    "decay_margin": 0.05,
    "decay_multires_jobs": 0,
    "decay_protected_kinds": [],
-   "decay_v2": false
+   "decay_v2": false,
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "reconcile_v2": false
   },
   "plugins": [],
   "profile": "simple",
@@ -515,7 +518,7 @@
    "window_topic_k": 2.0
   }
  },
- "json_schema_sha256": "2134f6ff56f297e0b75ee750df3ae94884bc3b0d98b2b933d8bd25513c03ff0f",
+ "json_schema_sha256": "7c3cbb20cb35510f163a67d866d55b3f7925a7af30da3e53bae3f3d3d77d4258",
  "preset:chat_roles": {
   "audit": {
    "actions": false,
@@ -699,7 +702,10 @@
    "decay_margin": 0.05,
    "decay_multires_jobs": 0,
    "decay_protected_kinds": [],
-   "decay_v2": false
+   "decay_v2": false,
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "reconcile_v2": false
   },
   "plugins": [],
   "profile": "simple",
@@ -1242,7 +1248,10 @@
    "decay_margin": 0.05,
    "decay_multires_jobs": 0,
    "decay_protected_kinds": [],
-   "decay_v2": false
+   "decay_v2": false,
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "reconcile_v2": false
   },
   "plugins": [],
   "profile": "simple",
@@ -1785,7 +1794,10 @@
    "decay_margin": 0.05,
    "decay_multires_jobs": 0,
    "decay_protected_kinds": [],
-   "decay_v2": false
+   "decay_v2": false,
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "reconcile_v2": false
   },
   "plugins": [],
   "profile": "simple",
@@ -2328,7 +2340,10 @@
    "decay_margin": 0.05,
    "decay_multires_jobs": 0,
    "decay_protected_kinds": [],
-   "decay_v2": false
+   "decay_v2": false,
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "reconcile_v2": false
   },
   "plugins": [],
   "profile": "simple",
@@ -2871,7 +2886,10 @@
    "decay_margin": 0.05,
    "decay_multires_jobs": 0,
    "decay_protected_kinds": [],
-   "decay_v2": false
+   "decay_v2": false,
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "reconcile_v2": false
   },
   "plugins": [],
   "profile": "simple",
@@ -3414,7 +3432,10 @@
    "decay_margin": 0.05,
    "decay_multires_jobs": 0,
    "decay_protected_kinds": [],
-   "decay_v2": false
+   "decay_v2": false,
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "reconcile_v2": false
   },
   "plugins": [],
   "profile": "simple",
@@ -3957,7 +3978,10 @@
    "decay_margin": 0.05,
    "decay_multires_jobs": 0,
    "decay_protected_kinds": [],
-   "decay_v2": false
+   "decay_v2": false,
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "reconcile_v2": false
   },
   "plugins": [],
   "profile": "simple",
@@ -4500,7 +4524,10 @@
    "decay_margin": 0.05,
    "decay_multires_jobs": 0,
    "decay_protected_kinds": [],
-   "decay_v2": false
+   "decay_v2": false,
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "reconcile_v2": false
   },
   "plugins": [],
   "profile": "assistant",
@@ -5043,7 +5070,10 @@
    "decay_margin": 0.05,
    "decay_multires_jobs": 0,
    "decay_protected_kinds": [],
-   "decay_v2": false
+   "decay_v2": false,
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "reconcile_v2": false
   },
   "plugins": [],
   "profile": "simple",
@@ -5593,7 +5623,10 @@
    "decay_margin": 0.05,
    "decay_multires_jobs": 0,
    "decay_protected_kinds": [],
-   "decay_v2": false
+   "decay_v2": false,
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "reconcile_v2": false
   },
   "plugins": [],
   "profile": "benchmark",
@@ -6143,7 +6176,10 @@
    "decay_margin": 0.05,
    "decay_multires_jobs": 0,
    "decay_protected_kinds": [],
-   "decay_v2": false
+   "decay_v2": false,
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "reconcile_v2": false
   },
   "plugins": [],
   "profile": "coding",
@@ -6682,7 +6718,10 @@
    "decay_margin": 0.05,
    "decay_multires_jobs": 0,
    "decay_protected_kinds": [],
-   "decay_v2": false
+   "decay_v2": false,
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "reconcile_v2": false
   },
   "plugins": [],
   "profile": "core",
@@ -7223,7 +7262,10 @@
    "decay_margin": 0.05,
    "decay_multires_jobs": 0,
    "decay_protected_kinds": [],
-   "decay_v2": false
+   "decay_v2": false,
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "reconcile_v2": false
   },
   "plugins": [],
   "profile": "graph",
@@ -7770,7 +7812,10 @@
    "decay_margin": 0.05,
    "decay_multires_jobs": 0,
    "decay_protected_kinds": [],
-   "decay_v2": false
+   "decay_v2": false,
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "reconcile_v2": false
   },
   "plugins": [],
   "profile": "multi_agent",
@@ -8321,7 +8366,10 @@
    "decay_margin": 0.05,
    "decay_multires_jobs": 0,
    "decay_protected_kinds": [],
-   "decay_v2": false
+   "decay_v2": false,
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "reconcile_v2": false
   },
   "plugins": [],
   "profile": "personal",
@@ -8864,7 +8912,10 @@
    "decay_margin": 0.05,
    "decay_multires_jobs": 0,
    "decay_protected_kinds": [],
-   "decay_v2": false
+   "decay_v2": false,
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "reconcile_v2": false
   },
   "plugins": [],
   "profile": "protected",
@@ -9408,7 +9459,10 @@
    "decay_margin": 0.05,
    "decay_multires_jobs": 0,
    "decay_protected_kinds": [],
-   "decay_v2": false
+   "decay_v2": false,
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "reconcile_v2": false
   },
   "plugins": [],
   "profile": "regulated_financial",
@@ -9953,7 +10007,10 @@
    "decay_margin": 0.05,
    "decay_multires_jobs": 0,
    "decay_protected_kinds": [],
-   "decay_v2": false
+   "decay_v2": false,
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "reconcile_v2": false
   },
   "plugins": [],
   "profile": "voice",

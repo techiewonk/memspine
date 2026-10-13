@@ -87,8 +87,8 @@ async def test_write_door_writes_edges_roles_and_caps_trust(tmp_path: Path) -> N
             site="test",
         )
         assert rec.trust <= 0.3 + 1e-9  # POL-2: never above the least-trusted parent
-        assert any(t.startswith("layer:") for t in rec.tags)
-        assert any(t.startswith("deriv:") for t in rec.tags)
+        assert rec.layer in ("L0", "L1", "L2", "L3", "L4", "L5")
+        assert rec.fingerprint.derivation
         edges = await lineage_store.parents_of(storage._client.engine, [rec.record_id])
         got = {(e.parent, e.role, e.parent_version) for e in edges[rec.record_id]}
         assert got == {(a.record_id, "support", a.version), (b.record_id, "context", b.version)}
@@ -137,7 +137,7 @@ async def test_flag_off_is_the_old_path(tmp_path: Path) -> None:
         turns = await _turns(eng)
         rec = await _derive(eng, _fact([turns[0].record_id]))
         orphan = await _derive(eng, _fact([], "no parent, no refusal"))
-        assert not any(t.startswith(("layer:", "deriv:")) for t in rec.tags)
+        assert not rec.fingerprint.derivation
         assert orphan.record_id
     finally:
         await eng.stop()
