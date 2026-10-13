@@ -487,3 +487,32 @@ change is flag-gated (flags off, the order and behaviour are unchanged).
 ## Targeted relaunch, 2026-10-13 23:25
 
 Queue restarted at commit 87c2bd1c (FX-EVAL + FX-READPATH + FAIL-SLICE) with every row on its targeted slice from `evals/v2_slice_map.tsv`, ordered by LoCoMo recoverable upper bound (LOCOMO_PROBLEM_MAP): S60, S63, S64, S34, S35, S40, S61, S67, S14, S31, S33, S55, S56, S62, S38, S19, S10, S53, S54, S57, S65, S66, S41, S42. Read each targeted row by `tgt_rec` (target questions recovered) and `ctl_lost` (controls lost), not overall accuracy. Left out: S46 (no read consumer), S36/S37 (S10 and the bundles cover them), S43-S45/S48-S50 (covered by S62), S47 (parity by design), S23/S24 (skipped), S51 (focus run after S14's targeted result).
+
+## Proposed R14 screens (not queued)
+
+From `docs/v2/research/R14_MASTER.md` (2026-10-14). Proposals only: none is in `evals/v2_queue.tsv`, `evals/v2_slice_map.tsv` or `packages.py`. S68-S78 stay with `OBSERVATIONS_GAP_ANALYSIS.md`; S79-S100 are new and provisional for the coordinator to renumber. Flags marked (new) do not exist yet.
+
+| Screen | Master item | Arm / change | Slice | First step without a model |
+|---|---|---|---|---|
+| S79 | R14-M-1 | trigger + coverage | fail_list (+ 60 matched n_gold>=3 correct as guard) | yes |
+| S80 | R14-M-1 | second-retrieval bounded | fail_list (+ 60 matched n_gold>=3 correct as guard) | yes |
+| S81 | R14-M-2 | session_cover | fail_retrieval (b+cf) and fail_mix_120; metric distinct gold sessions represented | no |
+| S82 | R14-M-3 | protect8 + convex fusion | fail_fusion (+95 lucky/barely cases as guard) | yes |
+| S83 | R14-M-3 | budget keep | fail_fusion (+95 lucky/barely cases as guard) | yes |
+| S84 | R14-M-4 | doc expansion | fail_retrieval (81 ids, 21 paraphrase) | no |
+| S85 | R14-M-5 | exchange_records | fail_retrieval + fail_context (OBS-GAPS) | yes |
+| S86 | R14-M-6 | evidence_kind_probes | fail_retrieval (28) + all 96 cat3; oracle-gold reader-only run first to size the ceiling | no |
+| S87 | R14-M-7 | date_prior | fail_temporal (13 fail + matched controls from the 180) | yes |
+| S88 | R14-M-8 | duration_solve + milestones (built-off, needs a screen only) | fail_temporal date_* classes (19) + 38 unit questions | yes |
+| S89 | R14-M-9 | vote | fail_reader (40 + 25 refusal rows); guards cat5 and OP-Bench irrelevance | no |
+| S90 | R14-M-10 | quote-then-answer | fail_reader (46 + 59 ids); 2x2 narrow/wide window by shape on the dev slice | no |
+| S91 | R14-M-10 | window_by_shape | fail_reader (46 + 59 ids); 2x2 narrow/wide window by shape on the dev slice | no |
+| S92 | R14-M-10 | verify_binding | fail_reader (46 + 59 ids); 2x2 narrow/wide window by shape on the dev slice | no |
+| S93 | R14-M-11 | evidence_table / two_call | fail_list (25 + list/count-shaped controls) | yes |
+| S94 | R14-M-12 | reader-side join (after S77) | fail_list + new fail_multi (43, OBS-GAPS) | no |
+| S95 | R14-M-13 | slot_verify diagnosed | fail_reader (37 ids); false-defect rate on the 188 correct | no |
+| S96 | R14-M-17 | judge conventions v3 (re-score stored answers, no retrieval) | 23 FN ids + 34 FP ids frozen as a 57-row calibration extension; judge_calibration_dev.jsonl | yes |
+| S97 | R14-M-18 | triple-column re-score of stored answers (reference run plus last two full runs) | 34 FP + 23 FN ids as a frozen calibration extension; whole-run re-score | yes |
+| S98 | R14-M-19 | support-recall report | the 10 + 8 + 3 + 59 ids; guard: correct questions with context-dependent gold | yes |
+| S99 | R14-M-20 | known_keys (after S34/S42) | fail_mix_120 attribute subset (33) + MAB-CR dev for the history half | no |
+| S100 | R14-M-21 | link_table | fail_retrieval + fail_mix_120; CPU prototype over stored embeddings of one conversation first | no |
