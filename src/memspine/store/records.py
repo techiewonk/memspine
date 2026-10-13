@@ -212,6 +212,16 @@ class RecordFingerprint(BaseModel):
     derivation: str | None = None
     prompt_hash: str | None = None
     model_id: str | None = None
+    #: O4-01b (O-06): the highest source event seq the derivation covered; ``None`` = unknown (a v1
+    #: record, or ``offline.budget_v2`` off). Kept in this envelope blob, so no column is needed.
+    covers_seq: int | None = None
+
+    @model_serializer(mode="wrap")
+    def _omit_unset(self, handler: SerializerFunctionWrapHandler) -> Any:
+        data = handler(self)
+        if isinstance(data, dict) and data.get("covers_seq") is None:
+            data.pop("covers_seq", None)  # a record that never set it dumps as before
+        return data
 
 
 class MemoryRecord(BaseModel):

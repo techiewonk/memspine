@@ -58,6 +58,7 @@ from memspine.prompts.models import (
 from memspine.read.contract import (
     rerank_hint,
 )
+from memspine.read.pipeline import freshness as read_freshness
 from memspine.read.pipeline import request as read_request
 from memspine.read.pipeline.fusion import (
     _balanced_pool,
@@ -418,6 +419,10 @@ async def _search(
         # (REST already guards ``ge=1``).
         raise ValueError(f"top_k must be >= 1, got {top_k}")
     ns = validate_namespace(namespace)
+    if eng._config().read.freshness_v2:  # O4-01b (O-06): staleness metadata, optional raw fallback
+        stale_leg = await read_freshness.apply(eng, ns)
+        if stale_leg:
+            fused_legs = [*fused_legs, stale_leg]
     [query_vector] = await embed_queries(eng._embedder, [query])
     if eng._firewall.signals.query_anomaly:
         eng._query_history.observe(ns, query_vector)  # N22

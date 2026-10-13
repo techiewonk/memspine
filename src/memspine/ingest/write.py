@@ -38,6 +38,7 @@ from memspine.core.sensitivity import (
     passes_gate,
     query_topics,
 )
+from memspine.derive.budget import COVERS_SEQ
 from memspine.exceptions import (
     ConflictError,
 )
@@ -972,6 +973,7 @@ async def _write_locked_ex(
     trust_cap: list[float] | None = None,
 ) -> tuple[MemoryRecord, str]:
     record = await _stamp_derived_times(storage, record)
+    record = _stamp_covers_seq(record)
     record, verdict = await eng._screen_write(record, trust_cap)
     if verdict.quarantine:
         # Quarantined content is stored inert: no dedup merging, no
@@ -1006,6 +1008,19 @@ async def _write_locked_ex(
     written, action = await eng._write_screened(storage, ns, record, memory_type, actor)
     _tap_deposit(written, memory_type, action)
     return written, action
+
+
+def _stamp_covers_seq(record: MemoryRecord) -> MemoryRecord:
+    """O4-01b: a record written inside a derivation (``offline.budget_v2``) says how much of its
+    namespace it covers. Fills only unset; outside a derivation nothing changes."""
+    marks = COVERS_SEQ.get()
+    if marks is None or record.fingerprint.covers_seq is not None:
+        return record
+    seq = marks.get(record.namespace)
+    if seq is None:
+        return record
+    fp = record.fingerprint.model_copy(update={"covers_seq": seq})
+    return record.model_copy(update={"fingerprint": fp})
 
 
 async def _stamp_derived_times(storage: SqlStorage, record: MemoryRecord) -> MemoryRecord:

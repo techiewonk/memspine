@@ -26,6 +26,7 @@ import time
 from collections.abc import Awaitable, Callable, Iterator, Sequence
 from dataclasses import dataclass, field
 
+from memspine.derive.budget import DerivationBudget, is_model_stage
 from memspine.exceptions import MemspineError
 from memspine.observability import tap
 from memspine.schemas.public import JobHandle
@@ -86,6 +87,9 @@ CREATE TABLE IF NOT EXISTS sleep_watermark (
 CREATE TABLE IF NOT EXISTS sleep_state (
   ns TEXT PRIMARY KEY, deposits_since_run INTEGER NOT NULL DEFAULT 0, last_deposit_at REAL,
   last_run_at REAL, context_pressure REAL NOT NULL DEFAULT 0, last_maintenance_at REAL);
+CREATE TABLE IF NOT EXISTS sleep_deferred (
+  ns TEXT NOT NULL, kind TEXT NOT NULL, stage TEXT NOT NULL, pending INTEGER NOT NULL,
+  total INTEGER NOT NULL, last_cycle INTEGER NOT NULL, PRIMARY KEY (ns, kind, stage));
 CREATE TABLE IF NOT EXISTS sleep_fence_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT, at REAL NOT NULL, ns TEXT NOT NULL, op TEXT NOT NULL,
   presented_epoch INTEGER NOT NULL, current_epoch INTEGER);
@@ -283,6 +287,75 @@ class LeaseStore:
                 )
         return True
 
+    # ---------------------------------------------------------------- deferred work (O4-01b)
+    def defer_stage(self, lease: NamespaceLease, kind: str, cycle: int, stage: str) -> bool:
+        """Record one stage as deferred by the budget (O-05). Idempotent per cycle: a resumed cycle
+        does not count the same deferral twice. ``pending`` is how many cycles in a row the stage
+        has waited, ``total`` how many deferrals it has had in all. Fenced."""
+        with self._tx() as con:
+            if not self._current(con, lease):
+                self._refuse(con, lease, "defer_stage")
+                return False
+            r = con.execute(
+                "SELECT last_cycle FROM sleep_deferred WHERE ns=? AND kind=? AND stage=?",
+                (lease.ns, kind, stage),
+            ).fetchone()
+            if r is None:
+                con.execute(
+                    "INSERT INTO sleep_deferred (ns, kind, stage, pending, total, last_cycle) "
+                    "VALUES (?,?,?,1,1,?)",
+                    (lease.ns, kind, stage, cycle),
+                )
+            elif int(r[0]) != cycle:
+                con.execute(
+                    "UPDATE sleep_deferred SET pending=pending+1, total=total+1, last_cycle=? "
+                    "WHERE ns=? AND kind=? AND stage=?",
+                    (cycle, lease.ns, kind, stage),
+                )
+            else:  # the same cycle again: make sure it is pending, count nothing
+                con.execute(
+                    "UPDATE sleep_deferred SET pending=MAX(pending,1) "
+                    "WHERE ns=? AND kind=? AND stage=?",
+                    (lease.ns, kind, stage),
+                )
+        return True
+
+    def drain_stage(self, lease: NamespaceLease, kind: str, stage: str) -> bool:
+        """A deferred stage ran: it is no longer pending (``total`` keeps the history). Fenced."""
+        with self._tx() as con:
+            if not self._current(con, lease):
+                self._refuse(con, lease, "drain_stage")
+                return False
+            con.execute(
+                "UPDATE sleep_deferred SET pending=0 WHERE ns=? AND kind=? AND stage=?",
+                (lease.ns, kind, stage),
+            )
+        return True
+
+    def deferred(self, ns: str, kind: str = "sleep") -> dict[str, dict[str, int]]:
+        """Per stage: ``pending`` (cycles waited, 0 = drained) and ``total`` deferrals ever."""
+        with self._conn() as con:
+            rows = con.execute(
+                "SELECT stage, pending, total, last_cycle FROM sleep_deferred "
+                "WHERE ns=? AND kind=? ORDER BY stage",
+                (ns, kind),
+            ).fetchall()
+        return {
+            str(r[0]): {"pending": int(r[1]), "total": int(r[2]), "last_cycle": int(r[3])}
+            for r in rows
+        }
+
+    def carry_deferred(self, ns: str, n: int) -> None:
+        """Deferred units count toward the deposit trigger N (O-05), so the next fire is normal."""
+        if n <= 0:
+            return
+        with self._tx() as con:
+            con.execute("INSERT OR IGNORE INTO sleep_state (ns) VALUES (?)", (ns,))
+            con.execute(
+                "UPDATE sleep_state SET deposits_since_run=deposits_since_run+? WHERE ns=?",
+                (n, ns),
+            )
+
     # ---------------------------------------------------------------- trigger state
     def bump_deposits(self, ns: str, n: int = 1) -> None:
         now = self.clock()
@@ -347,6 +420,8 @@ class JobOutcome:
     holder: str | None = None
     error: str | None = None
     cycle: int = 0
+    #: O4-01b: stages the budget deferred this cycle (counted and persisted, run next cycle).
+    deferred: list[str] = field(default_factory=list)
 
 
 class NamespaceJob:
@@ -375,10 +450,12 @@ class NamespaceJob:
         prepare: Callable[[], Awaitable[None]] | None = None,
         cancelled: Callable[[], bool] = lambda: False,
         head_seq: Callable[[], int] = lambda: 0,
+        budget: DerivationBudget | None = None,
     ) -> None:
         self.store, self.ns, self.stages, self.kind = store, ns, tuple(stages), kind
         self.run_stage, self.owner, self.job_id, self.ttl = run_stage, owner, job_id, ttl
         self.full, self.prepare, self.cancelled, self.head_seq = full, prepare, cancelled, head_seq
+        self.budget = budget  # O4-01b (offline.budget_v2); None = no budget, nothing below runs
 
     async def run(self) -> JobOutcome:
         if self.cancelled():
@@ -417,7 +494,16 @@ class NamespaceJob:
         out = JobOutcome("running", resumed=resumed, cycle=cycle)
         if self.prepare is not None:
             await self.prepare()
-        for stage in self.stages:
+        stages = self.stages
+        waiting: dict[str, dict[str, int]] = {}
+        if self.budget is not None:  # O4-01b: drain what the last cycle deferred first
+            self.budget.begin(self.ns)
+            waiting = {
+                st: d for st, d in self.store.deferred(self.ns, self.kind).items() if d["pending"]
+            }
+            first = [st for st in stages if st in waiting]
+            stages = (*first, *[st for st in stages if st not in waiting])
+        for stage in stages:
             if stage in done:
                 out.skipped.append(stage)
                 out.stats[stage] = {"status": "resumed"}
@@ -429,7 +515,42 @@ class NamespaceJob:
             if beat is None:
                 raise LeaseLost(self.ns)
             lease = beat
+            if (
+                self.budget is not None
+                and is_model_stage(stage)
+                and self.budget.exhausted(self.ns)
+            ):
+                if not self.store.defer_stage(lease, self.kind, cycle, stage):
+                    raise LeaseLost(self.ns)
+                out.deferred.append(stage)
+                out.stats[stage] = {"status": "deferred", "reason": "budget"}
+                row = self.store.deferred(self.ns, self.kind).get(stage, {})
+                tap.event(
+                    "job.deferred",
+                    ns=self.ns,
+                    kind=self.kind,
+                    cycle=cycle,
+                    stage=stage,
+                    pending=row.get("pending", 1),
+                    total=row.get("total", 1),
+                )
+                continue
             out.stats[stage] = await self.run_stage(stage)
+            if self.budget is not None:
+                spent = self.budget.charge(self.ns, out.stats[stage])
+                tap.event(
+                    "job.budget",
+                    ns=self.ns,
+                    cycle=cycle,
+                    stage=stage,
+                    calls=spent.calls,
+                    tokens=spent.tokens,
+                    max_calls=self.budget.max_calls,
+                    max_tokens=self.budget.max_tokens,
+                    exhausted=self.budget.exhausted(self.ns),
+                )
+                if stage in waiting and not self.store.drain_stage(lease, self.kind, stage):
+                    raise LeaseLost(self.ns)
             mark = self.store.mark_stage(lease, self.kind, cycle, stage, self.head_seq())
             if mark is None:
                 raise LeaseLost(self.ns)
@@ -439,6 +560,8 @@ class NamespaceJob:
         if not self.store.finish_cycle(lease, self.kind, cycle, full=self.full):
             raise LeaseLost(self.ns)
         out.state = "succeeded"
+        if out.deferred:  # deferred units count toward N (O-05), so the next trigger fires normally
+            self.store.carry_deferred(self.ns, len(out.deferred))
         return out
 
 
