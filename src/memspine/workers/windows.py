@@ -55,7 +55,6 @@ from memspine.prompts.models import (
     WindowPayload,
     fact_guard,
 )
-from memspine.runtime.runner import InlineRunner, StageHandler
 from memspine.schemas.durable.common import OwnerScope
 from memspine.store.events import fingerprint_payload
 from memspine.store.records import MemoryRecord, RecordStatus
@@ -378,7 +377,7 @@ class WindowPipeline:
         split: str = "auto",
         asynchronous: bool = True,
         on_session_closed: SessionClosedFn | None = None,
-        outbox: InlineRunner | None = None,
+        outbox: Any | None = None,  # runtime.runner.InlineRunner; untyped (workers is below runtime)
     ) -> None:
         self.settings = settings
         self.sections = tuple(sections)
@@ -408,10 +407,7 @@ class WindowPipeline:
         self._persist_lock = asyncio.Lock()
         self._recovered = outbox is None
         if outbox is not None:
-            outbox.register(
-                WINDOW_STAGE,
-                StageHandler(prepare=self._outbox_prepare, commit=self._outbox_commit),
-            )
+            outbox.register(WINDOW_STAGE, prepare=self._outbox_prepare, commit=self._outbox_commit)
         #: (namespace, session) -> what the session-closed hook returned (the last 100).
         self.closed_results: dict[tuple[str, str], object] = {}
 

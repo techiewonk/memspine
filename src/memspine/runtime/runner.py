@@ -133,7 +133,21 @@ class InlineRunner:
         self._retry_holes_next = True
 
     # ------------------------------------------------------------------ setup
-    def register(self, stage: str, handler: StageHandler) -> None:
+    def register(
+        self,
+        stage: str,
+        handler: StageHandler | None = None,
+        *,
+        prepare: Prepare | None = None,
+        commit: Commit | None = None,
+        commit_locked: bool = False,
+    ) -> None:
+        """Register a stage: a ``StageHandler``, or its ``prepare``/``commit`` callables (so callers
+        below ``runtime`` in the layering, such as ``workers.windows``, need not import it)."""
+        if handler is None:
+            if prepare is None or commit is None:
+                raise TypeError("register needs a StageHandler or both prepare and commit")
+            handler = StageHandler(prepare=prepare, commit=commit, commit_locked=commit_locked)
         self._handlers[stage] = handler
 
     @property
