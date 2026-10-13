@@ -9,6 +9,7 @@ startup guess. One table per embedder id keeps model swaps clean.
 from __future__ import annotations
 
 import asyncio
+import json
 import re
 from datetime import timedelta
 from typing import Any
@@ -49,6 +50,7 @@ class LanceDBVectorStore:
         exclusive: bool = False,
         namespace_index: bool = False,
         table_suffix: str = "",
+        profile_meta: dict[str, Any] | None = None,
     ) -> None:
         """``compact_every``: merge the table's fragments after that many
         upserts. Each single-row upsert adds a fragment, and a flat query opens
@@ -90,6 +92,9 @@ class LanceDBVectorStore:
         self._namespace_index = namespace_index
         #: I4: a per-namespace table is named ``<embedder table><table_suffix>``.
         self._table_suffix = table_suffix
+        #: MD-02: the pinned embedding profile, written into the table's schema metadata at
+        #: creation (the sidecar file is the authoritative pin; this describes the table).
+        self._profile_meta = profile_meta
         self._writes_since_ns_index = 0
         self._ns_index_disabled = False
         # Ids present in an exclusive table (None: not exclusive, always merge).
@@ -128,6 +133,10 @@ class LanceDBVectorStore:
                             pa.field("vector", pa.list_(pa.float32(), self._embedder.dim)),
                         ]
                     )
+                    if self._profile_meta is not None:
+                        schema = schema.with_metadata(
+                            {"memspine.embedding_profile": json.dumps(self._profile_meta)}
+                        )
                     name = _table_name(self._embedder.embedder_id) + self._table_suffix
                     # ``exist_ok=True`` makes create-or-open one atomic call on
                     # LanceDB's side: a check-then-act (table_names() then
