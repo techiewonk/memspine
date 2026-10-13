@@ -15,6 +15,7 @@ from typing import Any
 
 from memspine.compose.pack import estimate_tokens
 from memspine.config import constants
+from memspine.models.encoders.embedding.base import embed_queries
 from memspine.models.encoders.query.shape import (
     is_aggregation,
     is_count,
@@ -106,6 +107,34 @@ async def _list_fires(eng: Any, query: str) -> bool:
     """B1 list-mode trigger; ``task=list_mode`` of the decider replaces the regex."""
     fired = eng._list_mode_fires(query)
     if not eng._config().read.list_mode or not eng._decider_active("list_mode"):
+        return fired
+    return await eng._decided("list_mode", query, None, "set" if fired else "single") == "set"
+
+
+async def _list_fires_v2(eng: Any, ns: str, query: str) -> bool:
+    """R14-M-1 (``read.list_mode_trigger_v2``): list depth from the question shape and the
+    first vector leg's score profile. ``task=list_mode`` of the decider still overrides."""
+    from memspine.read.list_trigger import list_signal
+
+    fired = False
+    sig = None
+    try:
+        [query_vector] = await embed_queries(eng._embedder, [query])
+        hits = await eng._vector_leg(ns, query_vector, 30)
+        sig = list_signal(query, [h.score for h in hits])
+        fired = sig.fire
+    except Exception as exc:  # an enhancer, never a gate: fall back to the regex
+        _log.warning("read.list_trigger_v2_failed", error=str(exc))
+        fired = eng._list_mode_fires(query)
+    tap.event(
+        "read.list_trigger_v2",
+        fired=fired,
+        score=None if sig is None else round(sig.score, 4),
+        regex=eng._list_mode_fires(query),
+    )
+    if (fx := _FORENSICS.get()) is not None:
+        fx["list_trigger_v2"] = {"fired": fired, "score": None if sig is None else sig.score}
+    if not eng._decider_active("list_mode"):
         return fired
     return await eng._decided("list_mode", query, None, "set" if fired else "single") == "set"
 

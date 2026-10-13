@@ -790,6 +790,20 @@ class ReadConfig(BaseModel):
     list_vote_top_k: int = Field(default=30, ge=1)
     list_pool: int = Field(default=3, ge=1, le=10)
     window_full_hits: int | None = Field(default=10, ge=0)
+    #: R14-M-1: a no-model list-depth trigger that replaces the ``list_trigger`` regex when
+    #: ``list_mode`` is on. It scores the question shape (intent cues, wh opener, perfect aspect,
+    #: plural head, modal wording, length) together with the first vector leg's score profile
+    #: (flat top scores, small first gap) with fixed logistic weights
+    #: (``read/list_trigger.py``). Costs one extra query embedding and one 30-deep vector search
+    #: per read. Off: the regex decides, unchanged.
+    list_mode_trigger_v2: bool = False
+    #: R14-M-1: in list mode, reorder the reranked pool greedily so hits of a session already
+    #: represented are penalised (``coverage_session_penalty`` x the number already picked, on
+    #: min-max relevance) and duplicate contents sink to the tail, before the usual cut. Same
+    #: pool, same budget; only the order (and so which hits keep a window) changes. Off:
+    #: plain ranking.
+    coverage_select: bool = False
+    coverage_session_penalty: float = Field(default=0.15, ge=0.0, le=1.0)
     #: GR-6 (Graphiti node search): an RRF leg of the records that mention the entity
     #: nodes best matching the question (cosine on embedded entity names + text match,
     #: fused). Needs ``graph.entity_embeddings`` and associative entity nodes.
