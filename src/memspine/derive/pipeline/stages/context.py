@@ -149,7 +149,7 @@ SessionCloseHandler = Callable[[SessionClosed], Awaitable[dict[str, object]]]
 
 
 #: O4-02: the call-2 model call: chat messages (stable prefix, data body) -> the raw reply.
-#: None => ``write.session_close_v2`` has no LLM role to call and the stage reports ``skipped``.
+#: None => ``offline.session_close_v2`` has no LLM role to call and the stage reports ``skipped``.
 CloseCall = Callable[[list[dict[str, str]]], Awaitable[str]]
 
 
@@ -301,7 +301,7 @@ class PipelineContext:
     window_edges: WindowEdges | None = None
     #: W1 (call 2 interface): the session-closed handler. None => the stub.
     close_session: SessionCloseHandler | None = None
-    #: O4-02 (``write.session_close_v2``): the call-2 model call and the record deposit. Either
+    #: O4-02 (``offline.session_close_v2``): the call-2 model call and the record deposit. Either
     #: None => the v2 close reports ``skipped`` and the stub runs as before.
     close_call: CloseCall | None = None
     deposit_session_record: DepositSessionRecord | None = None

@@ -1,6 +1,6 @@
 """Derive: the profile card (O4-07; LIB-39 ``derive/profile.py``), opt-in.
 
-``write.profile_card_v2`` off (default): nothing here runs. On:
+``offline.profile_card_v2`` off (default): nothing here runs. On:
 
 * :func:`apply_session_ops` takes the profile ops call 2 proposed at session close
   (``ProposedProfileOp``), maps them to the library's ``ProfileOp`` and applies them through the
@@ -75,12 +75,12 @@ def _now() -> datetime:
 
 
 def profile_config(ctx: PipelineContext) -> ProfileConfig:
-    write = ctx.config.write
+    cfg_o = ctx.config.offline
     return ProfileConfig(
-        kappa_p=write.profile_kappa_p,
-        max_chars=write.profile_max_chars,
-        alpha=write.profile_alpha,
-        allow_inferred=write.profile_allow_inferred,
+        kappa_p=cfg_o.profile_kappa_p,
+        max_chars=cfg_o.profile_max_chars,
+        alpha=cfg_o.profile_alpha,
+        allow_inferred=cfg_o.profile_allow_inferred,
     )
 
 

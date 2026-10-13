@@ -1,6 +1,6 @@
 """Derive: call 2 at session close (O4-02; LIB-40 ``derive/session_close.py``), opt-in.
 
-``write.session_close_v2`` off (default): the stub in ``close.py`` runs and nothing here does. On,
+``offline.session_close_v2`` off (default): the stub in ``close.py`` runs and nothing here does. On,
 one session close does:
 
 1. read the session's live turns (``_live_members``: activated, unquarantined, inflated) and the
@@ -13,7 +13,7 @@ one session close does:
    episodes are stitched onto adjacent stubs by code;
 4. the summary and episodes are written through the derived-write door (parents = the cited
    turns, lineage when ``write.lineage_table``); the profile ops go to the guarded card when
-   ``write.profile_card_v2`` is on (else they are only counted);
+   ``offline.profile_card_v2`` is on (else they are only counted);
 5. a ``stage_done`` marker keyed by the session and the turn fingerprint makes a repeat close a
    no-op; a late turn changes the fingerprint, so the session is read again as a new version.
 """
@@ -156,7 +156,7 @@ async def run_close_v2(ctx: PipelineContext, event: SessionClosed) -> dict[str, 
     if not turns:
         _tap(event, status="skipped", reason="no_live_turns")
         return {"status": "skipped", "reason": "no live turns", "session_id": sid}
-    budget = ctx.config.write.session_close_budget
+    budget = ctx.config.offline.session_close_budget
     base = plan_session_close(turns, (), budget, namespace=ns)
     stubs = await _stubs(ctx, ns, turns, base.stitch.adjacency.total_seconds())
     plan = plan_session_close(turns, stubs, budget, namespace=ns) if stubs else base
@@ -220,7 +220,7 @@ async def run_close_v2(ctx: PipelineContext, event: SessionClosed) -> dict[str, 
         stitched += 1 if rec.extends else 0
 
     profile: dict[str, object] = {"status": "off", "proposed": len(result.profile_ops)}
-    if ctx.config.write.profile_card_v2:
+    if ctx.config.offline.profile_card_v2:
         try:
             profile = await apply_session_ops(ctx, ns, sid, result.profile_ops)
         except Exception as exc:  # the card is an enhancer too

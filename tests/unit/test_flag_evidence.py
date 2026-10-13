@@ -76,7 +76,7 @@ def test_registry_areas_are_schema_modules():
     areas = {s.area for s in flags.registry().values()}
     assert areas <= {
         "storage", "llm", "read", "write", "firewall", "integrity",
-        "privacy", "observability", "rest", "root",
+        "privacy", "observability", "rest", "root", "offline",
     }  # fmt: skip
 
 

@@ -31,11 +31,20 @@ from pydantic import (
 
 from memspine.config.constants import REFLECTION_DEPTH_CAP, TRUST_DEFAULT
 from memspine.store.events import fingerprint_payload
+from memspine.store.layers import (
+    Layer,
+    ProvenanceClass,
+    derive_axes,
+    derive_layer,
+    derive_provenance_class,
+)
 
 __all__ = [
     "ArchivedVersion",
     "MemoryRecord",
     "PiiTier",
+    "RecordAxes",
+    "RecordFingerprint",
     "RecordStatus",
     "ScoringState",
     "SkillStage",
@@ -171,6 +180,28 @@ class ArchivedVersion(BaseModel):
     reason: str = ""
 
 
+class RecordAxes(BaseModel):
+    """Speaker / subject / asker axes (M-08), typed. Derived from the perspective tags
+    (``spk:``, ``sub:``, ``ask:``, ``addr:``) when not given."""
+
+    speaker: str | None = None
+    subject: list[str] = Field(default_factory=list)
+    addressee: str | None = None
+    asker: str | None = None
+
+
+class RecordFingerprint(BaseModel):
+    """Content fingerprint plus derivation fingerprint (P-12): what produced the record.
+
+    ``derivation`` is a digest of (prompt, model) where both are known; ``prompt_hash`` defaults to
+    ``source.prompt_version``. ``model_id`` stays ``None`` until a deposit path records it."""
+
+    content: str = ""
+    derivation: str | None = None
+    prompt_hash: str | None = None
+    model_id: str | None = None
+
+
 class MemoryRecord(BaseModel):
     """The universal record. Memory-type packages specialize behaviour, not shape."""
 
@@ -254,21 +285,60 @@ class MemoryRecord(BaseModel):
     # fail loudly even if it never went through guards.reflection_depth_for.
     reflection_depth: int = Field(default=0, ge=0, le=REFLECTION_DEPTH_CAP)
 
+    # Record envelope (F-02a; M-02/M-03/M-06/M-07/M-08/P-12). Additive and derived when absent: a
+    # record built without them gets the values the mapping in ``store.layers`` gives, so no call
+    # site changes. A dump omits a field while it equals its derivation (``_omit_derived``), so
+    # event payloads of records that never set them stay byte-identical and a replay re-derives.
+    schema_version: int = Field(default=1, ge=1)
+    layer: Layer = "L0"
+    type_tag: str = ""
+    provenance_class: ProvenanceClass = "external"
+    axes: RecordAxes = Field(default_factory=RecordAxes)
+    fingerprint: RecordFingerprint = Field(default_factory=RecordFingerprint)
+
     # A context block the engine built at read time (lead section, cards and
     # profile headers). Private: it is never serialised and no payload, tag or
     # field a caller controls can set it, so stored text cannot claim to be one.
     _engine_block: bool = PrivateAttr(default=False)
 
+    def _derived_envelope(self) -> dict[str, Any]:
+        """The envelope fields when nobody set them (the shared mapping in ``store.layers``)."""
+        return {
+            "layer": derive_layer(self.memory_type, self.source.channel),
+            "type_tag": self.memory_type,
+            "provenance_class": derive_provenance_class(
+                self.source.role, self.source.channel, bool(self.source.parents)
+            ),
+            "axes": RecordAxes.model_validate(derive_axes(self.tags)),
+            "fingerprint": RecordFingerprint(
+                content=self.content_fingerprint, prompt_hash=self.source.prompt_version
+            ),
+        }
+
     @model_serializer(mode="wrap")
-    def _omit_unknown_invalid_at(self, handler: SerializerFunctionWrapHandler) -> Any:
+    def _omit_derived(self, handler: SerializerFunctionWrapHandler) -> Any:
         data = handler(self)
-        if self.invalid_at is None and isinstance(data, dict):
+        if not isinstance(data, dict):
+            return data
+        if self.invalid_at is None:
             data.pop("invalid_at", None)
+        # Envelope fields equal to their derivation are redundant: left out, so the payload (and the
+        # event-log fingerprint) of a record that never customised them is what it was before F-02a.
+        if data.get("schema_version") == 1:
+            del data["schema_version"]
+        for key, value in self._derived_envelope().items():
+            if getattr(self, key) == value:
+                data.pop(key, None)
         return data
 
     def model_post_init(self, _context: Any) -> None:
         if not self.content_fingerprint:
             self.content_fingerprint = fingerprint_payload({"content": self.content})
+        given = self.model_fields_set
+        for key, value in self._derived_envelope().items():
+            if key not in given:
+                # not setattr: keeps model_fields_set as the caller gave it
+                self.__dict__[key] = value
 
     @property
     def is_engine_block(self) -> bool:

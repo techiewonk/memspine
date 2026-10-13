@@ -107,7 +107,8 @@ async def _engine(
         storage={"path": ":memory:"},
         embedding={"provider": "hash"},
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
-        write=write,
+        offline={k: v for k, v in write.items() if k != "lineage_table"},
+        **({"write": {"lineage_table": True}} if write.get("lineage_table") else {}),
         llm={"roles": {role: {"model": "fake/close"}}},
     )
     await eng.start()

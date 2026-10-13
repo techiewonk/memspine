@@ -23,7 +23,7 @@ async def session_close(ctx: PipelineContext, event: SessionClosed) -> dict[str,
     if ctx.close_session is not None:
         return await ctx.close_session(event)
     skipped_v2: dict[str, object] | None = None
-    if ctx.config.write.session_close_v2:  # O4-02, opt-in: the real call 2
+    if ctx.config.offline.session_close_v2:  # O4-02, opt-in: the real call 2
         stats = await run_close_v2(ctx, event)
         if stats.get("status") != "skipped" or stats.get("reason") == "already done":
             await _mark_closed(ctx, event)

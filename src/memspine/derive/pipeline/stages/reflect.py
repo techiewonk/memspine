@@ -12,9 +12,9 @@ from memspine.store.records import MemoryRecord
 async def reflect_profile(ctx: PipelineContext) -> dict[str, object]:
     """H14: profile insights per consolidated session, once (done marker).
 
-    O4-07 (``write.profile_card_v2``): the card upkeep (invalidation of forgotten support and the
+    O4-07 (``offline.profile_card_v2``): the card upkeep (invalidation of forgotten support and the
     reflection plan) runs first and its counts ride along under ``profile_card``."""
-    card = await profile_sleep(ctx) if ctx.config.write.profile_card_v2 else None
+    card = await profile_sleep(ctx) if ctx.config.offline.profile_card_v2 else None
     stats = await _reflect_insights(ctx)
     if card is not None:
         stats = {**stats, "profile_card": card}
