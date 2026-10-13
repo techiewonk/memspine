@@ -316,8 +316,9 @@ class Memory:
         self._check(kwargs)
         await self._engine.forget(record_id, namespace=self.namespace, hard=hard, **kwargs)
 
-    async def sleep(self) -> dict[str, dict[str, object]]:
-        """Run the maintenance cycle (``Engine.sleep``; engine-wide, not scope-wide)."""
+    async def sleep(self) -> Any:
+        """Run the maintenance cycle (``Engine.sleep``; engine-wide, not scope-wide). A
+        ``SleepHandle`` under ``offline.sleep_v2``."""
         return await self._engine.sleep()
 
     async def brief(self, **kwargs: Any) -> Any:

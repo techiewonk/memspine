@@ -3,15 +3,24 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import timedelta
 from typing import Any
 
+from memspine.derive.job import LeaseStore
+from memspine.derive.scheduler import DerivationScheduler
+from memspine.derive.triggers import TriggerConfig, TriggerPolicy
 from memspine.exceptions import MemspineError, StorageError
 from memspine.memories.procedural.prompt_registry import prompt_version_records
 from memspine.observability.logging import EVENT_WRITE, get_logger
 from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import MemoryRecord, RecordStatus
 from memspine.store.scope import validate_namespace
-from memspine.workers.schedule import run_sleep_cycle
+from memspine.workers.schedule import (
+    maintenance_stage_order,
+    run_sleep_cycle,
+    run_sleep_stage,
+    sleep_stage_order,
+)
 
 _log = get_logger(__name__)
 
@@ -47,10 +56,58 @@ async def sync_prompt_versions(eng: Any, namespace: str = "default") -> list[Mem
     return fresh
 
 
-async def sleep(eng: Any) -> dict[str, dict[str, object]]:
+def build_sleep_v2(eng: Any, config: Any) -> DerivationScheduler:
+    """O4-01a: the derivation scheduler for ``offline.sleep_v2``. The lease/watermark tables live in
+    a sibling SQLite file of the storage database (``<path>.sleep``; in memory for ``:memory:`` and
+    for non-file backends), so two processes on one database never overlap and the job bookkeeping
+    never contends with the event-log writer."""
+    off = config.offline
+    storage = config.storage
+    path = ":memory:"
+    if storage.backend == "sqlite" and storage.path != ":memory:":
+        path = f"{storage.path}.sleep"
+    elif storage.backend != "sqlite":
+        _log.warning("sleep_v2.leases_in_memory", detail="non-sqlite backend: per-process leases")
+    policy = TriggerPolicy(
+        TriggerConfig(
+            min_turns=off.sleep_min_turns,
+            idle=timedelta(minutes=off.sleep_idle_minutes),
+            context_pressure=off.sleep_context_pressure,
+            min_gap=timedelta(minutes=off.sleep_min_gap_minutes),
+            maintenance_interval=timedelta(hours=off.sleep_maintenance_hours),
+        )
+    )
+
+    async def _run_stage(name: str) -> dict[str, object]:
+        assert eng._runner is not None
+        return await run_sleep_stage(eng._runner, eng._pipeline_ctx(), name)
+
+    async def _prepare() -> None:
+        if eng._windows is not None:  # W1: call 1 first (same as the blocking sleep)
+            await eng._windows.flush(final=not eng._windows.asynchronous)
+
+    return DerivationScheduler(
+        store=LeaseStore(path),
+        policy=policy,
+        run_stage=_run_stage,
+        stages=lambda: sleep_stage_order(eng._pipeline_ctx()),
+        maintenance_stages=lambda: maintenance_stage_order(eng._pipeline_ctx()),
+        prepare=_prepare,
+        lease_ttl=off.sleep_lease_ttl_seconds,
+        background_priority=bool(config.runtime.scheduler_v2),
+        idle_timers=not off.sleep_manual_only,
+    )
+
+
+async def sleep(eng: Any) -> Any:
     """Run the maintenance sleep cycle now (M2/E7): consolidate → decay →
-    compress → prune. All steps are idempotent; P3 gives them teeth."""
+    compress → prune. All steps are idempotent; P3 gives them teeth.
+
+    Under ``offline.sleep_v2`` (O4-01a) this does not block: it starts a namespace job and returns
+    its :class:`~memspine.derive.job.SleepHandle`."""
     eng._require_started()
+    if eng._derive_sched is not None:
+        return eng._derive_sched.sleep()
     assert eng._runner is not None
     if eng._windows is not None:
         # W1: call 1 first, so call 3 (extract_graph) sees this cycle's window edges. In

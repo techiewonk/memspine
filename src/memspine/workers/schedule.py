@@ -26,6 +26,7 @@ _log = get_logger(__name__)
 __all__ = [
     "COMPILE_EDGES_STAGE",
     "HISTORIES_STAGE",
+    "MAINTENANCE_STAGES",
     "PATTERN_OBSERVATIONS_STAGE",
     "PREDICT_CALIBRATE_STAGE",
     "PROJECT_FACTS_STAGE",
@@ -34,7 +35,10 @@ __all__ = [
     "RULE_EDGES_STAGE",
     "SLEEP_CYCLE_ORDER",
     "STANDING_ANSWERS_STAGE",
+    "maintenance_stage_order",
     "run_sleep_cycle",
+    "run_sleep_stage",
+    "sleep_stage_order",
 ]
 
 SLEEP_CYCLE_ORDER: tuple[str, ...] = (
@@ -108,7 +112,8 @@ def _predict_calibrate_on(ctx: PipelineContext) -> bool:
     return isinstance(options, dict) and bool(options.get("predict_calibrate", False))
 
 
-async def run_sleep_cycle(runner: TaskRunner, ctx: PipelineContext) -> dict[str, dict[str, object]]:
+def sleep_stage_order(ctx: PipelineContext) -> tuple[str, ...]:
+    """The ordered stage names of one sleep cycle for this configuration."""
     order = SLEEP_CYCLE_ORDER
     if _predict_calibrate_on(ctx):
         at = order.index("mine_facts") + 1
@@ -142,21 +147,42 @@ async def run_sleep_cycle(runner: TaskRunner, ctx: PipelineContext) -> dict[str,
         order = (*order[:at], COMPILE_EDGES_STAGE, *order[at:])
     if ctx.config.retention.classes:
         order = (RETENTION_STAGE, *order)
+    return order
+
+
+#: O4-01a: the daily maintenance pass (decay, retention, compress), as stage names.
+MAINTENANCE_STAGES: tuple[str, ...] = ("decay_sweep", "compress")
+
+
+def maintenance_stage_order(ctx: PipelineContext) -> tuple[str, ...]:
+    """The stages of the daily maintenance job: retention (when classes are configured), decay,
+    compress. A subset of the sleep order, in the same relative order."""
+    full = sleep_stage_order(ctx)
+    return tuple(s for s in full if s in MAINTENANCE_STAGES or s == RETENTION_STAGE)
+
+
+async def run_sleep_stage(
+    runner: TaskRunner, ctx: PipelineContext, name: str
+) -> dict[str, object]:
+    """Run one named stage (one line per stage, so a silent stall names its stage; WT-02 trace)."""
+    _log.info("sleep.stage", stage=name)
+    if not tap.enabled():
+        return await runner.run(name, ctx)
+    with tap.request("job", stage=name):  # WT-02: one child trace per stage
+        tap.event("job.stage.start", stage=name)
+        try:
+            stat = await runner.run(name, ctx)
+        except BaseException as exc:
+            tap.event("job.stage.end", stage=name, status="raised", error=type(exc).__name__)
+            raise
+        tap.event("job.stage.end", **_stage_fields(name, stat))
+        return stat
+
+
+async def run_sleep_cycle(runner: TaskRunner, ctx: PipelineContext) -> dict[str, dict[str, object]]:
     stats: dict[str, dict[str, object]] = {}
-    for name in order:
-        # one line per stage, so a silent stall names its stage (f-gc3, 2026-10-12)
-        _log.info("sleep.stage", stage=name)
-        if not tap.enabled():
-            stats[name] = await runner.run(name, ctx)
-            continue
-        with tap.request("job", stage=name):  # WT-02: one child trace per stage
-            tap.event("job.stage.start", stage=name)
-            try:
-                stats[name] = await runner.run(name, ctx)
-            except BaseException as exc:
-                tap.event("job.stage.end", stage=name, status="raised", error=type(exc).__name__)
-                raise
-            tap.event("job.stage.end", **_stage_fields(name, stats[name]))
+    for name in sleep_stage_order(ctx):
+        stats[name] = await run_sleep_stage(runner, ctx, name)
     return stats
 
 
