@@ -68,6 +68,19 @@ class WriteConfig(BaseModel):
     #: at all. ``False`` (default): the old write path exactly, and the table is never written.
     lineage_table: bool = False
 
+    #: W2-01 (LIB-30; W-01, W-02, W-03, W-24): one intake gateway in front of ``write_messages``,
+    #: ``write_episode`` and ``ingest``. ``True``: every call becomes a ``SourceEnvelope``; each segment
+    #: gets an S3-3 write id (scope, source, version, position, content), so a retry (a re-sent batch,
+    #: a crash and a re-send) writes nothing new; the call returns after a durable ledger commit and the
+    #: old write door runs on the fresh segments only; an interrupted apply is finished at the next
+    #: ``start()``. A re-ingested document with edited content becomes a new source version: unchanged
+    #: chunks stay, changed ones are archived with the facts derived only from them (derived items that
+    #: keep another live parent are re-pointed). The receipt carries readiness per capability and
+    #: never claims one the engine does not run (``raw_search`` is ready at return; ``facts`` /
+    #: ``graph`` / ``summaries`` follow the window outbox barrier). Taps ``write.intake.*``. ``False``
+    #: (default): the old write path, unchanged.
+    intake_v2: bool = False
+
     #: O4-11 (LIB-44, O-25): explicit feedback only. ``True``: ``Engine.feedback`` refuses any
     #: channel that is not a deliberate one (``user_message``, ``ui_control``, ``operator_edit``,
     #: ``api``; silence, dwell, regeneration and classifier signals are refused), checks who may

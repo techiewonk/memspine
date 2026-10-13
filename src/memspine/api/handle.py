@@ -198,6 +198,10 @@ async def ingest(
     if eng._resource is None:
         raise MemspineError("resource memory not enabled — set memories.resource.enabled: true")
     ns = validate_namespace(namespace)
+    if eng._config().write.intake_v2:  # W2-01: the intake gateway (versioned source, idempotent)
+        from memspine.ingest import gateway as intake_gateway
+
+        return await intake_gateway.ingest(eng, path, ns, pii_tier)
     # Same one-writer-per-namespace unit as write()/forget(): ingest's
     # firewall-context reads and chunk writes must not interleave with a
     # concurrent hard delete's read-hold-check-redact sequence.
