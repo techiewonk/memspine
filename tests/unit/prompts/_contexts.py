@@ -120,14 +120,6 @@ SAMPLE_PAYLOADS: dict[str, dict[str, Any]] = {
     "SufficiencyOut": {"complete": False, "reason": "only one activity is described"},
     "MissingInfoOut": {"queries": ["Alice hobby", "Alice weekend activity"]},
     "AgenticStepOut": {"action": "search", "query": "Alice weekend activity", "why": "a gap"},
-    "SlotStepOut": {
-        "action": "calculate",
-        "slot": "the gap between two dates",
-        "op": "date_diff",
-        "arg_a": "2026-01-02",
-        "arg_b": "2026-02-03",
-        "unit": "days",
-    },
     "AssertionsOut": {
         "assertions": [
             {

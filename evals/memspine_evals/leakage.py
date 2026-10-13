@@ -77,7 +77,6 @@ CONFIGS: dict[str, dict[str, Any]] = {
     "cohesion_entity_word": {
         "cohesion_leg": True,
         "entity_expand_leg": True,
-        "word_vector_leg": True,
     },
     "temporal_leg": {"temporal_leg": True, "temporal_leg_mentions": True},
     "rerank": {"rerank": "leak_probe_const", "candidate_pool": 3, "rerank_keep": 5},

@@ -37,7 +37,6 @@ import orjson
 from dishka import AsyncContainer
 
 from memspine.clients.cashews import CashewsClient
-from memspine.clients.kuzu import KuzuClient
 from memspine.clients.ladybug import LadybugClient
 from memspine.clients.lancedb import LanceDBClient
 from memspine.clients.postgres import PostgresClient
@@ -448,7 +447,6 @@ class Engine:
         # Inside a projection batch (write_messages): the last seq each
         # projector applied, checkpointed when the batch flushes. None outside.
         self._batch_offsets: dict[str, int] | None = None
-        self._kuzu: KuzuClient | None = None
         self._ladybug: LadybugClient | None = None
         # Phase 2: one shared KV cache + the optional clients backing it.
         self._cache: KVCache | None = None
@@ -484,10 +482,6 @@ class Engine:
         self._rerank_gated = 0  # N41: reranks whose order was not used (low confidence)
         #: N60: sentence vectors per (record id, content) for the MaxSim leg.
         self._sentence_vectors: dict[tuple[str, str], list[list[float]]] = {}
-        #: word-vector leg (read.word_vector_leg): lazy encoder and per-(record, content) vectors
-        self._word_vectors: Any = None
-        self._word_vectors_unavailable = False
-        self._word_vector_cache: dict[tuple[str, str], list[float]] = {}
         #: read.lexical_strip_names: speaker names per namespace, keyed by record count
         self._speaker_names: dict[str, tuple[int, frozenset[str]]] = {}
         #: I39 perspective layer: per namespace, the participants seen and the last speaker
@@ -632,7 +626,7 @@ class Engine:
         # projector ever writes it), so it is a config error, not a store.
         if "associative" in self._enabled:
             self._graph = await container.get(GraphStore)
-            self._kuzu, self._ladybug = wiring.kuzu, wiring.ladybug
+            self._ladybug = wiring.ladybug
         elif "graph" in config.model_fields_set:
             raise ConfigError(
                 "graph configured but memories.associative not enabled — "
@@ -857,7 +851,7 @@ class Engine:
             await self._graph.close()  # store-held handles; connections close below
         if self._container is not None:
             # dishka finalisers: the clients a build opened close here, in the order
-            # client, pg, lance, kuzu, ladybug, cashews (``Wiring.close_clients``).
+            # client, pg, lance, ladybug, cashews (``Wiring.close_clients``).
             container, self._container = self._container, None
             await container.close()
         for attr in self._timed_attrs:  # I73: drop the instance wrappers, restore the methods
@@ -1454,9 +1448,6 @@ class Engine:
         lexical_hits: Sequence[Any],
     ) -> list[list[LegHit]]:
         return await read_legs._maxsim_leg(self, ns, query_vector, vector_hits, lexical_hits)
-
-    async def _word_vector_leg(self, ns: str, query: str, fetch_k: int) -> list[list[LegHit]]:
-        return await read_legs._word_vector_leg(self, ns, query, fetch_k)
 
     def _perspective_options(self) -> PerspectiveOptions:
         return read_lift._perspective_options(self)
@@ -2675,50 +2666,6 @@ class Engine:
     ) -> ReadResult:
         return read_deep._agentic_assemble(self, query, result, added, displaced, info, notes)
 
-    async def _agentic_slot_loop(
-        self,
-        query: str,
-        ns: str,
-        result: ReadResult,
-        budget_tokens: int,
-        *,
-        hide: Callable[[MemoryRecord], bool] | None,
-        session_id: str | None,
-        role: str,
-        info: dict[str, Any],
-        steps: list[dict[str, Any]],
-    ) -> ReadResult:
-        return await read_deep._agentic_slot_loop(
-            self,
-            query,
-            ns,
-            result,
-            budget_tokens,
-            hide=hide,
-            session_id=session_id,
-            role=role,
-            info=info,
-            steps=steps,
-        )
-
-    async def _slot_expand(
-        self,
-        ns: str,
-        entity: str,
-        relation: str,
-        hide: Callable[[MemoryRecord], bool] | None,
-        seen: set[str],
-    ) -> list[MemoryRecord]:
-        return await read_deep._slot_expand(self, ns, entity, relation, hide, seen)
-
-    async def _slot_neighbours(self, ns: str, record_id: str, seen: set[str]) -> list[MemoryRecord]:
-        return await read_deep._slot_neighbours(self, ns, record_id, seen)
-
-    async def _fact_chain_extend(
-        self, query: str, ns: str, result: ReadResult, budget_tokens: int
-    ) -> ReadResult:
-        return await read_deep._fact_chain_extend(self, query, ns, result, budget_tokens)
-
     async def _event_ledger_extend(
         self, query: str, ns: str, result: ReadResult, budget_tokens: int
     ) -> ReadResult:
@@ -2776,8 +2723,6 @@ class Engine:
         read = self._config().read
         if read.decider == "heuristic":
             return False
-        if task == "relevance":
-            return read.relevance_gate == "decider"
         if task == "sensitivity_scope":
             return read.sensitivity_gate == "decider"
         return task in read.decider_tasks

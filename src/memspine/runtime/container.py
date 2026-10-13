@@ -38,7 +38,6 @@ from typing import Any, cast
 from dishka import AsyncContainer, BaseScope, Provider, make_async_container, new_scope
 
 from memspine.clients.cashews import CashewsClient
-from memspine.clients.kuzu import KuzuClient
 from memspine.clients.ladybug import LadybugClient
 from memspine.clients.lancedb import LanceDBClient
 from memspine.clients.postgres import PostgresClient
@@ -167,7 +166,6 @@ class Wiring:
     client: SQLiteClient | None = None
     pg: PostgresClient | None = None
     lance: LanceDBClient | None = None
-    kuzu: KuzuClient | None = None
     ladybug: LadybugClient | None = None
     cashews: CashewsClient | None = None
     #: #43: the extraction cache, kept so erasure can purge an erased text's entry
@@ -176,7 +174,7 @@ class Wiring:
     rescore_active: bool = False
 
     async def close_clients(self) -> None:
-        for client in (self.client, self.pg, self.lance, self.kuzu, self.ladybug, self.cashews):
+        for client in (self.client, self.pg, self.lance, self.ladybug, self.cashews):
             if client is not None:
                 await client.close()
 
@@ -530,9 +528,8 @@ async def build_vector_store(
 
 def build_lexical_store(config: MemspineConfig, _caps: Capabilities) -> LexicalStore:
     """Lexical provider selection (D-25). ``tantivy`` (default, **core**)
-    builds a standalone BM25 index independent of the storage backend;
-    ``opensearch`` (``[opensearch]`` extra) is the server-scale seam. Both are
-    rebuildable projections driven by the same :class:`LexicalProjector`. The
+    builds a standalone BM25 index independent of the storage backend, a
+    rebuildable projection driven by the :class:`LexicalProjector`. The
     transactional-DB ``sqlite_fts5`` provider was removed (v0.2): the lexical
     leg is a dedicated search index, never bolted onto the system-of-record."""
     provider = config.read.lexical_provider
@@ -556,16 +553,12 @@ def build_lexical_store(config: MemspineConfig, _caps: Capabilities) -> LexicalS
             analyzer=config.read.lexical_analyzer,
             date_tokens=config.read.lexical_dates,
         )
-    if provider == "opensearch":
-        from memspine.services.lexical.opensearch import OpenSearchLexical
-
-        return cast("LexicalStore", OpenSearchLexical(config.read))  # stub — always raises
-    raise ConfigError(f"unknown read.lexical_provider {provider!r} (valid: tantivy, opensearch)")
+    raise ConfigError(f"unknown read.lexical_provider {provider!r} (valid: tantivy)")
 
 
 async def build_graph_store(config: MemspineConfig, wiring: Wiring) -> GraphStore:
     """Graph provider selection (D-26). ``sqlite_adjacency`` (default) rides
-    the existing SQLite client; ``kuzu`` and ``ladybug`` each open their own
+    the existing SQLite client; ``ladybug`` opens its own
     embedded database via a dedicated client (D-24) — in-memory when the
     event log is in-memory, so the projection can never outlive its log
     (D0.1)."""
@@ -587,16 +580,9 @@ async def build_graph_store(config: MemspineConfig, wiring: Wiring) -> GraphStor
         if wiring.client is None:
             raise ConfigError(
                 "graph.provider='sqlite_adjacency' requires storage.backend='sqlite' — "
-                "use 'kuzu' or 'ladybug' (own embedded db) with a postgres backend"
+                "use 'ladybug' (own embedded db) with a postgres backend"
             )
         return SQLiteAdjacencyGraph(wiring.client)
-    if provider == "kuzu":
-        from memspine.services.graph.kuzu import KuzuGraphStore
-
-        path = ":memory:" if client_is_memory(config) else f"{derived_base(config)}.kuzu"
-        wiring.kuzu = KuzuClient(path)
-        await wiring.kuzu.connect()
-        return KuzuGraphStore(wiring.kuzu)
     if provider == "ladybug":
         from memspine.services.graph.ladybug import LadybugGraphStore
 
@@ -609,7 +595,7 @@ async def build_graph_store(config: MemspineConfig, wiring: Wiring) -> GraphStor
 
         return cast("GraphStore", Neo4jGraphStore())  # stub — always raises
     raise ConfigError(
-        f"unknown graph.provider {provider!r} (valid: sqlite_adjacency, kuzu, ladybug, neo4j)"
+        f"unknown graph.provider {provider!r} (valid: sqlite_adjacency, ladybug, neo4j)"
     )
 
 

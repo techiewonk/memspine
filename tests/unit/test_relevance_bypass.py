@@ -1,4 +1,4 @@
-"""I74: the personal-reference bypass of the relevance gates (``read.relevance_gate_bypass``)."""
+"""I74: the personal-reference bypass of the relevance gate (``read.relevance_gate_bypass``)."""
 
 from __future__ import annotations
 
@@ -6,44 +6,37 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from memspine import Engine
+from memspine.compose.pack import AssembledContext
 from memspine.config.schema import ReadConfig
 from memspine.core.owner_check import first_person, referenced_names, store_vocab
 from memspine.engine import search_forensics
-from memspine.models.providers.decision.decider import Decision
+from memspine.read.pipeline.state import ReadResult
 
 T0 = datetime(2023, 5, 1, 9, 0, tzinfo=UTC)
 
 
-class IrrelevantDecider:
-    """Always sure that nothing bears on the message."""
-
-    decider_id = "fake"
+class EmptyingGate:
+    """Stands in for the calibrated gate: always empties the context, and counts its runs."""
 
     def __init__(self) -> None:
         self.calls = 0
 
-    async def decide(self, task: str, question: str, context: str | None = None) -> Decision:
+    async def __call__(self, query: str, result: ReadResult, ns: str | None = None) -> ReadResult:
         self.calls += 1
-        return Decision("irrelevant", 0.99, {}, task, self.decider_id)
+        return ReadResult(result.mode, AssembledContext(abstained=True))
 
 
-def _engine(**read: Any) -> tuple[Engine, IrrelevantDecider]:
+def _engine(**read: Any) -> tuple[Engine, EmptyingGate]:
     eng = Engine(
         template="core",
         dotenv_path=None,
         storage={"path": ":memory:"},
         embedding={"provider": "hash"},
         memories={"episodic": {"enabled": True}},
-        read={
-            "record_access": False,
-            "decider": "opendecider",
-            "relevance_gate": "decider",
-            "decider_min_confidence": 0.6,
-            **read,
-        },
+        read={"record_access": False, "relevance_gate": "store_calibrated", **read},
     )
-    fake = IrrelevantDecider()
-    eng.set_decider(fake)
+    fake = EmptyingGate()
+    eng._calibrated_gate = fake  # type: ignore[method-assign]
     return eng, fake
 
 
@@ -96,7 +89,6 @@ async def test_named_message_bypasses_the_gate() -> None:
         assert fake.calls == 0  # the gate never ran
         assert stages["relevance_bypass"]["fired"] is True
         assert stages["relevance_bypass"]["names"] == ["Caroline"]
-        assert "decisions" not in stages
     finally:
         await eng.stop()
 
@@ -110,7 +102,6 @@ async def test_generic_request_still_gated_and_logged() -> None:
             out = await eng.read("Write me a poem about autumn", namespace="a", mode="replay")
         assert out.context.abstained and fake.calls == 1
         assert stages["relevance_bypass"]["fired"] is False
-        assert stages["decisions"][0]["final"] == "irrelevant"
     finally:
         await eng.stop()
 

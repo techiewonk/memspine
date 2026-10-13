@@ -101,8 +101,8 @@ class VectorConfig(BaseModel):
 class GraphConfig(BaseModel):
     """Graph store selection (D-26). ``sqlite_adjacency`` is the zero-dep
     default and fallback; ``ladybug`` (the maintained Kùzu fork, ``[graph]``) is
-    the graph engine for graph features (ADR-034); ``kuzu`` is a deprecated alias
-    for one release (Kùzu was archived on 2025-10-10; ``DeprecationWarning``).
+    the graph engine for graph features (ADR-034). The ``kuzu`` alias was removed
+    (Kùzu was archived on 2025-10-10; ADR-034, G-22).
     The store is only constructed when associative memory
     is enabled or this block is set explicitly — ``profile="simple"`` never
     touches it."""
@@ -111,7 +111,7 @@ class GraphConfig(BaseModel):
 
     #: GR-1 (ADR-064): ``auto`` (default) = LadybugDB when the ``ladybug`` package is
     #: installed (``[graph]``), else ``sqlite_adjacency``. Explicit values pin one.
-    provider: str = "auto"  # auto | sqlite_adjacency | ladybug | kuzu (deprecated) | neo4j
+    provider: str = "auto"  # auto | sqlite_adjacency | ladybug | neo4j
     #: GR-3 (graph engine plan 2026-10-08): embed entity-node names (GP-2 entity nodes)
     #: into the graph store's entity index: LadybugDB keeps them in a FLOAT[] column with
     #: its native HNSW vector index and FTS index; sqlite_adjacency in node properties.

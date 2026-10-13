@@ -255,26 +255,13 @@ async def _gate_bypassed(eng: Any, query: str, ns: str | None, result: ReadResul
 async def _relevance_gate(
     eng: Any, query: str, result: ReadResult, ns: str | None = None
 ) -> ReadResult:
-    """I29 (``task=relevance``): when the decider is sure none of the retrieved memories
-    bear on the message, inject nothing (an abstained, empty context). Off by default.
-    ``store_calibrated``: the per-namespace calibrated raw-score gate.
-    I74: a message that names the store's own people / entities skips either gate."""
+    """I29 ``read.relevance_gate: store_calibrated``: the per-namespace calibrated raw-score
+    gate (off by default; the decider form is retired, G-22).
+    I74: a message that names the store's own people / entities skips the gate."""
     if await eng._gate_bypassed(query, ns, result):
         return result
     if eng._config().read.relevance_gate == "store_calibrated":
         return await eng._calibrated_gate(query, result, ns)
-    if not eng._decider_active("relevance") or result.context.abstained:
-        return result
-    records = [r for r in result.context.records if r.source.channel != "persona"]
-    if not records:
-        return result
-    memories = chr(10).join(f"- {r.content}" for r in records[:10])
-    label = await eng._decided("relevance", query, memories, "relevant")
-    if label == "irrelevant":
-        if _FORENSICS.get() is not None:
-            for r in records:
-                trace_sink.cut("relevance_gate_decider", r.record_id)
-        return ReadResult(result.mode, AssembledContext(abstained=True))
     return result
 
 

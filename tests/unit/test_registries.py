@@ -25,8 +25,8 @@ def test_builtin_names_match_config_values() -> None:
     assert _names("rerankers") == ("fastembed", "flashrank", "litellm", "qwen3", "jina")
     assert _names("llm_providers") == ("llamacpp", "litellm")
     assert _names("vector_stores") == ("lance",)
-    assert _names("lexical_indexes") == ("tantivy", "opensearch")
-    assert _names("graph_stores") == ("sqlite_adjacency", "kuzu", "ladybug", "neo4j")
+    assert _names("lexical_indexes") == ("tantivy",)
+    assert _names("graph_stores") == ("sqlite_adjacency", "ladybug", "neo4j")
     assert _names("prompt_sets") == ("default",)
     assert set(_names("derive_stages")) == {
         "compile",

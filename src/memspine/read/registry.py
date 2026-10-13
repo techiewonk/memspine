@@ -18,7 +18,6 @@ for _leg, _family in (
     ("vector", "semantic"),
     ("perspective", "semantic"),
     ("maxsim", "semantic"),
-    ("word_vector", "semantic"),
     ("session", "semantic"),
     ("graph_nodes", "semantic"),
     ("lexical", "lexical"),

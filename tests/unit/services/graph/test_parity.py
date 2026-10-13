@@ -14,9 +14,7 @@ depth 1-3 with and without a fan-out cap; the forget cascade; rebuild equality.
 
 from __future__ import annotations
 
-import importlib.util
 import random
-import sys
 from collections.abc import AsyncIterator, Sequence
 
 import pytest
@@ -29,29 +27,12 @@ from memspine.services.storage.sqlite.schema import metadata
 from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import MemoryRecord
 
-ADAPTERS = ["sqlite_adjacency", "ladybug", "kuzu"]
-
-
-def _kuzu_usable() -> bool:
-    ladybug_present = "ladybug" in sys.modules or importlib.util.find_spec("ladybug") is not None
-    return importlib.util.find_spec("kuzu") is not None and not ladybug_present
+ADAPTERS = ["sqlite_adjacency", "ladybug"]
 
 
 @pytest.fixture(params=ADAPTERS)
 async def store(request: pytest.FixtureRequest) -> AsyncIterator[GraphStore]:
-    if request.param == "kuzu":
-        if not _kuzu_usable():
-            pytest.skip("kuzu not installed, or ladybug present (one native graph lib per process)")
-        from memspine.clients.kuzu import KuzuClient
-        from memspine.services.graph.kuzu import KuzuGraphStore
-
-        client = KuzuClient(":memory:")
-        await client.connect()
-        with pytest.warns(DeprecationWarning):
-            kuzu_store = KuzuGraphStore(client)
-        yield kuzu_store
-        await client.close()
-    elif request.param == "ladybug":
+    if request.param == "ladybug":
         pytest.importorskip("ladybug")
         from memspine.clients.ladybug import LadybugClient
         from memspine.services.graph.ladybug import LadybugGraphStore

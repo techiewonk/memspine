@@ -36,9 +36,9 @@ class ReadConfig(BaseModel):
     - ``lexical_provider``: which lexical store backs the hybrid leg —
       ``tantivy`` (default, standalone Tantivy BM25 index — **core**, no extra,
       independent of the storage backend; an on-disk index dir beside the db, or
-      in-RAM for a ``:memory:`` log) or ``opensearch`` (``[opensearch]`` extra —
-      server-scale BM25 for large multi-node deployments). All satisfy the same
-      ``LexicalStore`` port and share ``LexicalProjector``. The transactional-DB
+      in-RAM for a ``:memory:`` log); the ``opensearch`` stub was removed (G-22). A
+      provider satisfies the ``LexicalStore`` port and shares ``LexicalProjector``. The
+      transactional-DB
       ``sqlite_fts5`` provider was removed (v0.2): the lexical leg is a dedicated
       search index, never bolted onto the system-of-record.
       Only consulted when ``hybrid`` is on (the default); with ``hybrid: false``
@@ -62,7 +62,7 @@ class ReadConfig(BaseModel):
     static_prefilter: bool = False
     static_embedding_prefilter: bool = False
     hybrid: bool = True  # v0.2 A3: default-on hybrid retrieval (D-25, ADR-019)
-    lexical_provider: str = "tantivy"  # tantivy (core, default) | opensearch [opensearch] (D-25)
+    lexical_provider: str = "tantivy"  # tantivy (core, default) (D-25)
     #: N58 (gaps plan 2026-10-08): the Tantivy analyzer for the BM25 body. ``default``
     #: (unchanged: alphanumeric runs, lower-cased) or ``english`` (plus English stop
     #: words and the Snowball English stemmer, so "camping" matches "camp"). The
@@ -576,19 +576,6 @@ class ReadConfig(BaseModel):
     #: candidates with two or more sentences, ranked by their best sentence's cosine
     #: with the query. Embeds candidate sentences at read (cached); no index change.
     maxsim_leg: bool = False
-    #: Word-vector leg (gap B5/B7, 2026-10-10): an RRF leg ranking every record of the
-    #: namespace by the cosine of pooled static word vectors (query vs record), so related
-    #: words meet without sharing a term ("hobbies" ~ "kayaking"). Opt-in; set
-    #: ``hybrid: false`` to use it IN PLACE of the BM25 leg, or keep both. Brute force over
-    #: the namespace with per-record vectors cached in memory (fine for conversation-sized
-    #: stores; not an index).
-    word_vector_leg: bool = False
-    #: ``model2vec`` ([static] extra) or ``word2vec`` (gensim KeyedVectors, local path).
-    word_vector_provider: Literal["model2vec", "word2vec"] = "model2vec"
-    #: model id (model2vec) or file path (word2vec); None = minishlab/potion-retrieval-32M.
-    word_vector_model: str | None = None
-    #: hits the leg contributes to the fusion; None = the search's fetch size.
-    word_vector_top_k: int | None = Field(default=None, ge=1)
     #: Gap B5 (2026-10-10): drop speaker/person names (the "Speaker:" prefixes of the
     #: namespace's records) from the BM25 query only, so a name in the question does not
     #: make BM25 rank by the name. The vector leg is untouched; if nothing is left the
@@ -894,31 +881,6 @@ class ReadConfig(BaseModel):
     #: records may displace only step-0 records after that share, last first, and only to
     #: fit themselves.
     agentic_first_share: float = Field(default=0.6, ge=0.0, le=1.0)
-    #: E02 (refines I67): how the loop picks its next action. ``query`` (default) = I67 as
-    #: built: answer_ready / search / search_person_time. ``slot``: every step names the
-    #: MISSING SLOT of the question (seeded by the A03 contract) and picks ONE of
-    #: memory_search, relation_expand (one hop through the stored facts of an entity),
-    #: neighbor_lookup (the turns next to a cited one), calculate (a date/number computation
-    #: done by code), answer, qualified_stop. Stops on sufficiency, ``agentic_max_steps``, the
-    #: token budget, a repeated action, a step with no new useful evidence, or a qualified
-    #: stop (an unresolved slot is reported, never guessed). Step 0, the reserved first-pass
-    #: share and the namespace are as in ``query``. The slot of every step is kept in
-    #: ``search_forensics()["agentic_steps"]``. Needs ``read.agentic``.
-    agentic_mode: Literal["query", "slot"] = "query"
-    #: E01 (read-time arm): ``read_time`` makes ONE bounded structured call per triggered read
-    #: (``extract@assertions``, the ``extract`` role) over the evidence already in context:
-    #: subject-relation-object assertions with the exact source span, modality and time. Two
-    #: assertions are joined only through a resolved entity or an evidenced relation, and the
-    #: join is shown to the reader as a short derived-chain block, every link quoting its
-    #: span. Raw turns stay authoritative; nothing derived is stored. ``off`` (default): no
-    #: call, byte-identical. The write-time projection is a separate arm:
-    #: ``memories.semantic.policies.fact_projection``.
-    fact_chain: Literal["off", "read_time"] = "off"
-    #: When the extraction call fires: ``multi_hop`` (default; the I67 surface heuristic);
-    #: ``triggered`` = multi-hop OR the A03 contract's relation is not stated beside its
-    #: subject in any evidence line (offline it fires on 58% of LoCoMo questions with no better
-    #: hit rate on wrong answers than the base rate: a screen option only); ``always``.
-    fact_chain_trigger: Literal["multi_hop", "triggered", "always"] = "multi_hop"
     #: A02 (read-time): ``on`` makes ONE bounded structured call per triggered read
     #: (``extract@events``, the ``extract`` role) over the evidence already in context for
     #: candidate event mentions (actor, action, object, status planned / done / cancelled, exact
@@ -946,15 +908,14 @@ class ReadConfig(BaseModel):
         Literal["list_mode", "bridge_hop", "about_target", "needs_more_evidence"]
     ] = Field(default_factory=lambda: ["list_mode", "bridge_hop"])
     #: I29: whether retrieved memories are injected at all. ``off`` (default): always, as
-    #: today. ``decider``: the decider (``read.decider: opendecider``) judges the message
-    #: against the retrieved memories; when it is sure (``decider_min_confidence``) that none
-    #: bear on it, the read returns an empty, abstained context. ``store_calibrated``: the
+    #: today. (The ``decider`` form measured LoCoMo 81.6 -> 59.2 and is retired, G-22.)
+    #: ``store_calibrated``: the
     #: namespace's own off-topic score level is learned lazily from a fixed set of generic
     #: off-topic probes (``core/relevance_probes.py``) and a message passes only when its RAW
     #: top score (vector cosine, or the reranker's raw score) clears that level by
     #: ``relevance_gate_margin_sd`` standard deviations; otherwise an empty, abstained context.
-    relevance_gate: Literal["off", "decider", "store_calibrated"] = "off"
-    #: I74: the personal-reference bypass of either gate. A message that names the store's
+    relevance_gate: Literal["off", "store_calibrated"] = "off"
+    #: I74: the personal-reference bypass of the gate. A message that names the store's
     #: own people / entities (a participant of the namespace, or a capitalised name present
     #: in the store, same rules as I60 ``entity_check``: exact, or a 3+ letter prefix) needs
     #: memory, so the gate is skipped and the memories are injected as normal. ``none``: no

@@ -6,8 +6,7 @@ transactional store. It satisfies the
 :class:`~memspine.services.lexical.base.LexicalStore` port, so the
 :class:`~memspine.services.lexical.projector.LexicalProjector` drives it
 identically and it is a fully rebuildable projection (:meth:`clear` truncates so
-a rebuild replays from seq 0). Server-scale deployments swap in the
-``[opensearch]`` provider (:mod:`memspine.services.lexical.opensearch`).
+a rebuild replays from seq 0).
 
 tantivy-py is **synchronous** — it owns an on-disk (or in-RAM) index directory,
 a schema, a single ``IndexWriter`` (holding the index-wide writer lock) and a
