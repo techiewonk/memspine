@@ -104,6 +104,27 @@ class WriteConfig(BaseModel):
     #: ``False`` (default): the old fact section.
     envelope_v2: bool = False
 
+    #: W2-06b (LIB-05; W-16, P-04, P-09, P-11, G-W49; needs ``envelope_v2``). ``True``: ONE model call
+    #: per window (or per batch of windows) fills every requested section (facts, edges, episode)
+    #: under one schema, instead of the facts call plus a second call for edges / episode. The prompt
+    #: has three parts: NEW (the numbered lines to extract from), CONTEXT (the last turns of the
+    #: previous window, to resolve pronouns; never cited) and KNOWN (entities already in the store
+    #: with their aliases, rendered compactly, capped and deduplicated; hooks for the P-23 pre-pass
+    #: and the online resolver). The JSON schema is passed as ``response_format`` to providers that
+    #: declare support (OpenAI-compatible, Ollama, llama.cpp), per provider, never required; any
+    #: other provider is answered by the W2-06a validator plus its one repair. The same-language and
+    #: coarse-date partials still apply. Taps ``write.prompt.v2`` (sections, known_count,
+    #: schema_mode). ``False`` (default): unchanged.
+    prompt_v2: bool = False
+    #: W2-06b: most KNOWN entities listed in one prompt (after dedup; entities named in the NEW lines
+    #: first). Needs ``prompt_v2``.
+    prompt_known_cap: int = Field(default=40, ge=0)
+    #: W2-06b: turns of the previous window shown as CONTEXT. Needs ``prompt_v2``. ``0``: no CONTEXT.
+    prompt_context_turns: int = Field(default=3, ge=0)
+    #: W2-06b: ``auto`` passes the JSON schema to providers that support it; ``off`` never does.
+    #: Needs ``prompt_v2``.
+    prompt_schema: Literal["auto", "off"] = "auto"
+
     #: F-16a (M-09, G-08, POL-2): the lineage table and the single derived-write door. ``True``:
     #: every derived record written through ``derive/write.py`` gets one lineage edge per parent
     #: (``support`` unless the site names a role), its trust capped at the least-trusted parent, a

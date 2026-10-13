@@ -19,6 +19,8 @@ from memspine.derive.failure_ledger import FailureLedger
 from memspine.derive.items import ItemValidator, RepairAsk
 from memspine.derive.pipeline.stages.close import session_close
 from memspine.derive.pipeline.stages.context import SessionClosed
+from memspine.derive.pipeline.stages.index import SessionIndex
+from memspine.derive.prompt_context import KnownEntity, KnownSource, PromptContextBuilder
 from memspine.derive.segmenter import SegmentationSettings
 from memspine.derive.write import write_derived
 from memspine.exceptions import (
@@ -144,6 +146,17 @@ def _build_windows(eng: Any, config: MemspineConfig) -> WindowPipeline | None:
     envelope = None
     if config.write.envelope_v2 and "facts" in sections:
         envelope = _envelope_write(eng, config)
+    context_builder = None
+    if config.write.prompt_v2:
+        if envelope is None:
+            raise ConfigError(
+                "write.prompt_v2 needs write.envelope_v2 and a window_extract mode with facts"
+            )
+        context_builder = PromptContextBuilder(
+            _known_from_store(eng),
+            cap=config.write.prompt_known_cap,
+            context_turns=config.write.prompt_context_turns,
+        )
     return WindowPipeline(
         settings=WindowSettings(
             max_turns=config.write.window_max_turns,
@@ -157,6 +170,9 @@ def _build_windows(eng: Any, config: MemspineConfig) -> WindowPipeline | None:
             eng._prompts.for_role("window_extract"),
             role.model if role is not None else "",
             items=envelope is not None,
+            unified=context_builder is not None,
+            partial=eng._prompts.partial,
+            use_schema=config.write.prompt_schema == "auto",
         ),
         get_record=storage.get_record,
         deposit_fact=eng._deposit_mined_fact,
@@ -172,7 +188,49 @@ def _build_windows(eng: Any, config: MemspineConfig) -> WindowPipeline | None:
         segmentation=_segmentation(config),
         role_policy=config.write.role_policy_v2,
         envelope=envelope,
+        context_builder=context_builder,
     )
+
+
+#: W2-06b: the entity list is rebuilt from the graph every this many windows (it is a scan).
+_KNOWN_REFRESH_EVERY = 4
+
+
+def _known_from_store(eng: Any) -> KnownSource:
+    """KNOWN from the entity records and the alias table already in the store (W2-06b). The P-23
+    pre-pass (W2-13) and the online resolver (W2-09) plug in through the builder's ``prepass`` /
+    ``resolver`` hooks and are not read here."""
+    from memspine.memories.associative.entities import parse_entity_node
+
+    index = SessionIndex()
+    cache: dict[str, tuple[int, list[KnownEntity]]] = {}
+
+    async def source(ns: str, _text: str) -> list[KnownEntity]:
+        age, known = cache.get(ns, (_KNOWN_REFRESH_EVERY, []))
+        if age < _KNOWN_REFRESH_EVERY:
+            cache[ns] = (age + 1, known)
+            return known
+        assoc = getattr(eng, "_associative", None)
+        if assoc is None:
+            return []
+        await index.refresh(eng._storage)
+        by_target: dict[str, list[str]] = {}
+        for alias, target in index.entity_aliases.get(ns, {}).items():
+            by_target.setdefault(target, []).append(alias)
+        names: dict[str, None] = {}
+        for nodes in (await assoc.entity_index(ns)).values():
+            for node in nodes:
+                parsed = parse_entity_node(node)
+                if parsed is not None:
+                    names.setdefault(parsed[1], None)
+        known = [
+            KnownEntity(canon.title(), tuple(a.title() for a in by_target.get(canon, ())))
+            for canon in names
+        ]
+        cache[ns] = (1, known)
+        return known
+
+    return source
 
 
 def _envelope_write(eng: Any, config: MemspineConfig) -> EnvelopeWrite:
