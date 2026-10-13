@@ -14,6 +14,7 @@ from memspine.derive.write import write_derived
 from memspine.exceptions import MemspineError
 from memspine.models.encoders.query.perspective import inherit_perspective_tags
 from memspine.models.encoders.query.temporal_resolve import resolve
+from memspine.observability import tap
 from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import MemoryRecord, RecordStatus, SourceInfo
 from memspine.store.scope import validate_namespace
@@ -416,3 +417,82 @@ async def _write_extracted_fact(
         trust_cap=cap,
         site="extract_graph",
     )
+
+
+async def _deposit_session_record(
+    eng: Any,
+    namespace: str,
+    kind: str,
+    text: str,
+    parents: list[str],
+    valid_from: datetime,
+    session_id: str,
+    *,
+    extends: str | None = None,
+    when_text: str | None = None,
+    participants: Sequence[str] = (),
+    idem_key: str = "",
+    folded: bool = False,
+) -> MemoryRecord | None:
+    """O4-02: one call-2 record (session summary or stitched episode) through the derived door.
+
+    Derived (non-privileged ``assistant`` role, channel ``session_close``), parents = the cited
+    turns (an extension also names the stub it extends, role ``version_of``), trust capped at
+    the least trusted parent, screened by the firewall, never keyed (the ladder ADDs it). Skipped
+    under the lock when a parent is no longer live (I72)."""
+    storage = eng._require_started()
+    ns = validate_namespace(namespace)
+    sources = [r for r in [await storage.get_record(p) for p in parents] if r is not None]
+    tags = [f"kind:{kind}", "session_close", f"session:{session_id}"]
+    if idem_key:
+        tags.append(f"sc:{idem_key[:24]}")
+    if extends:
+        tags.append(f"extends:{extends}")
+    if when_text:
+        tags.append(f"when:{when_text[:60]}")
+    tags.extend(f"participant:{p}" for p in participants if p)
+    if folded:
+        tags.append("folded")
+    if sources and all("assistant_claim" in r.tags for r in sources):
+        tags.append("assistant_claim")
+    if sources and eng._perspective_options().on:
+        tags.extend(t for t in inherit_perspective_tags(sources) if t not in tags)
+    parent_ids = list(dict.fromkeys([*parents, *([extends] if extends else [])]))
+    record = MemoryRecord(
+        namespace=ns,
+        memory_type="semantic",
+        content=text,
+        source=SourceInfo(
+            role=constants.DERIVED_ROLE,
+            channel=constants.SESSION_CLOSE_CHANNEL,
+            message_id=f"session_close:{session_id}",
+            parents=parent_ids,
+        ),
+        valid_from=valid_from,
+        tags=tags,
+    )
+    cap = [min(r.trust for r in sources)] if sources else None
+    integrity_cap = await eng._parent_trust_cap(ns, parents)
+    if integrity_cap:
+        cap = [*(cap or []), *integrity_cap]
+    async with eng._write_locks.setdefault(ns, asyncio.Lock()):
+        if await eng._derived_parents_gone(ns, parents, "session_close"):
+            return None
+        written = await write_derived(
+            eng,
+            storage,
+            ns,
+            record,
+            "semantic",
+            "system",
+            parents=parent_ids,
+            roles={extends: "version_of"} if extends else None,
+            layer="episode" if kind == "episode" else "summary",
+            trust_cap=cap,
+            site="session_close",
+        )
+    if written.record_id != record.record_id:  # M5 merged it into an existing near-duplicate
+        if tap.enabled():
+            tap.event("job.close.dedup", kind=kind, into=written.record_id)
+        return None
+    return written

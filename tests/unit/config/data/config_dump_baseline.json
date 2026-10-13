@@ -148,7 +148,14 @@
   "offline": {
    "histories_v2": false,
    "near_duplicate_text": 0.8,
-   "reconcile_v2": false
+   "profile_allow_inferred": false,
+   "profile_alpha": 0.3,
+   "profile_card_v2": false,
+   "profile_kappa_p": 24,
+   "profile_max_chars": 2400,
+   "reconcile_v2": false,
+   "session_close_budget": 6000,
+   "session_close_v2": false
   },
   "plugins": [],
   "profile": "simple",
@@ -502,7 +509,7 @@
    "window_topic_k": 2.0
   }
  },
- "json_schema_sha256": "f1ab6188456f6d39a5143796182237970c0ff9aadb4abee9edf6cbbba38c1142",
+ "json_schema_sha256": "59c41d39799a9fc0b3a1acca0933a96fe7bcb2ce9035de137b351a333e9c1cb0",
  "preset:chat_roles": {
   "audit": {
    "actions": false,
@@ -673,7 +680,14 @@
   "offline": {
    "histories_v2": false,
    "near_duplicate_text": 0.8,
-   "reconcile_v2": false
+   "profile_allow_inferred": false,
+   "profile_alpha": 0.3,
+   "profile_card_v2": false,
+   "profile_kappa_p": 24,
+   "profile_max_chars": 2400,
+   "reconcile_v2": false,
+   "session_close_budget": 6000,
+   "session_close_v2": false
   },
   "plugins": [],
   "profile": "simple",
@@ -1203,7 +1217,14 @@
   "offline": {
    "histories_v2": false,
    "near_duplicate_text": 0.8,
-   "reconcile_v2": false
+   "profile_allow_inferred": false,
+   "profile_alpha": 0.3,
+   "profile_card_v2": false,
+   "profile_kappa_p": 24,
+   "profile_max_chars": 2400,
+   "reconcile_v2": false,
+   "session_close_budget": 6000,
+   "session_close_v2": false
   },
   "plugins": [],
   "profile": "simple",
@@ -1733,7 +1754,14 @@
   "offline": {
    "histories_v2": false,
    "near_duplicate_text": 0.8,
-   "reconcile_v2": false
+   "profile_allow_inferred": false,
+   "profile_alpha": 0.3,
+   "profile_card_v2": false,
+   "profile_kappa_p": 24,
+   "profile_max_chars": 2400,
+   "reconcile_v2": false,
+   "session_close_budget": 6000,
+   "session_close_v2": false
   },
   "plugins": [],
   "profile": "simple",
@@ -2263,7 +2291,14 @@
   "offline": {
    "histories_v2": false,
    "near_duplicate_text": 0.8,
-   "reconcile_v2": false
+   "profile_allow_inferred": false,
+   "profile_alpha": 0.3,
+   "profile_card_v2": false,
+   "profile_kappa_p": 24,
+   "profile_max_chars": 2400,
+   "reconcile_v2": false,
+   "session_close_budget": 6000,
+   "session_close_v2": false
   },
   "plugins": [],
   "profile": "simple",
@@ -2793,7 +2828,14 @@
   "offline": {
    "histories_v2": false,
    "near_duplicate_text": 0.8,
-   "reconcile_v2": false
+   "profile_allow_inferred": false,
+   "profile_alpha": 0.3,
+   "profile_card_v2": false,
+   "profile_kappa_p": 24,
+   "profile_max_chars": 2400,
+   "reconcile_v2": false,
+   "session_close_budget": 6000,
+   "session_close_v2": false
   },
   "plugins": [],
   "profile": "simple",
@@ -3323,7 +3365,14 @@
   "offline": {
    "histories_v2": false,
    "near_duplicate_text": 0.8,
-   "reconcile_v2": false
+   "profile_allow_inferred": false,
+   "profile_alpha": 0.3,
+   "profile_card_v2": false,
+   "profile_kappa_p": 24,
+   "profile_max_chars": 2400,
+   "reconcile_v2": false,
+   "session_close_budget": 6000,
+   "session_close_v2": false
   },
   "plugins": [],
   "profile": "simple",
@@ -3853,7 +3902,14 @@
   "offline": {
    "histories_v2": false,
    "near_duplicate_text": 0.8,
-   "reconcile_v2": false
+   "profile_allow_inferred": false,
+   "profile_alpha": 0.3,
+   "profile_card_v2": false,
+   "profile_kappa_p": 24,
+   "profile_max_chars": 2400,
+   "reconcile_v2": false,
+   "session_close_budget": 6000,
+   "session_close_v2": false
   },
   "plugins": [],
   "profile": "simple",
@@ -4383,7 +4439,14 @@
   "offline": {
    "histories_v2": false,
    "near_duplicate_text": 0.8,
-   "reconcile_v2": false
+   "profile_allow_inferred": false,
+   "profile_alpha": 0.3,
+   "profile_card_v2": false,
+   "profile_kappa_p": 24,
+   "profile_max_chars": 2400,
+   "reconcile_v2": false,
+   "session_close_budget": 6000,
+   "session_close_v2": false
   },
   "plugins": [],
   "profile": "assistant",
@@ -4913,7 +4976,14 @@
   "offline": {
    "histories_v2": false,
    "near_duplicate_text": 0.8,
-   "reconcile_v2": false
+   "profile_allow_inferred": false,
+   "profile_alpha": 0.3,
+   "profile_card_v2": false,
+   "profile_kappa_p": 24,
+   "profile_max_chars": 2400,
+   "reconcile_v2": false,
+   "session_close_budget": 6000,
+   "session_close_v2": false
   },
   "plugins": [],
   "profile": "simple",
@@ -5450,7 +5520,14 @@
   "offline": {
    "histories_v2": false,
    "near_duplicate_text": 0.8,
-   "reconcile_v2": false
+   "profile_allow_inferred": false,
+   "profile_alpha": 0.3,
+   "profile_card_v2": false,
+   "profile_kappa_p": 24,
+   "profile_max_chars": 2400,
+   "reconcile_v2": false,
+   "session_close_budget": 6000,
+   "session_close_v2": false
   },
   "plugins": [],
   "profile": "benchmark",
@@ -5987,7 +6064,14 @@
   "offline": {
    "histories_v2": false,
    "near_duplicate_text": 0.8,
-   "reconcile_v2": false
+   "profile_allow_inferred": false,
+   "profile_alpha": 0.3,
+   "profile_card_v2": false,
+   "profile_kappa_p": 24,
+   "profile_max_chars": 2400,
+   "reconcile_v2": false,
+   "session_close_budget": 6000,
+   "session_close_v2": false
   },
   "plugins": [],
   "profile": "coding",
@@ -6513,7 +6597,14 @@
   "offline": {
    "histories_v2": false,
    "near_duplicate_text": 0.8,
-   "reconcile_v2": false
+   "profile_allow_inferred": false,
+   "profile_alpha": 0.3,
+   "profile_card_v2": false,
+   "profile_kappa_p": 24,
+   "profile_max_chars": 2400,
+   "reconcile_v2": false,
+   "session_close_budget": 6000,
+   "session_close_v2": false
   },
   "plugins": [],
   "profile": "core",
@@ -7041,7 +7132,14 @@
   "offline": {
    "histories_v2": false,
    "near_duplicate_text": 0.8,
-   "reconcile_v2": false
+   "profile_allow_inferred": false,
+   "profile_alpha": 0.3,
+   "profile_card_v2": false,
+   "profile_kappa_p": 24,
+   "profile_max_chars": 2400,
+   "reconcile_v2": false,
+   "session_close_budget": 6000,
+   "session_close_v2": false
   },
   "plugins": [],
   "profile": "graph",
@@ -7575,7 +7673,14 @@
   "offline": {
    "histories_v2": false,
    "near_duplicate_text": 0.8,
-   "reconcile_v2": false
+   "profile_allow_inferred": false,
+   "profile_alpha": 0.3,
+   "profile_card_v2": false,
+   "profile_kappa_p": 24,
+   "profile_max_chars": 2400,
+   "reconcile_v2": false,
+   "session_close_budget": 6000,
+   "session_close_v2": false
   },
   "plugins": [],
   "profile": "multi_agent",
@@ -8113,7 +8218,14 @@
   "offline": {
    "histories_v2": false,
    "near_duplicate_text": 0.8,
-   "reconcile_v2": false
+   "profile_allow_inferred": false,
+   "profile_alpha": 0.3,
+   "profile_card_v2": false,
+   "profile_kappa_p": 24,
+   "profile_max_chars": 2400,
+   "reconcile_v2": false,
+   "session_close_budget": 6000,
+   "session_close_v2": false
   },
   "plugins": [],
   "profile": "personal",
@@ -8643,7 +8755,14 @@
   "offline": {
    "histories_v2": false,
    "near_duplicate_text": 0.8,
-   "reconcile_v2": false
+   "profile_allow_inferred": false,
+   "profile_alpha": 0.3,
+   "profile_card_v2": false,
+   "profile_kappa_p": 24,
+   "profile_max_chars": 2400,
+   "reconcile_v2": false,
+   "session_close_budget": 6000,
+   "session_close_v2": false
   },
   "plugins": [],
   "profile": "protected",
@@ -9174,7 +9293,14 @@
   "offline": {
    "histories_v2": false,
    "near_duplicate_text": 0.8,
-   "reconcile_v2": false
+   "profile_allow_inferred": false,
+   "profile_alpha": 0.3,
+   "profile_card_v2": false,
+   "profile_kappa_p": 24,
+   "profile_max_chars": 2400,
+   "reconcile_v2": false,
+   "session_close_budget": 6000,
+   "session_close_v2": false
   },
   "plugins": [],
   "profile": "regulated_financial",
@@ -9706,7 +9832,14 @@
   "offline": {
    "histories_v2": false,
    "near_duplicate_text": 0.8,
-   "reconcile_v2": false
+   "profile_allow_inferred": false,
+   "profile_alpha": 0.3,
+   "profile_card_v2": false,
+   "profile_kappa_p": 24,
+   "profile_max_chars": 2400,
+   "reconcile_v2": false,
+   "session_close_budget": 6000,
+   "session_close_v2": false
   },
   "plugins": [],
   "profile": "voice",

@@ -148,6 +148,34 @@ class SessionClosed:
 SessionCloseHandler = Callable[[SessionClosed], Awaitable[dict[str, object]]]
 
 
+#: O4-02: the call-2 model call: chat messages (stable prefix, data body) -> the raw reply.
+#: None => ``offline.session_close_v2`` has no LLM role to call and the stage reports ``skipped``.
+CloseCall = Callable[[list[dict[str, str]]], Awaitable[str]]
+
+
+class DepositSessionRecord(Protocol):
+    """O4-02: engine-side deposit of one call-2 record (a session summary or an episode) through
+    the derived-write door: (namespace, kind ``summary`` | ``episode``, text, parent ids,
+    valid_from, session id) plus the validated extras. Returns None when a parent is no longer
+    live (I72) or the record was refused; the deposit takes the namespace lock itself."""
+
+    def __call__(
+        self,
+        namespace: str,
+        kind: str,
+        text: str,
+        parents: list[str],
+        valid_from: datetime,
+        session_id: str,
+        *,
+        extends: str | None = None,
+        when_text: str | None = None,
+        participants: Sequence[str] = (),
+        idem_key: str = "",
+        folded: bool = False,
+    ) -> Awaitable[MemoryRecord | None]: ...
+
+
 class DepositFact(Protocol):
     """C6': engine-side deposit of one mined fact through the write door
     (namespace, text, entity, attribute, parent ids, event time, session key);
@@ -273,6 +301,10 @@ class PipelineContext:
     window_edges: WindowEdges | None = None
     #: W1 (call 2 interface): the session-closed handler. None => the stub.
     close_session: SessionCloseHandler | None = None
+    #: O4-02 (``offline.session_close_v2``): the call-2 model call and the record deposit. Either
+    #: None => the v2 close reports ``skipped`` and the stub runs as before.
+    close_call: CloseCall | None = None
+    deposit_session_record: DepositSessionRecord | None = None
 
 
 async def _parents_gone(

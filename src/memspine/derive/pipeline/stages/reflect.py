@@ -4,12 +4,24 @@ from __future__ import annotations
 
 from memspine.core.policies.consolidation import ConsolidationPolicy
 from memspine.derive.pipeline.stages.context import PipelineContext, _policy_options
+from memspine.derive.pipeline.stages.profile_card import profile_sleep
 from memspine.derive.pipeline.stages.session_stage import _legacy_tag_check, _run_session_stage
 from memspine.store.records import MemoryRecord
 
 
 async def reflect_profile(ctx: PipelineContext) -> dict[str, object]:
-    """H14: profile insights per consolidated session, once (done marker)."""
+    """H14: profile insights per consolidated session, once (done marker).
+
+    O4-07 (``offline.profile_card_v2``): the card upkeep (invalidation of forgotten support and the
+    reflection plan) runs first and its counts ride along under ``profile_card``."""
+    card = await profile_sleep(ctx) if ctx.config.offline.profile_card_v2 else None
+    stats = await _reflect_insights(ctx)
+    if card is not None:
+        stats = {**stats, "profile_card": card}
+    return stats
+
+
+async def _reflect_insights(ctx: PipelineContext) -> dict[str, object]:
     policy = ConsolidationPolicy.bind(_policy_options(ctx, "episodic", "consolidation"))
     if not getattr(policy.options, "reflect_profile", False):
         return {"status": "skipped", "reason": "consolidation.reflect_profile is off"}
