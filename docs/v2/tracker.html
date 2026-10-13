@@ -2836,8 +2836,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    ],
    "kind": "infra",
    "gate": "Every write and derive stage emits events; golden unchanged with tap off",
-   "status": "In progress",
-   "note": "Swarm: instrument write and derive paths",
+   "status": "Done",
+   "note": "Tap events on write path, windows, sleep stages, model calls; gap rules extended (b0a37df)",
    "layers": [
     "L0",
     "L1",
@@ -3387,8 +3387,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    ],
    "kind": "api",
    "gate": "Golden",
-   "status": "In progress",
-   "note": "Swarm 2026-10-13: wiring flag-off (agent running)",
+   "status": "Done",
+   "note": "Memory handle + open(); Engine moved to memspine.api.engine (no alias), engine 5566->4818; 7305 tests (22ab2d7)",
    "layers": [
     "L0",
     "L1",
@@ -3693,8 +3693,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    ],
    "kind": "migration",
    "gate": "Replay byte-stable; upcaster round-trips; golden unchanged",
-   "status": "Not started",
-   "note": "S2+S3; Q1",
+   "status": "In progress",
+   "note": "Foundations: envelope + Alembic (agent running)",
    "layers": [
     "L0",
     "L1",
@@ -3876,8 +3876,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    ],
    "kind": "behaviour",
    "gate": "Fault-injection tests; golden unchanged with barrier",
-   "status": "Not started",
-   "note": "S4; Q2",
+   "status": "In progress",
+   "note": "Foundations: durable outbox + inline runner (agent running, parallel with F-02a)",
    "layers": [
     "L0",
     "L1",
@@ -4037,8 +4037,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    ],
    "kind": "behaviour",
    "gate": "Every L1-L5 writer goes through the door; erasure contract test registered",
-   "status": "Not started",
-   "note": "",
+   "status": "In progress",
+   "note": "Foundations: lineage table + single derived-write door (agent running)",
    "layers": [
     "L0",
     "L1",
@@ -5136,8 +5136,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    ],
    "kind": "behaviour",
    "gate": "Identical outputs (cosine >= 0.999, same rank order) and a measured speed gain, else not adopted",
-   "status": "In progress",
-   "note": "Owner 2026-10-13: use both GPUs where it helps",
+   "status": "Dropped",
+   "note": "Measured negative (d0b65ac): AMD iGPU DirectML 5-8x slower than contended CPU, driver reset on bge-small; models stay on RTX 5080/CPU",
    "layers": [
     "L0",
     "L1"
