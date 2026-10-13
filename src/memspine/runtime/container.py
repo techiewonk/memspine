@@ -669,13 +669,65 @@ async def build_llm_router(config: MemspineConfig, hooks: WiringHooks) -> LLMRou
                 f"llm.roles.{role}.model is required — a LiteLLM model id "
                 "(e.g. openai/gpt-4o, ollama/llama3, bedrock/...) or llamacpp/<path>"
             )
+    role_configs = dict(config.llm.roles)
+    resolved = None
+    if config.models.tiers_v2:
+        resolved = _bind_tiered_roles(config, providers, role_configs)
     consent = config.consent
     if consent.remote_llm_max_tier is not None:
         # #50: a remote provider never sees text of records above the tier.
-        for role, role_config in config.llm.roles.items():
+        for role, role_config in role_configs.items():
             if not is_local_provider(role_config.model, role_config.api_base, consent.local_hosts):
                 providers[role] = TierGatedLLM(providers[role], hooks.withheld_texts)
-    return LLMRouter(providers)
+    router = LLMRouter(providers)
+    if resolved is not None:
+        from memspine.models.resolve import report
+
+        router.model_plan = report(resolved)
+    return router
+
+
+def _bind_tiered_roles(
+    config: MemspineConfig, providers: dict[str, LLMService], role_configs: dict[str, Any]
+) -> Any:
+    """MD-01 (``models.tiers_v2``): bind every engine role no ``llm.roles`` entry covers through the
+    tier plan. A role the plan cannot serve gets no provider, so its feature takes the role's
+    fallback (L1/L3/summaries off, rules, calibrated gate) and makes zero model calls. Explicit
+    ``llm.roles`` entries win and are left exactly as built above."""
+    from memspine.models.providers.llm.base import ThinkingCapped
+    from memspine.models.resolve import (
+        emit_taps,
+        resolve_models,
+        role_binding,
+        role_config,
+    )
+    from memspine.models.tiers import ROLE_CATALOGUE
+    from memspine.observability import tap
+    from memspine.prompts.roles import CATALOGUE_ROLE
+
+    extra = ("extract",) if config.write.window_extract != "off" else ()
+    resolved = resolve_models(config.models, extra_required=extra)
+    resolved.check()
+    spec_tokens = {r.name: r.max_tokens for r in ROLE_CATALOGUE}
+    for role in sorted(CATALOGUE_ROLE):
+        if role in config.llm.roles:
+            tap.event("models.resolve", role=role, status="explicit", source="llm.roles")
+            continue
+        rc = role_config(resolved, role)
+        if rc is None:
+            continue
+        provider = LLM_PROVIDERS.get(llm_provider_name(rc.model))(rc.model, rc)
+        b = role_binding(resolved, role)
+        if b is not None and b.thinking.mode == "capped":
+            provider = ThinkingCapped(
+                provider,
+                cap_tokens=b.thinking.cap_tokens,
+                max_tokens=spec_tokens[CATALOGUE_ROLE[role]],
+            )
+        providers[role] = provider
+        role_configs[role] = rc
+    emit_taps(resolved, tuple(r for r in sorted(CATALOGUE_ROLE) if r not in config.llm.roles))
+    return resolved
 
 
 async def provide_llm_router(

@@ -1,0 +1,463 @@
+"""MD-01: model tiers, placement, no-model fallbacks, device plan, thinking (wires LIB-42)."""
+
+from __future__ import annotations
+
+import random
+from types import SimpleNamespace
+from typing import Any
+
+import pytest
+
+from memspine import Engine
+from memspine.config.schema import MemspineConfig
+from memspine.config.schema.llm import GpuDecl, ModelDecl, ModelsConfig
+from memspine.exceptions import ConfigError
+from memspine.models.providers.llm.base import LLMRouter, ThinkingCapped
+from memspine.models.resolve import (
+    emit_taps,
+    rerank_chain,
+    resolve_models,
+    resolve_role,
+    role_config,
+)
+from memspine.models.tiers import ROLE_CATALOGUE
+from memspine.observability import tap
+from memspine.prompts.roles import CATALOGUE_ROLE, PROMPT_ROLES
+from memspine.runtime import container
+
+SMALL = ModelDecl(
+    id="ollama/small-3b", tier="small-local", vram_mb=2500, ram_mb=3000, context_vram_mb=500
+)
+NINE = ModelDecl(
+    id="ollama/nine-b",
+    tier="worker",
+    vram_mb=6500,
+    ram_mb=7000,
+    context_vram_mb=1000,
+    supports_thinking=True,
+)
+BIG = ModelDecl(id="openai/frontier", tier="frontier", hosted=True)
+RTX = GpuDecl(name="NVIDIA GeForce RTX 5080", vram_mb=16303)
+
+
+def _models(**kw: Any) -> ModelsConfig:
+    return ModelsConfig(tiers_v2=True, **kw)
+
+
+class _Hooks:
+    withheld_texts = None
+
+
+class _Stub:
+    def __init__(self, model: str) -> None:
+        self.model = model
+        self.calls = 0
+
+    @property
+    def provider_id(self) -> str:
+        return f"stub:{self.model}"
+
+    async def chat(self, messages: list[dict[str, str]], **options: Any) -> str:
+        self.calls += 1
+        return "{}"
+
+
+@pytest.fixture
+def stub_providers(monkeypatch: pytest.MonkeyPatch) -> list[_Stub]:
+    made: list[_Stub] = []
+
+    class _Registry:
+        def get(self, name: str) -> Any:
+            def factory(model: str, role: Any) -> _Stub:
+                made.append(_Stub(model))
+                return made[-1]
+
+            return factory
+
+    monkeypatch.setattr(container, "LLM_PROVIDERS", _Registry())
+    return made
+
+
+async def _build(cfg: MemspineConfig) -> LLMRouter:
+    return await container.build_llm_router(cfg, _Hooks())  # type: ignore[arg-type]
+
+
+# ---- flag off ----------
+
+
+async def test_default_is_off_and_config_roles_resolve_as_before(
+    stub_providers: list[_Stub],
+) -> None:
+    cfg = MemspineConfig(
+        llm={"roles": {"extract": {"model": "ollama/x"}}}, models={"catalogue": [NINE]}
+    )
+    assert cfg.models.tiers_v2 is False
+    router = await _build(cfg)
+    assert router.roles == ["extract"]  # the catalogue is ignored while the flag is off
+    assert router.model_plan is None
+    assert [s.model for s in stub_providers] == ["ollama/x"]
+
+
+# ---- each tier resolves ----------
+
+
+def test_each_tier_resolves_per_role() -> None:
+    r = resolve_models(
+        _models(
+            catalogue=[SMALL, NINE, BIG],
+            gpus=[RTX],
+            allow_hosted=True,
+            role_tier={"extract": "small-local", "judge": "worker", "chat": "frontier"},
+        )
+    )
+    ext = resolve_role(r, "window_extract")
+    assert (ext.status, ext.model_id, ext.tier) == ("bound", "ollama/small-3b", "small-local")
+    assert resolve_role(r, "judge").tier == "worker"
+    chat = resolve_role(r, "chat")
+    assert (chat.model_id, chat.tier, chat.device) == ("openai/frontier", "frontier", "remote")
+    # an engine role maps onto its catalogue role
+    assert resolve_role(r, "resolve_entity").catalogue_role == "resolve"
+    assert resolve_role(r, "no_such_role").status == "unmapped"
+
+
+def test_tier_none_turns_the_role_off_with_its_fallback() -> None:
+    r = resolve_models(_models(catalogue=[NINE], gpus=[RTX], role_tier={"extract": "none"}))
+    res = resolve_role(r, "window_extract")
+    assert res.status == "disabled" and res.fallback == "skip" and res.reason_code == "disabled"
+    assert resolve_role(r, "judge").status == "bound"  # the other roles still resolve
+
+
+def test_tier_without_a_declared_model_turns_the_role_off() -> None:
+    r = resolve_models(_models(catalogue=[SMALL], gpus=[RTX], role_tier={"judge": "frontier"}))
+    assert resolve_role(r, "judge").status == "disabled"
+    assert any("no declared model" in n for n in r.notes)
+
+
+def test_unknown_role_names_fail_the_check() -> None:
+    r = resolve_models(_models(role_tier={"bogus": "none"}, pins={"nope": "x"}))
+    with pytest.raises(ConfigError, match="unknown role"):
+        r.check()
+
+
+def test_hosted_model_is_refused_for_a_raw_turn_role() -> None:
+    r = resolve_models(
+        _models(catalogue=[BIG], allow_hosted=True, pins={"extract": "openai/frontier"})
+    )
+    with pytest.raises(ConfigError, match="must stay local"):
+        r.check()
+
+
+# ---- fallback (P-03) ----------
+
+
+def test_missing_required_role_fails_start_unless_degraded() -> None:
+    with pytest.raises(ConfigError, match="no model for role extract"):
+        resolve_models(_models(required_roles=["extract"])).check()
+    r = resolve_models(_models(required_roles=["extract"], on_missing_model="rules"))
+    r.check()
+    res = resolve_role(r, "window_extract")
+    assert (res.status, res.fallback) == ("fallback", "rules")
+    assert resolve_role(r, "extract_edges").fallback == "skip"
+    assert resolve_role(r, "relevance").fallback == "calibrated"
+
+
+async def test_window_extract_adds_the_extract_requirement(stub_providers: list[_Stub]) -> None:
+    cfg = MemspineConfig(models=_models(), write={"window_extract": "facts"})
+    with pytest.raises(ConfigError, match="extract"):
+        await _build(cfg)
+
+
+# ---- no-model template: zero calls ----------
+
+
+def _engine(models: ModelsConfig, **extra: Any) -> Engine:
+    return Engine(
+        template="core",
+        dotenv_path=None,
+        storage={"path": ":memory:"},
+        embedding={"provider": "hash"},
+        models=models,
+        **extra,
+    )
+
+
+async def test_no_model_template_makes_zero_calls_across_write_sleep_read(
+    stub_providers: list[_Stub],
+) -> None:
+    eng = _engine(
+        _models(on_missing_model="skip", role_tier={r.name: "none" for r in ROLE_CATALOGUE}),
+        memories={
+            "episodic": {
+                "enabled": True,
+                "policies": {"consolidation": {"mine_facts": True, "reflect_profile": True}},
+            },
+            "semantic": {"enabled": True},
+            "reflective": {"enabled": True},
+        },
+        read={"hybrid": False, "compose_rewrites": True},
+    )
+    await eng.start()
+    try:
+        msgs = [
+            {"role": "user", "content": c, "timestamp": f"2023-05-08T13:0{i}:00+00:00"}
+            for i, c in enumerate(["Ilse: I run every morning", "Ilse: no coffee after noon"])
+        ]
+        await eng.write("Ilse lives in Bergen", namespace="a", memory_type="semantic")
+        await eng.write_messages(msgs, namespace="a", session_id="s1", group_id="s1")
+        hits = await eng.read("How often does Ilse run?", namespace="a", mode="compose", top_k=2)
+        await eng.sleep()
+        assert hits is not None  # the legs returned (possibly empty) rather than erroring
+        assert eng.model_calls() == {}
+        assert stub_providers == []  # no provider was even built
+        assert eng.describe()["llm_roles"] == []
+        plan = eng.describe()["models"]
+        assert plan["layers"] == ["L0"]
+        assert all(r["status"] == "disabled" for r in plan["roles"])
+    finally:
+        await eng.stop()
+
+
+async def test_bound_roles_do_make_calls_counted_by_the_stub(stub_providers: list[_Stub]) -> None:
+    eng = _engine(
+        _models(catalogue=[NINE], gpus=[RTX], role_tier={"query_rewrite": "worker"}),
+        read={"hybrid": False, "compose_rewrites": True},
+    )
+    await eng.start()
+    try:
+        assert "query_rewrite" in eng.describe()["llm_roles"]
+        await eng.write("Ilse lives in Bergen", namespace="a", memory_type="semantic")
+        await eng.read("Where does Ilse live?", namespace="a", mode="compose", top_k=2)
+        assert sum(s.calls for s in stub_providers) == sum(eng.model_calls().values())
+        assert eng.model_calls().get("query_rewrite", 0) >= 1
+    finally:
+        await eng.stop()
+
+
+async def test_explicit_llm_roles_win_over_the_plan(stub_providers: list[_Stub]) -> None:
+    cfg = MemspineConfig(
+        llm={"roles": {"extract": {"model": "ollama/pinned"}}},
+        models=_models(catalogue=[NINE], gpus=[RTX]),
+    )
+    router = await _build(cfg)
+    assert router.provider("extract").model == "ollama/pinned"
+    assert router.provider("judge").model == "ollama/nine-b"
+
+
+# ---- placement (P-19) ----------
+
+
+def test_placement_never_exceeds_the_vram_budget() -> None:
+    rng = random.Random(7)
+    for _ in range(200):
+        llms = [
+            ModelDecl(
+                id=f"ollama/m{i}",
+                tier=rng.choice(["small-local", "worker", "frontier"]),
+                vram_mb=rng.randint(500, 14000),
+                ram_mb=rng.randint(500, 14000),
+                context_vram_mb=rng.randint(0, 2500),
+            )
+            for i in range(rng.randint(1, 4))
+        ]
+        rr = [
+            ModelDecl(
+                id=f"rr{i}", kind="reranker", family=f, vram_mb=rng.randint(500, 3000), ram_mb=500
+            )
+            for i, f in enumerate(["jina-v3.5", "qwen3-reranker-0.6b"])
+        ]
+        emb = [
+            ModelDecl(
+                id="e-gpu",
+                kind="embedder",
+                profile="gpu",
+                vram_mb=rng.randint(500, 5000),
+                placement="gpu",
+            ),
+            ModelDecl(id="e-cpu", kind="embedder", profile="cpu", ram_mb=500, placement="cpu"),
+        ]
+        gpu = GpuDecl(name="NVIDIA RTX", vram_mb=rng.choice([4096, 8192, 16303]))
+        r = resolve_models(_models(catalogue=[*llms, *rr, *emb], gpus=[gpu], ram_mb=32768))
+        for device, budget, used in r.plan.memory:
+            if budget:
+                assert used <= budget, (device, used, budget)
+        on_gpu = sum(p.mb for p in r.plan.placements if p.device.startswith("cuda"))
+        assert on_gpu <= gpu.vram_mb - 512
+
+
+def test_plan_needs_no_gpu_and_is_deterministic() -> None:
+    a = resolve_models(_models(catalogue=[SMALL, NINE], gpus=[RTX]))
+    b = resolve_models(_models(catalogue=[SMALL, NINE], gpus=[RTX]))
+    assert a.plan.to_dict() == b.plan.to_dict()
+    cpu_only = resolve_models(_models(catalogue=[NINE], ram_mb=16000))
+    assert {p.device for p in cpu_only.plan.placements if p.kind == "llm"} == {"cpu"}
+
+
+def test_igpu_is_ignored_only_cuda_is_planned() -> None:
+    amd = GpuDecl(name="AMD Radeon(TM) Graphics", vram_mb=2048)
+    r = resolve_models(_models(catalogue=[NINE], gpus=[amd]))
+    assert all(not p.device.startswith("cuda") for p in r.plan.placements)
+    assert any("ignored" in n for n in r.notes)
+    both = resolve_models(_models(catalogue=[SMALL], gpus=[amd, RTX]))
+    assert {p.device for p in both.plan.placements if p.kind == "llm"} == {"cuda:0"}
+
+
+def test_encoders_share_the_gpu_only_when_they_fit() -> None:
+    emb = ModelDecl(id="instr-0.6b", kind="embedder", profile="gpu", vram_mb=1500, placement="gpu")
+    cpu_emb = ModelDecl(
+        id="multi-onnx", kind="embedder", profile="cpu", ram_mb=500, placement="cpu"
+    )
+    roomy = resolve_models(_models(catalogue=[NINE, emb, cpu_emb], gpus=[RTX]))
+    assert (roomy.plan.reranker_device, roomy.plan.embedder_device) == ("cuda:0", "cuda:0")
+    tight = resolve_models(
+        _models(catalogue=[NINE, emb, cpu_emb], gpus=[GpuDecl(name="NVIDIA", vram_mb=9000)])
+    )
+    assert tight.plan.embedder == "multi-onnx" and tight.plan.embedder_device == "cpu"
+
+
+# ---- reranker chain ----------
+
+
+def test_reranker_chain_jina_then_qwen3_then_minilm_on_cpu() -> None:
+    r = resolve_models(_models(catalogue=[NINE], gpus=[RTX]))
+    assert rerank_chain(r) == [("jina", "cuda:0"), ("qwen3", "cuda:0"), ("fastembed", "cpu")]
+    assert r.plan.reranker == "jina-reranker-v3.5" and r.plan.rerank_gate == "always"
+
+
+def test_reranker_chain_without_gpu_is_minilm_on_cpu() -> None:
+    r = resolve_models(_models())
+    assert rerank_chain(r) == [("fastembed", "cpu")]
+    assert r.plan.rerank_gate == "gated"
+
+
+def test_reranker_chain_skips_what_does_not_fit_and_can_be_empty() -> None:
+    tight = resolve_models(_models(catalogue=[NINE], gpus=[GpuDecl(name="NVIDIA", vram_mb=9300)]))
+    assert [m for m, _ in rerank_chain(tight)] == ["fastembed"]
+    off = resolve_models(_models(catalogue=[NINE], gpus=[RTX], rerank="off"))
+    assert rerank_chain(off) == [] and off.plan.rerank_unscored
+
+
+async def test_chain_score_follows_the_plan_and_falls_back(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from memspine.read.pipeline import rerank as rr
+
+    built: list[tuple[str, str | None]] = []
+
+    class _RR:
+        def __init__(self, mode: str) -> None:
+            self.reranker_id = mode
+
+        async def rerank(self, query: str, documents: list[str]) -> list[float]:
+            return [float(len(d)) for d in documents]
+
+    def fake_build(settings: Any) -> Any:
+        built.append((settings.mode, settings.device))
+        return None if settings.mode == "jina" else _RR(settings.mode)
+
+    monkeypatch.setattr(rr, "build_reranker", fake_build)
+    cfg = MemspineConfig(models=_models(catalogue=[NINE], gpus=[RTX]))
+    eng = SimpleNamespace(_config=lambda: cfg, _rerank_calls=0, _rerank_failures=0)
+    scores, model, fallback, tried = await rr.chain_score(eng, "q", ["a", "bb"], cfg.read)
+    assert built == [("jina", "cuda:0"), ("qwen3", "cuda:0")]
+    assert (scores, model, fallback) == ([1.0, 2.0], "qwen3", "qwen3")
+    assert tried[0] == {"mode": "jina", "outcome": "unavailable"}
+
+
+async def test_chain_score_flag_off_uses_the_config_chain(monkeypatch: pytest.MonkeyPatch) -> None:
+    from memspine.read.pipeline import rerank as rr
+
+    built: list[str] = []
+    monkeypatch.setattr(rr, "build_reranker", lambda s: built.append(s.mode))
+    cfg = MemspineConfig()
+    eng = SimpleNamespace(_config=lambda: cfg, _rerank_calls=0, _rerank_failures=0)
+    scores, model, _, _ = await rr.chain_score(eng, "q", ["a"], cfg.read)
+    assert built == ["jina", "qwen3", "fastembed"] and scores == [None] and model is None
+
+
+# ---- thinking per role (P-15) ----------
+
+
+def test_thinking_is_off_by_default_for_every_role() -> None:
+    r = resolve_models(_models(catalogue=[NINE], gpus=[RTX]))
+    roles = [role for role in PROMPT_ROLES if role in CATALOGUE_ROLE]
+    assert {resolve_role(r, role).thinking for role in roles} == {"off"}
+    assert role_config(r, "judge").no_think is True  # a model that can think is switched off
+    only_small = resolve_models(_models(catalogue=[SMALL], gpus=[RTX]))
+    # judge needs a reader-class model
+    assert resolve_role(only_small, "judge").status == "fallback"
+
+
+def test_capped_thinking_only_for_judge_and_reflect() -> None:
+    r = resolve_models(
+        _models(
+            catalogue=[NINE],
+            gpus=[RTX],
+            thinking={"judge": 512, "reflect": 900, "chat": 300, "extract": 99},
+        )
+    )
+    judge, reflect = resolve_role(r, "judge"), resolve_role(r, "reflect")
+    assert (judge.thinking, judge.thinking_cap) == ("capped", 512)
+    assert (reflect.thinking, reflect.thinking_cap) == ("capped", 900)
+    assert resolve_role(r, "chat").thinking == "off"
+    assert resolve_role(r, "window_extract").thinking == "off"
+    assert role_config(r, "judge").no_think is False
+    assert role_config(r, "chat").no_think is True
+
+
+def test_capped_thinking_needs_a_model_that_can_think() -> None:
+    plain = ModelDecl(id="ollama/plain-9b", tier="worker", vram_mb=6000)
+    r = resolve_models(_models(catalogue=[plain], gpus=[RTX], thinking={"judge": 512}))
+    res = resolve_role(r, "judge")
+    assert res.thinking == "off" and res.reason_code == "thinking_not_applied"
+    assert role_config(r, "judge").no_think is None
+
+
+async def test_router_wraps_a_capped_role_and_leaves_others(stub_providers: list[_Stub]) -> None:
+    cfg = MemspineConfig(models=_models(catalogue=[NINE], gpus=[RTX], thinking={"judge": 512}))
+    router = await _build(cfg)
+    judge = router.provider("judge")
+    assert isinstance(judge, ThinkingCapped) and judge.cap_tokens == 512
+    assert not isinstance(router.provider("chat"), ThinkingCapped)
+
+
+async def test_thinking_cap_sets_the_reply_budget() -> None:
+    seen: dict[str, Any] = {}
+
+    class _Inner(_Stub):
+        async def chat(self, messages: list[dict[str, str]], **options: Any) -> str:
+            seen.update(options)
+            return "ok"
+
+    capped = ThinkingCapped(_Inner("m"), cap_tokens=512, max_tokens=512)
+    await capped.chat([])
+    assert seen["max_tokens"] == 1024
+    await capped.chat([], max_tokens=64)
+    assert seen["max_tokens"] == 64
+    assert capped.model == "m"
+
+
+# ---- taps ----------
+
+
+def test_taps_report_resolve_and_placement(monkeypatch: pytest.MonkeyPatch) -> None:
+    events: list[tuple[str, dict[str, Any]]] = []
+    monkeypatch.setattr(tap, "enabled", lambda: True)
+    monkeypatch.setattr(tap, "event", lambda stage, /, **f: events.append((stage, f)))
+    r = resolve_models(_models(catalogue=[NINE], gpus=[RTX], role_tier={"extract": "none"}))
+    emit_taps(r, ("window_extract", "judge"))
+    assert [s for s, _ in events] == ["models.placement", "models.resolve", "models.resolve"]
+    placement = events[0][1]
+    assert placement["devices"][0]["device"] == "cuda:0"
+    assert placement["devices"][0]["used_mb"] <= placement["devices"][0]["budget_mb"]
+    ext, judge = events[1][1], events[2][1]
+    assert (ext["status"], ext["fallback"], ext["fallback_reason"]) == (
+        "disabled",
+        "skip",
+        "disabled",
+    )
+    assert (judge["model"], judge["device"], judge["thinking"], judge["tier"]) == (
+        "ollama/nine-b",
+        "cuda:0",
+        "off",
+        "worker",
+    )

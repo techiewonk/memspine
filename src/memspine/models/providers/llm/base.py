@@ -21,7 +21,15 @@ from memspine.observability import tap
 from memspine.observability.logging import get_logger
 from memspine.observability.usage import UsageLedger
 
-__all__ = ["ROLE_CHAT", "ROLE_EXTRACT", "ROLE_JUDGE", "LLMRouter", "LLMService", "lenient_json"]
+__all__ = [
+    "ROLE_CHAT",
+    "ROLE_EXTRACT",
+    "ROLE_JUDGE",
+    "LLMRouter",
+    "LLMService",
+    "ThinkingCapped",
+    "lenient_json",
+]
 
 ROLE_EXTRACT = "extract"
 ROLE_JUDGE = "judge"
@@ -169,8 +177,35 @@ class _Counted:
         return f"_Counted(role={self._role!r}, inner={self._inner!r})"
 
 
+class ThinkingCapped:
+    """MD-01 (P-15): a provider whose reply budget is bounded when thinking is on. A call that sets
+    no ``max_tokens`` gets ``max_tokens + cap``: the answer budget plus the thinking cap. Everything
+    else (``model``, ``usage_totals``, ...) is the wrapped provider's."""
+
+    def __init__(self, inner: LLMService, *, cap_tokens: int, max_tokens: int) -> None:
+        self._inner = inner
+        self.cap_tokens = cap_tokens
+        self._budget = max_tokens + cap_tokens
+
+    @property
+    def provider_id(self) -> str:
+        return self._inner.provider_id
+
+    async def chat(self, messages: list[dict[str, str]], **options: Any) -> str:
+        options.setdefault("max_tokens", self._budget)
+        return await self._inner.chat(messages, **options)
+
+    def __getattr__(self, name: str) -> Any:
+        if name.startswith("__") or name == "_inner":
+            raise AttributeError(name)
+        return getattr(self._inner, name)
+
+
 class LLMRouter:
     """Role -> provider table resolved from config at engine start."""
+
+    #: MD-01: the resolved model plan when ``models.tiers_v2`` built this router, else None.
+    model_plan: Any = None
 
     def __init__(self, providers: dict[str, LLMService]) -> None:
         self._providers = providers

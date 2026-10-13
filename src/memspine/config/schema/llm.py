@@ -104,6 +104,92 @@ class LLMConfig(BaseModel):
     structured: StructuredConfig = Field(default_factory=StructuredConfig)
 
 
+TierName = Literal["none", "small-local", "worker", "frontier"]
+
+
+class ModelDecl(BaseModel):
+    """MD-01: one model the deployment declares, with the memory it needs. The device plan is
+    computed from these declared sizes alone (no GPU, no download). ``id`` is the LiteLLM model id
+    for an ``llm`` (``ollama/qwen3.5:9b``, ``llamacpp/<path>``), else a free name; ``family`` names
+    a reranker (``jina-v3.5`` | ``qwen3-reranker-0.6b`` | ``minilm``)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    kind: Literal["llm", "reranker", "embedder"] = "llm"
+    #: llm only. none = serves no role; small-local = 1-4B worker class; worker = today's 9B class;
+    #: frontier = large local or hosted.
+    tier: TierName = "worker"
+    #: Empty = the prefix of ``id`` (``ollama``, ``openai``), else ``local``.
+    provider: str = ""
+    family: str = ""
+    hosted: bool = False
+    vram_mb: int = Field(default=0, ge=0)
+    ram_mb: int = Field(default=0, ge=0)
+    #: llm: memory reserved for the context window, added to whichever device hosts it (P-19).
+    context_vram_mb: int = Field(default=0, ge=0)
+    #: Where it may run: ``any`` (GPU if it fits, else CPU) | ``gpu`` | ``cpu``.
+    placement: Literal["any", "gpu", "cpu"] = "any"
+    supports_thinking: bool = False
+    #: embedder only: ``cpu`` (default multilingual) | ``gpu`` (instruction embedder).
+    profile: str = ""
+    api_base: str | None = None
+    api_key: str | None = None
+    aws_region: str | None = None
+    timeout_seconds: float = 60.0
+
+
+class GpuDecl(BaseModel):
+    """MD-01: one declared CUDA device. Only CUDA is planned (MD-03: the AMD iGPU through DirectML
+    is 5-8x slower than the CPU and resets the driver), so a non-NVIDIA name is ignored."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = "cuda"
+    vram_mb: int = Field(ge=0)
+
+
+class ModelsConfig(BaseModel):
+    """MD-01 (P-01, P-02, P-03, P-15, P-19): model tiers, placement, no-model fallbacks and thinking
+    per role. ``tiers_v2`` off (default) = roles resolve exactly as before, from ``llm.roles``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    #: Roles resolve through tier, placement and fallback (``memspine.models.resolve``). A role with
+    #: an explicit ``llm.roles`` entry keeps it (explicit wins). Taps: ``models.resolve``,
+    #: ``models.placement``.
+    tiers_v2: bool = False
+    #: Declared models (any mix of llm / reranker / embedder) with their memory estimates.
+    catalogue: list[ModelDecl] = Field(default_factory=list)
+    #: Declared CUDA devices; empty = CPU only. A name that is not NVIDIA is ignored.
+    gpus: list[GpuDecl] = Field(default_factory=list)
+    #: Also probe ``nvidia-smi`` for CUDA devices (adds to ``gpus`` when none is declared).
+    detect_gpus: bool = False
+    #: Host RAM budget for CPU placement; 0 = not checked.
+    ram_mb: int = Field(default=0, ge=0)
+    #: VRAM kept free on every GPU.
+    gpu_headroom_mb: int = Field(default=512, ge=0)
+    #: ``shipped``: add the shipped reranker chain (Jina v3.5, Qwen3-Reranker-0.6B, MiniLM CPU) to
+    #: the catalogue
+    #: when no reranker is declared, with estimated sizes.
+    default_rerankers: Literal["shipped", "none"] = "shipped"
+    rerank: Literal["chain", "off"] = "chain"
+    embedder_profile: Literal["auto", "cpu", "gpu"] = "auto"
+    #: Per catalogue role: the tier it runs on. ``none`` turns the role off (the no-model path);
+    #: otherwise the smallest declared model at that tier or above serves it.
+    role_tier: dict[str, TierName] = Field(default_factory=dict)
+    #: Per catalogue role: a declared model id (wins over tier choice).
+    pins: dict[str, str] = Field(default_factory=dict)
+    #: Hosted models may serve roles that are marked hosted-ok (reader side, tier-gated; P-02).
+    allow_hosted: bool = False
+    #: Catalogue roles whose absence is an error when ``on_missing_model`` is ``error``.
+    required_roles: list[str] = Field(default_factory=list)
+    on_missing_model: Literal["error", "rules", "skip"] = "error"
+    #: P-15: role -> capped thinking token budget; honoured only for judge / reflect (background
+    #: roles where a wrong decision persists). Every other role stays thinking off.
+    thinking: dict[str, int] = Field(default_factory=dict)
+
+
 class PromptsConfig(BaseModel):
     """User prompt customization (D-43): per-prompt overrides that ride the
     ordinary config layering. Keys under an override: body / system / format /
