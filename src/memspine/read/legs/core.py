@@ -78,6 +78,9 @@ class LegContext:
     #: the newest record time, for a yearless date in the question
     year_ref: datetime | None = None
     week: str = "calendar"
+    #: W2-14: weight happened-interval hits by the precision of their period
+    #: (``read.temporal_precision_aware``)
+    precision_aware: bool = False
     #: ``None`` when no embedder is up: the vector leg then reports ``no_embedder``
     vector_search: Callable[[int], Awaitable[Sequence[Any]]] | None = None
     #: R3-05c: which layers hold live records (``store.layer_registry.LayerRegistry``); ``None``

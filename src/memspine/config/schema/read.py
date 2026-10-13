@@ -831,6 +831,12 @@ class ReadConfig(BaseModel):
     #: window, no embedder) reports a reason and returns nothing; it is never an error. Off: the
     #: current legs, unchanged.
     legs_v2: bool = False
+    #: W2-14 (R-07, M-10; needs ``legs_v2``): the ``temporal`` leg reads the precision the write path
+    #: stored. A ``happened:`` interval is a stated period (a year-precision fact spans the year): it
+    #: still matches any window that overlaps it, but its score is weighted by how much of it the
+    #: window covers, so a day-precision fact outranks a year-precision one for a day question.
+    #: Validity intervals (a state that held for a while) are not weighted. Off: unchanged.
+    temporal_precision_aware: bool = False
     #: R3-04 (R-06): the scorer behind the ``lexical`` leg under ``legs_v2``. Only ``bm25`` is
     #: implemented; another scorer (for example a word-vector one) registers through
     #: ``memspine.read.legs.register_scorer`` and is then named here.
