@@ -296,6 +296,27 @@ class WriteConfig(BaseModel):
     #: returned.
     echo_threshold: float = Field(default=0.6, gt=0.0, le=1.0)
 
+    #: R14-INDEXVIEW (OBS-02/03/09/11, R14-M-4, R14-M-5): an index text per turn record, apart from
+    #: its display text. ``True``: the embedder and the lexical index see the turn's text behind a
+    #: deterministic prefix (no model call): the speaker's name, the turn's own absolute date with
+    #: month and weekday words, each relative-date expression resolved to a calendar date from the
+    #: turn's own timestamp (never the system clock; an undated turn gets no date words), the
+    #: participants' names behind a bare we / they / you, and, when the turn is elliptical (rule
+    #: score at least ``index_view_elliptical_threshold``: short, starts with a pronoun or assent
+    #: word, no content noun), the content words of the previous turn of the call. The record, its
+    #: id, order and display text are unchanged; the text rides in the WRITE event payload
+    #: (``index_text``), so no schema change; a rebuild re-embeds the same text. Needs a re-ingest.
+    #: ``False`` (default): the index sees the content only, event payloads byte-identical.
+    index_view: bool = False
+    #: R14-INDEXVIEW: most extra whitespace tokens the prefix may add to a turn (previous-turn words
+    #: are cut first).
+    index_view_max_extra_tokens: int = Field(default=48, ge=1, le=512)
+    #: R14-INDEXVIEW: a turn of at most this many words meets the "short" rule of the gate.
+    index_view_elliptical_max_words: int = Field(default=8, ge=1, le=64)
+    #: R14-INDEXVIEW: rules (of 3: short, pronoun/assent start, no content noun) a turn must meet to
+    #: be treated as elliptical.
+    index_view_elliptical_threshold: int = Field(default=2, ge=1, le=3)
+
     #: O4-11 (LIB-44, O-25): explicit feedback only. ``True``: ``Engine.feedback`` refuses any
     #: channel that is not a deliberate one (``user_message``, ``ui_control``, ``operator_edit``,
     #: ``api``; silence, dwell, regeneration and classifier signals are refused), checks who may
