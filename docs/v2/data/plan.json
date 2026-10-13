@@ -4912,7 +4912,7 @@
    "kind": "behaviour",
    "gate": "Off by default; on-arm screen",
    "status": "Needs measurement",
-   "note": "write.asset_describer off|ingest|on_read; metadata fallback; vision path untested vs real model",
+   "note": "write.asset_describer + FU-ASSET: on_read from every viewer-guarded read verb",
    "layers": [
     "L0"
    ],
