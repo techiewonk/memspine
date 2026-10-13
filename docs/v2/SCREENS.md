@@ -462,3 +462,7 @@ change is flag-gated (flags off, the order and behaviour are unchanged).
   stays on the gc3 base (no window-facts base needed). Its groups are (source entity, relation), valued by the edge sentence.
 
 **Now meaningful (re-queue):** S33, S34, S35, S40, S46 (was skipped; its session-close leg now runs, and the card ops need the model to return ops), S61, S64, and S31 for the L2 source. Run the new tests with `evals/tests/test_fx_eval_adapter.py` and `tests/unit/wiring/test_fx_eval_order.py`.
+
+## Targeted relaunch, 2026-10-13 23:25
+
+Queue restarted at commit 87c2bd1c (FX-EVAL + FX-READPATH + FAIL-SLICE) with every row on its targeted slice from `evals/v2_slice_map.tsv`, ordered by LoCoMo recoverable upper bound (LOCOMO_PROBLEM_MAP): S60, S63, S64, S34, S35, S40, S61, S67, S14, S31, S33, S55, S56, S62, S38, S19, S10, S53, S54, S57, S65, S66, S41, S42. Read each targeted row by `tgt_rec` (target questions recovered) and `ctl_lost` (controls lost), not overall accuracy. Left out: S46 (no read consumer), S36/S37 (S10 and the bundles cover them), S43-S45/S48-S50 (covered by S62), S47 (parity by design), S23/S24 (skipped), S51 (focus run after S14's targeted result).
