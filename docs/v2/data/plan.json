@@ -4043,7 +4043,7 @@
    "kind": "behaviour",
    "gate": "Isolation probes",
    "status": "Needs measurement",
-   "note": "isolation.scope_keys_v2 / viewer_required flag-off; isolation probes pass; I19 leakage screen pending",
+   "note": "isolation.scope_keys_v2 / viewer_required + isolation.owner_bound_handles (Ilse/Bram decision: principal must own a single-owner namespace; default off)",
    "layers": [
     "L0",
     "L1",
@@ -4670,8 +4670,8 @@
    ],
    "kind": "behaviour",
    "gate": "No-model template: zero calls; window arm screen",
-   "status": "In progress",
-   "note": "Sonnet agent launched",
+   "status": "Needs measurement",
+   "note": "OnlineExtractor entry; stage notes in window stats; read.wait_for_pending_s barrier; no-model template 0 calls; KNOWN from pre-pass + resolver; window-arm screen pending",
    "layers": [
     "L1",
     "L3"
