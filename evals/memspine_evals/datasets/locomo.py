@@ -42,11 +42,50 @@ CAT5_PROTOCOL_NOTE = (
 )
 
 
-def _evidence_text(conversation: dict[str, Any], evidence: list[str]) -> str:
+def conversation_turn_ids(conversation: dict[str, Any]) -> set[str]:
+    """Every ``D<session>:<n>`` id the conversation holds (the existence check for evidence)."""
+    out: set[str] = set()
+    for key, turns in conversation.items():
+        match = _SESSION.match(key)
+        if match and isinstance(turns, list):
+            out.update(f"D{match.group(1)}:{i}" for i in range(1, len(turns) + 1))
+            out.update(str(t["dia_id"]) for t in turns if isinstance(t, dict) and t.get("dia_id"))
+    return out
+
+
+def parse_evidence_ids(
+    evidence: list[str], conversation: dict[str, Any] | None = None
+) -> list[str]:
+    """R14-M-19: the strict evidence parser. Splits each raw string on ``;`` / ``,`` AND whitespace
+    (``"D9:1 D4:4 D4:6"`` is three ids), repairs a stray colon (``"D:11:26"``) and leading zeros,
+    drops fragments that are no id (``"D"``), drops duplicates, and, when ``conversation`` is given,
+    keeps only ids that name an existing turn of it (the existence check). Order is first seen."""
+    if conversation is None:
+        out = []
+        for raw in evidence:
+            for tok in re.split(r"[;,\s]+", str(raw).strip()):
+                m = re.match(r"^D:?(\d+):(\d+)$", tok.strip(), re.I)
+                if m:
+                    out.append(f"D{int(m.group(1))}:{int(m.group(2))}")
+        return list(dict.fromkeys(out))
+    from ..evidence import normalise_evidence
+
+    return list(normalise_evidence(list(evidence), conversation_turn_ids(conversation)).resolved_ids)
+
+
+def _evidence_text(
+    conversation: dict[str, Any], evidence: list[str], *, repair: bool = False
+) -> str:
     """Evidence ids -> one ``Speaker`` + full-width colon + ``text`` line each, as
-    LoCoMo-Plus's ``_evidence_to_text`` builds the judge's evidence (raw text, no caption)."""
+    LoCoMo-Plus's ``_evidence_to_text`` builds the judge's evidence (raw text, no caption).
+    ``repair`` (R14-M-19) reads the ids through ``parse_evidence_ids`` instead of the raw split."""
     lines = []
-    for evid in (part.strip() for e in evidence for part in e.split(";")):
+    ids = (
+        parse_evidence_ids(evidence, conversation)
+        if repair
+        else [part.strip() for e in evidence for part in e.split(";")]
+    )
+    for evid in ids:
         match = _DIA.match(evid)
         turns = (conversation.get(f"session_{match.group(1)}") or []) if match else []
         index = int(match.group(2)) - 1 if match else -1
@@ -108,7 +147,11 @@ class LoCoMoDataset:
         licence: str = "see LoCoMo release (check before publishing a number)",
         subset: str = "full",
         categories: tuple[int, ...] | None = None,
+        repair_evidence: bool = False,
     ) -> None:
+        #: R14-M-19: gold turn ids via the strict parser (whitespace lists, stray colon, existence
+        #: check). Off by default: the official labels stay as the file holds them.
+        self.repair_evidence = repair_evidence
         self.path = Path(path)
         if not self.path.exists():
             raise FileNotFoundError(
@@ -134,9 +177,12 @@ class LoCoMoDataset:
             content_sha256=self._sha,
             n_items=len(self._items),
             n_queries=sum(len(item.queries) for item in self._items),
-            subset=self.subset
-            if self.categories is None
-            else f"{self.subset}+cat{'/'.join(map(str, self.categories))}",
+            subset=(
+                self.subset
+                if self.categories is None
+                else f"{self.subset}+cat{'/'.join(map(str, self.categories))}"
+            )
+            + ("+evidence-repaired" if self.repair_evidence else ""),
             notes=CAT5_PROTOCOL_NOTE,
             shape=DataShape(
                 has_timestamps=True,
@@ -194,7 +240,9 @@ class LoCoMoDataset:
                     "category": category,
                     "adversarial": adversarial,
                     "abstention": adversarial,
-                    "judge_evidence": _evidence_text(conversation, evidence),
+                    "judge_evidence": _evidence_text(
+                        conversation, evidence, repair=self.repair_evidence
+                    ),
                 }
                 if adversarial:
                     # R3-1: cat 5 is unanswerable by construction. Its
@@ -208,7 +256,11 @@ class LoCoMoDataset:
                 else:
                     answer = qa.get("answer")
                     gold = None if answer is None else str(answer)
-                    gold_turns = tuple(evidence)
+                    gold_turns = (
+                        tuple(parse_evidence_ids(evidence, conversation))
+                        if self.repair_evidence
+                        else tuple(evidence)
+                    )
                 queries.append(
                     Query(
                         query_id=f"{index}-{q_index}",
