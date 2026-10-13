@@ -25,6 +25,7 @@ from __future__ import annotations
 import argparse
 import csv
 import os
+import re
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -34,8 +35,10 @@ DECISIONS = ("promote_candidate", "drop", "iterate")
 COLUMNS = (
     "ts", "mode", "screen", "arm", "arm_digest", "reference", "commit", "slice_id", "slice_hash", "n",
     "wins", "losses", "ties", "net", "delta", "ci_low", "ci_high", "per_category", "cost", "latency_p50_ms",
-    "latency_p95_ms", "comparability_key", "verdict", "notes",
+    "latency_p95_ms", "comparability_key", "verdict", "notes", "tgt_rec", "ctl_lost",
 )
+# tgt_rec / ctl_lost (FAIL-SLICE) are filled only for targeted slices ("recovered/wrong targets", "lost/controls"); a ledger file
+# written before they existed keeps its old header, and the two values then travel in ``notes`` (see ``append``).
 NUMERIC = ("n", "wins", "losses", "ties", "net", "delta", "ci_low", "ci_high")
 
 
@@ -64,10 +67,17 @@ def append(row: dict, path: Path | None = None) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     new = not path.exists() or path.stat().st_size == 0
     full = {"ts": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"), **row}
+    cols = COLUMNS
+    if not new:  # never rewrite an existing file: follow its header; columns it lacks are folded into notes
+        with path.open(encoding="utf-8", newline="") as f:
+            cols = tuple(f.readline().rstrip("\r\n").split("\t")) or COLUMNS
+        extra = [f"{c}={full[c]}" for c in COLUMNS if c not in cols and full.get(c)]
+        if extra:
+            full["notes"] = (str(full.get("notes", "")) + " | " + " ".join(extra)).strip(" |")
     with path.open("a", encoding="utf-8", newline="") as f:
         if new:
             f.write("\t".join(COLUMNS) + "\n")
-        f.write("\t".join(_clean(full.get(c, "")) for c in COLUMNS) + "\n")
+        f.write("\t".join(_clean(full.get(c, "")) for c in cols) + "\n")
 
 
 def append_paired(r, *, mode: str, screen: str, arm: str, reference: str, commit: str = "", slice_id: str = "",
@@ -144,11 +154,21 @@ def history(rows: list[dict], screen: str, mode: str | None = None) -> list[dict
     return [r for r in rows if r["screen"] == screen and (not mode or r["mode"] == mode)]
 
 
+def _tgt(r: dict, key: str) -> str:
+    """tgt_rec / ctl_lost of a row: its own column, else the value folded into notes by an older ledger header."""
+    v = r.get(key)
+    if v:
+        return v
+    m = re.search(rf"\b{key}=(\d+/\d+)", r.get("notes") or "")
+    return m.group(1) if m else ""
+
+
 def _fmt(r: dict, dec: dict[str, dict]) -> str:
     d = dec.get(r["screen"], {}).get("decision", "-")
+    tl = f" tgt_rec {_tgt(r, 'tgt_rec'):>6s} ctl_lost {_tgt(r, 'ctl_lost'):>6s}" if _tgt(r, "tgt_rec") else ""
     return (f"{r['screen']:5s} {r['mode']:6s} {r['arm'][:34]:34s} n={r['n']:>4s} +{r['wins']}/-{r['losses']}/={r['ties']} "
             f"net {r['net']:>4s} d {_num(r, 'delta'):+6.2f} [{_num(r, 'ci_low'):+.2f},{_num(r, 'ci_high'):+.2f}] "
-            f"{r['slice_id'][:24]:24s} {r['commit'][:7]} {d:17s} {r['ts']}")
+            f"{r['slice_id'][:24]:24s} {r['commit'][:7]} {d:17s} {r['ts']}{tl}")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -187,6 +207,7 @@ def main(argv: list[str] | None = None) -> int:
     dec = decisions()
     if a.cmd == "summary":
         print("DESCRIPTIVE results; sample rows never carry a PROMOTE verdict. Best net first.")
+        print("Targeted slices (fail_*) are NOT overall accuracy: read tgt_rec (target-class recovered / wrong targets) and ctl_lost (controls lost / controls).")
         for r in summary(rows, a.mode, a.sort):
             print(_fmt(r, dec))
     else:

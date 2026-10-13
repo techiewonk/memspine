@@ -22,6 +22,7 @@
 #   --commit REV                   commit the whole queue is pinned to (default: HEAD). Never change it mid-queue.
 #   --rerun                        run screens again even if the state file says they finished
 #   --reexpose REASON              pass through to eval_blind.py; WITHOUT it a sealed blind set is never scored twice
+#   V2_SLICE_MAP=path|''           FAIL-SLICE: per-screen targeted slices (default evals/v2_slice_map.tsv; empty = off, random sample slices only)
 #   REF_OVERRIDE=f-jref3-i2        replace the default LoCoMo focus reference f-jref2-i2 (use after INCOMPARABLE)
 #   QUEUE_SKIP_BLIND=1             stop every screen before its blind set
 #
@@ -180,25 +181,40 @@ ensure_ref() {  # ensure_ref <set> <slice>: REFARM/REFKIND already set -> REFRUN
   say "building reference $REFRUN once (reference arm $REFARM, commit ${commit:0:8}, slice $sid)"
   sample_run "$REFARM" "$REFRUN" "$set" "$sl" "$sn" "$REFKIND" || { say "reference $REFRUN FAILED"; unset 'REFSEEN[$REFRUN]'; return 1; }
 }
+slices_for() {  # slices_for <screen> <set> <kind> <default slice>: one slice path per line (FAIL-SLICE: evals/v2_slice_map.tsv)
+  local f="${V2_SLICE_MAP-$here/v2_slice_map.tsv}" out=""
+  if [ -n "$f" ] && [ -f "$f" ]; then
+    out="$(awk -F'	' -v id="$1" -v s="$2" -v k="$3" '{gsub(//,"")} /^#/||NF<3{next} $1==id&&$2==s{p=$3; if(k=="GC"&&$4!="")p=$4; print p}' "$f")"
+  fi
+  if [ -n "$out" ]; then printf '%s
+' "$out"; else printf '%s
+' "$4"; fi
+}
 sample_row() {  # sample_row <id> <arm> <ref> <kind> <sets>: descriptive only, never a verdict, never a blind set
-  local id=$1 arm=$2 ref=$3 kind=$4 sets=$5 set sl sn sid rid out
+  local id=$1 arm=$2 ref=$3 kind=$4 sets=$5 set sl sn sid rid out dflt tag
   ref_spec "$ref"
   for set in loc opb; do
     case "$set:$sets" in loc:*[fF]*|opb:*o*) ;; *) continue ;; esac
-    if [ "$set" = loc ]; then sl="$SLICE_LOC"; [ "$kind" = GC ] && sl="$SLICE_LOC_GC"; else sl="$SLICE_OPB"; fi
-    sn="$(slice_field "$sl" n)"; sid="$(slice_field "$sl" slice_id)"
-    ensure_ref "$set" "$sl" || { SUMMARY="$SUMMARY $set=REF_FAILED"; continue; }
-    rid="smp-$id-$set-$STAMP"
-    say "$id sample $set: $arm on $sid (n=$sn) vs $REFRUN"
-    if ! sample_run "$arm" "$rid" "$set" "$sl" "$sn" "$kind"; then
-      SUMMARY="$SUMMARY $set=RUN_FAILED"
-      pr v2_py.sh v2_ledger.py record --mode sample --screen "$id" --arm "$arm" --reference "$REFRUN" --commit "${commit:0:7}" --slice-id "$sid" --verdict RUN_FAILED
-      continue
-    fi
-    out="$(mktemp)"
-    pr v2_py.sh eval_sample.py "$rid" --ref "$REFRUN" --set "$set" --slice "$sl" --screen "$id" --arm "$arm" --arm-file "arms/$arm.json" --commit "${commit:0:7}" --mode sample > "$out" 2>&1 || true
-    if [ -z "$dry" ]; then tee -a "$LOG" < "$out"; fi
-    SUMMARY="$SUMMARY $set=DESCRIPTIVE"
+    if [ "$set" = loc ]; then dflt="$SLICE_LOC"; [ "$kind" = GC ] && dflt="$SLICE_LOC_GC"; else dflt="$SLICE_OPB"; fi
+    # a per-row targeted slice (evals/v2_slice_map.tsv) replaces the random sample slice of the LoCoMo set; no row = old behaviour
+    local slist; slist="$(slices_for "$id" "$set" "$kind" "$dflt")"
+    while IFS= read -r sl; do
+      [ -n "$sl" ] || continue
+      sn="$(slice_field "$sl" n)"; sid="$(slice_field "$sl" slice_id)"; tag=""
+      rid="smp-$id-$set-$STAMP"
+      if [ "$sl" != "$dflt" ]; then tag="$(slice_field "$sl" family)"; rid="smp-$id-tgt-$tag-$STAMP"; fi
+      ensure_ref "$set" "$sl" || { SUMMARY="$SUMMARY $set=REF_FAILED"; continue; }
+      say "$id sample $set: $arm on $sid (n=$sn${tag:+, targeted $tag}) vs $REFRUN"
+      if ! sample_run "$arm" "$rid" "$set" "$sl" "$sn" "$kind"; then
+        SUMMARY="$SUMMARY $set=RUN_FAILED"
+        pr v2_py.sh v2_ledger.py record --mode sample --screen "$id" --arm "$arm" --reference "$REFRUN" --commit "${commit:0:7}" --slice-id "$sid" --verdict RUN_FAILED
+        continue
+      fi
+      out="$(mktemp)"
+      pr v2_py.sh eval_sample.py "$rid" --ref "$REFRUN" --set "$set" --slice "$sl" --screen "$id" --arm "$arm" --arm-file "arms/$arm.json" --commit "${commit:0:7}" --mode sample > "$out" 2>&1 || true
+      if [ -z "$dry" ]; then tee -a "$LOG" < "$out"; fi
+      SUMMARY="$SUMMARY $set${tag:+:$tag}=DESCRIPTIVE"
+    done <<< "$slist"
   done
 }
 decision_of() { [ -f "$DECISIONS" ] && awk -F'\t' -v id="$1" 'NR>1 && $2==id{d=$3} END{print d}' "$DECISIONS"; }

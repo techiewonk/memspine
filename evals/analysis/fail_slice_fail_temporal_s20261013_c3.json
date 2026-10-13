@@ -1,0 +1,115 @@
+{
+ "benchmark": "locomo",
+ "slice_id": "fail-temporal-s20261013-c3",
+ "conversations": [
+  "conv-42",
+  "conv-44",
+  "conv-48"
+ ],
+ "kind": "targeted",
+ "family": "fail_temporal",
+ "source_run": "clean-jina-full",
+ "seed": 20261013,
+ "stratify": "all wrong questions of the family (cap 60; class floor 3, then proportional), controls = correct questions matched on conversation x category (largest remainder, seeded), about 40% of the slice",
+ "reading_rule": "NOT an estimate of overall accuracy: read target recovered / wrong targets and controls lost / controls",
+ "n_total": 1540,
+ "n": 18,
+ "n_target": 11,
+ "n_control": 7,
+ "sizes": {
+  "cat2": 15,
+  "cat4": 3
+ },
+ "target_classes": {
+  "date_duration_arithmetic": 5,
+  "date_offset_small": 1,
+  "date_wrong_event": 4,
+  "relative_date_gold_vs_judge": 1
+ },
+ "conv_policy": "all 10 conversations allowed for the logged full run (owner 2026-10-10); build_forensics_explorer.py drops held-out conversations by default",
+ "uses_heldout_conversations": true,
+ "dev_conversations_used": [
+  "conv-42"
+ ],
+ "heldout_conversations_used": [
+  "conv-44",
+  "conv-48"
+ ],
+ "hash": "d0f010552078f787da275979424d6f3af08ce53b5cd1168067667a7f2e40af95",
+ "manifest_hash": "d0f010552078f787",
+ "category": {
+  "conv-42/3-7": "cat2",
+  "conv-42/3-21": "cat2",
+  "conv-42/3-26": "cat2",
+  "conv-42/3-41": "cat2",
+  "conv-42/3-44": "cat2",
+  "conv-42/3-54": "cat2",
+  "conv-42/3-57": "cat2",
+  "conv-44/5-22": "cat2",
+  "conv-44/5-34": "cat2",
+  "conv-44/5-38": "cat2",
+  "conv-44/5-47": "cat2",
+  "conv-44/5-59": "cat2",
+  "conv-48/7-0": "cat2",
+  "conv-48/7-46": "cat2",
+  "conv-48/7-61": "cat4",
+  "conv-48/7-71": "cat2",
+  "conv-48/7-101": "cat4",
+  "conv-48/7-134": "cat4"
+ },
+ "target_ids": [
+  "conv-42/3-26",
+  "conv-42/3-41",
+  "conv-42/3-44",
+  "conv-42/3-54",
+  "conv-44/5-34",
+  "conv-44/5-47",
+  "conv-44/5-59",
+  "conv-48/7-46",
+  "conv-48/7-71",
+  "conv-48/7-101",
+  "conv-48/7-134"
+ ],
+ "target_class": {
+  "conv-42/3-26": "date_wrong_event",
+  "conv-42/3-41": "date_wrong_event",
+  "conv-42/3-44": "date_wrong_event",
+  "conv-42/3-54": "date_wrong_event",
+  "conv-44/5-34": "date_duration_arithmetic",
+  "conv-44/5-47": "date_duration_arithmetic",
+  "conv-44/5-59": "date_duration_arithmetic",
+  "conv-48/7-46": "date_duration_arithmetic",
+  "conv-48/7-71": "date_offset_small",
+  "conv-48/7-101": "relative_date_gold_vs_judge",
+  "conv-48/7-134": "date_duration_arithmetic"
+ },
+ "control_ids": [
+  "conv-42/3-7",
+  "conv-42/3-21",
+  "conv-42/3-57",
+  "conv-44/5-22",
+  "conv-44/5-38",
+  "conv-48/7-0",
+  "conv-48/7-61"
+ ],
+ "query_ids": [
+  "conv-42/3-7",
+  "conv-42/3-21",
+  "conv-42/3-26",
+  "conv-42/3-41",
+  "conv-42/3-44",
+  "conv-42/3-54",
+  "conv-42/3-57",
+  "conv-44/5-22",
+  "conv-44/5-34",
+  "conv-44/5-38",
+  "conv-44/5-47",
+  "conv-44/5-59",
+  "conv-48/7-0",
+  "conv-48/7-46",
+  "conv-48/7-61",
+  "conv-48/7-71",
+  "conv-48/7-101",
+  "conv-48/7-134"
+ ]
+}

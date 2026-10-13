@@ -170,7 +170,7 @@ def test_ledger_cli(tmp_path, monkeypatch, capsys):
 
 # ---------------------------------------------------------------- runner dry runs
 def dry(mode, only, tmp_path, decisions=None):
-    env = {**os.environ, "PINNED_DRY_RUN": "1", "V2_LEDGER_DIR": str(tmp_path)}
+    env = {**os.environ, "PINNED_DRY_RUN": "1", "V2_LEDGER_DIR": str(tmp_path), "V2_SLICE_MAP": ""}  # "": random slices only (FAIL-SLICE tests: test_fail_slices.py)
     if mode:
         env["MODE"] = mode
     else:

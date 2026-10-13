@@ -74,6 +74,30 @@ def describe(arm: dict[str, float], ref: dict[str, float], ids: list[str], cat: 
             "by_category": {c: tuple(v) for c, v in sorted(by.items())}}
 
 
+def target_report(sl: dict, arm: dict[str, float], ref: dict[str, float]) -> dict | None:
+    """FAIL-SLICE reading rule for a targeted slice (``target_ids`` / ``control_ids`` in the slice file), else None.
+
+    ``tgt_rec`` = target questions the reference run got wrong that the arm gets right / target questions wrong in the
+    reference run (the slice's wrong set; a reference that already fixes one lowers the denominator). ``ctl_lost`` =
+    controls the reference got right that the arm gets wrong / controls the reference got right. Per target class too.
+    Not an estimate of overall accuracy."""
+    tg, ct = sl.get("target_ids"), sl.get("control_ids")
+    if not tg and not ct:
+        return None
+    cls = sl.get("target_class", {})
+    wrong = [q for q in tg or [] if q in arm and q in ref and ref[q] < 1]
+    rec = [q for q in wrong if arm[q] >= 1]
+    right = [q for q in ct or [] if q in arm and q in ref and ref[q] >= 1]
+    lost = [q for q in right if arm[q] < 1]
+    by: dict[str, list[int]] = defaultdict(lambda: [0, 0])
+    for q in wrong:
+        by[cls.get(q, "?")][1] += 1
+        by[cls.get(q, "?")][0] += q in rec
+    return {"tgt_rec": f"{len(rec)}/{len(wrong)}", "ctl_lost": f"{len(lost)}/{len(right)}", "n_rec": len(rec),
+            "n_wrong": len(wrong), "n_lost": len(lost), "n_controls": len(right),
+            "by_class": {c: tuple(v) for c, v in sorted(by.items())}}
+
+
 def cost_latency(rows: dict[str, dict], ids: list[str]) -> tuple[int, float, float | None, float | None]:
     tokens, usd, lat = 0, 0.0, []
     for q in ids:
@@ -129,6 +153,13 @@ def main() -> None:
     print(f"   delta {r['delta']:+.2f} {unit}, paired bootstrap 95% [{r['ci_low']:+.2f}, {r['ci_high']:+.2f}] (a spread over the sample, not a test)")
     for c, (w, lo, t) in r["by_category"].items():
         print(f"   {c:20s} +{w}/-{lo}/={t}")
+    tr = target_report(sl, arm_s, ref_s)
+    if tr:
+        print(f"   TARGETED SLICE ({sl.get('family', '?')}): not an estimate of overall accuracy. Read these two:")
+        print(f"   tgt_rec {tr['tgt_rec']}  (target-class questions recovered / wrong targets in the reference)")
+        print(f"   ctl_lost {tr['ctl_lost']}  (controls lost / controls the reference had right)")
+        for c, (g, n) in tr["by_class"].items():
+            print(f"      {c:36s} recovered {g}/{n}")
     print(f"   cost {tokens} tokens, ${usd:.4f}; latency p50 {p50 or 0:.0f} ms, p95 {p95 or 0:.0f} ms (retrieve+answer+judge)")
     if r["n"] < r["n_expected"]:
         print(f"   WARNING: {r['n_expected'] - r['n']} sample questions missing from the arm or the reference run")
@@ -144,6 +175,7 @@ def main() -> None:
             "delta": f"{r['delta']:.3f}", "ci_low": f"{r['ci_low']:.3f}", "ci_high": f"{r['ci_high']:.3f}",
             "per_category": per_cat, "cost": f"tokens={tokens};usd={usd:.4f}",
             "latency_p50_ms": f"{p50 or 0:.0f}", "latency_p95_ms": f"{p95 or 0:.0f}", "comparability_key": key,
+            "tgt_rec": tr["tgt_rec"] if tr else "", "ctl_lost": tr["ctl_lost"] if tr else "",
             "verdict": "DESCRIPTIVE", "notes": (a.notes + (" | INCOMPARABLE: " + ",".join(diff) if diff else "")).strip(" |"),
         })
         print(f"   ledger: {v2_ledger.results_path()}")
