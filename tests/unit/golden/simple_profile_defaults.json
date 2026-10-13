@@ -128,6 +128,8 @@
       ],
       "decider_threads": 0,
       "decider_workers": 1,
+      "decompose_v2": false,
+      "decompose_v2_max_entities": 3,
       "dedupe": "off",
       "dedupe_keep": "best",
       "dedupe_threshold": 0.9,

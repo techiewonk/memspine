@@ -956,6 +956,8 @@ in the schema — or if the schema gains a key not documented here.
 | `read.cache.max_entries` | `256` | R3-15: read-cache capacity (oldest evicted). |
 | `read.cache.ttl_seconds` | `null` | R3-15: optional read-cache entry lifetime in seconds. |
 | `read.parallel_legs` | `false` | R3-15: run the query-only retrieval legs (vector, lexical, metadata, encoder, probes) with `asyncio.gather`; fusion order is unchanged. |
+| `read.decompose_v2` | `false` | R14-M-12 / OBS-10: map-reduce read for a question naming two or more known participants joined by both / and / either / compare / same / each / before / after or "who ... more". One sub-read per entity (the question with the other entities removed, entity as focal entity, equal share of the context budget; concurrent under `read.parallel_legs`), merged under a combine hint and one labelled block per entity. No model call; a `full` read and single-entity questions are unchanged. |
+| `read.decompose_v2_max_entities` | `3` | R14-M-12: most entities one question is split into (2 to 6). |
 | `read.sentence_leg` | `false` | N05 (ADR-059): an RRF leg ranking records by their single best-matching sentence (shared content words / √length), so one strong sentence in a long turn is not diluted. No model. |
 | `read.rerank_instruction` | `null` | N12 (ADR-059): the task instruction an instruction-conditioned reranker (`rerank: qwen3`) judges with; null keeps its memory default. |
 | `read.evidence_line` | `false` | W3 step 2 (ADR-059): with `evidence_signal`, a weak read opens its volatile part with a one-line note that memory holds no clear record answering the question. |

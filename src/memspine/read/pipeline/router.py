@@ -1161,16 +1161,32 @@ async def _read_planned(
         if hit is not None:
             result = hit
         else:
-            result = await eng._read(
-                query,
-                namespace,
-                mode,
-                budget_tokens,
-                top_k,
-                replay_window,
-                compose_pool,
-                session_id,
-            )
+            result = None
+            if eng._config().read.decompose_v2:  # R14-M-12 / OBS-10: map-reduce, flag-off skipped
+                from memspine.read.pipeline.decompose import decomposed_read
+
+                result = await decomposed_read(
+                    eng,
+                    query,
+                    validate_namespace(namespace),
+                    mode,
+                    budget_tokens,
+                    top_k,
+                    replay_window,
+                    compose_pool,
+                    session_id,
+                )
+            if result is None:
+                result = await eng._read(
+                    query,
+                    namespace,
+                    mode,
+                    budget_tokens,
+                    top_k,
+                    replay_window,
+                    compose_pool,
+                    session_id,
+                )
             if eng._config().read.contract_rules:  # R3-02: the typed [contract] header
                 result = ReadResult(
                     result.mode,

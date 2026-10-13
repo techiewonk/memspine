@@ -1201,6 +1201,22 @@ class ReadConfig(BaseModel):
     #: with ``asyncio.gather``. Result order is the sequential order. Off: sequential.
     parallel_legs: bool = False
 
+    #: R14-M-12 / OBS-10 (wired in ``read/pipeline/decompose.py``): map-reduce for a question that
+    #: names two or more known participants joined by both / and / either / compare / same /
+    #: each, or "who ... more". MAP: one sub-read per entity (the question with the other
+    #: entities removed, predicate kept) through the normal read path, with the entity as the
+    #: focal entity and an equal share of the context budget, so one entity cannot crowd out the
+    #: other (concurrently when ``parallel_legs`` is on). REDUCE: the evidence is merged under one
+    #: labelled block per entity plus a combine hint (intersection / union / compare / count /
+    #: before-after) for the reader. Deterministic rules, no model call. Needs
+    #: ``perspective_mode`` for the per-entity subject weight to bite. A ``full`` read (the whole
+    #: store fits) and a question that names no known participant pair are read as before.
+    #: Off: unchanged.
+    decompose_v2: bool = False
+    #: R14-M-12: most entities one question is split into; a longer list is cut to the first ones
+    #: named.
+    decompose_v2_max_entities: int = Field(default=3, ge=2, le=6)
+
     #: R3-01 (LIB-47, R-01/R-02, ER-29): the v2 read entry. On: the question is NFKC-normalised
     #: (whitespace collapsed), the viewer is bound to the principal (``viewer``), and a depth tier
     #: (fast / standard / deep, with its generative-call and rerank-pool caps) is chosen from
