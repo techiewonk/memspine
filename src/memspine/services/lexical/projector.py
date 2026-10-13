@@ -28,6 +28,9 @@ class LexicalProjector(Projector):
     async def apply(self, event: MemoryEvent) -> None:
         if event.kind is EventKind.WRITE:
             record = MemoryRecord.model_validate(event.payload["record"])
+            text = event.payload.get("index_text")  # R14-INDEXVIEW: indexed in place of the content
+            if isinstance(text, str) and text:
+                record = record.model_copy(update={"content": text})
             await self._store.index(record)
         elif event.kind is EventKind.FORGET:
             # A forgotten memory must stop being retrievable via the lexical leg

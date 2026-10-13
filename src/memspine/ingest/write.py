@@ -43,6 +43,7 @@ from memspine.exceptions import (
     ConflictError,
 )
 from memspine.ingest import role_wiring
+from memspine.ingest.index_view import PENDING_INDEX_PREFIX, compose_index_text, plan_prefixes
 from memspine.ingest.stamping import (
     ASSENT_TAG_PREFIX,
     PENDING_STAMP,
@@ -579,6 +580,8 @@ async def write_messages_direct(
         channel=channel,
     )
     await eng._prewarm_embeddings(contents)
+    if eng._config().write.index_view:  # R14-INDEXVIEW: the vectors the projector will ask for
+        await eng._prewarm_embeddings(_index_view_texts(eng, messages, valid_from))
     batch = await eng._prefetch_neighbours(validate_namespace(namespace), contents)
     if batch is None:
         async with eng._projection_batch():
@@ -676,6 +679,7 @@ async def _write_turns(
                 participants_of_call([t for t in messages if isinstance(t, Mapping)])
             ),
         )
+    index_prefixes = _index_view_prefixes(eng, messages, valid_from)  # R14-INDEXVIEW ([] = off)
     for i, turn in enumerate(messages):
         try:
             role = turn["role"]
@@ -770,6 +774,11 @@ async def _write_turns(
             pending = _stamp_turn(eng, conv_stamper, i, turn, role, content, bool(session_speakers))
         pending_token = PENDING_STAMP.set(pending) if pending is not None else None
         role_token = role_wiring.PENDING_ROLE.set(role_dec) if role_dec is not None else None
+        index_token = (
+            PENDING_INDEX_PREFIX.set(index_prefixes[i])
+            if index_prefixes and index_prefixes[i]
+            else None
+        )
         try:
             record = await eng.write(
                 content,
@@ -793,6 +802,8 @@ async def _write_turns(
                 PENDING_STAMP.reset(pending_token)
             if role_token is not None:
                 role_wiring.PENDING_ROLE.reset(role_token)
+            if index_token is not None:
+                PENDING_INDEX_PREFIX.reset(index_token)
         if conv_stamper is not None:
             conv_stamper.clear_proposal()
             if role == "assistant" and not record.quarantined:
@@ -810,6 +821,61 @@ async def _write_turns(
         if not record.quarantined:
             prev_turn = (record.record_id, _speaker_of(turn))
     return records
+
+
+def _index_view_prefixes(
+    eng: Any, messages: Sequence[Mapping[str, str]], valid_from: datetime | None
+) -> list[str]:
+    """R14-INDEXVIEW: one index prefix per turn (``write.index_view``); an empty list when off.
+    The date is the turn's own timestamp (else the call's ``valid_from``), read as written."""
+    wcfg = eng._config().write
+    if not wcfg.index_view:
+        return []
+
+    def stamp_of(turn: Mapping[str, Any]) -> datetime | None:
+        value = turn.get("timestamp")
+        if isinstance(value, datetime):
+            return value
+        if value is not None:
+            try:
+                return datetime.fromisoformat(str(value))
+            except ValueError:
+                return valid_from
+        return valid_from
+
+    prefixes = plan_prefixes(
+        [t if isinstance(t, Mapping) else {} for t in messages],
+        speaker_of=_speaker_of,
+        stamp_of=stamp_of,
+        content_of=_turn_content,
+        max_extra_tokens=wcfg.index_view_max_extra_tokens,
+        elliptical_threshold=wcfg.index_view_elliptical_threshold,
+        elliptical_max_words=wcfg.index_view_elliptical_max_words,
+    )
+    tap.event(
+        "write.index_view.plan",
+        turns=len(prefixes),
+        prefixed=sum(1 for p in prefixes if p),
+        extra_tokens=sum(len(p.split()) for p in prefixes),
+    )
+    return prefixes
+
+
+def _index_view_texts(
+    eng: Any, messages: Sequence[Mapping[str, str]], valid_from: datetime | None
+) -> list[str]:
+    """R14-INDEXVIEW: the index texts the projectors will embed (for the up-front batch)."""
+    texts: list[str] = []
+    prefixes = _index_view_prefixes(eng, messages, valid_from)
+    for turn, prefix in zip(messages, prefixes, strict=False):
+        if not prefix:
+            continue
+        try:
+            body = _screen_text(_turn_content(turn), eng._config().firewall)[0]
+        except (KeyError, TypeError):
+            continue
+        texts.append(compose_index_text(prefix, body) or body)
+    return texts
 
 
 def _stamp_turn(
@@ -1469,12 +1535,12 @@ async def _write_screened(
         await eng._evolve_links(ns, result.record)
         return result.record, result.action
 
-    event = MemoryEvent(
-        kind=EventKind.WRITE,
-        namespace=ns,
-        actor=actor,
-        payload={"record": record.model_dump(mode="json")},
-    )
+    payload: dict[str, Any] = {"record": record.model_dump(mode="json")}
+    index_prefix = PENDING_INDEX_PREFIX.get()
+    if index_prefix and memory_type == "episodic":  # R14-INDEXVIEW: embed/BM25 text only
+        payload["index_text"] = compose_index_text(index_prefix, record.content)
+        tap.event("write.index_view.text", id=record.record_id, extra=len(index_prefix.split()))
+    event = MemoryEvent(kind=EventKind.WRITE, namespace=ns, actor=actor, payload=payload)
     await eng._append_and_project(event)
     _log.info(EVENT_WRITE, namespace=ns, record_id=record.record_id)
     await eng._corroborate(ns, record)
