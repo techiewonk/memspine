@@ -108,6 +108,8 @@ under `tap.content`).
 | `write.assets.attached` / `write.assets.registered` | `ingest/assets.py` | n, turn / id |
 | `write.window.cut` | `workers/windows.py` | reason, turns, tokens, session, queued |
 | `write.window.planned` | `workers/windows.py` | id, reason, turns, excluded, tokens, groups |
+| `write.segment.cut` / `write.segment.gap` | `workers/windows.py`, `derive/segmenter.py` (`write.segmentation_v2`) | reason, turns, tokens, grown / reason (time_gap, calendar_day), gap_s, open_turns |
+| `write.batch.planned` / `.window` / `.held` / `.failed` / `.cross_window` | `workers/windows.py` (`write.segmentation_v2`) | id, windows, turns, tokens, reason, sections / id, batch, first_line, turns / windows, tokens, wait_s / id / section, dropped |
 | `write.window.skipped` / `write.window.job_failed` | `workers/windows.py` | reason, turns / error |
 | `write.extract.call.start` / `.end` | `workers/windows.py` (span), or one `write.extract.call` (cached=true) | sections, cached, duration_ms, error |
 | `write.extract.failed` / `write.extract.rejected` | `workers/windows.py` | reason (call_errors / parse_failures / section_malformed / parent_gone / *_deposit_error), sections, error, id |

@@ -50,6 +50,7 @@ __all__ = [
     "Turn",
     "WindowPlan",
     "estimate_tokens",
+    "hard_cut_reasons",
 ]
 
 TokenCounter = Callable[[str], int]
@@ -132,6 +133,31 @@ class _Unit:
     source_at: datetime | None
     session: str | None
     tokens: int
+
+
+def hard_cut_reasons(
+    a_session: str | None,
+    a_at: datetime | None,
+    b_session: str | None,
+    b_at: datetime | None,
+    *,
+    gap_s: float,
+    calendar_day_cut: bool = True,
+) -> list[CutReason]:
+    """Why a window must not span two neighbouring units (empty: it may). Shared by the batch
+    planner and the streaming segmenter (``derive.segmenter``, W2-05); pure."""
+    r: list[CutReason] = []
+    if a_session != b_session:
+        r.append("session_end")
+    if a_at is not None and b_at is not None:
+        try:
+            if abs((b_at - a_at).total_seconds()) > gap_s:
+                r.append("time_gap")
+            if calendar_day_cut and a_at.date() != b_at.date():
+                r.append("calendar_day")
+        except TypeError:  # naive vs aware: no comparison possible
+            pass
+    return r
 
 
 _SENT = re.compile(r"[^.!?]*[.!?]+(?:\s+|$)|[^.!?]+$")
@@ -277,18 +303,14 @@ class Segmenter:
     # -- cuts and packing ------------------------------------------------------------------------
 
     def _hard_between(self, a: _Unit, b: _Unit) -> list[CutReason]:
-        r: list[CutReason] = []
-        if a.session != b.session:
-            r.append("session_end")
-        if a.source_at is not None and b.source_at is not None:
-            try:
-                if abs((b.source_at - a.source_at).total_seconds()) > self.config.gap_s:
-                    r.append("time_gap")
-                if self.config.calendar_day_cut and a.source_at.date() != b.source_at.date():
-                    r.append("calendar_day")
-            except TypeError:  # naive vs aware: no comparison possible
-                pass
-        return r
+        return hard_cut_reasons(
+            a.session,
+            a.source_at,
+            b.session,
+            b.source_at,
+            gap_s=self.config.gap_s,
+            calendar_day_cut=self.config.calendar_day_cut,
+        )
 
     def _runs(self, fresh: list[_Unit]) -> list[tuple[list[_Unit], tuple[CutReason, ...]]]:
         runs: list[tuple[list[_Unit], tuple[CutReason, ...]]] = []
