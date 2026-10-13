@@ -34,6 +34,7 @@ from memspine.core.ties import settle_ties
 from memspine.memories.associative.entities import (
     MENTIONS_REL,
     canonical_entity,
+    entity_node_id,
     is_entity_node,
     parse_entity_node,
 )
@@ -84,6 +85,7 @@ from memspine.read.entity_leg import (
     EntityMention,
     entity_leg_explained,
 )
+from memspine.read.pipeline import request as read_request
 from memspine.read.pipeline.fusion import (
     _unit,
 )
@@ -332,13 +334,16 @@ async def registry_base_legs(
     )
     names = ["vector", *(["lexical"] if use_hybrid else []), "temporal"]
     registry = lib.REGISTRY
-    if read.episode_leg_v2:
-        # R3-05c: the episode leg (L2) joins; the layer registry says whether L2 holds records
+    graph_on = read.graph_leg_v2 and "graph" not in read_request.legs_off()
+    if read.episode_leg_v2 or graph_on:
+        # R3-05c / R3-05b: the layer registry says whether L2 / L3 hold records
         from memspine.store.layer_registry import LayerRegistry, LayerTemplate
 
         ctx.layer_registry = LayerRegistry.of(
             ns, LayerTemplate(), await eng._require_started().layer_counts(ns)
         )
+    if read.episode_leg_v2:
+        # R3-05c: the episode leg (L2) joins
         registry = lib.with_episode_leg(lib.REGISTRY)
         names.append("episode")
     out = await lib.run_legs(registry, names, ctx)
@@ -363,11 +368,77 @@ async def registry_base_legs(
         )
         if turns:
             extra_legs.append(NamedLeg("episode", turns))
+    if graph_on:
+        extra_legs += await _graph_hop_leg(eng, ns, query, live, vector_hits, fetch_k, ctx)
     if read.query_encoder != "none":
         extra_legs += await eng._encoder_legs(ns, query)
     for text, vector in zip(probe_texts, probe_vectors, strict=True):
         extra_legs += await eng._probe_legs(ns, text, vector, fetch_k, use_hybrid)
     return vector_hits, lexical_hits, extra_legs
+
+
+async def _graph_hop_leg(
+    eng: Any,
+    ns: str,
+    query: str,
+    live: Sequence[MemoryRecord],
+    vector_hits: Sequence[Any],
+    fetch_k: int,
+    ctx: Any,
+) -> list[Any]:
+    """R3-05b (``read.graph_leg_v2``, R-09): the graph one-hop leg and its lift to evidence turns.
+
+    Seeds: the entity nodes the query names (``_graph_seeds``) plus the entities of the best
+    ``read.graph_leg_seed_hits`` base hits. Edges: the compiled layer of the embedded graph
+    (``graph.edge_compiler_v2``; tentative edges are passed on flagged, the leg drops and counts
+    them). The leg returns fact records; they are lifted to their evidence turns through lineage and
+    re-gated (``lift_episode_hits``: consent, erasure, scope). One named leg ``graph`` (family
+    ``structured``)."""
+    from memspine.read import legs as lib
+    from memspine.read.pipeline.lift import lift_episode_hits
+
+    read = eng._config().read
+    by_id = {r.record_id: r for r in live}
+    seeds: list[str] = []
+    if eng._associative is not None:
+        seeds = list(await eng._graph_seeds(ns, query))
+    for hit in list(vector_hits)[: read.graph_leg_seed_hits]:
+        rec = by_id.get(hit.record_id)
+        if rec is not None and rec.entity:
+            node = entity_node_id(ns, canonical_entity(rec.entity))
+            if node not in seeds:
+                seeds.append(node)
+    edges: list[Any] = []
+    if eng._graph is not None:
+        edges = [
+            lib.HopEdge(
+                e.src,
+                e.dst,
+                str(e.properties.get("record_id") or ""),
+                bool(e.properties.get("tentative")),
+                bool(e.properties.get("closed")),
+            )
+            for e in await eng._graph.edge_list(ns)
+            if e.properties.get("compiled") == "edge_compiler_v2"
+            and e.weight > 0
+            and e.properties.get("record_id")
+        ]
+    ctx.graph_seeds = seeds
+    ctx.graph_edges = edges
+    ctx.graph_min_seeds = read.graph_leg_min_seeds
+    out = (await lib.run_legs(lib.with_graph_leg(lib.REGISTRY), ["graph"], ctx))["graph"]
+    if not out.hits:
+        return []
+    turns = await lift_episode_hits(
+        eng,
+        ns,
+        out.hits,
+        {h.record_id: by_id[h.record_id] for h in out.hits if h.record_id in by_id},
+        max_turns=read.graph_leg_lift_max_turns,
+        carry=read.graph_leg_carry,
+        source="graph",
+    )
+    return [NamedLeg("graph", turns)] if turns else []
 
 
 async def _entity_leg_v2(

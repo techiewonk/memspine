@@ -318,6 +318,7 @@ async def lift_episode_hits(
     *,
     max_turns: int,
     carry: float,
+    source: str = "episode",
 ) -> list[LegHit]:
     """R3-05c (``read.episode_leg_v2``, R-10): episode hits to their member turns, with scores.
 
@@ -378,7 +379,7 @@ async def lift_episode_hits(
     if tap.enabled():
         tap.event(
             "read.lift",
-            source="episode",
+            source=source,  # R3-05b: the graph leg lifts its fact records the same way
             episodes=[c.record_id for c in cands],
             turns=[h.record_id for h in out],
             dropped=[{"id": d.record_id, "reason": d.reason, "stage": d.stage} for d in dropped],
