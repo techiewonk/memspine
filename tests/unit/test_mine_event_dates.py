@@ -198,10 +198,10 @@ class _Extract:
 def _llm_engine(monkeypatch: pytest.MonkeyPatch, stub: _Extract, **options: Any) -> Engine:
     stubs: dict[str, LLMService] = {"extract": stub}
 
-    async def router(self: Engine, config: MemspineConfig) -> LLMRouter:
+    async def router(config: MemspineConfig, hooks: object = None) -> LLMRouter:
         return LLMRouter(stubs)
 
-    monkeypatch.setattr(Engine, "_build_llm_router", router)
+    monkeypatch.setattr("memspine.runtime.container.build_llm_router", router)
     return _engine(mine_event_dates=True, **options)
 
 

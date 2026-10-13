@@ -17,7 +17,6 @@ import functools
 import inspect
 import itertools
 import math
-import os
 import re
 import secrets
 import threading
@@ -42,6 +41,7 @@ from time import perf_counter
 from typing import Any, ClassVar, Self, TypedDict, TypeVar, cast
 
 import orjson
+from dishka import AsyncContainer
 
 from memspine.clients.cashews import CashewsClient
 from memspine.clients.kuzu import KuzuClient
@@ -58,7 +58,7 @@ from memspine.compose.pack import (
 )
 from memspine.compose.pack import ranked as rank_pairs
 from memspine.config import constants
-from memspine.config.loader import ResolvedConfig, default_template, load_config
+from memspine.config.loader import ResolvedConfig
 from memspine.config.schema import FirewallConfig, MemspineConfig
 from memspine.core import trace_sink
 from memspine.core.agentic import clean_query, evidence_view, fuse_new, merge_budget
@@ -129,7 +129,6 @@ from memspine.core.read_filters import (
     to_utc,
 )
 from memspine.core.reference_edges import REF_PREFIX, antecedent_kind, reference_kinds
-from memspine.core.registry import SERVICE_EXTRAS, dependency_closure, missing_services
 from memspine.core.relevance_probes import OFF_TOPIC_PROBES, Calibration, calibrate
 from memspine.core.rule_edges import BECAUSE_REL, is_why_question
 from memspine.core.rule_miner import mine_rules
@@ -207,21 +206,17 @@ from memspine.memories.procedural.trajectory import (
 from memspine.memories.prospective.watches import ProspectiveMemory, make_watch_record
 from memspine.memories.reflective.reflections import ReflectiveMemory
 from memspine.memories.resource.store import ResourceMemory
-from memspine.memories.semantic.entities import EntityExtractor, LLMEntityExtractor
 from memspine.memories.semantic.store import SemanticMemory
 from memspine.memories.semantic.write_pipeline import (
     EdgeContext,
-    GraphWritePipeline,
-    WritePipeline,
-    cardinality_map,
     extraction_rounds,
 )
 from memspine.memories.shared.grants import Grant, SharedMemory
 from memspine.memories.shared.subscriptions import make_subscription_record
 from memspine.memories.working.manager import DEFAULT_PAGE_SIZE, WorkingMemory
 from memspine.memories.working.persona import make_persona_record
-from memspine.models.cache.base import KVCache, MemoryKV
-from memspine.models.cache.semantic import CachedEmbedding, CachedExtractor
+from memspine.models.cache.base import KVCache
+from memspine.models.cache.semantic import CachedExtractor
 from memspine.models.encoders.embedding.base import EmbeddingService, embed_queries
 from memspine.models.encoders.query import CueQueryEncoder, NoopQueryEncoder, QueryEncoder
 from memspine.models.encoders.query.perspective import (
@@ -292,10 +287,9 @@ from memspine.models.providers.decision.decider import Decider, build_decider
 from memspine.models.providers.llm import structured as _structured
 from memspine.models.providers.llm.base import LLMRouter, LLMService
 from memspine.models.providers.llm.structured import structured_call
-from memspine.models.providers.llm.tier_gate import WITHHELD_MARKER, TierGatedLLM, is_local_provider
+from memspine.models.providers.llm.tier_gate import WITHHELD_MARKER, is_local_provider
 from memspine.models.providers.rerank.base import Reranker, concat_background
 from memspine.models.providers.rerank.factory import RerankSettings, build_reranker, rerank_modes
-from memspine.models.registry import LLM_PROVIDERS, build_embedder, llm_provider_name
 from memspine.observability.logging import (
     EVENT_FEEDBACK,
     EVENT_FORGET,
@@ -307,7 +301,6 @@ from memspine.observability.logging import (
     redact_error,
 )
 from memspine.observability.timers import StepTimers, timed
-from memspine.plugins import enable as enable_plugins
 from memspine.prompts.models import (
     AgenticStepOut,
     AnswerVerdictOut,
@@ -361,16 +354,24 @@ from memspine.read.lead import (
     timeline_line,
 )
 from memspine.read.registry import leg_family
+from memspine.runtime.container import (
+    Capabilities,
+    DecisionState,
+    EngineSpec,
+    SemanticExtractor,
+    SemanticWritePipeline,
+    Wiring,
+    WiringHooks,
+    client_is_memory,
+    lexical_projector_name,
+    make_container,
+    memory_policy,
+)
 from memspine.services.graph.base import GraphStore
-from memspine.services.graph.sqlite_adjacency import SQLiteAdjacencyGraph
 from memspine.services.lexical.base import LexicalHit, LexicalStore, minmax_fuse, rrf_fuse
 from memspine.services.lexical.projector import LexicalProjector
-from memspine.services.secrets.base import SecretsService
-from memspine.services.secrets.chained import ChainedSecrets
-from memspine.services.secrets.env import EnvSecrets
 from memspine.services.storage.projector import RecordProjector
 from memspine.services.storage.sql_base import SqlStorage
-from memspine.services.storage.sqlite.engine import SQLiteStorage
 from memspine.services.vector.base import VectorHit, VectorStore
 from memspine.services.vector.projector import VectorProjector
 from memspine.store.events import EventKind, EventLogMode, MemoryEvent, fingerprint_payload
@@ -385,7 +386,6 @@ from memspine.store.records import (
     chrono_key,
     new_record_id,
 )
-from memspine.store.registry import GRAPH_STORES, LEXICAL_INDEXES, VECTOR_STORES
 from memspine.store.replay import catch_up
 from memspine.store.replay import rebuild as replay_rebuild
 from memspine.store.scope import grant_allows, validate_namespace
@@ -418,7 +418,6 @@ from memspine.trust.visibility import (
     participant_tags,
     visibility_tag,
 )
-from memspine.workers.inline import InlineRunner
 from memspine.workers.list_cards import (
     LIST_CARD_KEY_PREFIX,
     LabelClasses,
@@ -1329,6 +1328,8 @@ class Engine:
         #: per namespace, the PASSIVE session ids (loaded lazily, dropped after a sleep).
         self._sessions_horizon: timedelta | None = None
         self._passive_sessions: dict[str, set[str]] = {}
+        #: F-08: the DI container of the current start (None before start and after stop).
+        self._container: AsyncContainer | None = None
 
     # ── lifecycle ────────────────────────────────────────────────────────────
 
@@ -1343,55 +1344,35 @@ class Engine:
             await self._teardown()
             raise
 
-    def _build_secrets(self) -> SecretsService:
-        """Bootstrap-phase secrets resolver (D-22). Selected by the env var
-        ``MEMSPINE_SECRETS_BACKEND`` — NOT config, because secrets resolve
-        *before* ``MemspineConfig`` exists (the chicken-and-egg the two-phase
-        bootstrap avoids). ``env`` (default) is the zero-cloud ``EnvSecrets``;
-        ``aws`` chains env/.env first, then AWS Secrets Manager, so local dev
-        never needs credentials and a locally-set value always wins."""
-        backend = os.environ.get("MEMSPINE_SECRETS_BACKEND", "env").strip().lower()
-        env_secrets = EnvSecrets(dotenv_path=self._dotenv_path)
-        if backend == "env":
-            return env_secrets
-        if backend == "aws":
-            from memspine.services.secrets.aws import AwsSecrets
-
-            return ChainedSecrets(env_secrets, AwsSecrets())
-        raise ConfigError(f"unknown MEMSPINE_SECRETS_BACKEND {backend!r} (valid: env, aws)")
-
     async def _start_inner(self) -> Self:
-        # 1. secrets, then config (D-22 two-phase).
-        secrets = self._build_secrets()
-        self._resolved = load_config(
-            template=default_template(self._template, self._user_config, self._overrides),
-            user_config=self._user_config,
-            env=os.environ,
-            overrides=self._overrides,
-            secret_resolver=secrets.get,
+        # 1. secrets, then config (D-22 two-phase): the container's bootstrap providers.
+        # The hooks are the engine callbacks the builders need (read now, as the memories
+        # always captured them); everything else is resolved lazily, in the order below.
+        container = self._container = make_container(
+            EngineSpec(
+                template=self._template,
+                user_config=self._user_config,
+                dotenv_path=self._dotenv_path,
+                overrides=self._overrides,
+            ),
+            hooks=WiringHooks(
+                pipeline_ctx=self._pipeline_ctx,
+                withheld_texts=self._withheld_texts,
+                edge_extract_callable=self._edge_extract_callable,
+            ),
         )
+        self._resolved = await container.get(ResolvedConfig)
         config = self._resolved.config
 
-        # 2. validate combination (C1b) + required services (D-10).
-        self._enabled, self._auto_enabled = dependency_closure(config.enabled_memories())
-        gaps = missing_services(self._enabled, set(_CORE_SERVICES))
-        if gaps:
-            mem_type, services = next(iter(sorted(gaps.items())))
-            service = sorted(services)[0]
-            if config.strict_services:
-                raise MissingServiceError(service, SERVICE_EXTRAS.get(service))
-            _log.warning(
-                "service.missing_ignored",
-                detail="strict_services=false: engine starts degraded (D-10)",
-                gaps={k: sorted(v) for k, v in gaps.items()},
-                first_missing=f"{mem_type} needs {service}",
-            )
-
-        # MOD-02: enable the pinned plug-ins (config ``plugins:``; empty = nothing happens).
-        enable_plugins(config.plugins)
+        # 2. validate combination (C1b) + required services (D-10); MOD-02: enable the
+        # pinned plug-ins (config ``plugins:``; empty = nothing happens).
+        capabilities = await container.get(Capabilities)
+        self._enabled, self._auto_enabled = capabilities.enabled, capabilities.auto_enabled
+        wiring = await container.get(Wiring)
 
         # 3./4. construct services + open the write door.
-        self._storage = await self._build_storage(config)
+        self._storage = await container.get(SqlStorage)
+        self._client, self._pg = wiring.client, wiring.pg
         _snapshot_listings(self._storage)  # I2
         await self._storage.start()
         if config.event_log.mode is EventLogMode.EPHEMERAL:
@@ -1403,9 +1384,11 @@ class Engine:
         # P1 services: embedding (E3-cached), vector store, LLM router, policies.
         # One shared cache (Phase 2) fronts both the embedding and extraction
         # caches; the emb:/ext: producer key prefixes keep them isolated in it.
-        self._cache = await self._build_cache(config)
-        self._embedder = CachedEmbedding(self._build_embedder(config), self._cache)
-        self._vector = await self._build_vector_store(config)
+        self._cache = await container.get(KVCache)
+        self._cashews = wiring.cashews
+        self._embedder = await container.get(EmbeddingService)
+        self._vector = await container.get(VectorStore)
+        self._lance, self._rescore_active = wiring.lance, wiring.rescore_active
         # E4 model2vec prefilter (ADR-020): only the intent is recorded here; the
         # static embedder loads lazily on first search so a heavy model download
         # never blocks start and a missing [static] extra self-disables (skip-log).
@@ -1416,20 +1399,21 @@ class Engine:
         # unchanged from vector-only. Toggling on later: catch-up/rebuild
         # backfills the index from the persisted log at first construction.
         if config.read.hybrid:
-            self._lexical = self._build_lexical_store(config)
+            self._lexical = await container.get(LexicalStore)
         # P6 graph store (D-26): constructed only when associative memory
         # projects it — profile="simple" never constructs one. An explicit
         # ``graph:`` block without associative would be a dead handle (no
         # projector ever writes it), so it is a config error, not a store.
         if "associative" in self._enabled:
-            self._graph = await self._build_graph_store(config)
+            self._graph = await container.get(GraphStore)
+            self._kuzu, self._ladybug = wiring.kuzu, wiring.ladybug
         elif "graph" in config.model_fields_set:
             raise ConfigError(
                 "graph configured but memories.associative not enabled — "
                 "enable it or remove the graph block"
             )
-        self._llm = await self._build_llm_router(config)
-        self._check_decision_provider(config)
+        self._llm = await container.get(LLMRouter)
+        self._decision_off = (await container.get(DecisionState)).off  # H24
         self._scoring = ScoringPolicy.bind(config.read.scoring)
         self._assembly = AssemblyPolicy.bind(config.read.assembly)
         # E5 assembly-stage compression binding (D-51): master switch defaults
@@ -1451,11 +1435,7 @@ class Engine:
             ),
         )
         # Prompt pack resolution (§4 step 2, D-43): defaults + config overrides.
-        self._prompts = PromptRegistry(
-            overrides=config.prompts.overrides,
-            partials=config.prompts.partials,
-            selection=config.prompts.selection,
-        )
+        self._prompts = await container.get(PromptRegistry)
         if "semantic" in self._enabled:
             semantic_policies = self._memory_policy(config, "semantic")
             self._semantic = SemanticMemory(
@@ -1464,8 +1444,8 @@ class Engine:
                 append_event=self._append_and_project,
                 conflict=ConflictPolicy.bind(_as_options_dict(semantic_policies.get("conflict"))),
                 dedup=DedupPolicy.bind(_as_options_dict(semantic_policies.get("dedup"))),
-                extractor=self._build_extractor(config),
-                write_pipeline=self._build_write_pipeline(config),
+                extractor=(await container.get(SemanticExtractor)).value,
+                write_pipeline=(await container.get(SemanticWritePipeline)).value,
                 merge_reinforcement_gate=(
                     config.integrity.enabled and config.integrity.merge_reinforcement_gate
                 ),
@@ -1521,6 +1501,7 @@ class Engine:
             fact_projection_on(self._memory_policy(config, "semantic"))
         except ValueError as exc:
             raise ConfigError(str(exc)) from exc
+        self._cached_extractor = wiring.cached_extractor  # #43
         self._projectors = [
             RecordProjector(self._storage),
             VectorProjector(self._vector, self._embedder),
@@ -1529,7 +1510,7 @@ class Engine:
             # Registered only when hybrid is on, so rebuild() replays it and the
             # index backfills from seq 0 the first time hybrid is enabled.
             self._projectors.append(
-                LexicalProjector(self._lexical, name=self._lexical_projector_name(config))
+                LexicalProjector(self._lexical, name=lexical_projector_name(config))
             )
         if self._associative is not None:
             # Registered only when associative is enabled, so rebuild() replays
@@ -1549,7 +1530,7 @@ class Engine:
             )
 
         # Background runner seam (D-16): inline default, dbos durable [dbos].
-        self._runner = self._build_runner(config)
+        self._runner = await container.get(TaskRunner)
         for name, pipeline in PIPELINES.items():
             self._runner.register(name, pipeline)
 
@@ -1564,7 +1545,7 @@ class Engine:
         # a fixed interval so learning dynamics advance without an external cron.
         interval = config.workers.sleep_interval_seconds
         if interval is not None and interval > 0:
-            if self._client_is_memory(config):
+            if client_is_memory(config):
                 # An in-memory SQLite DB shares one connection and can't use WAL,
                 # so a background sleep cycle collides with foreground writes
                 # ("table is locked"); and an ephemeral DB has nothing durable to
@@ -1648,16 +1629,11 @@ class Engine:
             await self._lexical.close()  # shares the SQLite client; a no-op there
         if self._graph is not None:
             await self._graph.close()  # store-held handles; connections close below
-        for client in (
-            self._client,
-            self._pg,
-            self._lance,
-            self._kuzu,
-            self._ladybug,
-            self._cashews,
-        ):
-            if client is not None:
-                await client.close()
+        if self._container is not None:
+            # dishka finalisers: the clients a build opened close here, in the order
+            # client, pg, lance, kuzu, ladybug, cashews (``Wiring.close_clients``).
+            container, self._container = self._container, None
+            await container.close()
         for attr in self._timed_attrs:  # I73: drop the instance wrappers, restore the methods
             self.__dict__.pop(attr, None)
         self._timed_attrs = []
@@ -13713,7 +13689,7 @@ class Engine:
         storage = self._storage
         assert storage is not None  # built in start() before the memory types
         asynchronous = config.write.window_async
-        if asynchronous and self._client_is_memory(config):
+        if asynchronous and client_is_memory(config):
             # Like the sleep scheduler: one shared connection, no WAL, so a background call
             # would collide with foreground writes ("table is locked"). Batch mode instead.
             _log.warning(
@@ -13881,44 +13857,6 @@ class Engine:
 
         return resolve
 
-    def _build_runner(self, config: MemspineConfig) -> TaskRunner:
-        if config.workers.runner == "inline":
-            return InlineRunner()
-        if config.workers.runner == "dbos":
-            from memspine.workers.dbos_runner import DBOSRunner, default_system_database_url
-
-            system_database_url = (
-                config.workers.dbos_system_database_url
-                or default_system_database_url(config.storage.path)
-            )
-            # ``_pipeline_ctx`` is safe to hand over now: by this point in
-            # ``_start_inner`` storage/config are already set, and the bound
-            # method builds a FRESH PipelineContext on every call — exactly
-            # what the durable workflow needs on recovery (see dbos_runner's
-            # module docstring).
-            runner = DBOSRunner(
-                system_database_url=system_database_url,
-                context_factory=self._pipeline_ctx,
-            )
-            # Register every pipeline BEFORE launch(): DBOS dispatches
-            # recovery of any crash-orphaned PENDING workflow the moment
-            # launch() runs, and that recovery resolves pipelines by name
-            # through this same runner (dbos_runner's `_run_pipeline_
-            # workflow`) — an empty registry would race it. The generic
-            # registration loop below (identical for every runner) still
-            # runs afterwards; re-registering the same names is a no-op.
-            for name, pipeline in PIPELINES.items():
-                runner.register(name, pipeline)
-            runner.launch()
-            return runner
-        if config.workers.runner == "taskiq":
-            from memspine.workers.taskiq_runner import TaskiqRunner
-
-            return TaskiqRunner(url=config.workers.broker_url)
-        raise ConfigError(
-            f"unknown workers.runner {config.workers.runner!r} (valid: inline, dbos, taskiq)"
-        )
-
     #: G24: the decision planner's options, label -> (read mode, description). Plain
     #: labels with cue-word descriptions; tuned offline on a frozen LoCoMo set
     #: (``evals/prereg/G24_gliner2_planner*.md``, ADR-052).
@@ -13933,30 +13871,6 @@ class Engine:
         ),
         "single fact": ("retrieve", "what, where, who, when: one specific thing"),
     }
-
-    def _check_decision_provider(self, config: MemspineConfig) -> None:
-        """H24, at ``start()``: a configured gliner2 provider must be importable (D-10).
-
-        Missing gliner2 raises ``MissingServiceError(extra="ner")``; with
-        ``strict_services: false`` it logs once and the provider stays off.
-        """
-        self._decision_off = False
-        if config.decision.provider == "off":
-            return
-        from memspine.models.providers.decision.gliner2_decision import gliner2_class
-
-        try:
-            gliner2_class()
-        except MissingServiceError:
-            if config.strict_services:
-                raise
-            self._decision_off = True
-            _log.warning(
-                "service.missing_ignored",
-                detail="strict_services=false: decision provider off, read planner uses rules",
-                service="gliner2 decision provider",
-                extra="ner",
-            )
 
     def _decision_provider(self) -> Any:
         """H24: the configured decision provider, built lazily; None when off (or when
@@ -14756,372 +14670,6 @@ class Engine:
         hook = getattr(provider, "entities", None) if provider is not None else None
         return hook if callable(hook) else None
 
-    def _build_write_pipeline(self, config: MemspineConfig) -> WritePipeline | None:
-        """C3 synchronous graphiti write pipeline for the semantic door.
-
-        Active only when ``memories.semantic.policies.write_pipeline == "graph"``
-        AND an ``extract_edges`` role is bound — otherwise None (single-pass,
-        byte-identical to v0.1). Edges are written through the M4/M5 ladder, so
-        edge invalidation reuses the conflict machinery (ADR-026)."""
-        sem = self._memory_policy(config, "semantic")
-        if sem.get("write_pipeline", "single") != "graph":
-            return None
-        if self._llm is None or self._prompts is None or "extract_edges" not in self._llm.roles:
-            return None
-        return GraphWritePipeline(
-            self._edge_extract_callable(extraction_rounds(sem)),
-            protected_keys=config.firewall.protected_keys,
-            cardinality=cardinality_map(
-                (_as_options_dict(sem.get("extract_graph")) or {}).get("cardinality")
-            ),
-        )
-
     @staticmethod
     def _memory_policy(config: MemspineConfig, memory_type: str) -> dict[str, Any]:
-        mem = config.memories.get(memory_type)
-        return dict(mem.policies) if mem is not None else {}
-
-    def _build_extractor(self, config: MemspineConfig) -> EntityExtractor | None:
-        """Entity extraction provider (D-28): off (default) | llm | gliner."""
-        mode = str(self._memory_policy(config, "semantic").get("entity_extraction", "off"))
-        if mode == "off":
-            return None
-        if mode == "llm":
-            assert self._prompts is not None and self._llm is not None
-            # E3 extraction cache: keyed by (prompt version x content hash), so
-            # a prompt upgrade cleanly invalidates (N7).
-            assert self._cache is not None  # built in _start_inner before extractors
-            self._cached_extractor = CachedExtractor(
-                LLMEntityExtractor(
-                    self._llm.for_role("extract"), self._prompts.for_role("extract")
-                ),
-                self._cache,
-            )
-            return self._cached_extractor
-        if mode == "gliner":
-            from memspine.memories.semantic.entities import GlinerEntityExtractor
-
-            return GlinerEntityExtractor()
-        raise ConfigError(
-            f"unknown memories.semantic.policies.entity_extraction {mode!r} "
-            "(valid: off, llm, gliner)"
-        )
-
-    def _build_embedder(self, config: MemspineConfig) -> EmbeddingService:
-        # MOD-02: the typed ``embedders`` registry (memspine.models.registry) holds the factories.
-        return cast("EmbeddingService", build_embedder(config.embedding))
-
-    def _rescore_settings(self, config: MemspineConfig) -> tuple[str | None, int | None]:
-        """E4 (ADR-020): resolve the effective (quantization, matryoshka_dim)
-        from the embedder manifest + the ``vector.quantization`` override.
-
-        ``auto`` reads the manifest (default embedders declare none → the exact
-        float32 path); ``none`` forces off; ``int8``/``binary`` force a scheme.
-        Matryoshka truncation is manifest-only and uses the smallest declared
-        prefix dim (max prefilter savings; the rescore restores full precision).
-        """
-        assert self._embedder is not None
-        manifest = self._embedder.manifest
-        override = config.vector.quantization
-        if override == "none":
-            quantization = None
-        elif override in ("int8", "binary"):
-            quantization = override
-        elif override == "auto":
-            quantization = manifest.quantization
-        else:
-            raise ConfigError(
-                f"unknown vector.quantization {override!r} (valid: auto, none, int8, binary)"
-            )
-        matryoshka_dim = min(manifest.matryoshka_dims) if manifest.matryoshka_dims else None
-        return quantization, matryoshka_dim
-
-    async def _build_storage(self, config: MemspineConfig) -> SqlStorage:
-        """Storage backend dispatch (D-36, Phase 6). ``sqlite`` (default) opens a
-        SQLiteClient at ``storage.path``; ``postgres`` opens a PostgresClient at
-        ``storage.url`` (already secrets-resolved by the config loader). Both wrap
-        the same dialect-neutral :class:`SqlStorage`."""
-        backend = config.storage.backend
-        mode = config.event_log.mode
-        compress = config.event_log.compress
-        encryption = config.storage.encryption
-        if encryption.mode == "sqlcipher" and backend != "sqlite":
-            raise ConfigError(
-                "storage.encryption.mode=sqlcipher applies to the sqlite backend only "
-                f"(storage.backend={backend!r}; use the database's own encryption at rest)"
-            )
-        if backend == "sqlite":
-            cipher_env = encryption.key_env if encryption.mode == "sqlcipher" else None
-            self._client = SQLiteClient(config.storage.path, cipher_key_env=cipher_env)
-            await self._client.connect()
-            if cipher_env is not None:
-                # #52/ADR-035: name what the option does NOT cover; never the key.
-                _log.warning(
-                    "storage.encryption_partial",
-                    detail="SQLCipher encrypts the SQLite event log and read model only; "
-                    "LanceDB vectors, the Tantivy lexical index, disk caches and a DBOS "
-                    "system database are separate files and are not encrypted",
-                    key_env=cipher_env,
-                )
-            return SQLiteStorage(self._client, mode=mode, compress=compress)
-        if backend == "postgres":
-            if not config.storage.url:
-                raise ConfigError("storage.url is required when storage.backend='postgres'")
-            from memspine.services.storage.postgres.engine import PostgresStorage
-
-            self._pg = PostgresClient(config.storage.url)
-            await self._pg.connect()
-            return PostgresStorage(self._pg, mode=mode, compress=compress)
-        raise ConfigError(f"unknown storage.backend {backend!r} (valid: sqlite, postgres)")
-
-    async def _build_cache(self, config: MemspineConfig) -> KVCache:
-        """Build the one shared KV cache (D-09, ADR-022 amendment). ``memory`` is
-        the zero-dep :class:`MemoryKV` core default; ``disk``/``redis``/``valkey``
-        go through **cashews** (`[cache]` extra) — on-disk (diskcache) or a shared
-        server. A missing extra hard-fails with the D-10 error (raised by the
-        client on ``connect()``)."""
-        cache = config.cache
-        backend = cache.backend
-        if backend == "memory":
-            return MemoryKV(max_entries=cache.max_entries)
-        if backend in ("disk", "redis", "valkey"):
-            from memspine.models.cache.cashews_cache import CashewsCache
-
-            # disk → diskcache dir at cache.path; redis/valkey → cache.url DSN
-            # (valkey is redis-wire-compatible, so it rides the same client).
-            url = f"disk://?directory={cache.path}" if backend == "disk" else cache.url
-            self._cashews = CashewsClient(url)
-            await self._cashews.connect()
-            return CashewsCache(
-                self._cashews,
-                namespace=cache.namespace,
-                default_ttl_seconds=cache.default_ttl_seconds,
-            )
-        raise ConfigError(f"unknown cache.backend {backend!r} (valid: memory, disk, redis, valkey)")
-
-    async def _build_vector_store(self, config: MemspineConfig) -> VectorStore:
-        assert self._embedder is not None
-        quantization, matryoshka_dim = self._rescore_settings(config)
-        self._rescore_active = quantization is not None or matryoshka_dim is not None
-        backend = config.vector.backend
-        plug = VECTOR_STORES.find(backend)
-        if plug is not None:  # MOD-02: an enabled plug-in vector store
-            return cast(
-                "VectorStore",
-                plug(config, self._derived_base(config), self._client_is_memory(config)),
-            )
-        if backend not in VECTOR_STORES:
-            # ``weaviate`` (and future remote stores) keep the config seam open
-            # but are not built yet — LanceDB is the sole reference adapter
-            # (ADR-021, amends D-09). The zero-dep SQLite brute-force store was
-            # removed with it, so there is no ``auto``/``sqlite`` path anymore.
-            raise ConfigError(
-                f"unknown vector.backend {backend!r} (valid: lance; weaviate reserved)"
-            )
-        # LanceDB is the only vector store (ADR-021). E4 (ADR-020 §6): LanceDB
-        # owns quantization natively — an active int8/binary/Matryoshka manifest
-        # drives its native compressed ANN index (IVF_HNSW_SQ / IVF_PQ) queried
-        # with refine_factor + nprobes. ``_rescore_active`` stays as resolved
-        # above; the store degrades to a flat exact query (skip-logged once)
-        # when the corpus is too small to train an index.
-        from memspine.services.vector.lancedb_store import LanceDBVectorStore
-
-        if self._client_is_memory(config):
-            # A projection must never outlive its log (D0.1): an in-memory event
-            # log gets an in-memory Lance table. LanceDB keeps a ``memory://``
-            # store private to its connection, so concurrent :memory: engines
-            # never share rows and the table is freed when the client closes.
-            # A scratch directory on disk gave the same results but cost a new
-            # fragment and version file per write (and minutes to delete).
-            lance_path = "memory://vectors"
-            exclusive = True  # no other engine can reach this table
-        else:
-            # sqlite: <path>.lance beside the db; postgres: <data_dir>/memspine.lance
-            lance_path = f"{self._derived_base(config)}.lance"
-            # A file-backed table may be shared with concurrent engines (D-45):
-            # compacting it could conflict with their writes, and only a merge
-            # knows whether an id is already there, so it keeps the plain path.
-            exclusive = False
-        self._lance = LanceDBClient(lance_path)
-        await self._lance.connect()
-        lance, embedder = self._lance, self._embedder
-
-        def make(suffix: str = "") -> LanceDBVectorStore:
-            return LanceDBVectorStore(
-                lance,
-                embedder,
-                quantization=quantization,
-                matryoshka_dim=matryoshka_dim,
-                oversample=constants.RESCORE_OVERSAMPLE,
-                compact_every=constants.LANCE_COMPACT_EVERY if exclusive else None,
-                exclusive=exclusive,
-                namespace_index=config.vector.namespace_index,
-                table_suffix=suffix,
-            )
-
-        if config.vector.isolation == "per_namespace":
-            # I4: one table per namespace (``services/vector/per_namespace.py``).
-            from memspine.services.vector.per_namespace import PerNamespaceVectorStore
-
-            return cast("VectorStore", PerNamespaceVectorStore(lance, embedder, make))
-        return make()
-
-    @staticmethod
-    def _lexical_projector_name(config: MemspineConfig) -> str:
-        """N58: ``lexical`` for the default analyzer, ``lexical:<analyzer>`` otherwise,
-        so a new analyzer's index starts from offset 0 and is rebuilt from the log."""
-        variant = Engine._lexical_variant(config)
-        return f"lexical:{variant}" if variant else "lexical"
-
-    @staticmethod
-    def _lexical_variant(config: MemspineConfig) -> str:
-        """N58 / N30: the lexical index variant ("" = the default index): the analyzer
-        when not ``default``, and ``dates`` with ``read.lexical_dates``."""
-        parts: list[str] = (
-            [] if config.read.lexical_analyzer == "default" else [config.read.lexical_analyzer]
-        )
-        if config.read.lexical_dates:
-            parts.append("dates")
-        return "+".join(parts)
-
-    def _build_lexical_store(self, config: MemspineConfig) -> LexicalStore:
-        """Lexical provider selection (D-25). ``tantivy`` (default, **core**)
-        builds a standalone BM25 index independent of the storage backend;
-        ``opensearch`` (``[opensearch]`` extra) is the server-scale seam. Both are
-        rebuildable projections driven by the same :class:`LexicalProjector`. The
-        transactional-DB ``sqlite_fts5`` provider was removed (v0.2): the lexical
-        leg is a dedicated search index, never bolted onto the system-of-record."""
-        provider = config.read.lexical_provider
-        plug = LEXICAL_INDEXES.find(provider)
-        if plug is not None:  # MOD-02: an enabled plug-in lexical index
-            return cast(
-                "LexicalStore",
-                plug(config, self._derived_base(config), self._client_is_memory(config)),
-            )
-        if provider == "tantivy":
-            from memspine.services.lexical.tantivy import TantivyLexical
-
-            # In-RAM index for an in-memory event log (same lifetime, no ghost
-            # segments across runs — mirrors the vector store's :memory: rule);
-            # else an on-disk directory beside the derived base.
-            variant = self._lexical_variant(config)
-            suffix = f".tantivy-{variant.replace('+', '-')}" if variant else ".tantivy"
-            index_path = (
-                None if self._client_is_memory(config) else f"{self._derived_base(config)}{suffix}"
-            )
-            return TantivyLexical(
-                index_path,
-                analyzer=config.read.lexical_analyzer,
-                date_tokens=config.read.lexical_dates,
-            )
-        if provider == "opensearch":
-            from memspine.services.lexical.opensearch import OpenSearchLexical
-
-            return cast("LexicalStore", OpenSearchLexical(config.read))  # stub — always raises
-        raise ConfigError(
-            f"unknown read.lexical_provider {provider!r} (valid: tantivy, opensearch)"
-        )
-
-    async def _build_graph_store(self, config: MemspineConfig) -> GraphStore:
-        """Graph provider selection (D-26). ``sqlite_adjacency`` (default) rides
-        the existing SQLite client; ``kuzu`` and ``ladybug`` each open their own
-        embedded database via a dedicated client (D-24) — in-memory when the
-        event log is in-memory, so the projection can never outlive its log
-        (D0.1)."""
-        provider = config.graph.provider
-        if provider == "auto":
-            # GR-1 (ADR-064): LadybugDB, the graph engine (ADR-034), when installed;
-            # else the zero-dep SQLite adjacency lists (or LadybugDB on postgres).
-            import importlib.util
-
-            has_ladybug = importlib.util.find_spec("ladybug") is not None
-            provider = "ladybug" if has_ladybug or self._client is None else "sqlite_adjacency"
-        plug = GRAPH_STORES.find(provider)
-        if plug is not None:  # MOD-02: an enabled plug-in graph store
-            return cast(
-                "GraphStore",
-                plug(config, self._derived_base(config), self._client_is_memory(config)),
-            )
-        if provider == "sqlite_adjacency":
-            if self._client is None:
-                raise ConfigError(
-                    "graph.provider='sqlite_adjacency' requires storage.backend='sqlite' — "
-                    "use 'kuzu' or 'ladybug' (own embedded db) with a postgres backend"
-                )
-            return SQLiteAdjacencyGraph(self._client)
-        if provider == "kuzu":
-            from memspine.services.graph.kuzu import KuzuGraphStore
-
-            path = (
-                ":memory:"
-                if self._client_is_memory(config)
-                else f"{self._derived_base(config)}.kuzu"
-            )
-            self._kuzu = KuzuClient(path)
-            await self._kuzu.connect()
-            return KuzuGraphStore(self._kuzu)
-        if provider == "ladybug":
-            from memspine.services.graph.ladybug import LadybugGraphStore
-
-            path = (
-                ":memory:"
-                if self._client_is_memory(config)
-                else f"{self._derived_base(config)}.ladybug"
-            )
-            self._ladybug = LadybugClient(path)
-            await self._ladybug.connect()
-            return LadybugGraphStore(self._ladybug)
-        if provider == "neo4j":
-            from memspine.services.graph.neo4j import Neo4jGraphStore
-
-            return cast("GraphStore", Neo4jGraphStore())  # stub — always raises
-        raise ConfigError(
-            f"unknown graph.provider {provider!r} (valid: sqlite_adjacency, kuzu, ladybug, neo4j)"
-        )
-
-    @staticmethod
-    def _client_is_memory(config: MemspineConfig) -> bool:
-        return config.storage.backend == "sqlite" and config.storage.path == ":memory:"
-
-    @staticmethod
-    def _derived_base(config: MemspineConfig) -> str:
-        """Base path for the file-backed projections that live OUTSIDE the SQL
-        database (LanceDB vectors, Tantivy lexical). For ``sqlite`` it is the db
-        path (``<path>.lance`` etc.); for ``postgres`` it is ``storage.data_dir``
-        (required — the DSN is not a filesystem path)."""
-        if config.storage.backend == "postgres":
-            if not config.storage.data_dir:
-                raise ConfigError(
-                    "storage.data_dir is required when storage.backend='postgres' — "
-                    "it is the base directory for the LanceDB/Tantivy projections"
-                )
-            return str(Path(config.storage.data_dir) / "memspine")
-        return config.storage.path
-
-    async def _build_llm_router(self, config: MemspineConfig) -> LLMRouter:
-        """Route each role by its ``model`` prefix (D-33). ``llamacpp/<path>``
-        binds the in-process :class:`LlamaCppLLM` (``[llmlocal]``); every other
-        model id — ``openai/…``, ``ollama/…``, ``bedrock/…``, ``vertex_ai/…`` —
-        goes through the unified LiteLLM adapter. litellm is imported lazily so a
-        default engine with no LLM role never pays its import cost."""
-        providers: dict[str, LLMService] = {}
-        _structured.configure(config.llm.structured.model_dump())  # I69 (process-wide)
-        for role, role_config in config.llm.roles.items():
-            model = role_config.model
-            if model:
-                # MOD-02: typed ``llm_providers`` registry (llamacpp/, plug-in, else LiteLLM).
-                providers[role] = LLM_PROVIDERS.get(llm_provider_name(model))(model, role_config)
-            else:
-                raise ConfigError(
-                    f"llm.roles.{role}.model is required — a LiteLLM model id "
-                    "(e.g. openai/gpt-4o, ollama/llama3, bedrock/...) or llamacpp/<path>"
-                )
-        consent = config.consent
-        if consent.remote_llm_max_tier is not None:
-            # #50: a remote provider never sees text of records above the tier.
-            for role, role_config in config.llm.roles.items():
-                if not is_local_provider(
-                    role_config.model, role_config.api_base, consent.local_hosts
-                ):
-                    providers[role] = TierGatedLLM(providers[role], self._withheld_texts)
-        return LLMRouter(providers)
+        return memory_policy(config, memory_type)

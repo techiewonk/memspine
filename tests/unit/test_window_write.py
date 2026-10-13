@@ -158,10 +158,10 @@ async def _engine(
     path: Any = ":memory:",
     **write: Any,
 ) -> Engine:
-    async def router(self: Engine, config: MemspineConfig) -> LLMRouter:
+    async def router(config: MemspineConfig, hooks: object = None) -> LLMRouter:
         return LLMRouter({"window_extract": llm, **(extra_roles or {})})  # type: ignore[dict-item]
 
-    monkeypatch.setattr(Engine, "_build_llm_router", router)
+    monkeypatch.setattr("memspine.runtime.container.build_llm_router", router)
     semantic: dict[str, Any] = {"enabled": True}
     if extract_graph is not None:
         semantic["policies"] = {"extract_graph": extract_graph}
