@@ -724,6 +724,7 @@ in the schema — or if the schema gains a key not documented here.
 | `embedding.query_input_type` | `null` | litellm only: input type for retrieval queries (Cohere: `search_query`). |
 | `embedding.document_input_type` | `null` | litellm only: input type for stored content (Cohere: `search_document`). |
 | `embedding.query_instruction` | `None` | N64: fastembed only. Text prepended to every retrieval query before embedding; documents are unchanged, so no re-index. For the BGE v1.5 models, use `constants.BGE_QUERY_INSTRUCTION` ("Represent this sentence for searching relevant passages: "). fastembed's own `query_embed` does not add it. Query vectors are cached under a key that includes the instruction. |
+| `embedding.versioned_spaces` | `False` | F-03 (P-25 C): version the vector space. Each vector belongs to a space (embedder model, dim, dtype, query instruction, normalisation); after an embedder change new writes go to the new space, reads query only a namespace's active space, and `reembed` builds the new space in batches and switches atomically. Off = one table per embedder, unchanged. |
 | `embedding.batch_size` | `32` | G9: most texts per embedding call when `write_messages` embeds its turns up front (Cohere on Bedrock: up to 96). |
 | `vector.backend` | `lance` | `lance` is the sole store (ADR-021); `weaviate` reserved (raises). |
 | `vector.quantization` | `auto` | `auto` (manifest-driven) \| `none` \| `int8` \| `binary` — E4 native rescore (ADR-020). |

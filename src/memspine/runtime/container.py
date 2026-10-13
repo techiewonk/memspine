@@ -507,10 +507,10 @@ async def build_vector_store(
     await wiring.lance.connect()
     lance = wiring.lance
 
-    def make(suffix: str = "") -> LanceDBVectorStore:
+    def make(suffix: str = "", emb: Any = None) -> LanceDBVectorStore:
         return LanceDBVectorStore(
             lance,
-            embedder,
+            emb if emb is not None else embedder,
             quantization=quantization,
             matryoshka_dim=matryoshka_dim,
             oversample=constants.RESCORE_OVERSAMPLE,
@@ -520,12 +520,50 @@ async def build_vector_store(
             table_suffix=suffix,
         )
 
+    if config.embedding.versioned_spaces:
+        # F-03 (P-25 C): one backend per vector space, the table named from the space id. Off by
+        # default; with it off the branches below are exactly what they were.
+        return _build_versioned_spaces(config, embedder, lance, make)
     if config.vector.isolation == "per_namespace":
         # I4: one table per namespace (``services/vector/per_namespace.py``).
         from memspine.services.vector.per_namespace import PerNamespaceVectorStore
 
         return cast("VectorStore", PerNamespaceVectorStore(lance, embedder, make))
     return make()
+
+
+def _build_versioned_spaces(
+    config: MemspineConfig, embedder: EmbeddingService, lance: Any, make: Any
+) -> VectorStore:
+    from dataclasses import dataclass
+
+    from memspine.store.vector_spaces import JsonSpaceState, VectorSpace, VersionedSpaceStore
+
+    @dataclass(frozen=True)
+    class _SpaceEmbedder:
+        """Names and sizes one space's table (the vector store reads only these two)."""
+
+        embedder_id: str
+        dim: int
+
+    current = VectorSpace(
+        model_id=embedder.embedder_id,
+        dim=embedder.dim,
+        query_instruction=config.embedding.query_instruction,
+    )
+
+    def factory(space: VectorSpace) -> Any:
+        shim = _SpaceEmbedder(space.qualified_id, space.dim)
+        if config.vector.isolation == "per_namespace":
+            from memspine.services.vector.per_namespace import PerNamespaceVectorStore
+
+            return PerNamespaceVectorStore(lance, shim, lambda suffix: make(suffix, shim))
+        return make("", shim)
+
+    state = (
+        None if client_is_memory(config) else JsonSpaceState(f"{derived_base(config)}.spaces.json")
+    )
+    return cast("VectorStore", VersionedSpaceStore(factory, current, state))
 
 
 def build_lexical_store(config: MemspineConfig, _caps: Capabilities) -> LexicalStore:

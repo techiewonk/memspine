@@ -48,7 +48,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -496,7 +497,7 @@
    "window_topic_k": 2.0
   }
  },
- "json_schema_sha256": "ce68927475ecf9a62b6a968a2c8b0c1802b0333388bee003be7637fd3cf46094",
+ "json_schema_sha256": "1ec25c7e4d7cb64e48ce1f0556479672eb18d640987fbabd17994c7f187bbbba",
  "preset:chat_roles": {
   "audit": {
    "actions": false,
@@ -546,7 +547,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -1074,7 +1076,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -1598,7 +1601,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -2122,7 +2126,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -2646,7 +2651,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -3170,7 +3176,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -3694,7 +3701,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -4218,7 +4226,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -4742,7 +4751,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -5266,7 +5276,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -5799,7 +5810,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -6328,7 +6340,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -6838,7 +6851,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -7370,7 +7384,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -7898,7 +7913,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -8430,7 +8446,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -8954,7 +8971,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": true,
@@ -9479,7 +9497,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": true,
