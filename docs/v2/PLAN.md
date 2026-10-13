@@ -9,9 +9,9 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 |---|---|
 | Not started | 63 |
 | Ready | 0 |
-| In progress | 14 |
+| In progress | 12 |
 | Blocked | 0 |
-| Needs measurement | 11 |
+| Needs measurement | 13 |
 | Done | 74 |
 | Dropped | 0 |
 
@@ -168,10 +168,10 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | R3-10 | Neighbour windows after rerank | L0 | C | R-19 | ER-24 | LIB-24 | behaviour | S3 read (serial) | - | Focus non-inferior | **In progress** | Swarm 2026-10-13: wiring flag-off (agent running) |
 | R3-11 | Store-calibrated relevance gate with named bypass | L1 ctx | R | R-21 | ER-23, POL-1 | LIB-12 | behaviour | S3 read (serial) | - | OP-Bench up; no recall loss on MAB-CR, ConvoMem, LoCoMo | **Needs measurement** | Wired flag-off (RW-D 949b5ff); SAF-GENERIC passes with gate_v2; screen queued (SCREENS.md) |
 | R3-12 | Deep tier: one sufficiency check and one rewrite | L0 ctx | R C | R-22 | ER-19, ER-23 | LIB-43, R3-11 | behaviour | S3 read (serial) | - | f-suff: net beyond band, no category loss, at most 2x wall time | **Needs measurement** | Wired flag-off (RW-D 949b5ff); SAF-GENERIC passes with gate_v2; screen queued (SCREENS.md) |
-| R3-13 | External public knowledge (opt-in, separate block) | L0 | R | R-23 | ER-25 | LIB-45 | behaviour | S3 read (serial) | - | Separate arm; never mixed in headline | **In progress** | Swarm 2026-10-13: wiring flag-off (agent running) |
+| R3-13 | External public knowledge (opt-in, separate block) | L0 | R | R-23 | ER-25 | LIB-45 | behaviour | S3 read (serial) | - | Separate arm; never mixed in headline | **Needs measurement** | Wired flag-off (RW-F 976f27d); screen queued |
 | R3-14 | Time view and two-axis as-of reads | L0 L1 | R | R-24, M-11 | ER-18 | LIB-22 | behaviour | S3 read (serial) | - | Temporal and MAB-CR non-inferior | **In progress** | Swarm 2026-10-13: wiring flag-off (agent running) |
 | R3-16 | Evidence obligations for joins, durations and lists (screened) | L0 ctx | R C | R-03, R-22 | ER-19 | LIB-15, R3-12 | behaviour | S3 read (serial) | - | Unseen intersections, durations and enumerations improve at fixed reader/token budgets; no more unsupported answers | **Needs measurement** | Wired flag-off (RW-D 949b5ff); SAF-GENERIC passes with gate_v2; screen queued (SCREENS.md) |
-| R3-15 | Parallel legs, latency SLOs (declared hardware/concurrency), caches keyed by scope/version (off until ER-31 tests pass), prefix layout | L0 L1 ctx | D R C | R-25, R-26, P-20, P-24 | ER-09, ER-31, ER-39 | LIB-19 | infra | S3 read (serial) | - | p95 SLO tests in CI; caching (result/context caches disabled until ER-31 keys and use-time admission tests pass) | **In progress** | Swarm 2026-10-13: wiring flag-off (agent running) |
+| R3-15 | Parallel legs, latency SLOs (declared hardware/concurrency), caches keyed by scope/version (off until ER-31 tests pass), prefix layout | L0 L1 ctx | D R C | R-25, R-26, P-20, P-24 | ER-09, ER-31, ER-39 | LIB-19 | infra | S3 read (serial) | - | p95 SLO tests in CI; caching (result/context caches disabled until ER-31 keys and use-time admission tests pass) | **Needs measurement** | Wired flag-off (RW-F 976f27d); screen queued |
 | EX-3 | Phase 3 exit: beats or matches 81.4% beyond band; blind sets hold | L0 L1 L4 L5 ctx scope | D K_C K_P R C G | G-01 | - | R3-15, R3-02 | measure | exit | - | ROADMAP Phase 3 exit gate | **Not started** |  |
 
 ## Phase 4: offline memory
