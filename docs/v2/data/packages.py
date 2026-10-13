@@ -146,7 +146,7 @@ WP = [
      "Both suites and golden green; no old import paths", "Done", "S5: 11 modules moved, codemod_move.py; unit 3343, evals 1435, golden, 14 contracts kept (afb3d16)"),
     ("F-06", 1, "Move read, compose and models leaves", ["G-16"], ["F-05"], "move", "Same as F-05", "Done", "S6: 10 modules + 6 packages moved (query helpers to models/encoders/query); unit 4400, evals 1435, golden, 14 contracts (7ba2427)"),
     ("MOD-02", 1, "Typed registries + entry points (discovery is not enablement: pinned capability manifest)", ["G-16"], ["F-06", "MOD-01"], "api",
-     "Built-ins register at import; entry-point plug-in test; golden unchanged", "Not started", "Owner 2026-10-13"),
+     "Built-ins register at import; entry-point plug-in test; golden unchanged", "Done", "Registry[T] + entry points, pinned enable, duplicate/lifetime errors, plugins: config; unit 5871, evals 1435, golden, 14 contracts (c5226f1)"),
     ("F-07", 1, "Config split and flag registry (per-area flag modules)", ["G-21", "G-22"], ["MOD-02"], "move",
      "Same YAML keys; every default flag has evidence", "Not started", "S7"),
     ("F-08", 1, "Wiring out of the engine into a dishka container (app, job, request scopes)", ["G-16"], ["F-07"], "api", "Golden", "Not started", "S8"),

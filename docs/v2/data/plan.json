@@ -2835,8 +2835,8 @@
    ],
    "kind": "api",
    "gate": "Built-ins register at import; entry-point plug-in test; golden unchanged",
-   "status": "Not started",
-   "note": "Owner 2026-10-13",
+   "status": "Done",
+   "note": "Registry[T] + entry points, pinned enable, duplicate/lifetime errors, plugins: config; unit 5871, evals 1435, golden, 14 contracts (c5226f1)",
    "layers": [
     "L0",
     "L1",
