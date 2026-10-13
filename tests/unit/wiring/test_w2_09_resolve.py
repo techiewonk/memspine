@@ -130,7 +130,7 @@ def test_flag_is_off_by_default_and_stage_registered_only_when_on() -> None:
         _storage = None
 
     assert _envelope_stages(Eng(), cfg) == ()
-    on = MemspineConfig(write={"envelope_v2": True, "resolver_v2": True})
+    on = MemspineConfig(write={"window_extract": "facts", "envelope_v2": True, "resolver_v2": True})
     (stage,) = _envelope_stages(Eng(), on)
     assert stage.name == "resolve" and stage.order == 300
 

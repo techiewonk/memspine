@@ -5,6 +5,9 @@ The plan's per-turn targets, checked against a ``WriteCostLedger``:
 - at most 1 generative call per window for all online layers (retries and split calls count);
 - static prompt at most 500 tokens;
 - output at most 2x input (completion tokens over prompt tokens, window extraction);
+- at most 1 coverage re-extraction call per window (``coverage_reextract``, FU-REQS: booked under
+  its own stage, so the call-1 target above cannot see it; it is its own target, not part of that
+  one);
 - sleep at most 0.2 calls per turn, amortised;
 - deep-tier read (R-22): at most 1 extra model call and 1 extra search per read.
 
@@ -78,6 +81,10 @@ class TargetSet:
     deep_extra_calls_per_read: float | None = 1.0
     deep_extra_searches_per_read: float | None = 1.0
     window_stages: tuple[str, ...] = ("window_extract",)
+    #: FU-REQS (audit 2026-10-13, #13): the W2-15 coverage re-extraction is booked as
+    #: ``coverage_reextract``, outside ``window_stages`` and ``sleep_stages``. Checked on its own.
+    coverage_reextract_calls_per_window: float | None = 1.0
+    coverage_stages: tuple[str, ...] = ("coverage_reextract",)
     sleep_stages: tuple[str, ...] = SLEEP_STAGES
     #: target name -> reason; a missed target with a waiver is reported ``waived``, not failed.
     waivers: Mapping[str, str] = field(default_factory=dict)
@@ -103,6 +110,15 @@ class TargetSet:
         out.extend(
             self._lift(v) for v in lib.check(ledger.stage_ledger, turns=turns, windows=windows)
         )
+        if self.coverage_reextract_calls_per_window is not None:
+            rows = ledger.select(stages=self.coverage_stages, kind="generative")
+            out.append(
+                self._cmp(
+                    "coverage_reextract_calls_per_window",
+                    _per(sum(r.calls for r in rows), windows),
+                    self.coverage_reextract_calls_per_window,
+                )
+            )
         if self.sleep_calls_per_turn is not None:  # model (generative) calls only, not embeds
             per_turn = ledger.stage_ledger.calls_per_turn(
                 turns or 0, cost_class="generative", stages=self.sleep_stages

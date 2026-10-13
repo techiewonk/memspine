@@ -107,10 +107,14 @@ def validate_engine_config(config: dict[str, Any]) -> None:
     misspelt key there would otherwise pass start-up silently.
     """
     from memspine.compose.pack import AssemblyOptions
+    from memspine.config.requires import check_requires
     from memspine.config.schema import MemspineConfig
     from memspine.core.policies.scoring import ScoringOptions
 
     parsed = MemspineConfig.model_validate(config)
+    # FU-REQS: the arm is a screen, so the soft needs count too (deep_v2 with no bound sufficiency
+    # role is rules-only with zero model calls: an arm that cannot show an effect)
+    check_requires(parsed, strict=True)
     if parsed.read.scoring:
         ScoringOptions.model_validate(parsed.read.scoring)
     if parsed.read.assembly:

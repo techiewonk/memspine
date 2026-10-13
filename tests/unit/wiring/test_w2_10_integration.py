@@ -370,7 +370,7 @@ def test_stage_registered_only_with_the_flag() -> None:
         _storage = None
 
     assert _envelope_stages(E(), MemspineConfig()) == ()
-    cfg = MemspineConfig(write={"envelope_v2": True, "integration_v2": True})
+    cfg = MemspineConfig(write={"window_extract": "facts", "envelope_v2": True, "integration_v2": True})
     assert [s.order for s in _envelope_stages(E(), cfg)] == [400]
 
 
@@ -443,7 +443,11 @@ def test_behavioural_inv_order_swap_passes_with_the_flag_and_fails_without(tmp_p
                 embedding={"provider": "hash"},
                 read={"rerank": "off", "record_access": False},
                 memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
-                write={"integration_v2": on},
+                write=(
+                    {"integration_v2": True, "envelope_v2": True, "window_extract": "facts", "online_extractor_v2": True}
+                    if on
+                    else {}
+                ),
             )
 
         return build

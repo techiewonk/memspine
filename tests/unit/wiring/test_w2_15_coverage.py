@@ -134,7 +134,7 @@ def test_flag_off_registers_nothing_and_on_registers_one_stage_at_250_after_grou
     off = MemspineConfig()
     assert off.write.coverage_v2 is False and off.write.coverage_threshold == 0.8
     assert _envelope_stages(SimpleNamespace(), off) == ()
-    on = MemspineConfig(write={"envelope_v2": True, "grounding_v2": True, "coverage_v2": True})
+    on = MemspineConfig(write={"window_extract": "facts", "envelope_v2": True, "grounding_v2": True, "coverage_v2": True})
     eng = SimpleNamespace(
         _llm=SimpleNamespace(for_role=lambda r: Stub()), _prompts=SimpleNamespace(partial=None)
     )

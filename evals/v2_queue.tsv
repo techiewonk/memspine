@@ -50,3 +50,22 @@ S48	B5	W2-02	scr-gc3-stamping	v2-S02-i2	NONINF	f	S02	GC	150	write.stamping_v2
 S49	B5	W2-03	scr-gc3-rolepolicy	v2-S02-i2	NONINF	f	S02	GC	150	write.role_policy_v2
 S50	B5	W2-01	scr-gc3-intake	v2-S02-i2	NONINF	f	S02	GC	150	write.intake_v2
 S51	B6	R3-06	v2-R3-06-family_fusion	f-jref2-i2	NONINF	f	-	J	20	read.family_fusion (focus candidate after S14 sample +4/-1; run MODE=focus after B2)
+# --- B7: re-armed screens (FU-REQS, audit 2026-10-13 findings 3-8). B2/B5 rows above are unchanged. ---
+# Skipped rows keep their old id and start with #SKIP (the queue ignores comment lines): S23 (no provider that can answer unseen questions; network egress is an owner decision), S24 (no as-of question set in this queue; arm scr-b7-timeview is prepared), S46 (no read consumer of the profile card). Reasons: docs/v2/SCREENS.md 'B7 / B8'.
+S52	B7	R3-09a	scr-b7-tightbudget	-	REF	f	-	J	20	(reference for S53: J arm + read.reply_reserve_tokens=3072, a quarter of the 4096 cap stays for evidence)
+S53	B7	R3-09a	scr-b7-exactbudget	v2-S52-i2	NONINF	f	S52	J	20	read.exact_budget (budget binds: reply reserve 3072; replaces S17)
+S54	B7	R3-09b	scr-b7-bundles	v2-S43-i2	NONINF	f	S43	GC	170	read.evidence_bundles (on window-facts mined facts, which have cited parent turns; replaces S18)
+S55	B7	R3-12	scr-b7-deep	v2-S20-i2	NONINF	fo	S20	J	45	read.deep_v2 + llm.roles.sufficiency bound (report deep calls per read, target <= 1; replaces S21)
+S56	B7	R3-16	scr-b7-obligations	v2-S55-i2	NONINF	f	S55	J	45	read.obligations on deep_v2 + bound sufficiency role (replaces S22)
+S57	B7	T5-02	v2-T5-02-trust_rendering	f-jref2-i2	REPORT	o	-	J	20	read.trust_rendering on OP-Bench only (LoCoMo is uniform trust: non-inferiority check there is dropped; replaces S27; the N1 poisoning set is the real test)
+#SKIP	S23	B7	R3-13	v2-R3-13-external_v2	f-jref2-i2	REPORT	o	-	J	0	read.external_v2: skipped, no provider that can answer unseen questions (needs external_evidence cache|web plus a provider; arm now fails config validation)
+#SKIP	S24	B7	R3-14	scr-b7-timeview	f-jref2-i2	NONINF	-	-	J	0	read.timeview_v2: skipped, needs an as-of question set (LongMemEval or locomo_plus with --memspine-as-of-question-date); arm prepared
+#SKIP	S46	B7	O4-07	scr-gc3-profilecard	v2-S02-i2	NONINF	f	S02	GC	0	offline.profile_card_v2: skipped, no read consumer (offline.profile_card_v2 is not linked to read.profile_header); stage covered by tests/unit/wiring/test_ow_a_close_call2_profile.py
+# --- B8: one gc3 arm per flag profile (config/presets/<profile>.yaml; arm = gc3 + preset + roles). Order of value: core, graph, write, safe, offline, trust, run. ---
+S60	B8	profile	scr-b8-read-v2-core	v2-S02-i2	NONINF	f	S02	GC	160	profile read-v2-core (replaces S11, S12, S14-S16, S17, S36-S38)
+S61	B8	profile	scr-b8-read-v2-graph	v2-S02-i2	NONINF	f	S02	GC	190	profile read-v2-graph (replaces S13, S30-S33, S39)
+S62	B8	profile	scr-b8-write-v2	v2-S02-i2	NONINF	f	S02	GC	230	profile write-v2 on gc3 (S03/S04 lose, so the W2 stack is not measured on window/gc2; replaces S43-S45, S48-S50)
+S63	B8	profile	scr-b8-read-v2-safe	v2-S02-i2	NONINF	fo	S02	GC	200	profile read-v2-safe (needs the bound sufficiency role; replaces S19-S22, S24, S27)
+S64	B8	profile	scr-b8-offline-v2	v2-S02-i2	NONINF	f	S02	GC	230	profile offline-v2 (replaces S33-S35, S40-S42, S46, S47)
+S65	B8	profile	scr-b8-trust-v2	v2-S02-i2	REPORT	f	S02	GC	160	profile trust-v2 (viewer_required may refuse eval reads: then RUN_FAILED is the finding; real test is the behavioural suite and N1)
+S66	B8	profile	scr-b8-run-v2	v2-S02-i2	PARITY	f	S02	GC	150	profile run-v2 (NO CHANGE expected on answers; latency and cost only)
