@@ -9,9 +9,9 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 |---|---|
 | Not started | 19 |
 | Ready | 0 |
-| In progress | 8 |
+| In progress | 7 |
 | Blocked | 0 |
-| Needs measurement | 52 |
+| Needs measurement | 53 |
 | Done | 82 |
 | Dropped | 1 |
 
@@ -120,7 +120,7 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | F-16d | Storage-profile contract; Postgres server profile and its Alembic tree | L0 L1 L3 L4 L5 ctx scope | R | M-04 | - | F-16b | behaviour | S2 foundations (serial: Alembic) | `src/memspine/store/lineage.py` +6 | Both profiles pass the store contract tests | **Needs measurement** | storage.profile embedded|server; PG alembic tree (parity on SQLite); PG contract skipped here (no server) - needs MEMSPINE_TEST_PG_URL run |
 | F-16e | Neo4j graph adapter fed through the outbox | L3 | R | M-18 | - | F-16d, F-04 | behaviour | S2 foundations (serial: Alembic) | `src/memspine/store/lineage.py` +6 | Graph contract on Neo4j | **Needs measurement** | graph.neo4j_outbox mirror flag-off; fake-driver contract passes; live Neo4j untested (no driver/server here) |
 | F-16f | Isolation, erasure and rebuild matrix on both profiles | L0 L1 L3 L4 L5 ctx scope | K_C | M-25 | ER-05, ER-30 | F-16e, F-16c | behaviour | S2 foundations (serial: Alembic) | `src/memspine/store/lineage.py` +6 | Matrix green on embedded and server | **In progress** | Sonnet agent launched 2026-10-13 |
-| EX-1a | Embedded milestone: one synthetic end-to-end workload survives restart and erasure | L0 L1 L4 L5 ctx scope | D K_C K_P R C G | G-01 | ER-05 | F-16c, F-16b, F-02c, F-03 | measure | S2 foundations (serial: Alembic) | - | Restart, erasure and replay on the embedded profile; not a server release | **Done** | 5/5 steps pass with 11 foundation flags on; findings F1 (participants off leaks derived facts in multi-party), F2 hidden dependants keep text until re-derive, F3 parent id kept, F4 verify_forget not v2-aware |
+| EX-1a | Embedded milestone: one synthetic end-to-end workload survives restart and erasure | L0 L1 L4 L5 ctx scope | D K_C K_P R C G | G-01 | ER-05 | F-16c, F-16b, F-02c, F-03 | measure | S2 foundations (serial: Alembic) | - | Restart, erasure and replay on the embedded profile; not a server release | **Done** | 5/5 steps pass; FX-EX1A merged: F1 fixed (multi-party participants+inherit under viewer_required), F4 verify_forget v2-aware, F2 privacy.erasure_redact_hidden; F3 noted |
 | EX-1 | Phase 1 exit (server milestone): raw-only read non-inferior; golden; replay NO CHANGE | L0 L1 L4 L5 ctx scope | D K_C K_P R C G | G-01 | ER-05 | F-16f, EX-1a, P0-03 | measure | S2 foundations (serial: Alembic) | - | ROADMAP Phase 1 exit gate | **Not started** |  |
 
 ## Phase 2: write path and models
@@ -142,7 +142,7 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | W2-09 | Online entity resolution with pending_merge | L1 L3 | D K_C | W-19, M-15 | ER-13, ER-20 | W2-08, LIB-04 | behaviour | S4 extraction (serial) | - | Calibrated thresholds: no homonym merges above a stated rate | **Not started** |  |
 | W2-10 | Integration ladder and cardinality registry | L1 L3 | D K_C | W-21, W-22, M-12 | ER-14, ER-17 | W2-09, F-01, LIB-02 | behaviour | S4 extraction (serial) | - | MAB-CR non-inferior; A-B-A tests; behavioural INV-ORDER-SWAP passes | **Not started** | Q7 coexist unless marked; INV-ORDER-SWAP now fixed offline by O4-03/04 (flag-on); W2-10 adds the online ladder (LIB-02) |
 | W2-11 | Asset describer (ingest and read triggers, off by default) | L0 | D R | W-23 | ER-25 | W2-01 | behaviour | write | - | Off by default; on-arm screen | **In progress** | Sonnet agent launched 2026-10-13 |
-| W2-12 | Cost ledger and write targets | L0 L1 L3 L4 L5 | D K_C K_P | W-26, P-14, P-22 | ER-08, ER-15, ER-16, ER-37, ER-39 | EX-1a, LIB-27 | infra | write | - | Targets as regression tests | **In progress** | Sonnet agent launched 2026-10-13 (Phase 2 wave 1) |
+| W2-12 | Cost ledger and write targets | L0 L1 L3 L4 L5 | D K_C K_P | W-26, P-14, P-22 | ER-08, ER-15, ER-16, ER-37, ER-39 | EX-1a, LIB-27 | infra | write | - | Targets as regression tests | **Needs measurement** | economy.ledger_v2 / economy.budget flag-off; targets as regression tests; sleep budget folded into run_sleep_stage at merge (covers sleep_v2); ledger in-process only |
 | W2-13 | Small local pre-pass (GLiNER2) as hints | L1 L3 | D | P-23 | - | W2-10 | behaviour | S4 extraction (serial) | - | Calls down, grounded facts not down | **Not started** |  |
 | MD-03 | Second GPU (AMD Radeon iGPU via DirectML): embedder and small reranker offload, measured | L0 L1 | R | P-19, P-17 | - | LIB-42 | behaviour | models | - | Identical outputs (cosine >= 0.999, same rank order) and a measured speed gain, else not adopted | **Dropped** | Measured negative (d0b65ac): AMD iGPU DirectML 5-8x slower than contended CPU, driver reset on bge-small; models stay on RTX 5080/CPU |
 | MD-01 | Model tiers, placement, no-model fallbacks, device plan, thinking per role | L0 L1 L4 | D K_C R G | P-01, P-02, P-03, P-15, P-19 | - | EX-1a, LIB-42 | behaviour | models | - | Worker-tier screen per role; no-model template zero calls | **In progress** | Sonnet agent launched 2026-10-13 (Phase 2 wave 1) |

@@ -4345,7 +4345,7 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    "kind": "measure",
    "gate": "Restart, erasure and replay on the embedded profile; not a server release",
    "status": "Done",
-   "note": "5/5 steps pass with 11 foundation flags on; findings F1 (participants off leaks derived facts in multi-party), F2 hidden dependants keep text until re-derive, F3 parent id kept, F4 verify_forget not v2-aware",
+   "note": "5/5 steps pass; FX-EX1A merged: F1 fixed (multi-party participants+inherit under viewer_required), F4 verify_forget v2-aware, F2 privacy.erasure_redact_hidden; F3 noted",
    "layers": [
     "L0",
     "L1",
@@ -5055,8 +5055,8 @@ textarea{width:100%;min-height:80px;font:13.5px var(--body);color:var(--ink);bac
    ],
    "kind": "infra",
    "gate": "Targets as regression tests",
-   "status": "In progress",
-   "note": "Sonnet agent launched 2026-10-13 (Phase 2 wave 1)",
+   "status": "Needs measurement",
+   "note": "economy.ledger_v2 / economy.budget flag-off; targets as regression tests; sleep budget folded into run_sleep_stage at merge (covers sleep_v2); ledger in-process only",
    "layers": [
     "L0",
     "L1",

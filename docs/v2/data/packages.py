@@ -198,7 +198,7 @@ WP = [
     ("F-16f", 1, "Isolation, erasure and rebuild matrix on both profiles", ["M-25"], ["F-16e", "F-16c"], "behaviour",
      "Matrix green on embedded and server", "In progress", "Sonnet agent launched 2026-10-13"),
     ("EX-1a", 1, "Embedded milestone: one synthetic end-to-end workload survives restart and erasure", ["G-01"],
-     ["F-16c", "F-16b", "F-02c", "F-03"], "measure", "Restart, erasure and replay on the embedded profile; not a server release", "Done", "5/5 steps pass with 11 foundation flags on; findings F1 (participants off leaks derived facts in multi-party), F2 hidden dependants keep text until re-derive, F3 parent id kept, F4 verify_forget not v2-aware"),
+     ["F-16c", "F-16b", "F-02c", "F-03"], "measure", "Restart, erasure and replay on the embedded profile; not a server release", "Done", "5/5 steps pass; FX-EX1A merged: F1 fixed (multi-party participants+inherit under viewer_required), F4 verify_forget v2-aware, F2 privacy.erasure_redact_hidden; F3 noted"),
     ("EX-1", 1, "Phase 1 exit (server milestone): raw-only read non-inferior; golden; replay NO CHANGE", ["G-01"], ["F-16f", "EX-1a", "P0-03"], "measure",
      "ROADMAP Phase 1 exit gate", "Not started", ""),
     # ---- Phase 2: write path and models ----
@@ -230,7 +230,7 @@ WP = [
     ("W2-10", 2, "Integration ladder and cardinality registry", ["W-21", "W-22", "M-12"], ["W2-09", "F-01", "LIB-02"], "behaviour",
      "MAB-CR non-inferior; A-B-A tests; behavioural INV-ORDER-SWAP passes", "Not started", "Q7 coexist unless marked; INV-ORDER-SWAP now fixed offline by O4-03/04 (flag-on); W2-10 adds the online ladder (LIB-02)"),
     ("W2-11", 2, "Asset describer (ingest and read triggers, off by default)", ["W-23"], ["W2-01"], "behaviour", "Off by default; on-arm screen", "In progress", "Sonnet agent launched 2026-10-13"),
-    ("W2-12", 2, "Cost ledger and write targets", ["W-26", "P-14", "P-22"], ["EX-1a", "LIB-27"], "infra", "Targets as regression tests", "In progress", "Sonnet agent launched 2026-10-13 (Phase 2 wave 1)"),
+    ("W2-12", 2, "Cost ledger and write targets", ["W-26", "P-14", "P-22"], ["EX-1a", "LIB-27"], "infra", "Targets as regression tests", "Needs measurement", "economy.ledger_v2 / economy.budget flag-off; targets as regression tests; sleep budget folded into run_sleep_stage at merge (covers sleep_v2); ledger in-process only"),
     ("W2-13", 2, "Small local pre-pass (GLiNER2) as hints", ["P-23"], ["W2-10"], "behaviour", "Calls down, grounded facts not down", "Not started", ""),
     ("MD-03", 2, "Second GPU (AMD Radeon iGPU via DirectML): embedder and small reranker offload, measured", ["P-19", "P-17"], ["LIB-42"], "behaviour",
      "Identical outputs (cosine >= 0.999, same rank order) and a measured speed gain, else not adopted", "Dropped", "Measured negative (d0b65ac): AMD iGPU DirectML 5-8x slower than contended CPU, driver reset on bge-small; models stay on RTX 5080/CPU"),
