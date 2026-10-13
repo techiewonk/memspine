@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from typing import Any
 
+import pytest
+
 from memspine import Engine
+from memspine.exceptions import ConfigError
 from memspine.models.cache.base import MemoryKV
 from memspine.models.cache.semantic import CachedExtractor
 from memspine.prompts.models import ExtractedFact
@@ -173,7 +176,7 @@ async def test_external_v2_block_is_labelled_and_not_stored() -> None:
 
 
 async def test_external_v2_needs_the_opt_in() -> None:
+    # FU-REQS: external_v2 never enables lookups; without the E03 opt-in it is a config error
     eng = _engine(external_evidence="off", external_v2=True)
-    await _seed(eng)
-    res = await eng.read("What is a general fact about Lyon?", namespace="a")
-    assert not [r for r in res.context.records if "ext:public" in r.tags]
+    with pytest.raises(ConfigError, match="external_evidence"):
+        await eng.start()

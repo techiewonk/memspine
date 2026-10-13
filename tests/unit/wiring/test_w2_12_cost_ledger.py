@@ -448,3 +448,35 @@ def test_a_waiver_turns_a_miss_into_a_recorded_exception() -> None:
 def test_unmeasured_targets_say_so() -> None:
     results = TargetSet().check(WriteCostLedger())
     assert {r.status for r in results} == {"not_measured"}
+
+
+# ------------------------------------------------------------- FU-REQS: coverage re-extraction target
+def _ledger_with_coverage(window_calls: int, coverage_calls: int) -> WriteCostLedger:
+    ledger = _ledger_with(window_calls, 0)
+    with cost_scope(namespace="a", layer="facts", stage="coverage_reextract"):
+        for _ in range(coverage_calls):
+            ledger.record("generative", model="m", tokens_in=20, tokens_out=10)
+    return ledger
+
+
+def test_coverage_reextract_calls_have_their_own_per_window_target() -> None:
+    by = {r.name: r for r in TargetSet().check(_ledger_with_coverage(2, 1), turns=10, windows=2)}
+    assert by["coverage_reextract_calls_per_window"].status == "met"
+    assert by["coverage_reextract_calls_per_window"].observed == pytest.approx(0.5)
+    # the call-1 target is untouched by the coverage call (one window_extract call per window)
+    assert by["generative_calls_per_window"].observed == pytest.approx(1.0)
+    by = {r.name: r for r in TargetSet().check(_ledger_with_coverage(1, 3), turns=10, windows=2)}
+    assert by["coverage_reextract_calls_per_window"].status == "missed"
+    assert by["coverage_reextract_calls_per_window"].observed == pytest.approx(1.5)
+    with pytest.raises(TargetFailure, match="coverage_reextract_calls_per_window"):
+        TargetSet.assert_met(list(by.values()))
+
+
+def test_coverage_target_is_zero_when_coverage_is_off_and_waivable() -> None:
+    by = {r.name: r for r in TargetSet().check(_ledger_with(1, 0), turns=1, windows=1)}
+    assert by["coverage_reextract_calls_per_window"].status == "met"
+    assert by["coverage_reextract_calls_per_window"].observed == 0.0
+    waived = TargetSet(waivers={"coverage_reextract_calls_per_window": "dense windows"})
+    out = waived.check(_ledger_with_coverage(1, 3), turns=1, windows=1)
+    assert [r.status for r in out if r.name == "coverage_reextract_calls_per_window"] == ["waived"]
+    TargetSet.assert_met(out)

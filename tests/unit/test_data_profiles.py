@@ -101,6 +101,13 @@ def test_every_preset_validates_against_the_schema(name: str) -> None:
 def test_the_expected_presets_ship() -> None:
     assert set(preset_names()) == {
         "chat_roles",
+        "offline-v2",
+        "read-v2-core",
+        "read-v2-graph",
+        "read-v2-safe",
+        "run-v2",
+        "trust-v2",
+        "write-v2",
         "large_history",
         "long_turns",
         "named_speakers",

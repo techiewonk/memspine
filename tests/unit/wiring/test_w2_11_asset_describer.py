@@ -86,12 +86,9 @@ async def test_flag_off_is_unchanged(tmp_path: Path, png: Path) -> None:
 
 
 async def test_needs_intake_v2(tmp_path: Path, png: Path) -> None:
-    eng = await build(tmp_path / "b.db", asset_describer="ingest", intake_v2=False)
-    try:
-        with pytest.raises(ConfigError, match="intake_v2"):
-            await eng.ingest_asset(png, NS)
-    finally:
-        await eng.stop()
+    # FU-REQS: the missing prerequisite is now a config error at load, not a late verb refusal
+    with pytest.raises(ConfigError, match="intake_v2"):
+        await build(tmp_path / "b.db", asset_describer="ingest", intake_v2=False)
 
 
 async def test_ingest_trigger_writes_description_with_lineage(tmp_path: Path, png: Path) -> None:

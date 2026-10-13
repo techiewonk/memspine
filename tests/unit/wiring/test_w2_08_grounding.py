@@ -109,7 +109,7 @@ def test_flag_off_registers_nothing_and_on_registers_one_stage_at_200() -> None:
     assert off.write.grounding_v2 is False and off.write.ground_action == "drop"
     assert off.write.ground_adjudicator == "lexical"
     assert _envelope_stages(SimpleNamespace(), off) == ()
-    on = MemspineConfig(write={"envelope_v2": True, "grounding_v2": True})
+    on = MemspineConfig(write={"window_extract": "facts", "envelope_v2": True, "grounding_v2": True})
     stages = _envelope_stages(SimpleNamespace(), on)
     assert [(s.name, s.order) for s in stages] == [
         ("grounding", GROUND_STAGE_ORDER)
@@ -276,7 +276,7 @@ def test_undecided_items_are_adjudicated_and_counted() -> None:
 
 def test_build_from_config_wires_the_decider_only_when_asked() -> None:
     cfg = MemspineConfig(
-        write={"envelope_v2": True, "grounding_v2": True, "ground_adjudicator": "off"}
+        write={"window_extract": "facts", "envelope_v2": True, "grounding_v2": True, "ground_adjudicator": "off"}
     )
     assert build_grounding_stage(SimpleNamespace(), cfg).order == 200
 

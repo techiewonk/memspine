@@ -33,6 +33,7 @@ from typing import Any, Literal
 from pydantic import BaseModel
 
 from memspine.config import schema
+from memspine.config.requires import REQUIRES
 from memspine.exceptions import ConfigError
 
 __all__ = [
@@ -155,6 +156,9 @@ class FlagSpec:
     choices: tuple[str, ...] = ()  # modes only
     evidence: str = ""  # "" when none recorded (only default-on flags need it)
     note: str = ""
+    #: FU-REQS: prerequisites that must hold while this flag is on (``config/requires.py``),
+    #: as ``"<dotted key>"`` or ``"<dotted key>: <value>"``; a violation is a ConfigError.
+    requires: tuple[str, ...] = ()
 
     @property
     def default_on(self) -> bool:
@@ -225,6 +229,7 @@ def _walk(model: type[BaseModel], prefix: str) -> Iterator[FlagSpec]:
             choices=choices,
             evidence=entry.get("evidence", ""),
             note=entry.get("note", ""),
+            requires=tuple(n.describe() for n in REQUIRES.get(key, ())),
         )
 
 

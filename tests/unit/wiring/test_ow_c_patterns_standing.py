@@ -333,7 +333,7 @@ async def test_standing_cap_limits_new_answers() -> None:
 
 
 async def test_guarded_instructions_only_firm_user_text() -> None:
-    eng = _engine(read={"standing_v2": True})
+    eng = _engine(read={"standing_v2": True}, offline={"standing_v2": True})
     await eng.start()
     try:
         fact = await _city(eng, "Lisbon", 0, "s0")

@@ -6,6 +6,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from memspine.config.requires import check_requires
 from memspine.config.schema.firewall import FirewallConfig
 from memspine.config.schema.integrity import IntegrityConfig
 from memspine.config.schema.isolation import IsolationConfig
@@ -112,6 +113,13 @@ class MemspineConfig(BaseModel):
             raise ConfigError("read.asset_evidence needs ingest.assets: on")
         if self.read.asset_evidence == "fetch" and not self.ingest.asset_dir:
             raise ConfigError("read.asset_evidence: fetch needs ingest.asset_dir (the cache)")
+        return self
+
+    @model_validator(mode="after")
+    def _requirements_hold(self) -> MemspineConfig:
+        """FU-REQS: a flag that needs another switch raises, naming it, instead of being
+        silently inert (``config/requires.py``; the table is also ``FlagSpec.requires``)."""
+        check_requires(self)
         return self
 
     @field_validator("memories")
