@@ -59,6 +59,7 @@ from memspine.observability.logging import (
     get_logger,
     redact_error,
 )
+from memspine.read.pipeline import scope_guard
 from memspine.services.storage.sql_base import SqlStorage
 from memspine.services.vector.base import VectorHit
 from memspine.store.events import EventKind, MemoryEvent, fingerprint_payload
@@ -80,6 +81,7 @@ from memspine.trust.visibility import (
     VISIBILITY_PREFIX,
     inherit_tags,
     participant_tags,
+    restrict_to_parents,
     visibility_tag,
 )
 
@@ -611,7 +613,7 @@ async def _write_turns(
                     state["known"].add(who.strip().lower())
     session_speakers = (  # I53: everyone present in this call, in order of first turn
         list(dict.fromkeys(_speaker_of(t) for t in messages if isinstance(t, Mapping)))
-        if eng._config().write.participants == "session"
+        if await _participants_mode(eng, namespace) == "session"
         else []
     )
     for i, turn in enumerate(messages):
@@ -1122,13 +1124,36 @@ async def _grade_sensitivity(eng: Any, content: str, mode: str) -> tuple[str, tu
     return label.grade, label.categories
 
 
+async def _participants_mode(eng: Any, namespace: str) -> str:
+    """The effective ``write.participants`` for ``namespace`` (F1).
+
+    ``write.participants`` when set. Otherwise, under ``isolation.viewer_required``, a multi-party
+    namespace (``isolation.multi_party_namespaces``, a ``multi_party=True`` handle, or detected from
+    its records) behaves as ``session``: a turn is tagged with its speakers and a derived record
+    inherits its parents' tags, so a private turn's facts are as private as the turn. With the
+    flag off (or a single-party namespace) the result is the configured value, i.e. unchanged.
+    """
+    configured = str(eng._config().write.participants)
+    if configured != "off" or not scope_guard.viewer_required(eng):
+        return configured
+    if await scope_guard.is_multi_party(eng, validate_namespace(namespace)):
+        return "session"
+    return configured
+
+
 async def _govern_write(eng: Any, record: MemoryRecord) -> MemoryRecord:
     """I48 / I52 / I53: the write-time labels. Every key is off by default (unchanged)."""
     wc = eng._config().write
-    if wc.sensitivity == "off" and wc.participants == "off" and wc.inferred == "off":
+    if (
+        wc.sensitivity == "off"
+        and wc.participants == "off"
+        and wc.inferred == "off"
+        and not (record.source.parents and scope_guard.viewer_required(eng))
+    ):
         return record
     tags = list(record.tags)
     update: dict[str, Any] = {}
+    strict = scope_guard.viewer_required(eng)  # F1: a derived record is never more visible
     if wc.sensitivity != "off" and not any(t.startswith(GRADE_TAG_PREFIX) for t in tags):
         grade, categories = await eng._grade_sensitivity(record.content, wc.sensitivity)
         if grade != "none":
@@ -1142,11 +1167,16 @@ async def _govern_write(eng: Any, record: MemoryRecord) -> MemoryRecord:
                 categories=list(categories),
             )
     parents: list[MemoryRecord] = []
-    if record.source.parents and (wc.participants != "off" or wc.inferred != "off"):
+    if record.source.parents and (wc.participants != "off" or wc.inferred != "off" or strict):
         storage = eng._require_started()
         got = [await storage.get_record(p) for p in record.source.parents]
         parents = [p for p in got if p is not None and p.namespace == record.namespace]
-    if wc.participants != "off" and parents:
+    if strict and parents:
+        # F1: under viewer_required a derived record carries its parents' participants and the
+        # strictest of their visibilities (and its own, if stricter), whatever write.participants
+        # says; a parent with no tag adds nothing, but never lets the record widen.
+        tags = restrict_to_parents(tags, [p.tags for p in parents])
+    elif wc.participants != "off" and parents:
         has_people = any(t.startswith(PARTICIPANT_PREFIX) for t in tags)
         has_vis = any(t.startswith(VISIBILITY_PREFIX) for t in tags)
         for tag in inherit_tags([p.tags for p in parents]):

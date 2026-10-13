@@ -31,6 +31,7 @@ __all__ = [
     "inherit_tags",
     "participant_tags",
     "participants_of",
+    "restrict_to_parents",
     "visibility_of",
     "visibility_tag",
     "visible_to",
@@ -108,4 +109,28 @@ def inherit_tags(parent_tags: Sequence[Sequence[str]]) -> list[str]:
     out = participant_tags(names)
     if strictest is not None:
         out.append(f"{VISIBILITY_PREFIX}{strictest}")
+    return out
+
+
+def restrict_to_parents(tags: Sequence[str], parent_tags: Sequence[Sequence[str]]) -> list[str]:
+    """``tags`` with the participant and visibility tags of the parents folded in so the record is
+    never more visible than its most restrictive parent (F1; "unknown never broadens").
+
+    Participants: the parents' (their union, as :func:`inherit_tags`); the record's own names are
+    kept only when no parent names anyone, because a name the parents do not carry would widen a
+    ``participants`` record and, listed first, would take over a ``private`` one. Visibility: the
+    strictest of the record's own and the parents'. Returns ``tags`` unchanged when no parent
+    carries a participant or visibility tag. Other tags keep their order.
+    """
+    inherited = inherit_tags(parent_tags)
+    if not inherited:
+        return list(tags)
+    own = [t for t in tags if not t.startswith((PARTICIPANT_PREFIX, VISIBILITY_PREFIX))]
+    inherited_people = participants_of(inherited)
+    merged_people = participant_tags(inherited_people or participants_of(tags))
+    own_vis, inherited_vis = visibility_of(tags), visibility_of(inherited)
+    ranked = [v for v in (own_vis, inherited_vis) if v is not None]
+    out = [*own, *merged_people]
+    if ranked:
+        out.append(f"{VISIBILITY_PREFIX}{max(ranked, key=VISIBILITIES.index)}")
     return out

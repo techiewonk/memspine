@@ -29,6 +29,7 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any
 
+from memspine.exceptions import MemspineError
 from memspine.observability import tap
 from memspine.schemas.durable.common import OwnerScope
 from memspine.schemas.durable.lineage import LineageEdge
@@ -64,6 +65,8 @@ __all__ = [
     "visible_id",
 ]
 
+#: queue-entry state of a hidden dependant that ``privacy.erasure_redact_hidden`` hard-forgot
+DROPPED = "dropped_no_rederive"
 MARKER_MANIFEST = "erasure_manifest"
 MARKER_PURGE = "erasure_purge"
 MARKER_RELEASE = "erasure_release"
@@ -87,10 +90,11 @@ def visible_id(eng: Any, record_id: str) -> bool:
     return st is None or visible(record_id, st)
 
 
-def queue(eng: Any) -> list[dict[str, object]]:
-    """The re-derivation queue (ids, action, remaining live sources), oldest first."""
+def queue(eng: Any, *, include_dropped: bool = False) -> list[dict[str, object]]:
+    """The re-derivation queue (ids, action, remaining live sources), oldest first. Entries marked
+    ``dropped_no_rederive`` (``privacy.erasure_redact_hidden``) are left out unless asked for."""
     q: dict[str, dict[str, object]] = eng.__dict__.get("_erasure_queue", {})
-    return [dict(v) for v in q.values()]
+    return [dict(v) for v in q.values() if include_dropped or v.get("state") != DROPPED]
 
 
 def status(eng: Any) -> dict[str, object]:
@@ -102,6 +106,7 @@ def status(eng: Any) -> dict[str, object]:
         "erased": len(st.erased),
         "hidden": len(st.hidden),
         "queued": len(queue(eng)),
+        "dropped_no_rederive": len(queue(eng, include_dropped=True)) - len(queue(eng)),
         "purges": {k: dict(v) for k, v in sorted(purges.items())},
     }
 
@@ -264,11 +269,19 @@ async def forget(
         graph = await build_graph(eng, storage, ns, record_id, dependants=cascade is not False)
         generation = max(prior.generation, eng.__dict__.get("_erasure_generation", 0)) + 1
         plan = plan_erasure([record_id], graph, generation=generation, already_lost=prior.lost)
+        redact = bool(eng._config().privacy.erasure_redact_hidden)
+        dropped: list[str] = []  # F2: hidden dependants hard-forgotten instead of re-derived
         for a in plan.actions:
             if a.hidden:
                 dep = await storage.get_record(a.record_id)
                 if dep is not None and dep.namespace == ns:
                     texts.extend(eng._erasable_texts(dep))
+                    if redact:
+                        try:
+                            await eng._forget_target(storage, ns, a.record_id, True)
+                        except MemspineError:  # legal hold: it stays hidden, queued as planned
+                            continue
+                        dropped.append(a.record_id)
         # Immediate invisibility: before any physical work, under the namespace lock.
         eng.__dict__["_erasure_state"] = apply_plan(prior, plan)
         eng.__dict__["_erasure_generation"] = generation
@@ -280,6 +293,7 @@ async def forget(
                 "action": a.action,
                 "remaining_sources": list(a.remaining_sources),
                 "manifest_id": manifest_id,
+                **({"state": DROPPED} if a.record_id in dropped else {}),
             }
             for a in plan.actions
             if a.needs_rederivation
@@ -323,6 +337,16 @@ async def forget(
                 lineage_table=bool(eng._config().write.lineage_table),
             )
         await eng._forget_many(storage, ns, [record_id], True)
+        if dropped:
+            await eng._forget_many(storage, ns, dropped, True)
+            engine = storage._client.engine
+            gone = await lineage_store.parents_of(engine, dropped)
+            gone_kids = await lineage_store.children_of(engine, dropped)
+            edges = [e for es in (*gone.values(), *gone_kids.values()) for e in es]
+            if edges:
+                await lineage_store.delete_edges(engine, edges)
+            if tap.enabled():
+                tap.event("trust.erasure.redact_hidden", manifest=manifest_id, dropped=len(dropped))
         keep_lineage = str(reason or "").startswith("retention")  # expiry keeps lineage (ER-27)
         if eng._config().write.lineage_table and plan.edges_to_remove and not keep_lineage:
             await lineage_store.delete_edges(storage._client.engine, plan.edges_to_remove)
@@ -477,6 +501,44 @@ async def resume_purges(eng: Any) -> list[str]:
             if purges[manifest_id]["state"] == "done":
                 finished.append(manifest_id)
     return finished
+
+
+async def classify_descendants(
+    eng: Any, storage: Any, erased_id: str, descendants: Sequence[str]
+) -> dict[str, list[str]]:
+    """F4: sort the dependants still in the read model after a hard forget of ``erased_id``.
+
+    * ``hidden_pending_rederive``: hidden (invisible to every read) and queued for re-derivation;
+    * ``kept``: not hidden and another live parent supports it (the plan said ``keep``);
+    * ``leaked``: anything else, i.e. visible with no other live parent, or hidden with no queue
+      entry (``unbind_and_hide``) while its row still holds the erased lineage.
+
+    Hidden rows hard-forgotten by ``privacy.erasure_redact_hidden`` are no longer descendants.
+    """
+    st = state(eng)
+    q: dict[str, dict[str, object]] = eng.__dict__.get("_erasure_queue", {})
+    out: dict[str, list[str]] = {"hidden_pending_rederive": [], "kept": [], "leaked": []}
+    for rid in descendants:
+        if rid in st.hidden:
+            queued = rid in q and q[rid].get("state") != DROPPED
+            out["hidden_pending_rederive" if queued else "leaked"].append(rid)
+            continue
+        row = await storage.get_record(rid)
+        if row is None:
+            continue
+        parents = list(row.source.parents)
+        if eng._config().write.lineage_table:
+            edges = await lineage_store.parents_of(storage._client.engine, [rid])
+            parents.extend(e.parent for e in edges.get(rid, []))
+        live = []
+        for p in dict.fromkeys(parents):
+            if p == erased_id or p in st.erased or p in st.hidden:
+                continue
+            parent = await storage.get_record(p)
+            if parent is not None:
+                live.append(p)
+        out["kept" if live else "leaked"].append(rid)
+    return out
 
 
 async def release(eng: Any, record_ids: Sequence[str], namespace: str = "default") -> int:

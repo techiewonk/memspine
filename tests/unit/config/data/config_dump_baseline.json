@@ -196,6 +196,7 @@
   },
   "plugins": [],
   "privacy": {
+   "erasure_redact_hidden": false,
    "erasure_v2": false
   },
   "profile": "simple",
@@ -586,7 +587,7 @@
    "window_topic_k": 2.0
   }
  },
- "json_schema_sha256": "3bbdacc0e8e9a07203931e6cac02cfc90810592801378e70ee29c7b0d9f1d4eb",
+ "json_schema_sha256": "1d52fb0df56c513e653e85dc9ff024f337353a10d0f0ebca98a87fcb1ca2fa92",
  "preset:chat_roles": {
   "audit": {
    "actions": false,
@@ -805,6 +806,7 @@
   },
   "plugins": [],
   "privacy": {
+   "erasure_redact_hidden": false,
    "erasure_v2": false
   },
   "profile": "simple",
@@ -1419,6 +1421,7 @@
   },
   "plugins": [],
   "privacy": {
+   "erasure_redact_hidden": false,
    "erasure_v2": false
   },
   "profile": "simple",
@@ -2033,6 +2036,7 @@
   },
   "plugins": [],
   "privacy": {
+   "erasure_redact_hidden": false,
    "erasure_v2": false
   },
   "profile": "simple",
@@ -2647,6 +2651,7 @@
   },
   "plugins": [],
   "privacy": {
+   "erasure_redact_hidden": false,
    "erasure_v2": false
   },
   "profile": "simple",
@@ -3261,6 +3266,7 @@
   },
   "plugins": [],
   "privacy": {
+   "erasure_redact_hidden": false,
    "erasure_v2": false
   },
   "profile": "simple",
@@ -3875,6 +3881,7 @@
   },
   "plugins": [],
   "privacy": {
+   "erasure_redact_hidden": false,
    "erasure_v2": false
   },
   "profile": "simple",
@@ -4489,6 +4496,7 @@
   },
   "plugins": [],
   "privacy": {
+   "erasure_redact_hidden": false,
    "erasure_v2": false
   },
   "profile": "simple",
@@ -5103,6 +5111,7 @@
   },
   "plugins": [],
   "privacy": {
+   "erasure_redact_hidden": false,
    "erasure_v2": false
   },
   "profile": "assistant",
@@ -5717,6 +5726,7 @@
   },
   "plugins": [],
   "privacy": {
+   "erasure_redact_hidden": false,
    "erasure_v2": false
   },
   "profile": "simple",
@@ -6338,6 +6348,7 @@
   },
   "plugins": [],
   "privacy": {
+   "erasure_redact_hidden": false,
    "erasure_v2": false
   },
   "profile": "benchmark",
@@ -6959,6 +6970,7 @@
   },
   "plugins": [],
   "privacy": {
+   "erasure_redact_hidden": false,
    "erasure_v2": false
   },
   "profile": "coding",
@@ -7569,6 +7581,7 @@
   },
   "plugins": [],
   "privacy": {
+   "erasure_redact_hidden": false,
    "erasure_v2": false
   },
   "profile": "core",
@@ -8181,6 +8194,7 @@
   },
   "plugins": [],
   "privacy": {
+   "erasure_redact_hidden": false,
    "erasure_v2": false
   },
   "profile": "graph",
@@ -8799,6 +8813,7 @@
   },
   "plugins": [],
   "privacy": {
+   "erasure_redact_hidden": false,
    "erasure_v2": false
   },
   "profile": "multi_agent",
@@ -9421,6 +9436,7 @@
   },
   "plugins": [],
   "privacy": {
+   "erasure_redact_hidden": false,
    "erasure_v2": false
   },
   "profile": "personal",
@@ -10035,6 +10051,7 @@
   },
   "plugins": [],
   "privacy": {
+   "erasure_redact_hidden": false,
    "erasure_v2": false
   },
   "profile": "protected",
@@ -10650,6 +10667,7 @@
   },
   "plugins": [],
   "privacy": {
+   "erasure_redact_hidden": false,
    "erasure_v2": false
   },
   "profile": "regulated_financial",
@@ -11266,6 +11284,7 @@
   },
   "plugins": [],
   "privacy": {
+   "erasure_redact_hidden": false,
    "erasure_v2": false
   },
   "profile": "voice",

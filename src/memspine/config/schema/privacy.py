@@ -73,11 +73,18 @@ class PrivacyConfig(BaseModel):
       (ids and the erasure generation) is stored; a tracked purge job clears vectors, the lexical
       index, the graph and the caches; re-derivation work is queued for the offline runner.
       ``cascade`` is ignored while on: the plan decides the dependants.
+    - ``erasure_redact_hidden`` (FX-EX1A, finding F2; needs ``erasure_v2``): the minimal safe
+      version of "re-derive hidden dependants". Re-derivation is not implemented, so a hidden
+      dependant keeps its row and its WRITE events (the erased text on disk, never served). On:
+      each hidden dependant is hard-forgotten instead (row, log payloads, indexes, caches), and its
+      queue entry is marked ``dropped_no_rederive`` (not consumed by the offline runner). Off
+      (default): dependants stay hidden and queued, as before.
     """
 
     model_config = ConfigDict(extra="forbid")
 
     erasure_v2: bool = False
+    erasure_redact_hidden: bool = False
 
 
 class ConsentConfig(BaseModel):
