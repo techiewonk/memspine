@@ -11,7 +11,7 @@ from collections.abc import (
 )
 from contextvars import ContextVar
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from time import perf_counter
 from typing import Any
 
@@ -40,6 +40,14 @@ from memspine.core.sensitivity import (
 )
 from memspine.exceptions import (
     ConflictError,
+)
+from memspine.ingest.stamping import (
+    ASSENT_TAG_PREFIX,
+    PENDING_STAMP,
+    ConversationStamper,
+    PendingStamp,
+    apply_stamp,
+    participants_of_call,
 )
 from memspine.ingest.timeparse import _zone_of
 from memspine.memories.episodic.lifecycle import session_of
@@ -415,6 +423,9 @@ async def write(
     elif eng._config().read.skip_defaulted_dates:
         # I7: the event time is the write clock, not the source's; date renders skip it.
         record = record.model_copy(update={"tags": [*record.tags, constants.UNDATED_TAG]})
+    pending_stamp = PENDING_STAMP.get()
+    if pending_stamp is not None and memory_type == "episodic":  # W2-02: write.stamping_v2
+        record = apply_stamp(record, pending_stamp)
     trust_cap = await eng._parent_trust_cap(ns, record.source.parents)
     if trust_cap is not None and parent_weights:
         # B1 weighted lineage: a parent of weight w contributes
@@ -649,6 +660,16 @@ async def _write_turns(
         if await _participants_mode(eng, namespace) == "session"
         else []
     )
+    conv_stamper = None
+    if eng._config().write.stamping_v2:  # W2-02
+        conv_stamper = ConversationStamper(
+            namespace=validate_namespace(namespace),
+            source_id=session_id or "nosession",
+            default_tz=eng._config().write.stamp_default_tz or eng._config().read.naive_timezone,
+            session_speakers=tuple(
+                participants_of_call([t for t in messages if isinstance(t, Mapping)])
+            ),
+        )
     for i, turn in enumerate(messages):
         try:
             role = turn["role"]
@@ -731,21 +752,35 @@ async def _write_turns(
         stamp = eng._event_time(turn.get("timestamp")) or valid_from
         if stamp is not None and session_id and eng._config().read.session_sequence:
             stamp = eng._sequenced(namespace, session_id, eng._localize(stamp))
-        record = await eng.write(
-            content,
-            namespace=namespace,
-            memory_type="episodic",
-            source=SourceInfo(role=role, channel=channel, message_id=session_id),
-            actor=actor,
-            group_id=group_id,
-            tags=turn_tags or None,
-            valid_from=stamp,
-            reply_to=reply_to,
-            participants=([_speaker_of(turn), *session_speakers] if session_speakers else None),
-            visibility=(
-                str(turn["visibility"]) if session_speakers and "visibility" in turn else None
-            ),
-        )
+        pending = None
+        if conv_stamper is not None:  # W2-02: three clocks, axes, participants, provenance class
+            pending = _stamp_turn(eng, conv_stamper, i, turn, role, content, bool(session_speakers))
+        pending_token = PENDING_STAMP.set(pending) if pending is not None else None
+        try:
+            record = await eng.write(
+                content,
+                namespace=namespace,
+                memory_type="episodic",
+                source=SourceInfo(role=role, channel=channel, message_id=session_id),
+                actor=actor,
+                group_id=group_id,
+                tags=turn_tags or None,
+                valid_from=stamp,
+                reply_to=reply_to,
+                participants=(
+                    [_speaker_of(turn), *session_speakers] if session_speakers else None
+                ),
+                visibility=(
+                    str(turn["visibility"]) if session_speakers and "visibility" in turn else None
+                ),
+            )
+        finally:
+            if pending_token is not None:
+                PENDING_STAMP.reset(pending_token)
+        if conv_stamper is not None:
+            conv_stamper.clear_proposal()
+            if role == "assistant" and not record.quarantined:
+                conv_stamper.note_assistant(record.record_id, content)
         if asset_refs:
             eng._register_assets(asset_refs, turn, i, session_id, record.record_id)
         if correction is not None and not record.quarantined:
@@ -759,6 +794,55 @@ async def _write_turns(
         if not record.quarantined:
             prev_turn = (record.record_id, _speaker_of(turn))
     return records
+
+
+def _stamp_turn(
+    eng: Any,
+    conv: ConversationStamper,
+    index: int,
+    turn: Mapping[str, Any],
+    role: str,
+    content: str,
+    session_tags_on: bool,
+) -> PendingStamp:
+    """W2-02: stamp one raw turn (taps ``write.stamp.*``) and run the assent check of a user turn
+    against the assistant turn it answers."""
+    wcfg = eng._config().write
+    pending = conv.turn(index, turn, content, recorded_at=datetime.now(UTC))
+    st = pending.stamped
+    extra: list[str] = []
+    verdict, proposal_id = conv.assent_for(role, content)
+    if verdict is not None:
+        if tap.enabled():
+            tap.event(
+                "write.stamp.assent",
+                turn=index,
+                kind=verdict.kind,
+                binds=verdict.binds,
+                matched=list(verdict.matched),
+                reasons=list(verdict.reasons),
+                proposal=proposal_id,
+            )
+        if verdict.confirms and proposal_id is not None:
+            extra.append(f"{ASSENT_TAG_PREFIX}{proposal_id}")
+    if wcfg.stamp_participant_tags == "v1" and not session_tags_on:
+        extra.extend(st.participant_tags)  # the v1 tag, kept for the dual-read period
+    if tap.enabled():
+        tap.event(
+            "write.stamp.turn",
+            turn=index,
+            role=role,
+            src_class=st.src_class,
+            spk=st.spk,
+            addr=st.addr,
+            participants=len(st.participants),
+            source_tz=st.source_tz,
+            tz_unknown=st.tz_unknown,
+            precision=st.precision,
+            dated=st.source_at is not None,
+            flags=list(st.flags),
+        )
+    return PendingStamp(st, tuple(extra))
 
 
 def _localize(eng: Any, value: datetime) -> datetime:

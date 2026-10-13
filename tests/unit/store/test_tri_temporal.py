@@ -221,7 +221,7 @@ async def test_migration_down_up_and_backfill(tmp_path: Path) -> None:
 
 def test_single_alembic_head() -> None:
     script = ScriptDirectory.from_config(alembic_config(Path("unused.db")))
-    assert script.get_heads() == ["f02b_tri_temporal"]
+    assert script.get_heads() == ["w202_stamping"]
     rev = script.get_revision("f02b_tri_temporal")
     assert rev is not None and rev.down_revision == "f04_outbox"
 

@@ -40,14 +40,14 @@ from memspine.store.records import MemoryRecord, SourceInfo
 def test_both_trees_have_a_single_head() -> None:
     sqlite_dir = Path(sqlite_migrations.__file__).parent / "alembic"
     assert len(ScriptDirectory(str(sqlite_dir)).get_heads()) == 1
-    assert pg_migrations.heads() == ["pg_f02b_tri_temporal"]
+    assert pg_migrations.heads() == ["pg_w202_stamping"]
 
 
 def test_postgres_tree_mirrors_the_sqlite_revision_count() -> None:
     def count(tree: Path) -> int:
         return len(list(ScriptDirectory(str(tree)).walk_revisions()))
 
-    assert count(EMBEDDED.migration_tree) == count(SERVER.migration_tree) == 9
+    assert count(EMBEDDED.migration_tree) == count(SERVER.migration_tree) == 10
 
 
 def _family(col_type: Any) -> str:

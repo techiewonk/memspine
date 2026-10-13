@@ -309,6 +309,10 @@ class SqlStorage(ServiceAdapter):
             "event_precision": record.event_precision,
             "event_approximate": 1 if record.event_approximate else None,
             "event_basis": record.event_basis,
+            "source_tz": record.source_tz,  # W2-02
+            "participants": orjson.dumps(record.axes.participants)
+            if record.axes.participants
+            else None,
         }
         stmt = self._insert(memory_records).values(record_id=record.record_id, **values)
         stmt = stmt.on_conflict_do_update(index_elements=["record_id"], set_=values)
@@ -601,10 +605,12 @@ class SqlStorage(ServiceAdapter):
         axes = {"speaker": row["spk"], "addressee": row["addr"], "asker": row["ask"]}
         if row["sub"] is not None or any(v is not None for v in axes.values()):
             axes["subject"] = orjson.loads(row["sub"]) if row["sub"] is not None else []
+            if row["participants"] is not None:  # W2-02
+                axes["participants"] = orjson.loads(row["participants"])
             out["axes"] = axes
         if row["fingerprint"] is not None:
             out["fingerprint"] = orjson.loads(row["fingerprint"])
-        for key in ("source_at", "source_precision", "event_precision", "event_basis"):
+        for key in ("source_at", "source_precision", "event_precision", "event_basis", "source_tz"):
             if row[key] is not None:
                 out[key] = row[key]
         if row["event_approximate"]:

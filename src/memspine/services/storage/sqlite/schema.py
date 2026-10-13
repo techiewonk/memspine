@@ -138,6 +138,10 @@ memory_records = Table(
     Column("event_precision", String),
     Column("event_approximate", Integer),
     Column("event_basis", String),
+    # W2-02 (migration 0010): the zone the source time was said in, and the participants list
+    # (orjson blob, speaker first). NULL = not stamped.
+    Column("source_tz", String),
+    Column("participants", LargeBinary),
     Index("ix_memory_records_ns_type", "namespace", "memory_type"),
     Index("ix_memory_records_fingerprint", "content_fingerprint"),
     Index("ix_memory_records_fact_key", "namespace", "entity", "attribute"),
