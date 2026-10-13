@@ -8,6 +8,7 @@ from typing import Any
 
 import pytest
 
+from memspine.runtime.container import EngineSpec, build_secrets
 from memspine.services.secrets.aws import AwsSecrets
 from memspine.services.secrets.chained import ChainedSecrets
 from memspine.services.secrets.env import EnvSecrets
@@ -98,22 +99,16 @@ def test_chain_env_first_then_aws() -> None:
 # ── engine bootstrap selector: MEMSPINE_SECRETS_BACKEND (pre-config) ──────────
 
 
-def _engine() -> Any:
-    from memspine import Engine
-
-    return Engine(dotenv_path=None, storage={"path": ":memory:"})
-
-
 def test_selector_defaults_to_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("MEMSPINE_SECRETS_BACKEND", raising=False)
-    assert isinstance(_engine()._build_secrets(), EnvSecrets)
+    assert isinstance(build_secrets(EngineSpec(dotenv_path=None)), EnvSecrets)
 
 
 def test_selector_aws_chains_env_then_aws(monkeypatch: pytest.MonkeyPatch) -> None:
     pytest.importorskip("boto3")
     monkeypatch.setenv("MEMSPINE_SECRETS_BACKEND", "aws")
     monkeypatch.setenv("AWS_DEFAULT_REGION", "us-east-1")  # boto3 client needs a region
-    resolver = _engine()._build_secrets()
+    resolver = build_secrets(EngineSpec(dotenv_path=None))
     assert isinstance(resolver, ChainedSecrets)
 
 
@@ -122,4 +117,4 @@ def test_selector_unknown_backend_raises(monkeypatch: pytest.MonkeyPatch) -> Non
 
     monkeypatch.setenv("MEMSPINE_SECRETS_BACKEND", "vault")
     with pytest.raises(ConfigError, match="MEMSPINE_SECRETS_BACKEND"):
-        _engine()._build_secrets()
+        build_secrets(EngineSpec(dotenv_path=None))

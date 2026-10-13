@@ -94,10 +94,10 @@ async def test_usage_event_is_logged_at_debug() -> None:
 async def test_engine_usage_per_prompt_with_stub_llm(monkeypatch: pytest.MonkeyPatch) -> None:
     stubs: dict[str, LLMService] = {"extract": _Stub('{"facts": []}', usage=(50, 5))}
 
-    async def router(self: Engine, config: MemspineConfig) -> LLMRouter:
+    async def router(config: MemspineConfig, hooks: object = None) -> LLMRouter:
         return LLMRouter(stubs)
 
-    monkeypatch.setattr(Engine, "_build_llm_router", router)
+    monkeypatch.setattr("memspine.runtime.container.build_llm_router", router)
     eng = Engine(
         template="core",
         dotenv_path=None,

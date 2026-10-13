@@ -31,6 +31,7 @@ dependencies = [
     "lancedb>=0.13",           # sole vector store + native quantization (D-09, amends D-03 — ADR-021)
     "litellm>=1.50",           # unified cloud+local LLM/embedding/rerank gateway (D-33, amends D-03/D-39 — ADR-024)
     "tantivy>=0.22",           # default lexical/BM25 leg — standalone, backend-independent (D-25, amends D-03; hybrid is default-on since A3)
+    "dishka>=1.10,<2",         # dependency injection: app / job / request scopes (F-08, ARCHITECTURE section 8)
 ]
 
 [project.optional-dependencies]

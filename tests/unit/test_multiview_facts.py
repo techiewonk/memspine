@@ -148,10 +148,10 @@ async def test_miner_prompt_variant(
     stub = _Extract()
     stubs: dict[str, LLMService] = {"extract": stub}
 
-    async def router(self: Engine, config: MemspineConfig) -> LLMRouter:
+    async def router(config: MemspineConfig, hooks: object = None) -> LLMRouter:
         return LLMRouter(stubs)
 
-    monkeypatch.setattr(Engine, "_build_llm_router", router)
+    monkeypatch.setattr("memspine.runtime.container.build_llm_router", router)
     eng = _engine(**options)
     await eng.start()
     try:

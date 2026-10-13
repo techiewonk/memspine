@@ -47,10 +47,10 @@ async def _engine(
     embedding: dict[str, Any] | None = None,
     **overrides: Any,
 ) -> Engine:
-    def build(self: Engine, config: MemspineConfig) -> EmbeddingService:
+    def build(config: MemspineConfig) -> EmbeddingService:
         return spy
 
-    monkeypatch.setattr(Engine, "_build_embedder", build)
+    monkeypatch.setattr("memspine.runtime.container.make_embedder", build)
     engine = Engine(
         template="core",
         dotenv_path=None,

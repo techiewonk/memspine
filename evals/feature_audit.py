@@ -204,11 +204,18 @@ async def _stubbed(stubs: dict[str, _Stub], **kw: Any) -> Any:
 
     engine = _engine_kw(**kw)
 
-    async def router(config: Any) -> Any:
+    async def router(config: Any, hooks: Any = None) -> Any:
         return LLMRouter(dict(stubs))
 
-    engine._build_llm_router = router  # instance attribute: start() awaits it
-    await engine.start()
+    # F-08: the LLM router is built by the runtime container; swap its builder for the start.
+    from memspine.runtime import container as _container
+
+    original = _container.build_llm_router
+    _container.build_llm_router = router  # type: ignore[assignment]
+    try:
+        await engine.start()
+    finally:
+        _container.build_llm_router = original
     return engine
 
 

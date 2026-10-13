@@ -31,10 +31,10 @@ class _Stub:
 async def _miner(monkeypatch: pytest.MonkeyPatch, cached: bool) -> tuple[_Stub, Any, Engine]:
     stub = _Stub()
 
-    async def router(self: Engine, config: MemspineConfig) -> LLMRouter:
+    async def router(config: MemspineConfig, hooks: object = None) -> LLMRouter:
         return LLMRouter({"extract": stub})
 
-    monkeypatch.setattr(Engine, "_build_llm_router", router)
+    monkeypatch.setattr("memspine.runtime.container.build_llm_router", router)
     eng = Engine(
         template="core",
         dotenv_path=None,

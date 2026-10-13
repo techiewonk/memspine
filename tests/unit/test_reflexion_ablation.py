@@ -37,10 +37,10 @@ class _Edges:
 def _engine(monkeypatch: pytest.MonkeyPatch, stub: _Edges, write: dict[str, Any] | None) -> Engine:
     stubs: dict[str, LLMService] = {"extract_edges": stub}
 
-    async def router(self: Engine, config: MemspineConfig) -> LLMRouter:
+    async def router(config: MemspineConfig, hooks: object = None) -> LLMRouter:
         return LLMRouter(stubs)
 
-    monkeypatch.setattr(Engine, "_build_llm_router", router)
+    monkeypatch.setattr("memspine.runtime.container.build_llm_router", router)
     policies: dict[str, Any] = {"write_pipeline": "graph", "extract_graph": {"max_rounds": 2}}
     if write is not None:
         policies["write"] = write
