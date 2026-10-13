@@ -164,6 +164,63 @@ flowchart LR
   </div>
 </section>
 
+<nav class="filters" aria-label="Tracks" style="position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-block:8px">
+  <label>Track</label>
+  <a class="chip" href="#ingestion">Ingestion (write + sleep)</a>
+  <a class="chip" href="#retrieval-track">Retrieval (read + compose)</a>
+  <a class="chip" href="#catalogue">All screens</a>
+  <a class="chip" href="#results">Results</a>
+</nav>
+
+<section id="ingestion">
+  <div class="eyebrow">Track A · Ingestion</div>
+  <h2>How a turn becomes memory</h2>
+  <p>Ingestion is everything between a user turn arriving and memory being searchable: the write path at turn time (D) and the sleep jobs that derive more from it later (K). It is reviewed separately here because its problems look different on LoCoMo: no question failed because a turn was not stored (stage <i>a</i> = 0 of 287), so ingestion matters through the <b>derived</b> memory it builds (facts, episodes, graph, summaries) that retrieval can then find.</p>
+  <pre class="mermaid">
+flowchart TB
+  T([New turns]) --> I1[Intake gateway<br/>idempotency key · receipt<br/>W2-01 · S50]
+  I1 --> I2[Stamping<br/>3 clocks · tz · speaker/addressee/participants<br/>W2-02 · S48]
+  I2 --> I3[Role policy + echo guard<br/>system excluded · assistant = proposal<br/>W2-03 · S49]
+  I3 --> RAW[(Raw turn stored<br/>event log · records · vectors · BM25)]
+  I3 --> SEG[Windows + batching<br/>time-gap cuts · adaptive size<br/>W2-05 · S45]
+  SEG --> PRE{Pre-pass<br/>filler window?<br/>W2-13}
+  PRE -- skip --> X1[no model call]
+  PRE -- extract --> EX[ONE structured extraction call<br/>facts · edges · episode<br/>W2-06b · LLM]
+  EX --> ENV[Envelope: validate · 1 repair · dead letters<br/>W2-06a · S44]
+  ENV --> S100[100 Temporal anchoring · W2-14]
+  S100 --> S200[200 Grounding check · W2-08]
+  S200 --> S250[250 Coverage re-extract · W2-15 · LLM ≤1]
+  S250 --> S300[300 Entity resolution · W2-09]
+  S300 --> S400[400 Integration: replace / both / contest · W2-10]
+  S400 --> S500[500 Pre-pass cross-check · W2-13]
+  S500 --> DEP[(Derived facts + lineage<br/>write door · trust cap)]
+  RAW -. sleep .-> K
+  DEP -. sleep .-> K
+  subgraph K["Sleep jobs (offline)"]
+    K1[Session close: summary + episodes · O4-02 · S33 · LLM/session] --> K2[Graph extraction · S02 · LLM/session]
+    K2 --> K3[Patterns · O4-05 · S35]
+    K3 --> K4[Standing answers · O4-08 · S34]
+    K4 --> K5[Communities · O4-06 · S40]
+    K5 --> K6[Reconcile + histories · O4-03/04 · S41 S42]
+    K6 --> K7[Decay · profile card · O4-09/07]
+  end
+  </pre>
+  <div class="panel" style="display:grid;gap:10px">
+    <h3>Ingestion stages, screens and status</h3>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Stage</th><th>Setting</th><th>Model calls</th><th>Screen</th><th>Status</th></tr></thead>
+      <tbody id="ingestBody"></tbody>
+    </table></div>
+    <p class="note">The write bundle S62 turns on the whole turn-time path together; single write screens run only if S62 regresses. Reference flows for the write path and the sleep cycle are traced step by step below (tabs "Write path" and "Sleep cycle").</p>
+  </div>
+</section>
+
+<section id="retrieval-track">
+  <div class="eyebrow">Track B · Retrieval</div>
+  <h2>How memory is found and packed for the answer</h2>
+  <p>The read path (R) and composition (C): legs, fusion, rerank, gates, then packing the context window. Its reference flow is the "Read path" tab below; its screens are filtered with the Retrieve and Compose chips in the catalogue.</p>
+</section>
+
 <section id="reference-flows">
   <div class="eyebrow">1b · The reference flows every screen is compared against</div>
   <h2>Reference internals: read, write, sleep</h2>
@@ -316,16 +373,16 @@ const S=[
 ["S05","R","Pool protection (reproduction)","read.pool_protect_per_leg","J","pass","0/0","Reproduces the reference: keeps the top few candidates from each leg so fusion cannot drop them.","R legs → fusion.",["0","0","0","0","0"],"Already in the reference."],
 ["S06","C","Answer contract","read.query_contract=heuristic","J","iterate","+1/−0 (+1.25)","Detects the question shape (list, when, yes/no) and shapes the evidence and answer format to match.","C (composition rules).",["+0.5 to +1","+1","0","0","0"],"Watch; cheap."],
 ["S09","R","Same-commit reference","none","J","pass","—","Rebuilds the reference on the current code so later screens compare like with like.","—",["0","0","0","0","0"],"Infrastructure."],
-["S10","R","Memory tiers in search","read.tiers_v2","J","deferred","0/0 (inert on J)","Searches hot / warm / cold tiers differently so recent and important memory comes first.","R (before legs).",["0 to +1","0","+0.5","0","+0.5"],"Deferred; covered by the read-v2-core bundle."],
+["S10","R","Memory tiers in search","read.tiers_v2","J","promote","Targeted fusion set: fixed 7/23, broke 1/15 (+15.8 on set; now widens the rerank pool to 32)","Searches hot / warm / cold tiers differently so recent and important memory comes first.","R (before legs).",["0 to +1","0","+0.5","0","+0.5"],"Deferred; covered by the read-v2-core bundle."],
 ["S11","C","Contract rules v2","read.contract_rules","J","iterate","+1/−1 (0)","Stricter answer-contract rules on top of S06.","C.",["0","+0.5","0","0","0"],"Covered by read-v2-core."],
 ["S12","R","Router rules","read.router_rules","J","deferred","0/0 (inert on J)","Picks which legs run per question type (e.g. skip the graph for single-fact questions).","R router.",["0 to +1","0","0","0","0"],"Deferred; covered by read-v2-core."],
 ["S13","R","Entity leg (J)","read.entity_leg_v2","J","deferred","0/0 (inert on J)","Boosts records about the entities named in the question.","R leg.",["see S32","","","",""],"Replaced by S32 on a sleep run."],
-["S14","R","Family fusion","read.family_fusion","J","iterate","+4/−1 (+3.75)","Fuses legs by family (dense, lexical, structured, derived) so one family cannot crowd out the others.","R fusion.",["+1 to +3","+1","0","0","+1"],"Strong candidate; confirm on the 437-question focus set (S51)."],
+["S14","R","Family fusion","read.family_fusion","J","iterate","Targeted: fusion +6/−2; mix-120 fixed 8/60, broke 6/58; INV-FILLER flagged","Fuses legs by family (dense, lexical, structured, derived) so one family cannot crowd out the others.","R fusion.",["+1 to +3","+1","0","0","+1"],"Strong candidate; confirm on the 437-question focus set (S51)."],
 ["S15","R","Lift before rerank","read.lift_before_rerank","J","iterate","0/0","Maps derived hits back to their source turns before reranking, so the reranker scores the original words.","R lift → rerank.",["0 to +1","0","0","0","0"],"Covered by read-v2-core."],
 ["S16","R","Reranker v2","read.rerank_v2","J","iterate","0/0; INV-FILLER was a test artefact","New reranker stage with the jina v3.5 → Qwen3 → MiniLM fallback chain.","R rerank.",["0 to +1","+1","0","0","+0.5"],"Re-test with the wider search pool (S67)."],
 ["S17","C","Exact token budget","read.exact_budget","J","deferred","0/0 (budget never bound)","Counts tokens exactly when packing evidence, so nothing is cut or wasted.","C budget.",["see S53","","","",""],"Replaced by S53 with a tight budget."],
 ["S18","C","Evidence bundles","read.evidence_bundles","J","skipped","not run","Keeps a fact together with the turns it was extracted from.","C.",["see S54","","","",""],"Replaced by S54."],
-["S19","C","Neighbour turns v2","read.neighbours_v2","J","iterate","0/0","Adds the turns just before and after each hit so the model sees the conversation around it.","C.",["0 to +1","0","0","0","+0.5"],"Covered by read-v2-safe."],
+["S19","C","Neighbour turns v2","read.neighbours_v2","J","iterate","Targeted reader set: fixed 2/59, broke 0/39","Adds the turns just before and after each hit so the model sees the conversation around it.","C.",["0 to +1","0","0","0","+0.5"],"Covered by read-v2-safe."],
 ["S20","R","Gate v2","read.gate_v2","J","promote","OP-Bench +4/−0 (+4.45, +0.14…+9.78)","A relevance gate after reranking: drops evidence that does not answer the question, so the model can say it does not know.","R gate (end of read).",["+0.5 to +2 (cat 5)","+4 to +8","0","0","0"],"Promote. Include in the candidate configuration."],
 ["S21","R","Deep read","read.deep_v2","J","skipped","not run (no sufficiency role)","When evidence looks insufficient, runs one more targeted search.","R ladder (second pass).",["see S55","","","",""],"Replaced by S55."],
 ["S22","R","Obligations","read.obligations","J","skipped","not run","Lists what a complete answer must cover and searches for any missing part.","R ladder.",["see S56","","","",""],"Replaced by S56."],
@@ -337,11 +394,11 @@ const S=[
 ["S28","D","Graph key v2","graph.key_v2","GC","iterate","+4/−4 (0)","New graph node key (tenant + owner + normalised name).","K graph.",["0","0","0","0","0"],"Noise; keep for isolation, not accuracy."],
 ["S29","X","Restructure parity","none (public API adapter)","J","pass","0/0 (parity holds)","Confirms the restructured engine gives the old engine's answers.","—",["0","0","0","0","0"],"Pass."],
 ["S30","R","Graph search leg","read.graph_leg_v2 + edge compiler","GC","iterate","+6/−5 (+1.67)","Follows one link from the question's entities and keeps what two or more of them reach.","R leg over compiled edges.",["+0.5 to +2 (multi-hop)","0","0","+0.5","+0.5"],"Within noise; decided by the read-v2-graph bundle."],
-["S31","R","Episode search leg","read.episode_leg_v2","GC","queued","+5/−6 on first run, but the eval never closed sessions so no episodes existed; re-queued after FX-EVAL","Searches session summaries / episodes and lifts hits to their turns.","R leg (L2).",["0 to +1","0","0","0","+1"],"Within noise; bundle decides."],
+["S31","R","Episode search leg","read.episode_leg_v2","GC","promote","Targeted missed-recall set: fixed 6/24, broke 0/16 (with session close)","Searches session summaries / episodes and lifts hits to their turns.","R leg (L2).",["0 to +1","0","0","0","+1"],"Within noise; bundle decides."],
 ["S32","R","Entity search leg","read.entity_leg_v2","GC","iterate","+4/−6 (−3.33)","Entity leg on a run where the graph exists.","R leg.",["0 to +1","0","0","0","0"],"Within noise; bundle decides."],
-["S33","K","Session close","offline.session_close_v2","GC","queued","re-queued: inert until FX-EVAL made the eval close each session","At session end, one model call writes a summary and episodes with citations.","K → store (L2).",["+0.5 to +1.5","0","+0.5","0","+1"],"Run (in queue)."],
+["S33","K","Session close","offline.session_close_v2","GC","iterate","Targeted missed-recall set: fixed 2/24, broke 3/16 (summaries alone crowd the pool)","At session end, one model call writes a summary and episodes with citations.","K → store (L2).",["+0.5 to +1.5","0","+0.5","0","+1"],"Run (in queue)."],
 ["S34","K","Standing answers","offline.standing_v2 + read.standing_v2","GC","queued","queued","Keeps a current answer for frequently asked state questions (\"where does Ilse live now\").","K builds, C injects.",["+0.5 to +1","0","+1","+1 to +2","0"],"Run."],
-["S35","K","Patterns","offline.patterns_v2","GC","queued","re-queued: patterns now run after graph extraction (FX-EVAL)","Finds recurring behaviour across sessions (\"usually runs on Sundays\").","K → store (L4).",["0 to +1","0","+1 to +2","0","0"],"Run."],
+["S35","K","Patterns","offline.patterns_v2","GC","iterate","Targeted list set: fixed 5/23, broke 1/14 (+9.6 on set)","Finds recurring behaviour across sessions (\"usually runs on Sundays\").","K → store (L4).",["0 to +1","0","+1 to +2","0","0"],"Run."],
 ["S36","R","Tiers (sleep run)","read.tiers_v2","GC","deferred","deferred","Re-test of S10 with derived layers present.","R.",["0 to +1","0","0","0","0"],"Deferred to bundle."],
 ["S37","R","Router (sleep run)","read.router_rules","GC","deferred","deferred","Re-test of S12 with derived layers present.","R.",["0 to +1","0","0","0","0"],"Deferred to bundle."],
 ["S38","R","v2 legs alone","read.legs_v2","GC","queued","queued","The v2 leg registry on its own; old temporal rules now ported, so mostly lexical score scale changes.","R legs.",["0 ± 1","0","0","0","0"],"Run: checks the new path is safe."],
@@ -417,6 +474,34 @@ document.querySelectorAll("[data-ref]").forEach(b=>b.addEventListener("click",()
   document.querySelectorAll("[data-ref]").forEach(x=>x.setAttribute("aria-pressed",String(x===b)));showRef(b.dataset.ref)}));
 fetch(location.protocol==="file:"?"data/screen_atlas_internals.json":"internals.json").then(r=>r.json()).then(d=>{INT=d.internals||{};REC=d.recover||{};render();showRef("REF-J")})
   .catch(()=>{document.getElementById("refBox").innerHTML=`<p class="note">The internals file did not load.</p>`});
+// ingestion stage table
+const ING=[
+ ["Intake gateway (idempotent writes, receipts)","write.intake_v2","none","S50","S50"],
+ ["Stamping (clocks, tz, participants, provenance)","write.stamping_v2","none","S48","S48"],
+ ["Role policy + echo guard","write.role_policy_v2","none","S49","S49"],
+ ["Windows + batching","write.segmentation_v2","fewer (0.175 → 0.015 per turn, stub)","S45","S45"],
+ ["Pre-pass: skip filler windows","write.prepass","none (rules / GLiNER2 on CPU)","S62 bundle","S62"],
+ ["One structured extraction call","write.prompt_v2","1 per window or batch","S62 bundle","S62"],
+ ["Envelope validate / repair / dead letters","write.envelope_v2","≤1 repair per window","S44","S44"],
+ ["Temporal anchoring (100)","write.temporal_v2","none","S62 bundle","S62"],
+ ["Grounding check (200)","write.grounding_v2","none (lexical) or CPU decider","S62 bundle","S62"],
+ ["Coverage re-extract (250)","write.coverage_v2","≤1 per window","S62 bundle","S62"],
+ ["Entity resolution (300)","write.resolver_v2","none","S62 bundle","S62"],
+ ["Integration ladder (400)","write.integration_v2","none","S62 bundle","S62"],
+ ["Session close: summary + episodes","offline.session_close_v2","1 per session","S33 / S31","S31"],
+ ["Graph extraction in sleep","gc3 arm (reference)","1 per session","S02","S02"],
+ ["Patterns","offline.patterns_v2","none","S35","S35"],
+ ["Standing answers","offline.standing_v2","none","S34","S34"],
+ ["Communities","offline.communities_v2","1 per changed community","S40","S40"],
+ ["Reconcile + value histories","offline.reconcile_v2 / histories_v2","none","S41 / S42","S41"],
+ ["Decay tiers","offline.decay_v2","none","deferred","S47"],
+ ["Whole sleep bundle","profile offline-v2","as above","S64","S64"],
+ ["Whole write bundle","profile write-v2","~1–4 per window","S62","S62"]
+];
+function ingestRows(){const byId=Object.fromEntries(S.map(r=>[r[0],r]));
+  document.getElementById("ingestBody").innerHTML=ING.map(x=>{const r=byId[x[4]];const st=r?r[5]:"queued";
+    return `<tr><td>${esc(x[0])}</td><td class="mono">${esc(x[1])}</td><td>${esc(x[2])}</td><td><a href="#${esc(x[4])}" onclick="openCard('${esc(x[4])}')">${esc(x[3])}</a></td><td><span class="pill s-${st}">${STATUS[st]||st}</span>${r&&r[6]&&!/^queued$/.test(r[6])?`<br><span class="note">${esc(r[6])}</span>`:""}</td></tr>`}).join("")}
+function openCard(id){state.layer="all";state.status="all";state.q="";render();const el=document.getElementById(id);if(el){el.open=true;el.scrollIntoView({block:"start"})}}
 // catalogue
 const state={layer:"all",status:"all",q:""};
 function render(){
@@ -447,5 +532,6 @@ document.querySelectorAll(".chip").forEach(b=>b.addEventListener("click",()=>{
   document.querySelectorAll(`.chip[data-f="${f}"]`).forEach(x=>x.setAttribute("aria-pressed",String(x===b)));render();}));
 document.getElementById("q").addEventListener("input",e=>{state.q=e.target.value;render()});
 render();
+ingestRows();
 if(location.hash){const el=document.getElementById(location.hash.slice(1));if(el&&el.tagName==="DETAILS"){el.open=true;el.scrollIntoView()}}
 </script>
