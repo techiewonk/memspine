@@ -21,6 +21,7 @@ from typing import Any
 import yaml
 
 from memspine.config import constants, presets
+from memspine.config.flags import check_retired
 from memspine.config.schema import MemspineConfig
 from memspine.exceptions import ConfigError
 
@@ -249,6 +250,7 @@ def load_config(
             sources[dotted] = layer_name
 
     merged = _resolve_secrets(merged, secret_resolver)
+    check_retired(merged)  # G-22: a retired flag names its replacement
 
     try:
         config = MemspineConfig.model_validate(merged)

@@ -1,57 +1,28 @@
 """CI gate (X-02, G-22): every default-on config flag carries evidence.
 
-The register is ``scripts/ci_flag_evidence_register.py``. See its docstring for the rules.
+The register is ``memspine.config.flags`` (F-07; it was ``scripts/ci_flag_evidence_register.py``).
+See its docstring for the rules.
 """
 
 from __future__ import annotations
 
-import importlib.util
 import re
-from pathlib import Path
 
 import pytest
-from pydantic import BaseModel
 
-from memspine.config import schema
-
-REPO = Path(__file__).resolve().parents[2]
-REGISTER_PATH = REPO / "scripts" / "ci_flag_evidence_register.py"
+from memspine.config import flags
 
 # a commit hash or an ADR id counts as evidence; so does a named run id ("run <id>")
 _EVIDENCE_REF = re.compile(r"\b(?:[0-9a-f]{7,40}|ADR-\d{3}|run[ _][\w.-]+)\b", re.IGNORECASE)
 
 
-def _load_register():
-    spec = importlib.util.spec_from_file_location("ci_flag_evidence_register", REGISTER_PATH)
-    assert spec
-    assert spec.loader
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
-
-
-def _config_classes():
-    for name, cls in vars(schema).items():
-        if (
-            isinstance(cls, type)
-            and issubclass(cls, BaseModel)
-            and cls.__module__ == schema.__name__
-        ):
-            yield name, cls
-
-
 def default_on_flags() -> set[str]:
     """``Class.field`` for every boolean config field whose default is True."""
-    return {
-        f"{name}.{fname}"
-        for name, cls in _config_classes()
-        for fname, field in cls.model_fields.items()
-        if field.default is True
-    }
+    return flags.default_on_flags()
 
 
 def all_fields() -> set[str]:
-    return {f"{name}.{f}" for name, cls in _config_classes() for f in cls.model_fields}
+    return {f"{name}.{f}" for name, cls in flags.config_classes() for f in cls.model_fields}
 
 
 def check(
@@ -81,11 +52,48 @@ def check(
 
 
 def test_default_on_flags_have_evidence():
-    reg = _load_register()
     problems = check(
-        default_on_flags(), all_fields(), reg.FLAG_EVIDENCE, reg.PRE_G22_UNKNOWN, reg.UNKNOWN
+        default_on_flags(),
+        all_fields(),
+        flags.FLAG_EVIDENCE,
+        flags.PRE_G22_UNKNOWN,
+        flags.UNKNOWN,
     )
     assert not problems, "flag-evidence violations (G-22):\n  " + "\n  ".join(problems)
+
+
+def test_registry_agrees_with_class_discovery():
+    """The schema-walk registry sees every default-on bool the class scan sees."""
+    reg = flags.registry()
+    assert {s.owner for s in reg.values() if s.default_on} == default_on_flags()
+    assert {s.key for s in reg.values()} >= {"read.hybrid", "firewall.enabled", "strict_services"}
+    modes = {k for k, s in reg.items() if s.kind == "mode"}
+    assert modes
+    assert all(reg[k].choices for k in modes)
+
+
+def test_registry_areas_are_schema_modules():
+    areas = {s.area for s in flags.registry().values()}
+    assert areas <= {
+        "storage", "llm", "read", "write", "firewall", "integrity",
+        "privacy", "observability", "rest", "root",
+    }  # fmt: skip
+
+
+def test_retired_flag_names_its_replacement(monkeypatch):
+    from memspine.config.loader import load_config
+    from memspine.exceptions import ConfigError
+
+    monkeypatch.setitem(flags.RETIRED, "read.old_switch", "read.hybrid")
+    with pytest.raises(ConfigError, match=r"read\.old_switch.*retired.*read\.hybrid"):
+        load_config(template="base", overrides={"read": {"old_switch": True}})
+    monkeypatch.setitem(flags.RETIRED, "read.gone", "")
+    with pytest.raises(ConfigError, match="no replacement"):
+        load_config(template="base", overrides={"read": {"gone": 1}})
+
+
+def test_no_retired_flags_yet():
+    assert flags.RETIRED == {}
 
 
 def test_discovery_finds_known_flags():
