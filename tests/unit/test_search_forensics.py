@@ -1,11 +1,11 @@
-"""``memspine.engine.search_forensics()``: opt-in stage capture for evals and debugging (PROC-2)."""
+"""``memspine.observability.trace.search_forensics()``: opt-in stage capture for evals and debugging (PROC-2)."""
 
 from __future__ import annotations
 
 from typing import Any
 
 from memspine import Engine
-from memspine.engine import search_forensics
+from memspine.observability.trace import search_forensics
 
 TEXTS = [
     "Melanie went kayaking on the lake",

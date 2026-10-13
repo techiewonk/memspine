@@ -2,7 +2,7 @@
 
 Two ``ContextVar`` sinks, both ``None`` by default so every hook is a single ``is None`` test:
 
-- :data:`FORENSICS` is the read-side dict that ``memspine.engine.search_forensics()`` installs.
+- :data:`FORENSICS` is the read-side dict that ``memspine.observability.trace.search_forensics()`` installs.
   Besides the ranked lists of each retrieval stage, hooks add ``cuts`` (one entry per candidate
   dropped, with the reason) and ``window`` (the replay-window neighbours added around a hit).
 - :data:`WRITE` is a list that :func:`write_forensics` installs around a write: the firewall's
@@ -20,7 +20,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Any
 
-#: read side: the dict ``search_forensics()`` fills (see ``memspine.engine``)
+#: read side: the dict ``search_forensics()`` fills (see ``memspine.observability.trace``)
 FORENSICS: ContextVar[dict[str, Any] | None] = ContextVar("memspine_forensics", default=None)
 
 #: write side: events appended by the firewall and the conflict ladder

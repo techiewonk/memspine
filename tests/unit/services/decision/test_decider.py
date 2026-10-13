@@ -10,7 +10,6 @@ import pytest
 
 from memspine import Engine
 from memspine.config.schema import ReadConfig
-from memspine.engine import search_forensics
 from memspine.models.providers.decision import decider as decider_mod
 from memspine.models.providers.decision.decider import (
     TASKS,
@@ -19,6 +18,7 @@ from memspine.models.providers.decision.decider import (
     OpenDeciderDecider,
     build_decider,
 )
+from memspine.observability.trace import search_forensics
 
 T0 = datetime(2023, 5, 1, 9, 0, tzinfo=UTC)
 

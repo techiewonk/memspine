@@ -45,6 +45,7 @@ from memspine.derive.pipeline.stages.context import SessionClosed, WindowEdgeBat
 from memspine.derive.pipeline.stages.mining import _fact_date
 from memspine.models.providers.llm.base import LLMService
 from memspine.models.providers.llm.structured import structured_call
+from memspine.observability import tap
 from memspine.observability.logging import get_logger
 from memspine.prompts.base import Prompt
 from memspine.prompts.models import (
@@ -488,6 +489,15 @@ class WindowPipeline:
             store.queue.append(job)
         self._counts["windows"] += 1
         self._reasons[window.reason] += 1
+        if tap.enabled():
+            tap.event(
+                "write.window.cut",
+                reason=window.reason,
+                turns=len(window.turns),
+                tokens=window.tokens,
+                session=window.session,
+                queued=len(store.queue),
+            )
         if window.session is not None:
             store.session_windows[window.session] += 1
         if self._async and self._outbox is None:
@@ -562,13 +572,16 @@ class WindowPipeline:
                 store.inflight = job
                 try:
                     if job.closed_session is not None:
-                        await self._session_closed(ns, store, job.closed_session)
+                        with tap.request("job", stage="window_session_closed"):
+                            await self._session_closed(ns, store, job.closed_session)
                     else:
-                        await self._run_job(ns, store, job)
+                        with tap.request("job", stage="window_extract"):
+                            await self._run_job(ns, store, job)
                 except asyncio.CancelledError:
                     raise
                 except Exception as exc:  # one bad window never stops the queue
                     self._counts["jobs_failed"] += 1
+                    tap.event("write.window.job_failed", error=type(exc).__name__)
                     _log.warning("window.job_failed", namespace=ns, error=str(exc), exc_info=True)
                 finally:
                     store.inflight = None
@@ -853,6 +866,7 @@ class WindowPipeline:
                 for rid in member_ids:
                     self._keys_by_record.setdefault(rid, set()).add(key)
                 self._counts["cache_hits"] += 1
+                tap.event("write.extract.call", sections=list(group), cached=True, outcome="ok")
                 cached: Mapping[str, Any] = json.loads(hit)
                 return cached
         self._counts["calls"] += 1
@@ -860,7 +874,8 @@ class WindowPipeline:
             self._counts["split_calls"] += 1
         for section in group:
             self._calls_by_layer[section] += 1
-        raw = await self._extract(group, variables)
+        with tap.span("write.extract.call", sections=list(group), cached=False):
+            raw = await self._extract(group, variables)
         if self._cache is not None and key:
             try:
                 await self._cache.set(key, json.dumps(dict(raw), default=str).encode())
@@ -900,6 +915,7 @@ class WindowPipeline:
         records = await self._live_turns(window)
         if not records:
             self._counts["windows_empty"] += 1
+            tap.event("write.window.skipped", reason="no_live_turns", turns=len(window.turns))
             return None
         member_ids = [r.record_id for r in records]
         window_id = fingerprint_payload({"ns": ns, "turns": member_ids})[:12]
@@ -910,6 +926,15 @@ class WindowPipeline:
             "turn_count": len(records),
         }
         self._counts["windows_processed"] += 1
+        tap.event(
+            "write.window.planned",
+            id=window_id,
+            reason=window.reason,
+            turns=len(records),
+            excluded=len(window.turns) - len(records),
+            tokens=window.tokens,
+            groups=len(self._groups()),
+        )
         merged: dict[str, Any] = {}
         groups = self._groups()
         failed = False
@@ -926,6 +951,13 @@ class WindowPipeline:
                     self._dropped_by_layer[section] += 1
                     self._counts["sections_dropped"] += 1
                 _log.warning("window.call_failed", namespace=ns, kind=kind, error=str(exc)[:200])
+                tap.event(
+                    "write.extract.rejected" if kind == "parse_failures" else "write.extract.failed",
+                    reason=kind,
+                    sections=list(group),
+                    error=type(exc).__name__,
+                    id=window_id,
+                )
                 continue
             for section in group:
                 merged[section] = raw.get(section, _MISSING)
@@ -960,6 +992,7 @@ class WindowPipeline:
                     await self._cache.delete(key)
 
     def _drop(self, section: str) -> None:
+        tap.event("write.extract.rejected", reason="section_malformed", section=section)
         self._dropped_by_layer[section] += 1
         self._counts["sections_dropped"] += 1
 
@@ -997,6 +1030,14 @@ class WindowPipeline:
                 self._counts["facts_invalid"] += outcome.invalid
                 self._counts["facts_ungrounded"] += outcome.ungrounded
                 self._counts["facts_uncited"] += outcome.uncited
+                tap.event(
+                    "write.extract.facts",
+                    returned=outcome.returned,
+                    accepted=len(outcome.facts),
+                    invalid=outcome.invalid,
+                    ungrounded=outcome.ungrounded,
+                    uncited=outcome.uncited,
+                )
                 await self._store_facts(ns, job, records, outcome, window_id, member_ids)
             elif section == "edges":
                 edge_out = validate_edges(raw, count)
@@ -1007,6 +1048,13 @@ class WindowPipeline:
                 self._counts["edges_returned"] += edge_out.returned
                 self._counts["edges_invalid"] += edge_out.invalid
                 self._counts["edges_ungrounded"] += edge_out.ungrounded
+                tap.event(
+                    "write.extract.edges",
+                    returned=edge_out.returned,
+                    accepted=len(edge_out.edges),
+                    invalid=edge_out.invalid,
+                    ungrounded=edge_out.ungrounded,
+                )
                 batch = WindowEdgeBatch(
                     window_id=window_id,
                     covered=list(member_ids),
@@ -1029,6 +1077,13 @@ class WindowPipeline:
                 self._counts["episodes_invalid"] += ep_out.invalid
                 self._counts["episodes_uncited"] += ep_out.uncited
                 self._counts["episodes_truncated"] += ep_out.truncated
+                tap.event(
+                    "write.extract.episode",
+                    invalid=ep_out.invalid,
+                    uncited=ep_out.uncited,
+                    truncated=ep_out.truncated,
+                    present=ep_out.episode is not None,
+                )
                 if ep_out.episode is not None and self._deposit_episode is not None:
                     await self._store_episode(ns, job, records, ep_out, window_id, member_ids)
         if job.cancelled:
@@ -1082,13 +1137,23 @@ class WindowPipeline:
                 raise
             except Exception as exc:  # one bad fact must not lose the rest
                 self._counts["facts_deposit_errors"] += 1
+                tap.event(
+                    "write.extract.rejected", reason="fact_deposit_error", error=type(exc).__name__
+                )
                 _log.warning("window.fact_deposit_failed", error=str(exc)[:200])
                 continue
             if stored is None:
                 self._counts["facts_skipped_parent_gone"] += 1
+                tap.event("write.extract.rejected", reason="parent_gone", layer="facts")
                 job.cancelled = True  # a member vanished: nothing else of this window lands
                 return
             self._counts["facts_deposited"] += 1
+            tap.event(
+                "write.extract.deposit",
+                id=getattr(stored, "record_id", None),
+                layer="facts",
+                parents=len(parents),
+            )
 
     async def _store_episode(
         self,
@@ -1111,13 +1176,20 @@ class WindowPipeline:
             raise
         except Exception as exc:
             self._counts["episodes_deposit_errors"] += 1
+            tap.event(
+                "write.extract.rejected", reason="episode_deposit_error", error=type(exc).__name__
+            )
             _log.warning("window.episode_deposit_failed", error=str(exc)[:200])
             return
         if stored is None:
             self._counts["episodes_skipped_parent_gone"] += 1
+            tap.event("write.extract.rejected", reason="parent_gone", layer="episode")
             job.cancelled = True
             return
         self._counts["episodes_deposited"] += 1
+        tap.event(
+            "write.extract.deposit", id=getattr(stored, "record_id", None), layer="episode"
+        )
 
     # -- counters (G-W13) ----------------------------------------------------------------------
 

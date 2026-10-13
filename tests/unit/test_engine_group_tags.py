@@ -8,7 +8,7 @@ exactly as before.
 
 from __future__ import annotations
 
-from memspine.engine import Engine
+from memspine.api.engine import Engine
 
 
 async def _engine() -> Engine:

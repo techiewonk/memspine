@@ -7,7 +7,6 @@ from pathlib import Path
 
 import pytest
 import yaml
-
 from memspine_evals.behavioural import BehaviouralReport, CaseResult, Status
 from suite.gate import BASELINE_PATH, adopt, regressions
 from suite.suite import SUITE_PATH, SuiteError, load_suite

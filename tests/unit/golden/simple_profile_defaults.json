@@ -366,6 +366,7 @@
       "inferred_explicit_overlap": 0.6,
       "inferred_support_overlap": 0.3,
       "inferred_trust_cap": 0.4,
+      "lineage_table": false,
       "participants": "off",
       "sensitivity": "off",
       "window_async": true,

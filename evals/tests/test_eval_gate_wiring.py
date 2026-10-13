@@ -7,9 +7,9 @@ import sys
 from pathlib import Path
 
 import eval_blind
-import pytest
 import eval_focus
 import eval_paired
+import pytest
 from memspine_evals.manifest import build_identity
 
 

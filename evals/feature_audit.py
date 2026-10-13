@@ -161,7 +161,7 @@ def _run(check: Callable[[], Awaitable[bool]]) -> Callable[[], bool]:
 
 
 def _engine_kw(**kw: Any) -> Any:
-    from memspine.engine import Engine
+    from memspine.api.engine import Engine
 
     config: dict[str, Any] = {
         "template": "base",

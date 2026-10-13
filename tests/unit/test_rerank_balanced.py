@@ -10,8 +10,8 @@ from typing import Any
 import pytest
 
 from memspine import Engine
-from memspine.engine import search_forensics
 from memspine.models.providers.rerank.factory import RerankSettings, register_reranker
+from memspine.observability.trace import search_forensics
 
 
 class _ConstReranker:

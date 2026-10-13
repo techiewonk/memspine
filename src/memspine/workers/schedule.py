@@ -17,6 +17,7 @@ from __future__ import annotations
 from memspine.derive.pipeline.stages.context import PipelineContext
 from memspine.derive.pipeline.stages.mining import projection_on
 from memspine.derive.pipeline.stages.rule_edges import rule_edges_options
+from memspine.observability import tap
 from memspine.observability.logging import get_logger
 from memspine.workers.runner import TaskRunner
 
@@ -99,5 +100,34 @@ async def run_sleep_cycle(runner: TaskRunner, ctx: PipelineContext) -> dict[str,
     for name in order:
         # one line per stage, so a silent stall names its stage (f-gc3, 2026-10-12)
         _log.info("sleep.stage", stage=name)
-        stats[name] = await runner.run(name, ctx)
+        if not tap.enabled():
+            stats[name] = await runner.run(name, ctx)
+            continue
+        with tap.request("job", stage=name):  # WT-02: one child trace per stage
+            tap.event("job.stage.start", stage=name)
+            try:
+                stats[name] = await runner.run(name, ctx)
+            except BaseException as exc:
+                tap.event("job.stage.end", stage=name, status="raised", error=type(exc).__name__)
+                raise
+            tap.event("job.stage.end", **_stage_fields(name, stats[name]))
     return stats
+
+
+def _stage_fields(name: str, stat: dict[str, object]) -> dict[str, object]:
+    """A stage's stats dict as tap fields: numbers and the status code; reason text is content."""
+    out: dict[str, object] = {"stage": name, "status": str(stat.get("status", "ok"))}
+    for key, val in stat.items():
+        if key in ("status", "stage") or isinstance(val, bool):
+            if isinstance(val, bool):
+                out[key] = val
+        elif isinstance(val, (int, float)):
+            out[key] = val
+    if out["status"] == "skipped":
+        out["skipped"] = True
+    if "reason" in stat:
+        out["reason_text"] = tap.content(str(stat["reason"]))
+    if "error" in stat:
+        out["error_text"] = tap.content(str(stat["error"]))
+        out["failed"] = True
+    return out

@@ -8,6 +8,7 @@ import hashlib
 import urllib.request
 
 import pytest
+
 from memspine.services.assets import (
     AssetAdapter,
     AssetEntry,

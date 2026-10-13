@@ -47,7 +47,7 @@ from memspine.store.records import MemoryRecord, RecordStatus, SourceInfo
 from memspine.store.scope import validate_namespace
 
 if TYPE_CHECKING:
-    from memspine.engine import Engine
+    from memspine.api.engine import Engine
 
 __all__ = [
     "AGENT_TOOL_CHANNEL",

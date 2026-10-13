@@ -19,11 +19,10 @@ from collections.abc import (
     Awaitable,
     Callable,
     Coroutine,
-    Iterator,
     Mapping,
     Sequence,
 )
-from contextlib import asynccontextmanager, contextmanager
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, ClassVar, Self, TypeVar
@@ -31,6 +30,8 @@ from typing import Any, ClassVar, Self, TypeVar
 import orjson
 from dishka import AsyncContainer
 
+from memspine.api import admin, handle, ops_memory, ops_trust
+from memspine.api.handle import Memory
 from memspine.clients.cashews import CashewsClient
 from memspine.clients.ladybug import LadybugClient
 from memspine.clients.lancedb import LanceDBClient
@@ -41,21 +42,17 @@ from memspine.compose.compression import CompressionPolicy
 from memspine.compose.pack import (
     AssembledContext,
     AssemblyPolicy,
-    estimate_tokens,
 )
-from memspine.compose.pack import ranked as rank_pairs
 from memspine.compose.pipeline import answer as compose_answer
 from memspine.compose.pipeline import pack as compose_pack
 from memspine.compose.pipeline import render as compose_render
 from memspine.compose.pipeline import sections as compose_sections
 from memspine.compose.pipeline import windows as compose_windows
-from memspine.compose.pipeline.sections import _without_entity
 from memspine.compose.pipeline.state import AnswerVerification
 from memspine.config import constants
 from memspine.config.loader import ResolvedConfig
 from memspine.config.schema import FirewallConfig, MemspineConfig
 from memspine.core.correction import Correction
-from memspine.core.escaping import escape_markers
 from memspine.core.fact_chain import (
     fact_projection_on,
 )
@@ -87,11 +84,9 @@ from memspine.derive.pipeline.stages.context import (
     SummarizeEntities,
     SummarizeIncremental,
 )
-from memspine.derive.pipeline.stages.index import DERIVED_STAGES, stage_marker
 from memspine.derive.pipeline.stages.table import PIPELINES
 from memspine.exceptions import (
     ConfigError,
-    ConflictError,
     MemspineError,
     StorageError,
 )
@@ -99,12 +94,9 @@ from memspine.ingest import assets as ingest_assets
 from memspine.ingest import windows as ingest_windows
 from memspine.ingest import write as ingest_write
 from memspine.ingest.write import (
-    _NEIGHBOUR_BATCH,
     _RECALL_MARKERS,  # noqa: F401  (tests import it from here)
     WriteOutcome,
-    _message_sender,
     _NeighbourBatch,
-    _screen_text,
 )
 from memspine.memories.associative.entities import (
     EntityPolicy,
@@ -115,12 +107,6 @@ from memspine.memories.associative.store import AssociativeMemory
 from memspine.memories.episodic.lifecycle import passive_after
 from memspine.memories.episodic.sessions import Session
 from memspine.memories.episodic.store import EpisodicMemory
-from memspine.memories.procedural.knn import Exemplar, knn_vote, render_table
-from memspine.memories.procedural.lessons import (
-    action_signature,
-    failures_dominate,
-    outcome_rank,
-)
 from memspine.memories.procedural.skills import (
     ProceduralMemory,
 )
@@ -145,28 +131,22 @@ from memspine.memory.pipeline import shared as memory_shared
 from memspine.memory.pipeline import working as memory_working
 from memspine.models.cache.base import KVCache
 from memspine.models.cache.semantic import CachedExtractor
-from memspine.models.encoders.embedding.base import EmbeddingService, embed_queries
+from memspine.models.encoders.embedding.base import EmbeddingService
 from memspine.models.encoders.query import QueryEncoder
 from memspine.models.encoders.query.perspective import (
     PerspectiveOptions,
     QuestionPerspective,
-)
-from memspine.models.encoders.query.shape import (
-    content_words,
 )
 from memspine.models.encoders.query.temporal_query import (
     LegHit,
     NamedLeg,
 )
 from memspine.models.providers.decision.decider import Decider, build_decider
-from memspine.models.providers.llm import structured as _structured
 from memspine.models.providers.llm.base import LLMRouter, LLMService
 from memspine.models.providers.rerank.base import Reranker
 from memspine.models.providers.rerank.factory import RerankSettings, build_reranker, rerank_modes
 from memspine.observability.logging import (
-    EVENT_FEEDBACK,
     EVENT_REBUILD,
-    EVENT_RETRIEVE,
     get_logger,
 )
 from memspine.observability import tap
@@ -187,9 +167,7 @@ from memspine.read.pipeline import request as read_request
 from memspine.read.pipeline import rerank as read_rerank
 from memspine.read.pipeline import router as read_router
 from memspine.read.pipeline import timeview as read_timeview
-from memspine.read.pipeline.fusion import _cosine, _jaccard
 from memspine.read.pipeline.state import (
-    _FORENSICS,
     _READ_SNAPSHOT,
     ReadResult,
 )
@@ -211,6 +189,7 @@ from memspine.runtime.container import (
     make_container,
     memory_policy,
 )
+from memspine.schemas.durable import OwnerScope
 from memspine.services.graph.base import GraphStore
 from memspine.services.lexical.base import LexicalHit, LexicalStore
 from memspine.services.lexical.projector import LexicalProjector
@@ -225,11 +204,10 @@ from memspine.store.records import (
     PiiTier,
     RecordStatus,
     SourceInfo,
-    chrono_key,
 )
 from memspine.store.replay import catch_up
 from memspine.store.replay import rebuild as replay_rebuild
-from memspine.store.scope import grant_allows, validate_namespace
+from memspine.store.scope import validate_namespace
 from memspine.trust.audit import IntegrityReport, TaintReport
 from memspine.trust.erasure import redact_record
 from memspine.trust.firewall import Firewall, FirewallSignals, FirewallVerdict, QueryHistory
@@ -240,9 +218,7 @@ from memspine.trust.pipeline import firewall as trust_firewall
 from memspine.trust.pipeline import horizon as trust_horizon
 from memspine.trust.pipeline import privacy as trust_privacy
 from memspine.trust.pipeline import quarantine as trust_quarantine
-from memspine.trust.pipeline.quarantine import _taint_archive_delta
 from memspine.trust.pipeline.state import (
-    _REPLACED_CONTENTS,
     AuthorizeDecision,
     _as_options_dict,
 )
@@ -252,13 +228,11 @@ from memspine.trust.privacy import (
     export_line,
     export_record,
     payload_mentions,
-    pii_rank,
     read_scope,
 )
 from memspine.workers.list_cards import (
     LabelClasses,
     ListCard,
-    fact_statement,
 )
 from memspine.workers.runner import TaskRunner
 from memspine.workers.schedule import run_sleep_cycle
@@ -275,22 +249,6 @@ _log = get_logger(__name__)
 #: replays or re-filters another leg's order (the perspective leg replays the vector order by
 #: subject) is not an independent vote; keyword legs and temporal legs are separate evidence.
 #: The leg -> family table is the typed ``read_legs`` registry (memspine.read.registry).
-
-
-@contextmanager
-def search_forensics() -> Iterator[dict[str, Any]]:
-    """Capture the stage-by-stage ranking of every ``search`` inside the block.
-
-    The yielded dict is filled by the last ``_search`` that runs: ``vector``, ``lexical``,
-    ``extra_legs`` (``[(name, hits)]``), ``fused``, ``pool``, ``reranker`` (id or None),
-    ``rerank_scores`` and ``final``, each a list of ``(record_id, score)``.
-    """
-    sink: dict[str, Any] = {}
-    token = _FORENSICS.set(sink)
-    try:
-        yield sink
-    finally:
-        _FORENSICS.reset(token)
 
 
 _T = TypeVar("_T")
@@ -427,6 +385,34 @@ class Engine:
         self._container: AsyncContainer | None = None
 
     # ── lifecycle ────────────────────────────────────────────────────────────
+
+    def scope(
+        self,
+        scope: OwnerScope | str,
+        *,
+        principal: str | None = None,
+        purpose: str | None = None,
+        viewer: str | None = None,
+        multi_party: bool = False,
+    ) -> Memory:
+        """A scoped handle (G-16 D): tenant/owner, principal, purpose and viewer are fixed once.
+
+        A multi-party scope without a viewer bound to the principal raises
+        :class:`~memspine.read.tiers.ReadRequestError`."""
+        return Memory(
+            self,
+            scope,
+            principal=principal,
+            purpose=purpose,
+            viewer=viewer,
+            multi_party=multi_party,
+        )
+
+    async def __aenter__(self) -> Self:
+        return await self.start()
+
+    async def __aexit__(self, *exc: object) -> None:
+        await self.stop()
 
     async def start(self) -> Self:
         """Start the engine; on any mid-start failure every already-opened
@@ -1020,57 +1006,7 @@ class Engine:
         takes the min over every ancestor, revocation drains the whole derived
         chain. With re-evaluation off, grants are not consulted.
         """
-        storage = self._require_started()
-        memo: dict[str, float] = {}
-        grants_cache: dict[str, Mapping[str, frozenset[str] | None]] = {}
-        policy = self._integrity()
-        check_grants = policy.enabled and policy.live_reevaluation
-
-        async def walk(rid: str) -> float:
-            if rid in memo:
-                return memo[rid]
-            record = await storage.get_record(rid)
-            if (
-                record is None
-                or record.quarantined
-                or record.status in (RecordStatus.ARCHIVED, RecordStatus.DELETED)
-            ):
-                memo[rid] = 0.0
-                return 0.0
-            value = record.trust
-            if not policy.enabled:
-                memo[rid] = value  # pre-MTI: stored trust, held records still fail closed
-                return value
-            reader = record.namespace
-            if check_grants:
-                sender = _message_sender(record)
-                if sender is not None:
-                    # B5: a message crossed sender -> receiver, and its parents
-                    # were read by the sender.
-                    if sender not in await self._grants_cached(record.namespace, grants_cache):
-                        memo[rid] = 0.0
-                        return 0.0
-                    reader = sender
-            for parent_id in record.source.parents:
-                parent = await storage.get_record(parent_id)
-                parent_ns = parent.namespace if parent is not None else record.namespace
-                view = policy.view_trust(await walk(parent_id), parent_ns, record.namespace)
-                if (
-                    check_grants
-                    and parent is not None
-                    and not grant_allows(
-                        reader,
-                        parent.namespace,
-                        parent.memory_type,
-                        await self._grants_cached(reader, grants_cache),
-                    )
-                ):
-                    view = 0.0  # N6: the grant that carried this parent is gone
-                value = min(value, view * policy.derivation_decay)
-            memo[rid] = value
-            return value
-
-        return await walk(record_id)
+        return await ops_trust.effective_trust(self, record_id)
 
     async def _grants_cached(
         self, reader: str, cache: dict[str, Mapping[str, frozenset[str] | None]]
@@ -1213,29 +1149,11 @@ class Engine:
 
     def asset_stats(self) -> dict[str, int]:
         """E04 cost counters of this engine (fetches, vision calls, failures, cache hits)."""
-        if self._assets is None:
-            return {}
-        s = self._assets.stats
-        return {
-            "fetches": s.fetches,
-            "fetch_failures": s.fetch_failures,
-            "vision_calls": s.vision_calls,
-            "vision_failures": s.vision_failures,
-            "cache_hits": s.cache_hits,
-        }
+        return admin.asset_stats(self)
 
     def external_stats(self) -> dict[str, int]:
         """E03 counters: network calls made, cache hits and misses, refusals, errors."""
-        if self._external is None:
-            return {}
-        s = self._external.stats
-        return {
-            "network_calls": s.network_calls,
-            "cache_hits": s.cache_hits,
-            "cache_misses": s.cache_misses,
-            "refused": s.refused,
-            "errors": s.errors,
-        }
+        return admin.external_stats(self)
 
     def _attachment_refs(
         self, turn: Mapping[str, Any], index: int, session_id: str | None
@@ -3161,27 +3079,7 @@ class Engine:
         per domain the mean, the standard deviation and the count of ratings. A
         recommender reads the mean as the user's level and the deviation as how
         selective they are. Read-only, no model."""
-        ns = validate_namespace(namespace)
-        values: dict[str, list[float]] = {}
-        for record in await self._records(ns):
-            if record.status is not RecordStatus.ACTIVATED or record.quarantined:
-                continue
-            ratings = [t.split(":", 1)[1] for t in record.tags if t.startswith("rating:")]
-            if not ratings:
-                continue
-            try:
-                rating = float(ratings[0])
-            except ValueError:
-                continue
-            domains = [t.split(":", 1)[1] for t in record.tags if t.startswith("domain:")]
-            for domain in domains or ["all"]:
-                values.setdefault(domain, []).append(rating)
-        out: dict[str, dict[str, float]] = {}
-        for domain, xs in sorted(values.items()):
-            mean = sum(xs) / len(xs)
-            std = (sum((x - mean) ** 2 for x in xs) / len(xs)) ** 0.5
-            out[domain] = {"mean": round(mean, 4), "std": round(std, 4), "n": float(len(xs))}
-        return out
+        return await handle.rating_profile(self, namespace)
 
     async def brief(
         self,
@@ -3198,83 +3096,16 @@ class Engine:
         - the last ``recent_turns`` episodic turns, oldest first.
         Every record passes the read gates (status, quarantine, consent, trust), and the
         blocks carry their own markers. No model call."""
-        ns = validate_namespace(namespace)
-        live = [
-            r for r in await self._require_started().list_records(ns) if self._context_eligible(r)
-        ]
-        blocks: list[MemoryRecord] = []
-        used = 0
-        profile = await self._slots_section(ns, "", budget_tokens)
-        if profile is not None:
-            blocks.append(profile)
-            used += estimate_tokens(profile.content)
-
-        def block(marker: str, records: list[MemoryRecord]) -> MemoryRecord | None:
-            nonlocal used
-            lines: list[str] = []
-            kept: list[MemoryRecord] = []
-            for record in records:
-                line = f"- {escape_markers(' '.join(record.content.split()))}"
-                cost = estimate_tokens("\n".join([marker, *lines, line]))
-                if used + cost > budget_tokens:
-                    break
-                lines.append(line)
-                kept.append(record)
-            if not kept:
-                return None
-            used += estimate_tokens("\n".join([marker, *lines]))
-            lead = self._lead_record(ns, "\n".join([marker, *lines]), kept)
-            return lead.model_copy(update={"tags": [constants.LEAD_TAG, constants.BRIEF_TAG]})
-
-        summaries_found = sorted(
-            (r for r in live if r.source.channel == "consolidation"), key=chrono_key, reverse=True
-        )[:summaries]
-        turns = (
-            sorted((r for r in live if r.memory_type == "episodic"), key=chrono_key)[-recent_turns:]
-            if recent_turns > 0
-            else []
+        return await handle.brief(
+            self, namespace, budget_tokens, summaries=summaries, recent_turns=recent_turns
         )
-        for marker, records in (
-            (constants.BRIEF_SUMMARIES_MARKER, summaries_found),
-            (constants.BRIEF_RECENT_MARKER, turns),
-        ):
-            made = block(marker, records)
-            if made is not None:
-                blocks.append(made)
-        return blocks
 
     async def namespace_stats(self, namespace: str = "default") -> dict[str, Any]:
         """I5 (isolation review 2026-10-08): how big one user's memory is. Counts of
         live records by memory type and status, distinct conversations, quarantined
         and erased records, an estimate of stored tokens, and the time span covered.
         Read-only; no model call."""
-        ns = validate_namespace(namespace)
-        records = await self._require_started().list_records(ns)
-        by_type: dict[str, int] = {}
-        by_status: dict[str, int] = {}
-        sessions: set[str] = set()
-        tokens = 0
-        for r in records:
-            by_status[r.status.value] = by_status.get(r.status.value, 0) + 1
-            if r.status is not RecordStatus.ACTIVATED:
-                continue
-            by_type[r.memory_type] = by_type.get(r.memory_type, 0) + 1
-            if r.source.message_id:
-                sessions.add(r.source.message_id)
-            tokens += estimate_tokens(r.content)
-        live = [r for r in records if r.status is RecordStatus.ACTIVATED]
-        return {
-            "namespace": ns,
-            "records": len(records),
-            "live": len(live),
-            "by_type": dict(sorted(by_type.items())),
-            "by_status": dict(sorted(by_status.items())),
-            "conversations": len(sessions),
-            "quarantined": sum(1 for r in live if r.quarantined),
-            "tokens_estimate": tokens,
-            "first": min((r.valid_from for r in live), default=None),
-            "last": max((r.valid_from for r in live), default=None),
-        }
+        return await handle.namespace_stats(self, namespace)
 
     async def conversation(
         self,
@@ -3286,10 +3117,7 @@ class Engine:
         in time order, read through the indexed ``session_key`` column; ``roles`` keeps
         only some speakers. Passes the same context gates as a read (erased, quarantined
         or untrusted turns are left out)."""
-        ns = validate_namespace(namespace)
-        storage = self._require_started()
-        listed = await storage.list_session_records(ns, session_id, roles)
-        return sorted((r for r in listed if self._context_eligible(r)), key=chrono_key)
+        return await handle.conversation(self, namespace, session_id, roles)
 
     async def session_memories(
         self, namespace: str = "default", session_record_ids: Sequence[str] = ()
@@ -3298,19 +3126,7 @@ class Engine:
         (mined facts, summaries, reflections, cards) whose ``source.parents`` include
         any of ``session_record_ids`` — what memory extracted from those turns, oldest
         first. Read-only; the raw turns themselves are not listed."""
-        ns = validate_namespace(namespace)
-        wanted = set(session_record_ids)
-        if not wanted:
-            return []
-        out = [
-            record
-            for record in await self._records(ns)
-            if record.status is RecordStatus.ACTIVATED
-            and not record.quarantined
-            and record.record_id not in wanted
-            and wanted & set(record.source.parents)
-        ]
-        return sorted(out, key=chrono_key)
+        return await handle.session_memories(self, namespace, session_record_ids)
 
     async def forget_requests(
         self, namespace: str = "default", top_k: int = 5
@@ -3370,27 +3186,7 @@ class Engine:
 
         The gates already keep them out of every search leg; this catches the
         records assembly adds from elsewhere (persona, full-mode listing)."""
-        if not self._config().consent.enforce:
-            return context
-        kept: list[MemoryRecord] = []
-        boundary = context.boundary_index
-        tokens = context.tokens_used
-        for index, record in enumerate(context.records):
-            if self._consent_ok(record):
-                kept.append(record)
-                continue
-            tokens -= estimate_tokens(record.content)
-            if index < context.boundary_index:
-                boundary -= 1
-        if len(kept) == len(context.records):
-            return context
-        return AssembledContext(
-            records=kept,
-            boundary_index=boundary,
-            abstained=context.abstained or not kept,
-            tokens_used=max(0, tokens),
-            evidence=context.evidence,
-        )
+        return ops_trust._consent_context(self, context)
 
     async def _audit_head_hash(self) -> str:
         """The current chain head, loaded once from the log (the last audit event)."""
@@ -3606,23 +3402,7 @@ class Engine:
 
     async def _withheld_texts(self) -> list[str]:
         """#50: texts of records above ``consent.remote_llm_max_tier`` (every namespace)."""
-        limit = self._config().consent.remote_llm_max_tier
-        if limit is None or self._storage is None:
-            return []
-        cap = pii_rank(limit)
-        texts: list[str] = []
-        for ns in await self._storage.list_namespaces():
-            for record in await self._storage.list_records(ns):
-                if record.status is RecordStatus.DELETED or pii_rank(record.pii_tier) <= cap:
-                    continue
-                own = self._erasable_texts(record)
-                texts.extend(own)
-                if record.entity:
-                    # The shapes timelines, cards and entity summaries render: the
-                    # text without its leading entity name or fact key.
-                    texts.extend(_without_entity(t, record.entity) for t in own)
-                    texts.append(fact_statement(record))
-        return list(dict.fromkeys(t for t in texts if t))
+        return await ops_trust._withheld_texts(self)
 
     def _remote_view(self, role: str, records: Sequence[MemoryRecord]) -> list[MemoryRecord]:
         """#50: ``records`` as a prompt for ``role`` may carry them. When ``role`` is
@@ -3752,156 +3532,7 @@ class Engine:
         holds raises :class:`RollbackUnavailableError` with ``strict=True``, else is
         archived alone and returned under ``"untraced"``.
         """
-        from memspine.core.policies.consolidation import ConsolidationPolicy
-
-        storage = self._require_started()
-        report = await self.audit_taint(record_id, namespace, cross_namespace=True)
-        untraced = await self._lineage_window(report, "repair_taint", strict)
-        tainted = {record_id, *report.descendants}
-        members_of: dict[str, list[str]] = {}
-        sessions_of_tainted: set[tuple[str, str]] = set()
-        after = 0
-        while True:
-            events = await storage.read_events(after_seq=after, limit=1000)
-            if not events:
-                break
-            for event in events:
-                if event.kind is EventKind.CONSOLIDATE:
-                    sid = str(event.payload.get("summary_record_id", ""))
-                    members_of[sid] = [str(m) for m in event.payload.get("member_record_ids", [])]
-                    session_key = str(event.payload.get("session_key", ""))
-                    if session_key and tainted & set(members_of[sid]):
-                        sessions_of_tainted.add((event.namespace, session_key))
-            after = max(event.seq for event in events if event.seq is not None)
-        policy = ConsolidationPolicy.bind(
-            _as_options_dict(self._memory_policy(self._config(), "episodic").get("consolidation"))
-        )
-        archived: list[str] = []
-        rebuilt: list[str] = []
-        review: list[str] = []
-
-        async def archive(rid: str, evolve_to: str | None = None) -> None:
-            rec = await storage.get_record(rid)
-            if rec is None or rec.status in (RecordStatus.ARCHIVED, RecordStatus.DELETED):
-                return
-            change = _taint_archive_delta(rec)
-            if evolve_to is not None:
-                change["evolve_to"] = evolve_to
-            await self._append_and_project(
-                MemoryEvent(
-                    kind=EventKind.DECAY_TRANSITION,
-                    namespace=rec.namespace,
-                    actor=actor,
-                    payload={
-                        "record_id": rid,
-                        "set": change,
-                        "transition": f"{rec.status.value}->archived",
-                        "reason": f"taint_repair:{record_id}",
-                    },
-                )
-            )
-            archived.append(rid)
-
-        for target_id, proof in [(record_id, "seed"), *report.descendants.items()]:
-            if proof.startswith("merged@"):
-                review.append(target_id)
-                continue
-            if proof.startswith("superseded_by_taint@"):
-                continue  # displaced, not derived: restored below
-            members = members_of.get(target_id)
-            if not members:
-                await archive(target_id)
-                continue
-            clean = []
-            for mid in members:
-                if mid in tainted:
-                    continue
-                member = await storage.get_record(mid)
-                if member is not None and member.status is RecordStatus.ACTIVATED:
-                    clean.append(self._inflate.inflate(member))
-            old = await storage.get_record(target_id)
-            if not clean or old is None:
-                await archive(target_id)
-                continue
-            summary = MemoryRecord(
-                namespace=old.namespace,
-                memory_type=old.memory_type,
-                content=policy.fallback_summary(clean),
-                valid_from=old.valid_from,
-                valid_to=old.valid_to,
-                source=SourceInfo(
-                    role=constants.DERIVED_ROLE,  # N2: a derived summary is never privileged
-                    channel="consolidation",
-                    message_id=old.source.message_id,
-                    parents=[m.record_id for m in clean],
-                ),
-                trust=min(m.trust for m in clean),
-                instruction_flag=any(m.instruction_flag for m in clean),
-            )
-            await self._append_and_project(
-                MemoryEvent(
-                    kind=EventKind.WRITE,
-                    namespace=old.namespace,
-                    actor=actor,
-                    payload={
-                        "record": summary.model_dump(mode="json"),
-                        "consolidation": {
-                            "session_key": old.source.message_id,
-                            "member_record_ids": [m.record_id for m in clean],
-                            "repaired_from": target_id,
-                        },
-                    },
-                )
-            )
-            await self._append_and_project(
-                MemoryEvent(
-                    kind=EventKind.CONSOLIDATE,
-                    namespace=old.namespace,
-                    actor=actor,
-                    payload={
-                        "session_key": old.source.message_id,
-                        "member_record_ids": [m.record_id for m in clean],
-                        "summary_record_id": summary.record_id,
-                        "superseded_summary_ids": [target_id],
-                        "summarizer": "extractive-repair",
-                    },
-                )
-            )
-            await archive(target_id, evolve_to=summary.record_id)
-            rebuilt.append(summary.record_id)
-        restored = await self._undo_displacement(record_id, report, archived, actor)
-        # R2-9: a session the seed was a member of has had its derived records
-        # (mined facts, cues, insights) archived above. Clearing the stages'
-        # done markers lets the next sleep cycle derive them again, from the
-        # clean members only.
-        for session_ns, session_key in sorted(sessions_of_tainted):
-            stages: tuple[str, ...] = DERIVED_STAGES
-            if self._consolidation_option("predict_calibrate", False):
-                stages = (*stages, "predict_calibrate")  # #62: only when it runs
-            if fact_projection_on(self._memory_policy(self._config(), "semantic")):
-                stages = (*stages, "project_facts")  # E01: only when it runs
-            for stage in stages:
-                await self._append_and_project(
-                    stage_marker(session_ns, stage, session_key, cleared=True)
-                )
-        _log.warning(
-            "memory.taint_repair",
-            namespace=namespace,
-            seed=record_id,
-            archived=len(archived),
-            rebuilt=len(rebuilt),
-            restored=len(restored),
-            review=len(review),
-        )
-        result = {
-            "archived": archived,
-            "rebuilt": rebuilt,
-            "restored": restored,
-            "review": review,
-        }
-        if untraced:
-            result["untraced"] = [record_id]
-        return result
+        return await ops_trust.repair_taint(self, record_id, namespace, actor, strict=strict)
 
     async def _assess_write(self, record: MemoryRecord) -> FirewallVerdict:
         """Gather the firewall's namespace context: nearest-neighbour
@@ -3918,51 +3549,7 @@ class Engine:
         inside the cut depended on the vector store's tie order; this way neither
         the count nor the scores do.
         """
-        storage = self._require_started()
-        neighbour_sims: list[float] | None = None
-        query_z: float | None = None
-        if self._embedder is not None and self._vector is not None:
-            [vector] = await self._embedder.embed([record.content])
-            signals = self._firewall.signals
-            if signals.query_anomaly:  # N22
-                query_z = self._query_history.assess(
-                    record.namespace, vector, signals.query_anomaly_kappa
-                )
-            wanted = constants.ANOMALY_MIN_NEIGHBOURS
-            batch = _NEIGHBOUR_BATCH.get()
-            if not (
-                batch is not None
-                and batch.namespace == record.namespace
-                and record.content in batch.prefetched
-            ):
-                batch = None
-            embedder = self._embedder
-            vector_store = self._vector
-
-            async def nearest(top_k: int) -> list[VectorHit]:
-                if batch is not None:  # #63: the batched prefetch plus the rows written since
-                    return await batch.neighbours(record.content, vector, embedder, top_k)
-                return await vector_store.query(
-                    record.namespace, vector, embedder_id=embedder.embedder_id, top_k=top_k
-                )
-
-            hits = await nearest(wanted)
-            held = await storage.quarantined_ids([hit.record_id for hit in hits])
-            if held:  # widen past the held rows, so `wanted` live ones remain
-                hits = await nearest(wanted + await storage.count_quarantined(record.namespace))
-                held = await storage.quarantined_ids([hit.record_id for hit in hits])
-            neighbour_sims = [hit.score for hit in hits if hit.record_id not in held][:wanted]
-        # The 50 most recently recorded live contents, oldest first.
-        recent_contents = await storage.recent_contents(record.namespace, 50)
-        replaced = _REPLACED_CONTENTS.get()
-        if replaced:
-            recent_contents = [c for c in recent_contents if c not in replaced]
-        return self._firewall.assess(
-            record,
-            neighbour_similarities=neighbour_sims,
-            recent_contents=recent_contents,
-            query_anomaly=query_z,
-        )
+        return await ops_trust._assess_write(self, record)
 
     async def _gated_assess(self, record: MemoryRecord) -> MemoryRecord:
         """The full firewall gate as an injectable seam (E1): resource ingest
@@ -4063,32 +3650,9 @@ class Engine:
         like :meth:`quarantine`: a missing, foreign or forgotten id raises the same
         ``ConflictError``. Returns the record with its updated counts.
         """
-        if signal not in ("like", "dislike", "note"):
-            raise MemspineError(f"feedback signal must be like, dislike or note, got {signal!r}")
-        text = (note or "").strip()
-        if signal == "note" and not text:
-            raise MemspineError("feedback signal 'note' needs a non-empty note")
-        storage = self._require_started()
-        ns = validate_namespace(namespace)
-        payload: dict[str, object] = {"record_id": record_id, "signal": signal}
-        if text:
-            screened = _screen_text(text, self._config().firewall)[0]
-            payload["content"] = screened[: constants.FEEDBACK_NOTE_MAX_CHARS]
-        async with self._write_locks.setdefault(ns, asyncio.Lock()):
-            record = await storage.get_record(record_id)
-            if record is None or record.namespace != ns or record.status is RecordStatus.DELETED:
-                raise ConflictError(f"no such record {record_id!r} in namespace {ns!r}")
-            await self._append_and_project(
-                MemoryEvent(kind=EventKind.FEEDBACK, namespace=ns, actor=actor, payload=payload)
-            )
-            updated = await storage.get_record(record_id)
-        assert updated is not None
-        _log.info(EVENT_FEEDBACK, namespace=ns, record_id=record_id, signal=signal)
-        # #49: the signal only; the note stays in the erasable FEEDBACK event.
-        await self._audit_action(
-            "feedback", ns, [record_id], actor=actor, reason=None, signal=signal
+        return await ops_trust.feedback(
+            self, record_id, signal, note=note, actor=actor, namespace=namespace
         )
-        return updated
 
     def _config(self) -> MemspineConfig:
         assert self._resolved is not None
@@ -4153,15 +3717,7 @@ class Engine:
         pii_tier: PiiTier = PiiTier.NONE,
     ) -> list[MemoryRecord]:
         """Ingest a document (D-29): extract → chunk → resource records."""
-        self._require_started()
-        if self._resource is None:
-            raise MemspineError("resource memory not enabled — set memories.resource.enabled: true")
-        ns = validate_namespace(namespace)
-        # Same one-writer-per-namespace unit as write()/forget(): ingest's
-        # firewall-context reads and chunk writes must not interleave with a
-        # concurrent hard delete's read-hold-check-redact sequence.
-        async with self._write_locks.setdefault(ns, asyncio.Lock()):
-            return await self._resource.ingest(ns, path, pii_tier=pii_tier)
+        return await handle.ingest(self, path, namespace, pii_tier)
 
     # ── procedural + reflective verbs (P5: M13.4 / M13.7 / E6) ───────────────
 
@@ -4232,54 +3788,7 @@ class Engine:
         ``entity``), not plan bodies: two different tasks can share plan steps
         without being interchangeable.
         """
-        self._require_started()
-        if self._procedural is None:
-            raise MemspineError(
-                "procedural memory not enabled — set memories.procedural.enabled: true"
-            )
-        if self._embedder is None:
-            raise MemspineError("retrieval services not constructed — engine not started?")
-        ns = validate_namespace(namespace)
-        plans = [
-            plan
-            for plan in await self._procedural.list(ns, kind="plan", usable_only=True)
-            if plan.entity is not None
-        ]
-        if not plans:
-            # Misses must be visible: "no plans recorded" vs "none cleared the
-            # floor" is the first question when plan reuse isn't happening.
-            _log.info(EVENT_RETRIEVE, namespace=ns, plan=True, hit=False, candidates=0)
-            return None
-        vectors = await self._embedder.embed([task, *(str(plan.entity) for plan in plans)])
-        task_vec, plan_vecs = vectors[0], vectors[1:]
-        best: tuple[MemoryRecord, float] | None = None
-        for plan, plan_vec in zip(plans, plan_vecs, strict=True):
-            score = _cosine(task_vec, plan_vec)
-            if best is None or score > best[1]:
-                best = (plan, score)
-        assert best is not None
-        if best[1] < min_similarity:
-            _log.info(
-                EVENT_RETRIEVE,
-                namespace=ns,
-                plan=True,
-                hit=False,
-                candidates=len(plans),
-                best_similarity=round(best[1], 4),
-            )
-            return None
-        record = self._inflate.inflate(best[0])
-        # Reinforcement (M1): a reused plan's utility signal rides the log.
-        await self._append_and_project(
-            MemoryEvent(
-                kind=EventKind.RETRIEVE,
-                namespace=ns,
-                actor="system",
-                payload={"record_ids": [record.record_id]},
-            )
-        )
-        _log.info(EVENT_RETRIEVE, namespace=ns, plan=True, similarity=round(best[1], 4))
-        return record
+        return await ops_memory.recall_plan(self, task, namespace, min_similarity)
 
     # ── plan v3.2 procedural rows W17a-f, N24, N26-N29 (ADR-060; no model calls) ──
 
@@ -4367,22 +3876,7 @@ class Engine:
         self, ns: str, query: str, kind: str, min_similarity: float
     ) -> list[tuple[MemoryRecord, float]]:
         """Live advisory records of ``kind`` by cosine of ``query`` to their trigger."""
-        storage = self._require_started()
-        if self._embedder is None:
-            raise MemspineError("retrieval services not constructed — engine not started?")
-        found = [
-            r
-            for r in await storage.list_records(ns, "procedural")
-            if self._is_live_advisory(r, kind) and r.entity
-        ]
-        if not found:
-            return []
-        vectors = await self._embedder.embed([query, *(str(r.entity) for r in found)])
-        out = [
-            (record, _cosine(vectors[0], vec))
-            for record, vec in zip(found, vectors[1:], strict=True)
-        ]
-        return [(r, s) for r, s in out if s >= min_similarity]
+        return await ops_memory._similar_advisory(self, ns, query, kind, min_similarity)
 
     async def recall_lessons(
         self,
@@ -4414,52 +3908,9 @@ class Engine:
         pruned. One plan per action signature is kept (diversity). With
         ``include_lessons`` the live lessons compete in the same ranking. Each
         hit's use rides the log as a RETRIEVE."""
-        procedural = self._require_procedural()
-        if self._embedder is None:
-            raise MemspineError("retrieval services not constructed — engine not started?")
-        ns = validate_namespace(namespace)
-        if k is None:
-            k = int(self._procedural_policy().get("recall_k") or constants.PLAN_RECALL_K)
-        plans = [p for p in await procedural.list(ns, kind="plan", usable_only=True) if p.entity]
-        candidates: list[tuple[MemoryRecord, float]] = []
-        if plans:
-            vectors = await self._embedder.embed([task, *(str(p.entity) for p in plans)])
-            candidates = [
-                (plan, _cosine(vectors[0], vec))
-                for plan, vec in zip(plans, vectors[1:], strict=True)
-            ]
-            candidates = [(p, s) for p, s in candidates if s >= min_similarity]
-        if include_lessons:
-            candidates += await self._similar_advisory(ns, task, "lesson", min_similarity)
-        ranked = sorted(
-            (
-                (r, outcome_rank(s, r.scoring.likes, r.scoring.dislikes))
-                for r, s in candidates
-                if not failures_dominate(r.scoring.likes, r.scoring.dislikes)
-            ),
-            key=lambda pair: (-pair[1], pair[0].recorded_at),
+        return await ops_memory.recall_plans(
+            self, task, namespace, k, min_similarity, include_lessons
         )
-        picked: list[tuple[MemoryRecord, float]] = []
-        signatures: set[str] = set()
-        for record, score in ranked:
-            signature = f"{record.attribute}:{action_signature(record.content)}"
-            if signature in signatures:
-                continue
-            signatures.add(signature)
-            picked.append((record, score))
-            if len(picked) >= k:
-                break
-        _log.info(EVENT_RETRIEVE, namespace=ns, plan=True, hits=len(picked))
-        if picked:
-            await self._append_and_project(
-                MemoryEvent(
-                    kind=EventKind.RETRIEVE,
-                    namespace=ns,
-                    actor="system",
-                    payload={"record_ids": [r.record_id for r, _ in picked]},
-                )
-            )
-        return [(self._inflate.inflate(r), s) for r, s in picked]
 
     async def prune_experience(self, namespace: str = "default") -> list[str]:
         """N28: retire (deprecate, terminal) plans and lessons whose failures
@@ -4609,29 +4060,7 @@ class Engine:
         Returns ``label`` (None without a match), ``margin``, ``votes``, the voting
         ``exemplars`` (text, label, score), the ``label_table`` (label -> its most
         distinctive terms) and ``table_text``. The caller's reader may override."""
-        self._require_procedural()
-        if self._embedder is None:
-            raise MemspineError("retrieval services not constructed — engine not started?")
-        ns = validate_namespace(namespace)
-        stored = [
-            r
-            for r in await self._records(ns, "procedural", f"mapping:{group}")
-            if self._is_live_advisory(r, "mapping") and r.entity
-        ]
-        exemplars = [Exemplar(r.content, str(r.entity), r.record_id) for r in stored]
-        dense: list[float] | None = None
-        if exemplars:
-            vectors = await self._embedder.embed([text, *(e.text for e in exemplars)])
-            dense = [_cosine(vectors[0], vec) for vec in vectors[1:]]
-        result = knn_vote(text, exemplars, dense=dense, k=k)
-        return {
-            "label": result.label,
-            "margin": result.margin,
-            "votes": result.votes,
-            "exemplars": [(e.text, e.label, score) for e, score in result.exemplars],
-            "label_table": result.label_table,
-            "table_text": render_table(result.label_table),
-        }
+        return await ops_memory.classify(self, text, namespace, group, k)
 
     async def review_evidence(
         self,
@@ -4813,94 +4242,7 @@ class Engine:
         never cross, and foreign reads append NO events — a reader must not
         mutate grantor state (no reinforcement across the boundary).
         """
-        storage = self._require_started()
-        shared = self._require_shared()
-        if self._embedder is None or self._vector is None or self._scoring is None:
-            raise MemspineError("retrieval services not constructed — engine not started?")
-        ns = validate_namespace(namespace)
-        results = await self.search(query, namespace=ns, top_k=top_k, session_id=session_id)
-        grants = await shared.grants_to(ns)
-        if not grants:
-            return results
-        [query_vector] = await embed_queries(self._embedder, [query])
-        integrity = self._integrity()
-        for grantor in sorted(grants):
-            # SF-7/ADR-018: one grantor's broken vector index must not sink the
-            # reader's own results or the other grantors' — contain per grantor.
-            try:
-                hits = await self._vector.query(
-                    grantor, query_vector, embedder_id=self._embedder.embedder_id, top_k=top_k
-                )
-                for hit in hits:
-                    record = await storage.get_record(hit.record_id)
-                    if (
-                        record is None
-                        or record.namespace != grantor
-                        or record.status is not RecordStatus.ACTIVATED
-                        or record.quarantined
-                    ):
-                        continue  # same E1 gate as search — held content never crosses
-                    # The ONE enforcement point (ADR-016): scope + bookkeeping gate.
-                    if not grant_allows(ns, record.namespace, record.memory_type, grants):
-                        continue
-                    try:
-                        record = self._inflate.inflate(record)
-                    except StorageError:
-                        _log.warning(
-                            "memory.inflate_failed", namespace=grantor, record_id=hit.record_id
-                        )
-                        continue
-                    score = self._scoring.composite_score(record, relevance=hit.score)
-                    if integrity.enabled:
-                        # MTI read door: attenuate per grant edge, rank by
-                        # score x view trust, admit only at >= threshold.
-                        home = (
-                            await self.effective_trust(record.record_id)
-                            if integrity.live_reevaluation
-                            else record.trust
-                        )
-                        view = integrity.view_trust(home, grantor, ns)
-                        if not integrity.admits(view):
-                            continue
-                        record = record.model_copy(update={"trust": view})
-                        results.append((record, integrity.ranked(score, view)))
-                        continue
-                    # E1: foreign content is retrieved content — trust-capped,
-                    # never its home-namespace trust.
-                    record = record.model_copy(
-                        update={"trust": min(record.trust, constants.TRUST_RETRIEVED_CAP)}
-                    )
-                    results.append((record, score))
-            except Exception as exc:
-                _log.warning(
-                    "shared_search.grantor_failed",
-                    namespace=ns,
-                    grantor=grantor,
-                    error=str(exc),
-                    exc_info=True,
-                )
-        results = rank_pairs(results)
-        # COR-2/ADR-018: the per-grantor loop appended up to top_k EACH — a final
-        # truncation keeps the contract that shared_search returns at most top_k.
-        results = results[:top_k]
-        foreign_ids = [record.record_id for record, _ in results if record.namespace != ns]
-        if integrity.enabled and foreign_ids:
-            # G4: the reader-side exposure trail that makes blast radius
-            # computable from the log — in the reader's namespace, never the
-            # grantor's (reads must not mutate grantor state, E1).
-            await self._append_and_project(
-                MemoryEvent(
-                    kind=EventKind.EXPOSE,
-                    namespace=ns,
-                    actor="system",
-                    payload={"reader_namespace": ns, "record_ids": foreign_ids},
-                )
-            )
-        _log.info(
-            EVENT_RETRIEVE, namespace=ns, shared=True, grantors=sorted(grants), count=len(results)
-        )
-        self._record_reads(ns, session_id, results)
-        return results
+        return await ops_memory._shared_search(self, query, namespace, top_k, session_id)
 
     async def subscribe(
         self,
@@ -4939,30 +4281,7 @@ class Engine:
         lineage roots must not overlap the held record's, nor any earlier
         corroborator's (read from the log). A summary of, or a re-statement derived
         from, the poison's own source turns is then not a second opinion."""
-        mine = await self._lineage_roots(incoming)
-        if mine & await self._lineage_roots(held):
-            return False
-        # N25 (plan v3.2, CPB): a near-copy of an earlier corroborator's wording is
-        # the same source propagated, not a second opinion.
-        words = content_words(incoming.content)
-        storage = self._require_started()
-        after = 0
-        while True:
-            events = await storage.read_events(after_seq=after, limit=1000)
-            if not events:
-                return True
-            for event in events:
-                if (
-                    event.kind is not EventKind.DECAY_TRANSITION
-                    or event.payload.get("record_id") != held.record_id
-                ):
-                    continue
-                if mine & set(event.payload.get("roots") or []):
-                    return False
-                earlier = set(event.payload.get("words") or [])
-                if earlier and words and _jaccard(words, earlier) >= constants.COPY_JACCARD:
-                    return False
-            after = max(event.seq for event in events if event.seq is not None)
+        return await ops_memory._independent_roots(self, held, incoming)
 
     async def _independent_principal(self, held: MemoryRecord, incoming: MemoryRecord) -> bool:
         """Principal-bound independence (integrity.principal_bound_corroboration).
@@ -4988,21 +4307,14 @@ class Engine:
     def model_calls(self) -> dict[str, int]:
         """LLM calls this engine has made since ``start()``, per role (read and
         write path alike). Empty when no LLM is configured."""
-        return self._llm.call_counts() if self._llm is not None else {}
+        return admin.model_calls(self)
 
     def rerank_stats(self) -> dict[str, Any]:
         """E8 reranker use since construction: ``{"mode", "calls", "failures",
         "unavailable"}``. ``calls`` counts rerank attempts, ``failures`` those that
         raised (retrieval fell back to vector order), ``unavailable`` that the adapter
         could not be built and the stage disabled itself. Read-only."""
-        mode = self._resolved.config.read.rerank if self._resolved is not None else None
-        return {
-            "mode": mode,
-            "calls": self._rerank_calls,
-            "failures": self._rerank_failures,
-            "unavailable": self._rerank_unavailable,
-            "gated": self._rerank_gated,
-        }
+        return admin.rerank_stats(self)
 
     def model_usage(self) -> dict[str, dict[str, Any]]:
         """Per-role LLM spend since ``start()``: ``{"model", "calls", "prompt", "completion"}``.
@@ -5010,21 +4322,7 @@ class Engine:
         Token counts are the provider's own usage report where it gives one (LiteLLM),
         else a four-characters-per-token estimate. Roles never called are omitted.
         """
-        if self._llm is None:
-            return {}
-        calls = self._llm.call_counts()
-        tokens = self._llm.token_counts()
-        models = self._llm.models()
-        out: dict[str, dict[str, Any]] = {}
-        for role in sorted(set(calls) | set(tokens)):
-            used = tokens.get(role, {})
-            out[role] = {
-                "model": models.get(role, ""),
-                "calls": calls.get(role, 0),
-                "prompt": used.get("prompt", 0),
-                "completion": used.get("completion", 0),
-            }
-        return out
+        return admin.model_usage(self)
 
     def usage(self, *, reset: bool = False) -> dict[str, dict[str, Any]]:
         """#33: LLM calls and tokens per named prompt since ``start()`` or the last reset.
@@ -5037,7 +4335,7 @@ class Engine:
         counted in ``estimated_calls``. ``reset=True`` clears the counters after the
         snapshot is taken. In-process only; empty when no LLM role is bound.
         """
-        return self._llm.prompt_usage(reset=reset) if self._llm is not None else {}
+        return admin.usage(self, reset=reset)
 
     def structured_stats(self, *, reset: bool = False) -> dict[str, dict[str, Any]]:
         """I69: structured-output outcomes per prompt version: ``calls``, ``clean``,
@@ -5045,10 +4343,7 @@ class Engine:
         ``llm_errors``, ``retried`` / ``retry_ok`` / ``retry_failed`` (``llm.structured``),
         ``constrained_retries``, plus ``repair_rate`` and ``failure_rate``. Process-wide
         (shared by engines in one process), in memory only."""
-        snapshot = _structured.structured_stats()
-        if reset:
-            _structured.reset_structured_stats()
-        return snapshot
+        return admin.structured_stats(self, reset=reset)
 
     def llm(self, role: str) -> LLMService:
         """The provider bound to a role (D-07/D-22): extract / judge / chat.
@@ -5057,9 +4352,7 @@ class Engine:
         through it is added to :meth:`model_calls` under ``role``. Other attributes are
         delegated to the bound provider.
         """
-        if self._llm is None:
-            raise MemspineError("Engine not started — call start() first")
-        return self._llm.for_role(role)
+        return admin.llm(self, role)
 
     @tap.traced("job")
     async def sleep(self) -> dict[str, dict[str, object]]:
@@ -5090,48 +4383,7 @@ class Engine:
 
     def describe(self) -> dict[str, Any]:
         """The effective world (§4 step 7). Only meaningful on a started engine."""
-        storage = self._require_started()
-        assert self._resolved is not None
-        config = self._resolved.config
-        return {
-            "profile": config.profile,
-            "memories": {
-                "enabled": sorted(self._enabled),
-                "auto_enabled": list(self._auto_enabled),
-            },
-            "event_log": {
-                "mode": config.event_log.mode.value,
-                "compress": config.event_log.compress,
-                "retention_days": config.event_log.retention_days,
-                "rebuildable": storage.can_rebuild,
-            },
-            "storage": {"backend": config.storage.backend, "path": config.storage.path},
-            "embedding": self._embedder.embedder_id if self._embedder else None,
-            "vector": type(self._vector).__name__ if self._vector else None,
-            "cache": config.cache.backend,
-            "graph": type(self._graph).__name__ if self._graph else None,
-            "llm_roles": self._llm.roles if self._llm else [],
-            "prompts": (
-                {p.id: p.prompt_version for p in self._prompts.list()} if self._prompts else {}
-            ),
-            "semantic_pipeline": self._semantic is not None,
-            "firewall": "deterministic (trust-matrix + instruction-flag + anomaly)",
-            "episodic": self._episodic is not None,
-            "resource_ingest": self._resource is not None,
-            "procedural": self._procedural is not None,
-            "reflective": self._reflective is not None,
-            "associative": self._associative is not None,
-            "prospective": self._prospective is not None,
-            "shared": self._shared is not None,
-            "consolidation_summarizer": "llm" if self._summarize is not None else "extractive",
-            "projectors": [projector.name for projector in self._projectors],
-            "runner": config.workers.runner,
-            # D1: whether the autonomous sleep loop is active this run.
-            "scheduler": self._scheduler.running if self._scheduler is not None else False,
-            "strict_services": config.strict_services,
-            **({"write_timers": self.write_timers()} if self._write_timers else {}),
-            **({"window_write": self.window_stats()} if self._windows is not None else {}),
-        }
+        return admin.describe(self)
 
     # ── thin sync wrappers (D-01) ────────────────────────────────────────────
     #
@@ -5373,7 +4625,7 @@ class Engine:
         """G-W13 write-quality counters of the window write (``{}`` when it is off): windows and
         why they closed, calls per layer, cache hits, parse failures, sections dropped, items
         dropped as ungrounded, deposits, cancellations, windows per session, calls per turn."""
-        return self._windows.stats(reset=reset) if self._windows is not None else {}
+        return admin.window_stats(self, reset=reset)
 
     async def _deposit_window_episode(
         self,

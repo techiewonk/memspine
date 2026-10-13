@@ -37,7 +37,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-ENGINE = ROOT / "src" / "memspine" / "engine.py"
+ENGINE = ROOT / "src" / "memspine" / "api" / "engine.py"
 OUT_JSON = ROOT / "docs" / "v2" / "data" / "engine_method_map.json"
 OUT_MD = ROOT / "docs" / "v2" / "data" / "engine_method_map.md"
 
@@ -437,7 +437,7 @@ def build() -> dict:
         m["units"] += 1
         m["lines"] += u["lines"]
     return {
-        "source": "src/memspine/engine.py",
+        "source": "src/memspine/api/engine.py",
         "engine_lines": total_lines,
         "units": len(units),
         "counted_units": len(counted),

@@ -7,6 +7,7 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+
 from memspine import Engine
 from memspine.config.schema import IngestConfig, MemspineConfig, ReadConfig
 from memspine.exceptions import ConfigError

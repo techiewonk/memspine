@@ -330,7 +330,7 @@ async def _store(eng: Engine) -> None:
 async def _ids(
     eng: Engine, query: str, asker: str | None = "caroline"
 ) -> tuple[list[str], dict[str, Any]]:
-    from memspine.engine import search_forensics
+    from memspine.observability.trace import search_forensics
 
     with search_forensics() as fx, asker_scope(asker):
         await eng.assemble(query, namespace="a", budget_tokens=2000, top_k=4)

@@ -5,6 +5,7 @@ Fakes only: no network."""
 from __future__ import annotations
 
 import pytest
+
 from memspine.services.external import (
     PUBLIC_KNOWLEDGE_CLAUSE,
     PUBLIC_MARKER,
