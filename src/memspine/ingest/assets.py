@@ -7,6 +7,8 @@ from collections.abc import (
 )
 from typing import Any
 
+from memspine.observability import tap
+
 
 def _asset_adapter(eng: Any) -> Any:
     if eng._assets is None:
@@ -49,6 +51,8 @@ def _attachment_refs(
 
     source = str(turn.get("turn_id") or f"{session_id or 'nosession'}:{index}")
     refs = parse_attachments(turn.get("attachments"))
+    if refs:
+        tap.event("write.assets.attached", n=len(refs), turn=index)
     return [(ref, asset_id_for(source, ref.uri)) for ref in refs]
 
 
@@ -64,6 +68,7 @@ def _register_assets(
 
     source = str(turn.get("turn_id") or f"{session_id or 'nosession'}:{index}")
     adapter = eng._asset_adapter()
+    tap.event("write.assets.registered", n=len(refs), id=record_id)
     for ref, aid in refs:
         adapter.registry.register(
             AssetEntry(
