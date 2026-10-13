@@ -67,9 +67,12 @@ from memspine.read.pipeline.fusion import (
     _minmax_normalize,
     _minmax_quiet,
     _protected_ids,
+    fuse_families,
 )
+from memspine.read.pipeline.lift import lift_stage
 from memspine.read.pipeline.rerank import (
     _static_prefilter,
+    rerank_v2_stage,
 )
 from memspine.read.pipeline.state import (
     _FOCAL_ENTITY,
@@ -435,7 +438,9 @@ async def _search(
             extra_legs += await eng._speaker_vote_leg(ns, query, query_vector, vector_hits, fetch_k)
         extra_legs += [leg if isinstance(leg, NamedLeg) else list(leg) for leg in fused_legs if leg]
         floors = eng._config().read.leg_min_scores
-        if floors:
+        if floors and not (read_now.family_fusion and (use_hybrid or extra_legs)):
+            # R3-06: under family_fusion the floors go into the fusion (a protected
+            # hit is never floored)
             # C6 (per-leg score floors): weak hits never enter the fusion.
             logging_floors = _FORENSICS.get() is not None  # V02: zero cost when off
             if "vector" in floors:
@@ -453,7 +458,20 @@ async def _search(
             extra_legs = [
                 kept for leg in extra_legs if (kept := [h for h in leg if h.record_id in ids])
             ]
-        if use_hybrid or extra_legs:
+        if (use_hybrid or extra_legs) and read_now.family_fusion:
+            # R3-06 (LIB-10): family fusion + protected pool + floors, instead of per-leg RRF.
+            _over = 3 if read_now.rerank_balanced and read_now.rerank != "off" else 1
+            ranked, protected, family_slots = fuse_families(
+                vector_hits,
+                lexical_hits,
+                use_hybrid,
+                extra_legs,
+                pool_size=top_k * widen * _over,
+                protect_n=read_now.pool_protect_per_leg or 3,
+                rrf_k=read_now.rrf_k or constants.RRF_K,
+                floors=dict(floors) if floors else None,
+            )
+        elif use_hybrid or extra_legs:
             rrf_k = eng._config().read.rrf_k or constants.RRF_K
             # N16 (plan v3.2): per-leg weights (vector, lexical, extra legs).
             lw = eng._leg_weights_for(query)
@@ -536,6 +554,8 @@ async def _search(
                 rrf_max *= rrf_k + 1
             ranked: list[tuple[str, float]] = [(rid, score / rrf_max) for rid, score in fused]
         else:
+            if read_now.family_fusion and floors and "vector" in floors:
+                vector_hits = [h for h in vector_hits if h.score >= floors["vector"]]
             ranked = [(hit.record_id, hit.score) for hit in vector_hits]
         if (fx := _FORENSICS.get()) is not None:
             fx["vector"] = [(h.record_id, h.score) for h in vector_hits]
@@ -613,7 +633,9 @@ async def _search(
         # best hits in turn, so one leg cannot fill it before the cut.
         candidates = _balanced_pool(candidates, [vector_hits, lexical_hits, *extra_legs], top_k)
     _pre = _ids(candidates)
-    if protected and eng._config().read.pool_protect_mode == "source_family":
+    if protected and (
+        eng._config().read.pool_protect_mode == "source_family" or read_pre.family_fusion
+    ):
         # R02: the pool stays ``top_k``: family-protected hits first, then RRF order; the
         # lowest-ranked unprotected candidates are evicted, never a protected one.
         held = [pair for pair in candidates if pair[0].record_id in protected][:top_k]
@@ -682,15 +704,31 @@ async def _search(
         _pre = _ids(candidates)
         candidates = await eng._relevance_filter(query, candidates)
         _cut_missing(_pre, candidates, "relevance_filter")
+    if candidates and read_pre.lift_before_rerank:
+        # R3-08 (LIB-11): derived hits become their source turns before the rerank scores the pool.
+        candidates = await lift_stage(
+            eng,
+            ns,
+            candidates,
+            protected,
+            group_id=group_id,
+            tags=tags,
+            memory_type=memory_type,
+            hide=hide,
+            max_turns=read_pre.lift_max_turns,
+        )
     reranker = eng._rerank_provider()
     gate = eng._config().read.rerank_max_top_k
-    if gate is not None and keep_k > gate:
+    if gate is not None and keep_k > gate and not read_pre.rerank_v2:
         # H18: reranking pays when few of many candidates are kept. The gate
         # judges what the caller keeps, not the (candidate_pool-wide) fetch.
         reranker = None
     read_cfg = eng._config().read
     if read_cfg.skip_rerank_for_ordering and is_ordering(query):
         reranker = None  # Agent Zero: a relevance reranker scrambles temporal order
+    # R3-07: rerank_v2 reranks every read (chain in ``rerank_v2_chain``); ordering questions
+    # still skip.
+    v2_on = read_cfg.rerank_v2 and not (read_cfg.skip_rerank_for_ordering and is_ordering(query))
     reranked = False
     _RERANK_SUPPORT.set(None)
     if (fx := _FORENSICS.get()) is not None:
@@ -700,7 +738,7 @@ async def _search(
     if read_cfg.query_contract != "off":  # A03: the contract is logged; the hint is opt-in
         contract = await eng._query_contract(query)
         hint = rerank_hint(contract) if "rerank" in read_cfg.query_contract_use else None
-        if hint and reranker is not None:
+        if hint and (reranker is not None or v2_on):
             rerank_query = query + hint
         if (fx := _FORENSICS.get()) is not None:
             fx["query_contract"] = {
@@ -713,7 +751,9 @@ async def _search(
     elif (fx := _FORENSICS.get()) is not None:
         # V02: say that the contract was not computed rather than leave the field out
         fx["query_contract"] = {"mode": "off", "status": "absent"}
-    if reranker is not None and candidates:
+    if v2_on and candidates:
+        candidates, reranked = await rerank_v2_stage(eng, ns, rerank_query, candidates, read_cfg)
+    elif reranker is not None and candidates:
         documents = [concat_background(record) for record, _ in candidates]
         if read_cfg.rerank_date_prefix:
             # Hindsight: the cross-encoder sees when each candidate happened.

@@ -35,6 +35,7 @@ class JinaReranker:
         *,
         device: str | None = None,
         max_documents: int = 64,
+        unscored_tail: bool = False,
     ) -> None:
         try:
             self._transformers = importlib.import_module("transformers")
@@ -44,6 +45,8 @@ class JinaReranker:
         self._model_id = model
         self._device = device
         self._max_documents = max(1, max_documents)
+        #: R3-07 (``read.rerank_v2``): a document beyond the window gets None (unscored), not 0.0.
+        self.unscored_tail = unscored_tail
         self._load_lock = threading.Lock()
         self._infer_lock = threading.Lock()
         self._model: Any = None
@@ -62,9 +65,9 @@ class JinaReranker:
                 self._model = model.eval()
         return self._model
 
-    def score(self, query: str, documents: list[str]) -> list[float]:
+    def score(self, query: str, documents: list[str]) -> list[Any]:
         model = self._ensure_loaded()
-        scores = [0.0] * len(documents)
+        scores: list[Any] = [None if self.unscored_tail else 0.0] * len(documents)
         # Listwise scoring sees one window of documents at a time; scores from separate
         # windows are not comparable, so a pool beyond the window keeps the tail at 0.0.
         window = documents[: self._max_documents]
@@ -74,7 +77,7 @@ class JinaReranker:
             scores[int(item["index"])] = float(item["relevance_score"])
         return scores
 
-    async def rerank(self, query: str, documents: list[str]) -> list[float]:
+    async def rerank(self, query: str, documents: list[str]) -> list[Any]:
         if not documents:
             return []
         return await asyncio.to_thread(self.score, query, documents)

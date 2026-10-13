@@ -1,14 +1,21 @@
+# ruff: noqa: E501
 """Read path: static prefilter before rerank, moved out of the engine (F-10a)."""
 
 from __future__ import annotations
 
+import math
 from typing import Any
 
 from memspine.config import constants
 from memspine.exceptions import (
     MissingServiceError,
 )
+from memspine.models.providers.rerank.base import concat_background
+from memspine.models.providers.rerank.factory import RerankSettings, build_reranker
+from memspine.observability import tap
 from memspine.observability.logging import get_logger
+from memspine.read.pipeline.fusion import _minmax_normalize, _minmax_quiet
+from memspine.read.pipeline.state import _FORENSICS, _RAW_SCORES, _RERANK_SUPPORT
 from memspine.store.records import (
     MemoryRecord,
 )
@@ -83,3 +90,141 @@ async def _static_embedding_prefilter(
         )
         return candidates
     return [candidate for candidate, _ in scored[:keep]]
+
+
+# --- R3-07: rerank on every read through a licence fallback chain (LIB-42)
+# ---------------------------
+
+#: LIB-42 order (Q5/Q6): Jina v3.5, Qwen3-Reranker-0.6B, MiniLM on CPU, then none (unscored).
+#: ``read.rerank_v2_chain`` holds the factory modes; this table only documents the model each one
+#: stands for.
+CHAIN_MODELS: dict[str, str] = {
+    "jina": "jina-v3.5",
+    "qwen3": "qwen3-reranker-0.6b",
+    "fastembed": "minilm",
+}
+
+
+def _chain_provider(eng: Any, mode: str, read_cfg: Any) -> Any:
+    """The reranker of ``mode``, built once per engine; None when it cannot be built (kept, not
+    retried)."""
+    cache: dict[str, Any] = eng.__dict__.setdefault("_rerank_v2_cache", {})
+    if mode in cache:
+        return cache[mode]
+    built = build_reranker(
+        RerankSettings(
+            mode=mode,
+            instruction=read_cfg.rerank_instruction if mode == "qwen3" else None,
+            device=read_cfg.rerank_device if mode in ("jina", "qwen3") else None,
+            quant=read_cfg.rerank_quant if mode == "qwen3" else None,
+        )
+    )
+    if built is not None and hasattr(built, "unscored_tail"):
+        built.unscored_tail = True  # the Jina window tail is unscored (None), never 0.0
+    cache[mode] = built
+    return built
+
+
+async def chain_score(
+    eng: Any, query: str, documents: list[str], read_cfg: Any
+) -> tuple[list[float | None], str | None, str | None, list[dict[str, str]]]:
+    """Score ``documents`` with the first working reranker of the chain.
+
+    Returns ``(scores, model_id, fallback_used, tried)``. ``scores`` has one entry per document,
+    None where the reranker did not score it; with no working reranker every entry is None (``model_id``
+    None). ``fallback_used`` names the mode that answered when it is not the first of the chain.
+    """
+    tried: list[dict[str, str]] = []
+    for pos, mode in enumerate(read_cfg.rerank_v2_chain):
+        reranker = _chain_provider(eng, mode, read_cfg)
+        if reranker is None:
+            tried.append({"mode": mode, "outcome": "unavailable"})
+            continue
+        try:
+            eng._rerank_calls += 1
+            raw = list(await reranker.rerank(query, documents))
+            if len(raw) != len(documents):
+                raise ValueError(f"{len(raw)} scores for {len(documents)} documents")
+        except Exception as exc:
+            eng._rerank_failures += 1
+            _log.warning("rerank.failed", reranker=getattr(reranker, "reranker_id", mode), error=str(exc))
+            tried.append({"mode": mode, "outcome": "failed"})
+            continue
+        scores: list[float | None] = [
+            float(s) if s is not None and not isinstance(s, bool) and math.isfinite(s) else None
+            for s in raw
+        ]
+        model_id = getattr(reranker, "reranker_id", mode)
+        return scores, model_id, (mode if pos > 0 else None), tried
+    return [None] * len(documents), None, None, tried
+
+
+async def rerank_v2_stage(
+    eng: Any,
+    ns: str,
+    rerank_query: str,
+    candidates: list[tuple[MemoryRecord, float]],
+    read_cfg: Any,
+) -> tuple[list[tuple[MemoryRecord, float]], bool]:
+    """R3-07 (``read.rerank_v2``): rerank the first ``rerank_v2_pool`` candidates once.
+
+    Scored candidates take the min-max normalised reranker score (optionally blended with the
+    retrieval score by ``rerank_blend``). A candidate the reranker did not score (beyond the pool
+    cap, or None from the reranker) is NOT given 0.0: it is recorded as unscored and its relevance
+    is its retrieval score scaled below the lowest scored one, so it follows every scored
+    candidate. With no working reranker the candidates come back unchanged and ``reranked`` is
+    False. Returns ``(candidates, reranked)``.
+    """
+    head = candidates[: read_cfg.rerank_v2_pool]
+    documents = [concat_background(record) for record, _ in head]
+    if read_cfg.rerank_date_prefix:
+        documents = [
+            doc
+            if constants.UNDATED_TAG in record.tags
+            else f"[Date: {record.valid_from:%Y-%m-%d}] {doc}"
+            for (record, _), doc in zip(head, documents, strict=True)
+        ]
+    if read_cfg.rerank_context:
+        documents = await eng._with_session_neighbours(ns, head, documents, read_cfg.rerank_context)
+    scores, model_id, fallback, tried = await chain_score(eng, rerank_query, documents, read_cfg)
+    scored_idx = [i for i, s in enumerate(scores) if s is not None]
+    if tap.enabled() or _FORENSICS.get() is not None:
+        scored_ids = [head[i][0].record_id for i in scored_idx]
+        unscored_ids = [r.record_id for r, _ in candidates if r.record_id not in set(scored_ids)]
+        payload = {
+            "scored": len(scored_ids),
+            "unscored": unscored_ids,
+            "model": model_id,
+            "fallback_used": fallback,
+            "tried": tried,
+            "pool": len(head),
+            "pool_cap": read_cfg.rerank_v2_pool,
+        }
+        tap.event("read.rerank.scored", **payload)
+        if (fx := _FORENSICS.get()) is not None:
+            fx["rerank_v2"] = payload
+    if not scored_idx:
+        return candidates, False
+    vals = [float(scores[i]) for i in scored_idx]  # type: ignore[arg-type]
+    if len(vals) > 1:
+        _RERANK_SUPPORT.set(sorted(vals, reverse=True)[1])
+    if (raw_sink := _RAW_SCORES.get()) is not None:
+        for i in scored_idx:
+            rid = head[i][0].record_id
+            raw_sink[rid] = max(float(scores[i]), raw_sink.get(rid, float("-inf")))  # type: ignore[arg-type]
+    if (fx := _FORENSICS.get()) is not None:
+        fx["rerank_scores"] = [(head[i][0].record_id, float(scores[i])) for i in scored_idx]  # type: ignore[arg-type]
+    if read_cfg.rerank_gate is not None and max(vals) < read_cfg.rerank_gate:
+        eng._rerank_gated += 1  # N41: not confident, keep the retrieval order
+        return candidates, False
+    rel = _minmax_normalize(vals)
+    prior = _minmax_quiet([score for _, score in candidates])
+    if read_cfg.rerank_blend is not None:
+        w = read_cfg.rerank_blend
+        rel = [w * r + (1.0 - w) * prior[i] for r, i in zip(rel, scored_idx, strict=True)]
+    floor = min(rel)
+    new_rel: dict[int, float] = dict(zip(scored_idx, rel, strict=True))
+    out: list[tuple[MemoryRecord, float]] = []
+    for i, (record, _) in enumerate(candidates):
+        out.append((record, new_rel[i] if i in new_rel else floor * prior[i]))
+    return out, True

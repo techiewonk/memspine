@@ -176,6 +176,37 @@ class ReadConfig(BaseModel):
     #: other), protects the top-N per FAMILY with correlated votes counted once, and keeps the
     #: pool at its normal size by evicting the lowest-RRF unprotected candidates.
     pool_protect_mode: Literal["per_leg", "source_family"] = "per_leg"
+    #: R3-06 (LIB-10, R-11/R-12/R-13): fuse by source FAMILY (a family's legs merge by best
+    #: rank, so a
+    #: second leg of a family never adds a vote), protect each family's top ``pool_protect_per_leg``
+    #: hits (3 when that is 0), apply ``leg_min_scores`` as floors that never drop a
+    #: protected hit, and
+    #: cap the fused pool. Off (default) = the per-leg RRF of ``rrf_fuse`` unchanged. Equal
+    #: leg weights
+    #: (``leg_weights`` and ``fusion: minmax`` do not apply while on).
+    family_fusion: bool = False
+    #: R3-08 (LIB-11, ER-21 B, POL-2): lift derived hits (facts, summaries) to their source
+    #: turns BEFORE
+    #: the rerank: lift, re-admit through the read gates, dedupe, cap to the incoming pool
+    #: size, then
+    #: rerank once, so lifted turns are scored. A derived hit with a hidden or missing source
+    #: turn is
+    #: dropped (strict). Off (default) = the pool reaches the reranker as it is.
+    lift_before_rerank: bool = False
+    #: R3-08: at most this many source turns replace one derived hit.
+    lift_max_turns: int = Field(default=2, ge=1, le=8)
+    #: R3-07 (LIB-42, Q5/Q6): rerank every read through a licence fallback chain
+    #: (``rerank_v2_chain``,
+    #: first buildable and working wins; none = unscored, never 0) over a pool capped at
+    #: ``rerank_v2_pool`` (64). A candidate the reranker did not score stays unscored: it
+    #: follows every
+    #: scored one and is never given 0.0. Bypasses the ``rerank_max_top_k`` gate; ``read.rerank`` is
+    #: ignored while on. Off (default) = the single configured reranker, unchanged.
+    rerank_v2: bool = False
+    #: R3-07: reranker modes in preference order (Jina v3.5, Qwen3-Reranker-0.6B, MiniLM on CPU).
+    #: Drop ``jina`` to avoid its CC-BY-NC weights.
+    rerank_v2_chain: list[str] = Field(default_factory=lambda: ["jina", "qwen3", "fastembed"])
+    rerank_v2_pool: int = Field(default=64, ge=1, le=256)
     #: G-10 (Graphiti MMR): None = off; a lambda in [0, 1] reorders the final hits by
     #: maximal marginal relevance on embeddings (1 = relevance only, 0 = diversity only).
     mmr_lambda: float | None = Field(default=None, ge=0.0, le=1.0)

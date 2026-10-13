@@ -18,7 +18,9 @@ from memspine.exceptions import (
 from memspine.models.encoders.query.temporal_query import (
     LegHit,
 )
+from memspine.observability import tap
 from memspine.observability.logging import get_logger
+from memspine.read import fusion as family_lib
 from memspine.read.pipeline.state import (
     _FORENSICS,
 )
@@ -299,3 +301,97 @@ async def _session_capped(
         if len(kept) >= want:
             break
     return kept
+
+
+#: R3-06: the leg registry names a leg's *source* family (semantic | lexical | temporal | other);
+#: the
+#: step schema's ``Family`` literal names the *retrieval* family (dense | lexical | structured |
+#: derived).
+#: Voting always uses the registry family (R02); this map only renders a leg family in step-
+#: schema terms.
+SCHEMA_FAMILY: dict[str, str] = {
+    "semantic": "dense",
+    "lexical": "lexical",
+    "temporal": "structured",
+    "other": "structured",
+}
+
+
+def schema_family(leg_family_name: str, *, derived: bool = False) -> str:
+    """The step-schema ``Family`` of a registry leg family (``derived`` marks a graph/derived
+    leg)."""
+    return "derived" if derived else SCHEMA_FAMILY.get(leg_family_name, "structured")
+
+
+def _lib_legs(
+    vector_hits: Sequence[Any],
+    lexical_hits: Sequence[Any],
+    use_hybrid: bool,
+    extra_legs: Sequence[Sequence[Any]],
+) -> list[family_lib.Leg]:
+    """Today's leg lists as LIB-10 legs. An unnamed extra leg is ``extra<i>`` (family ``other``)."""
+    named: list[tuple[str, Sequence[Any]]] = [("vector", vector_hits)]
+    if use_hybrid:
+        named.append(("lexical", lexical_hits))
+    for i, leg in enumerate(extra_legs):
+        named.append((getattr(leg, "name", None) or f"extra{i}", leg))
+    out: list[family_lib.Leg] = []
+    used: set[str] = set()
+    for name, hits in named:
+        if name in used:  # two legs of one name would merge; keep them apart
+            name = f"{name}#{len(used)}"
+        used.add(name)
+        out.append(
+            family_lib.Leg(
+                name,
+                _leg_family(name.split("#")[0]),
+                (family_lib.Hit(h.record_id, float(h.score)) for h in hits),
+            )
+        )
+    return out
+
+
+def fuse_families(
+    vector_hits: Sequence[Any],
+    lexical_hits: Sequence[Any],
+    use_hybrid: bool,
+    extra_legs: Sequence[Sequence[Any]],
+    *,
+    pool_size: int,
+    protect_n: int,
+    rrf_k: int,
+    floors: dict[str, float] | None,
+) -> tuple[list[tuple[str, float]], dict[str, str], dict[str, list[str]]]:
+    """R3-06 (``read.family_fusion``): family fusion with a protected pool and floors (LIB-10).
+
+    Returns ``(ranked, protected, family_slots)``: ``ranked`` is ``(record_id, score in [0, 1])``
+    best first; ``protected`` maps a protected record to its first family; ``family_slots`` maps a
+    family to its protected ids (what the ``source_family`` pool block of ``_search`` consumes).
+    """
+    legs = _lib_legs(vector_hits, lexical_hits, use_hybrid, extra_legs)
+    cfg = family_lib.FusionConfig(
+        pool_size=max(pool_size, 1), protect_per_family=protect_n, k=rrf_k
+    )
+    result = family_lib.fuse(legs, cfg, family_lib.Floors(dict(floors or {})))
+    ranked = [(c.record_id, c.fused_score) for c in result.candidates]
+    protected = {c.record_id: c.protected_in[0] for c in result.candidates if c.protected}
+    family_slots = {fam: list(ids) for fam, ids in result.trace.protected.items()}
+    if tap.enabled():
+        tr = result.trace
+        tap.event(
+            "read.fusion.pool",
+            legs_in=dict(tr.legs_in),
+            legs_kept=dict(tr.legs_kept),
+            families=list(tr.families),
+            per_family={
+                f: sum(1 for c in result.candidates if f in c.families) for f in tr.families
+            },
+            protected={f: list(ids) for f, ids in tr.protected.items()},
+            floored=[list(p) for p in tr.floored],
+            evicted=len(tr.evicted),
+            protected_trimmed=list(tr.protected_trimmed),
+            fused_total=tr.fused_total,
+            pool=len(ranked),
+            schema_families={f: schema_family(f) for f in tr.families},
+        )
+    return ranked, protected, family_slots
