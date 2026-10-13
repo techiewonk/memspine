@@ -153,6 +153,15 @@ class WorkersConfig(BaseModel):
     #: tables first, an inline runner drains it after each write and at start (leftovers), and a
     #: stop persists what it could not finish. Model calls never run inside a namespace lock.
     outbox: bool = False
+    #: RT-01 (G-19, W-13): "outbox = truth, taskiq = transport". ``inline`` (default): unchanged,
+    #: the inline runner alone. ``taskiq``: with ``outbox`` on, every enqueued job id is also sent
+    #: over a taskiq broker (the message carries only the id), and ``start`` re-sends every
+    #: unfinished row. Without ``outbox`` it has no effect.
+    transport: Literal["inline", "taskiq"] = "inline"
+    #: RT-01: which broker carries the ids when ``transport="taskiq"``. ``memory``: taskiq's
+    #: InMemoryBroker, drained in this process (library mode). ``redis``: a Redis stream on
+    #: ``broker_url``; this process only enqueues and ``python -m memspine.runtime.worker`` drains.
+    transport_broker: Literal["memory", "redis"] = "memory"
 
 
 class DecisionConfig(BaseModel):

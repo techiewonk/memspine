@@ -530,7 +530,9 @@
    "dbos_system_database_url": null,
    "outbox": false,
    "runner": "inline",
-   "sleep_interval_seconds": null
+   "sleep_interval_seconds": null,
+   "transport": "inline",
+   "transport_broker": "memory"
   },
   "write": {
    "feedback_operators": [],
@@ -552,7 +554,7 @@
    "window_topic_k": 2.0
   }
  },
- "json_schema_sha256": "d08d579fa2354b69d68f635455e91564ea27cba8a56c089fa675b64cb70792bd",
+ "json_schema_sha256": "8f571c729ff828adf2d68c0a7dcdab7e716309b011e1373fa33cf415b44997e5",
  "preset:chat_roles": {
   "audit": {
    "actions": false,
@@ -1115,7 +1117,9 @@
    "dbos_system_database_url": null,
    "outbox": false,
    "runner": "inline",
-   "sleep_interval_seconds": null
+   "sleep_interval_seconds": null,
+   "transport": "inline",
+   "transport_broker": "memory"
   },
   "write": {
    "feedback_operators": [],
@@ -1695,7 +1699,9 @@
    "dbos_system_database_url": null,
    "outbox": false,
    "runner": "inline",
-   "sleep_interval_seconds": null
+   "sleep_interval_seconds": null,
+   "transport": "inline",
+   "transport_broker": "memory"
   },
   "write": {
    "feedback_operators": [],
@@ -2275,7 +2281,9 @@
    "dbos_system_database_url": null,
    "outbox": false,
    "runner": "inline",
-   "sleep_interval_seconds": null
+   "sleep_interval_seconds": null,
+   "transport": "inline",
+   "transport_broker": "memory"
   },
   "write": {
    "feedback_operators": [],
@@ -2855,7 +2863,9 @@
    "dbos_system_database_url": null,
    "outbox": false,
    "runner": "inline",
-   "sleep_interval_seconds": null
+   "sleep_interval_seconds": null,
+   "transport": "inline",
+   "transport_broker": "memory"
   },
   "write": {
    "feedback_operators": [],
@@ -3435,7 +3445,9 @@
    "dbos_system_database_url": null,
    "outbox": false,
    "runner": "inline",
-   "sleep_interval_seconds": null
+   "sleep_interval_seconds": null,
+   "transport": "inline",
+   "transport_broker": "memory"
   },
   "write": {
    "feedback_operators": [],
@@ -4015,7 +4027,9 @@
    "dbos_system_database_url": null,
    "outbox": false,
    "runner": "inline",
-   "sleep_interval_seconds": null
+   "sleep_interval_seconds": null,
+   "transport": "inline",
+   "transport_broker": "memory"
   },
   "write": {
    "feedback_operators": [],
@@ -4595,7 +4609,9 @@
    "dbos_system_database_url": null,
    "outbox": false,
    "runner": "inline",
-   "sleep_interval_seconds": null
+   "sleep_interval_seconds": null,
+   "transport": "inline",
+   "transport_broker": "memory"
   },
   "write": {
    "feedback_operators": [],
@@ -5175,7 +5191,9 @@
    "dbos_system_database_url": null,
    "outbox": false,
    "runner": "inline",
-   "sleep_interval_seconds": null
+   "sleep_interval_seconds": null,
+   "transport": "inline",
+   "transport_broker": "memory"
   },
   "write": {
    "feedback_operators": [],
@@ -5755,7 +5773,9 @@
    "dbos_system_database_url": null,
    "outbox": false,
    "runner": "inline",
-   "sleep_interval_seconds": null
+   "sleep_interval_seconds": null,
+   "transport": "inline",
+   "transport_broker": "memory"
   },
   "write": {
    "feedback_operators": [],
@@ -6344,7 +6364,9 @@
    "dbos_system_database_url": null,
    "outbox": false,
    "runner": "inline",
-   "sleep_interval_seconds": null
+   "sleep_interval_seconds": null,
+   "transport": "inline",
+   "transport_broker": "memory"
   },
   "write": {
    "feedback_operators": [],
@@ -6929,7 +6951,9 @@
    "dbos_system_database_url": null,
    "outbox": false,
    "runner": "inline",
-   "sleep_interval_seconds": null
+   "sleep_interval_seconds": null,
+   "transport": "inline",
+   "transport_broker": "memory"
   },
   "write": {
    "feedback_operators": [],
@@ -7495,7 +7519,9 @@
    "dbos_system_database_url": null,
    "outbox": false,
    "runner": "inline",
-   "sleep_interval_seconds": null
+   "sleep_interval_seconds": null,
+   "transport": "inline",
+   "transport_broker": "memory"
   },
   "write": {
    "feedback_operators": [],
@@ -8083,7 +8109,9 @@
    "dbos_system_database_url": null,
    "outbox": false,
    "runner": "inline",
-   "sleep_interval_seconds": null
+   "sleep_interval_seconds": null,
+   "transport": "inline",
+   "transport_broker": "memory"
   },
   "write": {
    "feedback_operators": [],
@@ -8667,7 +8695,9 @@
    "dbos_system_database_url": null,
    "outbox": false,
    "runner": "dbos",
-   "sleep_interval_seconds": null
+   "sleep_interval_seconds": null,
+   "transport": "inline",
+   "transport_broker": "memory"
   },
   "write": {
    "feedback_operators": [],
@@ -9255,7 +9285,9 @@
    "dbos_system_database_url": null,
    "outbox": false,
    "runner": "inline",
-   "sleep_interval_seconds": null
+   "sleep_interval_seconds": null,
+   "transport": "inline",
+   "transport_broker": "memory"
   },
   "write": {
    "feedback_operators": [],
@@ -9835,7 +9867,9 @@
    "dbos_system_database_url": null,
    "outbox": false,
    "runner": "inline",
-   "sleep_interval_seconds": null
+   "sleep_interval_seconds": null,
+   "transport": "inline",
+   "transport_broker": "memory"
   },
   "write": {
    "feedback_operators": [],
@@ -10416,7 +10450,9 @@
    "dbos_system_database_url": null,
    "outbox": false,
    "runner": "dbos",
-   "sleep_interval_seconds": null
+   "sleep_interval_seconds": null,
+   "transport": "inline",
+   "transport_broker": "memory"
   },
   "write": {
    "feedback_operators": [],
@@ -10998,7 +11034,9 @@
    "dbos_system_database_url": null,
    "outbox": false,
    "runner": "inline",
-   "sleep_interval_seconds": null
+   "sleep_interval_seconds": null,
+   "transport": "inline",
+   "transport_broker": "memory"
   },
   "write": {
    "feedback_operators": [],
