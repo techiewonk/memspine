@@ -15,6 +15,7 @@ from memspine.config.schema import MemspineConfig
 from memspine.core.window import WindowSettings
 from memspine.derive.pipeline.stages.close import session_close
 from memspine.derive.pipeline.stages.context import SessionClosed
+from memspine.derive.segmenter import SegmentationSettings
 from memspine.derive.write import write_derived
 from memspine.exceptions import (
     ConfigError,
@@ -154,6 +155,23 @@ def _build_windows(eng: Any, config: MemspineConfig) -> WindowPipeline | None:
         asynchronous=asynchronous,
         on_session_closed=eng._window_session_closed,
         outbox=outbox,
+        segmentation=_segmentation(config),
+    )
+
+
+def _segmentation(config: MemspineConfig) -> SegmentationSettings | None:
+    """W2-05: ``write.segmentation_v2`` -> the segmenter and batcher settings, None when off."""
+    w = config.write
+    if not w.segmentation_v2:
+        return None
+    return SegmentationSettings(
+        gap_s=w.segment_gap_s,
+        calendar_day_cut=w.segment_calendar_day_cut,
+        grow_tokens=w.segment_grow_tokens,
+        max_turns_cap=w.segment_max_turns,
+        batch_max_tokens=w.batch_max_tokens,
+        batch_max_windows=w.batch_max_windows,
+        batch_max_age_s=w.batch_max_age_s,
     )
 
 

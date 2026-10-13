@@ -61,6 +61,32 @@ class WriteConfig(BaseModel):
     #: the same history is free (needs the engine cache; in memory unless a durable one is set).
     window_cache: bool = True
 
+    #: W2-05 (LIB-14, W-11 "E + B"; needs ``window_extract``). ``True``: the window segmenter cuts
+    #: at a source-time gap (``segment_gap_s``) and a calendar-day change, and grows adaptively (a
+    #: window past ``window_max_turns`` keeps taking short turns until ``segment_grow_tokens`` or
+    #: ``segment_max_turns``; ``window_max_tokens`` always binds); closed windows of one namespace
+    #: wait until ``batch_max_tokens`` / ``batch_max_windows`` / ``batch_max_age_s`` and then share
+    #: ONE extraction call, each window a separately numbered block (grounding stays per window; an
+    #: item citing two windows is dropped). Episode sections still run per window. A crash loses
+    #: nothing (with ``workers.outbox`` the windows are durable rows, the batch is rebuilt).
+    #: Taps ``write.segment.*`` / ``write.batch.*``. ``False`` (default): the old segmenter and one
+    #: call per window, unchanged.
+    segmentation_v2: bool = False
+    #: Seconds of source-time silence that cut a window (0: no gap cut). Needs ``segmentation_v2``.
+    segment_gap_s: float = Field(default=1800.0, ge=0.0)
+    #: Also cut when the source date changes (calendar day). Needs ``segmentation_v2``.
+    segment_calendar_day_cut: bool = False
+    #: A window past ``window_max_turns`` keeps growing until it holds this many tokens.
+    segment_grow_tokens: int = Field(default=400, ge=1)
+    #: Hard turn cap of a growing window (never below ``window_max_turns``).
+    segment_max_turns: int = Field(default=24, ge=1, le=256)
+    #: Token budget of one batched call (estimated tokens). Needs ``segmentation_v2``.
+    batch_max_tokens: int = Field(default=3000, ge=64)
+    #: Most windows in one call; 1 turns batching off.
+    batch_max_windows: int = Field(default=8, ge=1, le=64)
+    #: Longest a closed window waits for company before its batch goes out (seconds).
+    batch_max_age_s: float = Field(default=30.0, ge=0.0)
+
     #: F-16a (M-09, G-08, POL-2): the lineage table and the single derived-write door. ``True``:
     #: every derived record written through ``derive/write.py`` gets one lineage edge per parent
     #: (``support`` unless the site names a role), its trust capped at the least-trusted parent, a

@@ -27,6 +27,7 @@ import asyncio
 import contextlib
 import json
 import re
+import time
 from collections import Counter, deque
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from contextlib import AbstractAsyncContextManager, nullcontext
@@ -42,8 +43,10 @@ from memspine.core.window import (
     estimate_tokens,
 )
 from memspine.derive.backpressure import BackpressureRejected
+from memspine.derive.call_batcher import BatchItem, CallBatcher
 from memspine.derive.pipeline.stages.context import SessionClosed, WindowEdgeBatch
 from memspine.derive.pipeline.stages.mining import _fact_date
+from memspine.derive.segmenter import SegmentationSettings, StreamSegmenter
 from memspine.models.concurrency import Priority, priority_scope
 from memspine.models.providers.llm.base import LLMService
 from memspine.models.providers.llm.structured import structured_call
@@ -70,6 +73,7 @@ __all__ = [
     "WindowPipeline",
     "build_transcript",
     "grounded",
+    "split_batch_section",
     "validate_edges",
     "validate_episode",
     "validate_facts",
@@ -314,6 +318,57 @@ def validate_episode(raw: object, count: int) -> EpisodeOutcome | None:
     return out
 
 
+def _int_lines(value: object) -> list[int]:
+    if not isinstance(value, list):
+        return []
+    return [n for n in value if isinstance(n, int) and not isinstance(n, bool)]
+
+
+def split_batch_section(
+    section: str, raw: object, spans: Sequence[tuple[int, int]]
+) -> tuple[list[Any], int]:
+    """Split the reply of a batched call into one reply per window (W2-05).
+
+    ``spans[w] = (lines before window w, its line count)``: the batched transcript numbers lines
+    on across the windows, so a cited line names exactly one window. Each item of a ``facts`` /
+    ``edges`` list goes to the window all its cited lines fall in, with the citations renumbered
+    to that window's own 1..n (so :func:`validate_facts` / :func:`validate_edges` check its span
+    against that window's lines only). An item citing lines of two windows is dropped and counted
+    (second value); one citing no valid line goes to the first window, where validation counts it
+    once. A reply that is not a list goes to every window unchanged (each fails closed alone)."""
+    if not isinstance(raw, list):
+        return [raw for _ in spans], 0
+    parts: list[list[Any]] = [[] for _ in spans]
+    cross = 0
+
+    def window_of(line: int) -> int | None:
+        for w, (base, count) in enumerate(spans):
+            if base < line <= base + count:
+                return w
+        return None
+
+    for item in raw:
+        if not isinstance(item, dict):
+            parts[0].append(item)
+            continue
+        keys = [k for k in ("turns", "episode_indices") if k in item]
+        cited = [n for k in keys for n in _int_lines(item[k])]
+        owners = {w for n in cited if (w := window_of(n)) is not None}
+        if len(owners) > 1:
+            cross += 1
+            continue
+        if not owners:
+            parts[0].append(item)
+            continue
+        w = owners.pop()
+        base = spans[w][0]
+        local = dict(item)
+        for k in keys:
+            local[k] = [n - base for n in _int_lines(item[k]) if window_of(n) == w]
+        parts[w].append(local)
+    return parts, cross
+
+
 # --- the manager ----------------------------------------------------------------------------
 
 
@@ -343,11 +398,14 @@ class _Job:
     closed_session: str | None = None
     cancelled: bool = False
     members: frozenset[str] = frozenset()
+    #: W2-05: what the batcher needs (estimated tokens, when the window closed)
+    tokens: int = 0
+    queued_at: float = 0.0
 
 
 @dataclass
 class _Store:
-    segmenter: WindowSegmenter
+    segmenter: WindowSegmenter | StreamSegmenter
     queue: deque[_Job] = field(default_factory=deque)
     run_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     worker: asyncio.Task[None] | None = None
@@ -356,6 +414,9 @@ class _Store:
     session: str | None = None
     pending: list[WindowEdgeBatch] = field(default_factory=list)
     inflight: _Job | None = None
+    #: W2-05: the jobs of a batched call in hand (a forget cancels the one it touches)
+    inflight_batch: list[_Job] = field(default_factory=list)
+    batch_timer: asyncio.TimerHandle | None = None
     session_windows: Counter[str] = field(default_factory=Counter)
 
 
@@ -380,6 +441,8 @@ class WindowPipeline:
         asynchronous: bool = True,
         on_session_closed: SessionClosedFn | None = None,
         outbox: Any | None = None,  # runtime.runner.InlineRunner; untyped (workers is below runtime)
+        segmentation: SegmentationSettings | None = None,
+        clock: Callable[[], float] = time.time,
     ) -> None:
         self.settings = settings
         self.sections = tuple(sections)
@@ -409,6 +472,20 @@ class WindowPipeline:
         self._persist_retry: asyncio.Task[None] | None = None  # RT-02 backpressure retry
         self._persist_lock = asyncio.Lock()
         self._recovered = outbox is None
+        #: W2-05 (``write.segmentation_v2``): time-gap/adaptive segmenter and the call batcher.
+        self._seg = segmentation
+        self._clock = clock
+        self._batch_sections = tuple(s for s in self.sections if s != "episode")
+        self._batcher: CallBatcher | None = None
+        if segmentation is not None and segmentation.batching and self._batch_sections:
+            self._batcher = CallBatcher(
+                max_tokens=segmentation.batch_max_tokens,
+                max_windows=segmentation.batch_max_windows,
+                max_age_s=segmentation.batch_max_age_s,
+            )
+        #: outbox mode: results of a batched call for the offsets after the one that made it
+        self._prefetched: dict[tuple[str, int], _Prepared | None] = {}
+        self._batch_reason = ""
         if outbox is not None:
             outbox.register(WINDOW_STAGE, prepare=self._outbox_prepare, commit=self._outbox_commit)
         #: (namespace, session) -> what the session-closed hook returned (the last 100).
@@ -425,7 +502,10 @@ class WindowPipeline:
     def _store(self, namespace: str) -> _Store:
         store = self._stores.get(namespace)
         if store is None:
-            store = _Store(segmenter=WindowSegmenter(self.settings))
+            if self._seg is not None:
+                store = _Store(segmenter=StreamSegmenter(self.settings, segmentation=self._seg))
+            else:
+                store = _Store(segmenter=WindowSegmenter(self.settings))
             self._stores[namespace] = store
         return store
 
@@ -480,14 +560,33 @@ class WindowPipeline:
                         "session": window.session,
                         "reason": window.reason,
                         "record_ids": window.record_ids,
+                        **(
+                            {"tokens": window.tokens, "staged_at": self._clock()}
+                            if self._batcher is not None
+                            else {}
+                        ),
                     },
                 )
             )
         else:
-            job = _Job(ns, window=window, members=frozenset(window.record_ids))
+            job = _Job(
+                ns,
+                window=window,
+                members=frozenset(window.record_ids),
+                tokens=window.tokens,
+                queued_at=self._clock(),
+            )
             store.queue.append(job)
         self._counts["windows"] += 1
         self._reasons[window.reason] += 1
+        if self._seg is not None and tap.enabled():
+            tap.event(
+                "write.segment.cut",
+                reason=window.reason,
+                turns=len(window.turns),
+                tokens=window.tokens,
+                grown=len(window.turns) > self.settings.max_turns,
+            )
         if tap.enabled():
             tap.event(
                 "write.window.cut",
@@ -593,13 +692,27 @@ class WindowPipeline:
         with priority_scope(Priority.DERIVE):  # RT-02: window work is background derive
             store.worker = asyncio.get_running_loop().create_task(self._drain(ns, store))
 
-    async def _drain(self, ns: str, store: _Store) -> None:
+    async def _drain(self, ns: str, store: _Store, *, final: bool = False) -> None:
+        """Run what is queued. ``final`` (a flush, a session close) never holds a window back
+        for company (W2-05 batching); the background worker does, up to the batch age."""
         if self._outbox is not None:
+            if self._batcher is not None and not final and not self._outbox_batch_ready(ns, store):
+                return
             await self._outbox.drain(self._scope(ns))
             return
         async with store.run_lock:
             while store.queue and not self._stopped:
-                job = store.queue.popleft()
+                if self._batcher is not None:
+                    jobs = self._take_batch(ns, store, final)
+                    if jobs is None:
+                        return  # held: the timer (or the next window) wakes the worker
+                    if len(jobs) > 1:
+                        await self._drain_batch(ns, store, jobs)
+                        continue
+                    job = jobs[0]
+                    store.queue.remove(job)
+                else:
+                    job = store.queue.popleft()
                 store.inflight = job
                 try:
                     if job.closed_session is not None:
@@ -640,7 +753,7 @@ class WindowPipeline:
                 await self._persist_staged(force=True)  # an explicit flush defers nothing
             if store.worker is not None and not store.worker.done():
                 await asyncio.shield(store.worker)
-            await self._drain(ns, store)
+            await self._drain(ns, store, final=True)
         if self._outbox is not None and namespace is None:
             await self._outbox.drain()  # leftovers of namespaces not seen since start
         return self.stats()
@@ -667,7 +780,7 @@ class WindowPipeline:
         await self._persist_staged(force=True)
         if store.worker is not None and not store.worker.done():
             await asyncio.shield(store.worker)
-        await self._drain(namespace, store)
+        await self._drain(namespace, store, final=True)
         return {
             "status": "ok",
             "session_id": session,
@@ -700,9 +813,13 @@ class WindowPipeline:
                 with contextlib.suppress(asyncio.CancelledError, Exception):
                     await self._recover_task
             await self._outbox.stop(_STOP_GRACE_S)
+        self._prefetched.clear()
         for store in self._stores.values():
             if store.idle is not None:
                 store.idle.cancel()
+            if store.batch_timer is not None:
+                store.batch_timer.cancel()
+                store.batch_timer = None
             if store.worker is not None and not store.worker.done():
                 # let the job in hand finish its writes (the drain loop stops after it), but
                 # never wait on a stuck model call for long
@@ -773,6 +890,14 @@ class WindowPipeline:
             reason=str(payload.get("reason", "")),
             session=payload.get("session"),
         )
+        if self._batcher is not None:  # W2-05: a batched call may have prepared this offset already
+            if (ns, offset) in self._prefetched:
+                ready = self._prefetched.pop((ns, offset))
+                store.inflight = ready.job if ready is not None else None
+                return ("window", ready)
+            batched = await self._outbox_prepare_batch(ns, store, offset)
+            if batched is not _MISSING:
+                return ("window", batched)
         job = _Job(ns, window=window, members=frozenset(window.record_ids))
         store.inflight = job  # a forget during the call cancels it
         try:
@@ -781,6 +906,259 @@ class WindowPipeline:
             store.inflight = None
             raise
         return ("window", prepared)
+
+    # -- batching (W2-05) ---------------------------------------------------------------------
+
+    def _outbox_items(self, ns: str, start: int | None) -> tuple[list[BatchItem], bool]:
+        """The leading run of queued window items (from offset ``start``) and whether a
+        non-window item (a session close) follows them, which makes the run final."""
+        assert self._outbox is not None
+        scope = self._scope(ns)
+        items: list[BatchItem] = []
+        sentinel = False
+        for offset, payload in self._outbox.pending_items(scope, WINDOW_STAGE):
+            if start is not None and offset < start:
+                continue
+            if payload.get("kind") != "window":
+                sentinel = True
+                break
+            items.append(
+                BatchItem(
+                    (scope.tenant, scope.owner),
+                    (offset, payload),
+                    max(int(payload.get("tokens", 1)), 1),
+                    float(payload.get("staged_at", 0.0)),  # no stamp (old row): old enough
+                )
+            )
+        return items, sentinel
+
+    async def _outbox_prepare_batch(self, ns: str, store: _Store, offset: int) -> Any:
+        """Outbox mode: if ``offset`` opens a batch of 2+ queued windows, make ONE call for all of
+        them, keep the other windows' results for their own offsets and return this one's.
+        ``_MISSING`` when the window is to run alone. A crash loses nothing: every window is
+        still its own durable row, the stash is only a cache."""
+        assert self._batcher is not None
+        items, _ = self._outbox_items(ns, offset)
+        if not items or items[0].ref[0] != offset:  # type: ignore[index]
+            return _MISSING
+        plans = self._batcher.plan(items, self._clock(), final=True)
+        batch = plans[0].items if plans else ()
+        if len(batch) < 2:
+            return _MISSING
+        jobs: list[_Job] = []
+        for item in batch:
+            payload = item.ref[1]  # type: ignore[index]
+            window = Window(
+                turns=[WindowTurn(record_id=r, text="", tokens=1) for r in payload["record_ids"]],
+                reason=str(payload.get("reason", "")),
+                session=payload.get("session"),
+            )
+            jobs.append(_Job(ns, window=window, members=frozenset(window.record_ids)))
+        store.inflight_batch = jobs
+        try:
+            prepared = await self._prepare_batch(ns, jobs, strict=True, reason=plans[0].reason)
+        finally:
+            store.inflight_batch = []
+        for item, ready in zip(batch[1:], prepared[1:], strict=True):
+            self._prefetched[(ns, item.ref[0])] = ready  # type: ignore[index]
+        first = prepared[0]
+        store.inflight = first.job if first is not None else None
+        return first
+
+    def _outbox_batch_ready(self, ns: str, store: _Store) -> bool:
+        """Background drain gate (outbox mode): False holds the queued windows for company."""
+        assert self._batcher is not None
+        items, sentinel = self._outbox_items(ns, None)
+        if not items:
+            return True
+        now = self._clock()
+        if self._batcher.plan(items, now, final=sentinel):
+            return True
+        self._hold(ns, store, items, now)
+        return False
+
+    def _take_batch(self, ns: str, store: _Store, final: bool) -> list[_Job] | None:
+        """In-memory mode: the next jobs to run (one job, a session-closed sentinel, or a batch of
+        windows), or None when the queued windows are held for company."""
+        assert self._batcher is not None
+        head = store.queue[0]
+        if head.closed_session is not None:
+            return [head]
+        items: list[BatchItem] = []
+        sentinel = False
+        for job in store.queue:
+            if job.closed_session is not None:
+                sentinel = True
+                break
+            items.append(BatchItem((ns,), job, max(job.tokens, 1), job.queued_at))
+        now = self._clock()
+        plans = self._batcher.plan(items, now, final=final or sentinel)
+        if plans:
+            self._batch_reason = plans[0].reason
+            return [i.ref for i in plans[0].items]  # type: ignore[misc]
+        self._hold(ns, store, items, now)
+        return None
+
+    def _hold(self, ns: str, store: _Store, items: list[BatchItem], now: float) -> None:
+        assert self._batcher is not None
+        wait = self._batcher.next_wake(items, now) or 0.0
+        self._counts["batch_held"] += 1
+        tap.event(
+            "write.batch.held",
+            windows=len(items),
+            tokens=sum(i.tokens for i in items),
+            wait_s=round(wait, 3),
+        )
+        if not self._async or self._stopped:
+            return
+        if store.batch_timer is not None:
+            store.batch_timer.cancel()
+        loop = asyncio.get_running_loop()
+
+        def wake() -> None:
+            store.batch_timer = None
+            if not self._stopped:
+                self._ensure_worker(ns, store)
+
+        store.batch_timer = loop.call_later(max(wait, 0.01), wake)
+
+    async def _drain_batch(self, ns: str, store: _Store, jobs: list[_Job]) -> None:
+        for job in jobs:
+            store.queue.remove(job)
+        store.inflight_batch = list(jobs)
+        try:
+            with tap.request("job", stage="window_extract"):
+                prepared = await self._prepare_batch(
+                    ns, jobs, strict=False, reason=self._batch_reason
+                )
+                for ready in prepared:
+                    if ready is not None:
+                        await self._commit_job(ns, store, ready)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # one bad batch never stops the queue
+            self._counts["jobs_failed"] += 1
+            tap.event("write.window.job_failed", error=type(exc).__name__)
+            _log.warning("window.job_failed", namespace=ns, error=str(exc), exc_info=True)
+        finally:
+            store.inflight_batch = []
+
+    async def _prepare_batch(
+        self, ns: str, jobs: list[_Job], *, strict: bool, reason: str = ""
+    ) -> list[_Prepared | None]:
+        """ONE extraction call for several windows of one namespace. The windows keep their own
+        numbered blocks (line numbers run on across the blocks, so a cited line names one window),
+        and each window's items are mapped back to its own turns and validated against its own
+        lines. Episodes stay one call per window. Result aligned with ``jobs``."""
+        out: list[_Prepared | None] = [None] * len(jobs)
+        live: list[tuple[int, _Job, list[MemoryRecord]]] = []
+        for i, job in enumerate(jobs):
+            if job.cancelled or job.window is None:
+                continue
+            records = await self._live_turns(job.window)
+            if not records:
+                self._counts["windows_empty"] += 1
+                tap.event(
+                    "write.window.skipped", reason="no_live_turns", turns=len(job.window.turns)
+                )
+                continue
+            live.append((i, job, records))
+        if len(live) == 1:
+            i, job, records = live[0]
+            out[i] = await self._prepare_records(ns, job, records, strict=strict)
+            return out
+        if not live:
+            return out
+        lines: list[str] = []
+        spans: list[tuple[int, int]] = []
+        texts_by_window: list[list[str]] = []
+        people: list[str] = []
+        base = 0
+        for w, (_i, _job, records) in enumerate(live):
+            _, texts, who = build_transcript(records)
+            people.extend(p for p in who if p not in people)
+            lines.append(f"=== window {w + 1} of {len(live)} ===")
+            lines.extend(
+                f"[{base + n}] [{rec.valid_from:%Y-%m-%d}] {text}"
+                for n, (rec, text) in enumerate(zip(records, texts, strict=True), 1)
+            )
+            spans.append((base, len(records)))
+            texts_by_window.append(texts)
+            base += len(records)
+        transcript = "\n".join(lines)
+        all_ids = [r.record_id for _, _, records in live for r in records]
+        batch_id = fingerprint_payload({"ns": ns, "turns": all_ids})[:12]
+        variables = {"content": transcript, "participants": ", ".join(people), "turn_count": base}
+        self._counts["windows_processed"] += len(live)
+        self._counts["batches"] += 1
+        self._counts["batched_windows"] += len(live)
+        tap.event(
+            "write.batch.planned",
+            id=batch_id,
+            windows=len(live),
+            turns=base,
+            tokens=estimate_tokens(transcript),
+            reason=reason,
+            sections=list(self._batch_sections),
+        )
+        merged_all, failed = await self._run_groups(
+            ns, [self._batch_sections], variables, transcript, all_ids, batch_id
+        )
+        if strict and failed and not merged_all:
+            tap.event("write.batch.failed", id=batch_id, windows=len(live))
+            raise WindowCallFailed("the batched window call failed")
+        per_window: list[dict[str, Any]] = [{} for _ in live]
+        for section, raw in merged_all.items():
+            if raw is _MISSING:
+                for merged in per_window:
+                    merged[section] = _MISSING
+                continue
+            parts, cross = split_batch_section(section, raw, spans)
+            for merged, part in zip(per_window, parts, strict=True):
+                merged[section] = part
+            if cross:
+                self._counts["batch_cross_window"] += cross
+                if section == "facts":  # an item that cites two windows is grounded in neither
+                    self._counts["facts_returned"] += cross
+                    self._counts["facts_ungrounded"] += cross
+                tap.event("write.batch.cross_window", section=section, dropped=cross, id=batch_id)
+        for w, (i, job, records) in enumerate(live):
+            member_ids = [r.record_id for r in records]
+            window_id = fingerprint_payload({"ns": ns, "turns": member_ids})[:12]
+            window_failed = failed
+            if "episode" in self.sections:
+                ep_transcript, _, who = build_transcript(records)
+                ep_vars = {
+                    "content": ep_transcript,
+                    "participants": ", ".join(who),
+                    "turn_count": len(records),
+                }
+                got, ep_failed = await self._run_groups(
+                    ns, [("episode",)], ep_vars, ep_transcript, member_ids, window_id
+                )
+                per_window[w].update(got)
+                window_failed = window_failed or ep_failed
+            tap.event(
+                "write.batch.window",
+                id=window_id,
+                batch=batch_id,
+                first_line=spans[w][0] + 1,
+                turns=len(records),
+            )
+            if job.cancelled:
+                self._counts["windows_cancelled_forget"] += 1
+                await self._purge_window_cache(member_ids)
+                continue
+            out[i] = _Prepared(
+                job,
+                records,
+                per_window[w],
+                texts_by_window[w],
+                window_id,
+                2 if "episode" in self.sections else 1,
+                window_failed,
+            )
+        return out
 
     async def _outbox_commit(self, scope: OwnerScope, offset: int, prepared: Any) -> None:
         """Outbox handler, phase 2: the deposits (each locks the namespace itself)."""
@@ -825,12 +1203,18 @@ class WindowPipeline:
                     self._counts["windows_cancelled_forget"] += 1
             if store.inflight is not None and record_id in store.inflight.members:
                 store.inflight.cancelled = True
+            for job in store.inflight_batch:
+                if record_id in job.members:
+                    job.cancelled = True
             for batch in list(store.pending):
                 batch.edges = [(ids, e) for ids, e in batch.edges if record_id not in ids]
                 if record_id in batch.covered:
                     batch.covered.remove(record_id)
                 if not batch.covered and not batch.edges:
                     store.pending.remove(batch)
+        for ready in self._prefetched.values():  # W2-05: a batched call's results, not committed
+            if ready is not None and record_id in ready.job.members:
+                ready.job.cancelled = True
         keys = self._keys_by_record.pop(record_id, set())
         if self._cache is not None:
             for key in keys:
@@ -948,6 +1332,15 @@ class WindowPipeline:
             self._counts["windows_empty"] += 1
             tap.event("write.window.skipped", reason="no_live_turns", turns=len(window.turns))
             return None
+        return await self._prepare_records(ns, job, records, strict=strict)
+
+    async def _prepare_records(
+        self, ns: str, job: _Job, records: list[MemoryRecord], *, strict: bool
+    ) -> _Prepared | None:
+        """The model calls of one window whose live turns are known (``_prepare_job`` and the
+        single-window case of a batch)."""
+        window = job.window
+        assert window is not None
         member_ids = [r.record_id for r in records]
         window_id = fingerprint_payload({"ns": ns, "turns": member_ids})[:12]
         transcript, line_texts, people = build_transcript(records)
@@ -966,8 +1359,30 @@ class WindowPipeline:
             tokens=window.tokens,
             groups=len(self._groups()),
         )
-        merged: dict[str, Any] = {}
         groups = self._groups()
+        merged, failed = await self._run_groups(
+            ns, groups, variables, transcript, member_ids, window_id
+        )
+        if job.cancelled:
+            self._counts["windows_cancelled_forget"] += 1
+            await self._purge_window_cache(member_ids)
+            return None
+        if strict and failed and not merged:
+            self._note_outcome(True, len(groups))
+            raise WindowCallFailed(f"all {len(groups)} window call(s) failed")
+        return _Prepared(job, records, merged, line_texts, window_id, len(groups), failed)
+
+    async def _run_groups(
+        self,
+        ns: str,
+        groups: Sequence[tuple[str, ...]],
+        variables: Mapping[str, object],
+        transcript: str,
+        member_ids: Sequence[str],
+        window_id: str,
+    ) -> tuple[dict[str, Any], bool]:
+        """Run the model call of each section group; a failed group is counted and dropped alone."""
+        merged: dict[str, Any] = {}
         failed = False
         for group in groups:
             try:
@@ -992,14 +1407,7 @@ class WindowPipeline:
                 continue
             for section in group:
                 merged[section] = raw.get(section, _MISSING)
-        if job.cancelled:
-            self._counts["windows_cancelled_forget"] += 1
-            await self._purge_window_cache(member_ids)
-            return None
-        if strict and failed and not merged:
-            self._note_outcome(True, len(groups))
-            raise WindowCallFailed(f"all {len(groups)} window call(s) failed")
-        return _Prepared(job, records, merged, line_texts, window_id, len(groups), failed)
+        return merged, failed
 
     async def _commit_job(self, ns: str, store: _Store, prepared: _Prepared) -> None:
         """The deposit half: each deposit takes the namespace lock itself (``_write_locked``)."""
@@ -1271,6 +1679,15 @@ class WindowPipeline:
             "sessions_closed": c["sessions_closed"],
             "queued": sum(len(s.queue) for s in self._stores.values()),
         }
+        if self._seg is not None:  # W2-05: only present with write.segmentation_v2
+            out["segmentation_v2"] = True
+            out["batches"] = c["batches"]
+            out["batched_windows"] = c["batched_windows"]
+            out["batch_held"] = c["batch_held"]
+            out["batch_cross_window"] = c["batch_cross_window"]
+            out["windows_per_call"] = (
+                round(c["windows_processed"] / c["calls"], 3) if c["calls"] else None
+            )
         if c["windows_deferred_backpressure"]:  # RT-02: only present once backpressure bit
             out["deferred_backpressure"] = c["windows_deferred_backpressure"]
         if self._outbox is not None:

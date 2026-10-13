@@ -378,6 +378,9 @@
       "v2": false
     },
     "write": {
+      "batch_max_age_s": 30.0,
+      "batch_max_tokens": 3000,
+      "batch_max_windows": 8,
       "feedback_operators": [],
       "feedback_v2": false,
       "inferred": "off",
@@ -387,6 +390,11 @@
       "intake_v2": false,
       "lineage_table": false,
       "participants": "off",
+      "segment_calendar_day_cut": false,
+      "segment_gap_s": 1800.0,
+      "segment_grow_tokens": 400,
+      "segment_max_turns": 24,
+      "segmentation_v2": false,
       "sensitivity": "off",
       "window_async": true,
       "window_cache": true,
