@@ -247,6 +247,12 @@ class _NeighbourBatch:
         return hits[:top_k]
 
 
+#: W2-01: a turn carrying ``_idem`` (its intake write id) is tagged ``idem:<id>``; the intake
+#: gateway finds the records of an interrupted write by that tag. ``INTAKE_LANDED`` collects
+#: write id -> record id for the gateway's current apply (None outside one).
+IDEM_TAG_PREFIX = "idem:"
+INTAKE_LANDED: ContextVar[dict[str, str] | None] = ContextVar("intake_landed", default=None)
+
 #: #63: the neighbour batch of the ``write_messages`` call running in this task.
 _NEIGHBOUR_BATCH: ContextVar[_NeighbourBatch | None] = ContextVar(
     "memspine_neighbour_batch", default=None
@@ -518,7 +524,34 @@ async def write_messages(
 
     The turns share one projection batch (:meth:`_projection_batch`): the
     lexical index commits and the projector checkpoints happen once per
-    call instead of once per turn."""
+    call instead of once per turn.
+
+    ``write.intake_v2`` (W2-01): the call goes through the intake gateway first (envelope, write
+    ids, receipt, idempotent retry); the gateway runs :func:`write_messages_direct` on the fresh
+    turns."""
+    if eng._config().write.intake_v2:
+        from memspine.ingest import gateway as intake_gateway
+
+        return await intake_gateway.write_messages(
+            eng, messages, namespace, actor, session_id, channel, group_id, tags, valid_from
+        )
+    return await write_messages_direct(
+        eng, messages, namespace, actor, session_id, channel, group_id, tags, valid_from
+    )
+
+
+async def write_messages_direct(
+    eng: Any,
+    messages: Sequence[Mapping[str, str]],
+    namespace: str = "default",
+    actor: str = "user",
+    session_id: str | None = None,
+    channel: str = "messages",
+    group_id: str | None = None,
+    tags: list[str] | None = None,
+    valid_from: datetime | None = None,
+) -> list[MemoryRecord]:
+    """The write path as it was before the intake gateway (``write.intake_v2`` off)."""
     contents = eng._depositable_contents(messages)
     tap.event(
         "write.messages.received",
@@ -677,6 +710,8 @@ async def _write_turns(
         )
         if correction is not None:
             turn_tags.append(constants.CORRECTION_TAG)  # W17d
+        if "_idem" in turn:  # W2-01: the intake write id rides as a tag (restart recovery)
+            turn_tags.append(f"{IDEM_TAG_PREFIX}{turn['_idem']}")
         asset_refs = eng._attachment_refs(turn, i, session_id)
         for _ref, aid in asset_refs:
             turn_tags.append(f"asset:{aid}")  # E04: ingest.assets
@@ -715,6 +750,10 @@ async def _write_turns(
             await eng._apply_correction(record.namespace, record, correction, records)
         records.append(record)
         written_at[i] = record.record_id
+        if "_idem" in turn:  # W2-01: tell the intake gateway which record this write id became
+            sink = INTAKE_LANDED.get()
+            if sink is not None:
+                sink[str(turn["_idem"])] = record.record_id
         if not record.quarantined:
             prev_turn = (record.record_id, _speaker_of(turn))
     return records

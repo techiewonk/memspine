@@ -671,6 +671,10 @@ class Engine:
         if config.privacy.erasure_v2:  # T5-04: erased / hidden ids, queue, purge table
             await trust_erasure_v2.load(self)
         self._started = True
+        if config.write.intake_v2:  # W2-01: finish any write the last run accepted but did not apply
+            from memspine.ingest import gateway as intake_gateway
+
+            await intake_gateway.recover(self)
         return self
 
     def _install_write_timers(self, config: MemspineConfig) -> None:

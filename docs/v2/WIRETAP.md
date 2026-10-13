@@ -93,6 +93,8 @@ under `tap.content`).
 | event | where | fields |
 |---|---|---|
 | `write.intake.received` / `write.intake.rejected` | `ingest/intake.py` | kind, source_id, segments, version, replayed, noop, new_events, intent_id / reason=quota |
+| `write.intake.committed` / `write.intake.applied` / `write.intake.resume` / `write.intake.recovered` | `ingest/gateway.py` (W2-01, `write.intake_v2`) | intent_id, fresh, retried, version / records, resumed, raw_search / landed, fresh / intents |
+| `write.intake.readiness` / `write.intake.retire` | `ingest/gateway.py` | intent_id, capability=ready / retracted, archived, repointed, edges_removed |
 | `write.received` | `ingest/write.py` | memory_type, actor, chars, has_entity, reply |
 | `write.messages.received` | `ingest/write.py` | turns, depositable, session, channel |
 | `write.turn.skipped` | `ingest/write.py` | reason (role / injected_recall), turn, role |
