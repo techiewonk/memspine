@@ -227,3 +227,17 @@ synthetic dataset, snapshot from the base commit). Run order, GPU:
    `SMP_REF_COMMIT` makes the runner reuse the pre-built reference and fail loudly if it is missing, instead of rebuilding it
    on the new commit (which would compare the new code with itself).
 Dry run first: `PINNED_DRY_RUN=1 SMP_REF_COMMIT=7ddd1119 MODE=sample bash evals/run_v2_queue.sh --only S29`.
+
+## Sample findings 2026-10-13 (B2, reader-only J arms)
+
+Forensics check (`evals/runs/smp-S*-loc-1013-1228--forensics/forensics.jsonl` vs the per-slice reference):
+
+| Screen | Flag | fused / final / context differ (of 80) | Reading |
+|---|---|---|---|
+| S10 | `read.tiers_v2` (R3-01) | 0 / 0 / 0 | Inert: the J arm builds no derived layers, so there is nothing to tier. Re-screen on a GC arm (sleep on, L2/L3 populated). |
+| S11 | `read.contract_rules` (R3-02) | 0 / 0 / 80 | Changes composition only (context differs on every item); +1/-1, net 0. Keep iterating. |
+| S12 | `read.router_rules` (R3-03) | 0 / 0 / 0 | Inert on LoCoMo J arm: routes resolve to the same legs. Needs a layered (GC) arm or a router-sensitive set. |
+| S13 | `read.entity_leg_v2` (R3-05a) | 0 / 0 / 0 | Inert: no entity graph without the GC sleep. Re-screen on the gc3-graph arm (S02 was the best B1 screen). |
+| S14 | `read.family_fusion` (R3-06) | 80 / 80 / 74 | Live: +4/-1, net +3. Candidate for a focus run. |
+
+Rule taken: a 0/0/0 forensic diff means the screen did not exercise the flag; it is marked `iterate`, never `drop`, and re-queued on an arm that builds the layer it needs.
