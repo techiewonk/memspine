@@ -214,6 +214,7 @@ async def _forget_many(
     texts = [t for r in records if r is not None for t in eng._erasable_texts(r)]
     for rid in ids:
         await eng._forget_locked(storage, ns, rid, hard, redact=False)
+    await eng._scrub_profile_cards(ns, ids, hard)  # FU-CLOSE: card entries leave with their turn
     if not hard:
         return
     names = [*subject_names, *(r.entity for r in records if r is not None and r.entity)]

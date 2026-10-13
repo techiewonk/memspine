@@ -384,9 +384,11 @@ async def test_sleep_invalidates_entries_whose_support_was_forgotten(
         card = await profile_card.load_card(eng._pipeline_ctx(), "a")
         support = card.get("preferences", "tea").support_ids  # type: ignore[union-attr]
         await eng.forget(support[0], namespace="a", hard=True)
+        # FU-CLOSE: the forget already took the entry off the card; sleep finds nothing left
+        assert (await profile_card.load_card(eng._pipeline_ctx(), "a")).entries == ()
         out = await eng.sleep()
         stats = out["reflect_profile"]["profile_card"]
-        assert stats["status"] == "ok" and stats["expired"] == 1
+        assert stats["status"] == "ok" and stats["expired"] == 0
         card = await profile_card.load_card(eng._pipeline_ctx(), "a")
         assert card.entries == ()
     finally:
@@ -445,9 +447,10 @@ def test_card_serialisation_round_trips() -> None:
     assert profile_card.card_from_dict(profile_card.card_to_dict(card), "a", "a") == card
 
 
-async def test_a_near_duplicate_is_merged_by_the_door_and_not_counted_as_written(
+async def test_a_repeat_of_the_same_texts_is_not_merged_away(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """FU-CLOSE: session_close records take the plain WRITE route (no semantic M5 dedup)."""
     llm = FakeCloseLLM()
     eng = await _engine(monkeypatch, llm, session_close_v2=True)
     try:
@@ -455,8 +458,8 @@ async def test_a_near_duplicate_is_merged_by_the_door_and_not_counted_as_written
         await eng.close_session("a", "s1")
         await _send(eng, "s1", _turns(1, start=2))
         hook = (await eng.close_session("a", "s1"))["hook"]  # the fake repeats its texts
-        assert hook["status"] == "ok" and hook["not_written"] >= 1
-        assert len(await _derived(eng)) == 2  # no third near-copy
+        assert hook["status"] == "ok" and hook["not_written"] == 0
+        assert len(await _derived(eng)) == 4  # both versions kept, nothing merged away
     finally:
         await eng.stop()
 

@@ -430,6 +430,14 @@ async def _write_extracted_fact(
     )
 
 
+async def _session_record_exists(storage: Any, ns: str, idem_tag: str) -> bool:
+    """True when a live session_close record already carries this idempotency tag."""
+    for r in await storage.list_records(ns, "semantic"):
+        if idem_tag in r.tags and r.status is RecordStatus.ACTIVATED:
+            return True
+    return False
+
+
 async def _deposit_session_record(
     eng: Any,
     namespace: str,
@@ -489,12 +497,19 @@ async def _deposit_session_record(
     async with eng._write_locks.setdefault(ns, asyncio.Lock()):
         if await eng._derived_parents_gone(ns, parents, "session_close"):
             return None
+        if idem_key and await _session_record_exists(storage, ns, f"sc:{idem_key[:24]}"):
+            if tap.enabled():
+                tap.event("job.close.idem", kind=kind, idem=idem_key[:24])
+            return None
+        # FU-CLOSE: door type "summary" (plain WRITE route, as OW-D's summaries): the semantic
+        # M5 dedup merged a stitched extension (stub text + an addition) back into its stub and
+        # lost the addition. Idempotency is the ``sc:`` tag check above, not dedup.
         written = await write_derived(
             eng,
             storage,
             ns,
             record,
-            "semantic",
+            "summary",
             "system",
             parents=parent_ids,
             roles={extends: "version_of"} if extends else None,
