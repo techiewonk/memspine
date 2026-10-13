@@ -7,9 +7,9 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 
 | Status | Count |
 |---|---|
-| Not started | 32 |
+| Not started | 26 |
 | Ready | 0 |
-| In progress | 0 |
+| In progress | 6 |
 | Blocked | 0 |
 | Needs measurement | 47 |
 | Done | 82 |
@@ -127,12 +127,12 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 
 | Id | Work package | Layers | Ops | Decisions | Review | Depends on | Kind | Agent lane | Owns | Gate | Status | Note |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| W2-01 | Source envelope intake, receipt, idempotency, re-ingest | L0 L1 | D K_C | W-01, W-02, W-03, W-24 | ER-06 | EX-1a, LIB-30 | behaviour | write | - | Write p95 at most 250 ms; idempotent retries; receipt never claims an unavailable capability; crash tests at every commit/projector boundary | **Not started** |  |
+| W2-01 | Source envelope intake, receipt, idempotency, re-ingest | L0 L1 | D K_C | W-01, W-02, W-03, W-24 | ER-06 | EX-1a, LIB-30 | behaviour | write | - | Write p95 at most 250 ms; idempotent retries; receipt never claims an unavailable capability; crash tests at every commit/projector boundary | **In progress** | Sonnet agent launched 2026-10-13 (Phase 2 wave 1) |
 | W2-02 | Stamping: three clocks, time zone, speaker/addressee/participants, provenance class | L0 L1 L4 scope | D R | W-04, W-05, W-08, M-08 | - | W2-01, LIB-29 | behaviour | write | - | Focus slice non-inferior | **Not started** |  |
 | W2-03 | Role policy, echo guard (marker + last-read overlap) and routing | L0 L1 L5 ctx | D | W-06, W-09 | ER-17 | W2-02, LIB-13 | behaviour | write | - | Focus slice non-inferior | **Not started** |  |
 | W2-04 | Firewall at three gates; base plus extended signals | L0 L1 scope | D | W-07, G-06 | - | LIB-38, F-16a | behaviour | write | - | False-positive screen on the behavioural suite | **Needs measurement** | TW-A wired flag-off (integrity.horizon_v2 / consent.v2 / firewall.gates_v2); MINJA FP rate needs OP-Bench screen |
 | W2-05 | Segmentation: adaptive window, time-gap cut, token batching | L0 | D | W-11 | - | W2-01, LIB-14 | behaviour | write | - | Calls per turn down, grounding inside band | **Not started** |  |
-| W2-07 | Prompt layout rules: no examples, stable prefix, same language | L0 L1 L3 ctx | D C | W-18, P-07, P-08, P-10 | ER-16 | P0-09, EX-1a, LIB-46 | behaviour | write | - | English output unchanged on focus slice (per partial) | **Not started** |  |
+| W2-07 | Prompt layout rules: no examples, stable prefix, same language | L0 L1 L3 ctx | D C | W-18, P-07, P-08, P-10 | ER-16 | P0-09, EX-1a, LIB-46 | behaviour | write | - | English output unchanged on focus slice (per partial) | **In progress** | Sonnet agent launched 2026-10-13 (Phase 2 wave 1) |
 | W2-06a | ItemV1 to AssertionEnvelope compile, validation, repair re-ask, dead letters | L0 L1 L3 | D | W-14, W-15, P-05, P-06 | ER-11, ER-15, ER-32 | W2-05, F-16a, LIB-05 | behaviour | S4 extraction (serial) | - | Unit tests; items dropped counted | **Not started** |  |
 | W2-06b | Prompt v2 and schema-constrained decoding | L0 L1 L3 | D | W-16, P-04, P-09, P-11 | ER-12, ER-15 | W2-06a, W2-07 | behaviour | S4 extraction (serial) | - | Window arm: items dropped down; at most 1 call per window | **Not started** | G-W49 |
 | W2-06c | Online extraction via the outbox with a stage hook list | L1 L3 | D R | W-12 | - | W2-06b, F-04 | behaviour | S4 extraction (serial) | - | No-model template: zero calls; window arm screen | **Not started** |  |
@@ -142,11 +142,11 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | W2-09 | Online entity resolution with pending_merge | L1 L3 | D K_C | W-19, M-15 | ER-13, ER-20 | W2-08, LIB-04 | behaviour | S4 extraction (serial) | - | Calibrated thresholds: no homonym merges above a stated rate | **Not started** |  |
 | W2-10 | Integration ladder and cardinality registry | L1 L3 | D K_C | W-21, W-22, M-12 | ER-14, ER-17 | W2-09, F-01, LIB-02 | behaviour | S4 extraction (serial) | - | MAB-CR non-inferior; A-B-A tests; behavioural INV-ORDER-SWAP passes | **Not started** | Q7 coexist unless marked; INV-ORDER-SWAP now fixed offline by O4-03/04 (flag-on); W2-10 adds the online ladder (LIB-02) |
 | W2-11 | Asset describer (ingest and read triggers, off by default) | L0 | D R | W-23 | ER-25 | W2-01 | behaviour | write | - | Off by default; on-arm screen | **Not started** |  |
-| W2-12 | Cost ledger and write targets | L0 L1 L3 L4 L5 | D K_C K_P | W-26, P-14, P-22 | ER-08, ER-15, ER-16, ER-37, ER-39 | EX-1a, LIB-27 | infra | write | - | Targets as regression tests | **Not started** |  |
+| W2-12 | Cost ledger and write targets | L0 L1 L3 L4 L5 | D K_C K_P | W-26, P-14, P-22 | ER-08, ER-15, ER-16, ER-37, ER-39 | EX-1a, LIB-27 | infra | write | - | Targets as regression tests | **In progress** | Sonnet agent launched 2026-10-13 (Phase 2 wave 1) |
 | W2-13 | Small local pre-pass (GLiNER2) as hints | L1 L3 | D | P-23 | - | W2-10 | behaviour | S4 extraction (serial) | - | Calls down, grounded facts not down | **Not started** |  |
 | MD-03 | Second GPU (AMD Radeon iGPU via DirectML): embedder and small reranker offload, measured | L0 L1 | R | P-19, P-17 | - | LIB-42 | behaviour | models | - | Identical outputs (cosine >= 0.999, same rank order) and a measured speed gain, else not adopted | **Dropped** | Measured negative (d0b65ac): AMD iGPU DirectML 5-8x slower than contended CPU, driver reset on bge-small; models stay on RTX 5080/CPU |
-| MD-01 | Model tiers, placement, no-model fallbacks, device plan, thinking per role | L0 L1 L4 | D K_C R G | P-01, P-02, P-03, P-15, P-19 | - | EX-1a, LIB-42 | behaviour | models | - | Worker-tier screen per role; no-model template zero calls | **Not started** |  |
-| MD-02 | Default embedders (CPU multilingual, GPU profile) | L0 L1 | R | P-17, M-23 | - | EX-1a, F-03 | behaviour | models | - | English R@k within band; non-English probe | **Not started** |  |
+| MD-01 | Model tiers, placement, no-model fallbacks, device plan, thinking per role | L0 L1 L4 | D K_C R G | P-01, P-02, P-03, P-15, P-19 | - | EX-1a, LIB-42 | behaviour | models | - | Worker-tier screen per role; no-model template zero calls | **In progress** | Sonnet agent launched 2026-10-13 (Phase 2 wave 1) |
+| MD-02 | Default embedders (CPU multilingual, GPU profile) | L0 L1 | R | P-17, M-23 | - | EX-1a, F-03 | behaviour | models | - | English R@k within band; non-English probe | **In progress** | Sonnet agent launched 2026-10-13 (Phase 2 wave 1) |
 | EX-2 | Phase 2 exit: window arm non-inferior, grounding 95%, write p95 | L0 L1 L4 L5 ctx scope | D K_C K_P R C G | G-01 | - | W2-10, W2-04, W2-13 | measure | exit | - | ROADMAP Phase 2 exit gate | **Not started** |  |
 
 ## Phase 3: read path
@@ -178,7 +178,7 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 
 | Id | Work package | Layers | Ops | Decisions | Review | Depends on | Kind | Agent lane | Owns | Gate | Status | Note |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| O4-01a | Non-blocking sleep handles, triggers ((N AND M) OR context C, gap K), namespace jobs, leases, watermarks, daily maintenance | L0 L1 L3 L4 L5 ctx | K_C K_P | O-01, O-02, O-03 | ER-07, ER-26 | EX-1a, F-15 | behaviour | offline | - | Restart and lock fault tests; off by default | **Not started** |  |
+| O4-01a | Non-blocking sleep handles, triggers ((N AND M) OR context C, gap K), namespace jobs, leases, watermarks, daily maintenance | L0 L1 L3 L4 L5 ctx | K_C K_P | O-01, O-02, O-03 | ER-07, ER-26 | EX-1a, F-15 | behaviour | offline | - | Restart and lock fault tests; off by default | **In progress** | Sonnet agent launched 2026-10-13 (Phase 2 wave 1) |
 | O4-01b | Background budget and freshness (covers_seq; read-side freshness) | L0 L1 L3 L4 ctx | K_C K_P R | O-05, O-06 | ER-09, ER-26 | O4-01a, F-16a, LIB-26 | behaviour | offline | - | Deferred work counted, never dropped | **Not started** |  |
 | O4-02 | Call 2 at session close: summary, stitched episode, profile ops (L2, opt-in) | L0 L1 ctx | K_C K_P | O-07, O-08, O-09, M-14 | ER-26 | LIB-40, F-16a | behaviour | offline | - | G-C9-style screen; golden unchanged with flag off | **Needs measurement** | OW-A wired flag-off (offline.session_close_v2 / profile_card_v2); erasure gap on card markers pending owner |
 | O4-03 | Reconcile backlog, staged entity resolution, contradictions | L1 L3 | K_C | O-10, O-11, O-12 | - | LIB-37, F-16a | behaviour | offline | - | Contradiction-recall set; MAB-CR non-inferior | **Needs measurement** | Wired flag-off (OW-B 15e27536); INV-ORDER-SWAP passes with offline.reconcile_v2+histories_v2; sample screen queued |
