@@ -139,3 +139,12 @@ R6-01 (freeze the configuration, one sealed blind run per set; do it after every
    file (the test will say so, because validation then fails).
 6. The behavioural overlay covers `read`, `write` and `graph` keys only. Flags that need a model cannot show there and come out as
    NOT_SUPPORTED, which never blocks.
+
+## Coordinator answers (2026-10-13)
+1. Reference comparability: keep S09 (fallback reference on the queue commit) first in B2; use `REF_OVERRIDE=f-jref3-i2` if S01 comes back INCOMPARABLE.
+2. PrefEval: follow-up task: freeze a PrefEval blind split (`evals/freeze_blind_slices.py`) and add it to `eval_blind.py`, before any blind exposure of read-path promotions.
+3. OP-Bench reference: follow-up task: `eval_focus.py --opb` accepts `--ref` so OP-Bench screens compare paired runs.
+4. Blind reader flags: yes. `run_blind_validation.sh` must pass the same reader flags (`--qa-prompt grounded`) as focus/full runs; otherwise the comparability key differs and the gate returns INCOMPARABLE.
+5. Flag shapes: arm files are regenerated from the merged config schema after the wiring branches merge.
+6. Unnamed flags: rows are added as W2/O4/T5 wiring lands.
+7. Queue commit: the queue is re-pinned after all wiring branches merge.
