@@ -163,7 +163,7 @@ WP = [
     ("F-13a", 1, "Scoped handle; engine reduced to lifecycle and admin", ["G-16"], ["F-12"], "api", "Golden", "Done", "Memory handle + open(); Engine moved to memspine.api.engine (no alias), engine 5566->4818; 7305 tests (22ab2d7)"),
     ("F-13b", 1, "REST and MCP on the handle", ["G-17", "G-18"], ["F-13a"], "move", "Protocol tests", "In progress", "Swarm: agent running"),
     ("F-13c", 1, "Eval-harness adapter and test-import migration; paired-gate replay", ["G-16"], ["F-13a"], "move",
-     "Paired-gate replay NO CHANGE vs f-jref2-i2 (GPU, one run)", "In progress", "Swarm: agent running"),
+     "Paired-gate replay NO CHANGE vs f-jref2-i2 (GPU, one run)", "In progress", "Built (18e811d): adapter on open()/Memory handle, parity snapshot test, S29 parity row; merge held until B1 sample batch finishes (touches run_v2_queue.sh)"),
     ("F-15", 1, "Split the pipelines module into derive stages", ["O-04"], ["F-11"], "move", "Golden; stage order unchanged", "Done", "S15: workers/pipelines.py split into derive/pipeline/stages (18 modules, same order) + 34 engine units; merged with F-12, fact helpers deduplicated; unit 5905, evals 1435, golden, 14 contracts (26f586f)"),
     ("F-14a", 1, "Retire measured-negative and owner-retired code (slot loop, fact chain, word vectors, decider gate, kuzu, opensearch stub, full/compose read modes, v1 read headers)",
      ["G-22"], ["F-11"], "move", "Golden unchanged; retired flags raise ConfigError", "Done", "6 items retired (slot loop, read-time fact chain, word-vector leg, decider gate, kuzu, opensearch stub) with RETIRED.md; full/compose modes and v1 headers kept (default-on / not decided); unit 5860, evals 1435, golden, 14 contracts (bbf0280)"),
