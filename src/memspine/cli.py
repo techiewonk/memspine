@@ -23,6 +23,8 @@ prompts_app = typer.Typer(help="Inspect the prompt pack and its overrides (D-43)
 app.add_typer(prompts_app, name="prompts")
 audit_app = typer.Typer(help="Audit the event log (E1: blast-radius taint tracing).")
 app.add_typer(audit_app, name="audit")
+tap_app = typer.Typer(help="Wiretap traces (WT-01): per-request pipeline gaps, debugging only.")
+app.add_typer(tap_app, name="tap")
 
 TemplateOpt = Annotated[str | None, typer.Option("--template", "-t", help="Shipped template name")]
 FileOpt = Annotated[Path | None, typer.Option("--config", "-c", help="User config YAML path")]
@@ -296,6 +298,26 @@ def mcp_cmd(
     except ConfigError as exc:
         typer.secho(f"invalid: {exc}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc
+
+
+@tap_app.command("report")
+def tap_report_cmd(
+    path: Annotated[Path, typer.Argument(help="Tap directory, tap-*.jsonl file or tap.sqlite")],
+    request: Annotated[str | None, typer.Option("--request", help="Only this request id")] = None,
+    html: Annotated[Path | None, typer.Option("--html", help="Write an HTML report")] = None,
+    since: Annotated[str | None, typer.Option("--since", help="2h | 1d | ISO date")] = None,
+) -> None:
+    """List the gaps and issues of each traced request."""
+    from memspine.observability import tap_report
+
+    argv = [str(path)]
+    if request:
+        argv += ["--request", request]
+    if html:
+        argv += ["--html", str(html)]
+    if since:
+        argv += ["--since", since]
+    tap_report.main(argv)
 
 
 if __name__ == "__main__":  # pragma: no cover

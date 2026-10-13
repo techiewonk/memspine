@@ -128,6 +128,19 @@
   "memories": {},
   "namespaces": {},
   "observability": {
+   "tap": {
+    "content": false,
+    "dir": "runs/_tap",
+    "enabled": false,
+    "kinds": [
+     "read",
+     "write",
+     "job"
+    ],
+    "max_content_chars": 200,
+    "sample_rate": 1.0,
+    "sink": "jsonl"
+   },
    "write_timers": false
   },
   "plugins": [],
@@ -444,7 +457,7 @@
    "window_topic_k": 2.0
   }
  },
- "json_schema_sha256": "6855d1ff74396f00ace27498ad02f539d87c0fd6b59c32d17b538cdfa7207dd9",
+ "json_schema_sha256": "61a3a3a85c4a240a6613e89ec06230a23d7bcb616df60830a3bd4dad0e08fee3",
  "preset:chat_roles": {
   "audit": {
    "actions": false,
@@ -595,6 +608,19 @@
   },
   "namespaces": {},
   "observability": {
+   "tap": {
+    "content": false,
+    "dir": "runs/_tap",
+    "enabled": false,
+    "kinds": [
+     "read",
+     "write",
+     "job"
+    ],
+    "max_content_chars": 200,
+    "sample_rate": 1.0,
+    "sink": "jsonl"
+   },
    "write_timers": false
   },
   "plugins": [],
@@ -1067,6 +1093,19 @@
   },
   "namespaces": {},
   "observability": {
+   "tap": {
+    "content": false,
+    "dir": "runs/_tap",
+    "enabled": false,
+    "kinds": [
+     "read",
+     "write",
+     "job"
+    ],
+    "max_content_chars": 200,
+    "sample_rate": 1.0,
+    "sink": "jsonl"
+   },
    "write_timers": false
   },
   "plugins": [],
@@ -1539,6 +1578,19 @@
   },
   "namespaces": {},
   "observability": {
+   "tap": {
+    "content": false,
+    "dir": "runs/_tap",
+    "enabled": false,
+    "kinds": [
+     "read",
+     "write",
+     "job"
+    ],
+    "max_content_chars": 200,
+    "sample_rate": 1.0,
+    "sink": "jsonl"
+   },
    "write_timers": false
   },
   "plugins": [],
@@ -2011,6 +2063,19 @@
   },
   "namespaces": {},
   "observability": {
+   "tap": {
+    "content": false,
+    "dir": "runs/_tap",
+    "enabled": false,
+    "kinds": [
+     "read",
+     "write",
+     "job"
+    ],
+    "max_content_chars": 200,
+    "sample_rate": 1.0,
+    "sink": "jsonl"
+   },
    "write_timers": false
   },
   "plugins": [],
@@ -2483,6 +2548,19 @@
   },
   "namespaces": {},
   "observability": {
+   "tap": {
+    "content": false,
+    "dir": "runs/_tap",
+    "enabled": false,
+    "kinds": [
+     "read",
+     "write",
+     "job"
+    ],
+    "max_content_chars": 200,
+    "sample_rate": 1.0,
+    "sink": "jsonl"
+   },
    "write_timers": false
   },
   "plugins": [],
@@ -2955,6 +3033,19 @@
   },
   "namespaces": {},
   "observability": {
+   "tap": {
+    "content": false,
+    "dir": "runs/_tap",
+    "enabled": false,
+    "kinds": [
+     "read",
+     "write",
+     "job"
+    ],
+    "max_content_chars": 200,
+    "sample_rate": 1.0,
+    "sink": "jsonl"
+   },
    "write_timers": false
   },
   "plugins": [],
@@ -3427,6 +3518,19 @@
   },
   "namespaces": {},
   "observability": {
+   "tap": {
+    "content": false,
+    "dir": "runs/_tap",
+    "enabled": false,
+    "kinds": [
+     "read",
+     "write",
+     "job"
+    ],
+    "max_content_chars": 200,
+    "sample_rate": 1.0,
+    "sink": "jsonl"
+   },
    "write_timers": false
   },
   "plugins": [],
@@ -3899,6 +4003,19 @@
   },
   "namespaces": {},
   "observability": {
+   "tap": {
+    "content": false,
+    "dir": "runs/_tap",
+    "enabled": false,
+    "kinds": [
+     "read",
+     "write",
+     "job"
+    ],
+    "max_content_chars": 200,
+    "sample_rate": 1.0,
+    "sink": "jsonl"
+   },
    "write_timers": false
   },
   "plugins": [],
@@ -4371,6 +4488,19 @@
   },
   "namespaces": {},
   "observability": {
+   "tap": {
+    "content": false,
+    "dir": "runs/_tap",
+    "enabled": false,
+    "kinds": [
+     "read",
+     "write",
+     "job"
+    ],
+    "max_content_chars": 200,
+    "sample_rate": 1.0,
+    "sink": "jsonl"
+   },
    "write_timers": false
   },
   "plugins": [],
@@ -4850,6 +4980,19 @@
   },
   "namespaces": {},
   "observability": {
+   "tap": {
+    "content": false,
+    "dir": "runs/_tap",
+    "enabled": false,
+    "kinds": [
+     "read",
+     "write",
+     "job"
+    ],
+    "max_content_chars": 200,
+    "sample_rate": 1.0,
+    "sink": "jsonl"
+   },
    "write_timers": false
   },
   "plugins": [],
@@ -5329,6 +5472,19 @@
   },
   "namespaces": {},
   "observability": {
+   "tap": {
+    "content": false,
+    "dir": "runs/_tap",
+    "enabled": false,
+    "kinds": [
+     "read",
+     "write",
+     "job"
+    ],
+    "max_content_chars": 200,
+    "sample_rate": 1.0,
+    "sink": "jsonl"
+   },
    "write_timers": false
   },
   "plugins": [],
@@ -5797,6 +5953,19 @@
   },
   "namespaces": {},
   "observability": {
+   "tap": {
+    "content": false,
+    "dir": "runs/_tap",
+    "enabled": false,
+    "kinds": [
+     "read",
+     "write",
+     "job"
+    ],
+    "max_content_chars": 200,
+    "sample_rate": 1.0,
+    "sink": "jsonl"
+   },
    "write_timers": false
   },
   "plugins": [],
@@ -6267,6 +6436,19 @@
   },
   "namespaces": {},
   "observability": {
+   "tap": {
+    "content": false,
+    "dir": "runs/_tap",
+    "enabled": false,
+    "kinds": [
+     "read",
+     "write",
+     "job"
+    ],
+    "max_content_chars": 200,
+    "sample_rate": 1.0,
+    "sink": "jsonl"
+   },
    "write_timers": false
   },
   "plugins": [],
@@ -6743,6 +6925,19 @@
   },
   "namespaces": {},
   "observability": {
+   "tap": {
+    "content": false,
+    "dir": "runs/_tap",
+    "enabled": false,
+    "kinds": [
+     "read",
+     "write",
+     "job"
+    ],
+    "max_content_chars": 200,
+    "sample_rate": 1.0,
+    "sink": "jsonl"
+   },
    "write_timers": false
   },
   "plugins": [],
@@ -7223,6 +7418,19 @@
   },
   "namespaces": {},
   "observability": {
+   "tap": {
+    "content": false,
+    "dir": "runs/_tap",
+    "enabled": false,
+    "kinds": [
+     "read",
+     "write",
+     "job"
+    ],
+    "max_content_chars": 200,
+    "sample_rate": 1.0,
+    "sink": "jsonl"
+   },
    "write_timers": false
   },
   "plugins": [],
@@ -7695,6 +7903,19 @@
   },
   "namespaces": {},
   "observability": {
+   "tap": {
+    "content": false,
+    "dir": "runs/_tap",
+    "enabled": false,
+    "kinds": [
+     "read",
+     "write",
+     "job"
+    ],
+    "max_content_chars": 200,
+    "sample_rate": 1.0,
+    "sink": "jsonl"
+   },
    "write_timers": false
   },
   "plugins": [],
@@ -8168,6 +8389,19 @@
   },
   "namespaces": {},
   "observability": {
+   "tap": {
+    "content": false,
+    "dir": "runs/_tap",
+    "enabled": false,
+    "kinds": [
+     "read",
+     "write",
+     "job"
+    ],
+    "max_content_chars": 200,
+    "sample_rate": 1.0,
+    "sink": "jsonl"
+   },
    "write_timers": false
   },
   "plugins": [],
@@ -8642,6 +8876,19 @@
   },
   "namespaces": {},
   "observability": {
+   "tap": {
+    "content": false,
+    "dir": "runs/_tap",
+    "enabled": false,
+    "kinds": [
+     "read",
+     "write",
+     "job"
+    ],
+    "max_content_chars": 200,
+    "sample_rate": 1.0,
+    "sink": "jsonl"
+   },
    "write_timers": false
   },
   "plugins": [],
