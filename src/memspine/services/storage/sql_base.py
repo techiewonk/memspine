@@ -18,7 +18,7 @@ compression (D-45/D-32), and M7 erasure all live here unchanged.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from datetime import UTC, datetime
 from typing import Any, Protocol
 
@@ -554,6 +554,42 @@ class SqlStorage(ServiceAdapter):
                 )
                 redacted.append(int(mapping["seq"]))
         return redacted
+
+    async def scrub_marker_payloads(
+        self, marker: str, scrub: Callable[[dict[str, Any]], bool]
+    ) -> list[int]:
+        """FU-CLOSE: the same log-redaction pass as :meth:`redact_event_payloads`, for MARKER events
+        named ``marker`` (e.g. the ``profile_card_v2`` card, which carries entry text).
+
+        ``scrub`` mutates a decoded payload in place and returns True when it changed anything;
+        a changed payload gets the ``redacted`` flag and is rewritten, keeping seq and kind.
+        Returns the rewritten seqs."""
+        if self._mode is EventLogMode.EPHEMERAL:
+            return []
+        rewritten: list[int] = []
+        async with self._client.engine.begin() as conn:
+            rows = (await conn.execute(select(memory_events))).all()
+            for row in rows:
+                mapping = row._mapping
+                raw: bytes = mapping["payload"]
+                if mapping["compressed"]:
+                    raw = self._dctx.decompress(raw)
+                payload = orjson.loads(raw)
+                if not isinstance(payload, dict) or payload.get("marker") != marker:
+                    continue
+                if not scrub(payload):
+                    continue
+                payload["redacted"] = True
+                encoded = canonical_payload(payload)
+                if mapping["compressed"]:
+                    encoded = self._cctx.compress(encoded)
+                await conn.execute(
+                    memory_events.update()
+                    .where(memory_events.c.seq == mapping["seq"])
+                    .values(payload=encoded)
+                )
+                rewritten.append(int(mapping["seq"]))
+        return rewritten
 
     def _row_to_record(self, row: Any) -> MemoryRecord:
         return MemoryRecord.model_validate(

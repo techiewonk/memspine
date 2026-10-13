@@ -3236,6 +3236,18 @@ class Engine:
 
         await retract_after_forget(self, namespace, record_ids)
 
+    async def _scrub_profile_cards(
+        self, namespace: str, record_ids: Sequence[str], hard: bool
+    ) -> None:
+        """FU-CLOSE (``offline.profile_card_v2``): a forgotten turn leaves the current profile
+        card now (a new card marker), and on a hard forget its entry text is redacted from the
+        older card markers in the log. Lock held by the forget flow."""
+        if not self._config().offline.profile_card_v2:
+            return
+        from memspine.derive.pipeline.stages.profile_erasure import scrub_profile_cards
+
+        await scrub_profile_cards(self, namespace, record_ids, hard)
+
     async def _purge_caches(self, texts: Sequence[str]) -> None:
         """#43: drop the embedding and extraction cache entries of erased texts, and
         the read-side caches keyed by text (N60 sentence vectors, N30 date spans)."""
