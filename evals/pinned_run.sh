@@ -43,7 +43,7 @@ fi
 # Lock hash: read from the commit itself (no worktree needed, so a dry run touches nothing).
 lock_hash="$({ printf 'uv.lock\n'; git -C "$repo" show "$rev:uv.lock"
                printf '\npyproject.toml\n'; git -C "$repo" show "$rev:pyproject.toml"
-               printf '\nextras=%s\npython=%s\n' "$extras" "$pyver"; } | sha256sum | cut -c1-16)"
+               printf '\nextras=%s\npython=%s\ntorch=%s\n' "$extras" "$pyver" "$torch_spec"; } | sha256sum | cut -c1-16)"
 venv="$venv_root/$lock_hash"
 if [ -n "${PINNED_SHARED_VENV:-}" ]; then
   venv="$repo/.venv"; action="shared"
