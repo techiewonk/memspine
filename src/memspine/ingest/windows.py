@@ -268,12 +268,44 @@ def _envelope_stages(eng: Any, config: MemspineConfig) -> tuple[Any, ...]:
         stages.append(_integration_stage(eng, config))
     if config.write.grounding_v2:
         stages.append(build_grounding_stage(eng, config))
+    if config.write.coverage_v2:  # W2-15, order 250
+        stages.append(_coverage_stage(eng, config, tuple(stages)))
     pre = _prepass(eng, config)
     if pre is not None:  # W2-13: cross-check only, order 500
         stages.append(prepass_stage(pre))
     if config.write.resolver_v2:  # W2-09: online entity resolution (order 300)
         stages.append(_resolve_stage(eng, config))
     return tuple(stages)
+
+
+def _coverage_stage(eng: Any, config: MemspineConfig, earlier: tuple[Any, ...]) -> Any:
+    """W2-15: coverage check + one targeted re-extraction on the router-bound window LLM,
+    inside a W2-12 cost scope (stage ``coverage_reextract``) so the ledger counts the call."""
+    from contextlib import nullcontext
+
+    from memspine.derive.coverage_stage import COVERAGE_COST_STAGE, make_coverage_stage
+    from memspine.economy import ledger as costs
+
+    w = config.write
+
+    def scope(namespace: str) -> Any:
+        if costs.installed() is None:
+            return nullcontext()
+        return costs.cost_scope(namespace=namespace, layer="facts", stage=COVERAGE_COST_STAGE)
+
+    stage = make_coverage_stage(
+        eng._llm.for_role("window_extract"),
+        earlier=earlier,
+        threshold=w.coverage_threshold,
+        max_targets=w.coverage_max_targets,
+        context_lines=w.coverage_context_lines,
+        known=_known_from_store(eng),
+        known_cap=w.prompt_known_cap,
+        scope=scope,
+        partial=getattr(eng._prompts, "partial", None),
+    )
+    eng._coverage_stage = stage  # per-window numbers for screens (``stage.stats``)
+    return stage.stage()
 
 
 def _integration_stage(eng: Any, config: MemspineConfig) -> Any:
