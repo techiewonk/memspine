@@ -362,3 +362,14 @@ Order of value: S60, S61, S62, S63, S64, S65, S66. If a profile passes, drop one
 `coverage_reextract_calls_per_window` (at most 1) now sees the coverage re-extraction calls, which the call-1 target could not.
 
 **S23 decision (coordinator, 2026-10-13):** `read.external_v2` is not screened with live network egress (Wikipedia/HTTP). It stays skipped; screen it later only with an offline `cache` provider seeded from a licensed snapshot, or when the owner explicitly approves egress.
+
+## Time-saving reorder, 2026-10-13 22:45
+
+Bundles first, single flags only to explain a bundle result. Queue restarted (S33 lost ~10 min):
+1. B5 read/offline singles still worth a look: S33, S34, S35, S38, S40, S41, S42.
+2. B8 profile bundles: S60 read-v2-core, S61 read-v2-graph, S62 write-v2, S63 read-v2-safe, S64 offline-v2, S65 trust-v2, S66 run-v2.
+3. B7 re-armed screens: S52, S53, S55, S56, S57, S54.
+4. B9: S67 (rerank_v2 search pool).
+Then B6 focus (S51 family_fusion, 437 q), and a reference-vs-reference noise run.
+
+**Deferred (run only to bisect a bundle that regresses):** S36 tiers, S37 router, S39 edge compiler alone (covered by S30), S47 decay (ranking-neutral by design), and the write singles S43–S45, S48–S50 (covered by the write-v2 bundle S62). S46 stays skipped. Saves about 4–5 GPU hours.
