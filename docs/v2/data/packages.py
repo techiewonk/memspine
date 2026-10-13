@@ -230,7 +230,7 @@ WP = [
     ("W2-10", 2, "Integration ladder and cardinality registry", ["W-21", "W-22", "M-12"], ["W2-09", "F-01", "LIB-02"], "behaviour",
      "MAB-CR non-inferior; A-B-A tests; behavioural INV-ORDER-SWAP passes", "In progress", "Parallel build on the W2-06c envelope stage hook list (derive/envelope_stages.py); merged in order 14,08,09,10,13"),
     ("W2-11", 2, "Asset describer (ingest and read triggers, off by default)", ["W-23"], ["W2-01"], "behaviour", "Off by default; on-arm screen", "Needs measurement", "write.asset_describer off|ingest|on_read; metadata fallback; vision path untested vs real model"),
-    ("W2-12", 2, "Cost ledger and write targets", ["W-26", "P-14", "P-22"], ["EX-1a", "LIB-27"], "infra", "Targets as regression tests", "Needs measurement", "economy.ledger_v2 / economy.budget flag-off; targets as regression tests; sleep budget folded into run_sleep_stage at merge (covers sleep_v2); ledger in-process only"),
+    ("W2-12", 2, "Cost ledger and write targets", ["W-26", "P-14", "P-22"], ["EX-1a", "LIB-27"], "infra", "Targets as regression tests", "Needs measurement", "economy.ledger_v2/budget + FU-SLEEP: per-namespace sleep pool, economy.ledger_persist (sibling sqlite, hashed ns)"),
     ("W2-13", 2, "Small local pre-pass (GLiNER2) as hints", ["P-23"], ["W2-10"], "behaviour", "Calls down, grounded facts not down", "In progress", "Parallel build on the W2-06c envelope stage hook list (derive/envelope_stages.py); merged in order 14,08,09,10,13"),
     ("MD-03", 2, "Second GPU (AMD Radeon iGPU via DirectML): embedder and small reranker offload, measured", ["P-19", "P-17"], ["LIB-42"], "behaviour",
      "Identical outputs (cosine >= 0.999, same rank order) and a measured speed gain, else not adopted", "Dropped", "Measured negative (d0b65ac): AMD iGPU DirectML 5-8x slower than contended CPU, driver reset on bge-small; models stay on RTX 5080/CPU"),
@@ -271,7 +271,7 @@ WP = [
      "ROADMAP Phase 3 exit gate", "Not started", ""),
     # ---- Phase 4: offline memory (every derived layer off by default) ----
     ("O4-01a", 4, "Non-blocking sleep handles, triggers ((N AND M) OR context C, gap K), namespace jobs, leases, watermarks, daily maintenance", ["O-01", "O-02", "O-03"], ["EX-1a", "F-15"], "behaviour",
-     "Restart and lock fault tests; off by default", "Needs measurement", "offline.sleep_v2 flag-off; handle/leases/watermarks/triggers; M=idle minutes per offline.md; stages still engine-wide; PG leases per-process only"),
+     "Restart and lock fault tests; off by default", "Needs measurement", "offline.sleep_v2 + FU-SLEEP: offline.sleep_scoped (namespace-scoped stages), Postgres leases (tested on Docker PG)"),
     ("O4-01b", 4, "Background budget and freshness (covers_seq; read-side freshness)", ["O-05", "O-06"], ["O4-01a", "F-16a", "LIB-26"], "behaviour",
      "Deferred work counted, never dropped", "Needs measurement", "offline.budget_v2 (defer, never drop) + covers_seq + read.freshness_v2/fallback"),
     ("O4-02", 4, "Call 2 at session close: summary, stitched episode, profile ops (L2, opt-in)", ["O-07", "O-08", "O-09", "M-14"],
