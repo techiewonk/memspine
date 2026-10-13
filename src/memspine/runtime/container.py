@@ -463,7 +463,68 @@ async def build_cache(config: MemspineConfig, wiring: Wiring) -> KVCache:
 
 def make_embedder(config: MemspineConfig) -> EmbeddingService:
     # MOD-02: the typed ``embedders`` registry (memspine.models.registry) holds the factories.
-    return cast("EmbeddingService", build_embedder(config.embedding))
+    return cast("EmbeddingService", build_embedder(resolved_embedding(config)))
+
+
+def resolved_embedding(config: MemspineConfig) -> Any:
+    """MD-02: ``config.embedding`` with ``embedding.profile`` applied (None: unchanged)."""
+    cfg = config.embedding
+    if cfg.profile is None:
+        return cfg
+    from memspine.models.encoders.embedding.profiles import resolve_profile
+    from memspine.observability import tap
+
+    profile = resolve_profile(cfg.profile, device=cfg.device)
+    tap.event(
+        "embed.profile",
+        profile=profile.name,
+        model=profile.model_id,
+        dim=profile.dim,
+        dtype=profile.dtype,
+        version_hash=profile.version_hash,
+    )
+    return profile.apply(cfg)
+
+
+def _pin_embedding_profile(config: MemspineConfig, embedder: EmbeddingService) -> Any:
+    """MD-02: pin the store's embedding profile at creation; refuse a different one on open."""
+    cfg = config.embedding
+    if not cfg.pin_profile:
+        return None
+    from memspine.models.encoders.embedding.profiles import (
+        EmbeddingProfile,
+        EmbeddingProfileMismatch,
+        check_or_pin,
+        resolve_profile,
+    )
+    from memspine.observability import tap
+
+    if cfg.migrate_profile and not cfg.versioned_spaces:
+        raise ConfigError(
+            "embedding.migrate_profile needs embedding.versioned_spaces=true: the new profile's "
+            "vectors go to a new space and the F-03 re-embed moves the old records"
+        )
+    if cfg.profile is not None:
+        profile = resolve_profile(cfg.profile, device=cfg.device)
+    else:
+        eff = resolved_embedding(config)
+        profile = EmbeddingProfile(
+            name="config",
+            provider=eff.provider,
+            model_id=eff.model,
+            dim=embedder.dim,
+            dtype=eff.dtype or "float32",
+            query_instruction=eff.query_instruction,
+        )
+    path = None if client_is_memory(config) else f"{derived_base(config)}.embedding-profile.json"
+    try:
+        status = check_or_pin(path, profile, migrate=cfg.migrate_profile)
+    except EmbeddingProfileMismatch:
+        tap.event("embed.profile_mismatch", profile=profile.name, version_hash=profile.version_hash)
+        raise
+    if status == "migrated":
+        tap.event("embed.profile_mismatch", profile=profile.name, migrated=True)
+    return profile
 
 
 def provide_embedder(
@@ -476,6 +537,7 @@ def provide_embedder(
 async def build_vector_store(
     config: MemspineConfig, embedder: EmbeddingService, wiring: Wiring
 ) -> VectorStore:
+    pinned = _pin_embedding_profile(config, embedder)  # MD-02 (flag off: returns at once)
     quantization, matryoshka_dim = rescore_settings(config, embedder)
     wiring.rescore_active = quantization is not None or matryoshka_dim is not None
     backend = config.vector.backend
@@ -530,6 +592,7 @@ async def build_vector_store(
             exclusive=exclusive,
             namespace_index=config.vector.namespace_index,
             table_suffix=suffix,
+            profile_meta=None if pinned is None else pinned.to_dict(),
         )
 
     if config.embedding.versioned_spaces:
@@ -561,7 +624,7 @@ def _build_versioned_spaces(
     current = VectorSpace(
         model_id=embedder.embedder_id,
         dim=embedder.dim,
-        query_instruction=config.embedding.query_instruction,
+        query_instruction=resolved_embedding(config).query_instruction,
     )
 
     def factory(space: VectorSpace) -> Any:

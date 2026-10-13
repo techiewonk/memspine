@@ -53,6 +53,19 @@ class EmbeddingConfig(BaseModel):
     #: to the new space, reads query only a namespace's active space, and ``reembed`` builds the new
     #: space in batches then switches. Off = one table per embedder, as before.
     versioned_spaces: bool = False
+    #: MD-02 (P-17 C, M-23 B): a named embedding profile (``gpu`` = Qwen3-Embedding-0.6B bf16 on
+    #: CUDA with the retrieval instruction; ``cpu_multilingual`` = a small multilingual ONNX
+    #: model; more via ``register_profile``). It fills provider, model, dim and query instruction
+    #: over the fields above. None (default) = the fields above are used as written.
+    profile: str | None = None
+    #: MD-02: pin the resolved profile (model, dim, dtype, instruction, normalisation, version
+    #: hash) beside the store at creation and refuse to open the store with a different one.
+    #: Off (default) = nothing is written or checked. In-memory stores pin nothing.
+    pin_profile: bool = False
+    #: MD-02: accept a profile change on open: the pin is replaced and the old hash kept as
+    #: ``previous``. Needs ``versioned_spaces`` (new vectors go to a new space; run the F-03
+    #: re-embed to move the old records).
+    migrate_profile: bool = False
 
 
 class LLMRoleConfig(BaseModel):
