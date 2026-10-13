@@ -4,7 +4,7 @@ The write path extracts facts asynchronously after the receipt (outbox window st
 wants its own just-written turns reflected calls the barrier first: it waits until the namespace's
 window capability covers everything enqueued so far (``ready``), or gives up at the timeout and
 reports ``partial`` so the read goes ahead on what exists. It never blocks past the timeout and
-never raises into the read. The readiness call is injected (``ingest.windows.readiness``, over the F-04
+never raises into the read. The readiness call is injected (``ingest.windows.readiness``,
 ``InlineRunner.wait``), so this module imports nothing from ``ingest`` or ``runtime``.
 """
 

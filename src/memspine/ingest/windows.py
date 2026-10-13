@@ -18,11 +18,14 @@ from memspine.derive.envelope_compiler import EnvelopeCompiler
 from memspine.derive.failure_ledger import FailureLedger
 from memspine.derive.grounding_stage import build_grounding_stage
 from memspine.derive.items import ItemValidator, RepairAsk
+from memspine.derive.known_sources import prepass_known, resolver_known
 from memspine.derive.online_extractor import OnlineExtractor
 from memspine.derive.pipeline.stages.close import session_close
 from memspine.derive.pipeline.stages.context import SessionClosed
 from memspine.derive.pipeline.stages.index import SessionIndex
+from memspine.derive.prepass import Prepass, prepass_stage
 from memspine.derive.prompt_context import KnownEntity, KnownSource, PromptContextBuilder
+from memspine.derive.resolve_stage import ResolveSettings, build_resolve_stage
 from memspine.derive.segmenter import SegmentationSettings
 from memspine.derive.write import write_derived
 from memspine.exceptions import (
@@ -162,10 +165,14 @@ def _build_windows(eng: Any, config: MemspineConfig) -> WindowPipeline | None:
             raise ConfigError(
                 "write.prompt_v2 needs write.envelope_v2 and a window_extract mode with facts"
             )
+        pre = _prepass(eng, config)  # W2-13 hints -> KNOWN
+        resolve = getattr(eng, "_entity_resolve_stage", None)  # W2-09 registry -> KNOWN
         context_builder = PromptContextBuilder(
             _known_from_store(eng),
             cap=config.write.prompt_known_cap,
             context_turns=config.write.prompt_context_turns,
+            prepass=prepass_known(pre) if pre is not None else None,
+            resolver=resolver_known(resolve) if config.write.resolver_v2 and resolve else None,
         )
     return WindowPipeline(
         settings=WindowSettings(
@@ -199,6 +206,7 @@ def _build_windows(eng: Any, config: MemspineConfig) -> WindowPipeline | None:
         role_policy=config.write.role_policy_v2,
         envelope=envelope,
         context_builder=context_builder,
+        prepass=_prepass(eng, config),
     )
 
 
@@ -275,6 +283,11 @@ def _envelope_stages(eng: Any, config: MemspineConfig) -> tuple[Any, ...]:
         stages.append(_integration_stage(eng, config))
     if config.write.grounding_v2:
         stages.append(build_grounding_stage(eng, config))
+    pre = _prepass(eng, config)
+    if pre is not None:  # W2-13: cross-check only, order 500
+        stages.append(prepass_stage(pre))
+    if config.write.resolver_v2:  # W2-09: online entity resolution (order 300)
+        stages.append(_resolve_stage(eng, config))
     return tuple(stages)
 
 
@@ -290,6 +303,34 @@ def _integration_stage(eng: Any, config: MemspineConfig) -> Any:
         cardinality=config.write.integration_cardinality,
         default=DefaultVerdict(defer_without_hints=not config.write.integration_decide_unhinted),
     )
+
+
+def _prepass(eng: Any, config: MemspineConfig) -> Prepass | None:
+    """W2-13 (``write.prepass``): ONE pre-pass per engine, shared by the skip and the stage."""
+    if config.write.prepass == "off":
+        return None
+    shared: Prepass | None = getattr(eng, "_window_prepass", None)
+    if shared is None:
+        shared = Prepass(config.write.prepass)
+        eng._window_prepass = shared
+    return shared
+
+
+def _resolve_stage(eng: Any, config: MemspineConfig) -> Any:
+    """W2-09 (``write.resolver_v2``): the resolve stage; event log and embedder bound lazily."""
+    w = config.write
+    stage = build_resolve_stage(
+        ResolveSettings(
+            high=w.resolve_high,
+            grey=w.resolve_grey,
+            max_cache=w.resolve_cache,
+            scoped=bool(config.isolation.scope_keys_v2),
+        ),
+        embed=eng._embedder.embed if eng._embedder is not None else None,
+        storage=lambda: eng._storage,
+    )
+    eng.__dict__["_entity_resolve_stage"] = stage
+    return stage.as_stage()
 
 
 def _segmentation(config: MemspineConfig) -> SegmentationSettings | None:
@@ -334,9 +375,9 @@ def online_extractor(eng: Any) -> OnlineExtractor:
 
 
 async def wait_for_pending(
-    eng: Any, namespace: str = "default", timeout_s: float = 0.0  # noqa: ASYNC109
+    eng: Any, namespace: str = "default", timeout_s: float = 0.0
 ) -> BarrierResult:
-    """W2-06c: ``read.PendingBarrier`` over the engine's outbox (``off`` when ``timeout_s`` <= 0)."""
+    """W2-06c: ``read.PendingBarrier`` over the engine outbox (``off`` when ``timeout_s`` <= 0)."""
     return await PendingBarrier(lambda ns, caps, t: readiness(eng, ns, caps, t)).wait(
         validate_namespace(namespace), timeout_s
     )

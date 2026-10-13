@@ -1,9 +1,9 @@
 """KNOWN sources for the window prompt (W2-06c): the W2-13 pre-pass and the W2-09 resolver.
 
 Both are :data:`~memspine.derive.prompt_context.KnownSource` callables, ``(namespace, new text) ->
-entities``, plugged into ``PromptContextBuilder(prepass=..., resolver=...)``. The builder merges them
-with the store source, deduplicates on the normalised name, puts entities named in the NEW lines first
-and applies the cap, so these only report what they know.
+entities``, plugged into ``PromptContextBuilder(prepass=..., resolver=...)``. The builder merges
+them with the store source, deduplicates on the normalised name, puts entities named in the NEW
+lines first and applies the cap, so these only report what they know.
 
   * ``prepass_known``  the pre-pass hints over the NEW lines: every entity / alias span becomes a
                        ``KnownEntity`` (the surface as written). No model call (rules; GLiNER2 when

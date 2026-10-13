@@ -187,6 +187,18 @@ class WriteConfig(BaseModel):
     #: model calls. ``False`` (default): the stats are unchanged and that start fails (D-10).
     online_extractor_v2: bool = False
 
+    #: W2-13 (P-23; needs ``window_extract``). A small local pre-pass over each window's raw turns,
+    #: as hints, before the extraction call. ``rules``: a regex baseline (capitalised names, dates,
+    #: numbers, aliases learned from deposited envelopes). ``gliner``: the rules plus GLiNER2
+    #: entities (local CPU, ``[ner]``; the rules alone when gliner2 is absent). Three uses: (1) hint
+    #: lines for the KNOWN / NEW prompt context (``derive.prepass.prepass_hints``), (2) a window whose
+    #: every turn is greeting / thanks / acknowledgement filler and in which nothing was seen skips
+    #: the extraction call (not when the ``episode`` section is on; counted as
+    #: ``windows_prepass_skipped``), (3) with ``envelope_v2`` an order-500 stage flags envelopes whose
+    #: proper-name entity the pre-pass never saw (``extras.prepass_unseen``); it never adds or drops
+    #: a fact. Tap ``write.prepass.*``. ``off`` (default): unchanged.
+    prepass: Literal["off", "rules", "gliner"] = "off"
+
     #: F-16a (M-09, G-08, POL-2): the lineage table and the single derived-write door. ``True``:
     #: every derived record written through ``derive/write.py`` gets one lineage edge per parent
     #: (``support`` unless the site names a role), its trust capped at the least-trusted parent, a
@@ -273,6 +285,29 @@ class WriteConfig(BaseModel):
     #: O4-11: principals allowed to give operator feedback under ``feedback_v2`` (never a
     #: confirmation).
     feedback_operators: list[str] = Field(default_factory=list)
+
+    #: W2-09 (LIB-04; W-19, M-15; needs ``write.envelope_v2``): online entity resolution, an envelope
+    #: stage (order 300). ``True``: the subject and object of every compiled assertion are resolved
+    #: against the entities of their own scope (tenant + owner), with no model call: exact name, alias,
+    #: nickname and spelling rules first, then name-embedding similarity. At or above
+    #: ``resolve_high`` the canonical entity id is attached; between ``resolve_grey`` and
+    #: ``resolve_high`` (or on a doubtful rule verdict) a fresh entity is created, marked
+    #: ``pending_merge`` with its candidates, and NOT merged (the sleep reconciliation decides);
+    #: below that a new entity is created. Homonyms (two people called Noor in different places) stay
+    #: apart. Entities, merges and splits are logged as ``memory.marker`` events (``entity.*``), so a
+    #: replay through migrate rebuilds them and a merge is undone by one SPLIT. The resolved ids are
+    #: on ``subject.entity_id`` / ``object.entity_id`` and ``extras["resolve"]`` for W2-10. Keys are
+    #: tenant + owner with ``isolation.scope_keys_v2``, the namespace otherwise. Taps
+    #: ``write.resolve.*``. ``False`` (default): no resolution, mentions keep ``entity_id=None``.
+    resolver_v2: bool = False
+    #: W2-09: embedding cosine at or above which a mention is the same entity (calibrated on the
+    #: synthetic homonym/alias set in ``derive/resolve_calibration.py``).
+    resolve_high: float = Field(default=0.9, gt=0.0, le=1.0)
+    #: W2-09: embedding cosine at or above which (and below ``resolve_high``) a mention is a
+    #: ``pending_merge`` candidate.
+    resolve_grey: float = Field(default=0.7, gt=0.0, le=1.0)
+    #: W2-09: bound of the name-vector cache and of the rule resolver's decision cache.
+    resolve_cache: int = Field(default=1024, ge=1)
 
 
 class IngestConfig(BaseModel):

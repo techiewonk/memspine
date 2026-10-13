@@ -14,7 +14,7 @@ names its parts so they are documented in one place:
                     W2-10 integration (400), W2-13 pre-pass hints (500). Stages run outside the
                     namespace lock; their drop / rewrite counters land in the window stats under
                     ``envelope_stages``.
-    4. deposit      valid envelopes go through the mined-fact door (``derive/write.py:write_derived``).
+    4. deposit      valid envelopes go through the mined-fact door (``write_derived``).
     5. barrier      a read may wait, bounded, for pending extraction (``read.PendingBarrier``).
 
 With no model configured there is no extraction: the L1/L2 stages do not run and no call is made.

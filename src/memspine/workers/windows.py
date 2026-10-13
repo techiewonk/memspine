@@ -647,10 +647,14 @@ class WindowPipeline:
         role_policy: bool = False,
         envelope: EnvelopeWrite | None = None,
         context_builder: PromptContextBuilder | None = None,
+        prepass: Any = None,
     ) -> None:
         #: W2-06b (``write.prompt_v2``): one call per window or batch, NEW / CONTEXT / KNOWN.
         self._ctx = context_builder
         self._role_policy = role_policy  # W2-03: write.role_policy_v2
+        #: W2-13 (``write.prepass``): a ``derive.prepass.Prepass``; windows with nothing extractable
+        #: skip the extraction call. None = off.
+        self._prepass = prepass
         self.settings = settings
         self.sections = tuple(sections)
         self._extract = extractor
@@ -1291,6 +1295,9 @@ class WindowPipeline:
                     "write.window.skipped", reason="no_live_turns", turns=len(job.window.turns)
                 )
                 continue
+            if await self._prepass_skips(records):
+                out[i] = self._skipped(job, records, ns)
+                continue
             live.append((i, job, records))
         if len(live) == 1:
             i, job, records = live[0]
@@ -1619,6 +1626,8 @@ class WindowPipeline:
         single-window case of a batch)."""
         window = job.window
         assert window is not None
+        if await self._prepass_skips(records):
+            return self._skipped(job, records, ns)
         member_ids = [r.record_id for r in records]
         window_id = fingerprint_payload({"ns": ns, "turns": member_ids})[:12]
         transcript, line_texts, people = build_transcript(records)
@@ -1674,6 +1683,38 @@ class WindowPipeline:
         if windows:
             out["windows"] = windows
         return out
+    async def _prepass_skips(self, records: list[MemoryRecord]) -> bool:
+        """W2-13: True when the pre-pass found nothing extractable (filler) in this window. Never
+        with the ``episode`` section on (the episode of a quiet window is still wanted)."""
+        pre = self._prepass
+        if pre is None or "episode" in self.sections:
+            return False
+        self._counts["prepass_checked"] += 1
+        hints = await pre.ahints(records)
+        if tap.enabled():
+            tap.event(
+                "write.prepass.window",
+                turns=len(records),
+                entities=len(hints.entities),
+                dates=len(hints.dates),
+                numbers=len(hints.numbers),
+                skipped=hints.nothing_extractable,
+            )
+        return bool(hints.nothing_extractable)
+
+    def _skipped(self, job: _Job, records: list[MemoryRecord], ns: str) -> _Prepared:
+        """A window whose extraction call was skipped: nothing to deposit, no call, no cache."""
+        self._counts["windows_prepass_skipped"] += 1
+        self._counts["turns_prepass_skipped"] += len(records)
+        member_ids = [r.record_id for r in records]
+        window_id = fingerprint_payload({"ns": ns, "turns": member_ids})[:12]
+        tap.event(
+            "write.window.skipped",
+            reason="prepass_nothing_extractable",
+            id=window_id,
+            turns=len(records),
+        )
+        return _Prepared(job, records, {}, [], window_id, 0, False)
 
     async def _compile_items(
         self,
@@ -2178,6 +2219,11 @@ class WindowPipeline:
                     "stages": [s.name for s in sorted(self._env.stages, key=lambda s: s.order)]
                 }
                 out["envelope_stages"] = dict(self._stage_notes)
+        if self._prepass is not None:  # W2-13: only present with write.prepass
+            out["prepass"] = self._prepass.mode
+            out["windows_prepass_checked"] = c["prepass_checked"]
+            out["windows_prepass_skipped"] = c["windows_prepass_skipped"]
+            out["turns_prepass_skipped"] = c["turns_prepass_skipped"]
         if c["windows_deferred_backpressure"]:  # RT-02: only present once backpressure bit
             out["deferred_backpressure"] = c["windows_deferred_backpressure"]
         if c["windows_deferred_budget"]:  # W2-12: only present once a budget paused work

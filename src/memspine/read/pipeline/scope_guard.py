@@ -160,7 +160,13 @@ def viewer_guarded[**P, R](
             finally:
                 CHECKED.reset(token)
             if viewer is not None and not native:
-                return _filter(verb, namespace, result, viewer)  # type: ignore[no-any-return]
+                result = _filter(verb, namespace, result, viewer)
+            # FU-ASSET: the one post-read point. Only the outermost verb gets here (nested verbs
+            # and system scopes returned above) and only after the viewer filter, so a hook sees
+            # exactly what the caller will see.
+            after = getattr(eng, "_after_read", None)
+            if after is not None:
+                result = await after(verb, namespace, result)
             return result
 
         return wrapper
