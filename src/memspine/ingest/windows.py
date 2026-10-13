@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import (
+    Callable,
     Sequence,
 )
 from datetime import datetime
@@ -34,6 +35,16 @@ from memspine.store.scope import validate_namespace
 from memspine.workers.windows import SECTION_MODES, PromptWindowExtractor, WindowPipeline
 
 _log = get_logger(__name__)
+
+#: F-04: builds the durable outbox runner for ``workers.outbox``. ``ingest`` sits below ``runtime``,
+#: so it cannot import the builder; ``memspine.runtime.container`` registers it when it is imported.
+OutboxFactory = Callable[[Any, MemspineConfig], Any]
+_outbox_factory: OutboxFactory | None = None
+
+
+def register_outbox_factory(factory: OutboxFactory | None) -> None:
+    global _outbox_factory
+    _outbox_factory = factory
 
 
 async def _reopen_session(eng: Any, storage: SqlStorage, ns: str, session: str | None) -> None:
@@ -114,6 +125,11 @@ def _build_windows(eng: Any, config: MemspineConfig) -> WindowPipeline | None:
             "call flush_windows() (sleep() and close_session() do)",
         )
         asynchronous = False
+    outbox = None
+    if config.workers.outbox:
+        if _outbox_factory is None:
+            raise ConfigError("workers.outbox=true but no outbox factory is registered")
+        outbox = _outbox_factory(eng, config)
     return WindowPipeline(
         settings=WindowSettings(
             max_turns=config.write.window_max_turns,
@@ -137,6 +153,7 @@ def _build_windows(eng: Any, config: MemspineConfig) -> WindowPipeline | None:
         split=config.write.window_split,
         asynchronous=asynchronous,
         on_session_closed=eng._window_session_closed,
+        outbox=outbox,
     )
 
 
@@ -158,6 +175,24 @@ async def flush_windows(
         return {}
     ns = validate_namespace(namespace) if namespace is not None else None
     return await eng._windows.flush(ns, final=final)
+
+
+async def readiness(
+    eng: Any,
+    namespace: str = "default",
+    capabilities: Sequence[str] = ("window",),
+    timeout: float = 0.0,  # noqa: ASYNC109 - a barrier budget, not an asyncio timeout
+) -> Any:
+    """F-04 read barrier (session 7): wait until ``capabilities`` of ``namespace`` cover every item
+    enqueued so far, or ``timeout`` seconds pass (``partial``, naming what is missing). ``None``
+    when ``workers.outbox`` is off (nothing is queued durably, so there is nothing to wait for).
+    The api layer binds this to ``Engine.readiness`` / receipt readiness (F-13a)."""
+    eng._require_started()
+    pipeline = eng._windows
+    outbox = getattr(pipeline, "_outbox", None)
+    if outbox is None:
+        return None
+    return await pipeline.readiness(validate_namespace(namespace), capabilities, timeout)
 
 
 async def close_session(
