@@ -4456,15 +4456,13 @@
     "G-06"
    ],
    "depends_on": [
-    "W2-03",
-    "F-16a",
-    "LIB-08",
-    "LIB-38"
+    "LIB-38",
+    "F-16a"
    ],
    "kind": "behaviour",
    "gate": "False-positive screen on the behavioural suite",
-   "status": "Not started",
-   "note": "Q8 chat-preset exemption",
+   "status": "In progress",
+   "note": "Swarm: trust wiring flag-off (agent running)",
    "layers": [
     "L0",
     "L1",
@@ -6501,14 +6499,13 @@
     "G-07"
    ],
    "depends_on": [
-    "F-16c",
-    "W2-04",
-    "LIB-21"
+    "LIB-21",
+    "F-16a"
    ],
    "kind": "behaviour",
    "gate": "Read cost of the bound; N1 tests",
-   "status": "Not started",
-   "note": "",
+   "status": "In progress",
+   "note": "Swarm: trust wiring flag-off (agent running)",
    "layers": [
     "scope"
    ],
@@ -6577,13 +6574,12 @@
     "G-11"
    ],
    "depends_on": [
-    "EX-1a",
     "LIB-18"
    ],
    "kind": "behaviour",
    "gate": "Remote-tier gate tests",
-   "status": "Not started",
-   "note": "",
+   "status": "In progress",
+   "note": "Swarm: trust wiring flag-off (agent running)",
    "layers": [
     "L0",
     "L1",
@@ -6619,13 +6615,13 @@
     "M-25"
    ],
    "depends_on": [
-    "F-16f",
-    "LIB-09"
+    "LIB-09",
+    "F-16a"
    ],
    "kind": "behaviour",
    "gate": "Forget probes on both profiles; every layer registered",
-   "status": "Not started",
-   "note": "",
+   "status": "In progress",
+   "note": "Swarm: trust wiring flag-off (agent running)",
    "layers": [
     "L0",
     "L1",
@@ -6665,13 +6661,12 @@
     "G-15"
    ],
    "depends_on": [
-    "EX-1a",
     "LIB-41"
    ],
    "kind": "infra",
    "gate": "Profile tests",
-   "status": "Not started",
-   "note": "",
+   "status": "In progress",
+   "note": "Swarm: trust wiring flag-off (agent running)",
    "layers": [
     "L0",
     "L1",
