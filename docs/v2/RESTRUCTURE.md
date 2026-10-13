@@ -87,5 +87,14 @@ Line ranges refer to `engine.py` at commit c83e93a; the method-to-module map (P0
 - Model calls never run inside a namespace lock (the 2026-10-12 hang).
 - The eval adapter must call the read barrier after F-04, or reads race derivation.
 
+## 5. Moved engine code vs library modules (2026-10-13)
+
+The library-first splits (LIB-01..47, `LIBRARIES.md`) placed new pure modules in the target packages first. Code moved
+out of `engine.py` or `workers/pipelines.py` therefore never takes a library's file name: it goes into a `pipeline/`
+subpackage of its target package (`read/pipeline/`, `compose/pipeline/`, `derive/pipeline/`, ...) or, where no clash
+exists, the module named in the method map. The wiring package for each library then replaces the moved internals with
+the library and deletes the replaced code in the same PR (ADR-067, no shims).
+
 ## Change log
 - 2026-10-13: first version (X-00), from the layout analysis and the owner's runtime and modularity decisions.
+- 2026-10-13: section 5 (moved engine code goes to `<pkg>/pipeline/` when a library owns the mapped name).
