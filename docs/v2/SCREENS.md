@@ -131,6 +131,27 @@ one-off references per ref arm x slice (about 7 min reader-flag, about 39 min gc
 families). The random sample runs of the same rows would cost about 1,120 min, so targeted slices cost about 10% more than the random
 samples but hold 20-60 wrong target questions instead of 13-15 mostly off-target ones.
 
+## Category 5 (adversarial) slices (S20-CAT5, 2026-10-14)
+
+The category 1-4 slices above never contain LoCoMo category 5 (`run.sh` defaults to `--categories 1,2,3,4`; the source run has none). Category 5
+is where a relevance gate should help: the question is about something never said, and the only correct answer is a refusal.
+
+* **Scoring.** The dataset gives a cat-5 question the gold `ABSTENTION_GOLD` ("Not mentioned in the conversation"), never the file's
+  `adversarial_answer` (that is the distractor, kept for analysis only), and no gold turns. `ABSTENTION_BINARY_PROMPT` (the judge) marks the
+  answer CORRECT if it says the information is not mentioned or points out the wrong person, WRONG if it answers concretely. `eval_sample.py`
+  counts a win when the arm refuses and the reference did not, a loss the other way. A cat-5 sample is not comparable with the 1-4 slices,
+  and has no `tgt_rec` / `ctl_lost`. Caveat: the `J` flags include `--retry-refusal`, which re-asks after a refusal; it applies to the reference
+  and the arm alike, but it can turn a correct refusal into an answer, so a cat-5 number is a measure of "refuses and keeps refusing".
+* **Slices** (`evals/make_cat5_slice.py`, seed 20261013, from `data/locomo10.json`, ids only): `analysis/sample_slice_loc_cat5_s20261013.json`
+  (80 of the 446 cat-5 questions, all 10 conversations, largest remainder on the per-conversation population: 9/4/7/11/12/6/7/9/7/8) and
+  `..._c3.json` (30 questions in conv-42/48/50, the conversations of the 60-question gc3 sample, for engine-LLM rows). Metadata `categories: [5]`.
+* **Map flag.** A sixth column `categories=5` in `v2_slice_map.tsv` makes the queue pass `--categories 5` to `run.sh` (the dataset filters by
+  category before `--query-ids`, so the flag is required) for the arm AND its reference. The reference gets its own cached name
+  (`smp-ref-<ref arm>-<commit>-sample-loc-cat5-80-s20261013-cat5`); a row without the column behaves exactly as before.
+* **Mapped screens.** S20 (`read.gate_v2`): cat5 plus `fail_mix_120` (it must not break correct 1-4 answers), and its OP-Bench sample slice as
+  before. S55 (`deep_v2`) and S63 (read-v2-safe) also get a cat5 row because their arms contain `gate_v2`; S55's reference is the S20 arm, so
+  its cat5 row is relative to the gate. S56 (`scr-b7-obligations`) contains the gate too but targets lists and is not mapped.
+
 ## How to run the whole batch
 
 1. Merge the wiring branches first. The queue is pinned to ONE commit (`--commit`, default HEAD) and `pinned_run.sh` builds that

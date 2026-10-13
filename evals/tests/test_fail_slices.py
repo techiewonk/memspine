@@ -160,11 +160,12 @@ def test_map_matches_the_derivation_and_points_at_real_slices():
     rows = bts.build_map(queue, smap)
     assert (EVALS / "v2_slice_map.tsv").read_text(encoding="utf-8") == bts.render_map(rows)
     ids = {q["id"] for q in queue}
-    for sid, st, sl, slg, _ in rows:
+    for sid, st, sl, slg, *_ in rows:
         assert sid in ids and st == "loc" and (EVALS / sl).exists() and (EVALS / slg).exists()
     by = {}
     for r in rows:
-        by.setdefault(r[0], []).append(Path(r[2]).name)
+        if Path(r[2]).name.startswith("fail_slice_"):  # the category-5 rows (S20-CAT5) are tested in test_cat5_slice.py
+            by.setdefault(r[0], []).append(Path(r[2]).name)
     fam = lambda sid: {re.sub(r"fail_slice_|_s20261013\.json", "", n) for n in by[sid]}  # noqa: E731
     assert fam("S34") == fam("S35") == fam("S40") == {"fail_list"}
     assert fam("S60") == fam("S67") == fam("S14") == fam("S51") == {"fail_fusion", "fail_mix_120"}
