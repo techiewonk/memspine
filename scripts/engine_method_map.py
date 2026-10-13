@@ -60,7 +60,7 @@ WP_BY_PACKAGE = {
     "config": "F-07",
     "observability": "F-13a",
 }
-# F-10b takes gate / timeview / deep; F-13b rest+mcp is not in engine.py (protocols/*).
+# F-10b takes gate / timeview / deep; F-13b rest+mcp is not in engine.py (api/rest, api/mcp, api/tools).
 WP_BY_MODULE = {
     "read/gate.py": "F-10b",
     "read/timeview.py": "F-10b",

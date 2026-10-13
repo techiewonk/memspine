@@ -1,7 +1,7 @@
 """FastAPI app over ONE Engine (D-06, ``[rest]``).
 
 #51: ``rest.auth.mode`` (``api_key`` | ``oidc_jwt``) turns on the reference auth
-middleware in :mod:`memspine.protocols.rest.auth` (ADR-041): it binds a principal
+middleware in :mod:`memspine.api.rest.auth` (ADR-041): it binds a principal
 and its allowed namespaces to each request and guards the admin routes. It is a
 reference, not a production auth plane. The rest of this note describes the
 default, ``mode: none``.
@@ -38,11 +38,8 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 
 from memspine.api.engine import Engine
-from memspine.config import constants
-from memspine.config.schema import RestConfig, RestRateLimitConfig
-from memspine.exceptions import ConflictError, MemspineError, MissingServiceError
-from memspine.observability.logging import get_logger
-from memspine.protocols.rest.auth import (
+from memspine.api.handle import Memory
+from memspine.api.rest.auth import (
     Authenticator,
     AuthError,
     Principal,
@@ -50,7 +47,7 @@ from memspine.protocols.rest.auth import (
     is_admin_path,
     route_path,
 )
-from memspine.protocols.rest.models import (
+from memspine.api.rest.models import (
     AssembleRequest,
     AssembleResponse,
     CorrectRequest,
@@ -70,6 +67,12 @@ from memspine.protocols.rest.models import (
     WriteMessagesRequest,
     WriteRequest,
 )
+from memspine.config import constants
+from memspine.config.schema import RestConfig, RestRateLimitConfig
+from memspine.exceptions import ConflictError, MemspineError, MissingServiceError
+from memspine.observability import tap
+from memspine.observability.logging import get_logger
+from memspine.read.tiers import ReadRequestError
 from memspine.store.records import MemoryRecord, SourceInfo
 from memspine.store.scope import validate_namespace
 from memspine.trust.audit import TaintReport
@@ -78,6 +81,10 @@ from memspine.trust.privacy import principal_scope
 __all__ = ["build_app", "resolve_namespace", "resolve_operator"]
 
 _log = get_logger(__name__)
+
+_TRUE = frozenset({"1", "true", "yes"})
+#: POST routes that only read (every GET reads too); the rest write or run maintenance.
+_READ_POSTS = frozenset({"/search", "/assemble", "/retrieve"})
 
 
 async def resolve_namespace(
@@ -231,6 +238,20 @@ def build_app(engine: Engine, rest: RestConfig | None = None) -> FastAPI:
             return _error_response(413, MemspineError(f"request body exceeds {cap} bytes"))
         return await call_next(request)
 
+    # ── api.request trace (WT-01): one request trace per call, kind read or write ──
+    # Registered before the auth middleware, so it runs inside it (the principal is bound).
+    # Inert unless the wiretap is on; the tap hashes the namespace, it is never logged.
+
+    @app.middleware("http")
+    async def _trace(
+        request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
+        path = route_path(request.scope)
+        kind = "read" if request.method == "GET" or path in _READ_POSTS else "write"
+        namespace = request.headers.get("x-memspine-namespace", "default")
+        with tap.request(kind, scope=namespace, via="rest", route=path, method=request.method):
+            return await call_next(request)
+
     # ── #51 reference auth middleware (ADR-041) ──────────────────────────────
     # Registered after the body cap, so it runs first: unauthenticated callers
     # never get their body buffered. ``mode: none`` without a rate limit passes
@@ -297,9 +318,19 @@ def build_app(engine: Engine, rest: RestConfig | None = None) -> FastAPI:
     app.add_exception_handler(ConflictError, _conflict)
     app.add_exception_handler(MissingServiceError, _missing_service)
     app.add_exception_handler(MemspineError, _memspine_error)
+    app.add_exception_handler(ReadRequestError, _memspine_error)
     app.add_exception_handler(Exception, _unknown)
 
     # ── core verbs ───────────────────────────────────────────────────────────
+    # Every route builds a scoped ``Memory`` handle per request (G-16 D, G-17 C): the
+    # namespace comes from the checked header, the principal and the viewer from the
+    # authentication middleware. A body cannot carry either (models forbid extras).
+
+    def scope(request: Request, ns: str, *, purpose: str | None = None) -> Memory:
+        principal = _principal(request)
+        name = principal.name if principal is not None else None
+        multi = request.headers.get("x-memspine-multi-party", "").strip().lower() in _TRUE
+        return Memory(engine, ns, principal=name, viewer=name, purpose=purpose, multi_party=multi)
 
     @app.post("/write")
     async def write(body: WriteRequest, ns: Namespace, request: Request) -> MemoryRecord:
@@ -310,9 +341,8 @@ def build_app(engine: Engine, rest: RestConfig | None = None) -> FastAPI:
         # the firewall. The role is preserved for provenance only.
         # Under auth, source.principal and the actor are the bound principal.
         source = _bound_source(request, body.source or SourceInfo(role=body.actor))
-        return await engine.write(
+        return await scope(request, ns).remember(
             body.content,
-            namespace=ns,
             memory_type=body.memory_type,
             source=source,
             pii_tier=body.pii_tier,
@@ -333,17 +363,16 @@ def build_app(engine: Engine, rest: RestConfig | None = None) -> FastAPI:
         # role — the per-turn role is preserved for provenance only.
         turns = [{"role": turn.role, "content": turn.content} for turn in body.messages]
         actor = _actor(request, body.actor)
+        mem = scope(request, ns)
         if body.as_episode:
-            return await engine.write_episode(turns, namespace=ns, actor=actor, channel="rest")
-        return await engine.write_messages(turns, namespace=ns, actor=actor, channel="rest")
+            return await mem.write_episode(turns, actor=actor, channel="rest")
+        return await mem.write_messages(turns, actor=actor, channel="rest")
 
     @app.post("/search")
-    async def search(body: SearchRequest, ns: Namespace) -> list[ScoredRecord]:
-        scored = await engine.search(
+    async def search(body: SearchRequest, ns: Namespace, request: Request) -> list[ScoredRecord]:
+        scored = await scope(request, ns, purpose=body.purpose).recall(
             body.query,
-            namespace=ns,
             top_k=body.top_k,
-            purpose=body.purpose,
             valid_from_after=body.valid_from_after,
             valid_from_before=body.valid_from_before,
             valid_to_after=body.valid_to_after,
@@ -355,13 +384,11 @@ def build_app(engine: Engine, rest: RestConfig | None = None) -> FastAPI:
         return [ScoredRecord(record=record, score=score) for record, score in scored]
 
     @app.post("/assemble")
-    async def assemble(body: AssembleRequest, ns: Namespace) -> AssembleResponse:
-        context = await engine.assemble(
+    async def assemble(body: AssembleRequest, ns: Namespace, request: Request) -> AssembleResponse:
+        context = await scope(request, ns, purpose=body.purpose).compose(
             body.query,
-            namespace=ns,
-            budget_tokens=body.budget_tokens,
+            body.budget_tokens,
             top_k=body.top_k,
-            purpose=body.purpose,
             as_of=body.as_of,
         )
         return AssembleResponse(
@@ -372,20 +399,19 @@ def build_app(engine: Engine, rest: RestConfig | None = None) -> FastAPI:
         )
 
     @app.post("/retrieve")
-    async def retrieve(body: RetrieveRequest, ns: Namespace) -> list[MemoryRecord]:
-        return await engine.retrieve(
-            namespace=ns, memory_type=body.memory_type, purpose=body.purpose
-        )
+    async def retrieve(
+        body: RetrieveRequest, ns: Namespace, request: Request
+    ) -> list[MemoryRecord]:
+        return await scope(request, ns, purpose=body.purpose).retrieve(memory_type=body.memory_type)
 
     @app.post("/feedback")
     async def feedback(body: FeedbackRequest, ns: Namespace, request: Request) -> MemoryRecord:
         # #54: counts only; the bounded utility transform caps what a caller can move.
-        return await engine.feedback(
+        return await scope(request, ns).feedback(
             body.record_id,
             body.signal,
             note=body.note,
             actor=_actor(request, body.actor),
-            namespace=ns,
         )
 
     @app.delete("/records/{record_id}")
@@ -396,8 +422,8 @@ def build_app(engine: Engine, rest: RestConfig | None = None) -> FastAPI:
         hard: bool = False,
         reason: str | None = None,
     ) -> dict[str, Any]:
-        await engine.forget(
-            record_id, namespace=ns, hard=hard, actor=_actor(request, "user"), reason=reason
+        await scope(request, ns).forget(
+            record_id, hard=hard, actor=_actor(request, "user"), reason=reason
         )
         return {"record_id": record_id, "forgotten": True, "hard": hard}
 
@@ -412,20 +438,19 @@ def build_app(engine: Engine, rest: RestConfig | None = None) -> FastAPI:
         else:
             raise MemspineError("correct needs record_id or entity + attribute")
         actor = _actor(request, body.actor)
-        return await engine.correct(
+        return await scope(request, ns).correct(
             target,
             body.new_value,
             actor=actor,
             reason=body.reason,
-            namespace=ns,
             source=_bound_source(request, SourceInfo(role=body.actor)),
         )
 
     # ── quarantine review (#3) ───────────────────────────────────────────────
 
     @app.get("/quarantine", dependencies=admin_only)
-    async def list_quarantined(ns: Namespace) -> list[MemoryRecord]:
-        return await engine.list_quarantined(namespace=ns)
+    async def list_quarantined(ns: Namespace, request: Request) -> list[MemoryRecord]:
+        return await scope(request, ns).list_quarantined()
 
     # The decisions are operator-only (resolve_operator): the namespace header
     # is the tenant, and a tenant could otherwise release its own poison.
@@ -435,12 +460,12 @@ def build_app(engine: Engine, rest: RestConfig | None = None) -> FastAPI:
         record_id: str,
         ns: Namespace,
         operator: Operator,
+        request: Request,
         body: QuarantineDecision | None = None,
     ) -> MemoryRecord:
         decision = body or QuarantineDecision()
-        return await engine.approve_quarantined(
+        return await scope(request, ns).approve_quarantined(
             record_id,
-            namespace=ns,
             actor=operator,
             principal=operator,
             reason=decision.reason or "operator_approved",
@@ -451,64 +476,64 @@ def build_app(engine: Engine, rest: RestConfig | None = None) -> FastAPI:
         record_id: str,
         ns: Namespace,
         operator: Operator,
+        request: Request,
         body: QuarantineDecision | None = None,
     ) -> MemoryRecord:
         decision = body or QuarantineDecision()
-        return await engine.reject_quarantined(
+        return await scope(request, ns).reject_quarantined(
             record_id,
-            namespace=ns,
             actor=operator,
             reason=decision.reason or "operator_rejected",
         )
 
     @app.get("/describe")
-    async def describe() -> dict[str, Any]:
-        return engine.describe()
+    async def describe(request: Request) -> dict[str, Any]:
+        return scope(request, "default").describe()
 
     # ── procedural (M13.4 / E6) ──────────────────────────────────────────────
 
     @app.post("/skills")
-    async def add_skill(body: SkillRequest, ns: Namespace) -> MemoryRecord:
-        return await engine.add_skill(body.content, body.name, namespace=ns, actor=body.actor)
+    async def add_skill(body: SkillRequest, ns: Namespace, request: Request) -> MemoryRecord:
+        return await scope(request, ns).add_skill(body.content, body.name, actor=body.actor)
 
     @app.post("/skills/{record_id}/promote")
     async def promote_skill(
-        record_id: str, ns: Namespace, body: PromoteRequest | None = None
+        record_id: str, ns: Namespace, request: Request, body: PromoteRequest | None = None
     ) -> MemoryRecord:
         dry_run_passed = body.dry_run_passed if body is not None else False
-        return await engine.promote_skill(record_id, namespace=ns, dry_run_passed=dry_run_passed)
+        return await scope(request, ns).promote_skill(record_id, dry_run_passed=dry_run_passed)
 
     @app.delete("/skills/{record_id}")
-    async def deprecate_skill(record_id: str, ns: Namespace) -> MemoryRecord:
-        return await engine.deprecate_skill(record_id, namespace=ns)
+    async def deprecate_skill(record_id: str, ns: Namespace, request: Request) -> MemoryRecord:
+        return await scope(request, ns).deprecate_skill(record_id)
 
     @app.post("/plans")
-    async def record_plan(body: PlanRequest, ns: Namespace) -> MemoryRecord:
-        return await engine.record_plan(body.task, body.content, namespace=ns, actor=body.actor)
+    async def record_plan(body: PlanRequest, ns: Namespace, request: Request) -> MemoryRecord:
+        return await scope(request, ns).record_plan(body.task, body.content, actor=body.actor)
 
     @app.get("/plans/recall")
     async def recall_plan(
         task: str,
         ns: Namespace,
+        request: Request,
         min_similarity: float = constants.PLAN_RECALL_MIN_SIMILARITY,
     ) -> MemoryRecord | None:
-        return await engine.recall_plan(task, namespace=ns, min_similarity=min_similarity)
+        return await scope(request, ns).recall_plan(task, min_similarity=min_similarity)
 
     # ── reflective (M13.7) ───────────────────────────────────────────────────
 
     @app.post("/reflect")
-    async def reflect(body: ReflectRequest, ns: Namespace) -> MemoryRecord:
-        return await engine.reflect(
-            body.content, body.source_record_ids, namespace=ns, actor=body.actor
+    async def reflect(body: ReflectRequest, ns: Namespace, request: Request) -> MemoryRecord:
+        return await scope(request, ns).reflect(
+            body.content, body.source_record_ids, actor=body.actor
         )
 
     # ── prospective (M13.8) ──────────────────────────────────────────────────
 
     @app.post("/watches")
-    async def watch(body: WatchRequest, ns: Namespace) -> MemoryRecord:
-        return await engine.watch(
+    async def watch(body: WatchRequest, ns: Namespace, request: Request) -> MemoryRecord:
+        return await scope(request, ns).watch(
             body.content,
-            namespace=ns,
             due_at=body.due_at,
             entity=body.entity,
             attribute=body.attribute,
@@ -516,40 +541,41 @@ def build_app(engine: Engine, rest: RestConfig | None = None) -> FastAPI:
         )
 
     @app.get("/watches/due")
-    async def due(ns: Namespace, now: datetime | None = None) -> list[MemoryRecord]:
-        return await engine.due(namespace=ns, now=now)
+    async def due(
+        ns: Namespace, request: Request, now: datetime | None = None
+    ) -> list[MemoryRecord]:
+        return await scope(request, ns).due(now=now)
 
     @app.post("/watches/{record_id}/ack")
-    async def acknowledge_watch(record_id: str, ns: Namespace) -> MemoryRecord:
-        return await engine.acknowledge_watch(record_id, namespace=ns)
+    async def acknowledge_watch(record_id: str, ns: Namespace, request: Request) -> MemoryRecord:
+        return await scope(request, ns).acknowledge_watch(record_id)
 
     # ── shared (R2) ──────────────────────────────────────────────────────────
 
     @app.post("/grants")
     async def grant(body: GrantRequest, ns: Namespace, request: Request) -> MemoryRecord:
-        return await engine.grant(
+        return await scope(request, ns).grant(
             body.to_namespace,
-            namespace=ns,
             memory_types=body.memory_types,
             actor=_actor(request, body.actor),
         )
 
     @app.delete("/grants")
     async def revoke(to_namespace: str, ns: Namespace, request: Request) -> MemoryRecord:
-        return await engine.revoke(to_namespace, namespace=ns, actor=_actor(request, "user"))
+        return await scope(request, ns).revoke(to_namespace, actor=_actor(request, "user"))
 
     @app.get("/shared_search")
     async def shared_search(
-        query: str, ns: Namespace, top_k: int = constants.SEARCH_TOP_K
+        query: str, ns: Namespace, request: Request, top_k: int = constants.SEARCH_TOP_K
     ) -> list[ScoredRecord]:
-        scored = await engine.shared_search(query, namespace=ns, top_k=top_k)
+        scored = await scope(request, ns).shared_search(query, top_k=top_k)
         return [ScoredRecord(record=record, score=score) for record, score in scored]
 
     @app.get("/grants")
-    async def grants_from(ns: Namespace) -> list[GrantView]:
+    async def grants_from(ns: Namespace, request: Request) -> list[GrantView]:
         """Live grants ``ns`` has issued (operator listing surface, ADR-016).
         Scoped to the caller — never another namespace's grants."""
-        grants = await engine.grants_from(namespace=ns)
+        grants = await scope(request, ns).grants_from()
         return [
             GrantView(
                 grantor=grant.grantor,
@@ -561,12 +587,12 @@ def build_app(engine: Engine, rest: RestConfig | None = None) -> FastAPI:
         ]
 
     @app.post("/subscriptions")
-    async def subscribe(body: SubscriptionRequest, ns: Namespace) -> MemoryRecord:
-        return await engine.subscribe(body.query, namespace=ns, actor=body.actor)
+    async def subscribe(body: SubscriptionRequest, ns: Namespace, request: Request) -> MemoryRecord:
+        return await scope(request, ns).subscribe(body.query, actor=body.actor)
 
     @app.get("/subscriptions")
-    async def subscriptions(ns: Namespace) -> list[MemoryRecord]:
-        return await engine.subscriptions(namespace=ns)
+    async def subscriptions(ns: Namespace, request: Request) -> list[MemoryRecord]:
+        return await scope(request, ns).subscriptions()
 
     # ── maintenance + governance ─────────────────────────────────────────────
     # ⚠️  ADR-018: /sleep, /rebuild and /audit/taint are engine-global or
@@ -574,30 +600,31 @@ def build_app(engine: Engine, rest: RestConfig | None = None) -> FastAPI:
     # network boundary — never expose them to tenant callers.
 
     @app.post("/sleep", dependencies=admin_only)
-    async def sleep() -> dict[str, dict[str, Any]]:
-        return await engine.sleep()
+    async def sleep(request: Request) -> dict[str, dict[str, Any]]:
+        return await scope(request, "default").sleep()
 
     @app.post("/rebuild", dependencies=admin_only)
-    async def rebuild() -> dict[str, int]:
-        return await engine.rebuild()
+    async def rebuild(request: Request) -> dict[str, int]:
+        return await scope(request, "default").rebuild()
 
     @app.get("/export", dependencies=admin_only)
     async def export(
         ns: Namespace,
+        request: Request,
         subject: str | None = None,
         include_history: bool = True,
         include_events: bool = False,
     ) -> Response:
         # #46 subject-access export (JSONL). Operator route: admin role under auth.
-        lines = await engine.export(
-            ns, subject=subject, include_history=include_history, include_events=include_events
+        lines = await scope(request, ns).export(
+            subject=subject, include_history=include_history, include_events=include_events
         )
         return Response(content="\n".join(lines) + "\n", media_type="application/x-ndjson")
 
     @app.get("/audit/taint/{record_id}")
-    async def audit_taint(record_id: str, ns: Namespace) -> TaintReport:
+    async def audit_taint(record_id: str, ns: Namespace, request: Request) -> TaintReport:
         # SEC-C3/ADR-018: scope the seed to the caller's namespace so a leaked
         # record_id cannot be used to walk another tenant's derivation trail.
-        return await engine.audit_taint(record_id, namespace=ns)
+        return await scope(request, ns).audit_taint(record_id)
 
     return app

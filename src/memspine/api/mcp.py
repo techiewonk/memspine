@@ -2,11 +2,11 @@
 
 A minimal Model Context Protocol handler: newline-delimited JSON-RPC 2.0 with
 ``initialize``, ``ping``, ``tools/list`` and ``tools/call``, serving the I65 tool-set
-(:mod:`memspine.protocols.tools`). No SDK is needed; Claude Code, Claude Desktop, Cursor
+(:mod:`memspine.api.tools`). No SDK is needed; Claude Code, Claude Desktop, Cursor
 and other stdio clients can launch it as a subprocess.
 
 The namespace, principal and profile come from the server's start-up configuration
-(:class:`~memspine.protocols.tools.ToolContext`), never from the model's arguments. Every
+(:class:`~memspine.api.tools.ToolContext`), never from the model's arguments. Every
 write lands on the trust-capped ``agent_tool`` channel and goes through the firewall.
 Stdout carries ONLY protocol frames; diagnostics go to stderr.
 """
@@ -18,8 +18,8 @@ import json
 import sys
 from typing import IO, Any
 
+from memspine.api.tools import AgentMemoryTools, ToolSpec
 from memspine.observability.logging import get_logger
-from memspine.protocols.tools import AgentMemoryTools, ToolSpec
 
 __all__ = ["PROTOCOL_VERSIONS", "McpServer", "serve_stdio"]
 
