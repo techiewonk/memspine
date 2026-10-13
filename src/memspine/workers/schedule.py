@@ -24,8 +24,10 @@ from memspine.workers.runner import TaskRunner
 _log = get_logger(__name__)
 
 __all__ = [
+    "HISTORIES_STAGE",
     "PREDICT_CALIBRATE_STAGE",
     "PROJECT_FACTS_STAGE",
+    "RECONCILE_STAGE",
     "RETENTION_STAGE",
     "RULE_EDGES_STAGE",
     "SLEEP_CYCLE_ORDER",
@@ -77,6 +79,16 @@ RULE_EDGES_STAGE = "rule_edges"
 PROJECT_FACTS_STAGE = "project_facts"
 
 
+#: O4-03: runs after ``extract_graph``/``rule_edges`` (the fresh facts are folded before summaries
+#: read them), only when ``offline.reconcile_v2`` is on, so the default cycle is unchanged.
+RECONCILE_STAGE = "reconcile"
+
+
+#: O4-04: runs right after ``reconcile`` (a superseded value is never merged into a live one), only
+#: when ``offline.histories_v2`` is on, so the default cycle is unchanged.
+HISTORIES_STAGE = "histories"
+
+
 def _predict_calibrate_on(ctx: PipelineContext) -> bool:
     mem = ctx.config.memories.get("episodic")
     options = mem.policies.get("consolidation") if mem is not None else None
@@ -94,6 +106,17 @@ async def run_sleep_cycle(runner: TaskRunner, ctx: PipelineContext) -> dict[str,
     if rule_edges_options(ctx.config) is not None:
         at = order.index("extract_graph") + 1
         order = (*order[:at], RULE_EDGES_STAGE, *order[at:])
+    if ctx.config.offline.reconcile_v2 or ctx.config.offline.histories_v2:
+        at = order.index(RULE_EDGES_STAGE if RULE_EDGES_STAGE in order else "extract_graph") + 1
+        extra = tuple(
+            name
+            for name, on in (
+                (RECONCILE_STAGE, ctx.config.offline.reconcile_v2),
+                (HISTORIES_STAGE, ctx.config.offline.histories_v2),
+            )
+            if on
+        )
+        order = (*order[:at], *extra, *order[at:])
     if ctx.config.retention.classes:
         order = (RETENTION_STAGE, *order)
     stats: dict[str, dict[str, object]] = {}

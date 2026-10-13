@@ -8,7 +8,7 @@ surface — all offline (hash embedder, in-memory DB).
 
 REST (pip install memspine[rest]) — two lines, engine lifecycle stays yours:
 
-    from memspine.protocols.rest import create_app
+    from memspine.api.rest import create_app
     app = create_app(engine)  # serve with: uvicorn my_module:app
 
 ⚠️  The REST app has NO authn in v0.1: the caller's namespace comes from the

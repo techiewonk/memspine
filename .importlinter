@@ -151,7 +151,9 @@ source_modules =
     memspine.core
 forbidden_modules =
     memspine.api.engine
-    memspine.protocols
+    memspine.api.rest
+    memspine.api.mcp
+    memspine.api.tools
     memspine.workers
     memspine.memories
     memspine.services
@@ -166,7 +168,9 @@ source_modules =
     memspine.clients
 forbidden_modules =
     memspine.api.engine
-    memspine.protocols
+    memspine.api.rest
+    memspine.api.mcp
+    memspine.api.tools
     memspine.workers
     memspine.memories
     memspine.services
@@ -181,7 +185,9 @@ source_modules =
     memspine.services
 forbidden_modules =
     memspine.api.engine
-    memspine.protocols
+    memspine.api.rest
+    memspine.api.mcp
+    memspine.api.tools
     memspine.workers
     memspine.memories
     memspine.cli
@@ -194,7 +200,9 @@ source_modules =
     memspine.memories
 forbidden_modules =
     memspine.api.engine
-    memspine.protocols
+    memspine.api.rest
+    memspine.api.mcp
+    memspine.api.tools
     memspine.workers
     memspine.cli
 allow_indirect_imports = True
@@ -206,7 +214,9 @@ source_modules =
     memspine.workers
 forbidden_modules =
     memspine.api.engine
-    memspine.protocols
+    memspine.api.rest
+    memspine.api.mcp
+    memspine.api.tools
     memspine.cli
 allow_indirect_imports = True
 
@@ -219,7 +229,9 @@ source_modules =
     memspine.observability
 forbidden_modules =
     memspine.api.engine
-    memspine.protocols
+    memspine.api.rest
+    memspine.api.mcp
+    memspine.api.tools
     memspine.workers
     memspine.memories
     memspine.services
@@ -233,6 +245,8 @@ type = forbidden
 source_modules =
     memspine.api.engine
 forbidden_modules =
-    memspine.protocols
+    memspine.api.rest
+    memspine.api.mcp
+    memspine.api.tools
     memspine.cli
 allow_indirect_imports = True

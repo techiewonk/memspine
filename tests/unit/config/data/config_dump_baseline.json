@@ -48,7 +48,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -143,6 +144,11 @@
     "sink": "jsonl"
    },
    "write_timers": false
+  },
+  "offline": {
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "reconcile_v2": false
   },
   "plugins": [],
   "profile": "simple",
@@ -498,7 +504,7 @@
    "window_topic_k": 2.0
   }
  },
- "json_schema_sha256": "f37b12ffb3fc8079139a606c83aa7a296c49cc66069e472c6b03591244c88a41",
+ "json_schema_sha256": "53c85c6f1c90721c20a6e7f5c114702ebba67457d019908a81bcd114135a3c7e",
  "preset:chat_roles": {
   "audit": {
    "actions": false,
@@ -548,7 +554,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -664,6 +671,11 @@
     "sink": "jsonl"
    },
    "write_timers": false
+  },
+  "offline": {
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "reconcile_v2": false
   },
   "plugins": [],
   "profile": "simple",
@@ -1078,7 +1090,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -1190,6 +1203,11 @@
     "sink": "jsonl"
    },
    "write_timers": false
+  },
+  "offline": {
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "reconcile_v2": false
   },
   "plugins": [],
   "profile": "simple",
@@ -1604,7 +1622,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -1716,6 +1735,11 @@
     "sink": "jsonl"
    },
    "write_timers": false
+  },
+  "offline": {
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "reconcile_v2": false
   },
   "plugins": [],
   "profile": "simple",
@@ -2130,7 +2154,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -2242,6 +2267,11 @@
     "sink": "jsonl"
    },
    "write_timers": false
+  },
+  "offline": {
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "reconcile_v2": false
   },
   "plugins": [],
   "profile": "simple",
@@ -2656,7 +2686,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -2768,6 +2799,11 @@
     "sink": "jsonl"
    },
    "write_timers": false
+  },
+  "offline": {
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "reconcile_v2": false
   },
   "plugins": [],
   "profile": "simple",
@@ -3182,7 +3218,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -3294,6 +3331,11 @@
     "sink": "jsonl"
    },
    "write_timers": false
+  },
+  "offline": {
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "reconcile_v2": false
   },
   "plugins": [],
   "profile": "simple",
@@ -3708,7 +3750,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -3820,6 +3863,11 @@
     "sink": "jsonl"
    },
    "write_timers": false
+  },
+  "offline": {
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "reconcile_v2": false
   },
   "plugins": [],
   "profile": "simple",
@@ -4234,7 +4282,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -4346,6 +4395,11 @@
     "sink": "jsonl"
    },
    "write_timers": false
+  },
+  "offline": {
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "reconcile_v2": false
   },
   "plugins": [],
   "profile": "assistant",
@@ -4760,7 +4814,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -4872,6 +4927,11 @@
     "sink": "jsonl"
    },
    "write_timers": false
+  },
+  "offline": {
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "reconcile_v2": false
   },
   "plugins": [],
   "profile": "simple",
@@ -5286,7 +5346,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -5405,6 +5466,11 @@
     "sink": "jsonl"
    },
    "write_timers": false
+  },
+  "offline": {
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "reconcile_v2": false
   },
   "plugins": [],
   "profile": "benchmark",
@@ -5821,7 +5887,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -5938,6 +6005,11 @@
     "sink": "jsonl"
    },
    "write_timers": false
+  },
+  "offline": {
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "reconcile_v2": false
   },
   "plugins": [],
   "profile": "coding",
@@ -6352,7 +6424,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -6460,6 +6533,11 @@
     "sink": "jsonl"
    },
    "write_timers": false
+  },
+  "offline": {
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "reconcile_v2": false
   },
   "plugins": [],
   "profile": "core",
@@ -6864,7 +6942,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -6984,6 +7063,11 @@
     "sink": "jsonl"
    },
    "write_timers": false
+  },
+  "offline": {
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "reconcile_v2": false
   },
   "plugins": [],
   "profile": "graph",
@@ -7398,7 +7482,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -7514,6 +7599,11 @@
     "sink": "jsonl"
    },
    "write_timers": false
+  },
+  "offline": {
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "reconcile_v2": false
   },
   "plugins": [],
   "profile": "multi_agent",
@@ -7928,7 +8018,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -8048,6 +8139,11 @@
     "sink": "jsonl"
    },
    "write_timers": false
+  },
+  "offline": {
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "reconcile_v2": false
   },
   "plugins": [],
   "profile": "personal",
@@ -8462,7 +8558,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -8574,6 +8671,11 @@
     "sink": "jsonl"
    },
    "write_timers": false
+  },
+  "offline": {
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "reconcile_v2": false
   },
   "plugins": [],
   "profile": "protected",
@@ -8988,7 +9090,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": true,
@@ -9101,6 +9204,11 @@
     "sink": "jsonl"
    },
    "write_timers": false
+  },
+  "offline": {
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "reconcile_v2": false
   },
   "plugins": [],
   "profile": "regulated_financial",
@@ -9515,7 +9623,8 @@
    "query_instruction": null,
    "query_prompt_name": null,
    "request_dimensions": false,
-   "trust_remote_code": false
+   "trust_remote_code": false,
+   "versioned_spaces": false
   },
   "event_log": {
    "compress": true,
@@ -9629,6 +9738,11 @@
     "sink": "jsonl"
    },
    "write_timers": false
+  },
+  "offline": {
+   "histories_v2": false,
+   "near_duplicate_text": 0.8,
+   "reconcile_v2": false
   },
   "plugins": [],
   "profile": "voice",
