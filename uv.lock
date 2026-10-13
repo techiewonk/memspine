@@ -2604,6 +2604,10 @@ ner = [
 opensearch = [
     { name = "opensearch-py" },
 ]
+otel = [
+    { name = "opentelemetry-api" },
+    { name = "opentelemetry-sdk" },
+]
 postgres = [
     { name = "pgvector" },
     { name = "psycopg", extra = ["binary"] },
@@ -2690,6 +2694,8 @@ requires-dist = [
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.13" },
     { name = "neo4j", marker = "extra == 'neo4j'", specifier = ">=5.26" },
     { name = "opensearch-py", marker = "extra == 'opensearch'", specifier = ">=2.6" },
+    { name = "opentelemetry-api", marker = "extra == 'otel'", specifier = ">=1.27" },
+    { name = "opentelemetry-sdk", marker = "extra == 'otel'", specifier = ">=1.27" },
     { name = "orjson", specifier = ">=3.10" },
     { name = "pgvector", marker = "extra == 'postgres'", specifier = ">=0.3" },
     { name = "psycopg", extras = ["binary"], marker = "extra == 'postgres'", specifier = ">=3.2" },
@@ -2718,7 +2724,7 @@ requires-dist = [
     { name = "xxhash", specifier = ">=3.5" },
     { name = "zstandard", specifier = ">=0.23" },
 ]
-provides-extras = ["graph", "kuzu", "cache", "ingest", "ner", "decider", "community", "compress", "llmlocal", "opensearch", "dbos", "taskiq", "rest", "rerank", "st", "static", "aws", "promptopt", "postgres", "weaviate", "neo4j", "encrypt", "local", "prod-aws", "all", "dev"]
+provides-extras = ["graph", "kuzu", "cache", "ingest", "ner", "decider", "community", "compress", "llmlocal", "opensearch", "dbos", "taskiq", "rest", "otel", "rerank", "st", "static", "aws", "promptopt", "postgres", "weaviate", "neo4j", "encrypt", "local", "prod-aws", "all", "dev"]
 
 [package.metadata.requires-dev]
 dev = [
