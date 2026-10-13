@@ -190,7 +190,8 @@ class DepositFact(Protocol):
     ``kind`` (G1a) is ``state`` / ``event``, or None for an unclassified fact;
     ``happened`` / ``said`` (#29) the fact's happened date and the day it was said;
     ``persons`` / ``location`` / ``topic`` (#28) its multi-view fields;
-    ``require_live`` (W1) more record ids that must still be live, besides the parents."""
+    ``require_live`` (W1) more record ids that must still be live, besides the parents;
+    ``trust_cap`` (W2-06a) a further trust ceiling (the envelope's source trust)."""
 
     def __call__(
         self,
@@ -210,6 +211,7 @@ class DepositFact(Protocol):
         topic: str | None = None,
         extra_tags: Sequence[str] = (),
         require_live: Sequence[str] = (),
+        trust_cap: float | None = None,
     ) -> Awaitable[object]: ...
 
 

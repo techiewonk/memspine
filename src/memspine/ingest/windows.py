@@ -8,11 +8,15 @@ from collections.abc import (
     Sequence,
 )
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from memspine.config import constants
 from memspine.config.schema import MemspineConfig
 from memspine.core.window import WindowSettings
+from memspine.derive.envelope_compiler import EnvelopeCompiler
+from memspine.derive.failure_ledger import FailureLedger
+from memspine.derive.items import ItemValidator, RepairAsk
 from memspine.derive.pipeline.stages.close import session_close
 from memspine.derive.pipeline.stages.context import SessionClosed
 from memspine.derive.segmenter import SegmentationSettings
@@ -25,6 +29,7 @@ from memspine.models.encoders.query.perspective import (
     inherit_perspective_tags,
 )
 from memspine.observability.logging import get_logger
+from memspine.prompts.structured import STRUCTURED_PROMPT_ID, STRUCTURED_VERSION
 from memspine.services.storage.sql_base import SqlStorage
 from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import (
@@ -33,7 +38,12 @@ from memspine.store.records import (
     SourceInfo,
 )
 from memspine.store.scope import validate_namespace
-from memspine.workers.windows import SECTION_MODES, PromptWindowExtractor, WindowPipeline
+from memspine.workers.windows import (
+    SECTION_MODES,
+    EnvelopeWrite,
+    PromptWindowExtractor,
+    WindowPipeline,
+)
 
 _log = get_logger(__name__)
 
@@ -131,6 +141,9 @@ def _build_windows(eng: Any, config: MemspineConfig) -> WindowPipeline | None:
         if _outbox_factory is None:
             raise ConfigError("workers.outbox=true but no outbox factory is registered")
         outbox = _outbox_factory(eng, config)
+    envelope = None
+    if config.write.envelope_v2 and "facts" in sections:
+        envelope = _envelope_write(eng, config)
     return WindowPipeline(
         settings=WindowSettings(
             max_turns=config.write.window_max_turns,
@@ -143,6 +156,7 @@ def _build_windows(eng: Any, config: MemspineConfig) -> WindowPipeline | None:
             eng._llm.for_role("window_extract"),
             eng._prompts.for_role("window_extract"),
             role.model if role is not None else "",
+            items=envelope is not None,
         ),
         get_record=storage.get_record,
         deposit_fact=eng._deposit_mined_fact,
@@ -157,6 +171,25 @@ def _build_windows(eng: Any, config: MemspineConfig) -> WindowPipeline | None:
         outbox=outbox,
         segmentation=_segmentation(config),
         role_policy=config.write.role_policy_v2,
+        envelope=envelope,
+    )
+
+
+def _envelope_write(eng: Any, config: MemspineConfig) -> EnvelopeWrite:
+    """W2-06a (``write.envelope_v2``): compiler, validator, one-shot repair, dead-letter list.
+    The repair call uses the router-bound LLM of the extraction, so the cost ledger counts it."""
+    llm = eng._llm.for_role("window_extract")
+    path = config.storage.path
+    if config.storage.backend == "postgres":
+        data_dir = config.storage.data_dir
+        path = str(Path(data_dir) / "memspine") if data_dir else ":memory:"
+    ledger_path = ":memory:" if path == ":memory:" else f"{path}.deadletters.sqlite"
+    compiler = EnvelopeCompiler(prompt_hash=f"{STRUCTURED_PROMPT_ID}@{STRUCTURED_VERSION}")
+    return EnvelopeWrite(
+        compiler=compiler,
+        validator=ItemValidator(compiler),
+        repair=RepairAsk(llm, max_tokens=4096),
+        ledger=FailureLedger(ledger_path),
     )
 
 

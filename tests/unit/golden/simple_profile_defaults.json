@@ -393,6 +393,7 @@
       "batch_max_tokens": 3000,
       "batch_max_windows": 8,
       "echo_threshold": 0.6,
+      "envelope_v2": false,
       "feedback_operators": [],
       "feedback_v2": false,
       "inferred": "off",

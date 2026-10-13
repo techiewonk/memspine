@@ -87,6 +87,23 @@ class WriteConfig(BaseModel):
     #: Longest a closed window waits for company before its batch goes out (seconds).
     batch_max_age_s: float = Field(default=30.0, ge=0.0)
 
+    #: W2-06a (LIB-05; W-14, W-15, P-05, P-06; needs ``window_extract`` with ``facts``). ``True``:
+    #: the ``facts`` section is extracted as ``ItemV1`` items (compact keys, each citing the
+    #: numbered lines it came from, content only) and every item is validated on its own and
+    #: compiled into a stored ``AssertionEnvelope`` (time axes from the turn stamping, provenance
+    #: class and trust from the cited line's role, evidence roles support / binding / context). An
+    #: invalid item (no citation, a line out of range, only CONTEXT lines cited, a reserved system
+    #: name such as ``trust`` or ``user_id``) is dropped and its siblings kept. At most ONE repair
+    #: re-ask per extraction call carries only the invalid items and their typed errors; an item
+    #: still invalid goes to the persisted dead-letter list (reason code, attempts, item hash; no
+    #: content unless the tap content opt-in is on). A new kind is accepted with a safe default
+    #: (stored as ``event``, never superseding) until 64 kinds exist, then it becomes ``other``.
+    #: Unknown fields are kept in the envelope extras. Taps ``write.item.valid`` /
+    #: ``write.item.repaired`` / ``write.item.dead``. The repair call goes through the LLM router,
+    #: so ``economy.ledger_v2`` counts it. ``edges`` / ``episode`` sections keep their own prompt.
+    #: ``False`` (default): the old fact section.
+    envelope_v2: bool = False
+
     #: F-16a (M-09, G-08, POL-2): the lineage table and the single derived-write door. ``True``:
     #: every derived record written through ``derive/write.py`` gets one lineage edge per parent
     #: (``support`` unless the site names a role), its trust capped at the least-trusted parent, a

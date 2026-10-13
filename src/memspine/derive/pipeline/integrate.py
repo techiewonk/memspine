@@ -211,8 +211,12 @@ async def _deposit_mined_fact(
     topic: str | None = None,
     extra_tags: Sequence[str] = (),
     require_live: Sequence[str] = (),
+    trust_cap: float | None = None,
 ) -> MemoryRecord | None:
     """C6': one mined fact through the write door (firewall, ladder, MTI).
+
+    W2-06a: ``trust_cap`` (envelope v2) is the envelope's system-set source trust; it joins the
+    parents' cap, so a stored fact is never more trusted than its cited line's role allows.
 
     E01: ``extra_tags`` ride along (the write-time projection tags its facts
     ``fact_projection`` / ``projected:<session>``); nothing else about the path changes.
@@ -280,6 +284,8 @@ async def _deposit_mined_fact(
     integrity_cap = await eng._parent_trust_cap(ns, parents)
     if integrity_cap:
         cap = [*(cap or []), *integrity_cap]
+    if trust_cap is not None:
+        cap = [*(cap or []), trust_cap]
     async with eng._write_locks.setdefault(ns, asyncio.Lock()):
         site = "window_extract" if require_live else "mine_facts"
         if await eng._derived_parents_gone(ns, [*parents, *require_live], site):  # I72
