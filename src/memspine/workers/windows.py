@@ -53,6 +53,8 @@ from memspine.derive.envelope_stages import (
     run_envelope_stages,
 )
 from memspine.derive.failure_ledger import FailureLedger
+from memspine.derive.integration_stage import deposit_attribute as integration_attribute
+from memspine.derive.integration_stage import deposit_tags as integration_deposit_tags
 from memspine.derive.items import (
     ItemsOutcome,
     ItemValidator,
@@ -1835,6 +1837,7 @@ class WindowPipeline:
                 if t.startswith("spk:") and t != "spk:"
             }
             tags = ["window_fact", f"window:{window_id}", "envelope_v2", f"src:{env.src_class}"]
+            tags.extend(t for t in integration_deposit_tags(env) if t not in tags)  # W2-10
             if len(speakers) == 1:
                 tags.append(next(iter(speakers)))
             start = env.time.event.start if env.time.event is not None else None
@@ -1847,7 +1850,7 @@ class WindowPipeline:
                     ns,
                     env.text,
                     entity or None,
-                    env.attribute or None,
+                    integration_attribute(env),
                     parents,
                     when,
                     f"win:{window_id}",

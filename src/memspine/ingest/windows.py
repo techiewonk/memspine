@@ -198,7 +198,23 @@ def _envelope_stages(eng: Any, config: MemspineConfig) -> tuple[Any, ...]:
     """W2-06c: the post-compile stage list. Each W2 package appends ONE builder line here, gated
     on its own flag (see ``derive/envelope_stages.py`` for the order)."""
     stages: list[Any] = []
+    if config.write.integration_v2:  # W2-10 (order 400)
+        stages.append(_integration_stage(eng, config))
     return tuple(stages)
+
+
+def _integration_stage(eng: Any, config: MemspineConfig) -> Any:
+    """W2-10: the integration ladder stage over the namespace's live semantic facts."""
+    from memspine.derive.integration_stage import DefaultVerdict, integration_stage
+
+    async def list_live(namespace: str) -> Any:
+        return await eng._storage.list_records(namespace, "semantic")
+
+    return integration_stage(
+        list_live,
+        cardinality=config.write.integration_cardinality,
+        default=DefaultVerdict(defer_without_hints=not config.write.integration_decide_unhinted),
+    )
 
 
 def _segmentation(config: MemspineConfig) -> SegmentationSettings | None:

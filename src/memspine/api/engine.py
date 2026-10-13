@@ -589,7 +589,12 @@ class Engine:
                 storage=self._storage,
                 embedder=self._embedder,
                 append_event=self._append_and_project,
-                conflict=ConflictPolicy.bind(_as_options_dict(semantic_policies.get("conflict"))),
+                conflict=ConflictPolicy.bind(
+                    {
+                        **(_as_options_dict(semantic_policies.get("conflict")) or {}),
+                        **({"integration_v2": True} if config.write.integration_v2 else {}),
+                    }
+                ),
                 dedup=DedupPolicy.bind(_as_options_dict(semantic_policies.get("dedup"))),
                 extractor=(await container.get(SemanticExtractor)).value,
                 write_pipeline=(await container.get(SemanticWritePipeline)).value,
