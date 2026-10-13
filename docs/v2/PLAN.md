@@ -7,9 +7,9 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 
 | Status | Count |
 |---|---|
-| Not started | 19 |
+| Not started | 16 |
 | Ready | 0 |
-| In progress | 0 |
+| In progress | 3 |
 | Blocked | 0 |
 | Needs measurement | 60 |
 | Done | 82 |
@@ -129,11 +129,11 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
 | W2-01 | Source envelope intake, receipt, idempotency, re-ingest | L0 L1 | D K_C | W-01, W-02, W-03, W-24 | ER-06 | EX-1a, LIB-30 | behaviour | write | - | Write p95 at most 250 ms; idempotent retries; receipt never claims an unavailable capability; crash tests at every commit/projector boundary | **Needs measurement** | write.intake_v2 flag-off; idempotent retries, crash-tested commit order, honest receipts, re-ingest versioning; double-send screen pending |
 | W2-02 | Stamping: three clocks, time zone, speaker/addressee/participants, provenance class | L0 L1 L4 scope | D R | W-04, W-05, W-08, M-08 | - | W2-01, LIB-29 | behaviour | write | - | Focus slice non-inferior | **Needs measurement** | write.stamping_v2; alembic 0010 (sqlite+pg); multilingual assent checker; focus non-inferiority screen pending |
-| W2-03 | Role policy, echo guard (marker + last-read overlap) and routing | L0 L1 L5 ctx | D | W-06, W-09 | ER-17 | W2-02, LIB-13 | behaviour | write | - | Focus slice non-inferior | **Not started** |  |
+| W2-03 | Role policy, echo guard (marker + last-read overlap) and routing | L0 L1 L5 ctx | D | W-06, W-09 | ER-17 | W2-02, LIB-13 | behaviour | write | - | Focus slice non-inferior | **In progress** | Sonnet agent launched 2026-10-13 |
 | W2-04 | Firewall at three gates; base plus extended signals | L0 L1 scope | D | W-07, G-06 | - | LIB-38, F-16a | behaviour | write | - | False-positive screen on the behavioural suite | **Needs measurement** | TW-A wired flag-off (integrity.horizon_v2 / consent.v2 / firewall.gates_v2); MINJA FP rate needs OP-Bench screen |
 | W2-05 | Segmentation: adaptive window, time-gap cut, token batching | L0 | D | W-11 | - | W2-01, LIB-14 | behaviour | write | - | Calls per turn down, grounding inside band | **Needs measurement** | write.segmentation_v2; stub calls/turn 0.175 -> 0.015 on 200-turn workload; grounding screen pending |
 | W2-07 | Prompt layout rules: no examples, stable prefix, same language | L0 L1 L3 ctx | D C | W-18, P-07, P-08, P-10 | ER-16 | P0-09, EX-1a, LIB-46 | behaviour | write | - | English output unchanged on focus slice (per partial) | **Needs measurement** | prompts.layout_v2 flag-off; flag-off byte-identical; v2 English diff = examples removed + schema to user part + coarse_date; screen per partial pending |
-| W2-06a | ItemV1 to AssertionEnvelope compile, validation, repair re-ask, dead letters | L0 L1 L3 | D | W-14, W-15, P-05, P-06 | ER-11, ER-15, ER-32 | W2-05, F-16a, LIB-05 | behaviour | S4 extraction (serial) | - | Unit tests; items dropped counted | **Not started** |  |
+| W2-06a | ItemV1 to AssertionEnvelope compile, validation, repair re-ask, dead letters | L0 L1 L3 | D | W-14, W-15, P-05, P-06 | ER-11, ER-15, ER-32 | W2-05, F-16a, LIB-05 | behaviour | S4 extraction (serial) | - | Unit tests; items dropped counted | **In progress** | Sonnet agent launched 2026-10-13 |
 | W2-06b | Prompt v2 and schema-constrained decoding | L0 L1 L3 | D | W-16, P-04, P-09, P-11 | ER-12, ER-15 | W2-06a, W2-07 | behaviour | S4 extraction (serial) | - | Window arm: items dropped down; at most 1 call per window | **Not started** | G-W49 |
 | W2-06c | Online extraction via the outbox with a stage hook list | L1 L3 | D R | W-12 | - | W2-06b, F-04 | behaviour | S4 extraction (serial) | - | No-model template: zero calls; window arm screen | **Not started** |  |
 | W2-14 | Temporal extraction by every means: anchor ladder, basis and precision, relations without dates | L0 L1 L3 L5 | D R | W-04, M-10, R-07 | ER-18 | W2-06c, LIB-01 | behaviour | S4 extraction (serial) | - | Temporal category up; no invented exact dates (precision audit) | **Not started** | Owner I-2 |
@@ -201,7 +201,7 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | T5-03 | Privacy tiers, consent and purpose scopes | L0 L1 L4 | D K_P R C | G-10, G-11 | ER-31 | LIB-18 | behaviour | trust | - | Remote-tier gate tests | **Needs measurement** | TW-A wired flag-off (integrity.horizon_v2 / consent.v2 / firewall.gates_v2); MINJA FP rate needs OP-Bench screen |
 | T5-04 | Erasure index across caches and projections (contract re-run per layer) | L0 L1 L3 L4 L5 ctx scope | D K_C | G-13, M-25 | ER-30, ER-31, POL-1 | LIB-09, F-16a | behaviour | trust | - | Forget probes on both profiles; every layer registered | **Needs measurement** | TW-B wired flag-off (privacy.erasure_v2 / retention.v2 / audit.chain_v2); offline raw-read consent gap open |
 | T5-05 | Retention and audit per profile | L0 L1 L4 L5 ctx scope | D K_C R | G-14, G-15 | ER-27 | LIB-41 | infra | trust | - | Profile tests | **Needs measurement** | TW-B wired flag-off (privacy.erasure_v2 / retention.v2 / audit.chain_v2); offline raw-read consent gap open |
-| T5-06 | Observability: per-stage ledger, optional OTel, no content in spans | L0 L1 L4 L5 ctx scope | D K_C K_P R C G | G-20 | - | W2-12 | infra | trust | - | Tests | **Not started** |  |
+| T5-06 | Observability: per-stage ledger, optional OTel, no content in spans | L0 L1 L4 L5 ctx scope | D K_C K_P R C G | G-20 | - | W2-12 | infra | trust | - | Tests | **In progress** | Sonnet agent launched 2026-10-13 |
 | T5-07 | N1 attack and utility run with enforcement on | L0 L1 scope | D R | G-07, G-06 | - | T5-01, W2-04 | measure | trust | - | Attack/utility frontier | **Not started** |  |
 | EX-5 | Phase 5 exit: behavioural suite, N1, isolation and erasure on both profiles | L0 L1 L4 L5 ctx scope | D K_C K_P R C G | G-01 | - | T5-01, T5-02, T5-03, T5-04, T5-05, T5-06, T5-07 | measure | exit | - | ROADMAP Phase 5 exit gate | **Not started** |  |
 

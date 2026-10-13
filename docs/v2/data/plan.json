@@ -4421,8 +4421,8 @@
    ],
    "kind": "behaviour",
    "gate": "Focus slice non-inferior",
-   "status": "Not started",
-   "note": "",
+   "status": "In progress",
+   "note": "Sonnet agent launched 2026-10-13",
    "layers": [
     "L0",
     "L1",
@@ -4582,8 +4582,8 @@
    ],
    "kind": "behaviour",
    "gate": "Unit tests; items dropped counted",
-   "status": "Not started",
-   "note": "",
+   "status": "In progress",
+   "note": "Sonnet agent launched 2026-10-13",
    "layers": [
     "L0",
     "L1",
@@ -6709,8 +6709,8 @@
    ],
    "kind": "infra",
    "gate": "Tests",
-   "status": "Not started",
-   "note": "",
+   "status": "In progress",
+   "note": "Sonnet agent launched 2026-10-13",
    "layers": [
     "L0",
     "L1",
