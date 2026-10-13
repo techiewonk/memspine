@@ -216,7 +216,7 @@ WP = [
     ("W2-06a", 2, "ItemV1 to AssertionEnvelope compile, validation, repair re-ask, dead letters", ["W-14", "W-15", "P-05", "P-06"],
      ["W2-05", "F-16a", "LIB-05"], "behaviour", "Unit tests; items dropped counted", "Needs measurement", "write.envelope_v2: validate, one repair re-ask, dead letters, kind cap 64; envelope not yet persisted as column"),
     ("W2-06b", 2, "Prompt v2 and schema-constrained decoding", ["W-16", "P-04", "P-09", "P-11"], ["W2-06a", "W2-07"], "behaviour",
-     "Window arm: items dropped down; at most 1 call per window", "Not started", "G-W49"),
+     "Window arm: items dropped down; at most 1 call per window", "In progress", "Sonnet agent launched"),
     ("W2-06c", 2, "Online extraction via the outbox with a stage hook list", ["W-12"], ["W2-06b", "F-04"], "behaviour",
      "No-model template: zero calls; window arm screen", "Not started", ""),
     ("W2-14", 2, "Temporal extraction by every means: anchor ladder, basis and precision, relations without dates", ["W-04", "M-10", "R-07"], ["W2-06c", "LIB-01"], "behaviour",

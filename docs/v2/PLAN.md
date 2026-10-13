@@ -7,9 +7,9 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 
 | Status | Count |
 |---|---|
-| Not started | 16 |
+| Not started | 15 |
 | Ready | 0 |
-| In progress | 0 |
+| In progress | 1 |
 | Blocked | 0 |
 | Needs measurement | 62 |
 | Done | 83 |
@@ -134,7 +134,7 @@ Layers follow the decided stack (Q1): L0 raw, L1 facts, L2 episodes and summarie
 | W2-05 | Segmentation: adaptive window, time-gap cut, token batching | L0 | D | W-11 | - | W2-01, LIB-14 | behaviour | write | - | Calls per turn down, grounding inside band | **Needs measurement** | write.segmentation_v2; stub calls/turn 0.175 -> 0.015 on 200-turn workload; grounding screen pending |
 | W2-07 | Prompt layout rules: no examples, stable prefix, same language | L0 L1 L3 ctx | D C | W-18, P-07, P-08, P-10 | ER-16 | P0-09, EX-1a, LIB-46 | behaviour | write | - | English output unchanged on focus slice (per partial) | **Needs measurement** | prompts.layout_v2 flag-off; flag-off byte-identical; v2 English diff = examples removed + schema to user part + coarse_date; screen per partial pending |
 | W2-06a | ItemV1 to AssertionEnvelope compile, validation, repair re-ask, dead letters | L0 L1 L3 | D | W-14, W-15, P-05, P-06 | ER-11, ER-15, ER-32 | W2-05, F-16a, LIB-05 | behaviour | S4 extraction (serial) | - | Unit tests; items dropped counted | **Needs measurement** | write.envelope_v2: validate, one repair re-ask, dead letters, kind cap 64; envelope not yet persisted as column |
-| W2-06b | Prompt v2 and schema-constrained decoding | L0 L1 L3 | D | W-16, P-04, P-09, P-11 | ER-12, ER-15 | W2-06a, W2-07 | behaviour | S4 extraction (serial) | - | Window arm: items dropped down; at most 1 call per window | **Not started** | G-W49 |
+| W2-06b | Prompt v2 and schema-constrained decoding | L0 L1 L3 | D | W-16, P-04, P-09, P-11 | ER-12, ER-15 | W2-06a, W2-07 | behaviour | S4 extraction (serial) | - | Window arm: items dropped down; at most 1 call per window | **In progress** | Sonnet agent launched |
 | W2-06c | Online extraction via the outbox with a stage hook list | L1 L3 | D R | W-12 | - | W2-06b, F-04 | behaviour | S4 extraction (serial) | - | No-model template: zero calls; window arm screen | **Not started** |  |
 | W2-14 | Temporal extraction by every means: anchor ladder, basis and precision, relations without dates | L0 L1 L3 L5 | D R | W-04, M-10, R-07 | ER-18 | W2-06c, LIB-01 | behaviour | S4 extraction (serial) | - | Temporal category up; no invented exact dates (precision audit) | **Not started** | Owner I-2 |
 | W2-15 | Coverage check and targeted re-extraction (screened) | L1 L3 | D | W-17, W-15 | ER-12 | W2-08, LIB-17 | behaviour | S4 extraction (serial) | - | Omitted-fact recall and unsupported additions measured separately on unseen domains; extra calls counted | **Not started** | ER-12 |
