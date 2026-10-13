@@ -23,6 +23,11 @@ from typing import Any
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 SECTIONS = ("read", "write", "graph")
+#: Keys that decide which candidates reach a reranker (INV-FILLER, R3-07). The overlay is a diff against the
+#: reference arm, so an arm that only adds ``rerank_v2`` would be gated on an engine whose pool is exactly
+#: ``top_k``: the reranker then reorders five hits and cannot recover a relevant record the filler pushed out.
+#: The reference arm sets these; the model-free engine must carry them or it is not the arm being gated.
+POOL_KEYS = ("pool_protect_per_leg", "candidate_pool")
 
 
 def overlay(arm: dict[str, Any], ref: dict[str, Any]) -> dict[str, Any]:
@@ -38,6 +43,14 @@ def overlay(arm: dict[str, Any], ref: dict[str, Any]) -> dict[str, Any]:
     return {s: d for s in SECTIONS if (d := diff(arm.get(s, {}), ref.get(s, {})))}
 
 
+def with_pool_shape(ov: dict[str, Any], arm: dict[str, Any]) -> dict[str, Any]:
+    """When the overlay turns ``read.rerank_v2`` on, add the arm's pool-shape keys (:data:`POOL_KEYS`)."""
+    if not ov.get("read", {}).get("rerank_v2"):
+        return ov
+    pool = {k: v for k in POOL_KEYS if (v := arm.get("read", {}).get(k)) is not None}
+    return {**ov, "read": {**pool, **ov["read"]}}
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("arm")
@@ -45,7 +58,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--json-out", type=Path, default=None)
     a = ap.parse_args(argv)
     load = lambda n: json.loads((HERE / "arms" / f"{n}.json").read_text(encoding="utf-8"))  # noqa: E731
-    ov = overlay(load(a.arm), load(a.ref))
+    arm = load(a.arm)
+    ov = with_pool_shape(overlay(arm, load(a.ref)), arm)
     if not ov:
         print("behavioural: SKIPPED (arm has no read/write/graph difference from the reference)")
         return 0
