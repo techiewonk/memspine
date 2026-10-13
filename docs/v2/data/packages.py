@@ -182,7 +182,7 @@ WP = [
      "Shadow index switch test", "Not started", ""),
     ("F-04", 1, "Durable outbox and inline runner, read barrier; model calls outside namespace locks",
      ["W-02", "W-10", "W-13", "W-25", "G-19", "P-21"], ["F-02b", "LIB-07", "LIB-26"], "behaviour",
-     "Fault-injection tests; golden unchanged with barrier", "Not started", "S4; Q2"),
+     "Fault-injection tests; golden unchanged with barrier", "In progress", "Foundations: durable outbox + inline runner (agent running, parallel with F-02a)"),
     ("RT-01", 1, "Taskiq transport over the outbox: in-memory broker (library), external broker + worker entry point (server)", ["G-19", "W-13"], ["F-04"], "behaviour",
      "Crash tests with both brokers; unfinished rows re-sent on start", "Not started", "Owner 2026-10-13: outbox = truth, taskiq = transport"),
     ("RT-02", 1, "Executors, priority classes, global model semaphore, backpressure (coalesce, never drop)", ["P-20", "W-25", "P-21"], ["RT-01"], "behaviour",
