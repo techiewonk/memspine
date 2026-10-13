@@ -360,3 +360,5 @@ Order of value: S60, S61, S62, S63, S64, S65, S66. If a profile passes, drop one
 `MemspineConfig` raises `ConfigError` naming the missing key when a flag in `REQUIRES` is on without its prerequisite (the table is also
 `FlagSpec.requires` in `memspine.config.flags.registry()`). Soft needs (a bound role) raise only in the arm validator. The cost target
 `coverage_reextract_calls_per_window` (at most 1) now sees the coverage re-extraction calls, which the call-1 target could not.
+
+**S23 decision (coordinator, 2026-10-13):** `read.external_v2` is not screened with live network egress (Wikipedia/HTTP). It stays skipped; screen it later only with an offline `cache` provider seeded from a licensed snapshot, or when the owner explicitly approves egress.
