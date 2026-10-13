@@ -169,6 +169,7 @@ from memspine.observability.logging import (
     EVENT_RETRIEVE,
     get_logger,
 )
+from memspine.observability import tap
 from memspine.observability.timers import StepTimers, timed
 from memspine.prompts.models import (
     ReadPlan,
@@ -660,6 +661,9 @@ class Engine:
                 self._scheduler = SleepScheduler(interval, _tick)
                 self._scheduler.start()
         self._install_write_timers(config)
+        if config.observability.tap.enabled:  # WT-01: debugging wiretap, off by default
+            tap.configure(config.observability.tap)
+            self._tap_owner = True
         self._started = True
         return self
 
@@ -732,10 +736,14 @@ class Engine:
             self.__dict__.pop(attr, None)
         self._timed_attrs = []
         self._write_timers = None
+        if getattr(self, "_tap_owner", False):
+            tap.shutdown()
+            self._tap_owner = False
         self._started = False
 
     # ── public verbs (P0: write / retrieve / rebuild / describe) ─────────────
 
+    @tap.traced("write")
     async def write(
         self,
         content: str,
@@ -1560,6 +1568,7 @@ class Engine:
         """
         return await trust_firewall._parent_trust_cap(self, ns, parents)
 
+    @tap.traced("write")
     async def write_messages(
         self,
         messages: Sequence[Mapping[str, str]],
@@ -1640,6 +1649,7 @@ class Engine:
     async def _prewarm_embeddings(self, texts: Sequence[str]) -> None:
         return await ingest_write._prewarm_embeddings(self, texts)
 
+    @tap.traced("write")
     async def write_episode(
         self,
         messages: Sequence[Mapping[str, str]],
@@ -1736,6 +1746,7 @@ class Engine:
         return await ingest_write._write_screened(self, storage, ns, record, memory_type, actor)
 
     @_passive_scoped
+    @tap.traced("read")
     async def retrieve(
         self,
         namespace: str = 'default',
@@ -1770,6 +1781,7 @@ class Engine:
 
     @_passive_scoped
     @_snapshot_scoped
+    @tap.traced("read")
     async def search(
         self,
         query: str,
@@ -1925,6 +1937,7 @@ class Engine:
 
     @_passive_scoped
     @_snapshot_scoped
+    @tap.traced("read")
     async def assemble(
         self,
         query: str,
@@ -2168,6 +2181,7 @@ class Engine:
 
     @_passive_scoped
     @_snapshot_scoped
+    @tap.traced("read")
     async def read(
         self,
         query: str,
@@ -5047,6 +5061,7 @@ class Engine:
             raise MemspineError("Engine not started — call start() first")
         return self._llm.for_role(role)
 
+    @tap.traced("job")
     async def sleep(self) -> dict[str, dict[str, object]]:
         """Run the maintenance sleep cycle now (M2/E7): consolidate → decay →
         compress → prune. All steps are idempotent; P3 gives them teeth."""
