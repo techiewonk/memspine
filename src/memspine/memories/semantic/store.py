@@ -443,6 +443,16 @@ class SemanticMemory(BaseMemory):
                         )
                     }
                 )
+            late = rule == "R4_historical_backfill"
+            if late and getattr(self._conflict, "integration_v2", False):
+                # W2-10: the older late arrival is history, not an active record
+                backfilled = backfilled.model_copy(
+                    update={
+                        "status": RecordStatus.ARCHIVED,
+                        "superseded_at": incoming.recorded_at,
+                        "evolve_to": existing.record_id,
+                    }
+                )
             await self._write_through(index, backfilled)
             result = SemanticWriteResult(record=backfilled, action="added")
 

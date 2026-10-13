@@ -117,6 +117,28 @@ class WriteConfig(BaseModel):
     #: carries the written precision. ``False`` (default): the model's time text is kept as text only.
     temporal_v2: bool = False
 
+    #: W2-10 (LIB-02; W-21, W-22, M-12). ``True`` (needs ``write.envelope_v2``): an envelope stage at
+    #: order 400 finds the live assertions on each state envelope's (subject, attribute) key (W2-09's
+    #: resolved entity id when present, else the normalised name) and decides the integration operator
+    #: through the conflict ladder: cardinality, then trust tier (the default is above low and an equal
+    #: tier supersedes), then time (a closed past interval coexists), then negation binding (a bound
+    #: negation retires). The verdict (append / supersede / merge / coexist / contest / defer_kc, with
+    #: rung and hint) rides the envelope and the deposit applies it: supersede retires the old value as
+    #: history, coexist and contest keep both (a contest is tagged ``disputed``). An undeclared
+    #: attribute with a conflicting live value and no hint that the value changed is deferred to K_C
+    #: (``offline.reconcile_v2``) and counted (``integrate_defer_kc``). Events and unkeyed facts coexist.
+    #: Taps ``write.integrate.*``. ``False`` (default): the old write door decides alone, unchanged.
+    integration_v2: bool = False
+
+    #: W2-10: operator-declared attribute cardinality for ``write.integration_v2``, attribute name ->
+    #: ``one`` (single-valued: a newer value supersedes) or ``many`` (values coexist). An attribute
+    #: not listed is undeclared (M-12 / W-22: coexist, or deferred to K_C when nothing says it changed).
+    integration_cardinality: dict[str, Literal["one", "many"]] = Field(default_factory=dict)
+
+    #: W2-10: with ``write.integration_v2``, an undeclared key's unhinted conflict is deferred to K_C
+    #: (``False``, default); ``True`` lets the ladder decide it at once (undeclared means many: coexist).
+    integration_decide_unhinted: bool = False
+
     #: F-16a (M-09, G-08, POL-2): the lineage table and the single derived-write door. ``True``:
     #: every derived record written through ``derive/write.py`` gets one lineage edge per parent
     #: (``support`` unless the site names a role), its trust capped at the least-trusted parent, a
